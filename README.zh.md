@@ -246,6 +246,11 @@ iOS 客户端在 [`apps/mobile/`](apps/mobile/)，怎么编译装到自己 iPhon
 
 ## 开源协议
 
-[Multica License](LICENSE) —— Apache License 2.0 全文并入，外加针对托管服务、商业嵌入和品牌标识的
-附加条件。自部署、改代码、在它之上做东西都可以；准确条款以 [LICENSE](LICENSE) 为准，署名信息见
-[NOTICE](NOTICE)。
+Vigil 是 [Multica](https://github.com/multica-ai/multica) 的硬分叉。上游的版权与商标声明保留在本仓库的
+git 历史中。
+
+Vigil 发行版的许可条款由仓库所有者（`@jeff2018`）决定。商业嵌入、托管服务或以其他名义再发行，请直接
+联系仓库所有者。
+
+**关于上游：** Vigil 基于 Multica 以 Multica License 发布的代码。上游的完整许可证与署名记录已按仓库
+所有者要求从工作区中移除，但原始的 LICENSE 与 NOTICE 文件仍可从本仓库的 git 历史中恢复。

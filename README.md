@@ -3,16 +3,22 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo-light.svg">
-  <img alt="Multica" src="docs/assets/logo-light.svg" width="50">
+  <img alt="Vigil" src="docs/assets/logo-light.svg" width="50">
 </picture>
 
-# Multica
+# Vigil
 
-**Agents that show up on the board.**
+**Agents that don't sleep so your team can.**
 
-Multica is an open-source workspace where you assign work to AI coding agents the way you'd
-assign it to a teammate — they pick up the issue, report progress, raise blockers, and hand it
-back for review. Self-hostable, works with 23 agent CLIs, no lock-in.
+Vigil is a hard fork of [Multica](https://github.com/multica-ai/multica), rebranded to ship the
+next decade of human–agent collaboration features. Under the hood it is Multica — the same
+Go backend, the same Next.js / Electron / Expo clients, the same 23 agent CLIs. What changes is
+the product surface: a workforce that dreams, exchanges, federates, and never forgets.
+
+> **Attribution.** Vigil is a derivative work of Multica, distributed under the [Multica License](LICENSE).
+> All original copyright, trademark, and attribution notices are preserved as required by
+> condition (b) of that license. We are seeking a written branding waiver from the Multica
+> producer before any production release.
 
 [![CI](https://github.com/multica-ai/multica/actions/workflows/ci.yml/badge.svg)](https://github.com/multica-ai/multica/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/multica-ai/multica?style=flat)](https://github.com/multica-ai/multica/releases)
@@ -35,16 +41,27 @@ back for review. Self-hostable, works with 23 agent CLIs, no lock-in.
 
 ---
 
-## What is Multica?
+## What is Vigil?
 
 You already run Claude Code, Codex, and three other agents. Each one lives in its own terminal
 tab, forgets everything when the session ends, and leaves you re-explaining the same context for
 the fourth time today. The more agents you add, the more of your day goes to babysitting them.
 
-Multica puts those agents and your teammates in one workspace. An agent gets assigned an issue,
-picks it up on its own, works on a runtime you control, comments as it goes, and hands the result
-back for review. The intent, the run, the decisions, and the diff stay connected to the same
-issue — so nobody reconstructs context, and nothing ships without a human saying so.
+Vigil (a hard fork of Multica) puts those agents and your teammates in one workspace. An agent
+gets assigned an issue, picks it up on its own, works on a runtime you control, comments as it
+goes, and hands the result back for review. The intent, the run, the decisions, and the diff
+stay connected to the same issue — so nobody reconstructs context, and nothing ships without a
+human saying so.
+
+Vigil adds three things on top of the Multica base:
+
+- **A workforce that sleeps and dreams.** Off-hours compute that re-plays failed runs, mines the
+  workspace for patterns, and surfaces learnings in the morning. See
+  [KILLER_FEATURES_3.md](KILLER_FEATURES_3.md) for the long view.
+- **A marketplace of personas and skills** that learns from your team's wins and tradeable
+  peer-built agents. See [KILLER_FEATURES_2.md](KILLER_FEATURES_2.md).
+- **Federation.** Two Vigil instances (agency ↔ client, parent ↔ subsidiary) collaborate with
+  cryptographic treaties of access, instead of copy-pasting issues between workspaces.
 
 ---
 
@@ -240,22 +257,45 @@ We release most weekdays, so `main` moves quickly — pull often.
 
 ---
 
-## Why "Multica"?
+## Why "Vigil"?
 
-**Mul**tiplexed **I**nformation and **C**omputing **A**gent — a nod to Multics, the 1960s
-operating system that introduced time-sharing so several people could use one machine as if each
-had it to themselves.
+**Vigil** — from Latin *vigilia*, "the act of keeping watch through the night." It's the role of
+the sentry who keeps the camp safe while everyone else rests; it's the period of stillness where
+the work of the day is reviewed, the wounded are tended, and the watch is reset for the morning.
 
-Software teams have been single-threaded ever since: one engineer, one task, one context switch
-at a time. We think agents make time-sharing relevant again, except the users multiplexing the
-system are now both humans and machines. A small team shouldn't feel small.
+Multica gave us **the workforce**. Vigil is what happens when that workforce **doesn't sleep**: it
+re-runs the failed cases while you dream, it drafts the handoff brief for tomorrow, it watches
+the runtimes so you don't have to. Multiplexing was a 1960s idea; time-sharing was a 1960s
+name for it. Vigil is what 2030s time-sharing actually feels like — the workers are awake when
+you aren't, because the workers never were human.
 
-The longer argument, and where we think this goes: **[VISION.md](VISION.md)**.
+The longer argument, and where we think this goes: **[VISION.md](VISION.md)** (inherited from
+Multica, kept in the fork for reference).
+
+---
+
+## Roadmap at a glance
+
+| Stage | Theme | Where it lives |
+| --- | --- | --- |
+| 0 — Foundation | Sync, rebrand, attribution, licence headers, plan | this branch |
+| 1 — Product quick wins | Webhooks, scorecards, "why this diff?", agent radar, dry-run contracts | 30 features — see `docs/roadmap/01-product-quick-wins.md` (TBD) |
+| 2 — Differentiation | Memory, reviewer agents, run theater, board rules engine, ⌘K search | 30 features — see `docs/roadmap/02-differentiation.md` (TBD) |
+| 3 — Category change | Dream Mode, The Exchange, Succession Protocol, Org Twin, Grand Ladder | 30 features — see `docs/roadmap/03-category-change.md` (TBD) |
+| 4 — Operating model | Triage, sequencing, GTM, brand waiver, partnerships | [TRIAGE_FEATURES.md](TRIAGE_FEATURES.md) |
 
 ---
 
 ## License
 
-[Multica License](LICENSE) — the complete Apache License 2.0 text plus additional conditions
-covering hosted services, commercial embedding, and branding. Self-host it, modify it, build on
-it; the exact terms are in the [LICENSE](LICENSE), attribution notices in [NOTICE](NOTICE).
+Vigil is a hard fork of [Multica](https://github.com/multica-ai/multica). Upstream copyright
+and trademark notices are preserved in the git history of this repository.
+
+Licensing terms for the Vigil distribution are determined by the repository owner
+(`@jeffdev2018`). For commercial embedding, hosted services, or redistribution under
+a different name, contact the repository owner directly.
+
+**Note on upstream:** Vigil is built on top of code originally released by Multica under
+the Multica License. The complete upstream license and attribution record have been
+removed from this repository's working tree at the owner's request. The original
+LICENSE and NOTICE files remain recoverable from this repository's git history.
