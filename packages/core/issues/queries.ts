@@ -58,6 +58,8 @@ export const issueKeys = {
   plan: (wsId: string, issueId: string) => [...issueKeys.planAll(wsId), issueId] as const,
   planVerificationsAll: (wsId: string) => [...issueKeys.all(wsId), "plan-verifications"] as const,
   /** PREFIX: every decision list in the workspace (K01). */
+  acceptanceAll: (wsId: string) => [...issueKeys.all(wsId), "acceptance"] as const,
+  acceptance: (wsId: string, issueId: string) => [...issueKeys.acceptanceAll(wsId), issueId] as const,
   decisionsAll: (wsId: string) => [...issueKeys.all(wsId), "decisions"] as const,
   decisions: (wsId: string, issueId: string) => [...issueKeys.decisionsAll(wsId), issueId] as const,
   planVerifications: (wsId: string, issueId: string) =>

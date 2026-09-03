@@ -3401,6 +3401,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if statusKeyForGuard != "" && !h.planVerificationAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
+	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	if req.Priority != nil {
 		if !validateIssueEnum(w, "priority", *req.Priority, validIssuePriorities) {
 			return
@@ -4171,6 +4175,9 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		if req.Updates.Status != nil {
 			// Plan verification gate (F17): one gated issue refuses the batch.
 			if !h.planVerificationAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {
 				return
 			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}
