@@ -690,3 +690,11 @@ deleted_share_links AS (
 )
 DELETE FROM workspace_invitation
 WHERE workspace_invitation.workspace_id = $1;
+
+-- name: DeleteWorkspacePlanVerifications :exec
+DELETE FROM plan_verification
+WHERE plan_verification.workspace_id = $1;
+
+-- name: DeleteWorkspaceIssuePlans :exec
+DELETE FROM issue_plan
+WHERE issue_plan.workspace_id = $1;

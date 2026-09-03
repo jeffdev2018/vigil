@@ -226,6 +226,16 @@ func (q *Queries) DeleteWorkspaceConnections(ctx context.Context, workspaceID pg
 	return err
 }
 
+const deleteWorkspaceIssuePlans = `-- name: DeleteWorkspaceIssuePlans :exec
+DELETE FROM issue_plan
+WHERE issue_plan.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceIssuePlans(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceIssuePlans, workspaceID)
+	return err
+}
+
 const deleteWorkspaceIssueRoots = `-- name: DeleteWorkspaceIssueRoots :exec
 WITH
 deleted_issues AS (
@@ -497,6 +507,16 @@ WHERE channel_media_pending_object.workspace_id = $1
 // performs the idempotent object delete and clears the row afterwards.
 func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceLeafData, workspaceID)
+	return err
+}
+
+const deleteWorkspacePlanVerifications = `-- name: DeleteWorkspacePlanVerifications :exec
+DELETE FROM plan_verification
+WHERE plan_verification.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspacePlanVerifications(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspacePlanVerifications, workspaceID)
 	return err
 }
 

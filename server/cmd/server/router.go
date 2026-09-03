@@ -1913,6 +1913,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/properties/{propertyId}", h.SetIssueProperty)
 					r.Delete("/properties/{propertyId}", h.DeleteIssueProperty)
 					r.Get("/pull-requests", h.ListPullRequestsForIssue)
+					r.Get("/plan", h.GetIssuePlan)
+					r.Put("/plan", h.SetIssuePlan)
+					r.Get("/plan/verifications", h.ListPlanVerifications)
+					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
 				})
 			})
 
