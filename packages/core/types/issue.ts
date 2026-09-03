@@ -285,3 +285,34 @@ export interface PlanVerification {
   reported_at: string | null;
   created_at: string;
 }
+
+// ── Decision Cards (K01) ────────────────────────────────────────────────────
+
+export interface DecisionOption {
+  id: string;
+  label: string;
+  impact?: string;
+}
+
+export interface DecisionAnswer {
+  option_id?: string;
+  modified_text?: string;
+}
+
+export interface IssueDecision {
+  id: string;
+  issue_id: string;
+  task_id?: string;
+  asked_by_type: string;
+  asked_by_id: string;
+  question: string;
+  options: DecisionOption[];
+  recommended_option_id?: string;
+  urgency: "low" | "normal" | "high" | (string & {});
+  response: DecisionAnswer | null;
+  responded_by_type?: string;
+  responded_by_id?: string;
+  responded_at: string | null;
+  resume_task_id?: string;
+  created_at: string;
+}

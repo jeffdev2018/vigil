@@ -899,5 +899,15 @@
     "severity_minor": "경미",
     "severity_outdated": "구식",
     "no_findings": "계획과 차이가 없습니다."
+  },
+  "decisions": {
+    "section": "결정",
+    "recommended": "권장",
+    "modify": "다른 답변 입력…",
+    "modify_placeholder": "대신 무엇을 할지 설명하세요",
+    "send": "보내기",
+    "cancel": "취소",
+    "resumed": "에이전트 재개됨",
+    "answer_failed": "결정을 기록하지 못했습니다"
   }
 }

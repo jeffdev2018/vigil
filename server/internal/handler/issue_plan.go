@@ -205,7 +205,7 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 	if err := h.Queries.SupersedeOtherIssuePlans(ctx, db.SupersedeOtherIssuePlansParams{IssueID: issue.ID, ID: plan.ID}); err != nil {
 		slog.Warn("supersede issue plans failed", append(logger.RequestAttrs(r), "error", err)...)
 	}
-	h.publishIssuePlanChanged(r, issue, actorType, actorID)
+	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	created := issuePlanToResponse(plan)
 	writeJSON(w, http.StatusOK, IssuePlanEnvelope{Plan: &created, Versions: []IssuePlanResponse{created}})
 }
@@ -315,13 +315,13 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 	workspaceID := uuidToString(issue.WorkspaceID)
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
 	h.postPlanVerificationComment(r, issue, reported, req.Findings, actorType, actorID)
-	h.publishIssuePlanChanged(r, issue, actorType, actorID)
+	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	writeJSON(w, http.StatusOK, map[string]any{"verification": planVerificationToResponse(reported)})
 }
 
-// publishIssuePlanChanged bumps the issue revision and emits issue:updated so
+// publishIssueAuxChanged bumps the issue revision and emits issue:updated so
 // clients admit the event and refetch the plan and its verifications.
-func (h *Handler) publishIssuePlanChanged(r *http.Request, issue db.Issue, actorType, actorID string) {
+func (h *Handler) publishIssueAuxChanged(r *http.Request, issue db.Issue, actorType, actorID string) {
 	ctx := r.Context()
 	fresh, err := h.Queries.TouchIssueRevision(ctx, issue.ID)
 	if err != nil {

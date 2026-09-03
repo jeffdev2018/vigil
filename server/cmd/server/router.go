@@ -1922,6 +1922,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/plan", h.SetIssuePlan)
 					r.Get("/plan/verifications", h.ListPlanVerifications)
 					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
+					r.Get("/decisions", h.ListIssueDecisions)
+					r.Post("/decisions", h.AskIssueDecision)
+					r.With(handler.RequireHumanActor).Post("/decisions/{decisionId}/respond", h.RespondIssueDecision)
 				})
 			})
 

@@ -899,5 +899,15 @@
     "severity_minor": "小",
     "severity_outdated": "陳腐化",
     "no_findings": "計画との差異はありません。"
+  },
+  "decisions": {
+    "section": "判断",
+    "recommended": "推奨",
+    "modify": "別の回答をする…",
+    "modify_placeholder": "代わりに何をすべきか記述してください",
+    "send": "送信",
+    "cancel": "キャンセル",
+    "resumed": "エージェント再開",
+    "answer_failed": "判断を記録できませんでした"
   }
 }

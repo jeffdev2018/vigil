@@ -175,6 +175,13 @@ on those assignments creating their normal queued runs.
 | Chain walked by `ListIssueAncestors` (recursive CTE, workspace-scoped, depth-capped; no FK so a cycle is cut at its first repeated id) | `server/pkg/db/queries/issue.sql` (`ListIssueAncestors`) | new citation |
 | Caps: 5 levels, 8 KiB total, 2 KiB per description, 12 criteria per node; descriptions shed farthest-first, identifier and title never cut | `server/internal/handler/goal_ancestry.go` (`goalAncestryMax*`, `capGoalAncestryBytes`) | new citation |
 | Brief renders `## Goal Ancestry` between Project Context and Issue Metadata, with the omitted-level line; absent when the chain is empty or the server predates the field | `server/internal/daemon/execenv/runtime_config_sections.go` (`writeGoalAncestry`); wire mirror `server/internal/daemon/types.go` (`Task.GoalAncestry`) | new citation |
+## Decision Cards (K01)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica decision ask` files `POST /api/issues/{id}/decisions` with question, options (2-8, unique ids), recommendation, urgency; the run id comes from `X-Task-ID` | `server/cmd/multica/cmd_decision.go`; `server/internal/handler/decision.go` (`AskIssueDecision`) | new citation |
+| A human answers once via `POST /api/issues/{id}/decisions/{decisionId}/respond` (`option_id` xor `modified_text`); a second answer is 409 `already_decided` | `server/internal/handler/decision.go` (`RespondIssueDecision`); `server/pkg/db/queries/decision.sql` (`RespondIssueDecision`) | new citation |
+| On an agent-assigned issue the answer queues one run whose handoff note starts with `Decision on «…»` | `server/internal/handler/decision.go` (`decisionHandoffNote`, `EnqueueTaskForIssueWithHandoff`) | new citation |
 
 ## Sub-issue stages (barrier wake)
 

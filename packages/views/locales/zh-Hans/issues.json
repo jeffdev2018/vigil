@@ -899,5 +899,15 @@
     "severity_minor": "轻微",
     "severity_outdated": "过时",
     "no_findings": "与计划没有偏差。"
+  },
+  "decisions": {
+    "section": "决策",
+    "recommended": "推荐",
+    "modify": "给出其他回答…",
+    "modify_placeholder": "描述应该改为怎么做",
+    "send": "发送",
+    "cancel": "取消",
+    "resumed": "智能体已继续",
+    "answer_failed": "记录决策失败"
   }
 }
