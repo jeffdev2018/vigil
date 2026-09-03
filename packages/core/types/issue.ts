@@ -232,3 +232,56 @@ export interface IssueDependencies {
   blocked_by: IssueDependency[];
   related: IssueDependency[];
 }
+
+// ── Plan verification (F17) ─────────────────────────────────────────────────
+
+export interface IssuePlanStep {
+  id: string;
+  title: string;
+}
+
+export interface IssuePlan {
+  id: string;
+  issue_id: string;
+  version: number;
+  content: string;
+  steps: IssuePlanStep[];
+  author_type: string;
+  author_id: string;
+  superseded_at: string | null;
+  created_at: string;
+}
+
+export interface IssuePlanEnvelope {
+  plan: IssuePlan | null;
+  versions: IssuePlan[];
+}
+
+export type PlanFindingSeverity = "critical" | "major" | "minor" | "outdated";
+
+/** `severity` is open on the wire: an unknown value is shown, never dropped. */
+export interface PlanFinding {
+  severity: PlanFindingSeverity | (string & {});
+  title: string;
+  detail?: string;
+  files?: string[];
+  plan_step_id?: string;
+}
+
+export interface PlanVerification {
+  id: string;
+  issue_id: string;
+  plan_id: string;
+  plan_version: number;
+  task_id: string;
+  source_task_id: string;
+  state: "queued" | "running" | "reported" | "failed" | (string & {});
+  findings: PlanFinding[];
+  critical_count: number;
+  major_count: number;
+  minor_count: number;
+  outdated_count: number;
+  summary: string | null;
+  reported_at: string | null;
+  created_at: string;
+}

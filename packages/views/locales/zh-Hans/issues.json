@@ -879,5 +879,25 @@
     "surface_loading": "正在加载 {{name}}…",
     "surface_unavailable": "{{name}} 的界面无法加载，已安装的版本可能不包含它。",
     "surface_navigated": "{{name}} 试图把面板替换成从别处加载的页面。已经拦下并断开连接，建议告知工作区管理员。"
+  },
+  "plan_verification": {
+    "section": "计划验证",
+    "plan_version": "计划 v{{version}}",
+    "version_picker": "计划版本",
+    "superseded": "已被取代",
+    "no_verification": "尚无验证运行。",
+    "state_queued": "验证已排队",
+    "state_running": "验证中",
+    "state_failed": "验证失败",
+    "verdict_critical": "{{count}} 个严重偏差",
+    "verdict_clean": "与计划一致",
+    "failed_hint": "验证运行结束但没有报告。重新运行任务以再次验证。",
+    "pending_hint": "验证运行会将交付的变更与此计划进行比对。",
+    "report_for": "计划 v{{version}} 的报告",
+    "severity_critical": "严重",
+    "severity_major": "重要",
+    "severity_minor": "轻微",
+    "severity_outdated": "过时",
+    "no_findings": "与计划没有偏差。"
   }
 }

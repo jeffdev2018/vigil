@@ -686,7 +686,11 @@
     "deleting": "Deleting...",
     "toast_delete_failed": "Failed to delete workspace",
     "confirm_cancel": "Cancel",
-    "confirm_action": "Confirm"
+    "confirm_action": "Confirm",
+    "plan_verification_section": "Plan verification",
+    "plan_verification_label": "Verify runs against the issue plan",
+    "plan_verification_description": "After a run completes on an issue with a plan, queue a verification run and keep the issue out of Done while a critical divergence is reported.",
+    "plan_verification_failed": "Failed to update plan verification"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

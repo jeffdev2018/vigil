@@ -298,6 +298,8 @@ var concurrentIndexCleanups = map[string]string{
 	"443_issue_project_status_index":                            "idx_issue_project_status",
 	"445_comment_delegated_failure_unsettled_index":             "idx_comment_delegated_failure_unsettled",
 	"452_task_active_last_activity_index":                       "idx_agent_task_active_last_activity",
+	"464_issue_plan_issue_version_key":                          "issue_plan_issue_version_key",
+	"465_plan_verification_issue_index":                         "idx_plan_verification_issue",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

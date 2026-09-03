@@ -684,7 +684,11 @@
     "deleting": "삭제하는 중...",
     "toast_delete_failed": "워크스페이스를 삭제하지 못했습니다",
     "confirm_cancel": "취소",
-    "confirm_action": "확인"
+    "confirm_action": "확인",
+    "plan_verification_section": "계획 검증",
+    "plan_verification_label": "태스크 계획에 대해 실행 검증",
+    "plan_verification_description": "계획이 있는 태스크에서 실행이 완료되면 검증 실행을 대기열에 넣고, 치명적 편차가 보고된 동안에는 태스크를 완료로 넘기지 않습니다.",
+    "plan_verification_failed": "계획 검증 설정을 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

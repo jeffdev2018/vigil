@@ -684,7 +684,11 @@
     "deleting": "删除中...",
     "toast_delete_failed": "删除工作区失败",
     "confirm_cancel": "取消",
-    "confirm_action": "确认"
+    "confirm_action": "确认",
+    "plan_verification_section": "计划验证",
+    "plan_verification_label": "根据任务计划验证运行",
+    "plan_verification_description": "带有计划的任务完成一次运行后，排队一次验证运行；只要报告了严重偏差，任务就不能进入已完成。",
+    "plan_verification_failed": "更新计划验证设置失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

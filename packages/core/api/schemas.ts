@@ -88,6 +88,7 @@ import type {
   WorkspaceMcpServer,
   MergeReadiness,
   PRStack,
+  IssuePlanEnvelope,
 } from "../types";
 import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
@@ -1316,6 +1317,58 @@ export const IssueSchema = z.object({
   // Detail-only and potentially large. A malformed additive field must not
   // erase an otherwise usable issue returned by a mixed-version server.
   source_context: IssueSourceContextSchema.optional().catch(undefined),
+}).loose();
+
+// Plan verification (F17). Findings are LLM output: severity stays a string
+// and an unknown value is kept as data; nothing here can make a plan look
+// verified by default.
+export const IssuePlanSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  version: z.number().int().default(0),
+  content: z.string().default(""),
+  steps: z.array(z.object({ id: z.string().default(""), title: z.string().default("") }).loose()).catch([]).default([]),
+  author_type: z.string().default(""),
+  author_id: z.string().default(""),
+  superseded_at: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const IssuePlanEnvelopeSchema = z.object({
+  plan: IssuePlanSchema.nullable().catch(null).default(null),
+  versions: z.array(IssuePlanSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_ISSUE_PLAN: IssuePlanEnvelope = { plan: null, versions: [] };
+
+export const PlanFindingSchema = z.object({
+  severity: z.string().default(""),
+  title: z.string().default(""),
+  detail: z.string().optional(),
+  files: z.array(z.string()).optional(),
+  plan_step_id: z.string().optional(),
+}).loose();
+
+export const PlanVerificationSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  plan_id: z.string().default(""),
+  plan_version: z.number().int().default(0),
+  task_id: z.string().default(""),
+  source_task_id: z.string().default(""),
+  state: z.string().default("queued"),
+  findings: z.array(PlanFindingSchema).catch([]).default([]),
+  critical_count: z.number().int().default(0),
+  major_count: z.number().int().default(0),
+  minor_count: z.number().int().default(0),
+  outdated_count: z.number().int().default(0),
+  summary: z.string().nullable().default(null),
+  reported_at: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const PlanVerificationsResponseSchema = z.object({
+  verifications: z.array(PlanVerificationSchema).catch([]).default([]),
 }).loose();
 
 export const ListIssuesResponseSchema = z.object({

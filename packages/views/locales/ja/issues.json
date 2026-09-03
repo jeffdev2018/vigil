@@ -879,5 +879,25 @@
     "surface_loading": "{{name}} を読み込んでいます…",
     "surface_unavailable": "{{name}} のインターフェースを読み込めません。インストール済みのバージョンに含まれていない可能性があります。",
     "surface_navigated": "{{name}} がパネルを外部から読み込んだページに置き換えようとしました。停止して接続を切りました。ワークスペース管理者に知らせてください。"
+  },
+  "plan_verification": {
+    "section": "計画の検証",
+    "plan_version": "計画 v{{version}}",
+    "version_picker": "計画のバージョン",
+    "superseded": "旧版",
+    "no_verification": "検証の実行はまだありません。",
+    "state_queued": "検証待ち",
+    "state_running": "検証中",
+    "state_failed": "検証に失敗",
+    "verdict_critical": "重大 {{count}} 件",
+    "verdict_clean": "計画どおり",
+    "failed_hint": "検証の実行はレポートなしで終了しました。タスクを再実行して再検証してください。",
+    "pending_hint": "検証の実行が、納品された変更をこの計画と照合します。",
+    "report_for": "計画 v{{version}} のレポート",
+    "severity_critical": "重大",
+    "severity_major": "大",
+    "severity_minor": "小",
+    "severity_outdated": "陳腐化",
+    "no_findings": "計画との差異はありません。"
   }
 }

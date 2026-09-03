@@ -3396,6 +3396,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		statusKeyForGuard = statusKey
 		params.Status = pgtype.Text{String: statusKey, Valid: true}
 	}
+	// Plan verification gate (F17): a critical finding on the active plan
+	// keeps the issue out of the done category while the workspace asks for it.
+	if statusKeyForGuard != "" && !h.planVerificationAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	if req.Priority != nil {
 		if !validateIssueEnum(w, "priority", *req.Priority, validIssuePriorities) {
 			return
@@ -4164,6 +4169,10 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			params.Description = pgtype.Text{String: *req.Updates.Description, Valid: true}
 		}
 		if req.Updates.Status != nil {
+			// Plan verification gate (F17): one gated issue refuses the batch.
+			if !h.planVerificationAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}
 		}
 		if req.Updates.Priority != nil {

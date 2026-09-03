@@ -91,6 +91,7 @@ import { ThreadNavPanel, mentionsUser, type ThreadNavThread } from "./thread-nav
 import { collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
+import { PlanVerificationSection } from "./plan-verification-section";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
@@ -2585,6 +2586,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           Self-contained; owns its own collapse state and WS subscriptions.
           Hides itself when there are no runs to show. */}
       <ExecutionLogSection issueId={id} identifier={issue.identifier} />
+
+      {/* Plan verification — the issue plan and its newest verification
+          report (F17). Hides itself until a plan is published. */}
+      <PlanVerificationSection issueId={id} />
 
       {/* Details — creator and timestamps. Sits below the execution log
           because it is the least-read block in the sidebar: the values

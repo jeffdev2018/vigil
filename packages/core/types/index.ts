@@ -1,4 +1,4 @@
-export type { Issue, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext } from "./issue";
+export type { Issue, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification } from "./issue";
 export type {
   IssueStatusCategory,
   IssueStatusEntry,

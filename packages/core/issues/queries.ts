@@ -57,6 +57,12 @@ export const issueKeys = {
   dependenciesAll: (wsId: string) => [...issueKeys.all(wsId), "dependencies"] as const,
   dependencies: (wsId: string, issueId: string) =>
     [...issueKeys.dependenciesAll(wsId), issueId] as const,
+  /** PREFIX: every plan and verification list in the workspace (F17). */
+  planAll: (wsId: string) => [...issueKeys.all(wsId), "plan"] as const,
+  plan: (wsId: string, issueId: string) => [...issueKeys.planAll(wsId), issueId] as const,
+  planVerificationsAll: (wsId: string) => [...issueKeys.all(wsId), "plan-verifications"] as const,
+  planVerifications: (wsId: string, issueId: string) =>
+    [...issueKeys.planVerificationsAll(wsId), issueId] as const,
   tableGroups: (
     wsId: string,
     query: IssueTableQuerySpec,

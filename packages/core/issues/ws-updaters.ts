@@ -538,6 +538,9 @@ export function onIssueUpdated(
   // readiness and stack; active ones refetch.
   qc.invalidateQueries({ queryKey: ["github", "merge-readiness"] });
   qc.invalidateQueries({ queryKey: ["github", "pr-stack"] });
+  // Plan and verification changes ride issue:updated (F17); active lists refetch.
+  qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.planVerifications(wsId, issue.id) });
   reconcileIssueFullSnapshotRevision(qc, wsId, issue.id, issue.revision);
 }
 

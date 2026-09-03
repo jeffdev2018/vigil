@@ -1918,6 +1918,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
 					r.Get("/merge-readiness", h.GetIssueMergeReadiness)
 					r.Get("/pr-stack", h.GetIssuePRStack)
+					r.Get("/plan", h.GetIssuePlan)
+					r.Put("/plan", h.SetIssuePlan)
+					r.Get("/plan/verifications", h.ListPlanVerifications)
+					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
 				})
 			})
 

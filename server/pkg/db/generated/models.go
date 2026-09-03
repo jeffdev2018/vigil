@@ -804,6 +804,20 @@ type IssueLabel struct {
 	Description  string             `json:"description"`
 }
 
+// Versioned plan artifact per issue (F17). The active plan is the row with superseded_at IS NULL; older versions stay readable. No FK by house rule.
+type IssuePlan struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	IssueID      pgtype.UUID        `json:"issue_id"`
+	Version      int32              `json:"version"`
+	Content      string             `json:"content"`
+	Steps        []byte             `json:"steps"`
+	AuthorType   string             `json:"author_type"`
+	AuthorID     pgtype.UUID        `json:"author_id"`
+	SupersededAt pgtype.Timestamptz `json:"superseded_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
 type IssueProperty struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
@@ -1050,6 +1064,26 @@ type PinnedItem struct {
 	ItemID      pgtype.UUID        `json:"item_id"`
 	Position    float64            `json:"position"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+// Verification run of an issue plan (F17): state, findings and per-severity counters. task_id links the agent_task_queue row that produced it. No FK by house rule.
+type PlanVerification struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	PlanID        pgtype.UUID        `json:"plan_id"`
+	PlanVersion   int32              `json:"plan_version"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
+	State         string             `json:"state"`
+	Findings      []byte             `json:"findings"`
+	CriticalCount int32              `json:"critical_count"`
+	MajorCount    int32              `json:"major_count"`
+	MinorCount    int32              `json:"minor_count"`
+	OutdatedCount int32              `json:"outdated_count"`
+	Summary       pgtype.Text        `json:"summary"`
+	ReportedAt    pgtype.Timestamptz `json:"reported_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 type PluginHookSchedule struct {
