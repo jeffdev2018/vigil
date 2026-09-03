@@ -10,6 +10,8 @@
  * Persisted in the URL as `?view=archived` so a refresh, a back/forward step,
  * or a mobile detail-back returns to the list the user was actually in.
  */
-export type InboxView = "inbox" | "archived";
+export type InboxView = "inbox" | "archived" | "attention";
 
 export const ARCHIVED_VIEW_PARAM = "archived";
+// Attention Inbox (K02): the human-only, risk-ordered projection, `?view=attention`.
+export const ATTENTION_VIEW_PARAM = "attention";
