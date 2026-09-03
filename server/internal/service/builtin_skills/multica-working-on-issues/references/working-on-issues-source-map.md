@@ -167,6 +167,15 @@ The self-assignment guard is intentionally pair-scoped. It does not treat
 cross-issue handoff, because serial sub-issue promotion and triage batches rely
 on those assignments creating their normal queued runs.
 
+## Goal ancestry in the brief (F22)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| Claim of an issue with a parent carries `goal_ancestry` (root first, depth 1 = direct parent) and `goal_ancestry_omitted`; root issues omit the field | `server/internal/handler/goal_ancestry.go` (`resolveClaimGoalAncestry`, `applyTo`); wired in `server/internal/handler/daemon.go` (issue claim after `projectCtx.applyTo`, quick-create parent block) | new citation |
+| Chain walked by `ListIssueAncestors` (recursive CTE, workspace-scoped, depth-capped; no FK so a cycle is cut at its first repeated id) | `server/pkg/db/queries/issue.sql` (`ListIssueAncestors`) | new citation |
+| Caps: 5 levels, 8 KiB total, 2 KiB per description, 12 criteria per node; descriptions shed farthest-first, identifier and title never cut | `server/internal/handler/goal_ancestry.go` (`goalAncestryMax*`, `capGoalAncestryBytes`) | new citation |
+| Brief renders `## Goal Ancestry` between Project Context and Issue Metadata, with the omitted-level line; absent when the chain is empty or the server predates the field | `server/internal/daemon/execenv/runtime_config_sections.go` (`writeGoalAncestry`); wire mirror `server/internal/daemon/types.go` (`Task.GoalAncestry`) | new citation |
+
 ## Sub-issue stages (barrier wake)
 
 | Behavior | File:line |
