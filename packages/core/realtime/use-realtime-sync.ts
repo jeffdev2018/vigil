@@ -10,6 +10,7 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
@@ -730,6 +731,24 @@ export interface RealtimeSyncStores {
  * @param stores - Platform-created Zustand store instances for auth and workspace
  * @param onToast - Optional callback for showing toast messages (platform-specific)
  */
+// Minimum gap between two cache stamps for the same run: task:message fires
+// per streamed chunk, and a 5 s resolution is far below any liveness threshold.
+const RUN_ACTIVITY_TOUCH_MIN_MS = 5_000;
+
+function touchCachedRunActivity(qc: QueryClient, taskId: string) {
+  const now = new Date();
+  for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
+    if (!Array.isArray(tasks)) continue;
+    const idx = tasks.findIndex((t) => t?.id === taskId);
+    if (idx === -1) continue;
+    const previous = tasks[idx]?.last_activity_at;
+    if (previous && now.getTime() - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
+    const next = tasks.slice();
+    next[idx] = { ...tasks[idx]!, last_activity_at: now.toISOString() };
+    qc.setQueryData<AgentTask[]>(key, next);
+  }
+}
+
 export function useRealtimeSync(
   ws: WSClient | null,
   stores: RealtimeSyncStores,
@@ -1370,6 +1389,10 @@ export function useRealtimeSync(
 
     const unsubTaskMessage = ws.on("task:message", (p) => {
       const payload = p as TaskMessagePayload;
+      // A streamed message is proof of life (F02): stamp the run's
+      // last_activity_at in the issue run lists so an "unresponsive" badge
+      // clears without a refetch. Throttled per run inside the helper.
+      touchCachedRunActivity(qc, payload.task_id);
       // Cheap Map lookup, and it runs before anything allocates — this is the
       // hot path for every run in the workspace, not just the visible ones.
       if (!isTaskMessageTimelineHeld(qc, payload.task_id)) return;

@@ -635,7 +635,10 @@
       "source_backfill": "Backfilled attribution",
       "source_unattributed": "No responsible member resolved"
     },
-    "usage_total_tooltip": "Token usage for this issue — click for the per-run breakdown"
+    "usage_total_tooltip": "Token usage for this issue — click for the per-run breakdown",
+    "status_deferred": "Deferred",
+    "unresponsive": "Not responding",
+    "unresponsive_tooltip": "No activity for {{duration}}"
   },
   "usage_detail": {
     "title": "Usage breakdown",

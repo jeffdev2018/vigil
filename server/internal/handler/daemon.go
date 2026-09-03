@@ -3683,8 +3683,18 @@ func (h *Handler) ReportTaskProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.touchTaskActivity(r, task.ID)
 	h.TaskService.ReportProgress(r.Context(), taskID, workspaceID, req.Summary, req.Step, req.Total)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// touchTaskActivity records the run-level heartbeat (F02). Best effort: the
+// callback that carried the proof of life already succeeded, so a failed stamp
+// only delays the liveness badge and is not worth failing the daemon's request.
+func (h *Handler) touchTaskActivity(r *http.Request, taskID pgtype.UUID) {
+	if err := h.Queries.TouchAgentTaskActivity(r.Context(), taskID); err != nil {
+		slog.Warn("touch task activity failed", "error", err, "task_id", uuidToString(taskID))
+	}
 }
 
 // CompleteTask marks a running task as completed.
@@ -4642,6 +4652,7 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to persist task message")
 		return
 	}
+	h.touchTaskActivity(r, task.ID)
 
 	if workspaceID != "" {
 		// CreateTaskMessages orders its result by seq, which is the daemon's

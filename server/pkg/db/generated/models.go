@@ -172,6 +172,8 @@ type AgentTaskQueue struct {
 	BranchName                pgtype.Text `json:"branch_name"`
 	DurableWorkDir            pgtype.Text `json:"durable_work_dir"`
 	ChannelContextRevision    pgtype.Int8 `json:"channel_context_revision"`
+	// Last proof of activity from the run (claim, start, task message or progress callback). NULL means none recorded since the column was added. Read for liveness display only; never consulted for authorization or transitions.
+	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
 }
 
 type AgentToLabel struct {

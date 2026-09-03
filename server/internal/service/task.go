@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -187,6 +188,14 @@ const (
 	// aligned: a runtime must not start work after it is stale enough to be
 	// marked offline.
 	RuntimeClaimFreshnessSeconds = 150.0
+
+	// DefaultRunUnresponsiveAfterSeconds is how long an active run may stay
+	// silent (no message / progress callback) before readers label it
+	// unresponsive. Deliberately far above Linear's 10 s: CLI silences are
+	// uneven (a compile, a long tool call) and a twitchy badge is noise. The
+	// verdict is derived at read time, never stored, and never fails the run;
+	// the 2.5 h wall-clock sweeper keeps that role.
+	DefaultRunUnresponsiveAfterSeconds = 90.0
 	// claimResponseRecoveryWindow must exceed daemon client.Timeout for
 	// /tasks/claim (30s) plus /tasks/{id}/start (30s) plus scheduling slack.
 	// Longer pre-start work is protected by prepareLeaseDuration instead of
@@ -194,6 +203,18 @@ const (
 	claimResponseRecoveryWindow = 90 * time.Second
 	prepareLeaseDuration        = 45 * time.Second
 )
+
+// RunUnresponsiveAfterSeconds returns the liveness threshold, overridable per
+// deployment with MULTICA_RUN_UNRESPONSIVE_AFTER (seconds, > 0).
+func RunUnresponsiveAfterSeconds() float64 {
+	if v := os.Getenv("MULTICA_RUN_UNRESPONSIVE_AFTER"); v != "" {
+		if secs, err := strconv.ParseFloat(v, 64); err == nil && secs > 0 {
+			return secs
+		}
+		slog.Warn("MULTICA_RUN_UNRESPONSIVE_AFTER ignored: expected a positive number of seconds", "value", v)
+	}
+	return DefaultRunUnresponsiveAfterSeconds
+}
 
 func (s *TaskService) trackTaskForReclaim(task db.AgentTaskQueue, checkAfter time.Time) {
 	if !task.RuntimeID.Valid || !task.ID.Valid || task.Status != "dispatched" {

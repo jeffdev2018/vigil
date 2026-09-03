@@ -611,7 +611,10 @@
       "source_backfill": "回填的归因",
       "source_unattributed": "未解析到责任成员"
     },
-    "usage_total_tooltip": "这个任务的 token 用量——点击查看每次运行的明细"
+    "usage_total_tooltip": "这个任务的 token 用量——点击查看每次运行的明细",
+    "status_deferred": "已延期",
+    "unresponsive": "无响应",
+    "unresponsive_tooltip": "已 {{duration}} 无活动"
   },
   "usage_detail": {
     "title": "用量明细",

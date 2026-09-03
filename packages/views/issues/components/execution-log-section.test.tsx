@@ -420,3 +420,72 @@ describe("IssueUsageTotal pricing", () => {
     expect(screen.getByText("$7.00")).toBeInTheDocument();
   });
 });
+
+// F02: normalized run states and the liveness badge. The status → state
+// matrix and the threshold live in packages/core/agents/run-state.test.ts;
+// this only checks the wiring.
+describe("execution log run states", () => {
+  function renderSection(tasks: AgentTask[]) {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    queryClient.setQueryData(issueKeys.tasks("issue-1"), tasks);
+    return renderWithI18n(
+      <QueryClientProvider client={queryClient}>
+        <ExecutionLogSection issueId="issue-1" identifier="MUL-1" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("lists a deferred run among the in-flight runs", () => {
+    renderSection([makeTask({ status: "deferred", started_at: null })]);
+    expect(screen.getByText("Deferred")).toBeTruthy();
+    expect(screen.queryByText(/past runs/i)).toBeNull();
+  });
+
+  it("renders an unknown status as a pending row instead of dropping it", () => {
+    renderSection([makeTask({ status: "hibernating", started_at: null })]);
+    expect(screen.getByText("hibernating")).toBeTruthy();
+  });
+
+  it("badges a silent running run and clears it when activity resumes", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-08T09:00:00Z"));
+    try {
+      const silent = makeTask({ last_activity_at: "2026-06-08T08:50:00Z" });
+      const { rerender } = renderWithI18n(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveTaskRow task={silent} issueId="issue-1" />
+        </QueryClientProvider>,
+      );
+      expect(screen.getByTestId("run-unresponsive").textContent).toBe("Not responding");
+
+      rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveTaskRow task={{ ...silent, last_activity_at: "2026-06-08T08:59:50Z" }} issueId="issue-1" />
+        </QueryClientProvider>,
+      );
+      expect(screen.queryByTestId("run-unresponsive")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("never badges a run the server has not stamped or anchored", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-06-08T09:00:00Z"));
+    try {
+      renderWithI18n(
+        <QueryClientProvider client={new QueryClient()}>
+          <ActiveTaskRow
+            task={makeTask({ status: "dispatched", started_at: null, dispatched_at: null })}
+            issueId="issue-1"
+          />
+        </QueryClientProvider>,
+      );
+      expect(screen.queryByTestId("run-unresponsive")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

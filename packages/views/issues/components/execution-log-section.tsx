@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
 import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
-import type { AgentTask } from "@multica/core/types";
+import type { AgentTask, TaskStatus } from "@multica/core/types";
+import { useConfigStore } from "@multica/core/config";
+import {
+  isRunSettled,
+  normalizeRunState,
+  runSilenceMs,
+  runStateOf,
+} from "@multica/core/agents/run-state";
 import { useTimeAgo } from "../../i18n";
 import {
   Tooltip,
@@ -87,28 +94,17 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
     refetchOnWindowFocus: true,
   });
 
+  // Bucketing goes through the normalized state (F02): pending (queued,
+  // deferred), active (dispatched, running) and blocked
+  // (waiting_local_directory) are all "in flight"; an unknown status lands
+  // in pending rather than vanishing.
   const activeTasks = useMemo(
-    () =>
-      tasks.filter(
-        (t) =>
-          t.status === "queued" ||
-          t.status === "dispatched" ||
-          // Daemon-parked task on a busy local_directory — still active
-          // (waiting on a path lock), not terminal. Surfacing it here is
-          // what tells the user the agent is alive and will resume.
-          t.status === "waiting_local_directory" ||
-          t.status === "running",
-      ),
+    () => tasks.filter((t) => !isRunSettled(runStateOf(t.status))),
     [tasks],
   );
 
   const pastTasks = useMemo(() => {
-    const past = tasks.filter(
-      (t) =>
-        t.status === "completed" ||
-        t.status === "failed" ||
-        t.status === "cancelled",
-    );
+    const past = tasks.filter((t) => isRunSettled(runStateOf(t.status)));
     return past.toSorted((a, b) => {
       const at = a.completed_at ?? a.created_at;
       const bt = b.completed_at ?? b.created_at;
@@ -286,8 +282,9 @@ export function IssueUsageTotal({
 
 // ─── Row visual config ─────────────────────────────────────────────────────
 
-const STATUS_TONE: Record<AgentTask["status"], string> = {
+const STATUS_TONE: Record<TaskStatus, string> = {
   queued: "text-warning",
+  deferred: "text-warning",
   dispatched: "text-warning",
   // Same tone as queued/dispatched — visually "stopped" so users see the
   // task is parked, but distinguished by the status label.
@@ -316,18 +313,25 @@ export function ActiveTaskRow({
   const { t } = useT("issues");
   const [cancelling, setCancelling] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const tone = STATUS_TONE[task.status];
+  const tone = STATUS_TONE[task.status as TaskStatus] ?? STATUS_TONE.queued;
   const label = useStatusLabel(task.status);
   const trigger = useTriggerText(task);
+  const unresponsiveAfter = useConfigStore((s) => s.runUnresponsiveAfterSeconds);
 
   // Running rows show a live-ticking elapsed timer (the ticking digits carry
-  // "alive", the duration carries "how long"). Only running rows tick.
+  // "alive", the duration carries "how long"). Dispatched rows tick slower,
+  // only to re-evaluate the liveness verdict below.
   const [now, setNow] = useState(() => Date.now());
+  const runState = runStateOf(task.status);
   useEffect(() => {
-    if (task.status !== "running") return;
-    const id = setInterval(() => setNow(Date.now()), 1000);
+    if (runState !== "active") return;
+    const id = setInterval(() => setNow(Date.now()), task.status === "running" ? 1000 : 15_000);
     return () => clearInterval(id);
-  }, [task.status]);
+  }, [runState, task.status]);
+  // Derived, never stored: a silent active run past the threshold. Any
+  // task:message or task:progress refreshes last_activity_at and clears it.
+  const unresponsive = normalizeRunState(task, now, unresponsiveAfter) === "unresponsive";
+  const silence = runSilenceMs(task, now);
   const elapsed =
     task.status === "running"
       ? formatDuration(
@@ -376,6 +380,17 @@ export function ActiveTaskRow({
           </>
         ) : (
           <span className={`${tone} min-w-0 truncate`}>{label}</span>
+        )}
+        {unresponsive && (
+          <span
+            data-testid="run-unresponsive"
+            className="text-muted-foreground shrink-0"
+            title={t(($) => $.execution_log.unresponsive_tooltip, {
+              duration: formatDuration(new Date(now - (silence ?? 0)).toISOString(), now),
+            })}
+          >
+            {t(($) => $.execution_log.unresponsive)}
+          </span>
         )}
       </RowStatus>
       <RowActions>

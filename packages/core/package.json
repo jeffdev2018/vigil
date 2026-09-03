@@ -74,6 +74,7 @@
     "./dashboard/queries": "./dashboard/queries.ts",
     "./agents": "./agents/index.ts",
     "./agents/queries": "./agents/queries.ts",
+    "./agents/run-state": "./agents/run-state.ts",
     "./agents/derive-presence": "./agents/derive-presence.ts",
     "./agents/use-agent-presence": "./agents/use-agent-presence.ts",
     "./agents/visibility-label": "./agents/visibility-label.ts",
