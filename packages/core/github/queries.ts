@@ -7,6 +7,13 @@ export const githubKeys = {
   repositories: (wsId: string, installationId: string) =>
     [...githubKeys.all(wsId), "installations", installationId, "repositories"] as const,
   pullRequests: (issueId: string) => ["github", "pull-requests", issueId] as const,
+  // Merge readiness (F10) is keyed like pullRequests: by issue, not workspace,
+  // and the realtime `pull_request` / comment / issue paths invalidate the
+  // prefixes below.
+  mergeReadinessAll: () => ["github", "merge-readiness"] as const,
+  mergeReadiness: (issueId: string) => [...githubKeys.mergeReadinessAll(), issueId] as const,
+  prStackAll: () => ["github", "pr-stack"] as const,
+  prStack: (issueId: string) => [...githubKeys.prStackAll(), issueId] as const,
 };
 
 export const githubInstallationsOptions = (wsId: string) =>
@@ -36,5 +43,19 @@ export const issuePullRequestsOptions = (issueId: string) =>
   queryOptions({
     queryKey: githubKeys.pullRequests(issueId),
     queryFn: () => api.listIssuePullRequests(issueId),
+    enabled: !!issueId,
+  });
+
+export const issueMergeReadinessOptions = (issueId: string) =>
+  queryOptions({
+    queryKey: githubKeys.mergeReadiness(issueId),
+    queryFn: () => api.getIssueMergeReadiness(issueId),
+    enabled: !!issueId,
+  });
+
+export const issuePRStackOptions = (issueId: string) =>
+  queryOptions({
+    queryKey: githubKeys.prStack(issueId),
+    queryFn: () => api.getIssuePRStack(issueId),
     enabled: !!issueId,
   });

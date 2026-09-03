@@ -199,6 +199,13 @@ export type {
   GitHubRepository,
   ListGitHubRepositoriesResponse,
   GitHubConnectResponse,
+  MergeReadinessChecks,
+  MergeReadinessPR,
+  MergeBlockerKind,
+  MergeBlocker,
+  MergeReadiness,
+  PRStackNode,
+  PRStack,
 } from "./github";
 export type {
   VCSProvider,

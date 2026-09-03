@@ -444,7 +444,23 @@
     "workdir_path_copy_failed": "Failed to copy workdir path",
     "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent",
     "section_blocks": "Blocks",
-    "section_blocked_by": "Blocked by"
+    "section_blocked_by": "Blocked by",
+    "merge_ready": "Ready to merge",
+    "merge_not_ready": "Not ready to merge",
+    "merge_stale_hint": "data may be stale",
+    "merge_blockers_more": "+{{count}} more",
+    "blocker_checks_failing": "Failing checks on #{{pr}}",
+    "blocker_checks_pending": "Checks pending on #{{pr}}",
+    "blocker_merge_conflict": "Merge conflict on #{{pr}}",
+    "blocker_merge_not_clean": "Not mergeable yet on #{{pr}}",
+    "blocker_stale_snapshot": "Stale data on #{{pr}}",
+    "blocker_unresolved_threads": "{{count}} unresolved review thread(s)",
+    "blocker_open_todos": "{{count}} open todo(s) in comments",
+    "blocker_blocking_issue": "Blocked by {{identifier}}",
+    "blocker_no_pr": "No open pull request",
+    "pr_stack_title": "PR stack",
+    "pr_stack_truncated": "Stack cut after {{depth}} levels",
+    "pr_stack_cyclic": "Dependency cycle: some levels are hidden"
   },
   "timeline": {
     "loading": "Loading..."

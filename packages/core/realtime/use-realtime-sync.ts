@@ -880,6 +880,8 @@ export function useRealtimeSync(
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
         qc.invalidateQueries({ queryKey: ["github", "pull-requests"] });
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness"] });
+      qc.invalidateQueries({ queryKey: ["github", "pr-stack"] });
       },
       // Powers the agent presence cache: any task lifecycle change
       // (dispatch / completed / failed / cancelled) refreshes the
@@ -1106,6 +1108,7 @@ export function useRealtimeSync(
       const { comment, issue_revision: issueRevision } = p as CommentCreatedPayload;
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
       // A new comment bumps the parent issue's updated_at server-side
       // (MUL-5009), so any open board/list sorted by "Updated date" has
       // drifted. Refetch just those keys to re-sort the commented card into
@@ -1130,6 +1133,7 @@ export function useRealtimeSync(
       const { comment, issue_revision } = p as CommentUpdatedPayload;
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
       const wsId = getCurrentWsId();
       if (wsId) {
         invalidateLastActivitySortedIssueLists(qc, wsId);
@@ -1145,6 +1149,7 @@ export function useRealtimeSync(
       const { issue_id, issue_revision } = p as CommentDeletedPayload;
       if (!issue_id) return;
       invalidateTimeline(issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", issue_id] });
       const wsId = getCurrentWsId();
       if (wsId) {
         invalidateLastActivitySortedIssueLists(qc, wsId);
@@ -1158,12 +1163,18 @@ export function useRealtimeSync(
 
     const unsubCommentResolved = ws.on("comment:resolved", (p) => {
       const { comment } = p as CommentResolvedPayload;
-      if (comment?.issue_id) invalidateTimeline(comment.issue_id);
+      if (comment?.issue_id) {
+        invalidateTimeline(comment.issue_id);
+        qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
+      }
     });
 
     const unsubCommentUnresolved = ws.on("comment:unresolved", (p) => {
       const { comment } = p as CommentUnresolvedPayload;
-      if (comment?.issue_id) invalidateTimeline(comment.issue_id);
+      if (comment?.issue_id) {
+        invalidateTimeline(comment.issue_id);
+        qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
+      }
     });
 
     const unsubActivityCreated = ws.on("activity:created", (p) => {
