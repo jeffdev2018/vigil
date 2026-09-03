@@ -531,6 +531,9 @@ export function onIssueUpdated(
     }
     qc.invalidateQueries({ queryKey: issueKeys.childrenByParentsAll(wsId) });
   }
+  // Plan and verification changes ride issue:updated (F17); active lists refetch.
+  qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.planVerifications(wsId, issue.id) });
   reconcileIssueFullSnapshotRevision(qc, wsId, issue.id, issue.revision);
 }
 

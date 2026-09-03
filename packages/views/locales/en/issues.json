@@ -886,5 +886,25 @@
     "surface_loading": "Loading {{name}}…",
     "surface_unavailable": "{{name}} could not load its interface. The installed version may not include it.",
     "surface_navigated": "{{name}} tried to replace its panel with a page loaded from elsewhere. It has been stopped and disconnected — tell your workspace admin."
+  },
+  "plan_verification": {
+    "section": "Plan verification",
+    "plan_version": "Plan v{{version}}",
+    "version_picker": "Plan version",
+    "superseded": "superseded",
+    "no_verification": "No verification run yet.",
+    "state_queued": "Verification queued",
+    "state_running": "Verifying",
+    "state_failed": "Verification failed",
+    "verdict_critical": "{{count}} critical",
+    "verdict_clean": "Matches the plan",
+    "failed_hint": "The verification run ended without a report. Rerun the issue to verify again.",
+    "pending_hint": "A verification run will compare the delivered changes to this plan.",
+    "report_for": "Report for plan v{{version}}",
+    "severity_critical": "critical",
+    "severity_major": "major",
+    "severity_minor": "minor",
+    "severity_outdated": "outdated",
+    "no_findings": "No divergence from the plan."
   }
 }

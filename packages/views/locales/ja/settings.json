@@ -684,7 +684,11 @@
     "change_logo_aria": "ワークスペースのロゴを変更",
     "click_logo_hint": "ロゴをクリックして新しい画像をアップロード",
     "toast_logo_updated": "ワークスペースのロゴを更新しました",
-    "toast_logo_failed": "ワークスペースのロゴをアップロードできませんでした"
+    "toast_logo_failed": "ワークスペースのロゴをアップロードできませんでした",
+    "plan_verification_section": "計画の検証",
+    "plan_verification_label": "タスクの計画に対して実行を検証する",
+    "plan_verification_description": "計画のあるタスクで実行が完了したら検証の実行をキューに入れ、重大な差異が報告されている間はタスクを完了にしません。",
+    "plan_verification_failed": "計画の検証設定を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

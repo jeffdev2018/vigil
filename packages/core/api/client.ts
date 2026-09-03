@@ -221,6 +221,9 @@ import type {
   CreateCommentSubIssueManualRequest,
   CreateCommentSubIssueAgentRequest,
   CreateCommentSubIssueRequest,
+  IssuePlanEnvelope,
+  IssuePlanStep,
+  PlanVerification,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -398,6 +401,9 @@ import {
   EMPTY_ISSUE_PROPERTIES_RESPONSE,
   EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
   IssuePullRequestsResponseSchema,
+  IssuePlanEnvelopeSchema,
+  EMPTY_ISSUE_PLAN,
+  PlanVerificationsResponseSchema,
   ResourceLabelsResponseSchema,
   EMPTY_LABEL,
   EMPTY_LIST_LABELS_RESPONSE,
@@ -1256,6 +1262,36 @@ export class ApiClient {
 
   async deleteIssue(id: string): Promise<void> {
     await this.fetch(`/api/issues/${id}`, { method: "DELETE" });
+  }
+
+  async getIssuePlan(issueId: string, options?: { signal?: AbortSignal }): Promise<IssuePlanEnvelope> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
+      endpoint: "GET /api/issues/:id/plan",
+    });
+  }
+
+  async setIssuePlan(issueId: string, data: { content: string; steps?: IssuePlanStep[] }): Promise<IssuePlanEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/plan`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
+      endpoint: "PUT /api/issues/:id/plan",
+    });
+  }
+
+  async listPlanVerifications(issueId: string, options?: { signal?: AbortSignal }): Promise<PlanVerification[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan/verifications`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, PlanVerificationsResponseSchema, { verifications: [] }, {
+      endpoint: "GET /api/issues/:id/plan/verifications",
+    }).verifications;
   }
 
   async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {

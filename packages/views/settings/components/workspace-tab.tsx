@@ -36,6 +36,7 @@ import type { Workspace } from "@multica/core/types";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
 import { useNavigation } from "../../navigation";
 import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
+import { PlanVerificationSetting } from "./plan-verification-setting";
 import { useT } from "../../i18n";
 import {
   SettingsCard,
@@ -467,6 +468,13 @@ export function WorkspaceTab() {
       {/* Danger Zone — gated on the member query settling so the owner-only
           Delete button and the sole-owner Leave guidance don't flash in
           after mount. */}
+      {workspace && (
+        <PlanVerificationSetting
+          workspace={workspace}
+          canEdit={canManageWorkspace}
+        />
+      )}
+
       {membersFetched && (
         <SettingsSection
           title={

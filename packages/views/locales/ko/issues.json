@@ -855,5 +855,25 @@
     "surface_loading": "{{name}} 불러오는 중…",
     "surface_unavailable": "{{name}}의 인터페이스를 불러올 수 없습니다. 설치된 버전에 포함되어 있지 않을 수 있습니다.",
     "surface_navigated": "{{name}}이(가) 패널을 외부에서 불러온 페이지로 바꾸려 했습니다. 중지하고 연결을 끊었습니다. 워크스페이스 관리자에게 알리세요."
+  },
+  "plan_verification": {
+    "section": "계획 검증",
+    "plan_version": "계획 v{{version}}",
+    "version_picker": "계획 버전",
+    "superseded": "대체됨",
+    "no_verification": "아직 검증 실행이 없습니다.",
+    "state_queued": "검증 대기 중",
+    "state_running": "검증 중",
+    "state_failed": "검증 실패",
+    "verdict_critical": "치명적 {{count}}건",
+    "verdict_clean": "계획과 일치",
+    "failed_hint": "검증 실행이 보고서 없이 끝났습니다. 태스크를 다시 실행해 재검증하세요.",
+    "pending_hint": "검증 실행이 전달된 변경 사항을 이 계획과 비교합니다.",
+    "report_for": "계획 v{{version}} 보고서",
+    "severity_critical": "치명적",
+    "severity_major": "중대",
+    "severity_minor": "경미",
+    "severity_outdated": "구식",
+    "no_findings": "계획과 차이가 없습니다."
   }
 }
