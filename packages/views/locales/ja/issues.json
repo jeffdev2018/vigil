@@ -885,5 +885,28 @@
     "cancel": "キャンセル",
     "resumed": "エージェント再開",
     "answer_failed": "判断を記録できませんでした"
+  },
+  "acceptance": {
+    "section": "受け入れ基準",
+    "add": "受け入れ基準を追加",
+    "add_placeholder": "基準を追加…",
+    "attach": "証拠を添付",
+    "validate": "自分で確認済みにする",
+    "remove": "削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "proof_type": "証拠の種類",
+    "ref_placeholder": "テストコマンド、パス、または URL",
+    "state_missing": "証拠なし",
+    "state_pending_human": "人による確認待ち",
+    "state_satisfied": "証明済み",
+    "update_failed": "受け入れ基準を更新できませんでした",
+    "types": {
+      "test": "テスト",
+      "file": "ファイル",
+      "screenshot": "スクリーンショット",
+      "url": "リンク",
+      "human_validation": "人による確認"
+    }
   }
 }

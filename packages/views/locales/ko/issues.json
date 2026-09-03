@@ -885,5 +885,28 @@
     "cancel": "취소",
     "resumed": "에이전트 재개됨",
     "answer_failed": "결정을 기록하지 못했습니다"
+  },
+  "acceptance": {
+    "section": "인수 기준",
+    "add": "인수 기준 추가",
+    "add_placeholder": "기준 추가…",
+    "attach": "증거 첨부",
+    "validate": "직접 확인",
+    "remove": "삭제",
+    "save": "저장",
+    "cancel": "취소",
+    "proof_type": "증거 유형",
+    "ref_placeholder": "테스트 명령, 경로 또는 URL",
+    "state_missing": "증거 없음",
+    "state_pending_human": "사람의 확인 대기 중",
+    "state_satisfied": "증명됨",
+    "update_failed": "인수 기준을 업데이트하지 못했습니다",
+    "types": {
+      "test": "테스트",
+      "file": "파일",
+      "screenshot": "스크린샷",
+      "url": "링크",
+      "human_validation": "사람의 확인"
+    }
   }
 }
