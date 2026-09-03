@@ -51,9 +51,11 @@ export function InboxList({
   view,
   selectedKey,
   archivedCount,
+  attentionCount = 0,
   onSelect,
   onAction,
   onOpenArchived,
+  onOpenAttention,
   emptyLabel,
   emptyAction,
 }: {
@@ -63,9 +65,12 @@ export function InboxList({
   // Deduplicated archived-issue count. Only read in the main view, to label the
   // entry into the archive; the entry hides at zero.
   archivedCount: number;
+  // Attention Inbox (K02) count; the entry at the top of the main list hides at zero.
+  attentionCount?: number;
   onSelect: (item: InboxItem) => void;
   onAction: (id: string) => void;
   onOpenArchived: () => void;
+  onOpenAttention?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
 }) {
@@ -89,6 +94,26 @@ export function InboxList({
   );
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const isArchivedView = view === "archived";
+  const isAttentionView = view === "attention";
+
+  // Entry into the Attention Inbox, at the top of the main list: what needs a
+  // human should be the first thing seen, not the last.
+  const attentionEntry =
+    view === "inbox" && attentionCount > 0 && onOpenAttention ? (
+      <button
+        type="button"
+        data-testid="inbox-attention-entry"
+        onClick={onOpenAttention}
+        className="mb-1 flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-warning outline-none transition-colors hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-warning" />
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.attention_title)}</span>
+        <span className="shrink-0 tabular-nums">{attentionCount}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
 
   // Keyboard focus for the list lives on the scroll container, not on a row:
   // virtualization unmounts the row the user clicked as soon as it scrolls
@@ -190,12 +215,15 @@ export function InboxList({
             {emptyLabel ??
               (isArchivedView
                 ? t(($) => $.list.archived_empty)
-                : t(($) => $.list.empty))}
+                : isAttentionView
+                  ? t(($) => $.list.attention_empty)
+                  : t(($) => $.list.empty))}
           </p>
           {emptyAction && <div className="mt-3">{emptyAction}</div>}
         </div>
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
+        {attentionEntry && <div className="px-2">{attentionEntry}</div>}
         {archivedEntry && <div className="px-2">{archivedEntry}</div>}
       </div>
     );

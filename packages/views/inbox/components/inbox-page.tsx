@@ -25,6 +25,7 @@ import { useIssueDraftStore } from "@multica/core/issues/stores/draft-store";
 import {
   inboxListOptions,
   archivedInboxListOptions,
+  attentionInboxListOptions,
   deduplicateInboxItems,
   deduplicateArchivedInboxItems,
   useInboxUnreadCount,
@@ -88,7 +89,7 @@ import { useTimeAgo } from "./inbox-list-item";
 import { InboxList } from "./inbox-list";
 import { InboxFilterMenu } from "./inbox-filter-menu";
 import { InboxContextMenuProvider } from "./inbox-context-menu";
-import { ARCHIVED_VIEW_PARAM, type InboxView } from "./inbox-view";
+import { ARCHIVED_VIEW_PARAM, ATTENTION_VIEW_PARAM, type InboxView } from "./inbox-view";
 import { useTypeLabels } from "./inbox-detail-label";
 import {
   getInboxDisplayTitle,
@@ -108,8 +109,9 @@ export function InboxPage() {
   );
   const { searchParams, replace } = useNavigation();
   const urlIssue = searchParams.get("issue") ?? "";
+  const urlViewParam = searchParams.get("view");
   const urlView: InboxView =
-    searchParams.get("view") === ARCHIVED_VIEW_PARAM ? "archived" : "inbox";
+    urlViewParam === ARCHIVED_VIEW_PARAM ? "archived" : urlViewParam === ATTENTION_VIEW_PARAM ? "attention" : "inbox";
   const wsPaths = useWorkspacePaths();
 
   const [selectedKey, setSelectedKeyState] = useState(() => urlIssue);
@@ -140,8 +142,17 @@ export function InboxPage() {
     [rawArchivedItems],
   );
 
+  // Attention Inbox (K02): fetched alongside so the main list's entry into it
+  // carries its count; the server already filtered and ordered it by risk.
+  const {
+    data: attentionItems = [],
+    isLoading: attentionLoading,
+    isError: attentionError,
+  } = useQuery(attentionInboxListOptions(wsId));
+
   const isArchivedView = view === "archived";
-  const viewItems = isArchivedView ? archivedItems : items;
+  const isAttentionView = view === "attention";
+  const viewItems = isArchivedView ? archivedItems : isAttentionView ? attentionItems : items;
   const filters = useInboxFilters(wsId);
   const clearFilters = useInboxFilterStore((state) => state.clearFilters);
   // Active and archived endpoints return the same row contract and are both
@@ -203,6 +214,7 @@ export function InboxPage() {
     (nextView: InboxView, key: string) => {
       const params = new URLSearchParams();
       if (nextView === "archived") params.set("view", ARCHIVED_VIEW_PARAM);
+      if (nextView === "attention") params.set("view", ATTENTION_VIEW_PARAM);
       if (key) params.set("issue", key);
       const query = params.toString();
       const inboxPath = wsPaths.inbox();
@@ -228,6 +240,7 @@ export function InboxPage() {
   // Stable identity: InboxList memoizes the archive entry on this callback, so
   // an inline arrow here would rebuild (and remount) the entry every render.
   const openArchived = useCallback(() => setView("archived"), [setView]);
+  const openAttention = useCallback(() => setView("attention"), [setView]);
 
   // Applying a filter can remove the open row from the list. Clear that local
   // selection instead of treating it as a broken deep link and redirecting to
@@ -239,7 +252,7 @@ export function InboxPage() {
   // Whether the list currently on screen has finished its first load. The
   // fallback and drain effects below both key on this, and getting it wrong in
   // the archived view means acting on an empty list that simply hasn't arrived.
-  const viewLoading = isArchivedView ? archivedLoading : loading;
+  const viewLoading = isArchivedView ? archivedLoading : isAttentionView ? attentionLoading : loading;
 
   // Shared inbox links (?issue=<id>) may point to notifications not in this
   // user's inbox (archived, or never received). Fall back to the issue page
@@ -593,11 +606,27 @@ export function InboxPage() {
     </button>
   );
 
-  const list = archivedError && isArchivedView ? (
+  const attentionBackRow = (
+    <button
+      type="button"
+      onClick={() => setView("inbox")}
+      className="flex w-full shrink-0 items-center gap-1.5 border-b px-3 py-2 text-left text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      <ChevronLeft className="size-4 shrink-0" />
+      <span className="truncate">{t(($) => $.list.attention_title)}</span>
+      <span className="ml-auto shrink-0 tabular-nums text-muted-foreground">
+        {attentionItems.length}
+      </span>
+    </button>
+  );
+
+  const list = (archivedError && isArchivedView) || (attentionError && isAttentionView) ? (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
         <Archive className="mb-3 h-8 w-8 text-faint-foreground" />
-        <p className="text-body">{t(($) => $.errors.archived_load_failed)}</p>
+        <p className="text-body">
+          {isAttentionView ? t(($) => $.errors.attention_load_failed) : t(($) => $.errors.archived_load_failed)}
+        </p>
       </div>
     </div>
   ) : (
@@ -614,9 +643,11 @@ export function InboxPage() {
         view={view}
         selectedKey={selectedKey}
         archivedCount={archivedItems.length}
+        attentionCount={attentionItems.length}
         onSelect={handleSelect}
         onAction={isArchivedView ? handleUnarchive : handleArchive}
         onOpenArchived={openArchived}
+        onOpenAttention={openAttention}
         emptyLabel={
           hasActiveFilters && viewItems.length > 0 && visibleItems.length === 0
             ? t(($) => $.filters.empty)
@@ -641,6 +672,7 @@ export function InboxPage() {
     <>
       {listHeader}
       {isArchivedView && archivedBackRow}
+      {isAttentionView && attentionBackRow}
       {list}
     </>
   );
@@ -662,7 +694,7 @@ export function InboxPage() {
       <ArrowLeft className="h-4 w-4" />
       {/* Back goes to the list the user came FROM, so the label has to
           name it — "Inbox" here would be a lie about the destination. */}
-      {isArchivedView ? t(($) => $.list.archived_title) : t(($) => $.page.back)}
+      {isArchivedView ? t(($) => $.list.archived_title) : isAttentionView ? t(($) => $.list.attention_title) : t(($) => $.page.back)}
     </Button>
   ) : undefined;
 

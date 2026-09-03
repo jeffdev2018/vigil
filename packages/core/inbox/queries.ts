@@ -6,6 +6,7 @@ export const inboxKeys = {
   all: (wsId: string) => ["inbox", wsId] as const,
   list: (wsId: string) => [...inboxKeys.all(wsId), "list"] as const,
   archived: (wsId: string) => [...inboxKeys.all(wsId), "archived"] as const,
+  attention: (wsId: string) => [...inboxKeys.all(wsId), "attention"] as const,
   // Account-level (not workspace-scoped): a single shared cache entry that
   // holds unread counts for every workspace the user belongs to.
   unreadSummary: () => ["inbox", "unread-summary"] as const,
@@ -138,3 +139,11 @@ function groupInboxItemsByIssue(items: InboxItem[]): InboxItem[] {
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
 }
+
+/** Attention Inbox (K02): human-only items, ordered by risk on the server. */
+export const attentionInboxListOptions = (wsId: string) =>
+  queryOptions({
+    queryKey: inboxKeys.attention(wsId),
+    queryFn: () => api.listAttentionInbox(),
+    enabled: wsId.length > 0,
+  });

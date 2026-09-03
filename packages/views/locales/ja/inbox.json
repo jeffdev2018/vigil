@@ -40,7 +40,9 @@
     "archived_title": "アーカイブ済み",
     "archived_empty": "アーカイブされた通知はありません",
     "unarchive_tooltip": "アーカイブ解除",
-    "actions_aria": "通知の操作"
+    "actions_aria": "通知の操作",
+    "attention_title": "要対応",
+    "attention_empty": "対応が必要なものはありません。"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -74,7 +76,8 @@
     "quick_create_failed": "エージェントでの作成に失敗",
     "quick_create_unconfirmed": "エージェントでの作成結果は未確認",
     "autopilot_paused": "自動化を一時停止しました",
-    "autopilot_quota_exceeded": "自動化の実行上限に達しました"
+    "autopilot_quota_exceeded": "自動化の実行上限に達しました",
+    "decision_request": "判断を求めています"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -107,6 +110,7 @@
     "archive_all_read_failed": "既読の項目をアーカイブできませんでした",
     "archive_completed_failed": "完了した項目をアーカイブできませんでした",
     "unarchive_failed": "アーカイブ解除に失敗しました",
-    "archived_load_failed": "アーカイブ済み通知を読み込めませんでした"
+    "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
+    "attention_load_failed": "要対応リストを読み込めませんでした。"
   }
 }

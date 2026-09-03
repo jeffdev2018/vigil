@@ -188,6 +188,7 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to file decision")
 		return
 	}
+	h.notifyDecisionRequested(r.Context(), issue, decision, actorType, actorID)
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	writeJSON(w, http.StatusCreated, map[string]any{"decision": issueDecisionToResponse(decision)})
 }
