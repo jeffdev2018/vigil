@@ -3002,6 +3002,20 @@ export const MALFORMED_RUNTIME_MODEL_LIST_REQUEST: RuntimeModelListRequest = {
   updated_at: "",
 };
 
+export const RuntimeCliAuthRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string(),
+  action: z.string(),
+  status: z.string(),
+  verification_url: z.string().url().optional(),
+  user_code: z.string().optional(),
+  authenticated: z.boolean().optional(),
+  error: z.string().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  expires_at: z.string(),
+}).loose();
+
 export const DingTalkInstallationSchema = z.object({
   id: z.string(),
   workspace_id: z.string().default(""),

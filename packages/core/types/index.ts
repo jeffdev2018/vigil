@@ -71,6 +71,7 @@ export type {
   RuntimeModelThinkingLevel,
   RuntimeModelListRequest,
   RuntimeModelListStatus,
+	RuntimeCliAuthRequest,
   RuntimeModelsResult,
   RuntimeLocalSkillStatus,
   RuntimeLocalSkillImportAction,

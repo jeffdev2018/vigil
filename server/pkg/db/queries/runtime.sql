@@ -237,6 +237,14 @@ SET status = 'offline',
     updated_at = now()
 WHERE id = $1;
 
+-- name: UpdateRuntimeCliAuthState :exec
+-- Authentication tokens remain exclusively in the provider CLI's local
+-- config. Only the non-secret status snapshot is durable.
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('cli_auth', @cli_auth::jsonb),
+    updated_at = now()
+WHERE id = $1;
+
 -- name: SelectStaleOnlineRuntimes :many
 -- Lists online runtimes whose last_seen_at exceeds the stale window. The
 -- sweeper uses this as a candidate set, then optionally filters via the

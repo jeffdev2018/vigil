@@ -155,6 +155,12 @@ multica runtime profile unset-path <profile-id>
 
 Editing a profile only affects runs claimed afterwards. Before deleting a profile, deal with the active agents still bound to its runtimes. Deleting only the runtime instance on one computer does not delete the profile — a running daemon will re-register it.
 
+## CLI authentication
+
+For Claude Code and Codex runtimes, the runtime page can start the provider's sign-in flow on the daemon machine. Open the verification URL, enter the one-time code, and keep the dialog open until the CLI confirms completion. The provider token is written only to that CLI's local configuration; Multica stores only the non-secret authenticated status and timestamp.
+
+Authentication is machine-wide. If one daemon serves several workspaces, connecting or disconnecting a provider affects every workspace that uses that CLI on the machine. Other providers must still be authenticated from the host terminal.
+
 ## Troubleshooting an offline runtime
 
 Check in this order:

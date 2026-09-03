@@ -284,6 +284,27 @@
       "timeout": "Timeout"
     }
   },
+  "cli_auth": {
+    "authenticated": "Authenticated",
+    "not_authenticated": "Not authenticated",
+    "unknown": "Unknown",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "offline": "The runtime is offline. Reconnect its daemon before signing in.",
+    "help": "Authentication help",
+    "failed": "CLI authentication failed",
+    "title": "Connect {{provider}}",
+    "disconnecting_title": "Disconnect {{provider}}",
+    "machine_scope": "Authentication is stored by the CLI on this machine and applies to every workspace using it. No token is sent to Multica.",
+    "waiting": "Waiting for the CLI…",
+    "expires_in": "expires in {{seconds}}s",
+    "open_url": "Open this verification page",
+    "copy_url": "Copy verification URL",
+    "code": "One-time code",
+    "copy_code": "Copy code",
+    "completed": "The CLI is authenticated.",
+    "disconnected": "The CLI is disconnected."
+  },
   "charts": {
     "heatmap_less": "Less",
     "heatmap_more": "More",

@@ -272,6 +272,27 @@
       "timeout": "タイムアウト"
     }
   },
+  "cli_auth": {
+    "authenticated": "認証済み",
+    "not_authenticated": "未認証",
+    "unknown": "不明",
+    "connect": "接続",
+    "disconnect": "切断",
+    "offline": "ランタイムはオフラインです。先にデーモンを再接続してください。",
+    "help": "認証ヘルプ",
+    "failed": "CLI の認証に失敗しました",
+    "title": "{{provider}} に接続",
+    "disconnecting_title": "{{provider}} を切断",
+    "machine_scope": "認証情報はこのマシンの CLI に保存され、それを使うすべてのワークスペースに適用されます。トークンは Multica に送信されません。",
+    "waiting": "CLI を待機中…",
+    "expires_in": "残り {{seconds}} 秒",
+    "open_url": "この認証ページを開く",
+    "copy_url": "認証 URL をコピー",
+    "code": "ワンタイムコード",
+    "copy_code": "コードをコピー",
+    "completed": "CLI は認証されました。",
+    "disconnected": "CLI は切断されました。"
+  },
   "charts": {
     "heatmap_less": "少ない",
     "heatmap_more": "多い",

@@ -272,6 +272,27 @@
       "timeout": "超时"
     }
   },
+  "cli_auth": {
+    "authenticated": "已认证",
+    "not_authenticated": "未认证",
+    "unknown": "未知",
+    "connect": "连接",
+    "disconnect": "断开连接",
+    "offline": "运行时已离线。请先重新连接守护进程。",
+    "help": "认证帮助",
+    "failed": "CLI 认证失败",
+    "title": "连接 {{provider}}",
+    "disconnecting_title": "断开 {{provider}}",
+    "machine_scope": "认证信息由此机器上的 CLI 保存，并适用于使用它的所有工作区。不会向 Multica 发送令牌。",
+    "waiting": "正在等待 CLI…",
+    "expires_in": "{{seconds}} 秒后过期",
+    "open_url": "打开此验证页面",
+    "copy_url": "复制验证链接",
+    "code": "一次性代码",
+    "copy_code": "复制代码",
+    "completed": "CLI 已认证。",
+    "disconnected": "CLI 已断开连接。"
+  },
   "charts": {
     "heatmap_less": "少",
     "heatmap_more": "多",

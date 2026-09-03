@@ -1150,6 +1150,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if ack.PendingModelList != nil {
 		resp["pending_model_list"] = ack.PendingModelList
 	}
+	if ack.PendingCliAuth != nil {
+		resp["pending_cli_auth"] = ack.PendingCliAuth
+	}
 	if ack.PendingLocalSkills != nil {
 		resp["pending_local_skills"] = ack.PendingLocalSkills
 	}
@@ -1363,6 +1366,23 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 		} else {
 			slog.Warn("model list HasPending failed", "error", probeModelErr, "runtime_id", runtimeID)
 		}
+	}
+
+	probeCliAuthCtx, cancelProbeCliAuth := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
+	hasCliAuth, probeCliAuthErr := h.CliAuthStore.HasPending(probeCliAuthCtx, runtimeID)
+	cancelProbeCliAuth()
+	switch {
+	case probeCliAuthErr == nil && hasCliAuth:
+		pendingCliAuth, popErr := h.CliAuthStore.PopPending(ctx, runtimeID)
+		if popErr != nil {
+			slog.Warn("CLI auth PopPending failed", "error", popErr, "runtime_id", runtimeID)
+		} else if pendingCliAuth != nil {
+			ack.PendingCliAuth = &protocol.DaemonHeartbeatPendingCliAuth{
+				ID: pendingCliAuth.ID, Action: pendingCliAuth.Action,
+			}
+		}
+	case probeCliAuthErr != nil:
+		slog.Warn("CLI auth HasPending failed", "error", probeCliAuthErr, "runtime_id", runtimeID)
 	}
 
 	// Probe then claim the local-skill list queue. The probe is bounded so a
