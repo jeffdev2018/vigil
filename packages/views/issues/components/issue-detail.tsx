@@ -92,6 +92,7 @@ import { collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { PlanVerificationSection } from "./plan-verification-section";
+import { DecisionCardsSection } from "./decision-cards-section";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
@@ -2576,6 +2577,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           own token spend, with the issue total on the section header.
           Self-contained; owns its own collapse state and WS subscriptions.
           Hides itself when there are no runs to show. */}
+      {/* Decision Cards — questions an agent asked on this issue (K01).
+          Hides itself until a card exists; pending cards lead. */}
+      <DecisionCardsSection issueId={id} />
+
       <ExecutionLogSection issueId={id} identifier={issue.identifier} />
 
       {/* Plan verification — the issue plan and its newest verification

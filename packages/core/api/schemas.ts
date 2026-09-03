@@ -1302,6 +1302,40 @@ export const PlanVerificationsResponseSchema = z.object({
   verifications: z.array(PlanVerificationSchema).catch([]).default([]),
 }).loose();
 
+// Decision Cards (K01). A card is data from an agent: nothing here decides.
+export const IssueDecisionSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  task_id: z.string().optional(),
+  asked_by_type: z.string().default(""),
+  asked_by_id: z.string().default(""),
+  question: z.string().default(""),
+  options: z.array(z.object({
+    id: z.string(),
+    label: z.string().default(""),
+    impact: z.string().optional(),
+  }).loose()).catch([]).default([]),
+  recommended_option_id: z.string().optional(),
+  urgency: z.string().default("normal"),
+  response: z.object({
+    option_id: z.string().optional(),
+    modified_text: z.string().optional(),
+  }).loose().nullable().catch(null).default(null),
+  responded_by_type: z.string().optional(),
+  responded_by_id: z.string().optional(),
+  responded_at: z.string().nullable().default(null),
+  resume_task_id: z.string().optional(),
+  created_at: z.string().default(""),
+}).loose();
+
+export const IssueDecisionsResponseSchema = z.object({
+  decisions: z.array(IssueDecisionSchema).catch([]).default([]),
+}).loose();
+
+export const IssueDecisionEnvelopeSchema = z.object({
+  decision: IssueDecisionSchema,
+}).loose();
+
 export const ListIssuesResponseSchema = z.object({
   issues: z.array(IssueSchema).default([]),
   total: z.number().default(0),

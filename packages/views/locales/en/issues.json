@@ -906,5 +906,15 @@
     "severity_minor": "minor",
     "severity_outdated": "outdated",
     "no_findings": "No divergence from the plan."
+  },
+  "decisions": {
+    "section": "Decisions",
+    "recommended": "recommended",
+    "modify": "Answer with something else…",
+    "modify_placeholder": "Describe what to do instead",
+    "send": "Send",
+    "cancel": "Cancel",
+    "resumed": "agent resumed",
+    "answer_failed": "Failed to record the decision"
   }
 }
