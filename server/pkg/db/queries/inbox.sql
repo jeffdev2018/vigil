@@ -216,3 +216,24 @@ WHERE i.workspace_id = $1 AND i.recipient_type = 'member' AND i.recipient_id = $
     WHERE workspace_id = $1
       AND status = ANY(sqlc.arg('terminal_status_keys')::text[])
   );
+
+-- name: ListAttentionInboxItems :many
+-- Attention Inbox (K02): only what needs a human — open Decision Cards
+-- (K01), failed or blocked runs, review requests, unconfirmed quick-creates —
+-- unarchived, for one recipient. A decision item leaves the list the moment
+-- its card is answered, through the join on details->>'decision_id'. Same
+-- column set as ListInboxItems so the row converts to it.
+SELECT i.*,
+       iss.status AS issue_status,
+       iss.priority AS issue_priority
+FROM inbox_item i
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue_decision d ON i.type = 'decision_request'
+    AND (i.details->>'decision_id') ~ '^[0-9a-f-]{36}$'
+    AND d.id = (i.details->>'decision_id')::uuid
+WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
+  AND i.archived = false
+  AND i.type IN ('decision_request', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed')
+  AND (i.type <> 'decision_request' OR (d.id IS NOT NULL AND d.response IS NULL))
+ORDER BY i.created_at DESC
+LIMIT 200;
