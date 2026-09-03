@@ -85,6 +85,12 @@ This wait only exists in the directory's `in_place` ("Direct") mode. If the dire
 
 Otherwise you just wait for the earlier run to finish. If it is stuck, stop it from its execution log, or pick a different local directory for the current agent. This directory mutex lives in the daemon's memory — no lock file is written to disk. If you suspect stale lock state, `multica daemon restart` releases it; there is nothing to delete manually.
 
+### Run shows "Not responding"
+
+The execution log badges a `dispatched` or `running` run as **Not responding** when the daemon has reported no message and no progress for it for longer than the liveness threshold (90 seconds by default). The badge is derived from the run's last activity and is never stored: the run keeps its status, is not failed for being silent, and the badge disappears with the next message from the tool.
+
+A long compile or a slow tool call can trip it on a healthy run. If the badge stays for minutes, check the daemon log for the run and, if the tool really hung, stop the run from its execution log. On a self-hosted server you can raise or lower the threshold in seconds with `MULTICA_RUN_UNRESPONSIVE_AFTER`; clients read the value from `/api/config` at startup.
+
 ## AI coding tool fails to start
 
 An online daemon does not mean the tool itself works. Open the run's detailed record and focus on:

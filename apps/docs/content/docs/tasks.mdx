@@ -154,6 +154,7 @@ The numbers below reflect the server's default configuration, for quick cross-ch
 | `dispatched` | Claimed; the tool is starting | Treated as failed after more than **5 minutes** in this state |
 | `waiting_local_directory` | Waiting for the local directory lock to release | No timeout of its own; returns to the startup flow once the directory is released |
 | `running` | The AI coding tool is executing | No fixed duration cap; liveness follows the runtime heartbeat — one every 15 seconds; a runtime that loses its heartbeat is marked offline within about 3 minutes at the latest, and its runs fail with it |
+| **Not responding** badge | A `dispatched` or `running` run has sent no message or progress for longer than the liveness threshold | Display only, **90 seconds** by default (`MULTICA_RUN_UNRESPONSIVE_AFTER` on the server). The run keeps its status and is never failed for silence; the badge clears with the next message from the tool |
 
 Automatic retry covers only the transient faults below, and only applies to runs attached to an issue or a chat (excluding the Autopilot **run only** mode):
 
