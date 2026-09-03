@@ -101,6 +101,88 @@ func (q *Queries) GetIssueDependency(ctx context.Context, arg GetIssueDependency
 	return i, err
 }
 
+const listIssueBlockerStack = `-- name: ListIssueBlockerStack :many
+WITH RECURSIVE blockers AS (
+    SELECT d.issue_id, 1 AS depth
+    FROM issue_dependency d
+    WHERE d.depends_on_issue_id = $1 AND d.type = 'blocks'
+  UNION
+    SELECT d.issue_id, b.depth + 1
+    FROM issue_dependency d
+    JOIN blockers b ON d.depends_on_issue_id = b.issue_id
+    WHERE d.type = 'blocks' AND b.depth < $2::int
+)
+SELECT MIN(b.depth)::int AS depth, i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at
+FROM blockers b
+JOIN issue i ON i.id = b.issue_id
+GROUP BY i.id
+ORDER BY depth ASC, i.number ASC
+`
+
+type ListIssueBlockerStackParams struct {
+	IssueID  pgtype.UUID `json:"issue_id"`
+	MaxDepth int32       `json:"max_depth"`
+}
+
+type ListIssueBlockerStackRow struct {
+	Depth int32 `json:"depth"`
+	Issue Issue `json:"issue"`
+}
+
+// Issues that transitively block $1 (walking 'blocks' edges upward: the row
+// (issue_id = B, depends_on_issue_id = A) means B blocks A), bounded to
+// @max_depth levels, nearest blocker first. The PR stack (F10) reads it as
+// "what must land before this issue"; the handler cuts cycles by id.
+func (q *Queries) ListIssueBlockerStack(ctx context.Context, arg ListIssueBlockerStackParams) ([]ListIssueBlockerStackRow, error) {
+	rows, err := q.db.Query(ctx, listIssueBlockerStack, arg.IssueID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIssueBlockerStackRow{}
+	for rows.Next() {
+		var i ListIssueBlockerStackRow
+		if err := rows.Scan(
+			&i.Depth,
+			&i.Issue.ID,
+			&i.Issue.WorkspaceID,
+			&i.Issue.Title,
+			&i.Issue.Description,
+			&i.Issue.Status,
+			&i.Issue.Priority,
+			&i.Issue.AssigneeType,
+			&i.Issue.AssigneeID,
+			&i.Issue.CreatorType,
+			&i.Issue.CreatorID,
+			&i.Issue.ParentIssueID,
+			&i.Issue.AcceptanceCriteria,
+			&i.Issue.ContextRefs,
+			&i.Issue.Position,
+			&i.Issue.DueDate,
+			&i.Issue.CreatedAt,
+			&i.Issue.UpdatedAt,
+			&i.Issue.Number,
+			&i.Issue.ProjectID,
+			&i.Issue.OriginType,
+			&i.Issue.OriginID,
+			&i.Issue.FirstExecutedAt,
+			&i.Issue.StartDate,
+			&i.Issue.Metadata,
+			&i.Issue.Stage,
+			&i.Issue.Properties,
+			&i.Issue.Revision,
+			&i.Issue.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIssueDependenciesForIssue = `-- name: ListIssueDependenciesForIssue :many
 SELECT d.id, d.type,
        CASE
