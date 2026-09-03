@@ -199,6 +199,37 @@ func (q *Queries) CountNewCommentsSince(ctx context.Context, arg CountNewComment
 	return count, err
 }
 
+const countUnresolvedThreadsByIssue = `-- name: CountUnresolvedThreadsByIssue :one
+WITH RECURSIVE thread AS (
+    SELECT c.id, c.id AS root_id, c.resolved_at
+    FROM comment c
+    WHERE c.issue_id = $1 AND c.parent_id IS NULL AND c.author_type <> 'system'
+  UNION ALL
+    SELECT child.id, t.root_id, child.resolved_at
+    FROM comment child
+    JOIN thread t ON child.parent_id = t.id
+)
+SELECT COUNT(*)::bigint
+FROM (
+    SELECT root_id
+    FROM thread
+    GROUP BY root_id
+    HAVING BOOL_AND(resolved_at IS NULL)
+) open_threads
+`
+
+// Merge readiness (F10): top-level member/agent comments on the issue whose
+// thread carries no resolution. A thread's single resolved comment can sit on
+// the root or on any descendant (see ClearOtherThreadResolutions), so the
+// thread is walked before deciding it is open. System comments never form a
+// thread a reviewer has to resolve.
+func (q *Queries) CountUnresolvedThreadsByIssue(ctx context.Context, issueID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countUnresolvedThreadsByIssue, issueID)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createComment = `-- name: CreateComment :one
 WITH touched_issue AS (
     UPDATE issue SET
@@ -828,6 +859,33 @@ func (q *Queries) ListCommentAncestorPath(ctx context.Context, arg ListCommentAn
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCommentContentsByIssue = `-- name: ListCommentContentsByIssue :many
+SELECT content FROM comment
+WHERE issue_id = $1 AND author_type <> 'system'
+ORDER BY created_at ASC
+`
+
+// Merge readiness (F10): the markdown bodies the open-todo counter scans.
+func (q *Queries) ListCommentContentsByIssue(ctx context.Context, issueID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listCommentContentsByIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var content string
+		if err := rows.Scan(&content); err != nil {
+			return nil, err
+		}
+		items = append(items, content)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

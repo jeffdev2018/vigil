@@ -1916,6 +1916,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/dependencies", h.ListIssueDependencies)
 					r.Post("/dependencies", h.CreateIssueDependency)
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
+					r.Get("/merge-readiness", h.GetIssueMergeReadiness)
+					r.Get("/pr-stack", h.GetIssuePRStack)
 				})
 			})
 

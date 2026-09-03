@@ -86,6 +86,8 @@ import type {
   User,
   WebhookDelivery,
   WorkspaceMcpServer,
+  MergeReadiness,
+  PRStack,
 } from "../types";
 import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
@@ -433,6 +435,68 @@ export const IssuePullRequestsResponseSchema = z.object({
 export const EMPTY_ISSUE_PULL_REQUESTS_RESPONSE: { pull_requests: GitHubPullRequest[] } = {
   pull_requests: [],
 };
+
+// Merge readiness (F10). `ready` never defaults to true: a malformed or
+// partial answer reads as "not ready", and an unknown blocker kind stays a
+// blocker (see github/merge-readiness.ts).
+export const MergeReadinessPRSchema = z.object({
+  id: z.string(),
+  source: z.string().default(""),
+  number: z.number().default(0),
+  title: z.string().default(""),
+  html_url: z.string().default(""),
+  state: z.string().default(""),
+  mergeable: z.string().nullable().default(null),
+  merge_state: z.string().nullable().default(null),
+  checks: z.object({
+    total: z.number().default(0),
+    passed: z.number().default(0),
+    failed: z.number().default(0),
+    pending: z.number().default(0),
+  }).default({ total: 0, passed: 0, failed: 0, pending: 0 }),
+  stale_snapshot: z.boolean().default(false),
+  ready: z.boolean().default(false),
+}).loose();
+
+export const MergeBlockerSchema = z.object({
+  kind: z.string(),
+  label: z.string().default(""),
+  count: z.number().optional(),
+  issue_identifier: z.string().optional(),
+  pr_number: z.number().optional(),
+}).loose();
+
+export const MergeReadinessSchema = z.object({
+  prs: z.array(MergeReadinessPRSchema).default([]),
+  blockers: z.array(MergeBlockerSchema).default([]),
+  unresolved_threads: z.number().default(0),
+  open_todos: z.number().default(0),
+  ready: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_MERGE_READINESS: MergeReadiness = {
+  prs: [],
+  blockers: [],
+  unresolved_threads: 0,
+  open_todos: 0,
+  ready: false,
+};
+
+export const PRStackSchema = z.object({
+  nodes: z.array(z.object({
+    issue_id: z.string(),
+    identifier: z.string().default(""),
+    title: z.string().default(""),
+    status: z.string().default(""),
+    depth: z.number().default(0),
+    prs: z.array(MergeReadinessPRSchema).default([]),
+    ready: z.boolean().default(false),
+  }).loose()).default([]),
+  truncated: z.boolean().default(false),
+  cyclic: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_PR_STACK: PRStack = { nodes: [], truncated: false, cyclic: false };
 
 // Label responses are consumed by settings tables and resource pickers. Keep
 // the resource type lenient so newer server scopes do not break older clients,

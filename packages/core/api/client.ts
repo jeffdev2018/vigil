@@ -223,6 +223,8 @@ import type {
   CreateCommentSubIssueRequest,
   IssueDependencies,
   IssueDependencyType,
+  MergeReadiness,
+  PRStack,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -401,6 +403,10 @@ import {
   EMPTY_ISSUE_PROPERTIES_RESPONSE,
   EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
   IssuePullRequestsResponseSchema,
+  MergeReadinessSchema,
+  EMPTY_MERGE_READINESS,
+  PRStackSchema,
+  EMPTY_PR_STACK,
   ResourceLabelsResponseSchema,
   EMPTY_LABEL,
   EMPTY_LIST_LABELS_RESPONSE,
@@ -4389,6 +4395,20 @@ export class ApiClient {
       EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
       { endpoint: "GET /api/issues/:id/pull-requests" },
     );
+  }
+
+  async getIssueMergeReadiness(issueId: string): Promise<MergeReadiness> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/merge-readiness`);
+    return parseWithFallback(raw, MergeReadinessSchema, EMPTY_MERGE_READINESS, {
+      endpoint: "GET /api/issues/:id/merge-readiness",
+    });
+  }
+
+  async getIssuePRStack(issueId: string): Promise<PRStack> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pr-stack`);
+    return parseWithFallback(raw, PRStackSchema, EMPTY_PR_STACK, {
+      endpoint: "GET /api/issues/:id/pr-stack",
+    });
   }
 
   // VCS integration (Forgejo / Gitea / GitLab)
