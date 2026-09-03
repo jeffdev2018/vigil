@@ -610,3 +610,26 @@ FROM (
     WHERE workspace_id = $1
     LIMIT sqlc.arg('limit')::bigint
 ) bounded_issues;
+
+-- name: ListIssueAncestors :many
+-- Ancestors of @issue_id from its direct parent upward (depth 1 = parent),
+-- workspace-scoped so a parent in another tenant ends the chain. Nothing stops
+-- a cycle through parent_issue_id, so the walk is hard-capped by @max_depth and
+-- the handler dedups ids on top (F22).
+WITH RECURSIVE chain AS (
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, 1 AS depth
+    FROM issue p
+    JOIN issue child ON child.parent_issue_id = p.id
+    WHERE child.id = @issue_id
+      AND child.workspace_id = @workspace_id
+      AND p.workspace_id = @workspace_id
+  UNION ALL
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, c.depth + 1
+    FROM issue p
+    JOIN chain c ON p.id = c.parent_issue_id
+    WHERE p.workspace_id = @workspace_id
+      AND c.depth < @max_depth::int
+)
+SELECT id, number, title, description, acceptance_criteria, depth::int AS depth
+FROM chain
+ORDER BY depth ASC;

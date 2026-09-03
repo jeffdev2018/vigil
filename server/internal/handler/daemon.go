@@ -2420,6 +2420,15 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		projectCtx.applyTo(&resp)
 
+		// Goal ancestry is context, not authority: a read failure degrades to
+		// the brief without the section rather than holding the task back.
+		if ancestry, err := h.resolveClaimGoalAncestry(r.Context(), issue.ID, issue.WorkspaceID, false); err != nil {
+			slog.Warn("issue claim: load goal ancestry failed; claim delivered without it",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		} else {
+			ancestry.applyTo(&resp)
+		}
+
 		// Load every planned input as one chronological, de-duplicated set.
 		// The trigger is included here so the delivery receipt can only contain
 		// comments whose body we successfully embedded. Missing/deleted rows are
@@ -3020,6 +3029,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 						if perr == nil && parent.ID.Valid {
 							if ws, werr := h.Queries.GetWorkspace(r.Context(), wsUUID); werr == nil {
 								resp.ParentIssueIdentifier = ws.IssuePrefix + "-" + strconv.Itoa(int(parent.Number))
+							}
+							// The new issue will be filed under the parent, so the
+							// parent itself is the nearest goal ancestor.
+							if ancestry, aerr := h.resolveClaimGoalAncestry(r.Context(), parent.ID, wsUUID, true); aerr != nil {
+								slog.Warn("quick-create claim: load goal ancestry failed; claim delivered without it",
+									"task_id", uuidToString(task.ID), "parent_issue_id", qc.ParentIssueID, "error", aerr)
+							} else {
+								ancestry.applyTo(&resp)
 							}
 						} else if qc.SourceContextID != "" && errors.Is(perr, pgx.ErrNoRows) {
 							// A contextual quick-create already owns an immutable

@@ -1009,6 +1009,72 @@ func (q *Queries) ListChildrenByParents(ctx context.Context, arg ListChildrenByP
 	return items, nil
 }
 
+const listIssueAncestors = `-- name: ListIssueAncestors :many
+WITH RECURSIVE chain AS (
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, 1 AS depth
+    FROM issue p
+    JOIN issue child ON child.parent_issue_id = p.id
+    WHERE child.id = $1
+      AND child.workspace_id = $2
+      AND p.workspace_id = $2
+  UNION ALL
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, c.depth + 1
+    FROM issue p
+    JOIN chain c ON p.id = c.parent_issue_id
+    WHERE p.workspace_id = $2
+      AND c.depth < $3::int
+)
+SELECT id, number, title, description, acceptance_criteria, depth::int AS depth
+FROM chain
+ORDER BY depth ASC
+`
+
+type ListIssueAncestorsParams struct {
+	IssueID     pgtype.UUID `json:"issue_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	MaxDepth    int32       `json:"max_depth"`
+}
+
+type ListIssueAncestorsRow struct {
+	ID                 pgtype.UUID `json:"id"`
+	Number             int32       `json:"number"`
+	Title              string      `json:"title"`
+	Description        pgtype.Text `json:"description"`
+	AcceptanceCriteria []byte      `json:"acceptance_criteria"`
+	Depth              int32       `json:"depth"`
+}
+
+// Ancestors of @issue_id from its direct parent upward (depth 1 = parent),
+// workspace-scoped so a parent in another tenant ends the chain. Nothing stops
+// a cycle through parent_issue_id, so the walk is hard-capped by @max_depth and
+// the handler dedups ids on top (F22).
+func (q *Queries) ListIssueAncestors(ctx context.Context, arg ListIssueAncestorsParams) ([]ListIssueAncestorsRow, error) {
+	rows, err := q.db.Query(ctx, listIssueAncestors, arg.IssueID, arg.WorkspaceID, arg.MaxDepth)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListIssueAncestorsRow{}
+	for rows.Next() {
+		var i ListIssueAncestorsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.Title,
+			&i.Description,
+			&i.AcceptanceCriteria,
+			&i.Depth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listIssueGCStatuses = `-- name: ListIssueGCStatuses :many
 SELECT id, status, updated_at
 FROM issue
