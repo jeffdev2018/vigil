@@ -61,3 +61,24 @@ ORDER BY depth ASC;
 -- name: BumpIssueRevisions :exec
 UPDATE issue SET revision = revision + 1, updated_at = now()
 WHERE id = ANY($1::uuid[]);
+
+-- name: ListIssueBlockerStack :many
+-- Issues that transitively block $1 (walking 'blocks' edges upward: the row
+-- (issue_id = B, depends_on_issue_id = A) means B blocks A), bounded to
+-- @max_depth levels, nearest blocker first. The PR stack (F10) reads it as
+-- "what must land before this issue"; the handler cuts cycles by id.
+WITH RECURSIVE blockers AS (
+    SELECT d.issue_id, 1 AS depth
+    FROM issue_dependency d
+    WHERE d.depends_on_issue_id = sqlc.arg(issue_id) AND d.type = 'blocks'
+  UNION
+    SELECT d.issue_id, b.depth + 1
+    FROM issue_dependency d
+    JOIN blockers b ON d.depends_on_issue_id = b.issue_id
+    WHERE d.type = 'blocks' AND b.depth < sqlc.arg(max_depth)::int
+)
+SELECT MIN(b.depth)::int AS depth, sqlc.embed(i)
+FROM blockers b
+JOIN issue i ON i.id = b.issue_id
+GROUP BY i.id
+ORDER BY depth ASC, i.number ASC;

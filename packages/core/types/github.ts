@@ -153,3 +153,70 @@ export interface ListGitHubRepositoriesResponse {
   total_count: number;
   next_page: number | null;
 }
+
+// ── Merge readiness (F10) ───────────────────────────────────────────────────
+
+export interface MergeReadinessChecks {
+  total: number;
+  passed: number;
+  failed: number;
+  pending: number;
+}
+
+export interface MergeReadinessPR {
+  id: string;
+  source: string;
+  number: number;
+  title: string;
+  html_url: string;
+  state: string;
+  mergeable: string | null;
+  merge_state: string | null;
+  checks: MergeReadinessChecks;
+  stale_snapshot: boolean;
+  ready: boolean;
+}
+
+export type MergeBlockerKind =
+  | "checks_failing"
+  | "checks_pending"
+  | "merge_conflict"
+  | "merge_not_clean"
+  | "stale_snapshot"
+  | "unresolved_threads"
+  | "open_todos"
+  | "blocking_issue"
+  | "no_pr";
+
+/** `kind` is open on the wire: a kind this build predates stays a blocker. */
+export interface MergeBlocker {
+  kind: MergeBlockerKind | (string & {});
+  label: string;
+  count?: number;
+  issue_identifier?: string;
+  pr_number?: number;
+}
+
+export interface MergeReadiness {
+  prs: MergeReadinessPR[];
+  blockers: MergeBlocker[];
+  unresolved_threads: number;
+  open_todos: number;
+  ready: boolean;
+}
+
+export interface PRStackNode {
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  depth: number;
+  prs: MergeReadinessPR[];
+  ready: boolean;
+}
+
+export interface PRStack {
+  nodes: PRStackNode[];
+  truncated: boolean;
+  cyclic: boolean;
+}
