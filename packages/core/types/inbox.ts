@@ -28,7 +28,8 @@ export type InboxItemType =
   // System notifications are intentionally issue-less. Keep them in the
   // same Inbox model so read/archive/realtime behavior remains consistent.
   | "autopilot_paused"
-  | "autopilot_quota_exceeded";
+  | "autopilot_quota_exceeded"
+  | "decision_request";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary
@@ -64,4 +65,10 @@ export interface InboxItem {
   archived: boolean;
   created_at: string;
   details: Record<string, string> | null;
+}
+
+/** Attention Inbox (K02): an inbox item with its server-computed risk. */
+export interface AttentionInboxItem extends InboxItem {
+  risk_score: number;
+  reason: string;
 }

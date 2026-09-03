@@ -42,7 +42,9 @@
     "archived_title": "Archived",
     "archived_empty": "No archived notifications",
     "unarchive_tooltip": "Unarchive",
-    "actions_aria": "Notification actions"
+    "actions_aria": "Notification actions",
+    "attention_title": "Needs your attention",
+    "attention_empty": "Nothing needs your attention."
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -76,7 +78,8 @@
     "quick_create_failed": "Create with agent failed",
     "quick_create_unconfirmed": "Create with agent unconfirmed",
     "autopilot_paused": "Autopilot paused",
-    "autopilot_quota_exceeded": "Autopilot run limit reached"
+    "autopilot_quota_exceeded": "Autopilot run limit reached",
+    "decision_request": "Decision requested"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -109,6 +112,7 @@
     "archive_all_read_failed": "Failed to archive read items",
     "archive_completed_failed": "Failed to archive completed",
     "unarchive_failed": "Failed to unarchive",
-    "archived_load_failed": "Failed to load archived notifications"
+    "archived_load_failed": "Failed to load archived notifications",
+    "attention_load_failed": "Could not load the attention inbox."
   }
 }

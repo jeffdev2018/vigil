@@ -516,6 +516,92 @@ func (q *Queries) ListArchivedInboxItems(ctx context.Context, arg ListArchivedIn
 	return items, nil
 }
 
+const listAttentionInboxItems = `-- name: ListAttentionInboxItems :many
+SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
+       iss.status AS issue_status,
+       iss.priority AS issue_priority
+FROM inbox_item i
+LEFT JOIN issue iss ON iss.id = i.issue_id
+LEFT JOIN issue_decision d ON i.type = 'decision_request'
+    AND (i.details->>'decision_id') ~ '^[0-9a-f-]{36}$'
+    AND d.id = (i.details->>'decision_id')::uuid
+WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
+  AND i.archived = false
+  AND i.type IN ('decision_request', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed')
+  AND (i.type <> 'decision_request' OR (d.id IS NOT NULL AND d.response IS NULL))
+ORDER BY i.created_at DESC
+LIMIT 200
+`
+
+type ListAttentionInboxItemsParams struct {
+	WorkspaceID   pgtype.UUID `json:"workspace_id"`
+	RecipientType string      `json:"recipient_type"`
+	RecipientID   pgtype.UUID `json:"recipient_id"`
+}
+
+type ListAttentionInboxItemsRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	RecipientType string             `json:"recipient_type"`
+	RecipientID   pgtype.UUID        `json:"recipient_id"`
+	Type          string             `json:"type"`
+	Severity      string             `json:"severity"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	Title         string             `json:"title"`
+	Body          pgtype.Text        `json:"body"`
+	Read          bool               `json:"read"`
+	Archived      bool               `json:"archived"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ActorType     pgtype.Text        `json:"actor_type"`
+	ActorID       pgtype.UUID        `json:"actor_id"`
+	Details       []byte             `json:"details"`
+	IssueStatus   pgtype.Text        `json:"issue_status"`
+	IssuePriority pgtype.Text        `json:"issue_priority"`
+}
+
+// Attention Inbox (K02): only what needs a human — open Decision Cards
+// (K01), failed or blocked runs, review requests, unconfirmed quick-creates —
+// unarchived, for one recipient. A decision item leaves the list the moment
+// its card is answered, through the join on details->>'decision_id'. Same
+// column set as ListInboxItems so the row converts to it.
+func (q *Queries) ListAttentionInboxItems(ctx context.Context, arg ListAttentionInboxItemsParams) ([]ListAttentionInboxItemsRow, error) {
+	rows, err := q.db.Query(ctx, listAttentionInboxItems, arg.WorkspaceID, arg.RecipientType, arg.RecipientID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAttentionInboxItemsRow{}
+	for rows.Next() {
+		var i ListAttentionInboxItemsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.RecipientType,
+			&i.RecipientID,
+			&i.Type,
+			&i.Severity,
+			&i.IssueID,
+			&i.Title,
+			&i.Body,
+			&i.Read,
+			&i.Archived,
+			&i.CreatedAt,
+			&i.ActorType,
+			&i.ActorID,
+			&i.Details,
+			&i.IssueStatus,
+			&i.IssuePriority,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listInboxItems = `-- name: ListInboxItems :many
 SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severity, i.issue_id, i.title, i.body, i.read, i.archived, i.created_at, i.actor_type, i.actor_id, i.details,
        iss.status AS issue_status,

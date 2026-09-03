@@ -40,7 +40,9 @@
     "archived_title": "已归档",
     "archived_empty": "暂无已归档通知",
     "unarchive_tooltip": "取消归档",
-    "actions_aria": "通知操作"
+    "actions_aria": "通知操作",
+    "attention_title": "需要你处理",
+    "attention_empty": "没有需要你处理的事项。"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -74,7 +76,8 @@
     "quick_create_failed": "通过智能体创建失败",
     "quick_create_unconfirmed": "通过智能体创建结果未确认",
     "autopilot_paused": "自动化已暂停",
-    "autopilot_quota_exceeded": "自动化执行次数已用完"
+    "autopilot_quota_exceeded": "自动化执行次数已用完",
+    "decision_request": "请求决策"
   },
   "labels": {
     "set_status_to": "状态设为",
@@ -107,6 +110,7 @@
     "archive_all_read_failed": "归档已读失败",
     "archive_completed_failed": "归档已完成失败",
     "unarchive_failed": "取消归档失败",
-    "archived_load_failed": "无法加载已归档通知"
+    "archived_load_failed": "无法加载已归档通知",
+    "attention_load_failed": "无法加载需处理列表。"
   }
 }

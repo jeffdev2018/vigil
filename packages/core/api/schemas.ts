@@ -2517,6 +2517,16 @@ export const InboxItemListSchema = z.array(
 
 export const EMPTY_INBOX_ITEMS: InboxItem[] = [];
 
+// Attention Inbox (K02): the same rows plus a server-computed risk.
+export const AttentionInboxListSchema = z.object({
+  items: z.array(
+    InboxItemListSchema.element.extend({
+      risk_score: z.number().default(0),
+      reason: z.string().default(""),
+    }),
+  ).catch([]).default([]),
+}).loose();
+
 // ---------------------------------------------------------------------------
 // Billing schemas (cloud-billing proxy surface)
 //
