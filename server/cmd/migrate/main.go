@@ -297,6 +297,7 @@ var concurrentIndexCleanups = map[string]string{
 	"440_github_pr_head_sha_index":                              "idx_github_pull_request_head_sha",
 	"443_issue_project_status_index":                            "idx_issue_project_status",
 	"445_comment_delegated_failure_unsettled_index":             "idx_comment_delegated_failure_unsettled",
+	"452_task_active_last_activity_index":                       "idx_agent_task_active_last_activity",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

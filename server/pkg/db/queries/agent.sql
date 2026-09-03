@@ -1,3 +1,20 @@
+-- agent_task_queue status matrix (F02). Eight statuses, no state engine: each
+-- transition is a WHERE guard on its UPDATE, and a refused transition is a
+-- zero-row update, never an error. Locked by
+-- internal/handler/task_transition_matrix_test.go.
+--
+--   queued                  -> dispatched (ClaimAgentTask), deferred, cancelled
+--   deferred                -> queued (PromoteDeferred*), cancelled
+--   dispatched              -> running (StartAgentTask), waiting_local_directory,
+--                              failed, cancelled
+--   waiting_local_directory -> running (StartAgentTask), failed, cancelled
+--   running                 -> completed, failed, cancelled
+--   completed | failed | cancelled : terminal
+--
+-- last_activity_at is a liveness hint stamped on claim, start and on every
+-- daemon messages / progress callback (TouchAgentTaskActivity); "unresponsive"
+-- is derived by readers and never written.
+
 -- name: ListAgents :many
 SELECT * FROM agent
 WHERE workspace_id = $1 AND archived_at IS NULL AND kind = 'user'
@@ -749,6 +766,7 @@ WHERE atq.id = $1 AND a.workspace_id = $2;
 UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
+    last_activity_at = now(),
     prepare_lease_expires_at = now() + make_interval(secs => @prepare_lease_secs::double precision)
 WHERE id = (
     SELECT atq.id FROM agent_task_queue atq
@@ -961,10 +979,19 @@ RETURNING *;
 UPDATE agent_task_queue
 SET status = 'running',
     started_at = now(),
+    last_activity_at = now(),
     wait_reason = NULL,
     prepare_lease_expires_at = NULL
 WHERE id = $1 AND status IN ('dispatched', 'waiting_local_directory')
 RETURNING *;
+
+-- name: TouchAgentTaskActivity :exec
+-- Run-level heartbeat (F02). Called from the daemon's messages and progress
+-- callbacks; the status guard keeps a late callback from a settled run from
+-- reviving its liveness.
+UPDATE agent_task_queue
+SET last_activity_at = now()
+WHERE id = $1 AND status IN ('dispatched', 'running', 'waiting_local_directory');
 
 -- name: MarkAgentTaskWaitingLocalDirectory :one
 -- Transitions a freshly-dispatched task into 'waiting_local_directory' while
