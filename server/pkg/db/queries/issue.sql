@@ -610,3 +610,11 @@ FROM (
     WHERE workspace_id = $1
     LIMIT sqlc.arg('limit')::bigint
 ) bounded_issues;
+
+-- Outcome Contract (K12): the criteria list with its proofs, owned by the
+-- issue. Not part of the revisioned edit surface, so no revision bump.
+-- name: UpdateIssueAcceptanceCriteria :one
+UPDATE issue
+SET acceptance_criteria = $2, updated_at = now()
+WHERE id = $1
+RETURNING *;

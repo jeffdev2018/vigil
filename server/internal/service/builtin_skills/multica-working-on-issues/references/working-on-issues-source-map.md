@@ -167,6 +167,14 @@ The self-assignment guard is intentionally pair-scoped. It does not treat
 cross-issue handoff, because serial sub-issue promotion and triage batches rely
 on those assignments creating their normal queued runs.
 
+## Outcome Contract (K12)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica criteria list|set|prove` call `GET`/`PUT /api/issues/{id}/acceptance-criteria` and `PATCH .../acceptance-criteria/{criterionId}/proof`; proof types `test`, `file`, `screenshot`, `url` need a ref, `human_validation` from a task token only reaches `pending_human` | `server/cmd/multica/cmd_criteria.go`; `server/internal/handler/acceptance_criteria.go` (`SetAcceptanceCriteria`, `ProveAcceptanceCriterion`) | new citation |
+| A move to a done-category status is refused with `409 unsatisfied_acceptance_criteria` listing the criteria, on single and batch updates | `server/internal/handler/acceptance_criteria.go` (`acceptanceCriteriaAllowStatus`); `server/internal/handler/issue.go` (`UpdateIssue`, `BatchUpdateIssues`) | new citation |
+| Legacy bare-string criteria read as unproven with positional ids; a stored `proof_state` is never trusted, it is recomputed from the proof | `server/internal/handler/acceptance_criteria.go` (`parseAcceptanceCriteria`) | new citation |
+
 ## Decision Cards (K01)
 
 | Behavior | File:line | Drifted from |
