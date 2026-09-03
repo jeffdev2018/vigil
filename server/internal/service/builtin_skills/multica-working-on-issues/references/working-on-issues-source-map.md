@@ -167,6 +167,14 @@ The self-assignment guard is intentionally pair-scoped. It does not treat
 cross-issue handoff, because serial sub-issue promotion and triage batches rely
 on those assignments creating their normal queued runs.
 
+## Decision Cards (K01)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica decision ask` files `POST /api/issues/{id}/decisions` with question, options (2-8, unique ids), recommendation, urgency; the run id comes from `X-Task-ID` | `server/cmd/multica/cmd_decision.go`; `server/internal/handler/decision.go` (`AskIssueDecision`) | new citation |
+| A human answers once via `POST /api/issues/{id}/decisions/{decisionId}/respond` (`option_id` xor `modified_text`); a second answer is 409 `already_decided` | `server/internal/handler/decision.go` (`RespondIssueDecision`); `server/pkg/db/queries/decision.sql` (`RespondIssueDecision`) | new citation |
+| On an agent-assigned issue the answer queues one run whose handoff note starts with `Decision on «…»` | `server/internal/handler/decision.go` (`decisionHandoffNote`, `EnqueueTaskForIssueWithHandoff`) | new citation |
+
 ## Sub-issue stages (barrier wake)
 
 | Behavior | File:line |

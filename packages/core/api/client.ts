@@ -224,6 +224,8 @@ import type {
   IssuePlanEnvelope,
   IssuePlanStep,
   PlanVerification,
+  IssueDecision,
+  DecisionAnswer,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -402,6 +404,8 @@ import {
   EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
   IssuePullRequestsResponseSchema,
   IssuePlanEnvelopeSchema,
+  IssueDecisionsResponseSchema,
+  IssueDecisionEnvelopeSchema,
   EMPTY_ISSUE_PLAN,
   PlanVerificationsResponseSchema,
   ResourceLabelsResponseSchema,
@@ -1282,6 +1286,28 @@ export class ApiClient {
     return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
       endpoint: "PUT /api/issues/:id/plan",
     });
+  }
+
+  async listIssueDecisions(issueId: string, options?: { signal?: AbortSignal }): Promise<IssueDecision[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decisions`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, IssueDecisionsResponseSchema, { decisions: [] }, {
+      endpoint: "GET /api/issues/:id/decisions",
+    }).decisions;
+  }
+
+  async respondIssueDecision(issueId: string, decisionId: string, answer: DecisionAnswer): Promise<IssueDecision> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decisions/${encodeURIComponent(decisionId)}/respond`,
+      { method: "POST", body: JSON.stringify(answer) },
+    );
+    const parsed = parseWithFallback<{ decision: IssueDecision } | null>(raw, IssueDecisionEnvelopeSchema, null, {
+      endpoint: "POST /api/issues/:id/decisions/:decisionId/respond",
+    });
+    if (!parsed) throw new Error("respond decision returned a malformed decision");
+    return parsed.decision;
   }
 
   async listPlanVerifications(issueId: string, options?: { signal?: AbortSignal }): Promise<PlanVerification[]> {

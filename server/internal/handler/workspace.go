@@ -1233,6 +1233,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceIssuePlans(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete issue decisions",
+			run:  func() error { return qtx.DeleteWorkspaceIssueDecisions(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete chat messages",
 			run:  func() error { return qtx.DeleteWorkspaceChatMessages(ctx, requester.WorkspaceID) },
 		},

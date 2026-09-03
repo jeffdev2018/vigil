@@ -698,3 +698,7 @@ WHERE plan_verification.workspace_id = $1;
 -- name: DeleteWorkspaceIssuePlans :exec
 DELETE FROM issue_plan
 WHERE issue_plan.workspace_id = $1;
+
+-- name: DeleteWorkspaceIssueDecisions :exec
+DELETE FROM issue_decision
+WHERE issue_decision.workspace_id = $1;

@@ -301,6 +301,27 @@ a run you see may finish a second later, and one you don't see may start a
 second later. Coordinate through the issue's comments — the reads tell you whom
 to coordinate with.
 
+## Asking a human for a decision
+
+When a choice is not yours to make — deleting data, picking between two
+designs, spending real money, touching production — file a Decision Card
+instead of guessing or stalling on a comment:
+
+```bash
+multica decision ask <issue-id> \
+  --question "Drop the legacy orders_v1 table?" \
+  --option "drop=Drop it|irreversible, frees 40 GB" \
+  --option "keep=Keep it for now|no risk, migration stays partial" \
+  --recommend keep --urgency high
+```
+
+Two to eight options with stable ids, one recommendation, an urgency of
+`low`, `normal` or `high`. Then **finish your turn**: the human answers from
+the issue, and Multica queues a new run on the issue whose handoff note starts
+with `Decision on «…»` and names the chosen option (or the human's own text).
+Read that note first and proceed. A card is never a substitute for reading
+the issue; ask only what the issue does not already settle.
+
 ## Sub-issues: `todo` starts work now, `backlog` parks it
 
 On an agent-assigned issue, create status decides whether the assignee fires
