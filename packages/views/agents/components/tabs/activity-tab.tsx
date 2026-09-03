@@ -811,6 +811,10 @@ function taskStatusLabel(status: AgentTask["status"], t: AgentsT): string {
       return t(($) => $.tab_body.activity.status.failed);
     case "cancelled":
       return t(($) => $.tab_body.activity.status.cancelled);
+    default:
+      // Server-driven enum: a status this build predates (deferred, or a
+      // future one) shows its wire name rather than an empty cell.
+      return status;
   }
 }
 

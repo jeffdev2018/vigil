@@ -1,5 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
+import { DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS } from "../agents/run-state";
 
 interface ConfigState {
   cdnDomain: string;
@@ -36,6 +37,10 @@ interface ConfigState {
   // Older handlers accepted the unknown field and returned success while
   // dropping it, so absent must fail closed.
   agentConversationStartersSupported: boolean;
+  // Seconds of silence after which an active run is shown as unresponsive
+  // (F02). Server-driven so MULTICA_RUN_UNRESPONSIVE_AFTER applies everywhere;
+  // the default matches the server's.
+  runUnresponsiveAfterSeconds: number;
   setCdnConfig: (config: { cdnDomain: string; cdnSigned?: boolean }) => void;
   setAuthConfig: (config: {
     allowSignup: boolean;
@@ -51,7 +56,9 @@ interface ConfigState {
   setServerVersion: (version?: string) => void;
   setLocalWorktreeSupported: (supported?: boolean) => void;
   setAgentConversationStartersSupported: (supported?: boolean) => void;
+  setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
 }
+
 
 export const configStore = createStore<ConfigState>((set) => ({
   cdnDomain: "",
@@ -66,6 +73,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   serverVersion: "",
   localWorktreeSupported: false,
   agentConversationStartersSupported: false,
+  runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
     allowSignup,
@@ -81,6 +89,13 @@ export const configStore = createStore<ConfigState>((set) => ({
     set({ localWorktreeSupported: supported === true }),
   setAgentConversationStartersSupported: (supported = false) =>
     set({ agentConversationStartersSupported: supported === true }),
+  setRunUnresponsiveAfterSeconds: (seconds) =>
+    set({
+      runUnresponsiveAfterSeconds:
+        typeof seconds === "number" && seconds > 0
+          ? seconds
+          : DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
+    }),
 }));
 
 export function useConfigStore(): ConfigState;

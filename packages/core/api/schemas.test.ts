@@ -595,6 +595,17 @@ describe("AgentTaskListSchema", () => {
     trigger_comment_id: "comment-3",
   };
 
+  it("keeps last_activity_at and an unknown status such as deferred (F02)", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, status: "deferred", last_activity_at: "2026-07-10T00:01:00Z" },
+      { ...task, id: "task-2" },
+    ]);
+    expect(parsed[0]?.status).toBe("deferred");
+    expect(parsed[0]?.last_activity_at).toBe("2026-07-10T00:01:00Z");
+    // Older servers omit the field; the run must still parse.
+    expect(parsed[1]?.last_activity_at).toBeUndefined();
+  });
+
   it("preserves planned and delivered comment IDs for a task run", () => {
     const parsed = AgentTaskListSchema.parse([
       {

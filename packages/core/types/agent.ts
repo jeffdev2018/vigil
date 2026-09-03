@@ -275,6 +275,16 @@ export interface TaskAttribution {
   rerun_of_task_id?: string;
 }
 
+export type TaskStatus =
+  | "queued"
+  | "deferred"
+  | "dispatched"
+  | "waiting_local_directory"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
+
 export interface AgentTask {
   id: string;
   agent_id: string;
@@ -288,18 +298,21 @@ export interface AgentTask {
   // because another task currently owns the same on-disk path lock.
   // Treated as an active (non-terminal) state alongside queued/dispatched/
   // running by every consumer that buckets tasks into "active vs done".
-  status:
-    | "queued"
-    | "dispatched"
-    | "waiting_local_directory"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled";
+  // `deferred` is a run parked for a retry backoff (migration 128). Open
+  // string on the wire like failure_reason: a server may grow a status this
+  // build predates, and normalizeRunState (agents/run-state.ts) folds any
+  // unknown value into `pending` rather than dropping the row.
+  status: TaskStatus | (string & {});
   priority: number;
   dispatched_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  /**
+   * Last proof of life from the run: claim, start, or a daemon message /
+   * progress callback (F02). Readers derive "unresponsive" from it; absent on
+   * older servers and on rows that predate the column.
+   */
+  last_activity_at?: string | null;
   result: unknown;
   error: string | null;
   // Empty string when the task is not in a failed state (the backend uses

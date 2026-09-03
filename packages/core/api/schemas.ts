@@ -754,6 +754,10 @@ export interface AppConfigResponse {
    * silently ignored the unknown field, so absent must be treated as false. */
   agent_conversation_starters_supported?: boolean;
   server_version?: string;
+  /** Run liveness threshold in seconds (F02): an active run whose
+   * last_activity_at is older than this is shown as unresponsive. Omitted by
+   * older servers; the client keeps its own default. */
+  run_unresponsive_after_seconds?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -953,6 +957,7 @@ export const AppConfigSchema = z.object({
   local_worktree_supported: BooleanWithDefaultSchema(false),
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
   server_version: OptionalStringSchema,
+  run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();
 
 export const EMPTY_APP_CONFIG: AppConfigResponse = {
@@ -1751,6 +1756,7 @@ export const AgentTaskSchema = z.object({
   dispatched_at: z.string().nullable().default(null),
   started_at: z.string().nullable().default(null),
   completed_at: z.string().nullable().default(null),
+  last_activity_at: z.string().nullish(),
   result: z.unknown().default(null),
   error: z.string().nullable().default(null),
   failure_reason: z.string().optional(),
