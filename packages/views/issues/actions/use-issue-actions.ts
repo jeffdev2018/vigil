@@ -32,6 +32,7 @@ export interface UseIssueActionsResult {
   openSetParent: () => void;
   removeParent: () => void;
   openAddChild: () => void;
+  openAddDependency: (type: "blocks" | "blocked_by") => void;
   openDeleteConfirm: (opts?: { onDeletedFallbackPath?: string }) => void;
 }
 
@@ -248,6 +249,14 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
     openModal("issue-add-child", { issueId });
   }, [openModal, issueId]);
 
+  const openAddDependency = useCallback(
+    (type: "blocks" | "blocked_by") => {
+      if (!issueId) return;
+      openModal("issue-add-dependency", { issueId, type });
+    },
+    [openModal, issueId],
+  );
+
   const openDeleteConfirm = useCallback(
     (opts?: { onDeletedFallbackPath?: string }) => {
       if (!issueId) return;
@@ -270,6 +279,7 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
     openSetParent,
     removeParent,
     openAddChild,
+    openAddDependency,
     openDeleteConfirm,
   };
 }

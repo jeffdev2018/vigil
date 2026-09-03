@@ -18,6 +18,8 @@ import {
   Trash2,
   Unlink,
   UserMinus,
+  Ban,
+  Lock,
 } from "lucide-react";
 import type { Issue } from "@multica/core/types";
 import { resolveWorkdirCopyTarget } from "@multica/core/issues";
@@ -119,6 +121,7 @@ export function IssueActionsMenuItems({
     openSetParent,
     removeParent,
     openAddChild,
+    openAddDependency,
     openDeleteConfirm,
   } = actions;
 
@@ -351,6 +354,14 @@ export function IssueActionsMenuItems({
           <P.Item onClick={openAddChild}>
             <ArrowDown className="h-3.5 w-3.5" />
             {t(($) => $.actions.add_sub_issue)}
+          </P.Item>
+          <P.Item onClick={() => openAddDependency("blocks")}>
+            <Ban className="h-3.5 w-3.5" />
+            {t(($) => $.actions.add_blocking)}
+          </P.Item>
+          <P.Item onClick={() => openAddDependency("blocked_by")}>
+            <Lock className="h-3.5 w-3.5" />
+            {t(($) => $.actions.add_blocked_by)}
           </P.Item>
         </P.SubContent>
       </P.Sub>

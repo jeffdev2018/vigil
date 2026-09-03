@@ -53,6 +53,10 @@ export const issueKeys = {
     sort?: IssueSortParam,
   ) => [...issueKeys.flatAll(wsId), "export", scope, filter, sort ?? {}] as const,
   tableAll: (wsId: string) => [...issueKeys.all(wsId), "table-query"] as const,
+  /** PREFIX: every dependency list in the workspace, invalidated on any issue:updated. */
+  dependenciesAll: (wsId: string) => [...issueKeys.all(wsId), "dependencies"] as const,
+  dependencies: (wsId: string, issueId: string) =>
+    [...issueKeys.dependenciesAll(wsId), issueId] as const,
   tableGroups: (
     wsId: string,
     query: IssueTableQuerySpec,

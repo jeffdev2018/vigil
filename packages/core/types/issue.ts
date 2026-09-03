@@ -217,3 +217,18 @@ export interface Issue {
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
 }
+
+export type IssueDependencyType = "blocks" | "blocked_by" | "related";
+
+/** One relation seen from the requested issue; `type` is relative to it. */
+export interface IssueDependency {
+  id: string;
+  type: IssueDependencyType | (string & {});
+  issue: Issue;
+}
+
+export interface IssueDependencies {
+  blocks: IssueDependency[];
+  blocked_by: IssueDependency[];
+  related: IssueDependency[];
+}

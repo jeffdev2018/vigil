@@ -221,6 +221,8 @@ import type {
   CreateCommentSubIssueManualRequest,
   CreateCommentSubIssueAgentRequest,
   CreateCommentSubIssueRequest,
+  IssueDependencies,
+  IssueDependencyType,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -306,6 +308,7 @@ import {
   CronPreviewResponseSchema,
   UNREADABLE_CRON_PREVIEW_RESPONSE,
   ListIssuesResponseSchema,
+  IssueDependenciesResponseSchema,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -1256,6 +1259,39 @@ export class ApiClient {
 
   async deleteIssue(id: string): Promise<void> {
     await this.fetch(`/api/issues/${id}`, { method: "DELETE" });
+  }
+
+  async listIssueDependencies(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<IssueDependencies> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/dependencies`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<IssueDependencies>(
+      raw,
+      IssueDependenciesResponseSchema,
+      { blocks: [], blocked_by: [], related: [] },
+      { endpoint: "GET /api/issues/:id/dependencies" },
+    );
+  }
+
+  async createIssueDependency(
+    id: string,
+    data: { target_issue_id: string; type: IssueDependencyType },
+  ): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(id)}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteIssueDependency(id: string, dependencyId: string): Promise<void> {
+    await this.fetch(
+      `/api/issues/${encodeURIComponent(id)}/dependencies/${encodeURIComponent(dependencyId)}`,
+      { method: "DELETE" },
+    );
   }
 
   async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {

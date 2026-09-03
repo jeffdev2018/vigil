@@ -243,5 +243,12 @@
       "error_unknown": "送信できませんでした。再試行してください。",
       "sub_issue_of": "{{identifier}} のサブタスク"
     }
+  },
+  "add_dependency": {
+    "title_blocks": "ブロック対象を選択",
+    "title_blocked_by": "ブロック元を選択",
+    "description": "このタスクに関連付けるタスクを検索してください",
+    "toast_failed": "依存関係を追加できませんでした",
+    "toast_success": "{{identifier}} を関連付けました"
   }
 }

@@ -1254,6 +1254,21 @@ export const ListIssuesResponseSchema = z.object({
   total: z.number().default(0),
 }).loose();
 
+// GET /api/issues/:id/dependencies. `type` is relative to the requested
+// issue ("blocks" = it blocks `issue`). Kept as a plain string so a relation
+// type added server-side lands in `related` instead of failing the parse.
+export const IssueDependencySchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  issue: IssueSchema,
+}).loose();
+
+export const IssueDependenciesResponseSchema = z.object({
+  blocks: z.array(IssueDependencySchema).default([]),
+  blocked_by: z.array(IssueDependencySchema).default([]),
+  related: z.array(IssueDependencySchema).default([]),
+}).loose();
+
 // Response schema for POST /api/issues. Two tightenings over IssueSchema:
 //
 //   - `id` must be non-empty. A created issue always carries a real id, so an

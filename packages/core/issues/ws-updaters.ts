@@ -531,6 +531,9 @@ export function onIssueUpdated(
     }
     qc.invalidateQueries({ queryKey: issueKeys.childrenByParentsAll(wsId) });
   }
+  // Dependency lists embed the other issue's snapshot and change on both
+  // sides of a link, so any admitted update refetches the open ones.
+  qc.invalidateQueries({ queryKey: issueKeys.dependenciesAll(wsId) });
   reconcileIssueFullSnapshotRevision(qc, wsId, issue.id, issue.revision);
 }
 

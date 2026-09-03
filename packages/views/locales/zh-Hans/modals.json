@@ -243,5 +243,12 @@
       "error_unknown": "提交失败，请重试。",
       "sub_issue_of": "作为 {{identifier}} 的子任务"
     }
+  },
+  "add_dependency": {
+    "title_blocks": "选择被阻塞的任务",
+    "title_blocked_by": "选择阻塞此任务的任务",
+    "description": "搜索要与当前任务关联的任务",
+    "toast_failed": "添加依赖失败",
+    "toast_success": "已关联 {{identifier}}"
   }
 }

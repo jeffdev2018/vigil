@@ -245,5 +245,12 @@
       "error_unknown": "Failed to submit. Try again.",
       "sub_issue_of": "Sub-issue of {{identifier}}"
     }
+  },
+  "add_dependency": {
+    "title_blocks": "Mark as blocking",
+    "title_blocked_by": "Mark as blocked by",
+    "description": "Search for an issue to link to this issue",
+    "toast_failed": "Failed to add dependency",
+    "toast_success": "Linked {{identifier}}"
   }
 }
