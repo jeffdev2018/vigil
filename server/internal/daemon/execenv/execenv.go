@@ -35,6 +35,17 @@ type ProjectResourceForEnv struct {
 	Label        string          `json:"label,omitempty"` // optional user-supplied label
 }
 
+// GoalAncestryForEnv is one ancestor issue in the goal chain. It is the wire
+// shape too (json tags mirror handler.GoalAncestryNode), so the daemon decodes
+// straight into it. Depth counts from the claimed issue: 1 is the direct parent.
+type GoalAncestryForEnv struct {
+	Identifier         string   `json:"identifier"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description,omitempty"`
+	AcceptanceCriteria []string `json:"acceptance_criteria,omitempty"`
+	Depth              int      `json:"depth"`
+}
+
 // PrepareParams holds all inputs needed to set up an execution environment.
 type PrepareParams struct {
 	WorkspacesRoot  string // base path for all envs (e.g., ~/multica_workspaces)
@@ -161,7 +172,15 @@ type TaskContextForEnv struct {
 	ProjectTitle                  string                  // human-readable project title
 	ProjectDescription            string                  // durable project-level context, rendered into the brief's Project Context section
 	ProjectResources              []ProjectResourceForEnv // resources attached to the project
-	ChatSessionID                 string                  // non-empty for chat tasks
+	// GoalAncestry is the claimed issue's parent chain, root first (F22),
+	// already capped and byte-bounded by the server. Like WorkspaceContext it
+	// is durable configuration, not per-turn state: editing a parent issue may
+	// legitimately change brief bytes between runs of a resumed session.
+	// Empty — including on servers that never send the field — renders the
+	// brief byte-identical to before.
+	GoalAncestry        []GoalAncestryForEnv
+	GoalAncestryOmitted int
+	ChatSessionID       string // non-empty for chat tasks
 	// ChatChannelType is the IM platform behind a chat session ("slack",
 	// "feishu", "wecom"); empty for a web/mobile chat. It names the surface in
 	// the brief's copy; what that surface can DELIVER is the separate field

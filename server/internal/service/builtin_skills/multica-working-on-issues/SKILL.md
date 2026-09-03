@@ -301,6 +301,21 @@ a run you see may finish a second later, and one you don't see may start a
 second later. Coordinate through the issue's comments — the reads tell you whom
 to coordinate with.
 
+## Goal ancestry rides the brief
+
+When the issue you were claimed for has a parent, the runtime brief carries a
+`## Goal Ancestry` section: the chain of parent issues from the top-level goal
+down to the direct parent, each with its identifier, title, description and
+acceptance criteria. Read it before `multica issue get` — it is why your issue
+exists, and your deliverable must stay consistent with those goals. The chain
+is capped at five levels and 8 KiB (farther ancestors lose their description
+first; a `(N higher level(s) not shown.)` line says when it was cut). A root
+issue gets no section. The section covers the issue's *ancestors* only: its
+own children still come from `multica issue children`.
+
+Quick-create runs opened from "Add sub issue" get the same section for the
+parent the new issue will be filed under, parent included as the nearest node.
+
 ## Sub-issues: `todo` starts work now, `backlog` parks it
 
 On an agent-assigned issue, create status decides whether the assignee fires

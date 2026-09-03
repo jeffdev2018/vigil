@@ -401,9 +401,14 @@ type AgentTaskResponse struct {
 	ProjectTitle       string                `json:"project_title,omitempty"`       // for surfacing in agent context
 	ProjectDescription string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
 	ProjectResources   []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
-	CreatedAt          string                `json:"created_at"`
-	PriorSessionID     string                `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
-	PriorWorkDir       string                `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
+	// GoalAncestry is the claimed issue's parent chain, root first (F22), so the
+	// brief can say why the task exists. Omitted on root issues and by older
+	// servers; a daemon that predates it writes the brief it always did.
+	GoalAncestry        []GoalAncestryNode `json:"goal_ancestry,omitempty"`
+	GoalAncestryOmitted int                `json:"goal_ancestry_omitted,omitempty"`
+	CreatedAt           string             `json:"created_at"`
+	PriorSessionID      string             `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
+	PriorWorkDir        string             `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
 	// PriorSessionResumeUnavailable is set when a more recent Codex session was
 	// withheld because its rollout was missing (MUL-5305); PriorSessionID (if
 	// any) is then an older fallback. The daemon surfaces the continuity gap in

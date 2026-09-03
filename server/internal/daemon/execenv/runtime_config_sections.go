@@ -440,6 +440,38 @@ func writeProjectContext(b *strings.Builder, ctx TaskContextForEnv) {
 	}
 }
 
+// writeGoalAncestry renders the parent chain the claim carried, root first,
+// so the agent knows the objective its issue serves without fetching each
+// parent itself. The server already bounded depth and bytes; this only lays
+// the nodes out. Root issues carry no chain and get no heading.
+func writeGoalAncestry(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.GoalAncestry) == 0 {
+		return
+	}
+	b.WriteString("## Goal Ancestry\n\n")
+	b.WriteString("Why this task exists — the chain of parent issues above it, from the top-level goal down to the direct parent. Keep your work consistent with these goals and their acceptance criteria.\n\n")
+	if ctx.GoalAncestryOmitted > 0 {
+		fmt.Fprintf(b, "(%d higher level(s) not shown.)\n\n", ctx.GoalAncestryOmitted)
+	}
+	for _, node := range ctx.GoalAncestry {
+		fmt.Fprintf(b, "- %s — %s\n", node.Identifier, node.Title)
+		if desc := strings.TrimSpace(node.Description); desc != "" {
+			for _, line := range strings.Split(desc, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+		if len(node.AcceptanceCriteria) > 0 {
+			b.WriteString("  Acceptance criteria:\n")
+			for _, c := range node.AcceptanceCriteria {
+				fmt.Fprintf(b, "  - %s\n", strings.TrimSpace(c))
+			}
+		}
+	}
+	b.WriteString("\n")
+}
+
 // writeIssueMetadata emits the Issue Metadata discipline section
 // (compressed). The dispatcher gates by kind.hasIssueContext(); this
 // helper does not re-check.
@@ -923,6 +955,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	}
 
 	writeProjectContext(&b, ctx)
+	writeGoalAncestry(&b, ctx)
 
 	if kind.hasIssueContext() {
 		writeIssueMetadata(&b)
