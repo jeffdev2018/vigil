@@ -784,6 +784,26 @@ type Issue struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 }
 
+// Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
+type IssueDecision struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	TaskID              pgtype.UUID        `json:"task_id"`
+	AskedByType         string             `json:"asked_by_type"`
+	AskedByID           pgtype.UUID        `json:"asked_by_id"`
+	Question            string             `json:"question"`
+	Options             []byte             `json:"options"`
+	RecommendedOptionID pgtype.Text        `json:"recommended_option_id"`
+	Urgency             string             `json:"urgency"`
+	Response            []byte             `json:"response"`
+	RespondedByType     pgtype.Text        `json:"responded_by_type"`
+	RespondedByID       pgtype.UUID        `json:"responded_by_id"`
+	RespondedAt         pgtype.Timestamptz `json:"responded_at"`
+	ResumeTaskID        pgtype.UUID        `json:"resume_task_id"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+}
+
 type IssueDependency struct {
 	ID               pgtype.UUID `json:"id"`
 	IssueID          pgtype.UUID `json:"issue_id"`

@@ -226,6 +226,16 @@ func (q *Queries) DeleteWorkspaceConnections(ctx context.Context, workspaceID pg
 	return err
 }
 
+const deleteWorkspaceIssueDecisions = `-- name: DeleteWorkspaceIssueDecisions :exec
+DELETE FROM issue_decision
+WHERE issue_decision.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceIssueDecisions(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceIssueDecisions, workspaceID)
+	return err
+}
+
 const deleteWorkspaceIssuePlans = `-- name: DeleteWorkspaceIssuePlans :exec
 DELETE FROM issue_plan
 WHERE issue_plan.workspace_id = $1
