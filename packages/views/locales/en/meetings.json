@@ -61,7 +61,9 @@
     "error_finish": "Could not finish the meeting.",
     "error_stt": "Transcription is not configured on this server.",
     "finished": "Meeting summarized",
-    "elsewhere": "This meeting is being recorded from another device or tab."
+    "elsewhere": "This meeting is being recorded from another device or tab.",
+    "orphaned": "This recording was interrupted (the page was closed or refreshed). Close the meeting to summarize what was transcribed so far.",
+    "finish_now": "Finish meeting"
   },
   "action_state": {
     "pending": "Pending",
