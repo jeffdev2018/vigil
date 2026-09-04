@@ -561,6 +561,26 @@ func (h *Handler) HandleAutopilotWebhook(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// 10b. Natural-language routing → ignored. The trigger's owner described
+	//      which events matter; the LLM judges this delivery against it. The
+	//      classifier is deliberately liberal and fails open (no LLM, upstream
+	//      error, malformed answer → run), so a broken model never silences a
+	//      webhook. Derived from Rowboat's Pass-1 event router (Apache-2.0).
+	if criteria := strings.TrimSpace(trigRow.EventMatchCriteria); criteria != "" {
+		if verdict := h.webhookEventMatchesCriteria(r.Context(), criteria, trigRow.Provider, envelope); !verdict.relevant {
+			respBody := map[string]any{
+				"status":      "ignored",
+				"delivery_id": uuidToString(delivery.ID),
+				"reason":      "criteria_not_matched",
+				"event":       envelope.Event,
+				"explanation": verdict.reason,
+			}
+			h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "criteria_not_matched: "+verdict.reason, "criteria_not_matched")
+			writeJSON(w, http.StatusOK, respBody)
+			return
+		}
+	}
+
 	// 11. Allocate the idempotent run synchronously so existing webhook clients
 	//     keep the v0.4.0 response contract. The queued delivery remains the
 	//     durable dispatch source: the worker resumes this run after the response

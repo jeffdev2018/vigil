@@ -328,7 +328,10 @@
         "label": "実行のみ",
         "description": "タスクを作成せず、静かに実行します"
       }
-    }
+    },
+    "event_criteria_label": "次の場合のみ実行…",
+    "event_criteria_placeholder": "例：本番環境のデプロイ失敗、または課金に関わるプルリクエスト",
+    "event_criteria_hint": "このオートパイロットを実行すべきイベントを自分の言葉で説明します。各配信はこの説明に対して寛容に判定され、迷う場合は実行されます。空欄の場合はイベントフィルターのみで判定します。"
   },
   "schedule_editor": {
     "time_label": "時刻",

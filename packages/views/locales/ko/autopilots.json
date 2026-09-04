@@ -328,7 +328,10 @@
         "label": "실행만",
         "description": "태스크를 만들지 않고 조용히 실행합니다"
       }
-    }
+    },
+    "event_criteria_label": "다음 경우에만 실행…",
+    "event_criteria_placeholder": "예: 프로덕션 배포 실패, 또는 결제를 건드리는 풀 리퀘스트",
+    "event_criteria_hint": "이 오토파일럿을 실행해야 하는 이벤트를 직접 설명하세요. 각 전달은 이 설명에 대해 관대하게 판단되며, 애매하면 실행됩니다. 비워 두면 이벤트 필터만 적용됩니다."
   },
   "schedule_editor": {
     "time_label": "시간",
