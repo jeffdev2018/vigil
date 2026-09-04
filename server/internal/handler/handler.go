@@ -360,6 +360,10 @@ type Handler struct {
 	// TelegramBindingTokens mints/redeems the user-binding tokens behind the
 	// "link your Telegram account" prompt. Nil unless Telegram is configured.
 	TelegramBindingTokens *telegram.BindingTokenService
+	// DigestSenders (K64) post the morning digest into a chat, keyed by
+	// channel type ("slack", "telegram"). Wired in cmd/server/router.go for
+	// each configured platform; a type without a sender is skipped.
+	DigestSenders map[string]ChannelDigestSender
 	// TelegramOutbound owns the asynchronous terminal-delivery worker pool.
 	// The process owner starts and joins it; the synchronous event bus only
 	// enqueues EventChatDone work.

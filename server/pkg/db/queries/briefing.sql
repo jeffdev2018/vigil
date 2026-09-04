@@ -31,3 +31,7 @@ RETURNING *;
 
 -- name: GetMorningBriefingSent :one
 SELECT * FROM morning_briefing_sent WHERE workspace_id = $1 AND sent_for_date = $2;
+
+-- name: UpdateMorningBriefingChannels :exec
+-- Multichannel digest (K64): the channels the day's briefing reached.
+UPDATE morning_briefing_sent SET channels_delivered = $3 WHERE workspace_id = $1 AND sent_for_date = $2;

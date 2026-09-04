@@ -9,6 +9,16 @@ type MorningBriefing struct {
 	Enabled  bool   `json:"enabled"`
 	Hour     int    `json:"hour"`
 	Timezone string `json:"timezone"`
+	// Channels (K64) are the chats the digest is also delivered to, one
+	// active installation of the given type per workspace.
+	Channels []BriefingChannel `json:"channels,omitempty"`
+}
+
+// BriefingChannel names one delivery target: a channel type ("slack",
+// "telegram", …) and the platform chat id to post into.
+type BriefingChannel struct {
+	Type   string `json:"type"`
+	ChatID string `json:"chat_id"`
 }
 
 // MorningBriefingSettings reads the policy; ok is false when it is absent
@@ -30,5 +40,12 @@ func MorningBriefingSettings(settings []byte) (MorningBriefing, bool) {
 	if b.Timezone == "" {
 		b.Timezone = "UTC"
 	}
+	channels := make([]BriefingChannel, 0, len(b.Channels))
+	for _, c := range b.Channels {
+		if c.Type != "" && c.ChatID != "" {
+			channels = append(channels, c)
+		}
+	}
+	b.Channels = channels
 	return b, true
 }

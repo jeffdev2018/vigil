@@ -52,6 +52,10 @@ type MorningBriefingResponse struct {
 	SentAt         *string        `json:"sent_at"`
 	// AlreadySent is set by a trigger that found the day's send recorded.
 	AlreadySent bool `json:"already_sent,omitempty"`
+	// Narrative (K64) is the LLM's short spoken summary; empty without an LLM.
+	Narrative string `json:"narrative,omitempty"`
+	// ChannelsDelivered (K64) lists where the day's briefing went ("inbox", "slack", …).
+	ChannelsDelivered []string `json:"channels_delivered,omitempty"`
 }
 
 func briefingLocation(name string) *time.Location {
@@ -164,12 +168,13 @@ func (h *Handler) composeBriefing(ctx context.Context, wsID pgtype.UUID, now tim
 		}
 	}
 	out.Merged, out.AwaitingReview, out.Blocked = cap25(out.Merged), cap25(out.AwaitingReview), cap25(out.Blocked)
+	out.Narrative = h.narrateBriefing(ctx, out)
 	return out, nil
 }
 
 // sendBriefing records the day's send first (the unique index decides) and
 // then files one inbox item per member. Returns false when already sent.
-func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing MorningBriefingResponse, actorType, actorID string) (bool, error) {
+func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing MorningBriefingResponse, actorType, actorID string, channels []service.BriefingChannel) (bool, error) {
 	var date pgtype.Date
 	if err := date.Scan(briefing.Date); err != nil {
 		return false, err
@@ -203,6 +208,13 @@ func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing M
 			continue
 		}
 		h.publish(protocol.EventInboxNew, uuidToString(wsID), actorType, actorID, map[string]any{"item": inboxToResponse(item)})
+	}
+	// Multichannel digest (K64): the same briefing, once per configured chat.
+	delivered := h.deliverBriefingToChannels(ctx, wsID, briefing, channels, actorType, actorID)
+	if raw, err := json.Marshal(delivered); err == nil {
+		if err := h.Queries.UpdateMorningBriefingChannels(ctx, db.UpdateMorningBriefingChannelsParams{WorkspaceID: wsID, SentForDate: date, ChannelsDelivered: raw}); err != nil {
+			slog.Warn("morning briefing: record channels failed", "error", err, "workspace_id", uuidToString(wsID))
+		}
 	}
 	return true, nil
 }
@@ -243,7 +255,7 @@ func (h *Handler) SendDueMorningBriefings(ctx context.Context, now time.Time) (i
 			slog.Warn("morning briefing: compose failed", "error", err, "workspace_id", uuidToString(ws.ID))
 			continue
 		}
-		did, err := h.sendBriefing(ctx, ws.ID, briefing, "system", "")
+		did, err := h.sendBriefing(ctx, ws.ID, briefing, "system", "", cfg.Channels)
 		if err != nil {
 			slog.Warn("morning briefing: send failed", "error", err, "workspace_id", uuidToString(ws.ID))
 			continue
@@ -317,7 +329,7 @@ func (h *Handler) TriggerMorningBriefing(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "failed to compose the briefing")
 		return
 	}
-	did, err := h.sendBriefing(r.Context(), wsUUID, briefing, "member", userID)
+	did, err := h.sendBriefing(r.Context(), wsUUID, briefing, "member", userID, cfg.Channels)
 	if err != nil {
 		slog.Warn("morning briefing send failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeError(w, http.StatusInternalServerError, "failed to send the briefing")

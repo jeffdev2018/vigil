@@ -807,6 +807,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			}
 			channelRouter.Register(slack.TypeSlack, slack.NewSlackResolverSet(queries, pool, slackReplier, slackTyping, slackMedia))
 			slack.NewOutbound(queries, box.Open, slog.Default()).Register(bus)
+			// Multichannel digest (K64): the morning briefing can be posted to Slack.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(slack.TypeSlack)] = slack.NewDigestSender(box.Open, slog.Default())
 
 			// On-demand history reader behind the unified `multica chat history`
 			// command (MUL-3871): pull the session's Slack conversation when the
@@ -1103,6 +1108,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			telegramTyping := telegram.NewTypingNotifier(box.Open, "", nil, slog.Default())
 			channelRouter.Register(telegram.TypeTelegram, telegram.NewTelegramResolverSet(queries, pool, telegramReplier, telegramTyping))
 			telegramOutbound := telegram.NewOutbound(queries, box.Open, "", nil, slog.Default())
+			// Multichannel digest (K64): the morning briefing can be posted to Telegram.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(telegram.TypeTelegram)] = telegram.NewDigestSender(box.Open, "", nil, slog.Default())
 			telegramOutbound.Register(bus)
 			h.TelegramOutbound = telegramOutbound
 
