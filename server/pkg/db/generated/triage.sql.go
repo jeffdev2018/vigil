@@ -11,6 +11,71 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acceptPendingTriageItem = `-- name: AcceptPendingTriageItem :one
+UPDATE triage_item
+SET state = 'accepted',
+    issue_id = $3::uuid,
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = $4::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+`
+
+type AcceptPendingTriageItemParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+	ResolvedBy  pgtype.UUID `json:"resolved_by"`
+}
+
+func (q *Queries) AcceptPendingTriageItem(ctx context.Context, arg AcceptPendingTriageItemParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, acceptPendingTriageItem,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.IssueID,
+		arg.ResolvedBy,
+	)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const countRecentTriageItemsBySource = `-- name: CountRecentTriageItemsBySource :many
 SELECT source_id, state, COUNT(*)::bigint AS n
 FROM triage_item
@@ -90,6 +155,71 @@ func (q *Queries) DeleteExpiredTriageItems(ctx context.Context, workspaceID pgty
 	return result.RowsAffected(), nil
 }
 
+const dismissPendingTriageItem = `-- name: DismissPendingTriageItem :one
+UPDATE triage_item
+SET state = 'dismissed',
+    resolution_reason = $3,
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = $4::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+`
+
+type DismissPendingTriageItemParams struct {
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	ResolutionReason pgtype.Text `json:"resolution_reason"`
+	ResolvedBy       pgtype.UUID `json:"resolved_by"`
+}
+
+func (q *Queries) DismissPendingTriageItem(ctx context.Context, arg DismissPendingTriageItemParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, dismissPendingTriageItem,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.ResolutionReason,
+		arg.ResolvedBy,
+	)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTriageSource = `-- name: GetTriageSource :one
 SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at FROM triage_source
 WHERE id = $1 AND workspace_id = $2
@@ -119,6 +249,86 @@ func (q *Queries) GetTriageSource(ctx context.Context, arg GetTriageSourceParams
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const listTriageItems = `-- name: ListTriageItems :many
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+WHERE workspace_id = $1
+  AND shadow = false
+  AND state = $2
+  AND (
+      $3::timestamptz IS NULL
+      OR (first_seen_at, id) < ($3::timestamptz, $4::uuid)
+  )
+ORDER BY first_seen_at DESC, id DESC
+LIMIT $5::int
+`
+
+type ListTriageItemsParams struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	State       string             `json:"state"`
+	CursorTime  pgtype.Timestamptz `json:"cursor_time"`
+	CursorID    pgtype.UUID        `json:"cursor_id"`
+	PageLimit   int32              `json:"page_limit"`
+}
+
+func (q *Queries) ListTriageItems(ctx context.Context, arg ListTriageItemsParams) ([]TriageItem, error) {
+	rows, err := q.db.Query(ctx, listTriageItems,
+		arg.WorkspaceID,
+		arg.State,
+		arg.CursorTime,
+		arg.CursorID,
+		arg.PageLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TriageItem{}
+	for rows.Next() {
+		var i TriageItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SourceID,
+			&i.OriginType,
+			&i.OriginID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.DedupeKey,
+			&i.ContentDigest,
+			&i.Title,
+			&i.NormalizedTitle,
+			&i.BodyMarkdown,
+			&i.Payload,
+			&i.State,
+			&i.DropReason,
+			&i.ResolutionReason,
+			&i.CollapseCount,
+			&i.Verdict,
+			&i.VerdictAgentID,
+			&i.VerdictAt,
+			&i.VerdictRevision,
+			&i.IssueID,
+			&i.DuplicateOfIssueID,
+			&i.ReplacedByItemID,
+			&i.Shadow,
+			&i.FirstSeenAt,
+			&i.ExpiresAt,
+			&i.ResolvedAt,
+			&i.ResolvedByType,
+			&i.ResolvedByID,
+			&i.Revision,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listTriageSources = `-- name: ListTriageSources :many
@@ -161,6 +371,122 @@ func (q *Queries) ListTriageSources(ctx context.Context, workspaceID pgtype.UUID
 	return items, nil
 }
 
+const lockTriageItemForResolution = `-- name: LockTriageItemForResolution :one
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+WHERE id = $1 AND workspace_id = $2
+FOR UPDATE
+`
+
+type LockTriageItemForResolutionParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) LockTriageItemForResolution(ctx context.Context, arg LockTriageItemForResolutionParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, lockTriageItemForResolution, arg.ID, arg.WorkspaceID)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const mergePendingTriageItem = `-- name: MergePendingTriageItem :one
+UPDATE triage_item
+SET state = 'merged',
+    duplicate_of_issue_id = $3::uuid,
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = $4::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+`
+
+type MergePendingTriageItemParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	WorkspaceID        pgtype.UUID `json:"workspace_id"`
+	DuplicateOfIssueID pgtype.UUID `json:"duplicate_of_issue_id"`
+	ResolvedBy         pgtype.UUID `json:"resolved_by"`
+}
+
+func (q *Queries) MergePendingTriageItem(ctx context.Context, arg MergePendingTriageItemParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, mergePendingTriageItem,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.DuplicateOfIssueID,
+		arg.ResolvedBy,
+	)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const oldestRealPendingTriageAgeSeconds = `-- name: OldestRealPendingTriageAgeSeconds :one
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bigint AS age_seconds
 FROM triage_item
@@ -172,6 +498,40 @@ func (q *Queries) OldestRealPendingTriageAgeSeconds(ctx context.Context, workspa
 	var age_seconds int64
 	err := row.Scan(&age_seconds)
 	return age_seconds, err
+}
+
+const updateTriageSourceMode = `-- name: UpdateTriageSourceMode :one
+UPDATE triage_source
+SET mode = $3, updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+RETURNING id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at
+`
+
+type UpdateTriageSourceModeParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Mode        string      `json:"mode"`
+}
+
+func (q *Queries) UpdateTriageSourceMode(ctx context.Context, arg UpdateTriageSourceModeParams) (TriageSource, error) {
+	row := q.db.QueryRow(ctx, updateTriageSourceMode, arg.ID, arg.WorkspaceID, arg.Mode)
+	var i TriageSource
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Kind,
+		&i.RefID,
+		&i.Name,
+		&i.Icon,
+		&i.Mode,
+		&i.AutoAccept,
+		&i.CapPerHour,
+		&i.ExpiryDays,
+		&i.CreatedByID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertTriageItem = `-- name: UpsertTriageItem :one

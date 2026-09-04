@@ -649,6 +649,27 @@ func dispatchFailReasonCode(err error) dispatch.ReasonCode {
 // (the resolved leader for a squad autopilot, otherwise the assignee agent
 // itself), so activity / mentions render with the right author identity.
 func (s *AutopilotService) dispatchCreateIssue(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, triggerTimezone string, actorUserID pgtype.UUID) error {
+	// Triage M2: webhook deliveries whose source is gated never become issues
+	// here — they are parked as pending triage items (no issue quota burned).
+	// Blocked sources are recorded as drops. Direct mode (the default) keeps
+	// today's behavior exactly.
+	if run.Source == "webhook" {
+		route := s.resolveTriageRoute(ctx, ap)
+		switch route {
+		case triage.RouteQueue:
+			return s.dispatchCreateIssueToTriage(ctx, ap, run, triggerTimezone, actorUserID)
+		case triage.RouteDrop:
+			return &errDispatchSkipped{reason: "triage source is blocked", code: dispatch.ReasonTriageBlocked}
+		}
+	}
+
+	return s.dispatchCreateIssueDirect(ctx, ap, run, triggerTimezone, actorUserID)
+}
+
+// dispatchCreateIssueDirect is the historical create path: issue row,
+// subscribers, run link, quota, events, task enqueue. Unchanged by triage;
+// the gate in dispatchCreateIssue decides whether it runs at all.
+func (s *AutopilotService) dispatchCreateIssueDirect(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, triggerTimezone string, actorUserID pgtype.UUID) error {
 	leader, _, err := s.resolveAutopilotLeader(ctx, ap)
 	if err != nil {
 		return fmt.Errorf("resolve leader: %w", err)
@@ -1599,8 +1620,9 @@ func (s *AutopilotService) captureTriageShadowCreated(ctx context.Context, ap db
 }
 
 // captureTriageDrop records a webhook delivery that was admitted but produced
-// no issue (issue limit reached, recent duplicate, ...). Same fail-open
-// contract as captureTriageShadowCreated.
+// no issue (issue limit reached, recent duplicate, blocked source, ...). Same
+// fail-open contract as captureTriageShadowCreated. A blocked-source drop is
+// real queue data (shadow=false); skips under direct mode are measurement.
 func (s *AutopilotService) captureTriageDrop(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, code dispatch.ReasonCode) {
 	reason := string(code)
 	if reason == "" {
@@ -1617,13 +1639,98 @@ func (s *AutopilotService) captureTriageDrop(ctx context.Context, ap db.Autopilo
 		TriggerPayload:  run.TriggerPayload,
 		State:           triage.StateDropped,
 		DropReason:      reason,
-		Shadow:          true,
+		Shadow:          code != dispatch.ReasonTriageBlocked,
 	}); err != nil {
 		slog.Warn("triage drop capture failed",
 			"autopilot_id", util.UUIDToString(ap.ID),
 			"run_id", util.UUIDToString(run.ID),
 			"error", err)
 	}
+}
+
+// resolveTriageRoute upserts the webhook source row for this autopilot and
+// returns the admission decision for its deliveries. Fail-open: any error
+// resolves to direct so a triage-table hiccup can never lose inbound work.
+func (s *AutopilotService) resolveTriageRoute(ctx context.Context, ap db.Autopilot) triage.Route {
+	source, err := s.Queries.UpsertTriageSource(ctx, db.UpsertTriageSourceParams{
+		WorkspaceID: ap.WorkspaceID,
+		Kind:        triage.SourceAutopilotWebhook,
+		RefID:       ap.ID,
+		Name:        ap.Title,
+		CreatedByID: ap.CreatedByID,
+	})
+	if err != nil {
+		slog.Warn("triage source lookup failed, admitting direct",
+			"autopilot_id", util.UUIDToString(ap.ID),
+			"error", err)
+		return triage.RouteDirect
+	}
+	return triage.Decide(source.Mode)
+}
+
+// dispatchCreateIssueToTriage parks a gated webhook delivery as a pending
+// triage item instead of creating an issue. The run completes as skipped
+// with reason triage_gated (a terminal state, so crash recovery leaves it
+// alone); the autopilot run quota slot stays consumed because the run itself
+// happened — only the issue it would have created is deferred to a human
+// decision. If parking fails, the delivery degrades to direct routing:
+// holding must never cost data.
+func (s *AutopilotService) dispatchCreateIssueToTriage(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, triggerTimezone string, actorUserID pgtype.UUID) error {
+	title := s.interpolateTemplate(ap, *run, triggerTimezone)
+	description := s.buildIssueDescription(ap, *run, triggerTimezone)
+
+	item, err := triage.Capture(ctx, s.Queries, triage.CaptureParams{
+		WorkspaceID:     ap.WorkspaceID,
+		SourceKind:      triage.SourceAutopilotWebhook,
+		SourceRefID:     ap.ID,
+		SourceName:      ap.Title,
+		SourceCreatedBy: ap.CreatedByID,
+		OriginType:      "autopilot",
+		OriginID:        ap.ID,
+		Title:           title,
+		BodyMarkdown:    description.String,
+		TriggerPayload:  run.TriggerPayload,
+		State:           triage.StatePending,
+		Shadow:          false,
+	})
+	if err != nil {
+		slog.Error("triage gate capture failed, admitting direct to avoid losing the delivery",
+			"autopilot_id", util.UUIDToString(ap.ID),
+			"run_id", util.UUIDToString(run.ID),
+			"error", err)
+		return s.dispatchCreateIssueDirect(ctx, ap, run, triggerTimezone, actorUserID)
+	}
+
+	updated, err := s.skipAutopilotRun(ctx, db.UpdateAutopilotRunSkippedParams{
+		ID:            run.ID,
+		FailureReason: pgtype.Text{String: "held in triage queue: " + util.UUIDToString(item.ID), Valid: true},
+		ReasonCode:    pgtype.Text{String: string(dispatch.ReasonTriageGated), Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("mark gated run skipped: %w", err)
+	}
+	*run = updated
+
+	if _, err := settleAutopilotQuota(ctx, s.Queries, run.QuotaReservationID, true); err != nil {
+		return fmt.Errorf("consume quota reservation: %w", err)
+	}
+
+	slog.Info("autopilot webhook delivery held in triage",
+		"autopilot_id", util.UUIDToString(ap.ID),
+		"run_id", util.UUIDToString(run.ID),
+		"triage_item_id", util.UUIDToString(item.ID),
+	)
+	s.publishRunDone(util.UUIDToString(ap.WorkspaceID), updated, "skipped")
+	s.Bus.Publish(events.Event{
+		Type:        protocol.EventTriageNew,
+		WorkspaceID: util.UUIDToString(ap.WorkspaceID),
+		ActorType:   "system",
+		Payload: map[string]any{
+			"item_id":   util.UUIDToString(item.ID),
+			"source_id": util.UUIDToString(item.SourceID),
+		},
+	})
+	return nil
 }
 
 func (s *AutopilotService) captureAutopilotRunStarted(ap db.Autopilot, run db.AutopilotRun, triggerSource string) {

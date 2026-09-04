@@ -70,3 +70,62 @@ WHERE workspace_id = $1 AND state = 'pending' AND shadow = false;
 -- name: DeleteExpiredTriageItems :execrows
 DELETE FROM triage_item
 WHERE workspace_id = $1 AND expires_at IS NOT NULL AND expires_at <= now();
+
+-- name: ListTriageItems :many
+SELECT * FROM triage_item
+WHERE workspace_id = $1
+  AND shadow = false
+  AND state = sqlc.arg('state')
+  AND (
+      sqlc.narg('cursor_time')::timestamptz IS NULL
+      OR (first_seen_at, id) < (sqlc.narg('cursor_time')::timestamptz, sqlc.narg('cursor_id')::uuid)
+  )
+ORDER BY first_seen_at DESC, id DESC
+LIMIT sqlc.arg('page_limit')::int;
+
+-- name: LockTriageItemForResolution :one
+SELECT * FROM triage_item
+WHERE id = $1 AND workspace_id = $2
+FOR UPDATE;
+
+-- name: AcceptPendingTriageItem :one
+UPDATE triage_item
+SET state = 'accepted',
+    issue_id = sqlc.arg('issue_id')::uuid,
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = sqlc.arg('resolved_by')::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING *;
+
+-- name: DismissPendingTriageItem :one
+UPDATE triage_item
+SET state = 'dismissed',
+    resolution_reason = sqlc.narg('resolution_reason'),
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = sqlc.arg('resolved_by')::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING *;
+
+-- name: MergePendingTriageItem :one
+UPDATE triage_item
+SET state = 'merged',
+    duplicate_of_issue_id = sqlc.arg('duplicate_of_issue_id')::uuid,
+    resolved_at = now(),
+    resolved_by_type = 'member',
+    resolved_by_id = sqlc.arg('resolved_by')::uuid,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING *;
+
+-- name: UpdateTriageSourceMode :one
+UPDATE triage_source
+SET mode = $3, updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+RETURNING *;

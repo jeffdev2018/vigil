@@ -1944,8 +1944,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
-			// Triage (M1: shadow-capture stats; the queue UI lands with gating)
-			r.Get("/api/triage/stats", h.GetTriageStats)
+			// Triage queue. Stats/list are member-readable; accept/dismiss are
+			// human-only — agents may suggest verdicts, humans decide.
+			r.Route("/api/triage", func(r chi.Router) {
+				r.Get("/stats", h.GetTriageStats)
+				r.Get("/items", h.ListTriageItems)
+				r.With(handler.RequireHumanActor).Post("/items/batch-accept", h.BatchAcceptTriageItems)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/accept", h.AcceptTriageItem)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/dismiss", h.DismissTriageItem)
+				r.Patch("/sources/{id}", h.UpdateTriageSource)
+			})
 
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
