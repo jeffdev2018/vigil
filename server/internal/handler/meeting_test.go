@@ -98,12 +98,25 @@ func TestMeetingRecordFinishQueuesActions(t *testing.T) {
 		t.Fatalf("triage sources for meeting = %d, want 1", got)
 	}
 
+	// Accepting an action creates an issue that carries the meeting origin.
+	// This is the path that used to trip the issue.origin_type CHECK.
+	var accepted map[string]any
+	testutil.Call(t, testHandler.AcceptTriageItem,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/triage/items/"+done.Actions[0].TriageItemID+"/accept", map[string]any{}), "id", done.Actions[0].TriageItemID)).
+		WantOneOf(http.StatusOK, http.StatusCreated).JSON(&accepted)
+	var issueID, originType string
+	dbfx.QueryRow(t, `SELECT i.id::text, i.origin_type FROM triage_item ti JOIN issue i ON i.id = ti.issue_id WHERE ti.id = $1`, done.Actions[0].TriageItemID).Scan(&issueID, &originType)
+	dbfx.Cleanup(t, `DELETE FROM issue WHERE id = $1`, issueID)
+	if originType != "meeting" {
+		t.Fatalf("accepted issue origin_type = %q, want meeting", originType)
+	}
+
 	// Idempotent: finishing again returns the same state, no new items.
 	var again MeetingResponse
 	testutil.Call(t, testHandler.FinishMeeting,
 		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/finish", nil), "id", created.ID)).
 		Want(http.StatusOK).JSON(&again)
-	if again.Status != "done" || len(again.Actions) != 1 {
+	if again.Status != "done" || len(again.Actions) != 1 || again.Actions[0].State != "accepted" {
 		t.Fatalf("second finish = %+v", again)
 	}
 	// A late segment is refused once the meeting is done.
