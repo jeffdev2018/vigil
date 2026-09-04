@@ -388,7 +388,8 @@
       "time_every_hours_window": "Every {{interval}} hours",
       "time_every_minute": "Every minute",
       "time_every_minutes": "Every {{interval}} minutes",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "sometime between {{from}} and {{to}}"
     },
     "countdown": {
       "days_hours": "{{days}}d {{hours}}h {{minutes}}m",
@@ -416,8 +417,11 @@
         "thu": "Thursday",
         "fri": "Friday",
         "sat": "Saturday"
-      }
-    }
+      },
+      "band_end_hour": "Latest hour",
+      "band_end_minute": "Latest minute"
+    },
+    "window_toggle": "Sometime between"
   },
   "agent_picker": {
     "filter_placeholder": "Filter agents or squads...",

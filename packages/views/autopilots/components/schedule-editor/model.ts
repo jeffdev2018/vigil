@@ -23,6 +23,10 @@ export type DayPattern =
 export interface ScheduleConfig {
   time: TimePattern;
   days: DayPattern;
+  // "Sometime between 08:00 and 10:00": with an "at" time, spread the firing
+  // over this many minutes after it (server picks the minute, differently
+  // each day). 0 = exactly at the time. Ignored for "every" patterns.
+  windowMinutes: number;
   timezone: string; // IANA
   // Non-null when the expression exceeds the structured model: the editor is
   // in advanced-only mode and this exact string round-trips verbatim.
@@ -36,6 +40,7 @@ export function getDefaultScheduleConfig(timezone: string): ScheduleConfig {
   return {
     time: { kind: "at", time: "09:00" },
     days: { kind: "every" },
+    windowMinutes: 0,
     timezone,
     raw: null,
   };
@@ -70,4 +75,19 @@ export function pad2(n: number): string {
 export function timeParts(time: string): { hour: number; minute: number } {
   const [h, m] = time.split(":");
   return { hour: parseInt(h ?? "0", 10), minute: parseInt(m ?? "0", 10) };
+}
+
+/** End of the firing band ("HH:MM") for an "at" time plus a window; wraps at midnight. */
+export function windowEndTime(start: string, windowMinutes: number): string {
+  const { hour, minute } = timeParts(start);
+  const total = (hour * 60 + minute + windowMinutes) % (24 * 60);
+  return `${pad2(Math.floor(total / 60))}:${pad2(total % 60)}`;
+}
+
+/** Minutes from `start` to `end` on the same day, 0 when end is not after start. */
+export function windowMinutesBetween(start: string, end: string): number {
+  const a = timeParts(start);
+  const b = timeParts(end);
+  const diff = b.hour * 60 + b.minute - (a.hour * 60 + a.minute);
+  return diff > 0 ? diff : 0;
 }

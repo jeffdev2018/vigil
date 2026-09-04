@@ -126,7 +126,10 @@ type autopilotTriggerConfig struct {
 	TriggerID      string
 	CronExpression string
 	Timezone       string
-	CreatedAt      time.Time
+	// Window spreads each occurrence over a band starting at the cron time
+	// (see service.WindowOffset); zero fires exactly on the cron.
+	Window    time.Duration
+	CreatedAt time.Time
 	// LastFiredAt is autopilot_trigger.last_fired_at; zero if the
 	// trigger has never fired (or under no scheduler so far). Used by
 	// the planner hook to anchor cold-start enumeration so that
@@ -207,6 +210,7 @@ func autopilotScopes(
 				TriggerID:      id,
 				CronExpression: cron,
 				Timezone:       tz,
+				Window:         time.Duration(r.WindowMinutes) * time.Minute,
 				CreatedAt:      createdAt,
 				LastFiredAt:    lastFiredAt,
 			}
@@ -300,7 +304,7 @@ func autopilotPlansForScope(cache *autopilotScheduleCache) func(
 			after = oldest
 		}
 
-		occs, err := service.NextOccurrencesUTC(cfg.CronExpression, cfg.Timezone, after, now)
+		occs, err := service.NextWindowedOccurrencesUTC(cfg.CronExpression, cfg.Timezone, cfg.Window, cfg.TriggerID, after, now)
 		if err != nil {
 			return nil, fmt.Errorf("autopilot plans: cron eval for trigger %s: %w", scope.ID, err)
 		}
@@ -392,7 +396,7 @@ func autopilotHandler(
 		if trigger.Timezone.Valid && trigger.Timezone.String != "" {
 			tz = trigger.Timezone.String
 		}
-		if next, ok := advancedNextRun(trigger.CronExpression.String, tz, in.PlanTime, time.Now()); ok {
+		if next, ok := advancedNextRun(trigger.CronExpression.String, tz, time.Duration(trigger.WindowMinutes)*time.Minute, util.UUIDToString(trigger.ID), in.PlanTime, time.Now()); ok {
 			_ = queries.AdvanceTriggerNextRun(ctx, db.AdvanceTriggerNextRunParams{
 				ID:        trigger.ID,
 				NextRunAt: pgtype.Timestamptz{Time: next, Valid: true},
@@ -421,12 +425,12 @@ func autopilotHandler(
 // (MUL-3749) would reappear at the top-of-period boundary. Returns
 // ok=false when the cron/timezone fail to parse, signalling the caller to
 // fall back to a last_fired_at-only bump.
-func advancedNextRun(cronExpr, timezone string, planTime, now time.Time) (time.Time, bool) {
+func advancedNextRun(cronExpr, timezone string, window time.Duration, triggerID string, planTime, now time.Time) (time.Time, bool) {
 	anchor := now
 	if planTime.After(anchor) {
 		anchor = planTime
 	}
-	next, err := service.NextOccurrenceAfterUTC(cronExpr, timezone, anchor)
+	next, err := service.NextWindowedOccurrenceAfterUTC(cronExpr, timezone, window, triggerID, anchor)
 	if err != nil {
 		return time.Time{}, false
 	}

@@ -96,6 +96,8 @@ export interface AutopilotTrigger {
   cron_expression: string | null;
   timezone: string | null;
   next_run_at: string | null;
+  /** Schedule triggers: fire at a random minute within this many minutes after the cron time. */
+  window_minutes?: number;
   webhook_token: string | null;
   // webhook_path is computed server-side from webhook_token (always
   // "/api/webhooks/autopilots/{token}"). Optional so older servers can be
@@ -189,6 +191,7 @@ export interface CreateAutopilotTriggerRequest {
   cron_expression?: string;
   timezone?: string;
   label?: string;
+  window_minutes?: number;
   // event_filters is only meaningful for webhook triggers.
   event_filters?: WebhookEventFilter[];
   event_match_criteria?: string;
@@ -199,6 +202,7 @@ export interface UpdateAutopilotTriggerRequest {
   cron_expression?: string;
   timezone?: string;
   label?: string;
+  window_minutes?: number;
   // event_filters is only meaningful for webhook triggers.
   event_filters?: WebhookEventFilter[] | null;
   /** Omitted keeps the current text; "" clears it. */

@@ -388,7 +388,8 @@
       "time_every_hours_window": "{{interval}} 時間ごと",
       "time_every_minute": "毎分",
       "time_every_minutes": "{{interval}} 分ごと",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "{{from}}〜{{to}}のどこかで"
     },
     "countdown": {
       "days_hours": "{{days}}日 {{hours}}時間 {{minutes}}分",
@@ -416,8 +417,11 @@
         "thu": "木曜日",
         "fri": "金曜日",
         "sat": "土曜日"
-      }
-    }
+      },
+      "band_end_hour": "最終時",
+      "band_end_minute": "最終分"
+    },
+    "window_toggle": "次の時間帯のどこかで"
   },
   "agent_picker": {
     "filter_placeholder": "エージェントまたはスクワッドを絞り込み...",

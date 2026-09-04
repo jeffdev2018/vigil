@@ -179,7 +179,10 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
       return tpl ? { ...fallback, ...tpl } : fallback;
     }
     if (existingSchedule?.cron_expression) {
-      return parseCron(existingSchedule.cron_expression, existingSchedule.timezone ?? "UTC");
+      return {
+        ...parseCron(existingSchedule.cron_expression, existingSchedule.timezone ?? "UTC"),
+        windowMinutes: existingSchedule.window_minutes ?? 0,
+      };
     }
     return getDefaultScheduleConfig(browserTimezone());
   })();
@@ -219,9 +222,11 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
   const initialCronRef = useRef(toCron(initialCfg));
   const initialTimezoneRef = useRef(initialCfg.timezone);
   const initialEventFiltersRef = useRef(serializeEventFilters(initialEventFilters));
+  const initialWindowRef = useRef(scheduleWindow(initialCfg));
   const scheduleDirty =
     toCron(schedule) !== initialCronRef.current ||
-    schedule.timezone !== initialTimezoneRef.current;
+    schedule.timezone !== initialTimezoneRef.current ||
+    scheduleWindow(schedule) !== initialWindowRef.current;
   const eventFiltersDirty =
     serializeEventFilters(eventFilters) !== initialEventFiltersRef.current;
 
@@ -346,6 +351,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
               kind: "schedule",
               cron_expression: toCron(schedule),
               timezone: schedule.timezone,
+              window_minutes: scheduleWindow(schedule),
             });
           }
         } catch (err) {
@@ -397,6 +403,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
                 triggerId: snapshottedTriggerId,
                 cron_expression: toCron(schedule),
                 timezone: schedule.timezone,
+                window_minutes: scheduleWindow(schedule),
               });
             } else {
               await createTrigger.mutateAsync({
@@ -404,6 +411,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
                 kind: "schedule",
                 cron_expression: toCron(schedule),
                 timezone: schedule.timezone,
+                window_minutes: scheduleWindow(schedule),
               });
             }
           } catch (err) {
@@ -1144,4 +1152,9 @@ function WebhookCreatedPanel({
       </div>
     </>
   );
+}
+
+/** The band only exists for a fixed time; an interval pattern always fires exactly. */
+function scheduleWindow(config: ScheduleConfig): number {
+  return config.time.kind === "at" ? config.windowMinutes : 0;
 }

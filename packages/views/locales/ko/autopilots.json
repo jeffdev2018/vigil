@@ -388,7 +388,8 @@
       "time_every_hours_window": "{{interval}}시간마다",
       "time_every_minute": "매분",
       "time_every_minutes": "{{interval}}분마다",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "{{from}}과 {{to}} 사이 임의 시각"
     },
     "countdown": {
       "days_hours": "{{days}}일 {{hours}}시간 {{minutes}}분",
@@ -416,8 +417,11 @@
         "thu": "목요일",
         "fri": "금요일",
         "sat": "토요일"
-      }
-    }
+      },
+      "band_end_hour": "종료 시",
+      "band_end_minute": "종료 분"
+    },
+    "window_toggle": "다음 시간대 중 임의 시각"
   },
   "agent_picker": {
     "filter_placeholder": "에이전트 또는 스쿼드 필터...",

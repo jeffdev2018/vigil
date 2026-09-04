@@ -29,7 +29,7 @@ func TestAdvancedNextRunStrictlyAfterPlanTime(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got, ok := advancedNextRun(cron, tz, planTime, tc.now)
+			got, ok := advancedNextRun(cron, tz, 0, "trigger-test", planTime, tc.now)
 			if !ok {
 				t.Fatal("expected ok=true for a valid cron/timezone")
 			}
@@ -49,10 +49,10 @@ func TestAdvancedNextRunStrictlyAfterPlanTime(t *testing.T) {
 // bump) when the cron or timezone cannot be parsed.
 func TestAdvancedNextRunInvalidInputsSignalFallback(t *testing.T) {
 	planTime := time.Date(2026, 6, 26, 7, 0, 0, 0, time.UTC)
-	if _, ok := advancedNextRun("not a cron", "UTC", planTime, planTime); ok {
+	if _, ok := advancedNextRun("not a cron", "UTC", 0, "trigger-test", planTime, planTime); ok {
 		t.Fatal("expected ok=false for an invalid cron expression")
 	}
-	if _, ok := advancedNextRun("0 * * * *", "Mars/Olympus", planTime, planTime); ok {
+	if _, ok := advancedNextRun("0 * * * *", "Mars/Olympus", 0, "trigger-test", planTime, planTime); ok {
 		t.Fatal("expected ok=false for an invalid timezone")
 	}
 }
