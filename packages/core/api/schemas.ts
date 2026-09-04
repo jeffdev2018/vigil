@@ -4722,6 +4722,10 @@ export const CrossReviewListSchema = z.object({
   reviews: z.array(CrossReviewSchema).catch([]).default([]),
 }).loose();
 
+export const CompetencySettingsSchema = z.object({
+  min_sample: z.number().int().catch(5).default(5),
+}).loose();
+
 export const AssigneeSuggestionSchema = z.object({
   domain_key: z.string().default(""),
   min_sample: z.number().int().catch(5).default(5),

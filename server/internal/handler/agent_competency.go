@@ -123,6 +123,14 @@ func (h *Handler) issueDomainKey(ctx context.Context, issue db.Issue) string {
 	return competencyDomainKey(labels, paths)
 }
 
+// issueCategory resolves the workflow category of the issue's status.
+func (h *Handler) issueCategory(ctx context.Context, issue db.Issue) string {
+	if entry, err := issuestatus.Resolve(ctx, h.Queries, issue.WorkspaceID, issue.Status); err == nil {
+		return entry.Category
+	}
+	return issue.Status
+}
+
 func (h *Handler) issueCancelled(ctx context.Context, issue db.Issue) bool {
 	if issue.Status == "cancelled" || issue.Status == "canceled" {
 		return true
@@ -153,6 +161,9 @@ func (h *Handler) recordCompetencyOutcome(ctx context.Context, prev, issue db.Is
 		success, event = -1, "reopened"
 	case !wasDone && h.issueCancelled(ctx, issue):
 		total, event = 1, "cancelled"
+	case !wasDone && h.issueCategory(ctx, prev) == "in_review" && (h.issueCategory(ctx, issue) == "in_progress" || h.issueCategory(ctx, issue) == "todo" || h.issueCategory(ctx, issue) == "backlog"):
+		// A review that sends the work back is a rejected attempt.
+		total, event = 1, "review_rejected"
 	default:
 		return
 	}

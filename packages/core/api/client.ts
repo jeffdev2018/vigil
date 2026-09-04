@@ -363,6 +363,7 @@ import {
   RefactorCampaignEnvelopeSchema,
   AgentCompetencySchema,
   AssigneeSuggestionSchema,
+  CompetencySettingsSchema,
   CrossReviewListSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
@@ -3390,6 +3391,16 @@ export class ApiClient {
   async getAgentCompetency(agentId: string): Promise<import("../agents/competency").AgentCompetency> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/competency`);
     return parseWithFallback(raw, AgentCompetencySchema, { agent_id: agentId, min_sample: 5, rows: [] }, { endpoint: "GET /api/agents/:id/competency" });
+  }
+
+  async getCompetencySettings(): Promise<import("../agents/competency").CompetencySettings> {
+    const raw = await this.fetch<unknown>(`/api/competency-settings`);
+    return parseWithFallback(raw, CompetencySettingsSchema, { min_sample: 5 }, { endpoint: "GET /api/competency-settings" });
+  }
+
+  async putCompetencySettings(input: import("../agents/competency").CompetencySettings): Promise<import("../agents/competency").CompetencySettings> {
+    const raw = await this.fetch<unknown>(`/api/competency-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CompetencySettingsSchema, input, { endpoint: "PUT /api/competency-settings" });
   }
 
   async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {

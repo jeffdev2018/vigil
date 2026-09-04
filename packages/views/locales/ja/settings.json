@@ -927,7 +927,11 @@
     "briefing_channel_type": "チャネル種別 {{n}}",
     "briefing_channel_chat": "チャット ID {{n}}",
     "briefing_channel_remove": "チャネル {{n}} を削除",
-    "briefing_channel_add": "チャネルを追加"
+    "briefing_channel_add": "チャネルを追加",
+    "competency_section": "学習された能力",
+    "competency_min_sample": "最小サンプル数",
+    "competency_min_sample_description": "この件数（完了した課題＋対決）未満では、成功率は数値ではなく「データ不足」として表示されます。",
+    "competency_failed": "能力設定を保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

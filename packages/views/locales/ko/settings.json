@@ -927,7 +927,11 @@
     "briefing_channel_type": "채널 유형 {{n}}",
     "briefing_channel_chat": "채팅 ID {{n}}",
     "briefing_channel_remove": "채널 {{n}} 제거",
-    "briefing_channel_add": "채널 추가"
+    "briefing_channel_add": "채널 추가",
+    "competency_section": "학습된 역량",
+    "competency_min_sample": "최소 표본",
+    "competency_min_sample_description": "이 수(닫힌 이슈 + 대결) 미만이면 성공률을 비율 대신 신뢰 불가로 표시합니다.",
+    "competency_failed": "역량 설정을 저장하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

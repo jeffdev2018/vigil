@@ -927,7 +927,11 @@
     "briefing_channel_type": "频道类型 {{n}}",
     "briefing_channel_chat": "聊天 ID {{n}}",
     "briefing_channel_remove": "移除频道 {{n}}",
-    "briefing_channel_add": "添加频道"
+    "briefing_channel_add": "添加频道",
+    "competency_section": "习得能力",
+    "competency_min_sample": "最小样本量",
+    "competency_min_sample_description": "低于该数量（已关闭 issue 加对决）时，成功率显示为不可靠而非裸百分比。",
+    "competency_failed": "无法保存能力设置"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",
