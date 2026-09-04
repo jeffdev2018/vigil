@@ -449,3 +449,48 @@ func TestMeetingFinishAllowsAdminAndRefusesPlainMember(t *testing.T) {
 		t.Fatalf("admin finish = %+v", done)
 	}
 }
+
+// The detail page refetches right after finish, so GET has to reach the same
+// verdict finish did — otherwise "no summary was written" flips back to "no
+// summary yet" a moment after the user reads it.
+func TestMeetingGetReportsSummaryUnavailable(t *testing.T) {
+	stubSTT(t, "On reparle du budget lundi.")
+	get := func(t *testing.T, id string) MeetingResponse {
+		t.Helper()
+		var out MeetingResponse
+		testutil.Call(t, testHandler.GetMeeting,
+			testutil.WithURLParams(newRequest(http.MethodGet, "/api/meetings/"+id, nil), "id", id)).
+			Want(http.StatusOK).JSON(&out)
+		return out
+	}
+
+	// Finished with a transcript but no LLM: unavailable, on finish AND on get.
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", nil)).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+	if get(t, created.ID).SummaryUnavailable {
+		t.Fatalf("a meeting still recording reported summary_unavailable")
+	}
+	testutil.Call(t, testHandler.AppendMeetingSegment,
+		testutil.WithURLParams(audioUploadRequest(t, "/api/meetings/"+created.ID+"/segments", "1"), "id", created.ID)).
+		Want(http.StatusOK)
+	testutil.Call(t, testHandler.FinishMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/finish", nil), "id", created.ID)).
+		Want(http.StatusOK)
+	if !get(t, created.ID).SummaryUnavailable {
+		t.Fatalf("get did not report summary_unavailable after a finish without an LLM")
+	}
+
+	// A meeting nobody spoke in has nothing to summarize: empty, not missing.
+	var silent MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", nil)).
+		Want(http.StatusCreated).JSON(&silent)
+	cleanupMeeting(t, silent.ID)
+	testutil.Call(t, testHandler.FinishMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+silent.ID+"/finish", nil), "id", silent.ID)).
+		Want(http.StatusOK)
+	if get(t, silent.ID).SummaryUnavailable {
+		t.Fatalf("a silent meeting reported summary_unavailable")
+	}
+}

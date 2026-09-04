@@ -328,8 +328,14 @@ export function useMeetingRecorder() {
       }
 
       try {
-        await finishMeeting.mutateAsync(meetingId);
-        toast.success(t(($) => $.recorder.finished));
+        const finished = await finishMeeting.mutateAsync(meetingId);
+        // "Meeting summarized" was shown even when no summary came back (no
+        // LLM configured, or the call failed) — say what actually happened.
+        if (finished.summary_unavailable) {
+          toast.info(t(($) => $.recorder.finished_no_summary));
+        } else {
+          toast.success(t(($) => $.recorder.finished));
+        }
       } catch (err) {
         // Another client already asked for the summary — the meeting is
         // finishing correctly, so this is not a failure to report.

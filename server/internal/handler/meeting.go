@@ -253,6 +253,23 @@ func (h *Handler) loadMeetingForUser(w http.ResponseWriter, r *http.Request, cre
 	return m, workspaceID, userID, true
 }
 
+// meetingSummaryUnavailable answers "this meeting stopped recording and no
+// summary came out of it" — the LLM was unconfigured or it failed. The
+// transcript is still there; only the summary and the action items are missing.
+// A meeting still recording or still summarizing has not answered yet.
+func meetingSummaryUnavailable(m db.Meeting, actions []db.TriageItem) bool {
+	switch m.Status {
+	case "failed":
+		return true
+	case "done":
+		// A meeting nobody said anything in has nothing to summarize — that is
+		// an empty summary, not a missing one.
+		return strings.TrimSpace(m.Transcript) != "" && m.SummaryMd == "" && len(actions) == 0
+	default:
+		return false
+	}
+}
+
 // canManageMeeting is true for the recorder and for a workspace admin/owner.
 // The recorder owns their own recording; an admin has to be able to close or
 // remove a meeting whose recorder closed their tab and never came back.
@@ -289,6 +306,10 @@ func (h *Handler) GetMeeting(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	resp := meetingToResponse(m, actions)
+	// Computed here too, not only on finish: the detail page refetches
+	// immediately after the finish response, and without this the flag would
+	// flip back to false the moment it did (MUL — see meetingSummaryUnavailable).
+	resp.SummaryUnavailable = meetingSummaryUnavailable(m, actions)
 	resp.CanManage = h.canManageMeeting(r, m, userID)
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -506,7 +527,7 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp := meetingToResponse(m, actions)
-		resp.SummaryUnavailable = m.Status == "failed" || (m.SummaryMd == "" && len(actions) == 0)
+		resp.SummaryUnavailable = meetingSummaryUnavailable(m, actions)
 		resp.CanManage = h.canManageMeeting(r, m, userID)
 		writeJSON(w, http.StatusOK, resp)
 		return
@@ -602,7 +623,7 @@ func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request,
 		}
 	}
 	resp := meetingToResponse(done, actions)
-	resp.SummaryUnavailable = !summarized && strings.TrimSpace(m.Transcript) != ""
+	resp.SummaryUnavailable = meetingSummaryUnavailable(done, actions)
 	resp.CanManage = h.canManageMeeting(r, done, userID)
 	writeJSON(w, http.StatusOK, resp)
 }

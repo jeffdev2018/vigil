@@ -73,7 +73,8 @@
     "orphaned": "This recording was interrupted (the page was closed or refreshed). Close the meeting to summarize what was transcribed so far.",
     "finish_now": "Finish meeting",
     "live_title": "Live transcript",
-    "live_lost": "The live transcript dropped. The recording continues and each segment is transcribed when it ends."
+    "live_lost": "The live transcript dropped. The recording continues and each segment is transcribed when it ends.",
+    "finished_no_summary": "Meeting saved. No summary was written — the transcript is kept."
   },
   "action_state": {
     "pending": "Pending",

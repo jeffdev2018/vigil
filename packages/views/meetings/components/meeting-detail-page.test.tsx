@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { forwardRef, useRef, useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { cleanup, fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Meeting } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -218,6 +218,20 @@ describe("MeetingDetailPage", () => {
     renderPage();
     expect(await screen.findByText(/recorded from another device or tab/i)).toBeTruthy();
     expect(screen.queryByRole("button", { name: /finish meeting/i })).toBeNull();
+  });
+
+  // The toast the recorder shows on finish branches on this same flag; the
+  // recorder hook itself is not DOM-testable (MediaRecorder), and the server
+  // side of the flag is pinned by TestMeetingGetReportsSummaryUnavailable.
+  it("distinguishes a summary that was never written from one not yet written", async () => {
+    data.meeting = meeting({ summary_markdown: "", summary_unavailable: true });
+    renderPage();
+    expect(await screen.findByText(/no language model was available/i)).toBeTruthy();
+    cleanup();
+
+    data.meeting = meeting({ summary_markdown: "", summary_unavailable: false });
+    renderPage();
+    expect(await screen.findByText(/no summary yet/i)).toBeTruthy();
   });
 
   it("deleting confirms, awaits the server, then returns to the list", async () => {
