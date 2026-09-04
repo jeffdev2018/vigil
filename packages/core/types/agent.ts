@@ -816,6 +816,8 @@ export interface UpdateAgentRequest {
 export interface AgentEnvResponse {
   agent_id: string;
   custom_env: Record<string, string>;
+  /** Run-scoped secrets (K09): keys a run receives as revocable tokens. Absent on older backends. */
+  scoped_keys?: string[];
 }
 
 /**
@@ -827,6 +829,8 @@ export interface AgentEnvResponse {
  */
 export interface UpdateAgentEnvRequest {
   custom_env: Record<string, string>;
+  /** Run-scoped secrets (K09): replaces the scoped key list when present. */
+  scoped_keys?: string[];
 }
 
 // Skills

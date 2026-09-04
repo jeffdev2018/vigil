@@ -16,6 +16,7 @@ import {
 import { api } from "@multica/core/api";
 import type { Agent } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { toast } from "sonner";
@@ -100,6 +101,10 @@ export function EnvTab({
   // fetch implicitly on mount.
   const [revealed, setRevealed] = useState<EnvEntry[] | null>(null);
   const [originalMap, setOriginalMap] = useState<Record<string, string>>({});
+  // Run-scoped keys (K09) live beside the entries, keyed by name, so bulk
+  // mode round-trips cannot drop them.
+  const [scopedKeys, setScopedKeys] = useState<string[]>([]);
+  const [originalScoped, setOriginalScoped] = useState<string[]>([]);
   const [revealing, setRevealing] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -116,9 +121,11 @@ export function EnvTab({
   const keyCount = agent.custom_env_key_count ?? 0;
 
   const currentEnvMap = revealed ? entriesToEnvMap(revealed) : originalMap;
+  const effectiveScoped = scopedKeys.filter((k) => k in currentEnvMap).sort();
   const dirty =
     revealed !== null &&
-    JSON.stringify(currentEnvMap) !== JSON.stringify(originalMap);
+    (JSON.stringify(currentEnvMap) !== JSON.stringify(originalMap) ||
+      JSON.stringify(effectiveScoped) !== JSON.stringify([...originalScoped].sort()));
 
   // Bulk text that does not parse never reaches `revealed`, so `dirty` alone
   // would report a clean tab while the textarea still holds the user's work —
@@ -136,6 +143,8 @@ export function EnvTab({
       const env = resp.custom_env ?? {};
       setOriginalMap(env);
       setRevealed(envMapToEntries(env));
+      setScopedKeys(resp.scoped_keys ?? []);
+      setOriginalScoped(resp.scoped_keys ?? []);
     } catch (err) {
       toast.error(
         err instanceof Error && err.message
@@ -287,13 +296,17 @@ export function EnvTab({
 
     setSaving(true);
     try {
+      const scopedChanged = JSON.stringify(effectiveScoped) !== JSON.stringify([...originalScoped].sort());
       const resp = await api.updateAgentEnv(agent.id, {
         custom_env: currentEnvMap,
+        ...(scopedChanged ? { scoped_keys: effectiveScoped } : {}),
       });
       const env = resp.custom_env ?? {};
       const savedEntries = envMapToEntries(env);
       setOriginalMap(env);
       setRevealed(savedEntries);
+      setScopedKeys(resp.scoped_keys ?? effectiveScoped);
+      setOriginalScoped(resp.scoped_keys ?? effectiveScoped);
       // Keep the textarea in step with what the server accepted rather than
       // dropping the user out of bulk mode on every save. If the server hands
       // back something bulk text cannot express, fall back to rows — the data
@@ -471,6 +484,17 @@ export function EnvTab({
                   )}
                 </button>
               </div>
+              <label className="flex shrink-0 items-center gap-1 text-caption text-muted-foreground" title={t(($) => $.tab_body.env.scoped_hint)}>
+                <Checkbox
+                  aria-label={t(($) => $.tab_body.env.scoped_aria, { key: entry.key || "?" })}
+                  checked={scopedKeys.includes(entry.key)}
+                  disabled={entry.key === ""}
+                  onCheckedChange={(checked) =>
+                    setScopedKeys((prev) => (checked ? [...prev.filter((k) => k !== entry.key), entry.key] : prev.filter((k) => k !== entry.key)))
+                  }
+                />
+                {t(($) => $.tab_body.env.scoped_label)}
+              </label>
               <Button
                 variant="ghost"
                 size="icon-sm"

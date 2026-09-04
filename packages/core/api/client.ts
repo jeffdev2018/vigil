@@ -331,6 +331,7 @@ import {
   PermissionProfileSchema,
   PermissionProfilesEnvelopeSchema,
   AgentPermissionAssignmentSchema,
+  RunSecretsEnvelopeSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
   WhySearchResponseSchema,
@@ -2986,6 +2987,12 @@ export class ApiClient {
   async listAgentTrustHistory(agentId: string): Promise<import("../agents/trust").TrustModeChange[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/history`);
     return parseWithFallback(raw, TrustHistorySchema, { changes: [] }, { endpoint: "GET /api/agents/:id/trust-mode/history" }).changes;
+  }
+
+  // Run-scoped secrets (K09).
+  async listIssueRunSecrets(issueId: string): Promise<import("../issues/run-secrets").RunSecret[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-secrets`);
+    return parseWithFallback(raw, RunSecretsEnvelopeSchema, { secrets: [] }, { endpoint: "GET /api/issues/:id/run-secrets" }).secrets;
   }
 
   // Permission profiles (K06).

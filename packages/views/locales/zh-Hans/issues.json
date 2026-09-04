@@ -911,6 +911,15 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "run_secrets": {
+    "section": "运行密钥",
+    "run": "运行 {{id}}",
+    "status": {
+      "active": "有效",
+      "revoked": "已撤销",
+      "expired": "已过期"
+    }
+  },
   "decisions": {
     "section": "决策",
     "recommended": "推荐",
