@@ -1,9 +1,25 @@
 -- Business rules (K53).
 
 -- name: CreateBusinessRule :one
-INSERT INTO business_rule (id, workspace_id, title, natural_language, compiled_predicate, attach_point, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO business_rule (id, workspace_id, title, natural_language, compiled_predicate, attach_point, created_by, action_spec)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
+
+-- Triage rules (K62).
+
+-- name: ListRecentTriageItemsForRules :many
+SELECT * FROM triage_item
+WHERE workspace_id = $1 AND shadow = false
+ORDER BY first_seen_at DESC, id DESC
+LIMIT 100;
+
+-- name: ApplyTriageRuleIssueOverrides :exec
+UPDATE issue
+SET priority = COALESCE(sqlc.narg('priority')::text, priority),
+    assignee_type = CASE WHEN sqlc.narg('assignee_id')::uuid IS NULL THEN assignee_type ELSE sqlc.narg('assignee_type')::text END,
+    assignee_id = COALESCE(sqlc.narg('assignee_id')::uuid, assignee_id),
+    updated_at = now()
+WHERE id = $1;
 
 -- name: GetBusinessRule :one
 SELECT * FROM business_rule WHERE id = $1 AND workspace_id = $2;

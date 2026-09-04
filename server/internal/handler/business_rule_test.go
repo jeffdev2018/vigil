@@ -101,7 +101,7 @@ func TestBusinessRulesLifecycleAndProjectGate(t *testing.T) {
 		AttachPoints []string               `json:"attach_points"`
 	}
 	ruleCall(t, testHandler.ListBusinessRules, http.MethodGet, "/api/business-rules", nil).Want(http.StatusOK).JSON(&list)
-	if len(list.Rules) != 1 || list.Rules[0].Status != "disabled" || len(list.AttachPoints) != 3 {
+	if len(list.Rules) != 1 || list.Rules[0].Status != "disabled" || len(list.AttachPoints) != 4 {
 		t.Fatalf("list = %+v", list)
 	}
 	ruleCall(t, testHandler.DeleteBusinessRule, http.MethodDelete, "/api/business-rules/"+rule.ID, nil, "id", rule.ID).Want(http.StatusNoContent)

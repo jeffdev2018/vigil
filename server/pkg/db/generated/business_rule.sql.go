@@ -11,6 +11,32 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const applyTriageRuleIssueOverrides = `-- name: ApplyTriageRuleIssueOverrides :exec
+UPDATE issue
+SET priority = COALESCE($2::text, priority),
+    assignee_type = CASE WHEN $3::uuid IS NULL THEN assignee_type ELSE $4::text END,
+    assignee_id = COALESCE($3::uuid, assignee_id),
+    updated_at = now()
+WHERE id = $1
+`
+
+type ApplyTriageRuleIssueOverridesParams struct {
+	ID           pgtype.UUID `json:"id"`
+	Priority     pgtype.Text `json:"priority"`
+	AssigneeID   pgtype.UUID `json:"assignee_id"`
+	AssigneeType pgtype.Text `json:"assignee_type"`
+}
+
+func (q *Queries) ApplyTriageRuleIssueOverrides(ctx context.Context, arg ApplyTriageRuleIssueOverridesParams) error {
+	_, err := q.db.Exec(ctx, applyTriageRuleIssueOverrides,
+		arg.ID,
+		arg.Priority,
+		arg.AssigneeID,
+		arg.AssigneeType,
+	)
+	return err
+}
+
 const countIssueLabels = `-- name: CountIssueLabels :one
 SELECT COUNT(*) FROM issue_to_label WHERE issue_id = $1
 `
@@ -70,9 +96,9 @@ func (q *Queries) CountWorkspaceProjects(ctx context.Context, workspaceID pgtype
 
 const createBusinessRule = `-- name: CreateBusinessRule :one
 
-INSERT INTO business_rule (id, workspace_id, title, natural_language, compiled_predicate, attach_point, created_by)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at
+INSERT INTO business_rule (id, workspace_id, title, natural_language, compiled_predicate, attach_point, created_by, action_spec)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at, action_spec
 `
 
 type CreateBusinessRuleParams struct {
@@ -83,6 +109,7 @@ type CreateBusinessRuleParams struct {
 	CompiledPredicate []byte      `json:"compiled_predicate"`
 	AttachPoint       string      `json:"attach_point"`
 	CreatedBy         pgtype.UUID `json:"created_by"`
+	ActionSpec        []byte      `json:"action_spec"`
 }
 
 // Business rules (K53).
@@ -95,6 +122,7 @@ func (q *Queries) CreateBusinessRule(ctx context.Context, arg CreateBusinessRule
 		arg.CompiledPredicate,
 		arg.AttachPoint,
 		arg.CreatedBy,
+		arg.ActionSpec,
 	)
 	var i BusinessRule
 	err := row.Scan(
@@ -108,6 +136,7 @@ func (q *Queries) CreateBusinessRule(ctx context.Context, arg CreateBusinessRule
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ActionSpec,
 	)
 	return i, err
 }
@@ -164,7 +193,7 @@ func (q *Queries) DeleteBusinessRule(ctx context.Context, arg DeleteBusinessRule
 }
 
 const getBusinessRule = `-- name: GetBusinessRule :one
-SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at FROM business_rule WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at, action_spec FROM business_rule WHERE id = $1 AND workspace_id = $2
 `
 
 type GetBusinessRuleParams struct {
@@ -186,12 +215,13 @@ func (q *Queries) GetBusinessRule(ctx context.Context, arg GetBusinessRuleParams
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ActionSpec,
 	)
 	return i, err
 }
 
 const listActiveBusinessRules = `-- name: ListActiveBusinessRules :many
-SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at FROM business_rule
+SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at, action_spec FROM business_rule
 WHERE workspace_id = $1 AND attach_point = $2 AND status = 'active'
 ORDER BY created_at ASC, id ASC
 `
@@ -221,6 +251,7 @@ func (q *Queries) ListActiveBusinessRules(ctx context.Context, arg ListActiveBus
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.ActionSpec,
 		); err != nil {
 			return nil, err
 		}
@@ -271,7 +302,7 @@ func (q *Queries) ListBusinessRuleViolations(ctx context.Context, arg ListBusine
 }
 
 const listBusinessRules = `-- name: ListBusinessRules :many
-SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at FROM business_rule WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
+SELECT id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at, action_spec FROM business_rule WHERE workspace_id = $1 ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) ListBusinessRules(ctx context.Context, workspaceID pgtype.UUID) ([]BusinessRule, error) {
@@ -293,6 +324,69 @@ func (q *Queries) ListBusinessRules(ctx context.Context, workspaceID pgtype.UUID
 			&i.Status,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ActionSpec,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentTriageItemsForRules = `-- name: ListRecentTriageItemsForRules :many
+
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+WHERE workspace_id = $1 AND shadow = false
+ORDER BY first_seen_at DESC, id DESC
+LIMIT 100
+`
+
+// Triage rules (K62).
+func (q *Queries) ListRecentTriageItemsForRules(ctx context.Context, workspaceID pgtype.UUID) ([]TriageItem, error) {
+	rows, err := q.db.Query(ctx, listRecentTriageItemsForRules, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TriageItem{}
+	for rows.Next() {
+		var i TriageItem
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SourceID,
+			&i.OriginType,
+			&i.OriginID,
+			&i.ActorType,
+			&i.ActorID,
+			&i.DedupeKey,
+			&i.ContentDigest,
+			&i.Title,
+			&i.NormalizedTitle,
+			&i.BodyMarkdown,
+			&i.Payload,
+			&i.State,
+			&i.DropReason,
+			&i.ResolutionReason,
+			&i.CollapseCount,
+			&i.Verdict,
+			&i.VerdictAgentID,
+			&i.VerdictAt,
+			&i.VerdictRevision,
+			&i.IssueID,
+			&i.DuplicateOfIssueID,
+			&i.ReplacedByItemID,
+			&i.Shadow,
+			&i.FirstSeenAt,
+			&i.ExpiresAt,
+			&i.ResolvedAt,
+			&i.ResolvedByType,
+			&i.ResolvedByID,
+			&i.Revision,
 			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
@@ -385,7 +479,7 @@ func (q *Queries) PurgeWorkspaceBusinessRules(ctx context.Context, workspaceID p
 const setBusinessRuleStatus = `-- name: SetBusinessRuleStatus :one
 UPDATE business_rule SET status = $3, updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at
+RETURNING id, workspace_id, title, natural_language, compiled_predicate, attach_point, status, created_by, created_at, updated_at, action_spec
 `
 
 type SetBusinessRuleStatusParams struct {
@@ -408,6 +502,7 @@ func (q *Queries) SetBusinessRuleStatus(ctx context.Context, arg SetBusinessRule
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ActionSpec,
 	)
 	return i, err
 }
