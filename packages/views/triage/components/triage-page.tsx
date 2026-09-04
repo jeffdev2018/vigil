@@ -5,6 +5,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Inbox, Check, X, Loader2 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspacePaths } from "@multica/core/paths";
 import { ApiError } from "@multica/core/api";
 import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
 import { triageStatsOptions, triageItemsInfiniteOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
@@ -32,6 +33,7 @@ import {
   SelectValue,
 } from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
+import { useNavigation } from "../../navigation";
 import { RichContent } from "../../rich-content";
 
 const SOURCE_MODES: TriageSourceMode[] = ["gate", "direct", "blocked"];
@@ -451,21 +453,38 @@ function TriageDetailBody({
 }) {
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
+  const navigation = useNavigation();
+  const wsPaths = useWorkspacePaths();
   const accept = useAcceptTriageItem(wsId);
   const dismiss = useDismissTriageItem(wsId);
 
   const payloadJson = useMemo(() => formatPayload(item.payload), [item.payload]);
   const busy = accept.isPending || dismiss.isPending;
 
+  // The accept response carries the created issue; naming it (and offering a
+  // way in) is the difference between "something happened" and knowing what.
   const handleAccept = useCallback(async () => {
     try {
-      await accept.mutateAsync(item.id);
-      toast.success(t(($) => $.detail.accepted_toast));
+      const res = await accept.mutateAsync(item.id);
+      const issue = res.issue;
+      if (issue?.id && issue.identifier) {
+        toast.success(
+          t(($) => $.detail.accepted_toast_identifier, { identifier: issue.identifier }),
+          {
+            action: {
+              label: t(($) => $.detail.open_issue),
+              onClick: () => navigation.push(wsPaths.issueDetail(issue.id)),
+            },
+          },
+        );
+      } else {
+        toast.success(t(($) => $.detail.accepted_toast));
+      }
       onResolved();
     } catch (err) {
       handleAcceptError(err, t);
     }
-  }, [accept, item.id, onResolved, t]);
+  }, [accept, item.id, navigation, onResolved, t, wsPaths]);
 
   const handleDismiss = useCallback(async () => {
     try {
@@ -593,9 +612,19 @@ function TriageBatchBar({
   const { t } = useT("triage");
   const batchAccept = useBatchAcceptTriageItems(wsId);
 
+  // The server answers 200 with a per-item outcome even when some items were
+  // duplicates or failed; before this the whole array was dropped and the user
+  // was told nothing at all.
   const handleBatch = useCallback(async () => {
     try {
       const res = await batchAccept.mutateAsync(ids);
+      const results = res.items ?? [];
+      const accepted = results.filter((r) => r.outcome === "accepted").length;
+      const duplicates = results.filter((r) => r.outcome === "duplicate").length;
+      const failed = results.length - accepted - duplicates;
+      toast.success(
+        t(($) => $.batch.summary_toast, { accepted, duplicates, failed }),
+      );
       if (res.stopped) {
         toast.error(t(($) => $.batch.stopped_toast));
       }

@@ -49,12 +49,15 @@
     "merged_toast": "已作为 {{identifier}} 跟踪，已合并",
     "limit_toast": "已达任务上限，该项保留在队列中",
     "error_toast": "出了点问题",
-    "resolution_reason": "原因：{{reason}}"
+    "resolution_reason": "原因：{{reason}}",
+    "accepted_toast_identifier": "已接受，已创建 {{identifier}}",
+    "open_issue": "打开"
   },
   "batch": {
     "accept": "接受 {{count}} 项",
     "clear": "清除选择",
-    "stopped_toast": "已停止，工作区已达任务上限"
+    "stopped_toast": "已停止，工作区已达任务上限",
+    "summary_toast": "接受 {{accepted}} 项，重复 {{duplicates}} 项，失败 {{failed}} 项"
   },
   "suggestion": {
     "title": "建议",

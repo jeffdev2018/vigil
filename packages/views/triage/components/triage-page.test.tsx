@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { TriageItemsResponse, TriageStats } from "@multica/core/types";
 import { toast } from "sonner";
 import { renderWithI18n } from "../../test/i18n";
+import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { TriagePage } from "./triage-page";
 
 // The heavy Markdown renderer is out of scope here — the page only needs to
@@ -20,6 +21,10 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+vi.mock("@multica/core/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/paths")>()),
+  useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}` }),
+}));
 
 const data = vi.hoisted(() => ({
   stats: {
@@ -121,9 +126,15 @@ vi.mock("@multica/core/triage/queries", () => ({
   }),
 }));
 
+const push = vi.hoisted(() => vi.fn());
+
 const mutations = vi.hoisted(() => ({
   reopen: vi.fn(),
-  accept: vi.fn().mockResolvedValue({ item_id: "item-1", state: "accepted" }),
+  accept: vi.fn().mockResolvedValue({
+    item_id: "item-1",
+    state: "accepted",
+    issue: { id: "issue-1", identifier: "ACM-42" },
+  }),
   dismiss: vi.fn().mockResolvedValue({ item_id: "item-1", state: "dismissed" }),
   batch: vi.fn().mockResolvedValue({ items: [] }),
   updateMode: vi.fn(),
@@ -141,10 +152,21 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const adapter: NavigationAdapter = {
+    push,
+    replace: vi.fn(),
+    back: vi.fn(),
+    pathname: "/acme/triage",
+    searchParams: new URLSearchParams(),
+    hash: "",
+    getShareableUrl: (p) => p,
+  };
   return renderWithI18n(
-    <QueryClientProvider client={client}>
-      <TriagePage />
-    </QueryClientProvider>,
+    <NavigationProvider value={adapter}>
+      <QueryClientProvider client={client}>
+        <TriagePage />
+      </QueryClientProvider>
+    </NavigationProvider>,
   );
 }
 
@@ -195,14 +217,42 @@ describe("TriagePage", () => {
     expect(screen.getByText(/payment-gateway/)).toBeTruthy();
   });
 
-  it("accepting the selected item calls the mutation and toasts", async () => {
+  it("accepting the selected item names the created issue and links to it", async () => {
     renderPage();
     const row = await screen.findByText("Payment gateway timeout");
     fireEvent.click(row);
     const acceptButton = await screen.findByRole("button", { name: /^accept$/i });
     fireEvent.click(acceptButton);
     await waitFor(() => expect(mutations.accept).toHaveBeenCalledWith("item-1"));
-    expect(toast.success).toHaveBeenCalled();
+
+    // The accept response carries the issue; a bare "done" toast threw it away.
+    const [message, options] = vi.mocked(toast.success).mock.calls.at(-1) as [
+      string,
+      { action: { label: string; onClick: () => void } },
+    ];
+    expect(message).toContain("ACM-42");
+    options.action.onClick();
+    expect(push).toHaveBeenCalledWith("/acme/issues/issue-1");
+  });
+
+  it("batch accept reports the per-item outcomes the server returned", async () => {
+    mutations.batch.mockResolvedValueOnce({
+      items: [
+        { id: "a", outcome: "accepted" },
+        { id: "b", outcome: "duplicate" },
+        { id: "c", outcome: "error" },
+      ],
+    });
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(await screen.findByRole("button", { name: /^accept 1$/i }));
+
+    await waitFor(() =>
+      expect(vi.mocked(toast.success).mock.calls.at(-1)?.[0]).toBe(
+        "1 accepted, 1 duplicates, 1 failed",
+      ),
+    );
   });
 
   // History tabs (pending / accepted / dismissed / merged). Without them the

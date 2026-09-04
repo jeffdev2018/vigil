@@ -49,12 +49,15 @@
     "merged_toast": "Already tracked as {{identifier}} — merged",
     "limit_toast": "Issue limit reached — the item stays in the queue",
     "error_toast": "Something went wrong",
-    "resolution_reason": "Reason: {{reason}}"
+    "resolution_reason": "Reason: {{reason}}",
+    "accepted_toast_identifier": "Accepted — {{identifier}} created",
+    "open_issue": "Open"
   },
   "batch": {
     "accept": "Accept {{count}}",
     "clear": "Clear selection",
-    "stopped_toast": "Stopped — the workspace reached its issue limit"
+    "stopped_toast": "Stopped — the workspace reached its issue limit",
+    "summary_toast": "{{accepted}} accepted, {{duplicates}} duplicates, {{failed}} failed"
   },
   "suggestion": {
     "title": "Suggestion",

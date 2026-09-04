@@ -49,12 +49,15 @@
     "merged_toast": "이미 {{identifier}}(으)로 추적 중 — 병합되었습니다",
     "limit_toast": "이슈 한도에 도달했습니다 — 항목은 대기열에 남습니다",
     "error_toast": "문제가 발생했습니다",
-    "resolution_reason": "사유: {{reason}}"
+    "resolution_reason": "사유: {{reason}}",
+    "accepted_toast_identifier": "수락됨 — {{identifier}} 생성됨",
+    "open_issue": "열기"
   },
   "batch": {
     "accept": "{{count}}건 수락",
     "clear": "선택 해제",
-    "stopped_toast": "중지됨 — 워크스페이스가 이슈 한도에 도달했습니다"
+    "stopped_toast": "중지됨 — 워크스페이스가 이슈 한도에 도달했습니다",
+    "summary_toast": "수락 {{accepted}}건, 중복 {{duplicates}}건, 실패 {{failed}}건"
   },
   "suggestion": {
     "title": "제안",
