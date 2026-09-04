@@ -157,6 +157,9 @@ type AutopilotTriggerResponse struct {
 	// a JSON array of {event, actions?} objects — never as a base64 string
 	// (which is what []byte would produce through encoding/json).
 	EventFilters []WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria is the natural-language routing rule for webhook
+	// triggers ("only deployment failures on production"); empty = none.
+	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
 }
 
 type AutopilotRunResponse struct {
@@ -251,6 +254,7 @@ func (h *Handler) triggerToResponse(t db.AutopilotTrigger) AutopilotTriggerRespo
 			hint := signingSecretHint(t.SigningSecret.String)
 			resp.SigningSecretHint = &hint
 		}
+		resp.EventMatchCriteria = t.EventMatchCriteria
 		if len(t.EventFilters) > 0 {
 			var filters []WebhookEventFilter
 			if err := json.Unmarshal(t.EventFilters, &filters); err == nil {
@@ -365,6 +369,9 @@ type CreateAutopilotTriggerRequest struct {
 	// EventFilters is an optional list of {event, actions?} scopes. Only
 	// meaningful for webhook triggers. nil/empty means "accept all events".
 	EventFilters []WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria describes, in plain words, which events should run
+	// this autopilot; the LLM judges each delivery against it. Webhook only.
+	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
 }
 
 // SetSigningSecretRequest is the body shape for PUT
@@ -399,6 +406,8 @@ type UpdateAutopilotTriggerRequest struct {
 	// there is no way to tell "field absent from the PATCH body" from "field
 	// present but empty", and the user can never clear filters once set.
 	EventFilters *[]WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria: omitted/null keeps the current text, "" clears it.
+	EventMatchCriteria *string `json:"event_match_criteria,omitempty"`
 }
 
 // ── Handlers ────────────────────────────────────────────────────────────────
@@ -1405,6 +1414,14 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "event_filters is only valid for webhook triggers")
 		return
 	}
+	if req.Kind != "webhook" && strings.TrimSpace(req.EventMatchCriteria) != "" {
+		writeError(w, http.StatusBadRequest, "event_match_criteria is only valid for webhook triggers")
+		return
+	}
+	if err := validateEventMatchCriteria(req.EventMatchCriteria); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := validateWebhookEventFilters(req.EventFilters); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1467,7 +1484,7 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusInternalServerError, "failed to encode event_filters")
 			return
 		}
-		trigger, err := h.createWebhookTriggerWithMintedToken(r, ap, ptrToText(req.Label), provider, eventFiltersBytes, publisherID)
+		trigger, err := h.createWebhookTriggerWithMintedToken(r, ap, ptrToText(req.Label), provider, eventFiltersBytes, req.EventMatchCriteria, publisherID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to create trigger")
 			return
@@ -1491,14 +1508,15 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 	qtx := h.Queries.WithTx(tx)
 
 	trigger, err := qtx.CreateAutopilotTrigger(r.Context(), db.CreateAutopilotTriggerParams{
-		AutopilotID:    ap.ID,
-		Kind:           req.Kind,
-		Enabled:        true,
-		CronExpression: cronText,
-		Timezone:       tzText,
-		NextRunAt:      nextRunAt,
-		Label:          ptrToText(req.Label),
-		WebhookToken:   webhookToken,
+		AutopilotID:        ap.ID,
+		Kind:               req.Kind,
+		Enabled:            true,
+		CronExpression:     cronText,
+		Timezone:           tzText,
+		NextRunAt:          nextRunAt,
+		Label:              ptrToText(req.Label),
+		WebhookToken:       webhookToken,
+		EventMatchCriteria: pgtype.Text{String: strings.TrimSpace(req.EventMatchCriteria), Valid: req.Kind == "webhook"},
 		// published_by records who is currently responsible for this trigger's
 		// CONFIG: seeded to the creator, re-stamped to whoever later substantively
 		// edits it (MUL-4302). Since MUL-6951 it no longer decides anything about a
@@ -1551,6 +1569,7 @@ func (h *Handler) createWebhookTriggerWithMintedToken(
 	label pgtype.Text,
 	provider string,
 	eventFilters []byte,
+	eventMatchCriteria string,
 	publisherID pgtype.UUID,
 ) (db.AutopilotTrigger, error) {
 	ctx := r.Context()
@@ -1565,13 +1584,14 @@ func (h *Handler) createWebhookTriggerWithMintedToken(
 		}
 		qtx := h.Queries.WithTx(tx)
 		trigger, err := qtx.CreateAutopilotTrigger(ctx, db.CreateAutopilotTriggerParams{
-			AutopilotID:  ap.ID,
-			Kind:         "webhook",
-			Enabled:      true,
-			Label:        label,
-			WebhookToken: pgtype.Text{String: token, Valid: true},
-			Provider:     pgtype.Text{String: provider, Valid: provider != ""},
-			EventFilters: eventFilters,
+			AutopilotID:        ap.ID,
+			Kind:               "webhook",
+			Enabled:            true,
+			Label:              label,
+			WebhookToken:       pgtype.Text{String: token, Valid: true},
+			Provider:           pgtype.Text{String: provider, Valid: provider != ""},
+			EventFilters:       eventFilters,
+			EventMatchCriteria: pgtype.Text{String: strings.TrimSpace(eventMatchCriteria), Valid: true},
 			// published_by records CONFIG responsibility only: seeded to the creator,
 			// re-stamped to a later substantive editor (MUL-4302). It has no bearing
 			// on the runs this trigger fires (MUL-6951).
@@ -1785,6 +1805,13 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		if prev.Kind != "webhook" {
 			writeError(w, http.StatusBadRequest, "event_filters is only valid for webhook triggers")
 			return
+		}
+		if req.EventMatchCriteria != nil {
+			if err := validateEventMatchCriteria(*req.EventMatchCriteria); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			params.EventMatchCriteria = pgtype.Text{String: strings.TrimSpace(*req.EventMatchCriteria), Valid: true}
 		}
 		if err := validateWebhookEventFilters(*req.EventFilters); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
@@ -2289,4 +2316,12 @@ func (h *Handler) GetAutopilotQuotaUsage(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// validateEventMatchCriteria bounds the free-text routing rule.
+func validateEventMatchCriteria(text string) error {
+	if n := len([]rune(strings.TrimSpace(text))); n > 500 {
+		return fmt.Errorf("event_match_criteria must be at most 500 characters")
+	}
+	return nil
 }

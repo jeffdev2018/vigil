@@ -68,6 +68,7 @@ import { browserTimezone } from "../../common/timezone-select";
 import { parseCron, toCron } from "./schedule-editor/cron-mapping";
 import { useScheduleSubmitGate } from "./schedule-editor/validate";
 import { WebhookEventFilterSection } from "./webhook-event-filter-section";
+import { Textarea } from "@multica/ui/components/ui/textarea";
 import { WebhookUrlField } from "./webhook-url-field";
 import { useT } from "../../i18n";
 import { formatSchedulePartialFailureToast } from "./autopilot-dialog-toast";
@@ -210,6 +211,10 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
   const initialEventFilters: WebhookEventFilter[] =
     !isCreate && props.triggers[0]?.event_filters ? props.triggers[0].event_filters : [];
   const [eventFilters, setEventFilters] = useState<WebhookEventFilter[]>(initialEventFilters);
+  const initialCriteria = !isCreate ? (props.triggers[0]?.event_match_criteria ?? "") : "";
+  const [eventCriteria, setEventCriteria] = useState(initialCriteria);
+  const initialCriteriaRef = useRef(initialCriteria);
+  const criteriaDirty = eventCriteria.trim() !== initialCriteriaRef.current.trim();
 
   const initialCronRef = useRef(toCron(initialCfg));
   const initialTimezoneRef = useRef(initialCfg.timezone);
@@ -333,6 +338,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
               autopilotId: autopilot.id,
               kind: "webhook",
               event_filters: eventFilters.length > 0 ? eventFilters : undefined,
+              event_match_criteria: eventCriteria.trim() || undefined,
             });
           } else {
             await createTrigger.mutateAsync({
@@ -413,14 +419,15 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
         // UpdateAutopilotTriggerRequest in autopilot.go).
         if (
           triggerKind === "webhook" &&
-          eventFiltersDirty &&
+          (eventFiltersDirty || criteriaDirty) &&
           firstTriggerIdRef.current
         ) {
           try {
             await updateTrigger.mutateAsync({
               autopilotId: props.autopilotId,
               triggerId: firstTriggerIdRef.current,
-              event_filters: eventFilters,
+              ...(eventFiltersDirty ? { event_filters: eventFilters } : {}),
+              ...(criteriaDirty ? { event_match_criteria: eventCriteria.trim() } : {}),
             });
           } catch (err) {
             triggerOk = false;
@@ -680,6 +687,8 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
                 isCreate={isCreate}
                 eventFilters={eventFilters}
                 onEventFiltersChange={setEventFilters}
+                eventCriteria={eventCriteria}
+                onEventCriteriaChange={setEventCriteria}
               />
             )}
           </aside>
@@ -1028,10 +1037,14 @@ function WebhookSection({
   isCreate,
   eventFilters,
   onEventFiltersChange,
+  eventCriteria,
+  onEventCriteriaChange,
 }: {
   isCreate: boolean;
   eventFilters: WebhookEventFilter[];
   onEventFiltersChange: (filters: WebhookEventFilter[]) => void;
+  eventCriteria: string;
+  onEventCriteriaChange: (text: string) => void;
 }) {
   const { t } = useT("autopilots");
   return (
@@ -1048,6 +1061,26 @@ function WebhookSection({
         filters={eventFilters}
         onChange={onEventFiltersChange}
       />
+      <div className="space-y-1.5">
+        <label
+          htmlFor="autopilot-event-criteria"
+          className="text-caption font-medium text-muted-foreground"
+        >
+          {t(($) => $.dialog.event_criteria_label)}
+        </label>
+        <Textarea
+          id="autopilot-event-criteria"
+          value={eventCriteria}
+          onChange={(e) => onEventCriteriaChange(e.target.value)}
+          placeholder={t(($) => $.dialog.event_criteria_placeholder)}
+          maxLength={500}
+          rows={3}
+          className="text-body"
+        />
+        <p className="text-caption text-muted-foreground leading-relaxed">
+          {t(($) => $.dialog.event_criteria_hint)}
+        </p>
+      </div>
     </div>
   );
 }

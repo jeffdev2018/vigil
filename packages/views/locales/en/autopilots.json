@@ -328,7 +328,10 @@
         "label": "Run only",
         "description": "Silent run, no issue created"
       }
-    }
+    },
+    "event_criteria_label": "Only run when…",
+    "event_criteria_placeholder": "e.g. production deployment failures, or pull requests that touch billing",
+    "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone."
   },
   "schedule_editor": {
     "time_label": "Time",

@@ -185,6 +185,7 @@ WHERE t.id = $1 AND t.autopilot_id = $2 AND a.workspace_id = $3;
 INSERT INTO autopilot_trigger (
     autopilot_id, kind, enabled, cron_expression, timezone,
     next_run_at, webhook_token, label, provider, event_filters,
+    event_match_criteria,
     published_by_type, published_by_id,
     created_by_type, created_by_id
 ) VALUES (
@@ -192,6 +193,7 @@ INSERT INTO autopilot_trigger (
     sqlc.narg('next_run_at'), sqlc.narg('webhook_token'), sqlc.narg('label'),
     COALESCE(sqlc.narg('provider')::text, 'generic'),
     sqlc.narg('event_filters'),
+    COALESCE(sqlc.narg('event_match_criteria')::text, ''),
     sqlc.narg('published_by_type'), sqlc.narg('published_by_id'),
     sqlc.narg('created_by_type'), sqlc.narg('created_by_id')
 ) RETURNING *;
@@ -228,6 +230,7 @@ UPDATE autopilot_trigger SET
     next_run_at = sqlc.narg('next_run_at'),
     label = COALESCE(sqlc.narg('label'), label),
     event_filters = COALESCE(sqlc.narg('event_filters'), event_filters),
+    event_match_criteria = COALESCE(sqlc.narg('event_match_criteria')::text, event_match_criteria),
     updated_at = now()
 WHERE id = $1
 RETURNING *;
