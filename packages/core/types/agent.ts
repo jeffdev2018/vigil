@@ -335,6 +335,8 @@ export interface AgentTask {
   resumed_by_task_id?: string | null;
   /** Checkpoints (K20): resume point in the transcript and how many interruptions this chain survived. */
   last_checkpoint_seq?: number | null;
+  /** Traffic control (K18): repo-relative paths this run edited, from its tool calls. */
+  touched_paths?: string[] | null;
   checkpoint_attempts?: number;
   checkpointed_at?: string | null;
   /** Issue router (K27): risk level, pool and escalation behind this run. */

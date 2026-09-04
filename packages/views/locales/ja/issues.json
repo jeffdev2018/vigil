@@ -912,6 +912,21 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "traffic": {
+    "human": "この実行は、ローカルチェックアウトで人が変更中のファイルを編集しています",
+    "agent": "この実行は、別の実行（{{id}}）が編集中のファイルを編集しています",
+    "pause": "実行を一時停止",
+    "ignore": "無視",
+    "show_history_one": "解決済みの競合 {{count}} 件を表示",
+    "show_history_other": "解決済みの競合 {{count}} 件を表示",
+    "hide_history": "解決済みの競合を隠す",
+    "failed": "トラフィック制御の操作に失敗しました",
+    "status": {
+      "active": "進行中",
+      "ignored": "無視",
+      "resolved": "解決済み"
+    }
+  },
   "checkpoint": {
     "resumed": "実行が中断され、{{point}}から自動再開されました（再開 {{attempts}}/{{max}}）。",
     "exhausted": "インフラの中断：自動再開は {{attempts}}/{{max}} 回で断念しました。タスク自体の失敗ではありません。",

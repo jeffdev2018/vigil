@@ -4314,3 +4314,20 @@ export const RunCheckpointStatusSchema = z.object({
 export const RunCheckpointEnvelopeSchema = z.object({
   run: RunCheckpointStatusSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Traffic control (K18).
+export const TrafficConflictSchema = z.object({
+  id: z.string().default(""),
+  task_id: z.string().default(""),
+  kind: z.enum(["human", "agent"]).catch("agent").default("agent"),
+  paths: z.array(z.string()).catch([]).default([]),
+  other_task_id: z.string().nullable().catch(null).default(null),
+  handoff_packet_id: z.string().nullable().catch(null).default(null),
+  status: z.enum(["active", "ignored", "resolved"]).catch("resolved").default("resolved"),
+  created_at: z.string().default(""),
+  resolved_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const TrafficConflictsEnvelopeSchema = z.object({
+  conflicts: z.array(TrafficConflictSchema).catch([]).default([]),
+}).loose();

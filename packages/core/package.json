@@ -46,6 +46,7 @@
     "./issues/handoff": "./issues/handoff.ts",
     "./issues/run-control": "./issues/run-control.ts",
     "./issues/checkpoint": "./issues/checkpoint.ts",
+    "./issues/traffic": "./issues/traffic.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",

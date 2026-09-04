@@ -887,7 +887,11 @@
     "routing_pool_agent": "에이전트 자체 풀 또는 런타임",
     "routing_escalation": "연속 실패 후 상향",
     "routing_escalation_description": "이슈에서 이 횟수만큼 연속 실패하면 다음 실행은 위험 수준을 한 단계 올립니다. 0이면 비활성.",
-    "routing_failed": "라우팅 정책을 저장하지 못했습니다"
+    "routing_failed": "라우팅 정책을 저장하지 못했습니다",
+    "traffic_section": "트래픽 제어",
+    "traffic_pause_label": "충돌하는 실행 일시정지",
+    "traffic_pause_description": "데몬 체크아웃에서 사람이 변경 중인 파일이나 다른 실행이 편집 중인 파일을 편집하는 실행은 항상 Attention Inbox에 들어갑니다. 켜면 다음 안전한 경계에서 일시정지도 합니다.",
+    "traffic_failed": "트래픽 제어를 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
