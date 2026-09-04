@@ -261,6 +261,7 @@ import type {
   Meeting,
   MeetingListResponse,
   MeetingSegmentResponse,
+  VoiceTranscription,
   TriageSourceMode,
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
@@ -417,6 +418,8 @@ import {
   TriageItemsResponseSchema,
   MeetingSchema,
   MeetingListResponseSchema,
+  VoiceTranscriptionSchema,
+  EMPTY_VOICE_TRANSCRIPTION,
   MeetingSegmentResponseSchema,
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
@@ -1762,6 +1765,20 @@ export class ApiClient {
    * uploadFile). `fetchRaw` still applies the shared auth/CSRF headers and
    * the structured ApiError path, which is what carries the 409 `code`.
    */
+  /** Voice memo: one audio file in, its text out (POST /api/voice/transcribe). */
+  async transcribeVoice(audio: Blob): Promise<VoiceTranscription> {
+    const formData = new FormData();
+    formData.append("file", audio, "memo.webm");
+    const res = await this.fetchRaw("/api/voice/transcribe", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<VoiceTranscription>(
+      raw,
+      VoiceTranscriptionSchema,
+      EMPTY_VOICE_TRANSCRIPTION,
+      { endpoint: "POST /api/voice/transcribe" },
+    );
+  }
+
   async appendMeetingSegment(
     id: string,
     chunk: Blob,

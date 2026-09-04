@@ -19,6 +19,9 @@ import {
 } from "../../editor/use-coordinated-uploads";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { ChatAddMenu } from "./chat-add-menu";
+import { VoiceMemoButton } from "./voice-memo-button";
+import { useConfigStore } from "@multica/core/config";
+import { useVoiceStore } from "@multica/core/voice/store";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
 import { useChatStore, DRAFT_NEW_SESSION } from "@multica/core/chat";
 import { attachmentToDraftUpload, type DraftUpload } from "@multica/core/drafts";
@@ -217,6 +220,8 @@ export function ChatInput({
   const setInputDraftAttachments = useChatStore((s) => s.setInputDraftAttachments);
   const clearInputDraft = useChatStore((s) => s.clearInputDraft);
   const [isEmpty, setIsEmpty] = useState(!inputDraft.trim());
+  // Voice memo: shown only when the server declares a transcription provider.
+  const voiceEnabled = useConfigStore((s) => s.meetingTranscriptionAvailable);
   // `isEmpty` tracks the LIVE editor, which the persisted draft lags by a
   // debounce, so the send affordance cannot be derived from `inputDraft` alone.
   // But `isEmpty` is never re-derived when the composer switches draft slots
@@ -715,7 +720,7 @@ export function ChatInput({
             showBubbleMenu
           />
         </div>
-        {(uploadEnabled || projectSelectionEnabled || leftAdornment) && (
+        {(uploadEnabled || projectSelectionEnabled || leftAdornment || voiceEnabled) && (
           <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1">
             {(uploadEnabled || projectSelectionEnabled) && (
               <ChatAddMenu
@@ -726,6 +731,21 @@ export function ChatInput({
                 projectId={projectId}
                 onSelectProject={projectSelectionEnabled ? onProjectChange : undefined}
                 projectContextUnsupported={projectContextUnsupported}
+              />
+            )}
+            {voiceEnabled && (
+              <VoiceMemoButton
+                disabled={!!disabled || !!noAgent}
+                onText={(text) => {
+                  // Append to whatever is already typed, then remember that
+                  // this turn was spoken so the reply is read back aloud.
+                  const key = editorDraftKeyRef.current;
+                  const current = useChatStore.getState().inputDrafts[key] ?? "";
+                  const joined = current.trim() ? `${current.replace(/\s+$/, "")} ${text}` : text;
+                  commitDraft(key, joined);
+                  setIsEmpty(false);
+                  useVoiceStore.getState().setSpeakNextReply(true);
+                }}
               />
             )}
             {leftAdornment}
