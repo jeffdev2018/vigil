@@ -365,6 +365,9 @@ type Handler struct {
 	// DiffFetcher (K15) reads the diff a cross-provider review is about; nil
 	// means the built-in GitHub App / VCS connection reader.
 	DiffFetcher PullRequestDiffFetcher
+	// PRMerger (K42) merges a shard's pull request through the platform API;
+	// nil means the built-in GitHub App / VCS connection merger.
+	PRMerger PullRequestMerger
 	// DigestSenders (K64) post the morning digest into a chat, keyed by
 	// channel type ("slack", "telegram"). Wired in cmd/server/router.go for
 	// each configured platform; a type without a sender is skipped.

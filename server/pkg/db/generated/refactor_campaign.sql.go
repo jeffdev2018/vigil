@@ -234,6 +234,41 @@ func (q *Queries) GetRefactorCampaign(ctx context.Context, id pgtype.UUID) (Refa
 	return i, err
 }
 
+const listActiveRefactorCampaigns = `-- name: ListActiveRefactorCampaigns :many
+SELECT id, workspace_id, issue_id, fanout_batch_id, name, target_branch, status, started_by, created_at, completed_at FROM refactor_campaign WHERE status IN ('running', 'merging') ORDER BY created_at
+`
+
+func (q *Queries) ListActiveRefactorCampaigns(ctx context.Context) ([]RefactorCampaign, error) {
+	rows, err := q.db.Query(ctx, listActiveRefactorCampaigns)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RefactorCampaign{}
+	for rows.Next() {
+		var i RefactorCampaign
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.FanoutBatchID,
+			&i.Name,
+			&i.TargetBranch,
+			&i.Status,
+			&i.StartedBy,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listCampaignShards = `-- name: ListCampaignShards :many
 SELECT s.id, s.refactor_campaign_id, s.workspace_id, s.fanout_member_id, s.child_issue_id, s.task_id, s.assignee_agent_id, s.description, s.branch_name, s.merge_position, s.merge_status, s.merge_task_id, s.blockers, s.updated_at, t.status AS task_status, m.outcome AS run_outcome FROM campaign_shard s
 JOIN agent_task_queue t ON t.id = s.task_id

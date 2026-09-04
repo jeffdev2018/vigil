@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -17,6 +18,10 @@ import (
 // the rest; the campaign completes when every shard is merged or skipped.
 
 func TestRefactorCampaignMergeQueue(t *testing.T) {
+	// No platform merge here: the agent merge run path is what this test covers.
+	prevMerger := testHandler.PRMerger
+	testHandler.PRMerger = &fakeMerger{err: errors.New("no platform")}
+	t.Cleanup(func() { testHandler.PRMerger = prevMerger })
 	leader := dbfx.Agent(t, "campaign leader", handlerTestRuntimeID(t))
 	agentA := dbfx.Agent(t, "campaign agent a", handlerTestRuntimeID(t))
 	agentB := dbfx.Agent(t, "campaign agent b", handlerTestRuntimeID(t))
