@@ -676,6 +676,18 @@ daemon_task_marker() {
   return 0
 }
 
+# git-describe dev shape (v0.0.0-<commits>-g<sha>) when the checkout has no
+# v* tag, so the version string still passes the dev-build exemption.
+dev_cli_version() {
+  local described
+  described="$(git -C "$REPO_ROOT" describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || true)"
+  if [[ "$described" =~ ^v[0-9]+\.[0-9]+\.[0-9]+- ]] || [[ "$described" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    printf '%s' "$described"
+  else
+    printf 'v0.0.0-%s-g%s' "$(git -C "$REPO_ROOT" rev-list --count HEAD 2>/dev/null || echo 0)" "$(git -C "$REPO_ROOT" rev-parse --short HEAD 2>/dev/null || echo 0000000)"
+  fi
+}
+
 start_daemon() {
   local status state
   ensure_credentials
@@ -686,7 +698,13 @@ start_daemon() {
   # daemon registers, heartbeats, and then fails every task with
   # "fork/exec .../go-build.../exe/multica: no such file or directory".
   info "Building $MULTICA_BIN (a go run daemon would fail every task later)."
-  (cd "$REPO_ROOT/server" && go build -o bin/multica ./cmd/multica) || die "Failed to build the multica CLI."
+  # Stamp a version the CLI gate can parse. Tagged checkouts get the usual
+  # git-describe shape; an untagged fork (no v* tag) would otherwise report a
+  # bare SHA or "dev", which the server and web treat as "no version" and
+  # refuse quick-create with daemon_version_unsupported.
+  local version
+  version="$(dev_cli_version)"
+  (cd "$REPO_ROOT/server" && go build -ldflags "-X main.version=$version -X main.commit=$(git rev-parse --short HEAD)" -o bin/multica ./cmd/multica) || die "Failed to build the multica CLI."
 
   "${CLEAN_ENV[@]}" MULTICA_WORKSPACES_ROOT="$WORKSPACES_ROOT" \
     "$MULTICA_BIN" daemon start --profile "$PROFILE" 2>&1 | sed 's/^/    /' || true

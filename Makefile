@@ -321,7 +321,10 @@ cli: ## Run the multica CLI with ARGS or MULTICA_ARGS from source
 multica: ## Run the multica CLI entrypoint directly from the Go source tree
 	cd server && go run -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)" ./cmd/multica $(MULTICA_ARGS)
 
-VERSION ?= $(shell git describe --tags --match 'v[0-9]*' --always --dirty 2>/dev/null || echo dev)
+# An untagged checkout (a fork without v* tags) must still stamp the
+# git-describe dev shape, or the daemon reports a bare SHA that the CLI
+# version gate reads as "no version".
+VERSION ?= $(shell git describe --tags --match 'v[0-9]*' --dirty 2>/dev/null || printf 'v0.0.0-%s-g%s' "$$(git rev-list --count HEAD 2>/dev/null || echo 0)" "$$(git rev-parse --short HEAD 2>/dev/null || echo 0000000)")
 COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u '+%Y-%m-%dT%H:%M:%SZ')
 # Windows will not execute an extensionless binary, so a source build there has

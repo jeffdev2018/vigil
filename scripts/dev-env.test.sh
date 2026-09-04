@@ -174,6 +174,14 @@ if bash -c 'source "$1"; api_started_after '\''{"status":"ok"}'\'' 1' _ "$root_d
   fail "legacy /health without started_at was accepted as current"
 fi
 
+# The daemon build stamps a version the CLI gate can parse even when the
+# checkout has no v* tag (a bare SHA or "dev" reads as "no version").
+version="$(bash -c 'source "$1"; REPO_ROOT="$2"; dev_cli_version' _ "$root_dir/scripts/dev-env.sh" "$root_dir")"
+case "$version" in
+  v[0-9]*.[0-9]*.[0-9]*-[0-9]*-g[0-9a-f]*|v[0-9]*.[0-9]*.[0-9]*-[0-9]*-g[0-9a-f]*-dirty|v[0-9]*.[0-9]*.[0-9]*) ;;
+  *) fail "dev_cli_version printed '$version', not a git-describe shape" ;;
+esac
+
 # ---------------------------------------------------------------------------
 # Unknown names and components fail loudly instead of doing something else.
 # ---------------------------------------------------------------------------
