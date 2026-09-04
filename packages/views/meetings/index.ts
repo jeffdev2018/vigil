@@ -3,6 +3,7 @@ export {
   MeetingDetailPage,
   MeetingRecorderPanel,
   RecordingPill,
+  MeetingDetectedPrompt,
   formatElapsed,
   meetingStatusDotClass,
 } from "./components";

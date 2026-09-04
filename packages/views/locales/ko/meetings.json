@@ -71,5 +71,14 @@
     "superseded": "대체됨",
     "expired": "만료됨",
     "dropped": "삭제됨"
+  },
+  "detected": {
+    "title_meeting": "회의를 감지했습니다",
+    "title_huddle": "허들을 감지했습니다",
+    "title_call": "통화를 감지했습니다",
+    "description": "{{appName}}이(가) 마이크를 사용 중입니다. 기록할까요?",
+    "accept": "기록하기",
+    "dismiss": "나중에",
+    "meeting_title": "{{appName}} 회의"
   }
 }

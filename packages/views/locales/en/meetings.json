@@ -71,5 +71,14 @@
     "superseded": "Superseded",
     "expired": "Expired",
     "dropped": "Dropped"
+  },
+  "detected": {
+    "title_meeting": "Meeting detected",
+    "title_huddle": "Huddle detected",
+    "title_call": "Call detected",
+    "description": "{{appName}} is using the microphone. Take notes?",
+    "accept": "Take notes",
+    "dismiss": "Not now",
+    "meeting_title": "{{appName}} meeting"
   }
 }

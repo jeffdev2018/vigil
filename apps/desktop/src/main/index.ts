@@ -7,6 +7,8 @@ import fixPath from "fix-path";
 import { setupAutoUpdater } from "./updater";
 import { setupDaemonManager } from "./daemon-manager";
 import { setupLocalDirectory } from "./local-directory";
+import { configureMediaCapture } from "./media-capture";
+import { setupMeetingDetector } from "./meeting-detector";
 import { openExternalSafely, downloadURLSafely } from "./external-url";
 import { installContextMenu } from "./context-menu";
 import { handleAppShortcut } from "./keyboard-shortcuts";
@@ -362,6 +364,10 @@ function createWindow(): BrowserWindow {
       callback({ requestHeaders: details.requestHeaders });
     },
   );
+
+  // System audio + microphone for the meeting recorder. Registered on the
+  // window's session (shared across windows, guarded against re-entry).
+  configureMediaCapture(window.webContents.session);
 
   window.on("ready-to-show", () => {
     // Restore max/fullscreen after normal bounds are applied.
@@ -838,6 +844,7 @@ if (!gotTheLock) {
     setupAutoUpdater(() => mainWindow);
     setupDaemonManager(() => mainWindow);
     setupLocalDirectory(() => mainWindow);
+    setupMeetingDetector(() => mainWindow);
 
     app.on("activate", () => {
       const window = ensureMainWindow();

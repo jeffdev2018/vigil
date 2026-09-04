@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { Square } from "lucide-react";
 import {
   requestStopRecording,
@@ -8,6 +9,7 @@ import {
 import { useWorkspacePaths } from "@multica/core/paths";
 import { Button } from "@multica/ui/components/ui/button";
 import { Spinner } from "@multica/ui/components/ui/spinner";
+import { setMeetingSelfCapture } from "../../platform/meeting-detection";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 import { useMeetingRecorder } from "../use-meeting-recorder";
@@ -32,6 +34,14 @@ export function RecordingPill() {
   const meetingId = useMeetingRecorderStore((s) => s.meetingId);
   const startedAt = useMeetingRecorderStore((s) => s.startedAt);
   const elapsed = useElapsed(startedAt);
+
+  // Ambient meeting detection (desktop) watches the same microphone this
+  // recorder is about to open. Tell it the mic is ours so it never prompts
+  // "Meeting detected" over our own recording. No-op on web.
+  const selfCapturing = phase !== "idle";
+  useEffect(() => {
+    setMeetingSelfCapture(selfCapturing);
+  }, [selfCapturing]);
 
   if (phase === "idle") return null;
 

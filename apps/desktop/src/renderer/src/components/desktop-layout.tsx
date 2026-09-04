@@ -20,7 +20,7 @@ import {
 } from "@multica/views/layout";
 import { SearchCommand, SearchTrigger } from "@multica/views/search";
 import { FloatingChat } from "@multica/views/chat";
-import { RecordingPill } from "@multica/views/meetings";
+import { MeetingDetectedPrompt, RecordingPill } from "@multica/views/meetings";
 import { WorkspaceSlugProvider, paths, useCurrentWorkspace } from "@multica/core/paths";
 import { workspaceListOptions } from "@multica/core/workspace";
 import {
@@ -304,6 +304,9 @@ export function DesktopShell() {
                 {/* Owns the single MediaRecorder for this shell and shows
                     the recording indicator on every page. */}
                 {slug && <RecordingPill />}
+                {/* Desktop-only: the main process watches which app holds the
+                    microphone and asks whether to take notes. */}
+                {slug && <MeetingDetectedPrompt />}
               </MainCanvas>
             </div>
           </SidebarProvider>

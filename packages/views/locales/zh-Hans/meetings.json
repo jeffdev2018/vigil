@@ -71,5 +71,14 @@
     "superseded": "已被取代",
     "expired": "已过期",
     "dropped": "已丢弃"
+  },
+  "detected": {
+    "title_meeting": "检测到会议",
+    "title_huddle": "检测到小组通话",
+    "title_call": "检测到通话",
+    "description": "{{appName}} 正在使用麦克风，需要记录吗？",
+    "accept": "开始记录",
+    "dismiss": "暂不",
+    "meeting_title": "{{appName}} 会议"
   }
 }

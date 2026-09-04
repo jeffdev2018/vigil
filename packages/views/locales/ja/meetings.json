@@ -71,5 +71,14 @@
     "superseded": "置き換え済み",
     "expired": "期限切れ",
     "dropped": "破棄"
+  },
+  "detected": {
+    "title_meeting": "ミーティングを検出しました",
+    "title_huddle": "ハドルを検出しました",
+    "title_call": "通話を検出しました",
+    "description": "{{appName}} がマイクを使用しています。記録しますか？",
+    "accept": "記録する",
+    "dismiss": "後で",
+    "meeting_title": "{{appName}} のミーティング"
   }
 }
