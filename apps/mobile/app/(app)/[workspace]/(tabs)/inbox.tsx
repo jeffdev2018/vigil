@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -26,6 +26,7 @@ import {
   useMarkInboxRead,
 } from "@/data/mutations/inbox";
 import { useWorkspaceStore } from "@/data/workspace-store";
+import { setDecisionsBadge } from "@/lib/push";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { THEME } from "@/lib/theme";
 import {
@@ -50,6 +51,10 @@ export default function Inbox() {
   // projection as web's `?view=decisions` (cap five + total).
   const { data: decisions } = useQuery(inboxDecisionsOptions(wsId));
   const pendingDecisions = decisions?.total ?? 0;
+  // App badge (K63): the number of decisions waiting for me.
+  useEffect(() => {
+    if (decisions) void setDecisionsBadge(pendingDecisions);
+  }, [decisions, pendingDecisions]);
   const markRead = useMarkInboxRead();
   const markAllRead = useMarkAllInboxRead();
   const archive = useArchiveInbox();
