@@ -229,6 +229,7 @@ import type {
   IssuePlanStep,
   PlanVerification,
   IssueDecision,
+  AcceptanceCriterion,
   DecisionAnswer,
   AttentionInboxItem,
 } from "../types";
@@ -416,6 +417,7 @@ import {
   EMPTY_PR_STACK,
   IssuePlanEnvelopeSchema,
   IssueDecisionsResponseSchema,
+  AcceptanceCriteriaResponseSchema,
   IssueDecisionEnvelopeSchema,
   EMPTY_ISSUE_PLAN,
   PlanVerificationsResponseSchema,
@@ -1352,6 +1354,41 @@ export class ApiClient {
     });
     if (!parsed) throw new Error("respond decision returned a malformed decision");
     return parsed.decision;
+  }
+
+  // Outcome Contract (K12).
+  async listAcceptanceCriteria(issueId: string, options?: { signal?: AbortSignal }): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "GET /api/issues/:id/acceptance-criteria",
+    }).criteria;
+  }
+
+  async setAcceptanceCriteria(issueId: string, criteria: { id?: string; text: string }[]): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria`, {
+      method: "PUT",
+      body: JSON.stringify({ criteria }),
+    });
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "PUT /api/issues/:id/acceptance-criteria",
+    }).criteria;
+  }
+
+  async proveAcceptanceCriterion(
+    issueId: string,
+    criterionId: string,
+    proof: { proof_type: string; proof_ref?: string },
+  ): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria/${encodeURIComponent(criterionId)}/proof`,
+      { method: "PATCH", body: JSON.stringify(proof) },
+    );
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "PATCH /api/issues/:id/acceptance-criteria/:criterionId/proof",
+    }).criteria;
   }
 
   async listPlanVerifications(issueId: string, options?: { signal?: AbortSignal }): Promise<PlanVerification[]> {

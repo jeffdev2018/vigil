@@ -336,6 +336,26 @@ with `Decision on «…»` and names the chosen option (or the human's own text)
 Read that note first and proceed. A card is never a substitute for reading
 the issue; ask only what the issue does not already settle.
 
+## Proving acceptance criteria
+
+An issue can carry acceptance criteria, each with a proof. The issue cannot
+move to `done` while a criterion lacks a satisfied proof: the status change is
+refused with `409 unsatisfied_acceptance_criteria` naming the criteria. Read
+them first, and attach a proof as you satisfy each one:
+
+```bash
+multica criteria list <issue-id>
+multica criteria prove <issue-id> <criterion-id> --type test --ref "go test ./internal/handler"
+multica criteria prove <issue-id> <criterion-id> --type url --ref "https://ci.example/run/42"
+multica criteria prove <issue-id> <criterion-id> --type human_validation
+```
+
+`test`, `file`, `screenshot` and `url` proofs need a `--ref` naming what
+proves it. A `human_validation` from a run only marks the criterion as
+waiting for the human: their own click satisfies it, not your claim. If the
+issue has no criteria yet and the task states some, set them with
+`multica criteria set <issue-id> --text "..." --text "..."` before starting.
+
 ## Sub-issues: `todo` starts work now, `backlog` parks it
 
 On an agent-assigned issue, create status decides whether the assignee fires

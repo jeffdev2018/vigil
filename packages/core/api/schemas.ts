@@ -1405,6 +1405,22 @@ export const IssueDecisionEnvelopeSchema = z.object({
   decision: IssueDecisionSchema,
 }).loose();
 
+// Outcome Contract (K12). An unknown proof_type or proof_state is kept as text
+// and rendered by the UI's default branch; a malformed criterion drops the list.
+export const AcceptanceCriterionSchema = z.object({
+  id: z.string(),
+  text: z.string().default(""),
+  proof_type: z.string().optional(),
+  proof_ref: z.string().optional(),
+  proof_state: z.string().default("missing"),
+  validated_by: z.string().optional(),
+  proved_at: z.string().optional(),
+}).loose();
+
+export const AcceptanceCriteriaResponseSchema = z.object({
+  criteria: z.array(AcceptanceCriterionSchema).catch([]).default([]),
+}).loose();
+
 export const ListIssuesResponseSchema = z.object({
   issues: z.array(IssueSchema).default([]),
   total: z.number().default(0),

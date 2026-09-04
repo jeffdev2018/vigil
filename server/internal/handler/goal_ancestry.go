@@ -107,7 +107,7 @@ func (h *Handler) resolveClaimGoalAncestry(ctx context.Context, issueID, workspa
 			Identifier:         prefix + "-" + strconv.Itoa(int(n.number)),
 			Title:              n.title,
 			Description:        truncateUTF8(n.desc.String, goalAncestryMaxNodeBytes),
-			AcceptanceCriteria: parseAcceptanceCriteria(n.criteria),
+			AcceptanceCriteria: acceptanceCriteriaLines(n.criteria),
 			Depth:              i + 1,
 		})
 	}
@@ -142,10 +142,10 @@ func capGoalAncestryBytes(nodes []GoalAncestryNode) {
 	}
 }
 
-// parseAcceptanceCriteria renders the free-form acceptance_criteria JSONB as
+// acceptanceCriteriaLines renders the free-form acceptance_criteria JSONB as
 // plain lines: a JSON array of strings, or of objects with a text / title /
 // description field. Anything else is skipped rather than invented.
-func parseAcceptanceCriteria(b []byte) []string {
+func acceptanceCriteriaLines(b []byte) []string {
 	if len(b) == 0 {
 		return nil
 	}

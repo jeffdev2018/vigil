@@ -542,6 +542,7 @@ export function onIssueUpdated(
   qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, issue.id) });
   qc.invalidateQueries({ queryKey: issueKeys.planVerifications(wsId, issue.id) });
   qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.acceptance(wsId, issue.id) });
   reconcileIssueFullSnapshotRevision(qc, wsId, issue.id, issue.revision);
 }
 

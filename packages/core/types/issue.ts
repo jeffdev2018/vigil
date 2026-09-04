@@ -286,6 +286,22 @@ export interface PlanVerification {
   created_at: string;
 }
 
+// ── Outcome Contract (K12) ──────────────────────────────────────────────────
+
+export type AcceptanceProofType = "test" | "file" | "screenshot" | "url" | "human_validation" | (string & {});
+export type AcceptanceProofState = "missing" | "pending_human" | "satisfied" | (string & {});
+
+/** One acceptance criterion and the proof behind it; the server owns the state. */
+export interface AcceptanceCriterion {
+  id: string;
+  text: string;
+  proof_type?: AcceptanceProofType;
+  proof_ref?: string;
+  proof_state: AcceptanceProofState;
+  validated_by?: string;
+  proved_at?: string;
+}
+
 // ── Decision Cards (K01) ────────────────────────────────────────────────────
 
 export interface DecisionOption {

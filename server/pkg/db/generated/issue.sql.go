@@ -1918,6 +1918,56 @@ func (q *Queries) UpdateIssue(ctx context.Context, arg UpdateIssueParams) (Issue
 	return i, err
 }
 
+const updateIssueAcceptanceCriteria = `-- name: UpdateIssueAcceptanceCriteria :one
+UPDATE issue
+SET acceptance_criteria = $2, updated_at = now()
+WHERE id = $1
+RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at
+`
+
+type UpdateIssueAcceptanceCriteriaParams struct {
+	ID                 pgtype.UUID `json:"id"`
+	AcceptanceCriteria []byte      `json:"acceptance_criteria"`
+}
+
+// Outcome Contract (K12): the criteria list with its proofs, owned by the
+// issue. Not part of the revisioned edit surface, so no revision bump.
+func (q *Queries) UpdateIssueAcceptanceCriteria(ctx context.Context, arg UpdateIssueAcceptanceCriteriaParams) (Issue, error) {
+	row := q.db.QueryRow(ctx, updateIssueAcceptanceCriteria, arg.ID, arg.AcceptanceCriteria)
+	var i Issue
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.Status,
+		&i.Priority,
+		&i.AssigneeType,
+		&i.AssigneeID,
+		&i.CreatorType,
+		&i.CreatorID,
+		&i.ParentIssueID,
+		&i.AcceptanceCriteria,
+		&i.ContextRefs,
+		&i.Position,
+		&i.DueDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Number,
+		&i.ProjectID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.FirstExecutedAt,
+		&i.StartDate,
+		&i.Metadata,
+		&i.Stage,
+		&i.Properties,
+		&i.Revision,
+		&i.LastActivityAt,
+	)
+	return i, err
+}
+
 const updateIssueStatus = `-- name: UpdateIssueStatus :one
 UPDATE issue AS i SET
     status = $2,

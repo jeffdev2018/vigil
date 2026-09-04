@@ -940,5 +940,28 @@
     "cancel": "Cancel",
     "resumed": "agent resumed",
     "answer_failed": "Failed to record the decision"
+  },
+  "acceptance": {
+    "section": "Acceptance criteria",
+    "add": "Add an acceptance criterion",
+    "add_placeholder": "Add a criterion…",
+    "attach": "Attach a proof",
+    "validate": "Validate myself",
+    "remove": "Remove",
+    "save": "Save",
+    "cancel": "Cancel",
+    "proof_type": "Proof type",
+    "ref_placeholder": "Test command, path or URL",
+    "state_missing": "No proof yet",
+    "state_pending_human": "Waiting for a human to validate",
+    "state_satisfied": "Proven",
+    "update_failed": "Failed to update the acceptance criteria",
+    "types": {
+      "test": "Test",
+      "file": "File",
+      "screenshot": "Screenshot",
+      "url": "Link",
+      "human_validation": "Human validation"
+    }
   }
 }

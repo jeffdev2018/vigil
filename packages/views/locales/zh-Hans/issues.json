@@ -909,5 +909,28 @@
     "cancel": "取消",
     "resumed": "智能体已继续",
     "answer_failed": "记录决策失败"
+  },
+  "acceptance": {
+    "section": "验收标准",
+    "add": "添加验收标准",
+    "add_placeholder": "添加标准…",
+    "attach": "附加证明",
+    "validate": "我来确认",
+    "remove": "移除",
+    "save": "保存",
+    "cancel": "取消",
+    "proof_type": "证明类型",
+    "ref_placeholder": "测试命令、路径或 URL",
+    "state_missing": "尚无证明",
+    "state_pending_human": "等待人工确认",
+    "state_satisfied": "已证明",
+    "update_failed": "无法更新验收标准",
+    "types": {
+      "test": "测试",
+      "file": "文件",
+      "screenshot": "截图",
+      "url": "链接",
+      "human_validation": "人工确认"
+    }
   }
 }

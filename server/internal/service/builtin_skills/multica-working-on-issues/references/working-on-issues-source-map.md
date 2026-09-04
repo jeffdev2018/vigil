@@ -175,6 +175,14 @@ on those assignments creating their normal queued runs.
 | Chain walked by `ListIssueAncestors` (recursive CTE, workspace-scoped, depth-capped; no FK so a cycle is cut at its first repeated id) | `server/pkg/db/queries/issue.sql` (`ListIssueAncestors`) | new citation |
 | Caps: 5 levels, 8 KiB total, 2 KiB per description, 12 criteria per node; descriptions shed farthest-first, identifier and title never cut | `server/internal/handler/goal_ancestry.go` (`goalAncestryMax*`, `capGoalAncestryBytes`) | new citation |
 | Brief renders `## Goal Ancestry` between Project Context and Issue Metadata, with the omitted-level line; absent when the chain is empty or the server predates the field | `server/internal/daemon/execenv/runtime_config_sections.go` (`writeGoalAncestry`); wire mirror `server/internal/daemon/types.go` (`Task.GoalAncestry`) | new citation |
+## Outcome Contract (K12)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica criteria list|set|prove` call `GET`/`PUT /api/issues/{id}/acceptance-criteria` and `PATCH .../acceptance-criteria/{criterionId}/proof`; proof types `test`, `file`, `screenshot`, `url` need a ref, `human_validation` from a task token only reaches `pending_human` | `server/cmd/multica/cmd_criteria.go`; `server/internal/handler/acceptance_criteria.go` (`SetAcceptanceCriteria`, `ProveAcceptanceCriterion`) | new citation |
+| A move to a done-category status is refused with `409 unsatisfied_acceptance_criteria` listing the criteria, on single and batch updates | `server/internal/handler/acceptance_criteria.go` (`acceptanceCriteriaAllowStatus`); `server/internal/handler/issue.go` (`UpdateIssue`, `BatchUpdateIssues`) | new citation |
+| Legacy bare-string criteria read as unproven with positional ids; a stored `proof_state` is never trusted, it is recomputed from the proof | `server/internal/handler/acceptance_criteria.go` (`parseAcceptanceCriteria`) | new citation |
+
 ## Decision Cards (K01)
 
 | Behavior | File:line | Drifted from |
