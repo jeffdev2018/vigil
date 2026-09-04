@@ -4331,3 +4331,10 @@ export const TrafficConflictSchema = z.object({
 export const TrafficConflictsEnvelopeSchema = z.object({
   conflicts: z.array(TrafficConflictSchema).catch([]).default([]),
 }).loose();
+
+// Drift detection (K40).
+export const DriftPolicySchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  repeated_action_threshold: z.number().int().catch(5).default(5),
+  file_reread_threshold: z.number().int().catch(8).default(8),
+}).loose();

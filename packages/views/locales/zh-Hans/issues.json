@@ -912,6 +912,14 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "drift": {
+    "stopped": "因偏离停止",
+    "run": "运行 {{id}}",
+    "reasons": {
+      "repeated_action": "同一工具调用重复次数过多",
+      "file_reread_loop": "未写入却反复读取同一文件"
+    }
+  },
   "traffic": {
     "human": "此运行正在编辑某人在本地检出中正在更改的文件",
     "agent": "此运行正在编辑另一运行（{{id}}）正在编辑的文件",

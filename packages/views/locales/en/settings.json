@@ -893,7 +893,15 @@
     "traffic_section": "Traffic control",
     "traffic_pause_label": "Pause a run that collides",
     "traffic_pause_description": "A run editing files a human is changing in the daemon's checkout, or another run is editing, always lands in the Attention Inbox. Switch this on to also pause it at its next safe boundary.",
-    "traffic_failed": "Failed to update traffic control"
+    "traffic_failed": "Failed to update traffic control",
+    "drift_section": "Drift detection",
+    "drift_enabled": "Stop a run that goes in circles",
+    "drift_intro": "Watches each run's tool calls after they are written. A run repeating the same call, or re-reading the same file without writing to it, is stopped with the exact reason and lands in the Attention Inbox.",
+    "drift_repeated": "Repeated action threshold",
+    "drift_repeated_description": "Identical consecutive tool calls (same tool, same arguments) before the run is stopped.",
+    "drift_reread": "File re-read threshold",
+    "drift_reread_description": "Reads of the same file without a write in between before the run is stopped.",
+    "drift_failed": "Failed to save the drift policy"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

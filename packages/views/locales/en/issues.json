@@ -943,6 +943,14 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "drift": {
+    "stopped": "Stopped for drift",
+    "run": "run {{id}}",
+    "reasons": {
+      "repeated_action": "the same tool call repeated too many times",
+      "file_reread_loop": "re-reading the same file without writing to it"
+    }
+  },
   "traffic": {
     "human": "This run is editing files a human is changing in the local checkout",
     "agent": "This run is editing files another run ({{id}}) is editing",

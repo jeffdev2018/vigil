@@ -100,6 +100,7 @@ import { HandoffPacketCard } from "./handoff-packet-card";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { TrafficConflictBanner } from "./traffic-conflict-banner";
+import { DriftBadge } from "./drift-badge";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2626,6 +2627,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Traffic control (K18): the run edits what a human or another run edits. */}
       <TrafficConflictBanner issueId={id} />
+
+      {/* Drift detection (K40): the exact reason a run was stopped for going in circles. */}
+      <DriftBadge issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

@@ -891,7 +891,15 @@
     "traffic_section": "트래픽 제어",
     "traffic_pause_label": "충돌하는 실행 일시정지",
     "traffic_pause_description": "데몬 체크아웃에서 사람이 변경 중인 파일이나 다른 실행이 편집 중인 파일을 편집하는 실행은 항상 Attention Inbox에 들어갑니다. 켜면 다음 안전한 경계에서 일시정지도 합니다.",
-    "traffic_failed": "트래픽 제어를 업데이트하지 못했습니다"
+    "traffic_failed": "트래픽 제어를 업데이트하지 못했습니다",
+    "drift_section": "이탈 감지",
+    "drift_enabled": "제자리를 도는 실행 중단",
+    "drift_intro": "각 실행의 도구 호출을 기록 후 관찰합니다. 같은 호출을 반복하거나 쓰기 없이 같은 파일을 반복해서 읽는 실행은 정확한 이유와 함께 중단되고 Attention Inbox에 들어갑니다.",
+    "drift_repeated": "반복 행동 임계값",
+    "drift_repeated_description": "실행을 중단하기 전까지 허용하는 동일한 연속 도구 호출 수(같은 도구, 같은 인수).",
+    "drift_reread": "파일 재읽기 임계값",
+    "drift_reread_description": "실행을 중단하기 전까지 허용하는, 쓰기 없이 같은 파일을 읽는 횟수.",
+    "drift_failed": "이탈 정책을 저장하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
