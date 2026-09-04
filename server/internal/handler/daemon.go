@@ -2071,6 +2071,10 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	resp = taskToResponse(*task, runtimeWorkspaceID)
 	// Handoff packet (K17): the resuming agent reads what the last hand left.
 	resp.HandoffPacket = h.latestHandoffPacket(r.Context(), task.IssueID)
+	// Checkpoints (K20): a resumed run is told where the interrupted one stopped.
+	if task.CheckpointAttempts > 0 && task.LastCheckpointSeq.Valid {
+		resp.ResumeFromCheckpointSeq = task.LastCheckpointSeq.Int64
+	}
 	var issueNumber int32
 	// Claim-only capability: this server resolves the squad-leader role on the
 	// wire (is_leader_task / squad_id), so the daemon must not re-derive it
@@ -4706,6 +4710,18 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.touchTaskActivity(r, task.ID)
+	// Checkpoints (K20): a tool result or a finished text turn is a resume point.
+	var checkpointSeq int64
+	for _, msg := range created {
+		if (msg.Type == "tool_result" || msg.Type == "text") && int64(msg.Seq) > checkpointSeq {
+			checkpointSeq = int64(msg.Seq)
+		}
+	}
+	if checkpointSeq > 0 {
+		if err := h.Queries.CheckpointTask(r.Context(), db.CheckpointTaskParams{ID: task.ID, LastCheckpointSeq: pgtype.Int8{Int64: checkpointSeq, Valid: true}}); err != nil {
+			slog.Warn("checkpoint: advance failed", "task_id", taskID, "error", err)
+		}
+	}
 
 	if workspaceID != "" {
 		// CreateTaskMessages orders its result by seq, which is the daemon's

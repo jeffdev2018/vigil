@@ -146,6 +146,8 @@ type Task struct {
 	HandoffNote                   string                       `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
 	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
+	// ResumeFromCheckpointSeq (K20): non-zero when this run continues an interrupted one.
+	ResumeFromCheckpointSeq int64 `json:"resume_from_checkpoint_seq,omitempty"`
 
 	SquadID               string `json:"squad_id,omitempty"`                // when the picker was a squad, the squad's UUID; Agent is still the resolved leader
 	SquadName             string `json:"squad_name,omitempty"`              // display name for the picker squad, used in prompt text

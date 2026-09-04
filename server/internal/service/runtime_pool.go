@@ -80,6 +80,14 @@ func (s *TaskService) poolFailoverTarget(ctx context.Context, agent db.Agent, ta
 		slog.Warn("runtime pool: load failed", "agent_id", util.UUIDToString(agent.ID), "error", err)
 		return FailoverTarget{}, false
 	}
+	// Checkpoints (K20): a run whose work lives in a local worktree can only
+	// resume on the daemon that holds it; another runtime would start blind.
+	if task.WorkDir.Valid && task.WorkDir.String != "" && task.RuntimeID.Valid {
+		if rt, err := s.Queries.GetAgentRuntimeForWorkspace(ctx, db.GetAgentRuntimeForWorkspaceParams{ID: task.RuntimeID, WorkspaceID: pool.WorkspaceID}); err == nil && rt.RuntimeMode == "local" {
+			slog.Info("runtime pool: local worktree run stays on its daemon", "task_id", util.UUIDToString(task.ID))
+			return FailoverTarget{}, false
+		}
+	}
 	history := decodeFailoverHistory(task.FailoverHistory)
 	tried := map[string]bool{util.UUIDToString(task.RuntimeID): true}
 	for _, h := range history {

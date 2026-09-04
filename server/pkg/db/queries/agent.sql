@@ -577,7 +577,7 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, failover_history, id
+    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq, id
 )
 SELECT
     p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -600,6 +600,9 @@ SELECT
     p.channel_context_revision,
     -- Runtime pools (K28): a failover child records where it moved and why.
     COALESCE(sqlc.narg('failover_history')::jsonb, p.failover_history),
+    -- Checkpoints (K20): a resume after an interruption counts an attempt and keeps the resume point.
+    COALESCE(sqlc.narg('checkpoint_attempts')::int, p.checkpoint_attempts),
+    p.last_checkpoint_seq,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p

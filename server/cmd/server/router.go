@@ -2080,6 +2080,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Pause, steer, resume (K19): correct a run without restarting it.
 			r.Route("/api/issues/{id}/run", func(r chi.Router) {
 				r.Get("/state", h.GetRunControlState)
+				r.Get("/checkpoint-status", h.GetRunCheckpointStatus)
 				r.Post("/pause", h.PauseRun)
 				r.Post("/steer", h.SteerRun)
 				r.Post("/resume", h.ResumeRun)
