@@ -816,7 +816,15 @@
     "triage_auto_threshold_description": "勝った判断が得るべき重み付き投票の割合（50〜100）。",
     "triage_auto_min_label": "先に学習する判断の数",
     "triage_auto_min_description": "この件数の人による判断がなければ自動分類しません。",
-    "triage_auto_failed": "トリアージ設定を更新できませんでした"
+    "triage_auto_failed": "トリアージ設定を更新できませんでした",
+    "gates_section": "承認ゲート",
+    "gates_timeout_label": "人の回答を待つ時間（分）",
+    "gates_timeout_description": "ブロックされた push、機微なツール呼び出し、支出はこの時間だけ回答を待ち、その後明示的に失敗します。勝手に実行されることはありません。",
+    "gates_spend_label": "承認なしで支出できる上限（$）",
+    "gates_spend_description": "この金額未満なら実行に短期の支出トークンが即時発行されます。超える場合は先に判断カードで確認します。",
+    "gates_tools_label": "機微な MCP ツール（パターン）",
+    "gates_tools_description": "名前がこの正規表現に一致するリモート MCP ツールは、実行前に人の承認を待ちます。",
+    "gates_failed": "承認ゲートを更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

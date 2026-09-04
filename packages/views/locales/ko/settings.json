@@ -816,7 +816,15 @@
     "triage_auto_threshold_description": "이긴 결정이 얻어야 하는 가중 투표 비율, 50~100.",
     "triage_auto_min_label": "먼저 학습할 결정 수",
     "triage_auto_min_description": "이만큼의 사람 결정이 없으면 자동 분류하지 않습니다.",
-    "triage_auto_failed": "트리아지 설정을 업데이트하지 못했습니다"
+    "triage_auto_failed": "트리아지 설정을 업데이트하지 못했습니다",
+    "gates_section": "승인 게이트",
+    "gates_timeout_label": "사람 응답 대기(분)",
+    "gates_timeout_description": "차단된 push, 민감한 도구 호출, 지출은 이 시간 동안 응답을 기다린 뒤 명시적으로 실패합니다. 스스로 실행되는 일은 없습니다.",
+    "gates_spend_label": "승인 없이 지출 가능한 금액($)",
+    "gates_spend_description": "이 금액 미만이면 실행에 단기 지출 토큰이 즉시 발급됩니다. 초과하면 먼저 결정 카드로 묻습니다.",
+    "gates_tools_label": "민감한 MCP 도구(패턴)",
+    "gates_tools_description": "이름이 이 정규식과 일치하는 원격 MCP 도구는 실행 전에 사람의 승인을 기다립니다.",
+    "gates_failed": "승인 게이트를 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
