@@ -207,6 +207,16 @@
       "ignored": "已忽略",
       "failed": "失败"
     },
+    "reason": {
+      "trigger_disabled": "触发器已停用",
+      "autopilot_paused": "自动化已暂停",
+      "autopilot_archived": "自动化已归档",
+      "event_filtered": "事件被过滤",
+      "criteria_not_matched": "未匹配条件",
+      "quota_exceeded": "已达运行上限",
+      "invalid_signature": "签名无效",
+      "missing_signature": "缺少签名"
+    },
     "signature": {
       "not_required": "无需签名",
       "valid": "签名通过",
@@ -226,6 +236,7 @@
       "content_type": "Content-Type",
       "replayed_from": "重放自",
       "error_label": "错误信息",
+      "reason_label": "原因",
       "raw_body": "原始 Body",
       "selected_headers": "保留的请求头",
       "response_body": "响应 Body"

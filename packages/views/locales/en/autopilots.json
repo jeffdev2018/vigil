@@ -207,6 +207,16 @@
       "ignored": "Ignored",
       "failed": "Failed"
     },
+    "reason": {
+      "trigger_disabled": "Trigger disabled",
+      "autopilot_paused": "Autopilot paused",
+      "autopilot_archived": "Autopilot archived",
+      "event_filtered": "Event filtered out",
+      "criteria_not_matched": "Criteria not matched",
+      "quota_exceeded": "Run limit reached",
+      "invalid_signature": "Signature invalid",
+      "missing_signature": "Signature missing"
+    },
     "signature": {
       "not_required": "No signature",
       "valid": "Signature valid",
@@ -226,6 +236,7 @@
       "content_type": "Content-Type",
       "replayed_from": "Replayed from",
       "error_label": "Error",
+      "reason_label": "Reason",
       "raw_body": "Raw body",
       "selected_headers": "Headers",
       "response_body": "Response body"

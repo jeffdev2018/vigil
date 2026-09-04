@@ -518,7 +518,7 @@ func (h *Handler) HandleAutopilotWebhook(w http.ResponseWriter, r *http.Request)
 		if ip != "" && h.WebhookIPRateLimiter != nil {
 			h.WebhookIPRateLimiter.Allow(r.Context(), ip)
 		}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusRejected, http.StatusUnauthorized, respBody, reason)
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusRejected, http.StatusUnauthorized, respBody, reason, reason)
 		writeJSON(w, http.StatusUnauthorized, respBody)
 		return
 	}
@@ -529,19 +529,19 @@ func (h *Handler) HandleAutopilotWebhook(w http.ResponseWriter, r *http.Request)
 	//     the operator inspects the delivery log.
 	if !trigRow.Enabled {
 		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "trigger_disabled"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "trigger_disabled")
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "trigger_disabled", "trigger_disabled")
 		writeJSON(w, http.StatusOK, respBody)
 		return
 	}
 	if autopilot.Status == "archived" {
 		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "autopilot_archived"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_archived")
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_archived", "autopilot_archived")
 		writeJSON(w, http.StatusOK, respBody)
 		return
 	}
 	if autopilot.Status != "active" {
 		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "autopilot_paused"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_paused")
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_paused", "autopilot_paused")
 		writeJSON(w, http.StatusOK, respBody)
 		return
 	}
@@ -556,7 +556,7 @@ func (h *Handler) HandleAutopilotWebhook(w http.ResponseWriter, r *http.Request)
 			"reason":      "event_filtered",
 			"event":       envelope.Event,
 		}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "event_filtered")
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "event_filtered", "event_filtered")
 		writeJSON(w, http.StatusOK, respBody)
 		return
 	}

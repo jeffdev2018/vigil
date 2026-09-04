@@ -207,6 +207,16 @@
       "ignored": "無視",
       "failed": "失敗"
     },
+    "reason": {
+      "trigger_disabled": "トリガー無効",
+      "autopilot_paused": "オートパイロット一時停止中",
+      "autopilot_archived": "オートパイロットアーカイブ済み",
+      "event_filtered": "イベントフィルターで除外",
+      "criteria_not_matched": "条件に一致せず",
+      "quota_exceeded": "実行上限に到達",
+      "invalid_signature": "署名が不正",
+      "missing_signature": "署名なし"
+    },
     "signature": {
       "not_required": "署名なし",
       "valid": "署名は有効",
@@ -226,6 +236,7 @@
       "content_type": "Content-Type",
       "replayed_from": "再実行元",
       "error_label": "エラー",
+      "reason_label": "理由",
       "raw_body": "生の本文",
       "selected_headers": "ヘッダー",
       "response_body": "レスポンス本文"

@@ -207,6 +207,16 @@
       "ignored": "무시됨",
       "failed": "실패함"
     },
+    "reason": {
+      "trigger_disabled": "트리거 비활성화됨",
+      "autopilot_paused": "오토파일럿 일시 중지",
+      "autopilot_archived": "오토파일럿 보관됨",
+      "event_filtered": "이벤트 필터에서 제외됨",
+      "criteria_not_matched": "조건에 맞지 않음",
+      "quota_exceeded": "실행 한도 도달",
+      "invalid_signature": "서명이 올바르지 않음",
+      "missing_signature": "서명 없음"
+    },
     "signature": {
       "not_required": "서명 없음",
       "valid": "유효한 서명",
@@ -226,6 +236,7 @@
       "content_type": "Content-Type",
       "replayed_from": "재실행 원본",
       "error_label": "오류",
+      "reason_label": "사유",
       "raw_body": "원본 본문",
       "selected_headers": "헤더",
       "response_body": "응답 본문"

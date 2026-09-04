@@ -70,6 +70,42 @@ function visualForStatus(status: string): StatusVisual {
   return (STATUS_VISUAL as Record<string, StatusVisual>)[status] ?? UNKNOWN_VISUAL;
 }
 
+// --- Reason codes ---------------------------------------------------------
+
+// Every reason the server persists on a non-dispatched delivery. "Ignored"
+// alone says a payload arrived and produced nothing; the reason says which of
+// eight quite different causes it was — a paused autopilot and an LLM routing
+// verdict need different fixes. Unknown codes render verbatim rather than
+// disappearing, so a newer backend is never silently unexplained.
+const DELIVERY_REASON_CODES = [
+  "trigger_disabled",
+  "autopilot_paused",
+  "autopilot_archived",
+  "event_filtered",
+  "criteria_not_matched",
+  "quota_exceeded",
+  "invalid_signature",
+  "missing_signature",
+] as const;
+
+type DeliveryReasonCode = (typeof DELIVERY_REASON_CODES)[number];
+
+function isKnownReasonCode(code: string): code is DeliveryReasonCode {
+  return (DELIVERY_REASON_CODES as readonly string[]).includes(code);
+}
+
+/** The classifier's own words, without the code the server prefixes them with.
+ *  `criteria_not_matched: no production impact` reads as one sentence beside
+ *  its label; the prefix repeated next to the badge does not. */
+export function reasonExplanation(reasonCode: string | null, error: string | null): string | null {
+  if (!error) return null;
+  const trimmed = reasonCode !== null && error.startsWith(`${reasonCode}: `)
+    ? error.slice(reasonCode.length + 2)
+    : error;
+  // An error that is only the code again explains nothing.
+  return trimmed === reasonCode || trimmed.trim() === "" ? null : trimmed;
+}
+
 // --- Helpers --------------------------------------------------------------
 
 function formatDate(value: string, locale: string): string {
@@ -148,6 +184,16 @@ export function WebhookDeliveriesSection({
   );
 }
 
+/** The localized name of a persisted reason code, the raw code when the server
+ *  sends one this build does not know, and null when there is none. */
+function useDeliveryReasonLabel(reasonCode: string | null): string | null {
+  const { t } = useT("autopilots");
+  if (!reasonCode) return null;
+  return isKnownReasonCode(reasonCode)
+    ? t(($) => $.deliveries.reason[reasonCode])
+    : reasonCode;
+}
+
 // --- Row ------------------------------------------------------------------
 
 function DeliveryRow({
@@ -167,6 +213,7 @@ function DeliveryRow({
     t(($) => $.deliveries.status[delivery.status as WebhookDeliveryStatus]) ??
     delivery.status;
   const providerLabel = delivery.provider || "—";
+  const reasonLabel = useDeliveryReasonLabel(delivery.reason_code);
 
   return (
     <>
@@ -185,6 +232,14 @@ function DeliveryRow({
         <span className={cn("w-24 shrink-0 text-caption font-medium", visual.color)}>
           {statusLabel}
         </span>
+        {reasonLabel !== null && (
+          <span
+            className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-caption text-muted-foreground"
+            title={reasonExplanation(delivery.reason_code, delivery.error) ?? undefined}
+          >
+            {reasonLabel}
+          </span>
+        )}
         <span className="w-20 shrink-0 text-caption text-muted-foreground truncate">
           {providerLabel}
         </span>
@@ -246,6 +301,8 @@ function DeliveryDetailDialog({
   const full = detail ?? delivery;
   const visual = visualForStatus(full.status);
   const StatusIcon = visual.icon;
+  const reasonLabel = useDeliveryReasonLabel(full.reason_code);
+  const explanation = reasonExplanation(full.reason_code, full.error);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -274,6 +331,7 @@ function DeliveryDetailDialog({
                   full.status}
               </span>
             </div>
+            {reasonLabel !== null && <Badge variant="secondary">{reasonLabel}</Badge>}
             <Badge variant="outline">{full.provider || "—"}</Badge>
             <code className="rounded bg-muted px-2 py-0.5 text-caption font-mono">
               {full.event || t(($) => $.webhook_payload.unknown_event)}
@@ -334,12 +392,24 @@ function DeliveryDetailDialog({
             )}
           </dl>
 
-          {full.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive">
+          {/* An ignored delivery did what it was told to do — the classifier's
+              explanation belongs in a muted box, not the destructive one that
+              means something went wrong. */}
+          {explanation !== null && (
+            <div
+              className={cn(
+                "rounded-md border px-3 py-2 text-caption",
+                full.status === "ignored"
+                  ? "bg-muted/40 text-muted-foreground"
+                  : "border-destructive/30 bg-destructive/5 text-destructive",
+              )}
+            >
               <div className="font-medium">
-                {t(($) => $.deliveries.detail.error_label)}
+                {full.status === "ignored"
+                  ? (reasonLabel ?? t(($) => $.deliveries.detail.reason_label))
+                  : t(($) => $.deliveries.detail.error_label)}
               </div>
-              <div className="mt-0.5 font-mono break-all">{full.error}</div>
+              <div className="mt-0.5 break-all">{explanation}</div>
             </div>
           )}
 
