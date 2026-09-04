@@ -12,7 +12,18 @@ export const inboxKeys = {
   all: (wsId: string | null) => ["inbox", wsId] as const,
   list: (wsId: string | null) =>
     [...inboxKeys.all(wsId), "list"] as const,
+  // Inbox zero (K63): mirrors web's `["inbox", wsId, "decisions"]`.
+  decisions: (wsId: string | null) =>
+    [...inboxKeys.all(wsId), "decisions"] as const,
 };
+
+export const inboxDecisionsOptions = (wsId: string | null) =>
+  queryOptions({
+    queryKey: inboxKeys.decisions(wsId),
+    queryFn: ({ signal }) => api.listInboxDecisions({ signal }),
+    enabled: !!wsId,
+    refetchInterval: 30_000,
+  });
 
 export const inboxListOptions = (wsId: string | null) =>
   queryOptions({

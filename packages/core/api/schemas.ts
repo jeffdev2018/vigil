@@ -2745,6 +2745,19 @@ export const InboxItemListSchema = z.array(
 export const EMPTY_INBOX_ITEMS: InboxItem[] = [];
 
 // Attention Inbox (K02): the same rows plus a server-computed risk.
+// Inbox zero (K63): my pending Decision Cards, options included.
+export const InboxDecisionsSchema = z.object({
+  decisions: z.array(z.object({
+    inbox_item_id: z.string().default(""),
+    issue_id: z.string().default(""),
+    issue_identifier: z.string().catch("").default(""),
+    issue_title: z.string().catch("").default(""),
+    risk_score: z.number().catch(0).default(0),
+    decision: IssueDecisionSchema,
+  }).loose()).catch([]).default([]),
+  total: z.number().int().catch(0).default(0),
+}).loose();
+
 export const AttentionInboxListSchema = z.object({
   items: z.array(
     InboxItemListSchema.element.extend({

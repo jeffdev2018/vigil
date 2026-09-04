@@ -44,7 +44,8 @@
     "attention_title": "需要你处理",
     "attention_empty": "没有需要你处理的事项。",
     "briefing_title": "今晨简报",
-    "retro_title": "每周回顾"
+    "retro_title": "每周回顾",
+    "decisions_title": "待你决定"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -159,5 +160,25 @@
     "col_cost": "成本（$）",
     "skills": "技能建议",
     "skills_empty": "技能建议将随 Skill Miner 一起提供；暂无建议。"
+  },
+  "decisions": {
+    "title": "等待你决定的事项",
+    "loading": "正在加载决定…",
+    "load_failed": "无法加载决定。",
+    "empty": "收件箱清零：没有等待你的决定。",
+    "more": "此外还有 {{count}} 项在等待",
+    "urgency": {
+      "high": "紧急",
+      "normal": "普通",
+      "low": "低"
+    },
+    "due": "截止 {{when}}",
+    "recommended": "推荐",
+    "other": "用其他方式回答…",
+    "other_label": "说明改为怎么做",
+    "send": "发送",
+    "cancel": "取消",
+    "answered": "已回答",
+    "respond_failed": "无法发送回答"
   }
 }

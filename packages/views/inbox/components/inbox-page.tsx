@@ -89,8 +89,9 @@ import { useTimeAgo } from "./inbox-list-item";
 import { InboxList } from "./inbox-list";
 import { InboxFilterMenu } from "./inbox-filter-menu";
 import { InboxContextMenuProvider } from "./inbox-context-menu";
-import { ARCHIVED_VIEW_PARAM, ATTENTION_VIEW_PARAM, BRIEFING_VIEW_PARAM, RETRO_VIEW_PARAM, type InboxView } from "./inbox-view";
+import { ARCHIVED_VIEW_PARAM, ATTENTION_VIEW_PARAM, BRIEFING_VIEW_PARAM, DECISIONS_VIEW_PARAM, RETRO_VIEW_PARAM, type InboxView } from "./inbox-view";
 import { MorningBriefingView } from "./morning-briefing-view";
+import { DecisionsView } from "./decisions-view";
 import { WeeklyRetroView } from "./weekly-retro-view";
 import { useTypeLabels } from "./inbox-detail-label";
 import {
@@ -121,7 +122,9 @@ export function InboxPage() {
           ? "briefing"
           : urlViewParam === RETRO_VIEW_PARAM
             ? "retro"
-            : "inbox";
+            : urlViewParam === DECISIONS_VIEW_PARAM
+              ? "decisions"
+              : "inbox";
   const wsPaths = useWorkspacePaths();
 
   const [selectedKey, setSelectedKeyState] = useState(() => urlIssue);
@@ -164,6 +167,7 @@ export function InboxPage() {
   const isAttentionView = view === "attention";
   const isBriefingView = view === "briefing";
   const isRetroView = view === "retro";
+  const isDecisionsView = view === "decisions";
   const viewItems = isArchivedView ? archivedItems : isAttentionView ? attentionItems : items;
   const filters = useInboxFilters(wsId);
   const clearFilters = useInboxFilterStore((state) => state.clearFilters);
@@ -229,6 +233,7 @@ export function InboxPage() {
       if (nextView === "attention") params.set("view", ATTENTION_VIEW_PARAM);
       if (nextView === "briefing") params.set("view", BRIEFING_VIEW_PARAM);
       if (nextView === "retro") params.set("view", RETRO_VIEW_PARAM);
+      if (nextView === "decisions") params.set("view", DECISIONS_VIEW_PARAM);
       if (key) params.set("issue", key);
       const query = params.toString();
       const inboxPath = wsPaths.inbox();
@@ -257,6 +262,7 @@ export function InboxPage() {
   const openAttention = useCallback(() => setView("attention"), [setView]);
   const openBriefing = useCallback(() => setView("briefing"), [setView]);
   const openRetro = useCallback(() => setView("retro"), [setView]);
+  const openDecisions = useCallback(() => setView("decisions"), [setView]);
 
   // Applying a filter can remove the open row from the list. Clear that local
   // selection instead of treating it as a broken deep link and redirecting to
@@ -647,6 +653,17 @@ export function InboxPage() {
     </button>
   );
 
+  const decisionsBackRow = (
+    <button
+      type="button"
+      onClick={() => setView("inbox")}
+      className="flex w-full shrink-0 items-center gap-1.5 border-b px-3 py-2 text-left text-caption font-medium text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+    >
+      <ChevronLeft className="size-4 shrink-0" />
+      <span className="truncate">{t(($) => $.list.decisions_title)}</span>
+    </button>
+  );
+
   const retroBackRow = (
     <button
       type="button"
@@ -658,7 +675,9 @@ export function InboxPage() {
     </button>
   );
 
-  const list = isRetroView ? (
+  const list = isDecisionsView ? (
+    <DecisionsView />
+  ) : isRetroView ? (
     <WeeklyRetroView />
   ) : isBriefingView ? (
     <MorningBriefingView />
@@ -691,6 +710,7 @@ export function InboxPage() {
         onOpenArchived={openArchived}
         onOpenAttention={openAttention}
         onOpenBriefing={openBriefing}
+        onOpenDecisions={openDecisions}
         onOpenRetro={openRetro}
         emptyLabel={
           hasActiveFilters && viewItems.length > 0 && visibleItems.length === 0
@@ -719,6 +739,7 @@ export function InboxPage() {
       {isAttentionView && attentionBackRow}
       {isBriefingView && briefingBackRow}
       {isRetroView && retroBackRow}
+      {isDecisionsView && decisionsBackRow}
       {list}
     </>
   );
@@ -740,7 +761,7 @@ export function InboxPage() {
       <ArrowLeft className="h-4 w-4" />
       {/* Back goes to the list the user came FROM, so the label has to
           name it — "Inbox" here would be a lie about the destination. */}
-      {isArchivedView ? t(($) => $.list.archived_title) : isAttentionView ? t(($) => $.list.attention_title) : isBriefingView ? t(($) => $.list.briefing_title) : isRetroView ? t(($) => $.list.retro_title) : t(($) => $.page.back)}
+      {isArchivedView ? t(($) => $.list.archived_title) : isAttentionView ? t(($) => $.list.attention_title) : isBriefingView ? t(($) => $.list.briefing_title) : isRetroView ? t(($) => $.list.retro_title) : isDecisionsView ? t(($) => $.list.decisions_title) : t(($) => $.page.back)}
     </Button>
   ) : undefined;
 
