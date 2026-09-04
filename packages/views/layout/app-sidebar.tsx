@@ -112,6 +112,7 @@ const EMPTY_INBOX_SUMMARY: Awaited<ReturnType<typeof api.getInboxUnreadSummary>>
 // Only parameterless paths are valid nav destinations.
 type NavKey =
   | "inbox"
+  | "triage"
   | "chat"
   | "myIssues"
   | "issues"
@@ -128,6 +129,7 @@ type NavKey =
 // icons derived from the destination path via routeIconForPath.
 type NavLabelKey =
   | "inbox"
+  | "triage"
   | "chat"
   | "my_issues"
   | "issues"
@@ -145,6 +147,7 @@ type NavLabelKey =
 // always agree. See route-icon-components.tsx.
 const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "inbox", labelKey: "inbox" },
+  { key: "triage", labelKey: "triage" },
   { key: "chat", labelKey: "chat" },
   { key: "myIssues", labelKey: "my_issues" },
 ];

@@ -91,7 +91,9 @@ export type WSEventType =
   | "github_installation:deleted"
   | "pull_request:linked"
   | "pull_request:updated"
-  | "pull_request:unlinked";
+  | "pull_request:unlinked"
+  | "triage:new"
+  | "triage:resolved";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -217,6 +219,18 @@ export interface InboxBatchReadPayload {
 export interface InboxBatchArchivedPayload {
   recipient_id: string;
   count: number;
+}
+
+/** A gated webhook delivery was parked as a pending triage item. */
+export interface TriageNewPayload {
+  item_id: string;
+  source_id?: string;
+}
+
+/** A triage item was accepted, dismissed, or merged. */
+export interface TriageResolvedPayload {
+  item_id: string;
+  state?: string;
 }
 
 export interface CommentCreatedPayload {
@@ -635,6 +649,8 @@ export interface WSEventPayloadMap {
   "pull_request:linked": unknown;
   "pull_request:updated": unknown;
   "pull_request:unlinked": unknown;
+  "triage:new": TriageNewPayload;
+  "triage:resolved": TriageResolvedPayload;
 }
 
 /**
