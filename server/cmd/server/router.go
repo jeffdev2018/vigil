@@ -1928,6 +1928,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/acceptance-criteria", h.SetAcceptanceCriteria)
 					r.Patch("/acceptance-criteria/{criterionId}/proof", h.ProveAcceptanceCriterion)
 					r.Get("/decisions", h.ListIssueDecisions)
+					// Requirement Interview (K13): up to three cards at once, issue parked.
+					r.Post("/interview", h.AskRequirementInterview)
 					r.Post("/decisions", h.AskIssueDecision)
 					r.With(handler.RequireHumanActor).Post("/decisions/{decisionId}/respond", h.RespondIssueDecision)
 				})

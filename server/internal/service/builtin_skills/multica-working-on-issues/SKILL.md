@@ -315,6 +315,35 @@ own children still come from `multica issue children`.
 
 Quick-create runs opened from "Add sub issue" get the same section for the
 parent the new issue will be filed under, parent included as the nearest node.
+## Before coding on a vague issue: the requirement interview
+
+When the issue does not say enough to start — which behavior, which surface,
+which of two readings — do not guess and do not start coding. Ask one to
+three multiple-choice questions at once, then finish your turn:
+
+```bash
+multica interview ask <issue-id> --file questions.json
+```
+
+`questions.json`:
+
+```json
+{"questions": [
+  {"question": "Should the export include archived issues?",
+   "options": [{"id": "yes", "label": "Yes, everything"}, {"id": "no", "label": "Active issues only"}],
+   "recommended_option_id": "no"},
+  {"question": "Which format?",
+   "options": [{"id": "csv", "label": "CSV"}, {"id": "json", "label": "JSON"}, {"id": "both", "label": "Both"}]}
+]}
+```
+
+The issue moves to **Waiting for PM** until every question is answered; then
+it returns to its previous status and you are resumed with a handoff note
+that starts with `Requirement interview answered:` and lists each answer in
+order. Multiple choice only: no open questions here (a single open decision is
+`multica decision ask`). Ask only what the issue does not settle; a simple
+issue needs no interview.
+
 ## Asking a human for a decision
 
 When a choice is not yours to make — deleting data, picking between two

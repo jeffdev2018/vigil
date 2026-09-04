@@ -1,8 +1,8 @@
 -- Decision Cards (K01).
 
 -- name: CreateIssueDecision :one
-INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version, interview_group_id, interview_position, interview_resume_status)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: GetIssueDecision :one
@@ -26,3 +26,14 @@ RETURNING *;
 
 -- name: SetIssueDecisionResumeTask :exec
 UPDATE issue_decision SET resume_task_id = $2 WHERE id = $1;
+
+-- Requirement Interview (K13).
+
+-- name: ListInterviewGroup :many
+SELECT * FROM issue_decision
+WHERE interview_group_id = $1 AND issue_id = $2
+ORDER BY interview_position ASC;
+
+-- name: CountPendingInterviewQuestions :one
+SELECT COUNT(*)::bigint FROM issue_decision
+WHERE issue_id = $1 AND interview_group_id IS NOT NULL AND response IS NULL;

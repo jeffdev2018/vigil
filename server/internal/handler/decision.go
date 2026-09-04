@@ -55,8 +55,12 @@ type IssueDecisionResponse struct {
 	ResumeTaskID        string           `json:"resume_task_id,omitempty"`
 	// PlanVersion marks a plan-approval card (K11): answering "approve"
 	// materializes that plan version.
-	PlanVersion int32  `json:"plan_version,omitempty"`
-	CreatedAt   string `json:"created_at"`
+	PlanVersion int32 `json:"plan_version,omitempty"`
+	// Requirement Interview (K13): questions asked together share a group and
+	// keep their order; the run resumes only when the whole group is answered.
+	InterviewGroupID  string `json:"interview_group_id,omitempty"`
+	InterviewPosition int32  `json:"interview_position,omitempty"`
+	CreatedAt         string `json:"created_at"`
 }
 
 func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
@@ -83,6 +87,8 @@ func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
 		RecommendedOptionID: d.RecommendedOptionID.String,
 		Urgency:             d.Urgency,
 		PlanVersion:         d.PlanVersion.Int32,
+		InterviewGroupID:    uuidToString(d.InterviewGroupID),
+		InterviewPosition:   d.InterviewPosition.Int32,
 		Response:            answer,
 		RespondedByType:     d.RespondedByType.String,
 		RespondedByID:       uuidToString(d.RespondedByID),
@@ -121,51 +127,13 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	var req struct {
-		Question            string           `json:"question"`
-		Options             []DecisionOption `json:"options"`
-		RecommendedOptionID string           `json:"recommended_option_id"`
-		Urgency             string           `json:"urgency"`
-	}
+	var req decisionInput
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10)).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	req.Question = strings.TrimSpace(req.Question)
-	if req.Question == "" || len(req.Question) > decisionMaxQuestionLen {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("question is required (at most %d bytes)", decisionMaxQuestionLen))
-		return
-	}
-	if len(req.Options) < 2 || len(req.Options) > decisionMaxOptions {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("between 2 and %d options are required", decisionMaxOptions))
-		return
-	}
-	seen := map[string]bool{}
-	for i := range req.Options {
-		o := &req.Options[i]
-		o.ID = strings.TrimSpace(o.ID)
-		o.Label = strings.TrimSpace(o.Label)
-		o.Impact = strings.TrimSpace(o.Impact)
-		if o.ID == "" || o.Label == "" || len(o.Label) > decisionMaxOptionLen || len(o.Impact) > decisionMaxOptionLen {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("options[%d] needs an id and a label (at most %d bytes each)", i, decisionMaxOptionLen))
-			return
-		}
-		if seen[o.ID] {
-			writeError(w, http.StatusBadRequest, "option ids must be unique")
-			return
-		}
-		seen[o.ID] = true
-	}
-	if req.RecommendedOptionID != "" && !seen[req.RecommendedOptionID] {
-		writeError(w, http.StatusBadRequest, "recommended_option_id must be one of the options")
-		return
-	}
-	switch req.Urgency {
-	case "":
-		req.Urgency = "normal"
-	case "low", "normal", "high":
-	default:
-		writeError(w, http.StatusBadRequest, "urgency must be low, normal or high")
+	if err := normalizeDecisionInput(&req); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	options, _ := json.Marshal(req.Options)
@@ -287,6 +255,18 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Warn("respond issue decision failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeError(w, http.StatusInternalServerError, "failed to record decision")
+		return
+	}
+
+	// Requirement Interview (K13): the group resumes as one, not per answer.
+	if decision.InterviewGroupID.Valid {
+		if taskID, done := h.finishInterviewIfComplete(r, issue, decision, userID, actorType, actorID); done && taskID.Valid {
+			if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decisionID, ResumeTaskID: taskID}); err == nil {
+				updated.ResumeTaskID = taskID
+			}
+		}
+		h.publishIssueAuxChanged(r, issue, actorType, actorID)
+		writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
 		return
 	}
 

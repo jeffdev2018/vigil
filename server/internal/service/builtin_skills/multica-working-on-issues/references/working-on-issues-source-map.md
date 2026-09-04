@@ -183,6 +183,13 @@ on those assignments creating their normal queued runs.
 | A move to a done-category status is refused with `409 unsatisfied_acceptance_criteria` listing the criteria, on single and batch updates | `server/internal/handler/acceptance_criteria.go` (`acceptanceCriteriaAllowStatus`); `server/internal/handler/issue.go` (`UpdateIssue`, `BatchUpdateIssues`) | new citation |
 | Legacy bare-string criteria read as unproven with positional ids; a stored `proof_state` is never trusted, it is recomputed from the proof | `server/internal/handler/acceptance_criteria.go` (`parseAcceptanceCriteria`) | new citation |
 
+## Requirement Interview (K13)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica interview ask` posts 1-3 questions to `POST /api/issues/{id}/interview`; each is a Decision Card sharing `interview_group_id`; the issue is parked in the workspace's `waiting_for_pm` custom status (blocked category, created on first use); a second interview while one is pending is 409 `interview_pending` | `server/cmd/multica/cmd_interview.go`; `server/internal/handler/interview.go` (`AskRequirementInterview`, `ensureInterviewStatus`) | new citation |
+| Answering a question does not resume the run; the last answer restores the previous status and queues one run whose handoff note starts with `Requirement interview answered:` listing every answer in order | `server/internal/handler/interview.go` (`finishInterviewIfComplete`, `interviewAnswerNote`); `server/internal/handler/decision.go` (`RespondIssueDecision`) | new citation |
+
 ## Decision Cards (K01)
 
 | Behavior | File:line | Drifted from |
