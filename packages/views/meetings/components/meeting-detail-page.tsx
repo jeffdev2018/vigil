@@ -7,8 +7,12 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { meetingDetailOptions } from "@multica/core/meetings/queries";
 import { useMeetingRecorderStore } from "@multica/core/meetings/store";
+import { useFinishMeeting } from "@multica/core/meetings/mutations";
+import { useAuthStore } from "@multica/core/auth";
+import { toast } from "sonner";
 import type { Meeting, MeetingAction } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
+import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { Spinner } from "@multica/ui/components/ui/spinner";
 import { cn } from "@multica/ui/lib/utils";
@@ -74,7 +78,9 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
           <MeetingMeta meeting={data} />
-          {data.status === "recording" ? <RecorderSlot meetingId={data.id} /> : null}
+          {data.status === "recording" ? (
+            <RecorderSlot meetingId={data.id} createdBy={data.created_by} />
+          ) : null}
           <SummarySection meeting={data} />
           <ActionsSection meeting={data} />
           <TranscriptSection transcript={data.transcript} />
@@ -86,17 +92,39 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
 
 /**
  * The live recorder belongs to the client that started the recording — the
- * MediaRecorder lives in that tab. A second viewer of the same meeting sees a
- * plain "recording" note instead of controls they cannot drive.
+ * MediaRecorder lives in that tab. Anyone else sees a "recording elsewhere"
+ * note. The recorder themself also lands here after a refresh, when the
+ * MediaRecorder is gone for good: they get a way to close the meeting, since
+ * nothing else ever will (the server only accepts finish from the creator).
  */
-function RecorderSlot({ meetingId }: { meetingId: string }) {
+function RecorderSlot({ meetingId, createdBy }: { meetingId: string; createdBy: string }) {
   const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
   const activeId = useMeetingRecorderStore((s) => s.meetingId);
+  const userId = useAuthStore((s) => s.user?.id);
+  const finishMeeting = useFinishMeeting(wsId);
   if (activeId === meetingId) return <MeetingRecorderPanel />;
+  const isRecorder = !!userId && userId === createdBy;
   return (
-    <p className="rounded-lg border p-3 text-caption text-muted-foreground">
-      {t(($) => $.recorder.elsewhere)}
-    </p>
+    <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
+      <p className="min-w-0 flex-1 text-caption text-muted-foreground">
+        {isRecorder ? t(($) => $.recorder.orphaned) : t(($) => $.recorder.elsewhere)}
+      </p>
+      {isRecorder ? (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={finishMeeting.isPending}
+          onClick={() => {
+            finishMeeting.mutateAsync(meetingId).catch(() => {
+              toast.error(t(($) => $.recorder.error_finish));
+            });
+          }}
+        >
+          {t(($) => $.recorder.finish_now)}
+        </Button>
+      ) : null}
+    </div>
   );
 }
 

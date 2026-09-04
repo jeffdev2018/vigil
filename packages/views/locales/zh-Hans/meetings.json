@@ -61,7 +61,9 @@
     "error_finish": "无法结束会议。",
     "error_stt": "该服务器尚未配置语音转录。",
     "finished": "会议摘要已生成",
-    "elsewhere": "此会议正在其他设备或标签页中录制。"
+    "elsewhere": "此会议正在其他设备或标签页中录制。",
+    "orphaned": "此录制已中断（页面被关闭或刷新）。结束会议以汇总目前已转录的内容。",
+    "finish_now": "结束会议"
   },
   "action_state": {
     "pending": "待处理",
