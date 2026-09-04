@@ -1515,6 +1515,34 @@ type QuickAction struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type RunLimitEvent struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	TaskID      pgtype.UUID        `json:"task_id"`
+	PolicyID    pgtype.UUID        `json:"policy_id"`
+	Gate        string             `json:"gate"`
+	Level       string             `json:"level"`
+	Observed    int64              `json:"observed"`
+	LimitValue  int64              `json:"limit_value"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type RunLimitPolicy struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	ScopeType          string             `json:"scope_type"`
+	ScopeID            pgtype.UUID        `json:"scope_id"`
+	MaxCostUsdTicks    pgtype.Int8        `json:"max_cost_usd_ticks"`
+	MaxDurationSeconds pgtype.Int4        `json:"max_duration_seconds"`
+	MaxTurns           pgtype.Int4        `json:"max_turns"`
+	MaxToolCalls       pgtype.Int4        `json:"max_tool_calls"`
+	WarnBps            int32              `json:"warn_bps"`
+	Action             string             `json:"action"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RunScopedSecret struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
