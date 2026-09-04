@@ -99,8 +99,14 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
   const showWebhookUrlRow = isWebhook && webhookUrl;
   // null when the expression is beyond the structured model — those rows keep
   // showing the raw cron on its own.
+  // The band lives in its own column, not in the cron text, so parseCron
+  // always hands back windowMinutes: 0. Merging the stored band back in is what
+  // makes the row read "sometime between 08:00 and 10:00" instead of "at 08:00".
   const scheduleConfig = trigger.cron_expression
-    ? parseCron(trigger.cron_expression, trigger.timezone ?? "UTC")
+    ? {
+        ...parseCron(trigger.cron_expression, trigger.timezone ?? "UTC"),
+        windowMinutes: trigger.window_minutes ?? 0,
+      }
     : null;
   const scheduleDescription = scheduleConfig ? describeSchedule(scheduleConfig) : null;
 

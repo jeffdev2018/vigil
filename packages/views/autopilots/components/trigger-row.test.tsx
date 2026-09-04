@@ -107,3 +107,21 @@ describe("AddTriggerDialog", () => {
     expect(mockCreateTrigger.mock.calls[0]?.[0].window_minutes).toBeUndefined();
   });
 });
+
+describe("TriggerRow schedule readback", () => {
+  it("describes the band, not just the band's start", () => {
+    renderWithQuery(
+      <TriggerRow trigger={trigger({ window_minutes: 120 })} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    expect(screen.getByText(/sometime between 08:00 and 10:00/i)).toBeInTheDocument();
+  });
+
+  it("says the exact time when there is no band", () => {
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    expect(screen.getByText(/at 08:00/i)).toBeInTheDocument();
+  });
+});
