@@ -946,7 +946,9 @@
     "send": "Send",
     "cancel": "Cancel",
     "resumed": "agent resumed",
-    "answer_failed": "Failed to record the decision"
+    "answer_failed": "Failed to record the decision",
+    "interview_title": "Requirement interview",
+    "interview_hint": "The agent resumes once every question is answered."
   },
   "acceptance": {
     "section": "Acceptance criteria",

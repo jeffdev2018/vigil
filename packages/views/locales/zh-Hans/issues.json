@@ -915,7 +915,9 @@
     "send": "发送",
     "cancel": "取消",
     "resumed": "智能体已继续",
-    "answer_failed": "记录决策失败"
+    "answer_failed": "记录决策失败",
+    "interview_title": "需求访谈",
+    "interview_hint": "所有问题回答后，智能体才会继续。"
   },
   "acceptance": {
     "section": "验收标准",

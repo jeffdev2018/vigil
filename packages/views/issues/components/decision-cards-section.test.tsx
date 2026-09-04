@@ -84,4 +84,19 @@ describe("DecisionCardsSection", () => {
     expect(screen.getByText(/agent resumed/)).toBeTruthy();
     expect(screen.getByTestId("decision-card").getAttribute("data-pending")).toBe("false");
   });
+
+  it("keeps an interview's questions together with its progress (K13)", async () => {
+    state.decisions = [
+      card({ id: "q2", question: "Which format?", interview_group_id: "g1", interview_position: 2 }),
+      card({ id: "q1", question: "Include archived?", interview_group_id: "g1", interview_position: 1, response: { option_id: "keep" }, responded_at: "x" }),
+      card({ id: "single", question: "Drop the table?" }),
+    ];
+    renderSection();
+    const group = await screen.findByTestId("decision-interview");
+    expect(group.dataset.answered).toBe("1");
+    expect(group.textContent).toContain("Requirement interview");
+    const questions = Array.from(group.querySelectorAll("[data-testid='decision-card']")).map((c) => c.getAttribute("data-pending"));
+    expect(questions).toEqual(["false", "true"]);
+    expect(screen.getByText("Drop the table?").closest("[data-testid='decision-interview']")).toBeNull();
+  });
 });

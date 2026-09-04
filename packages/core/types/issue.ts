@@ -338,5 +338,10 @@ export interface IssueDecision {
   responded_by_id?: string;
   responded_at: string | null;
   resume_task_id?: string;
+  /** Plan Gate (K11): the plan version an approval card is about. */
+  plan_version?: number;
+  /** Requirement Interview (K13): questions asked together share a group. */
+  interview_group_id?: string;
+  interview_position?: number;
   created_at: string;
 }

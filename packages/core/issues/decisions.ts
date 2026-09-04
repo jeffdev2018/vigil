@@ -22,6 +22,39 @@ export function useRespondIssueDecision(wsId: string) {
   });
 }
 
+/** Requirement Interview (K13): the cards of one interview, in asked order. */
+export interface DecisionInterview {
+  groupId: string;
+  decisions: IssueDecision[];
+  answered: number;
+}
+
+/**
+ * Splits a card list into interviews (cards sharing a group, ordered by
+ * position) and single cards, keeping the list's order of first appearance.
+ */
+export function groupDecisions(list: IssueDecision[]): { interviews: DecisionInterview[]; singles: IssueDecision[] } {
+  const interviews: DecisionInterview[] = [];
+  const byGroup = new Map<string, DecisionInterview>();
+  const singles: IssueDecision[] = [];
+  for (const d of list) {
+    if (!d.interview_group_id) {
+      singles.push(d);
+      continue;
+    }
+    let group = byGroup.get(d.interview_group_id);
+    if (!group) {
+      group = { groupId: d.interview_group_id, decisions: [], answered: 0 };
+      byGroup.set(d.interview_group_id, group);
+      interviews.push(group);
+    }
+    group.decisions.push(d);
+    if (!isDecisionPending(d)) group.answered += 1;
+  }
+  for (const g of interviews) g.decisions.sort((a, b) => (a.interview_position ?? 0) - (b.interview_position ?? 0));
+  return { interviews, singles };
+}
+
 export function isDecisionPending(d: Pick<IssueDecision, "response">): boolean {
   return d.response === null || d.response === undefined;
 }

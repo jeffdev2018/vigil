@@ -915,7 +915,9 @@
     "send": "送信",
     "cancel": "キャンセル",
     "resumed": "エージェント再開",
-    "answer_failed": "判断を記録できませんでした"
+    "answer_failed": "判断を記録できませんでした",
+    "interview_title": "要件インタビュー",
+    "interview_hint": "すべての質問に回答するとエージェントが再開します。"
   },
   "acceptance": {
     "section": "受け入れ基準",

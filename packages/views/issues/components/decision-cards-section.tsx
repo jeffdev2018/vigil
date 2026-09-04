@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import {
   decisionAnswerLabel,
+  groupDecisions,
   isDecisionPending,
   issueDecisionsOptions,
   useRespondIssueDecision,
@@ -28,6 +29,7 @@ export function DecisionCardsSection({ issueId }: { issueId: string }) {
   const { data: decisions = [] } = useQuery(issueDecisionsOptions(wsId, issueId));
   if (decisions.length === 0) return null;
   const pending = decisions.filter(isDecisionPending).length;
+  const { interviews, singles } = groupDecisions(decisions);
 
   return (
     <div data-testid="decision-cards" className="text-caption">
@@ -41,7 +43,30 @@ export function DecisionCardsSection({ issueId }: { issueId: string }) {
         )}
       </div>
       <div className="flex flex-col gap-2 pl-2">
-        {decisions.map((d) => (
+        {/* Requirement Interview (K13): the questions of one interview stay
+            together; the run resumes only once all of them are answered. */}
+        {interviews.map((g) => (
+          <div
+            key={g.groupId}
+            data-testid="decision-interview"
+            data-answered={g.answered}
+            className={cn("flex flex-col gap-1.5 rounded-md border p-2", g.answered < g.decisions.length ? "border-warning/50" : "border-border")}
+          >
+            <div className="flex items-center gap-1 font-medium">
+              <span>{t(($) => $.decisions.interview_title)}</span>
+              <span className="ml-auto font-mono tabular-nums text-muted-foreground">
+                {g.answered}/{g.decisions.length}
+              </span>
+            </div>
+            {g.answered < g.decisions.length && (
+              <div className="text-muted-foreground">{t(($) => $.decisions.interview_hint)}</div>
+            )}
+            {g.decisions.map((d) => (
+              <DecisionCard key={d.id} decision={d} issueId={issueId} wsId={wsId} />
+            ))}
+          </div>
+        ))}
+        {singles.map((d) => (
           <DecisionCard key={d.id} decision={d} issueId={issueId} wsId={wsId} />
         ))}
       </div>

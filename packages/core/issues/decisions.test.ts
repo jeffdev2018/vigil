@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { decisionAnswerLabel, isDecisionPending, pendingDecisions } from "./decisions";
+import { decisionAnswerLabel, groupDecisions, isDecisionPending, pendingDecisions } from "./decisions";
 import type { IssueDecision } from "../types";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -49,5 +49,23 @@ describe("decision endpoints", () => {
     expect(await new ApiClient("https://api.example.test").listIssueDecisions("i1")).toEqual([]);
     stubFetchJson({ decision: { id: 1 } });
     await expect(new ApiClient("https://api.example.test").respondIssueDecision("i1", "d1", { option_id: "drop" })).rejects.toThrow();
+  });
+});
+
+describe("groupDecisions (K13)", () => {
+  it("groups interview cards in asked order and counts answers, keeping singles apart", () => {
+    const q2 = { ...card, id: "q2", interview_group_id: "g1", interview_position: 2 };
+    const q1 = { ...card, id: "q1", interview_group_id: "g1", interview_position: 1, response: { option_id: "keep" }, responded_at: "x" };
+    const { interviews, singles } = groupDecisions([card, q2, q1]);
+    expect(singles.map((d) => d.id)).toEqual(["d1"]);
+    expect(interviews).toHaveLength(1);
+    expect(interviews[0]?.decisions.map((d) => d.id)).toEqual(["q1", "q2"]);
+    expect(interviews[0]?.answered).toBe(1);
+  });
+
+  it("keeps an unknown interview field shape from breaking the list", async () => {
+    stubFetchJson({ decisions: [{ ...card, interview_group_id: 7, interview_position: "x" }] });
+    const list = await new ApiClient("https://api.example.test").listIssueDecisions("i1");
+    expect(list[0]?.interview_group_id).toBeUndefined();
   });
 });

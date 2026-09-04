@@ -915,7 +915,9 @@
     "send": "보내기",
     "cancel": "취소",
     "resumed": "에이전트 재개됨",
-    "answer_failed": "결정을 기록하지 못했습니다"
+    "answer_failed": "결정을 기록하지 못했습니다",
+    "interview_title": "요구사항 인터뷰",
+    "interview_hint": "모든 질문에 답하면 에이전트가 재개됩니다."
   },
   "acceptance": {
     "section": "인수 기준",

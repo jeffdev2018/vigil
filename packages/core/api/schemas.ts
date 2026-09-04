@@ -1408,6 +1408,9 @@ export const IssueDecisionSchema = z.object({
   responded_by_id: z.string().optional(),
   responded_at: z.string().nullable().default(null),
   resume_task_id: z.string().optional(),
+  plan_version: z.number().int().optional().catch(undefined),
+  interview_group_id: z.string().optional().catch(undefined),
+  interview_position: z.number().int().optional().catch(undefined),
   created_at: z.string().default(""),
 }).loose();
 
