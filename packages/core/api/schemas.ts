@@ -50,6 +50,9 @@ import type {
   InboxWorkspaceUnread,
   TriageStats,
   TriageItemsResponse,
+  Meeting,
+  MeetingListResponse,
+  MeetingSegmentResponse,
   Label,
   MemberWithUser,
   IssueProperty,
@@ -791,6 +794,8 @@ export const EMPTY_ISSUE_PROPERTIES_RESPONSE: IssuePropertiesResponse = {
 
 export interface AppConfigResponse {
   cdn_domain: string;
+  /** Speech-to-text provider configured (MULTICA_STT_*); absent on older servers. */
+  meeting_transcription_available?: boolean;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
   // publicly fetchable and must not be used as native media sources
@@ -1023,6 +1028,7 @@ export const AppConfigSchema = z.object({
   feature_flags: FeatureFlagsSchema,
   local_worktree_supported: BooleanWithDefaultSchema(false),
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
+  meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
   server_version: OptionalStringSchema,
   run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();
@@ -4062,3 +4068,65 @@ export const BlastRadiusPreviewSchema = z.object({
   rule_id: z.string().optional(),
   path_pattern: z.string().optional(),
 }).loose();
+
+// Meetings: recorded conversations transcribed segment by segment, then
+// summarized into a markdown summary plus one pending triage item per action.
+export const MeetingActionSchema = z.object({
+  triage_item_id: z.string(),
+  title: z.string().default(""),
+  state: z.string().default("pending"),
+  issue_id: z.string().optional(),
+}).loose();
+
+export const MeetingSchema = z.object({
+  id: z.string(),
+  title: z.string().default(""),
+  app_name: z.string().default(""),
+  status: z.string().default("done"),
+  // The list endpoint omits transcripts; only the detail endpoint carries one.
+  transcript: z.string().default(""),
+  summary_markdown: z.string().default(""),
+  segment_count: z.number().default(0),
+  created_by: z.string().default(""),
+  started_at: z.string().default(""),
+  ended_at: z.string().optional(),
+  actions: z.array(MeetingActionSchema).catch([]).default([]),
+  // Filled by the list endpoint (which omits `actions`); 0 on the detail endpoint.
+  action_count: z.number().catch(0).default(0),
+  summary_unavailable: z.boolean().default(false),
+}).loose();
+
+export const MeetingListResponseSchema = z.object({
+  meetings: z.array(MeetingSchema).default([]),
+}).loose();
+
+export const MeetingSegmentResponseSchema = z.object({
+  seq: z.string().default(""),
+  text: z.string().default(""),
+  segment_count: z.number().default(0),
+}).loose();
+
+export const EMPTY_MEETING: Meeting = Object.freeze({
+  id: "",
+  title: "",
+  app_name: "",
+  status: "failed",
+  transcript: "",
+  summary_markdown: "",
+  segment_count: 0,
+  created_by: "",
+  started_at: "",
+  actions: [],
+  action_count: 0,
+  summary_unavailable: false,
+}) as Meeting;
+
+export const EMPTY_MEETING_LIST: MeetingListResponse = Object.freeze({
+  meetings: [],
+}) as MeetingListResponse;
+
+export const EMPTY_MEETING_SEGMENT: MeetingSegmentResponse = Object.freeze({
+  seq: "",
+  text: "",
+  segment_count: 0,
+}) as MeetingSegmentResponse;

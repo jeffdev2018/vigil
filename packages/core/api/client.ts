@@ -258,6 +258,9 @@ import type {
   TriageStats,
   TriageItemsResponse,
   TriageItemState,
+  Meeting,
+  MeetingListResponse,
+  MeetingSegmentResponse,
   TriageSourceMode,
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
@@ -385,6 +388,12 @@ import {
   IssueDependenciesResponseSchema,
   TriageStatsSchema,
   TriageItemsResponseSchema,
+  MeetingSchema,
+  MeetingListResponseSchema,
+  MeetingSegmentResponseSchema,
+  EMPTY_MEETING,
+  EMPTY_MEETING_LIST,
+  EMPTY_MEETING_SEGMENT,
   TriageBatchAcceptResponseSchema,
   AcceptTriageItemResponseSchema,
   DismissTriageItemResponseSchema,
@@ -1670,6 +1679,90 @@ export class ApiClient {
     await this.fetch(`/api/triage/sources/${encodeURIComponent(sourceId)}`, {
       method: "PATCH",
       body: JSON.stringify({ mode }),
+    });
+  }
+
+  // Meetings. A recording is created first, then audio segments are uploaded
+  // one at a time and transcribed as they arrive; finishing summarizes the
+  // transcript and queues each action item as a pending triage item.
+  //
+  // Every write answers 409 with a machine-readable `code` (see errorCode):
+  // `stt_not_configured`, `meeting_not_recording`, `meeting_too_long`,
+  // `meeting_summarizing`. Callers branch on the code, never the message.
+  async createMeeting(data?: { title?: string; app_name?: string }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>("/api/meetings", {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    });
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings",
+    });
+  }
+
+  async listMeetings(
+    params?: { limit?: number; offset?: number },
+    options?: { signal?: AbortSignal },
+  ): Promise<MeetingListResponse> {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.offset !== undefined) search.set("offset", String(params.offset));
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/meetings${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<MeetingListResponse>(
+      raw,
+      MeetingListResponseSchema,
+      EMPTY_MEETING_LIST,
+      { endpoint: "GET /api/meetings" },
+    );
+  }
+
+  async getMeeting(id: string, options?: { signal?: AbortSignal }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "GET /api/meetings/:id",
+    });
+  }
+
+  /**
+   * Uploads one recorded audio chunk. Not routed through `this.fetch`: the
+   * browser has to set the multipart boundary itself (same reason as
+   * uploadFile). `fetchRaw` still applies the shared auth/CSRF headers and
+   * the structured ApiError path, which is what carries the 409 `code`.
+   */
+  async appendMeetingSegment(
+    id: string,
+    chunk: Blob,
+    seq: number,
+  ): Promise<MeetingSegmentResponse> {
+    const formData = new FormData();
+    formData.append("file", chunk, `segment-${seq}.webm`);
+    formData.append("seq", String(seq));
+    const res = await this.fetchRaw(`/api/meetings/${encodeURIComponent(id)}/segments`, {
+      method: "POST",
+      body: formData,
+    });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<MeetingSegmentResponse>(
+      raw,
+      MeetingSegmentResponseSchema,
+      EMPTY_MEETING_SEGMENT,
+      { endpoint: "POST /api/meetings/:id/segments" },
+    );
+  }
+
+  async finishMeeting(id: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/finish`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings/:id/finish",
     });
   }
 

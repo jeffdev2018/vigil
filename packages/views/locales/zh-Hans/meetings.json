@@ -1,0 +1,75 @@
+{
+  "list": {
+    "title": "会议",
+    "subtitle": "已录制的会议，自动转录并整理成待办事项",
+    "record": "录制会议",
+    "loading": "正在加载会议",
+    "load_error": "无法加载会议",
+    "empty_title": "暂无会议",
+    "empty_description": "录制一场对话，Multica 会边录边转录，生成摘要，并把每条待办事项排进待审核队列。",
+    "segments": "{{count}} 个片段",
+    "actions": "{{count}} 条待办事项",
+    "no_app": "未知应用"
+  },
+  "capability": {
+    "title": "尚未配置语音转录",
+    "description": "该服务器没有配置语音转文字服务，暂时无法录制会议。"
+  },
+  "status": {
+    "recording": "录制中",
+    "summarizing": "生成摘要中",
+    "done": "已完成",
+    "failed": "失败",
+    "unknown": "未知"
+  },
+  "detail": {
+    "loading": "正在加载会议",
+    "load_error": "无法加载该会议",
+    "back": "会议",
+    "started": "开始于 {{time}}",
+    "ended": "结束于 {{time}}",
+    "summary_title": "摘要",
+    "summary_pending": "正在生成摘要…",
+    "summary_empty": "暂无摘要",
+    "summary_unavailable": "未生成摘要：转录已保留，但没有可用的语言模型。",
+    "actions_title": "待办事项",
+    "actions_empty": "未提取到待办事项",
+    "actions_open_triage": "在待审核中查看",
+    "actions_open_issue": "打开任务",
+    "transcript_title": "转录",
+    "transcript_empty": "暂无转录内容",
+    "transcript_show": "显示转录",
+    "transcript_hide": "隐藏转录"
+  },
+  "recorder": {
+    "starting": "正在启动录制…",
+    "title": "录制中",
+    "elapsed": "已录制 {{time}}",
+    "stop": "停止",
+    "stopping": "正在结束…",
+    "consent": "请告知与会者本次会议正在转录。",
+    "mic_only": "未共享系统音频，仅录制麦克风。",
+    "last_transcript": "最新转录",
+    "waiting": "正在等待第一段转录…",
+    "open": "打开会议",
+    "error_unsupported": "当前浏览器无法录制音频。",
+    "error_microphone": "麦克风权限被拒绝，无法开始录制。",
+    "error_create": "无法开始会议。",
+    "error_segment": "有一个片段转录失败。",
+    "error_not_recording": "该会议已不在录制中。",
+    "error_too_long": "会议已达最长时长，录制已停止。",
+    "error_finish": "无法结束会议。",
+    "error_stt": "该服务器尚未配置语音转录。",
+    "finished": "会议摘要已生成",
+    "elsewhere": "此会议正在其他设备或标签页中录制。"
+  },
+  "action_state": {
+    "pending": "待处理",
+    "accepted": "已接受",
+    "dismissed": "已忽略",
+    "merged": "已合并",
+    "superseded": "已被取代",
+    "expired": "已过期",
+    "dropped": "已丢弃"
+  }
+}

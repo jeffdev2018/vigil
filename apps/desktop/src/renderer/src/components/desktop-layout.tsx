@@ -20,6 +20,7 @@ import {
 } from "@multica/views/layout";
 import { SearchCommand, SearchTrigger } from "@multica/views/search";
 import { FloatingChat } from "@multica/views/chat";
+import { RecordingPill } from "@multica/views/meetings";
 import { WorkspaceSlugProvider, paths, useCurrentWorkspace } from "@multica/core/paths";
 import { workspaceListOptions } from "@multica/core/workspace";
 import {
@@ -300,6 +301,9 @@ export function DesktopShell() {
                 <NavigationProgress />
                 <TabContent />
                 {slug && <FloatingChat />}
+                {/* Owns the single MediaRecorder for this shell and shows
+                    the recording indicator on every page. */}
+                {slug && <RecordingPill />}
               </MainCanvas>
             </div>
           </SidebarProvider>
