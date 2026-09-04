@@ -895,12 +895,16 @@ function MessageListenButton({
   const locale = useLocale();
   const speaking = useIsSpeaking(message.id);
   const speakNextReply = useVoiceStore((s) => s.speakNextReply);
+  // Read again here, not only where the flag is armed: the user may have turned
+  // it off while the reply was still being generated.
+  const readRepliesAloud = useVoiceStore((s) => s.readRepliesAloud);
   const supported = isSpeechSupported();
   const text = extractCopyText(message, timeline);
 
   useEffect(() => {
     if (!supported || !speakNextReply || !text.trim()) return;
     useVoiceStore.getState().setSpeakNextReply(false);
+    if (!readRepliesAloud) return;
     speakMarkdown(message.id, text, speechLang(locale));
     // Only the reply that lands right after a dictated message triggers this.
     // eslint-disable-next-line react-hooks/exhaustive-deps

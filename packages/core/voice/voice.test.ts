@@ -40,6 +40,7 @@ describe("transcribeVoice", () => {
 describe("useVoiceStore", () => {
   beforeEach(() => {
     useVoiceStore.getState().resetSpeech();
+    useVoiceStore.getState().setReadRepliesAloud(true);
   });
 
   it("remembers that the next reply should be spoken until consumed", () => {
@@ -70,6 +71,16 @@ describe("useVoiceStore", () => {
     useVoiceStore.getState().setSpeakNextReply(false); // the reply spoke it
     useVoiceStore.getState().armSpeakOnSend();
     expect(useVoiceStore.getState().speakNextReply).toBe(false);
+  });
+
+  it("reads replies aloud by default and honours the preference being turned off", () => {
+    expect(useVoiceStore.getState().readRepliesAloud).toBe(true);
+    useVoiceStore.getState().setReadRepliesAloud(false);
+    useVoiceStore.getState().markDictated();
+    useVoiceStore.getState().armSpeakOnSend();
+    // The turn is still consumed — it just does not speak.
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
+    expect(useVoiceStore.getState().dictating).toBe(false);
   });
 
   it("resetSpeech drops both the armed reply and an unsent memo", () => {
