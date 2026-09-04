@@ -4424,3 +4424,38 @@ export const FanoutBatchSchema = z.object({
 export const FanoutEnvelopeSchema = z.object({
   batch: FanoutBatchSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Agent duel (K39).
+export const AgentDuelSideSchema = z.object({
+  agent_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  cost_usd_ticks: z.number().catch(0).default(0),
+  duration_seconds: z.number().catch(0).default(0),
+  tool_calls: z.number().int().catch(0).default(0),
+  quality_score: z.number().nullable().catch(null).default(null),
+  summary: z.string().catch("").default(""),
+}).loose();
+
+const emptyDuelSide = AgentDuelSideSchema.parse({});
+
+export const AgentDuelSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["running", "verdict_ready", "confirmed", "inconclusive"]).catch("running").default("running"),
+  a: AgentDuelSideSchema.catch(emptyDuelSide).default(emptyDuelSide),
+  b: AgentDuelSideSchema.catch(emptyDuelSide).default(emptyDuelSide),
+  arbiter_winner: z.enum(["a", "b", "tie"]).nullable().catch(null).default(null),
+  reasoning: z.string().catch("").default(""),
+  arbiter_error: z.string().nullable().catch(null).default(null),
+  winner: z.enum(["a", "b", "tie"]).nullable().catch(null).default(null),
+  confirmed_by: z.string().nullable().catch(null).default(null),
+  confirmed_at: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  settled_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const AgentDuelEnvelopeSchema = z.object({
+  duel: AgentDuelSchema.nullable().catch(null).default(null),
+}).loose();

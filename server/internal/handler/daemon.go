@@ -3888,6 +3888,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.advancePipelineAfterTask(r.Context(), *task)
 	// Fan-out (K38): a settled child moves the barrier.
 	h.updateFanoutBarrier(r.Context(), *task)
+	// Agent duel (K39): a finished candidate run moves the duel.
+	h.updateDuelBarrier(r.Context(), *task)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into
@@ -4582,6 +4584,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	h.TaskService.NotifyTaskFinished(*task)
 	// Fan-out (K38): a child failed for good settles its member.
 	h.updateFanoutBarrier(r.Context(), *task)
+	// Agent duel (K39): a candidate that failed for good ends the duel.
+	h.updateDuelBarrier(r.Context(), *task)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

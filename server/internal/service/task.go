@@ -1433,6 +1433,13 @@ func (s *TaskService) EnqueueTaskForMention(ctx context.Context, issue db.Issue,
 
 // EnqueueTaskForThreadParent creates a queued task for the agent who authored
 // the direct parent comment a member replied to.
+// EnqueueDuelRun (K39) queues an independent, fresh-session run of issue by
+// agentID — assignee or not — briefed by handoffNote. The run is a mention
+// run underneath: nothing about the issue (assignee, status) changes.
+func (s *TaskService) EnqueueDuelRun(ctx context.Context, issue db.Issue, agentID pgtype.UUID, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTask(ctx, issue, agentID, pgtype.UUID{}, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{})
+}
+
 func (s *TaskService) EnqueueTaskForThreadParent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID) (db.AgentTaskQueue, error) {
 	return s.enqueueMentionTask(ctx, issue, agentID, triggerCommentID, false, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{})
 }

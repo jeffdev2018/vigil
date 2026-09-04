@@ -351,6 +351,7 @@ import {
   PipelinesEnvelopeSchema,
   PipelineRunEnvelopeSchema,
   FanoutEnvelopeSchema,
+  AgentDuelEnvelopeSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3164,6 +3165,22 @@ export class ApiClient {
   async startFanout(issueId: string, input: import("../issues/fanout").FanoutInput): Promise<import("../issues/fanout").FanoutBatch | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/fanout`, { method: "POST", body: JSON.stringify(input) });
     return parseWithFallback(raw, FanoutEnvelopeSchema, { batch: null }, { endpoint: "POST /api/issues/:id/fanout" }).batch;
+  }
+
+  // Agent duel (K39).
+  async getIssueDuel(issueId: string): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/duel`);
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "GET /api/issues/:id/duel" }).duel;
+  }
+
+  async startDuel(issueId: string, input: import("../issues/duel").DuelInput): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/duel`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/issues/:id/duel" }).duel;
+  }
+
+  async confirmDuel(duelId: string, winner: import("../issues/duel").DuelWinner): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/duels/${encodeURIComponent(duelId)}/confirm`, { method: "POST", body: JSON.stringify({ winner }) });
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/duels/:id/confirm" }).duel;
   }
 
   // Pipelines (K37).

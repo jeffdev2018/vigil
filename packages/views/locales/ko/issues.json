@@ -1174,5 +1174,35 @@
     "cto_audit": "감사 기록",
     "cto_audit_empty": "이 이슈에 기록된 항목이 아직 없습니다",
     "block_failed": "이 블록을 불러오지 못했습니다."
+  },
+  "duel": {
+    "section": "에이전트 대결",
+    "status": {
+      "running": "진행 중",
+      "verdict_ready": "판정 대기",
+      "confirmed": "확정됨",
+      "inconclusive": "판정 불가"
+    },
+    "candidate": "후보 {{side}}",
+    "cost": "비용",
+    "duration": "소요 시간",
+    "tool_calls": "도구 호출",
+    "quality": "심판 점수",
+    "arbiter_pick": "심판 선택: {{side}}",
+    "arbiter_tie": "심판 선택: 무승부",
+    "arbiter_unavailable": "심판 판정 없음({{error}}). 실행을 비교하고 결정하세요.",
+    "inconclusive": "한 후보가 최종 실패하여 비교할 수 없습니다.",
+    "choose": "{{side}} 확정",
+    "tie": "무승부 처리",
+    "winner": "승자: {{side}}",
+    "winner_tie": "무승부 선언",
+    "open": "대결 시작",
+    "agent_a": "에이전트 A",
+    "agent_b": "에이전트 B",
+    "pick_agent": "에이전트 선택…",
+    "launch": "대결 시작",
+    "cancel": "취소",
+    "failed": "대결 요청에 실패했습니다",
+    "identical": "서로 다른 두 에이전트를 선택하세요"
   }
 }

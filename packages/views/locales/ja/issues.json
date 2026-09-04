@@ -1174,5 +1174,35 @@
     "cto_audit": "監査記録",
     "cto_audit_empty": "この issue にはまだ記録がありません",
     "block_failed": "このブロックを読み込めませんでした。"
+  },
+  "duel": {
+    "section": "エージェント対決",
+    "status": {
+      "running": "実行中",
+      "verdict_ready": "判定待ち",
+      "confirmed": "確定",
+      "inconclusive": "判定不能"
+    },
+    "candidate": "候補 {{side}}",
+    "cost": "コスト",
+    "duration": "所要時間",
+    "tool_calls": "ツール呼び出し",
+    "quality": "審判スコア",
+    "arbiter_pick": "審判の選択: {{side}}",
+    "arbiter_tie": "審判の選択: 引き分け",
+    "arbiter_unavailable": "審判の判定なし（{{error}}）。実行を比較して決めてください。",
+    "inconclusive": "一方の候補が失敗したため比較できません。",
+    "choose": "{{side}} を確定",
+    "tie": "引き分けにする",
+    "winner": "勝者: {{side}}",
+    "winner_tie": "引き分け",
+    "open": "対決を開始",
+    "agent_a": "エージェント A",
+    "agent_b": "エージェント B",
+    "pick_agent": "エージェントを選択…",
+    "launch": "対決を開始",
+    "cancel": "キャンセル",
+    "failed": "対決のリクエストに失敗しました",
+    "identical": "異なる 2 つのエージェントを選んでください"
   }
 }

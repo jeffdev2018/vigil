@@ -51,6 +51,7 @@
     "./issues/preemption": "./issues/preemption.ts",
     "./pipelines": "./pipelines/index.ts",
     "./issues/fanout": "./issues/fanout.ts",
+    "./issues/duel": "./issues/duel.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",
