@@ -8,5 +8,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
+    // Pin the timezone so date-rendering assertions (e.g. billing seat
+    // summaries) do not depend on the host machine's offset. CI runners are
+    // UTC; without this pin the same suite goes red on machines behind UTC.
+    env: {
+      TZ: "UTC",
+    },
   },
 });
