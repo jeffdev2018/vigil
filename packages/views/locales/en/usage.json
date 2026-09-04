@@ -112,5 +112,16 @@
     "floor": "some usage unpriced",
     "none": "None in this period",
     "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
+  },
+  "scorecards": {
+    "title": "Agent scorecards · {{days}}D",
+    "agent": "Agent",
+    "runs": "Runs",
+    "accepted": "Accepted",
+    "failed": "Failed",
+    "reopened": "Reopened",
+    "no_intervention": "No human",
+    "mean_cost": "Mean cost",
+    "low_sample": "(few runs)"
   }
 }

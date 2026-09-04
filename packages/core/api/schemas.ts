@@ -3673,3 +3673,29 @@ export const MorningBriefingSchema = z.object({
   sent_at: z.string().nullable().catch(null).default(null),
   already_sent: z.boolean().optional(),
 }).loose();
+
+// Scorecards (K25).
+const ScorecardTotalsShape = {
+  runs_total: z.number().default(0),
+  runs_failed: z.number().default(0),
+  runs_cancelled: z.number().default(0),
+  runs_accepted: z.number().default(0),
+  runs_reopened: z.number().default(0),
+  runs_no_intervention: z.number().default(0),
+  cost_usd_ticks_total: z.number().default(0),
+  low_sample: z.boolean().default(true),
+};
+const ScorecardTotalsSchema = z.object(ScorecardTotalsShape).loose();
+
+export const AgentScorecardSchema = z.object({
+  agent_id: z.string().default(""),
+  days: z.number().default(30),
+  totals: ScorecardTotalsSchema.catch({ runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true }),
+  previous: ScorecardTotalsSchema.catch({ runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true }),
+  series: z.array(z.object({ ...ScorecardTotalsShape, day: z.string() }).loose()).catch([]).default([]),
+}).loose();
+
+export const WorkspaceScorecardsSchema = z.object({
+  days: z.number().default(30),
+  rows: z.array(z.object({ ...ScorecardTotalsShape, agent_id: z.string(), runtime_id: z.string().optional() }).loose()).catch([]).default([]),
+}).loose();

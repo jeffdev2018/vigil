@@ -1327,3 +1327,28 @@ export interface DashboardCostPerDeliverable {
   issues: DeliverableCostStats;
   pull_requests: DeliverableCostStats;
 }
+
+// Scorecards (K25).
+export interface ScorecardTotals {
+  runs_total: number;
+  runs_failed: number;
+  runs_cancelled: number;
+  runs_accepted: number;
+  runs_reopened: number;
+  runs_no_intervention: number;
+  cost_usd_ticks_total: number;
+  low_sample: boolean;
+}
+
+export interface AgentScorecard {
+  agent_id: string;
+  days: number;
+  totals: ScorecardTotals;
+  previous: ScorecardTotals;
+  series: (ScorecardTotals & { day: string })[];
+}
+
+export interface WorkspaceScorecardRow extends ScorecardTotals {
+  agent_id: string;
+  runtime_id?: string;
+}

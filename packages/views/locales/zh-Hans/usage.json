@@ -112,5 +112,16 @@
     "floor": "部分用量未定价",
     "none": "此期间没有",
     "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。"
+  },
+  "scorecards": {
+    "title": "智能体记分卡 · {{days}}天",
+    "agent": "智能体",
+    "runs": "运行",
+    "accepted": "已接受",
+    "failed": "失败",
+    "reopened": "重新打开",
+    "no_intervention": "无人工",
+    "mean_cost": "平均成本",
+    "low_sample": "（运行较少）"
   }
 }

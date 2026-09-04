@@ -951,5 +951,15 @@
   "actions": {
     "selected_other": "{{count}}개 선택됨",
     "clear_selection": "선택 해제"
+  },
+  "scorecard": {
+    "title": "스코어카드 · 최근 30일",
+    "empty": "이 에이전트를 평가하기에는 실행이 부족합니다.",
+    "low_sample": "실행 {{count}}건, 참고용",
+    "acceptance": "수락",
+    "failure": "실패",
+    "reopened": "재오픈",
+    "no_intervention": "사람 개입 없음",
+    "mean_cost": "실행당 평균 비용"
   }
 }

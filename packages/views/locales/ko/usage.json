@@ -112,5 +112,16 @@
     "floor": "일부 사용량 가격 없음",
     "none": "이 기간에는 없음",
     "empty": "지난 {{days}}일 동안 실행이 있는 완료 이슈나 병합된 PR이 없습니다."
+  },
+  "scorecards": {
+    "title": "에이전트 스코어카드 · {{days}}일",
+    "agent": "에이전트",
+    "runs": "실행",
+    "accepted": "수락",
+    "failed": "실패",
+    "reopened": "재오픈",
+    "no_intervention": "개입 없음",
+    "mean_cost": "평균 비용",
+    "low_sample": "(실행 적음)"
   }
 }

@@ -951,5 +951,15 @@
   "actions": {
     "selected_other": "已选 {{count}} 项",
     "clear_selection": "清除选择"
+  },
+  "scorecard": {
+    "title": "记分卡 · 最近 30 天",
+    "empty": "运行次数不足，暂无法评分。",
+    "low_sample": "{{count}} 次运行，仅供参考",
+    "acceptance": "已接受",
+    "failure": "失败",
+    "reopened": "重新打开",
+    "no_intervention": "无人工介入",
+    "mean_cost": "每次运行平均成本"
   }
 }

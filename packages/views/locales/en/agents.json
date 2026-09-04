@@ -973,5 +973,15 @@
     "selected_one": "{{count}} selected",
     "selected_other": "{{count}} selected",
     "clear_selection": "Clear selection"
+  },
+  "scorecard": {
+    "title": "Scorecard · last 30 days",
+    "empty": "Not enough runs yet to score this agent.",
+    "low_sample": "{{count}} runs, read with care",
+    "acceptance": "Accepted",
+    "failure": "Failed",
+    "reopened": "Reopened",
+    "no_intervention": "Without a human stepping in",
+    "mean_cost": "Mean cost per run"
   }
 }

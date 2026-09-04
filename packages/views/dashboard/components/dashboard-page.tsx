@@ -30,6 +30,7 @@ import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
 import { KpiCard } from "../../runtimes/components/shared";
 import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
+import { AgentScorecardsCard } from "./agent-scorecards-card";
 import { useNavigation } from "../../navigation";
 import {
   addDaysIso,
@@ -597,6 +598,9 @@ export function DashboardPage() {
                 {/* Cost per deliverable (K04): what a closed issue and a
                     merged PR cost, against the previous period. */}
                 <CostPerDeliverableCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
+
+                {/* Scorecards (K25): which agent works, one row per agent. */}
+                <AgentScorecardsCard wsId={wsId} days={days} />
 
                 <UsageTrendCard
                   allowedDims={allowedDims}

@@ -112,5 +112,16 @@
     "floor": "一部の使用量は価格なし",
     "none": "この期間はなし",
     "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。"
+  },
+  "scorecards": {
+    "title": "エージェントのスコアカード · {{days}}日",
+    "agent": "エージェント",
+    "runs": "実行",
+    "accepted": "受け入れ",
+    "failed": "失敗",
+    "reopened": "再オープン",
+    "no_intervention": "人の介入なし",
+    "mean_cost": "平均コスト",
+    "low_sample": "（実行が少ない）"
   }
 }

@@ -951,5 +951,15 @@
   "actions": {
     "selected_other": "{{count}} 件選択中",
     "clear_selection": "選択を解除"
+  },
+  "scorecard": {
+    "title": "スコアカード · 過去 30 日",
+    "empty": "このエージェントを評価するには実行が足りません。",
+    "low_sample": "実行 {{count}} 件、参考値",
+    "acceptance": "受け入れ",
+    "failure": "失敗",
+    "reopened": "再オープン",
+    "no_intervention": "人の介入なし",
+    "mean_cost": "実行あたりの平均コスト"
   }
 }

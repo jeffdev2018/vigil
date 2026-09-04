@@ -71,6 +71,8 @@ import type {
   DashboardUsageDaily,
   DashboardUsageByAgent,
   DashboardCostPerDeliverable,
+  AgentScorecard,
+  WorkspaceScorecardRow,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -286,6 +288,8 @@ import {
   DashboardFailureByAgentListSchema,
   DashboardUsageByAgentListSchema,
   DashboardCostPerDeliverableSchema,
+  AgentScorecardSchema,
+  WorkspaceScorecardsSchema,
   DashboardUsageDailyListSchema,
   EMPTY_APP_CONFIG,
   EMPTY_ATTACHMENT,
@@ -2644,6 +2648,20 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Scorecards (K25).
+  async getAgentScorecard(agentId: string, days = 30): Promise<AgentScorecard> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/scorecard?days=${days}`);
+    const empty = { runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true };
+    return parseWithFallback(raw, AgentScorecardSchema, { agent_id: agentId, days, totals: empty, previous: empty, series: [] }, {
+      endpoint: "GET /api/agents/:id/scorecard",
+    });
+  }
+
+  async listWorkspaceScorecards(days = 30): Promise<WorkspaceScorecardRow[]> {
+    const raw = await this.fetch<unknown>(`/api/scorecards?days=${days}`);
+    return parseWithFallback(raw, WorkspaceScorecardsSchema, { days, rows: [] }, { endpoint: "GET /api/scorecards" }).rows;
+  }
+
   async getWorkspaceAgentActivity30d(): Promise<AgentActivityBucket[]> {
     return this.fetch(`/api/agent-activity-30d`);
   }
