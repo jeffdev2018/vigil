@@ -29,6 +29,12 @@ const (
 type IssuePlanStep struct {
 	ID    string `json:"id"`
 	Title string `json:"title"`
+	// Plan Gate (K11): a step comes after other steps (their ids), may name a
+	// suggested assignee, and carries the sub-issue it became once approved.
+	After        []string `json:"after,omitempty"`
+	AssigneeType string   `json:"assignee_type,omitempty"`
+	AssigneeID   string   `json:"assignee_id,omitempty"`
+	IssueID      string   `json:"issue_id,omitempty"`
 }
 
 type IssuePlanResponse struct {
@@ -40,7 +46,9 @@ type IssuePlanResponse struct {
 	AuthorType   string          `json:"author_type"`
 	AuthorID     string          `json:"author_id"`
 	SupersededAt *string         `json:"superseded_at"`
-	CreatedAt    string          `json:"created_at"`
+	// MaterializedAt is set once the version's steps became sub-issues (K11).
+	MaterializedAt *string `json:"materialized_at"`
+	CreatedAt      string  `json:"created_at"`
 }
 
 type IssuePlanEnvelope struct {
@@ -80,15 +88,16 @@ func issuePlanToResponse(p db.IssuePlan) IssuePlanResponse {
 		steps = json.RawMessage("[]")
 	}
 	return IssuePlanResponse{
-		ID:           uuidToString(p.ID),
-		IssueID:      uuidToString(p.IssueID),
-		Version:      p.Version,
-		Content:      p.Content,
-		Steps:        steps,
-		AuthorType:   p.AuthorType,
-		AuthorID:     uuidToString(p.AuthorID),
-		SupersededAt: timestampToPtr(p.SupersededAt),
-		CreatedAt:    timestampToString(p.CreatedAt),
+		ID:             uuidToString(p.ID),
+		IssueID:        uuidToString(p.IssueID),
+		Version:        p.Version,
+		Content:        p.Content,
+		Steps:          steps,
+		AuthorType:     p.AuthorType,
+		AuthorID:       uuidToString(p.AuthorID),
+		SupersededAt:   timestampToPtr(p.SupersededAt),
+		MaterializedAt: timestampToPtr(p.MaterializedAt),
+		CreatedAt:      timestampToString(p.CreatedAt),
 	}
 }
 
@@ -165,15 +174,12 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, fmt.Sprintf("content exceeds %d bytes", planContentMaxBytes))
 		return
 	}
-	for i, s := range req.Steps {
-		if strings.TrimSpace(s.Title) == "" {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("steps[%d].title is required", i))
-			return
-		}
+	normalized, err := normalizePlanSteps(req.Steps)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
 	}
-	if req.Steps == nil {
-		req.Steps = []IssuePlanStep{}
-	}
+	req.Steps = normalized
 	steps, _ := json.Marshal(req.Steps)
 
 	workspaceID := uuidToString(issue.WorkspaceID)
@@ -181,7 +187,6 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	var plan db.IssuePlan
-	var err error
 	// The version is computed in the INSERT; the unique index turns a
 	// concurrent publish into a conflict worth one retry.
 	for attempt := 0; attempt < 2; attempt++ {
@@ -204,6 +209,11 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := h.Queries.SupersedeOtherIssuePlans(ctx, db.SupersedeOtherIssuePlansParams{IssueID: issue.ID, ID: plan.ID}); err != nil {
 		slog.Warn("supersede issue plans failed", append(logger.RequestAttrs(r), "error", err)...)
+	}
+	// Plan Gate (K11): a plan with steps published from a run asks a human to
+	// approve it before the steps become sub-issues.
+	if len(req.Steps) > 0 && isMachineCredentialActor(r) {
+		h.askPlanApproval(ctx, r, issue, plan, len(req.Steps), actorType, actorID)
 	}
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	created := issuePlanToResponse(plan)

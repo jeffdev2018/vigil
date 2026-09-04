@@ -34,6 +34,16 @@ var issuePlanSetCmd = &cobra.Command{
 	RunE:  runIssuePlanSet,
 }
 
+var issuePlanApproveCmd = &cobra.Command{
+	Use:   "approve <issue-id>",
+	Short: "Approve a plan version: its steps become sub-issues (Plan Gate)",
+	Long: `Creates one sub-issue per plan step, stage 1 in todo and later stages
+parked in backlog, with blocking dependencies from each step's "after" list.
+Human-only: a run cannot approve its own plan. Defaults to the active version.`,
+	Args: exactArgs(1),
+	RunE: runIssuePlanApprove,
+}
+
 var issuePlanReportCmd = &cobra.Command{
 	Use:   "report <issue-id>",
 	Short: "Report verification findings for a run (JSON from --file or stdin)",
@@ -45,12 +55,14 @@ func init() {
 	issuePlanGetCmd.Flags().String("output", "json", "Output format: json")
 	issuePlanSetCmd.Flags().String("file", "", "Markdown file holding the plan")
 	issuePlanSetCmd.Flags().String("content", "", "Plan text (alternative to --file)")
-	issuePlanSetCmd.Flags().String("steps-json", "", `Optional steps as JSON: [{"id":"s1","title":"..."}]`)
+	issuePlanSetCmd.Flags().String("steps-json", "", `Optional steps as JSON: [{"id":"s1","title":"...","after":["s0"],"assignee_type":"agent","assignee_id":"<uuid>"}]`)
+	issuePlanApproveCmd.Flags().Int("version", 0, "Plan version to approve (default: the active one)")
+	issuePlanApproveCmd.Flags().String("output", "json", "Output format: json")
 	issuePlanSetCmd.Flags().String("output", "json", "Output format: json")
 	issuePlanReportCmd.Flags().String("run", "", "Verification run id (defaults to MULTICA_TASK_ID)")
 	issuePlanReportCmd.Flags().String("file", "", "JSON report file ({summary, findings[]}); '-' or empty reads stdin")
 	issuePlanReportCmd.Flags().String("output", "json", "Output format: json")
-	issuePlanCmd.AddCommand(issuePlanGetCmd, issuePlanSetCmd, issuePlanReportCmd)
+	issuePlanCmd.AddCommand(issuePlanGetCmd, issuePlanSetCmd, issuePlanReportCmd, issuePlanApproveCmd)
 	issueCmd.AddCommand(issuePlanCmd)
 }
 
@@ -169,4 +181,37 @@ func readAllStdin() ([]byte, error) {
 		}
 	}
 	return []byte(b.String()), nil
+}
+
+func runIssuePlanApprove(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+	issueRef, err := resolveIssueRef(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve issue: %w", err)
+	}
+	version, _ := cmd.Flags().GetInt("version")
+	if version <= 0 {
+		var envelope struct {
+			Plan *struct {
+				Version int `json:"version"`
+			} `json:"plan"`
+		}
+		if err := client.GetJSON(ctx, "/api/issues/"+issueRef.ID+"/plan", &envelope); err != nil {
+			return fmt.Errorf("get plan: %w", err)
+		}
+		if envelope.Plan == nil {
+			return fmt.Errorf("this issue has no plan")
+		}
+		version = envelope.Plan.Version
+	}
+	var result map[string]any
+	if err := client.PostJSON(ctx, fmt.Sprintf("/api/issues/%s/plan/%d/materialize", issueRef.ID, version), map[string]any{}, &result); err != nil {
+		return fmt.Errorf("approve plan: %w", err)
+	}
+	return cli.PrintJSON(os.Stdout, result)
 }

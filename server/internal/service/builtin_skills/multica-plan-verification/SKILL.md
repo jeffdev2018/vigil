@@ -36,6 +36,31 @@ multica issue plan set <issue-id> --file PLAN.md --steps-json '[{"id":"s1","titl
 Update the plan when the work genuinely changes shape; do not republish for
 wording.
 
+## Plan Gate: steps become sub-issues once a human approves
+
+A plan published from a run with structured steps asks the workspace's humans
+for approval (a Decision Card on the issue). Approval creates one sub-issue per
+step under the issue; **do not create those sub-issues yourself**, and finish
+your turn after publishing. When the card is answered you are resumed with a
+handoff note naming the sub-issues. A step can declare what it comes after and
+who should take it:
+
+```bash
+multica issue plan set <issue-id> --file PLAN.md --steps-json '[
+  {"id":"s1","title":"Add the endpoint","assignee_type":"agent","assignee_id":"<agent-uuid>"},
+  {"id":"s2","title":"Cover it with a handler test","after":["s1"]},
+  {"id":"s3","title":"Document it","after":["s1"]}
+]'
+```
+
+`after` lists step ids; it becomes a blocking dependency and sets the
+sub-issue's stage (steps with no `after` are stage 1 and start in `todo`,
+later stages wait in `backlog` and are promoted as each stage closes). A
+plan whose `after` graph has a cycle or an unknown id is refused at publish.
+An unknown suggested assignee is dropped, not an error. `multica issue plan
+get` shows each step's `issue_id` once the plan is materialized. If the human
+asks for changes instead, revise the plan with a new `set`.
+
 ## Verification runs
 
 When the workspace has plan verification enabled and an issue with an active

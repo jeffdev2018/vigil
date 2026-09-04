@@ -1,8 +1,8 @@
 -- Decision Cards (K01).
 
 -- name: CreateIssueDecision :one
-INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: GetIssueDecision :one

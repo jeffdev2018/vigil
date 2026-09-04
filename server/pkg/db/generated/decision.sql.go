@@ -24,9 +24,9 @@ func (q *Queries) CountPendingIssueDecisions(ctx context.Context, issueID pgtype
 
 const createIssueDecision = `-- name: CreateIssueDecision :one
 
-INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at
+INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version
 `
 
 type CreateIssueDecisionParams struct {
@@ -39,6 +39,7 @@ type CreateIssueDecisionParams struct {
 	Options             []byte      `json:"options"`
 	RecommendedOptionID pgtype.Text `json:"recommended_option_id"`
 	Urgency             string      `json:"urgency"`
+	PlanVersion         pgtype.Int4 `json:"plan_version"`
 }
 
 // Decision Cards (K01).
@@ -53,6 +54,7 @@ func (q *Queries) CreateIssueDecision(ctx context.Context, arg CreateIssueDecisi
 		arg.Options,
 		arg.RecommendedOptionID,
 		arg.Urgency,
+		arg.PlanVersion,
 	)
 	var i IssueDecision
 	err := row.Scan(
@@ -72,12 +74,13 @@ func (q *Queries) CreateIssueDecision(ctx context.Context, arg CreateIssueDecisi
 		&i.RespondedAt,
 		&i.ResumeTaskID,
 		&i.CreatedAt,
+		&i.PlanVersion,
 	)
 	return i, err
 }
 
 const getIssueDecision = `-- name: GetIssueDecision :one
-SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at FROM issue_decision WHERE id = $1 AND issue_id = $2
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version FROM issue_decision WHERE id = $1 AND issue_id = $2
 `
 
 type GetIssueDecisionParams struct {
@@ -105,12 +108,13 @@ func (q *Queries) GetIssueDecision(ctx context.Context, arg GetIssueDecisionPara
 		&i.RespondedAt,
 		&i.ResumeTaskID,
 		&i.CreatedAt,
+		&i.PlanVersion,
 	)
 	return i, err
 }
 
 const listIssueDecisions = `-- name: ListIssueDecisions :many
-SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at FROM issue_decision
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version FROM issue_decision
 WHERE issue_id = $1 AND workspace_id = $2
 ORDER BY (response IS NULL) DESC, created_at DESC
 LIMIT 50
@@ -147,6 +151,7 @@ func (q *Queries) ListIssueDecisions(ctx context.Context, arg ListIssueDecisions
 			&i.RespondedAt,
 			&i.ResumeTaskID,
 			&i.CreatedAt,
+			&i.PlanVersion,
 		); err != nil {
 			return nil, err
 		}
@@ -162,7 +167,7 @@ const respondIssueDecision = `-- name: RespondIssueDecision :one
 UPDATE issue_decision
 SET response = $2, responded_by_type = $3, responded_by_id = $4, responded_at = now()
 WHERE id = $1 AND response IS NULL
-RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at
+RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version
 `
 
 type RespondIssueDecisionParams struct {
@@ -198,6 +203,7 @@ func (q *Queries) RespondIssueDecision(ctx context.Context, arg RespondIssueDeci
 		&i.RespondedAt,
 		&i.ResumeTaskID,
 		&i.CreatedAt,
+		&i.PlanVersion,
 	)
 	return i, err
 }

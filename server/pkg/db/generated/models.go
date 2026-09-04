@@ -804,6 +804,7 @@ type IssueDecision struct {
 	RespondedAt         pgtype.Timestamptz `json:"responded_at"`
 	ResumeTaskID        pgtype.UUID        `json:"resume_task_id"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	PlanVersion         pgtype.Int4        `json:"plan_version"`
 }
 
 type IssueDependency struct {
@@ -836,6 +837,8 @@ type IssuePlan struct {
 	AuthorID     pgtype.UUID        `json:"author_id"`
 	SupersededAt pgtype.Timestamptz `json:"superseded_at"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	// When this version's steps were materialized as sub-issues; NULL until approved.
+	MaterializedAt pgtype.Timestamptz `json:"materialized_at"`
 }
 
 type IssueProperty struct {

@@ -86,3 +86,18 @@ RETURNING *;
 UPDATE issue SET revision = revision + 1, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- Plan Gate (K11).
+
+-- name: ClaimIssuePlanMaterialization :one
+-- The claim is the idempotency guard: a second approval matches no row.
+UPDATE issue_plan
+SET materialized_at = now()
+WHERE id = $1 AND materialized_at IS NULL AND superseded_at IS NULL
+RETURNING *;
+
+-- name: ReleaseIssuePlanMaterialization :exec
+UPDATE issue_plan SET materialized_at = NULL WHERE id = $1;
+
+-- name: SetIssuePlanSteps :one
+UPDATE issue_plan SET steps = $2 WHERE id = $1 RETURNING *;

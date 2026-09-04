@@ -11,6 +11,35 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const claimIssuePlanMaterialization = `-- name: ClaimIssuePlanMaterialization :one
+
+UPDATE issue_plan
+SET materialized_at = now()
+WHERE id = $1 AND materialized_at IS NULL AND superseded_at IS NULL
+RETURNING id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at
+`
+
+// Plan Gate (K11).
+// The claim is the idempotency guard: a second approval matches no row.
+func (q *Queries) ClaimIssuePlanMaterialization(ctx context.Context, id pgtype.UUID) (IssuePlan, error) {
+	row := q.db.QueryRow(ctx, claimIssuePlanMaterialization, id)
+	var i IssuePlan
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.Version,
+		&i.Content,
+		&i.Steps,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.SupersededAt,
+		&i.CreatedAt,
+		&i.MaterializedAt,
+	)
+	return i, err
+}
+
 const createIssuePlan = `-- name: CreateIssuePlan :one
 INSERT INTO issue_plan (workspace_id, issue_id, version, content, steps, author_type, author_id)
 SELECT $1, $2,
@@ -18,7 +47,7 @@ SELECT $1, $2,
        $3, $4, $5, $6
 FROM issue_plan
 WHERE issue_id = $2
-RETURNING id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at
+RETURNING id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at
 `
 
 type CreateIssuePlanParams struct {
@@ -53,6 +82,7 @@ func (q *Queries) CreateIssuePlan(ctx context.Context, arg CreateIssuePlanParams
 		&i.AuthorID,
 		&i.SupersededAt,
 		&i.CreatedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
 }
@@ -105,7 +135,7 @@ func (q *Queries) CreatePlanVerification(ctx context.Context, arg CreatePlanVeri
 
 const getActiveIssuePlan = `-- name: GetActiveIssuePlan :one
 
-SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at FROM issue_plan
+SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at FROM issue_plan
 WHERE issue_id = $1 AND workspace_id = $2 AND superseded_at IS NULL
 ORDER BY version DESC
 LIMIT 1
@@ -133,12 +163,13 @@ func (q *Queries) GetActiveIssuePlan(ctx context.Context, arg GetActiveIssuePlan
 		&i.AuthorID,
 		&i.SupersededAt,
 		&i.CreatedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
 }
 
 const getIssuePlanVersion = `-- name: GetIssuePlanVersion :one
-SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at FROM issue_plan
+SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at FROM issue_plan
 WHERE issue_id = $1 AND workspace_id = $2 AND version = $3
 `
 
@@ -162,6 +193,7 @@ func (q *Queries) GetIssuePlanVersion(ctx context.Context, arg GetIssuePlanVersi
 		&i.AuthorID,
 		&i.SupersededAt,
 		&i.CreatedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
 }
@@ -229,7 +261,7 @@ func (q *Queries) GetPlanVerificationByTask(ctx context.Context, taskID pgtype.U
 }
 
 const listIssuePlanVersions = `-- name: ListIssuePlanVersions :many
-SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at FROM issue_plan
+SELECT id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at FROM issue_plan
 WHERE issue_id = $1 AND workspace_id = $2
 ORDER BY version DESC
 `
@@ -259,6 +291,7 @@ func (q *Queries) ListIssuePlanVersions(ctx context.Context, arg ListIssuePlanVe
 			&i.AuthorID,
 			&i.SupersededAt,
 			&i.CreatedAt,
+			&i.MaterializedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -333,6 +366,15 @@ func (q *Queries) PlanVerificationExistsForSource(ctx context.Context, taskID pg
 	return exists, err
 }
 
+const releaseIssuePlanMaterialization = `-- name: ReleaseIssuePlanMaterialization :exec
+UPDATE issue_plan SET materialized_at = NULL WHERE id = $1
+`
+
+func (q *Queries) ReleaseIssuePlanMaterialization(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, releaseIssuePlanMaterialization, id)
+	return err
+}
+
 const reportPlanVerification = `-- name: ReportPlanVerification :one
 UPDATE plan_verification
 SET state = 'reported',
@@ -386,6 +428,34 @@ func (q *Queries) ReportPlanVerification(ctx context.Context, arg ReportPlanVeri
 		&i.Summary,
 		&i.ReportedAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setIssuePlanSteps = `-- name: SetIssuePlanSteps :one
+UPDATE issue_plan SET steps = $2 WHERE id = $1 RETURNING id, workspace_id, issue_id, version, content, steps, author_type, author_id, superseded_at, created_at, materialized_at
+`
+
+type SetIssuePlanStepsParams struct {
+	ID    pgtype.UUID `json:"id"`
+	Steps []byte      `json:"steps"`
+}
+
+func (q *Queries) SetIssuePlanSteps(ctx context.Context, arg SetIssuePlanStepsParams) (IssuePlan, error) {
+	row := q.db.QueryRow(ctx, setIssuePlanSteps, arg.ID, arg.Steps)
+	var i IssuePlan
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.Version,
+		&i.Content,
+		&i.Steps,
+		&i.AuthorType,
+		&i.AuthorID,
+		&i.SupersededAt,
+		&i.CreatedAt,
+		&i.MaterializedAt,
 	)
 	return i, err
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Decision Cards (K01): a typed question an agent asks a human on an issue.
@@ -52,7 +53,10 @@ type IssueDecisionResponse struct {
 	RespondedByID       string           `json:"responded_by_id,omitempty"`
 	RespondedAt         *string          `json:"responded_at"`
 	ResumeTaskID        string           `json:"resume_task_id,omitempty"`
-	CreatedAt           string           `json:"created_at"`
+	// PlanVersion marks a plan-approval card (K11): answering "approve"
+	// materializes that plan version.
+	PlanVersion int32  `json:"plan_version,omitempty"`
+	CreatedAt   string `json:"created_at"`
 }
 
 func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
@@ -78,6 +82,7 @@ func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
 		Options:             options,
 		RecommendedOptionID: d.RecommendedOptionID.String,
 		Urgency:             d.Urgency,
+		PlanVersion:         d.PlanVersion.Int32,
 		Response:            answer,
 		RespondedByType:     d.RespondedByType.String,
 		RespondedByID:       uuidToString(d.RespondedByID),
@@ -247,6 +252,27 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 
 	workspaceID := uuidToString(issue.WorkspaceID)
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+
+	// Plan Gate (K11): approving a plan card creates the sub-issues first; a
+	// refusal (superseded, already done) leaves the card unanswered.
+	materializationNote := ""
+	if decision.PlanVersion.Valid && req.OptionID == planApproveOptionID {
+		plan, err := h.Queries.GetIssuePlanVersion(ctx, db.GetIssuePlanVersionParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID, Version: decision.PlanVersion.Int32})
+		if err != nil {
+			writeErrorCode(w, http.StatusConflict, ErrCodePlanSuperseded, "the plan this card asked about no longer exists")
+			return
+		}
+		children, _, err := h.materializePlan(ctx, r, issue, plan, actorType, actorID)
+		if err != nil {
+			h.writePlanMaterializationError(w, r, err)
+			return
+		}
+		materializationNote = planMaterializationNote(h.getIssuePrefix(ctx, issue.WorkspaceID), plan, children)
+		h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
+			"issue": issueToResponse(issue, h.getIssuePrefix(ctx, issue.WorkspaceID)), "children_changed": true,
+		})
+	}
+
 	answer, _ := json.Marshal(req)
 	updated, err := h.Queries.RespondIssueDecision(ctx, db.RespondIssueDecisionParams{
 		ID:              decisionID,
@@ -268,6 +294,9 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 	// A human-assigned issue just keeps the recorded answer.
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid {
 		note := decisionHandoffNote(decision.Question, chosen, req)
+		if materializationNote != "" {
+			note += "\n" + materializationNote
+		}
 		if task, err := h.TaskService.EnqueueTaskForIssueWithHandoff(ctx, issue, note, parseUUID(userID)); err != nil {
 			slog.Warn("decision: enqueue resume run failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
 		} else if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decisionID, ResumeTaskID: task.ID}); err == nil {

@@ -1920,6 +1920,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/pr-stack", h.GetIssuePRStack)
 					r.Get("/plan", h.GetIssuePlan)
 					r.Put("/plan", h.SetIssuePlan)
+					// Plan Gate (K11): a human approves a plan version into sub-issues.
+					r.With(handler.RequireHumanActor).Post("/plan/{version}/materialize", h.MaterializeIssuePlan)
 					r.Get("/plan/verifications", h.ListPlanVerifications)
 					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
 					r.Get("/acceptance-criteria", h.ListAcceptanceCriteria)
