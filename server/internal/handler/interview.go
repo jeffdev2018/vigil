@@ -184,6 +184,7 @@ func (h *Handler) AskRequirementInterview(w http.ResponseWriter, r *http.Request
 			InterviewGroupID:      groupID,
 			InterviewPosition:     pgtype.Int4{Int32: int32(i + 1), Valid: true},
 			InterviewResumeStatus: pgtype.Text{String: resumeStatus, Valid: true},
+			SlaDeadlineAt:         h.decisionDeadline(ctx, issue.WorkspaceID),
 		})
 		if err != nil {
 			slog.Warn("interview: create question failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)

@@ -1,8 +1,8 @@
 -- Decision Cards (K01).
 
 -- name: CreateIssueDecision :one
-INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version, interview_group_id, interview_position, interview_resume_status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 RETURNING *;
 
 -- name: GetIssueDecision :one
@@ -37,3 +37,18 @@ ORDER BY interview_position ASC;
 -- name: CountPendingInterviewQuestions :one
 SELECT COUNT(*)::bigint FROM issue_decision
 WHERE issue_id = $1 AND interview_group_id IS NOT NULL AND response IS NULL;
+
+-- Decision SLA (K35).
+
+-- name: ListOverdueIssueDecisions :many
+SELECT * FROM issue_decision
+WHERE response IS NULL AND sla_deadline_at IS NOT NULL AND sla_deadline_at <= $1 AND escalation_level < 2
+ORDER BY sla_deadline_at ASC
+LIMIT 200;
+
+-- name: EscalateIssueDecision :one
+-- The level predicate makes a concurrent tick a no-op instead of a double step.
+UPDATE issue_decision
+SET escalation_level = $2, escalated_at = $3, sla_deadline_at = $4
+WHERE id = $1 AND response IS NULL AND escalation_level = $2 - 1
+RETURNING *;

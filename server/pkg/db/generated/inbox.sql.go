@@ -522,13 +522,13 @@ SELECT i.id, i.workspace_id, i.recipient_type, i.recipient_id, i.type, i.severit
        iss.priority AS issue_priority
 FROM inbox_item i
 LEFT JOIN issue iss ON iss.id = i.issue_id
-LEFT JOIN issue_decision d ON i.type = 'decision_request'
+LEFT JOIN issue_decision d ON i.type IN ('decision_request', 'decision_escalated')
     AND (i.details->>'decision_id') ~ '^[0-9a-f-]{36}$'
     AND d.id = (i.details->>'decision_id')::uuid
 WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
   AND i.archived = false
-  AND i.type IN ('decision_request', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed')
-  AND (i.type <> 'decision_request' OR (d.id IS NOT NULL AND d.response IS NULL))
+  AND i.type IN ('decision_request', 'decision_escalated', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed')
+  AND (i.type NOT IN ('decision_request', 'decision_escalated') OR (d.id IS NOT NULL AND d.response IS NULL))
 ORDER BY i.created_at DESC
 LIMIT 200
 `

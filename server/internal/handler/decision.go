@@ -60,7 +60,12 @@ type IssueDecisionResponse struct {
 	// keep their order; the run resumes only when the whole group is answered.
 	InterviewGroupID  string `json:"interview_group_id,omitempty"`
 	InterviewPosition int32  `json:"interview_position,omitempty"`
-	CreatedAt         string `json:"created_at"`
+	// Decision SLA (K35): the deadline under the workspace policy and how far
+	// the escalation went (0 none, 1 substitute, 2 leads).
+	SlaDeadlineAt   *string `json:"sla_deadline_at"`
+	EscalationLevel int32   `json:"escalation_level"`
+	EscalatedAt     *string `json:"escalated_at"`
+	CreatedAt       string  `json:"created_at"`
 }
 
 func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
@@ -89,6 +94,9 @@ func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
 		PlanVersion:         d.PlanVersion.Int32,
 		InterviewGroupID:    uuidToString(d.InterviewGroupID),
 		InterviewPosition:   d.InterviewPosition.Int32,
+		SlaDeadlineAt:       timestampToPtr(d.SlaDeadlineAt),
+		EscalationLevel:     d.EscalationLevel,
+		EscalatedAt:         timestampToPtr(d.EscalatedAt),
 		Response:            answer,
 		RespondedByType:     d.RespondedByType.String,
 		RespondedByID:       uuidToString(d.RespondedByID),
@@ -155,6 +163,7 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 		Options:             options,
 		RecommendedOptionID: pgtype.Text{String: req.RecommendedOptionID, Valid: req.RecommendedOptionID != ""},
 		Urgency:             req.Urgency,
+		SlaDeadlineAt:       h.decisionDeadline(r.Context(), issue.WorkspaceID),
 	})
 	if err != nil {
 		slog.Warn("create issue decision failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)

@@ -48,7 +48,7 @@ func attentionScore(item db.ListInboxItemsRow, now time.Time) (int, string) {
 	case "attention":
 		score += attentionWeightAttention
 	}
-	if item.Type == "decision_request" {
+	if item.Type == "decision_request" || item.Type == "decision_escalated" {
 		score += attentionWeightDecision
 		var details struct {
 			Urgency string `json:"urgency"`
@@ -61,6 +61,12 @@ func attentionScore(item db.ListInboxItemsRow, now time.Time) (int, string) {
 			case "low":
 				score += attentionWeightUrgencyLow
 			}
+		}
+		if item.Type == "decision_escalated" {
+			// Someone already missed it: it outranks a fresh card, whatever
+			// its urgency said.
+			score += attentionWeightActionRequired
+			reason = "decision_escalated"
 		}
 	}
 	if item.CreatedAt.Valid {

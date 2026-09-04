@@ -36,25 +36,26 @@ func (q *Queries) CountPendingIssueDecisions(ctx context.Context, issueID pgtype
 
 const createIssueDecision = `-- name: CreateIssueDecision :one
 
-INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version, interview_group_id, interview_position, interview_resume_status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status
+INSERT INTO issue_decision (workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at
 `
 
 type CreateIssueDecisionParams struct {
-	WorkspaceID           pgtype.UUID `json:"workspace_id"`
-	IssueID               pgtype.UUID `json:"issue_id"`
-	TaskID                pgtype.UUID `json:"task_id"`
-	AskedByType           string      `json:"asked_by_type"`
-	AskedByID             pgtype.UUID `json:"asked_by_id"`
-	Question              string      `json:"question"`
-	Options               []byte      `json:"options"`
-	RecommendedOptionID   pgtype.Text `json:"recommended_option_id"`
-	Urgency               string      `json:"urgency"`
-	PlanVersion           pgtype.Int4 `json:"plan_version"`
-	InterviewGroupID      pgtype.UUID `json:"interview_group_id"`
-	InterviewPosition     pgtype.Int4 `json:"interview_position"`
-	InterviewResumeStatus pgtype.Text `json:"interview_resume_status"`
+	WorkspaceID           pgtype.UUID        `json:"workspace_id"`
+	IssueID               pgtype.UUID        `json:"issue_id"`
+	TaskID                pgtype.UUID        `json:"task_id"`
+	AskedByType           string             `json:"asked_by_type"`
+	AskedByID             pgtype.UUID        `json:"asked_by_id"`
+	Question              string             `json:"question"`
+	Options               []byte             `json:"options"`
+	RecommendedOptionID   pgtype.Text        `json:"recommended_option_id"`
+	Urgency               string             `json:"urgency"`
+	PlanVersion           pgtype.Int4        `json:"plan_version"`
+	InterviewGroupID      pgtype.UUID        `json:"interview_group_id"`
+	InterviewPosition     pgtype.Int4        `json:"interview_position"`
+	InterviewResumeStatus pgtype.Text        `json:"interview_resume_status"`
+	SlaDeadlineAt         pgtype.Timestamptz `json:"sla_deadline_at"`
 }
 
 // Decision Cards (K01).
@@ -73,6 +74,7 @@ func (q *Queries) CreateIssueDecision(ctx context.Context, arg CreateIssueDecisi
 		arg.InterviewGroupID,
 		arg.InterviewPosition,
 		arg.InterviewResumeStatus,
+		arg.SlaDeadlineAt,
 	)
 	var i IssueDecision
 	err := row.Scan(
@@ -96,12 +98,66 @@ func (q *Queries) CreateIssueDecision(ctx context.Context, arg CreateIssueDecisi
 		&i.InterviewGroupID,
 		&i.InterviewPosition,
 		&i.InterviewResumeStatus,
+		&i.SlaDeadlineAt,
+		&i.EscalationLevel,
+		&i.EscalatedAt,
+	)
+	return i, err
+}
+
+const escalateIssueDecision = `-- name: EscalateIssueDecision :one
+UPDATE issue_decision
+SET escalation_level = $2, escalated_at = $3, sla_deadline_at = $4
+WHERE id = $1 AND response IS NULL AND escalation_level = $2 - 1
+RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at
+`
+
+type EscalateIssueDecisionParams struct {
+	ID              pgtype.UUID        `json:"id"`
+	EscalationLevel int32              `json:"escalation_level"`
+	EscalatedAt     pgtype.Timestamptz `json:"escalated_at"`
+	SlaDeadlineAt   pgtype.Timestamptz `json:"sla_deadline_at"`
+}
+
+// The level predicate makes a concurrent tick a no-op instead of a double step.
+func (q *Queries) EscalateIssueDecision(ctx context.Context, arg EscalateIssueDecisionParams) (IssueDecision, error) {
+	row := q.db.QueryRow(ctx, escalateIssueDecision,
+		arg.ID,
+		arg.EscalationLevel,
+		arg.EscalatedAt,
+		arg.SlaDeadlineAt,
+	)
+	var i IssueDecision
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.IssueID,
+		&i.TaskID,
+		&i.AskedByType,
+		&i.AskedByID,
+		&i.Question,
+		&i.Options,
+		&i.RecommendedOptionID,
+		&i.Urgency,
+		&i.Response,
+		&i.RespondedByType,
+		&i.RespondedByID,
+		&i.RespondedAt,
+		&i.ResumeTaskID,
+		&i.CreatedAt,
+		&i.PlanVersion,
+		&i.InterviewGroupID,
+		&i.InterviewPosition,
+		&i.InterviewResumeStatus,
+		&i.SlaDeadlineAt,
+		&i.EscalationLevel,
+		&i.EscalatedAt,
 	)
 	return i, err
 }
 
 const getIssueDecision = `-- name: GetIssueDecision :one
-SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status FROM issue_decision WHERE id = $1 AND issue_id = $2
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision WHERE id = $1 AND issue_id = $2
 `
 
 type GetIssueDecisionParams struct {
@@ -133,13 +189,16 @@ func (q *Queries) GetIssueDecision(ctx context.Context, arg GetIssueDecisionPara
 		&i.InterviewGroupID,
 		&i.InterviewPosition,
 		&i.InterviewResumeStatus,
+		&i.SlaDeadlineAt,
+		&i.EscalationLevel,
+		&i.EscalatedAt,
 	)
 	return i, err
 }
 
 const listInterviewGroup = `-- name: ListInterviewGroup :many
 
-SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status FROM issue_decision
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision
 WHERE interview_group_id = $1 AND issue_id = $2
 ORDER BY interview_position ASC
 `
@@ -180,6 +239,9 @@ func (q *Queries) ListInterviewGroup(ctx context.Context, arg ListInterviewGroup
 			&i.InterviewGroupID,
 			&i.InterviewPosition,
 			&i.InterviewResumeStatus,
+			&i.SlaDeadlineAt,
+			&i.EscalationLevel,
+			&i.EscalatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -192,7 +254,7 @@ func (q *Queries) ListInterviewGroup(ctx context.Context, arg ListInterviewGroup
 }
 
 const listIssueDecisions = `-- name: ListIssueDecisions :many
-SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status FROM issue_decision
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision
 WHERE issue_id = $1 AND workspace_id = $2
 ORDER BY (response IS NULL) DESC, created_at DESC
 LIMIT 50
@@ -233,6 +295,62 @@ func (q *Queries) ListIssueDecisions(ctx context.Context, arg ListIssueDecisions
 			&i.InterviewGroupID,
 			&i.InterviewPosition,
 			&i.InterviewResumeStatus,
+			&i.SlaDeadlineAt,
+			&i.EscalationLevel,
+			&i.EscalatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listOverdueIssueDecisions = `-- name: ListOverdueIssueDecisions :many
+
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision
+WHERE response IS NULL AND sla_deadline_at IS NOT NULL AND sla_deadline_at <= $1 AND escalation_level < 2
+ORDER BY sla_deadline_at ASC
+LIMIT 200
+`
+
+// Decision SLA (K35).
+func (q *Queries) ListOverdueIssueDecisions(ctx context.Context, slaDeadlineAt pgtype.Timestamptz) ([]IssueDecision, error) {
+	rows, err := q.db.Query(ctx, listOverdueIssueDecisions, slaDeadlineAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueDecision{}
+	for rows.Next() {
+		var i IssueDecision
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.TaskID,
+			&i.AskedByType,
+			&i.AskedByID,
+			&i.Question,
+			&i.Options,
+			&i.RecommendedOptionID,
+			&i.Urgency,
+			&i.Response,
+			&i.RespondedByType,
+			&i.RespondedByID,
+			&i.RespondedAt,
+			&i.ResumeTaskID,
+			&i.CreatedAt,
+			&i.PlanVersion,
+			&i.InterviewGroupID,
+			&i.InterviewPosition,
+			&i.InterviewResumeStatus,
+			&i.SlaDeadlineAt,
+			&i.EscalationLevel,
+			&i.EscalatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -248,7 +366,7 @@ const respondIssueDecision = `-- name: RespondIssueDecision :one
 UPDATE issue_decision
 SET response = $2, responded_by_type = $3, responded_by_id = $4, responded_at = now()
 WHERE id = $1 AND response IS NULL
-RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status
+RETURNING id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at
 `
 
 type RespondIssueDecisionParams struct {
@@ -288,6 +406,9 @@ func (q *Queries) RespondIssueDecision(ctx context.Context, arg RespondIssueDeci
 		&i.InterviewGroupID,
 		&i.InterviewPosition,
 		&i.InterviewResumeStatus,
+		&i.SlaDeadlineAt,
+		&i.EscalationLevel,
+		&i.EscalatedAt,
 	)
 	return i, err
 }

@@ -765,6 +765,11 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.PluginHookScheduleDispatchJob(queries, h.PluginService)); err != nil {
 		slog.Warn("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
 	}
+	// Decision SLA (K35): overdue Decision Cards step to their substitute,
+	// then the workspace leads.
+	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
+		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
+	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)
 	}()

@@ -341,6 +341,7 @@ func (h *Handler) askPlanApproval(ctx context.Context, r *http.Request, issue db
 		RecommendedOptionID: pgtype.Text{String: planApproveOptionID, Valid: true},
 		Urgency:             "normal",
 		PlanVersion:         pgtype.Int4{Int32: plan.Version, Valid: true},
+		SlaDeadlineAt:       h.decisionDeadline(ctx, issue.WorkspaceID),
 	})
 	if err != nil {
 		slog.Warn("plan gate: file approval card failed", "error", err, "issue_id", uuidToString(issue.ID))

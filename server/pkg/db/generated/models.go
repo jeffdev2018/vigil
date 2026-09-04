@@ -808,6 +808,9 @@ type IssueDecision struct {
 	InterviewGroupID      pgtype.UUID        `json:"interview_group_id"`
 	InterviewPosition     pgtype.Int4        `json:"interview_position"`
 	InterviewResumeStatus pgtype.Text        `json:"interview_resume_status"`
+	SlaDeadlineAt         pgtype.Timestamptz `json:"sla_deadline_at"`
+	EscalationLevel       int32              `json:"escalation_level"`
+	EscalatedAt           pgtype.Timestamptz `json:"escalated_at"`
 }
 
 type IssueDependency struct {
