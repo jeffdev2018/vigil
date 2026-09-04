@@ -1067,6 +1067,17 @@ type Member struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ModuleOwnership struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	PathPattern     pgtype.Text        `json:"path_pattern"`
+	LabelID         pgtype.UUID        `json:"label_id"`
+	OwnerUserID     pgtype.UUID        `json:"owner_user_id"`
+	ReferentAgentID pgtype.UUID        `json:"referent_agent_id"`
+	Priority        int32              `json:"priority"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
 type NotificationPreference struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

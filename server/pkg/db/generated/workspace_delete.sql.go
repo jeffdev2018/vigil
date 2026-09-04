@@ -254,6 +254,9 @@ deleted_issues AS (
 deleted_labels AS (
     DELETE FROM issue_label WHERE issue_label.workspace_id = $1
 ),
+deleted_module_ownership AS (
+    DELETE FROM module_ownership WHERE module_ownership.workspace_id = $1
+),
 deleted_properties AS (
     DELETE FROM issue_property WHERE issue_property.workspace_id = $1
 ),

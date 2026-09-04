@@ -1928,6 +1928,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.With(handler.RequireHumanActor).Post("/plan/{version}/materialize", h.MaterializeIssuePlan)
 					r.Get("/plan/verifications", h.ListPlanVerifications)
 					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
+					r.Get("/ownership-suggestion", h.GetOwnershipSuggestion)
 					r.Get("/acceptance-criteria", h.ListAcceptanceCriteria)
 					r.Put("/acceptance-criteria", h.SetAcceptanceCriteria)
 					r.Patch("/acceptance-criteria/{criterionId}/proof", h.ProveAcceptanceCriterion)
@@ -1978,6 +1979,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Issue status catalog (MUL-6243). Reads are open to any member —
 			// every client needs the catalog to render a status. Writes are
 			// gated to workspace owner/admin inside the handlers.
+			// Module ownership (K33): rules that suggest an owner and a referent agent.
+			r.Route("/api/module-ownership", func(r chi.Router) {
+				r.Get("/", h.ListModuleOwnership)
+				r.Post("/", h.CreateModuleOwnership)
+				r.Delete("/{id}", h.DeleteModuleOwnership)
+			})
 			r.Route("/api/issue-statuses", func(r chi.Router) {
 				r.Get("/", h.ListIssueStatuses)
 				r.Post("/", h.CreateIssueStatus)

@@ -3092,6 +3092,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Module ownership (K33): tell the owner of a matching rule, never assign.
+	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
