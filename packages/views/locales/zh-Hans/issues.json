@@ -912,6 +912,28 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "fanout": {
+    "section": "扇出",
+    "count": "{{done}}/{{total}} 已结算",
+    "status": {
+      "pending": "进行中",
+      "partial_failure": "部分失败",
+      "complete": "完成"
+    },
+    "partial": "{{failed}} 个子任务最终失败；综合仍会开始，并须说明缺失的部分。",
+    "synthesis": "已为领导者排队综合运行 {{id}}",
+    "open": "分派给专家",
+    "leader": "领导者智能体",
+    "sub_task": "子任务 {{n}}",
+    "sub_task_placeholder": "该专家应做什么",
+    "assignee": "子任务 {{n}} 的负责人",
+    "pick_agent": "指派给…",
+    "remove": "移除子任务 {{n}}",
+    "add": "添加子任务",
+    "launch": "启动扇出",
+    "cancel": "取消",
+    "failed": "扇出请求失败"
+  },
   "pipeline": {
     "pick": "选择流水线",
     "start": "启动流水线",

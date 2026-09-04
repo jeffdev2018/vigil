@@ -943,6 +943,28 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "fanout": {
+    "section": "Fan-out",
+    "count": "{{done}}/{{total}} settled",
+    "status": {
+      "pending": "in progress",
+      "partial_failure": "partial failure",
+      "complete": "complete"
+    },
+    "partial": "{{failed}} sub-task(s) failed for good; the synthesis starts anyway and must say what is missing.",
+    "synthesis": "Synthesis run {{id}} queued for the leader",
+    "open": "Fan out to specialists",
+    "leader": "Leader agent",
+    "sub_task": "Sub-task {{n}}",
+    "sub_task_placeholder": "What this specialist should do",
+    "assignee": "Assignee of sub-task {{n}}",
+    "pick_agent": "Assign to…",
+    "remove": "Remove sub-task {{n}}",
+    "add": "Add a sub-task",
+    "launch": "Launch fan-out",
+    "cancel": "Cancel",
+    "failed": "The fan-out request failed"
+  },
   "pipeline": {
     "pick": "Choose a pipeline",
     "start": "Start pipeline",

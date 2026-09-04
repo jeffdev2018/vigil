@@ -4394,3 +4394,33 @@ export const PipelineRunSchema = z.object({
 export const PipelineRunEnvelopeSchema = z.object({
   run: PipelineRunSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Fan-out / fan-in (K38).
+export const FanoutMemberSchema = z.object({
+  id: z.string().default(""),
+  child_issue_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  assignee_agent_id: z.string().default(""),
+  description: z.string().default(""),
+  outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  settled_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const FanoutBatchSchema = z.object({
+  id: z.string().default(""),
+  parent_issue_id: z.string().default(""),
+  leader_agent_id: z.string().default(""),
+  status: z.enum(["pending", "partial_failure", "complete"]).catch("pending").default("pending"),
+  expected_count: z.number().int().catch(0).default(0),
+  completed_count: z.number().int().catch(0).default(0),
+  failed_count: z.number().int().catch(0).default(0),
+  synthesis_task_id: z.string().nullable().catch(null).default(null),
+  members: z.array(FanoutMemberSchema).catch([]).default([]),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const FanoutEnvelopeSchema = z.object({
+  batch: FanoutBatchSchema.nullable().catch(null).default(null),
+}).loose();

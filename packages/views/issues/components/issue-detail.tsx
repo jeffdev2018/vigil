@@ -103,6 +103,7 @@ import { TrafficConflictBanner } from "./traffic-conflict-banner";
 import { DriftBadge } from "./drift-badge";
 import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
+import { FanoutSection } from "./fanout-section";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2638,6 +2639,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Pipelines (K37): progress through the stages, or a picker to start one. */}
       <PipelineProgress issueId={id} />
+
+      {/* Fan-out / fan-in (K38): parallel specialist runs and the synthesis. */}
+      <FanoutSection issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />
