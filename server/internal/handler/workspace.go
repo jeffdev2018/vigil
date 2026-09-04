@@ -1225,6 +1225,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			name: "purge decision records",
+			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete leaf data",
 			run:  func() error { return qtx.DeleteWorkspaceLeafData(ctx, requester.WorkspaceID) },
 		},

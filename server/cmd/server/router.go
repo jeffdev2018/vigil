@@ -1932,6 +1932,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/acceptance-criteria", h.ListAcceptanceCriteria)
 					r.Put("/acceptance-criteria", h.SetAcceptanceCriteria)
 					r.Patch("/acceptance-criteria/{criterionId}/proof", h.ProveAcceptanceCriterion)
+					r.Get("/adr-required", h.GetIssueADRRequirement)
+					r.Post("/decisions", h.CreateIssueDecisions)
 					r.Get("/decisions", h.ListIssueDecisions)
 					// Requirement Interview (K13): up to three cards at once, issue parked.
 					r.Post("/interview", h.AskRequirementInterview)
@@ -2020,6 +2022,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/resources", h.CreateProjectResource)
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
+					r.Get("/decisions", h.ListProjectDecisions)
 				})
 			})
 

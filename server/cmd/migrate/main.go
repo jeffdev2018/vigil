@@ -308,6 +308,8 @@ var concurrentIndexCleanups = map[string]string{
 	"480_agent_scorecard_daily_unique":                          "agent_scorecard_daily_key",
 	"483_agent_version_unique":                                  "agent_version_agent_number",
 	"485_audit_log_entry_workspace_index":                       "idx_audit_log_entry_workspace_occurred",
+	"488_decision_record_project_index":                         "idx_decision_record_project",
+	"489_decision_record_issue_index":                           "idx_decision_record_issue",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 
