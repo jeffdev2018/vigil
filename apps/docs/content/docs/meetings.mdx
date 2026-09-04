@@ -1,0 +1,111 @@
+---
+title: Meetings
+description: Record a conversation, get a transcript, a summary, and every action item queued in Triage.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+A meeting in Multica is a recorded conversation. The audio is transcribed as it
+runs, summarized when you stop, and every commitment it contains is queued in
+Triage as a pending item you can accept into an issue or dismiss.
+
+<Callout type="info">
+Audio is never stored. Each chunk is transcribed and discarded; what is kept is
+the text, the summary, and the action items.
+</Callout>
+
+## Recording
+
+**Meetings → Record a meeting** starts a recording. The browser asks for the
+microphone, then offers to share a tab or window so the other participants are
+captured too — declining is fine, the meeting is then recorded from your
+microphone alone and the recorder says so.
+
+A recording indicator stays visible on every page, so you can navigate away and
+still stop it. Stopping is what closes the meeting: it uploads the tail of the
+conversation, writes the summary, and queues the action items.
+
+Only the tab that started a recording holds it. Another person, or the same
+person in another tab, sees "this meeting is being recorded elsewhere".
+
+<Callout type="warn">
+Tell the participants they are being transcribed. The recorder shows the same
+reminder — consent is yours to obtain, not the product's.
+</Callout>
+
+### If a recording is interrupted
+
+Closing the tab mid-meeting leaves the meeting in `recording` with nothing left
+to close it: the recorder lived in that page. Open the meeting and use **Finish
+meeting**, which the recorder and any workspace admin or owner can do. Whatever
+was transcribed up to that point is summarized normally.
+
+A summary that never came back (the server restarted, no model was configured at
+the time) leaves the meeting in `summarizing`. After five minutes the page stops
+waiting and offers **Regenerate summary**, which replays the same work. Action
+items it produces fold into the ones already queued rather than duplicating them.
+
+## Detecting meetings on the desktop app
+
+The desktop app can notice a conferencing app taking the microphone — Zoom, Meet,
+Teams, Slack huddles, FaceTime and the browsers — and offer to take notes. It
+only ever prompts; it never starts recording on its own, and it stays quiet while
+Multica itself is recording.
+
+Detection uses a bundled CoreAudio helper on macOS, and the operating system's own
+list of recording streams on Linux (PulseAudio / PipeWire) and Windows. Turn it
+off in **Settings → Preferences → Meetings → Detect meetings automatically**; the
+app then stops watching the microphone entirely.
+
+## Live and batch transcripts
+
+There are two transcription paths, and which one runs depends on how the server
+is configured.
+
+- **Batch** is always used: audio is uploaded in ~30-second chunks and each one is
+  transcribed as it arrives. When the provider supports speaker labelling and it
+  is enabled, the transcript is attributed — the meeting page renders one
+  paragraph per speaker turn.
+- **Live** runs when a realtime model is configured: the browser opens the
+  provider's realtime socket itself, with a short-lived token minted by the
+  server, and words appear as they are spoken. Live transcripts carry no speaker
+  labels. If the socket drops, the recording continues on the batch path.
+
+The transcript is collapsed on the meeting page by default — the summary above it
+is usually what you came for.
+
+## Summary and action items
+
+Stopping a meeting sends the transcript to the workspace's language model, which
+returns a short markdown summary (decisions, open questions, next steps) and up to
+15 action items. An action item is only kept when the model can point at a verbatim
+excerpt of the transcript that justifies it.
+
+Each action item becomes a **pending triage item**, not an issue: someone decides.
+Accepting one creates an issue stamped with the meeting it came from, and the
+issue then shows a "From meeting" link back to the recording.
+
+If no model is configured, or the call fails, the meeting still completes and the
+transcript is kept — the page says no summary was written, and **Regenerate
+summary** is there for when a model is available.
+
+## Configuration
+
+Meetings need a speech-to-text provider. Any service speaking the OpenAI-compatible
+`POST {base}/v1/audio/transcriptions` contract works: Mistral Voxtral, OpenAI,
+Groq, or a self-hosted Whisper / Qwen3-ASR behind vLLM.
+
+| Variable | What it does |
+| --- | --- |
+| `MULTICA_STT_BASE_URL` | Provider base URL. Empty disables meetings and voice memos. |
+| `MULTICA_STT_API_KEY` | Provider key. |
+| `MULTICA_STT_MODEL` | Transcription model. Empty also disables the feature. |
+| `MULTICA_STT_LANGUAGE` | ISO 639-1 hint (`fr`). Empty lets the provider detect. |
+| `MULTICA_STT_DIARIZE` | `true` asks providers that support it (Voxtral) to label speakers. |
+| `MULTICA_STT_REALTIME_MODEL` | Model for the live word-by-word transcript. Empty disables the live path. |
+
+With no provider configured the API answers `409 stt_not_configured` and the UI
+hides the feature behind a quiet notice rather than failing on upload.
+
+See [Environment variables](/docs/environment-variables) for the rest of the
+self-hosting configuration.

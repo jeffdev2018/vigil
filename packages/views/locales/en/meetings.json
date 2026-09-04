@@ -9,7 +9,13 @@
     "empty_description": "Record a conversation and Multica transcribes it as it runs, writes a summary, and queues every action item in Triage.",
     "segments": "{{count}} segments",
     "actions": "{{count}} actions",
-    "no_app": "No app"
+    "no_app": "No app",
+    "delete": "Delete meeting",
+    "row_actions_aria": "Actions for {{title}}",
+    "search_placeholder": "Search meetings",
+    "load_more": "Load more",
+    "search_empty_title": "No meeting matches",
+    "search_empty_description": "No loaded meeting has that in its title. Load more to search further back."
   },
   "capability": {
     "title": "Transcription is not configured",
@@ -39,7 +45,13 @@
     "transcript_title": "Transcript",
     "transcript_empty": "Nothing transcribed yet",
     "transcript_show": "Show transcript",
-    "transcript_hide": "Hide transcript"
+    "transcript_hide": "Hide transcript",
+    "delete": "Delete",
+    "title_placeholder": "Meeting title",
+    "rename_error": "Could not rename the meeting.",
+    "resummarize": "Regenerate summary",
+    "resummarize_error": "Could not regenerate the summary.",
+    "summary_stalled": "Summary is taking longer than expected. The run that was writing it is gone — regenerate it to try again."
   },
   "recorder": {
     "starting": "Starting the recorder…",
@@ -65,7 +77,8 @@
     "orphaned": "This recording was interrupted (the page was closed or refreshed). Close the meeting to summarize what was transcribed so far.",
     "finish_now": "Finish meeting",
     "live_title": "Live transcript",
-    "live_lost": "The live transcript dropped. The recording continues and each segment is transcribed when it ends."
+    "live_lost": "The live transcript dropped. The recording continues and each segment is transcribed when it ends.",
+    "finished_no_summary": "Meeting saved. No summary was written — the transcript is kept."
   },
   "action_state": {
     "pending": "Pending",
@@ -84,5 +97,12 @@
     "accept": "Take notes",
     "dismiss": "Not now",
     "meeting_title": "{{appName}} meeting"
+  },
+  "delete_dialog": {
+    "title": "Delete “{{title}}”?",
+    "body": "The recording and its transcript are removed for good. Action items already queued in Triage are kept.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "error": "Could not delete the meeting."
   }
 }

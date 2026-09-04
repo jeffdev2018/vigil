@@ -9,7 +9,13 @@
     "empty_description": "录制一场对话，Multica 会边录边转录，生成摘要，并把每条待办事项排进待审核队列。",
     "segments": "{{count}} 个片段",
     "actions": "{{count}} 条待办事项",
-    "no_app": "未知应用"
+    "no_app": "未知应用",
+    "delete": "删除会议",
+    "row_actions_aria": "{{title}} 的操作",
+    "search_placeholder": "搜索会议",
+    "load_more": "加载更多",
+    "search_empty_title": "没有匹配的会议",
+    "search_empty_description": "已加载的会议中没有匹配的标题。加载更多可搜索更早的会议。"
   },
   "capability": {
     "title": "尚未配置语音转录",
@@ -39,7 +45,13 @@
     "transcript_title": "转录",
     "transcript_empty": "暂无转录内容",
     "transcript_show": "显示转录",
-    "transcript_hide": "隐藏转录"
+    "transcript_hide": "隐藏转录",
+    "delete": "删除",
+    "title_placeholder": "会议标题",
+    "rename_error": "无法重命名该会议。",
+    "resummarize": "重新生成摘要",
+    "resummarize_error": "无法重新生成摘要。",
+    "summary_stalled": "摘要生成耗时超出预期。原先的生成过程已中断，请重新生成。"
   },
   "recorder": {
     "starting": "正在启动录制…",
@@ -65,7 +77,8 @@
     "orphaned": "此录制已中断（页面被关闭或刷新）。结束会议以汇总目前已转录的内容。",
     "finish_now": "结束会议",
     "live_title": "实时转录",
-    "live_lost": "实时转录已中断。录制将继续，每个片段在结束时转录。"
+    "live_lost": "实时转录已中断。录制将继续，每个片段在结束时转录。",
+    "finished_no_summary": "会议已保存。未生成摘要，但转录内容已保留。"
   },
   "action_state": {
     "pending": "待处理",
@@ -84,5 +97,12 @@
     "accept": "开始记录",
     "dismiss": "暂不",
     "meeting_title": "{{appName}} 会议"
+  },
+  "delete_dialog": {
+    "title": "删除“{{title}}”？",
+    "body": "录音与转录内容将被永久删除。已进入待审核队列的待办事项会保留。",
+    "cancel": "取消",
+    "confirm": "删除",
+    "error": "无法删除该会议。"
   }
 }

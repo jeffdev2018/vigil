@@ -133,6 +133,7 @@ interface DesktopAPI {
   ) => () => void;
   /** Report that our own renderer holds the microphone. */
   setMeetingSelfCapture: (active: boolean) => void;
+  setMeetingDetectionEnabled: (enabled: boolean) => void;
 }
 
 type DaemonReauthResult =

@@ -194,6 +194,11 @@
     "sticky_comment_bar": {
       "title": "Sticky comment bar",
       "hint": "Keep the comment bar pinned to the bottom while scrolling an issue page."
+    },
+    "meetings_title": "Meetings",
+    "meeting_detection": {
+      "title": "Detect meetings automatically",
+      "hint": "Multica watches which app is using your microphone and offers to take notes. It never starts recording on its own."
     }
   },
   "shortcuts": {
@@ -339,7 +344,10 @@
   "chat": {
     "floating_title": "Floating window",
     "floating_label": "Floating chat window",
-    "floating_hint": "Show the floating chat button in the corner of every page. Off by default — turn it on to summon chat anywhere; when off, Chat lives only in this tab."
+    "floating_hint": "Show the floating chat button in the corner of every page. Off by default — turn it on to summon chat anywhere; when off, Chat lives only in this tab.",
+    "voice_title": "Voice",
+    "read_aloud_label": "Read agent replies aloud after a voice memo",
+    "read_aloud_hint": "When you dictate a message, the reply it gets is spoken back. The Listen button on each reply works either way."
   },
   "issue": {
     "description": "Choose which fields each create dialog keeps on its toolbar. Hidden fields stay available from the ⋯ menu and reappear while they hold a value.",

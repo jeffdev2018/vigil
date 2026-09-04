@@ -54,6 +54,9 @@ let selfCapture = false;
 let helperRestarts = 0;
 let helper: ChildProcess | null = null;
 let stopping = false;
+let detectionEnabled = true;
+let timer: ReturnType<typeof setInterval> | null = null;
+let stopPoller: (() => void) | null = null;
 
 function readHelperStdout(child: ChildProcess): void {
   let buffer = "";
@@ -108,24 +111,15 @@ function spawnHelper(helperPath: string): void {
 }
 
 /**
- * Wire ambient meeting detection to the main window. Safe to call once at
- * startup on every platform; everything but the self-capture IPC is a no-op
- * outside macOS or without the helper binary.
+ * Start watching the microphone. No-op where there is nothing to watch with
+ * (no helper binary, an unsupported platform) and where it is already running.
  */
-export function setupMeetingDetector(
-  getWindow: () => BrowserWindow | null,
-): void {
-  if (started) return;
-  started = true;
+function startDetection(getWindow: () => BrowserWindow | null): void {
+  if (timer) return;
+  stopping = false;
+  helperRestarts = 0;
+  state = INITIAL_DETECTOR_STATE;
 
-  // The renderer reports its own capture so we never prompt about our audio.
-  // Registered on every platform: the preload exposes the call unconditionally.
-  ipcMain.on("meeting:self-capture", (_event, active: unknown) => {
-    selfCapture = active === true;
-    state = applySelfCapture(state, selfCapture);
-  });
-
-  let stopPoller: (() => void) | null = null;
   if (process.platform === "darwin") {
     const helperPath = micMonitorPath();
     if (!existsSync(helperPath)) {
@@ -156,7 +150,7 @@ export function setupMeetingDetector(
     return;
   }
 
-  const timer = setInterval(() => {
+  timer = setInterval(() => {
     try {
       const result = reduceTick(state, {
         now: Date.now(),
@@ -176,11 +170,58 @@ export function setupMeetingDetector(
       console.error("[meeting-detect] tick failed:", err);
     }
   }, POLL_INTERVAL_MS);
+}
+
+/**
+ * Stop watching: kill the helper or poller and release the tick. `stopping`
+ * also tells the helper's exit handler not to restart it.
+ */
+function stopDetection(): void {
+  stopping = true;
+  if (timer) {
+    clearInterval(timer);
+    timer = null;
+  }
+  stopPoller?.();
+  stopPoller = null;
+  helper?.kill();
+  helper = null;
+  micInUse = false;
+  micOwners = [];
+}
+
+/**
+ * Wire ambient meeting detection to the main window. Safe to call once at
+ * startup on every platform; everything but the two IPC channels is a no-op
+ * outside macOS/Linux/Windows or without a working backend.
+ */
+export function setupMeetingDetector(
+  getWindow: () => BrowserWindow | null,
+): void {
+  if (started) return;
+  started = true;
+
+  // The renderer reports its own capture so we never prompt about our audio.
+  // Registered on every platform: the preload exposes the call unconditionally.
+  ipcMain.on("meeting:self-capture", (_event, active: unknown) => {
+    selfCapture = active === true;
+    state = applySelfCapture(state, selfCapture);
+  });
+
+  // Settings → Preferences. Turning it off stops the watcher outright rather
+  // than muting its prompts: the point of the preference is not running a
+  // microphone watcher at all.
+  ipcMain.on("meeting:detection-enabled", (_event, enabled: unknown) => {
+    const next = enabled !== false;
+    if (next === detectionEnabled) return;
+    detectionEnabled = next;
+    if (next) startDetection(getWindow);
+    else stopDetection();
+  });
+
+  if (detectionEnabled) startDetection(getWindow);
 
   app.on("will-quit", () => {
-    stopping = true;
-    clearInterval(timer);
-    stopPoller?.();
-    helper?.kill();
+    stopDetection();
   });
 }

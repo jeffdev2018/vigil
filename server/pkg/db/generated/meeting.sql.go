@@ -131,6 +131,28 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 	return i, err
 }
 
+const deleteMeeting = `-- name: DeleteMeeting :execrows
+DELETE FROM meeting
+WHERE id = $1::uuid
+  AND workspace_id = $2::uuid
+`
+
+type DeleteMeetingParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Action items already captured into triage are deliberately NOT removed:
+// they are work items in their own right and the meeting is only where they
+// came from. Zero rows means the meeting was already gone.
+func (q *Queries) DeleteMeeting(ctx context.Context, arg DeleteMeetingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMeeting, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failMeeting = `-- name: FailMeeting :exec
 UPDATE meeting
 SET status = 'failed', updated_at = now()
@@ -306,6 +328,85 @@ func (q *Queries) ListTriageItemsByOrigin(ctx context.Context, arg ListTriageIte
 		return nil, err
 	}
 	return items, nil
+}
+
+const renameMeeting = `-- name: RenameMeeting :one
+UPDATE meeting
+SET title = $1::text, updated_at = now()
+WHERE id = $2::uuid
+  AND workspace_id = $3::uuid
+RETURNING id, workspace_id, created_by, title, app_name, status, transcript, summary_md, segment_count, started_at, ended_at, created_at, updated_at
+`
+
+type RenameMeetingParams struct {
+	Title       string      `json:"title"`
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, renameMeeting, arg.Title, arg.ID, arg.WorkspaceID)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.Title,
+		&i.AppName,
+		&i.Status,
+		&i.Transcript,
+		&i.SummaryMd,
+		&i.SegmentCount,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const restartMeetingSummary = `-- name: RestartMeetingSummary :one
+UPDATE meeting
+SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()
+WHERE id = $1::uuid
+  AND workspace_id = $2::uuid
+  AND (
+    status IN ('done', 'failed')
+    OR (status = 'summarizing'
+        AND updated_at < now() - make_interval(secs => $3::int))
+  )
+RETURNING id, workspace_id, created_by, title, app_name, status, transcript, summary_md, segment_count, started_at, ended_at, created_at, updated_at
+`
+
+type RestartMeetingSummaryParams struct {
+	ID                pgtype.UUID `json:"id"`
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	StaleAfterSeconds int32       `json:"stale_after_seconds"`
+}
+
+// Re-runs the summary for a meeting that already stopped recording: a `done`
+// one whose summary was never written (no LLM at the time), a `failed` one, or
+// a `summarizing` one whose finish request died mid-flight. A finish still in
+// flight is protected by stale_after_seconds. Zero rows means "not eligible".
+func (q *Queries) RestartMeetingSummary(ctx context.Context, arg RestartMeetingSummaryParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, restartMeetingSummary, arg.ID, arg.WorkspaceID, arg.StaleAfterSeconds)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.Title,
+		&i.AppName,
+		&i.Status,
+		&i.Transcript,
+		&i.SummaryMd,
+		&i.SegmentCount,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const startMeetingSummary = `-- name: StartMeetingSummary :one

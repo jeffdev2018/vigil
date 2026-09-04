@@ -9,7 +9,13 @@
     "empty_description": "会話を録音すると、Multica が進行中に文字起こしし、要約を作成して、アクションアイテムをトリアージに登録します。",
     "segments": "{{count}} セグメント",
     "actions": "アクションアイテム {{count}} 件",
-    "no_app": "アプリ不明"
+    "no_app": "アプリ不明",
+    "delete": "ミーティングを削除",
+    "row_actions_aria": "{{title}} の操作",
+    "search_placeholder": "ミーティングを検索",
+    "load_more": "さらに読み込む",
+    "search_empty_title": "一致するミーティングがありません",
+    "search_empty_description": "読み込み済みのミーティングにその名前は見つかりません。さらに読み込むと過去の分も検索できます。"
   },
   "capability": {
     "title": "文字起こしが設定されていません",
@@ -39,7 +45,13 @@
     "transcript_title": "文字起こし",
     "transcript_empty": "まだ文字起こしはありません",
     "transcript_show": "文字起こしを表示",
-    "transcript_hide": "文字起こしを隠す"
+    "transcript_hide": "文字起こしを隠す",
+    "delete": "削除",
+    "title_placeholder": "ミーティング名",
+    "rename_error": "ミーティング名を変更できませんでした。",
+    "resummarize": "要約を再生成",
+    "resummarize_error": "要約を再生成できませんでした。",
+    "summary_stalled": "要約に予想以上の時間がかかっています。実行していた処理が失われました。再生成してやり直してください。"
   },
   "recorder": {
     "starting": "録音を開始しています…",
@@ -65,7 +77,8 @@
     "orphaned": "この録音は中断されました（ページが閉じられたか再読み込みされました）。これまでの文字起こしを要約するには会議を終了してください。",
     "finish_now": "会議を終了",
     "live_title": "リアルタイム文字起こし",
-    "live_lost": "リアルタイム文字起こしが中断しました。録音は続行され、各セグメントは終了時に文字起こしされます。"
+    "live_lost": "リアルタイム文字起こしが中断しました。録音は続行され、各セグメントは終了時に文字起こしされます。",
+    "finished_no_summary": "ミーティングを保存しました。要約は作成されませんでしたが、文字起こしは残っています。"
   },
   "action_state": {
     "pending": "保留中",
@@ -84,5 +97,12 @@
     "accept": "記録する",
     "dismiss": "後で",
     "meeting_title": "{{appName}} のミーティング"
+  },
+  "delete_dialog": {
+    "title": "「{{title}}」を削除しますか？",
+    "body": "録音と文字起こしは完全に削除されます。すでにトリアージに登録されたアクションアイテムは残ります。",
+    "cancel": "キャンセル",
+    "confirm": "削除",
+    "error": "ミーティングを削除できませんでした。"
   }
 }

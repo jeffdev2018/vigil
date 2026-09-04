@@ -7784,14 +7784,20 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		// — clients localize those from the key — and a CUSTOM one is filled in
 		// by IssueToMapResolved, which has the catalog. Emitted unconditionally
 		// so this rendering cannot lose a key the HTTP one carries. (MUL-6749)
-		"status_name":      "",
-		"priority":         issue.Priority,
-		"assignee_type":    util.TextToPtr(issue.AssigneeType),
-		"assignee_id":      util.UUIDToPtr(issue.AssigneeID),
-		"creator_type":     issue.CreatorType,
-		"creator_id":       util.UUIDToString(issue.CreatorID),
-		"parent_issue_id":  util.UUIDToPtr(issue.ParentIssueID),
-		"project_id":       util.UUIDToPtr(issue.ProjectID),
+		"status_name":     "",
+		"priority":        issue.Priority,
+		"assignee_type":   util.TextToPtr(issue.AssigneeType),
+		"assignee_id":     util.UUIDToPtr(issue.AssigneeID),
+		"creator_type":    issue.CreatorType,
+		"creator_id":      util.UUIDToString(issue.CreatorID),
+		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),
+		"project_id":      util.UUIDToPtr(issue.ProjectID),
+		// Mirrors handler.IssueResponse.OriginType / OriginID: what produced
+		// the issue when it was not typed by hand. Emitted unconditionally
+		// here, like status_name, so this rendering cannot lose a key the
+		// HTTP one carries.
+		"origin_type":      util.TextToPtr(issue.OriginType),
+		"origin_id":        util.UUIDToPtr(issue.OriginID),
 		"position":         issue.Position,
 		"stage":            util.Int4ToPtr(issue.Stage),
 		"start_date":       util.DateToPtr(issue.StartDate),

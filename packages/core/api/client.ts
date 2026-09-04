@@ -1790,6 +1790,22 @@ export class ApiClient {
     });
   }
 
+  /** Renames a meeting. Title is the only mutable field. */
+  async updateMeeting(id: string, data: { title: string }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id",
+    });
+  }
+
+  /** Removes a meeting and its transcript. Recorder or workspace admin/owner. */
+  async deleteMeeting(id: string): Promise<void> {
+    await this.fetch(`/api/meetings/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
   /**
    * Uploads one recorded audio chunk. Not routed through `this.fetch`: the
    * browser has to set the multipart boundary itself (same reason as
@@ -1867,6 +1883,21 @@ export class ApiClient {
     );
     return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
       endpoint: "POST /api/meetings/:id/finish",
+    });
+  }
+
+  /**
+   * Replays the summary + action-item extraction for a meeting that already
+   * stopped recording. 409 `meeting_recording` when it has not, and
+   * `meeting_summarizing` while a finish is still running.
+   */
+  async resummarizeMeeting(id: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/resummarize`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings/:id/resummarize",
     });
   }
 

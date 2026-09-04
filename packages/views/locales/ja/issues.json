@@ -455,7 +455,8 @@
     "pr_stack_title": "PR スタック",
     "pr_stack_truncated": "{{depth}} 階層で打ち切り",
     "pr_stack_cyclic": "依存関係の循環: 一部の階層は非表示",
-    "blocker_adr_required": "アーキテクチャ決定記録が必要です（{{count}} ファイル編集）"
+    "blocker_adr_required": "アーキテクチャ決定記録が必要です（{{count}} ファイル編集）",
+    "from_meeting": "ミーティングから"
   },
   "timeline": {
     "loading": "読み込み中..."

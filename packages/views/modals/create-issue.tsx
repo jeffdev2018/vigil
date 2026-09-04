@@ -64,6 +64,7 @@ import { useIssueTriggerPreview } from "../issues/hooks/use-issue-trigger-previe
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useCurrentWorkspace, useWorkspacePaths } from "@multica/core/paths";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useConfigStore } from "@multica/core/config";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useIssueDraftStore, type IssueCreateDraft } from "@multica/core/issues/stores/draft-store";
 import { useCreateModeStore } from "@multica/core/issues/stores/create-mode-store";
@@ -98,6 +99,7 @@ import {
   CustomPropertyValueInput,
 } from "../issues/components/pickers/custom-property-picker";
 import { IssuePickerModal } from "./issue-picker-modal";
+import { VoiceMemoButton } from "../voice";
 import { useT } from "../i18n";
 import { SourceContextPreviewCard, useSourceContextFailureMessage } from "./source-context-preview";
 import { useIssueLimitUpgradePrompt } from "./use-issue-limit-upgrade-prompt";
@@ -257,6 +259,9 @@ export function ManualCreatePanel({
   const [scopedCriteria, setScopedCriteria] = useState<string[]>([]);
   const titleEditorRef = useRef<TitleEditorRef>(null);
   const descEditorRef = useRef<ContentEditorRef>(null);
+  // Voice memo: shown only when the server declares a transcription provider,
+  // same gate as the chat and comment composers.
+  const voiceEnabled = useConfigStore((s) => s.meetingTranscriptionAvailable);
   const { isDragOver: descDragOver, dropZoneProps: descDropZoneProps } = useFileDropZone({
     onDrop: (files) => files.forEach((f) => descEditorRef.current?.uploadFile(f)),
   });
@@ -973,8 +978,17 @@ export function ManualCreatePanel({
               />
             </div>
 
-            {/* Description — takes remaining space */}
+            {/* Description — takes remaining space. The microphone dictates
+                into it; it sits over the editor's top-right corner so it does
+                not push the writing area around. */}
             <div {...descDropZoneProps} className="relative flex flex-1 min-h-0 overflow-y-auto px-5">
+              {voiceEnabled && (
+                <div className="absolute right-5 top-0 z-10">
+                  <VoiceMemoButton
+                    onText={(text) => descEditorRef.current?.insertMarkdownAtEnd(text)}
+                  />
+                </div>
+              )}
               <ContentEditor
                 key={formResetKey}
                 ref={descEditorRef}

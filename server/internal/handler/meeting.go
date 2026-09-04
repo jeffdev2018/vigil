@@ -35,6 +35,11 @@ const (
 	meetingMaxPage        = 100
 	meetingOriginType     = "meeting"
 	meetingSummaryTimeout = 90 * time.Second
+	// meetingSummaryStale is how long a `summarizing` meeting has to sit
+	// untouched before a re-summarize may take it over. Longer than
+	// meetingSummaryTimeout, so a finish still running is never stolen; it is
+	// also the cutoff the client stops polling at.
+	meetingSummaryStale = 5 * time.Minute
 	// meetingLLMTranscriptCap bounds what one summary call sends upstream.
 	meetingLLMTranscriptCap = 60_000
 	// meetingMaxSegmentTextRunes bounds one text segment sent by a live client.
@@ -65,6 +70,10 @@ type MeetingResponse struct {
 	// SummaryUnavailable is true when the meeting finished without an LLM
 	// (unconfigured or failed): the transcript is kept, no actions extracted.
 	SummaryUnavailable bool `json:"summary_unavailable,omitempty"`
+	// CanManage tells the client whether THIS caller may rename, delete,
+	// finish or re-summarize the meeting, so the UI does not have to load the
+	// member list to work out a workspace role. See canManageMeeting.
+	CanManage bool `json:"can_manage"`
 }
 
 type MeetingListResponse struct {
@@ -246,9 +255,47 @@ func (h *Handler) loadMeetingForUser(w http.ResponseWriter, r *http.Request, cre
 	return m, workspaceID, userID, true
 }
 
+// meetingSummaryUnavailable answers "this meeting stopped recording and no
+// summary came out of it" — the LLM was unconfigured or it failed. The
+// transcript is still there; only the summary and the action items are missing.
+// A meeting still recording or still summarizing has not answered yet.
+func meetingSummaryUnavailable(m db.Meeting, actions []db.TriageItem) bool {
+	switch m.Status {
+	case "failed":
+		return true
+	case "done":
+		// A meeting nobody said anything in has nothing to summarize — that is
+		// an empty summary, not a missing one.
+		return strings.TrimSpace(m.Transcript) != "" && m.SummaryMd == "" && len(actions) == 0
+	default:
+		return false
+	}
+}
+
+// canManageMeeting is true for the recorder and for a workspace admin/owner.
+// The recorder owns their own recording; an admin has to be able to close or
+// remove a meeting whose recorder closed their tab and never came back.
+func (h *Handler) canManageMeeting(r *http.Request, m db.Meeting, userID string) bool {
+	if util.UUIDToString(m.CreatedBy) == userID {
+		return true
+	}
+	member, err := h.getWorkspaceMember(r.Context(), userID, h.resolveWorkspaceID(r))
+	return err == nil && roleAllowed(member.Role, "owner", "admin")
+}
+
+// requireMeetingManager answers 403 when the caller is neither the recorder
+// nor a workspace admin/owner.
+func (h *Handler) requireMeetingManager(w http.ResponseWriter, r *http.Request, m db.Meeting, userID string) bool {
+	if h.canManageMeeting(r, m, userID) {
+		return true
+	}
+	writeError(w, http.StatusForbidden, "only the recorder or a workspace admin can modify this meeting")
+	return false
+}
+
 // GetMeeting returns one meeting with its action items. GET /api/meetings/{id}.
 func (h *Handler) GetMeeting(w http.ResponseWriter, r *http.Request) {
-	m, workspaceID, _, ok := h.loadMeetingForUser(w, r, false)
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
 	if !ok {
 		return
 	}
@@ -260,12 +307,19 @@ func (h *Handler) GetMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load meeting")
 		return
 	}
-	writeJSON(w, http.StatusOK, meetingToResponse(m, actions))
+	resp := meetingToResponse(m, actions)
+	// Computed here too, not only on finish: the detail page refetches
+	// immediately after the finish response, and without this the flag would
+	// flip back to false the moment it did (MUL — see meetingSummaryUnavailable).
+	resp.SummaryUnavailable = meetingSummaryUnavailable(m, actions)
+	resp.CanManage = h.canManageMeeting(r, m, userID)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ListMeetings lists the workspace's meetings, newest first. GET /api/meetings?limit&offset.
 func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
-	if _, ok := requireUserID(w, r); !ok {
+	userID, ok := requireUserID(w, r)
+	if !ok {
 		return
 	}
 	workspaceID, ok := parseUUIDOrBadRequest(w, h.resolveWorkspaceID(r), "workspace_id")
@@ -298,6 +352,10 @@ func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list meetings")
 		return
 	}
+	// One member lookup for the whole page: the role is the same for every row,
+	// only the recorder differs.
+	member, memberErr := h.getWorkspaceMember(r.Context(), userID, h.resolveWorkspaceID(r))
+	isAdmin := memberErr == nil && roleAllowed(member.Role, "owner", "admin")
 	out := MeetingListResponse{Meetings: make([]MeetingResponse, 0, len(rows))}
 	for _, row := range rows {
 		// The list omits transcripts: they are large and the detail page loads them.
@@ -305,6 +363,7 @@ func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
 		m.Transcript = ""
 		resp := meetingToResponse(m, nil)
 		resp.ActionCount = row.ActionCount
+		resp.CanManage = isAdmin || util.UUIDToString(m.CreatedBy) == userID
 		out.Meetings = append(out.Meetings, resp)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -446,11 +505,18 @@ func (h *Handler) summarizeMeeting(ctx context.Context, transcript string) (meet
 }
 
 // FinishMeeting closes the recording, summarizes, and queues action items.
-// Idempotent: a finished meeting returns its current state.
+// Idempotent: a finished meeting returns its current state. Open to the
+// recorder and to a workspace admin/owner.
 // POST /api/meetings/{id}/finish.
 func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
-	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, true)
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
 	if !ok {
+		return
+	}
+	// Not creator-only, unlike segments: a recorder who closed their tab leaves
+	// the meeting stuck in `recording` forever, and nothing else in the product
+	// can close it. A workspace admin/owner can.
+	if !h.requireMeetingManager(w, r, m, userID) {
 		return
 	}
 	switch m.Status {
@@ -463,7 +529,8 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp := meetingToResponse(m, actions)
-		resp.SummaryUnavailable = m.Status == "failed" || (m.SummaryMd == "" && len(actions) == 0)
+		resp.SummaryUnavailable = meetingSummaryUnavailable(m, actions)
+		resp.CanManage = h.canManageMeeting(r, m, userID)
 		writeJSON(w, http.StatusOK, resp)
 		return
 	case "summarizing":
@@ -481,7 +548,53 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	h.writeSummarizedMeeting(w, r, m, workspaceID, userID)
+}
 
+// ResummarizeMeeting replays the summary leg of finish for a meeting that
+// already stopped recording. POST /api/meetings/{id}/resummarize.
+//
+// The three cases it exists for: a `done` meeting whose summary was never
+// written because no LLM was configured at the time, a `failed` one, and a
+// `summarizing` one whose finish request died with the tab that sent it.
+//
+// Action items go back through triage.Capture, whose upsert folds a repeat of
+// the same normalized title into the source's existing PENDING item instead of
+// queueing a second copy (uq_triage_item_pending_title). An item the user
+// already accepted or dismissed no longer conflicts, so a re-run can surface it
+// again — which is the point: the transcript really did ask for it.
+func (h *Handler) ResummarizeMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	if m.Status == "recording" {
+		writeErrorCode(w, http.StatusConflict, "meeting_recording", "finish the meeting before summarizing it")
+		return
+	}
+	started, err := h.Queries.RestartMeetingSummary(r.Context(), db.RestartMeetingSummaryParams{
+		ID: m.ID, WorkspaceID: workspaceID, StaleAfterSeconds: int32(meetingSummaryStale.Seconds()),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Only reachable from `summarizing`: a finish is still running.
+			writeErrorCode(w, http.StatusConflict, "meeting_summarizing", "meeting is being summarized")
+			return
+		}
+		slog.Error("restart meeting summary failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to summarize meeting")
+		return
+	}
+	h.writeSummarizedMeeting(w, r, started, workspaceID, userID)
+}
+
+// writeSummarizedMeeting is the leg finish and resummarize share: summarize the
+// transcript, queue what it asked for, close the meeting, answer with it. `m`
+// must already be in `summarizing` (this is what releases that state).
+func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request, m db.Meeting, workspaceID pgtype.UUID, userID string) {
 	summary, summarized := meetingSummary{}, false
 	if strings.TrimSpace(m.Transcript) != "" {
 		summary, summarized = h.summarizeMeeting(r.Context(), m.Transcript)
@@ -501,8 +614,19 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	// A re-summarize that produced nothing new still has to report the items the
+	// meeting already owns, so the client's list does not shrink to what this
+	// one call happened to capture.
+	if len(actions) == 0 {
+		if existing, err := h.Queries.ListTriageItemsByOrigin(r.Context(), db.ListTriageItemsByOriginParams{
+			WorkspaceID: workspaceID, OriginType: meetingOriginType, OriginID: m.ID,
+		}); err == nil {
+			actions = existing
+		}
+	}
 	resp := meetingToResponse(done, actions)
-	resp.SummaryUnavailable = !summarized && strings.TrimSpace(m.Transcript) != ""
+	resp.SummaryUnavailable = meetingSummaryUnavailable(done, actions)
+	resp.CanManage = h.canManageMeeting(r, done, userID)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -602,4 +726,84 @@ func (h *Handler) refreshTriageItems(ctx context.Context, workspaceID pgtype.UUI
 		out = append(out, item)
 	}
 	return out
+}
+
+type updateMeetingRequest struct {
+	Title *string `json:"title"`
+}
+
+// UpdateMeeting renames a meeting. PATCH /api/meetings/{id}, {"title": "..."}.
+// The recorder or a workspace admin/owner. Title is the only mutable field:
+// everything else about a meeting is produced by the recording itself.
+func (h *Handler) UpdateMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	var req updateMeetingRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.Title == nil {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	title := strings.TrimSpace(*req.Title)
+	if title == "" {
+		writeError(w, http.StatusBadRequest, "title cannot be empty")
+		return
+	}
+	if n := len([]rune(title)); n > meetingMaxTitleRunes {
+		title = string([]rune(title)[:meetingMaxTitleRunes])
+	}
+	updated, err := h.Queries.RenameMeeting(r.Context(), db.RenameMeetingParams{
+		Title: title, ID: m.ID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "meeting not found")
+			return
+		}
+		slog.Error("rename meeting failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to rename meeting")
+		return
+	}
+	actions, err := h.Queries.ListTriageItemsByOrigin(r.Context(), db.ListTriageItemsByOriginParams{
+		WorkspaceID: workspaceID, OriginType: meetingOriginType, OriginID: m.ID,
+	})
+	if err != nil {
+		slog.Error("list meeting actions failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load meeting")
+		return
+	}
+	resp := meetingToResponse(updated, actions)
+	resp.CanManage = true
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// DeleteMeeting removes a meeting and its transcript for good.
+// DELETE /api/meetings/{id}. The recorder or a workspace admin/owner.
+func (h *Handler) DeleteMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	rows, err := h.Queries.DeleteMeeting(r.Context(), db.DeleteMeetingParams{ID: m.ID, WorkspaceID: workspaceID})
+	if err != nil {
+		slog.Error("delete meeting failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete meeting")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "meeting not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

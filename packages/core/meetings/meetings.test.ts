@@ -1,7 +1,15 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient, ApiError, errorCode } from "../api/client";
-import { meetingKeys } from "./queries";
+import {
+  MEETINGS_PAGE_SIZE,
+  MEETING_SUMMARY_STALL_MS,
+  isMeetingSummaryStalled,
+  meetingDetailOptions,
+  meetingKeys,
+  meetingListOptions,
+} from "./queries";
+import { useMeetingPreferencesStore } from "./preferences-store";
 import { useMeetingRecorderStore, openMeetingRecorder, requestStopRecording } from "./store";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -62,6 +70,9 @@ describe("listMeetings", () => {
     expect(res.meetings[0]?.segment_count).toBe(0);
     expect(res.meetings[0]?.actions).toEqual([]);
     expect(res.meetings[0]?.summary_unavailable).toBe(false);
+    // An older server that does not send it must not hand the UI a delete
+    // affordance the backend would refuse.
+    expect(res.meetings[0]?.can_manage).toBe(false);
   });
 
   it("degrades a malformed body to the empty fallback instead of throwing", async () => {
@@ -113,6 +124,34 @@ describe("createMeeting", () => {
   });
 });
 
+describe("updateMeeting", () => {
+  it("parses the renamed meeting", async () => {
+    stubFetchJson({ ...validMeeting, title: "Sprint review" });
+    expect((await client().updateMeeting("meet-1", { title: "Sprint review" })).title).toBe(
+      "Sprint review",
+    );
+  });
+
+  it("degrades a malformed body to the empty fallback instead of throwing", async () => {
+    stubFetchJson({ id: 42 });
+    expect((await client().updateMeeting("meet-1", { title: "x" })).id).toBe("");
+  });
+
+  it("keeps a 403 as an ApiError", async () => {
+    stubFetchJson({ error: "forbidden" }, 403);
+    await expect(client().updateMeeting("meet-1", { title: "x" })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
+describe("deleteMeeting", () => {
+  it("resolves on 204 and keeps a 403 as an ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+    await expect(client().deleteMeeting("meet-1")).resolves.toBeUndefined();
+    stubFetchJson({ error: "forbidden" }, 403);
+    await expect(client().deleteMeeting("meet-1")).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe("appendMeetingSegment", () => {
   it("parses the transcribed chunk", async () => {
     stubFetchJson({ seq: "3", text: "and then we shipped", segment_count: 4 });
@@ -155,6 +194,98 @@ describe("finishMeeting", () => {
   });
 });
 
+describe("resummarizeMeeting", () => {
+  it("parses the re-summarized meeting", async () => {
+    stubFetchJson({ ...validMeeting, summary_markdown: "- fresh" });
+    expect((await client().resummarizeMeeting("meet-1")).summary_markdown).toBe("- fresh");
+  });
+
+  it("degrades a malformed body to the empty fallback instead of throwing", async () => {
+    stubFetchJson({ id: null, actions: "nope" });
+    expect((await client().resummarizeMeeting("meet-1")).id).toBe("");
+  });
+
+  it("surfaces meeting_recording so the UI can tell the user to finish first", async () => {
+    stubFetchJson({ code: "meeting_recording", error: "finish it first" }, 409);
+    const err = await client().resummarizeMeeting("meet-1").catch((e: unknown) => e);
+    expect(errorCode(err)).toBe("meeting_recording");
+  });
+});
+
+describe("isMeetingSummaryStalled", () => {
+  const startedAt = "2026-01-01T09:00:00Z";
+  const start = Date.parse(startedAt);
+
+  it("is false for every state but summarizing", () => {
+    for (const status of ["recording", "done", "failed", "something-new"]) {
+      expect(
+        isMeetingSummaryStalled({ status, ended_at: startedAt }, start + 10 * 60_000),
+      ).toBe(false);
+    }
+  });
+
+  it("is false while the attempt is young and true once it is old", () => {
+    expect(isMeetingSummaryStalled({ status: "summarizing", ended_at: startedAt }, start)).toBe(false);
+    expect(
+      isMeetingSummaryStalled(
+        { status: "summarizing", ended_at: startedAt },
+        start + MEETING_SUMMARY_STALL_MS - 1,
+      ),
+    ).toBe(false);
+    expect(
+      isMeetingSummaryStalled(
+        { status: "summarizing", ended_at: startedAt },
+        start + MEETING_SUMMARY_STALL_MS,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps polling rather than declaring a run stuck without a usable timestamp", () => {
+    expect(isMeetingSummaryStalled({ status: "summarizing" }, start)).toBe(false);
+    expect(isMeetingSummaryStalled({ status: "summarizing", ended_at: "nope" }, start)).toBe(false);
+    expect(isMeetingSummaryStalled(undefined, start)).toBe(false);
+  });
+});
+
+describe("meetingDetailOptions", () => {
+  const interval = (data: unknown) =>
+    (meetingDetailOptions("ws-1", "meet-1").refetchInterval as
+      (q: { state: { data: unknown } }) => number | false)({ state: { data } });
+
+  it("polls a live summarize and stops on every other state", () => {
+    const fresh = new Date().toISOString();
+    expect(interval({ status: "summarizing", ended_at: fresh })).toBe(3000);
+    expect(interval({ status: "done", ended_at: fresh })).toBe(false);
+    expect(interval(undefined)).toBe(false);
+  });
+
+  it("stops polling a summarize that has been running too long to still be alive", () => {
+    const old = new Date(Date.now() - MEETING_SUMMARY_STALL_MS - 1000).toISOString();
+    expect(interval({ status: "summarizing", ended_at: old })).toBe(false);
+  });
+});
+
+describe("meetingListOptions paging", () => {
+  const next = (pages: number[]) => {
+    const all = pages.map((n) => ({ meetings: new Array(n).fill({}) }));
+    const options = meetingListOptions("ws-1");
+    return (options.getNextPageParam as (
+      last: unknown,
+      all: unknown[],
+    ) => number | undefined)(all[all.length - 1], all);
+  };
+
+  it("asks for the next offset while pages come back full", () => {
+    expect(next([MEETINGS_PAGE_SIZE])).toBe(MEETINGS_PAGE_SIZE);
+    expect(next([MEETINGS_PAGE_SIZE, MEETINGS_PAGE_SIZE])).toBe(2 * MEETINGS_PAGE_SIZE);
+  });
+
+  it("stops on a short page — the endpoint reports no total", () => {
+    expect(next([MEETINGS_PAGE_SIZE - 1])).toBeUndefined();
+    expect(next([MEETINGS_PAGE_SIZE, 0])).toBeUndefined();
+  });
+});
+
 describe("meetingKeys", () => {
   it("nests list and detail under the workspace prefix", () => {
     expect(meetingKeys.list("ws-1")).toEqual([...meetingKeys.all("ws-1"), "list"]);
@@ -192,5 +323,16 @@ describe("recorder store", () => {
     expect(after.systemAudio).toBe(true);
     // The server's "no STT configured" answer is not part of one recording.
     expect(after.sttUnavailable).toBe(true);
+  });
+});
+
+describe("meeting preferences", () => {
+  it("watches for meetings by default and remembers being turned off", () => {
+    // On by default: the watcher only prompts, it never records on its own.
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(true);
+    useMeetingPreferencesStore.getState().setDetectMeetings(false);
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(false);
+    useMeetingPreferencesStore.getState().setDetectMeetings(true);
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(true);
   });
 });

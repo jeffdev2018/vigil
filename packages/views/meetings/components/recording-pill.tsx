@@ -6,10 +6,14 @@ import {
   requestStopRecording,
   useMeetingRecorderStore,
 } from "@multica/core/meetings/store";
+import { useMeetingPreferencesStore } from "@multica/core/meetings/preferences-store";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { Button } from "@multica/ui/components/ui/button";
 import { Spinner } from "@multica/ui/components/ui/spinner";
-import { setMeetingSelfCapture } from "../../platform/meeting-detection";
+import {
+  setMeetingDetectionEnabled,
+  setMeetingSelfCapture,
+} from "../../platform/meeting-detection";
 import { AppLink } from "../../navigation";
 import { useT } from "../../i18n";
 import { useMeetingRecorder } from "../use-meeting-recorder";
@@ -24,6 +28,9 @@ import { RecordingDot, useElapsed } from "./meeting-recorder";
  *     twice, would record the conversation twice.
  *  2. It shows the recording indicator on every page, so a user who navigates
  *     away mid-meeting can always see it and stop it.
+ *  3. It is where the desktop shell learns the two things only the renderer
+ *     knows: that our own recorder holds the microphone, and whether the user
+ *     wants ambient detection running at all.
  */
 export function RecordingPill() {
   useMeetingRecorder();
@@ -42,6 +49,13 @@ export function RecordingPill() {
   useEffect(() => {
     setMeetingSelfCapture(selfCapturing);
   }, [selfCapturing]);
+
+  // Settings → Preferences. Pushed on mount too, so a shell restarted with the
+  // preference off never starts watching. No-op on web.
+  const detectMeetings = useMeetingPreferencesStore((s) => s.detectMeetings);
+  useEffect(() => {
+    setMeetingDetectionEnabled(detectMeetings);
+  }, [detectMeetings]);
 
   if (phase === "idle") return null;
 

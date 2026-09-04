@@ -1315,6 +1315,10 @@ export const IssueSchema = z.object({
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
+  // Detail-only, and absent on an older backend. Absent means "not resolved
+  // here", so consumers must not read it as "no origin".
+  origin_type: z.string().nullish(),
+  origin_id: z.string().nullish(),
   position: z.number(),
   // Older backends predate `stage`; default to null so a missing field parses
   // cleanly into the non-optional Issue.stage (number | null).
@@ -4364,6 +4368,9 @@ export const MeetingSchema = z.object({
   // Filled by the list endpoint (which omits `actions`); 0 on the detail endpoint.
   action_count: z.number().catch(0).default(0),
   summary_unavailable: z.boolean().default(false),
+  // Absent on an older backend: default to false so the UI hides the
+  // destructive affordances rather than offering ones the server will refuse.
+  can_manage: z.boolean().catch(false).default(false),
 }).loose();
 
 export const RealtimeVoiceSessionSchema = z.object({
@@ -4413,6 +4420,7 @@ export const EMPTY_MEETING: Meeting = Object.freeze({
   actions: [],
   action_count: 0,
   summary_unavailable: false,
+  can_manage: false,
 }) as Meeting;
 
 export const EMPTY_MEETING_LIST: MeetingListResponse = Object.freeze({

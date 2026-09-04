@@ -40,6 +40,38 @@ export function useAppendMeetingSegment() {
 }
 
 /**
+ * Renames a meeting. Not optimistic either: the server trims and truncates the
+ * title, so the value that comes back is the one to show.
+ */
+export function useRenameMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { meetingId: string; title: string }) =>
+      api.updateMeeting(v.meetingId, { title: v.title }),
+    onSuccess: (meeting) => {
+      qc.setQueryData(meetingKeys.detail(wsId, meeting.id), meeting);
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+    },
+  });
+}
+
+/**
+ * Removes a meeting. The detail page navigates back to the list on success, so
+ * the caller awaits the server and nothing is dropped from cache optimistically
+ * (CLAUDE.md state rules).
+ */
+export function useDeleteMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => api.deleteMeeting(meetingId),
+    onSuccess: (_data, meetingId) => {
+      qc.removeQueries({ queryKey: meetingKeys.detail(wsId, meetingId) });
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+    },
+  });
+}
+
+/**
  * Closes the recording and summarizes it. The summary creates pending triage
  * items, so the triage queue is invalidated too.
  */
@@ -50,6 +82,24 @@ export function useFinishMeeting(wsId: string) {
     onSettled: (_data, _err, meetingId) => {
       qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
       qc.invalidateQueries({ queryKey: meetingKeys.detail(wsId, meetingId) });
+      qc.invalidateQueries({ queryKey: triageKeys.all(wsId) });
+    },
+  });
+}
+
+/**
+ * Re-runs the summary for a meeting that already stopped recording. Like
+ * finish, it can queue triage items, so the queue is invalidated too.
+ */
+export function useResummarizeMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => api.resummarizeMeeting(meetingId),
+    onSuccess: (meeting) => {
+      qc.setQueryData(meetingKeys.detail(wsId, meeting.id), meeting);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
       qc.invalidateQueries({ queryKey: triageKeys.all(wsId) });
     },
   });

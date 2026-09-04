@@ -335,6 +335,15 @@ vi.mock("@multica/core/api", async () => {
   };
 });
 
+// The real button owns a MediaRecorder, which jsdom does not have.
+vi.mock("../voice", () => ({
+  VoiceMemoButton: ({ onText }: { onText: (text: string) => void }) => (
+    <button type="button" onClick={() => onText("dicté au micro")}>
+      voice-memo
+    </button>
+  ),
+}));
+
 vi.mock("../editor", async () => {
   // Real submit gate (pure React) driven by the mock editor's
   // `hasActiveUploads` / `onUploadingChange`.
@@ -373,6 +382,14 @@ vi.mock("../editor", async () => {
       // Mocks track ids only — no document to draw into.
       insertUploadPlaceholder: () => true,
       settleUploadPlaceholder: () => false,
+      // What the voice memo dictates into. The real handle parses the
+      // fragment; the mock appends it, which is all the wiring test needs.
+      insertMarkdownAtEnd: (markdown: string) => {
+        valueRef.current = `${valueRef.current}\n\n${markdown}`.trim();
+        setValue(valueRef.current);
+        onUpdate?.(valueRef.current);
+        return true;
+      },
     }));
     return (
       <>
@@ -606,6 +623,7 @@ vi.mock("sonner", () => ({
   },
 }));
 
+import { configStore } from "@multica/core/config";
 import {
   CreateIssueModal,
   ManualCreatePanel,
@@ -1848,5 +1866,27 @@ describe("CreateIssueModal", () => {
       expect(create.parentElement).toBe(footer);
       expect(create.className).toContain("justify-self-end");
     });
+  });
+});
+
+// The description composer is always mounted here (no readonly-first shell),
+// so dictation lands straight in it. The comment composer's harder case — a
+// static shell with no editor behind it — is covered in
+// issues/components/comment-composers.test.tsx.
+describe("CreateIssueModal voice memo", () => {
+  it("dictates into the description when the server has transcription", () => {
+    configStore.getState().setMeetingTranscriptionAvailable(true);
+    renderModal(<CreateIssueModal onClose={vi.fn()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    expect(screen.getByPlaceholderText("Add description...")).toHaveValue(
+      "dicté au micro",
+    );
+  });
+
+  it("is absent when the server declares no transcription provider", () => {
+    configStore.getState().setMeetingTranscriptionAvailable(false);
+    renderModal(<CreateIssueModal onClose={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: "voice-memo" })).toBeNull();
   });
 });

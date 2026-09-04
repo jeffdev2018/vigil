@@ -1,4 +1,5 @@
-// Desktop-only bridge for ambient meeting detection (macOS).
+// Desktop-only bridge for ambient meeting detection (macOS via the
+// mic-monitor helper; Linux and Windows via the OS record-stream pollers).
 //
 // Same shape as local-directory.ts: read `window.desktopAPI` defensively so
 // these can be called from shared views that also render on web, where the
@@ -16,6 +17,7 @@ interface DesktopMeetingDetectionAPI {
   meetingDetection?: { supported?: boolean };
   onMeetingDetected?: (cb: (payload: DetectedMeeting) => void) => () => void;
   setMeetingSelfCapture?: (active: boolean) => void;
+  setMeetingDetectionEnabled?: (enabled: boolean) => void;
 }
 
 function readDesktopAPI(): DesktopMeetingDetectionAPI | undefined {
@@ -52,4 +54,13 @@ export function subscribeMeetingDetected(
  */
 export function setMeetingSelfCapture(active: boolean): void {
   readDesktopAPI()?.setMeetingSelfCapture?.(active);
+}
+
+/**
+ * Push the "Detect meetings automatically" preference to the desktop shell,
+ * which starts or stops the microphone watcher outright. No-op on web and on a
+ * desktop build that predates the channel.
+ */
+export function setMeetingDetectionEnabled(enabled: boolean): void {
+  readDesktopAPI()?.setMeetingDetectionEnabled?.(enabled);
 }
