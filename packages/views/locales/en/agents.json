@@ -1050,5 +1050,13 @@
     "demotion": "demotion",
     "by_member": "by a member",
     "by_system": "suggested by the system"
+  },
+  "competency": {
+    "title": "Competency by domain",
+    "empty": "Not enough data yet: the tally grows as issues assigned to this agent close.",
+    "rate": "{{rate}} success",
+    "sample": "{{count}} issues",
+    "duels": "{{wins}} won / {{losses}} lost duels",
+    "low_sample": "not enough data ({{count}}/{{min}})"
   }
 }

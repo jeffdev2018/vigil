@@ -3618,6 +3618,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		if h.issueAccepted(r.Context(), issue) {
 			h.extractDecisionsAsync(issue)
 		}
+		// Learned competency (K43): the assignee agent's tally moves with the outcome.
+		h.recordCompetencyOutcome(r.Context(), prevIssue, issue)
 	}
 
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)

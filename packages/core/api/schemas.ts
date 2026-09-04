@@ -3751,14 +3751,16 @@ export const ModuleOwnershipListSchema = z.object({
   rules: z.array(ModuleOwnershipRuleSchema).catch([]).default([]),
 }).loose();
 
+export const OwnershipSuggestionSchema = z.object({
+  rule_id: z.string().default(""),
+  owner_user_id: z.string(),
+  referent_agent_id: z.string().nullable().default(null),
+  matched: z.string().default(""),
+  pattern: z.string().default(""),
+}).loose();
+
 export const OwnershipSuggestionEnvelopeSchema = z.object({
-  suggestion: z.object({
-    rule_id: z.string().default(""),
-    owner_user_id: z.string(),
-    referent_agent_id: z.string().nullable().default(null),
-    matched: z.string().default(""),
-    pattern: z.string().default(""),
-  }).loose().nullable().catch(null).default(null),
+  suggestion: OwnershipSuggestionSchema.nullable().catch(null).default(null),
 }).loose();
 
 // Morning briefing (K30). A section that fails to parse is empty, and an
@@ -4526,4 +4528,32 @@ export const RefactorCampaignSchema = z.object({
 
 export const RefactorCampaignEnvelopeSchema = z.object({
   campaign: RefactorCampaignSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Learned competency (K43).
+export const CompetencyRowSchema = z.object({
+  agent_id: z.string().default(""),
+  agent_name: z.string().catch("").default(""),
+  domain_key: z.string().default(""),
+  success_count: z.number().int().catch(0).default(0),
+  total_count: z.number().int().catch(0).default(0),
+  duel_wins: z.number().int().catch(0).default(0),
+  duel_losses: z.number().int().catch(0).default(0),
+  sample_size: z.number().int().catch(0).default(0),
+  score: z.number().catch(0).default(0),
+  reliable: z.boolean().catch(false).default(false),
+  updated_at: z.string().catch("").default(""),
+}).loose();
+
+export const AgentCompetencySchema = z.object({
+  agent_id: z.string().default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  rows: z.array(CompetencyRowSchema).catch([]).default([]),
+}).loose();
+
+export const AssigneeSuggestionSchema = z.object({
+  domain_key: z.string().default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  candidates: z.array(CompetencyRowSchema).catch([]).default([]),
+  ownership: OwnershipSuggestionSchema.nullable().catch(null).default(null),
 }).loose();

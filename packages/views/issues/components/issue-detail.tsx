@@ -110,6 +110,7 @@ import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
 import { OwnershipSuggestionSection } from "./ownership-suggestion-section";
+import { CompetencySuggestion } from "./competency-suggestion";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
@@ -2653,6 +2654,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />
+
+      {/* Learned competency (K43): each agent's success history on this kind of task. */}
+      <CompetencySuggestion issueId={id} />
 
       {/* Outcome Contract — acceptance criteria and their proofs (K12). The
           server refuses done while one lacks proof; this shows which. */}

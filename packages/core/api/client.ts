@@ -355,6 +355,8 @@ import {
   FanoutEnvelopeSchema,
   AgentDuelEnvelopeSchema,
   RefactorCampaignEnvelopeSchema,
+  AgentCompetencySchema,
+  AssigneeSuggestionSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3231,6 +3233,17 @@ export class ApiClient {
   async confirmDuel(duelId: string, winner: import("../issues/duel").DuelWinner): Promise<import("../issues/duel").AgentDuel | null> {
     const raw = await this.fetch<unknown>(`/api/duels/${encodeURIComponent(duelId)}/confirm`, { method: "POST", body: JSON.stringify({ winner }) });
     return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/duels/:id/confirm" }).duel;
+  }
+
+  // Learned competency (K43).
+  async getAgentCompetency(agentId: string): Promise<import("../agents/competency").AgentCompetency> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/competency`);
+    return parseWithFallback(raw, AgentCompetencySchema, { agent_id: agentId, min_sample: 5, rows: [] }, { endpoint: "GET /api/agents/:id/competency" });
+  }
+
+  async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/assignee-suggestion`);
+    return parseWithFallback(raw, AssigneeSuggestionSchema, { domain_key: "", min_sample: 5, candidates: [], ownership: null }, { endpoint: "GET /api/issues/:id/assignee-suggestion" });
   }
 
   // Refactoring campaigns (K42).

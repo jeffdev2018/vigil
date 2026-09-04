@@ -66,6 +66,18 @@ type AgentBuilderDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentDomainCompetency struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	AgentID      pgtype.UUID        `json:"agent_id"`
+	DomainKey    string             `json:"domain_key"`
+	SuccessCount int32              `json:"success_count"`
+	TotalCount   int32              `json:"total_count"`
+	DuelWins     int32              `json:"duel_wins"`
+	DuelLosses   int32              `json:"duel_losses"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AgentDuel struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`

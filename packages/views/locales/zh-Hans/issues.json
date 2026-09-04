@@ -1241,5 +1241,13 @@
     "launch": "发起战役",
     "cancel": "取消",
     "failed": "战役请求失败"
+  },
+  "competency": {
+    "section": "此类任务的成功历史",
+    "domain": "领域 {{domain}}",
+    "row": "{{name}}：{{rate}}（{{count}} 个 issue）",
+    "duels": "对决 {{wins}} 胜 / {{losses}} 负",
+    "low_sample": "数据不足（{{count}}/{{min}}）",
+    "empty": "尚无智能体在此类任务上有历史记录。"
   }
 }
