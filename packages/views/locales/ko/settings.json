@@ -274,6 +274,10 @@
         "label": "받은 편지함으로 이동",
         "description": "워크스페이스 받은 편지함을 엽니다."
       },
+      "goTriage": {
+        "label": "트리아지로 이동",
+        "description": "트리아지 대기열을 엽니다."
+      },
       "goChat": {
         "label": "채팅으로 이동",
         "description": "워크스페이스 채팅을 엽니다."

@@ -274,6 +274,10 @@
         "label": "受信トレイへ移動",
         "description": "ワークスペースの受信トレイを開きます。"
       },
+      "goTriage": {
+        "label": "トリアージへ移動",
+        "description": "トリアージキューを開きます。"
+      },
       "goChat": {
         "label": "チャットへ移動",
         "description": "ワークスペースのチャットを開きます。"

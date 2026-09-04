@@ -274,6 +274,10 @@
         "label": "Go to Inbox",
         "description": "Open the workspace inbox."
       },
+      "goTriage": {
+        "label": "Go to Triage",
+        "description": "Open the triage queue."
+      },
       "goChat": {
         "label": "Go to Chat",
         "description": "Open workspace chat."
