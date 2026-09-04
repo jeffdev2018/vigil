@@ -230,6 +230,7 @@ import type {
   IssuePlanStep,
   PlanVerification,
   IssueDecision,
+  ReviewCockpit,
   IssueScopingProposal,
   AcceptanceCriterion,
   DecisionAnswer,
@@ -420,6 +421,7 @@ import {
   IssuePlanEnvelopeSchema,
   PlanMaterializationSchema,
   IssueDecisionsResponseSchema,
+  ReviewCockpitSchema,
   IssueScopingEnvelopeSchema,
   AcceptanceCriteriaResponseSchema,
   IssueDecisionEnvelopeSchema,
@@ -1358,6 +1360,20 @@ export class ApiClient {
     });
     if (!parsed) throw new Error("respond decision returned a malformed decision");
     return parsed.decision;
+  }
+
+  // Review cockpit (K16).
+  async getReviewCockpit(issueId: string, runId?: string, options?: { signal?: AbortSignal }): Promise<ReviewCockpit> {
+    const q = runId ? `?run_id=${encodeURIComponent(runId)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/review-cockpit${q}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    const parsed = parseWithFallback<ReviewCockpit | null>(raw, ReviewCockpitSchema, null, {
+      endpoint: "GET /api/issues/:id/review-cockpit",
+    });
+    if (!parsed) throw new Error("review cockpit returned a malformed response");
+    return parsed;
   }
 
   // Issue scoping assistant (K14).

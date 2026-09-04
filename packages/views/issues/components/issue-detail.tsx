@@ -2595,6 +2595,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           server refuses done while one lacks proof; this shows which. */}
       <AcceptanceCriteriaSection issueId={id} />
 
+      {/* Review cockpit (K16): one screen for the reviewer. */}
+      <div className="px-2">
+        <AppLink href={paths.issueReview(id)} className="text-caption text-muted-foreground hover:text-foreground">
+          {t(($) => $.review_cockpit.open)} →
+        </AppLink>
+      </div>
+
       <ExecutionLogSection issueId={id} identifier={issue.identifier} />
 
       {/* Plan verification — the issue plan and its newest verification

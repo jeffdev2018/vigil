@@ -3572,3 +3572,38 @@ export const EMPTY_JOIN_SHARE_LINK_RESPONSE: {
   workspace_id: "",
   workspace_slug: "",
 };
+
+// Review cockpit (K16). Each section degrades on its own so one broken
+// source never blanks the page; failed_sections names what the server could
+// not load.
+const ReviewCockpitRunSchema = z.object({
+  id: z.string(),
+  status: z.string().default(""),
+  agent_id: z.string().default(""),
+  created_at: z.string().default(""),
+  started_at: z.string().nullable().default(null),
+  completed_at: z.string().nullable().default(null),
+  error: z.string().nullable().default(null),
+  failure_reason: z.string().optional(),
+  handoff_note: z.string().optional(),
+}).loose();
+
+export const ReviewCockpitSchema = z.object({
+  issue: IssueSchema,
+  run: ReviewCockpitRunSchema.nullable().catch(null).default(null),
+  runs: z.array(ReviewCockpitRunSchema).catch([]).default([]),
+  merge_readiness: MergeReadinessSchema.nullable().catch(null).default(null),
+  usage: z.object({
+    input_tokens: z.number().default(0),
+    output_tokens: z.number().default(0),
+    cache_read_tokens: z.number().default(0),
+    cache_write_tokens: z.number().default(0),
+    cost_usd_ticks: z.number().nullable().default(null),
+    uncosted: z.boolean().default(false),
+  }).loose().nullable().catch(null).default(null),
+  open_questions: z.array(IssueDecisionSchema).catch([]).default([]),
+  criteria: z.array(AcceptanceCriterionSchema).catch([]).default([]),
+  plan_verification: PlanVerificationSchema.nullable().catch(null).default(null),
+  self_review: z.unknown().nullable().default(null),
+  failed_sections: z.array(z.string()).catch([]).default([]),
+}).loose();

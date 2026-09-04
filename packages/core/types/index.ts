@@ -338,3 +338,4 @@ export type {
   WorkspaceSubscriptionSeatReconcileResult,
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
+export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";

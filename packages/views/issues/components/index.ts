@@ -4,6 +4,7 @@ export { PriorityIcon } from "./priority-icon";
 export { StatusPicker, PriorityPicker, StagePicker, AssigneePicker, canAssignAgent, StartDatePicker, DueDatePicker, LabelPicker } from "./pickers";
 export { IssueDetail, IssueDetailSkeleton, issueHighlightMementoKey } from "./issue-detail";
 export { IssueDetailRoute } from "./issue-detail-route";
+export { ReviewCockpitRoute, ReviewCockpit } from "./review-cockpit-page";
 export { IssuesPage } from "./issues-page";
 export { CommentCard } from "./comment-card";
 export { CommentInput } from "./comment-input";

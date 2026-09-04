@@ -29,6 +29,8 @@ function workspaceScoped(slug: string) {
     usage: () => `${ws}/usage`,
     issues: () => `${ws}/issues`,
     issueDetail: (id: string) => `${ws}/issues/${encode(id)}`,
+    // Review cockpit (K16): the reviewer's single screen for an issue's run.
+    issueReview: (id: string) => `${ws}/issues/${encode(id)}/review`,
     projects: () => `${ws}/projects`,
     projectDetail: (id: string) => `${ws}/projects/${encode(id)}`,
     autopilots: () => `${ws}/autopilots`,
