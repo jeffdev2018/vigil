@@ -46,7 +46,8 @@
     "title_placeholder": "ミーティング名",
     "rename_error": "ミーティング名を変更できませんでした。",
     "resummarize": "要約を再生成",
-    "resummarize_error": "要約を再生成できませんでした。"
+    "resummarize_error": "要約を再生成できませんでした。",
+    "summary_stalled": "要約に予想以上の時間がかかっています。実行していた処理が失われました。再生成してやり直してください。"
   },
   "recorder": {
     "starting": "録音を開始しています…",

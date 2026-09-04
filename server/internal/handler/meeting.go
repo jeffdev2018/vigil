@@ -482,11 +482,18 @@ func (h *Handler) summarizeMeeting(ctx context.Context, transcript string) (meet
 }
 
 // FinishMeeting closes the recording, summarizes, and queues action items.
-// Idempotent: a finished meeting returns its current state.
+// Idempotent: a finished meeting returns its current state. Open to the
+// recorder and to a workspace admin/owner.
 // POST /api/meetings/{id}/finish.
 func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
-	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, true)
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
 	if !ok {
+		return
+	}
+	// Not creator-only, unlike segments: a recorder who closed their tab leaves
+	// the meeting stuck in `recording` forever, and nothing else in the product
+	// can close it. A workspace admin/owner can.
+	if !h.requireMeetingManager(w, r, m, userID) {
 		return
 	}
 	switch m.Status {

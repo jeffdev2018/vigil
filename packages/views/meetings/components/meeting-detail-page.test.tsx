@@ -58,7 +58,8 @@ const data = vi.hoisted(() => ({
   resummarize: vi.fn(async (_id: string) => undefined),
 }));
 
-vi.mock("@multica/core/meetings/queries", () => ({
+vi.mock("@multica/core/meetings/queries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/meetings/queries")>()),
   meetingDetailOptions: () => ({
     queryKey: ["meetings", "ws-1", "detail", "meet-1"],
     queryFn: async () => data.meeting,
@@ -179,6 +180,44 @@ describe("MeetingDetailPage", () => {
     renderPage();
     expect(await screen.findByRole("heading", { name: "Weekly sync" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /regenerate summary/i })).toBeNull();
+  });
+
+  it("a live summarize shows the spinner and no way to regenerate", async () => {
+    data.meeting = meeting({
+      status: "summarizing",
+      summary_markdown: "",
+      ended_at: new Date().toISOString(),
+    });
+    renderPage();
+    expect(await screen.findByText(/writing the summary/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /regenerate summary/i })).toBeNull();
+  });
+
+  it("a summarize old enough to be dead says so and offers to regenerate", async () => {
+    data.meeting = meeting({
+      status: "summarizing",
+      summary_markdown: "",
+      ended_at: new Date(Date.now() - 10 * 60_000).toISOString(),
+    });
+    renderPage();
+    expect(await screen.findByText(/taking longer than expected/i)).toBeTruthy();
+    expect(screen.queryByText(/writing the summary/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /regenerate summary/i }));
+    expect(data.resummarize).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("a recording left open offers Finish meeting to anyone who may manage it", async () => {
+    data.meeting = meeting({ status: "recording", created_by: "someone-else", can_manage: true });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /finish meeting/i }));
+    expect(data.finish).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("a plain member sees the recording notice without a way to finish it", async () => {
+    data.meeting = meeting({ status: "recording", created_by: "someone-else", can_manage: false });
+    renderPage();
+    expect(await screen.findByText(/recorded from another device or tab/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /finish meeting/i })).toBeNull();
   });
 
   it("deleting confirms, awaits the server, then returns to the list", async () => {

@@ -46,7 +46,8 @@
     "title_placeholder": "Meeting title",
     "rename_error": "Could not rename the meeting.",
     "resummarize": "Regenerate summary",
-    "resummarize_error": "Could not regenerate the summary."
+    "resummarize_error": "Could not regenerate the summary.",
+    "summary_stalled": "Summary is taking longer than expected. The run that was writing it is gone — regenerate it to try again."
   },
   "recorder": {
     "starting": "Starting the recorder…",

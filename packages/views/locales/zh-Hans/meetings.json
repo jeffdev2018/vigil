@@ -46,7 +46,8 @@
     "title_placeholder": "会议标题",
     "rename_error": "无法重命名该会议。",
     "resummarize": "重新生成摘要",
-    "resummarize_error": "无法重新生成摘要。"
+    "resummarize_error": "无法重新生成摘要。",
+    "summary_stalled": "摘要生成耗时超出预期。原先的生成过程已中断，请重新生成。"
   },
   "recorder": {
     "starting": "正在启动录制…",

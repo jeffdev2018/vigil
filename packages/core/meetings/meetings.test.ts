@@ -1,7 +1,12 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient, ApiError, errorCode } from "../api/client";
-import { meetingKeys } from "./queries";
+import {
+  MEETING_SUMMARY_STALL_MS,
+  isMeetingSummaryStalled,
+  meetingDetailOptions,
+  meetingKeys,
+} from "./queries";
 import { useMeetingRecorderStore, openMeetingRecorder, requestStopRecording } from "./store";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -201,6 +206,59 @@ describe("resummarizeMeeting", () => {
     stubFetchJson({ code: "meeting_recording", error: "finish it first" }, 409);
     const err = await client().resummarizeMeeting("meet-1").catch((e: unknown) => e);
     expect(errorCode(err)).toBe("meeting_recording");
+  });
+});
+
+describe("isMeetingSummaryStalled", () => {
+  const startedAt = "2026-01-01T09:00:00Z";
+  const start = Date.parse(startedAt);
+
+  it("is false for every state but summarizing", () => {
+    for (const status of ["recording", "done", "failed", "something-new"]) {
+      expect(
+        isMeetingSummaryStalled({ status, ended_at: startedAt }, start + 10 * 60_000),
+      ).toBe(false);
+    }
+  });
+
+  it("is false while the attempt is young and true once it is old", () => {
+    expect(isMeetingSummaryStalled({ status: "summarizing", ended_at: startedAt }, start)).toBe(false);
+    expect(
+      isMeetingSummaryStalled(
+        { status: "summarizing", ended_at: startedAt },
+        start + MEETING_SUMMARY_STALL_MS - 1,
+      ),
+    ).toBe(false);
+    expect(
+      isMeetingSummaryStalled(
+        { status: "summarizing", ended_at: startedAt },
+        start + MEETING_SUMMARY_STALL_MS,
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps polling rather than declaring a run stuck without a usable timestamp", () => {
+    expect(isMeetingSummaryStalled({ status: "summarizing" }, start)).toBe(false);
+    expect(isMeetingSummaryStalled({ status: "summarizing", ended_at: "nope" }, start)).toBe(false);
+    expect(isMeetingSummaryStalled(undefined, start)).toBe(false);
+  });
+});
+
+describe("meetingDetailOptions", () => {
+  const interval = (data: unknown) =>
+    (meetingDetailOptions("ws-1", "meet-1").refetchInterval as
+      (q: { state: { data: unknown } }) => number | false)({ state: { data } });
+
+  it("polls a live summarize and stops on every other state", () => {
+    const fresh = new Date().toISOString();
+    expect(interval({ status: "summarizing", ended_at: fresh })).toBe(3000);
+    expect(interval({ status: "done", ended_at: fresh })).toBe(false);
+    expect(interval(undefined)).toBe(false);
+  });
+
+  it("stops polling a summarize that has been running too long to still be alive", () => {
+    const old = new Date(Date.now() - MEETING_SUMMARY_STALL_MS - 1000).toISOString();
+    expect(interval({ status: "summarizing", ended_at: old })).toBe(false);
   });
 });
 

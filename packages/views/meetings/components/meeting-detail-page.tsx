@@ -12,7 +12,10 @@ import {
 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
-import { meetingDetailOptions } from "@multica/core/meetings/queries";
+import {
+  isMeetingSummaryStalled,
+  meetingDetailOptions,
+} from "@multica/core/meetings/queries";
 import { useMeetingRecorderStore } from "@multica/core/meetings/store";
 import {
   useDeleteMeeting,
@@ -100,7 +103,7 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
           <MeetingTitle meeting={data} />
           <MeetingMeta meeting={data} />
           {data.status === "recording" ? (
-            <RecorderSlot meetingId={data.id} createdBy={data.created_by} />
+            <RecorderSlot meeting={data} />
           ) : null}
           <SummarySection meeting={data} />
           <ActionsSection meeting={data} />
@@ -118,26 +121,26 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
  * MediaRecorder is gone for good: they get a way to close the meeting, since
  * nothing else ever will (the server only accepts finish from the creator).
  */
-function RecorderSlot({ meetingId, createdBy }: { meetingId: string; createdBy: string }) {
+function RecorderSlot({ meeting }: { meeting: Meeting }) {
   const { t } = useT("meetings");
   const wsId = useWorkspaceId();
   const activeId = useMeetingRecorderStore((s) => s.meetingId);
   const userId = useAuthStore((s) => s.user?.id);
   const finishMeeting = useFinishMeeting(wsId);
-  if (activeId === meetingId) return <MeetingRecorderPanel />;
-  const isRecorder = !!userId && userId === createdBy;
+  if (activeId === meeting.id) return <MeetingRecorderPanel />;
+  const isRecorder = !!userId && userId === meeting.created_by;
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border p-3">
       <p className="min-w-0 flex-1 text-caption text-muted-foreground">
         {isRecorder ? t(($) => $.recorder.orphaned) : t(($) => $.recorder.elsewhere)}
       </p>
-      {isRecorder ? (
+      {meeting.can_manage ? (
         <Button
           size="sm"
           variant="outline"
           disabled={finishMeeting.isPending}
           onClick={() => {
-            finishMeeting.mutateAsync(meetingId).catch(() => {
+            finishMeeting.mutateAsync(meeting.id).catch(() => {
               toast.error(t(($) => $.recorder.error_finish));
             });
           }}
@@ -270,15 +273,26 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 
 function SummarySection({ meeting }: { meeting: Meeting }) {
   const { t } = useT("meetings");
+  // A summary that is still running owns the section; one that stalled is the
+  // main reason this button exists, so it appears there too.
+  const stalled = isMeetingSummaryStalled(meeting);
+  const canRegenerate =
+    meeting.can_manage && (meeting.status !== "recording") &&
+    (meeting.status !== "summarizing" || stalled);
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <SectionHeading>{t(($) => $.detail.summary_title)}</SectionHeading>
-        {meeting.can_manage && meeting.status !== "recording" ? (
-          <ResummarizeButton meeting={meeting} />
-        ) : null}
+        {canRegenerate ? <ResummarizeButton meeting={meeting} /> : null}
       </div>
-      {meeting.status === "summarizing" ? (
+      {stalled ? (
+        // The finish request that owned this summary is gone (a closed tab, a
+        // restarted server): nothing will move the row on its own, so stop
+        // pretending it is still working and offer the way out.
+        <p role="status" className="text-caption text-muted-foreground">
+          {t(($) => $.detail.summary_stalled)}
+        </p>
+      ) : meeting.status === "summarizing" ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           <span className="flex items-center gap-2 text-caption text-muted-foreground">
             <Spinner className="size-3.5" />

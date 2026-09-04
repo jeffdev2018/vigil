@@ -412,3 +412,40 @@ func TestMeetingResummarizeRefusesRecording(t *testing.T) {
 		t.Fatalf("code = %v", body["code"])
 	}
 }
+
+// A recorder who closes their tab leaves the meeting stuck in `recording`, and
+// nothing else in the product can close it — so an admin has to be able to.
+func TestMeetingFinishAllowsAdminAndRefusesPlainMember(t *testing.T) {
+	stubSTT(t, "On reparle du budget lundi.")
+	newMeeting := func(t *testing.T) string {
+		t.Helper()
+		var created MeetingResponse
+		testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", nil)).
+			Want(http.StatusCreated).JSON(&created)
+		cleanupMeeting(t, created.ID)
+		testutil.Call(t, testHandler.AppendMeetingSegment,
+			testutil.WithURLParams(audioUploadRequest(t, "/api/meetings/"+created.ID+"/segments", "1"), "id", created.ID)).
+			Want(http.StatusOK)
+		return created.ID
+	}
+	finishAs := func(t *testing.T, id, userID string) *testutil.Response {
+		t.Helper()
+		req := testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+id+"/finish", nil), "id", id)
+		req.Header.Set("X-User-ID", userID)
+		return testutil.Call(t, testHandler.FinishMeeting, req)
+	}
+
+	plainUser := dbfx.User(t, "Finish Member", "meeting-finish-member@example.com")
+	dbfx.Member(t, testWorkspaceID, plainUser, "member")
+	adminUser := dbfx.User(t, "Finish Admin", "meeting-finish-admin@example.com")
+	dbfx.Member(t, testWorkspaceID, adminUser, "admin")
+
+	id := newMeeting(t)
+	finishAs(t, id, plainUser).Want(http.StatusForbidden)
+
+	var done MeetingResponse
+	finishAs(t, id, adminUser).Want(http.StatusOK).JSON(&done)
+	if done.Status != "done" {
+		t.Fatalf("admin finish = %+v", done)
+	}
+}

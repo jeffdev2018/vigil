@@ -46,7 +46,8 @@
     "title_placeholder": "미팅 제목",
     "rename_error": "미팅 이름을 변경하지 못했습니다.",
     "resummarize": "요약 다시 생성",
-    "resummarize_error": "요약을 다시 생성하지 못했습니다."
+    "resummarize_error": "요약을 다시 생성하지 못했습니다.",
+    "summary_stalled": "요약이 예상보다 오래 걸리고 있습니다. 요약을 작성하던 실행이 사라졌습니다. 다시 생성해 보세요."
   },
   "recorder": {
     "starting": "녹음을 시작하는 중…",
