@@ -2089,6 +2089,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Patch("/{id}", h.UpdatePipeline)
 				r.Delete("/{id}", h.DeletePipeline)
 			})
+			// Fan-out / fan-in (K38): parallel specialist runs and a synthesis.
+			r.Post("/api/issues/{id}/fanout", h.StartFanout)
+			r.Get("/api/issues/{id}/fanout", h.GetIssueFanout)
+			r.Get("/api/fanout-batches/{id}", h.GetFanoutBatch)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)

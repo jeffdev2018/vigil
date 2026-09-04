@@ -838,6 +838,34 @@ type DingtalkGroupRoute struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type FanoutBatch struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	ParentIssueID   pgtype.UUID        `json:"parent_issue_id"`
+	LeaderAgentID   pgtype.UUID        `json:"leader_agent_id"`
+	ExpectedCount   int32              `json:"expected_count"`
+	CompletedCount  int32              `json:"completed_count"`
+	FailedCount     int32              `json:"failed_count"`
+	Status          string             `json:"status"`
+	SynthesisTaskID pgtype.UUID        `json:"synthesis_task_id"`
+	StartedBy       pgtype.UUID        `json:"started_by"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	CompletedAt     pgtype.Timestamptz `json:"completed_at"`
+}
+
+type FanoutBatchMember struct {
+	ID                 pgtype.UUID        `json:"id"`
+	FanoutBatchID      pgtype.UUID        `json:"fanout_batch_id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	ChildIssueID       pgtype.UUID        `json:"child_issue_id"`
+	TaskID             pgtype.UUID        `json:"task_id"`
+	AssigneeAgentID    pgtype.UUID        `json:"assignee_agent_id"`
+	SubTaskDescription string             `json:"sub_task_description"`
+	Outcome            pgtype.Text        `json:"outcome"`
+	SettledTaskID      pgtype.UUID        `json:"settled_task_id"`
+	SettledAt          pgtype.Timestamptz `json:"settled_at"`
+}
+
 type Feedback struct {
 	ID          pgtype.UUID        `json:"id"`
 	UserID      pgtype.UUID        `json:"user_id"`

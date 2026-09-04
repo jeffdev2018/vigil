@@ -3886,6 +3886,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
 	// Pipelines (K37): the executor's completed run advances the cursor.
 	h.advancePipelineAfterTask(r.Context(), *task)
+	// Fan-out (K38): a settled child moves the barrier.
+	h.updateFanoutBarrier(r.Context(), *task)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into
@@ -4578,6 +4580,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		return
 	}
 	h.TaskService.NotifyTaskFinished(*task)
+	// Fan-out (K38): a child failed for good settles its member.
+	h.updateFanoutBarrier(r.Context(), *task)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

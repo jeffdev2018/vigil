@@ -912,6 +912,28 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "fanout": {
+    "section": "ファンアウト",
+    "count": "{{done}}/{{total}} 完了",
+    "status": {
+      "pending": "進行中",
+      "partial_failure": "一部失敗",
+      "complete": "完了"
+    },
+    "partial": "{{failed}} 件のサブタスクが失敗しました。統合は開始されますが、欠けている部分を明示する必要があります。",
+    "synthesis": "リーダー向けの統合実行 {{id}} をキューに入れました",
+    "open": "専門エージェントに分配",
+    "leader": "リーダーエージェント",
+    "sub_task": "サブタスク {{n}}",
+    "sub_task_placeholder": "この専門エージェントがやること",
+    "assignee": "サブタスク {{n}} の担当",
+    "pick_agent": "担当を選択…",
+    "remove": "サブタスク {{n}} を削除",
+    "add": "サブタスクを追加",
+    "launch": "ファンアウトを開始",
+    "cancel": "キャンセル",
+    "failed": "ファンアウトの要求に失敗しました"
+  },
   "pipeline": {
     "pick": "パイプラインを選択",
     "start": "パイプラインを開始",

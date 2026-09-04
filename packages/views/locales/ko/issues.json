@@ -912,6 +912,28 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "fanout": {
+    "section": "팬아웃",
+    "count": "{{done}}/{{total}} 정리됨",
+    "status": {
+      "pending": "진행 중",
+      "partial_failure": "부분 실패",
+      "complete": "완료"
+    },
+    "partial": "하위 작업 {{failed}}개가 최종 실패했습니다. 종합은 그래도 시작되며 누락된 부분을 명시해야 합니다.",
+    "synthesis": "리더용 종합 실행 {{id}}이(가) 대기열에 추가됨",
+    "open": "전문 에이전트에게 분배",
+    "leader": "리더 에이전트",
+    "sub_task": "하위 작업 {{n}}",
+    "sub_task_placeholder": "이 전문 에이전트가 할 일",
+    "assignee": "하위 작업 {{n}} 담당자",
+    "pick_agent": "담당자 선택…",
+    "remove": "하위 작업 {{n}} 제거",
+    "add": "하위 작업 추가",
+    "launch": "팬아웃 시작",
+    "cancel": "취소",
+    "failed": "팬아웃 요청이 실패했습니다"
+  },
   "pipeline": {
     "pick": "파이프라인 선택",
     "start": "파이프라인 시작",

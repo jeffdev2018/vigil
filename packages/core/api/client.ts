@@ -350,6 +350,7 @@ import {
   PipelineSchema,
   PipelinesEnvelopeSchema,
   PipelineRunEnvelopeSchema,
+  FanoutEnvelopeSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3152,6 +3153,17 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Fan-out / fan-in (K38).
+  async getIssueFanout(issueId: string): Promise<import("../issues/fanout").FanoutBatch | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/fanout`);
+    return parseWithFallback(raw, FanoutEnvelopeSchema, { batch: null }, { endpoint: "GET /api/issues/:id/fanout" }).batch;
+  }
+
+  async startFanout(issueId: string, input: import("../issues/fanout").FanoutInput): Promise<import("../issues/fanout").FanoutBatch | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/fanout`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, FanoutEnvelopeSchema, { batch: null }, { endpoint: "POST /api/issues/:id/fanout" }).batch;
   }
 
   // Pipelines (K37).
