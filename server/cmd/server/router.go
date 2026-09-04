@@ -1999,6 +1999,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateModuleOwnership)
 				r.Delete("/{id}", h.DeleteModuleOwnership)
 			})
+			// Business rules (K53): plain-language rules compiled once, enforced deterministically.
+			r.Route("/api/business-rules", func(r chi.Router) {
+				r.Get("/", h.ListBusinessRules)
+				r.Post("/", h.CreateBusinessRule)
+				r.Post("/{id}/dry-run", h.DryRunBusinessRule)
+				r.Put("/{id}/activate", h.ActivateBusinessRule)
+				r.Put("/{id}/disable", h.DisableBusinessRule)
+				r.Delete("/{id}", h.DeleteBusinessRule)
+				r.Get("/{id}/violations", h.ListBusinessRuleViolations)
+			})
 			r.Route("/api/issue-statuses", func(r chi.Router) {
 				r.Get("/", h.ListIssueStatuses)
 				r.Post("/", h.CreateIssueStatus)

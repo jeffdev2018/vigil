@@ -3407,6 +3407,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Business rules (K53): entering review must satisfy the active rules.
+	if !h.issueSubmitReviewAllowed(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	if req.Priority != nil {
 		if !validateIssueEnum(w, "priority", *req.Priority, validIssuePriorities) {
 			return

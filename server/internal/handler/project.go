@@ -300,6 +300,10 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Business rules (K53): the workspace as it will be with this project.
+	if !h.projectCreateAllowed(w, r, wsUUID) {
+		return
+	}
 
 	// start_date / due_date are optional calendar days; an absent or empty
 	// value leaves the column NULL. Mirrors CreateIssue's date handling.

@@ -29,19 +29,20 @@ const (
 
 // Actions. Keep them stable: exports and filters key on them.
 const (
-	AuditDecisionAsked     = "decision.asked"
-	AuditDecisionAnswered  = "decision.answered"
-	AuditDecisionEscalated = "decision.escalated"
-	AuditInterviewAsked    = "interview.asked"
-	AuditPlanMaterialized  = "plan.materialized"
-	AuditIssueStatus       = "issue.status_changed"
-	AuditCriterionProved   = "criterion.proved"
-	AuditAgentRolledBack   = "agent.rolled_back"
-	AuditOwnershipCreated  = "ownership_rule.created"
-	AuditOwnershipDeleted  = "ownership_rule.deleted"
-	AuditBriefingSent      = "briefing.sent"
-	AuditWorkspaceSettings = "workspace.settings_updated"
-	AuditDecisionRecorded  = "decision_record.created"
+	AuditDecisionAsked        = "decision.asked"
+	AuditDecisionAnswered     = "decision.answered"
+	AuditDecisionEscalated    = "decision.escalated"
+	AuditInterviewAsked       = "interview.asked"
+	AuditPlanMaterialized     = "plan.materialized"
+	AuditIssueStatus          = "issue.status_changed"
+	AuditCriterionProved      = "criterion.proved"
+	AuditAgentRolledBack      = "agent.rolled_back"
+	AuditOwnershipCreated     = "ownership_rule.created"
+	AuditOwnershipDeleted     = "ownership_rule.deleted"
+	AuditBriefingSent         = "briefing.sent"
+	AuditWorkspaceSettings    = "workspace.settings_updated"
+	AuditDecisionRecorded     = "decision_record.created"
+	AuditBusinessRuleViolated = "business_rule.violated"
 )
 
 type auditOpts struct {
