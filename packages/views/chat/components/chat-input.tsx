@@ -579,9 +579,27 @@ export function ChatInput({
       // retry. Only a commit — here or by the owner — clears it.
       if (accepted === false) return false;
       if (!committed) commitInput();
+      // The message really went out: if it was dictated, its reply is read
+      // back aloud (chat-message-list's MessageListenButton consumes this).
+      useVoiceStore.getState().armSpeakOnSend();
       return true;
     },
   });
+
+  // A dictated turn belongs to the conversation it was dictated in. Leaving the
+  // composer, or switching to another session, drops both the unsent memo and
+  // any armed reply — otherwise a reply in a conversation the user has moved on
+  // from starts speaking. null -> uuid is NOT a switch: that is this very send
+  // creating its own session (see `draftKey` above).
+  const previousSessionRef = useRef(activeSessionId);
+  useEffect(() => {
+    const previous = previousSessionRef.current;
+    previousSessionRef.current = activeSessionId;
+    if (previous !== null && previous !== activeSessionId) {
+      useVoiceStore.getState().resetSpeech();
+    }
+  }, [activeSessionId]);
+  useEffect(() => () => useVoiceStore.getState().resetSpeech(), []);
 
   const placeholder = agentAccessRevoked
     ? t(($) => $.input.placeholder_access_revoked)
@@ -744,7 +762,10 @@ export function ChatInput({
                   const joined = current.trim() ? `${current.replace(/\s+$/, "")} ${text}` : text;
                   commitDraft(key, joined);
                   setIsEmpty(false);
-                  useVoiceStore.getState().setSpeakNextReply(true);
+                  // Only records that this turn was spoken. The reply is armed
+                  // at the send below, not here: a memo the user then deletes,
+                  // rewrites, or abandons must not make some later reply talk.
+                  useVoiceStore.getState().markDictated();
                 }}
               />
             )}
