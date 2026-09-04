@@ -632,6 +632,7 @@
     },
     "usage_total_tooltip": "このタスクのトークン使用量 — クリックで実行ごとの内訳",
     "status_deferred": "延期中",
+    "status_paused": "一時停止",
     "unresponsive": "応答なし",
     "unresponsive_tooltip": "{{duration}} 活動がありません"
   },
@@ -910,6 +911,19 @@
     "gate_approve": "承認してサブイシューを {{count}} 件作成",
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
+  },
+  "run_control": {
+    "pause": "実行を一時停止",
+    "pause_hint": "次の安全な境界（現在のツール呼び出しの後）で停止し、指示を待ちます。",
+    "pause_pending": "一時停止待ち",
+    "pause_pending_hint": "現在のツール呼び出しの完了を待っています。",
+    "paused_title": "一時停止中。指示を残してから同じセッションを再開します。",
+    "instruction": "指示",
+    "instruction_placeholder": "何を変えますか？実行は停止した位置からこの指示を先頭にして続きます。",
+    "send": "指示を送る",
+    "resume": "再開",
+    "resume_needs_instruction": "先に指示を 1 つ以上残してください。",
+    "failed": "実行の操作に失敗しました"
   },
   "run_limits": {
     "title": "実行上限",

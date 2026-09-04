@@ -656,6 +656,7 @@
     },
     "usage_total_tooltip": "Token usage for this issue — click for the per-run breakdown",
     "status_deferred": "Deferred",
+    "status_paused": "Paused",
     "unresponsive": "Not responding",
     "unresponsive_tooltip": "No activity for {{duration}}"
   },
@@ -941,6 +942,19 @@
     "gate_approve": "Approve: create {{count}} sub-issues",
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
+  },
+  "run_control": {
+    "pause": "Pause the run",
+    "pause_hint": "Stops at the next safe boundary (after the current tool call) and waits for your instruction.",
+    "pause_pending": "pause pending",
+    "pause_pending_hint": "Waiting for the current tool call to finish.",
+    "paused_title": "Paused. Leave an instruction, then resume the same session.",
+    "instruction": "Instruction",
+    "instruction_placeholder": "What should change? The run continues from where it stopped with this in front of it.",
+    "send": "Send instruction",
+    "resume": "Resume",
+    "resume_needs_instruction": "Leave at least one instruction first.",
+    "failed": "The run control request failed"
   },
   "run_limits": {
     "title": "Run limit",

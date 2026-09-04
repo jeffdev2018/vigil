@@ -21,6 +21,7 @@ export function runStateOf(status: string): Exclude<RunState, "unresponsive"> {
   switch (status) {
     case "queued":
     case "deferred":
+    case "paused":
       return "pending";
     case "dispatched":
     case "running":

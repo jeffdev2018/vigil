@@ -44,6 +44,7 @@
     "./issues/run-secrets": "./issues/run-secrets.ts",
     "./issues/routing": "./issues/routing.ts",
     "./issues/handoff": "./issues/handoff.ts",
+    "./issues/run-control": "./issues/run-control.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",

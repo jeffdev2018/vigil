@@ -23,6 +23,7 @@ vi.mock("../../common/task-transcript", () => ({
   ),
 }));
 
+vi.mock("./run-controls", () => ({ RunControls: () => null }));
 vi.mock("./terminate-task-confirm-dialog", () => ({
   TerminateTaskConfirmDialog: () => null,
 }));

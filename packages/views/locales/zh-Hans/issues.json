@@ -632,6 +632,7 @@
     },
     "usage_total_tooltip": "这个任务的 token 用量——点击查看每次运行的明细",
     "status_deferred": "已延期",
+    "status_paused": "已暂停",
     "unresponsive": "无响应",
     "unresponsive_tooltip": "已 {{duration}} 无活动"
   },
@@ -910,6 +911,19 @@
     "gate_approve": "批准并创建 {{count}} 个子议题",
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
+  },
+  "run_control": {
+    "pause": "暂停运行",
+    "pause_hint": "在下一个安全边界（当前工具调用之后）停止并等待你的指示。",
+    "pause_pending": "等待暂停",
+    "pause_pending_hint": "正在等待当前工具调用完成。",
+    "paused_title": "已暂停。留下指示后继续同一会话。",
+    "instruction": "指示",
+    "instruction_placeholder": "需要改变什么？运行会从停止处继续，并优先处理这条指示。",
+    "send": "发送指示",
+    "resume": "继续",
+    "resume_needs_instruction": "请先至少留下一条指示。",
+    "failed": "运行控制请求失败"
   },
   "run_limits": {
     "title": "运行上限",

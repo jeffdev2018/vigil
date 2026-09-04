@@ -33,6 +33,7 @@ import {
   summarizeTaskUsageAcross,
 } from "../../runtimes/utils";
 import { TerminateTaskConfirmDialog } from "./terminate-task-confirm-dialog";
+import { RunControls } from "./run-controls";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
@@ -293,6 +294,7 @@ const STATUS_TONE: Record<TaskStatus, string> = {
   completed: "text-success",
   failed: "text-destructive",
   cancelled: "text-muted-foreground",
+  paused: "text-warning",
 };
 
 // ─── Active row ────────────────────────────────────────────────────────────
@@ -394,6 +396,7 @@ export function ActiveTaskRow({
         )}
       </RowStatus>
       <RowActions>
+        <RunControls issueId={issueId} task={task} />
         {showTranscript && (
           <TranscriptButton
             task={task}
