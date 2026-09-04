@@ -911,6 +911,29 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "handoff": {
+    "section": "交接包",
+    "none": "尚无交接包。",
+    "show_history_one": "显示 {{count}} 个较早的交接包",
+    "show_history_other": "显示 {{count}} 个较早的交接包",
+    "hide_history": "隐藏历史",
+    "write": "撰写交接包",
+    "objective": "目标",
+    "decisions": "决定",
+    "evidence": "证据",
+    "failed_attempts": "失败的尝试",
+    "next_action": "下一步",
+    "one_per_line": "{{field}}，每行一项",
+    "save": "保存交接包",
+    "cancel": "取消",
+    "create_failed": "保存交接包失败",
+    "run": "运行 {{id}}",
+    "by": {
+      "agent": "智能体",
+      "member": "成员",
+      "system": "系统"
+    }
+  },
   "routing": {
     "label": "路由",
     "risk": {

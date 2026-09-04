@@ -911,6 +911,29 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "handoff": {
+    "section": "핸드오프 패킷",
+    "none": "아직 패킷이 없습니다.",
+    "show_history_one": "이전 패킷 {{count}}개 보기",
+    "show_history_other": "이전 패킷 {{count}}개 보기",
+    "hide_history": "기록 숨기기",
+    "write": "핸드오프 패킷 작성",
+    "objective": "목표",
+    "decisions": "결정 사항",
+    "evidence": "증거",
+    "failed_attempts": "실패한 시도",
+    "next_action": "다음 작업",
+    "one_per_line": "{{field}}, 한 줄에 하나",
+    "save": "패킷 저장",
+    "cancel": "취소",
+    "create_failed": "핸드오프 패킷을 저장하지 못했습니다",
+    "run": "실행 {{id}}",
+    "by": {
+      "agent": "에이전트",
+      "member": "멤버",
+      "system": "시스템"
+    }
+  },
   "routing": {
     "label": "라우팅",
     "risk": {

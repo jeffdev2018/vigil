@@ -96,6 +96,7 @@ import { DecisionCardsSection } from "./decision-cards-section";
 import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
+import { HandoffPacketCard } from "./handoff-packet-card";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2610,6 +2611,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Issue router (K27): risk level, pool and escalation behind the latest run. */}
       <RoutingBadge issueId={id} />
+
+      {/* Handoff packet (K17): what the last hand left, and a form to leave one. */}
+      <HandoffPacketCard issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

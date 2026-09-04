@@ -344,6 +344,19 @@ order. Multiple choice only: no open questions here (a single open decision is
 `multica decision ask`). Ask only what the issue does not settle; a simple
 issue needs no interview.
 
+## Leaving a handoff packet
+
+When you finish or pause, leave a structured handoff packet on the issue so
+the next hand (an agent or a human) does not rebuild your context from the
+transcript. `POST /api/issues/{issue}/handoff-packet` with `run_id` (your
+task id), `objective`, `decisions`, `evidence`, `failed_attempts` and
+`next_action`. Failed attempts matter most: they stop the next run from
+repeating them. Packets are immutable; to correct one, post another. A run
+that completes without one gets a system packet (objective, delivery pointer,
+next action) so the chain never breaks. On your next claim the latest packet
+is rendered at the top of your prompt; the legacy `handoff_note` still
+appears beside it.
+
 ## Asking a human for a decision
 
 When a choice is not yours to make — deleting data, picking between two

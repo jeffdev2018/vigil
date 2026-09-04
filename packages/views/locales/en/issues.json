@@ -942,6 +942,29 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "handoff": {
+    "section": "Handoff packet",
+    "none": "No packet yet.",
+    "show_history_one": "Show {{count}} earlier packet",
+    "show_history_other": "Show {{count}} earlier packets",
+    "hide_history": "Hide history",
+    "write": "Write a handoff packet",
+    "objective": "Objective",
+    "decisions": "Decisions",
+    "evidence": "Evidence",
+    "failed_attempts": "Failed attempts",
+    "next_action": "Next action",
+    "one_per_line": "{{field}}, one per line",
+    "save": "Save packet",
+    "cancel": "Cancel",
+    "create_failed": "Failed to save the handoff packet",
+    "run": "run {{id}}",
+    "by": {
+      "agent": "agent",
+      "member": "member",
+      "system": "system"
+    }
+  },
   "routing": {
     "label": "Routing",
     "risk": {

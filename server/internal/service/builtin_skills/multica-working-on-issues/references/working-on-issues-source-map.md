@@ -245,6 +245,7 @@ about the issue — there is no assignee gate (MUL-6417).
 | `--value` name / email / id → `member:<uuid>` resolution (same member lookup as `--assignee`) | `server/cmd/multica/cmd_property.go` (`resolveActorPropertyRef`, `memberOnlyKinds`) |
 | Shared actor-reference types and helpers | `packages/core/types/property.ts` (`parseActorRef`, `actorRefsFromValue`, `MAX_ISSUE_PROPERTY_ACTOR_VALUES`) |
 | API routes (`/api/properties`, PUT/DELETE `/api/issues/{id}/properties/{propertyId}`) | `server/cmd/server/router.go` |
+| A run leaves a structured handoff packet (`POST /api/issues/{issue}/handoff-packet`); packets are immutable, a completing run without one gets a system packet, and the latest packet rides the next claim into the per-turn prompt beside the legacy `handoff_note` | `server/internal/handler/handoff_packet.go` (`CreateHandoffPacket`, `ensureCompletionHandoffPacket`, `latestHandoffPacket`); `server/internal/daemon/prompt.go` (`renderHandoffPacket`) | new citation |
 
 ## Verification command
 
