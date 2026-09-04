@@ -1280,5 +1280,22 @@
     "duels": "{{wins}} won / {{losses}} lost duels",
     "low_sample": "not enough data yet ({{count}}/{{min}})",
     "empty": "No agent has a history on this kind of task yet."
+  },
+  "cross_review": {
+    "section": "Cross-provider review",
+    "by": "by {{name}} on {{provider}}",
+    "in_progress": "review in progress",
+    "failed": "review failed",
+    "verdict": {
+      "approve": "approve",
+      "request_changes": "changes requested",
+      "comment": "comment"
+    },
+    "risks": "Risks",
+    "questions": "Questions",
+    "suggestions": "Suggestions",
+    "retry": "Retry the review",
+    "retry_failed": "The retry failed",
+    "previous": "{{count}} earlier attempt(s)"
   }
 }

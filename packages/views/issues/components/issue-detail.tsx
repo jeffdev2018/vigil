@@ -97,6 +97,7 @@ import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
+import { CrossReviewSection } from "./cross-review-section";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { TrafficConflictBanner } from "./traffic-conflict-banner";
@@ -2624,6 +2625,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Handoff packet (K17): what the last hand left, and a form to leave one. */}
       <HandoffPacketCard issueId={id} />
+
+      {/* Cross-provider self-review (K15): another provider's report on the last diff, before the human review. */}
+      <CrossReviewSection issueId={id} />
 
       {/* Run limits (K03): the latest run's warning or stop, with the numbers. */}
       <RunLimitBadge issueId={id} />

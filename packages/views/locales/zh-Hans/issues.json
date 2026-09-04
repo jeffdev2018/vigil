@@ -1249,5 +1249,22 @@
     "duels": "对决 {{wins}} 胜 / {{losses}} 负",
     "low_sample": "数据不足（{{count}}/{{min}}）",
     "empty": "尚无智能体在此类任务上有历史记录。"
+  },
+  "cross_review": {
+    "section": "跨供应商评审",
+    "by": "{{provider}} 上的 {{name}}",
+    "in_progress": "评审进行中",
+    "failed": "评审失败",
+    "verdict": {
+      "approve": "通过",
+      "request_changes": "需要修改",
+      "comment": "评论"
+    },
+    "risks": "风险",
+    "questions": "问题",
+    "suggestions": "建议",
+    "retry": "重新评审",
+    "retry_failed": "重试失败",
+    "previous": "{{count}} 次早先尝试"
   }
 }

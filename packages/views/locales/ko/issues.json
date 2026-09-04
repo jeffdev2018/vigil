@@ -1249,5 +1249,22 @@
     "duels": "대결 {{wins}}승 / {{losses}}패",
     "low_sample": "데이터 부족 ({{count}}/{{min}})",
     "empty": "이 유형의 작업 이력이 있는 에이전트가 아직 없습니다."
+  },
+  "cross_review": {
+    "section": "교차 프로바이더 리뷰",
+    "by": "{{provider}}의 {{name}}",
+    "in_progress": "리뷰 진행 중",
+    "failed": "리뷰 실패",
+    "verdict": {
+      "approve": "승인",
+      "request_changes": "변경 요청",
+      "comment": "코멘트"
+    },
+    "risks": "위험",
+    "questions": "질문",
+    "suggestions": "제안",
+    "retry": "리뷰 다시 실행",
+    "retry_failed": "재실행에 실패했습니다",
+    "previous": "이전 시도 {{count}}회"
   }
 }

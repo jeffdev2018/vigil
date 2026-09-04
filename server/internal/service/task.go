@@ -1440,6 +1440,13 @@ func (s *TaskService) EnqueueDuelRun(ctx context.Context, issue db.Issue, agentI
 	return s.enqueueMentionTask(ctx, issue, agentID, pgtype.UUID{}, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{})
 }
 
+// EnqueueCrossReviewRun (K15) queues a fresh-session run of issue by the
+// reviewer agent, briefed only by handoffNote (the diff to read), never by
+// the author's conversation.
+func (s *TaskService) EnqueueCrossReviewRun(ctx context.Context, issue db.Issue, reviewerID pgtype.UUID, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTask(ctx, issue, reviewerID, pgtype.UUID{}, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{})
+}
+
 func (s *TaskService) EnqueueTaskForThreadParent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID) (db.AgentTaskQueue, error) {
 	return s.enqueueMentionTask(ctx, issue, agentID, triggerCommentID, false, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{})
 }

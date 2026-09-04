@@ -357,6 +357,7 @@ import {
   RefactorCampaignEnvelopeSchema,
   AgentCompetencySchema,
   AssigneeSuggestionSchema,
+  CrossReviewListSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3244,6 +3245,17 @@ export class ApiClient {
   async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/assignee-suggestion`);
     return parseWithFallback(raw, AssigneeSuggestionSchema, { domain_key: "", min_sample: 5, candidates: [], ownership: null }, { endpoint: "GET /api/issues/:id/assignee-suggestion" });
+  }
+
+  // Cross-provider self-review (K15).
+  async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
+    return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  async retryCrossReview(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews/retry`, { method: "POST" });
+    return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "POST /api/issues/:id/cross-reviews/retry" }).reviews;
   }
 
   // Refactoring campaigns (K42).

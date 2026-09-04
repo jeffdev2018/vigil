@@ -255,6 +255,7 @@ type AgentTaskQueue struct {
 	DriftReason         pgtype.Text        `json:"drift_reason"`
 	PreemptedAt         pgtype.Timestamptz `json:"preempted_at"`
 	PreemptedByTaskID   pgtype.UUID        `json:"preempted_by_task_id"`
+	ReviewOfTaskID      pgtype.UUID        `json:"review_of_task_id"`
 }
 
 type AgentToLabel struct {

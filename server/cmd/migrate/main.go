@@ -347,6 +347,7 @@ var concurrentIndexCleanups = map[string]string{
 	"562_campaign_shard_position_index":                         "uq_campaign_shard_position",
 	"563_campaign_shard_status_index":                           "idx_campaign_shard_campaign_status",
 	"565_agent_domain_competency_index":                         "uq_agent_domain_competency",
+	"567_task_review_of_index":                                  "idx_agent_task_queue_review_of",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

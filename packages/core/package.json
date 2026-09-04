@@ -53,6 +53,7 @@
     "./issues/fanout": "./issues/fanout.ts",
     "./issues/duel": "./issues/duel.ts",
     "./issues/campaign": "./issues/campaign.ts",
+    "./issues/cross-review": "./issues/cross-review.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",
