@@ -41,6 +41,7 @@
     "./issues/dependencies": "./issues/dependencies.ts",
     "./issues/plan": "./issues/plan.ts",
     "./issues/decisions": "./issues/decisions.ts",
+    "./issues/run-secrets": "./issues/run-secrets.ts",
     "./issues/acceptance": "./issues/acceptance.ts",
     "./issues/scoping": "./issues/scoping.ts",
     "./issues/cockpit": "./issues/cockpit.ts",

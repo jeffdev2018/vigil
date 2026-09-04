@@ -911,6 +911,15 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "run_secrets": {
+    "section": "실행 시크릿",
+    "run": "실행 {{id}}",
+    "status": {
+      "active": "활성",
+      "revoked": "폐기됨",
+      "expired": "만료됨"
+    }
+  },
   "decisions": {
     "section": "결정",
     "recommended": "권장",

@@ -911,6 +911,15 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "run_secrets": {
+    "section": "実行シークレット",
+    "run": "実行 {{id}}",
+    "status": {
+      "active": "有効",
+      "revoked": "失効",
+      "expired": "期限切れ"
+    }
+  },
   "decisions": {
     "section": "判断",
     "recommended": "推奨",

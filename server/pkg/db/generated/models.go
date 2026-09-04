@@ -55,6 +55,7 @@ type Agent struct {
 	ConversationStarters  []byte      `json:"conversation_starters"`
 	TrustMode             string      `json:"trust_mode"`
 	PermissionProfileID   pgtype.UUID `json:"permission_profile_id"`
+	ScopedEnvKeys         []byte      `json:"scoped_env_keys"`
 }
 
 type AgentBuilderDraft struct {
@@ -1478,6 +1479,19 @@ type QuickAction struct {
 	CreatedByID   pgtype.UUID        `json:"created_by_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RunScopedSecret struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	TaskID       pgtype.UUID        `json:"task_id"`
+	AgentID      pgtype.UUID        `json:"agent_id"`
+	Key          string             `json:"key"`
+	TokenHash    string             `json:"token_hash"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
+	RevokeReason pgtype.Text        `json:"revoke_reason"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type RuntimeProfile struct {

@@ -1254,3 +1254,17 @@ func (c *Client) InvokeAgentPluginHook(ctx context.Context, daemonToken, taskID,
 	}
 	return response.Output, nil
 }
+
+// ResolveRunSecret (K09) trades a run-scoped token for its value. The value
+// lives only in the broker's memory for one outgoing call.
+func (c *Client) ResolveRunSecret(ctx context.Context, taskToken, taskID, secretToken string) (string, error) {
+	var response struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	path := fmt.Sprintf("/api/tasks/%s/secrets/resolve", url.PathEscape(taskID))
+	if err := c.postJSONWithToken(ctx, path, taskToken, map[string]string{"token": secretToken}, &response); err != nil {
+		return "", err
+	}
+	return response.Value, nil
+}

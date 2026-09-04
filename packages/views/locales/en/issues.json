@@ -942,6 +942,15 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "run_secrets": {
+    "section": "Run secrets",
+    "run": "Run {{id}}",
+    "status": {
+      "active": "active",
+      "revoked": "revoked",
+      "expired": "expired"
+    }
+  },
   "decisions": {
     "section": "Decisions",
     "recommended": "recommended",

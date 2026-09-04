@@ -4083,3 +4083,19 @@ export const AgentPermissionAssignmentSchema = z.object({
   id: z.string().default(""),
   permission_profile_id: z.string().nullable().default(null),
 }).loose();
+
+// Run-scoped secrets (K09): keys and status only, never a value.
+export const RunSecretSchema = z.object({
+  id: z.string().default(""),
+  task_id: z.string().default(""),
+  key: z.string().default(""),
+  status: z.enum(["active", "revoked", "expired"]).catch("revoked").default("revoked"),
+  expires_at: z.string().default(""),
+  revoked_at: z.string().nullable().default(null),
+  revoke_reason: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}); // strips unknown fields on purpose: a value must never reach the client
+
+export const RunSecretsEnvelopeSchema = z.object({
+  secrets: z.array(RunSecretSchema).catch([]).default([]),
+}).loose();

@@ -13,6 +13,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -36,6 +37,37 @@ type remoteMCPBrokerSet struct {
 
 type remoteMCPCredentialResolver func(context.Context, string) (http.Header, error)
 
+// runSecretResolver (K09) trades a run-scoped `mss_` token for its value.
+type runSecretResolver func(context.Context, string) (string, error)
+
+var runSecretTokenPattern = regexp.MustCompile(`mss_[0-9a-f]{48}`)
+
+// substituteRunSecrets replaces every run-scoped token in an outgoing
+// request with its value, resolved once per token. A refused token is an
+// explicit error, never a silent pass-through of the placeholder.
+func substituteRunSecrets(ctx context.Context, raw []byte, resolve runSecretResolver) ([]byte, error) {
+	if resolve == nil || !bytes.Contains(raw, []byte("mss_")) {
+		return raw, nil
+	}
+	values := map[string]string{}
+	for _, token := range runSecretTokenPattern.FindAll(raw, -1) {
+		key := string(token)
+		if _, done := values[key]; done {
+			continue
+		}
+		value, err := resolve(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		values[key] = value
+	}
+	out := runSecretTokenPattern.ReplaceAllFunc(raw, func(token []byte) []byte {
+		escaped, _ := json.Marshal(values[string(token)])
+		return escaped[1 : len(escaped)-1]
+	})
+	return out, nil
+}
+
 // remoteMCPToolGate (K05) decides whether a tools/call may go upstream;
 // nil lets everything through. The reason is shown to the agent on refusal.
 type remoteMCPToolGate func(ctx context.Context, toolName string, params json.RawMessage) (allowed bool, reason string)
@@ -56,7 +88,7 @@ func (set *remoteMCPBrokerSet) Close() {
 	})
 }
 
-func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
+func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, resolveSecret runSecretResolver, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
 	if len(connections) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -128,7 +160,8 @@ func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, pr
 			taskID: taskID, connection: connection, endpoint: endpoint,
 			client: remotemcp.NewSecureHTTPClient(endpoint), credentialHeaders: headers,
 			resolveCredential: resolveCredential, gate: gate, path: "/" + pathToken,
-			semaphore: make(chan struct{}, remoteMCPMaxConcurrency), logger: logger,
+			resolveSecret: resolveSecret,
+			semaphore:     make(chan struct{}, remoteMCPMaxConcurrency), logger: logger,
 		}
 		server := &http.Server{Handler: proxy, ReadHeaderTimeout: 5 * time.Second}
 		set.servers = append(set.servers, server)
@@ -216,6 +249,7 @@ type remoteMCPProxy struct {
 	credentialHeaders http.Header
 	resolveCredential remoteMCPCredentialResolver
 	gate              remoteMCPToolGate
+	resolveSecret     runSecretResolver
 	path              string
 	semaphore         chan struct{}
 	calls             atomic.Int64
@@ -291,6 +325,14 @@ func (proxy *remoteMCPProxy) ServeHTTP(w http.ResponseWriter, request *http.Requ
 				return
 			}
 		}
+	}
+	// Run-scoped secrets (K09): tokens become values here, in memory, for this call only.
+	if substituted, err := substituteRunSecrets(request.Context(), raw, proxy.resolveSecret); err != nil {
+		resultClass = "secret_refused"
+		writeRemoteMCPError(w, rpcRequest.ID, -32005, "Run secret refused: "+err.Error())
+		return
+	} else {
+		raw = substituted
 	}
 	upstream, err := http.NewRequestWithContext(request.Context(), http.MethodPost, proxy.endpoint.String(), bytes.NewReader(raw))
 	if err != nil {
