@@ -943,6 +943,13 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "preemption": {
+    "waiting": "Suspended to let an urgent issue go first",
+    "resumed": "Was suspended for an urgent issue and resumed",
+    "for": "Priority given to",
+    "estimate": "Resumes from its checkpoint as soon as the agent has a free slot, urgent runs first.",
+    "count": "{{count}} suspensions on this issue"
+  },
   "drift": {
     "stopped": "Stopped for drift",
     "run": "run {{id}}",

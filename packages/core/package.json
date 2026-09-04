@@ -48,6 +48,7 @@
     "./issues/checkpoint": "./issues/checkpoint.ts",
     "./issues/traffic": "./issues/traffic.ts",
     "./issues/drift": "./issues/drift.ts",
+    "./issues/preemption": "./issues/preemption.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",

@@ -346,6 +346,7 @@ import {
   RunCheckpointEnvelopeSchema,
   TrafficConflictSchema,
   DriftPolicySchema,
+  PreemptionsEnvelopeSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3148,6 +3149,12 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Preemption (K41).
+  async listIssuePreemptions(issueId: string): Promise<import("../issues/preemption").Preemption[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/preemptions`);
+    return parseWithFallback(raw, PreemptionsEnvelopeSchema, { preemptions: [] }, { endpoint: "GET /api/issues/:id/preemptions" }).preemptions;
   }
 
   // Drift detection (K40).
