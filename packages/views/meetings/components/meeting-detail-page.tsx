@@ -2,12 +2,12 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AudioLines, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { AudioLines, ChevronDown, ChevronRight, ExternalLink, Trash2 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { meetingDetailOptions } from "@multica/core/meetings/queries";
 import { useMeetingRecorderStore } from "@multica/core/meetings/store";
-import { useFinishMeeting } from "@multica/core/meetings/mutations";
+import { useDeleteMeeting, useFinishMeeting } from "@multica/core/meetings/mutations";
 import { useAuthStore } from "@multica/core/auth";
 import { toast } from "sonner";
 import type { Meeting, MeetingAction } from "@multica/core/types";
@@ -22,6 +22,8 @@ import { CollectionPageState } from "../../layout/collection-page";
 import { PageHeader } from "../../layout/page-header";
 import { RichContent } from "../../rich-content";
 import { useT, useTimeAgo } from "../../i18n";
+import { useNavigation } from "../../navigation";
+import { DeleteMeetingDialog } from "./delete-meeting-dialog";
 import { MeetingRecorderPanel } from "./meeting-recorder";
 import { meetingStatusDotClass } from "./meetings-page";
 
@@ -72,7 +74,12 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
         leaf={
           <span className="min-w-0 truncate font-medium">{data.title}</span>
         }
-        actions={<MeetingStatusChip status={data.status} />}
+        actions={
+          <div className="flex items-center gap-2">
+            <MeetingStatusChip status={data.status} />
+            {data.can_manage ? <DeleteMeetingAction meeting={data} /> : null}
+          </div>
+        }
       />
 
       <div className="flex-1 overflow-y-auto">
@@ -125,6 +132,49 @@ function RecorderSlot({ meetingId, createdBy }: { meetingId: string; createdBy: 
         </Button>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * Delete from the detail page. The list is awaited-then-navigated (never
+ * optimistic): the user is standing on the page that is about to stop
+ * existing, so the server has to have agreed before we leave it.
+ */
+function DeleteMeetingAction({ meeting }: { meeting: Meeting }) {
+  const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
+  const wsPaths = useWorkspacePaths();
+  const { push } = useNavigation();
+  const deleteMeeting = useDeleteMeeting(wsId);
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        className="text-muted-foreground hover:text-destructive"
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2 aria-hidden="true" className="size-3.5" />
+        {t(($) => $.detail.delete)}
+      </Button>
+      <DeleteMeetingDialog
+        open={confirming}
+        title={meeting.title}
+        pending={deleteMeeting.isPending}
+        onOpenChange={setConfirming}
+        onConfirm={() => {
+          deleteMeeting
+            .mutateAsync(meeting.id)
+            .then(() => {
+              setConfirming(false);
+              push(wsPaths.meetings());
+            })
+            .catch(() => toast.error(t(($) => $.delete_dialog.error)));
+        }}
+      />
+    </>
   );
 }
 

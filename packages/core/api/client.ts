@@ -1786,6 +1786,11 @@ export class ApiClient {
     });
   }
 
+  /** Removes a meeting and its transcript. Recorder or workspace admin/owner. */
+  async deleteMeeting(id: string): Promise<void> {
+    await this.fetch(`/api/meetings/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
   /**
    * Uploads one recorded audio chunk. Not routed through `this.fetch`: the
    * browser has to set the multipart boundary itself (same reason as

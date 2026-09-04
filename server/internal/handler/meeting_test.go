@@ -252,3 +252,50 @@ func TestMeetingSegmentsAreCreatorOnly(t *testing.T) {
 	get.Header.Set("X-User-ID", otherUser)
 	testutil.Call(t, testHandler.GetMeeting, get).Want(http.StatusOK)
 }
+
+// Delete is the recorder's, or a workspace admin/owner's. A plain member who
+// did not record it gets 403, and `can_manage` tells the client which one it is
+// before it renders the affordance.
+func TestMeetingDeletePermissions(t *testing.T) {
+	stubSTT(t, "x")
+	newMeeting := func(t *testing.T) string {
+		t.Helper()
+		var created MeetingResponse
+		testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", nil)).
+			Want(http.StatusCreated).JSON(&created)
+		cleanupMeeting(t, created.ID)
+		return created.ID
+	}
+
+	plainUser := dbfx.User(t, "Plain Member", "meeting-delete-member@example.com")
+	dbfx.Member(t, testWorkspaceID, plainUser, "member")
+	adminUser := dbfx.User(t, "Meeting Admin", "meeting-delete-admin@example.com")
+	dbfx.Member(t, testWorkspaceID, adminUser, "admin")
+
+	// A non-recorder member sees can_manage=false and is refused.
+	id := newMeeting(t)
+	var seen MeetingResponse
+	get := testutil.WithURLParams(newRequest(http.MethodGet, "/api/meetings/"+id, nil), "id", id)
+	get.Header.Set("X-User-ID", plainUser)
+	testutil.Call(t, testHandler.GetMeeting, get).Want(http.StatusOK).JSON(&seen)
+	if seen.CanManage {
+		t.Fatalf("plain member: can_manage = true, want false")
+	}
+	del := testutil.WithURLParams(newRequest(http.MethodDelete, "/api/meetings/"+id, nil), "id", id)
+	del.Header.Set("X-User-ID", plainUser)
+	testutil.Call(t, testHandler.DeleteMeeting, del).Want(http.StatusForbidden)
+
+	// The admin may, even though someone else recorded it.
+	del = testutil.WithURLParams(newRequest(http.MethodDelete, "/api/meetings/"+id, nil), "id", id)
+	del.Header.Set("X-User-ID", adminUser)
+	testutil.Call(t, testHandler.DeleteMeeting, del).Want(http.StatusNoContent)
+	testutil.Call(t, testHandler.GetMeeting,
+		testutil.WithURLParams(newRequest(http.MethodGet, "/api/meetings/"+id, nil), "id", id)).
+		Want(http.StatusNotFound)
+
+	// The recorder may delete their own.
+	id = newMeeting(t)
+	testutil.Call(t, testHandler.DeleteMeeting,
+		testutil.WithURLParams(newRequest(http.MethodDelete, "/api/meetings/"+id, nil), "id", id)).
+		Want(http.StatusNoContent)
+}

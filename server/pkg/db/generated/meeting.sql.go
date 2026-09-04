@@ -131,6 +131,28 @@ func (q *Queries) CreateMeeting(ctx context.Context, arg CreateMeetingParams) (M
 	return i, err
 }
 
+const deleteMeeting = `-- name: DeleteMeeting :execrows
+DELETE FROM meeting
+WHERE id = $1::uuid
+  AND workspace_id = $2::uuid
+`
+
+type DeleteMeetingParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Action items already captured into triage are deliberately NOT removed:
+// they are work items in their own right and the meeting is only where they
+// came from. Zero rows means the meeting was already gone.
+func (q *Queries) DeleteMeeting(ctx context.Context, arg DeleteMeetingParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteMeeting, arg.ID, arg.WorkspaceID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const failMeeting = `-- name: FailMeeting :exec
 UPDATE meeting
 SET status = 'failed', updated_at = now()

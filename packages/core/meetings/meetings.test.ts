@@ -62,6 +62,9 @@ describe("listMeetings", () => {
     expect(res.meetings[0]?.segment_count).toBe(0);
     expect(res.meetings[0]?.actions).toEqual([]);
     expect(res.meetings[0]?.summary_unavailable).toBe(false);
+    // An older server that does not send it must not hand the UI a delete
+    // affordance the backend would refuse.
+    expect(res.meetings[0]?.can_manage).toBe(false);
   });
 
   it("degrades a malformed body to the empty fallback instead of throwing", async () => {
@@ -110,6 +113,15 @@ describe("createMeeting", () => {
     const err = await client().createMeeting().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(errorCode(err)).toBe("stt_not_configured");
+  });
+});
+
+describe("deleteMeeting", () => {
+  it("resolves on 204 and keeps a 403 as an ApiError", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
+    await expect(client().deleteMeeting("meet-1")).resolves.toBeUndefined();
+    stubFetchJson({ error: "forbidden" }, 403);
+    await expect(client().deleteMeeting("meet-1")).rejects.toBeInstanceOf(ApiError);
   });
 });
 

@@ -1,16 +1,25 @@
 "use client";
 
-import { AudioLines, Info, Mic } from "lucide-react";
+import { useState } from "react";
+import { AudioLines, Info, Mic, MoreHorizontal, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useConfigStore } from "@multica/core/config";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { meetingListOptions } from "@multica/core/meetings/queries";
+import { useDeleteMeeting } from "@multica/core/meetings/mutations";
 import {
   openMeetingRecorder,
   useMeetingRecorderStore,
 } from "@multica/core/meetings/store";
 import type { Meeting } from "@multica/core/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@multica/ui/components/ui/dropdown-menu";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { useRowLink } from "../../navigation";
@@ -21,6 +30,7 @@ import {
 } from "../../layout/collection-page";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { useT, useTimeAgo } from "../../i18n";
+import { DeleteMeetingDialog } from "./delete-meeting-dialog";
 
 /**
  * Dot color per meeting status. Server-driven enum — an unknown value falls
@@ -206,7 +216,65 @@ function MeetingRow({ meeting }: { meeting: Meeting }) {
         <span className="w-20 shrink-0 text-right text-caption tabular-nums text-muted-foreground">
           {timeAgo(meeting.started_at)}
         </span>
+        {meeting.can_manage ? <MeetingRowMenu meeting={meeting} /> : null}
       </div>
     </li>
+  );
+}
+
+/**
+ * Row actions. Always visible rather than hover-revealed: the only action is
+ * destructive and a meetings row has no other affordance competing for the
+ * space, so a hidden control would just be one a touch pointer never finds.
+ */
+function MeetingRowMenu({ meeting }: { meeting: Meeting }) {
+  const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
+  const deleteMeeting = useDeleteMeeting(wsId);
+  const [confirming, setConfirming] = useState(false);
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <button
+              type="button"
+              aria-label={t(($) => $.list.row_actions_aria, { title: meeting.title })}
+              // The row owns click-to-open; the menu must not navigate.
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex size-7 shrink-0 items-center justify-center rounded text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring data-popup-open:bg-accent data-popup-open:text-foreground"
+            >
+              <MoreHorizontal className="size-4" />
+            </button>
+          }
+        />
+        <DropdownMenuContent align="end" className="w-auto">
+          <DropdownMenuItem
+            variant="destructive"
+            onClick={(e) => {
+              e.stopPropagation();
+              setConfirming(true);
+            }}
+          >
+            <Trash2 className="size-4" />
+            {t(($) => $.list.delete)}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <DeleteMeetingDialog
+        open={confirming}
+        title={meeting.title}
+        pending={deleteMeeting.isPending}
+        onOpenChange={setConfirming}
+        onConfirm={() => {
+          deleteMeeting
+            .mutateAsync(meeting.id)
+            .then(() => setConfirming(false))
+            .catch(() => toast.error(t(($) => $.delete_dialog.error)));
+        }}
+      />
+    </>
   );
 }

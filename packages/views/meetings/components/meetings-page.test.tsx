@@ -29,6 +29,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
 
 const data = vi.hoisted(() => ({
   meetings: { meetings: [] } as MeetingListResponse,
+  deleteMeeting: vi.fn(async (_id: string) => undefined),
   store: {
     phase: "idle" as string,
     sttUnavailable: false,
@@ -52,6 +53,7 @@ const MEETINGS: { rows: MeetingListResponse["meetings"] } = vi.hoisted(() => ({
       actions: [],
       summary_unavailable: false,
       action_count: 0,
+      can_manage: true,
     },
     {
       id: "meet-2",
@@ -66,8 +68,16 @@ const MEETINGS: { rows: MeetingListResponse["meetings"] } = vi.hoisted(() => ({
       actions: [],
       summary_unavailable: false,
       action_count: 0,
+      can_manage: false,
     },
   ],
+}));
+
+vi.mock("@multica/core/meetings/mutations", () => ({
+  useDeleteMeeting: () => ({
+    mutateAsync: (id: string) => data.deleteMeeting(id),
+    isPending: false,
+  }),
 }));
 
 vi.mock("@multica/core/meetings/queries", () => ({
@@ -167,6 +177,25 @@ describe("MeetingsPage", () => {
     expect(
       screen.getByRole("button", { name: /record a meeting/i }).hasAttribute("disabled"),
     ).toBe(true);
+  });
+
+  it("only a meeting the viewer can manage offers the row actions menu", async () => {
+    renderPage();
+    await screen.findByText("Weekly sync");
+    expect(screen.getByRole("button", { name: /actions for weekly sync/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /actions for design review/i })).toBeNull();
+  });
+
+  it("deleting a meeting confirms first, then calls the server", async () => {
+    renderPage();
+    await screen.findByText("Weekly sync");
+    fireEvent.click(screen.getByRole("button", { name: /actions for weekly sync/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /delete meeting/i }));
+    // Nothing is sent until the confirm step is answered.
+    expect(data.deleteMeeting).not.toHaveBeenCalled();
+    expect(await screen.findByText(/delete .weekly sync/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /^delete$/i }));
+    expect(data.deleteMeeting).toHaveBeenCalledWith("meet-1");
   });
 
   it("clicking a row navigates to that meeting's detail page", async () => {

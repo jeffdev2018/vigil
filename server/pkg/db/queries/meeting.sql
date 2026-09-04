@@ -69,3 +69,11 @@ WHERE workspace_id = sqlc.arg('workspace_id')::uuid
   AND origin_type = sqlc.arg('origin_type')::text
   AND origin_id = sqlc.arg('origin_id')::uuid
 ORDER BY first_seen_at ASC, id ASC;
+
+-- name: DeleteMeeting :execrows
+-- Action items already captured into triage are deliberately NOT removed:
+-- they are work items in their own right and the meeting is only where they
+-- came from. Zero rows means the meeting was already gone.
+DELETE FROM meeting
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid;

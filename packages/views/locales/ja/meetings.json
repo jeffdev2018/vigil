@@ -9,7 +9,9 @@
     "empty_description": "会話を録音すると、Multica が進行中に文字起こしし、要約を作成して、アクションアイテムをトリアージに登録します。",
     "segments": "{{count}} セグメント",
     "actions": "アクションアイテム {{count}} 件",
-    "no_app": "アプリ不明"
+    "no_app": "アプリ不明",
+    "delete": "ミーティングを削除",
+    "row_actions_aria": "{{title}} の操作"
   },
   "capability": {
     "title": "文字起こしが設定されていません",
@@ -39,7 +41,8 @@
     "transcript_title": "文字起こし",
     "transcript_empty": "まだ文字起こしはありません",
     "transcript_show": "文字起こしを表示",
-    "transcript_hide": "文字起こしを隠す"
+    "transcript_hide": "文字起こしを隠す",
+    "delete": "削除"
   },
   "recorder": {
     "starting": "録音を開始しています…",
@@ -84,5 +87,12 @@
     "accept": "記録する",
     "dismiss": "後で",
     "meeting_title": "{{appName}} のミーティング"
+  },
+  "delete_dialog": {
+    "title": "「{{title}}」を削除しますか？",
+    "body": "録音と文字起こしは完全に削除されます。すでにトリアージに登録されたアクションアイテムは残ります。",
+    "cancel": "キャンセル",
+    "confirm": "削除",
+    "error": "ミーティングを削除できませんでした。"
   }
 }

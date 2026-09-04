@@ -63,6 +63,10 @@ type MeetingResponse struct {
 	// SummaryUnavailable is true when the meeting finished without an LLM
 	// (unconfigured or failed): the transcript is kept, no actions extracted.
 	SummaryUnavailable bool `json:"summary_unavailable,omitempty"`
+	// CanManage tells the client whether THIS caller may rename, delete,
+	// finish or re-summarize the meeting, so the UI does not have to load the
+	// member list to work out a workspace role. See canManageMeeting.
+	CanManage bool `json:"can_manage"`
 }
 
 type MeetingListResponse struct {
@@ -244,9 +248,30 @@ func (h *Handler) loadMeetingForUser(w http.ResponseWriter, r *http.Request, cre
 	return m, workspaceID, userID, true
 }
 
+// canManageMeeting is true for the recorder and for a workspace admin/owner.
+// The recorder owns their own recording; an admin has to be able to close or
+// remove a meeting whose recorder closed their tab and never came back.
+func (h *Handler) canManageMeeting(r *http.Request, m db.Meeting, userID string) bool {
+	if util.UUIDToString(m.CreatedBy) == userID {
+		return true
+	}
+	member, err := h.getWorkspaceMember(r.Context(), userID, h.resolveWorkspaceID(r))
+	return err == nil && roleAllowed(member.Role, "owner", "admin")
+}
+
+// requireMeetingManager answers 403 when the caller is neither the recorder
+// nor a workspace admin/owner.
+func (h *Handler) requireMeetingManager(w http.ResponseWriter, r *http.Request, m db.Meeting, userID string) bool {
+	if h.canManageMeeting(r, m, userID) {
+		return true
+	}
+	writeError(w, http.StatusForbidden, "only the recorder or a workspace admin can modify this meeting")
+	return false
+}
+
 // GetMeeting returns one meeting with its action items. GET /api/meetings/{id}.
 func (h *Handler) GetMeeting(w http.ResponseWriter, r *http.Request) {
-	m, workspaceID, _, ok := h.loadMeetingForUser(w, r, false)
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
 	if !ok {
 		return
 	}
@@ -258,12 +283,15 @@ func (h *Handler) GetMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load meeting")
 		return
 	}
-	writeJSON(w, http.StatusOK, meetingToResponse(m, actions))
+	resp := meetingToResponse(m, actions)
+	resp.CanManage = h.canManageMeeting(r, m, userID)
+	writeJSON(w, http.StatusOK, resp)
 }
 
 // ListMeetings lists the workspace's meetings, newest first. GET /api/meetings?limit&offset.
 func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
-	if _, ok := requireUserID(w, r); !ok {
+	userID, ok := requireUserID(w, r)
+	if !ok {
 		return
 	}
 	workspaceID, ok := parseUUIDOrBadRequest(w, h.resolveWorkspaceID(r), "workspace_id")
@@ -296,6 +324,10 @@ func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list meetings")
 		return
 	}
+	// One member lookup for the whole page: the role is the same for every row,
+	// only the recorder differs.
+	member, memberErr := h.getWorkspaceMember(r.Context(), userID, h.resolveWorkspaceID(r))
+	isAdmin := memberErr == nil && roleAllowed(member.Role, "owner", "admin")
 	out := MeetingListResponse{Meetings: make([]MeetingResponse, 0, len(rows))}
 	for _, row := range rows {
 		// The list omits transcripts: they are large and the detail page loads them.
@@ -303,6 +335,7 @@ func (h *Handler) ListMeetings(w http.ResponseWriter, r *http.Request) {
 		m.Transcript = ""
 		resp := meetingToResponse(m, nil)
 		resp.ActionCount = row.ActionCount
+		resp.CanManage = isAdmin || util.UUIDToString(m.CreatedBy) == userID
 		out.Meetings = append(out.Meetings, resp)
 	}
 	writeJSON(w, http.StatusOK, out)
@@ -550,4 +583,27 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 		items = append(items, item)
 	}
 	return items
+}
+
+// DeleteMeeting removes a meeting and its transcript for good.
+// DELETE /api/meetings/{id}. The recorder or a workspace admin/owner.
+func (h *Handler) DeleteMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	rows, err := h.Queries.DeleteMeeting(r.Context(), db.DeleteMeetingParams{ID: m.ID, WorkspaceID: workspaceID})
+	if err != nil {
+		slog.Error("delete meeting failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete meeting")
+		return
+	}
+	if rows == 0 {
+		writeError(w, http.StatusNotFound, "meeting not found")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }

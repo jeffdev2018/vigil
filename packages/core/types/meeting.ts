@@ -36,6 +36,12 @@ export interface Meeting {
   action_count: number;
   /** True when the meeting finished without an LLM: transcript kept, no actions. */
   summary_unavailable: boolean;
+  /**
+   * Whether THIS viewer may rename, delete, finish or re-summarize the
+   * meeting — the recorder, or a workspace admin/owner. Server-computed so the
+   * client never has to load the member list to work out a role.
+   */
+  can_manage: boolean;
 }
 
 export interface MeetingListResponse {

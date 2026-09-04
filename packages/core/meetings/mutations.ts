@@ -40,6 +40,22 @@ export function useAppendMeetingSegment() {
 }
 
 /**
+ * Removes a meeting. The detail page navigates back to the list on success, so
+ * the caller awaits the server and nothing is dropped from cache optimistically
+ * (CLAUDE.md state rules).
+ */
+export function useDeleteMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => api.deleteMeeting(meetingId),
+    onSuccess: (_data, meetingId) => {
+      qc.removeQueries({ queryKey: meetingKeys.detail(wsId, meetingId) });
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+    },
+  });
+}
+
+/**
  * Closes the recording and summarizes it. The summary creates pending triage
  * items, so the triage queue is invalidated too.
  */
