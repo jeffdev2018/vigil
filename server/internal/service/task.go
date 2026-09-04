@@ -1316,6 +1316,14 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	// Runtime pools (K28): an offline runtime at enqueue sends the task to
 	// the first online runtime of the pool, recorded on the task.
 	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
+	// Issue router (K27): risk and past failures may pick another pool first.
+	var routingDecision *RoutingDecision
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent); ok {
+		routingDecision = decision
+		if routed.Valid {
+			enqueueRuntimeID, failoverHistory = routed, nil
+		}
+	}
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
@@ -1383,6 +1391,14 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			slog.Warn("runtime pool: record enqueue failover failed", "task_id", util.UUIDToString(task.ID), "error", merr)
 		} else {
 			task = moved
+		}
+	}
+	if routingDecision != nil {
+		raw, _ := json.Marshal(routingDecision)
+		if routed, rerr := s.Queries.SetTaskRoutingDecision(ctx, db.SetTaskRoutingDecisionParams{ID: task.ID, RoutingDecision: raw}); rerr != nil {
+			slog.Warn("issue router: record decision failed", "task_id", util.UUIDToString(task.ID), "error", rerr)
+		} else {
+			task = routed
 		}
 	}
 

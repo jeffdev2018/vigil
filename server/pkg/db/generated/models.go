@@ -210,6 +210,7 @@ type AgentTaskQueue struct {
 	LastActivityAt      pgtype.Timestamptz `json:"last_activity_at"`
 	PermissionProfileID pgtype.UUID        `json:"permission_profile_id"`
 	FailoverHistory     []byte             `json:"failover_history"`
+	RoutingDecision     []byte             `json:"routing_decision"`
 }
 
 type AgentToLabel struct {

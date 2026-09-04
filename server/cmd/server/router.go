@@ -2056,6 +2056,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			r.Put("/api/agents/{id}/runtime-pool", h.SetAgentRuntimePool)
 			r.Get("/api/issues/{id}/failover-history", h.ListIssueFailoverHistory)
+			// Issue router (K27): risk-based pool choice and escalation, auditable per issue.
+			r.Get("/api/issues/{id}/routing-decision", h.GetIssueRoutingDecision)
+			r.Get("/api/routing-settings", h.GetRoutingSettings)
+			r.Put("/api/routing-settings", h.PutRoutingSettings)
 			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)
 			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
 			r.Route("/api/search/why", func(r chi.Router) {

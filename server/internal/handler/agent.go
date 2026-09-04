@@ -398,8 +398,10 @@ type AgentTaskResponse struct {
 	Error          *string `json:"error"`
 	FailureReason  string  `json:"failure_reason,omitempty"` // see TaskService.MaybeRetryFailedTask
 	// Runtime pools (K28): the moves this run made, and whether it landed on the degraded runtime.
-	FailoverHistory    json.RawMessage       `json:"failover_history,omitempty"`
-	Degraded           bool                  `json:"degraded"`
+	FailoverHistory json.RawMessage `json:"failover_history,omitempty"`
+	Degraded        bool            `json:"degraded"`
+	// Issue router (K27): risk level, pool and escalation behind this run.
+	RoutingDecision    json.RawMessage       `json:"routing_decision,omitempty"`
 	Attempt            int32                 `json:"attempt"`
 	MaxAttempts        int32                 `json:"max_attempts"`
 	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
@@ -801,6 +803,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		FailureReason:          failureReason,
 		FailoverHistory:        json.RawMessage(t.FailoverHistory),
 		Degraded:               service.TaskDegraded(t.FailoverHistory),
+		RoutingDecision:        json.RawMessage(t.RoutingDecision),
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,

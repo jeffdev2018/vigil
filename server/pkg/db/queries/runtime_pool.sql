@@ -47,3 +47,17 @@ SELECT * FROM agent_task_queue WHERE issue_id = $1 AND failover_history IS NOT N
 
 -- name: PurgeWorkspaceRuntimePools :exec
 DELETE FROM runtime_pool WHERE workspace_id = $1;
+
+-- Issue router (K27).
+
+-- name: SetTaskRoutingDecision :one
+UPDATE agent_task_queue SET routing_decision = $2 WHERE id = $1 RETURNING *;
+
+-- name: ListRecentIssueTaskOutcomes :many
+SELECT id, status, failure_reason, routing_decision, created_at FROM agent_task_queue
+WHERE issue_id = $1 AND status IN ('completed', 'failed', 'cancelled')
+ORDER BY created_at DESC LIMIT 20;
+
+-- name: GetLatestIssueTaskRouting :one
+SELECT id, status, runtime_id, routing_decision, created_at FROM agent_task_queue
+WHERE issue_id = $1 ORDER BY created_at DESC LIMIT 1;
