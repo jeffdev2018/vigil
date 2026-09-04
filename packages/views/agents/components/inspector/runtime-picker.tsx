@@ -8,9 +8,14 @@ import {
   ChevronRight,
   Lock,
   Monitor,
+  Sparkles,
 } from "lucide-react";
 import { isRuntimeUsableForUser } from "@multica/core/runtimes";
-import type { AgentRuntime, MemberWithUser } from "@multica/core/types";
+import type {
+  AgentRuntime,
+  AgentRuntimeRouting,
+  MemberWithUser,
+} from "@multica/core/types";
 import { ActorAvatar } from "../../../common/actor-avatar";
 import {
   PickerItem,
@@ -48,6 +53,7 @@ export function RuntimePicker({
   canEdit = true,
   variant = "chip",
   showLabel = true,
+  routing = "fixed",
   onChange,
 }: {
   value: string;
@@ -58,7 +64,21 @@ export function RuntimePicker({
   canEdit?: boolean;
   variant?: "chip" | "field";
   showLabel?: boolean;
-  onChange: (runtimeId: string) => Promise<void> | void;
+  /**
+   * Smart routing mode (JEF-237). "auto" renders an "Auto (smart routing)"
+   * state where `value` is the preferred / fallback runtime.
+   */
+  routing?: AgentRuntimeRouting;
+  /**
+   * Receives the runtime id (unchanged when only the mode flips) and the
+   * resulting routing mode, so the caller can persist both in ONE update —
+   * picking a concrete runtime always means "fixed", picking Auto means
+   * "auto" with the current runtime kept as preferred.
+   */
+  onChange: (
+    runtimeId: string,
+    routing: AgentRuntimeRouting,
+  ) => Promise<void> | void;
 }) {
   const { t } = useT("agents");
   const [open, setOpen] = useState(false);
@@ -112,9 +132,13 @@ export function RuntimePicker({
     : t(($) => $.pickers.runtime_none);
 
   const isOnline = selected?.status === "online";
+  const isAuto = routing === "auto";
+  const autoLabel = t(($) => $.pickers.runtime_auto_label);
 
   if (!canEdit) {
-    const icon = selected ? (
+    const icon = isAuto ? (
+      <Sparkles className="h-4 w-4 shrink-0 text-brand" />
+    ) : selected ? (
       <ProviderLogo provider={selected.provider} className="h-4 w-4 shrink-0" />
     ) : (
       <Monitor
@@ -122,11 +146,16 @@ export function RuntimePicker({
         aria-hidden="true"
       />
     );
+    const readOnlyLabel = isAuto
+      ? selected
+        ? `${autoLabel} · ${combinedLabel}`
+        : autoLabel
+      : combinedLabel;
     if (variant === "field") {
       const control = (
         <div className="flex min-h-10 items-center gap-2 rounded-lg border border-input bg-input/50 px-3 text-body text-muted-foreground">
           {icon}
-          <span className="min-w-0 flex-1 truncate">{combinedLabel}</span>
+          <span className="min-w-0 flex-1 truncate">{readOnlyLabel}</span>
           {selected ? (
             <span
               className={`h-2 w-2 shrink-0 rounded-full ${
@@ -147,7 +176,9 @@ export function RuntimePicker({
     }
     return (
       <span className="inline-flex min-w-0 items-center gap-1.5 px-1.5 py-0.5 text-caption text-muted-foreground">
-        {selected ? (
+        {isAuto ? (
+          <Sparkles className="h-3 w-3 shrink-0 text-brand" />
+        ) : selected ? (
           <ProviderLogo
             provider={selected.provider}
             className="h-3 w-3 shrink-0"
@@ -155,7 +186,7 @@ export function RuntimePicker({
         ) : (
           <Monitor className="h-3 w-3 shrink-0" />
         )}
-        <span className="min-w-0 truncate font-mono">{combinedLabel}</span>
+        <span className="min-w-0 truncate font-mono">{readOnlyLabel}</span>
         {selected && (
           <span
             className={`ml-auto h-1.5 w-1.5 shrink-0 rounded-full ${
@@ -167,12 +198,14 @@ export function RuntimePicker({
     );
   }
 
-  const triggerTitle = selected
-    ? t(($) => $.pickers.runtime_tooltip, {
-        name: combinedLabel,
-        status: isOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
-      })
-    : t(($) => $.pickers.runtime_tooltip_none);
+  const triggerTitle = isAuto
+    ? t(($) => $.pickers.runtime_tooltip_auto, { name: combinedLabel })
+    : selected
+      ? t(($) => $.pickers.runtime_tooltip, {
+          name: combinedLabel,
+          status: isOnline ? t(($) => $.pickers.runtime_online) : t(($) => $.pickers.runtime_offline),
+        })
+      : t(($) => $.pickers.runtime_tooltip_none);
 
   const hasOtherRuntimes = runtimes.some((r) => r.owner_id !== currentUserId);
 
@@ -222,7 +255,14 @@ export function RuntimePicker({
 
   const select = async (id: string) => {
     setOpen(false);
-    if (id !== value) await onChange(id);
+    // A concrete runtime pick always lands in fixed mode — even re-clicking
+    // the current runtime while in auto, which is how the user re-pins.
+    if (id !== value || isAuto) await onChange(id, "fixed");
+  };
+
+  const selectAuto = async () => {
+    setOpen(false);
+    if (!isAuto) await onChange(value, "auto");
   };
 
   const drilled = machineId
@@ -259,7 +299,15 @@ export function RuntimePicker({
       }
       trigger={
         <>
-          {selected ? (
+          {isAuto ? (
+            <Sparkles
+              className={
+                variant === "field"
+                  ? "h-4 w-4 shrink-0 text-brand"
+                  : "h-3 w-3 shrink-0 text-brand"
+              }
+            />
+          ) : selected ? (
             <ProviderLogo
               provider={selected.provider}
               className={
@@ -276,7 +324,23 @@ export function RuntimePicker({
               aria-hidden="true"
             />
           )}
-          {variant === "field" && selected ? (
+          {isAuto ? (
+            <span
+              className={
+                variant === "field"
+                  ? "min-w-0 flex-1 truncate"
+                  : "min-w-0 truncate font-mono"
+              }
+            >
+              {autoLabel}
+              {selected && (
+                <span className="text-muted-foreground">
+                  {" · "}
+                  {combinedLabel}
+                </span>
+              )}
+            </span>
+          ) : variant === "field" && selected ? (
             <span className="min-w-0 flex-1 truncate">
               {selectedLabel}
               {selectedMachine && selectedMachine.title !== selectedLabel && (
@@ -367,7 +431,7 @@ export function RuntimePicker({
           return (
             <PickerItem
               key={rt.id}
-              selected={rt.id === value}
+              selected={rt.id === value && !isAuto}
               disabled={locked}
               onClick={() => {
                 if (locked) return;
@@ -402,81 +466,104 @@ export function RuntimePicker({
             </PickerItem>
           );
         })
-      ) : machines.length === 0 ? (
-        <p className="px-2 py-3 text-center text-caption text-muted-foreground">
-          {t(($) => $.pickers.runtime_empty)}
-        </p>
       ) : (
-        machines.map((machine) => {
-          const owner = machineOwner(machine);
-          const containsSelection = machine.runtimes.some(
-            (r) => r.id === value,
-          );
-          const extraProviders =
-            machine.providerNames.length - MACHINE_PROVIDER_PREVIEW;
-          return (
-            <button
-              key={machine.id}
-              type="button"
-              data-picker-item
-              onClick={() => setMachineId(machine.id)}
-              className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-body transition-colors hover:bg-accent"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5">
-                  <span className="truncate text-body font-medium">
-                    {machine.title}
-                  </span>
-                  {machine.mode === "cloud" && (
-                    <span className="shrink-0 rounded bg-info/10 px-1 text-micro font-medium text-info">
-                      {t(($) => $.create_dialog.runtime_cloud_badge)}
-                    </span>
-                  )}
-                </div>
-                <div className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
-                  {owner && (
-                    <span className="flex min-w-0 items-center gap-1">
-                      <ActorAvatar
-                        actorType="member"
-                        actorId={owner.user_id}
-                        size="xs"
-                      />
-                      <span className="truncate">{owner.name}</span>
-                    </span>
-                  )}
-                  {owner && machine.providerNames.length > 0 && (
-                    <span className="text-faint-foreground">·</span>
-                  )}
-                  {machine.providerNames.length > 0 && (
-                    <span className="flex shrink-0 items-center gap-1">
-                      {machine.providerNames
-                        .slice(0, MACHINE_PROVIDER_PREVIEW)
-                        .map((provider) => (
-                          <ProviderLogo
-                            key={provider}
-                            provider={provider}
-                            className="h-3 w-3"
-                          />
-                        ))}
-                      {extraProviders > 0 && (
-                        <span className="text-micro tabular-nums">
-                          +{extraProviders}
+        <>
+          {/* Smart routing (JEF-237): Auto keeps the selected runtime as the
+              preferred / fallback one and lets the router pick per task. */}
+          <button
+            type="button"
+            data-picker-item
+            onClick={() => void selectAuto()}
+            className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-body transition-colors hover:bg-accent"
+          >
+            <Sparkles className="h-4 w-4 shrink-0 text-brand" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-body font-medium">{autoLabel}</div>
+              <div className="truncate text-caption text-muted-foreground">
+                {t(($) => $.pickers.runtime_auto_hint)}
+              </div>
+            </div>
+            {isAuto && (
+              <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            )}
+          </button>
+          {machines.length === 0 ? (
+            <p className="px-2 py-3 text-center text-caption text-muted-foreground">
+              {t(($) => $.pickers.runtime_empty)}
+            </p>
+          ) : (
+            machines.map((machine) => {
+              const owner = machineOwner(machine);
+              const containsSelection = machine.runtimes.some(
+                (r) => r.id === value,
+              );
+              const extraProviders =
+                machine.providerNames.length - MACHINE_PROVIDER_PREVIEW;
+              return (
+                <button
+                  key={machine.id}
+                  type="button"
+                  data-picker-item
+                  onClick={() => setMachineId(machine.id)}
+                  className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left text-body transition-colors hover:bg-accent"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-body font-medium">
+                        {machine.title}
+                      </span>
+                      {machine.mode === "cloud" && (
+                        <span className="shrink-0 rounded bg-info/10 px-1 text-micro font-medium text-info">
+                          {t(($) => $.create_dialog.runtime_cloud_badge)}
                         </span>
                       )}
-                    </span>
+                    </div>
+                    <div className="mt-0.5 flex items-center gap-1.5 text-caption text-muted-foreground">
+                      {owner && (
+                        <span className="flex min-w-0 items-center gap-1">
+                          <ActorAvatar
+                            actorType="member"
+                            actorId={owner.user_id}
+                            size="xs"
+                          />
+                          <span className="truncate">{owner.name}</span>
+                        </span>
+                      )}
+                      {owner && machine.providerNames.length > 0 && (
+                        <span className="text-faint-foreground">·</span>
+                      )}
+                      {machine.providerNames.length > 0 && (
+                        <span className="flex shrink-0 items-center gap-1">
+                          {machine.providerNames
+                            .slice(0, MACHINE_PROVIDER_PREVIEW)
+                            .map((provider) => (
+                              <ProviderLogo
+                                key={provider}
+                                provider={provider}
+                                className="h-3 w-3"
+                              />
+                            ))}
+                          {extraProviders > 0 && (
+                            <span className="text-micro tabular-nums">
+                              +{extraProviders}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
+                    {onlineCountLabel(machine)}
+                  </span>
+                  {containsSelection && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   )}
-                </div>
-              </div>
-              <span className="shrink-0 text-caption tabular-nums text-muted-foreground">
-                {onlineCountLabel(machine)}
-              </span>
-              {containsSelection && (
-                <Check className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              )}
-              <ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint-foreground" />
-            </button>
-          );
-        })
+                  <ChevronRight className="h-3.5 w-3.5 shrink-0 text-faint-foreground" />
+                </button>
+              );
+            })
+          )}
+        </>
       )}
     </PropertyPicker>
   );

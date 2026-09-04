@@ -4,6 +4,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import {
   AGENT_DESCRIPTION_MAX_LENGTH,
   applyDraftModelChange,
+  applyDraftRoutingChange,
   applyDraftRuntimeChange,
   type AgentDraft,
   type AgentPermissionScope,
@@ -80,15 +81,18 @@ export function AgentConfigurationPanel({
   );
   const runtimeLocked = runtimeSwitchPending || runtimeSwitchInFlight;
   const handleRuntimeSelect = (id: string) => {
-    if (id === draft.runtimeId) return;
+    // In auto mode, clicking even the already-selected runtime re-pins the
+    // agent to it — "fixed" is exactly what picking a concrete runtime means.
+    if (id === draft.runtimeId && draft.runtimeRouting === "fixed") return;
     if (onRuntimeSelect) {
       onRuntimeSelect(id);
       return;
     }
     // Model is per-runtime; clear it — and the per-model thinking / speed
     // overrides — on runtime change so the new runtime resolves its own
-    // defaults instead of stale values.
-    onChange(applyDraftRuntimeChange(draft, id));
+    // defaults instead of stale values. The routing flip rides in the same
+    // draft write so it cannot be lost to a stale-draft overwrite.
+    onChange({ ...applyDraftRuntimeChange(draft, id), runtimeRouting: "fixed" });
   };
 
   return (
@@ -209,6 +213,12 @@ export function AgentConfigurationPanel({
                 selectedRuntimeId={draft.runtimeId}
                 onSelect={handleRuntimeSelect}
                 disabled={runtimeLocked}
+                routing={draft.runtimeRouting}
+                // Auto keeps the runtime as preferred / fallback and keeps the
+                // model — only the routing mode flips.
+                onRoutingChange={(routing) =>
+                  onChange(applyDraftRoutingChange(draft, routing))
+                }
               />
               {/* A silently greyed-out picker is the worst version of this: the
                   user reaches for it exactly when the current runtime has gone

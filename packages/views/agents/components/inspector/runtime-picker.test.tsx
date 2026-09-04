@@ -178,7 +178,8 @@ describe("RuntimePicker (agent settings)", () => {
 
     const row = await screen.findByRole("button", { name: /^Claude/ });
     fireEvent.click(row);
-    expect(onChange).toHaveBeenCalledWith("rt-other-claude");
+    // A concrete runtime pick always lands in fixed mode.
+    expect(onChange).toHaveBeenCalledWith("rt-other-claude", "fixed");
   });
 
   it("widens to the All scope when the selection belongs to someone else", () => {
@@ -241,5 +242,37 @@ describe("RuntimePicker (agent settings)", () => {
 
     expect(screen.getByRole("button", { name: /^Claude/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /^Codex/ })).toBeTruthy();
+  });
+
+  // Smart routing (JEF-237): picking Auto flips only the routing mode — the
+  // runtime id rides along unchanged so the caller keeps the model overrides.
+  it("offers Auto at the top of the machine list and keeps the runtime as fallback", async () => {
+    const { onChange } = renderPicker();
+    openPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Back to machines" }));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Auto \(smart routing\)/ }),
+    );
+    expect(onChange).toHaveBeenCalledWith("rt-claude", "auto");
+  });
+
+  it("re-pins to fixed when a runtime is picked while in auto mode", () => {
+    const { onChange } = renderPicker({ routing: "auto" });
+    openPicker();
+
+    // Already inside the selection's machine: clicking the current runtime
+    // re-pins it — same id, mode flips to fixed.
+    fireEvent.click(screen.getByRole("button", { name: /^Claude/ }));
+    expect(onChange).toHaveBeenCalledWith("rt-claude", "fixed");
+  });
+
+  it("labels the trigger with Auto and the preferred runtime in auto mode", () => {
+    renderPicker({ routing: "auto" });
+    expect(
+      screen.getByRole("button", {
+        name: "Runtime · Auto · Claude · Jiayuan's MacBook Pro preferred",
+      }),
+    ).toBeTruthy();
   });
 });

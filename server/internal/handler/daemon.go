@@ -2068,6 +2068,47 @@ func claimResponseAgentIdentityMatches(resp AgentTaskResponse) bool {
 	return resp.AgentID != "" && resp.Agent != nil && resp.Agent.ID == resp.AgentID
 }
 
+// taskRoutingTrace is the minimal projection of the task's routing audit
+// trace (agent_task_queue.routing, JEF-237) the claim path needs: which
+// runtime/model the router chose. The full candidate list stays in the DB
+// column and never crosses the wire.
+type taskRoutingTrace struct {
+	Mode            string `json:"mode"`
+	ChosenRuntimeID string `json:"chosen_runtime_id"`
+	ChosenModel     string `json:"chosen_model"`
+}
+
+// parseTaskRoutingTrace decodes the routing trace of a task, returning nil
+// for unrouted tasks (NULL column — every fixed-mode task) and for corrupt
+// payloads (fail closed: the claim path then applies the fixed-mode fences).
+func parseTaskRoutingTrace(task *db.AgentTaskQueue) *taskRoutingTrace {
+	if len(task.Routing) == 0 {
+		return nil
+	}
+	var trace taskRoutingTrace
+	if err := json.Unmarshal(task.Routing, &trace); err != nil {
+		slog.Warn("daemon claim: unreadable routing trace; treating task as unrouted",
+			"task_id", uuidToString(task.ID), "error", err)
+		return nil
+	}
+	return &trace
+}
+
+// routedTaskMatchesClaimedRuntime reports whether a task stamped with a
+// runtime other than the agent's bound one is a legitimate router decision:
+// the agent is still in auto mode and the task's trace names exactly the
+// stamped runtime as its choice. Anything else (flipped back to fixed, trace
+// absent/corrupt, trace pointing elsewhere) keeps the strict mismatch fence.
+func routedTaskMatchesClaimedRuntime(agent db.Agent, task *db.AgentTaskQueue) bool {
+	if agent.RuntimeRouting != service.RoutingModeAuto {
+		return false
+	}
+	trace := parseTaskRoutingTrace(task)
+	return trace != nil &&
+		trace.Mode == service.RoutingModeAuto &&
+		trace.ChosenRuntimeID == uuidToString(task.RuntimeID)
+}
+
 // buildClaimedTaskResponse assembles the full daemon claim payload for a
 // single already-claimed task and computes the exact comment ids embedded in
 // it (deliveredCommentIDs). Shared by the per-runtime handler
@@ -2153,7 +2194,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// changing task state, but Agent mutations do not stay locked through HTTP
 	// response assembly. Recheck the freshly loaded Agent here so a rebind or
 	// owner change that committed after the claim cannot reach the daemon.
-	if agent.RuntimeID != task.RuntimeID {
+	// A routed task (JEF-237) is exempt when the agent is still in auto mode
+	// AND the task's routing trace confirms the runtime the router chose is
+	// exactly the one stamped on the row — an agent flipped back to fixed
+	// mode, or a task whose runtime no longer matches its trace, fails closed.
+	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),
@@ -2258,6 +2303,12 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		ServiceTier:           agent.ServiceTier.String,
 		RuntimeConfig:         runtimeConfig,
 		DisabledRuntimeSkills: disabledRuntimeSkillsFor(agent.DisabledRuntimeSkills, runtimeID, runtime.Provider),
+	}
+	// A routed task (JEF-237) carries the router's chosen model in its trace;
+	// the daemon must run THAT model on the chosen runtime, not the agent's
+	// configured fallback model.
+	if trace := parseTaskRoutingTrace(task); trace != nil && trace.ChosenModel != "" {
+		resp.Agent.Model = trace.ChosenModel
 	}
 	// System agents carry a product-owned instruction layer that ships with
 	// this binary instead of being copied into their row at creation. That

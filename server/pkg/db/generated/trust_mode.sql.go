@@ -84,7 +84,7 @@ func (q *Queries) HasMaterializedIssuePlan(ctx context.Context, issueID pgtype.U
 }
 
 const listAgentsForTrustSuggestions = `-- name: ListAgentsForTrustSuggestions :many
-SELECT id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id FROM agent WHERE status <> 'archived' AND trust_mode <> 'autonomous' ORDER BY workspace_id, created_at
+SELECT id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id, runtime_routing FROM agent WHERE status <> 'archived' AND trust_mode <> 'autonomous' ORDER BY workspace_id, created_at
 `
 
 func (q *Queries) ListAgentsForTrustSuggestions(ctx context.Context) ([]Agent, error) {
@@ -130,6 +130,7 @@ func (q *Queries) ListAgentsForTrustSuggestions(ctx context.Context) ([]Agent, e
 			&i.PermissionProfileID,
 			&i.ScopedEnvKeys,
 			&i.RuntimePoolID,
+			&i.RuntimeRouting,
 		); err != nil {
 			return nil, err
 		}
@@ -186,7 +187,7 @@ func (q *Queries) PurgeWorkspaceTrustModeChanges(ctx context.Context, workspaceI
 
 const setAgentTrustMode = `-- name: SetAgentTrustMode :one
 
-UPDATE agent SET trust_mode = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id
+UPDATE agent SET trust_mode = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id, runtime_routing
 `
 
 type SetAgentTrustModeParams struct {
@@ -232,6 +233,7 @@ func (q *Queries) SetAgentTrustMode(ctx context.Context, arg SetAgentTrustModePa
 		&i.PermissionProfileID,
 		&i.ScopedEnvKeys,
 		&i.RuntimePoolID,
+		&i.RuntimeRouting,
 	)
 	return i, err
 }

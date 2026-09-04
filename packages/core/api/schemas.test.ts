@@ -52,6 +52,8 @@ import {
   RuntimeUsageByAgentListSchema,
   RuntimeUsageByHourListSchema,
   RuntimeUsageListSchema,
+  RuntimeRoutingStatsResponseSchema,
+  EMPTY_ROUTING_STATS_RESPONSE,
   SendChatMessageResponseSchema,
   SquadListSchema,
   SquadSchema,
@@ -691,6 +693,159 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.durable_work_dir).toBeUndefined();
     expect(parsed[0]?.relative_durable_work_dir).toBeUndefined();
     expect(parsed[0]?.branch_name).toBeUndefined();
+  });
+
+  it("parses the routing decision and task class from auto-routed tasks", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        task_class: "bugfix",
+        routing: {
+          mode: "auto",
+          chosen_runtime_id: "runtime-2",
+          chosen_model: "claude-sonnet-4-6",
+          reason: "highest success rate for bugfix tasks",
+          candidates: [
+            {
+              runtime_id: "runtime-2",
+              provider: "claude",
+              model: "claude-sonnet-4-6",
+              samples: 42,
+              success_rate: 0.93,
+              avg_cost_usd: 0.12,
+              avg_duration_secs: 45.5,
+              score: 0.81,
+            },
+            {
+              runtime_id: "runtime-1",
+              provider: "codex",
+              model: "gpt-5",
+              samples: 3,
+              success_rate: 0.67,
+              avg_cost_usd: null,
+              avg_duration_secs: null,
+              excluded_reason: "too few samples",
+            },
+          ],
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.task_class).toBe("bugfix");
+    expect(parsed[0]?.routing?.mode).toBe("auto");
+    expect(parsed[0]?.routing?.chosen_runtime_id).toBe("runtime-2");
+    expect(parsed[0]?.routing?.candidates).toHaveLength(2);
+    expect(parsed[0]?.routing?.candidates?.[1]?.excluded_reason).toBe(
+      "too few samples",
+    );
+  });
+
+  it("accepts task payloads from older backends without routing fields", () => {
+    const parsed = AgentTaskListSchema.parse([task]);
+    expect(parsed[0]?.task_class).toBeUndefined();
+    expect(parsed[0]?.routing).toBeUndefined();
+  });
+
+  it("degrades a malformed routing decision without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        routing: { mode: 7, chosen_runtime_id: null, candidates: "nope" },
+      },
+      {
+        ...task,
+        id: "task-2",
+        routing: null,
+      },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.routing).toBeUndefined();
+    // An explicit null stays null — the router ran in fixed mode.
+    expect(parsed[1]?.routing).toBeNull();
+  });
+});
+
+describe("RuntimeRoutingStatsResponseSchema", () => {
+  it("parses a full 90-day stats envelope, keeping null averages", () => {
+    const parsed = RuntimeRoutingStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          runtime_id: "runtime-1",
+          runtime_name: "Claude (mbp.local)",
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+          task_class: "bugfix",
+          samples: 42,
+          success_rate: 0.93,
+          avg_cost_usd: 0.12,
+          avg_duration_secs: 45.5,
+        },
+        {
+          runtime_id: "runtime-2",
+          runtime_name: "Codex (mbp.local)",
+          provider: "codex",
+          model: "gpt-5",
+          task_class: "bugfix",
+          samples: 3,
+          success_rate: 0.67,
+          avg_cost_usd: null,
+          avg_duration_secs: null,
+        },
+      ],
+    });
+
+    expect(parsed.window_days).toBe(90);
+    expect(parsed.rows[0]?.avg_cost_usd).toBe(0.12);
+    expect(parsed.rows[1]?.avg_cost_usd).toBeNull();
+    expect(parsed.rows[1]?.avg_duration_secs).toBeNull();
+  });
+
+  it("defaults thin rows instead of rejecting them", () => {
+    const parsed = RuntimeRoutingStatsResponseSchema.parse({
+      rows: [{ runtime_id: "runtime-1" }],
+    });
+
+    expect(parsed.rows[0]).toMatchObject({
+      runtime_id: "runtime-1",
+      runtime_name: "",
+      samples: 0,
+      success_rate: 0,
+      avg_cost_usd: null,
+      avg_duration_secs: null,
+    });
+  });
+
+  it("keeps unknown extra fields and falls back on a malformed envelope", () => {
+    const withExtra = RuntimeRoutingStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          runtime_id: "runtime-1",
+          runtime_name: "Claude",
+          provider: "claude",
+          model: "sonnet",
+          task_class: "review",
+          samples: 5,
+          success_rate: 1,
+          avg_cost_usd: 0.01,
+          avg_duration_secs: 12,
+          future_field: "kept",
+        },
+      ],
+    });
+    expect(
+      (withExtra.rows[0] as Record<string, unknown>).future_field,
+    ).toBe("kept");
+
+    const parsed = parseWithFallback(
+      { rows: [{ runtime_id: "runtime-1", samples: "many" }] },
+      RuntimeRoutingStatsResponseSchema,
+      EMPTY_ROUTING_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/routing-stats" },
+    );
+    expect(parsed).toEqual(EMPTY_ROUTING_STATS_RESPONSE);
   });
 });
 

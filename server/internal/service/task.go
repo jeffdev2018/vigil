@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"os"
 	"strconv"
 	"strings"
@@ -81,6 +82,10 @@ type TaskService struct {
 	// state for a self-hosted deployment with no MULTICA_LLM_* configuration.
 	// Wired in router.go from the same *llm.Client that backs chat auto-titling.
 	QuickActions ChatQuickActionsLLM
+	// RoutingRand is the randomness source for the runtime router's
+	// epsilon-exploration draw (JEF-237). Optional: nil falls back to a
+	// time-seeded source. Tests inject a seeded *rand.Rand for determinism.
+	RoutingRand *rand.Rand
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built
@@ -1324,6 +1329,24 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			enqueueRuntimeID, failoverHistory = routed, nil
 		}
 	}
+
+	// Runtime routing (JEF-237). Every task is stamped with its task class so
+	// future runs feed the routing statistics even for fixed-mode agents. In
+	// auto mode the router picks the runtime from historical stats per class,
+	// after the pool failover (K28) and the issue router (K27) had their say:
+	// auto is an explicit per-agent opt-in, so its choice wins. The decision
+	// trace lands in the routing JSONB column; any degradation falls back to
+	// whatever runtime was selected so far.
+	labelNames := s.listIssueLabelNames(ctx, issue)
+	taskClass := ClassifyTask(issue.Title, labelNames)
+	var routingJSON []byte
+	if agent.RuntimeRouting == RoutingModeAuto {
+		decision := s.RouteTask(ctx, agent, issue.Title, labelNames)
+		if chosen := decision.ChosenRuntime(); chosen.Valid {
+			enqueueRuntimeID, failoverHistory = chosen, nil
+		}
+		routingJSON = decision.Marshal()
+	}
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
@@ -1345,6 +1368,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            pgtype.Text{String: taskClass, Valid: true},
+		Routing:              routingJSON,
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1379,6 +1404,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			RerunOfTaskID:        createParams.RerunOfTaskID,
 			TriggerEvidenceKind:  createParams.TriggerEvidenceKind,
 			TriggerEvidenceRefID: createParams.TriggerEvidenceRefID,
+			TaskClass:            createParams.TaskClass,
+			Routing:              createParams.Routing,
 			FireAt:               fireAt,
 		})
 	})
@@ -3632,7 +3659,10 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		// before its state transition; the claim handler then rechecks the freshly
 		// loaded Agent before returning any payload. Runtime mutation teardown is
 		// responsible for serializing and settling the remaining queued rows.
-		if runtimeID.Valid && agent.RuntimeID != runtimeID {
+		// Auto-routed agents (JEF-237) are exempt: the router stamped their task
+		// with a CHOSEN runtime that legitimately differs from the bound fallback
+		// runtime, and ClaimAgentTask re-verifies the authorization fence in SQL.
+		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto {
 			outcome = "runtime_mismatch"
 			return nil
 		}

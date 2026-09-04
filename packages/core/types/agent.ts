@@ -4,6 +4,72 @@ export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
 export type AgentRuntimeMode = "local" | "cloud";
 
+// ---------------------------------------------------------------------------
+// Smart runtime routing (JEF-237)
+//
+// `runtime_routing: "fixed"` (default) pins the agent to its `runtime_id`.
+// `"auto"` lets the router pick a runtime per task from recent performance
+// stats; the agent's `runtime_id` stays set as the preferred / fallback
+// runtime. Older backends omit the field — consumers must treat `undefined`
+// as "fixed".
+// ---------------------------------------------------------------------------
+export type AgentRuntimeRouting = "fixed" | "auto";
+
+/**
+ * One candidate the router scored while deciding where to run a task. All
+ * stats fields describe that candidate's recent history for the task's class;
+ * `excluded_reason` is set when the candidate was considered but ruled out.
+ */
+export interface RuntimeRoutingCandidate {
+  runtime_id: string;
+  provider: string;
+  model: string;
+  samples: number;
+  success_rate: number;
+  avg_cost_usd?: number | null;
+  avg_duration_secs?: number | null;
+  score?: number;
+  excluded_reason?: string;
+}
+
+/**
+ * The router's decision record for a task run in auto mode. `chosen_model`
+ * is set when the router also picked the model. `candidates` is the scored
+ * shortlist, when the backend ships it. `mode` is an open string on the wire
+ * (only "auto" today) so an installed client survives new modes.
+ */
+export interface RuntimeRoutingDecision {
+  mode: "auto" | (string & {});
+  chosen_runtime_id: string;
+  chosen_model?: string;
+  reason: string;
+  candidates?: RuntimeRoutingCandidate[];
+}
+
+/**
+ * One (runtime, provider, model, task_class) row of the 90-day routing-stats
+ * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
+ * `avg_duration_secs` are null when the rollup has no priced / timed samples.
+ */
+export interface RuntimeRoutingStats {
+  runtime_id: string;
+  runtime_name: string;
+  provider: string;
+  model: string;
+  task_class: string;
+  samples: number;
+  success_rate: number;
+  avg_cost_usd: number | null;
+  avg_duration_secs: number | null;
+}
+
+// Envelope of GET /api/runtimes/routing-stats: the window is stated
+// explicitly so the UI displays the exact range the numbers cover.
+export interface RuntimeRoutingStatsResponse {
+  window_days: number;
+  rows: RuntimeRoutingStats[];
+}
+
 export type AgentVisibility = "workspace" | "private";
 
 // ---------------------------------------------------------------------------
@@ -450,6 +516,17 @@ export interface AgentTask {
    * reporting was not free, we just don't know what it cost.
    */
   usage?: TaskUsage[];
+  /**
+   * Server-assigned task class used by the smart router (JEF-237). Empty /
+   * absent on tasks that predate the classifier or ran in fixed mode.
+   */
+  task_class?: string;
+  /**
+   * The router's decision when this task ran in auto routing mode (JEF-237).
+   * `null`/absent for fixed-mode tasks and older backends — render
+   * conditionally.
+   */
+  routing?: RuntimeRoutingDecision | null;
 }
 
 /**
@@ -613,7 +690,16 @@ export interface Agent {
    * Fast). Empty/undefined means no override: local Codex configuration and
    * account defaults remain authoritative.
    */
+  /**
+   * Codex service-tier catalog ID. See `Agent.service_tier`.
+   */
   service_tier?: string;
+  /**
+   * Smart runtime routing mode (JEF-237). Absent on older backends; treat
+   * `undefined` as "fixed". In "auto" the agent's `runtime_id` is the
+   * preferred / fallback runtime, not a hard pin.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   /** Runtime-local skills this agent must not inherit. Older servers omit it. */
@@ -671,6 +757,11 @@ export interface CreateAgentRequest {
   conversation_starters?: AgentConversationStarter[];
   avatar_url?: string;
   runtime_id: string;
+  /**
+   * Routing mode (JEF-237). In "auto", `runtime_id` is still required — it
+   * is the preferred / fallback runtime the router starts from.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   runtime_config?: Record<string, unknown>;
   custom_env?: Record<string, string>;
   custom_args?: string[];
@@ -724,6 +815,11 @@ export interface StoredAgentDraft {
   conversation_starters: AgentConversationStarter[];
   avatar_url: string | null;
   model: string;
+  /**
+   * Routing mode (JEF-237). Required on write; drafts persisted by older
+   * clients lack it, so readers must default to "fixed".
+   */
+  runtime_routing: AgentRuntimeRouting;
   thinking_level: string;
   service_tier: string;
   skill_ids: string[];
@@ -767,6 +863,13 @@ export interface UpdateAgentRequest {
   conversation_starters?: AgentConversationStarter[];
   avatar_url?: string;
   runtime_id?: string;
+  /**
+   * Routing mode (JEF-237). Omitted → no change. Switching to "auto" keeps
+   * the current `runtime_id` as the preferred / fallback runtime and must
+   * NOT clear `model` / `thinking_level` / `service_tier` — unlike a runtime
+   * switch, which still clears them.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   runtime_config?: Record<string, unknown>;
   /**
    * NOTE: `custom_env` is intentionally NOT updatable through this

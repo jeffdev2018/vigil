@@ -102,6 +102,19 @@
     "title": "まだ使用量はありません",
     "body": "ここでエージェントが実行を開始すると、トークンの消費と実行時間がこの画面に表示されます。"
   },
+  "routing_benchmarks": {
+    "title": "スマートルーティング ベンチマーク",
+    "subtitle": "過去90日 · ランタイム・モデル・タスククラス別",
+    "col_runtime": "ランタイム",
+    "col_model": "モデル",
+    "col_class": "タスククラス",
+    "col_samples": "サンプル数",
+    "col_success": "成功率",
+    "col_avg_cost": "平均コスト",
+    "col_avg_duration": "平均時間",
+    "empty_title": "ルーティングデータはまだありません",
+    "empty_body": "エージェントが自動ルーティングモードで実行されると、ランタイムとモデルごとの90日間のパフォーマンスがここに表示されます。"
+  },
   "duration": {
     "less_than_minute": "1分未満"
   },

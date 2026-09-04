@@ -80,12 +80,16 @@ type AgentResponse struct {
 	SystemKey string `json:"system_key,omitempty"`
 	// SystemInstructions is the read-only product half of a system agent's
 	// prompt, filled from the server binary. Empty for ordinary agents.
-	SystemInstructions string          `json:"system_instructions,omitempty"`
-	AvatarURL          *string         `json:"avatar_url"`
-	RuntimeMode        string          `json:"runtime_mode"`
-	RuntimeConfig      any             `json:"runtime_config"`
-	CustomArgs         []string        `json:"custom_args"`
-	McpConfig          json.RawMessage `json:"mcp_config"`
+	SystemInstructions string  `json:"system_instructions,omitempty"`
+	AvatarURL          *string `json:"avatar_url"`
+	RuntimeMode        string  `json:"runtime_mode"`
+	// RuntimeRouting is the runtime selection mode (JEF-237): "fixed" (bound
+	// runtime always) or "auto" (server picks runtime+model per task from run
+	// statistics). RuntimeID/Model remain the auto-mode fallback.
+	RuntimeRouting string          `json:"runtime_routing"`
+	RuntimeConfig  any             `json:"runtime_config"`
+	CustomArgs     []string        `json:"custom_args"`
+	McpConfig      json.RawMessage `json:"mcp_config"`
 	// custom_env is intentionally NOT serialized on agent resources. The
 	// agent_list/get/create/update/archive/restore responses and WS events
 	// only expose coarse metadata (has_custom_env, custom_env_key_count) so
@@ -216,6 +220,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		SystemInstructions:       systemInstructionsFor(a),
 		AvatarURL:                h.resolveAvatarURLPtr(textToPtr(a.AvatarUrl)),
 		RuntimeMode:              a.RuntimeMode,
+		RuntimeRouting:           a.RuntimeRouting,
 		RuntimeConfig:            rc,
 		CustomArgs:               customArgs,
 		McpConfig:                mcpConfig,
@@ -1196,6 +1201,10 @@ type CreateAgentRequest struct {
 	Model              string                     `json:"model"`
 	ThinkingLevel      string                     `json:"thinking_level"`
 	ServiceTier        string                     `json:"service_tier"`
+	// RuntimeRouting opts the agent into server-side runtime routing
+	// (JEF-237): "auto" picks the runtime per task from historical stats.
+	// Empty/absent defaults to "fixed" (the only mode older servers know).
+	RuntimeRouting string `json:"runtime_routing"`
 	// ComposioToolkitAllowlist seeds the per-task overlay gate (MUL-3869). On
 	// create only the calling user can be the owner, so we accept the field
 	// unconditionally here; the cross-owner permission gate lives on PUT.
@@ -1293,6 +1302,13 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Visibility == "" {
 		req.Visibility = "private"
+	}
+	if req.RuntimeRouting == "" {
+		req.RuntimeRouting = service.RoutingModeFixed
+	}
+	if req.RuntimeRouting != service.RoutingModeFixed && req.RuntimeRouting != service.RoutingModeAuto {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("runtime_routing must be %q or %q", service.RoutingModeFixed, service.RoutingModeAuto))
+		return
 	}
 	if err := defaultAndValidateAgentMaxConcurrentTasks(rawFields, &req.MaxConcurrentTasks); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -1459,6 +1475,7 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		ServiceTier:              pgtype.Text{String: req.ServiceTier, Valid: req.ServiceTier != ""},
 		ConversationStarters:     sp,
 		ComposioToolkitAllowlist: allowlist,
+		RuntimeRouting:           req.RuntimeRouting,
 	})
 	if err != nil {
 		// Unique constraint on (workspace_id, name) — return a clear conflict error
@@ -1530,7 +1547,11 @@ type UpdateAgentRequest struct {
 	ConversationStarters *[]AgentConversationStarter `json:"conversation_starters"`
 	AvatarURL            *string                     `json:"avatar_url"`
 	RuntimeID            *string                     `json:"runtime_id"`
-	RuntimeConfig        any                         `json:"runtime_config"`
+	// RuntimeRouting opts the agent into server-side runtime routing
+	// (JEF-237). Valid values: "fixed", "auto". Switching to "auto" never
+	// touches runtime_id — the bound runtime stays the routing fallback.
+	RuntimeRouting *string `json:"runtime_routing"`
+	RuntimeConfig  any     `json:"runtime_config"`
 	// custom_env is intentionally NOT updatable through this endpoint.
 	// Use `PUT /api/agents/{id}/env` for env changes — that path admits
 	// the agent owner or a workspace owner/admin, denies agent actors,
@@ -1933,6 +1954,13 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		// receiving an obvious foreign model ID (e.g. Claude Code -> Codex).
 		// Unknown/custom model strings are preserved by the helper.
 		params.Model = pgtype.Text{String: "", Valid: true}
+	}
+	if req.RuntimeRouting != nil {
+		if *req.RuntimeRouting != service.RoutingModeFixed && *req.RuntimeRouting != service.RoutingModeAuto {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("runtime_routing must be %q or %q", service.RoutingModeFixed, service.RoutingModeAuto))
+			return
+		}
+		params.RuntimeRouting = pgtype.Text{String: *req.RuntimeRouting, Valid: true}
 	}
 
 	// thinking_level handling (MUL-2339). Tri-state semantics:

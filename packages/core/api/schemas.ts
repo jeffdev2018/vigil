@@ -89,6 +89,7 @@ import type {
   Skill,
   SkillImportResult,
   Squad,
+  RuntimeRoutingStatsResponse,
   TimelineEntry,
   User,
   WebhookDelivery,
@@ -2054,6 +2055,56 @@ const TaskUsageSchema = z.object({
   cost_usd_ticks: z.number().optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Smart routing (JEF-237). The router's decision record rides on the task
+// payload; per-candidate stats default rather than fail so one thin row in
+// the scored shortlist still lets the decision render.
+// ---------------------------------------------------------------------------
+
+const RoutingCandidateSchema = z.object({
+  runtime_id: z.string().default(""),
+  provider: z.string().default(""),
+  model: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  avg_cost_usd: z.number().nullable().optional(),
+  avg_duration_secs: z.number().nullable().optional(),
+  score: z.number().optional(),
+  excluded_reason: z.string().optional(),
+}).loose();
+
+// `mode` stays an open string (only "auto" today) so an installed client
+// keeps the decision when the backend grows new modes.
+const RuntimeRoutingDecisionSchema = z.object({
+  mode: z.string().default("auto"),
+  chosen_runtime_id: z.string().default(""),
+  chosen_model: z.string().optional(),
+  reason: z.string().default(""),
+  candidates: z.array(RoutingCandidateSchema).optional(),
+}).loose();
+
+export const RuntimeRoutingStatsSchema = z.object({
+  runtime_id: z.string().default(""),
+  runtime_name: z.string().default(""),
+  provider: z.string().default(""),
+  model: z.string().default(""),
+  task_class: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  avg_cost_usd: z.number().nullable().default(null),
+  avg_duration_secs: z.number().nullable().default(null),
+}).loose();
+
+export const RuntimeRoutingStatsResponseSchema = z.object({
+  window_days: z.number().default(90),
+  rows: z.array(RuntimeRoutingStatsSchema).default([]),
+}).loose();
+
+export const EMPTY_ROUTING_STATS_RESPONSE: RuntimeRoutingStatsResponse = {
+  window_days: 90,
+  rows: [],
+};
+
 export const AgentTaskSchema = z.object({
   id: z.string(),
   agent_id: z.string().default(""),
@@ -2093,6 +2144,11 @@ export const AgentTaskSchema = z.object({
   // `.catch(undefined)` collapses a bad array to "no usage recorded", which
   // the UI already renders as an em dash.
   usage: z.array(TaskUsageSchema).optional().catch(undefined),
+  // Smart-routing fields (JEF-237). Same independent-degradation rule as
+  // `usage`: a malformed decision record costs the row its routing display,
+  // not the whole execution log.
+  task_class: z.string().optional().catch(undefined),
+  routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);

@@ -57,6 +57,7 @@ type Agent struct {
 	PermissionProfileID   pgtype.UUID `json:"permission_profile_id"`
 	ScopedEnvKeys         []byte      `json:"scoped_env_keys"`
 	RuntimePoolID         pgtype.UUID `json:"runtime_pool_id"`
+	RuntimeRouting        string      `json:"runtime_routing"`
 }
 
 type AgentBuilderDraft struct {
@@ -256,6 +257,8 @@ type AgentTaskQueue struct {
 	PreemptedAt         pgtype.Timestamptz `json:"preempted_at"`
 	PreemptedByTaskID   pgtype.UUID        `json:"preempted_by_task_id"`
 	ReviewOfTaskID      pgtype.UUID        `json:"review_of_task_id"`
+	TaskClass           string             `json:"task_class"`
+	Routing             []byte             `json:"routing"`
 }
 
 type AgentToLabel struct {
@@ -1080,9 +1083,9 @@ type Issue struct {
 	Properties         []byte             `json:"properties"`
 	Revision           int64              `json:"revision"`
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
+	ReopenCount        int32              `json:"reopen_count"`
 	// When the issue last entered a done-category status; NULL while it is not done.
 	CompletedAt pgtype.Timestamptz `json:"completed_at"`
-	ReopenCount int32              `json:"reopen_count"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.

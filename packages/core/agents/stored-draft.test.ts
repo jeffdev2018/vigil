@@ -15,6 +15,7 @@ const draft = (): AgentDraft => ({
   ],
   avatarUrl: "🚀",
   runtimeId: "runtime-1",
+  runtimeRouting: "auto",
   model: "gpt-5.6-sol",
   thinkingLevel: "high",
   serviceTier: "priority",

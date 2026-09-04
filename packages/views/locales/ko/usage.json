@@ -102,6 +102,19 @@
     "title": "아직 사용량이 없습니다",
     "body": "여기에서 에이전트가 실행을 시작하면 토큰 비용과 실행 시간이 이 화면에 표시됩니다."
   },
+  "routing_benchmarks": {
+    "title": "스마트 라우팅 벤치마크",
+    "subtitle": "최근 90일 · 런타임, 모델, 작업 클래스별",
+    "col_runtime": "런타임",
+    "col_model": "모델",
+    "col_class": "작업 클래스",
+    "col_samples": "샘플",
+    "col_success": "성공률",
+    "col_avg_cost": "평균 비용",
+    "col_avg_duration": "평균 소요 시간",
+    "empty_title": "라우팅 데이터가 아직 없습니다",
+    "empty_body": "에이전트가 자동 라우팅 모드로 실행되면 런타임과 모델별 90일 성능이 여기에 표시됩니다."
+  },
   "duration": {
     "less_than_minute": "1분 미만"
   },

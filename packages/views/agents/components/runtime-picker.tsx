@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, Cloud, Loader2, Lock, Search } from "lucide-react";
+import { ChevronDown, Cloud, Loader2, Lock, Search, Sparkles } from "lucide-react";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
 import { ActorAvatar } from "../../common/actor-avatar";
 import {
   isRuntimeUsableForUser,
   runtimeDisplayName,
 } from "@multica/core/runtimes";
-import type { MemberWithUser, RuntimeDevice } from "@multica/core/types";
+import type {
+  AgentRuntimeRouting,
+  MemberWithUser,
+  RuntimeDevice,
+} from "@multica/core/types";
 import {
   Popover,
   PopoverTrigger,
@@ -37,6 +41,8 @@ export function RuntimePicker({
   selectedRuntimeId,
   onSelect,
   disabled = false,
+  routing = "fixed",
+  onRoutingChange,
 }: {
   runtimes: RuntimeDevice[];
   runtimesLoading?: boolean;
@@ -47,6 +53,13 @@ export function RuntimePicker({
   /** Blocks opening the picker while the selection cannot be honoured yet
    *  (e.g. a builder reply or a runtime rebind is in flight). */
   disabled?: boolean;
+  /**
+   * Smart routing mode (JEF-237). The "Auto (smart routing)" entry is only
+   * offered when `onRoutingChange` is provided — surfaces without routing
+   * support (builder rebind, Mika onboarding) keep the plain picker.
+   */
+  routing?: AgentRuntimeRouting;
+  onRoutingChange?: (routing: AgentRuntimeRouting) => void;
 }) {
   const { t } = useT("agents");
   const [open, setOpen] = useState(false);
@@ -79,9 +92,17 @@ export function RuntimePicker({
   }, [filteredRuntimes, search, currentUserId]);
 
   const showSearch = runtimes.length > SEARCH_THRESHOLD;
+  const isAuto = routing === "auto";
 
   const selectedRuntime =
     runtimes.find((d) => d.id === selectedRuntimeId) ?? null;
+
+  // Picking a concrete runtime is what "fixed" means: flip the routing mode
+  // back whenever a runtime row (or the Mine/All re-selection) fires onSelect.
+  const selectFixed = (id: string) => {
+    if (isAuto) onRoutingChange?.("fixed");
+    onSelect(id);
+  };
 
   // Sole source of truth for seeding the parent's selection when it's empty
   // — first mount with no template runtime, runtimes arriving later over
@@ -106,7 +127,7 @@ export function RuntimePicker({
     const firstUsable = nextList.find((r) =>
       isRuntimeUsableForUser(r, currentUserId),
     );
-    onSelect(firstUsable?.id ?? "");
+    selectFixed(firstUsable?.id ?? "");
   };
 
   return (
@@ -161,6 +182,8 @@ export function RuntimePicker({
         >
           {runtimesLoading ? (
             <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
+          ) : isAuto ? (
+            <Sparkles className="h-4 w-4 shrink-0 text-brand" />
           ) : selectedRuntime ? (
             <ProviderLogo
               provider={selectedRuntime.provider}
@@ -174,9 +197,11 @@ export function RuntimePicker({
               <span className="truncate font-medium">
                 {runtimesLoading
                   ? t(($) => $.create_dialog.runtime_loading)
-                  : selectedRuntime
-                    ? runtimeDisplayName(selectedRuntime)
-                    : t(($) => $.create_dialog.runtime_none)}
+                  : isAuto
+                    ? t(($) => $.create_dialog.runtime_auto_label)
+                    : selectedRuntime
+                      ? runtimeDisplayName(selectedRuntime)
+                      : t(($) => $.create_dialog.runtime_none)}
               </span>
               {selectedRuntime?.runtime_mode === "cloud" && (
                 <span className="shrink-0 rounded bg-info/10 px-1.5 py-0.5 text-caption font-medium text-info">
@@ -186,8 +211,12 @@ export function RuntimePicker({
             </div>
             {selectedRuntime && (
               <div className="truncate text-caption text-muted-foreground">
-                {getOwnerMember(selectedRuntime.owner_id)?.name ??
-                  selectedRuntime.device_info}
+                {isAuto
+                  ? t(($) => $.create_dialog.runtime_auto_preferred, {
+                      name: runtimeDisplayName(selectedRuntime),
+                    })
+                  : (getOwnerMember(selectedRuntime.owner_id)?.name ??
+                    selectedRuntime.device_info)}
               </div>
             )}
           </div>
@@ -215,6 +244,31 @@ export function RuntimePicker({
             </div>
           )}
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {/* Smart routing (JEF-237): Auto keeps the selected runtime as the
+                preferred / fallback one and lets the router pick per task. Only
+                offered when the host surface handles the routing mode. */}
+            {onRoutingChange && !search && (
+              <button
+                type="button"
+                onClick={() => {
+                  onRoutingChange("auto");
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-body transition-colors ${
+                  isAuto ? "bg-accent" : "hover:bg-accent/50"
+                }`}
+              >
+                <Sparkles className="h-4 w-4 shrink-0 text-brand" />
+                <div className="min-w-0 flex-1">
+                  <div className="truncate font-medium">
+                    {t(($) => $.create_dialog.runtime_auto_label)}
+                  </div>
+                  <div className="truncate text-caption text-muted-foreground">
+                    {t(($) => $.create_dialog.runtime_auto_hint)}
+                  </div>
+                </div>
+              </button>
+            )}
             {machines.length === 0 ? (
               <div className="px-3 py-6 text-center text-caption text-muted-foreground">
                 {t(($) => $.create_dialog.runtime_no_results)}
@@ -252,13 +306,13 @@ export function RuntimePicker({
                         title={disabledTitle}
                         onClick={() => {
                           if (disabled) return;
-                          onSelect(device.id);
+                          selectFixed(device.id);
                           setOpen(false);
                         }}
                         className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-body transition-colors ${
                           disabled
                             ? "cursor-not-allowed opacity-50"
-                            : device.id === selectedRuntimeId
+                            : device.id === selectedRuntimeId && !isAuto
                               ? "bg-accent"
                               : "hover:bg-accent/50"
                         }`}

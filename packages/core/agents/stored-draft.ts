@@ -14,6 +14,7 @@ export function toStoredAgentDraft(
     conversation_starters: draft.conversationStarters,
     avatar_url: draft.avatarUrl,
     model: draft.model,
+    runtime_routing: draft.runtimeRouting,
     thinking_level: draft.thinkingLevel,
     service_tier: draft.serviceTier,
     skill_ids: [...draft.skillIds],
@@ -41,6 +42,9 @@ export function fromStoredAgentDraft(
     avatarUrl: stored.avatar_url,
     runtimeId,
     model: stored.model,
+    // Drafts persisted before JEF-237 carry no routing mode — default them
+    // to "fixed", the backend default.
+    runtimeRouting: stored.runtime_routing ?? "fixed",
     thinkingLevel: stored.thinking_level,
     serviceTier: stored.service_tier,
     skillIds: new Set(stored.skill_ids),

@@ -4,6 +4,7 @@ import type {
   AgentInvocationTargetInput,
   AgentPermissionScope,
   AgentConversationStarter,
+  AgentRuntimeRouting,
   CreateAgentRequest,
   RuntimeDevice,
 } from "../types";
@@ -29,6 +30,12 @@ export interface AgentDraft {
   conversationStarters: AgentConversationStarter[];
   avatarUrl: string | null;
   runtimeId: string;
+  /**
+   * Smart routing mode (JEF-237). In "auto" the draft's `runtimeId` stays
+   * set as the preferred / fallback runtime, and the model is NOT cleared —
+   * it becomes the preferred model rather than a runtime-native pin.
+   */
+  runtimeRouting: AgentRuntimeRouting;
   model: string;
   /** Runtime-native reasoning/effort token, scoped to `model`. */
   thinkingLevel: string;
@@ -48,6 +55,7 @@ export const EMPTY_AGENT_DRAFT: AgentDraft = {
   conversationStarters: [],
   avatarUrl: null,
   runtimeId: "",
+  runtimeRouting: "fixed",
   model: "",
   thinkingLevel: "",
   serviceTier: "",
@@ -86,6 +94,19 @@ export function applyDraftModelChange(
 ): AgentDraft {
   if (model === draft.model) return draft;
   return { ...draft, model, thinkingLevel: "", serviceTier: "" };
+}
+
+/**
+ * Routing-mode change (JEF-237). Deliberately touches nothing else: going
+ * "auto" keeps the runtime as preferred / fallback and keeps the model, and
+ * going back to "fixed" re-pins the already-selected runtime.
+ */
+export function applyDraftRoutingChange(
+  draft: AgentDraft,
+  runtimeRouting: AgentRuntimeRouting,
+): AgentDraft {
+  if (runtimeRouting === draft.runtimeRouting) return draft;
+  return { ...draft, runtimeRouting };
 }
 
 /**
@@ -194,6 +215,9 @@ export function buildDuplicateDraft(
     runtimeId: keepsRuntime
       ? (source.runtime_id as string)
       : options.fallbackRuntimeId,
+    // Routing mode is a preference, not a runtime-native token, so it rides
+    // along even when the copy lands on a fallback runtime.
+    runtimeRouting: source.runtime_routing ?? "fixed",
     model: keepsRuntime ? source.model ?? "" : "",
     thinkingLevel: keepsRuntime ? source.thinking_level ?? "" : "",
     serviceTier: keepsRuntime ? source.service_tier ?? "" : "",
@@ -230,6 +254,10 @@ export function buildCreateAgentRequest(options: {
       : {}),
     avatar_url: draft.avatarUrl ?? undefined,
     runtime_id: runtimeId,
+    // Sent on every create: "fixed" is the backend default, but stating it
+    // keeps the wire contract explicit, and older backends ignore the unknown
+    // field. In "auto" the same runtime_id doubles as the preferred runtime.
+    runtime_routing: draft.runtimeRouting,
     model: draft.model.trim() || undefined,
     thinking_level: draft.thinkingLevel.trim() || undefined,
     service_tier: draft.serviceTier.trim() || undefined,

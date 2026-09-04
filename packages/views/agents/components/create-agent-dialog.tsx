@@ -18,6 +18,7 @@ import type {
   Agent,
   AgentInvocationTargetInput,
   AgentPermissionMode,
+  AgentRuntimeRouting,
   AgentVisibility,
   RuntimeDevice,
   MemberWithUser,
@@ -141,6 +142,12 @@ export function CreateAgentDialog({
     }));
 
   const [model, setModel] = useState(template?.model ?? "");
+  // Smart routing (JEF-237): in "auto" the selected runtime stays as the
+  // preferred / fallback one and the model is kept. Duplicates inherit the
+  // source agent's mode.
+  const [runtimeRouting, setRuntimeRouting] = useState<AgentRuntimeRouting>(
+    template?.runtime_routing ?? "fixed",
+  );
   const [instructions, setInstructions] = useState(template?.instructions ?? "");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(template?.avatar_url ?? null);
   const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(
@@ -225,6 +232,7 @@ export function CreateAgentDialog({
         name: name.trim(),
         description: description.trim(),
         runtime_id: selectedRuntime.id,
+        runtime_routing: runtimeRouting,
         model: model.trim() || undefined,
         instructions: trimmedInstructions || undefined,
         avatar_url: avatarUrl ?? undefined,
@@ -424,6 +432,8 @@ export function CreateAgentDialog({
               members={members}
               currentUserId={currentUserId}
               selectedRuntimeId={selectedRuntimeId}
+              routing={runtimeRouting}
+              onRoutingChange={setRuntimeRouting}
               onSelect={(id) => {
                 // Models are per-runtime; a value picked for the old runtime
                 // may not exist on the new one, so drop it on runtime change.
