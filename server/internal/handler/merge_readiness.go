@@ -135,6 +135,10 @@ func (h *Handler) mergeReadinessFor(ctx context.Context, issue db.Issue) (MergeR
 		blockers = append(blockers, MergeBlocker{Kind: blockerOpenTodos, Label: "Open todos in comments", Count: todos})
 	}
 	blockers = append(blockers, blockingIssues...)
+	// Decision memory (K29): a complex run needs a recorded decision.
+	if adr := h.adrBlocker(ctx, issue); adr != nil {
+		blockers = append(blockers, *adr)
+	}
 
 	return MergeReadinessResponse{
 		PRs:               prs,

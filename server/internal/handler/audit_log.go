@@ -41,6 +41,7 @@ const (
 	AuditOwnershipDeleted  = "ownership_rule.deleted"
 	AuditBriefingSent      = "briefing.sent"
 	AuditWorkspaceSettings = "workspace.settings_updated"
+	AuditDecisionRecorded  = "decision_record.created"
 )
 
 type auditOpts struct {

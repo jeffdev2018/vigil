@@ -166,5 +166,14 @@
     "direction_desc": "내림차순",
     "section_columns": "열",
     "view": "보기"
+  },
+  "decisions": {
+    "section": "결정",
+    "author_filter": "작성자",
+    "author_any": "모두",
+    "author_agent": "에이전트",
+    "author_member": "멤버",
+    "empty": "아직 기록된 결정이 없습니다. 수락된 실행이 여기에 추가합니다.",
+    "source": "실행 메시지 #{{seq}}"
   }
 }

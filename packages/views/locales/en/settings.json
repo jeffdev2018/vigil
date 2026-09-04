@@ -723,7 +723,13 @@
     "briefing_send_now": "Send now",
     "briefing_sent": "Briefing sent",
     "briefing_already_sent": "Today's briefing was already sent",
-    "briefing_failed": "Failed to update the morning briefing"
+    "briefing_failed": "Failed to update the morning briefing",
+    "adr_gate_section": "Decision records",
+    "adr_gate_threshold_label": "Files edited before a record is required",
+    "adr_gate_threshold_description": "A run that edits at least this many files needs a recorded decision before its pull request is merge-ready. 0 turns this rule off.",
+    "adr_gate_migration_label": "Require a record on migrations",
+    "adr_gate_migration_description": "A run that edits a database migration needs a recorded decision, whatever its size.",
+    "adr_gate_failed": "Failed to update decision records settings"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

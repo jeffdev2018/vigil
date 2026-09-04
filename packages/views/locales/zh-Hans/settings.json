@@ -721,7 +721,13 @@
     "briefing_send_now": "立即发送",
     "briefing_sent": "简报已发送",
     "briefing_already_sent": "今日简报已发送",
-    "briefing_failed": "无法更新晨间简报"
+    "briefing_failed": "无法更新晨间简报",
+    "adr_gate_section": "决策记录",
+    "adr_gate_threshold_label": "需要记录的编辑文件数",
+    "adr_gate_threshold_description": "编辑文件数达到此值的运行，其拉取请求在可合并之前需要一条决策记录。0 关闭此规则。",
+    "adr_gate_migration_label": "迁移必须有记录",
+    "adr_gate_migration_description": "编辑了数据库迁移的运行无论规模都需要一条决策记录。",
+    "adr_gate_failed": "更新决策记录设置失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

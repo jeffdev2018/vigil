@@ -3603,6 +3603,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if prevIssue.Status != issue.Status {
 		// Audit log (K08): every status transition, whoever made it.
 		h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditIssueStatus, "issue", issue.ID, map[string]any{"from": prevIssue.Status, "to": issue.Status}, nil)
+		// Decision memory (K29): an accepted issue gets its run's decisions extracted.
+		if h.issueAccepted(r.Context(), issue) {
+			h.extractDecisionsAsync(issue)
+		}
 	}
 
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)

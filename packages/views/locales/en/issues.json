@@ -460,7 +460,8 @@
     "blocker_no_pr": "No open pull request",
     "pr_stack_title": "PR stack",
     "pr_stack_truncated": "Stack cut after {{depth}} levels",
-    "pr_stack_cyclic": "Dependency cycle: some levels are hidden"
+    "pr_stack_cyclic": "Dependency cycle: some levels are hidden",
+    "blocker_adr_required": "Architecture decision record required ({{count}} files edited)"
   },
   "timeline": {
     "loading": "Loading..."

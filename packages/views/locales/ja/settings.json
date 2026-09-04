@@ -721,7 +721,13 @@
     "briefing_send_now": "今すぐ送信",
     "briefing_sent": "ブリーフィングを送信しました",
     "briefing_already_sent": "本日のブリーフィングは送信済みです",
-    "briefing_failed": "朝のブリーフィングを更新できませんでした"
+    "briefing_failed": "朝のブリーフィングを更新できませんでした",
+    "adr_gate_section": "決定記録",
+    "adr_gate_threshold_label": "記録が必要になる編集ファイル数",
+    "adr_gate_threshold_description": "この数以上のファイルを編集した実行は、プルリクエストがマージ可能になる前に決定の記録が必要です。0 でこのルールを無効にします。",
+    "adr_gate_migration_label": "マイグレーションでは記録を必須にする",
+    "adr_gate_migration_description": "データベースのマイグレーションを編集した実行は、規模にかかわらず決定の記録が必要です。",
+    "adr_gate_failed": "決定記録の設定を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

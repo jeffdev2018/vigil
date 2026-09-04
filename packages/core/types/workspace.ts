@@ -161,3 +161,32 @@ export interface AuditLogFilter {
   actor_type?: string;
   action?: string;
 }
+
+// Decision memory (K29).
+export interface DecisionRecord {
+  id: string;
+  workspace_id: string;
+  project_id: string | null;
+  issue_id: string;
+  issue_identifier?: string;
+  issue_title?: string;
+  run_id: string;
+  source_message_seq: number;
+  title: string;
+  context: string;
+  decision: string;
+  consequences: string | null;
+  author_type: "agent" | "member" | (string & {});
+  author_id: string | null;
+  created_at: string;
+}
+
+export interface ADRRequirement {
+  required: boolean;
+  satisfied: boolean;
+  files: number;
+  file_threshold: number;
+  migration: boolean;
+  decisions: number;
+  run_id?: string;
+}

@@ -721,7 +721,13 @@
     "briefing_send_now": "지금 발송",
     "briefing_sent": "브리핑을 발송했습니다",
     "briefing_already_sent": "오늘 브리핑은 이미 발송되었습니다",
-    "briefing_failed": "아침 브리핑을 업데이트하지 못했습니다"
+    "briefing_failed": "아침 브리핑을 업데이트하지 못했습니다",
+    "adr_gate_section": "결정 기록",
+    "adr_gate_threshold_label": "기록이 필요해지는 편집 파일 수",
+    "adr_gate_threshold_description": "이 수 이상의 파일을 편집한 실행은 풀 리퀘스트가 병합 준비되기 전에 결정 기록이 필요합니다. 0이면 이 규칙을 끕니다.",
+    "adr_gate_migration_label": "마이그레이션에는 기록 필수",
+    "adr_gate_migration_description": "데이터베이스 마이그레이션을 편집한 실행은 규모와 관계없이 결정 기록이 필요합니다.",
+    "adr_gate_failed": "결정 기록 설정을 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
