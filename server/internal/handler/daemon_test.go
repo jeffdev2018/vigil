@@ -4491,3 +4491,71 @@ func skippedAgentsMetadata(t *testing.T, daemonID string) map[string]any {
 	}
 	return skipped
 }
+
+// TestDaemonRegister_RecordsProbedCliAuthState pins the initial-state fix: a
+// CLI that was ALREADY signed in must stop reading as unknown just because
+// nobody signed in through the product. Registration replaces the whole
+// metadata document, so an unknown state must leave no cli_auth record behind.
+func TestDaemonRegister_RecordsProbedCliAuthState(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	const daemonID = "test-daemon-cli-auth-probe"
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM agent_runtime WHERE daemon_id = $1`, daemonID)
+	})
+
+	register := func(t *testing.T, cliAuth string) map[string]any {
+		t.Helper()
+		runtime := map[string]any{
+			"name": "codex", "type": "codex", "version": "0.9.0", "status": "online",
+		}
+		if cliAuth != "" {
+			runtime["cli_auth"] = cliAuth
+		}
+		req := newDaemonTokenRequest("POST", "/api/daemon/register", map[string]any{
+			"workspace_id": testWorkspaceID,
+			"daemon_id":    daemonID,
+			"device_name":  "test-device",
+			"runtimes":     []map[string]any{runtime},
+		}, testWorkspaceID, daemonID)
+		testutil.Call(t, testHandler.DaemonRegister, req).Want(http.StatusOK)
+
+		var metadata []byte
+		dbfx.QueryRow(t, `
+			SELECT metadata FROM agent_runtime
+			WHERE workspace_id = $1 AND daemon_id = $2 AND provider = 'codex'
+		`, testWorkspaceID, daemonID).Scan(&metadata)
+		var meta map[string]any
+		if err := json.Unmarshal(metadata, &meta); err != nil {
+			t.Fatalf("unmarshal metadata: %v", err)
+		}
+		return meta
+	}
+
+	meta := register(t, "authenticated")
+	state, ok := meta["cli_auth"].(map[string]any)
+	if !ok {
+		t.Fatalf("cli_auth missing: %#v", meta["cli_auth"])
+	}
+	if state["authenticated"] != true {
+		t.Errorf("authenticated = %#v, want true", state["authenticated"])
+	}
+	if state["provider"] != "codex" {
+		t.Errorf("provider = %#v, want codex", state["provider"])
+	}
+	if _, isString := state["checked_at"].(string); !isString {
+		t.Errorf("checked_at = %#v, want a timestamp", state["checked_at"])
+	}
+
+	if state, _ := register(t, "unauthenticated")["cli_auth"].(map[string]any); state["authenticated"] != false {
+		t.Errorf("unauthenticated register wrote %#v", state)
+	}
+
+	for _, unknown := range []string{"", "definitely-not-a-state"} {
+		if meta := register(t, unknown); meta["cli_auth"] != nil {
+			t.Errorf("cli_auth for %q = %#v, want no record at all", unknown, meta["cli_auth"])
+		}
+	}
+}

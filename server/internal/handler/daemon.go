@@ -194,6 +194,13 @@ type DaemonRegisterRequest struct {
 		// Type carries the protocol family for both built-in and custom rows
 		// so task routing (agent.New) is unchanged.
 		ProfileID string `json:"profile_id"`
+		// CliAuth is the CLI's own sign-in state as the daemon just probed it
+		// ("authenticated" / "unauthenticated"). Empty means the daemon could
+		// not tell, and the runtime keeps no cli_auth record — registration
+		// replaces metadata wholesale, so "unknown" is the absence of the key,
+		// not a stale claim. Without this a CLI that was already signed in read
+		// as unknown until someone signed in again through the product.
+		CliAuth string `json:"cli_auth"`
 	} `json:"runtimes"`
 	FailedProfiles []struct {
 		ProfileID   string `json:"profile_id"`
@@ -207,6 +214,29 @@ type DaemonRegisterRequest struct {
 	// the UI can tell "CLI not installed" apart from "CLI installed but
 	// rejected", which is the distinction that made GH #6077 unactionable.
 	SkippedAgents map[string]string `json:"skipped_agents"`
+}
+
+// cliAuthStateFromRegistration turns the daemon's probed sign-in state into the
+// same cli_auth record UpdateRuntimeCliAuthState writes after an interactive
+// sign-in, so both sources feed one shape. Returns nil for an unknown or
+// unrecognised state: the runtime then carries no record and the UI reads it as
+// unknown rather than as a stale claim.
+func cliAuthStateFromRegistration(state string) map[string]any {
+	var authenticated bool
+	switch strings.TrimSpace(state) {
+	case "authenticated":
+		authenticated = true
+	case "unauthenticated":
+		authenticated = false
+	default:
+		return nil
+	}
+	reason := "cli_status_probe"
+	return map[string]any{
+		"authenticated": authenticated,
+		"checked_at":    time.Now().UTC().Format(time.RFC3339),
+		"reason":        reason,
+	}
 }
 
 // Bounds on the daemon-reported skip map. It is diagnostic, but it crosses a
@@ -506,7 +536,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// live request — the resource-save gate and the UI — decide from the
 		// same signal the claim path uses, instead of re-deriving it from a
 		// version string (MUL-5707).
-		metadata, _ := json.Marshal(map[string]any{
+		metadataFields := map[string]any{
 			"version":      runtime.Version,
 			"cli_version":  req.CLIVersion,
 			"launched_by":  req.LaunchedBy,
@@ -514,7 +544,12 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			// Machine-level, so every runtime of this daemon carries the same
 			// snapshot and the UI can read it off whichever row is freshest.
 			"skipped_agents": skippedAgents,
-		})
+		}
+		if state := cliAuthStateFromRegistration(runtime.CliAuth); state != nil {
+			state["provider"] = provider
+			metadataFields["cli_auth"] = state
+		}
+		metadata, _ := json.Marshal(metadataFields)
 
 		var registered db.AgentRuntime
 		var inserted bool

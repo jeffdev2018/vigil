@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -15,6 +16,30 @@ import (
 )
 
 const cliAuthProcessTimeout = 10 * time.Minute
+
+// CLI sign-in states reported to the server. The empty string is the third
+// state — "unknown" — and is simply not reported: registration replaces the
+// runtime's metadata document, so a provider we could not read drops its
+// stale cli_auth record instead of asserting something we did not verify.
+const (
+	cliAuthStateAuthenticated   = "authenticated"
+	cliAuthStateUnauthenticated = "unauthenticated"
+)
+
+// cliAuthStatusTimeout bounds one status probe. The command only reads a local
+// credential store, so anything slower than this is a hung CLI, not a slow one.
+const cliAuthStatusTimeout = 15 * time.Second
+
+// cliAuthStatusTTL is how long a probed state is reused. It is the window in
+// which a sign-out done directly in a terminal still shows as signed in; a
+// sign-in or sign-out done THROUGH Multica refreshes the cache immediately, so
+// this only ever lags out-of-band changes.
+const cliAuthStatusTTL = 30 * time.Minute
+
+type cliAuthSnapshot struct {
+	state string
+	at    time.Time
+}
 
 var (
 	cliAuthURLPattern  = regexp.MustCompile(`https?://[^\s<>"']+`)
@@ -34,6 +59,89 @@ func (d *Daemon) resolveRuntimeCommand(ctx context.Context, rt Runtime) (string,
 		return "", nil, fmt.Errorf("no executable found for provider %q", rt.Provider)
 	}
 	return entry.Path, nil, nil
+}
+
+// cliAuthStatusCommand returns the provider's NON-INTERACTIVE sign-in status
+// command. Both supported CLIs document the same contract — exit 0 when signed
+// in, non-zero when not — so the exit code alone answers the question and the
+// output (which carries the account identity) is discarded:
+//
+//	claude auth status  https://code.claude.com/docs/en/cli-reference
+//	codex login status  https://developers.openai.com/codex/local-config
+//
+// A provider with no such command returns false and stays unknown. We
+// deliberately do NOT fall back to looking for a credentials file: Claude Code
+// stores its tokens in the macOS Keychain and in ~/.claude/.credentials.json on
+// Linux, so "no file" would report a signed-in Mac as signed out.
+//
+// The exit code is only trusted because the runtime is already version-gated
+// (pkg/agent MinVersions): an older CLI that does not know the subcommand would
+// also exit non-zero, and would be read as signed out.
+func cliAuthStatusCommand(provider string) ([]string, bool) {
+	switch provider {
+	case "claude":
+		return []string{"auth", "status"}, true
+	case "codex":
+		return []string{"login", "status"}, true
+	default:
+		return nil, false
+	}
+}
+
+// runCliAuthStatus executes one status probe and maps its exit code to a state.
+// Returns "" when the command could not be run at all (missing binary, timeout,
+// permission) — an unreadable store is not a signed-out one.
+func runCliAuthStatus(ctx context.Context, execPath string, args []string) string {
+	probeCtx, cancel := context.WithTimeout(ctx, cliAuthStatusTimeout)
+	defer cancel()
+	// Output is discarded on purpose: `claude auth status` prints the signed-in
+	// account, which must not reach the daemon log or the server.
+	cmd := exec.CommandContext(probeCtx, execPath, args...)
+	err := cmd.Run()
+	if err == nil {
+		return cliAuthStateAuthenticated
+	}
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) && probeCtx.Err() == nil {
+		return cliAuthStateUnauthenticated
+	}
+	return ""
+}
+
+// cliAuthStateForProvider is the cached sign-in state reported with each
+// registration, refreshed at most once per cliAuthStatusTTL so the register
+// path does not fork a CLI on every convergence tick.
+//
+// execPath must be the binary the caller's version probe just accepted. The
+// provider is deliberately NOT resolved again here: a second resolution can
+// land on a different binary than the one that was version-gated, and it would
+// also reach a CLI the caller never intended to run.
+func (d *Daemon) cliAuthStateForProvider(ctx context.Context, provider, execPath string) string {
+	args, ok := cliAuthStatusCommand(provider)
+	if !ok || execPath == "" {
+		return ""
+	}
+	d.cliAuthStatusMu.Lock()
+	snapshot, cached := d.cliAuthStatus[provider]
+	d.cliAuthStatusMu.Unlock()
+	if cached && time.Since(snapshot.at) < cliAuthStatusTTL {
+		return snapshot.state
+	}
+	state := probeCliAuthStatus(ctx, execPath, args)
+	d.setCliAuthState(provider, state)
+	return state
+}
+
+// setCliAuthState publishes a freshly-observed state. Called after a sign-in or
+// sign-out this daemon performed, so the next registration reports the truth
+// instead of a stale cached probe.
+func (d *Daemon) setCliAuthState(provider, state string) {
+	d.cliAuthStatusMu.Lock()
+	defer d.cliAuthStatusMu.Unlock()
+	if d.cliAuthStatus == nil {
+		d.cliAuthStatus = map[string]cliAuthSnapshot{}
+	}
+	d.cliAuthStatus[provider] = cliAuthSnapshot{state: state, at: time.Now()}
 }
 
 func cliAuthCommand(provider, action string) ([]string, error) {
@@ -94,6 +202,7 @@ func (d *Daemon) handleCliAuth(ctx context.Context, rt Runtime, pending PendingC
 		d.reportCliAuthFailure(ctx, rt, pending.ID, err)
 		return
 	}
+	statusArgs, _ := cliAuthStatusCommand(rt.Provider)
 
 	authCtx, cancel := context.WithTimeout(ctx, cliAuthProcessTimeout)
 	defer cancel()
@@ -115,7 +224,16 @@ func (d *Daemon) handleCliAuth(ctx context.Context, rt Runtime, pending PendingC
 		return
 	}
 
+	// A zero exit only means the CLI did not error out; it is not proof the
+	// account is usable. Ask the provider what it now thinks, and fall back to
+	// the intent of the action when it cannot say.
 	authenticated := pending.Action == "login"
+	if state := probeCliAuthStatus(context.WithoutCancel(ctx), execPath, statusArgs); state != "" {
+		authenticated = state == cliAuthStateAuthenticated
+		d.setCliAuthState(rt.Provider, state)
+	} else {
+		d.setCliAuthState(rt.Provider, "")
+	}
 	d.reportCliAuthResult(context.WithoutCancel(ctx), rt, pending.ID, map[string]any{
 		"status":        "completed",
 		"authenticated": authenticated,
