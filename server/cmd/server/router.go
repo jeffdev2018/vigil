@@ -2112,6 +2112,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/assignee-suggestion", h.GetAssigneeSuggestion)
 			r.Get("/api/competency-settings", h.GetCompetencySettings)
 			r.Put("/api/competency-settings", h.PutCompetencySettings)
+			// Cross-provider self-review (K15): reports and manual retry.
+			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
+			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)
