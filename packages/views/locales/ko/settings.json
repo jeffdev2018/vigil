@@ -921,7 +921,13 @@
     "pipelines_move_up": "{{n}}단계 위로",
     "pipelines_move_down": "{{n}}단계 아래로",
     "pipelines_remove_stage": "{{n}}단계 제거",
-    "pipelines_failed": "파이프라인을 저장하지 못했습니다"
+    "pipelines_failed": "파이프라인을 저장하지 못했습니다",
+    "briefing_channels_label": "채널에도 보내기",
+    "briefing_channels_description": "매일 아침 다이제스트를 게시할 Slack 채널 또는 Telegram 채팅 ID(워크스페이스에 연결된 앱 경유). LLM이 있으면 요약 포함, 없어도 구조화된 버전 전송.",
+    "briefing_channel_type": "채널 유형 {{n}}",
+    "briefing_channel_chat": "채팅 ID {{n}}",
+    "briefing_channel_remove": "채널 {{n}} 제거",
+    "briefing_channel_add": "채널 추가"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

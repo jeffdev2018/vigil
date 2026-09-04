@@ -135,7 +135,8 @@
     "blocked": "阻塞及原因（{{count}}）",
     "approve": "批准",
     "approve_failed": "批准失败",
-    "pending_decisions": "{{count}} 个决策待回答"
+    "pending_decisions": "{{count}} 个决策待回答",
+    "channels": "也已发送到 {{channels}}"
   },
   "retro": {
     "loading": "正在加载回顾…",

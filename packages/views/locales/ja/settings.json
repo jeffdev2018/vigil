@@ -921,7 +921,13 @@
     "pipelines_move_up": "ステージ {{n}} を上へ",
     "pipelines_move_down": "ステージ {{n}} を下へ",
     "pipelines_remove_stage": "ステージ {{n}} を削除",
-    "pipelines_failed": "パイプラインを保存できませんでした"
+    "pipelines_failed": "パイプラインを保存できませんでした",
+    "briefing_channels_label": "チャネルにも送信",
+    "briefing_channels_description": "毎朝ダイジェストを投稿する Slack チャンネルまたは Telegram チャット ID（ワークスペースに接続済みのアプリ経由）。LLM があれば要約付き、なくても構造化版を送信。",
+    "briefing_channel_type": "チャネル種別 {{n}}",
+    "briefing_channel_chat": "チャット ID {{n}}",
+    "briefing_channel_remove": "チャネル {{n}} を削除",
+    "briefing_channel_add": "チャネルを追加"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

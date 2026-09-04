@@ -3794,6 +3794,8 @@ export const MorningBriefingSchema = z.object({
   blocked: z.array(BriefingItemSchema).catch([]).default([]),
   sent_at: z.string().nullable().catch(null).default(null),
   already_sent: z.boolean().optional(),
+  narrative: z.string().catch("").default(""),
+  channels_delivered: z.array(z.string()).catch([]).default([]),
 }).loose();
 
 // Scorecards (K25).

@@ -135,7 +135,8 @@
     "blocked": "차단됨과 이유 ({{count}})",
     "approve": "승인",
     "approve_failed": "승인하지 못했습니다",
-    "pending_decisions": "결정 대기 {{count}}건"
+    "pending_decisions": "결정 대기 {{count}}건",
+    "channels": "{{channels}}에도 전송됨"
   },
   "retro": {
     "loading": "회고를 불러오는 중…",
