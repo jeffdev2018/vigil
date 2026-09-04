@@ -9,7 +9,10 @@ RETURNING *;
 SELECT * FROM approval_gate_event WHERE id = $1 AND task_id = $2;
 
 -- name: GetApprovalGateByDecision :one
-SELECT * FROM approval_gate_event WHERE decision_request_id = $1;
+-- A dual-approval gate (K07) files a second card, tracked in details.
+SELECT * FROM approval_gate_event
+WHERE decision_request_id = $1 OR details->>'pending_decision_id' = $1::text
+LIMIT 1;
 
 -- name: ResolveApprovalGateEvent :one
 UPDATE approval_gate_event
