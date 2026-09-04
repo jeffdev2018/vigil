@@ -200,6 +200,47 @@ type DaemonRegisterRequest struct {
 		CommandName string `json:"command_name"`
 		Reason      string `json:"reason"`
 	} `json:"failed_profiles"`
+	// SkippedAgents maps a provider the daemon DID find on the machine to the
+	// reason this probe round dropped it (version undetectable, below the
+	// minimum supported version, binary not executable). Diagnostic only:
+	// nothing routes on it. Persisted on every runtime row of the machine so
+	// the UI can tell "CLI not installed" apart from "CLI installed but
+	// rejected", which is the distinction that made GH #6077 unactionable.
+	SkippedAgents map[string]string `json:"skipped_agents"`
+}
+
+// Bounds on the daemon-reported skip map. It is diagnostic, but it crosses a
+// request boundary into a JSONB column every workspace member reads back.
+const (
+	maxSkippedAgentEntries   = 32
+	maxSkippedAgentReasonLen = 300
+)
+
+// normalizeSkippedAgents trims and bounds the reported map. It always returns
+// a non-nil map, so the key is written on every registration: an empty map is
+// how a repaired provider stops being reported.
+func normalizeSkippedAgents(raw map[string]string) map[string]string {
+	providers := make([]string, 0, len(raw))
+	for provider := range raw {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	out := make(map[string]string, len(providers))
+	for _, name := range providers {
+		provider := strings.TrimSpace(name)
+		reason := strings.TrimSpace(raw[name])
+		if provider == "" || reason == "" {
+			continue
+		}
+		if len(out) >= maxSkippedAgentEntries {
+			break
+		}
+		if runes := []rune(reason); len(runes) > maxSkippedAgentReasonLen {
+			reason = string(runes[:maxSkippedAgentReasonLen])
+		}
+		out[provider] = reason
+	}
+	return out
 }
 
 type daemonWorkspaceReposResponse struct {
@@ -436,6 +477,8 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	skippedAgents := normalizeSkippedAgents(req.SkippedAgents)
+
 	resp := make([]AgentRuntimeResponse, 0, len(req.Runtimes))
 	for _, runtime := range req.Runtimes {
 		provider := normalizeProvider(runtime.Type)
@@ -468,6 +511,9 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 			"cli_version":  req.CLIVersion,
 			"launched_by":  req.LaunchedBy,
 			"capabilities": requestClientCapabilities(r),
+			// Machine-level, so every runtime of this daemon carries the same
+			// snapshot and the UI can read it off whichever row is freshest.
+			"skipped_agents": skippedAgents,
 		})
 
 		var registered db.AgentRuntime
@@ -677,6 +723,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					"runtime_profile_registration_error": true,
 					"runtime_profile_failure_reason":     reason,
 					"command_name":                       resolvedCommandName,
+					"skipped_agents":                     skippedAgents,
 				})
 				return db.UpsertAgentRuntimeWithProfileParams{
 					WorkspaceID: wsUUID,

@@ -2687,6 +2687,10 @@ func (d *Daemon) registerRuntimesForWorkspaceBatchLocked(ctx context.Context, wo
 		"launched_by":       d.cfg.LaunchedBy,
 		"runtimes":          runtimes,
 		"failed_profiles":   failedProfiles,
+		// Diagnostic: providers found on this machine that the last probe
+		// round refused to register, so the server can show the reason next to
+		// the machine instead of the CLI simply being absent (MUL-5439).
+		"skipped_agents": d.skippedAgentsSnapshot(),
 	}
 
 	resp, err := d.client.Register(ctx, req)
@@ -2734,6 +2738,7 @@ func (d *Daemon) registerBuiltinRuntimesForWorkspaceLocked(ctx context.Context, 
 		// Deliberately empty: this call carries no profiles, so it must not
 		// report profile failures either.
 		"failed_profiles": []map[string]string{},
+		"skipped_agents":  d.skippedAgentsSnapshot(),
 	}
 	resp, err := d.client.Register(ctx, req)
 	if err != nil {

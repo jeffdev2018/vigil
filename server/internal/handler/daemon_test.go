@@ -4414,3 +4414,80 @@ func TestBatchIssueGCCheckReadsNoCatalogForBuiltInStatuses(t *testing.T) {
 			counter.entryReads, counter.keyReads)
 	}
 }
+
+// TestDaemonRegister_RecordsSkippedAgents pins the diagnostic the daemon now
+// sends alongside its runtimes: an agent CLI that IS installed but was refused
+// (too old, version unreadable, not executable) must reach the runtime rows,
+// otherwise the UI cannot tell it apart from a CLI that was never installed.
+func TestDaemonRegister_RecordsSkippedAgents(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	ctx := context.Background()
+	const daemonID = "test-daemon-skipped-agents"
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM agent_runtime WHERE daemon_id = $1`, daemonID)
+	})
+
+	longReason := strings.Repeat("x", maxSkippedAgentReasonLen+50)
+	req := newDaemonTokenRequest("POST", "/api/daemon/register", map[string]any{
+		"workspace_id": testWorkspaceID,
+		"daemon_id":    daemonID,
+		"device_name":  "test-device",
+		"runtimes": []map[string]any{
+			{"name": "codex", "type": "codex", "version": "0.9.0", "status": "online"},
+		},
+		"skipped_agents": map[string]any{
+			"claude": "claude 1.0.3 rejected: minimum 2.1.0",
+			"  ":     "orphan reason",
+			"cursor": "   ",
+			"gemini": longReason,
+		},
+	}, testWorkspaceID, daemonID)
+	testutil.Call(t, testHandler.DaemonRegister, req).Want(http.StatusOK)
+
+	meta := skippedAgentsMetadata(t, daemonID)
+	if len(meta) != 2 {
+		t.Fatalf("skipped_agents = %#v, want only the two well-formed entries", meta)
+	}
+	if meta["claude"] != "claude 1.0.3 rejected: minimum 2.1.0" {
+		t.Errorf("claude reason = %#v", meta["claude"])
+	}
+	gemini, _ := meta["gemini"].(string)
+	if len([]rune(gemini)) != maxSkippedAgentReasonLen {
+		t.Errorf("gemini reason length = %d, want it capped at %d", len([]rune(gemini)), maxSkippedAgentReasonLen)
+	}
+
+	// A repaired CLI must stop being reported: registration replaces the whole
+	// metadata document, so the next round's empty map clears it.
+	req = newDaemonTokenRequest("POST", "/api/daemon/register", map[string]any{
+		"workspace_id": testWorkspaceID,
+		"daemon_id":    daemonID,
+		"device_name":  "test-device",
+		"runtimes": []map[string]any{
+			{"name": "codex", "type": "codex", "version": "0.9.0", "status": "online"},
+		},
+	}, testWorkspaceID, daemonID)
+	testutil.Call(t, testHandler.DaemonRegister, req).Want(http.StatusOK)
+	if meta := skippedAgentsMetadata(t, daemonID); len(meta) != 0 {
+		t.Fatalf("skipped_agents after a clean round = %#v, want empty", meta)
+	}
+}
+
+func skippedAgentsMetadata(t *testing.T, daemonID string) map[string]any {
+	t.Helper()
+	var metadata []byte
+	dbfx.QueryRow(t, `
+		SELECT metadata FROM agent_runtime
+		WHERE workspace_id = $1 AND daemon_id = $2 AND provider = 'codex'
+	`, testWorkspaceID, daemonID).Scan(&metadata)
+	var meta map[string]any
+	if err := json.Unmarshal(metadata, &meta); err != nil {
+		t.Fatalf("unmarshal metadata: %v", err)
+	}
+	skipped, ok := meta["skipped_agents"].(map[string]any)
+	if !ok {
+		t.Fatalf("skipped_agents missing or wrong type: %#v", meta["skipped_agents"])
+	}
+	return skipped
+}
