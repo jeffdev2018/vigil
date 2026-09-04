@@ -46,5 +46,19 @@
     "accept": "接受 {{count}} 项",
     "clear": "清除选择",
     "stopped_toast": "已停止，工作区已达任务上限"
+  },
+  "suggestion": {
+    "title": "建议",
+    "none": "尚无相似的历史决定。",
+    "dismiss": "忽略",
+    "accept": "接受",
+    "would_dismiss": "将被忽略",
+    "would_accept": "将被接受",
+    "confidence": "基于 {{count}} 条相似投递，置信度 {{percent}}%",
+    "auto_on": "自动应用已开启：高于 {{threshold}}% 时应用。",
+    "auto_off": "自动应用已关闭：由人决定。可在设置 → 工作区中开启。",
+    "not_ready": "学习中：自动应用需要 {{min}} 条决定（当前 {{examples}} 条）。",
+    "reopen": "重新打开",
+    "reopen_failed": "重新打开失败"
   }
 }

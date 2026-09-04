@@ -69,6 +69,11 @@ vi.mock("@multica/core/triage/queries", () => ({
     queryKey: ["triage", "ws-1", "items", "pending"],
     queryFn: async () => data.items,
   }),
+  triageSuggestionsOptions: () => ({
+    queryKey: ["triage", "ws-1", "suggestions", ""],
+    queryFn: async () => ({ suggestions: {}, auto: { enabled: false, threshold: 0.9, min_examples: 20 } }),
+    enabled: false,
+  }),
 }));
 
 const mutations = vi.hoisted(() => ({
@@ -79,6 +84,7 @@ const mutations = vi.hoisted(() => ({
 }));
 
 vi.mock("@multica/core/triage/mutations", () => ({
+  useReopenTriageItem: () => ({ mutate: vi.fn(), isPending: false }),
   useAcceptTriageItem: () => ({ mutateAsync: mutations.accept, isPending: false }),
   useDismissTriageItem: () => ({ mutateAsync: mutations.dismiss, isPending: false }),
   useBatchAcceptTriageItems: () => ({ mutateAsync: mutations.batch, isPending: false }),

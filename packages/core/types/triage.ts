@@ -107,3 +107,32 @@ export interface DismissTriageItemResponse {
   item_id: string;
   state: string;
 }
+
+// Triage auto-ML (K61).
+export interface TriageNeighbor {
+  id: string;
+  title: string;
+  state: string;
+  score: number;
+}
+
+export interface TriageSuggestion {
+  item_id: string;
+  ready: boolean;
+  examples: number;
+  min_examples: number;
+  suggested?: "accept" | "dismiss" | (string & {});
+  confidence: number;
+  neighbors: TriageNeighbor[];
+}
+
+export interface TriageAutoSettings {
+  enabled: boolean;
+  threshold: number;
+  min_examples: number;
+}
+
+export interface TriageSuggestionsResponse {
+  suggestions: Record<string, TriageSuggestion>;
+  auto: TriageAutoSettings;
+}

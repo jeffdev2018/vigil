@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { Inbox, Check, X, Loader2 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { ApiError } from "@multica/core/api";
-import type { TriageItem, TriageSource, TriageSourceMode } from "@multica/core/types";
-import { triageStatsOptions, triageItemsOptions } from "@multica/core/triage/queries";
+import type { TriageItem, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
+import { triageStatsOptions, triageItemsOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
+import { TriageSuggestionChip, TriageSuggestionPanel } from "./triage-suggestion";
 import {
   useAcceptTriageItem,
   useDismissTriageItem,
@@ -64,6 +65,14 @@ export function TriagePage() {
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
 
   const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+
+  // Triage auto-ML (K61): one request for the visible page.
+
+  const suggestionsQuery = useQuery(triageSuggestionsOptions(wsId, items.map((i) => i.id)));
+
+  const suggestions = suggestionsQuery.data?.suggestions ?? {};
+
+  const autoSettings = suggestionsQuery.data?.auto;
   const stats = statsQuery.data;
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
@@ -109,8 +118,9 @@ export function TriagePage() {
           onSelect={setSelectedId}
           onToggleChecked={toggleChecked}
           timeAgo={timeAgo}
+          suggestions={suggestions}
         />
-        <TriageDetail item={selected} wsId={wsId} onResolved={() => setSelectedId(null)} />
+        <TriageDetail item={selected} wsId={wsId} onResolved={() => setSelectedId(null)} suggestion={selected ? suggestions[selected.id] : undefined} auto={autoSettings} />
       </div>
 
       {checkedIds.size > 0 ? (
@@ -226,8 +236,10 @@ function TriageList({
   onSelect,
   onToggleChecked,
   timeAgo,
+  suggestions = {},
 }: {
   items: TriageItem[];
+  suggestions?: Record<string, TriageSuggestion>;
   isLoading: boolean;
   isError: boolean;
   selectedId: string | null;
@@ -318,6 +330,7 @@ function TriageList({
                   <span className="shrink-0">{timeAgo(item.first_seen_at)}</span>
                 </span>
               </div>
+              <TriageSuggestionChip suggestion={suggestions[item.id]} />
               {item.collapse_count > 1 ? (
                 <Badge variant="secondary" className="shrink-0 font-mono text-micro tabular-nums">
                   ×{item.collapse_count}
@@ -334,12 +347,10 @@ function TriageList({
 function TriageDetail({
   item,
   wsId,
-  onResolved,
-}: {
+  onResolved, suggestion, auto }: {
   item: TriageItem | null;
   wsId: string;
-  onResolved: () => void;
-}) {
+  onResolved: () => void; suggestion?: TriageSuggestion; auto?: TriageAutoSettings }) {
   const { t } = useT("triage");
 
   if (!item) {
@@ -350,17 +361,21 @@ function TriageDetail({
     );
   }
 
-  return <TriageDetailBody key={item.id} item={item} wsId={wsId} onResolved={onResolved} />;
+  return <TriageDetailBody key={item.id} item={item} wsId={wsId} onResolved={onResolved} suggestion={suggestion} auto={auto} />;
 }
 
 function TriageDetailBody({
   item,
   wsId,
   onResolved,
+  suggestion,
+  auto,
 }: {
   item: TriageItem;
   wsId: string;
   onResolved: () => void;
+  suggestion?: TriageSuggestion;
+  auto?: TriageAutoSettings;
 }) {
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
@@ -437,6 +452,8 @@ function TriageDetailBody({
             <p className="text-caption text-muted-foreground">{t(($) => $.detail.no_body)}</p>
           )}
         </section>
+
+        <TriageSuggestionPanel item={item} suggestion={suggestion} auto={auto} wsId={wsId} />
 
         <section className="flex flex-col gap-1.5">
           <h3 className="text-caption font-medium text-muted-foreground">

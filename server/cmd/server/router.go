@@ -1952,6 +1952,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Post("/items/batch-accept", h.BatchAcceptTriageItems)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/accept", h.AcceptTriageItem)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/dismiss", h.DismissTriageItem)
+				// Triage auto-ML (K61): suggestions for visible items; reopen a dismissed one.
+				r.Get("/suggestions", h.GetTriageSuggestions)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
 				r.Patch("/sources/{id}", h.UpdateTriageSource)
 			})
 

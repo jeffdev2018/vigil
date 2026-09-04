@@ -46,5 +46,19 @@
     "accept": "{{count}} 件を承認",
     "clear": "選択を解除",
     "stopped_toast": "停止しました — ワークスペースが課題の上限に達しました"
+  },
+  "suggestion": {
+    "title": "提案",
+    "none": "似た過去の判断はまだありません。",
+    "dismiss": "却下",
+    "accept": "受け入れ",
+    "would_dismiss": "却下される見込み",
+    "would_accept": "受け入れられる見込み",
+    "confidence": "類似する配信 {{count}} 件から確信度 {{percent}}%",
+    "auto_on": "自動適用は有効：{{threshold}}% 以上で適用されます。",
+    "auto_off": "自動適用は無効：人が判断します。設定 → ワークスペースで有効化できます。",
+    "not_ready": "学習中：自動適用には {{min}} 件の判断が必要です（現在 {{examples}} 件）。",
+    "reopen": "再開",
+    "reopen_failed": "再開できませんでした"
   }
 }

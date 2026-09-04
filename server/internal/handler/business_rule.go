@@ -581,7 +581,12 @@ func (h *Handler) ApplyTriageRules(ctx context.Context, item db.TriageItem) {
 		return
 	}
 	rules, err := h.Queries.ListActiveBusinessRules(ctx, db.ListActiveBusinessRulesParams{WorkspaceID: item.WorkspaceID, AttachPoint: service.AttachWebhookReceived})
-	if err != nil || len(rules) == 0 {
+	if err != nil {
+		return
+	}
+	if len(rules) == 0 {
+		// No rule: the auto-classifier (K61) may still decide.
+		h.autoTriage(ctx, item)
 		return
 	}
 	facts, err := h.triageItemFacts(ctx, item, time.Now())
@@ -589,6 +594,14 @@ func (h *Handler) ApplyTriageRules(ctx context.Context, item db.TriageItem) {
 		slog.Warn("triage rules: facts failed", "error", err, "item_id", uuidToString(item.ID))
 		return
 	}
+	defer func() {
+		// Nothing matched: the auto-classifier (K61) may still decide.
+		if item.State == "pending" {
+			if fresh, err := h.Queries.ListTriageItemsByIDs(ctx, db.ListTriageItemsByIDsParams{WorkspaceID: item.WorkspaceID, Ids: []pgtype.UUID{item.ID}}); err == nil && len(fresh) == 1 && fresh[0].State == "pending" {
+				h.autoTriage(ctx, fresh[0])
+			}
+		}
+	}()
 	for _, rule := range rules {
 		p, err := service.ParsePredicate(rule.CompiledPredicate, rule.AttachPoint)
 		if err != nil {

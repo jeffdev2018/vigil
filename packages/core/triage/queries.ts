@@ -7,6 +7,8 @@ export const triageKeys = {
   stats: (wsId: string) => [...triageKeys.all(wsId), "stats"] as const,
   items: (wsId: string, state: TriageItemState) =>
     [...triageKeys.all(wsId), "items", state] as const,
+  suggestions: (wsId: string, ids: string[]) =>
+    [...triageKeys.all(wsId), "suggestions", ids.join(",")] as const,
 };
 
 /**
@@ -29,5 +31,19 @@ export function triageItemsOptions(wsId: string, state: TriageItemState) {
   return queryOptions({
     queryKey: triageKeys.items(wsId, state),
     queryFn: ({ signal }) => api.listTriageItems({ state }, { signal }),
+  });
+}
+
+/**
+ * Triage auto-ML (K61): suggestions for the visible items, one request per
+ * page of ids. Empty ids fetch nothing.
+ */
+export function triageSuggestionsOptions(wsId: string, ids: string[]) {
+  const sorted = [...ids].sort().slice(0, 50);
+  return queryOptions({
+    queryKey: triageKeys.suggestions(wsId, sorted),
+    queryFn: ({ signal }) => api.getTriageSuggestions(sorted, { signal }),
+    enabled: sorted.length > 0,
+    staleTime: 30_000,
   });
 }

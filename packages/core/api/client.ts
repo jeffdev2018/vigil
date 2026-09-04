@@ -260,6 +260,7 @@ import type {
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
+  TriageSuggestionsResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -323,6 +324,7 @@ import {
   AgentVersionsSchema,
   AuditLogPageSchema,
   AuditChainStatusSchema,
+  TriageSuggestionsResponseSchema,
   TrustModeEnvelopeSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
@@ -1602,6 +1604,16 @@ export class ApiClient {
       EMPTY_TRIAGE_ITEMS_RESPONSE,
       { endpoint: "GET /api/triage/items" },
     );
+  }
+
+  // Triage auto-ML (K61).
+  async getTriageSuggestions(ids: string[], options?: { signal?: AbortSignal }): Promise<TriageSuggestionsResponse> {
+    const raw = await this.fetch<unknown>(`/api/triage/suggestions?ids=${encodeURIComponent(ids.join(","))}`, options?.signal ? { signal: options.signal } : undefined);
+    return parseWithFallback(raw, TriageSuggestionsResponseSchema, { suggestions: {}, auto: { enabled: false, threshold: 0.9, min_examples: 20 } }, { endpoint: "GET /api/triage/suggestions" });
+  }
+
+  async reopenTriageItem(itemId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/triage/items/${encodeURIComponent(itemId)}/reopen`, { method: "POST" });
   }
 
   async acceptTriageItem(itemId: string): Promise<AcceptTriageItemResponse> {
