@@ -77,6 +77,7 @@ import type {
   AgentVersionDiff,
   AuditLogFilter,
   AuditLogPage,
+  AuditChainStatus,
   ADRRequirement,
   DecisionRecord,
   BusinessRule,
@@ -314,6 +315,7 @@ import {
   WorkspaceScorecardsSchema,
   AgentVersionsSchema,
   AuditLogPageSchema,
+  AuditChainStatusSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
   BusinessRuleListSchema,
@@ -2822,6 +2824,11 @@ export class ApiClient {
     search.set("limit", String(limit));
     const raw = await this.fetch<unknown>(`/api/audit-log?${search}`);
     return parseWithFallback(raw, AuditLogPageSchema, { entries: [], next_cursor: "" }, { endpoint: "GET /api/audit-log" });
+  }
+
+  async verifyAuditLog(): Promise<AuditChainStatus> {
+    const raw = await this.fetch<unknown>("/api/audit-log/verify");
+    return parseWithFallback(raw, AuditChainStatusSchema, { ok: false, total: 0, head_hash: "", broken_seq: null, broken_id: null }, { endpoint: "GET /api/audit-log/verify" });
   }
 
   /** The export body as text, ready to be saved by the caller. */

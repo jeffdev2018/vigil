@@ -11,12 +11,14 @@ const state = vi.hoisted(() => ({
   entries: [] as AuditLogEntry[],
   filters: [] as unknown[],
   exportText: "id,action",
+  chain: { ok: true, total: 3, head_hash: "abcdef0123456789", broken_seq: null, broken_id: null } as { ok: boolean; total: number; head_hash: string; broken_seq: number | null; broken_id: string | null },
   exportCalls: [] as unknown[],
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/api", () => ({
   api: {
+    verifyAuditLog: vi.fn(async () => state.chain),
     exportAuditLog: vi.fn(async (format: string, filter: unknown) => {
       state.exportCalls.push([format, filter]);
       return state.exportText;
@@ -61,6 +63,20 @@ beforeEach(() => {
 });
 
 describe("AuditLogTab", () => {
+  it("verifies the hash chain on demand and names a broken link", async () => {
+    renderTab();
+    await screen.findByTestId("audit-empty");
+    fireEvent.click(screen.getByRole("button", { name: "Verify chain" }));
+    const ok = await screen.findByTestId("audit-chain");
+    expect(ok.getAttribute("data-ok")).toBe("true");
+    expect(ok.textContent).toContain("abcdef012345");
+    state.chain = { ok: false, total: 3, head_hash: "x", broken_seq: 2, broken_id: "e2" };
+    fireEvent.click(screen.getByRole("button", { name: "Verify chain" }));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.getByTestId("audit-chain").getAttribute("data-ok")).toBe("false");
+    expect(screen.getByTestId("audit-chain").textContent).toContain("#2");
+  });
+
   it("says the log is empty and exports with the same filter as the view", async () => {
     renderTab();
     expect(await screen.findByTestId("audit-empty")).toBeTruthy();

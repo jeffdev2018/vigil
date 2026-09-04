@@ -50,18 +50,52 @@
     }
   },
   "budgets": {
-    "title": "実行予算", "description": "エージェントの作業開始前に USD 上限を設定します。強制上限は新規実行を一時停止し、監視モードは計測のみ行います。",
-    "add": "予算を追加", "loading": "予算を読み込み中…", "load_failed": "予算状況を更新できませんでした。", "retry": "再試行",
-    "empty": "実行予算はありません", "empty_hint": "ワークスペース、プロジェクト、またはエージェントの上限を追加します。",
-    "scope": "範囲", "target": "対象を選択", "limit": "上限（USD）", "period": "リセット期間", "warning": "警告しきい値（%）", "action": "上限到達時",
-    "create_title": "新しい予算", "edit_title": "予算を編集", "editor_hint": "使用量には完了コストと待機中作業の予約額が含まれます。",
-    "save": "保存", "saving": "保存中…", "cancel": "キャンセル", "save_failed": "予算を保存できませんでした。",
-    "edit": "予算を編集", "delete": "予算を削除", "delete_confirm": "この予算と現在期間の使用量を削除しますか？", "override": "一時上書きを許可",
-    "override_reason": "上書きの理由（最大24時間）", "override_created": "24時間の上書きを許可しました", "override_active": "上書き中",
-    "reserved": "待機中の作業に {{amount}} を予約済み", "notice_warning": "実行予算が上限に近づいています。", "notice_blocked": "予算が上限に達したため、新しい実行は一時停止中です。", "manage": "予算を管理",
-    "scopes": { "workspace": "ワークスペース", "project": "プロジェクト", "agent": "エージェント" },
-    "periods": { "daily": "毎日", "weekly": "毎週", "monthly": "毎月" },
-    "actions": { "enforce": "上限で一時停止", "observe": "監視のみ" }
+    "title": "実行予算",
+    "description": "エージェントの作業開始前に USD 上限を設定します。強制上限は新規実行を一時停止し、監視モードは計測のみ行います。",
+    "add": "予算を追加",
+    "loading": "予算を読み込み中…",
+    "load_failed": "予算状況を更新できませんでした。",
+    "retry": "再試行",
+    "empty": "実行予算はありません",
+    "empty_hint": "ワークスペース、プロジェクト、またはエージェントの上限を追加します。",
+    "scope": "範囲",
+    "target": "対象を選択",
+    "limit": "上限（USD）",
+    "period": "リセット期間",
+    "warning": "警告しきい値（%）",
+    "action": "上限到達時",
+    "create_title": "新しい予算",
+    "edit_title": "予算を編集",
+    "editor_hint": "使用量には完了コストと待機中作業の予約額が含まれます。",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "キャンセル",
+    "save_failed": "予算を保存できませんでした。",
+    "edit": "予算を編集",
+    "delete": "予算を削除",
+    "delete_confirm": "この予算と現在期間の使用量を削除しますか？",
+    "override": "一時上書きを許可",
+    "override_reason": "上書きの理由（最大24時間）",
+    "override_created": "24時間の上書きを許可しました",
+    "override_active": "上書き中",
+    "reserved": "待機中の作業に {{amount}} を予約済み",
+    "notice_warning": "実行予算が上限に近づいています。",
+    "notice_blocked": "予算が上限に達したため、新しい実行は一時停止中です。",
+    "manage": "予算を管理",
+    "scopes": {
+      "workspace": "ワークスペース",
+      "project": "プロジェクト",
+      "agent": "エージェント"
+    },
+    "periods": {
+      "daily": "毎日",
+      "weekly": "毎週",
+      "monthly": "毎月"
+    },
+    "actions": {
+      "enforce": "上限で一時停止",
+      "observe": "監視のみ"
+    }
   },
   "quick_actions": {
     "title": "クイックアクション",
@@ -1398,6 +1432,10 @@
     "col_entity": "対象",
     "col_details": "詳細",
     "approved": "承認",
-    "load_more": "さらに読み込む"
+    "load_more": "さらに読み込む",
+    "verify": "チェーンを検証",
+    "verify_failed": "検証に失敗しました",
+    "chain_ok": "チェーンは正常 · {{count}} 件 · 先頭 {{hash}}",
+    "chain_broken": "エントリ #{{seq}} でチェーンが破損しています：行が変更または削除されました"
   }
 }

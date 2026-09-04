@@ -245,6 +245,9 @@ type AuditLogEntry struct {
 	ApproverType pgtype.Text        `json:"approver_type"`
 	ApproverID   pgtype.UUID        `json:"approver_id"`
 	Details      []byte             `json:"details"`
+	ChainSeq     int64              `json:"chain_seq"`
+	PrevHash     pgtype.Text        `json:"prev_hash"`
+	Hash         string             `json:"hash"`
 }
 
 type Autopilot struct {

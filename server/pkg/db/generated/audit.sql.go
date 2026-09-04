@@ -26,7 +26,7 @@ const createAuditLogEntry = `-- name: CreateAuditLogEntry :one
 
 INSERT INTO audit_log_entry (workspace_id, actor_type, actor_id, action, entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-RETURNING id, workspace_id, occurred_at, actor_type, actor_id, action, entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details
+RETURNING id, workspace_id, occurred_at, actor_type, actor_id, action, entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details, chain_seq, prev_hash, hash
 `
 
 type CreateAuditLogEntryParams struct {
@@ -74,12 +74,15 @@ func (q *Queries) CreateAuditLogEntry(ctx context.Context, arg CreateAuditLogEnt
 		&i.ApproverType,
 		&i.ApproverID,
 		&i.Details,
+		&i.ChainSeq,
+		&i.PrevHash,
+		&i.Hash,
 	)
 	return i, err
 }
 
 const listAuditLogEntries = `-- name: ListAuditLogEntries :many
-SELECT id, workspace_id, occurred_at, actor_type, actor_id, action, entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details FROM audit_log_entry
+SELECT id, workspace_id, occurred_at, actor_type, actor_id, action, entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details, chain_seq, prev_hash, hash FROM audit_log_entry
 WHERE workspace_id = $1
   AND ($2::timestamptz IS NULL OR occurred_at >= $2::timestamptz)
   AND ($3::timestamptz IS NULL OR occurred_at < $3::timestamptz)
@@ -138,6 +141,9 @@ func (q *Queries) ListAuditLogEntries(ctx context.Context, arg ListAuditLogEntri
 			&i.ApproverType,
 			&i.ApproverID,
 			&i.Details,
+			&i.ChainSeq,
+			&i.PrevHash,
+			&i.Hash,
 		); err != nil {
 			return nil, err
 		}
@@ -156,4 +162,44 @@ DELETE FROM audit_log_entry WHERE workspace_id = $1
 func (q *Queries) PurgeWorkspaceAuditLog(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, purgeWorkspaceAuditLog, workspaceID)
 	return err
+}
+
+const verifyAuditChain = `-- name: VerifyAuditChain :one
+WITH ordered AS (
+    SELECT id, chain_seq, prev_hash, hash,
+           audit_log_entry_hash(prev_hash, workspace_id, chain_seq, occurred_at, actor_type, actor_id, action,
+                                entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details) AS expected,
+           lag(hash) OVER (ORDER BY chain_seq) AS previous
+    FROM audit_log_entry
+    WHERE workspace_id = $1
+), broken AS (
+    SELECT id, chain_seq FROM ordered
+    WHERE hash <> expected OR coalesce(prev_hash, '') <> coalesce(previous, '')
+    ORDER BY chain_seq LIMIT 1
+)
+SELECT (SELECT count(*) FROM ordered)::bigint AS total,
+       (SELECT id FROM broken) AS broken_id,
+       coalesce((SELECT chain_seq FROM broken), 0)::bigint AS broken_seq,
+       coalesce((SELECT hash FROM ordered ORDER BY chain_seq DESC LIMIT 1), '')::text AS head_hash
+`
+
+type VerifyAuditChainRow struct {
+	Total     int64       `json:"total"`
+	BrokenID  pgtype.UUID `json:"broken_id"`
+	BrokenSeq int64       `json:"broken_seq"`
+	HeadHash  string      `json:"head_hash"`
+}
+
+// Recomputes every hash with the same function as the insert trigger and
+// checks each link; returns the first broken entry, if any.
+func (q *Queries) VerifyAuditChain(ctx context.Context, workspaceID pgtype.UUID) (VerifyAuditChainRow, error) {
+	row := q.db.QueryRow(ctx, verifyAuditChain, workspaceID)
+	var i VerifyAuditChainRow
+	err := row.Scan(
+		&i.Total,
+		&i.BrokenID,
+		&i.BrokenSeq,
+		&i.HeadHash,
+	)
+	return i, err
 }

@@ -1987,6 +1987,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Route("/api/audit-log", func(r chi.Router) {
 				r.Get("/", h.ListAuditLog)
 				r.Get("/export", h.ExportAuditLog)
+				r.Get("/verify", h.VerifyAuditLog)
 			})
 			// Scorecards (K25).
 			r.Get("/api/scorecards", h.ListWorkspaceScorecards)

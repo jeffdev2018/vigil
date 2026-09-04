@@ -321,6 +321,7 @@ var concurrentIndexCleanups = map[string]string{
 	"501_budget_reservation_state_index":                        "idx_budget_reservation_reserved",
 	"502_budget_override_id_index":                              "uq_budget_override_id",
 	"503_budget_override_policy_index":                          "idx_budget_override_policy_expiry",
+	"505_audit_log_entry_chain_index":                           "idx_audit_log_entry_chain",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

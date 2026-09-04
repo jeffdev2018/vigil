@@ -25,3 +25,23 @@ SELECT set_config('multica.audit_purge', 'on', true)::text;
 
 -- name: PurgeWorkspaceAuditLog :exec
 DELETE FROM audit_log_entry WHERE workspace_id = $1;
+
+-- name: VerifyAuditChain :one
+-- Recomputes every hash with the same function as the insert trigger and
+-- checks each link; returns the first broken entry, if any.
+WITH ordered AS (
+    SELECT id, chain_seq, prev_hash, hash,
+           audit_log_entry_hash(prev_hash, workspace_id, chain_seq, occurred_at, actor_type, actor_id, action,
+                                entity_type, entity_id, model, cost_usd_ticks, approver_type, approver_id, details) AS expected,
+           lag(hash) OVER (ORDER BY chain_seq) AS previous
+    FROM audit_log_entry
+    WHERE workspace_id = $1
+), broken AS (
+    SELECT id, chain_seq FROM ordered
+    WHERE hash <> expected OR coalesce(prev_hash, '') <> coalesce(previous, '')
+    ORDER BY chain_seq LIMIT 1
+)
+SELECT (SELECT count(*) FROM ordered)::bigint AS total,
+       (SELECT id FROM broken) AS broken_id,
+       coalesce((SELECT chain_seq FROM broken), 0)::bigint AS broken_seq,
+       coalesce((SELECT hash FROM ordered ORDER BY chain_seq DESC LIMIT 1), '')::text AS head_hash;

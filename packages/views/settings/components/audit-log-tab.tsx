@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { auditLogInfiniteOptions } from "@multica/core/workspace/audit";
-import type { AuditLogFilter } from "@multica/core/types";
+import type { AuditChainStatus, AuditLogFilter } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { useT, useTimeAgo } from "../../i18n";
@@ -23,6 +23,8 @@ export function AuditLogTab() {
   const [actorType, setActorType] = useState("");
   const [action, setAction] = useState("");
   const [exporting, setExporting] = useState<"csv" | "json" | null>(null);
+  const [chain, setChain] = useState<AuditChainStatus | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const filter: AuditLogFilter = { actor_type: actorType || undefined, action: action.trim() || undefined };
   const { data, isLoading, isError, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery(auditLogInfiniteOptions(wsId, filter));
   const entries = data?.pages.flatMap((p) => p.entries) ?? [];
@@ -45,9 +47,32 @@ export function AuditLogTab() {
     }
   }
 
+  async function verify() {
+    setVerifying(true);
+    try {
+      setChain(await api.verifyAuditLog());
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : t(($) => $.audit.verify_failed));
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   return (
     <div data-testid="audit-log" className="flex flex-col gap-3 text-caption">
       <p className="text-muted-foreground">{t(($) => $.audit.description)}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" size="sm" variant="outline" disabled={verifying} onClick={() => void verify()}>
+          {t(($) => $.audit.verify)}
+        </Button>
+        {chain && (
+          <span data-testid="audit-chain" data-ok={chain.ok ? "true" : "false"} className={chain.ok ? "text-muted-foreground" : "text-destructive"}>
+            {chain.ok
+              ? t(($) => $.audit.chain_ok, { count: chain.total, hash: chain.head_hash.slice(0, 12) })
+              : t(($) => $.audit.chain_broken, { seq: chain.broken_seq ?? 0 })}
+          </span>
+        )}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <select aria-label={t(($) => $.audit.actor_type)} className="h-8 rounded-md border bg-background px-2" value={actorType} onChange={(e) => setActorType(e.target.value)}>
           <option value="">{t(($) => $.audit.any_actor)}</option>
