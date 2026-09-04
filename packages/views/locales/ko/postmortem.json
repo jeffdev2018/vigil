@@ -14,7 +14,8 @@
     "empty_title_discarded": "폐기된 항목이 없습니다",
     "empty_description_discarded": "폐기한 포스트모템은 여기로 이동합니다.",
     "loading": "포스트모템 불러오는 중",
-    "load_error": "포스트모템을 불러올 수 없습니다"
+    "load_error": "포스트모템을 불러올 수 없습니다",
+    "load_more": "더 불러오기"
   },
   "detail": {
     "select_prompt": "포스트모템을 선택하여 검토하세요",

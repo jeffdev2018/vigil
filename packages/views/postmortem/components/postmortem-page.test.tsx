@@ -52,6 +52,8 @@ vi.mock("@multica/core/postmortem/queries", () => ({
   postmortemItemsOptions: () => ({
     queryKey: ["postmortem", "ws-1", "items", "draft"],
     queryFn: async () => data.items,
+    initialPageParam: "",
+    getNextPageParam: (lastPage: PostmortemsResponse) => lastPage.next_cursor || undefined,
   }),
 }));
 
@@ -143,6 +145,12 @@ describe("PostmortemPage", () => {
     await waitFor(() => expect(mutations.approve).toHaveBeenCalledWith("pm-1"));
     // The approve response reports how many rules became agent memory.
     expect(toast.success).toHaveBeenCalledWith("1 rules added to the agent's memory");
+  });
+
+  it("offers to load the next page while the server has a cursor", async () => {
+    data.items = { ...data.items, next_cursor: "abc" };
+    renderPage();
+    expect(await screen.findByRole("button", { name: "Load more" })).toBeTruthy();
   });
 
   it("links the selected item to its issue and agent", async () => {

@@ -14,7 +14,8 @@
     "empty_title_discarded": "还没有已丢弃的复盘",
     "empty_description_discarded": "你丢弃的复盘会移到这里。",
     "loading": "正在加载复盘",
-    "load_error": "无法加载复盘"
+    "load_error": "无法加载复盘",
+    "load_more": "加载更多"
   },
   "detail": {
     "select_prompt": "选择一份复盘进行审阅",
