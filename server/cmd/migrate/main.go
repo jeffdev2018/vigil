@@ -301,7 +301,7 @@ var concurrentIndexCleanups = map[string]string{
 	"464_issue_plan_issue_version_key":                          "issue_plan_issue_version_key",
 	"465_plan_verification_issue_index":                         "idx_plan_verification_issue",
 	"467_issue_decision_issue_index":                            "idx_issue_decision_issue",
-	"472_issue_decision_sla_index":                              "idx_issue_decision_sla_pending",
+	"571_issue_decision_sla_index":                              "idx_issue_decision_sla_pending",
 	"474_issue_completed_at_index":                              "idx_issue_completed_at",
 	"476_module_ownership_workspace_index":                      "idx_module_ownership_workspace",
 	"478_morning_briefing_sent_unique":                          "morning_briefing_sent_workspace_date",
@@ -356,6 +356,12 @@ var concurrentIndexCleanups = map[string]string{
 	"521_triage_item_pending_title_index":                       "uq_triage_item_pending_title",
 	"522_triage_item_issue_index":                               "idx_triage_item_issue",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
+	"575_task_routing_stats_index":                              "idx_agent_task_queue_routing_stats",
+	"577_agent_memory_pkey_index":                               "agent_memory_pkey_uidx",
+	"579_agent_memory_agent_idx":                                "idx_agent_memory_agent",
+	"581_postmortem_pkey_index":                                 "postmortem_pkey_uidx",
+	"583_postmortem_source_task_index":                          "uq_postmortem_source_task",
+	"584_postmortem_workspace_state_index":                      "idx_postmortem_workspace_state",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
