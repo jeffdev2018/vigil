@@ -27,6 +27,7 @@
     "mentioning-agents",
     "chat",
     "inbox",
+    "meetings",
     "---Runtime & execution---",
     "tasks",
     "daemon-runtimes",
