@@ -126,3 +126,22 @@ func TestRealtimeSessionMintsClientToken(t *testing.T) {
 		t.Fatalf("request = auth:%q body:%q", gotAuth, gotBody)
 	}
 }
+
+func TestTranscribePlainSkipsDiarization(t *testing.T) {
+	var gotDiarize string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseMultipartForm(1 << 20)
+		gotDiarize = r.FormValue("diarize")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"text":"note"}`)
+	}))
+	defer srv.Close()
+	c := New(Config{BaseURL: srv.URL, Model: "m", Diarize: true})
+	res, err := c.TranscribePlain(context.Background(), "", "", strings.NewReader("x"))
+	if err != nil || res.Text != "note" {
+		t.Fatalf("plain = %+v, %v", res, err)
+	}
+	if gotDiarize != "" {
+		t.Fatalf("diarize field sent for a plain transcription: %q", gotDiarize)
+	}
+}

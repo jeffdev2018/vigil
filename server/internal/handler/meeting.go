@@ -153,7 +153,7 @@ func (h *Handler) TranscribeVoice(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	res, err := h.STT.Transcribe(r.Context(), name, ct, strings.NewReader(string(data)))
+	res, err := h.STT.TranscribePlain(r.Context(), name, ct, strings.NewReader(string(data)))
 	if err != nil {
 		slog.Warn("voice transcribe failed", "error", err)
 		writeError(w, http.StatusBadGateway, "transcription failed")
