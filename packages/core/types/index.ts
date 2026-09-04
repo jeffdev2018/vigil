@@ -373,4 +373,4 @@ export type {
   MeetingListResponse,
   MeetingSegmentResponse,
 } from "./meeting";
-export type { VoiceTranscription } from "./voice";
+export type { VoiceTranscription, RealtimeVoiceSession } from "./voice";

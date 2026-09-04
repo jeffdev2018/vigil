@@ -60,6 +60,8 @@ export function MeetingRecorderPanel() {
   const startedAt = useMeetingRecorderStore((s) => s.startedAt);
   const systemAudio = useMeetingRecorderStore((s) => s.systemAudio);
   const lastTranscript = useMeetingRecorderStore((s) => s.lastTranscript);
+  const live = useMeetingRecorderStore((s) => s.live);
+  const liveTranscript = useMeetingRecorderStore((s) => s.liveTranscript);
   const elapsed = useElapsed(startedAt);
   const finishing = phase === "finishing";
 
@@ -91,18 +93,35 @@ export function MeetingRecorderPanel() {
         </Button>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <span className="text-caption font-medium text-muted-foreground">
-          {t(($) => $.recorder.last_transcript)}
-        </span>
-        <p className="text-body">
-          {lastTranscript || (
-            <span className="text-faint-foreground">
-              {t(($) => $.recorder.waiting)}
-            </span>
-          )}
-        </p>
-      </div>
+      {live ? (
+        <div className="flex flex-col gap-1">
+          <span className="text-caption font-medium text-muted-foreground">
+            {t(($) => $.recorder.live_title)}
+          </span>
+          {/* Only the tail: the full transcript lives on the server and the
+              page below; this is what is being said right now. */}
+          <p className="text-body" aria-live="polite">
+            {liveTranscript ? (
+              liveTranscript.slice(-700)
+            ) : (
+              <span className="text-faint-foreground">{t(($) => $.recorder.waiting)}</span>
+            )}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <span className="text-caption font-medium text-muted-foreground">
+            {t(($) => $.recorder.last_transcript)}
+          </span>
+          <p className="text-body">
+            {lastTranscript || (
+              <span className="text-faint-foreground">
+                {t(($) => $.recorder.waiting)}
+              </span>
+            )}
+          </p>
+        </div>
+      )}
 
       {!systemAudio ? (
         <p className="text-caption text-muted-foreground">

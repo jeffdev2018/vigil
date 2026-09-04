@@ -52,6 +52,7 @@ import type {
   TriageItemsResponse,
   Meeting,
   VoiceTranscription,
+  RealtimeVoiceSession,
   MeetingListResponse,
   MeetingSegmentResponse,
   Label,
@@ -797,6 +798,7 @@ export interface AppConfigResponse {
   cdn_domain: string;
   /** Speech-to-text provider configured (MULTICA_STT_*); absent on older servers. */
   meeting_transcription_available?: boolean;
+  meeting_realtime_available?: boolean;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
   // publicly fetchable and must not be used as native media sources
@@ -1030,6 +1032,7 @@ export const AppConfigSchema = z.object({
   local_worktree_supported: BooleanWithDefaultSchema(false),
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
   meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
+  meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
   server_version: OptionalStringSchema,
   run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();
@@ -4194,6 +4197,24 @@ export const MeetingSchema = z.object({
   action_count: z.number().catch(0).default(0),
   summary_unavailable: z.boolean().default(false),
 }).loose();
+
+export const RealtimeVoiceSessionSchema = z.object({
+  url: z.string().default(""),
+  model: z.string().default(""),
+  token: z.string().default(""),
+  expires_at: z.string().default(""),
+  encoding: z.string().default("pcm_s16le"),
+  sample_rate: z.number().catch(16000).default(16000),
+}).loose();
+
+export const EMPTY_REALTIME_VOICE_SESSION: RealtimeVoiceSession = Object.freeze({
+  url: "",
+  model: "",
+  token: "",
+  expires_at: "",
+  encoding: "pcm_s16le",
+  sample_rate: 16000,
+});
 
 export const VoiceTranscriptionSchema = z.object({
   text: z.string().default(""),

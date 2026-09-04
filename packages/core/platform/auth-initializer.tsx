@@ -99,6 +99,7 @@ export function AuthInitializer({
         configStore
           .getState()
           .setMeetingTranscriptionAvailable(cfg.meeting_transcription_available === true);
+        configStore.getState().setMeetingRealtimeAvailable(cfg.meeting_realtime_available === true);
         if (cfg.posthog_key) {
           initAnalytics({
             key: cfg.posthog_key,

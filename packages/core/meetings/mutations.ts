@@ -25,6 +25,13 @@ export function useCreateMeeting(wsId: string) {
  * sequentially, so this mutation is driven with `mutateAsync` from its own
  * queue rather than fired per chunk.
  */
+export function useAppendMeetingTextSegment() {
+  return useMutation({
+    mutationFn: (v: { meetingId: string; text: string; seq: number }) =>
+      api.appendMeetingTextSegment(v.meetingId, v.text, v.seq),
+  });
+}
+
 export function useAppendMeetingSegment() {
   return useMutation({
     mutationFn: (v: { meetingId: string; chunk: Blob; seq: number }) =>
