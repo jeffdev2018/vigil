@@ -1174,5 +1174,35 @@
     "cto_audit": "审计记录",
     "cto_audit_empty": "此 issue 尚无记录",
     "block_failed": "无法加载此区块。"
+  },
+  "duel": {
+    "section": "智能体对决",
+    "status": {
+      "running": "进行中",
+      "verdict_ready": "等待你的裁定",
+      "confirmed": "已确认",
+      "inconclusive": "无法判定"
+    },
+    "candidate": "候选 {{side}}",
+    "cost": "成本",
+    "duration": "耗时",
+    "tool_calls": "工具调用",
+    "quality": "仲裁评分",
+    "arbiter_pick": "仲裁选择：{{side}}",
+    "arbiter_tie": "仲裁选择：平局",
+    "arbiter_unavailable": "没有仲裁裁定（{{error}}），请比较两次运行后决定。",
+    "inconclusive": "一位候选最终失败，无法比较。",
+    "choose": "确认 {{side}}",
+    "tie": "判为平局",
+    "winner": "胜者：{{side}}",
+    "winner_tie": "已判平局",
+    "open": "发起对决",
+    "agent_a": "智能体 A",
+    "agent_b": "智能体 B",
+    "pick_agent": "选择智能体…",
+    "launch": "发起对决",
+    "cancel": "取消",
+    "failed": "对决请求失败",
+    "identical": "请选择两个不同的智能体"
   }
 }

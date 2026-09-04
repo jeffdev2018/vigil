@@ -1205,5 +1205,35 @@
     "cto_audit": "Audit trail",
     "cto_audit_empty": "Nothing recorded on this issue yet",
     "block_failed": "This block could not be loaded."
+  },
+  "duel": {
+    "section": "Agent duel",
+    "status": {
+      "running": "running",
+      "verdict_ready": "awaiting your verdict",
+      "confirmed": "confirmed",
+      "inconclusive": "inconclusive"
+    },
+    "candidate": "Candidate {{side}}",
+    "cost": "Cost",
+    "duration": "Duration",
+    "tool_calls": "Tool calls",
+    "quality": "Arbiter score",
+    "arbiter_pick": "Arbiter's pick: {{side}}",
+    "arbiter_tie": "Arbiter's pick: tie",
+    "arbiter_unavailable": "No arbiter verdict ({{error}}); compare the runs and decide.",
+    "inconclusive": "A candidate failed for good: no comparison possible.",
+    "choose": "Confirm {{side}}",
+    "tie": "Call it a tie",
+    "winner": "Winner: {{side}}",
+    "winner_tie": "Declared a tie",
+    "open": "Start a duel",
+    "agent_a": "Agent A",
+    "agent_b": "Agent B",
+    "pick_agent": "Pick an agent…",
+    "launch": "Launch duel",
+    "cancel": "Cancel",
+    "failed": "The duel request failed",
+    "identical": "Pick two different agents"
   }
 }

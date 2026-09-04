@@ -104,6 +104,7 @@ import { DriftBadge } from "./drift-badge";
 import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
 import { FanoutSection } from "./fanout-section";
+import { DuelSection } from "./duel-section";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2642,6 +2643,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Fan-out / fan-in (K38): parallel specialist runs and the synthesis. */}
       <FanoutSection issueId={id} />
+
+      {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
+      <DuelSection issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />
