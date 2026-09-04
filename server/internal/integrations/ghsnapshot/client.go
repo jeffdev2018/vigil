@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -292,4 +293,37 @@ func rateLimitFromResponse(resp *http.Response, now time.Time) *RateLimitError {
 		wait = 5 * time.Minute
 	}
 	return &RateLimitError{RetryAfter: wait}
+}
+
+// PullRequestDiff (K15) fetches the unified diff of a pull request with the
+// installation's token: GET /repos/{owner}/{repo}/pulls/{number} with the
+// diff media type.
+func (c *Client) PullRequestDiff(ctx context.Context, installationID int64, owner, repo string, number int) (string, error) {
+	if !c.Enabled() {
+		return "", errors.New("github app not configured")
+	}
+	token, err := c.installationToken(ctx, installationID)
+	if err != nil {
+		return "", err
+	}
+	endpoint := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", strings.TrimRight(c.apiBase, "/"), url.PathEscape(owner), url.PathEscape(repo), number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Accept", "application/vnd.github.diff")
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("github diff: status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }

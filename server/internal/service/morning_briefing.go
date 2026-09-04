@@ -49,3 +49,52 @@ func MorningBriefingSettings(settings []byte) (MorningBriefing, bool) {
 	b.Channels = channels
 	return b, true
 }
+
+// CrossReview (K15) is the workspace policy in workspace.settings:
+//
+//	"cross_review": {"enabled": true, "opt_out_project_ids": ["…"]}
+//
+// Absent means enabled everywhere.
+type CrossReview struct {
+	Enabled          bool     `json:"enabled"`
+	OptOutProjectIDs []string `json:"opt_out_project_ids"`
+}
+
+func CrossReviewSettings(settings []byte) CrossReview {
+	out := CrossReview{Enabled: true, OptOutProjectIDs: []string{}}
+	if len(settings) == 0 {
+		return out
+	}
+	var s struct {
+		CrossReview *struct {
+			Enabled          *bool    `json:"enabled"`
+			OptOutProjectIDs []string `json:"opt_out_project_ids"`
+		} `json:"cross_review"`
+	}
+	if err := json.Unmarshal(settings, &s); err != nil || s.CrossReview == nil {
+		return out
+	}
+	if s.CrossReview.Enabled != nil {
+		out.Enabled = *s.CrossReview.Enabled
+	}
+	for _, id := range s.CrossReview.OptOutProjectIDs {
+		if id != "" {
+			out.OptOutProjectIDs = append(out.OptOutProjectIDs, id)
+		}
+	}
+	return out
+}
+
+// Allows reports whether an issue of projectID (empty when none) gets a
+// cross-provider review under this policy.
+func (c CrossReview) Allows(projectID string) bool {
+	if !c.Enabled {
+		return false
+	}
+	for _, id := range c.OptOutProjectIDs {
+		if id == projectID {
+			return false
+		}
+	}
+	return true
+}

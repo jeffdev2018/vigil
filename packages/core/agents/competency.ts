@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { OwnershipSuggestion } from "../types";
 
@@ -32,7 +32,12 @@ export interface AssigneeSuggestion {
   ownership: OwnershipSuggestion | null;
 }
 
+export interface CompetencySettings {
+  min_sample: number;
+}
+
 export const competencyKeys = {
+  settings: (wsId: string) => ["competency", wsId, "settings"] as const,
   agent: (wsId: string, agentId: string) => ["competency", wsId, "agent", agentId] as const,
   issue: (wsId: string, issueId: string) => ["competency", wsId, "issue", issueId] as const,
 };
@@ -55,4 +60,16 @@ export function competencyDomainLabel(domainKey: string): string {
   if (domainKey.startsWith("label:")) return domainKey.slice(6);
   if (domainKey.startsWith("path:")) return domainKey.slice(5) + "/";
   return domainKey;
+}
+
+export function competencySettingsOptions(wsId: string) {
+  return queryOptions({ queryKey: competencyKeys.settings(wsId), queryFn: () => api.getCompetencySettings() });
+}
+
+export function useSaveCompetencySettings(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: CompetencySettings) => api.putCompetencySettings(v),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["competency", wsId] }),
+  });
 }

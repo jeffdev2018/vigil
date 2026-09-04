@@ -927,7 +927,17 @@
     "briefing_channel_type": "チャネル種別 {{n}}",
     "briefing_channel_chat": "チャット ID {{n}}",
     "briefing_channel_remove": "チャネル {{n}} を削除",
-    "briefing_channel_add": "チャネルを追加"
+    "briefing_channel_add": "チャネルを追加",
+    "competency_section": "学習された能力",
+    "competency_min_sample": "最小サンプル数",
+    "competency_min_sample_description": "この件数（完了した課題＋対決）未満では、成功率は数値ではなく「データ不足」として表示されます。",
+    "competency_failed": "能力設定を保存できませんでした",
+    "cross_review_section": "別プロバイダーによるレビュー",
+    "cross_review_enabled": "納品された差分を別プロバイダーでレビュー",
+    "cross_review_enabled_description": "コード実行が差分を納品すると、別プロバイダーのエージェントが人によるレビューの前にレビューします。2 つ以上のプロバイダーが必要です。",
+    "cross_review_opt_out": "レビュー対象外のプロジェクト",
+    "cross_review_opt_out_description": "これらのプロジェクトの実行はレビューされません。",
+    "cross_review_failed": "レビュー設定を保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

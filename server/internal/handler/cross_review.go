@@ -12,6 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -25,10 +26,19 @@ import (
 // review, never a gate.
 
 const (
-	AuditCrossReview       = "cross_review"
-	crossReviewMessageType = "review_report"
-	crossReviewBrief       = "Cross-provider review. An agent running on %s just delivered a change on this issue. Review ONLY that diff, as an independent reader: do not read, resume or continue the author's conversation, and do not modify any code.\nDiff to review: %s\nRead the diff yourself with git. End your run with a fenced block starting with ```review_report that contains one JSON object: {\"verdict\":\"approve\"|\"request_changes\"|\"comment\",\"risks\":[\"…\"],\"questions\":[\"…\"],\"suggestions\":[\"…\"]}."
+	AuditCrossReview                = "cross_review"
+	crossReviewMessageType          = "review_report"
+	crossReviewBrief                = "Cross-provider review. An agent running on %s just delivered a change on this issue. Review ONLY that diff, as an independent reader: do not read, resume or continue the author's conversation, and do not modify any code.\nDiff to review: %s\n%sEnd your run with a fenced block starting with ```review_report that contains one JSON object: {\"verdict\":\"approve\"|\"request_changes\"|\"comment\",\"risks\":[\"…\"],\"questions\":[\"…\"],\"suggestions\":[\"…\"]}."
+	crossReviewDiffCap              = 60_000
+	AuditCrossReviewSettingsChanged = "cross_review.settings_changed"
 )
+
+// PullRequestDiffFetcher returns the unified diff of the pull request the
+// review is about; the built-in one reads GitHub through the App and
+// Forgejo/GitLab through the workspace connection. Tests swap it.
+type PullRequestDiffFetcher interface {
+	FetchIssueDiff(ctx context.Context, issue db.Issue, prURL string) (string, error)
+}
 
 var crossReviewFence = regexp.MustCompile("(?s)```review_report\\s*(\\{.*?\\})\\s*```")
 
@@ -109,7 +119,8 @@ func (h *Handler) runProvider(ctx context.Context, task db.AgentTaskQueue) strin
 }
 
 // triggerCrossReview queues the review of a completed code run. Review runs
-// are never reviewed themselves; a run without a diff has nothing to read.
+// are never reviewed themselves; a run without a diff has nothing to read;
+// the workspace policy may switch the feature off or exclude the project.
 func (h *Handler) triggerCrossReview(ctx context.Context, task db.AgentTaskQueue, prURL, branch string) {
 	if task.ReviewOfTaskID.Valid || task.Status != "completed" {
 		return
@@ -121,13 +132,37 @@ func (h *Handler) triggerCrossReview(ctx context.Context, task db.AgentTaskQueue
 	if _, err := h.Queries.GetLatestCrossReviewForTask(ctx, task.ID); err == nil {
 		return // already reviewed (a retry goes through RetryCrossReview)
 	}
-	h.startCrossReview(ctx, task, ref)
+	h.startCrossReview(ctx, task, ref, prURL)
 }
 
-func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, ref string) (db.AgentTaskQueue, error) {
+// diffBlock embeds the fetched diff (capped) in the brief; empty when the
+// diff could not be read, in which case the reviewer reads it with git.
+func (h *Handler) diffBlock(ctx context.Context, issue db.Issue, prURL string) string {
+	var fetcher PullRequestDiffFetcher = h.DiffFetcher
+	if fetcher == nil {
+		fetcher = builtinDiffFetcher{h: h}
+	}
+	diff, err := fetcher.FetchIssueDiff(ctx, issue, prURL)
+	if err != nil {
+		slog.Info("cross review: diff not embedded", "issue_id", uuidToString(issue.ID), "error", err)
+	}
+	diff = strings.TrimSpace(diff)
+	if diff == "" {
+		return "Read the diff yourself with git.\n"
+	}
+	if len(diff) > crossReviewDiffCap {
+		diff = diff[:crossReviewDiffCap] + "\n… (diff truncated; read the rest with git)"
+	}
+	return "The diff:\n```diff\n" + diff + "\n```\n"
+}
+
+func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, ref, prURL string) (db.AgentTaskQueue, error) {
 	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
 	if err != nil {
 		return db.AgentTaskQueue{}, err
+	}
+	if ws, err := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); err == nil && !service.CrossReviewSettings(ws.Settings).Allows(uuidToString(issue.ProjectID)) {
+		return db.AgentTaskQueue{}, errors.New("cross review is switched off for this project")
 	}
 	provider := h.runProvider(ctx, task)
 	candidates, err := h.Queries.ListCrossReviewCandidates(ctx, db.ListCrossReviewCandidatesParams{WorkspaceID: issue.WorkspaceID, AuthorProvider: provider})
@@ -138,7 +173,7 @@ func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, 
 	if provider == "" {
 		provider = "another provider"
 	}
-	review, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, reviewer.ID, fmt.Sprintf(crossReviewBrief, provider, ref), task.OriginatorUserID)
+	review, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, reviewer.ID, fmt.Sprintf(crossReviewBrief, provider, ref, h.diffBlock(ctx, issue, prURL)), task.OriginatorUserID)
 	if err != nil {
 		slog.Warn("cross review: enqueue failed", "task_id", uuidToString(task.ID), "error", err)
 		return db.AgentTaskQueue{}, err
@@ -240,11 +275,12 @@ func (h *Handler) RetryCrossReview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	packet, _ := h.Queries.GetLatestHandoffPacket(r.Context(), issue.ID)
-	ref := diffReference(handoffPRURL(packet), "", jsonStrings(author.TouchedPaths))
+	prURL := handoffPRURL(packet)
+	ref := diffReference(prURL, "", jsonStrings(author.TouchedPaths))
 	if ref == "" {
 		ref = "the latest change delivered on this issue"
 	}
-	review, err := h.startCrossReview(r.Context(), author, ref)
+	review, err := h.startCrossReview(r.Context(), author, ref, prURL)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -263,4 +299,61 @@ func handoffPRURL(p db.HandoffPacket) string {
 		}
 	}
 	return ""
+}
+
+// GetCrossReviewSettings: GET /api/cross-review-settings.
+func (h *Handler) GetCrossReviewSettings(w http.ResponseWriter, r *http.Request) {
+	wsUUID, ok := h.permissionProfileScope(w, r)
+	if !ok {
+		return
+	}
+	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "workspace not found")
+		return
+	}
+	writeJSON(w, http.StatusOK, service.CrossReviewSettings(ws.Settings))
+}
+
+// PutCrossReviewSettings: PUT /api/cross-review-settings {enabled, opt_out_project_ids}.
+func (h *Handler) PutCrossReviewSettings(w http.ResponseWriter, r *http.Request) {
+	wsUUID, ok := h.permissionProfileScope(w, r, "owner", "admin")
+	if !ok {
+		return
+	}
+	var req service.CrossReview
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	ids := make([]string, 0, len(req.OptOutProjectIDs))
+	for _, raw := range req.OptOutProjectIDs {
+		pid, ok := parseUUIDOrBadRequest(w, raw, "project id")
+		if !ok {
+			return
+		}
+		if _, err := h.Queries.GetProjectInWorkspace(r.Context(), db.GetProjectInWorkspaceParams{ID: pid, WorkspaceID: wsUUID}); err != nil {
+			writeError(w, http.StatusUnprocessableEntity, "project "+raw+" is not in this workspace")
+			return
+		}
+		ids = append(ids, raw)
+	}
+	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "workspace not found")
+		return
+	}
+	settings := map[string]any{}
+	if len(ws.Settings) > 0 {
+		_ = json.Unmarshal(ws.Settings, &settings)
+	}
+	next := service.CrossReview{Enabled: req.Enabled, OptOutProjectIDs: ids}
+	settings["cross_review"] = next
+	raw, _ := json.Marshal(settings)
+	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to save cross review settings")
+		return
+	}
+	h.audit(r.Context(), wsUUID, "member", requestUserID(r), AuditCrossReviewSettingsChanged, "workspace", wsUUID, map[string]any{"enabled": next.Enabled, "opt_out_project_ids": ids}, nil)
+	writeJSON(w, http.StatusOK, next)
 }

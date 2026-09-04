@@ -78,10 +78,19 @@ func TestCompetencyFollowsIssueOutcomesAndDuels(t *testing.T) {
 	if c = get(agentA); c.Rows[0].SuccessCount != 0 || c.Rows[0].TotalCount != 2 {
 		t.Fatalf("after cancellation = %+v", c.Rows[0])
 	}
+	// Sent back from review: a rejected attempt, no success.
+	patch(issue, map[string]any{"status": "in_review"})
+	patch(issue, map[string]any{"status": "in_progress"})
+	if c = get(agentA); c.Rows[0].SuccessCount != 0 || c.Rows[0].TotalCount != 3 {
+		t.Fatalf("after review rejection = %+v", c.Rows[0])
+	}
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE action = $1 AND details->>'event' = 'review_rejected' AND entity_id = $2`, AuditCompetency, agentA); n != 1 {
+		t.Fatalf("review_rejected audit rows = %d", n)
+	}
 	// A member-assigned issue moves nothing.
 	other := dbfx.Issue(t, "Member issue on server/x.go", testutil.Cols{"status": "in_progress", "assignee_type": "member", "assignee_id": testUserID})
 	patch(other, map[string]any{"status": "done"})
-	if c = get(agentA); c.Rows[0].TotalCount != 2 {
+	if c = get(agentA); c.Rows[0].TotalCount != 3 {
 		t.Fatal("a member's issue must not move an agent's tally")
 	}
 	// A confirmed duel on a server issue: A wins, B loses, weighted twice.
@@ -97,7 +106,7 @@ func TestCompetencyFollowsIssueOutcomesAndDuels(t *testing.T) {
 	testHandler.LLM = prev
 	testutil.Call(t, testHandler.ConfirmAgentDuel, testutil.WithURLParams(newRequest(http.MethodPost, "/api/duels/"+out.Duel.ID+"/confirm", map[string]any{"winner": "a"}), "id", out.Duel.ID)).Want(http.StatusOK)
 	c = get(agentA)
-	if c.Rows[0].DuelWins != 1 || c.Rows[0].SampleSize != 3 || c.Rows[0].Score != competencyScore(0, 2, 1, 0) {
+	if c.Rows[0].DuelWins != 1 || c.Rows[0].SampleSize != 4 || c.Rows[0].Score != competencyScore(0, 3, 1, 0) {
 		t.Fatalf("after duel win = %+v", c.Rows[0])
 	}
 	if b := get(agentB); len(b.Rows) != 1 || b.Rows[0].DuelLosses != 1 || b.Rows[0].DomainKey != "path:server" {

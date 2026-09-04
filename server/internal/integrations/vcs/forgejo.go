@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -254,4 +255,30 @@ func coalesce(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// PullRequestDiff: GET /api/v1/repos/{owner}/{repo}/pulls/{number}.diff.
+func (p forgejoProvider) PullRequestDiff(ctx context.Context, instanceURL, token, owner, repo string, number int) (string, error) {
+	endpoint := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls/%d.diff", NormalizeInstanceURL(instanceURL), url.PathEscape(owner), url.PathEscape(repo), number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "token "+token)
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return "", ErrUnauthorized
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("forgejo diff: status %d", resp.StatusCode)
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDiffBytes))
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
 }
