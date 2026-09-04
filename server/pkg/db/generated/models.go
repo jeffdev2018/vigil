@@ -53,6 +53,7 @@ type Agent struct {
 	DisabledRuntimeSkills []byte      `json:"disabled_runtime_skills"`
 	ServiceTier           pgtype.Text `json:"service_tier"`
 	ConversationStarters  []byte      `json:"conversation_starters"`
+	TrustMode             string      `json:"trust_mode"`
 }
 
 type AgentBuilderDraft struct {
@@ -1629,6 +1630,18 @@ type TaskUsageHourlyRollupState struct {
 	LastRunFinishedAt pgtype.Timestamptz `json:"last_run_finished_at"`
 	LastRunRows       int64              `json:"last_run_rows"`
 	LastError         pgtype.Text        `json:"last_error"`
+}
+
+type TrustModeChange struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	AgentID         pgtype.UUID        `json:"agent_id"`
+	FromMode        string             `json:"from_mode"`
+	ToMode          string             `json:"to_mode"`
+	Reason          pgtype.Text        `json:"reason"`
+	TriggeredByType string             `json:"triggered_by_type"`
+	TriggeredByID   pgtype.UUID        `json:"triggered_by_id"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type User struct {

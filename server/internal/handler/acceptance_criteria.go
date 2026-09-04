@@ -238,6 +238,10 @@ func (h *Handler) ProveAcceptanceCriterion(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	// Trust Dial (K26): an observer proves nothing.
+	if !h.trustModeAllowsProof(w, r) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return

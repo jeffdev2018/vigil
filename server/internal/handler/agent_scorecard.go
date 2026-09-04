@@ -75,6 +75,12 @@ type WorkspaceScorecardRow struct {
 // RollupAgentScorecards recomputes the last days; an unknown run status is
 // an error in the log, never a silent skip.
 func (h *Handler) RollupAgentScorecards(ctx context.Context, now time.Time) (int, error) {
+	defer func() {
+		// Trust Dial (K26): fresh scorecards may make an agent eligible.
+		if _, err := h.NotifyTrustPromotions(ctx, now); err != nil {
+			slog.Warn("trust dial: suggestions failed", "error", err)
+		}
+	}()
 	from := now.Add(-scorecardRollupLookback).Truncate(24 * time.Hour)
 	statuses, err := h.Queries.ListTerminalTaskStatusesSince(ctx, pgtype.Timestamptz{Time: from, Valid: true})
 	if err != nil {

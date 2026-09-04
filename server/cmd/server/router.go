@@ -2002,6 +2002,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateModuleOwnership)
 				r.Delete("/{id}", h.DeleteModuleOwnership)
 			})
+			// Trust Dial (K26): the agent's autonomy mode, its suggestion and its history.
+			r.Route("/api/agents/{id}/trust-mode", func(r chi.Router) {
+				r.Get("/", h.GetAgentTrustMode)
+				r.Put("/", h.SetAgentTrustMode)
+				r.Get("/suggestions", h.GetAgentTrustSuggestion)
+				r.Get("/history", h.ListAgentTrustHistory)
+			})
 			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
 			r.Route("/api/search/why", func(r chi.Router) {
 				r.Get("/", h.SearchWhy)
