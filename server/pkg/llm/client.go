@@ -44,6 +44,10 @@
 //     Sends the tail of the conversation: up to 6 messages, the reply being
 //     answered capped at 3000 runes (2000 head + 1000 tail) and each older
 //     message at 800.
+//   - Issue scoping assistant — server/internal/handler/issue_scoping.go.
+//     Sends the raw text a member typed to draft an issue (capped at 8000
+//     runes) and the target project's title and description. Nothing else
+//     from the workspace.
 //
 // Both consumers send private chat content, which is why an unconfigured
 // deployment making zero upstream requests is a contract rather than a side

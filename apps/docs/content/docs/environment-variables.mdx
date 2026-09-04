@@ -211,6 +211,7 @@ Two features use this layer, and each one sends chat content to the endpoint you
 
 - **Chat auto-titling** — the first user message of a new chat session, sent verbatim. Attachments are never included.
 - **Follow-up questions** (the suggestion buttons under an agent reply) — the tail of the conversation: up to 6 messages, with the reply being answered capped at 3000 characters and each older message at 800.
+- **Issue scoping assistant** ("Draft from a few sentences" in the create issue dialog) — the text the member typed, capped at 8000 characters, plus the target project's title and description.
 
 When both the API key and the base URL are empty, this layer is disabled and makes no upstream request at all — neither feature above sends anything. That is the supported configuration when your policy does not allow this layer to send chat content off the deployment: chat sessions keep the title the client derives from the first message, the follow-up question buttons do not appear, and everything else is unaffected.
 
