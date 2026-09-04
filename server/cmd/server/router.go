@@ -1919,6 +1919,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/dependencies", h.CreateIssueDependency)
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
 					r.Get("/merge-readiness", h.GetIssueMergeReadiness)
+					// Review cockpit (K16): one read for the reviewer.
+					r.Get("/review-cockpit", h.GetReviewCockpit)
 					r.Get("/pr-stack", h.GetIssuePRStack)
 					r.Get("/plan", h.GetIssuePlan)
 					r.Put("/plan", h.SetIssuePlan)

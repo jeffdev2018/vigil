@@ -94,25 +94,29 @@ func (h *Handler) GetIssueMergeReadiness(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	ctx := r.Context()
+	out, err := h.mergeReadinessFor(r.Context(), issue)
+	if err != nil {
+		slog.Warn("merge readiness failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, out)
+}
 
+// mergeReadinessFor computes the readiness verdict; the review cockpit (K16)
+// shares it with the endpoint above.
+func (h *Handler) mergeReadinessFor(ctx context.Context, issue db.Issue) (MergeReadinessResponse, error) {
 	prs, err := h.loadReadinessPRs(ctx, issue.ID)
 	if err != nil {
-		slog.Warn("merge readiness: load pull requests failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
-		writeError(w, http.StatusInternalServerError, "failed to load pull requests")
-		return
+		return MergeReadinessResponse{}, fmt.Errorf("failed to load pull requests: %w", err)
 	}
 	threads, err := h.Queries.CountUnresolvedThreadsByIssue(ctx, issue.ID)
 	if err != nil {
-		slog.Warn("merge readiness: count threads failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to count review threads")
-		return
+		return MergeReadinessResponse{}, fmt.Errorf("failed to count review threads: %w", err)
 	}
 	bodies, err := h.Queries.ListCommentContentsByIssue(ctx, issue.ID)
 	if err != nil {
-		slog.Warn("merge readiness: list comments failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to scan comments")
-		return
+		return MergeReadinessResponse{}, fmt.Errorf("failed to scan comments: %w", err)
 	}
 	todos := 0
 	for _, body := range bodies {
@@ -120,9 +124,7 @@ func (h *Handler) GetIssueMergeReadiness(w http.ResponseWriter, r *http.Request)
 	}
 	blockingIssues, err := h.blockingIssues(ctx, issue)
 	if err != nil {
-		slog.Warn("merge readiness: load blockers failed", append(logger.RequestAttrs(r), "error", err)...)
-		writeError(w, http.StatusInternalServerError, "failed to load blocking issues")
-		return
+		return MergeReadinessResponse{}, fmt.Errorf("failed to load blocking issues: %w", err)
 	}
 
 	blockers := prBlockers(prs)
@@ -134,13 +136,13 @@ func (h *Handler) GetIssueMergeReadiness(w http.ResponseWriter, r *http.Request)
 	}
 	blockers = append(blockers, blockingIssues...)
 
-	writeJSON(w, http.StatusOK, MergeReadinessResponse{
+	return MergeReadinessResponse{
 		PRs:               prs,
 		Blockers:          blockers,
 		UnresolvedThreads: threads,
 		OpenTodos:         todos,
 		Ready:             len(blockers) == 0,
-	})
+	}, nil
 }
 
 func (h *Handler) GetIssuePRStack(w http.ResponseWriter, r *http.Request) {
