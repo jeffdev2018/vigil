@@ -62,7 +62,8 @@
     "source_runtime_unknown": "From a runtime",
     "source_clawhub": "From ClawHub",
     "source_skills_sh": "From Skills.sh",
-    "source_github": "From GitHub"
+    "source_github": "From GitHub",
+    "source_distilled": "Distilled from a run"
   },
   "actions": {
     "row_menu": "Actions",
