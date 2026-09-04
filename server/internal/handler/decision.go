@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -251,14 +252,14 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	answer, _ := json.Marshal(req)
-	updated, err := h.Queries.RespondIssueDecision(ctx, db.RespondIssueDecisionParams{
-		ID:              decisionID,
-		Response:        answer,
-		RespondedByType: pgtype.Text{String: actorType, Valid: true},
-		RespondedByID:   parseUUID(actorID),
-	})
-	if errors.Is(err, pgx.ErrNoRows) {
+	var interview func() (pgtype.UUID, bool)
+	if decision.InterviewGroupID.Valid {
+		interview = func() (pgtype.UUID, bool) {
+			return h.finishInterviewIfComplete(r, issue, decision, userID, actorType, actorID)
+		}
+	}
+	updated, code, err := h.answerDecisionCore(ctx, issue, decision, userID, actorType, actorID, req, chosen, materializationNote, interview)
+	if code == "already_decided" {
 		writeErrorCode(w, http.StatusConflict, "already_decided", "this decision was already answered")
 		return
 	}
@@ -267,31 +268,49 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to record decision")
 		return
 	}
+	h.publishIssueAuxChanged(r, issue, actorType, actorID)
+	writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
+}
 
+// answerDecisionCore records the answer and routes it: a pipeline gate
+// (K37) or an approval gate (K05) settles without a resume; an interview
+// (K13) resumes as a group through the caller's callback; otherwise the
+// assignee agent gets one run with the decision up front. Shared by the
+// HTTP endpoint and the Slack digest button (K64). Returns "already_decided"
+// as code when the card was answered before.
+func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decision db.IssueDecision, userID, actorType, actorID string, req DecisionAnswer, chosen, materializationNote string, interview func() (pgtype.UUID, bool)) (db.IssueDecision, string, error) {
+	answer, _ := json.Marshal(req)
+	updated, err := h.Queries.RespondIssueDecision(ctx, db.RespondIssueDecisionParams{
+		ID:              decision.ID,
+		Response:        answer,
+		RespondedByType: pgtype.Text{String: actorType, Valid: true},
+		RespondedByID:   parseUUID(actorID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.IssueDecision{}, "already_decided", err
+	}
+	if err != nil {
+		return db.IssueDecision{}, "", err
+	}
 	// Pipelines (K37): a gate card answered advances or stops the pipeline, no resume.
 	if h.advancePipelineForDecision(ctx, decision, req.OptionID, actorType, actorID) {
-		h.publishIssueAuxChanged(r, issue, actorType, actorID)
-		writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
-		return
+		return updated, "", nil
 	}
 	// Approval gates (K05): the run is alive and waiting; settle the gate, no resume.
 	if h.resolveGateForDecision(ctx, decision, req.OptionID, actorType, actorID) {
-		h.publishIssueAuxChanged(r, issue, actorType, actorID)
-		writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
-		return
+		return updated, "", nil
 	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
-		if taskID, done := h.finishInterviewIfComplete(r, issue, decision, userID, actorType, actorID); done && taskID.Valid {
-			if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decisionID, ResumeTaskID: taskID}); err == nil {
-				updated.ResumeTaskID = taskID
+		if interview != nil {
+			if taskID, done := interview(); done && taskID.Valid {
+				if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decision.ID, ResumeTaskID: taskID}); err == nil {
+					updated.ResumeTaskID = taskID
+				}
 			}
 		}
-		h.publishIssueAuxChanged(r, issue, actorType, actorID)
-		writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
-		return
+		return updated, "", nil
 	}
-
 	// Hand the answer to the agent: one new run with the decision up front.
 	// A human-assigned issue just keeps the recorded answer.
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid {
@@ -300,14 +319,13 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 			note += "\n" + materializationNote
 		}
 		if task, err := h.TaskService.EnqueueTaskForIssueWithHandoff(ctx, issue, note, parseUUID(userID)); err != nil {
-			slog.Warn("decision: enqueue resume run failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
-		} else if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decisionID, ResumeTaskID: task.ID}); err == nil {
+			slog.Warn("decision: enqueue resume run failed", "error", err, "issue_id", uuidToString(issue.ID))
+		} else if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decision.ID, ResumeTaskID: task.ID}); err == nil {
 			updated.ResumeTaskID = task.ID
 		}
 	}
 	h.audit(ctx, issue.WorkspaceID, actorType, actorID, AuditDecisionAnswered, "issue_decision", decision.ID, map[string]any{"issue_id": uuidToString(issue.ID), "question": decision.Question, "answer": req, "resume_task_id": uuidToString(updated.ResumeTaskID)}, &auditOpts{ApproverType: actorType, ApproverID: actorID})
-	h.publishIssueAuxChanged(r, issue, actorType, actorID)
-	writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
+	return updated, "", nil
 }
 
 // decisionHandoffNote is what the resumed run reads first.

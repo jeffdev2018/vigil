@@ -129,6 +129,16 @@ func (h *Handler) notifyDecisionRequested(ctx context.Context, issue db.Issue, d
 	if decision.Urgency == "high" {
 		severity = "action_required"
 	}
+	defer func() {
+		// Mobile push (K64): the badge counts the cards after this one is filed.
+		ids := make([]pgtype.UUID, 0, len(recipients))
+		for _, rcpt := range recipients {
+			if rcpt.Type == "member" {
+				ids = append(ids, rcpt.ID)
+			}
+		}
+		h.pushToUsers(ctx, issue.WorkspaceID, ids, "Decision needed: "+issue.Title, decision.Question, map[string]any{"kind": "decision_request", "issue_id": uuidToString(issue.ID), "decision_id": uuidToString(decision.ID)})
+	}()
 	for _, rcpt := range recipients {
 		item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{
 			ID:            dbid.NewV7(),

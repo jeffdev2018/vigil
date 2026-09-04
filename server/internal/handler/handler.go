@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/push"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -365,6 +366,8 @@ type Handler struct {
 	// DiffFetcher (K15) reads the diff a cross-provider review is about; nil
 	// means the built-in GitHub App / VCS connection reader.
 	DiffFetcher PullRequestDiffFetcher
+	// Push (K64) delivers mobile notifications through Expo; nil disables push.
+	Push push.Sender
 	// DigestSenders (K64) post the morning digest into a chat, keyed by
 	// channel type ("slack", "telegram"). Wired in cmd/server/router.go for
 	// each configured platform; a type without a sender is skipped.
