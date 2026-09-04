@@ -970,7 +970,6 @@
     "agent": "此运行正在编辑另一运行（{{id}}）正在编辑的文件",
     "pause": "暂停运行",
     "ignore": "忽略",
-    "show_history_one": "显示 {{count}} 个已处理冲突",
     "show_history_other": "显示 {{count}} 个已处理冲突",
     "hide_history": "隐藏已处理冲突",
     "failed": "流量控制操作失败",
@@ -1018,7 +1017,6 @@
   "handoff": {
     "section": "交接包",
     "none": "尚无交接包。",
-    "show_history_one": "显示 {{count}} 个较早的交接包",
     "show_history_other": "显示 {{count}} 个较早的交接包",
     "hide_history": "隐藏历史",
     "write": "撰写交接包",

@@ -970,7 +970,6 @@
     "agent": "この実行は、別の実行（{{id}}）が編集中のファイルを編集しています",
     "pause": "実行を一時停止",
     "ignore": "無視",
-    "show_history_one": "解決済みの競合 {{count}} 件を表示",
     "show_history_other": "解決済みの競合 {{count}} 件を表示",
     "hide_history": "解決済みの競合を隠す",
     "failed": "トラフィック制御の操作に失敗しました",
@@ -1018,7 +1017,6 @@
   "handoff": {
     "section": "ハンドオフパケット",
     "none": "まだパケットはありません。",
-    "show_history_one": "以前のパケット {{count}} 件を表示",
     "show_history_other": "以前のパケット {{count}} 件を表示",
     "hide_history": "履歴を隠す",
     "write": "ハンドオフパケットを書く",
