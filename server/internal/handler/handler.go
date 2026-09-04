@@ -492,6 +492,10 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// a disabled client falls back to the deterministic scaffold so a
 	// postmortem is still stored.
 	taskSvc.Postmortem = llmClient
+	// Post-success skill distillation (k69) uses the same internal LLM layer;
+	// a disabled client simply turns the pass off (a skill is only worth
+	// storing when genuinely distilled).
+	taskSvc.SkillDistillation = llmClient
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 dbreader.NewPrimaryOnly(queries),

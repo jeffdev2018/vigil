@@ -1264,6 +1264,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// artifact exists in every deployment.
 	h.TaskService.SubscribePostmortemGeneration(bus)
 
+	// Post-success skill distillation (k69). Wired unconditionally: without an
+	// assist-layer LLM the pass no-ops (a skill is only worth storing when
+	// genuinely distilled), so an unconfigured deployment pays nothing.
+	h.TaskService.SubscribeSkillDistillation(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
