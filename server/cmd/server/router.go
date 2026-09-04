@@ -436,6 +436,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
 		LLMDefaultModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
 		LLMMaxRetries:            opts.LLMMaxRetries,
+		LLMRoutingModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_ROUTING_MODEL")),
 		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
 		STTAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_STT_API_KEY")),
 		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),

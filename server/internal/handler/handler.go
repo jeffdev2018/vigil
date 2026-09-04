@@ -141,6 +141,7 @@ type Config struct {
 	//   - STTModel         -> MULTICA_STT_MODEL
 	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
 	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
+	//   - LLMRoutingModel  -> MULTICA_LLM_ROUTING_MODEL (small fast model for webhook event routing; empty = default model)
 	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
 	LLMAPIKey       string
 	LLMBaseURL      string
@@ -150,7 +151,8 @@ type Config struct {
 	// The type carries the validation: it can only be built through llm.Retries,
 	// and cmd/server additionally fails the boot on an out-of-range value before
 	// one reaches this struct. See llm.Config.MaxRetries for the full semantics.
-	LLMMaxRetries *llm.RetryOverride
+	LLMMaxRetries   *llm.RetryOverride
+	LLMRoutingModel string
 	// STT* configure the speech-to-text provider behind the voice memo and
 	// meeting transcription endpoints (OpenAI-compatible
 	// /v1/audio/transcriptions). Unset -> those endpoints answer 409.
