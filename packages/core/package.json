@@ -46,6 +46,7 @@
     "./issues/cockpit": "./issues/cockpit.ts",
     "./issues/ownership": "./issues/ownership.ts",
     "./agents/versions": "./agents/versions.ts",
+    "./workspace/audit": "./workspace/audit.ts",
     "./issues/timeline-sort": "./issues/timeline-sort.ts",
     "./issues/comment-trigger-outcomes": "./issues/comment-trigger-outcomes.ts",
     "./issues/date": "./issues/date.ts",

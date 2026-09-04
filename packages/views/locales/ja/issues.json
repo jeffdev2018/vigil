@@ -905,7 +905,8 @@
     "gate_materialized": "サブイシューを {{count}} 件作成しました",
     "gate_superseded": "置き換えられました。有効なバージョンを承認してください。",
     "gate_approve": "承認してサブイシューを {{count}} 件作成",
-    "gate_failed": "サブイシューを作成できませんでした"
+    "gate_failed": "サブイシューを作成できませんでした",
+    "step_ref": "ステップ {{id}}"
   },
   "decisions": {
     "section": "判断",

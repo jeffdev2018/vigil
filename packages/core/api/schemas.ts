@@ -3727,3 +3727,25 @@ export const AgentVersionDiffSchema = z.object({
 }).loose();
 
 export const AgentVersionEnvelopeSchema = z.object({ version: AgentVersionSchema }).loose();
+
+// Audit log (K08).
+export const AuditLogEntrySchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  occurred_at: z.string().default(""),
+  actor_type: z.string().default("system"),
+  actor_id: z.string().nullable().default(null),
+  action: z.string().default(""),
+  entity_type: z.string().default(""),
+  entity_id: z.string().nullable().default(null),
+  model: z.string().nullable().default(null),
+  cost_usd_ticks: z.number().nullable().default(null),
+  approver_type: z.string().nullable().default(null),
+  approver_id: z.string().nullable().default(null),
+  details: z.record(z.string(), z.unknown()).catch({}).default({}),
+}).loose();
+
+export const AuditLogPageSchema = z.object({
+  entries: z.array(AuditLogEntrySchema).catch([]).default([]),
+  next_cursor: z.string().catch("").default(""),
+}).loose();

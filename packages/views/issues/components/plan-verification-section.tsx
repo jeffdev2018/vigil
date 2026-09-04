@@ -67,8 +67,7 @@ export function PlanVerificationSection({ issueId }: { issueId: string }) {
               >
                 {envelope.versions.map((v) => (
                   <option key={v.id} value={v.version}>
-                    v{v.version}
-                    {v.superseded_at ? ` · ${t(($) => $.plan_verification.superseded)}` : ""}
+                    {`v${v.version}${v.superseded_at ? ` · ${t(($) => $.plan_verification.superseded)}` : ""}`}
                   </option>
                 ))}
               </select>
@@ -173,6 +172,7 @@ const SEVERITY_TONE: Record<string, string> = {
 };
 
 function FindingRow({ finding }: { finding: PlanFinding }) {
+  const { t } = useT("issues");
   const severity = finding.severity.toLowerCase();
   const tone = SEVERITY_TONE[severity] ?? "text-muted-foreground";
   return (
@@ -189,7 +189,7 @@ function FindingRow({ finding }: { finding: PlanFinding }) {
               {finding.files.join("  ")}
             </div>
           )}
-          {finding.plan_step_id && <div className="text-faint-foreground">step {finding.plan_step_id}</div>}
+          {finding.plan_step_id && <div className="text-faint-foreground">{t(($) => $.plan_verification.step_ref, { id: finding.plan_step_id })}</div>}
         </div>
       </details>
     </li>

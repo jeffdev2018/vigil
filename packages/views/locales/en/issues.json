@@ -936,7 +936,8 @@
     "gate_materialized": "{{count}} sub-issues created",
     "gate_superseded": "Superseded: approve the active version instead.",
     "gate_approve": "Approve: create {{count}} sub-issues",
-    "gate_failed": "Failed to create the sub-issues"
+    "gate_failed": "Failed to create the sub-issues",
+    "step_ref": "step {{id}}"
   },
   "decisions": {
     "section": "Decisions",

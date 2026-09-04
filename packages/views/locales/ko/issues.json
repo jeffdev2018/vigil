@@ -905,7 +905,8 @@
     "gate_materialized": "하위 이슈 {{count}}개 생성됨",
     "gate_superseded": "대체되었습니다. 활성 버전을 승인하세요.",
     "gate_approve": "승인: 하위 이슈 {{count}}개 생성",
-    "gate_failed": "하위 이슈를 만들지 못했습니다"
+    "gate_failed": "하위 이슈를 만들지 못했습니다",
+    "step_ref": "단계 {{id}}"
   },
   "decisions": {
     "section": "결정",

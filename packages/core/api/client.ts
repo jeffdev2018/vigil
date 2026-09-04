@@ -75,6 +75,8 @@ import type {
   WorkspaceScorecardRow,
   AgentVersion,
   AgentVersionDiff,
+  AuditLogFilter,
+  AuditLogPage,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -293,6 +295,7 @@ import {
   AgentScorecardSchema,
   WorkspaceScorecardsSchema,
   AgentVersionsSchema,
+  AuditLogPageSchema,
   AgentVersionDiffSchema,
   AgentVersionEnvelopeSchema,
   DashboardUsageDailyListSchema,
@@ -2653,6 +2656,25 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Audit log (K08).
+  async listAuditLog(filter: AuditLogFilter, cursor?: string, limit = 50): Promise<AuditLogPage> {
+    const search = new URLSearchParams();
+    for (const [k, v] of Object.entries(filter)) if (v) search.set(k, v);
+    if (cursor) search.set("cursor", cursor);
+    search.set("limit", String(limit));
+    const raw = await this.fetch<unknown>(`/api/audit-log?${search}`);
+    return parseWithFallback(raw, AuditLogPageSchema, { entries: [], next_cursor: "" }, { endpoint: "GET /api/audit-log" });
+  }
+
+  /** The export body as text, ready to be saved by the caller. */
+  async exportAuditLog(format: "csv" | "json", filter: AuditLogFilter): Promise<string> {
+    const search = new URLSearchParams({ format });
+    for (const [k, v] of Object.entries(filter)) if (v) search.set(k, v);
+    const res = await this.fetchRaw(`/api/audit-log/export?${search}`);
+    if (!res.ok) throw new Error(`export failed (${res.status})`);
+    return res.text();
+  }
+
   // Agent versions (K23).
   async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions`);

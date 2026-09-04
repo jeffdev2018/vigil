@@ -905,7 +905,8 @@
     "gate_materialized": "已创建 {{count}} 个子议题",
     "gate_superseded": "已被替代，请批准当前版本。",
     "gate_approve": "批准并创建 {{count}} 个子议题",
-    "gate_failed": "无法创建子议题"
+    "gate_failed": "无法创建子议题",
+    "step_ref": "步骤 {{id}}"
   },
   "decisions": {
     "section": "决策",
