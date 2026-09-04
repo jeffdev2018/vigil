@@ -1245,6 +1245,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge fanout members",
+			run:  func() error { return qtx.PurgeWorkspaceFanoutMembers(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge fanout batches",
+			run:  func() error { return qtx.PurgeWorkspaceFanoutBatches(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge pipeline runs",
 			run:  func() error { return qtx.PurgeWorkspacePipelineRuns(ctx, requester.WorkspaceID) },
 		},

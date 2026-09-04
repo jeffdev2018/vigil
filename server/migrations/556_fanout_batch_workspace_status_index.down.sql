@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_fanout_batch_workspace_status;
