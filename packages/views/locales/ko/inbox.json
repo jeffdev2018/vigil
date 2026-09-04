@@ -84,7 +84,9 @@
     "ownership_suggested": "담당자 제안",
     "morning_briefing": "아침 브리핑",
     "standup_question": "스탠드업 질문",
-    "weekly_retro": "주간 회고"
+    "weekly_retro": "주간 회고",
+    "budget_warning": "예산 경고",
+    "budget_exceeded": "예산 한도 도달"
   },
   "labels": {
     "set_status_to": "상태 변경:",

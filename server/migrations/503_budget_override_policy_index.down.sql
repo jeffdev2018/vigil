@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_budget_override_policy_expiry;

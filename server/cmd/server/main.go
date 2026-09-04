@@ -751,6 +751,9 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.TaskUsageHourlyJob(pool)); err != nil {
 		slog.Warn("scheduler: failed to register task_usage_hourly rollup job", "error", err)
 	}
+	if err := schedulerMgr.Register(scheduler.BudgetReservationReconciliationJob(h.BudgetService)); err != nil {
+		slog.Warn("scheduler: failed to register budget reservation reconciliation job", "error", err)
+	}
 	// MUL-3551: scheduled-Autopilot dispatch runs on the same DB-backed
 	// scheduler. The job owns its plan_times via PlansForScope (each
 	// trigger has its own cron expression, so the Cadence planner does

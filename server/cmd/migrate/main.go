@@ -313,6 +313,14 @@ var concurrentIndexCleanups = map[string]string{
 	"491_business_rule_attach_index":                            "idx_business_rule_attach_point",
 	"492_business_rule_violation_index":                         "idx_business_rule_violation_rule",
 	"494_weekly_retro_week_index":                               "idx_weekly_retro_workspace_week",
+	"496_budget_policy_id_index":                                "uq_budget_policy_id",
+	"497_budget_policy_scope_index":                             "uq_budget_policy_scope",
+	"498_budget_period_scope_index":                             "uq_budget_period_scope",
+	"499_budget_reservation_id_index":                           "uq_budget_reservation_id",
+	"500_budget_reservation_key_index":                          "uq_budget_reservation_key",
+	"501_budget_reservation_state_index":                        "idx_budget_reservation_reserved",
+	"502_budget_override_id_index":                              "uq_budget_override_id",
+	"503_budget_override_policy_index":                          "idx_budget_override_policy_expiry",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

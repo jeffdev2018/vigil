@@ -86,7 +86,9 @@
     "ownership_suggested": "Ownership suggested",
     "morning_briefing": "Morning briefing",
     "standup_question": "Standup question",
-    "weekly_retro": "Weekly retro"
+    "weekly_retro": "Weekly retro",
+    "budget_warning": "Budget warning",
+    "budget_exceeded": "Budget limit reached"
   },
   "labels": {
     "set_status_to": "Set status to",

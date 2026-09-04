@@ -626,6 +626,10 @@ func (s *AutopilotService) dispatchAutopilotRun(
 // fail-closed attribution refusal is attribution_blocked; everything else is an
 // unclassified internal error.
 func dispatchFailReasonCode(err error) dispatch.ReasonCode {
+	var budgetErr *BudgetExceededError
+	if errors.As(err, &budgetErr) {
+		return dispatch.ReasonBudgetExceeded
+	}
 	if errors.Is(err, ErrAttributionFailClosed) {
 		return dispatch.ReasonAttributionBlocked
 	}
@@ -995,25 +999,30 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		return &errDispatchSkipped{reason: formatAdmissionReason(ap, "workspace fail-closed: no accountable human for autopilot run"), code: dispatch.ReasonAttributionBlocked}
 	}
 	apSource, _, apEvidenceKind, apEvidenceRef := attributionCreateParams(autopilotAttr)
-	task, err := s.Queries.CreateAutopilotTask(ctx, db.CreateAutopilotTaskParams{
-		ID:             dbid.NewV7(),
-		AgentID:        agent.ID,
-		RuntimeID:      agent.RuntimeID,
-		Priority:       0,
-		AutopilotRunID: run.ID,
-		// Snapshot the autopilot title so task rows self-describe later
-		// without joining back to autopilot. Truncated for the same
-		// transmission-cost reason as comment-driven summaries.
-		TriggerSummary: pgtype.Text{
-			String: truncateForSummary(ap.Title, triggerSummaryMaxLen),
-			Valid:  ap.Title != "",
-		},
-		OriginatorUserID:     autopilotAttr.UserID,
-		AccountableUserID:    autopilotAttr.AccountableUserID,
-		RuleVersionID:        autopilotAttr.RuleVersionID,
-		OriginatorSource:     apSource,
-		TriggerEvidenceKind:  apEvidenceKind,
-		TriggerEvidenceRefID: apEvidenceRef,
+	taskID := dbid.NewV7()
+	task, err := s.TaskSvc.createTaskWithBudget(ctx, BudgetScope{
+		WorkspaceID: ap.WorkspaceID, ProjectID: ap.ProjectID, AgentID: agent.ID,
+	}, taskID, func(q *db.Queries) (db.AgentTaskQueue, error) {
+		return q.CreateAutopilotTask(ctx, db.CreateAutopilotTaskParams{
+			ID:             taskID,
+			AgentID:        agent.ID,
+			RuntimeID:      agent.RuntimeID,
+			Priority:       0,
+			AutopilotRunID: run.ID,
+			// Snapshot the autopilot title so task rows self-describe later
+			// without joining back to autopilot. Truncated for the same
+			// transmission-cost reason as comment-driven summaries.
+			TriggerSummary: pgtype.Text{
+				String: truncateForSummary(ap.Title, triggerSummaryMaxLen),
+				Valid:  ap.Title != "",
+			},
+			OriginatorUserID:     autopilotAttr.UserID,
+			AccountableUserID:    autopilotAttr.AccountableUserID,
+			RuleVersionID:        autopilotAttr.RuleVersionID,
+			OriginatorSource:     apSource,
+			TriggerEvidenceKind:  apEvidenceKind,
+			TriggerEvidenceRefID: apEvidenceRef,
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("create autopilot task: %w", err)
@@ -1228,7 +1237,11 @@ func taskFailureReasonForAutopilotRun(task db.AgentTaskQueue) string {
 func (s *AutopilotService) handleDispatchSkip(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, err error) (*db.AutopilotRun, dispatch.ReasonCode) {
 	var skipErr *errDispatchSkipped
 	if !errors.As(err, &skipErr) {
-		return nil, ""
+		var budgetErr *BudgetExceededError
+		if !errors.As(err, &budgetErr) {
+			return nil, ""
+		}
+		skipErr = &errDispatchSkipped{reason: budgetErr.Error(), code: dispatch.ReasonBudgetExceeded}
 	}
 	updated, uerr := s.skipAutopilotRun(ctx, db.UpdateAutopilotRunSkippedParams{
 		ID:            run.ID,

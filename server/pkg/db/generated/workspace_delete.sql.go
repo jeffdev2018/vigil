@@ -169,6 +169,50 @@ func (q *Queries) DeleteWorkspaceAutopilots(ctx context.Context, workspaceID pgt
 	return err
 }
 
+const deleteWorkspaceBudgetOverrides = `-- name: DeleteWorkspaceBudgetOverrides :exec
+DELETE FROM budget_override
+WHERE budget_override.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceBudgetOverrides(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetOverrides, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetPeriods = `-- name: DeleteWorkspaceBudgetPeriods :exec
+DELETE FROM budget_period
+WHERE budget_period.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+)
+`
+
+func (q *Queries) DeleteWorkspaceBudgetPeriods(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetPeriods, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetPolicies = `-- name: DeleteWorkspaceBudgetPolicies :exec
+DELETE FROM budget_policy
+WHERE budget_policy.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceBudgetPolicies(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetPolicies, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetReservations = `-- name: DeleteWorkspaceBudgetReservations :exec
+DELETE FROM budget_reservation
+WHERE budget_reservation.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+)
+`
+
+func (q *Queries) DeleteWorkspaceBudgetReservations(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetReservations, workspaceID)
+	return err
+}
+
 const deleteWorkspaceChatMessages = `-- name: DeleteWorkspaceChatMessages :exec
 DELETE FROM chat_message
 WHERE chat_session_id IN (

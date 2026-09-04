@@ -49,6 +49,20 @@
       "cancelled": "决定不做。"
     }
   },
+  "budgets": {
+    "title": "运行预算", "description": "在智能体开始工作前设置美元限额。强制限额会暂停新运行，观察模式只记录用量。",
+    "add": "新建预算", "loading": "正在加载预算…", "load_failed": "无法刷新预算状态。", "retry": "重试",
+    "empty": "暂无运行预算", "empty_hint": "为工作区、项目或智能体添加限额，在执行前控制支出。",
+    "scope": "范围", "target": "选择目标", "limit": "限额（美元）", "period": "重置周期", "warning": "警告阈值（%）", "action": "达到限额时",
+    "create_title": "新建预算", "edit_title": "编辑预算", "editor_hint": "用量包含已完成成本及排队工作的预留金额。",
+    "save": "保存", "saving": "保存中…", "cancel": "取消", "save_failed": "无法保存预算。",
+    "edit": "编辑预算", "delete": "删除预算", "delete_confirm": "删除此预算及当前周期用量？", "override": "授予临时例外",
+    "override_reason": "例外原因（最长 24 小时）", "override_created": "已授予 24 小时例外", "override_active": "例外生效中",
+    "reserved": "已为排队工作预留 {{amount}}", "notice_warning": "运行预算即将达到限额。", "notice_blocked": "预算已达到限额，新的智能体运行已暂停。", "manage": "管理预算",
+    "scopes": { "workspace": "工作区", "project": "项目", "agent": "智能体" },
+    "periods": { "daily": "每日", "weekly": "每周", "monthly": "每月" },
+    "actions": { "enforce": "达到限额时暂停", "observe": "仅观察" }
+  },
   "quick_actions": {
     "title": "快捷操作",
     "description": "预先配置好执行的智能体和提示词，之后在任意任务侧边栏一键触发。",
@@ -333,7 +347,8 @@
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "账单与套餐",
-      "audit_log": "审计日志"
+      "audit_log": "审计日志",
+      "budgets": "预算"
     }
   },
   "plugins": {

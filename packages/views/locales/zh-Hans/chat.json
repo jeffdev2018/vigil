@@ -203,6 +203,7 @@
       "reconnecting": "重连中",
       "retrying": "重试中",
       "queued": "排队中",
+      "budget_paused": "因预算暂停",
       "waiting_local_directory": "等待本地目录释放",
       "waiting_local_directory_reason": "等待 {{reason}}",
       "starting_up": "启动中",

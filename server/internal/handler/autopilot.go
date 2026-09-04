@@ -2209,6 +2209,9 @@ func (h *Handler) TriggerAutopilot(w http.ResponseWriter, r *http.Request) {
 	}
 	run, reasonCode, err := h.AutopilotService.DispatchAutopilotManualWithKey(r.Context(), autopilot, pgtype.UUID{}, nil, memberActorUserID(actorType, actorID), idempotencyKey)
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		var quotaErr *service.AutopilotQuotaExceededError
 		if errors.As(err, &quotaErr) {
 			retryAfter := int64(time.Until(quotaErr.ResetAt).Seconds())
@@ -2233,6 +2236,11 @@ func (h *Handler) TriggerAutopilot(w http.ResponseWriter, r *http.Request) {
 			"autopilot_id", uuidToString(autopilot.ID),
 		)
 		writeError(w, http.StatusInternalServerError, "failed to trigger autopilot")
+		return
+	}
+
+	if reasonCode == ReasonBudgetExceeded {
+		h.writeDispatchBlocked(w, http.StatusConflict, ReasonBudgetExceeded)
 		return
 	}
 

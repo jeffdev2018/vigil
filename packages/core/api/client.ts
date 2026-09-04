@@ -269,6 +269,17 @@ import { createRequestId, createSafeId } from "../utils";
 import { getCurrentSlug } from "../platform/workspace-storage";
 import { parseWithFallback } from "./schema";
 import {
+  BudgetOverrideSchema,
+  BudgetPolicyListSchema,
+  BudgetPolicySchema,
+  BudgetStatusListSchema,
+  type BudgetOverride,
+  type BudgetPolicy,
+  type BudgetStatus,
+  type CreateBudgetPolicyRequest,
+  type UpdateBudgetPolicyRequest,
+} from "../budgets/schemas";
+import {
   AgentTaskListSchema,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
@@ -4577,6 +4588,42 @@ export class ApiClient {
     return parseWithFallback(raw, SquadMemberStatusListResponseSchema, EMPTY_SQUAD_MEMBER_STATUS_LIST, {
       endpoint: "GET /api/squads/:id/members/status",
     }) as SquadMemberStatusListResponse;
+  }
+
+  // Budgets
+  async listBudgetPolicies(): Promise<BudgetPolicy[]> {
+    const raw = await this.fetch<unknown>("/api/budgets");
+    return parseWithFallback(raw, BudgetPolicyListSchema, [], { endpoint: "GET /api/budgets" });
+  }
+
+  async getBudgetStatus(scope: { projectId?: string; agentId?: string } = {}): Promise<BudgetStatus[]> {
+    const query = new URLSearchParams();
+    if (scope.projectId) query.set("project_id", scope.projectId);
+    if (scope.agentId) query.set("agent_id", scope.agentId);
+    const suffix = query.size ? `?${query}` : "";
+    const raw = await this.fetch<unknown>(`/api/budgets/status${suffix}`);
+    return parseWithFallback(raw, BudgetStatusListSchema, [], { endpoint: "GET /api/budgets/status" });
+  }
+
+  async createBudgetPolicy(data: CreateBudgetPolicyRequest): Promise<BudgetPolicy> {
+    const raw = await this.fetch<unknown>("/api/budgets", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "POST /api/budgets" });
+  }
+
+  async updateBudgetPolicy(id: string, data: UpdateBudgetPolicyRequest): Promise<BudgetPolicy> {
+    const raw = await this.fetch<unknown>(`/api/budgets/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "PATCH /api/budgets/:id" });
+  }
+
+  async deleteBudgetPolicy(id: string): Promise<void> {
+    await this.fetch(`/api/budgets/${id}`, { method: "DELETE" });
+  }
+
+  async createBudgetOverride(id: string, reason: string, durationHours = 24): Promise<BudgetOverride> {
+    const raw = await this.fetch<unknown>(`/api/budgets/${id}/override`, {
+      method: "POST", body: JSON.stringify({ reason, duration_hours: durationHours }),
+    });
+    return parseWithFallback(raw, BudgetOverrideSchema, {} as BudgetOverride, { endpoint: "POST /api/budgets/:id/override" });
   }
 
   // Autopilots
