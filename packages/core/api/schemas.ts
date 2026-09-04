@@ -3883,3 +3883,19 @@ export const WeeklyRetroSchema = z.object({
   narrative: z.string().catch("").default(""),
   generated_at: z.string().nullable().catch(null).default(null),
 }).loose();
+
+// Why search (K55).
+export const WhySearchResponseSchema = z.object({
+  results: z.array(z.object({
+    id: z.string(),
+    source_type: z.string().default("comment"),
+    source_id: z.string().default(""),
+    issue_id: z.string().nullable().default(null),
+    issue_identifier: z.string().optional(),
+    issue_title: z.string().optional(),
+    snippet: z.string().default(""),
+    score: z.number().default(0),
+    created_at: z.string().default(""),
+  }).loose()).catch([]).default([]),
+  query: z.string().default(""),
+}).loose();

@@ -92,6 +92,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"business_rule":                      workspaceDelete,
 	"business_rule_violation":            workspaceDelete,
 	"weekly_retro":                       workspaceDelete,
+	"decision_search_chunk":              workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

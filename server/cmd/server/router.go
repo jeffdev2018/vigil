@@ -2002,6 +2002,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateModuleOwnership)
 				r.Delete("/{id}", h.DeleteModuleOwnership)
 			})
+			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
+			r.Route("/api/search/why", func(r chi.Router) {
+				r.Get("/", h.SearchWhy)
+				r.Post("/reindex", h.ReindexWhy)
+			})
 			// Standup and retro (K34): the weekly retro; standup questions arrive as inbox items.
 			r.Route("/api/retro", func(r chi.Router) {
 				r.Get("/weekly", h.GetWeeklyRetro)

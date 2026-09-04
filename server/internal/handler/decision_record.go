@@ -260,8 +260,9 @@ func (h *Handler) extractDecisions(ctx context.Context, issue db.Issue) (int, er
 		if !seqs[d.SourceSeq] || strings.TrimSpace(d.Title) == "" || strings.TrimSpace(d.Decision) == "" {
 			continue
 		}
+		recID := dbid.NewV7()
 		if _, err := h.Queries.CreateDecisionRecord(ctx, db.CreateDecisionRecordParams{
-			ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: run.ID,
+			ID: recID, WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, IssueID: issue.ID, RunID: run.ID,
 			SourceMessageSeq: d.SourceSeq, Title: strings.TrimSpace(d.Title), Context: strings.TrimSpace(d.Context),
 			Decision: strings.TrimSpace(d.Decision), Consequences: optionalText(d.Consequences),
 			AuthorType: "agent", AuthorID: run.AgentID,
@@ -269,6 +270,7 @@ func (h *Handler) extractDecisions(ctx context.Context, issue db.Issue) (int, er
 			return created, fmt.Errorf("store decision: %w", err)
 		}
 		created++
+		h.indexWhy(ctx, issue.WorkspaceID, whySourceDecisionRecord, recID, issue.ID, decisionRecordWhyContent(d.Title, d.Context, d.Decision))
 	}
 	if created > 0 {
 		h.audit(ctx, issue.WorkspaceID, "agent", uuidToString(run.AgentID), AuditDecisionRecorded, "issue", issue.ID,
@@ -448,6 +450,7 @@ func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		out = append(out, decisionRecordToResponse(rec))
+		h.indexWhy(r.Context(), issue.WorkspaceID, whySourceDecisionRecord, rec.ID, issue.ID, decisionRecordWhyContent(rec.Title, rec.Context, rec.Decision))
 	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditDecisionRecorded, "issue", issue.ID,
 		map[string]any{"count": len(out), "run_id": uuidToString(run.ID), "source": "manual"}, nil)

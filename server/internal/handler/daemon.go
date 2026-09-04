@@ -4698,6 +4698,10 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		// guarantee, and subscribers render these events as they arrive, so the
 		// ordering lives in the query rather than in the clients.
 		for _, m := range created {
+			// Why search (K55): an agent's text message is what answers "why".
+			if m.Type == "text" && task.IssueID.Valid && workspaceID != "" {
+				h.indexWhy(r.Context(), parseUUID(workspaceID), whySourceTaskMessage, m.ID, task.IssueID, m.Content.String)
+			}
 			// The ordered CTE makes sqlc name the row type after the query
 			// rather than reusing the table model; the columns are the table's,
 			// in order, so the conversion is checked by the compiler and breaks

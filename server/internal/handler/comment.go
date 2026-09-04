@@ -1876,6 +1876,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	comment := created.Comment()
+	// Why search (K55): a comment is searchable as soon as it exists.
+	h.indexWhy(r.Context(), comment.WorkspaceID, whySourceComment, comment.ID, comment.IssueID, comment.Content)
 
 	// Link uploaded attachments to this comment.
 	if len(attachmentIDs) > 0 {
@@ -3582,6 +3584,8 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// Why search (K55): the chunk leaves with its comment.
+	h.unindexWhy(r.Context(), whySourceComment, comment.ID)
 
 	h.deleteS3Objects(r.Context(), attachmentURLs)
 	slog.Info("comment deleted", append(logger.RequestAttrs(r), "comment_id", commentId, "issue_id", uuidToString(comment.IssueID))...)

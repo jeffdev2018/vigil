@@ -131,6 +131,7 @@ const {
   mockResolvedExpandAll: vi.fn(),
 }));
 
+vi.mock("./why-search-group", () => ({ WhySearchGroup: () => null }));
 vi.mock("@multica/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",

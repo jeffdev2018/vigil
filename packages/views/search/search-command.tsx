@@ -72,6 +72,7 @@ import {
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
 import { HighlightText } from "./highlight-text";
+import { WhySearchGroup } from "./why-search-group";
 import { useSearchStore } from "./search-store";
 
 // The palette's Pages group is generated from WORKSPACE_PAGES, the same
@@ -854,6 +855,9 @@ export function SearchCommand() {
                   {t(($) => $.empty.no_results)}
                 </CommandPrimitive.Empty>
               )}
+
+            {/* Why search (K55): questions find the comment, run message or decision that answers them. */}
+            <WhySearchGroup query={query} groupClassName={GROUP_CLASS} onNavigated={() => setOpen(false)} />
 
             {/*
               Render order is the cross-type cancelled partition (MUL-5824):
