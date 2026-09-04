@@ -2517,6 +2517,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/archived", h.ListArchivedInbox)
 				// Attention Inbox (K02): the human-only projection, ordered by risk.
 				r.Get("/attention", h.ListAttentionInbox)
+				// Inbox zero (K63): my pending Decision Cards, options included, capped at five.
+				r.Get("/decisions", h.ListInboxDecisions)
 				r.Get("/unread-count", h.CountUnreadInbox)
 				// Cross-workspace unread summary: account-level, keyed on the
 				// user. Backs the workspace-switcher dot for OTHER workspaces.
