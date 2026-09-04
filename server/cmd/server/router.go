@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/push"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -446,6 +447,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	// Mobile push (K64): Expo push needs no credentials; MULTICA_PUSH_DISABLED=1 turns it off.
+	if os.Getenv("MULTICA_PUSH_DISABLED") != "1" {
+		h.Push = push.NewExpoSender(os.Getenv("MULTICA_EXPO_PUSH_ENDPOINT"))
+	}
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
 	invitationRateLimits.Actor.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_ACTOR_10M", invitationRateLimits.Actor.Limit)
 	invitationRateLimits.Workspace.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_WORKSPACE_24H", invitationRateLimits.Workspace.Limit)
@@ -602,6 +607,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					Logger:  slog.Default(),
 				})
 				h.LarkAPIClient = larkClient
+				// Multichannel digest (K64): the morning briefing can be posted to Feishu/Lark.
+				if h.DigestSenders == nil {
+					h.DigestSenders = map[string]handler.ChannelDigestSender{}
+				}
+				h.DigestSenders[string(channel.TypeFeishu)] = lark.NewDigestSender(larkClient, installSvc)
 
 				// Channel-backed store: routes the lark package's DB seams
 				// onto the channel_* tables (MUL-3515). Interface-wired
@@ -836,7 +846,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Socket Mode connection per active Slack installation, authenticated
 			// with that installation's OWN app-level token (xapp-, pasted at BYO
 			// install) — no deployment-level app token, no single connection.
-			slack.RegisterSlack(channelRegistry, slack.ChannelDeps{Decrypt: box.Open, Logger: slog.Default(), Slash: slackSlash})
+			slack.RegisterSlack(channelRegistry, slack.ChannelDeps{Decrypt: box.Open, Logger: slog.Default(), Slash: slackSlash, Interactions: &handler.SlackDigestActions{H: h}})
 
 			// BYO self-serve install (paste bot token + app-level token). The
 			// InstallService needs only the at-rest encryption key — there is no
@@ -885,6 +895,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			botNames := dingtalk.NewBotNameResolver(dingtalkClient, box.Open)
 			channelRouter.Register(dingtalk.TypeDingTalk, dingtalk.NewDingTalkResolverSet(queries, pool, replier, ack, media, botNames))
 			dingtalk.NewOutbound(queries, box.Open, dingtalkClient, slog.Default()).Register(bus)
+			// Multichannel digest (K64): the morning briefing can be posted to DingTalk.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(dingtalk.TypeDingTalk)] = dingtalk.NewDigestSender(dingtalkClient, box.Open)
 			dingtalk.RegisterDingTalk(channelRegistry, dingtalk.ChannelDeps{
 				Decrypt:  box.Open,
 				Client:   dingtalkClient,
@@ -963,6 +978,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					Fallback: "企业微信会话",
 				})
 
+				// Multichannel digest (K64): the morning briefing can be posted to WeCom.
+				if h.DigestSenders == nil {
+					h.DigestSenders = map[string]handler.ChannelDigestSender{}
+				}
+				h.DigestSenders[string(wecom.TypeWecom)] = wecom.NewDigestSender(wecomSenders)
 				wecom.RegisterWecom(channelRegistry, wecom.ChannelDeps{
 					Credentials: credsResolver,
 					Senders:     wecomSenders,
@@ -2151,6 +2171,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Cross-provider self-review (K15): reports and manual retry.
 			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
 			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)
+			// Mobile push (K64): the app's Expo token.
+			r.Put("/api/me/push-token", h.RegisterPushToken)
+			r.Delete("/api/me/push-token", h.UnregisterPushToken)
 			r.Get("/api/cross-review-settings", h.GetCrossReviewSettings)
 			r.Put("/api/cross-review-settings", h.PutCrossReviewSettings)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)

@@ -386,6 +386,15 @@ class ApiClient {
     });
   }
 
+  // Mobile push (K64): this device's Expo token.
+  async registerPushToken(token: string, platform: "ios" | "android"): Promise<void> {
+    await this.fetch<unknown>("/api/me/push-token", { method: "PUT", body: JSON.stringify({ token, platform }) });
+  }
+
+  async unregisterPushToken(token: string): Promise<void> {
+    await this.fetch<unknown>("/api/me/push-token", { method: "DELETE", body: JSON.stringify({ token }) });
+  }
+
   async getMe(opts?: { signal?: AbortSignal }): Promise<User> {
     return this.fetchValidated(
       "/api/me",
