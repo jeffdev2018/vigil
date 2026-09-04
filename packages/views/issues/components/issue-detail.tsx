@@ -93,6 +93,8 @@ import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { DecisionCardsSection } from "./decision-cards-section";
+import { RoleView, RoleViewTabs } from "./role-view";
+import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
 import { OwnershipSuggestionSection } from "./ownership-suggestion-section";
 import { QuickActionsSection } from "./quick-actions-section";
@@ -1204,6 +1206,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const [pullRequestsOpen, setPullRequestsOpen] = useState(true);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const githubSettings = useGitHubSettings();
+  const roleView = useIssueRoleViewStore((st) => st.view);
 
   // Per-issue, per-session set of optional properties currently visible in
   // the sidebar Properties section. Seeded on issue switch with whichever
@@ -2584,6 +2587,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>
       )}
 
+      {/* Role views (K32): PM / QA / CTO recompose the blocks below from
+          the same data; "full" is the page as before. */}
+      <RoleViewTabs />
+      {roleView !== "full" ? <RoleView view={roleView} issue={issue} /> : <>
       {/* Execution log — active runs + collapsed past runs, each carrying its
           own token spend, with the issue total on the section header.
           Self-contained; owns its own collapse state and WS subscriptions.
@@ -2611,6 +2618,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Plan verification — the issue plan and its newest verification
           report (F17). Hides itself until a plan is published. */}
       <PlanVerificationSection issueId={id} />
+      </>}
 
       {/* Details — creator and timestamps. Sits below the execution log
           because it is the least-read block in the sidebar: the values

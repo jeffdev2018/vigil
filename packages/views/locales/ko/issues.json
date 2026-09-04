@@ -992,5 +992,20 @@
     "member": "담당자",
     "agent": "참조 에이전트",
     "assign_failed": "배정하지 못했습니다"
+  },
+  "role_view": {
+    "label": "보기",
+    "full": "전체",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "이 이슈에는 아직 결정 카드가 없어 실행 로그를 대신 표시합니다.",
+    "cto_cost": "비용",
+    "cto_cost_value": "{{cost}} · {{tokens}} 토큰",
+    "cto_scorecard": "에이전트 스코어카드",
+    "cto_no_agent": "지정된 에이전트 없음",
+    "cto_audit": "감사 기록",
+    "cto_audit_empty": "이 이슈에 기록된 항목이 아직 없습니다",
+    "block_failed": "이 블록을 불러오지 못했습니다."
   }
 }

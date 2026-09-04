@@ -1023,5 +1023,20 @@
     "member": "the owner",
     "agent": "the referent agent",
     "assign_failed": "Failed to assign"
+  },
+  "role_view": {
+    "label": "View",
+    "full": "Full",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "No decision card on this issue yet; the run log is shown instead.",
+    "cto_cost": "Cost",
+    "cto_cost_value": "{{cost}} · {{tokens}} tokens",
+    "cto_scorecard": "Agent scorecard",
+    "cto_no_agent": "No agent assigned",
+    "cto_audit": "Audit trail",
+    "cto_audit_empty": "Nothing recorded on this issue yet",
+    "block_failed": "This block could not be loaded."
   }
 }

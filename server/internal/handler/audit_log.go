@@ -115,6 +115,7 @@ type auditFilter struct {
 	since, until pgtype.Timestamptz
 	actorType    pgtype.Text
 	action       pgtype.Text
+	entityID     pgtype.UUID
 }
 
 func parseAuditFilter(r *http.Request) (auditFilter, error) {
@@ -149,12 +150,17 @@ func parseAuditFilter(r *http.Request) (auditFilter, error) {
 	if v := strings.TrimSpace(q.Get("action")); v != "" {
 		f.action = pgtype.Text{String: v, Valid: true}
 	}
+	if v := strings.TrimSpace(q.Get("entity_id")); v != "" {
+		if err := f.entityID.Scan(v); err != nil {
+			return f, fmt.Errorf("entity_id must be a UUID")
+		}
+	}
 	return f, nil
 }
 
 func (h *Handler) auditPage(ctx context.Context, wsID pgtype.UUID, f auditFilter, cursorAt pgtype.Timestamptz, cursorID pgtype.UUID, size int32) ([]db.AuditLogEntry, error) {
 	return h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{
-		WorkspaceID: wsID, Since: f.since, Until: f.until, ActorType: f.actorType, Action: f.action,
+		WorkspaceID: wsID, Since: f.since, Until: f.until, ActorType: f.actorType, Action: f.action, EntityID: f.entityID,
 		CursorAt: cursorAt, CursorID: cursorID, PageSize: size,
 	})
 }
