@@ -628,6 +628,11 @@ WITH deleted_squads AS (
 )
 DELETE FROM skill WHERE skill.workspace_id = $1;
 
+-- name: DeleteWorkspaceAgentMemories :exec
+-- agent_memory carries no FK by repo rule; sweep it before the agent rows it
+-- logically hangs off.
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
+
 -- name: DeleteWorkspacePluginData :exec
 -- Plugin relationships have no foreign keys or cascades. Storage and secrets
 -- hang off the installation, so both leaf tables are cleared through the

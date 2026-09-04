@@ -77,6 +77,12 @@ const (
 	EventSkillUpdated = "skill:updated"
 	EventSkillDeleted = "skill:deleted"
 
+	// Agent memory events (JEF-236). Payload carries the memory row so
+	// clients can update their cache without a refetch.
+	EventAgentMemoryCreated = "agent_memory:created"
+	EventAgentMemoryUpdated = "agent_memory:updated"
+	EventAgentMemoryDeleted = "agent_memory:deleted"
+
 	// Chat events
 	EventChatMessage = "chat:message"
 	EventChatDone    = "chat:done"

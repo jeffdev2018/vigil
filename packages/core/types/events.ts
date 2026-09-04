@@ -73,6 +73,9 @@ export type WSEventType =
   | "label:created"
   | "label:updated"
   | "label:deleted"
+  | "agent_memory:created"
+  | "agent_memory:updated"
+  | "agent_memory:deleted"
   | "issue_labels:changed"
   | "issue_metadata:changed"
   | "issue_properties:changed"
@@ -518,6 +521,19 @@ export interface ProjectDeletedPayload {
   project_id: string;
 }
 
+/**
+ * Agent persistent-memory events (JEF-236). The server only needs to tell us
+ * WHICH agent's memory list changed — both identifiers are optional because
+ * the wire contract is still settling; a payload without `agent_id` falls
+ * back to invalidating the workspace-wide memory prefix.
+ */
+export interface AgentMemoryEventPayload {
+  agent_id?: string;
+  /** Memory row id — the server may send it as `memory_id` or bare `id`. */
+  memory_id?: string;
+  id?: string;
+}
+
 export interface InvitationCreatedPayload {
   invitation: Invitation;
   workspace_name?: string;
@@ -641,6 +657,9 @@ export interface WSEventPayloadMap {
   "label:created": unknown;
   "label:updated": unknown;
   "label:deleted": unknown;
+  "agent_memory:created": AgentMemoryEventPayload;
+  "agent_memory:updated": AgentMemoryEventPayload;
+  "agent_memory:deleted": AgentMemoryEventPayload;
   "pin:created": unknown;
   "pin:deleted": unknown;
   "pin:reordered": unknown;

@@ -74,6 +74,12 @@ import {
   EMPTY_LIST_ISSUE_STATUSES_RESPONSE,
   EMPTY_ISSUE_STATUS_ENTRY,
 } from "./schemas";
+import {
+  AgentMemorySchema,
+  AgentMemoryListSchema,
+  EMPTY_AGENT_MEMORY,
+  EMPTY_AGENT_MEMORY_LIST,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -2267,5 +2273,53 @@ describe("issue status catalog schemas", () => {
       { endpoint: "POST /api/issue-statuses" },
     );
     expect(parsed).toEqual(EMPTY_ISSUE_STATUS_ENTRY);
+  });
+});
+
+describe("AgentMemory schemas", () => {
+  it("parses a full memory row and keeps unknown fields", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Prefers terse summaries",
+      source: "run",
+      source_task_id: "task-9",
+      created_at: "2026-08-30T10:00:00Z",
+      updated_at: "2026-09-01T12:00:00Z",
+      future_field: { nested: true },
+    });
+    expect(parsed.source).toBe("run");
+    expect(parsed.source_task_id).toBe("task-9");
+    expect((parsed as Record<string, unknown>).future_field).toEqual({ nested: true });
+  });
+
+  it("keeps an unknown source kind as a string instead of failing the row", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "x",
+      source: "imported",
+    });
+    expect(parsed.source).toBe("imported");
+  });
+
+  it("falls back to an empty list on a malformed list response", () => {
+    const parsed = parseWithFallback(
+      { memories: "not-an-array" },
+      AgentMemoryListSchema,
+      EMPTY_AGENT_MEMORY_LIST,
+      { endpoint: "GET /api/agents/{agentId}/memories" },
+    );
+    expect(parsed).toEqual(EMPTY_AGENT_MEMORY_LIST);
+  });
+
+  it("falls back to the empty memory on a malformed single-memory response", () => {
+    const parsed = parseWithFallback(
+      { id: 42, content: 7 },
+      AgentMemorySchema,
+      EMPTY_AGENT_MEMORY,
+      { endpoint: "POST /api/agents/{agentId}/memories" },
+    );
+    expect(parsed).toEqual(EMPTY_AGENT_MEMORY);
   });
 });

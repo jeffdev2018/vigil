@@ -165,6 +165,11 @@ type TaskContextForEnv struct {
 	AgentID                       string // unique ID of the dispatched agent
 	AgentName                     string
 	AgentInstructions             string // agent identity/persona instructions, injected into CLAUDE.md
+	// AgentMemories are the agent's durable learned facts (JEF-236), rendered
+	// as the brief's Memory section. They are per-agent stable state (they
+	// change only between runs, never mid-run), so unlike per-turn values they
+	// belong in the brief rather than the per-turn prompt.
+	AgentMemories []string
 	AgentSkills                   []SkillContextForEnv
 	DisabledRuntimeSkills         []RuntimeSkillRefForEnv
 	Repos                         []RepoContextForEnv     // workspace repos available for checkout
