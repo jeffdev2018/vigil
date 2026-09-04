@@ -302,6 +302,7 @@ var concurrentIndexCleanups = map[string]string{
 	"465_plan_verification_issue_index":                         "idx_plan_verification_issue",
 	"467_issue_decision_issue_index":                            "idx_issue_decision_issue",
 	"472_issue_decision_sla_index":                              "idx_issue_decision_sla_pending",
+	"474_issue_completed_at_index":                              "idx_issue_completed_at",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 
