@@ -35,6 +35,8 @@ const (
 	meetingSummaryTimeout = 90 * time.Second
 	// meetingLLMTranscriptCap bounds what one summary call sends upstream.
 	meetingLLMTranscriptCap = 60_000
+	// meetingMaxSegmentTextRunes bounds one text segment sent by a live client.
+	meetingMaxSegmentTextRunes = 20_000
 )
 
 type MeetingActionResponse struct {
@@ -324,18 +326,38 @@ func (h *Handler) AppendMeetingSegment(w http.ResponseWriter, r *http.Request) {
 		writeErrorCode(w, http.StatusConflict, "meeting_too_long", "meeting exceeds the maximum duration")
 		return
 	}
-	name, ct, data, ok := readAudioUpload(w, r)
-	if !ok {
-		return
+	var seq, text string
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
+		// Live-transcript clients already hold the text (from the provider's
+		// realtime WebSocket) and send it instead of audio.
+		var body struct {
+			Seq  string `json:"seq"`
+			Text string `json:"text"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON body")
+			return
+		}
+		seq = body.Seq
+		text = strings.TrimSpace(body.Text)
+		if n := len([]rune(text)); n > meetingMaxSegmentTextRunes {
+			text = string([]rune(text)[:meetingMaxSegmentTextRunes])
+		}
+	} else {
+		name, ct, data, ok := readAudioUpload(w, r)
+		if !ok {
+			return
+		}
+		seq = r.FormValue("seq")
+		res, err := h.STT.Transcribe(r.Context(), name, ct, strings.NewReader(string(data)))
+		if err != nil {
+			slog.Warn("meeting segment transcribe failed", "meeting_id", util.UUIDToString(m.ID), "error", err)
+			writeError(w, http.StatusBadGateway, "transcription failed")
+			return
+		}
+		text = strings.TrimSpace(res.Text)
 	}
-	seq := r.FormValue("seq")
-	res, err := h.STT.Transcribe(r.Context(), name, ct, strings.NewReader(string(data)))
-	if err != nil {
-		slog.Warn("meeting segment transcribe failed", "meeting_id", util.UUIDToString(m.ID), "error", err)
-		writeError(w, http.StatusBadGateway, "transcription failed")
-		return
-	}
-	text := strings.TrimSpace(res.Text)
+	var err error
 	updated := m
 	if text != "" {
 		updated, err = h.Queries.AppendMeetingSegment(r.Context(), db.AppendMeetingSegmentParams{
@@ -356,6 +378,26 @@ func (h *Handler) AppendMeetingSegment(w http.ResponseWriter, r *http.Request) {
 		"text":          text,
 		"segment_count": updated.SegmentCount,
 	})
+}
+
+// RealtimeVoiceSession mints a short-lived provider token so the browser can
+// stream audio to the realtime transcription WebSocket directly.
+// POST /api/voice/realtime-session.
+func (h *Handler) RealtimeVoiceSession(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireUserID(w, r); !ok {
+		return
+	}
+	if h.STT == nil || !h.STT.RealtimeEnabled() {
+		writeErrorCode(w, http.StatusConflict, "realtime_not_configured", "live transcription is not configured on this server")
+		return
+	}
+	session, err := h.STT.RealtimeSession(r.Context())
+	if err != nil {
+		slog.Warn("realtime session mint failed", "error", err)
+		writeError(w, http.StatusBadGateway, "could not start a live transcription session")
+		return
+	}
+	writeJSON(w, http.StatusOK, session)
 }
 
 // meetingSummary is the JSON the LLM must return.
