@@ -1553,6 +1553,22 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "failed to create trigger")
 		return
 	}
+	// A band needs the trigger id to pick its slot, which only exists after
+	// the INSERT: re-point the display-only next_run_at inside the band.
+	if trigger.Kind == "schedule" && trigger.WindowMinutes > 0 && trigger.CronExpression.Valid {
+		tz := "UTC"
+		if trigger.Timezone.Valid && trigger.Timezone.String != "" {
+			tz = trigger.Timezone.String
+		}
+		if next, err := service.NextWindowedOccurrenceAfterUTC(trigger.CronExpression.String, tz, time.Duration(trigger.WindowMinutes)*time.Minute, util.UUIDToString(trigger.ID), time.Now()); err == nil {
+			if updated, err := qtx.UpdateAutopilotTrigger(r.Context(), db.UpdateAutopilotTriggerParams{
+				ID:        trigger.ID,
+				NextRunAt: pgtype.Timestamptz{Time: next, Valid: true},
+			}); err == nil {
+				trigger = updated
+			}
+		}
+	}
 	if err := h.recordAutopilotRuleVersion(r.Context(), qtx, ap, "member", publisherID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create trigger")
 		return
