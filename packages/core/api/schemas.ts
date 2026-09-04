@@ -4551,6 +4551,31 @@ export const AgentCompetencySchema = z.object({
   rows: z.array(CompetencyRowSchema).catch([]).default([]),
 }).loose();
 
+// Cross-provider self-review (K15).
+export const CrossReviewReportSchema = z.object({
+  verdict: z.enum(["approve", "request_changes", "comment"]).catch("comment").default("comment"),
+  risks: z.array(z.string()).catch([]).default([]),
+  questions: z.array(z.string()).catch([]).default([]),
+  suggestions: z.array(z.string()).catch([]).default([]),
+  summary: z.string().catch("").default(""),
+}).loose();
+
+export const CrossReviewSchema = z.object({
+  task_id: z.string().default(""),
+  review_of_task_id: z.string().default(""),
+  reviewer_agent_id: z.string().default(""),
+  reviewer_name: z.string().catch("").default(""),
+  reviewer_provider: z.string().catch("").default(""),
+  status: z.string().default(""),
+  report: CrossReviewReportSchema.nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const CrossReviewListSchema = z.object({
+  reviews: z.array(CrossReviewSchema).catch([]).default([]),
+}).loose();
+
 export const AssigneeSuggestionSchema = z.object({
   domain_key: z.string().default(""),
   min_sample: z.number().int().catch(5).default(5),

@@ -1249,5 +1249,22 @@
     "duels": "対決 {{wins}} 勝 / {{losses}} 敗",
     "low_sample": "データ不足（{{count}}/{{min}}）",
     "empty": "この種のタスクの履歴を持つエージェントはまだいません。"
+  },
+  "cross_review": {
+    "section": "別プロバイダーによるレビュー",
+    "by": "{{provider}} の {{name}}",
+    "in_progress": "レビュー中",
+    "failed": "レビュー失敗",
+    "verdict": {
+      "approve": "承認",
+      "request_changes": "変更要求",
+      "comment": "コメント"
+    },
+    "risks": "リスク",
+    "questions": "質問",
+    "suggestions": "提案",
+    "retry": "レビューを再実行",
+    "retry_failed": "再実行に失敗しました",
+    "previous": "以前の試行 {{count}} 件"
   }
 }
