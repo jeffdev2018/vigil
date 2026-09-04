@@ -6,6 +6,7 @@ import type { AgentRuntime } from "@multica/core/types";
 import type { RuntimeMachine } from "./runtime-machines";
 
 const mockUpdateSection = vi.hoisted(() => vi.fn());
+const mockCliAuthSection = vi.hoisted(() => vi.fn());
 
 vi.mock("./update-section", () => ({
   UpdateSection: (props: Record<string, unknown>) => {
@@ -15,6 +16,13 @@ vi.mock("./update-section", () => ({
     ) : (
       <span>CLI status</span>
     );
+  },
+}));
+
+vi.mock("./cli-auth-section", () => ({
+  CliAuthSection: ({ runtime }: { runtime: AgentRuntime }) => {
+    mockCliAuthSection(runtime.id);
+    return <span>Auth {runtime.id}</span>;
   },
 }));
 
@@ -72,6 +80,7 @@ function machine(runtimes: AgentRuntime[]): RuntimeMachine {
 describe("MachineCliSection", () => {
   beforeEach(() => {
     mockUpdateSection.mockClear();
+    mockCliAuthSection.mockClear();
   });
 
   it("renders one update control using an online viewer-owned runtime", () => {
@@ -100,6 +109,10 @@ describe("MachineCliSection", () => {
       isOnline: true,
       launchedBy: "desktop",
     });
+    expect(mockCliAuthSection.mock.calls).toEqual([
+      ["offline-owned"],
+      ["online-owned"],
+    ]);
   });
 
   it("does not update through a private teammate-owned runtime for an admin", () => {

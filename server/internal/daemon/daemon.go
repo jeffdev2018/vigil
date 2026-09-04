@@ -4218,11 +4218,12 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp == nil {
 		return
 	}
-	if resp.PendingUpdate != nil || resp.PendingModelList != nil || resp.PendingLocalSkills != nil || resp.PendingLocalSkillImport != nil {
+	if resp.PendingUpdate != nil || resp.PendingModelList != nil || resp.PendingCliAuth != nil || resp.PendingLocalSkills != nil || resp.PendingLocalSkillImport != nil {
 		d.logger.Debug("heartbeat: pending actions",
 			"runtime_id", runtimeID,
 			"update", resp.PendingUpdate != nil,
 			"model_list", resp.PendingModelList != nil,
+			"cli_auth", resp.PendingCliAuth != nil,
 			"local_skills", resp.PendingLocalSkills != nil,
 			"local_skill_import", resp.PendingLocalSkillImport != nil,
 		)
@@ -4233,6 +4234,11 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+		}
+	}
+	if resp.PendingCliAuth != nil {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			go d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth)
 		}
 	}
 	if resp.PendingLocalSkills != nil {
@@ -4370,26 +4376,11 @@ func (d *Daemon) handleModelList(ctx context.Context, rt Runtime, requestID stri
 	// so a custom runtime must never fail on the built-in lookup. A custom
 	// path is also never re-resolved: like runTask, we don't second-guess a
 	// path the profile pinned.
-	var execPath string
-	// fixedArgs mirrors the launch prefix runTask would use. Discovery has to
-	// enumerate the CLI the profile actually runs, so a subcommand wrapper is
-	// probed as `ccms start q36 models`, not `ccms models` (GH #7046).
-	var fixedArgs []string
-	if customSpec, isCustom := d.customProfileLaunchForRuntime(rt.ID); isCustom {
-		execPath = customSpec.path
-		fixedArgs = agent.FilterLaunchPrefix(rt.Provider, customSpec.fixedArgs, d.logger)
-		d.logger.Info("model list uses custom runtime profile command",
-			"runtime_id", rt.ID, "provider", rt.Provider, "command_path", execPath,
-			"fixed_args", len(fixedArgs))
-	} else if entry, ok := d.agents()[rt.Provider]; ok {
-		// Built-in provider: self-heal a pinned executable path an in-place
-		// upgrade deleted (MUL-4486).
-		entry, _ = d.resolveAgentEntry(ctx, rt.Provider, entry)
-		execPath = entry.Path
-	} else {
+	execPath, fixedArgs, err := d.resolveRuntimeCommand(ctx, rt)
+	if err != nil {
 		d.reportModelListResult(ctx, rt, requestID, map[string]any{
 			"status": "failed",
-			"error":  fmt.Sprintf("no agent configured for provider %q", rt.Provider),
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -4598,6 +4589,12 @@ func (d *Daemon) reportLocalSkillImportResult(ctx context.Context, rt Runtime, r
 func (d *Daemon) reportModelListResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
 	d.reportRuntimeResultWithRetry(ctx, "model_list", rt.ID, requestID, func(ctx context.Context) error {
 		return d.client.ReportModelListResult(ctx, rt.ID, requestID, payload)
+	})
+}
+
+func (d *Daemon) reportCliAuthResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
+	d.reportRuntimeResultWithRetry(ctx, "cli_auth", rt.ID, requestID, func(ctx context.Context) error {
+		return d.client.ReportCliAuthResult(ctx, rt.ID, requestID, payload)
 	})
 }
 

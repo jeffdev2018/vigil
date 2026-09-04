@@ -598,6 +598,7 @@ type (
 	HeartbeatResponse       = protocol.DaemonHeartbeatAckPayload
 	PendingUpdate           = protocol.DaemonHeartbeatPendingUpdate
 	PendingModelList        = protocol.DaemonHeartbeatPendingModelList
+	PendingCliAuth          = protocol.DaemonHeartbeatPendingCliAuth
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 )
@@ -621,6 +622,12 @@ func (c *Client) ReportUpdateResult(ctx context.Context, runtimeID, updateID str
 // ReportModelListResult sends the model-discovery result back to the server.
 func (c *Client) ReportModelListResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/models/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportCliAuthResult sends only public device-code progress and terminal
+// status. Provider credentials stay in the CLI's local config.
+func (c *Client) ReportCliAuthResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/cli-auth/%s/report", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillListResult sends the runtime-local-skill inventory back to the server.

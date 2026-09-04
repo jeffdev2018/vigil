@@ -1192,6 +1192,21 @@ export interface RuntimeModelListRequest {
   cached_at?: string;
 }
 
+export interface RuntimeCliAuthRequest {
+  id: string;
+  runtime_id: string;
+  action: string;
+  // Kept open so an older client fails closed on a newer terminal state.
+  status: string;
+  verification_url?: string;
+  user_code?: string;
+  authenticated?: boolean;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
 // Result shape returned by resolveRuntimeModels — includes the
 // "supported" bit so the UI can distinguish "no models discovered"
 // from "provider does not honour per-agent model selection".
