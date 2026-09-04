@@ -214,6 +214,15 @@ export interface Issue {
    * created_at/updated_at values are second-precision; parse before comparing.
    */
   last_activity_at?: string | null;
+  /**
+   * What produced this issue when it was not typed by hand — "meeting" for an
+   * action item a recording extracted, plus the other triage origins.
+   *
+   * Absent means "this response did not resolve it" (list, board and search
+   * rows do not), never "no origin": read it from a detail response.
+   */
+  origin_type?: string | null;
+  origin_id?: string | null;
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
 }

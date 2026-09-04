@@ -455,7 +455,8 @@
     "pr_stack_title": "PR 堆栈",
     "pr_stack_truncated": "在 {{depth}} 层处截断",
     "pr_stack_cyclic": "依赖循环：部分层级已隐藏",
-    "blocker_adr_required": "需要架构决策记录（编辑了 {{count}} 个文件）"
+    "blocker_adr_required": "需要架构决策记录（编辑了 {{count}} 个文件）",
+    "from_meeting": "来自会议"
   },
   "timeline": {
     "loading": "加载中…"

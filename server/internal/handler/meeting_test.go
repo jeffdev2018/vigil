@@ -494,3 +494,35 @@ func TestMeetingGetReportsSummaryUnavailable(t *testing.T) {
 		t.Fatalf("a silent meeting reported summary_unavailable")
 	}
 }
+
+// Accepting a meeting's action item stamps origin_type='meeting' on the issue
+// it becomes. The detail response has to carry it, or the UI can never link the
+// issue back to the recording that asked for the work.
+func TestIssueDetailCarriesMeetingOrigin(t *testing.T) {
+	meetingID := dbfx.Issue(t, "placeholder-origin") // any workspace uuid works as an origin id
+	issueID := dbfx.Issue(t, "Livrer le connecteur Stripe", testutil.Cols{
+		"origin_type": meetingOriginType,
+		"origin_id":   meetingID,
+	})
+
+	var got IssueResponse
+	testutil.Call(t, testHandler.GetIssue,
+		testutil.WithURLParams(newRequest(http.MethodGet, "/api/issues/"+issueID, nil), "id", issueID)).
+		Want(http.StatusOK).JSON(&got)
+	if got.OriginType == nil || *got.OriginType != meetingOriginType {
+		t.Fatalf("origin_type = %v, want %q", got.OriginType, meetingOriginType)
+	}
+	if got.OriginID == nil || *got.OriginID != meetingID {
+		t.Fatalf("origin_id = %v, want %q", got.OriginID, meetingID)
+	}
+
+	// An issue with no origin omits the fields entirely: absent means "this
+	// response did not resolve one", which is what the client keys off.
+	plainID := dbfx.Issue(t, "Typed by hand")
+	body := testutil.Call(t, testHandler.GetIssue,
+		testutil.WithURLParams(newRequest(http.MethodGet, "/api/issues/"+plainID, nil), "id", plainID)).
+		Want(http.StatusOK).Map()
+	if _, ok := body["origin_type"]; ok {
+		t.Fatalf("origin_type present on an issue with no origin: %v", body["origin_type"])
+	}
+}

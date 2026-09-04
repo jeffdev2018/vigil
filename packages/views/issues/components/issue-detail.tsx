@@ -79,6 +79,7 @@ import { SubIssuesAgentWorkingChip } from "./sub-issues-agent-working-chip";
 import { ProjectPicker } from "../../projects/components/project-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { CommentCard } from "./comment-card";
+import { MeetingOriginLink } from "./meeting-origin-link";
 import { SourceContextBadge } from "./source-context-viewer";
 import { RevisionConflictCompare } from "./revision-conflict-compare";
 import { CommentInput } from "./comment-input";
@@ -3141,6 +3142,8 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               }}
             />
           )}
+
+          <MeetingOriginLink issue={issue} />
 
           <div
             {...descDropZoneProps}

@@ -1312,6 +1312,10 @@ export const IssueSchema = z.object({
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
+  // Detail-only, and absent on an older backend. Absent means "not resolved
+  // here", so consumers must not read it as "no origin".
+  origin_type: z.string().nullish(),
+  origin_id: z.string().nullish(),
   position: z.number(),
   // Older backends predate `stage`; default to null so a missing field parses
   // cleanly into the non-optional Issue.stage (number | null).

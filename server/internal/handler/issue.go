@@ -69,7 +69,14 @@ type IssueResponse struct {
 	CreatorID     string  `json:"creator_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
 	ProjectID     *string `json:"project_id"`
-	Position      float64 `json:"position"`
+	// OriginType / OriginID record what produced the issue when it was not
+	// typed by hand — today "meeting" (accepting an action item a recording
+	// extracted) and the other triage origins. Omitted, like status_category,
+	// by renderings that do not load the columns (the list/board/search rows);
+	// absent means "this endpoint did not resolve it", never "no origin".
+	OriginType *string `json:"origin_type,omitempty"`
+	OriginID   *string `json:"origin_id,omitempty"`
+	Position   float64 `json:"position"`
 	// Stage groups sub-issues under the same parent into ordered barrier
 	// groups (null = unstaged). See issue_child_done.go for how a closed
 	// stage gates the child-done -> parent wake.
@@ -316,6 +323,8 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		OriginType:     textToPtr(i.OriginType),
+		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),

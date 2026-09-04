@@ -139,6 +139,8 @@ func fullyPopulatedIssue(t *testing.T) db.Issue {
 		CreatorID:      parseUUID("44444444-4444-4444-4444-444444444444"),
 		ParentIssueID:  parseUUID("55555555-5555-5555-5555-555555555555"),
 		ProjectID:      parseUUID("66666666-6666-6666-6666-666666666666"),
+		OriginType:     pgtype.Text{String: "meeting", Valid: true},
+		OriginID:       parseUUID("88888888-8888-8888-8888-888888888888"),
 		Position:       1024.5,
 		Stage:          pgtype.Int4{Int32: 2, Valid: true},
 		StartDate:      pgtype.Date{Time: utcDate(2026, time.January, 1), Valid: true},

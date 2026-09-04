@@ -455,7 +455,8 @@
     "pr_stack_title": "PR 스택",
     "pr_stack_truncated": "{{depth}}단계에서 잘림",
     "pr_stack_cyclic": "의존성 순환: 일부 단계가 숨겨짐",
-    "blocker_adr_required": "아키텍처 결정 기록 필요({{count}}개 파일 편집)"
+    "blocker_adr_required": "아키텍처 결정 기록 필요({{count}}개 파일 편집)",
+    "from_meeting": "미팅에서 생성"
   },
   "timeline": {
     "loading": "불러오는 중..."
