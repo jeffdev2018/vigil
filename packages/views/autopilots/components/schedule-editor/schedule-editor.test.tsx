@@ -150,6 +150,7 @@ function Harness({
       <output data-testid="cron-out">{cronFields(value)}</output>
       <output data-testid="wire-out">{toCron(value)}</output>
       <output data-testid="raw-out">{String(value.raw)}</output>
+      <output data-testid="window-out">{String(value.windowMinutes)}</output>
       <output data-testid="tz-out">{value.timezone}</output>
       <output data-testid="valid-out">{String(valid)}</output>
     </>
@@ -1091,5 +1092,42 @@ describe("ScheduleEditor", () => {
       expect(screen.queryByText("TZ=UTC")).not.toBeInTheDocument();
     });
 
+  });
+});
+
+// The band ("sometime between 08:00 and 10:00") is stored beside the cron, not
+// in it — parseCron cannot see it, so every re-parse used to zero it silently.
+describe("ScheduleEditor firing band", () => {
+  const windowOut = () => screen.getByTestId("window-out").textContent;
+
+  it("keeps the band when the cron box is re-committed as an at-pattern", async () => {
+    renderEditor({ ...cron("0 8 * * *"), windowMinutes: 120 });
+    await waitFor(() => expect(screen.getByText("Next runs")).toBeInTheDocument());
+
+    await editCronText("0 9 * * *");
+
+    await waitFor(() => expect(cronOut()).toBe("0 9 * * *"));
+    expect(windowOut()).toBe("120");
+  });
+
+  it("drops the band when the committed expression is an interval pattern", async () => {
+    renderEditor({ ...cron("0 8 * * *"), windowMinutes: 120 });
+    await waitFor(() => expect(screen.getByText("Next runs")).toBeInTheDocument());
+
+    await editCronText("*/15 * * * *");
+
+    await waitFor(() => expect(cronOut()).toBe("*/15 * * * *"));
+    expect(windowOut()).toBe("0");
+  });
+
+  it("keeps the band through a TZ= promotion", async () => {
+    renderEditor({ ...cron("0 8 * * *"), windowMinutes: 90 });
+    await waitFor(() => expect(screen.getByText("Next runs")).toBeInTheDocument());
+
+    await editCronText("TZ=Asia/Shanghai 0 8 * * *");
+
+    await waitFor(() => expect(screen.getByTestId("tz-out")).toHaveTextContent("Asia/Shanghai"));
+    await waitFor(() => expect(screen.getByTestId("raw-out")).toHaveTextContent("null"));
+    expect(windowOut()).toBe("90");
   });
 });

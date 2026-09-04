@@ -77,6 +77,14 @@ export function timeParts(time: string): { hour: number; minute: number } {
   return { hour: parseInt(h ?? "0", 10), minute: parseInt(m ?? "0", 10) };
 }
 
+/** The band a config actually writes. A structured interval pattern ("every 2
+ *  hours") fires exactly on its cron and has no band to spread; an advanced
+ *  expression keeps whatever band the user set, because the server applies the
+ *  band to that expression's occurrences just the same. */
+export function effectiveWindowMinutes(config: ScheduleConfig): number {
+  return config.raw !== null || config.time.kind === "at" ? config.windowMinutes : 0;
+}
+
 /** End of the firing band ("HH:MM") for an "at" time plus a window; wraps at midnight. */
 export function windowEndTime(start: string, windowMinutes: number): string {
   const { hour, minute } = timeParts(start);
