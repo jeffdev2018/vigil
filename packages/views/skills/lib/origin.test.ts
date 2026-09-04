@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { originSourceUrl, type OriginInfo } from "./origin";
+import { originSourceUrl, readOrigin, type OriginInfo } from "./origin";
+import type { SkillSummary } from "@multica/core/types";
 
 // `origin` is persisted JSONB writable verbatim through the skill update API,
 // so originSourceUrl is the only thing standing between a hand-edited
@@ -68,5 +69,36 @@ describe("originSourceUrl", () => {
     expect(originSourceUrl(null)).toBeNull();
     expect(originSourceUrl(github(undefined))).toBeNull();
     expect(originSourceUrl(github(""))).toBeNull();
+  });
+
+  it("returns null for a distilled origin (not a hosted source)", () => {
+    expect(
+      originSourceUrl({ type: "distilled", source_task_id: "t1", agent_id: "a1" }),
+    ).toBeNull();
+  });
+});
+
+describe("readOrigin", () => {
+  const skillWithOrigin = (origin: unknown): SkillSummary =>
+    ({ config: { origin } }) as unknown as SkillSummary;
+
+  it("recognizes a distilled origin and keeps its provenance", () => {
+    const origin = readOrigin(
+      skillWithOrigin({
+        type: "distilled",
+        source_task_id: "task-1",
+        agent_id: "agent-1",
+        issue_id: "issue-1",
+      }),
+    );
+    expect(origin.type).toBe("distilled");
+    expect(origin.source_task_id).toBe("task-1");
+    expect(origin.agent_id).toBe("agent-1");
+    expect(origin.issue_id).toBe("issue-1");
+  });
+
+  it("falls back to manual for a missing origin", () => {
+    expect(readOrigin(skillWithOrigin(null)).type).toBe("manual");
+    expect(readOrigin(skillWithOrigin(undefined)).type).toBe("manual");
   });
 });

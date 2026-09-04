@@ -62,7 +62,8 @@
     "source_runtime_unknown": "런타임에서 가져옴",
     "source_clawhub": "ClawHub에서 가져옴",
     "source_skills_sh": "Skills.sh에서 가져옴",
-    "source_github": "GitHub에서 가져옴"
+    "source_github": "GitHub에서 가져옴",
+    "source_distilled": "런에서 추출"
   },
   "actions": {
     "row_menu": "작업",
