@@ -97,6 +97,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"approval_gate_event":                workspaceDelete,
 	"project_blast_radius_rule":          workspaceDelete,
 	"agent_permission_profile":           workspaceDelete,
+	"run_scoped_secret":                  workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

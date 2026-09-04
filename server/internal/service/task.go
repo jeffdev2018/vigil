@@ -904,6 +904,9 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 	// window where a compromised process could keep authenticating
 	// against the API until the 24h expiry. Failure is non-fatal — the
 	// expiry / FK cascade are the durable guards. MUL-2600.
+	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: "run_cancelled", Valid: true}}); err != nil {
+		slog.Warn("cancel task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "error", err)
+	}
 	if err := s.Queries.DeleteTaskTokensByTask(ctx, task.ID); err != nil {
 		slog.Warn("cancel task: failed to revoke task tokens",
 			"task_id", util.UUIDToString(task.ID), "error", err)

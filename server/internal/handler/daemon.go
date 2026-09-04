@@ -2260,6 +2260,8 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		resp.Agent.PermissionProfile = &profile
 		resp.Agent.Instructions = strings.TrimRight(resp.Agent.Instructions, "\n") + "\n\n" + profile.PromptSection()
 	}
+	// Run-scoped secrets (K09): scoped keys leave as tokens, never as values.
+	resp.Agent.CustomEnv = h.issueRunSecrets(r.Context(), *task, agent, resp.Agent.PermissionProfile, resp.Agent.CustomEnv)
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID)
 		if err != nil {
@@ -3883,6 +3885,7 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// completion shrinks the window where a compromised agent process
 	// can keep making API calls after its task finishes. Failure here is
 	// non-fatal; the expiry / cascade are the durable guards.
+	h.revokeRunSecrets(r.Context(), task.ID, "run_finished", "system", "")
 	if err := h.Queries.DeleteTaskTokensByTask(r.Context(), task.ID); err != nil {
 		slog.Warn("complete task: failed to revoke task tokens", "task_id", uuidToString(task.ID), "error", err)
 	}
@@ -4556,6 +4559,7 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-
 	// terminal window. The 24h expiry / cascade are the durable guards.
+	h.revokeRunSecrets(r.Context(), task.ID, "run_finished", "system", "")
 	if err := h.Queries.DeleteTaskTokensByTask(r.Context(), task.ID); err != nil {
 		slog.Warn("fail task: failed to revoke task tokens", "task_id", uuidToString(task.ID), "error", err)
 	}

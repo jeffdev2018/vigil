@@ -2040,6 +2040,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			r.Put("/api/agents/{id}/permission-profile", h.SetAgentPermissionProfile)
 			r.Get("/api/tasks/{taskId}/permission-profile", h.GetTaskPermissionProfile)
+			// Run-scoped secrets (K09): tokens instead of values, revoked at the end of the run.
+			r.Route("/api/tasks/{taskId}/secrets", func(r chi.Router) {
+				r.Get("/", h.ListTaskRunSecrets)
+				r.Post("/revoke-all", h.RevokeTaskRunSecrets)
+				r.Post("/resolve", h.ResolveRunSecret)
+			})
+			r.Get("/api/issues/{id}/run-secrets", h.ListIssueRunSecrets)
 			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)
 			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
 			r.Route("/api/search/why", func(r chi.Router) {

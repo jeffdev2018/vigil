@@ -7290,6 +7290,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			return d.client.ResolveRemoteMCPCredential(resolveCtx, task.RemoteMCPDaemonToken, task.ID, contributionID)
 		},
 		d.remoteMCPToolGate(task, taskLog),
+		d.runSecretResolver(task),
 		taskLog,
 	)
 	if remoteMCPErr != nil {

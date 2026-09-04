@@ -246,3 +246,15 @@ func applyPermissionProfile(agent *AgentData, provider string, log *slog.Logger)
 		agent.CustomArgs = append(append([]string{}, agent.CustomArgs...), extra...)
 	}
 }
+
+// runSecretResolver (K09) lets the MCP broker trade a run-scoped token for
+// its value through the run's own credential. Nil when the run has none.
+func (d *Daemon) runSecretResolver(task Task) runSecretResolver {
+	token, err := taskScopedAuthToken(task)
+	if err != nil || d.client == nil {
+		return nil
+	}
+	return func(ctx context.Context, secretToken string) (string, error) {
+		return d.client.ResolveRunSecret(ctx, token, task.ID, secretToken)
+	}
+}
