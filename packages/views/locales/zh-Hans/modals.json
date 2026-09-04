@@ -242,7 +242,15 @@
       "error_daemon_version": "该智能体的守护进程 CLI（{{current}}）低于要求的 {{min}}。请升级守护进程后再使用通过智能体创建。",
       "error_unknown": "提交失败，请重试。",
       "sub_issue_of": "作为 {{identifier}} 的子任务"
-    }
+    },
+    "scoping_toggle": "用几句话生成草稿",
+    "scoping_placeholder": "用几句话描述这个议题…",
+    "scoping_submit": "生成草稿",
+    "scoping_drafting": "生成中…",
+    "scoping_note": "草稿会填入下方表单，创建前请检查并编辑。",
+    "scoping_criteria_label": "验收标准（每行一条）",
+    "scoping_failed": "助手不可用。你输入的文字已保留，请手动撰写议题。",
+    "scoping_criteria_failed": "议题已创建，但验收标准未能保存，请在议题中添加。"
   },
   "add_dependency": {
     "title_blocks": "选择被阻塞的任务",

@@ -52,6 +52,8 @@ import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from "@multi
 import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { ContentEditor, type ContentEditorRef, TitleEditor, type TitleEditorRef, useFileDropZone, FileDropOverlay, useUploadGate, useComposerSubmit } from "../editor";
+import { ScopingAssistant } from "./scoping-assistant";
+import { useSetAcceptanceCriteria } from "@multica/core/issues/acceptance";
 import { useIssueCreateUploads } from "./use-issue-create-uploads";
 import { useShortcut } from "@multica/core/shortcuts";
 import { ShortcutKeycaps } from "../common/shortcut-keycaps";
@@ -250,6 +252,9 @@ export function ManualCreatePanel({
   const sendShortcut = useShortcut("send");
   const [title, setTitle] = useState(draft.manual.title);
   const [formResetKey, setFormResetKey] = useState(0);
+  // Issue scoping assistant (K14): criteria drafted for the issue about to be
+  // created; written right after the create, once the issue has an id.
+  const [scopedCriteria, setScopedCriteria] = useState<string[]>([]);
   const titleEditorRef = useRef<TitleEditorRef>(null);
   const descEditorRef = useRef<ContentEditorRef>(null);
   const { isDragOver: descDragOver, dropZoneProps: descDropZoneProps } = useFileDropZone({
@@ -411,6 +416,8 @@ export function ManualCreatePanel({
   };
 
   const createIssueMutation = useCreateIssue();
+
+  const setAcceptanceCriteriaMutation = useSetAcceptanceCriteria(wsId);
   const createCommentSubIssueMutation = useCreateCommentSubIssue();
   const updateIssueMutation = useUpdateIssue();
   const attachLabelMutation = useAttachLabelToIssue();
@@ -530,6 +537,17 @@ export function ManualCreatePanel({
           stage: parentIssueId && stage != null ? stage : undefined,
           project_id: projectId,
         });
+      }
+
+      // Acceptance criteria drafted by the scoping assistant (K14) follow the
+      // create; a failure leaves an issue the human can complete by hand.
+      if (scopedCriteria.length > 0) {
+        try {
+          await setAcceptanceCriteriaMutation.mutateAsync({ issueId: issue.id, criteria: scopedCriteria.map((text) => ({ text })) });
+        } catch (err) {
+          console.error("[create-issue] acceptance criteria set failed", err);
+          toast.error(t(($) => $.create_issue.scoping_criteria_failed));
+        }
       }
 
       // Custom-property values can only be addressed once the issue has an
@@ -927,6 +945,19 @@ export function ManualCreatePanel({
               </div>
             </div>
 
+            {/* Issue scoping assistant (K14): a few sentences into the form. */}
+            <div className="px-5 pb-2 shrink-0">
+              <ScopingAssistant
+                projectId={projectId}
+                onDraft={({ title: draftTitle, description: draftDescription }) => {
+                  setTitle(draftTitle);
+                  setManual({ title: draftTitle, description: draftDescription });
+                  setFormResetKey((k) => k + 1);
+                }}
+                onCriteriaChange={setScopedCriteria}
+              />
+            </div>
+
             {/* Title */}
             <div className="px-5 pb-2 shrink-0">
               <TitleEditor
@@ -945,6 +976,7 @@ export function ManualCreatePanel({
             {/* Description — takes remaining space */}
             <div {...descDropZoneProps} className="relative flex flex-1 min-h-0 overflow-y-auto px-5">
               <ContentEditor
+                key={formResetKey}
                 ref={descEditorRef}
                 defaultValue={draft.manual.description}
                 placeholder={t(($) => $.create_issue.description_placeholder)}

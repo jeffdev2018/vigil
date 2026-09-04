@@ -242,7 +242,15 @@
       "error_daemon_version": "このエージェントのデーモン CLI（{{current}}）が必要なバージョン {{min}} を下回っています。エージェントで作成を使用するには、デーモンをアップグレードしてください。",
       "error_unknown": "送信できませんでした。再試行してください。",
       "sub_issue_of": "{{identifier}} のサブタスク"
-    }
+    },
+    "scoping_toggle": "数文から下書きを作成",
+    "scoping_placeholder": "イシューを数文で説明してください…",
+    "scoping_submit": "下書きを作成",
+    "scoping_drafting": "作成中…",
+    "scoping_note": "下書きは下のフォームに入ります。作成前に確認・編集してください。",
+    "scoping_criteria_label": "受け入れ基準（1 行に 1 つ）",
+    "scoping_failed": "アシスタントを利用できません。入力した文章は残ります。手動でイシューを作成してください。",
+    "scoping_criteria_failed": "イシューは作成されましたが、受け入れ基準を保存できませんでした。イシューから追加してください。"
   },
   "add_dependency": {
     "title_blocks": "ブロック対象を選択",

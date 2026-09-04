@@ -1385,6 +1385,19 @@ export const PlanVerificationsResponseSchema = z.object({
   verifications: z.array(PlanVerificationSchema).catch([]).default([]),
 }).loose();
 
+// Issue scoping assistant (K14). Every field degrades on its own: a model that
+// skipped the files still yields a usable draft.
+export const IssueScopingProposalSchema = z.object({
+  title: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  acceptance_criteria: z.array(z.string()).catch([]).default([]),
+  probable_files: z.array(z.object({ path: z.string(), reason: z.string().optional() }).loose()).catch([]).default([]),
+}).loose();
+
+export const IssueScopingEnvelopeSchema = z.object({
+  proposal: IssueScopingProposalSchema,
+}).loose();
+
 // Decision Cards (K01). A card is data from an agent: nothing here decides.
 export const IssueDecisionSchema = z.object({
   id: z.string(),

@@ -230,6 +230,7 @@ import type {
   IssuePlanStep,
   PlanVerification,
   IssueDecision,
+  IssueScopingProposal,
   AcceptanceCriterion,
   DecisionAnswer,
   AttentionInboxItem,
@@ -419,6 +420,7 @@ import {
   IssuePlanEnvelopeSchema,
   PlanMaterializationSchema,
   IssueDecisionsResponseSchema,
+  IssueScopingEnvelopeSchema,
   AcceptanceCriteriaResponseSchema,
   IssueDecisionEnvelopeSchema,
   EMPTY_ISSUE_PLAN,
@@ -1356,6 +1358,21 @@ export class ApiClient {
     });
     if (!parsed) throw new Error("respond decision returned a malformed decision");
     return parsed.decision;
+  }
+
+  // Issue scoping assistant (K14).
+  async proposeIssueScoping(data: { raw_text: string; project_id?: string }): Promise<IssueScopingProposal> {
+    const raw = await this.fetch<unknown>(`/api/issues/scoping/propose`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    const parsed = parseWithFallback<{ proposal: IssueScopingProposal } | null>(raw, IssueScopingEnvelopeSchema, null, {
+      endpoint: "POST /api/issues/scoping/propose",
+    });
+    if (!parsed || (!parsed.proposal.title && !parsed.proposal.description)) {
+      throw new Error("the scoping assistant returned an empty proposal");
+    }
+    return parsed.proposal;
   }
 
   // Outcome Contract (K12).

@@ -310,6 +310,21 @@ export interface AcceptanceCriterion {
   proved_at?: string;
 }
 
+// ── Issue scoping assistant (K14) ───────────────────────────────────────────
+
+export interface ScopingFile {
+  path: string;
+  reason?: string;
+}
+
+/** A proposed issue for a human to review; nothing is created from it directly. */
+export interface IssueScopingProposal {
+  title: string;
+  description: string;
+  acceptance_criteria: string[];
+  probable_files: ScopingFile[];
+}
+
 // ── Decision Cards (K01) ────────────────────────────────────────────────────
 
 export interface DecisionOption {
