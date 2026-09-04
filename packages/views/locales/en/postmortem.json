@@ -14,7 +14,8 @@
     "empty_title_discarded": "Nothing discarded yet",
     "empty_description_discarded": "Postmortems you discard are moved here.",
     "loading": "Loading postmortems",
-    "load_error": "Could not load postmortems"
+    "load_error": "Could not load postmortems",
+    "load_more": "Load more"
   },
   "detail": {
     "select_prompt": "Select a postmortem to review it",

@@ -14,7 +14,8 @@
     "empty_title_discarded": "破棄済みのものはありません",
     "empty_description_discarded": "破棄した振り返りはここに移動します。",
     "loading": "振り返りを読み込み中",
-    "load_error": "振り返りを読み込めませんでした"
+    "load_error": "振り返りを読み込めませんでした",
+    "load_more": "さらに読み込む"
   },
   "detail": {
     "select_prompt": "振り返りを選択して確認してください",

@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 import type { PostmortemState } from "../types";
 
@@ -21,12 +21,15 @@ export function postmortemStatsOptions(wsId: string) {
 }
 
 /**
- * One review state (default draft), newest first. Keyset-paginated; the page
- * fetches the first page and the server returns `next_cursor`.
+ * One review state (default draft), newest first. Keyset-paginated: each page
+ * carries `next_cursor` until the server runs out.
  */
 export function postmortemItemsOptions(wsId: string, state: PostmortemState) {
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: postmortemKeys.items(wsId, state),
-    queryFn: ({ signal }) => api.listPostmortems({ state }, { signal }),
+    queryFn: ({ pageParam, signal }) =>
+      api.listPostmortems({ state, cursor: pageParam || undefined }, { signal }),
+    initialPageParam: "",
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
   });
 }

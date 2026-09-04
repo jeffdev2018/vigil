@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FileText, Check, X, Loader2, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -25,6 +25,7 @@ import {
 import { Button, buttonVariants } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
 
 const STATES: PostmortemState[] = ["draft", "approved", "discarded"];
@@ -43,8 +44,11 @@ export function PostmortemPage() {
   const [filterState, setFilterState] = useState<PostmortemState>("draft");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  const itemsQuery = useQuery(postmortemItemsOptions(wsId, filterState));
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  const itemsQuery = useInfiniteQuery(postmortemItemsOptions(wsId, filterState));
+  const items = useMemo(
+    () => itemsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [itemsQuery.data],
+  );
   const stats = statsQuery.data;
   const selected = useMemo(
     () => items.find((item) => item.id === selectedId) ?? null,
@@ -103,6 +107,9 @@ export function PostmortemPage() {
           isError={itemsQuery.isError}
           selectedId={selectedId}
           onSelect={setSelectedId}
+          hasMore={itemsQuery.hasNextPage}
+          isLoadingMore={itemsQuery.isFetchingNextPage}
+          onLoadMore={() => void itemsQuery.fetchNextPage()}
         />
         <PostmortemDetail
           item={selected}
@@ -121,6 +128,9 @@ function PostmortemList({
   isError,
   selectedId,
   onSelect,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
 }: {
   items: Postmortem[];
   state: PostmortemState;
@@ -128,6 +138,9 @@ function PostmortemList({
   isError: boolean;
   selectedId: string | null;
   onSelect: (id: string) => void;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  onLoadMore: () => void;
 }) {
   const { t } = useT("postmortem");
   const timeAgo = useTimeAgo();
@@ -216,6 +229,13 @@ function PostmortemList({
           </li>
         );
       })}
+      {hasMore ? (
+        <li className="flex justify-center pt-1">
+          <Button variant="ghost" size="sm" onClick={onLoadMore} disabled={isLoadingMore}>
+            {isLoadingMore ? t(($) => $.list.loading) : t(($) => $.list.load_more)}
+          </Button>
+        </li>
+      ) : null}
     </ul>
   );
 }
@@ -292,19 +312,31 @@ function PostmortemDetailBody({
     <aside className="flex min-w-0 flex-1 flex-col border-l">
       <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
         <div className="flex min-w-0 items-center gap-2">
-          {item.llm_generated ? (
-            <Sparkles
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
-              data-tooltip={t(($) => $.detail.llm_generated)}
-            />
-          ) : (
-            <Wand2
-              aria-hidden="true"
-              className="size-4 shrink-0 text-muted-foreground"
-              data-tooltip={t(($) => $.detail.scaffold_generated)}
-            />
-          )}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  className="inline-flex shrink-0"
+                  aria-label={
+                    item.llm_generated
+                      ? t(($) => $.detail.llm_generated)
+                      : t(($) => $.detail.scaffold_generated)
+                  }
+                />
+              }
+            >
+              {item.llm_generated ? (
+                <Sparkles aria-hidden="true" className="size-4 text-muted-foreground" />
+              ) : (
+                <Wand2 aria-hidden="true" className="size-4 text-muted-foreground" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>
+              {item.llm_generated
+                ? t(($) => $.detail.llm_generated)
+                : t(($) => $.detail.scaffold_generated)}
+            </TooltipContent>
+          </Tooltip>
           <p className="truncate text-caption text-muted-foreground">
             {item.failure_reason || t(($) => $.detail.failure_reason_label)}
             {" · "}
