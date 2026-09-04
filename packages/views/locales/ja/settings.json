@@ -688,7 +688,14 @@
     "plan_verification_section": "計画の検証",
     "plan_verification_label": "タスクの計画に対して実行を検証する",
     "plan_verification_description": "計画のあるタスクで実行が完了したら検証の実行をキューに入れ、重大な差異が報告されている間はタスクを完了にしません。",
-    "plan_verification_failed": "計画の検証設定を更新できませんでした"
+    "plan_verification_failed": "計画の検証設定を更新できませんでした",
+    "decision_sla_section": "判断の期限",
+    "decision_sla_deadline_label": "回答期限（分）",
+    "decision_sla_deadline_description": "この時間内に回答されない判断カードは代理担当者へ、さらに同じ時間後にワークスペースのオーナーと管理者へエスカレーションされます。0 で無効。",
+    "decision_sla_substitute_label": "代理担当者",
+    "decision_sla_substitute_description": "期限超過のカードを最初に知らせる相手。未設定ならオーナーと管理者に通知します。",
+    "decision_sla_substitute_none": "代理担当者なし",
+    "decision_sla_failed": "判断の期限を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

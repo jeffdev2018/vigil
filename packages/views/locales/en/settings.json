@@ -690,7 +690,14 @@
     "plan_verification_section": "Plan verification",
     "plan_verification_label": "Verify runs against the issue plan",
     "plan_verification_description": "After a run completes on an issue with a plan, queue a verification run and keep the issue out of Done while a critical divergence is reported.",
-    "plan_verification_failed": "Failed to update plan verification"
+    "plan_verification_failed": "Failed to update plan verification",
+    "decision_sla_section": "Decision deadlines",
+    "decision_sla_deadline_label": "Answer within (minutes)",
+    "decision_sla_deadline_description": "A Decision Card left unanswered this long is escalated to the substitute, then, after the same delay, to the workspace owners and admins. 0 turns it off.",
+    "decision_sla_substitute_label": "Substitute",
+    "decision_sla_substitute_description": "Who hears about an overdue card first. Without one, the owners and admins do.",
+    "decision_sla_substitute_none": "No substitute",
+    "decision_sla_failed": "Failed to update decision deadlines"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

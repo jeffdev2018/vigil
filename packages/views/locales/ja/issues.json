@@ -917,7 +917,11 @@
     "resumed": "エージェント再開",
     "answer_failed": "判断を記録できませんでした",
     "interview_title": "要件インタビュー",
-    "interview_hint": "すべての質問に回答するとエージェントが再開します。"
+    "interview_hint": "すべての質問に回答するとエージェントが再開します。",
+    "sla_due": "{{time}} までに回答",
+    "sla_overdue": "期限超過、エスカレーション待ち",
+    "sla_substitute": "期限超過 · 代理担当者にエスカレーション済み",
+    "sla_leads": "期限超過 · ワークスペースのリードにエスカレーション済み"
   },
   "acceptance": {
     "section": "受け入れ基準",

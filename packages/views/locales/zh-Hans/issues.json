@@ -917,7 +917,11 @@
     "resumed": "智能体已继续",
     "answer_failed": "记录决策失败",
     "interview_title": "需求访谈",
-    "interview_hint": "所有问题回答后，智能体才会继续。"
+    "interview_hint": "所有问题回答后，智能体才会继续。",
+    "sla_due": "请在 {{time}} 前回答",
+    "sla_overdue": "已逾期，等待升级",
+    "sla_substitute": "已逾期 · 已升级给替补",
+    "sla_leads": "已逾期 · 已升级给工作区负责人"
   },
   "acceptance": {
     "section": "验收标准",

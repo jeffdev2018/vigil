@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import {
   decisionAnswerLabel,
+  decisionSlaState,
   groupDecisions,
   isDecisionPending,
   issueDecisionsOptions,
@@ -87,6 +88,7 @@ export function DecisionCard({ decision, issueId, wsId }: { decision: IssueDecis
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState("");
   const pending = isDecisionPending(decision);
+  const sla = decisionSlaState(decision);
 
   const answer = (body: { option_id?: string; modified_text?: string }) =>
     respond.mutate(
@@ -106,6 +108,21 @@ export function DecisionCard({ decision, issueId, wsId }: { decision: IssueDecis
           {decision.urgency}
         </span>
       </div>
+      {sla.kind !== "none" && (
+        <div
+          data-testid="decision-sla"
+          data-sla={sla.kind}
+          className={cn(sla.kind === "due" ? "text-muted-foreground" : "text-destructive")}
+        >
+          {sla.kind === "due" && t(($) => $.decisions.sla_due, { time: sla.deadline.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) })}
+          {sla.kind === "overdue" && t(($) => $.decisions.sla_overdue)}
+          {sla.kind === "escalated_substitute" && t(($) => $.decisions.sla_substitute)}
+          {sla.kind === "escalated_leads" && t(($) => $.decisions.sla_leads)}
+          {(sla.kind === "escalated_substitute" || sla.kind === "escalated_leads") && sla.escalatedAt && (
+            <span> · {timeAgo(sla.escalatedAt)}</span>
+          )}
+        </div>
+      )}
       {pending ? (
         <>
           <div className="flex flex-col gap-1">

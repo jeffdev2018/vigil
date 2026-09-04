@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { decisionAnswerLabel, groupDecisions, isDecisionPending, pendingDecisions } from "./decisions";
+import { decisionAnswerLabel, decisionSlaState, groupDecisions, isDecisionPending, pendingDecisions } from "./decisions";
 import type { IssueDecision } from "../types";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -67,5 +67,26 @@ describe("groupDecisions (K13)", () => {
     stubFetchJson({ decisions: [{ ...card, interview_group_id: 7, interview_position: "x" }] });
     const list = await new ApiClient("https://api.example.test").listIssueDecisions("i1");
     expect(list[0]?.interview_group_id).toBeUndefined();
+  });
+});
+
+describe("decisionSlaState (K35)", () => {
+  const now = new Date("2026-09-03T12:00:00Z");
+  it("reads the deadline and the escalation level, and goes quiet once answered", () => {
+    expect(decisionSlaState(card, now).kind).toBe("none");
+    expect(decisionSlaState({ ...card, sla_deadline_at: "2026-09-03T14:00:00Z" }, now).kind).toBe("due");
+    expect(decisionSlaState({ ...card, sla_deadline_at: "2026-09-03T11:00:00Z" }, now).kind).toBe("overdue");
+    expect(decisionSlaState({ ...card, sla_deadline_at: "2026-09-03T11:00:00Z", escalation_level: 1, escalated_at: "x" }, now)).toEqual({ kind: "escalated_substitute", escalatedAt: "x" });
+    expect(decisionSlaState({ ...card, escalation_level: 2 }, now).kind).toBe("escalated_leads");
+    expect(decisionSlaState({ ...card, sla_deadline_at: "garbage" }, now).kind).toBe("none");
+    expect(decisionSlaState({ ...card, escalation_level: 2, response: { option_id: "keep" } }, now).kind).toBe("none");
+  });
+
+  it("defaults malformed SLA fields instead of dropping the card", async () => {
+    stubFetchJson({ decisions: [{ ...card, sla_deadline_at: 5, escalation_level: "two" }] });
+    const list = await new ApiClient("https://api.example.test").listIssueDecisions("i1");
+    expect(list).toHaveLength(1);
+    expect(list[0]?.escalation_level).toBe(0);
+    expect(list[0]?.sla_deadline_at).toBeNull();
   });
 });

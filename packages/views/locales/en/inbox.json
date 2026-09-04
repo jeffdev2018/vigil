@@ -79,7 +79,8 @@
     "quick_create_unconfirmed": "Create with agent unconfirmed",
     "autopilot_paused": "Autopilot paused",
     "autopilot_quota_exceeded": "Autopilot run limit reached",
-    "decision_request": "Decision requested"
+    "decision_request": "Decision requested",
+    "decision_escalated": "Decision overdue"
   },
   "labels": {
     "set_status_to": "Set status to",

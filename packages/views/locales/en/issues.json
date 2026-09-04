@@ -948,7 +948,11 @@
     "resumed": "agent resumed",
     "answer_failed": "Failed to record the decision",
     "interview_title": "Requirement interview",
-    "interview_hint": "The agent resumes once every question is answered."
+    "interview_hint": "The agent resumes once every question is answered.",
+    "sla_due": "Answer by {{time}}",
+    "sla_overdue": "Overdue, escalation pending",
+    "sla_substitute": "Overdue · escalated to the substitute",
+    "sla_leads": "Overdue · escalated to the workspace leads"
   },
   "acceptance": {
     "section": "Acceptance criteria",

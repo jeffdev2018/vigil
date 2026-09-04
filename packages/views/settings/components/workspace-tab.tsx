@@ -37,6 +37,7 @@ import { AvatarUploadControl } from "../../common/avatar-upload-control";
 import { useNavigation } from "../../navigation";
 import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
 import { PlanVerificationSetting } from "./plan-verification-setting";
+import { DecisionSlaSetting } from "./decision-sla-setting";
 import { useT } from "../../i18n";
 import {
   SettingsCard,
@@ -474,6 +475,7 @@ export function WorkspaceTab() {
           canEdit={canManageWorkspace}
         />
       )}
+      {workspace && <DecisionSlaSetting workspace={workspace} canEdit={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection

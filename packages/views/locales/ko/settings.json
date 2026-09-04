@@ -688,7 +688,14 @@
     "plan_verification_section": "계획 검증",
     "plan_verification_label": "태스크 계획에 대해 실행 검증",
     "plan_verification_description": "계획이 있는 태스크에서 실행이 완료되면 검증 실행을 대기열에 넣고, 치명적 편차가 보고된 동안에는 태스크를 완료로 넘기지 않습니다.",
-    "plan_verification_failed": "계획 검증 설정을 업데이트하지 못했습니다"
+    "plan_verification_failed": "계획 검증 설정을 업데이트하지 못했습니다",
+    "decision_sla_section": "결정 기한",
+    "decision_sla_deadline_label": "답변 기한(분)",
+    "decision_sla_deadline_description": "이 시간 안에 답변되지 않은 결정 카드는 대리인에게, 같은 시간이 더 지나면 워크스페이스 소유자와 관리자에게 에스컬레이션됩니다. 0이면 꺼집니다.",
+    "decision_sla_substitute_label": "대리인",
+    "decision_sla_substitute_description": "기한을 넘긴 카드를 먼저 알릴 사람. 없으면 소유자와 관리자에게 알립니다.",
+    "decision_sla_substitute_none": "대리인 없음",
+    "decision_sla_failed": "결정 기한을 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

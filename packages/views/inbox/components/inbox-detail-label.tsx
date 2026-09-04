@@ -28,6 +28,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     mentioned: t(($) => $.types.mentioned),
     review_requested: t(($) => $.types.review_requested),
     decision_request: t(($) => $.types.decision_request),
+    decision_escalated: t(($) => $.types.decision_escalated),
     task_completed: t(($) => $.types.task_completed),
     task_failed: t(($) => $.types.task_failed),
     agent_blocked: t(($) => $.types.agent_blocked),

@@ -77,7 +77,8 @@
     "quick_create_unconfirmed": "エージェントでの作成結果は未確認",
     "autopilot_paused": "自動化を一時停止しました",
     "autopilot_quota_exceeded": "自動化の実行上限に達しました",
-    "decision_request": "判断を求めています"
+    "decision_request": "判断を求めています",
+    "decision_escalated": "判断が期限超過"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

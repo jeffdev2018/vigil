@@ -77,7 +77,8 @@
     "quick_create_unconfirmed": "通过智能体创建结果未确认",
     "autopilot_paused": "自动化已暂停",
     "autopilot_quota_exceeded": "自动化执行次数已用完",
-    "decision_request": "请求决策"
+    "decision_request": "请求决策",
+    "decision_escalated": "决策已逾期"
   },
   "labels": {
     "set_status_to": "状态设为",

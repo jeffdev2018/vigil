@@ -99,4 +99,12 @@ describe("DecisionCardsSection", () => {
     expect(questions).toEqual(["false", "true"]);
     expect(screen.getByText("Drop the table?").closest("[data-testid='decision-interview']")).toBeNull();
   });
+
+  it("shows the escalation state on an overdue card (K35)", async () => {
+    state.decisions = [card({ escalation_level: 2, escalated_at: "2026-09-03T02:00:00Z", sla_deadline_at: "2026-09-03T01:00:00Z" })];
+    renderSection();
+    const sla = await screen.findByTestId("decision-sla");
+    expect(sla.dataset.sla).toBe("escalated_leads");
+    expect(sla.textContent).toContain("escalated to the workspace leads");
+  });
 });

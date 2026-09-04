@@ -343,5 +343,9 @@ export interface IssueDecision {
   /** Requirement Interview (K13): questions asked together share a group. */
   interview_group_id?: string;
   interview_position?: number;
+  /** Decision SLA (K35): deadline under the workspace policy, escalation so far. */
+  sla_deadline_at?: string | null;
+  escalation_level?: number;
+  escalated_at?: string | null;
   created_at: string;
 }

@@ -29,7 +29,8 @@ export type InboxItemType =
   // same Inbox model so read/archive/realtime behavior remains consistent.
   | "autopilot_paused"
   | "autopilot_quota_exceeded"
-  | "decision_request";
+  | "decision_request"
+  | "decision_escalated";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

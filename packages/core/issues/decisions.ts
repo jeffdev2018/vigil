@@ -55,6 +55,28 @@ export function groupDecisions(list: IssueDecision[]): { interviews: DecisionInt
   return { interviews, singles };
 }
 
+/** Decision SLA (K35): what the card's deadline means right now. */
+export type DecisionSlaState =
+  | { kind: "none" }
+  | { kind: "due"; deadline: Date }
+  | { kind: "overdue"; deadline: Date }
+  | { kind: "escalated_substitute"; escalatedAt: string | null }
+  | { kind: "escalated_leads"; escalatedAt: string | null };
+
+export function decisionSlaState(
+  d: Pick<IssueDecision, "response" | "sla_deadline_at" | "escalation_level" | "escalated_at">,
+  now: Date = new Date(),
+): DecisionSlaState {
+  if (!isDecisionPending(d)) return { kind: "none" };
+  const level = d.escalation_level ?? 0;
+  if (level >= 2) return { kind: "escalated_leads", escalatedAt: d.escalated_at ?? null };
+  if (level === 1) return { kind: "escalated_substitute", escalatedAt: d.escalated_at ?? null };
+  if (!d.sla_deadline_at) return { kind: "none" };
+  const deadline = new Date(d.sla_deadline_at);
+  if (Number.isNaN(deadline.getTime())) return { kind: "none" };
+  return deadline.getTime() > now.getTime() ? { kind: "due", deadline } : { kind: "overdue", deadline };
+}
+
 export function isDecisionPending(d: Pick<IssueDecision, "response">): boolean {
   return d.response === null || d.response === undefined;
 }

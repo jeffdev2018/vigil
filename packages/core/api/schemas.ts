@@ -1411,6 +1411,9 @@ export const IssueDecisionSchema = z.object({
   plan_version: z.number().int().optional().catch(undefined),
   interview_group_id: z.string().optional().catch(undefined),
   interview_position: z.number().int().optional().catch(undefined),
+  sla_deadline_at: z.string().nullable().optional().catch(null),
+  escalation_level: z.number().int().optional().catch(0),
+  escalated_at: z.string().nullable().optional().catch(null),
   created_at: z.string().default(""),
 }).loose();
 
