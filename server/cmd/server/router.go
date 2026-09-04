@@ -1999,6 +1999,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateModuleOwnership)
 				r.Delete("/{id}", h.DeleteModuleOwnership)
 			})
+			// Standup and retro (K34): the weekly retro; standup questions arrive as inbox items.
+			r.Route("/api/retro", func(r chi.Router) {
+				r.Get("/weekly", h.GetWeeklyRetro)
+				r.Post("/weekly/regenerate", h.RegenerateWeeklyRetro)
+			})
 			// Business rules (K53): plain-language rules compiled once, enforced deterministically.
 			r.Route("/api/business-rules", func(r chi.Router) {
 				r.Get("/", h.ListBusinessRules)

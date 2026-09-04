@@ -1687,6 +1687,16 @@ type WebhookDelivery struct {
 	ReplayIdempotencyKey   pgtype.Text        `json:"replay_idempotency_key"`
 }
 
+type WeeklyRetro struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	WeekStart   pgtype.Date        `json:"week_start"`
+	Summary     []byte             `json:"summary"`
+	Narrative   string             `json:"narrative"`
+	GeneratedAt pgtype.Timestamptz `json:"generated_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type Workspace struct {
 	ID           pgtype.UUID        `json:"id"`
 	Name         string             `json:"name"`

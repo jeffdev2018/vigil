@@ -775,6 +775,12 @@ func main() {
 		slog.Warn("scheduler: failed to register agent_scorecard_rollup job", "error", err)
 	}
 	// Morning briefing (K30): one daily digest per enabled workspace.
+	if err := schedulerMgr.Register(scheduler.StandupJob(pool, h.RunStandup)); err != nil {
+		slog.Warn("scheduler: failed to register standup job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.WeeklyRetroJob(pool, h.GenerateDueWeeklyRetros)); err != nil {
+		slog.Warn("scheduler: failed to register weekly_retro job", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
 		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
 	}

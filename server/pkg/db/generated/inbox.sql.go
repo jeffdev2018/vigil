@@ -527,7 +527,7 @@ LEFT JOIN issue_decision d ON i.type IN ('decision_request', 'decision_escalated
     AND d.id = (i.details->>'decision_id')::uuid
 WHERE i.workspace_id = $1 AND i.recipient_type = $2 AND i.recipient_id = $3
   AND i.archived = false
-  AND i.type IN ('decision_request', 'decision_escalated', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed')
+  AND i.type IN ('decision_request', 'decision_escalated', 'task_failed', 'agent_blocked', 'review_requested', 'quick_create_unconfirmed', 'standup_question')
   AND (i.type NOT IN ('decision_request', 'decision_escalated') OR (d.id IS NOT NULL AND d.response IS NULL))
 ORDER BY i.created_at DESC
 LIMIT 200
