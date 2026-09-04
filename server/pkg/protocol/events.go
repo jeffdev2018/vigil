@@ -41,6 +41,11 @@ const (
 	EventTaskMessage               = "task:message"
 	EventTaskCancelled             = "task:cancelled" // * → cancelled
 
+	// Postmortem events (k68). postmortem:created fires when a failed run gets
+	// a drafted postmortem; postmortem:resolved fires on approve/discard.
+	EventPostmortemCreated  = "postmortem:created"
+	EventPostmortemResolved = "postmortem:resolved"
+
 	// Inbox events
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"

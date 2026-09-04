@@ -1241,6 +1241,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// MULTICA_LLM_* pays nothing for the subscription.
 	h.TaskService.SubscribeAgentMemoryExtraction(bus)
 
+	// Post-failure postmortem drafting (k68). Wired unconditionally: without an
+	// assist-layer LLM the pass stores a deterministic scaffold instead, so the
+	// artifact exists in every deployment.
+	h.TaskService.SubscribePostmortemGeneration(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -1933,6 +1938,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Post("/items/{id}/accept", h.AcceptTriageItem)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/dismiss", h.DismissTriageItem)
 				r.Patch("/sources/{id}", h.UpdateTriageSource)
+			})
+
+			// Postmortems (k68). List/get/stats are member-readable; approve and
+			// discard are human-only — a postmortem's fate is a human decision.
+			r.Route("/api/postmortems", func(r chi.Router) {
+				r.Get("/", h.GetPostmortems)
+				r.Get("/stats", h.GetPostmortemsStats)
+				r.With(handler.RequireHumanActor).Post("/{id}/approve", h.ApprovePostmortem)
+				r.With(handler.RequireHumanActor).Post("/{id}/discard", h.DiscardPostmortem)
+				r.Get("/{id}", h.GetPostmortem)
 			})
 
 			// Task messages (user-facing, not daemon auth)
