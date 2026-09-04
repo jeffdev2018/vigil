@@ -29,6 +29,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@multica/ui/components/ui/select";
 import { useT } from "../../i18n";
+import { RunLimitsSection } from "./run-limits-section";
 import { SettingsTab } from "./settings-layout";
 
 const TICKS_PER_USD = 10_000_000_000;
@@ -120,6 +121,7 @@ export function BudgetsTab() {
           </div>
         )}
       </div>
+      <RunLimitsSection canManage={canManage} />
       <BudgetEditor key={editor === "new" ? "new" : editor?.id ?? "closed"} open={editor !== null} policy={editor === "new" ? null : editor} onClose={() => setEditor(null)} projects={projects.data ?? []} agents={agents.data ?? []} />
     </SettingsTab>
   );

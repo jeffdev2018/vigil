@@ -49,6 +49,25 @@
       "cancelled": "Decided not to do."
     }
   },
+  "run_limits": {
+    "title": "Run limits",
+    "intro": "Caps on a single run: cost, duration, turns, tool calls. The most restrictive cap per gate applies across workspace, project and agent. Enforce stops the run at 100%; observe only records; both warn at the threshold.",
+    "empty": "No run limit yet. Runs are only bounded by the period budgets above.",
+    "add": "New run limit",
+    "edit": "Edit",
+    "delete": "Delete run limit for {{scope}}",
+    "save": "Save run limit",
+    "save_failed": "Failed to save the run limit",
+    "warn_at": "warn at {{percent}}%",
+    "cost_usd": "Cost ($)",
+    "duration_min": "Duration (min)",
+    "gates": {
+      "cost": "Cost",
+      "duration": "Duration",
+      "turns": "Turns",
+      "tool_calls": "Tool calls"
+    }
+  },
   "budgets": {
     "title": "Run budgets",
     "description": "Set USD limits before agent work starts. Enforced limits pause new runs; observe-only limits keep measuring.",

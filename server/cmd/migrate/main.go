@@ -333,6 +333,8 @@ var concurrentIndexCleanups = map[string]string{
 	"532_run_scoped_secret_active_index":                       "idx_run_scoped_secret_active",
 	"537_runtime_pool_workspace_index":                         "idx_runtime_pool_workspace",
 	"540_handoff_packet_issue_index":                           "idx_handoff_packet_issue",
+	"542_run_limit_policy_scope_index":                        "uq_run_limit_policy_scope",
+	"543_run_limit_event_task_index":                          "idx_run_limit_event_task",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

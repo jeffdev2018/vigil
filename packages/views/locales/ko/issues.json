@@ -911,6 +911,21 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "run_limits": {
+    "title": "실행 한도",
+    "stopped": "실행 한도로 중단됨",
+    "gates": {
+      "cost": "비용",
+      "duration": "시간",
+      "turns": "턴",
+      "tool_calls": "도구 호출"
+    },
+    "levels": {
+      "warn": "경고",
+      "exceeded": "한도 초과 (기록만)",
+      "stopped": "중단됨"
+    }
+  },
   "handoff": {
     "section": "핸드오프 패킷",
     "none": "아직 패킷이 없습니다.",

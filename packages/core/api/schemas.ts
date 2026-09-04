@@ -4251,3 +4251,35 @@ export const HandoffPacketsEnvelopeSchema = z.object({
 export const LatestHandoffPacketEnvelopeSchema = z.object({
   packet: HandoffPacketSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Run limits (K03).
+export const RunLimitPolicySchema = z.object({
+  id: z.string().default(""),
+  scope_type: z.enum(["workspace", "project", "agent"]).catch("workspace").default("workspace"),
+  scope_id: z.string().nullable().catch(null).default(null),
+  max_cost_usd_ticks: z.number().nullable().catch(null).default(null),
+  max_duration_seconds: z.number().nullable().catch(null).default(null),
+  max_turns: z.number().nullable().catch(null).default(null),
+  max_tool_calls: z.number().nullable().catch(null).default(null),
+  warn_bps: z.number().catch(8000).default(8000),
+  action: z.enum(["observe", "enforce"]).catch("enforce").default("enforce"),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RunLimitPoliciesEnvelopeSchema = z.object({
+  policies: z.array(RunLimitPolicySchema).catch([]).default([]),
+}).loose();
+
+export const RunLimitEventSchema = z.object({
+  task_id: z.string().default(""),
+  gate: z.enum(["cost", "duration", "turns", "tool_calls"]).catch("cost").default("cost"),
+  level: z.enum(["warn", "exceeded", "stopped"]).catch("warn").default("warn"),
+  observed: z.number().catch(0).default(0),
+  limit: z.number().catch(0).default(0),
+  policy_id: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RunLimitEventsEnvelopeSchema = z.object({
+  events: z.array(RunLimitEventSchema).catch([]).default([]),
+}).loose();
