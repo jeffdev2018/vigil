@@ -45,7 +45,8 @@
     "actions_aria": "Notification actions",
     "attention_title": "Needs your attention",
     "attention_empty": "Nothing needs your attention.",
-    "briefing_title": "This morning"
+    "briefing_title": "This morning",
+    "retro_title": "Weekly retro"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -83,7 +84,9 @@
     "decision_request": "Decision requested",
     "decision_escalated": "Decision overdue",
     "ownership_suggested": "Ownership suggested",
-    "morning_briefing": "Morning briefing"
+    "morning_briefing": "Morning briefing",
+    "standup_question": "Standup question",
+    "weekly_retro": "Weekly retro"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -131,5 +134,29 @@
     "approve": "Approve",
     "approve_failed": "Failed to approve",
     "pending_decisions": "{{count}} decision waiting"
+  },
+  "retro": {
+    "loading": "Loading the retro…",
+    "load_failed": "The retro could not be loaded.",
+    "retry": "Retry",
+    "empty": "No retro generated yet. The first one covers the last completed week.",
+    "generate_now": "Generate now",
+    "generated": "Retro generated",
+    "generate_failed": "Failed to generate the retro",
+    "regenerate": "Regenerate",
+    "week": "Week of {{start}} to {{end}}",
+    "generated_ago": "generated {{ago}}",
+    "runs": "Runs this week ({{count}})",
+    "no_runs": "No agent run this week.",
+    "median": "median {{minutes}} min",
+    "failed": "Failed runs ({{count}})",
+    "agents": "Agents",
+    "col_agent": "Agent",
+    "col_runs": "Runs",
+    "col_failed": "Failed",
+    "col_accepted": "Accepted",
+    "col_cost": "Cost ($)",
+    "skills": "Skill proposals",
+    "skills_empty": "Skill proposals arrive with Skill Miner; nothing to propose yet."
   }
 }

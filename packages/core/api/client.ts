@@ -81,6 +81,7 @@ import type {
   DecisionRecord,
   BusinessRule,
   BusinessRuleDryRun,
+  WeeklyRetro,
   BusinessRuleViolation,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
@@ -304,6 +305,7 @@ import {
   ADRRequirementSchema,
   DecisionRecordListSchema,
   BusinessRuleListSchema,
+  WeeklyRetroSchema,
   BusinessRuleEnvelopeSchema,
   BusinessRuleDryRunSchema,
   BusinessRuleViolationListSchema,
@@ -721,6 +723,8 @@ function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
   const encoded = search.toString();
   return encoded ? `?${encoded}` : "";
 }
+
+const EMPTY_RETRO: WeeklyRetro = { week_start: "", week_end: "", runs_total: 0, runs_by_status: {}, median_minutes: 0, failed: [], agents: [], skill_proposals: [], narrative: "", generated_at: null };
 
 export class ApiClient {
   private baseUrl: string;
@@ -2667,6 +2671,24 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Standup and retro (K34). Null when no retro exists for the week yet.
+  async getWeeklyRetro(week?: string): Promise<WeeklyRetro | null> {
+    const q = week ? `?week=${encodeURIComponent(week)}` : "";
+    let raw: unknown;
+    try {
+      raw = await this.fetch<unknown>(`/api/retro/weekly${q}`);
+    } catch (e) {
+      if (typeof e === "object" && e !== null && (e as { status?: number }).status === 404) return null;
+      throw e;
+    }
+    return parseWithFallback(raw, WeeklyRetroSchema, EMPTY_RETRO, { endpoint: "GET /api/retro/weekly" });
+  }
+
+  async regenerateWeeklyRetro(week?: string): Promise<WeeklyRetro> {
+    const raw = await this.fetch<unknown>("/api/retro/weekly/regenerate", { method: "POST", body: JSON.stringify(week ? { week } : {}) });
+    return parseWithFallback(raw, WeeklyRetroSchema, EMPTY_RETRO, { endpoint: "POST /api/retro/weekly/regenerate" });
+  }
+
   // Business rules (K53).
   async listBusinessRules(): Promise<{ rules: BusinessRule[]; attach_points: string[] }> {
     const raw = await this.fetch<unknown>("/api/business-rules");

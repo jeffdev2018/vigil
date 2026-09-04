@@ -743,7 +743,15 @@
     "rules_remove": "규칙 삭제",
     "rules_dry_run_clean": "드라이런: 오늘 차단되는 항목이 없습니다({{count}}개 확인).",
     "rules_dry_run_violations": "드라이런: {{checked}}개 중 {{count}}개가 오늘 차단됩니다.",
-    "rules_failed": "규칙을 저장하지 못했습니다"
+    "rules_failed": "규칙을 저장하지 못했습니다",
+    "standup_section": "스탠드업과 회고",
+    "standup_enabled_label": "막힌 이슈에 대해 질문",
+    "standup_enabled_description": "매일, 임계값보다 오래 차단되었거나 결정을 기다리는 이슈는 담당자(모듈 소유자, 없으면 지정자, 없으면 생성자)에게 질문을 하나 보냅니다.",
+    "standup_hours_label": "막힘 기준(시간)",
+    "standup_hours_description": "누군가에게 질문하기 전까지 이슈가 차단되거나 대기할 수 있는 시간.",
+    "standup_retro_label": "주간 회고",
+    "standup_retro_description": "매주, 마지막으로 완료된 주의 실행을 각 에이전트의 스코어카드와 함께 정리해 소유자와 관리자에게 보냅니다.",
+    "standup_failed": "스탠드업 설정을 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

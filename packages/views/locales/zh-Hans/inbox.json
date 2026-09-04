@@ -43,7 +43,8 @@
     "actions_aria": "通知操作",
     "attention_title": "需要你处理",
     "attention_empty": "没有需要你处理的事项。",
-    "briefing_title": "今晨简报"
+    "briefing_title": "今晨简报",
+    "retro_title": "每周回顾"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -81,7 +82,9 @@
     "decision_request": "请求决策",
     "decision_escalated": "决策已逾期",
     "ownership_suggested": "建议归属",
-    "morning_briefing": "晨间简报"
+    "morning_briefing": "晨间简报",
+    "standup_question": "站会提问",
+    "weekly_retro": "每周回顾"
   },
   "labels": {
     "set_status_to": "状态设为",
@@ -129,5 +132,29 @@
     "approve": "批准",
     "approve_failed": "批准失败",
     "pending_decisions": "{{count}} 个决策待回答"
+  },
+  "retro": {
+    "loading": "正在加载回顾…",
+    "load_failed": "无法加载回顾。",
+    "retry": "重试",
+    "empty": "尚未生成回顾。第一份回顾覆盖最近一个完整的周。",
+    "generate_now": "立即生成",
+    "generated": "回顾已生成",
+    "generate_failed": "生成回顾失败",
+    "regenerate": "重新生成",
+    "week": "{{start}} 至 {{end}} 这一周",
+    "generated_ago": "生成于 {{ago}}",
+    "runs": "本周运行（{{count}}）",
+    "no_runs": "本周没有智能体运行。",
+    "median": "中位数 {{minutes}} 分钟",
+    "failed": "失败的运行（{{count}}）",
+    "agents": "智能体",
+    "col_agent": "智能体",
+    "col_runs": "运行",
+    "col_failed": "失败",
+    "col_accepted": "已接受",
+    "col_cost": "成本（$）",
+    "skills": "技能建议",
+    "skills_empty": "技能建议将随 Skill Miner 一起提供；暂无建议。"
   }
 }

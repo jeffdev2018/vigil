@@ -743,7 +743,15 @@
     "rules_remove": "ルールを削除",
     "rules_dry_run_clean": "ドライラン：今日ブロックされるものはありません（{{count}} 件確認）。",
     "rules_dry_run_violations": "ドライラン：{{checked}} 件中 {{count}} 件が今日ブロックされます。",
-    "rules_failed": "ルールを保存できませんでした"
+    "rules_failed": "ルールを保存できませんでした",
+    "standup_section": "スタンドアップとレトロ",
+    "standup_enabled_label": "停滞した issue について質問する",
+    "standup_enabled_description": "毎日、しきい値を超えてブロックまたは判断待ちの issue は、その担当者（モジュールオーナー、なければ担当者、なければ作成者）に質問を 1 件送ります。",
+    "standup_hours_label": "停滞とみなす時間（時間）",
+    "standup_hours_description": "誰かに質問するまでに issue がブロックまたは待機していてよい時間。",
+    "standup_retro_label": "週次レトロ",
+    "standup_retro_description": "毎週、直近の完了した週の実行を各エージェントのスコアカードとともにまとめ、オーナーと管理者に送ります。",
+    "standup_failed": "スタンドアップ設定を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

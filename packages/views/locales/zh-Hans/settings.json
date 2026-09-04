@@ -743,7 +743,15 @@
     "rules_remove": "删除规则",
     "rules_dry_run_clean": "试运行：今天不会阻止任何内容（已检查 {{count}} 项）。",
     "rules_dry_run_violations": "试运行：{{checked}} 项中有 {{count}} 项今天会被阻止。",
-    "rules_failed": "无法保存规则"
+    "rules_failed": "无法保存规则",
+    "standup_section": "站会与回顾",
+    "standup_enabled_label": "询问卡住的 issue",
+    "standup_enabled_description": "每天，被阻塞或等待决策超过阈值的 issue 会向其负责人（模块负责人，否则是指派人，否则是创建者）发送一个问题。",
+    "standup_hours_label": "卡住阈值（小时）",
+    "standup_hours_description": "在询问他人之前，issue 可以保持阻塞或等待的时长。",
+    "standup_retro_label": "每周回顾",
+    "standup_retro_description": "每周将最近一个完整周的运行与各智能体的记分卡汇总，发送给所有者和管理员。",
+    "standup_failed": "更新站会设置失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

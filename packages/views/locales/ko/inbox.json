@@ -43,7 +43,8 @@
     "actions_aria": "알림 작업",
     "attention_title": "주의 필요",
     "attention_empty": "주의가 필요한 항목이 없습니다.",
-    "briefing_title": "오늘 아침 브리핑"
+    "briefing_title": "오늘 아침 브리핑",
+    "retro_title": "주간 회고"
   },
   "detail": {
     "select_prompt": "자세히 볼 알림을 선택하세요",
@@ -81,7 +82,9 @@
     "decision_request": "결정 요청",
     "decision_escalated": "결정 기한 초과",
     "ownership_suggested": "담당자 제안",
-    "morning_briefing": "아침 브리핑"
+    "morning_briefing": "아침 브리핑",
+    "standup_question": "스탠드업 질문",
+    "weekly_retro": "주간 회고"
   },
   "labels": {
     "set_status_to": "상태 변경:",
@@ -129,5 +132,29 @@
     "approve": "승인",
     "approve_failed": "승인하지 못했습니다",
     "pending_decisions": "결정 대기 {{count}}건"
+  },
+  "retro": {
+    "loading": "회고를 불러오는 중…",
+    "load_failed": "회고를 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "empty": "아직 생성된 회고가 없습니다. 첫 회고는 마지막으로 완료된 주를 다룹니다.",
+    "generate_now": "지금 생성",
+    "generated": "회고를 생성했습니다",
+    "generate_failed": "회고를 생성하지 못했습니다",
+    "regenerate": "다시 생성",
+    "week": "{{start}} ~ {{end}} 주",
+    "generated_ago": "{{ago}} 생성됨",
+    "runs": "이번 주 실행({{count}})",
+    "no_runs": "이번 주에는 에이전트 실행이 없습니다.",
+    "median": "중앙값 {{minutes}}분",
+    "failed": "실패한 실행({{count}})",
+    "agents": "에이전트",
+    "col_agent": "에이전트",
+    "col_runs": "실행",
+    "col_failed": "실패",
+    "col_accepted": "수락",
+    "col_cost": "비용($)",
+    "skills": "스킬 제안",
+    "skills_empty": "스킬 제안은 Skill Miner와 함께 제공됩니다. 아직 제안이 없습니다."
   }
 }
