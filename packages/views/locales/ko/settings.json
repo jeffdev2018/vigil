@@ -695,7 +695,20 @@
     "decision_sla_substitute_label": "대리인",
     "decision_sla_substitute_description": "기한을 넘긴 카드를 먼저 알릴 사람. 없으면 소유자와 관리자에게 알립니다.",
     "decision_sla_substitute_none": "대리인 없음",
-    "decision_sla_failed": "결정 기한을 업데이트하지 못했습니다"
+    "decision_sla_failed": "결정 기한을 업데이트하지 못했습니다",
+    "ownership_section": "모듈 소유권",
+    "ownership_description": "규칙은 경로 패턴(packages/core/billing/**) 또는 라벨을 담당자와 참조 에이전트에 연결합니다. 일치하는 경로를 언급하거나 라벨이 있는 이슈에 제안됩니다. 클릭 없이는 배정되지 않습니다.",
+    "ownership_empty": "아직 규칙이 없습니다. 아래에서 첫 규칙을 추가하세요.",
+    "ownership_label_prefix": "라벨:",
+    "ownership_remove": "규칙 삭제",
+    "ownership_pattern": "경로 패턴",
+    "ownership_label": "라벨",
+    "ownership_no_label": "라벨 없음",
+    "ownership_owner": "담당자",
+    "ownership_agent": "참조 에이전트",
+    "ownership_no_agent": "에이전트 없음",
+    "ownership_add": "규칙 추가",
+    "ownership_failed": "규칙을 저장하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

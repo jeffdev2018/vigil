@@ -980,5 +980,15 @@
     "error": "无法加载审阅驾驶舱。",
     "retry": "重试",
     "move_failed": "无法更改议题状态"
+  },
+  "ownership": {
+    "section": "建议的负责人",
+    "matched": "匹配 {{what}}",
+    "matched_label": "标签规则",
+    "assign_owner": "分配给 {{name}}",
+    "assign_agent": "分配给 {{name}}",
+    "member": "负责人",
+    "agent": "参考智能体",
+    "assign_failed": "分配失败"
   }
 }

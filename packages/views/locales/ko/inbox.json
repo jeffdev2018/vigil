@@ -78,7 +78,8 @@
     "autopilot_paused": "자동화 일시 중지됨",
     "autopilot_quota_exceeded": "자동화 실행 한도 도달",
     "decision_request": "결정 요청",
-    "decision_escalated": "결정 기한 초과"
+    "decision_escalated": "결정 기한 초과",
+    "ownership_suggested": "담당자 제안"
   },
   "labels": {
     "set_status_to": "상태 변경:",

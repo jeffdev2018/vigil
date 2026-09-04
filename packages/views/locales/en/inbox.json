@@ -80,7 +80,8 @@
     "autopilot_paused": "Autopilot paused",
     "autopilot_quota_exceeded": "Autopilot run limit reached",
     "decision_request": "Decision requested",
-    "decision_escalated": "Decision overdue"
+    "decision_escalated": "Decision overdue",
+    "ownership_suggested": "Ownership suggested"
   },
   "labels": {
     "set_status_to": "Set status to",

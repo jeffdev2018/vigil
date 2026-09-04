@@ -980,5 +980,15 @@
     "error": "レビューコックピットを読み込めませんでした。",
     "retry": "再試行",
     "move_failed": "イシューのステータスを変更できませんでした"
+  },
+  "ownership": {
+    "section": "提案された担当者",
+    "matched": "{{what}} に一致",
+    "matched_label": "ラベルのルール",
+    "assign_owner": "{{name}} に割り当て",
+    "assign_agent": "{{name}} に割り当て",
+    "member": "担当者",
+    "agent": "参照エージェント",
+    "assign_failed": "割り当てできませんでした"
   }
 }

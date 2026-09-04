@@ -78,7 +78,8 @@
     "autopilot_paused": "自動化を一時停止しました",
     "autopilot_quota_exceeded": "自動化の実行上限に達しました",
     "decision_request": "判断を求めています",
-    "decision_escalated": "判断が期限超過"
+    "decision_escalated": "判断が期限超過",
+    "ownership_suggested": "担当者の提案"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

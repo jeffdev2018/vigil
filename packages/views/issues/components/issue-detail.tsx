@@ -94,6 +94,7 @@ import { ExecutionLogSection } from "./execution-log-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
+import { OwnershipSuggestionSection } from "./ownership-suggestion-section";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
@@ -2590,6 +2591,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Decision Cards — questions an agent asked on this issue (K01).
           Hides itself until a card exists; pending cards lead. */}
       <DecisionCardsSection issueId={id} />
+
+      {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
+      <OwnershipSuggestionSection issue={issue} />
 
       {/* Outcome Contract — acceptance criteria and their proofs (K12). The
           server refuses done while one lacks proof; this shows which. */}

@@ -1011,5 +1011,15 @@
     "error": "The review cockpit could not be loaded.",
     "retry": "Retry",
     "move_failed": "Failed to change the issue status"
+  },
+  "ownership": {
+    "section": "Suggested owner",
+    "matched": "Matched {{what}}",
+    "matched_label": "a label rule",
+    "assign_owner": "Assign to {{name}}",
+    "assign_agent": "Assign to {{name}}",
+    "member": "the owner",
+    "agent": "the referent agent",
+    "assign_failed": "Failed to assign"
   }
 }

@@ -697,7 +697,20 @@
     "decision_sla_substitute_label": "Substitute",
     "decision_sla_substitute_description": "Who hears about an overdue card first. Without one, the owners and admins do.",
     "decision_sla_substitute_none": "No substitute",
-    "decision_sla_failed": "Failed to update decision deadlines"
+    "decision_sla_failed": "Failed to update decision deadlines",
+    "ownership_section": "Module ownership",
+    "ownership_description": "A rule maps a path pattern (packages/core/billing/**) or a label to an owner and a referent agent. Issues that name a matching path or carry the label get them suggested; nothing is assigned without a click.",
+    "ownership_empty": "No rule yet. Add the first one below.",
+    "ownership_label_prefix": "label:",
+    "ownership_remove": "Remove rule",
+    "ownership_pattern": "Path pattern",
+    "ownership_label": "Label",
+    "ownership_no_label": "No label",
+    "ownership_owner": "Owner",
+    "ownership_agent": "Referent agent",
+    "ownership_no_agent": "No agent",
+    "ownership_add": "Add rule",
+    "ownership_failed": "Failed to save the rule"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

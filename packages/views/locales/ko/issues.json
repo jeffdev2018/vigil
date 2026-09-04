@@ -980,5 +980,15 @@
     "error": "리뷰 콕핏을 불러오지 못했습니다.",
     "retry": "다시 시도",
     "move_failed": "이슈 상태를 변경하지 못했습니다"
+  },
+  "ownership": {
+    "section": "제안된 담당자",
+    "matched": "{{what}} 일치",
+    "matched_label": "라벨 규칙",
+    "assign_owner": "{{name}}에게 배정",
+    "assign_agent": "{{name}}에게 배정",
+    "member": "담당자",
+    "agent": "참조 에이전트",
+    "assign_failed": "배정하지 못했습니다"
   }
 }

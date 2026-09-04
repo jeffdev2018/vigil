@@ -78,6 +78,10 @@ vi.mock("../../navigation", () => ({
   useNavigation: () => ({ push: vi.fn() }),
 }));
 
+// Module ownership (K33) has its own queries and tests; the tab test keeps
+// to the workspace fields.
+vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => null }));
+
 vi.mock("./delete-workspace-dialog", () => ({
   DeleteWorkspaceDialog: () => null,
 }));

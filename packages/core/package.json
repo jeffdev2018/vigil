@@ -44,6 +44,7 @@
     "./issues/acceptance": "./issues/acceptance.ts",
     "./issues/scoping": "./issues/scoping.ts",
     "./issues/cockpit": "./issues/cockpit.ts",
+    "./issues/ownership": "./issues/ownership.ts",
     "./issues/timeline-sort": "./issues/timeline-sort.ts",
     "./issues/comment-trigger-outcomes": "./issues/comment-trigger-outcomes.ts",
     "./issues/date": "./issues/date.ts",

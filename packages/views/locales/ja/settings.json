@@ -695,7 +695,20 @@
     "decision_sla_substitute_label": "代理担当者",
     "decision_sla_substitute_description": "期限超過のカードを最初に知らせる相手。未設定ならオーナーと管理者に通知します。",
     "decision_sla_substitute_none": "代理担当者なし",
-    "decision_sla_failed": "判断の期限を更新できませんでした"
+    "decision_sla_failed": "判断の期限を更新できませんでした",
+    "ownership_section": "モジュールの担当",
+    "ownership_description": "ルールはパスパターン（packages/core/billing/**）またはラベルを担当者と参照エージェントに対応付けます。一致するパスを含むかラベルの付いたイシューに提案されます。クリックなしで割り当てられることはありません。",
+    "ownership_empty": "ルールはまだありません。下から最初のルールを追加してください。",
+    "ownership_label_prefix": "ラベル:",
+    "ownership_remove": "ルールを削除",
+    "ownership_pattern": "パスパターン",
+    "ownership_label": "ラベル",
+    "ownership_no_label": "ラベルなし",
+    "ownership_owner": "担当者",
+    "ownership_agent": "参照エージェント",
+    "ownership_no_agent": "エージェントなし",
+    "ownership_add": "ルールを追加",
+    "ownership_failed": "ルールを保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

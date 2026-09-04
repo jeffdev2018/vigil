@@ -3623,3 +3623,33 @@ export const DashboardCostPerDeliverableSchema = z.object({
   issues: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
   pull_requests: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
 }).loose();
+
+// Module ownership (K33).
+export const ModuleOwnershipRuleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  path_pattern: z.string().nullable().default(null),
+  label_id: z.string().nullable().default(null),
+  owner_user_id: z.string().default(""),
+  referent_agent_id: z.string().nullable().default(null),
+  priority: z.number().int().default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const ModuleOwnershipRuleEnvelopeSchema = z.object({
+  rule: ModuleOwnershipRuleSchema,
+}).loose();
+
+export const ModuleOwnershipListSchema = z.object({
+  rules: z.array(ModuleOwnershipRuleSchema).catch([]).default([]),
+}).loose();
+
+export const OwnershipSuggestionEnvelopeSchema = z.object({
+  suggestion: z.object({
+    rule_id: z.string().default(""),
+    owner_user_id: z.string(),
+    referent_agent_id: z.string().nullable().default(null),
+    matched: z.string().default(""),
+    pattern: z.string().default(""),
+  }).loose().nullable().catch(null).default(null),
+}).loose();

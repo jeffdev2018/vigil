@@ -7,6 +7,27 @@
  */
 export type LabelResourceType = "issue" | "agent" | "skill";
 
+// Module ownership (K33).
+export interface ModuleOwnershipRule {
+  id: string;
+  workspace_id: string;
+  path_pattern: string | null;
+  label_id: string | null;
+  owner_user_id: string;
+  referent_agent_id: string | null;
+  priority: number;
+  created_at: string;
+}
+
+export interface OwnershipSuggestion {
+  rule_id: string;
+  owner_user_id: string;
+  referent_agent_id: string | null;
+  /** "label:<id>" or "path:<path>". */
+  matched: string;
+  pattern: string;
+}
+
 export interface Label {
   id: string;
   workspace_id: string;

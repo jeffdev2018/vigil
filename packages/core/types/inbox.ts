@@ -30,7 +30,8 @@ export type InboxItemType =
   | "autopilot_paused"
   | "autopilot_quota_exceeded"
   | "decision_request"
-  | "decision_escalated";
+  | "decision_escalated"
+  | "ownership_suggested";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

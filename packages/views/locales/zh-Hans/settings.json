@@ -695,7 +695,20 @@
     "decision_sla_substitute_label": "替补",
     "decision_sla_substitute_description": "逾期卡片首先通知的人。未设置时通知所有者和管理员。",
     "decision_sla_substitute_none": "无替补",
-    "decision_sla_failed": "无法更新决策期限"
+    "decision_sla_failed": "无法更新决策期限",
+    "ownership_section": "模块归属",
+    "ownership_description": "规则把路径模式（packages/core/billing/**）或标签映射到负责人和参考智能体。提及匹配路径或带有该标签的议题会收到建议；未经点击不会自动分配。",
+    "ownership_empty": "还没有规则，在下方添加第一条。",
+    "ownership_label_prefix": "标签:",
+    "ownership_remove": "删除规则",
+    "ownership_pattern": "路径模式",
+    "ownership_label": "标签",
+    "ownership_no_label": "无标签",
+    "ownership_owner": "负责人",
+    "ownership_agent": "参考智能体",
+    "ownership_no_agent": "无智能体",
+    "ownership_add": "添加规则",
+    "ownership_failed": "无法保存规则"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

@@ -232,6 +232,8 @@ import type {
   PlanVerification,
   IssueDecision,
   ReviewCockpit,
+  ModuleOwnershipRule,
+  OwnershipSuggestion,
   IssueScopingProposal,
   AcceptanceCriterion,
   DecisionAnswer,
@@ -424,6 +426,9 @@ import {
   PlanMaterializationSchema,
   IssueDecisionsResponseSchema,
   ReviewCockpitSchema,
+  ModuleOwnershipListSchema,
+  ModuleOwnershipRuleEnvelopeSchema,
+  OwnershipSuggestionEnvelopeSchema,
   IssueScopingEnvelopeSchema,
   AcceptanceCriteriaResponseSchema,
   IssueDecisionEnvelopeSchema,
@@ -1362,6 +1367,41 @@ export class ApiClient {
     });
     if (!parsed) throw new Error("respond decision returned a malformed decision");
     return parsed.decision;
+  }
+
+  // Module ownership (K33).
+  async listModuleOwnership(): Promise<ModuleOwnershipRule[]> {
+    const raw = await this.fetch<unknown>(`/api/module-ownership`);
+    return parseWithFallback(raw, ModuleOwnershipListSchema, { rules: [] }, { endpoint: "GET /api/module-ownership" }).rules;
+  }
+
+  async createModuleOwnership(data: {
+    path_pattern?: string;
+    label_id?: string;
+    owner_user_id: string;
+    referent_agent_id?: string;
+    priority?: number;
+  }): Promise<ModuleOwnershipRule> {
+    const raw = await this.fetch<unknown>(`/api/module-ownership`, { method: "POST", body: JSON.stringify(data) });
+    const parsed = parseWithFallback<{ rule: ModuleOwnershipRule } | null>(raw, ModuleOwnershipRuleEnvelopeSchema, null, {
+      endpoint: "POST /api/module-ownership",
+    });
+    if (!parsed) throw new Error("create ownership rule returned a malformed rule");
+    return parsed.rule;
+  }
+
+  async deleteModuleOwnership(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/module-ownership/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getOwnershipSuggestion(issueId: string, options?: { signal?: AbortSignal }): Promise<OwnershipSuggestion | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/ownership-suggestion`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, OwnershipSuggestionEnvelopeSchema, { suggestion: null }, {
+      endpoint: "GET /api/issues/:id/ownership-suggestion",
+    }).suggestion;
   }
 
   // Review cockpit (K16).
