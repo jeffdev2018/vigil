@@ -51,7 +51,8 @@
     "error_toast": "문제가 발생했습니다",
     "resolution_reason": "사유: {{reason}}",
     "accepted_toast_identifier": "수락됨 — {{identifier}} 생성됨",
-    "open_issue": "열기"
+    "open_issue": "열기",
+    "from_meeting": "회의에서"
   },
   "batch": {
     "accept": "{{count}}건 수락",

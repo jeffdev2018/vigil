@@ -1499,6 +1499,7 @@ export const TriageItemSchema = z.object({
   source_name: z.string().default(""),
   source_kind: z.string().default(""),
   origin_type: z.string().default(""),
+  origin_id: z.string().optional(),
   title: z.string().default(""),
   body_markdown: z.string().default(""),
   payload: z.record(z.string(), z.unknown()).default({}),

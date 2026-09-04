@@ -148,7 +148,7 @@ vi.mock("@multica/core/triage/mutations", () => ({
   useUpdateTriageSourceMode: () => ({ mutate: mutations.updateMode, isPending: false }),
 }));
 
-function renderPage() {
+function renderPage(search = "") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -157,7 +157,7 @@ function renderPage() {
     replace: vi.fn(),
     back: vi.fn(),
     pathname: "/acme/triage",
-    searchParams: new URLSearchParams(),
+    searchParams: new URLSearchParams(search),
     hash: "",
     getShareableUrl: (p) => p,
   };
@@ -289,6 +289,20 @@ describe("TriagePage", () => {
     await waitFor(() =>
       expect(screen.queryByRole("button", { name: /load more/i })).toBeNull(),
     );
+  });
+
+  // Deep link + provenance: a meeting action links at the exact item it
+  // produced, and the item links back at the meeting it came from.
+  it("preselects the ?item= entry and links back to its meeting", async () => {
+    data.items.items[0] = {
+      ...data.items.items[0]!,
+      origin_type: "meeting",
+      origin_id: "meet-1",
+    };
+    renderPage("item=item-1");
+    expect(await screen.findByTestId("rich-content")).toBeTruthy();
+    const link = screen.getByRole("link", { name: /from meeting/i });
+    expect(link.getAttribute("href")).toBe("/acme/meetings/meet-1");
   });
 
   it("checking a row reveals the batch-accept bar", async () => {

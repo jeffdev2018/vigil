@@ -51,7 +51,8 @@
     "error_toast": "Something went wrong",
     "resolution_reason": "Reason: {{reason}}",
     "accepted_toast_identifier": "Accepted — {{identifier}} created",
-    "open_issue": "Open"
+    "open_issue": "Open",
+    "from_meeting": "From meeting"
   },
   "batch": {
     "accept": "Accept {{count}}",

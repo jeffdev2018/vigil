@@ -247,7 +247,7 @@ function ActionRow({ action }: { action: MeetingAction }) {
   // queue no longer shows it.
   const href = action.issue_id
     ? wsPaths.issueDetail(action.issue_id)
-    : wsPaths.triage();
+    : wsPaths.triage(action.triage_item_id);
   return (
     <li className="flex items-center gap-2 rounded-lg border px-2 py-2">
       <span className="min-w-0 flex-1 truncate text-body">{action.title}</span>

@@ -51,7 +51,8 @@
     "error_toast": "問題が発生しました",
     "resolution_reason": "理由: {{reason}}",
     "accepted_toast_identifier": "承認しました — {{identifier}} を作成しました",
-    "open_issue": "開く"
+    "open_issue": "開く",
+    "from_meeting": "会議から"
   },
   "batch": {
     "accept": "{{count}} 件を承認",

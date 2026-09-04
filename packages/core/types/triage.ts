@@ -32,6 +32,8 @@ export interface TriageItem {
   source_name: string;
   source_kind: string;
   origin_type: string;
+  /** The object the item came from: a meeting id for `origin_type: "meeting"`, an autopilot id for "autopilot". */
+  origin_id?: string;
   title: string;
   body_markdown: string;
   payload: TriageItemPayload;

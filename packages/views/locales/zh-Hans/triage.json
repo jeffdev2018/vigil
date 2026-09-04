@@ -51,7 +51,8 @@
     "error_toast": "出了点问题",
     "resolution_reason": "原因：{{reason}}",
     "accepted_toast_identifier": "已接受，已创建 {{identifier}}",
-    "open_issue": "打开"
+    "open_issue": "打开",
+    "from_meeting": "来自会议"
   },
   "batch": {
     "accept": "接受 {{count}} 项",

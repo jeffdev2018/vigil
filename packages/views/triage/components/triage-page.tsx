@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Inbox, Check, X, Loader2 } from "lucide-react";
+import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { ApiError } from "@multica/core/api";
@@ -33,7 +33,7 @@ import {
   SelectValue,
 } from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
-import { useNavigation } from "../../navigation";
+import { AppLink, useNavigation } from "../../navigation";
 import { RichContent } from "../../rich-content";
 
 const SOURCE_MODES: TriageSourceMode[] = ["gate", "direct", "blocked"];
@@ -68,7 +68,13 @@ export function TriagePage() {
   const [filterState, setFilterState] = useState<TriageItemState>("pending");
   const itemsQuery = useInfiniteQuery(triageItemsInfiniteOptions(wsId, filterState));
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `?item=` deep link: a meeting action (paths.triage(itemId)) opens the queue
+  // on the entry it produced. Read once — after that the selection is the
+  // user's, not the URL's.
+  const { searchParams } = useNavigation();
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => searchParams.get("item"),
+  );
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
 
   const items = useMemo(
@@ -509,6 +515,15 @@ function TriageDetailBody({
               ? ` · ${t(($) => $.detail.collapse_count, { count: item.collapse_count })}`
               : ""}
           </p>
+          {item.origin_type === "meeting" && item.origin_id ? (
+            <AppLink
+              href={wsPaths.meetingDetail(item.origin_id)}
+              className="inline-flex items-center gap-1 text-caption text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+              {t(($) => $.detail.from_meeting)}
+            </AppLink>
+          ) : null}
         </div>
         {item.state !== "pending" ? null : (
         <div className="flex shrink-0 items-center gap-2">

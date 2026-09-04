@@ -274,3 +274,38 @@ func TestListTriageItemsExposesResolutionReason(t *testing.T) {
 	}
 	t.Fatalf("dismissed item %s missing from state=dismissed listing", itemID)
 }
+
+// The queue view links a meeting-born item back at its meeting, so the item's
+// origin_id has to leave the API — origin_type alone names the kind, not the
+// object.
+func TestListTriageItemsExposesOriginID(t *testing.T) {
+	meetingID := uuid.NewString()
+	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id":     testWorkspaceID,
+		"source_id":        uuid.NewString(),
+		"origin_type":      "meeting",
+		"origin_id":        meetingID,
+		"title":            "meeting action item",
+		"normalized_title": "meeting action item",
+		"state":            triage.StatePending,
+		"shadow":           false,
+	})
+
+	var out struct {
+		Items []TriageItemResponse `json:"items"`
+	}
+	testutil.Call(t, testHandler.ListTriageItems,
+		newRequest(http.MethodGet, "/api/triage/items?state=pending&limit=100", nil),
+	).Want(http.StatusOK).JSON(&out)
+
+	for _, item := range out.Items {
+		if item.ID != itemID {
+			continue
+		}
+		if item.OriginType != "meeting" || item.OriginID != meetingID {
+			t.Fatalf("origin = %s/%s, want meeting/%s", item.OriginType, item.OriginID, meetingID)
+		}
+		return
+	}
+	t.Fatalf("pending item %s missing from the listing", itemID)
+}

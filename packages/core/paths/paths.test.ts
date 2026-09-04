@@ -35,6 +35,10 @@ describe("paths.workspace(slug)", () => {
     expect(ws.squadDetail("sq_1")).toBe("/acme/squads/sq_1");
     expect(ws.settings()).toBe("/acme/settings");
     expect(ws.attachmentPreview("att_42")).toBe("/acme/attachments/att_42/preview");
+    expect(ws.triage()).toBe("/acme/triage");
+    // `?item=` preselects a queue entry so a meeting action can deep-link it.
+    expect(ws.triage("item one")).toBe("/acme/triage?item=item%20one");
+    expect(ws.meetingDetail("m1")).toBe("/acme/meetings/m1");
   });
 
   it("URL-encodes special characters in ids", () => {

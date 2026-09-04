@@ -61,6 +61,7 @@ type TriageItemResponse struct {
 	SourceName         string          `json:"source_name"`
 	SourceKind         string          `json:"source_kind"`
 	OriginType         string          `json:"origin_type"`
+	OriginID           string          `json:"origin_id,omitempty"`
 	Title              string          `json:"title"`
 	BodyMarkdown       string          `json:"body_markdown"`
 	Payload            json.RawMessage `json:"payload"`
@@ -255,6 +256,9 @@ func triageItemToResponse(row db.TriageItem, sourceByID map[string]db.TriageSour
 	}
 	if len(row.Payload) == 0 {
 		resp.Payload = json.RawMessage(`{}`)
+	}
+	if row.OriginID.Valid {
+		resp.OriginID = util.UUIDToString(row.OriginID)
 	}
 	if row.DropReason.Valid {
 		resp.DropReason = row.DropReason.String
