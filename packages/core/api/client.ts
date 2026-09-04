@@ -343,6 +343,7 @@ import {
   HandoffPacketSchema,
   RunLimitPolicySchema,
   RunControlEnvelopeSchema,
+  RunCheckpointEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
   HandoffPacketsEnvelopeSchema,
@@ -3144,6 +3145,12 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Checkpoints (K20).
+  async getRunCheckpointStatus(issueId: string): Promise<import("../issues/checkpoint").RunCheckpointStatus | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/checkpoint-status`);
+    return parseWithFallback(raw, RunCheckpointEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/run/checkpoint-status" }).run;
   }
 
   // Run limits (K03).

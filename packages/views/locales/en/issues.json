@@ -943,6 +943,13 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "checkpoint": {
+    "resumed": "Run interrupted and resumed automatically {{point}} (resume {{attempts}}/{{max}}).",
+    "exhausted": "Infrastructure interruptions: the automatic resume gave up after {{attempts}}/{{max}} attempts. This is not the task failing on its own.",
+    "from_seq": "from checkpoint message {{seq}}",
+    "from_start": "from the start",
+    "checkpointed": "last checkpoint {{when}}"
+  },
   "run_control": {
     "pause": "Pause the run",
     "pause_hint": "Stops at the next safe boundary (after the current tool call) and waits for your instruction.",

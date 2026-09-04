@@ -912,6 +912,13 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "checkpoint": {
+    "resumed": "运行被中断并已{{point}}自动恢复（恢复 {{attempts}}/{{max}}）。",
+    "exhausted": "基础设施中断：自动恢复在 {{attempts}}/{{max}} 次后放弃。这不是任务本身失败。",
+    "from_seq": "从检查点消息 {{seq}}",
+    "from_start": "从头",
+    "checkpointed": "最近检查点 {{when}}"
+  },
   "run_control": {
     "pause": "暂停运行",
     "pause_hint": "在下一个安全边界（当前工具调用之后）停止并等待你的指示。",
