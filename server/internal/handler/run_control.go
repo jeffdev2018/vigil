@@ -140,12 +140,17 @@ func (h *Handler) ResumeRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rows, err := h.Queries.ListSteeringInstructions(r.Context(), task.ID)
-	if err != nil || len(rows) == 0 {
+	if err != nil || (len(rows) == 0 && !task.PreemptedAt.Valid) {
 		writeErrorCode(w, http.StatusBadRequest, ErrCodeRunNoSteering, "leave an instruction before resuming")
 		return
 	}
 	var note strings.Builder
-	note.WriteString(pausedResumeNoteLead)
+	if len(rows) == 0 {
+		// Preemption (K41): a suspended run continues as it was.
+		note.WriteString("Resumed by a human after being suspended for an urgent issue. Continue from where you stopped; nothing else changed.")
+	} else {
+		note.WriteString(pausedResumeNoteLead)
+	}
 	for _, m := range rows {
 		note.WriteString("\n- " + m.Content.String)
 	}

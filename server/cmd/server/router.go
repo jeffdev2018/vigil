@@ -2082,6 +2082,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/state", h.GetRunControlState)
 				r.Get("/checkpoint-status", h.GetRunCheckpointStatus)
 			})
+			// Preemption (K41): which runs were suspended for an urgent issue.
+			r.Get("/api/issues/{id}/preemptions", h.ListIssuePreemptions)
 			// Traffic control (K18): a run editing what a human or another run edits.
 			r.Route("/api/issues/{id}/traffic-conflicts", func(r chi.Router) {
 				r.Get("/", h.ListTrafficConflicts)

@@ -1393,6 +1393,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			task = moved
 		}
 	}
+	// Preemption (K41): an urgent run on a saturated agent suspends the lowest-priority one.
+	s.PreemptForUrgentTask(ctx, task, agent)
 	if routingDecision != nil {
 		raw, _ := json.Marshal(routingDecision)
 		if routed, rerr := s.Queries.SetTaskRoutingDecision(ctx, db.SetTaskRoutingDecisionParams{ID: task.ID, RoutingDecision: raw}); rerr != nil {
