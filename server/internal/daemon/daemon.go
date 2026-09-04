@@ -526,7 +526,9 @@ type Daemon struct {
 	pendingWorkLastRun  map[string]time.Time // runtime_id -> when the last hint-driven heartbeat started
 
 	cancelFunc context.CancelFunc // set by Run(); called by triggerRestart
-	rootCtx    context.Context    // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
+	// pauseControls (K19): one pause control per running task id.
+	pauseControls sync.Map
+	rootCtx       context.Context // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
 	// restartMu guards restartBinary. Two goroutines can reach triggerRestart —
 	// the server-triggered handleUpdate and the autoUpdateLoop — and
 	// trySelfReload reads RestartBinary() from the latter to avoid racing the
@@ -5285,7 +5287,11 @@ func (d *Daemon) watchTaskCancellation(ctx context.Context, taskID string, pollI
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		check := func() bool {
-			status, err := d.client.GetTaskStatus(ctx, taskID)
+			status, pauseRequested, err := d.client.GetTaskControl(ctx, taskID)
+			if err == nil && pauseRequested {
+				// Pause (K19): interrupt at the next safe boundary, not now.
+				d.pauseControlFor(taskID).request(ctx)
+			}
 			if !shouldInterruptAgent(status, err) {
 				return false
 			}
@@ -5432,15 +5438,38 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		pollInterval = 5 * time.Second
 	}
 	cancelledByPoll := d.watchTaskCancellation(runCtx, task.ID, pollInterval, taskLog)
+	pauseCtl := d.pauseControlFor(task.ID)
+	defer d.pauseControls.Delete(task.ID)
 	go func() {
 		select {
 		case <-cancelledByPoll:
+			runCancel()
+		case <-pauseCtl.boundary:
+			taskLog.Info("pause requested: safe boundary reached, interrupting agent")
 			runCancel()
 		case <-runCtx.Done():
 		}
 	}()
 
 	result, err := d.runner.run(runCtx, task, provider, slot, taskLog)
+
+	// Pause (K19): the run stopped at a boundary on a human's request. Report
+	// where the session lives and leave the result to the resumed run.
+	if pauseCtl.paused() {
+		select {
+		case <-cancelledByPoll:
+		default:
+			if len(result.Usage) > 0 {
+				if usageErr := d.client.ReportTaskUsage(ctx, task.ID, result.Usage); usageErr != nil {
+					taskLog.Warn("report task usage failed", "error", usageErr)
+				}
+			}
+			if ackErr := d.client.AckTaskPaused(ctx, task.ID, result.SessionID, result.WorkDir, result.BranchName); ackErr != nil {
+				taskLog.Warn("pause ack failed; the run stays running server-side until the sweeper decides", "error", ackErr)
+			}
+			return
+		}
+	}
 
 	// Report usage before any early return — the agent accumulates tokens
 	// whether the task completes, errors, or is cancelled mid-run by the poll
@@ -8920,6 +8949,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 						Tool:   toolName,
 						Output: output,
 					})
+					d.pauseControlFor(taskID).atBoundary() // K19: a tool result is a safe boundary
 					mu.Unlock()
 				case agent.MessageThinking:
 					if msg.Content != "" {

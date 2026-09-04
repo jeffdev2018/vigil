@@ -57,6 +57,7 @@ export function useStatusLabel(status: AgentTask["status"]): string {
     case "completed": return t(($) => $.execution_log.status_completed);
     case "failed": return t(($) => $.execution_log.status_failed);
     case "cancelled": return t(($) => $.execution_log.status_cancelled);
+    case "paused": return t(($) => $.execution_log.status_paused);
     default: return status;
   }
 }

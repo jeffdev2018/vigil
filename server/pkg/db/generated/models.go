@@ -211,6 +211,8 @@ type AgentTaskQueue struct {
 	PermissionProfileID pgtype.UUID        `json:"permission_profile_id"`
 	FailoverHistory     []byte             `json:"failover_history"`
 	RoutingDecision     []byte             `json:"routing_decision"`
+	PauseRequestedAt    pgtype.Timestamptz `json:"pause_requested_at"`
+	ResumedByTaskID     pgtype.UUID        `json:"resumed_by_task_id"`
 }
 
 type AgentToLabel struct {

@@ -401,7 +401,10 @@ type AgentTaskResponse struct {
 	FailoverHistory json.RawMessage `json:"failover_history,omitempty"`
 	Degraded        bool            `json:"degraded"`
 	// Issue router (K27): risk level, pool and escalation behind this run.
-	RoutingDecision    json.RawMessage       `json:"routing_decision,omitempty"`
+	RoutingDecision json.RawMessage `json:"routing_decision,omitempty"`
+	// Pause, steer, resume (K19).
+	PauseRequestedAt   *string               `json:"pause_requested_at"`
+	ResumedByTaskID    *string               `json:"resumed_by_task_id"`
 	Attempt            int32                 `json:"attempt"`
 	MaxAttempts        int32                 `json:"max_attempts"`
 	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
@@ -806,6 +809,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		FailoverHistory:        json.RawMessage(t.FailoverHistory),
 		Degraded:               service.TaskDegraded(t.FailoverHistory),
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
+		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
+		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,

@@ -1160,7 +1160,7 @@ WITH retired_sessions AS (
     FROM agent_task_queue t
     WHERE t.agent_id = $1 AND t.issue_id = $2
       AND t.session_id IS NOT NULL
-      AND t.status IN ('completed', 'failed', 'cancelled')
+      AND t.status IN ('completed', 'failed', 'cancelled', 'paused')
     ORDER BY t.session_id, COALESCE(t.completed_at, t.started_at, t.dispatched_at, t.created_at) DESC
 )
 SELECT session_id, work_dir, runtime_id FROM latest_per_session

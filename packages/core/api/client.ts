@@ -342,6 +342,7 @@ import {
   IssueRoutingEnvelopeSchema,
   HandoffPacketSchema,
   RunLimitPolicySchema,
+  RunControlEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
   HandoffPacketsEnvelopeSchema,
@@ -3122,6 +3123,27 @@ export class ApiClient {
   async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
     return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
+  }
+
+  // Pause, steer, resume (K19).
+  async getRunState(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/state`);
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/run/state" }).run;
+  }
+
+  async pauseRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/pause`, { method: "POST" });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/pause" }).run;
+  }
+
+  async steerRun(issueId: string, instruction: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/steer`, { method: "POST", body: JSON.stringify({ instruction }) });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/steer" }).run;
+  }
+
+  async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
   }
 
   // Run limits (K03).

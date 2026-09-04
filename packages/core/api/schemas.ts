@@ -4283,3 +4283,17 @@ export const RunLimitEventSchema = z.object({
 export const RunLimitEventsEnvelopeSchema = z.object({
   events: z.array(RunLimitEventSchema).catch([]).default([]),
 }).loose();
+
+// Pause, steer, resume (K19).
+export const RunControlStateSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  pause_pending: z.boolean().catch(false).default(false),
+  instructions: z.array(z.string()).catch([]).default([]),
+  resumed_by_task_id: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RunControlEnvelopeSchema = z.object({
+  run: RunControlStateSchema.nullable().catch(null).default(null),
+  paused_task_id: z.string().optional(),
+}).loose();

@@ -4489,7 +4489,8 @@ func (h *Handler) GetTaskStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": task.Status})
+	// Pause (K19): the daemon polls this; it stops at the next safe boundary.
+	writeJSON(w, http.StatusOK, map[string]any{"status": task.Status, "pause_requested": task.PauseRequestedAt.Valid})
 }
 
 // FailTask marks a running task as failed.
