@@ -435,7 +435,15 @@ export function ScheduleEditor({
     if (!previewIsCurrent || !preview.isSuccess) return;
     pendingTzPromotionRef.current = null;
     onChange(carryWindow(parseCron(promoted, value.timezone)));
-  }, [promoted, committedCron, previewIsCurrent, preview.isSuccess, carryWindow, onChange]);
+  }, [
+    promoted,
+    committedCron,
+    previewIsCurrent,
+    preview.isSuccess,
+    value.timezone,
+    carryWindow,
+    onChange,
+  ]);
   // The server's last verdict outlives the request that produced it, but only
   // for the exact input it judged — the expression AND the timezone, since the
   // server rejects either. While that input is re-queried (a retry, a refetch
