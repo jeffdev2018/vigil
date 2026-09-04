@@ -923,7 +923,13 @@
     "pipelines_move_up": "Move stage {{n}} up",
     "pipelines_move_down": "Move stage {{n}} down",
     "pipelines_remove_stage": "Remove stage {{n}}",
-    "pipelines_failed": "Failed to save the pipeline"
+    "pipelines_failed": "Failed to save the pipeline",
+    "briefing_channels_label": "Also send to channels",
+    "briefing_channels_description": "Slack channel or Telegram chat ids the digest is posted to each morning, through the workspace's connected app. Narrated by the LLM when one is configured; structured either way.",
+    "briefing_channel_type": "Channel type {{n}}",
+    "briefing_channel_chat": "Chat id {{n}}",
+    "briefing_channel_remove": "Remove channel {{n}}",
+    "briefing_channel_add": "Add a channel"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

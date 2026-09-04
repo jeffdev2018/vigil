@@ -921,7 +921,13 @@
     "pipelines_move_up": "上移阶段 {{n}}",
     "pipelines_move_down": "下移阶段 {{n}}",
     "pipelines_remove_stage": "移除阶段 {{n}}",
-    "pipelines_failed": "保存流水线失败"
+    "pipelines_failed": "保存流水线失败",
+    "briefing_channels_label": "同时发送到频道",
+    "briefing_channels_description": "每天早上通过工作区已连接的应用，将简报发布到这些 Slack 频道或 Telegram 聊天 ID。配置了 LLM 时附带叙述，否则发送结构化版本。",
+    "briefing_channel_type": "频道类型 {{n}}",
+    "briefing_channel_chat": "聊天 ID {{n}}",
+    "briefing_channel_remove": "移除频道 {{n}}",
+    "briefing_channel_add": "添加频道"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

@@ -92,6 +92,9 @@ export interface BriefingItem {
 }
 
 export interface MorningBriefing {
+  // Multichannel digest (K64): the LLM narration and where the day's briefing went.
+  narrative?: string;
+  channels_delivered?: string[];
   date: string;
   merged: BriefingItem[];
   awaiting_review: BriefingItem[];

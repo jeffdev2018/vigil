@@ -135,7 +135,8 @@
     "blocked": "ブロック中とその理由（{{count}}）",
     "approve": "承認",
     "approve_failed": "承認できませんでした",
-    "pending_decisions": "判断待ち {{count}} 件"
+    "pending_decisions": "判断待ち {{count}} 件",
+    "channels": "{{channels}} にも送信済み"
   },
   "retro": {
     "loading": "レトロを読み込み中…",

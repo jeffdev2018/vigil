@@ -277,3 +277,19 @@ func (q *Queries) RecordMorningBriefingSent(ctx context.Context, arg RecordMorni
 	)
 	return i, err
 }
+
+const updateMorningBriefingChannels = `-- name: UpdateMorningBriefingChannels :exec
+UPDATE morning_briefing_sent SET channels_delivered = $3 WHERE workspace_id = $1 AND sent_for_date = $2
+`
+
+type UpdateMorningBriefingChannelsParams struct {
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	SentForDate       pgtype.Date `json:"sent_for_date"`
+	ChannelsDelivered []byte      `json:"channels_delivered"`
+}
+
+// Multichannel digest (K64): the channels the day's briefing reached.
+func (q *Queries) UpdateMorningBriefingChannels(ctx context.Context, arg UpdateMorningBriefingChannelsParams) error {
+	_, err := q.db.Exec(ctx, updateMorningBriefingChannels, arg.WorkspaceID, arg.SentForDate, arg.ChannelsDelivered)
+	return err
+}

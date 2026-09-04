@@ -137,7 +137,8 @@
     "blocked": "Blocked, and why ({{count}})",
     "approve": "Approve",
     "approve_failed": "Failed to approve",
-    "pending_decisions": "{{count}} decision waiting"
+    "pending_decisions": "{{count}} decision waiting",
+    "channels": "also sent to {{channels}}"
   },
   "retro": {
     "loading": "Loading the retro…",

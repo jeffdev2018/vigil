@@ -40,7 +40,9 @@ export function MorningBriefingView() {
       <div className="text-caption text-muted-foreground">
         {data.date}
         {data.sent_at ? ` · ${t(($) => $.briefing.sent, { ago: timeAgo(data.sent_at) })}` : ` · ${t(($) => $.briefing.not_sent)}`}
+        {(data.channels_delivered ?? []).filter((c) => c !== "inbox").length > 0 && ` · ${t(($) => $.briefing.channels, { channels: (data.channels_delivered ?? []).filter((c) => c !== "inbox").join(", ") })}`}
       </div>
+      {data.narrative && <p data-testid="briefing-narrative" className="text-body">{data.narrative}</p>}
       {empty && <div data-testid="briefing-empty" className="text-caption text-muted-foreground">{t(($) => $.briefing.empty)}</div>}
       {data.merged.length > 0 && (
         <Section testId="briefing-merged" title={t(($) => $.briefing.merged, { count: data.merged.length })}>
