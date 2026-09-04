@@ -369,7 +369,8 @@ type createDecisionsRequest struct {
 	} `json:"decisions"`
 }
 
-// POST /api/issues/{id}/decisions records decisions by hand (a human, or an
+// POST /api/issues/{id}/decision-records records decisions by hand (the
+// /decisions path belongs to Decision Cards, K01) (a human, or an
 // agent through its task token). Each must cite a message of the run; the
 // run defaults to the issue's last completed one.
 func (h *Handler) CreateIssueDecisions(w http.ResponseWriter, r *http.Request) {

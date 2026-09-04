@@ -114,7 +114,7 @@ func TestDecisionMemoryExtractsGatesAndLists(t *testing.T) {
 	// Manual records: a seq outside the run is refused, a real one accepted.
 	post := func(body map[string]any) *testutil.Response {
 		return testutil.Call(t, testHandler.CreateIssueDecisions, testutil.WithURLParams(
-			newRequest(http.MethodPost, "/api/issues/"+issueID+"/decisions", body), "id", issueID))
+			newRequest(http.MethodPost, "/api/issues/"+issueID+"/decision-records", body), "id", issueID))
 	}
 	res := post(map[string]any{"decisions": []map[string]any{{"source_message_seq": 42, "title": "x", "decision": "y"}}})
 	if res.Code != http.StatusUnprocessableEntity || res.Map()["code"] != "invalid_source" {
