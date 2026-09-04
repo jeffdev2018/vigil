@@ -891,7 +891,15 @@
     "traffic_section": "流量控制",
     "traffic_pause_label": "暂停发生冲突的运行",
     "traffic_pause_description": "编辑某人在守护进程检出中正在更改的文件、或另一运行正在编辑的文件的运行，总会进入 Attention Inbox。开启后还会在下一个安全边界暂停它。",
-    "traffic_failed": "更新流量控制失败"
+    "traffic_failed": "更新流量控制失败",
+    "drift_section": "偏离检测",
+    "drift_enabled": "停止原地打转的运行",
+    "drift_intro": "在写入后观察每次运行的工具调用。重复同一调用、或未写入却反复读取同一文件的运行会被停止，并附上确切原因进入 Attention Inbox。",
+    "drift_repeated": "重复动作阈值",
+    "drift_repeated_description": "停止运行前允许的连续相同工具调用次数（同一工具、同一参数）。",
+    "drift_reread": "文件重读阈值",
+    "drift_reread_description": "停止运行前允许的、中间无写入的同一文件读取次数。",
+    "drift_failed": "保存偏离策略失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

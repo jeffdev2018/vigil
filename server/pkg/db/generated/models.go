@@ -217,6 +217,7 @@ type AgentTaskQueue struct {
 	CheckpointAttempts  int32              `json:"checkpoint_attempts"`
 	CheckpointedAt      pgtype.Timestamptz `json:"checkpointed_at"`
 	TouchedPaths        []byte             `json:"touched_paths"`
+	DriftReason         pgtype.Text        `json:"drift_reason"`
 }
 
 type AgentToLabel struct {

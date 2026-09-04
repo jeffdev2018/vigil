@@ -891,7 +891,15 @@
     "traffic_section": "トラフィック制御",
     "traffic_pause_label": "衝突した実行を一時停止",
     "traffic_pause_description": "デーモンのチェックアウトで人が変更中のファイル、または別の実行が編集中のファイルを編集する実行は常に Attention Inbox に届きます。オンにすると次の安全な境界で一時停止もします。",
-    "traffic_failed": "トラフィック制御を更新できませんでした"
+    "traffic_failed": "トラフィック制御を更新できませんでした",
+    "drift_section": "逸脱検知",
+    "drift_enabled": "堂々巡りの実行を停止",
+    "drift_intro": "各実行のツール呼び出しを書き込み後に監視します。同じ呼び出しを繰り返す、または書き込みなしに同じファイルを読み続ける実行は、正確な理由とともに停止され Attention Inbox に届きます。",
+    "drift_repeated": "繰り返し行動の閾値",
+    "drift_repeated_description": "実行を停止するまでの同一の連続ツール呼び出し数（同じツール、同じ引数）。",
+    "drift_reread": "ファイル再読込の閾値",
+    "drift_reread_description": "実行を停止するまでの、書き込みを挟まない同一ファイルの読み込み回数。",
+    "drift_failed": "逸脱ポリシーを保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

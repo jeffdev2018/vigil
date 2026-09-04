@@ -406,22 +406,24 @@ type AgentTaskResponse struct {
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
 	// Checkpoints (K20).
-	LastCheckpointSeq       *int64                `json:"last_checkpoint_seq"`
-	CheckpointAttempts      int32                 `json:"checkpoint_attempts"`
-	CheckpointedAt          *string               `json:"checkpointed_at"`
-	ResumeFromCheckpointSeq int64                 `json:"resume_from_checkpoint_seq,omitempty"`
-	Attempt                 int32                 `json:"attempt"`
-	MaxAttempts             int32                 `json:"max_attempts"`
-	ParentTaskID            *string               `json:"parent_task_id,omitempty"`
-	IsLeaderTask            bool                  `json:"is_leader_task,omitempty"`
-	LeaderRoleResolved      bool                  `json:"leader_role_resolved,omitempty"` // claim-only capability, always true here: IsLeaderTask/SquadID authoritatively answer "is this a leader run", so the daemon must not infer the role from briefing text. Servers predating it make no such promise — before #4951 they sent no is_leader_task at all, after it they sent the flag without guaranteeing a briefing — so a daemon seeing no capability keeps the legacy inference. Never rendered into a prompt; see daemon.taskIsSquadLeader (MUL-5811). Mirror field: internal/daemon/types.go, same JSON name
-	Agent                   *TaskAgentData        `json:"agent,omitempty"`
-	ConnectedApps           []ConnectedAppData    `json:"connected_apps,omitempty"` // daemon-claim only: per-run app capabilities mounted through runtime MCP overlays
-	Repos                   []RepoData            `json:"repos,omitempty"`
-	ProjectID               string                `json:"project_id,omitempty"`          // issue's project, when present
-	ProjectTitle            string                `json:"project_title,omitempty"`       // for surfacing in agent context
-	ProjectDescription      string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
-	ProjectResources        []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
+	LastCheckpointSeq       *int64  `json:"last_checkpoint_seq"`
+	CheckpointAttempts      int32   `json:"checkpoint_attempts"`
+	CheckpointedAt          *string `json:"checkpointed_at"`
+	ResumeFromCheckpointSeq int64   `json:"resume_from_checkpoint_seq,omitempty"`
+	// Drift detection (K40): why the run was stopped for going in circles.
+	DriftReason        string                `json:"drift_reason,omitempty"`
+	Attempt            int32                 `json:"attempt"`
+	MaxAttempts        int32                 `json:"max_attempts"`
+	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
+	IsLeaderTask       bool                  `json:"is_leader_task,omitempty"`
+	LeaderRoleResolved bool                  `json:"leader_role_resolved,omitempty"` // claim-only capability, always true here: IsLeaderTask/SquadID authoritatively answer "is this a leader run", so the daemon must not infer the role from briefing text. Servers predating it make no such promise — before #4951 they sent no is_leader_task at all, after it they sent the flag without guaranteeing a briefing — so a daemon seeing no capability keeps the legacy inference. Never rendered into a prompt; see daemon.taskIsSquadLeader (MUL-5811). Mirror field: internal/daemon/types.go, same JSON name
+	Agent              *TaskAgentData        `json:"agent,omitempty"`
+	ConnectedApps      []ConnectedAppData    `json:"connected_apps,omitempty"` // daemon-claim only: per-run app capabilities mounted through runtime MCP overlays
+	Repos              []RepoData            `json:"repos,omitempty"`
+	ProjectID          string                `json:"project_id,omitempty"`          // issue's project, when present
+	ProjectTitle       string                `json:"project_title,omitempty"`       // for surfacing in agent context
+	ProjectDescription string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
+	ProjectResources   []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
 	// GoalAncestry is the claimed issue's parent chain, root first (F22), so the
 	// brief can say why the task exists. Omitted on root issues and by older
 	// servers; a daemon that predates it writes the brief it always did.
@@ -819,6 +821,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),
 		CheckpointAttempts:     t.CheckpointAttempts,
 		CheckpointedAt:         timestampToPtr(t.CheckpointedAt),
+		DriftReason:            t.DriftReason.String,
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
@@ -2789,4 +2792,3 @@ func (h *Handler) ListWorkspaceAgentTaskSnapshot(w http.ResponseWriter, r *http.
 
 	writeJSON(w, http.StatusOK, resp)
 }
-

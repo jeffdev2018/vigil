@@ -345,6 +345,7 @@ import {
   RunControlEnvelopeSchema,
   RunCheckpointEnvelopeSchema,
   TrafficConflictSchema,
+  DriftPolicySchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3147,6 +3148,17 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Drift detection (K40).
+  async getDriftPolicy(): Promise<import("../issues/drift").DriftPolicy> {
+    const raw = await this.fetch<unknown>(`/api/drift-policy`);
+    return parseWithFallback(raw, DriftPolicySchema, { enabled: true, repeated_action_threshold: 5, file_reread_threshold: 8 }, { endpoint: "GET /api/drift-policy" });
+  }
+
+  async putDriftPolicy(input: import("../issues/drift").DriftPolicy): Promise<import("../issues/drift").DriftPolicy> {
+    const raw = await this.fetch<unknown>(`/api/drift-policy`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, DriftPolicySchema, input, { endpoint: "PUT /api/drift-policy" });
   }
 
   // Traffic control (K18).
