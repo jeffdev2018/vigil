@@ -77,6 +77,11 @@ type TaskService struct {
 	// state for a self-hosted deployment with no MULTICA_LLM_* configuration.
 	// Wired in router.go from the same *llm.Client that backs chat auto-titling.
 	QuickActions ChatQuickActionsLLM
+	// SkillDistillation powers the post-success skill distillation pass (k69).
+	// Optional: nil (or a disabled client) turns the pass off — unlike the
+	// postmortem scaffold, a skill is only worth storing when genuinely
+	// distilled, so an unconfigured deployment simply skips it.
+	SkillDistillation SkillDistillationLLM
 	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
 	// Optional: nil (or a disabled client) turns extraction off, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*
@@ -109,6 +114,13 @@ type TaskService struct {
 	// Zero values are usable, like the gates above.
 	postmortemInFlight sync.Map
 	postmortemRunning  atomic.Int64
+
+	// skillDistillationInFlight (task id -> struct{}{}) and
+	// skillDistillationRunning gate the post-success distillation pass: one per
+	// task, and a process-wide ceiling. Zero values are usable, like the gates
+	// above.
+	skillDistillationInFlight sync.Map
+	skillDistillationRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext
