@@ -2093,6 +2093,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/issues/{id}/fanout", h.StartFanout)
 			r.Get("/api/issues/{id}/fanout", h.GetIssueFanout)
 			r.Get("/api/fanout-batches/{id}", h.GetFanoutBatch)
+			// Agent duel (K39): two independent runs, an arbiter, a human verdict.
+			r.Post("/api/issues/{id}/duel", h.StartAgentDuel)
+			r.Get("/api/issues/{id}/duel", h.GetIssueAgentDuel)
+			r.Get("/api/duels/{id}", h.GetAgentDuel)
+			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)

@@ -66,6 +66,29 @@ type AgentBuilderDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentDuel struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	IssueID      pgtype.UUID        `json:"issue_id"`
+	AgentAID     pgtype.UUID        `json:"agent_a_id"`
+	AgentBID     pgtype.UUID        `json:"agent_b_id"`
+	TaskAID      pgtype.UUID        `json:"task_a_id"`
+	TaskBID      pgtype.UUID        `json:"task_b_id"`
+	FinalTaskAID pgtype.UUID        `json:"final_task_a_id"`
+	FinalTaskBID pgtype.UUID        `json:"final_task_b_id"`
+	OutcomeA     pgtype.Text        `json:"outcome_a"`
+	OutcomeB     pgtype.Text        `json:"outcome_b"`
+	Status       string             `json:"status"`
+	Verdict      []byte             `json:"verdict"`
+	ArbiterError pgtype.Text        `json:"arbiter_error"`
+	Winner       pgtype.Text        `json:"winner"`
+	StartedBy    pgtype.UUID        `json:"started_by"`
+	ConfirmedBy  pgtype.UUID        `json:"confirmed_by"`
+	ConfirmedAt  pgtype.Timestamptz `json:"confirmed_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	SettledAt    pgtype.Timestamptz `json:"settled_at"`
+}
+
 // Allow-list of who may invoke a public_to agent (MUL-3963). One row per (agent, target_type, target); targets stack and canInvokeAgent OR-matches. workspace rows store the agent workspace_id in target_id; member rows store the user id; team rows are reserved and inert in V1. Rows only matter when agent.permission_mode = public_to. No DB foreign keys: agent_id / created_by / member target_id relationships are maintained in the application layer (see migration comment).
 type AgentInvocationTarget struct {
 	ID         pgtype.UUID        `json:"id"`

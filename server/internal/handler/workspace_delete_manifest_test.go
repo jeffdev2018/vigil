@@ -108,6 +108,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"pipeline_run":                       workspaceDelete,
 	"fanout_batch":                       workspaceDelete,
 	"fanout_batch_member":                workspaceDelete,
+	"agent_duel":                         workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,
