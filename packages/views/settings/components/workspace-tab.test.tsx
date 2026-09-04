@@ -85,6 +85,7 @@ vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => nul
 vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
 vi.mock("./business-rules-setting", () => ({ BusinessRulesSetting: () => null }));
 vi.mock("./standup-setting", () => ({ StandupSetting: () => null }));
+vi.mock("./triage-auto-setting", () => ({ TriageAutoSetting: () => null }));
 
 vi.mock("./delete-workspace-dialog", () => ({
   DeleteWorkspaceDialog: () => null,

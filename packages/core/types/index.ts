@@ -127,6 +127,10 @@ export type {
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
+  TriageNeighbor,
+  TriageSuggestion,
+  TriageAutoSettings,
+  TriageSuggestionsResponse,
 } from "./triage";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";

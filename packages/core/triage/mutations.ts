@@ -55,3 +55,12 @@ export function useUpdateTriageSourceMode(wsId: string) {
     },
   });
 }
+
+/** Triage auto-ML (K61): a dismissed item (human, rule or auto) goes back to pending. */
+export function useReopenTriageItem(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (itemId: string) => api.reopenTriageItem(itemId),
+    onSettled: () => qc.invalidateQueries({ queryKey: triageKeys.all(wsId) }),
+  });
+}

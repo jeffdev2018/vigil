@@ -46,5 +46,19 @@
     "accept": "{{count}}건 수락",
     "clear": "선택 해제",
     "stopped_toast": "중지됨 — 워크스페이스가 이슈 한도에 도달했습니다"
+  },
+  "suggestion": {
+    "title": "제안",
+    "none": "아직 비슷한 과거 결정이 없습니다.",
+    "dismiss": "거부",
+    "accept": "수락",
+    "would_dismiss": "거부될 예정",
+    "would_accept": "수락될 예정",
+    "confidence": "유사한 전달 {{count}}건 기준 확신도 {{percent}}%",
+    "auto_on": "자동 적용 켜짐: {{threshold}}% 이상이면 적용됩니다.",
+    "auto_off": "자동 적용 꺼짐: 사람이 결정합니다. 설정 → 워크스페이스에서 켤 수 있습니다.",
+    "not_ready": "학습 중: 자동 적용에는 결정 {{min}}건이 필요합니다(현재 {{examples}}건).",
+    "reopen": "다시 열기",
+    "reopen_failed": "다시 열지 못했습니다"
   }
 }

@@ -808,7 +808,15 @@
     "rules_action_priority": "優先度",
     "rules_action_priority_keep": "優先度を維持",
     "rules_action_agent": "担当エージェント",
-    "rules_action_no_agent": "担当なし"
+    "rules_action_no_agent": "担当なし",
+    "triage_auto_section": "トリアージの自動分類",
+    "triage_auto_enabled_label": "確信度の高い提案をキューに適用させる",
+    "triage_auto_enabled_description": "受け入れや却下のたびにキューが学習します。有効にすると、過去の近い判断がしきい値以上で一致する配信は、クリックなしで分類されます（取り消し可能、監査記録あり）。",
+    "triage_auto_threshold_label": "必要な確信度（%）",
+    "triage_auto_threshold_description": "勝った判断が得るべき重み付き投票の割合（50〜100）。",
+    "triage_auto_min_label": "先に学習する判断の数",
+    "triage_auto_min_description": "この件数の人による判断がなければ自動分類しません。",
+    "triage_auto_failed": "トリアージ設定を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

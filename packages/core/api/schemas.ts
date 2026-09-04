@@ -4025,3 +4025,17 @@ export const TrustHistorySchema = z.object({
     demotion: z.boolean().default(false),
   }).loose()).catch([]).default([]),
 }).loose();
+
+// Triage auto-ML (K61).
+export const TriageSuggestionsResponseSchema = z.object({
+  suggestions: z.record(z.string(), z.object({
+    item_id: z.string().default(""),
+    ready: z.boolean().default(false),
+    examples: z.number().default(0),
+    min_examples: z.number().default(20),
+    suggested: z.string().optional(),
+    confidence: z.number().default(0),
+    neighbors: z.array(z.object({ id: z.string(), title: z.string().default(""), state: z.string().default(""), score: z.number().default(0) }).loose()).catch([]).default([]),
+  }).loose()).catch({}).default({}),
+  auto: z.object({ enabled: z.boolean().default(false), threshold: z.number().default(0.9), min_examples: z.number().default(20) }).loose().catch({ enabled: false, threshold: 0.9, min_examples: 20 }),
+}).loose();

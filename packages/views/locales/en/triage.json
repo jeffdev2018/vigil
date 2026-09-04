@@ -46,5 +46,19 @@
     "accept": "Accept {{count}}",
     "clear": "Clear selection",
     "stopped_toast": "Stopped — the workspace reached its issue limit"
+  },
+  "suggestion": {
+    "title": "Suggestion",
+    "none": "No similar past decision yet.",
+    "dismiss": "dismiss",
+    "accept": "accept",
+    "would_dismiss": "Would be dismissed",
+    "would_accept": "Would be accepted",
+    "confidence": "{{percent}}% confidence from {{count}} similar deliveries",
+    "auto_on": "Auto-apply is on: applied above {{threshold}}%.",
+    "auto_off": "Auto-apply is off: a human decides. Enable it in Settings → Workspace.",
+    "not_ready": "Learning: {{examples}} of {{min}} decisions needed before auto-apply.",
+    "reopen": "Reopen",
+    "reopen_failed": "Failed to reopen"
   }
 }

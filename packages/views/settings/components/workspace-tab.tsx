@@ -41,6 +41,7 @@ import { DecisionSlaSetting } from "./decision-sla-setting";
 import { AdrGateSetting } from "./adr-gate-setting";
 import { BusinessRulesSetting } from "./business-rules-setting";
 import { StandupSetting } from "./standup-setting";
+import { TriageAutoSetting } from "./triage-auto-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
 import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
@@ -486,6 +487,7 @@ export function WorkspaceTab() {
       {workspace && <AdrGateSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <BusinessRulesSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <StandupSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <TriageAutoSetting workspace={workspace} canEdit={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection
