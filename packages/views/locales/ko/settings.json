@@ -194,6 +194,11 @@
     "sticky_comment_bar": {
       "title": "댓글 입력창 고정",
       "hint": "태스크 페이지를 스크롤할 때 댓글 입력창을 항상 하단에 고정합니다."
+    },
+    "meetings_title": "미팅",
+    "meeting_detection": {
+      "title": "미팅 자동 감지",
+      "hint": "마이크를 사용하는 앱을 감지해 메모할지 물어봅니다. 스스로 녹음을 시작하지는 않습니다."
     }
   },
   "shortcuts": {

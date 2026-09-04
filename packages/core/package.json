@@ -69,6 +69,7 @@
     "./meetings/queries": "./meetings/queries.ts",
     "./meetings/mutations": "./meetings/mutations.ts",
     "./meetings/store": "./meetings/store.ts",
+    "./meetings/preferences-store": "./meetings/preferences-store.ts",
     "./voice": "./voice/index.ts",
     "./voice/store": "./voice/store.ts",
     "./triage": "./triage/index.ts",

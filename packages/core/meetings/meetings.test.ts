@@ -7,6 +7,7 @@ import {
   meetingDetailOptions,
   meetingKeys,
 } from "./queries";
+import { useMeetingPreferencesStore } from "./preferences-store";
 import { useMeetingRecorderStore, openMeetingRecorder, requestStopRecording } from "./store";
 
 function stubFetchJson(body: unknown, status = 200) {
@@ -299,5 +300,16 @@ describe("recorder store", () => {
     expect(after.systemAudio).toBe(true);
     // The server's "no STT configured" answer is not part of one recording.
     expect(after.sttUnavailable).toBe(true);
+  });
+});
+
+describe("meeting preferences", () => {
+  it("watches for meetings by default and remembers being turned off", () => {
+    // On by default: the watcher only prompts, it never records on its own.
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(true);
+    useMeetingPreferencesStore.getState().setDetectMeetings(false);
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(false);
+    useMeetingPreferencesStore.getState().setDetectMeetings(true);
+    expect(useMeetingPreferencesStore.getState().detectMeetings).toBe(true);
   });
 });

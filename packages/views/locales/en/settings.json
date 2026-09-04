@@ -194,6 +194,11 @@
     "sticky_comment_bar": {
       "title": "Sticky comment bar",
       "hint": "Keep the comment bar pinned to the bottom while scrolling an issue page."
+    },
+    "meetings_title": "Meetings",
+    "meeting_detection": {
+      "title": "Detect meetings automatically",
+      "hint": "Multica watches which app is using your microphone and offers to take notes. It never starts recording on its own."
     }
   },
   "shortcuts": {

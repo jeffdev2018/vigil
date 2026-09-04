@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   Select,
@@ -19,7 +19,9 @@ import {
 import { useLocaleAdapter } from "@multica/core/i18n/react";
 import { useAuthStore } from "@multica/core/auth";
 import { useCommentComposerStore } from "@multica/core/issues/stores";
+import { useMeetingPreferencesStore } from "@multica/core/meetings/preferences-store";
 import { api } from "@multica/core/api";
+import { isMeetingDetectionSupported } from "../../platform/meeting-detection";
 import { browserTimezone, timezoneOptions } from "../../common/timezone-select";
 import { useT } from "../../i18n";
 import {
@@ -165,7 +167,53 @@ export function PreferencesTab() {
           <StickyCommentBarRow />
         </SettingsCard>
       </SettingsSection>
+
+      <MeetingDetectionSection />
     </SettingsTab>
+  );
+}
+
+/**
+ * Desktop-only: the shell watches which app holds the microphone so it can
+ * offer to take notes. Web has nothing to watch with, so the whole section is
+ * absent there rather than showing a switch that does nothing.
+ *
+ * The capability is read from `window`, so the first paint defers to a
+ * post-mount effect (same reason as BrowserNotificationSetting: SSR and client
+ * markup have to match).
+ */
+function MeetingDetectionSection() {
+  const { t } = useT("settings");
+  const [supported, setSupported] = useState(false);
+  const detect = useMeetingPreferencesStore((s) => s.detectMeetings);
+  const setDetect = useMeetingPreferencesStore((s) => s.setDetectMeetings);
+
+  useEffect(() => {
+    setSupported(isMeetingDetectionSupported());
+  }, []);
+
+  if (!supported) return null;
+
+  return (
+    <SettingsSection title={t(($) => $.preferences.meetings_title)}>
+      <SettingsCard>
+        <SettingsRow
+          label={t(($) => $.preferences.meeting_detection.title)}
+          description={t(($) => $.preferences.meeting_detection.hint)}
+        >
+          <Switch
+            checked={detect}
+            onCheckedChange={(checked) => {
+              setDetect(checked);
+              toast.success(t(($) => $.auto_save.toast_saved), {
+                id: "settings-auto-save",
+              });
+            }}
+            aria-label={t(($) => $.preferences.meeting_detection.title)}
+          />
+        </SettingsRow>
+      </SettingsCard>
+    </SettingsSection>
   );
 }
 

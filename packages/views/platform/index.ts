@@ -28,6 +28,7 @@ export {
 export {
   isMeetingDetectionSupported,
   subscribeMeetingDetected,
+  setMeetingDetectionEnabled,
   setMeetingSelfCapture,
   type DetectedMeeting,
   type DetectedMeetingKind,

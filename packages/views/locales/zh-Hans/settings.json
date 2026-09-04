@@ -194,6 +194,11 @@
     "sticky_comment_bar": {
       "title": "固定评论栏",
       "hint": "滚动任务页面时，评论栏始终固定在底部。"
+    },
+    "meetings_title": "会议",
+    "meeting_detection": {
+      "title": "自动检测会议",
+      "hint": "Multica 会检测哪个应用正在使用麦克风，并询问是否记录笔记。它绝不会自行开始录音。"
     }
   },
   "shortcuts": {
