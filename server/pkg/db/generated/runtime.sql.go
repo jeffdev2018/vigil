@@ -1540,6 +1540,25 @@ func (q *Queries) UpdateAgentRuntimeVisibility(ctx context.Context, arg UpdateAg
 	return i, err
 }
 
+const updateRuntimeCliAuthState = `-- name: UpdateRuntimeCliAuthState :exec
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('cli_auth', $2::jsonb),
+    updated_at = now()
+WHERE id = $1
+`
+
+type UpdateRuntimeCliAuthStateParams struct {
+	ID      pgtype.UUID `json:"id"`
+	CliAuth []byte      `json:"cli_auth"`
+}
+
+// Authentication tokens remain exclusively in the provider CLI's local
+// config. Only the non-secret status snapshot is durable.
+func (q *Queries) UpdateRuntimeCliAuthState(ctx context.Context, arg UpdateRuntimeCliAuthStateParams) error {
+	_, err := q.db.Exec(ctx, updateRuntimeCliAuthState, arg.ID, arg.CliAuth)
+	return err
+}
+
 const upsertAgentRuntime = `-- name: UpsertAgentRuntime :one
 INSERT INTO agent_runtime (
     workspace_id,

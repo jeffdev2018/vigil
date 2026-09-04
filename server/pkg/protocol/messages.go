@@ -118,6 +118,7 @@ type WorkspacesChangedPayload struct{}
 // newer server stays safe on an older daemon.
 const (
 	PendingWorkKindModelList        = "model_list"
+	PendingWorkKindCliAuth          = "cli_auth"
 	PendingWorkKindLocalSkills      = "local_skills"
 	PendingWorkKindLocalSkillImport = "local_skill_import"
 )
@@ -367,6 +368,7 @@ type DaemonHeartbeatAckPayload struct {
 	RuntimeGone             bool                                    `json:"runtime_gone,omitempty"`
 	PendingUpdate           *DaemonHeartbeatPendingUpdate           `json:"pending_update,omitempty"`
 	PendingModelList        *DaemonHeartbeatPendingModelList        `json:"pending_model_list,omitempty"`
+	PendingCliAuth          *DaemonHeartbeatPendingCliAuth          `json:"pending_cli_auth,omitempty"`
 	PendingLocalSkills      *DaemonHeartbeatPendingLocalSkills      `json:"pending_local_skills,omitempty"`
 	PendingLocalSkillImport *DaemonHeartbeatPendingLocalSkillImport `json:"pending_local_skill_import,omitempty"`
 	// PendingLocalSkillImports carries multiple import requests in a single
@@ -391,6 +393,14 @@ type DaemonHeartbeatPendingUpdate struct {
 // enumerate the runtime's supported models.
 type DaemonHeartbeatPendingModelList struct {
 	ID string `json:"id"`
+}
+
+// DaemonHeartbeatPendingCliAuth asks the daemon to authenticate or disconnect
+// the CLI installed for a runtime. No credential crosses this boundary: the
+// daemon only receives the request id and operation.
+type DaemonHeartbeatPendingCliAuth struct {
+	ID     string `json:"id"`
+	Action string `json:"action"`
 }
 
 // DaemonHeartbeatPendingLocalSkills describes a request for the runtime's

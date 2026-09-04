@@ -1,6 +1,20 @@
 import type { AgentRuntime } from "@multica/core/types";
 import type { RuntimeMachine } from "./runtime-machines";
 import { UpdateSection } from "./update-section";
+import { CliAuthSection } from "./cli-auth-section";
+
+function machineUsableRuntimes(
+  machine: RuntimeMachine,
+  currentUserId: string | undefined,
+  canManagePublicRuntimes: boolean,
+): AgentRuntime[] {
+  if (machine.mode !== "local" || !currentUserId) return [];
+  return machine.runtimes.filter(
+    (runtime) =>
+      runtime.owner_id === currentUserId ||
+      (canManagePublicRuntimes && runtime.visibility === "public"),
+  );
+}
 
 /**
  * Pick one runtime the viewer may use as the command channel for a
@@ -15,13 +29,11 @@ export function machineUpdateRuntime(
 ): AgentRuntime | null {
   if (machine.mode !== "local") return null;
 
-  const usable = currentUserId
-    ? machine.runtimes.filter(
-        (runtime) =>
-          runtime.owner_id === currentUserId ||
-          (canManagePublicRuntimes && runtime.visibility === "public"),
-      )
-    : [];
+  const usable = machineUsableRuntimes(
+    machine,
+    currentUserId,
+    canManagePublicRuntimes,
+  );
   return (
     usable.find((runtime) => runtime.status === "online") ??
     usable[0] ??
@@ -39,6 +51,11 @@ export function MachineCliSection({
   canManagePublicRuntimes?: boolean;
 }) {
   const updateRuntime = machineUpdateRuntime(
+    machine,
+    currentUserId,
+    canManagePublicRuntimes,
+  );
+  const authRuntimes = machineUsableRuntimes(
     machine,
     currentUserId,
     canManagePublicRuntimes,
@@ -63,11 +80,16 @@ export function MachineCliSection({
   }
 
   return (
-    <UpdateSection
-      runtimeId={updateRuntime?.id ?? null}
-      currentVersion={machine.cliVersion}
-      isOnline={updateRuntime?.status === "online"}
-      launchedBy={machine.launchedBy}
-    />
+    <>
+      <UpdateSection
+        runtimeId={updateRuntime?.id ?? null}
+        currentVersion={machine.cliVersion}
+        isOnline={updateRuntime?.status === "online"}
+        launchedBy={machine.launchedBy}
+      />
+      {authRuntimes.map((runtime) => (
+        <CliAuthSection key={runtime.id} runtime={runtime} />
+      ))}
+    </>
   );
 }

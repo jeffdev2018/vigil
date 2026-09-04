@@ -89,6 +89,7 @@ import type {
   DashboardFailureByAgent,
   RuntimeUpdate,
   RuntimeModelListRequest,
+	RuntimeCliAuthRequest,
   RuntimeLocalSkillListRequest,
   CreateRuntimeLocalSkillImportRequest,
   RuntimeLocalSkillImportRequest,
@@ -474,6 +475,7 @@ import {
   EMPTY_LIST_GITHUB_INSTALLATIONS_RESPONSE,
   EMPTY_LIST_GITHUB_REPOSITORIES_RESPONSE,
   RuntimeModelListRequestSchema,
+	RuntimeCliAuthRequestSchema,
   MALFORMED_RUNTIME_MODEL_LIST_REQUEST,
   SkillSchema,
   EMPTY_SKILL,
@@ -2594,6 +2596,69 @@ export class ApiClient {
         runtime_id: runtimeId,
       },
       { endpoint: "GET /api/runtimes/{id}/models/{requestId}" },
+    );
+  }
+
+  async initiateCliAuth(runtimeId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/cli-auth`, {
+      method: "POST",
+    });
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: "",
+        runtime_id: runtimeId,
+        action: "login",
+        status: "failed",
+        error: "invalid CLI authentication response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "POST /api/runtimes/{id}/cli-auth" },
+    );
+  }
+
+  async initiateCliLogout(runtimeId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/cli-auth`, {
+      method: "DELETE",
+    });
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: "",
+        runtime_id: runtimeId,
+        action: "logout",
+        status: "failed",
+        error: "invalid CLI sign-out response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "DELETE /api/runtimes/{id}/cli-auth" },
+    );
+  }
+
+  async getCliAuthResult(runtimeId: string, requestId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(
+      `/api/runtimes/${runtimeId}/cli-auth/${requestId}`,
+    );
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: requestId,
+        runtime_id: runtimeId,
+        action: "login",
+        status: "failed",
+        error: "invalid CLI authentication response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "GET /api/runtimes/{id}/cli-auth/{requestId}" },
     );
   }
 
