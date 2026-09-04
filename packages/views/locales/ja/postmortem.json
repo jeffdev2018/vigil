@@ -1,0 +1,40 @@
+{
+  "title": "振り返り",
+  "subtitle": "エージェントの実行失敗後に作成された振り返りを確認します",
+  "filter": {
+    "draft": "下書き",
+    "approved": "承認済み",
+    "discarded": "破棄済み"
+  },
+  "list": {
+    "empty_title_draft": "待機中の下書きはありません",
+    "empty_description_draft": "エージェントの実行が失敗すると、振り返りが作成され、確認を待つためにここに表示されます。",
+    "empty_title_approved": "承認済みのものはありません",
+    "empty_description_approved": "承認した振り返りはここに保持されます。",
+    "empty_title_discarded": "破棄済みのものはありません",
+    "empty_description_discarded": "破棄した振り返りはここに移動します。",
+    "loading": "振り返りを読み込み中",
+    "load_error": "振り返りを読み込めませんでした"
+  },
+  "detail": {
+    "select_prompt": "振り返りを選択して確認してください",
+    "summary_label": "概要",
+    "root_cause_label": "根本原因",
+    "impact_label": "影響",
+    "rules_label": "再発防止ルール",
+    "no_rules": "提案された再発防止ルールはありません",
+    "failure_reason_label": "失敗理由",
+    "llm_generated": "AI が作成",
+    "scaffold_generated": "実行情報から自動入力",
+    "approve": "承認",
+    "approving": "承認中",
+    "discard": "破棄",
+    "discarding": "破棄中",
+    "approved_toast": "振り返りを承認しました",
+    "discarded_toast": "振り返りを破棄しました",
+    "conflict_toast": "この振り返りはすでに対応済みです",
+    "error_toast": "問題が発生しました",
+    "resolved_note_approved": "この振り返りは承認されました。",
+    "resolved_note_discarded": "この振り返りは破棄されました。"
+  }
+}

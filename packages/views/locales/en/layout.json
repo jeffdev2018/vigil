@@ -2,6 +2,7 @@
   "nav": {
     "inbox": "Inbox",
     "triage": "Triage",
+    "postmortems": "Postmortems",
     "chat": "Chat",
     "my_issues": "My Issues",
     "issues": "Issues",

@@ -231,6 +231,10 @@ import type {
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
+  Postmortem,
+  PostmortemState,
+  PostmortemStats,
+  PostmortemsResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -324,6 +328,11 @@ import {
   DismissTriageItemResponseSchema,
   EMPTY_TRIAGE_STATS,
   EMPTY_TRIAGE_ITEMS_RESPONSE,
+  PostmortemSchema,
+  PostmortemsResponseSchema,
+  PostmortemStatsSchema,
+  EMPTY_POSTMORTEM_STATS,
+  EMPTY_POSTMORTEMS_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -1398,6 +1407,75 @@ export class ApiClient {
     await this.fetch(`/api/triage/sources/${encodeURIComponent(sourceId)}`, {
       method: "PATCH",
       body: JSON.stringify({ mode }),
+    });
+  }
+
+  // Postmortem autogen (k68). Stats summarize per-state counts; list returns
+  // one state (default draft) newest-first with keyset pagination.
+  async getPostmortemStats(options?: { signal?: AbortSignal }): Promise<PostmortemStats> {
+    const raw = await this.fetch<unknown>(
+      "/api/postmortems/stats",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemStats>(
+      raw,
+      PostmortemStatsSchema,
+      EMPTY_POSTMORTEM_STATS,
+      { endpoint: "GET /api/postmortems/stats" },
+    );
+  }
+
+  async listPostmortems(
+    params?: { state?: PostmortemState; limit?: number; cursor?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<PostmortemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemsResponse>(
+      raw,
+      PostmortemsResponseSchema,
+      EMPTY_POSTMORTEMS_RESPONSE,
+      { endpoint: "GET /api/postmortems" },
+    );
+  }
+
+  async getPostmortem(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "GET /api/postmortems/:id",
+    });
+  }
+
+  async approvePostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/approve`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/approve",
+    });
+  }
+
+  async discardPostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/discard`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/discard",
     });
   }
 

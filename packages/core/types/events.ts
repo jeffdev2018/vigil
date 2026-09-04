@@ -7,6 +7,7 @@ import type { TimelineEntry } from "./activity";
 import type { Workspace, MemberWithUser, Invitation } from "./workspace";
 import type { Project } from "./project";
 import type { Label } from "./label";
+import type { Postmortem } from "./postmortem";
 
 // WebSocket event types (matching Go server protocol/events.go)
 export type WSEventType =
@@ -95,7 +96,9 @@ export type WSEventType =
   | "pull_request:updated"
   | "pull_request:unlinked"
   | "triage:new"
-  | "triage:resolved";
+  | "triage:resolved"
+  | "postmortem:created"
+  | "postmortem:resolved";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -233,6 +236,16 @@ export interface TriageNewPayload {
 export interface TriageResolvedPayload {
   item_id: string;
   state?: string;
+}
+
+/** A failed run got a drafted postmortem awaiting review. */
+export interface PostmortemCreatedPayload {
+  postmortem: Postmortem;
+}
+
+/** A postmortem was approved or discarded. */
+export interface PostmortemResolvedPayload {
+  postmortem: Postmortem;
 }
 
 export interface CommentCreatedPayload {
@@ -668,6 +681,8 @@ export interface WSEventPayloadMap {
   "pull_request:unlinked": unknown;
   "triage:new": TriageNewPayload;
   "triage:resolved": TriageResolvedPayload;
+  "postmortem:created": PostmortemCreatedPayload;
+  "postmortem:resolved": PostmortemResolvedPayload;
 }
 
 /**
