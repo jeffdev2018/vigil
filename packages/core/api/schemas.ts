@@ -3899,3 +3899,44 @@ export const WhySearchResponseSchema = z.object({
   }).loose()).catch([]).default([]),
   query: z.string().default(""),
 }).loose();
+
+// Trust Dial (K26).
+export const TrustModeEnvelopeSchema = z.object({
+  agent_id: z.string().default(""),
+  mode: z.string().default("propose"),
+  modes: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const TrustSuggestionSchema = z.object({
+  eligible: z.boolean().default(false),
+  current_mode: z.string().default("propose"),
+  suggested_mode: z.string().optional(),
+  metrics: z.object({
+    days: z.number().default(30),
+    runs_total: z.number().default(0),
+    accepted_rate: z.number().default(0),
+    no_intervention_rate: z.number().default(0),
+    reopen_rate: z.number().default(0),
+  }).loose().catch({ days: 30, runs_total: 0, accepted_rate: 0, no_intervention_rate: 0, reopen_rate: 0 }),
+  thresholds: z.object({
+    days: z.number().default(30),
+    min_runs: z.number().default(10),
+    min_accepted_rate: z.number().default(0.8),
+    min_no_intervention_rate: z.number().default(0.7),
+    max_reopen_rate: z.number().default(0.1),
+  }).loose().catch({ days: 30, min_runs: 10, min_accepted_rate: 0.8, min_no_intervention_rate: 0.7, max_reopen_rate: 0.1 }),
+  reasons: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const TrustHistorySchema = z.object({
+  changes: z.array(z.object({
+    id: z.string(),
+    from_mode: z.string().default(""),
+    to_mode: z.string().default(""),
+    reason: z.string().nullable().default(null),
+    triggered_by_type: z.string().default("member"),
+    triggered_by_id: z.string().nullable().default(null),
+    created_at: z.string().default(""),
+    demotion: z.boolean().default(false),
+  }).loose()).catch([]).default([]),
+}).loose();

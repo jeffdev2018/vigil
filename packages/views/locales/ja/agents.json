@@ -269,7 +269,8 @@
     "discard_dialog_description": "このタブに保存していない変更があります。今移動すると変更は破棄されます。",
     "discard_keep": "編集を続ける",
     "discard_confirm": "変更を破棄",
-    "history": "履歴"
+    "history": "履歴",
+    "trust": "信頼"
   },
   "create_dialog": {
     "title_create": "エージェントを作成",
@@ -979,5 +980,38 @@
     "model": "モデル",
     "skills_count": "有効なスキル：{{from}} → {{to}}",
     "version_label": "v{{number}}"
+  },
+  "trust": {
+    "intro": "このエージェントが立ち止まって確認を求めるまでにどこまで行動できるか。権限は「何に触れてよいか」、信頼モードは「いつ人を待つべきか」を決めます。モードはここでのクリックでのみ変わり、すべての変更が記録されます。",
+    "mode_label": "信頼モード",
+    "current": "現在",
+    "modes": {
+      "observer": "オブザーバー",
+      "propose": "提案",
+      "approval": "承認付きで実行",
+      "autonomous": "自律"
+    },
+    "describe": {
+      "observer": "コメントと提案のみ。issue のステータス変更や基準の証明はできません。",
+      "propose": "プランを公開し、承認されるまで作業を始めません。",
+      "approval": "作業しますが、すべての承認ゲートは有効のまま。現在の既定の動作です。",
+      "autonomous": "プランは自動で承認されます。受け入れ基準と証明は引き続き必要です。"
+    },
+    "suggestion_title": "{{mode}} モードの準備ができています",
+    "suggestion_metrics": "{{days}} 日間で {{runs}} 件の実行 · 受け入れ {{accepted}} · 介入なし {{alone}} · 再オープン {{reopened}}",
+    "promote": "{{mode}} に昇格",
+    "not_yet": "次のモードにはまだ達していません：{{reasons}}",
+    "confirm_title": "{{from}} から {{to}} に変更しますか？",
+    "reason": "理由",
+    "reason_placeholder": "変更の理由（履歴に残ります）",
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "changed": "信頼モードを {{mode}} に設定しました",
+    "change_failed": "信頼モードを変更できませんでした",
+    "history": "変更履歴",
+    "history_empty": "まだ変更はありません。",
+    "demotion": "降格",
+    "by_member": "メンバーによる",
+    "by_system": "システムの提案"
   }
 }

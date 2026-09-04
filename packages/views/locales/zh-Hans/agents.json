@@ -277,7 +277,8 @@
     "discard_dialog_description": "当前 tab 有未保存的修改，离开会丢弃这些修改。",
     "discard_keep": "继续编辑",
     "discard_confirm": "放弃修改",
-    "history": "历史"
+    "history": "历史",
+    "trust": "信任"
   },
   "creation_studio": {
     "title": "创建智能体",
@@ -979,5 +980,38 @@
     "model": "模型",
     "skills_count": "启用的技能：{{from}} → {{to}}",
     "version_label": "v{{number}}"
+  },
+  "trust": {
+    "intro": "此智能体在停下来询问之前可以走多远。权限决定它能触碰什么，信任模式决定它何时必须等待人类。模式只能在这里通过点击更改，且每次更改都会被记录。",
+    "mode_label": "信任模式",
+    "current": "当前",
+    "modes": {
+      "observer": "观察者",
+      "propose": "提议",
+      "approval": "经批准执行",
+      "autonomous": "自主"
+    },
+    "describe": {
+      "observer": "只评论和建议。不能更改 issue 状态或证明标准。",
+      "propose": "发布计划并等待批准后才开始工作。",
+      "approval": "执行工作，所有审批关卡保持生效。当前的默认行为。",
+      "autonomous": "其计划自动获批。验收标准和证明仍然适用。"
+    },
+    "suggestion_title": "已准备好进入{{mode}}模式",
+    "suggestion_metrics": "{{days}} 天内 {{runs}} 次运行 · 接受 {{accepted}} · 无干预 {{alone}} · 重开 {{reopened}}",
+    "promote": "提升至{{mode}}",
+    "not_yet": "尚未符合下一模式的条件：{{reasons}}",
+    "confirm_title": "从{{from}}改为{{to}}？",
+    "reason": "原因",
+    "reason_placeholder": "更改原因（保留在历史中）",
+    "confirm": "确认",
+    "cancel": "取消",
+    "changed": "信任模式已设为{{mode}}",
+    "change_failed": "更改信任模式失败",
+    "history": "变更记录",
+    "history_empty": "尚无变更。",
+    "demotion": "降级",
+    "by_member": "由成员",
+    "by_system": "系统建议"
   }
 }

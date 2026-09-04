@@ -316,6 +316,9 @@ import {
   AgentVersionsSchema,
   AuditLogPageSchema,
   AuditChainStatusSchema,
+  TrustModeEnvelopeSchema,
+  TrustSuggestionSchema,
+  TrustHistorySchema,
   WhySearchResponseSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
@@ -2815,6 +2818,30 @@ export class ApiClient {
   async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
     return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
+  }
+
+  // Trust Dial (K26).
+  async getAgentTrustMode(agentId: string): Promise<{ agent_id: string; mode: string; modes: string[] }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode`);
+    return parseWithFallback(raw, TrustModeEnvelopeSchema, { agent_id: agentId, mode: "propose", modes: [] }, { endpoint: "GET /api/agents/:id/trust-mode" });
+  }
+
+  async setAgentTrustMode(agentId: string, mode: string, reason?: string): Promise<{ mode: string }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode`, { method: "PUT", body: JSON.stringify({ mode, reason: reason ?? "" }) });
+    return parseWithFallback(raw, TrustModeEnvelopeSchema, { agent_id: agentId, mode, modes: [] }, { endpoint: "PUT /api/agents/:id/trust-mode" });
+  }
+
+  async getAgentTrustSuggestion(agentId: string): Promise<import("../agents/trust").TrustSuggestion> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/suggestions`);
+    return parseWithFallback(raw, TrustSuggestionSchema, {
+      eligible: false, current_mode: "propose", metrics: { days: 30, runs_total: 0, accepted_rate: 0, no_intervention_rate: 0, reopen_rate: 0 },
+      thresholds: { days: 30, min_runs: 10, min_accepted_rate: 0.8, min_no_intervention_rate: 0.7, max_reopen_rate: 0.1 }, reasons: [],
+    }, { endpoint: "GET /api/agents/:id/trust-mode/suggestions" });
+  }
+
+  async listAgentTrustHistory(agentId: string): Promise<import("../agents/trust").TrustModeChange[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/history`);
+    return parseWithFallback(raw, TrustHistorySchema, { changes: [] }, { endpoint: "GET /api/agents/:id/trust-mode/history" }).changes;
   }
 
   // Why search (K55).

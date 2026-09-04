@@ -37,6 +37,7 @@ import { AgentMcpTab } from "./tabs/agent-mcp-tab";
 import { IntegrationsTab } from "./tabs/integrations-tab";
 import { RuntimeConfigTab } from "./tabs/runtime-config-tab";
 import { HistoryTab } from "./tabs/history-tab";
+import { TrustTab } from "./tabs/trust-tab";
 import { AgentDetailInspector } from "./agent-detail-inspector";
 import { AgentAccessSettings } from "./agent-access-settings";
 import { AgentOverviewSummary } from "./agent-overview-summary";
@@ -59,7 +60,8 @@ export type DetailTab =
   | "env"
   | "custom_args"
   | "runtime_config"
-  | "history";
+  | "history"
+  | "trust";
 
 type SecondaryTab = {
   id: DetailTab;
@@ -74,7 +76,8 @@ type SecondaryTab = {
     | "environment"
     | "custom_args"
     | "runtime_config"
-    | "history";
+    | "history"
+    | "trust";
 };
 
 const CAPABILITY_TABS: SecondaryTab[] = [
@@ -92,6 +95,7 @@ const SETTINGS_TABS: SecondaryTab[] = [
   { id: "custom_args", labelKey: "custom_args" },
   { id: "runtime_config", labelKey: "runtime_config" },
   { id: "history", labelKey: "history" },
+  { id: "trust", labelKey: "trust" },
 ];
 
 const TOP_TABS: { id: DetailSection; labelKey: DetailSection }[] = [
@@ -498,6 +502,8 @@ export function AgentOverviewPane({
                   )}
                   {/* Agent versions (K23): what the agent ran with, and rollback. */}
                   {effectiveView === "history" && <HistoryTab agent={agent} canEdit={canEdit} />}
+                  {/* Trust Dial (K26): how far the agent may act before it asks. */}
+                  {effectiveView === "trust" && <TrustTab agent={agent} canEdit={canEdit} />}
                 </div>
               </div>
             </section>

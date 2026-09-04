@@ -287,7 +287,8 @@
     "discard_dialog_description": "You have unsaved changes in this tab. Leaving now will discard them.",
     "discard_keep": "Keep editing",
     "discard_confirm": "Discard changes",
-    "history": "History"
+    "history": "History",
+    "trust": "Trust"
   },
   "creation_studio": {
     "title": "Create an agent",
@@ -1001,5 +1002,38 @@
     "model": "Model",
     "skills_count": "Enabled skills: {{from}} → {{to}}",
     "version_label": "v{{number}}"
+  },
+  "trust": {
+    "intro": "How far this agent may act before it stops and asks. Permissions say what it may touch; the trust mode says when it must wait for a human. A mode only changes here, by your click, and every change is logged.",
+    "mode_label": "Trust mode",
+    "current": "current",
+    "modes": {
+      "observer": "Observer",
+      "propose": "Propose",
+      "approval": "Acts with approval",
+      "autonomous": "Autonomous"
+    },
+    "describe": {
+      "observer": "Comments and suggests only. Cannot change an issue's status or prove a criterion.",
+      "propose": "Publishes a plan and waits for its approval before any work starts.",
+      "approval": "Works, and every approval gate stays active. Today's default behaviour.",
+      "autonomous": "Its plans are approved automatically. Acceptance criteria and proofs still apply."
+    },
+    "suggestion_title": "Ready for {{mode}} mode",
+    "suggestion_metrics": "{{runs}} runs in {{days}} days · {{accepted}} accepted · {{alone}} without intervention · {{reopened}} reopened",
+    "promote": "Promote to {{mode}}",
+    "not_yet": "Not eligible for the next mode yet: {{reasons}}",
+    "confirm_title": "Change from {{from}} to {{to}}?",
+    "reason": "Reason",
+    "reason_placeholder": "Why this change (kept in the history)",
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "changed": "Trust mode set to {{mode}}",
+    "change_failed": "Failed to change the trust mode",
+    "history": "Changes",
+    "history_empty": "No change yet.",
+    "demotion": "demotion",
+    "by_member": "by a member",
+    "by_system": "suggested by the system"
   }
 }
