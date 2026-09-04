@@ -826,7 +826,17 @@
     "gates_spend_description": "A run gets a short-lived spend token at once under this amount; above it, a Decision Card asks first.",
     "gates_tools_label": "Sensitive MCP tools (pattern)",
     "gates_tools_description": "Remote MCP tools whose name matches this regular expression pause for a human before they run.",
-    "gates_failed": "Failed to update the approval gates"
+    "gates_failed": "Failed to update the approval gates",
+    "profiles_section": "Permission profiles",
+    "profiles_intro": "What an agent may touch when it runs. Assign a profile on the agent (or on one run); the rules below are enforced where the runtime allows it (Claude deny rules, Codex read-only sandbox, approval gates) and told to the model otherwise.",
+    "profiles_read_only": "Read-only",
+    "profiles_denied_paths": "Denied paths",
+    "profiles_denied_paths_description": "Globs the run may neither read, edit nor push, comma separated. Example: .env, infra/**",
+    "profiles_allowed_commands": "Allowed commands",
+    "profiles_allowed_commands_description": "Commands the model is told it may run; * means anything.",
+    "profiles_hidden_secrets": "Hidden secrets",
+    "profiles_hidden_secrets_description": "Environment keys withheld from the run, as globs. Example: *PROD*, *_PASSWORD",
+    "profiles_failed": "Failed to update the permission profile"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

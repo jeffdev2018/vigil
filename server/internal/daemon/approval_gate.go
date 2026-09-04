@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -225,4 +226,23 @@ func gateParamPaths(params json.RawMessage) []string {
 		}
 	}
 	return out
+}
+
+// applyPermissionProfile (K06) withholds the profile's hidden secrets and
+// appends the flags the provider can enforce (Claude deny rules, Codex
+// read-only sandbox). It mutates the agent payload once so every later
+// reader — env layering, launch args, the MCP gate — sees the same run.
+func applyPermissionProfile(agent *AgentData, provider string, log *slog.Logger) {
+	if agent == nil || agent.PermissionProfile == nil {
+		return
+	}
+	p := agent.PermissionProfile
+	var hidden []string
+	agent.CustomEnv, hidden = p.FilterSecrets(agent.CustomEnv)
+	if len(hidden) > 0 && log != nil {
+		log.Info("permission profile: secrets withheld from this run", "profile", p.Name, "keys", hidden)
+	}
+	if extra := p.ProviderArgs(provider); len(extra) > 0 {
+		agent.CustomArgs = append(append([]string{}, agent.CustomArgs...), extra...)
+	}
 }

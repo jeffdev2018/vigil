@@ -7359,6 +7359,9 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	if task.Agent != nil && provider == "openclaw" {
 		openclawMode, openclawGateway = decodeOpenclawRuntimeConfig(task.Agent.RuntimeConfig, d.logger)
 	}
+	// Permission profile (K06): withhold hidden secrets and add the flags the
+	// provider enforces, once, before anything reads the agent payload.
+	applyPermissionProfile(task.Agent, provider, taskLog)
 	var agentEnvOverrides map[string]string
 	var agentCustomArgs []string
 	if task.Agent != nil {
@@ -9726,6 +9729,12 @@ func (d *Daemon) remoteMCPToolGate(task Task, log *slog.Logger) remoteMCPToolGat
 	matcher := sensitiveToolMatcher(os.Getenv("MULTICA_GATE_SENSITIVE_TOOLS"))
 	client := newApprovalGateClient(d.cfg.ServerBaseURL, token, task.ID)
 	return func(ctx context.Context, toolName string, params json.RawMessage) (bool, string) {
+		// Permission profile (K06): a denied path is refused without asking.
+		if task.Agent != nil && task.Agent.PermissionProfile != nil {
+			if denied := task.Agent.PermissionProfile.DeniedAmong(gateParamPaths(params)); len(denied) > 0 {
+				return false, "the permission profile " + task.Agent.PermissionProfile.Name + " denies " + strings.Join(denied, ", ")
+			}
+		}
 		if !matcher.MatchString(toolName) {
 			return true, ""
 		}

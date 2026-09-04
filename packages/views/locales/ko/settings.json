@@ -824,7 +824,17 @@
     "gates_spend_description": "이 금액 미만이면 실행에 단기 지출 토큰이 즉시 발급됩니다. 초과하면 먼저 결정 카드로 묻습니다.",
     "gates_tools_label": "민감한 MCP 도구(패턴)",
     "gates_tools_description": "이름이 이 정규식과 일치하는 원격 MCP 도구는 실행 전에 사람의 승인을 기다립니다.",
-    "gates_failed": "승인 게이트를 업데이트하지 못했습니다"
+    "gates_failed": "승인 게이트를 업데이트하지 못했습니다",
+    "profiles_section": "권한 프로필",
+    "profiles_intro": "에이전트가 실행 중 접근할 수 있는 범위입니다. 프로필은 에이전트(또는 개별 실행)에 지정합니다. 아래 규칙은 런타임이 허용하는 범위에서 강제되고(Claude 거부 규칙, Codex 읽기 전용 샌드박스, 승인 게이트) 그 외에는 모델에 전달됩니다.",
+    "profiles_read_only": "읽기 전용",
+    "profiles_denied_paths": "금지 경로",
+    "profiles_denied_paths_description": "실행이 읽기·편집·push할 수 없는 글롭(쉼표 구분). 예: .env, infra/**",
+    "profiles_allowed_commands": "허용 명령",
+    "profiles_allowed_commands_description": "모델에 실행 가능하다고 알리는 명령. *는 모두 허용.",
+    "profiles_hidden_secrets": "숨김 시크릿",
+    "profiles_hidden_secrets_description": "실행에 전달하지 않는 환경 변수 키(글롭). 예: *PROD*, *_PASSWORD",
+    "profiles_failed": "권한 프로필을 업데이트하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

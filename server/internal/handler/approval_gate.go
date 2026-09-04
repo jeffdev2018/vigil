@@ -175,19 +175,13 @@ func (h *Handler) openGateWithBlastRadius(ctx context.Context, task db.AgentTask
 		details = map[string]any{}
 	}
 	paths := gatePaths(details)
-	if !task.IssueID.Valid || len(paths) == 0 {
+	if !task.IssueID.Valid {
 		return h.openGate(ctx, task, gateType, summary, details)
 	}
 	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
 	if err != nil {
 		return db.ApprovalGateEvent{}, fmt.Errorf("load issue: %w", err)
 	}
-	rules := h.projectBlastRules(ctx, issue.WorkspaceID, issue.ProjectID)
-	level, ok := blastradius.Worst(rules, paths)
-	if !ok {
-		return h.openGate(ctx, task, gateType, summary, details)
-	}
-	details["blast_radius"] = level
 	settle := func(action, reason string) (db.ApprovalGateEvent, error) {
 		details["reason"] = reason
 		raw, _ := json.Marshal(details)
@@ -201,6 +195,24 @@ func (h *Handler) openGateWithBlastRadius(ctx context.Context, task db.AgentTask
 		h.audit(ctx, issue.WorkspaceID, "system", "", AuditGateResolved, "task", task.ID, map[string]any{"gate_id": uuidToString(gate.ID), "gate_type": gateType, "action": action, "reason": reason, "paths": paths}, nil)
 		return gate, nil
 	}
+	// Permission profile (K06): the run's own limits come before the project's.
+	if profile, _, ok := h.taskPermissionProfile(ctx, task, nil); ok {
+		denied := profile.DeniedAmong(paths)
+		if len(denied) > 0 || (profile.ReadOnly && gateType == "git_push") {
+			details["permission_profile"] = profile.Name
+			details["denied_paths"] = denied
+			return settle("denied", "permission_profile")
+		}
+	}
+	if len(paths) == 0 {
+		return h.openGate(ctx, task, gateType, summary, details)
+	}
+	rules := h.projectBlastRules(ctx, issue.WorkspaceID, issue.ProjectID)
+	level, ok := blastradius.Worst(rules, paths)
+	if !ok {
+		return h.openGate(ctx, task, gateType, summary, details)
+	}
+	details["blast_radius"] = level
 	switch level {
 	case blastradius.LevelReadOnly:
 		return settle("denied", "read_only")

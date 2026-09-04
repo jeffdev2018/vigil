@@ -2255,6 +2255,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if agent.SystemKey.String == service.MikaSystemKey {
 		resp.Agent.Instructions = service.ComposeMikaInstructions(agent.Name, agent.Instructions)
 	}
+	// Permission profile (K06): the daemon enforces what it can, the model reads the rest.
+	if profile, _, ok := h.taskPermissionProfile(r.Context(), *task, &agent); ok {
+		resp.Agent.PermissionProfile = &profile
+		resp.Agent.Instructions = strings.TrimRight(resp.Agent.Instructions, "\n") + "\n\n" + profile.PromptSection()
+	}
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID)
 		if err != nil {

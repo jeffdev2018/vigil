@@ -48,6 +48,7 @@
     "./issues/role-view-store": "./issues/role-view-store.ts",
     "./agents/versions": "./agents/versions.ts",
     "./agents/trust": "./agents/trust.ts",
+    "./agents/permission-profiles": "./agents/permission-profiles.ts",
     "./workspace/audit": "./workspace/audit.ts",
     "./triage": "./triage/index.ts",
     "./triage/queries": "./triage/queries.ts",

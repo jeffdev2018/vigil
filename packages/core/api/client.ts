@@ -328,6 +328,9 @@ import {
   AuditChainStatusSchema,
   TriageSuggestionsResponseSchema,
   TrustModeEnvelopeSchema,
+  PermissionProfileSchema,
+  PermissionProfilesEnvelopeSchema,
+  AgentPermissionAssignmentSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
   WhySearchResponseSchema,
@@ -2983,6 +2986,22 @@ export class ApiClient {
   async listAgentTrustHistory(agentId: string): Promise<import("../agents/trust").TrustModeChange[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/history`);
     return parseWithFallback(raw, TrustHistorySchema, { changes: [] }, { endpoint: "GET /api/agents/:id/trust-mode/history" }).changes;
+  }
+
+  // Permission profiles (K06).
+  async listPermissionProfiles(): Promise<import("../agents/permission-profiles").PermissionProfile[]> {
+    const raw = await this.fetch<unknown>(`/api/permission-profiles`);
+    return parseWithFallback(raw, PermissionProfilesEnvelopeSchema, { profiles: [] }, { endpoint: "GET /api/permission-profiles" }).profiles;
+  }
+
+  async updatePermissionProfile(id: string, patch: import("../agents/permission-profiles").PermissionProfilePatch): Promise<import("../agents/permission-profiles").PermissionProfile> {
+    const raw = await this.fetch<unknown>(`/api/permission-profiles/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+    return parseWithFallback(raw, PermissionProfileSchema, { id, name: "", description: "", read_only: false, denied_paths: [], allowed_commands: [], hidden_secrets: [], builtin: false }, { endpoint: "PATCH /api/permission-profiles/:id" });
+  }
+
+  async setAgentPermissionProfile(agentId: string, profileId: string | null): Promise<{ id: string; permission_profile_id: string | null }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/permission-profile`, { method: "PUT", body: JSON.stringify({ profile_id: profileId }) });
+    return parseWithFallback(raw, AgentPermissionAssignmentSchema, { id: agentId, permission_profile_id: profileId }, { endpoint: "PUT /api/agents/:id/permission-profile" });
   }
 
   // Why search (K55).

@@ -824,7 +824,17 @@
     "gates_spend_description": "低于该金额时运行立即获得短期支出令牌；高于该金额时先通过决策卡询问。",
     "gates_tools_label": "敏感 MCP 工具（模式）",
     "gates_tools_description": "名称匹配此正则表达式的远程 MCP 工具在运行前等待人工审批。",
-    "gates_failed": "更新审批关卡失败"
+    "gates_failed": "更新审批关卡失败",
+    "profiles_section": "权限配置",
+    "profiles_intro": "智能体运行时可触及的范围。在智能体（或单次运行）上指定配置；以下规则在运行时允许的范围内强制执行（Claude 拒绝规则、Codex 只读沙箱、审批关卡），其余则告知模型。",
+    "profiles_read_only": "只读",
+    "profiles_denied_paths": "禁止路径",
+    "profiles_denied_paths_description": "运行不得读取、编辑或推送的 glob，逗号分隔。示例：.env, infra/**",
+    "profiles_allowed_commands": "允许命令",
+    "profiles_allowed_commands_description": "告知模型可运行的命令；* 表示不限。",
+    "profiles_hidden_secrets": "隐藏密钥",
+    "profiles_hidden_secrets_description": "不传给运行的环境变量键（glob）。示例：*PROD*, *_PASSWORD",
+    "profiles_failed": "更新权限配置失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",
