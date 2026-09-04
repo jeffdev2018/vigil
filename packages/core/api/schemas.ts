@@ -51,6 +51,7 @@ import type {
   TriageStats,
   TriageItemsResponse,
   Label,
+  AgentMemory,
   MemberWithUser,
   IssueProperty,
   ListPropertiesResponse,
@@ -3324,6 +3325,36 @@ export const EMPTY_SKILL_IMPORT_RESULT: SkillImportResult = {
   status: "failed",
   reason: "",
 };
+
+// Agent persistent memories (JEF-236). `source` stays a plain string so a
+// newer backend source kind still parses — consumers render it with a
+// default-bearing branch. Fields default so a partial payload degrades to a
+// renderable row rather than dropping the whole list.
+export const AgentMemorySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  content: z.string().optional().default(""),
+  source: z.string().optional().default("manual"),
+  source_task_id: z.string().nullable().optional().default(null),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+}).loose();
+
+export const EMPTY_AGENT_MEMORY: AgentMemory = {
+  id: "",
+  agent_id: "",
+  content: "",
+  source: "manual",
+  source_task_id: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// The list endpoint returns a bare array (repo convention for list APIs, cf.
+// GET /api/skills), so the schema is the array itself.
+export const AgentMemoryListSchema = z.array(AgentMemorySchema);
+
+export const EMPTY_AGENT_MEMORY_LIST: AgentMemory[] = [];
 
 /**
  * Read shape of one workspace MCP server.

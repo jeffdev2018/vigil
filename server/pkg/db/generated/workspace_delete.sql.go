@@ -102,6 +102,17 @@ func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID
 	return err
 }
 
+const deleteWorkspaceAgentMemories = `-- name: DeleteWorkspaceAgentMemories :exec
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1
+`
+
+// agent_memory carries no FK by repo rule; sweep it before the agent rows it
+// logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentMemories(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentMemories, workspaceID)
+	return err
+}
+
 const deleteWorkspaceAgents = `-- name: DeleteWorkspaceAgents :exec
 DELETE FROM agent WHERE agent.workspace_id = $1
 `

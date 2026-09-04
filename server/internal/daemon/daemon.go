@@ -7168,9 +7168,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	agentName := "agent"
 	var skills []SkillData
 	var instructions string
+	var memories []string
 	agentName = task.Agent.Name
 	skills = task.Agent.Skills
 	instructions = task.Agent.Instructions
+	memories = task.Agent.Memories
 
 	// Prepare isolated execution environment.
 	// Repos are passed as metadata only — the agent checks them out on demand
@@ -7191,6 +7193,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentID:                          task.AgentID,
 		AgentName:                        agentName,
 		AgentInstructions:                instructions,
+		AgentMemories:                    memories,
 		AgentSkills:                      convertSkillsForEnv(skills),
 		DisabledRuntimeSkills:            convertDisabledRuntimeSkillsForEnv(task.Agent, task.RuntimeID, provider),
 		Repos:                            convertReposForEnv(task.Repos),

@@ -82,6 +82,8 @@ export type {
   RuntimeLocalSkillImportRequest,
   RuntimeLocalSkillsResult,
   RuntimeLocalSkillImportResult,
+  AgentMemory,
+  AgentMemorySource,
   IssueUsageSummary,
   MikaBootstrapResponse,
 } from "./agent";

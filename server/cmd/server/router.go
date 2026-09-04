@@ -1236,6 +1236,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		service.SubscribePluginEvents(bus, pluginEvents)
 	}
 
+	// Post-run agent memory extraction (JEF-236). Wired unconditionally: the
+	// pass no-ops on a nil/disabled LLM client, so a deployment without
+	// MULTICA_LLM_* pays nothing for the subscription.
+	h.TaskService.SubscribeAgentMemoryExtraction(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -2111,6 +2116,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/skills/{skillId}/enabled", h.SetAgentSkillEnabled)
 					r.Put("/runtime-skills/enabled", h.SetAgentRuntimeSkillEnabled)
 					r.Delete("/skills/{skillId}", h.RemoveAgentSkill)
+					// Durable per-agent memory facts (JEF-236), injected into
+					// every run's brief. Same permission model as the agent's
+					// skill bindings above.
+					r.Get("/memories", h.ListAgentMemories)
+					r.Post("/memories", h.CreateAgentMemory)
+					r.Put("/memories/{memoryId}", h.UpdateAgentMemory)
+					r.Delete("/memories/{memoryId}", h.DeleteAgentMemory)
 					// Workspace MCP servers assigned to this agent. Mirrors
 					// the skills routes above: a library entry does nothing
 					// until it is added here, and the binding carries its own

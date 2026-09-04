@@ -77,6 +77,12 @@ type TaskService struct {
 	// state for a self-hosted deployment with no MULTICA_LLM_* configuration.
 	// Wired in router.go from the same *llm.Client that backs chat auto-titling.
 	QuickActions ChatQuickActionsLLM
+	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
+	// Optional: nil (or a disabled client) turns extraction off, which is the
+	// expected state for a self-hosted deployment with no MULTICA_LLM_*
+	// configuration. Wired in handler.New from the same *llm.Client that backs
+	// chat auto-titling and quick actions.
+	MemoryExtraction AgentMemoryLLM
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built
@@ -84,6 +90,13 @@ type TaskService struct {
 	// shedding everything.
 	quickActionsInFlight sync.Map
 	quickActionsRunning  atomic.Int64
+
+	// memoryExtractionInFlight (agent id -> struct{}{}) and
+	// memoryExtractionRunning gate the post-run fact pass: one per agent, and
+	// a process-wide ceiling. Zero values are usable, like the quick-actions
+	// gates above.
+	memoryExtractionInFlight sync.Map
+	memoryExtractionRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext
@@ -6600,6 +6613,29 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 		return nil, nil
 	}
 	return s.skillsWithFiles(ctx, skills)
+}
+
+// LoadAgentMemories returns the contents of an agent's 50 most recent memory
+// facts (JEF-236), in chronological order for the brief. SQL returns them
+// newest-first (the cap keeps the read bounded); the reverse happens here so
+// the prompt reads oldest → newest, matching how the facts were learned.
+//
+// Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
+// context, not executable rules, so a missing section is plainly visible in
+// the brief and the claim continues without it (see buildClaimedTaskResponse).
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
+		AgentID:     agentID,
+		WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list agent memories: %w", err)
+	}
+	contents := make([]string, 0, len(rows))
+	for i := len(rows) - 1; i >= 0; i-- {
+		contents = append(contents, rows[i].Content)
+	}
+	return contents, nil
 }
 
 // skillsWithFiles loads the files of every given skill in ONE round trip

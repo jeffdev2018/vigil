@@ -728,6 +728,10 @@ type TaskAgentData struct {
 	// (issue #3260). Other providers ignore the payload entirely. Sent
 	// raw so the daemon can evolve its schema without a server roundtrip.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
+	// Memories are the agent's durable learned facts (JEF-236), loaded at
+	// claim time and rendered by the daemon as the brief's Memory section.
+	// Omitted when the agent has none.
+	Memories []string `json:"memories,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded

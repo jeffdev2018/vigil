@@ -56,6 +56,7 @@ import type {
   User,
   Skill,
   SkillSummary,
+  AgentMemory,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -466,6 +467,10 @@ import {
   type IssueView,
   type IssueViewPreference,
   type CreateIssueViewRequest,
+  AgentMemorySchema,
+  AgentMemoryListSchema,
+  EMPTY_AGENT_MEMORY,
+  EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -2477,6 +2482,54 @@ export class ApiClient {
 
   async listAgentTasks(agentId: string): Promise<AgentTask[]> {
     return this.fetch(`/api/agents/${agentId}/tasks`);
+  }
+
+  // Persistent per-agent memories (JEF-236). The list read validates through
+  // parseWithFallback so a drifting response renders an empty list instead of
+  // breaking the agent page; writes validate too so the caller never caches an
+  // unparsed blob. POST returns 409 when the per-agent cap is reached — that
+  // surfaces as an ApiError the tab toasts.
+  async listAgentMemories(agentId: string): Promise<AgentMemory[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
+    return parseWithFallback(
+      raw,
+      AgentMemoryListSchema,
+      EMPTY_AGENT_MEMORY_LIST,
+      { endpoint: "GET /api/agents/{agentId}/memories" },
+    );
+  }
+
+  async createAgentMemory(agentId: string, content: string): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "POST /api/agents/{agentId}/memories",
+    });
+  }
+
+  async updateAgentMemory(
+    agentId: string,
+    memoryId: string,
+    content: string,
+  ): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${agentId}/memories/${memoryId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    );
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "PUT /api/agents/{agentId}/memories/{memoryId}",
+    });
+  }
+
+  async deleteAgentMemory(agentId: string, memoryId: string): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/memories/${memoryId}`, {
+      method: "DELETE",
+    });
   }
 
   // Workspace-scoped agent task snapshot: every active task

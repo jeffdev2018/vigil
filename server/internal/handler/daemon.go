@@ -2253,6 +2253,17 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		skills = append(skills, builtinSkills...)
 		resp.Agent.Skills = skills
 	}
+	// Memory facts (JEF-236) ride the same single assembly point. Unlike the
+	// skill load above this is deliberately NON-blocking: skills fail closed
+	// because a partial skill set is indistinguishable from a correct one,
+	// while a missing Memory section is plainly visible in the brief — a
+	// failed read must never stop an agent from being dispatched.
+	if memories, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
+		slog.Warn("daemon claim: load agent memories failed; continuing without memory",
+			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
+	} else if len(memories) > 0 {
+		resp.Agent.Memories = memories
+	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
 		if resp.Agent != nil {
