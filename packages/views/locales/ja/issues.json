@@ -912,6 +912,22 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "pipeline": {
+    "pick": "パイプラインを選択",
+    "start": "パイプラインを開始",
+    "last": "前回のパイプライン: {{name}}（{{status}}）",
+    "gate_waiting": "ゲート待ち",
+    "approve": "承認して進める",
+    "retry": "ステージを再試行",
+    "cancel": "パイプラインを停止",
+    "failed": "パイプラインの操作に失敗しました",
+    "status": {
+      "active": "進行中",
+      "paused": "一時停止",
+      "completed": "完了",
+      "cancelled": "停止"
+    }
+  },
   "preemption": {
     "waiting": "緊急イシューを優先するため一時停止中",
     "resumed": "緊急イシューのため一時停止し、再開しました",

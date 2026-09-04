@@ -347,6 +347,9 @@ import {
   TrafficConflictSchema,
   DriftPolicySchema,
   PreemptionsEnvelopeSchema,
+  PipelineSchema,
+  PipelinesEnvelopeSchema,
+  PipelineRunEnvelopeSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3149,6 +3152,46 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Pipelines (K37).
+  async listPipelines(): Promise<import("../pipelines").Pipeline[]> {
+    const raw = await this.fetch<unknown>(`/api/pipelines`);
+    return parseWithFallback(raw, PipelinesEnvelopeSchema, { pipelines: [] }, { endpoint: "GET /api/pipelines" }).pipelines;
+  }
+
+  async createPipeline(input: import("../pipelines").PipelineInput): Promise<import("../pipelines").Pipeline> {
+    const raw = await this.fetch<unknown>(`/api/pipelines`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, PipelineSchema, { id: "", name: input.name, stages: [], open_runs: 0, created_at: "" }, { endpoint: "POST /api/pipelines" });
+  }
+
+  async updatePipeline(id: string, input: import("../pipelines").PipelineInput): Promise<import("../pipelines").Pipeline> {
+    const raw = await this.fetch<unknown>(`/api/pipelines/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+    return parseWithFallback(raw, PipelineSchema, { id, name: input.name, stages: [], open_runs: 0, created_at: "" }, { endpoint: "PATCH /api/pipelines/:id" });
+  }
+
+  async deletePipeline(id: string): Promise<void> {
+    await this.fetch(`/api/pipelines/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getIssuePipelineRun(issueId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pipeline-run`);
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/pipeline-run" }).run;
+  }
+
+  async startPipelineRun(issueId: string, pipelineId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pipeline-run`, { method: "POST", body: JSON.stringify({ pipeline_id: pipelineId }) });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/pipeline-run" }).run;
+  }
+
+  async advancePipelineRun(runId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pipeline-runs/${encodeURIComponent(runId)}/advance`, { method: "POST" });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/pipeline-runs/:id/advance" }).run;
+  }
+
+  async cancelPipelineRun(runId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pipeline-runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/pipeline-runs/:id/cancel" }).run;
   }
 
   // Preemption (K41).

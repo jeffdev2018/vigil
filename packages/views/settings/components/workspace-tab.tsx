@@ -48,6 +48,7 @@ import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
+import { PipelinesSetting } from "./pipelines-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
 import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
@@ -500,6 +501,7 @@ export function WorkspaceTab() {
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
+      {workspace && <PipelinesSetting canManage={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection

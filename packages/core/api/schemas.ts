@@ -4353,3 +4353,44 @@ export const PreemptionSchema = z.object({
 export const PreemptionsEnvelopeSchema = z.object({
   preemptions: z.array(PreemptionSchema).catch([]).default([]),
 }).loose();
+
+// Pipelines (K37).
+export const PipelineStageSchema = z.object({
+  id: z.string().default(""),
+  position: z.number().int().catch(0).default(0),
+  name: z.string().default(""),
+  executor_type: z.enum(["agent", "squad"]).catch("agent").default("agent"),
+  executor_id: z.string().default(""),
+  requires_human_gate: z.boolean().catch(false).default(false),
+}).loose();
+
+export const PipelineSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  stages: z.array(PipelineStageSchema).catch([]).default([]),
+  open_runs: z.number().catch(0).default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const PipelinesEnvelopeSchema = z.object({
+  pipelines: z.array(PipelineSchema).catch([]).default([]),
+}).loose();
+
+export const PipelineRunSchema = z.object({
+  id: z.string().default(""),
+  pipeline_id: z.string().default(""),
+  pipeline_name: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["active", "paused", "completed", "cancelled"]).catch("active").default("active"),
+  current_stage_id: z.string().nullable().catch(null).default(null),
+  current_index: z.number().int().catch(-1).default(-1),
+  gate_decision_id: z.string().nullable().catch(null).default(null),
+  last_error: z.string().nullable().catch(null).default(null),
+  stages: z.array(PipelineStageSchema).catch([]).default([]),
+  started_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const PipelineRunEnvelopeSchema = z.object({
+  run: PipelineRunSchema.nullable().catch(null).default(null),
+}).loose();

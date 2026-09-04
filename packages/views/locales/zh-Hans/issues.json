@@ -912,6 +912,22 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "pipeline": {
+    "pick": "选择流水线",
+    "start": "启动流水线",
+    "last": "上次流水线：{{name}}（{{status}}）",
+    "gate_waiting": "等待关卡",
+    "approve": "批准并前进",
+    "retry": "重试阶段",
+    "cancel": "停止流水线",
+    "failed": "流水线操作失败",
+    "status": {
+      "active": "进行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "cancelled": "已停止"
+    }
+  },
   "preemption": {
     "waiting": "已暂停以让紧急议题先行",
     "resumed": "曾为紧急议题暂停，现已恢复",
