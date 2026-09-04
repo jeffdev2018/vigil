@@ -2103,6 +2103,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/refactor-campaigns/{id}", h.GetRefactorCampaign)
 			r.Get("/api/issues/{id}/refactor-campaign", h.GetIssueRefactorCampaign)
 			r.Post("/api/campaign-shards/{id}/skip", h.SkipCampaignShard)
+			// Learned competency (K43): success history per agent and domain.
+			r.Get("/api/agents/{id}/competency", h.GetAgentCompetency)
+			r.Get("/api/issues/{id}/assignee-suggestion", h.GetAssigneeSuggestion)
+			r.Get("/api/competency-settings", h.GetCompetencySettings)
+			r.Put("/api/competency-settings", h.PutCompetencySettings)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)

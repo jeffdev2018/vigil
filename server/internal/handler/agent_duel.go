@@ -237,6 +237,8 @@ func (h *Handler) ConfirmAgentDuel(w http.ResponseWriter, r *http.Request) {
 	actorType, actorID := h.resolveActor(r, userID, uuidToString(d.WorkspaceID))
 	h.audit(r.Context(), d.WorkspaceID, actorType, actorID, AuditDuel, "issue", d.IssueID, map[string]any{"duel_id": uuidToString(d.ID), "winner": req.Winner, "arbiter_winner": v.Winner, "agent_a_id": uuidToString(d.AgentAID), "agent_b_id": uuidToString(d.AgentBID), "confirmed": true}, nil)
 	if issue, err := h.Queries.GetIssue(r.Context(), d.IssueID); err == nil {
+		// Learned competency (K43): a confirmed duel is a strong, separately weighted signal.
+		h.recordDuelCompetency(r.Context(), issue, confirmed)
 		h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"duel": h.duelToResponse(r.Context(), confirmed)})

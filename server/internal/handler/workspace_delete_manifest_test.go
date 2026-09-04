@@ -109,6 +109,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"fanout_batch":                       workspaceDelete,
 	"fanout_batch_member":                workspaceDelete,
 	"agent_duel":                         workspaceDelete,
+	"agent_domain_competency":            workspaceDelete,
 	"campaign_shard":                     workspaceDelete,
 	"refactor_campaign":                  workspaceDelete,
 	"plan_verification":                  workspaceDelete,
