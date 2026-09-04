@@ -82,6 +82,86 @@ func (h *Handler) fanoutToResponse(ctx context.Context, b db.FanoutBatch) Fanout
 	return out
 }
 
+type fanoutSubTask struct {
+	desc  string
+	agent db.Agent
+}
+
+// parseFanoutSubTasks validates the sub-task list and resolves each
+// assignee in the issue's workspace; writes the error itself.
+func (h *Handler) parseFanoutSubTasks(w http.ResponseWriter, r *http.Request, issue db.Issue, reqs []FanoutSubTaskRequest) ([]fanoutSubTask, bool) {
+	if len(reqs) == 0 || len(reqs) > fanoutMaxSubTasks {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("between 1 and %d sub-tasks", fanoutMaxSubTasks))
+		return nil, false
+	}
+	subs := make([]fanoutSubTask, 0, len(reqs))
+	for i, st := range reqs {
+		desc := strings.TrimSpace(st.Description)
+		if desc == "" {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("sub-task %d needs a description", i+1))
+			return nil, false
+		}
+		aid, ok := parseUUIDOrBadRequest(w, st.AssigneeID, "assignee_id")
+		if !ok {
+			return nil, false
+		}
+		agent, err := h.Queries.GetAgentInWorkspace(r.Context(), db.GetAgentInWorkspaceParams{ID: aid, WorkspaceID: issue.WorkspaceID})
+		if err != nil || agent.ArchivedAt.Valid {
+			writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("sub-task %d: agent not found in this workspace", i+1))
+			return nil, false
+		}
+		subs = append(subs, fanoutSubTask{desc: desc, agent: agent})
+	}
+	return subs, true
+}
+
+// launchFanout creates the batch, one child issue per sub-task (assigned,
+// with its run queued) and the member rows. On error it returns the HTTP
+// status and message to write.
+func (h *Handler) launchFanout(ctx context.Context, issue db.Issue, leader db.Agent, subs []fanoutSubTask, actorType, actorID string, userID pgtype.UUID) (db.FanoutBatch, []db.FanoutBatchMember, int, string) {
+	batch, err := h.Queries.CreateFanoutBatch(ctx, db.CreateFanoutBatchParams{ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, ParentIssueID: issue.ID, LeaderAgentID: leader.ID, ExpectedCount: int32(len(subs)), StartedBy: userID})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return db.FanoutBatch{}, nil, http.StatusConflict, ErrCodeFanoutActive
+		}
+		return db.FanoutBatch{}, nil, http.StatusInternalServerError, "failed to create the fan-out"
+	}
+	prefix := h.getIssuePrefix(ctx, issue.WorkspaceID)
+	members := make([]db.FanoutBatchMember, 0, len(subs))
+	for i, st := range subs {
+		title := st.desc
+		if nl := strings.IndexByte(title, '\n'); nl > 0 {
+			title = title[:nl]
+		}
+		if len(title) > 120 {
+			title = title[:117] + "..."
+		}
+		res, err := h.IssueService.Create(ctx, service.IssueCreateParams{
+			WorkspaceID: issue.WorkspaceID, Title: title,
+			Description: pgtype.Text{String: fmt.Sprintf("Sub-task %d of the fan-out on %s-%d.\n\n%s", i+1, prefix, issue.Number, st.desc), Valid: true},
+			Status:      "todo", Priority: issue.Priority, AssigneeType: pgtype.Text{String: "agent", Valid: true}, AssigneeID: st.agent.ID,
+			CreatorType: actorType, CreatorID: issue.CreatorID, ParentIssueID: issue.ID, ProjectID: issue.ProjectID, AllowDuplicate: true,
+		}, service.IssueCreateOpts{ActorID: actorID})
+		if err != nil {
+			return db.FanoutBatch{}, nil, http.StatusInternalServerError, "failed to create sub-task issue: " + err.Error()
+		}
+		// Creating an agent-assigned issue already queues its run; queue one only when it did not.
+		task, err := h.Queries.GetLatestTaskForIssue(ctx, res.Issue.ID)
+		if err != nil {
+			if task, err = h.TaskService.EnqueueTaskForIssueByActor(ctx, res.Issue, userID); err != nil {
+				return db.FanoutBatch{}, nil, http.StatusInternalServerError, "failed to queue the specialist run: " + err.Error()
+			}
+		}
+		m, err := h.Queries.AddFanoutBatchMember(ctx, db.AddFanoutBatchMemberParams{ID: dbid.NewV7(), FanoutBatchID: batch.ID, WorkspaceID: issue.WorkspaceID, ChildIssueID: res.Issue.ID, TaskID: task.ID, AssigneeAgentID: st.agent.ID, SubTaskDescription: st.desc})
+		if err != nil {
+			return db.FanoutBatch{}, nil, http.StatusInternalServerError, "failed to record the sub-task"
+		}
+		members = append(members, m)
+	}
+	return batch, members, 0, ""
+}
+
 // StartFanout: POST /api/issues/{id}/fanout.
 func (h *Handler) StartFanout(w http.ResponseWriter, r *http.Request) {
 	issue, ok := h.loadIssueForUser(w, r, chi.URLParam(r, "id"))
@@ -93,10 +173,6 @@ func (h *Handler) StartFanout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if len(req.SubTasks) == 0 || len(req.SubTasks) > fanoutMaxSubTasks {
-		writeError(w, http.StatusBadRequest, fmt.Sprintf("between 1 and %d sub-tasks", fanoutMaxSubTasks))
-		return
-	}
 	leaderID, ok := parseUUIDOrBadRequest(w, req.LeaderAgentID, "leader_agent_id")
 	if !ok {
 		return
@@ -106,70 +182,19 @@ func (h *Handler) StartFanout(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "leader agent not found in this workspace")
 		return
 	}
-	type subTask struct {
-		desc  string
-		agent db.Agent
-	}
-	subs := make([]subTask, 0, len(req.SubTasks))
-	for i, st := range req.SubTasks {
-		desc := strings.TrimSpace(st.Description)
-		if desc == "" {
-			writeError(w, http.StatusBadRequest, fmt.Sprintf("sub-task %d needs a description", i+1))
-			return
-		}
-		aid, ok := parseUUIDOrBadRequest(w, st.AssigneeID, "assignee_id")
-		if !ok {
-			return
-		}
-		agent, err := h.Queries.GetAgentInWorkspace(r.Context(), db.GetAgentInWorkspaceParams{ID: aid, WorkspaceID: issue.WorkspaceID})
-		if err != nil || agent.ArchivedAt.Valid {
-			writeError(w, http.StatusUnprocessableEntity, fmt.Sprintf("sub-task %d: agent not found in this workspace", i+1))
-			return
-		}
-		subs = append(subs, subTask{desc: desc, agent: agent})
-	}
-	actorType, actorID := h.resolveActor(r, requestUserID(r), uuidToString(issue.WorkspaceID))
-	batch, err := h.Queries.CreateFanoutBatch(r.Context(), db.CreateFanoutBatchParams{ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, ParentIssueID: issue.ID, LeaderAgentID: leader.ID, ExpectedCount: int32(len(subs)), StartedBy: parseUUID(requestUserID(r))})
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-			writeErrorCode(w, http.StatusConflict, ErrCodeFanoutActive, "a fan-out is already running on this issue")
-			return
-		}
-		writeError(w, http.StatusInternalServerError, "failed to create the fan-out")
+	subs, ok := h.parseFanoutSubTasks(w, r, issue, req.SubTasks)
+	if !ok {
 		return
 	}
-	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
-	for i, st := range subs {
-		title := st.desc
-		if nl := strings.IndexByte(title, '\n'); nl > 0 {
-			title = title[:nl]
-		}
-		if len(title) > 120 {
-			title = title[:117] + "..."
-		}
-		res, err := h.IssueService.Create(r.Context(), service.IssueCreateParams{
-			WorkspaceID: issue.WorkspaceID, Title: title,
-			Description: pgtype.Text{String: fmt.Sprintf("Sub-task %d of the fan-out on %s-%d.\n\n%s", i+1, prefix, issue.Number, st.desc), Valid: true},
-			Status:      "todo", Priority: issue.Priority, AssigneeType: pgtype.Text{String: "agent", Valid: true}, AssigneeID: st.agent.ID,
-			CreatorType: actorType, CreatorID: issue.CreatorID, ParentIssueID: issue.ID, ProjectID: issue.ProjectID, AllowDuplicate: true,
-		}, service.IssueCreateOpts{ActorID: actorID})
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to create sub-task issue: "+err.Error())
+	actorType, actorID := h.resolveActor(r, requestUserID(r), uuidToString(issue.WorkspaceID))
+	batch, _, status, msg := h.launchFanout(r.Context(), issue, leader, subs, actorType, actorID, parseUUID(requestUserID(r)))
+	if status != 0 {
+		if msg == ErrCodeFanoutActive {
+			writeErrorCode(w, status, msg, "a fan-out is already running on this issue")
 			return
 		}
-		// Creating an agent-assigned issue already queues its run; queue one only when it did not.
-		task, err := h.Queries.GetLatestTaskForIssue(r.Context(), res.Issue.ID)
-		if err != nil {
-			if task, err = h.TaskService.EnqueueTaskForIssueByActor(r.Context(), res.Issue, parseUUID(requestUserID(r))); err != nil {
-				writeError(w, http.StatusInternalServerError, "failed to queue the specialist run: "+err.Error())
-				return
-			}
-		}
-		if _, err := h.Queries.AddFanoutBatchMember(r.Context(), db.AddFanoutBatchMemberParams{ID: dbid.NewV7(), FanoutBatchID: batch.ID, WorkspaceID: issue.WorkspaceID, ChildIssueID: res.Issue.ID, TaskID: task.ID, AssigneeAgentID: st.agent.ID, SubTaskDescription: st.desc}); err != nil {
-			writeError(w, http.StatusInternalServerError, "failed to record the sub-task")
-			return
-		}
+		writeError(w, status, msg)
+		return
 	}
 	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditFanout, "issue", issue.ID, map[string]any{"batch_id": uuidToString(batch.ID), "leader_agent_id": uuidToString(leader.ID), "sub_tasks": len(subs), "started": true}, nil)
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
@@ -236,6 +261,8 @@ func (h *Handler) updateFanoutBarrier(ctx context.Context, task db.AgentTaskQueu
 	if _, err := h.Queries.SettleFanoutMember(ctx, db.SettleFanoutMemberParams{ID: member.ID, Outcome: pgtype.Text{String: outcome, Valid: true}, SettledTaskID: task.ID}); err != nil {
 		return
 	}
+	// Refactoring campaigns (K42): a settled shard may enter the merge queue.
+	h.onCampaignShardSettled(ctx, member, outcome)
 	batch, err := h.Queries.GetFanoutBatch(ctx, member.FanoutBatchID)
 	if err != nil || batch.Status != "pending" {
 		return

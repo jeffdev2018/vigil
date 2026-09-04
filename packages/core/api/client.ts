@@ -353,6 +353,7 @@ import {
   PipelineRunEnvelopeSchema,
   FanoutEnvelopeSchema,
   AgentDuelEnvelopeSchema,
+  RefactorCampaignEnvelopeSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3198,6 +3199,22 @@ export class ApiClient {
   async confirmDuel(duelId: string, winner: import("../issues/duel").DuelWinner): Promise<import("../issues/duel").AgentDuel | null> {
     const raw = await this.fetch<unknown>(`/api/duels/${encodeURIComponent(duelId)}/confirm`, { method: "POST", body: JSON.stringify({ winner }) });
     return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/duels/:id/confirm" }).duel;
+  }
+
+  // Refactoring campaigns (K42).
+  async getIssueCampaign(issueId: string): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/refactor-campaign`);
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "GET /api/issues/:id/refactor-campaign" }).campaign;
+  }
+
+  async createCampaign(input: import("../issues/campaign").CampaignInput): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/refactor-campaigns`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "POST /api/refactor-campaigns" }).campaign;
+  }
+
+  async skipCampaignShard(shardId: string): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/campaign-shards/${encodeURIComponent(shardId)}/skip`, { method: "POST" });
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "POST /api/campaign-shards/:id/skip" }).campaign;
   }
 
   // Pipelines (K37).

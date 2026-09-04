@@ -1253,6 +1253,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceFanoutBatches(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge campaign shards",
+			run:  func() error { return qtx.PurgeWorkspaceCampaignShards(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge refactor campaigns",
+			run:  func() error { return qtx.PurgeWorkspaceRefactorCampaigns(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge agent duels",
 			run:  func() error { return qtx.PurgeWorkspaceAgentDuels(ctx, requester.WorkspaceID) },
 		},

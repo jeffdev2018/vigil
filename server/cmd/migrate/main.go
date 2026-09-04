@@ -344,6 +344,8 @@ var concurrentIndexCleanups = map[string]string{
 	"558_fanout_batch_open_issue_index":                         "uq_fanout_batch_open_issue",
 	"534_meeting_workspace_index":                               "idx_meeting_workspace_started",
 	"560_agent_duel_issue_index":                                "idx_agent_duel_issue_created",
+	"562_campaign_shard_position_index":                         "uq_campaign_shard_position",
+	"563_campaign_shard_status_index":                           "idx_campaign_shard_campaign_status",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

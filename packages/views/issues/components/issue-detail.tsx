@@ -105,6 +105,7 @@ import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
 import { FanoutSection } from "./fanout-section";
 import { DuelSection } from "./duel-section";
+import { CampaignBoard } from "./campaign-board";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2646,6 +2647,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
       <DuelSection issueId={id} />
+
+      {/* Refactoring campaigns (K42): sharded fan-out with a sequential merge queue. */}
+      <CampaignBoard issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

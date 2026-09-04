@@ -2098,6 +2098,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/duel", h.GetIssueAgentDuel)
 			r.Get("/api/duels/{id}", h.GetAgentDuel)
 			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
+			// Refactoring campaigns (K42): sharded fan-out plus a sequential merge queue.
+			r.Post("/api/refactor-campaigns", h.CreateRefactorCampaign)
+			r.Get("/api/refactor-campaigns/{id}", h.GetRefactorCampaign)
+			r.Get("/api/issues/{id}/refactor-campaign", h.GetIssueRefactorCampaign)
+			r.Post("/api/campaign-shards/{id}/skip", h.SkipCampaignShard)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)

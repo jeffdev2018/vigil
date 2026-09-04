@@ -4466,3 +4466,43 @@ export const AgentDuelSchema = z.object({
 export const AgentDuelEnvelopeSchema = z.object({
   duel: AgentDuelSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Refactoring campaigns (K42).
+export const CampaignBlockerSchema = z.object({
+  kind: z.string().default(""),
+  label: z.string().default(""),
+  count: z.number().optional(),
+  pr_number: z.number().optional(),
+}).loose();
+
+export const CampaignShardSchema = z.object({
+  id: z.string().default(""),
+  child_issue_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  run_outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  assignee_agent_id: z.string().default(""),
+  description: z.string().default(""),
+  branch_name: z.string().default(""),
+  merge_position: z.number().int().catch(0).default(0),
+  merge_status: z.enum(["pending", "rebasing", "ready", "merged", "conflict", "skipped"]).catch("pending").default("pending"),
+  merge_task_id: z.string().nullable().catch(null).default(null),
+  blockers: z.array(CampaignBlockerSchema).catch([]).default([]),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const RefactorCampaignSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  fanout_batch_id: z.string().default(""),
+  name: z.string().default(""),
+  target_branch: z.string().default(""),
+  status: z.enum(["running", "merging", "completed", "failed"]).catch("running").default("running"),
+  shards: z.array(CampaignShardSchema).catch([]).default([]),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RefactorCampaignEnvelopeSchema = z.object({
+  campaign: RefactorCampaignSchema.nullable().catch(null).default(null),
+}).loose();
