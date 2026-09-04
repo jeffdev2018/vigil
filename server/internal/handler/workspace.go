@@ -1245,6 +1245,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge approval gate events",
+			run:  func() error { return qtx.PurgeWorkspaceApprovalGateEvents(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge trust mode changes",
 			run:  func() error { return qtx.PurgeWorkspaceTrustModeChanges(ctx, requester.WorkspaceID) },
 		},

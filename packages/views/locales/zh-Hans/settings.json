@@ -816,7 +816,15 @@
     "triage_auto_threshold_description": "获胜决定必须达到的加权投票占比，50 到 100。",
     "triage_auto_min_label": "先学习的决定数",
     "triage_auto_min_description": "在有这么多人工决定之前不会自动分类。",
-    "triage_auto_failed": "更新分诊设置失败"
+    "triage_auto_failed": "更新分诊设置失败",
+    "gates_section": "审批关卡",
+    "gates_timeout_label": "等待人工（分钟）",
+    "gates_timeout_description": "被阻止的 push、敏感工具调用或支出会等待这么久，然后明确失败。绝不会自行执行。",
+    "gates_spend_label": "无需审批的支出上限（$）",
+    "gates_spend_description": "低于该金额时运行立即获得短期支出令牌；高于该金额时先通过决策卡询问。",
+    "gates_tools_label": "敏感 MCP 工具（模式）",
+    "gates_tools_description": "名称匹配此正则表达式的远程 MCP 工具在运行前等待人工审批。",
+    "gates_failed": "更新审批关卡失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

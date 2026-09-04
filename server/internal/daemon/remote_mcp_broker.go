@@ -36,6 +36,10 @@ type remoteMCPBrokerSet struct {
 
 type remoteMCPCredentialResolver func(context.Context, string) (http.Header, error)
 
+// remoteMCPToolGate (K05) decides whether a tools/call may go upstream;
+// nil lets everything through. The reason is shown to the agent on refusal.
+type remoteMCPToolGate func(ctx context.Context, toolName string, params json.RawMessage) (allowed bool, reason string)
+
 func (set *remoteMCPBrokerSet) Close() {
 	if set == nil {
 		return
@@ -52,7 +56,7 @@ func (set *remoteMCPBrokerSet) Close() {
 	})
 }
 
-func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
+func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
 	if len(connections) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -123,7 +127,7 @@ func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, pr
 		proxy := &remoteMCPProxy{
 			taskID: taskID, connection: connection, endpoint: endpoint,
 			client: remotemcp.NewSecureHTTPClient(endpoint), credentialHeaders: headers,
-			resolveCredential: resolveCredential, path: "/" + pathToken,
+			resolveCredential: resolveCredential, gate: gate, path: "/" + pathToken,
 			semaphore: make(chan struct{}, remoteMCPMaxConcurrency), logger: logger,
 		}
 		server := &http.Server{Handler: proxy, ReadHeaderTimeout: 5 * time.Second}
@@ -211,6 +215,7 @@ type remoteMCPProxy struct {
 	client            *http.Client
 	credentialHeaders http.Header
 	resolveCredential remoteMCPCredentialResolver
+	gate              remoteMCPToolGate
 	path              string
 	semaphore         chan struct{}
 	calls             atomic.Int64
@@ -278,6 +283,14 @@ func (proxy *remoteMCPProxy) ServeHTTP(w http.ResponseWriter, request *http.Requ
 			return
 		}
 		toolName = params.Name
+		// Approval gate (K05): a sensitive tool waits for a human before it runs.
+		if proxy.gate != nil {
+			if allowed, reason := proxy.gate(request.Context(), toolName, rpcRequest.Params); !allowed {
+				resultClass = "gated"
+				writeRemoteMCPError(w, rpcRequest.ID, -32004, "Blocked by approval gate: "+reason)
+				return
+			}
+		}
 	}
 	upstream, err := http.NewRequestWithContext(request.Context(), http.MethodPost, proxy.endpoint.String(), bytes.NewReader(raw))
 	if err != nil {

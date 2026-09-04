@@ -268,6 +268,12 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Approval gates (K05): the run is alive and waiting; settle the gate, no resume.
+	if h.resolveGateForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		h.publishIssueAuxChanged(r, issue, actorType, actorID)
+		writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
+		return
+	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
 		if taskID, done := h.finishInterviewIfComplete(r, issue, decision, userID, actorType, actorID); done && taskID.Valid {

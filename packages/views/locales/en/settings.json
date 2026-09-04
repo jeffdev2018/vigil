@@ -818,7 +818,15 @@
     "triage_auto_threshold_description": "Share of the weighted vote the winning decision must reach, 50 to 100.",
     "triage_auto_min_label": "Decisions to learn from first",
     "triage_auto_min_description": "No auto-classification before this many human decisions exist.",
-    "triage_auto_failed": "Failed to update the triage settings"
+    "triage_auto_failed": "Failed to update the triage settings",
+    "gates_section": "Approval gates",
+    "gates_timeout_label": "Wait for a human (minutes)",
+    "gates_timeout_description": "A blocked push, sensitive tool call or spend waits this long for an answer, then fails explicitly. It never runs on its own.",
+    "gates_spend_label": "Spend without approval up to ($)",
+    "gates_spend_description": "A run gets a short-lived spend token at once under this amount; above it, a Decision Card asks first.",
+    "gates_tools_label": "Sensitive MCP tools (pattern)",
+    "gates_tools_description": "Remote MCP tools whose name matches this regular expression pause for a human before they run.",
+    "gates_failed": "Failed to update the approval gates"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",
