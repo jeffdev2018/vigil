@@ -48,6 +48,8 @@ import type {
   GitHubPullRequest,
   InboxItem,
   InboxWorkspaceUnread,
+  TriageStats,
+  TriageItemsResponse,
   Label,
   MemberWithUser,
   IssueProperty,
@@ -1267,6 +1269,87 @@ export const IssueDependenciesResponseSchema = z.object({
   blocks: z.array(IssueDependencySchema).default([]),
   blocked_by: z.array(IssueDependencySchema).default([]),
   related: z.array(IssueDependencySchema).default([]),
+}).loose();
+
+// Triage queue (M2). Payload is the stored capture JSONB — an object whose
+// exact keys (`size` / `body` / `truncated`) are additive display data, so it
+// is parsed as a loose record rather than a fixed shape.
+export const TriageItemSchema = z.object({
+  id: z.string(),
+  source_id: z.string().default(""),
+  source_name: z.string().default(""),
+  source_kind: z.string().default(""),
+  origin_type: z.string().default(""),
+  title: z.string().default(""),
+  body_markdown: z.string().default(""),
+  payload: z.record(z.string(), z.unknown()).default({}),
+  state: z.string().default("pending"),
+  collapse_count: z.number().default(1),
+  drop_reason: z.string().optional(),
+  issue_id: z.string().optional(),
+  duplicate_of_issue_id: z.string().optional(),
+  first_seen_at: z.string(),
+  resolved_at: z.string().nullable().optional(),
+  revision: z.number().default(0),
+}).loose();
+
+export const TriageItemsResponseSchema = z.object({
+  items: z.array(TriageItemSchema).default([]),
+  next_cursor: z.string().optional(),
+}).loose();
+
+export const TriageSourceSchema = z.object({
+  id: z.string(),
+  kind: z.string().default(""),
+  ref_id: z.string().default(""),
+  name: z.string().default(""),
+  mode: z.string().default("direct"),
+  items_24h: z.number().default(0),
+  dropped_24h: z.number().default(0),
+}).loose();
+
+export const TriageStatsSchema = z.object({
+  pending: z.number().default(0),
+  shadow_pending: z.number().default(0),
+  dropped_24h: z.number().default(0),
+  oldest_pending_age_seconds: z.number().default(0),
+  sources: z.array(TriageSourceSchema).default([]),
+}).loose();
+
+export const EMPTY_TRIAGE_STATS: TriageStats = Object.freeze({
+  pending: 0,
+  shadow_pending: 0,
+  dropped_24h: 0,
+  oldest_pending_age_seconds: 0,
+  sources: [],
+}) as TriageStats;
+
+export const EMPTY_TRIAGE_ITEMS_RESPONSE: TriageItemsResponse = Object.freeze({
+  items: [],
+}) as TriageItemsResponse;
+
+export const TriageBatchAcceptResultSchema = z.object({
+  id: z.string(),
+  outcome: z.string().default("error"),
+  issue_id: z.string().optional(),
+  duplicate_of_issue_id: z.string().optional(),
+  duplicate_issue_identifier: z.string().optional(),
+}).loose();
+
+export const TriageBatchAcceptResponseSchema = z.object({
+  items: z.array(TriageBatchAcceptResultSchema).default([]),
+  stopped: z.string().optional(),
+}).loose();
+
+export const AcceptTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("accepted"),
+  issue: IssueSchema.optional(),
+}).loose();
+
+export const DismissTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("dismissed"),
 }).loose();
 
 // Response schema for POST /api/issues. Two tightenings over IssueSchema:

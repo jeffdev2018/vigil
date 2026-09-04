@@ -1,6 +1,7 @@
 {
   "nav": {
     "inbox": "インボックス",
+    "triage": "トリアージ",
     "chat": "チャット",
     "my_issues": "マイタスク",
     "issues": "タスク",

@@ -46,6 +46,7 @@ import {
 } from "../issues/cache-coordinator";
 import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueDeleted, onInboxSummaryInvalidate } from "../inbox/ws-updaters";
 import { inboxKeys } from "../inbox/queries";
+import { onTriageInvalidate } from "../triage/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -847,6 +848,12 @@ export function useRealtimeSync(
       autopilot: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: autopilotKeys.all(wsId) });
+      },
+      // triage:new / triage:resolved both move items across queue states; the
+      // server owns the split, so refetch the whole (small) triage projection.
+      triage: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onTriageInvalidate(qc, wsId);
       },
       github_installation: () => {
         const wsId = getCurrentWsId();

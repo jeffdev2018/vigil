@@ -1,0 +1,50 @@
+{
+  "title": "トリアージ",
+  "subtitle": "受信した Webhook 配信が課題になる前に確認します",
+  "stats": {
+    "pending": "保留 {{count}} 件",
+    "oldest": "最長の待ち {{age}}",
+    "dropped_24h": "24 時間で {{count}} 件破棄",
+    "none_pending": "キューは空です"
+  },
+  "sources": {
+    "label": "ソース",
+    "empty": "受信ソースはまだありません",
+    "items_24h": "24 時間で {{count}} 件",
+    "mode": {
+      "gate": "ゲート",
+      "direct": "直接",
+      "blocked": "ブロック"
+    }
+  },
+  "list": {
+    "empty_title": "キューは空です",
+    "empty_description": "ソースをゲートに設定すると、その Webhook 配信はここで待機し、人が承認または却下するまで保留されます。",
+    "loading": "トリアージキューを読み込み中",
+    "load_error": "トリアージキューを読み込めませんでした"
+  },
+  "detail": {
+    "select_prompt": "確認する項目を選択してください",
+    "from_source": "送信元: {{name}}",
+    "body_label": "説明",
+    "no_body": "説明は取得されていません",
+    "payload_label": "取得したペイロード",
+    "payload_truncated": "ペイロードが大きすぎるため、サイズのみ保持しました",
+    "no_payload": "ペイロードは取得されていません",
+    "collapse_count": "{{count}} 回検出",
+    "accept": "承認",
+    "accepting": "承認中",
+    "dismiss": "却下",
+    "dismissing": "却下中",
+    "accepted_toast": "承認しました — 課題を作成しました",
+    "dismissed_toast": "却下しました",
+    "merged_toast": "既に {{identifier}} として追跡中 — 統合しました",
+    "limit_toast": "課題の上限に達しました — 項目はキューに残ります",
+    "error_toast": "問題が発生しました"
+  },
+  "batch": {
+    "accept": "{{count}} 件を承認",
+    "clear": "選択を解除",
+    "stopped_toast": "停止しました — ワークスペースが課題の上限に達しました"
+  }
+}

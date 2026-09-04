@@ -1,6 +1,7 @@
 {
   "nav": {
     "inbox": "收件箱",
+    "triage": "待审核",
     "chat": "聊天",
     "my_issues": "我的任务",
     "issues": "任务",

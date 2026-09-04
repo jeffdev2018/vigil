@@ -12,6 +12,7 @@ import enMembers from "./en/members.json";
 import enMyIssues from "./en/my-issues.json";
 import enSearch from "./en/search.json";
 import enInbox from "./en/inbox.json";
+import enTriage from "./en/triage.json";
 import enWorkspace from "./en/workspace.json";
 import enProjects from "./en/projects.json";
 import enAutopilots from "./en/autopilots.json";
@@ -37,6 +38,7 @@ import zhHansMembers from "./zh-Hans/members.json";
 import zhHansMyIssues from "./zh-Hans/my-issues.json";
 import zhHansSearch from "./zh-Hans/search.json";
 import zhHansInbox from "./zh-Hans/inbox.json";
+import zhHansTriage from "./zh-Hans/triage.json";
 import zhHansWorkspace from "./zh-Hans/workspace.json";
 import zhHansProjects from "./zh-Hans/projects.json";
 import zhHansAutopilots from "./zh-Hans/autopilots.json";
@@ -62,6 +64,7 @@ import koMembers from "./ko/members.json";
 import koMyIssues from "./ko/my-issues.json";
 import koSearch from "./ko/search.json";
 import koInbox from "./ko/inbox.json";
+import koTriage from "./ko/triage.json";
 import koWorkspace from "./ko/workspace.json";
 import koProjects from "./ko/projects.json";
 import koAutopilots from "./ko/autopilots.json";
@@ -87,6 +90,7 @@ import jaMembers from "./ja/members.json";
 import jaMyIssues from "./ja/my-issues.json";
 import jaSearch from "./ja/search.json";
 import jaInbox from "./ja/inbox.json";
+import jaTriage from "./ja/triage.json";
 import jaWorkspace from "./ja/workspace.json";
 import jaProjects from "./ja/projects.json";
 import jaAutopilots from "./ja/autopilots.json";
@@ -118,6 +122,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": enMyIssues,
     search: enSearch,
     inbox: enInbox,
+    triage: enTriage,
     workspace: enWorkspace,
     projects: enProjects,
     autopilots: enAutopilots,
@@ -145,6 +150,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": zhHansMyIssues,
     search: zhHansSearch,
     inbox: zhHansInbox,
+    triage: zhHansTriage,
     workspace: zhHansWorkspace,
     projects: zhHansProjects,
     autopilots: zhHansAutopilots,
@@ -172,6 +178,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": koMyIssues,
     search: koSearch,
     inbox: koInbox,
+    triage: koTriage,
     workspace: koWorkspace,
     projects: koProjects,
     autopilots: koAutopilots,
@@ -199,6 +206,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": jaMyIssues,
     search: jaSearch,
     inbox: jaInbox,
+    triage: jaTriage,
     workspace: jaWorkspace,
     projects: jaProjects,
     autopilots: jaAutopilots,
