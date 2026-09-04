@@ -582,13 +582,27 @@ func (c *Client) RecoverOrphans(ctx context.Context, runtimeID string) error {
 // detect terminal/interruption signals (cancelled, failed, completed, or a
 // 404 task-not-found) while a task is executing.
 func (c *Client) GetTaskStatus(ctx context.Context, taskID string) (string, error) {
+	status, _, err := c.GetTaskControl(ctx, taskID)
+	return status, err
+}
+
+// GetTaskControl (K19) reads the task's status and whether a human asked
+// for a pause; the daemon honours the pause at the next safe boundary.
+func (c *Client) GetTaskControl(ctx context.Context, taskID string) (status string, pauseRequested bool, err error) {
 	var resp struct {
-		Status string `json:"status"`
+		Status         string `json:"status"`
+		PauseRequested bool   `json:"pause_requested"`
 	}
 	if err := c.getJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/status", taskID), &resp); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return resp.Status, nil
+	return resp.Status, resp.PauseRequested, nil
+}
+
+// AckTaskPaused (K19) tells the server the run stopped at a safe boundary
+// and where its session lives so a resume continues it.
+func (c *Client) AckTaskPaused(ctx context.Context, taskID, sessionID, workDir, branchName string) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/paused", taskID), map[string]string{"session_id": sessionID, "work_dir": workDir, "branch_name": branchName}, nil)
 }
 
 // HeartbeatResponse, PendingUpdate, etc. alias the wire types so HTTP and WS

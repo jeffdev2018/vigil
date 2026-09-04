@@ -1472,6 +1472,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/runtimes/{runtimeId}/local-skills/import/{requestId}/result", h.ReportLocalSkillImportResult)
 
 		r.Get("/tasks/{taskId}/status", h.GetTaskStatus)
+		r.Post("/tasks/{taskId}/paused", h.AckTaskPaused)
 		r.Post("/tasks/{taskId}/start", h.StartTask)
 		r.Post("/tasks/{taskId}/wait-local-directory", h.MarkTaskWaitingLocalDirectory)
 		r.Post("/tasks/{taskId}/progress", h.ReportTaskProgress)
@@ -2076,6 +2077,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Issue router (K27): risk-based pool choice and escalation, auditable per issue.
 			r.Get("/api/issues/{id}/routing-decision", h.GetIssueRoutingDecision)
 			// Handoff packets (K17): structured, immutable records between hands.
+			// Pause, steer, resume (K19): correct a run without restarting it.
+			r.Route("/api/issues/{id}/run", func(r chi.Router) {
+				r.Get("/state", h.GetRunControlState)
+				r.Post("/pause", h.PauseRun)
+				r.Post("/steer", h.SteerRun)
+				r.Post("/resume", h.ResumeRun)
+			})
 			// Run limits (K03): caps on one run, warn then stop.
 			r.Route("/api/run-limits", func(r chi.Router) {
 				r.Get("/", h.ListRunLimitPolicies)
