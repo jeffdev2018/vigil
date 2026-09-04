@@ -104,5 +104,13 @@
   },
   "duration": {
     "less_than_minute": "1分未満"
+  },
+  "deliverable": {
+    "issue_label": "完了イシューあたりのコスト · {{days}}日",
+    "pr_label": "マージ済み PR あたりのコスト · {{days}}日",
+    "hint": "{{count}} 件完了 · 平均 ${{mean}}",
+    "floor": "一部の使用量は価格なし",
+    "none": "この期間はなし",
+    "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。"
   }
 }

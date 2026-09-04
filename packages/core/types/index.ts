@@ -339,3 +339,4 @@ export type {
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
+export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";

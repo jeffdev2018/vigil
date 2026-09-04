@@ -93,6 +93,25 @@ export function dashboardUsageDailyOptions(
   });
 }
 
+// Cost per deliverable (K04).
+export function dashboardCostPerDeliverableOptions(
+  wsId: string,
+  days: number,
+  projectId: string | null,
+  tz: string,
+) {
+  return queryOptions({
+    queryKey: [...dashboardKeys.all(wsId), "cost-per-deliverable", days, projectId, tz] as const,
+    queryFn: () =>
+      api.getDashboardCostPerDeliverable({
+        days,
+        project_id: projectId ?? undefined,
+        tz,
+      }),
+    staleTime: 60_000,
+  });
+}
+
 export function dashboardUsageByAgentOptions(
   wsId: string,
   days: number,

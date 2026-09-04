@@ -104,5 +104,13 @@
   },
   "duration": {
     "less_than_minute": "<1m"
+  },
+  "deliverable": {
+    "issue_label": "Cost per closed issue · {{days}}D",
+    "pr_label": "Cost per merged PR · {{days}}D",
+    "hint": "{{count}} closed · mean ${{mean}}",
+    "floor": "some usage unpriced",
+    "none": "None in this period",
+    "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
   }
 }

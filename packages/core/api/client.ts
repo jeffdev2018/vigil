@@ -70,6 +70,7 @@ import type {
   RuntimeUsageByHour,
   DashboardUsageDaily,
   DashboardUsageByAgent,
+  DashboardCostPerDeliverable,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -281,6 +282,7 @@ import {
   DashboardFailureDailyListSchema,
   DashboardFailureByAgentListSchema,
   DashboardUsageByAgentListSchema,
+  DashboardCostPerDeliverableSchema,
   DashboardUsageDailyListSchema,
   EMPTY_APP_CONFIG,
   EMPTY_ATTACHMENT,
@@ -2348,6 +2350,21 @@ export class ApiClient {
       [],
       { endpoint: "GET /api/dashboard/usage/daily" },
     );
+  }
+
+  // Cost per deliverable (K04).
+  async getDashboardCostPerDeliverable(
+    params: { days?: number; project_id?: string | null; tz?: string },
+  ): Promise<DashboardCostPerDeliverable> {
+    const search = new URLSearchParams();
+    if (params.days) search.set("days", String(params.days));
+    if (params.project_id) search.set("project_id", params.project_id);
+    if (params.tz) search.set("tz", params.tz);
+    const raw = await this.fetch<unknown>(`/api/dashboard/cost-per-deliverable?${search}`);
+    const empty = { count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null };
+    return parseWithFallback(raw, DashboardCostPerDeliverableSchema, { days: params.days ?? 30, issues: empty, pull_requests: empty }, {
+      endpoint: "GET /api/dashboard/cost-per-deliverable",
+    });
   }
 
   async getDashboardUsageByAgent(

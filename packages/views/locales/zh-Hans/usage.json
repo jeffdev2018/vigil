@@ -104,5 +104,13 @@
   },
   "duration": {
     "less_than_minute": "<1分钟"
+  },
+  "deliverable": {
+    "issue_label": "每个已关闭议题成本 · {{days}}天",
+    "pr_label": "每个已合并 PR 成本 · {{days}}天",
+    "hint": "{{count}} 个已关闭 · 平均 ${{mean}}",
+    "floor": "部分用量未定价",
+    "none": "此期间没有",
+    "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。"
   }
 }

@@ -104,5 +104,13 @@
   },
   "duration": {
     "less_than_minute": "1분 미만"
+  },
+  "deliverable": {
+    "issue_label": "완료 이슈당 비용 · {{days}}일",
+    "pr_label": "병합 PR당 비용 · {{days}}일",
+    "hint": "{{count}}건 완료 · 평균 ${{mean}}",
+    "floor": "일부 사용량 가격 없음",
+    "none": "이 기간에는 없음",
+    "empty": "지난 {{days}}일 동안 실행이 있는 완료 이슈나 병합된 PR이 없습니다."
   }
 }

@@ -3607,3 +3607,19 @@ export const ReviewCockpitSchema = z.object({
   self_review: z.unknown().nullable().default(null),
   failed_sections: z.array(z.string()).catch([]).default([]),
 }).loose();
+
+// Cost per deliverable (K04).
+const DeliverableCostStatsSchema = z.object({
+  count: z.number().default(0),
+  mean_usd_ticks: z.number().default(0),
+  median_usd_ticks: z.number().default(0),
+  total_usd_ticks: z.number().default(0),
+  uncosted_count: z.number().default(0),
+  trend_pct: z.number().nullable().catch(null).default(null),
+}).loose();
+
+export const DashboardCostPerDeliverableSchema = z.object({
+  days: z.number().default(30),
+  issues: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
+  pull_requests: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
+}).loose();

@@ -1311,3 +1311,19 @@ export interface RuntimeLocalSkillImportResult {
   skill?: Skill;
   conflict?: RuntimeLocalSkillImportConflict;
 }
+
+// Cost per deliverable (K04).
+export interface DeliverableCostStats {
+  count: number;
+  mean_usd_ticks: number;
+  median_usd_ticks: number;
+  total_usd_ticks: number;
+  uncosted_count: number;
+  trend_pct: number | null;
+}
+
+export interface DashboardCostPerDeliverable {
+  days: number;
+  issues: DeliverableCostStats;
+  pull_requests: DeliverableCostStats;
+}
