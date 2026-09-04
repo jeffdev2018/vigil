@@ -50,6 +50,7 @@ import {
 import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueDeleted, onInboxSummaryInvalidate } from "../inbox/ws-updaters";
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
+import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -882,6 +883,12 @@ export function useRealtimeSync(
       triage: () => {
         const wsId = getCurrentWsId();
         if (wsId) onTriageInvalidate(qc, wsId);
+      },
+      // postmortem:created / postmortem:resolved move items across review
+      // states; refetch the whole (small) postmortem projection.
+      postmortem: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onPostmortemInvalidate(qc, wsId);
       },
       github_installation: () => {
         const wsId = getCurrentWsId();

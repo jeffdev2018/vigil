@@ -48,6 +48,7 @@ export type NavLabelKey =
   | "inbox"
   | "triage"
   | "meetings"
+  | "postmortems"
   | "chat"
   | "my_issues"
   | "issues"
@@ -65,6 +66,7 @@ export type WorkspacePageKey =
   | "inbox"
   | "triage"
   | "meetings"
+  | "postmortems"
   | "chat"
   | "myIssues"
   | "issues"
@@ -94,6 +96,7 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   inbox: { segment: "inbox", icon: "Inbox", navKey: "inbox" },
   triage: { segment: "triage", icon: "Inbox", navKey: "triage" },
   meetings: { segment: "meetings", icon: "AudioLines", navKey: "meetings" },
+  postmortems: { segment: "postmortems", icon: "FileText", navKey: "postmortems" },
   chat: { segment: "chat", icon: "MessageSquare", navKey: "chat" },
   myIssues: { segment: "my-issues", icon: "CircleUser", navKey: "my_issues" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },

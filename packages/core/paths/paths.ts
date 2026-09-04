@@ -59,6 +59,7 @@ function workspaceScoped(slug: string) {
     triage: () => `${ws}/triage`,
     meetings: () => `${ws}/meetings`,
     meetingDetail: (id: string) => `${ws}/meetings/${encode(id)}`,
+    postmortems: () => `${ws}/postmortems`,
     chat: () => `${ws}/chat`,
     chatWithAgent: (agentId: string) =>
       `${ws}/chat?agent=${encode(agentId)}`,

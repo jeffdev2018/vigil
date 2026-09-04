@@ -55,6 +55,8 @@ import type {
   RealtimeVoiceSession,
   MeetingListResponse,
   MeetingSegmentResponse,
+  PostmortemStats,
+  PostmortemsResponse,
   Label,
   AgentMemory,
   MemberWithUser,
@@ -1568,6 +1570,48 @@ export const DismissTriageItemResponseSchema = z.object({
   item_id: z.string(),
   state: z.string().default("dismissed"),
 }).loose();
+
+// Postmortem autogen (k68). A drafted postmortem for a failed run, reviewed
+// by a human (draft -> approved/discarded).
+export const PostmortemSchema = z.object({
+  id: z.string(),
+  source_task_id: z.string().default(""),
+  issue_id: z.string().optional(),
+  agent_id: z.string().optional(),
+  trigger: z.string().default("failed"),
+  state: z.string().default("draft"),
+  failure_reason: z.string().default(""),
+  summary: z.string().default(""),
+  root_cause: z.string().default(""),
+  impact: z.string().default(""),
+  preventive_rules: z.array(z.string()).default([]),
+  cost_usd_ticks: z.number().optional(),
+  llm_generated: z.boolean().default(false),
+  resolved_at: z.string().nullable().optional(),
+  revision: z.number().default(0),
+  created_at: z.string(),
+}).loose();
+
+export const PostmortemsResponseSchema = z.object({
+  items: z.array(PostmortemSchema).default([]),
+  next_cursor: z.string().optional(),
+}).loose();
+
+export const PostmortemStatsSchema = z.object({
+  draft: z.number().default(0),
+  approved: z.number().default(0),
+  discarded: z.number().default(0),
+}).loose();
+
+export const EMPTY_POSTMORTEM_STATS: PostmortemStats = Object.freeze({
+  draft: 0,
+  approved: 0,
+  discarded: 0,
+}) as PostmortemStats;
+
+export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
+  items: [],
+}) as PostmortemsResponse;
 
 // Response schema for POST /api/issues. Two tightenings over IssueSchema:
 //
