@@ -108,6 +108,10 @@ func TestScheduleTriggerWindowMinutes(t *testing.T) {
 	if created["window_minutes"] != float64(120) {
 		t.Fatalf("window_minutes = %v", created["window_minutes"])
 	}
+	// The display-only next run already sits inside the 08:00–10:00 UTC band.
+	if createdAt, err := time.Parse(time.RFC3339, created["next_run_at"].(string)); err != nil || createdAt.UTC().Hour() < 8 || createdAt.UTC().Hour() >= 10 {
+		t.Fatalf("created next_run_at = %v (%v), want inside 08:00–10:00 UTC", created["next_run_at"], err)
+	}
 	id, _ := created["id"].(string)
 	// PATCH recomputes next_run_at inside the band for this trigger.
 	// One route context carrying both params: a second withURLParam would
