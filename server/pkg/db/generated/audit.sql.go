@@ -85,9 +85,10 @@ WHERE workspace_id = $1
   AND ($3::timestamptz IS NULL OR occurred_at < $3::timestamptz)
   AND ($4::text IS NULL OR actor_type = $4::text)
   AND ($5::text IS NULL OR action = $5::text)
-  AND ($6::timestamptz IS NULL OR (occurred_at, id) < ($6::timestamptz, $7::uuid))
+  AND ($6::uuid IS NULL OR entity_id = $6::uuid)
+  AND ($7::timestamptz IS NULL OR (occurred_at, id) < ($7::timestamptz, $8::uuid))
 ORDER BY occurred_at DESC, id DESC
-LIMIT $8::int
+LIMIT $9::int
 `
 
 type ListAuditLogEntriesParams struct {
@@ -96,6 +97,7 @@ type ListAuditLogEntriesParams struct {
 	Until       pgtype.Timestamptz `json:"until"`
 	ActorType   pgtype.Text        `json:"actor_type"`
 	Action      pgtype.Text        `json:"action"`
+	EntityID    pgtype.UUID        `json:"entity_id"`
 	CursorAt    pgtype.Timestamptz `json:"cursor_at"`
 	CursorID    pgtype.UUID        `json:"cursor_id"`
 	PageSize    int32              `json:"page_size"`
@@ -110,6 +112,7 @@ func (q *Queries) ListAuditLogEntries(ctx context.Context, arg ListAuditLogEntri
 		arg.Until,
 		arg.ActorType,
 		arg.Action,
+		arg.EntityID,
 		arg.CursorAt,
 		arg.CursorID,
 		arg.PageSize,

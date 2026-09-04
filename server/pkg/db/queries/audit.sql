@@ -15,6 +15,7 @@ WHERE workspace_id = $1
   AND (sqlc.narg('until')::timestamptz IS NULL OR occurred_at < sqlc.narg('until')::timestamptz)
   AND (sqlc.narg('actor_type')::text IS NULL OR actor_type = sqlc.narg('actor_type')::text)
   AND (sqlc.narg('action')::text IS NULL OR action = sqlc.narg('action')::text)
+  AND (sqlc.narg('entity_id')::uuid IS NULL OR entity_id = sqlc.narg('entity_id')::uuid)
   AND (sqlc.narg('cursor_at')::timestamptz IS NULL OR (occurred_at, id) < (sqlc.narg('cursor_at')::timestamptz, sqlc.narg('cursor_id')::uuid))
 ORDER BY occurred_at DESC, id DESC
 LIMIT sqlc.arg('page_size')::int;
