@@ -1028,5 +1028,13 @@
     "demotion": "降格",
     "by_member": "メンバーによる",
     "by_system": "システムの提案"
+  },
+  "competency": {
+    "title": "ドメイン別の能力",
+    "empty": "データ不足：このエージェントに割り当てられた課題が完了するにつれて集計が増えます。",
+    "rate": "成功率 {{rate}}",
+    "sample": "{{count}} 件",
+    "duels": "対決 {{wins}} 勝 / {{losses}} 敗",
+    "low_sample": "データ不足（{{count}}/{{min}}）"
   }
 }

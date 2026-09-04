@@ -1028,5 +1028,13 @@
     "demotion": "강등",
     "by_member": "멤버가",
     "by_system": "시스템 제안"
+  },
+  "competency": {
+    "title": "도메인별 역량",
+    "empty": "데이터 부족: 이 에이전트에 배정된 이슈가 닫힐수록 집계가 늘어납니다.",
+    "rate": "성공률 {{rate}}",
+    "sample": "{{count}}건",
+    "duels": "대결 {{wins}}승 / {{losses}}패",
+    "low_sample": "데이터 부족 ({{count}}/{{min}})"
   }
 }

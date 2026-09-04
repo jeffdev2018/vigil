@@ -1241,5 +1241,13 @@
     "launch": "キャンペーンを開始",
     "cancel": "キャンセル",
     "failed": "キャンペーンのリクエストに失敗しました"
+  },
+  "competency": {
+    "section": "この種のタスクでの成功履歴",
+    "domain": "ドメイン {{domain}}",
+    "row": "{{name}}: {{rate}}（{{count}} 件）",
+    "duels": "対決 {{wins}} 勝 / {{losses}} 敗",
+    "low_sample": "データ不足（{{count}}/{{min}}）",
+    "empty": "この種のタスクの履歴を持つエージェントはまだいません。"
   }
 }

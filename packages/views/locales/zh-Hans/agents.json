@@ -1028,5 +1028,13 @@
     "demotion": "降级",
     "by_member": "由成员",
     "by_system": "系统建议"
+  },
+  "competency": {
+    "title": "按领域的能力",
+    "empty": "数据不足：随着分配给该智能体的 issue 关闭，统计会增长。",
+    "rate": "成功率 {{rate}}",
+    "sample": "{{count}} 个 issue",
+    "duels": "对决 {{wins}} 胜 / {{losses}} 负",
+    "low_sample": "数据不足（{{count}}/{{min}}）"
   }
 }

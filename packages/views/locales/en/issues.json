@@ -1272,5 +1272,13 @@
     "launch": "Launch campaign",
     "cancel": "Cancel",
     "failed": "The campaign request failed"
+  },
+  "competency": {
+    "section": "Success history on this kind of task",
+    "domain": "Domain {{domain}}",
+    "row": "{{name}}: {{rate}} ({{count}} issues)",
+    "duels": "{{wins}} won / {{losses}} lost duels",
+    "low_sample": "not enough data yet ({{count}}/{{min}})",
+    "empty": "No agent has a history on this kind of task yet."
   }
 }

@@ -1241,5 +1241,13 @@
     "launch": "캠페인 시작",
     "cancel": "취소",
     "failed": "캠페인 요청에 실패했습니다"
+  },
+  "competency": {
+    "section": "이 유형의 작업 성공 이력",
+    "domain": "도메인 {{domain}}",
+    "row": "{{name}}: {{rate}} ({{count}}건)",
+    "duels": "대결 {{wins}}승 / {{losses}}패",
+    "low_sample": "데이터 부족 ({{count}}/{{min}})",
+    "empty": "이 유형의 작업 이력이 있는 에이전트가 아직 없습니다."
   }
 }

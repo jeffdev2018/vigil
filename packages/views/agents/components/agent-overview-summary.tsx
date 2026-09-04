@@ -12,6 +12,7 @@ import { useT } from "../../i18n";
 import { VisibilityBadge } from "./visibility-badge";
 import { AgentPerformanceSummary } from "./tabs/activity-tab";
 import { AgentScorecardSection } from "./agent-scorecard-section";
+import { AgentCompetencySection } from "./agent-competency-section";
 
 interface AgentOverviewSummaryProps {
   agent: Agent;
@@ -116,6 +117,8 @@ export function AgentOverviewSummary({
       <AgentPerformanceSummary agent={agent} />
       {/* Scorecard (K25): the rates behind "does this agent work on my code". */}
       <AgentScorecardSection agentId={agent.id} />
+      {/* Learned competency (K43): success per domain, duels counted apart. */}
+      <AgentCompetencySection agentId={agent.id} />
     </aside>
   );
 }
