@@ -214,6 +214,21 @@ type AgentVersion struct {
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
+type ApprovalGateEvent struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	TaskID            pgtype.UUID        `json:"task_id"`
+	IssueID           pgtype.UUID        `json:"issue_id"`
+	GateType          string             `json:"gate_type"`
+	DecisionRequestID pgtype.UUID        `json:"decision_request_id"`
+	Summary           string             `json:"summary"`
+	Details           []byte             `json:"details"`
+	ResolvedAction    pgtype.Text        `json:"resolved_action"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	ExpiresAt         pgtype.Timestamptz `json:"expires_at"`
+	ResolvedAt        pgtype.Timestamptz `json:"resolved_at"`
+}
+
 type Attachment struct {
 	ID              pgtype.UUID        `json:"id"`
 	WorkspaceID     pgtype.UUID        `json:"workspace_id"`

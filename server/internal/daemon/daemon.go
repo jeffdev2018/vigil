@@ -7289,6 +7289,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		func(resolveCtx context.Context, contributionID string) (http.Header, error) {
 			return d.client.ResolveRemoteMCPCredential(resolveCtx, task.RemoteMCPDaemonToken, task.ID, contributionID)
 		},
+		d.remoteMCPToolGate(task, taskLog),
 		taskLog,
 	)
 	if remoteMCPErr != nil {
@@ -7852,6 +7853,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, err
 	}
 	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir)
+	// Approval gates (K05): every git push from this run goes through the
+	// daemon's pre-push hook, which asks the server.
+	if hooksDir, err := ensureGateHooksDir(env.MulticaConfigRoot); err != nil {
+		taskLog.Warn("approval gates: hook directory unavailable, pushes are not gated", "error", err)
+	} else {
+		for k, v := range gateEnvironment(hooksDir, gitRemoteURL(env.WorkDir), gateDefaultTimeout) {
+			agentEnv[k] = v
+		}
+	}
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
 	}
@@ -9704,4 +9714,33 @@ func defaultArgsForProvider(cfg Config, provider string) []string {
 		return nil
 	}
 	return append([]string(nil), args...)
+}
+
+// remoteMCPToolGate (K05) asks the server before a sensitive remote MCP tool
+// runs for this task; a run without a task-scoped token is not gated.
+func (d *Daemon) remoteMCPToolGate(task Task, log *slog.Logger) remoteMCPToolGate {
+	token, err := taskScopedAuthToken(task)
+	if err != nil {
+		return nil
+	}
+	matcher := sensitiveToolMatcher(os.Getenv("MULTICA_GATE_SENSITIVE_TOOLS"))
+	client := newApprovalGateClient(d.cfg.ServerBaseURL, token, task.ID)
+	return func(ctx context.Context, toolName string, params json.RawMessage) (bool, string) {
+		if !matcher.MatchString(toolName) {
+			return true, ""
+		}
+		var args any
+		_ = json.Unmarshal(params, &args)
+		status, err := client.Ask(ctx, "mcp_tool_call", "MCP tool "+toolName, map[string]any{"tool": toolName, "params": args}, gateDefaultTimeout)
+		if err != nil {
+			if log != nil {
+				log.Warn("approval gate: ask failed, tool refused", "tool", toolName, "error", err)
+			}
+			return false, "the approval gate could not be reached"
+		}
+		if status == "approved" {
+			return true, ""
+		}
+		return false, "a human " + status + " this tool call"
+	}
 }

@@ -1958,6 +1958,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Patch("/sources/{id}", h.UpdateTriageSource)
 			})
 
+			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
+			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {
+				r.Get("/", h.ListApprovalGates)
+				r.Post("/", h.CreateApprovalGate)
+				r.Get("/{gateId}", h.GetApprovalGate)
+			})
+			r.Post("/api/tasks/{taskId}/spend-token", h.IssueSpendToken)
+			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
 			r.With(handler.RequireHumanActor).Post("/api/tasks/{taskId}/retry-source-context", h.RetrySourceContextQuickCreate)
