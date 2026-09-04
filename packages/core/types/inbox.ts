@@ -35,6 +35,7 @@ export type InboxItemType =
   | "morning_briefing"
   | "standup_question"
   | "weekly_retro"
+  | "trust_promotion_suggested"
   | "budget_warning"
   | "budget_exceeded";
 

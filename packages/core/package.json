@@ -47,6 +47,7 @@
     "./issues/ownership": "./issues/ownership.ts",
     "./issues/role-view-store": "./issues/role-view-store.ts",
     "./agents/versions": "./agents/versions.ts",
+    "./agents/trust": "./agents/trust.ts",
     "./workspace/audit": "./workspace/audit.ts",
     "./search/why": "./search/why.ts",
     "./workspace/business-rules": "./workspace/business-rules.ts",

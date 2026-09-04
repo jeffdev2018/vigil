@@ -86,7 +86,8 @@
     "standup_question": "站会提问",
     "weekly_retro": "每周回顾",
     "budget_warning": "预算警告",
-    "budget_exceeded": "预算已达上限"
+    "budget_exceeded": "预算已达上限",
+    "trust_promotion_suggested": "建议提升信任模式"
   },
   "labels": {
     "set_status_to": "状态设为",

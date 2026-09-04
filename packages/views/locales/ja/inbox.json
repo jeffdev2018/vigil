@@ -86,7 +86,8 @@
     "standup_question": "スタンドアップの質問",
     "weekly_retro": "週次レトロ",
     "budget_warning": "予算の警告",
-    "budget_exceeded": "予算上限に達しました"
+    "budget_exceeded": "予算上限に達しました",
+    "trust_promotion_suggested": "信頼モードの昇格提案"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

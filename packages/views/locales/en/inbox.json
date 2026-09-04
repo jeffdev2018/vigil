@@ -88,7 +88,8 @@
     "standup_question": "Standup question",
     "weekly_retro": "Weekly retro",
     "budget_warning": "Budget warning",
-    "budget_exceeded": "Budget limit reached"
+    "budget_exceeded": "Budget limit reached",
+    "trust_promotion_suggested": "Trust promotion suggested"
   },
   "labels": {
     "set_status_to": "Set status to",

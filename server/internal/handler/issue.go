@@ -3414,6 +3414,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if !h.issueSubmitReviewAllowed(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Trust Dial (K26): an observer never moves an issue; propose needs an approved plan.
+	if !h.trustModeAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	if req.Priority != nil {
 		if !validateIssueEnum(w, "priority", *req.Priority, validIssuePriorities) {
 			return

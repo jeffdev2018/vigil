@@ -213,7 +213,10 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 	// Plan Gate (K11): a plan with steps published from a run asks a human to
 	// approve it before the steps become sub-issues.
 	if len(req.Steps) > 0 && isMachineCredentialActor(r) {
-		h.askPlanApproval(ctx, r, issue, plan, len(req.Steps), actorType, actorID)
+		// Trust Dial (K26): an autonomous agent's plan needs no card.
+		if !h.trustModeAutoApprovesPlan(ctx, r, issue, plan, actorType, actorID) {
+			h.askPlanApproval(ctx, r, issue, plan, len(req.Steps), actorType, actorID)
+		}
 	}
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	created := issuePlanToResponse(plan)

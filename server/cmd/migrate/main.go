@@ -325,6 +325,7 @@ var concurrentIndexCleanups = map[string]string{
 	"507_decision_search_chunk_source_index":                    "uq_decision_search_chunk_source",
 	"508_decision_search_chunk_tsv_index":                       "idx_decision_search_chunk_tsv",
 	"509_decision_search_chunk_workspace_index":                 "idx_decision_search_chunk_workspace",
+	"511_trust_mode_change_agent_index":                         "idx_trust_mode_change_agent",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

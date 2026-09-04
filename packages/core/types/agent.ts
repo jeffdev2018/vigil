@@ -569,6 +569,8 @@ export interface Agent {
   invocation_targets: AgentInvocationTarget[];
   status: AgentStatus;
   max_concurrent_tasks: number;
+  /** Trust Dial (K26): observer | propose | approval | autonomous. Absent on older backends. */
+  trust_mode?: string;
   model: string;
   /**
    * Runtime-native reasoning/effort token (e.g. Claude's
