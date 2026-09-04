@@ -80,3 +80,19 @@ func testutilCallCreateTrigger(t *testing.T, autopilotID string, body map[string
 	req := withURLParam(newRequest("POST", "/api/autopilots/"+autopilotID+"/triggers", body), "id", autopilotID)
 	return testutil.Call(t, testHandler.CreateAutopilotTrigger, req).Want(want).Map()
 }
+
+func TestParseRoutingVerdictToleratesFences(t *testing.T) {
+	cases := map[string]bool{
+		`{"relevant": false, "reason": "staging"}`:                 false,
+		"```json\n{\"relevant\": true, \"reason\": \"prod\"}\n```": true,
+	}
+	for raw, want := range cases {
+		v, ok := parseRoutingVerdict(raw)
+		if !ok || v.relevant != want {
+			t.Fatalf("parse %q = %+v ok=%v, want relevant=%v", raw, v, ok, want)
+		}
+	}
+	if _, ok := parseRoutingVerdict("I think it is relevant"); ok {
+		t.Fatal("prose must not parse as a verdict")
+	}
+}

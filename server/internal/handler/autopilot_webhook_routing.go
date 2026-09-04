@@ -17,7 +17,9 @@ import (
 // Apache-2.0), reduced to one candidate.
 
 const (
-	webhookRoutingTimeout    = 12 * time.Second
+	// Webhook senders wait for the response, so the classifier gets a short
+	// budget; the model is meant to be a small, fast one (MULTICA_LLM_ROUTING_MODEL).
+	webhookRoutingTimeout    = 20 * time.Second
 	webhookRoutingPayloadCap = 6_000
 )
 
@@ -58,18 +60,34 @@ func (h *Handler) webhookEventMatchesCriteria(ctx context.Context, criteria, pro
 
 	ctx, cancel := context.WithTimeout(ctx, webhookRoutingTimeout)
 	defer cancel()
-	raw, err := h.LLM.GenerateJSON(ctx, "", webhookRoutingSystemPrompt, user.String(), 0, 200)
+	raw, err := h.LLM.GenerateJSON(ctx, h.cfg.LLMRoutingModel, webhookRoutingSystemPrompt, user.String(), 0, 200)
 	if err != nil {
 		slog.Warn("webhook routing classifier failed; letting the event through", "error", err)
 		return webhookRoutingVerdict{relevant: true, reason: "classifier unavailable"}
+	}
+	verdict, ok := parseRoutingVerdict(raw)
+	if !ok {
+		slog.Warn("webhook routing classifier answered unexpectedly; letting the event through", "answer", raw)
+		return webhookRoutingVerdict{relevant: true, reason: "classifier answer unreadable"}
+	}
+	return verdict
+}
+
+// parseRoutingVerdict reads the classifier's JSON, tolerating the ```json
+// fences some gateways wrap around a JSON-mode answer.
+func parseRoutingVerdict(raw string) (webhookRoutingVerdict, bool) {
+	text := strings.TrimSpace(raw)
+	if strings.HasPrefix(text, "```") {
+		text = strings.TrimPrefix(text, "```json")
+		text = strings.TrimPrefix(text, "```")
+		text = strings.TrimSuffix(strings.TrimSpace(text), "```")
 	}
 	var parsed struct {
 		Relevant *bool  `json:"relevant"`
 		Reason   string `json:"reason"`
 	}
-	if err := json.Unmarshal([]byte(strings.TrimSpace(raw)), &parsed); err != nil || parsed.Relevant == nil {
-		slog.Warn("webhook routing classifier answered unexpectedly; letting the event through", "answer", raw)
-		return webhookRoutingVerdict{relevant: true, reason: "classifier answer unreadable"}
+	if err := json.Unmarshal([]byte(strings.TrimSpace(text)), &parsed); err != nil || parsed.Relevant == nil {
+		return webhookRoutingVerdict{}, false
 	}
-	return webhookRoutingVerdict{relevant: *parsed.Relevant, reason: strings.TrimSpace(parsed.Reason)}
+	return webhookRoutingVerdict{relevant: *parsed.Relevant, reason: strings.TrimSpace(parsed.Reason)}, true
 }
