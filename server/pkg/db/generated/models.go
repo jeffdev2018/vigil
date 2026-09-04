@@ -511,6 +511,23 @@ type BusinessRuleViolation struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type CampaignShard struct {
+	ID                 pgtype.UUID        `json:"id"`
+	RefactorCampaignID pgtype.UUID        `json:"refactor_campaign_id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	FanoutMemberID     pgtype.UUID        `json:"fanout_member_id"`
+	ChildIssueID       pgtype.UUID        `json:"child_issue_id"`
+	TaskID             pgtype.UUID        `json:"task_id"`
+	AssigneeAgentID    pgtype.UUID        `json:"assignee_agent_id"`
+	Description        string             `json:"description"`
+	BranchName         string             `json:"branch_name"`
+	MergePosition      int32              `json:"merge_position"`
+	MergeStatus        string             `json:"merge_status"`
+	MergeTaskID        pgtype.UUID        `json:"merge_task_id"`
+	Blockers           []byte             `json:"blockers"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ChannelBindingToken struct {
 	TokenHash      string             `json:"token_hash"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
@@ -1608,6 +1625,19 @@ type QuickAction struct {
 	CreatedByID   pgtype.UUID        `json:"created_by_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type RefactorCampaign struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	FanoutBatchID pgtype.UUID        `json:"fanout_batch_id"`
+	Name          string             `json:"name"`
+	TargetBranch  string             `json:"target_branch"`
+	Status        string             `json:"status"`
+	StartedBy     pgtype.UUID        `json:"started_by"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
 }
 
 type RunLimitEvent struct {

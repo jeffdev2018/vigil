@@ -3890,6 +3890,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a finished candidate run moves the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// Refactoring campaigns (K42): a finished merge run moves the queue.
+	h.updateCampaignMergeRun(r.Context(), *task)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into
@@ -4586,6 +4588,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a candidate that failed for good ends the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// Refactoring campaigns (K42): a merge run that failed for good is a conflict.
+	h.updateCampaignMergeRun(r.Context(), *task)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-
