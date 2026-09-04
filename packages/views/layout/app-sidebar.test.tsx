@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
 import { AppSidebar } from "./app-sidebar";
 
-const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
+const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
   sidebarState: { setOpenMobile: vi.fn() },
   chatSessions: { current: [] as { id?: string; unread_count?: number }[] },
@@ -14,6 +14,7 @@ const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, n
   navigation: { current: { pathname: "/acme/issues" } },
   summary: { current: [] as { workspace_id: string; count: number }[] },
   triageStats: { current: { pending: 0 } },
+  postmortemStats: { current: { draft: 0 } },
   workspaces: {
     current: [] as { id: string; name: string; slug: string; avatar_url: string | null }[],
   },
@@ -166,6 +167,9 @@ vi.mock("@multica/core/inbox/queries", () => ({
 vi.mock("@multica/core/triage/queries", () => ({
   triageStatsOptions: () => ({ queryKey: ["triage", "ws-1", "stats"] }),
 }));
+vi.mock("@multica/core/postmortem/queries", () => ({
+  postmortemStatsOptions: () => ({ queryKey: ["postmortem", "ws-1", "stats"] }),
+}));
 vi.mock("@multica/core/issues/queries", () => ({ issueDetailOptions: () => ({ queryKey: ["issue"] }) }));
 vi.mock("@multica/core/issues/stores/create-mode-store", () => ({
   useCreateModeStore: { getState: () => ({ lastMode: "agent" }) },
@@ -192,6 +196,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
     if (queryKey[0] === "workspaces") return { data: workspaces.current };
     if (queryKey[0] === "chat" && queryKey[2] === "sessions") return { data: chatSessions.current };
     if (queryKey[0] === "triage") return { data: triageStats.current };
+    if (queryKey[0] === "postmortem") return { data: postmortemStats.current };
     return { data: [] };
   },
   useQueryClient: () => ({ fetchQuery: vi.fn(), invalidateQueries: vi.fn() }),
@@ -441,6 +446,7 @@ describe("personal nav — Chat", () => {
 describe("personal nav — Triage", () => {
   beforeEach(() => {
     triageStats.current = { pending: 0 };
+    postmortemStats.current = { draft: 0 };
     navigation.current = { pathname: "/acme/issues" };
   });
 
@@ -458,5 +464,21 @@ describe("personal nav — Triage", () => {
   it("shows no Triage badge when the queue is clear", () => {
     const { container } = render(<AppSidebar />);
     expect(triageBadge(container)).toBeNull();
+  });
+
+  const postmortemBadge = (container: HTMLElement) =>
+    container
+      .querySelector<HTMLElement>('button[data-href="/acme/postmortems"]')
+      ?.querySelector("number-flow-react") ?? null;
+
+  it("badges the Postmortems nav with the draft count", () => {
+    postmortemStats.current = { draft: 2 };
+    const { container } = render(<AppSidebar />);
+    expect(postmortemBadge(container)).toHaveAttribute("aria-label", "2");
+  });
+
+  it("shows no Postmortems badge without drafts", () => {
+    const { container } = render(<AppSidebar />);
+    expect(postmortemBadge(container)).toBeNull();
   });
 });
