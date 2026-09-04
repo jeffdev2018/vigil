@@ -99,6 +99,22 @@ type AgentRuntime struct {
 	CustomName     pgtype.Text        `json:"custom_name"`
 }
 
+type AgentScorecardDaily struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	AgentID            pgtype.UUID        `json:"agent_id"`
+	RuntimeID          pgtype.UUID        `json:"runtime_id"`
+	Day                pgtype.Date        `json:"day"`
+	RunsTotal          int32              `json:"runs_total"`
+	RunsFailed         int32              `json:"runs_failed"`
+	RunsCancelled      int32              `json:"runs_cancelled"`
+	RunsAccepted       int32              `json:"runs_accepted"`
+	RunsReopened       int32              `json:"runs_reopened"`
+	RunsNoIntervention int32              `json:"runs_no_intervention"`
+	CostUsdTicksTotal  int64              `json:"cost_usd_ticks_total"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type AgentSkill struct {
 	AgentID   pgtype.UUID        `json:"agent_id"`
 	SkillID   pgtype.UUID        `json:"skill_id"`
@@ -786,6 +802,7 @@ type Issue struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 	// When the issue last entered a done-category status; NULL while it is not done.
 	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	ReopenCount int32              `json:"reopen_count"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.

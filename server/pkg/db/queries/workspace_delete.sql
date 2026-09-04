@@ -542,6 +542,9 @@ deleted_module_ownership AS (
 deleted_morning_briefings AS (
     DELETE FROM morning_briefing_sent WHERE morning_briefing_sent.workspace_id = $1
 ),
+deleted_scorecards AS (
+    DELETE FROM agent_scorecard_daily WHERE agent_scorecard_daily.workspace_id = $1
+),
 deleted_properties AS (
     DELETE FROM issue_property WHERE issue_property.workspace_id = $1
 ),

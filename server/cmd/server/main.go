@@ -770,6 +770,10 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
 		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
 	}
+	// Scorecards (K25): recompute the last days of per-agent metrics.
+	if err := schedulerMgr.Register(scheduler.AgentScorecardRollupJob(pool, h.RollupAgentScorecards)); err != nil {
+		slog.Warn("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+	}
 	// Morning briefing (K30): one daily digest per enabled workspace.
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
 		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)

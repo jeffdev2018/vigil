@@ -1979,6 +1979,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Issue status catalog (MUL-6243). Reads are open to any member —
 			// every client needs the catalog to render a status. Writes are
 			// gated to workspace owner/admin inside the handlers.
+			// Scorecards (K25).
+			r.Get("/api/scorecards", h.ListWorkspaceScorecards)
 			// Morning briefing (K30).
 			r.Route("/api/morning-briefing", func(r chi.Router) {
 				r.Get("/today", h.GetMorningBriefingToday)
@@ -2116,6 +2118,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// the system instruction layer. Idempotent per workspace.
 				r.Post("/mika", h.CreateMikaAgent)
 				r.Route("/{id}", func(r chi.Router) {
+					// Scorecards (K25).
+					r.Get("/scorecard", h.GetAgentScorecard)
 					r.Get("/", h.GetAgent)
 					r.Put("/", h.UpdateAgent)
 					r.Post("/archive", h.ArchiveAgent)
