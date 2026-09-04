@@ -74,7 +74,8 @@ test.describe("Meetings", () => {
     });
     // The status chip in the header and the live panel both say "Recording".
     await expect(page.locator("header").getByText("Recording", { exact: true })).toBeVisible();
-    await expect(page.getByText("Latest transcript")).toBeVisible();
+    // "Live transcript" when the server has a realtime provider, "Latest transcript" in batch mode.
+    await expect(page.getByText(/^(Live|Latest) transcript$/)).toBeVisible();
     await expect(page.getByText(/Let participants know/)).toBeVisible();
     const stop = page.getByRole("button", { name: "Stop" }).first();
     await expect(stop).toBeEnabled();
