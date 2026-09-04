@@ -282,3 +282,42 @@ func (p forgejoProvider) PullRequestDiff(ctx context.Context, instanceURL, token
 	}
 	return string(body), nil
 }
+
+// MergePullRequest: POST …/pulls/{n}/update?style=rebase (best effort), then
+// POST …/pulls/{n}/merge {"Do":"merge"}. 405 means the PR is not mergeable.
+func (p forgejoProvider) MergePullRequest(ctx context.Context, instanceURL, token, owner, repo string, number int) (MergeResult, error) {
+	base := fmt.Sprintf("%s/api/v1/repos/%s/%s/pulls/%d", NormalizeInstanceURL(instanceURL), url.PathEscape(owner), url.PathEscape(repo), number)
+	do := func(method, endpoint string, body string) (int, string, error) {
+		req, err := http.NewRequestWithContext(ctx, method, endpoint, strings.NewReader(body))
+		if err != nil {
+			return 0, "", err
+		}
+		req.Header.Set("Authorization", "token "+token)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return 0, "", err
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return resp.StatusCode, string(b), nil
+	}
+	if status, _, err := do(http.MethodPost, base+"/update?style=rebase", ""); err != nil {
+		return MergeResult{}, err
+	} else if status == http.StatusConflict {
+		return MergeResult{Conflict: true, Detail: "rebase conflict"}, nil
+	}
+	status, body, err := do(http.MethodPost, base+"/merge", `{"Do":"merge"}`)
+	if err != nil {
+		return MergeResult{}, err
+	}
+	switch {
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return MergeResult{}, ErrUnauthorized
+	case status == http.StatusOK || status == http.StatusNoContent:
+		return MergeResult{Merged: true}, nil
+	case status == http.StatusMethodNotAllowed || status == http.StatusConflict:
+		return MergeResult{Conflict: true, Detail: strings.TrimSpace(body)}, nil
+	}
+	return MergeResult{}, fmt.Errorf("forgejo merge: status %d", status)
+}

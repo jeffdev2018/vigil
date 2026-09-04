@@ -133,6 +133,17 @@ type Provider interface {
 	// (K15: the cross-provider reviewer reads it). Maps a 401/403 to
 	// ErrUnauthorized.
 	PullRequestDiff(ctx context.Context, instanceURL, token, owner, repo string, number int) (string, error)
+	// MergePullRequest (K42) brings the branch up to date with its target
+	// when the platform can, then merges. Conflict is reported, not an error.
+	MergePullRequest(ctx context.Context, instanceURL, token, owner, repo string, number int) (MergeResult, error)
+}
+
+// MergeResult is the outcome of MergePullRequest: merged, or a conflict the
+// platform refused to merge (a human or an agent must rebase by hand).
+type MergeResult struct {
+	Merged   bool
+	Conflict bool
+	Detail   string
 }
 
 // maxDiffBytes bounds a pull request diff read for the cross-provider review.

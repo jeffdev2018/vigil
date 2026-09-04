@@ -44,3 +44,6 @@ DELETE FROM campaign_shard WHERE workspace_id = $1;
 
 -- name: PurgeWorkspaceRefactorCampaigns :exec
 DELETE FROM refactor_campaign WHERE workspace_id = $1;
+
+-- name: ListActiveRefactorCampaigns :many
+SELECT * FROM refactor_campaign WHERE status IN ('running', 'merging') ORDER BY created_at;

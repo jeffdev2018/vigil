@@ -60,3 +60,51 @@ func TestGitLabPullRequestDiff(t *testing.T) {
 		t.Fatalf("bad token err = %v", err)
 	}
 }
+
+// K42 debt: the platform updates the branch and merges; a refusal is a
+// conflict, not an error.
+func TestForgejoMergePullRequest(t *testing.T) {
+	var calls []string
+	mergeStatus := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		if strings.HasSuffix(r.URL.Path, "/merge") {
+			w.WriteHeader(mergeStatus)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	p, _ := For("forgejo")
+	out, err := p.MergePullRequest(context.Background(), srv.URL, "tok", "org", "repo", 4)
+	if err != nil || !out.Merged || len(calls) != 2 || calls[0] != "POST /api/v1/repos/org/repo/pulls/4/update" || calls[1] != "POST /api/v1/repos/org/repo/pulls/4/merge" {
+		t.Fatalf("merge = %+v err = %v calls = %v", out, err, calls)
+	}
+	mergeStatus = http.StatusMethodNotAllowed
+	if out, err := p.MergePullRequest(context.Background(), srv.URL, "tok", "org", "repo", 4); err != nil || !out.Conflict || out.Merged {
+		t.Fatalf("refused merge = %+v err = %v", out, err)
+	}
+}
+
+func TestGitLabMergePullRequest(t *testing.T) {
+	mergeStatus := http.StatusOK
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPut {
+			t.Errorf("method = %s", r.Method)
+		}
+		if strings.HasSuffix(r.URL.Path, "/merge") {
+			w.WriteHeader(mergeStatus)
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer srv.Close()
+	p, _ := For("gitlab")
+	if out, err := p.MergePullRequest(context.Background(), srv.URL, "tok", "org", "repo", 2); err != nil || !out.Merged {
+		t.Fatalf("merge = %+v err = %v", out, err)
+	}
+	mergeStatus = http.StatusNotAcceptable
+	if out, err := p.MergePullRequest(context.Background(), srv.URL, "tok", "org", "repo", 2); err != nil || !out.Conflict {
+		t.Fatalf("refused merge = %+v err = %v", out, err)
+	}
+}

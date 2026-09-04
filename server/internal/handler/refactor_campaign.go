@@ -334,6 +334,25 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 	if err != nil {
 		return c
 	}
+	// Merge through the platform first (K42 debt); an agent run only when
+	// the platform cannot do it.
+	switch outcome, detail := h.mergeShardViaAPI(ctx, child); outcome {
+	case mergeOutcomeMerged:
+		if _, err := h.Queries.SetCampaignShardMergeStatus(ctx, db.SetCampaignShardMergeStatusParams{ID: shard.ID, MergeStatus: "merged", Blockers: []byte("[]")}); err != nil {
+			return c
+		}
+		if c.Status != "merging" {
+			if updated, err := h.Queries.SetRefactorCampaignStatus(ctx, db.SetRefactorCampaignStatusParams{ID: c.ID, Status: "merging"}); err == nil {
+				c = updated
+			}
+		}
+		h.audit(ctx, c.WorkspaceID, "system", "", AuditCampaign, "issue", c.IssueID, map[string]any{"campaign_id": uuidToString(c.ID), "shard_id": uuidToString(shard.ID), "merged": true, "via": "api"}, nil)
+		h.publishCampaignProgress(ctx, c)
+		return h.advanceMergeQueue(ctx, c)
+	case mergeOutcomeConflict:
+		h.campaignConflict(ctx, c, shard, []MergeBlocker{{Kind: blockerMergeConflict, Label: "The platform refused to merge: " + detail}})
+		return c
+	}
 	note := fmt.Sprintf(campaignMergeLead, c.Name, c.TargetBranch, shard.BranchName, c.TargetBranch, c.TargetBranch)
 	task, err := h.TaskService.EnqueueTaskForIssueWithHandoff(ctx, child, note, c.StartedBy)
 	if err != nil {
@@ -418,4 +437,31 @@ func (h *Handler) campaignConflict(ctx context.Context, c db.RefactorCampaign, s
 
 func (h *Handler) publishCampaignProgress(ctx context.Context, c db.RefactorCampaign) {
 	h.publish("campaign:merge-progress", uuidToString(c.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(c.IssueID), "campaign_id": uuidToString(c.ID), "status": c.Status})
+}
+
+// AdvanceCampaignMergeQueues is the scheduler's entry (K42): every active
+// campaign gets its queue re-evaluated. Returns how many campaigns moved
+// out of the running/merging states or started a merge.
+func (h *Handler) AdvanceCampaignMergeQueues(ctx context.Context) (int, error) {
+	campaigns, err := h.Queries.ListActiveRefactorCampaigns(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("list campaigns: %w", err)
+	}
+	moved := 0
+	for _, c := range campaigns {
+		before, _ := h.Queries.ListCampaignShards(ctx, c.ID)
+		after := h.advanceMergeQueue(ctx, c)
+		shards, _ := h.Queries.ListCampaignShards(ctx, c.ID)
+		if after.Status != c.Status || len(shards) != len(before) {
+			moved++
+			continue
+		}
+		for i := range shards {
+			if i < len(before) && shards[i].MergeStatus != before[i].MergeStatus {
+				moved++
+				break
+			}
+		}
+	}
+	return moved, nil
 }

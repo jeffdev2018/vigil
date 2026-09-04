@@ -327,3 +327,55 @@ func (c *Client) PullRequestDiff(ctx context.Context, installationID int64, owne
 	}
 	return string(body), nil
 }
+
+// MergeOutcome is the result of MergePullRequest.
+type MergeOutcome struct {
+	Merged   bool
+	Conflict bool
+	Detail   string
+}
+
+// MergePullRequest (K42): PUT …/pulls/{n}/update-branch (best effort), then
+// PUT …/pulls/{n}/merge. 405 / 409 mean GitHub refused: not mergeable.
+func (c *Client) MergePullRequest(ctx context.Context, installationID int64, owner, repo string, number int) (MergeOutcome, error) {
+	if !c.Enabled() {
+		return MergeOutcome{}, errors.New("github app not configured")
+	}
+	token, err := c.installationToken(ctx, installationID)
+	if err != nil {
+		return MergeOutcome{}, err
+	}
+	base := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", strings.TrimRight(c.apiBase, "/"), url.PathEscape(owner), url.PathEscape(repo), number)
+	do := func(endpoint, body string) (int, string, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, strings.NewReader(body))
+		if err != nil {
+			return 0, "", err
+		}
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("Accept", "application/vnd.github+json")
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return 0, "", err
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return resp.StatusCode, string(b), nil
+	}
+	if status, _, err := do(base+"/update-branch", "{}"); err != nil {
+		return MergeOutcome{}, err
+	} else if status == http.StatusConflict {
+		return MergeOutcome{Conflict: true, Detail: "update-branch conflict"}, nil
+	}
+	status, body, err := do(base+"/merge", `{"merge_method":"merge"}`)
+	if err != nil {
+		return MergeOutcome{}, err
+	}
+	switch status {
+	case http.StatusOK:
+		return MergeOutcome{Merged: true}, nil
+	case http.StatusMethodNotAllowed, http.StatusConflict:
+		return MergeOutcome{Conflict: true, Detail: strings.TrimSpace(body)}, nil
+	}
+	return MergeOutcome{}, fmt.Errorf("github merge: status %d", status)
+}

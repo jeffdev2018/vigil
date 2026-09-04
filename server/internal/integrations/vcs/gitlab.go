@@ -288,3 +288,41 @@ func (gitlabProvider) PullRequestDiff(ctx context.Context, instanceURL, token, o
 	}
 	return sb.String(), nil
 }
+
+// MergePullRequest: PUT …/merge_requests/{iid}/rebase (best effort), then
+// PUT …/merge_requests/{iid}/merge. 405/406 mean the MR cannot be merged.
+func (gitlabProvider) MergePullRequest(ctx context.Context, instanceURL, token, owner, repo string, number int) (MergeResult, error) {
+	base := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d", NormalizeInstanceURL(instanceURL), url.PathEscape(owner+"/"+repo), number)
+	do := func(endpoint string) (int, string, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, nil)
+		if err != nil {
+			return 0, "", err
+		}
+		req.Header.Set("PRIVATE-TOKEN", token)
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return 0, "", err
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return resp.StatusCode, string(b), nil
+	}
+	if status, _, err := do(base + "/rebase"); err != nil {
+		return MergeResult{}, err
+	} else if status == http.StatusConflict {
+		return MergeResult{Conflict: true, Detail: "rebase conflict"}, nil
+	}
+	status, body, err := do(base + "/merge")
+	if err != nil {
+		return MergeResult{}, err
+	}
+	switch {
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return MergeResult{}, ErrUnauthorized
+	case status == http.StatusOK:
+		return MergeResult{Merged: true}, nil
+	case status == http.StatusMethodNotAllowed || status == http.StatusNotAcceptable || status == http.StatusConflict:
+		return MergeResult{Conflict: true, Detail: strings.TrimSpace(body)}, nil
+	}
+	return MergeResult{}, fmt.Errorf("gitlab merge: status %d", status)
+}
