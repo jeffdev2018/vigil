@@ -984,6 +984,9 @@ func (h *Handler) DaemonDeregister(w http.ResponseWriter, r *http.Request) {
 type DaemonHeartbeatRequest struct {
 	RuntimeID           string `json:"runtime_id"`
 	SupportsBatchImport bool   `json:"supports_batch_import,omitempty"`
+	// DirtyCheckouts (K18): files a human changed in the daemon's local
+	// checkouts. Optional; daemons that do not send it change nothing.
+	DirtyCheckouts []service.DirtyCheckout `json:"dirty_checkouts,omitempty"`
 }
 
 // heartbeatHasPendingTimeout bounds the cheap HasPending probe on the
@@ -1115,6 +1118,13 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	authMs = time.Since(start).Milliseconds()
 
 	updateStart := time.Now()
+	if req.DirtyCheckouts != nil {
+		if raw, err := json.Marshal(req.DirtyCheckouts); err == nil {
+			if err := h.Queries.UpdateAgentRuntimeDirtyCheckouts(r.Context(), db.UpdateAgentRuntimeDirtyCheckoutsParams{ID: rt.ID, Dirty: raw}); err != nil {
+				slog.Warn("traffic: store dirty checkouts failed", "runtime_id", req.RuntimeID, "error", err)
+			}
+		}
+	}
 	if err := h.recordHeartbeat(r.Context(), rt); err != nil {
 		updateMs = time.Since(updateStart).Milliseconds()
 		outcome = "error_update"
@@ -4717,6 +4727,8 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 			checkpointSeq = int64(msg.Seq)
 		}
 	}
+	// Traffic control (K18): editing tool calls name the paths this run touches.
+	h.recordTouchedPaths(r.Context(), task, created)
 	if checkpointSeq > 0 {
 		if err := h.Queries.CheckpointTask(r.Context(), db.CheckpointTaskParams{ID: task.ID, LastCheckpointSeq: pgtype.Int8{Int64: checkpointSeq, Valid: true}}); err != nil {
 			slog.Warn("checkpoint: advance failed", "task_id", taskID, "error", err)

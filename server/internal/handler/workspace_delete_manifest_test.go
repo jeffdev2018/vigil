@@ -102,6 +102,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"handoff_packet":                     workspaceDelete,
 	"run_limit_policy":                   workspaceDelete,
 	"run_limit_event":                    workspaceDelete,
+	"traffic_conflict":                   workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

@@ -99,6 +99,7 @@ import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
+import { TrafficConflictBanner } from "./traffic-conflict-banner";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2622,6 +2623,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Checkpoints (K20): interrupted and resumed automatically, or the chain gave up. */}
       <RunInterruptedBanner issueId={id} />
+
+      {/* Traffic control (K18): the run edits what a human or another run edits. */}
+      <TrafficConflictBanner issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

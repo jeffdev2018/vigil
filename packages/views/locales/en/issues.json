@@ -943,6 +943,21 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "traffic": {
+    "human": "This run is editing files a human is changing in the local checkout",
+    "agent": "This run is editing files another run ({{id}}) is editing",
+    "pause": "Pause the run",
+    "ignore": "Ignore",
+    "show_history_one": "Show {{count}} settled conflict",
+    "show_history_other": "Show {{count}} settled conflicts",
+    "hide_history": "Hide settled conflicts",
+    "failed": "The traffic control action failed",
+    "status": {
+      "active": "active",
+      "ignored": "ignored",
+      "resolved": "resolved"
+    }
+  },
   "checkpoint": {
     "resumed": "Run interrupted and resumed automatically {{point}} (resume {{attempts}}/{{max}}).",
     "exhausted": "Infrastructure interruptions: the automatic resume gave up after {{attempts}}/{{max}} attempts. This is not the task failing on its own.",

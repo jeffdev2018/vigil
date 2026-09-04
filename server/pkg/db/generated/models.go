@@ -216,6 +216,7 @@ type AgentTaskQueue struct {
 	LastCheckpointSeq   pgtype.Int8        `json:"last_checkpoint_seq"`
 	CheckpointAttempts  int32              `json:"checkpoint_attempts"`
 	CheckpointedAt      pgtype.Timestamptz `json:"checkpointed_at"`
+	TouchedPaths        []byte             `json:"touched_paths"`
 }
 
 type AgentToLabel struct {
@@ -1764,6 +1765,20 @@ type TaskUsageHourlyRollupState struct {
 	LastRunFinishedAt pgtype.Timestamptz `json:"last_run_finished_at"`
 	LastRunRows       int64              `json:"last_run_rows"`
 	LastError         pgtype.Text        `json:"last_error"`
+}
+
+type TrafficConflict struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Kind            string             `json:"kind"`
+	Paths           []byte             `json:"paths"`
+	OtherTaskID     pgtype.UUID        `json:"other_task_id"`
+	HandoffPacketID pgtype.UUID        `json:"handoff_packet_id"`
+	Status          string             `json:"status"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	ResolvedAt      pgtype.Timestamptz `json:"resolved_at"`
 }
 
 type TriageItem struct {

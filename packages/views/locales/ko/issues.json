@@ -912,6 +912,21 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "traffic": {
+    "human": "이 실행은 사람이 로컬 체크아웃에서 변경 중인 파일을 편집하고 있습니다",
+    "agent": "이 실행은 다른 실행({{id}})이 편집 중인 파일을 편집하고 있습니다",
+    "pause": "실행 일시정지",
+    "ignore": "무시",
+    "show_history_one": "정리된 충돌 {{count}}개 보기",
+    "show_history_other": "정리된 충돌 {{count}}개 보기",
+    "hide_history": "정리된 충돌 숨기기",
+    "failed": "트래픽 제어 작업이 실패했습니다",
+    "status": {
+      "active": "활성",
+      "ignored": "무시됨",
+      "resolved": "해결됨"
+    }
+  },
   "checkpoint": {
     "resumed": "실행이 중단되었다가 {{point}} 자동 재개되었습니다 (재개 {{attempts}}/{{max}}).",
     "exhausted": "인프라 중단: 자동 재개가 {{attempts}}/{{max}}회 후 포기했습니다. 작업 자체의 실패가 아닙니다.",

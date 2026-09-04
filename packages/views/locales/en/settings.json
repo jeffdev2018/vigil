@@ -889,7 +889,11 @@
     "routing_pool_agent": "Agent's own pool or runtime",
     "routing_escalation": "Escalate after consecutive failures",
     "routing_escalation_description": "After this many failed runs in a row on an issue, the next run goes one risk level up. 0 disables escalation.",
-    "routing_failed": "Failed to save the routing policy"
+    "routing_failed": "Failed to save the routing policy",
+    "traffic_section": "Traffic control",
+    "traffic_pause_label": "Pause a run that collides",
+    "traffic_pause_description": "A run editing files a human is changing in the daemon's checkout, or another run is editing, always lands in the Attention Inbox. Switch this on to also pause it at its next safe boundary.",
+    "traffic_failed": "Failed to update traffic control"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

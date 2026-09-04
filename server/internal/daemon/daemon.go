@@ -528,7 +528,9 @@ type Daemon struct {
 	cancelFunc context.CancelFunc // set by Run(); called by triggerRestart
 	// pauseControls (K19): one pause control per running task id.
 	pauseControls sync.Map
-	rootCtx       context.Context // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
+	// durableCheckouts (K18): local checkouts humans work in, keyed by path.
+	durableCheckouts sync.Map
+	rootCtx          context.Context // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
 	// restartMu guards restartBinary. Two goroutines can reach triggerRestart —
 	// the server-triggered handleUpdate and the autoUpdateLoop — and
 	// trySelfReload reads RestartBinary() from the latter to avoid racing the
@@ -4185,7 +4187,7 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 		return false
 	}
 	d.logger.Debug("heartbeat: HTTP tick", "runtime_id", rid)
-	resp, err := d.client.SendHeartbeat(ctx, rid)
+	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx))
 	if err != nil {
 		if ctx.Err() == nil {
 			if isRuntimeNotFoundError(err) {
@@ -4336,7 +4338,7 @@ func (d *Daemon) handlePendingWorkHint(runtimeID, kind string) {
 		return
 	}
 	hbCtx, cancel := context.WithTimeout(ctx, pendingWorkHeartbeatTimeout)
-	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID)
+	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil)
 	cancel()
 	if err != nil {
 		if isRuntimeNotFoundError(err) {
@@ -5452,6 +5454,7 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 	}()
 
 	result, err := d.runner.run(runCtx, task, provider, slot, taskLog)
+	d.rememberCheckout(result.DurableWorkDir)
 
 	// Pause (K19): the run stopped at a boundary on a human's request. Report
 	// where the session lives and leave the result to the resumed run.

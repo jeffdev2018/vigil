@@ -912,6 +912,21 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "traffic": {
+    "human": "此运行正在编辑某人在本地检出中正在更改的文件",
+    "agent": "此运行正在编辑另一运行（{{id}}）正在编辑的文件",
+    "pause": "暂停运行",
+    "ignore": "忽略",
+    "show_history_one": "显示 {{count}} 个已处理冲突",
+    "show_history_other": "显示 {{count}} 个已处理冲突",
+    "hide_history": "隐藏已处理冲突",
+    "failed": "流量控制操作失败",
+    "status": {
+      "active": "进行中",
+      "ignored": "已忽略",
+      "resolved": "已解决"
+    }
+  },
   "checkpoint": {
     "resumed": "运行被中断并已{{point}}自动恢复（恢复 {{attempts}}/{{max}}）。",
     "exhausted": "基础设施中断：自动恢复在 {{attempts}}/{{max}} 次后放弃。这不是任务本身失败。",

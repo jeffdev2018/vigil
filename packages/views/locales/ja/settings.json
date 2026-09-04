@@ -887,7 +887,11 @@
     "routing_pool_agent": "エージェント自身のプールまたはランタイム",
     "routing_escalation": "連続失敗でエスカレーション",
     "routing_escalation_description": "イシューでこの回数連続して実行が失敗すると、次の実行はリスクレベルを一段上げます。0 で無効。",
-    "routing_failed": "ルーティング設定を保存できませんでした"
+    "routing_failed": "ルーティング設定を保存できませんでした",
+    "traffic_section": "トラフィック制御",
+    "traffic_pause_label": "衝突した実行を一時停止",
+    "traffic_pause_description": "デーモンのチェックアウトで人が変更中のファイル、または別の実行が編集中のファイルを編集する実行は常に Attention Inbox に届きます。オンにすると次の安全な境界で一時停止もします。",
+    "traffic_failed": "トラフィック制御を更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

@@ -2081,6 +2081,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Route("/api/issues/{id}/run", func(r chi.Router) {
 				r.Get("/state", h.GetRunControlState)
 				r.Get("/checkpoint-status", h.GetRunCheckpointStatus)
+			})
+			// Traffic control (K18): a run editing what a human or another run edits.
+			r.Route("/api/issues/{id}/traffic-conflicts", func(r chi.Router) {
+				r.Get("/", h.ListTrafficConflicts)
+				r.Post("/{cid}/ignore", h.IgnoreTrafficConflict)
 				r.Post("/pause", h.PauseRun)
 				r.Post("/steer", h.SteerRun)
 				r.Post("/resume", h.ResumeRun)

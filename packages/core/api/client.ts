@@ -344,6 +344,8 @@ import {
   RunLimitPolicySchema,
   RunControlEnvelopeSchema,
   RunCheckpointEnvelopeSchema,
+  TrafficConflictSchema,
+  TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
   HandoffPacketsEnvelopeSchema,
@@ -3145,6 +3147,17 @@ export class ApiClient {
   async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
     return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Traffic control (K18).
+  async listTrafficConflicts(issueId: string): Promise<import("../issues/traffic").TrafficConflict[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/traffic-conflicts`);
+    return parseWithFallback(raw, TrafficConflictsEnvelopeSchema, { conflicts: [] }, { endpoint: "GET /api/issues/:id/traffic-conflicts" }).conflicts;
+  }
+
+  async ignoreTrafficConflict(issueId: string, conflictId: string): Promise<import("../issues/traffic").TrafficConflict> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/traffic-conflicts/${encodeURIComponent(conflictId)}/ignore`, { method: "POST" });
+    return parseWithFallback(raw, TrafficConflictSchema, { id: conflictId, task_id: "", kind: "agent", paths: [], other_task_id: null, handoff_packet_id: null, status: "ignored", created_at: "", resolved_at: null }, { endpoint: "POST /api/issues/:id/traffic-conflicts/:cid/ignore" });
   }
 
   // Checkpoints (K20).

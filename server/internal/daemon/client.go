@@ -617,12 +617,17 @@ type (
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 )
 
-func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string) (*HeartbeatResponse, error) {
+func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
-	if err := c.postJSON(ctx, "/api/daemon/heartbeat", map[string]any{
+	body := map[string]any{
 		"runtime_id":            runtimeID,
 		"supports_batch_import": true,
-	}, &resp); err != nil {
+	}
+	if dirty != nil {
+		// Traffic control (K18): what a human changed in the local checkouts.
+		body["dirty_checkouts"] = dirty
+	}
+	if err := c.postJSON(ctx, "/api/daemon/heartbeat", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
