@@ -262,6 +262,7 @@ import type {
   MeetingListResponse,
   MeetingSegmentResponse,
   VoiceTranscription,
+  RealtimeVoiceSession,
   TriageSourceMode,
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
@@ -421,6 +422,8 @@ import {
   MeetingListResponseSchema,
   VoiceTranscriptionSchema,
   EMPTY_VOICE_TRANSCRIPTION,
+  RealtimeVoiceSessionSchema,
+  EMPTY_REALTIME_VOICE_SESSION,
   MeetingSegmentResponseSchema,
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
@@ -1777,6 +1780,35 @@ export class ApiClient {
       VoiceTranscriptionSchema,
       EMPTY_VOICE_TRANSCRIPTION,
       { endpoint: "POST /api/voice/transcribe" },
+    );
+  }
+
+  /** Short-lived token for the provider's realtime transcription socket. */
+  async realtimeVoiceSession(): Promise<RealtimeVoiceSession> {
+    const raw = await this.fetch<unknown>("/api/voice/realtime-session", { method: "POST" });
+    return parseWithFallback<RealtimeVoiceSession>(
+      raw,
+      RealtimeVoiceSessionSchema,
+      EMPTY_REALTIME_VOICE_SESSION,
+      { endpoint: "POST /api/voice/realtime-session" },
+    );
+  }
+
+  /** Live clients send text they already transcribed instead of audio. */
+  async appendMeetingTextSegment(
+    id: string,
+    text: string,
+    seq: number,
+  ): Promise<MeetingSegmentResponse> {
+    const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}/segments`, {
+      method: "POST",
+      body: JSON.stringify({ seq: String(seq), text }),
+    });
+    return parseWithFallback<MeetingSegmentResponse>(
+      raw,
+      MeetingSegmentResponseSchema,
+      EMPTY_MEETING_SEGMENT,
+      { endpoint: "POST /api/meetings/{id}/segments (text)" },
     );
   }
 

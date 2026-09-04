@@ -441,6 +441,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),
 		STTLanguage:              strings.TrimSpace(os.Getenv("MULTICA_STT_LANGUAGE")),
 		STTDiarize:               strings.EqualFold(strings.TrimSpace(os.Getenv("MULTICA_STT_DIARIZE")), "true"),
+		STTRealtimeModel:         strings.TrimSpace(os.Getenv("MULTICA_STT_REALTIME_MODEL")),
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
@@ -1975,6 +1976,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			// Voice memo: one-shot transcription for the chat composer.
 			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)
+			// Live transcript: a short-lived provider token the browser uses to open
+			// the realtime WebSocket itself. The API key never leaves the server.
+			r.With(handler.RequireHumanActor).Post("/api/voice/realtime-session", h.RealtimeVoiceSession)
 
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
 			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { toast } from "sonner";
-import { errorCode } from "@multica/core/api";
+import { errorCode, getApi } from "@multica/core/api";
+import { configStore } from "@multica/core/config";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import {
@@ -11,9 +12,11 @@ import {
 } from "@multica/core/meetings/store";
 import {
   useAppendMeetingSegment,
+  useAppendMeetingTextSegment,
   useCreateMeeting,
   useFinishMeeting,
 } from "@multica/core/meetings/mutations";
+import { startRealtimeTranscriber, type RealtimeTranscriber } from "./realtime-transcriber";
 import { useNavigation } from "../navigation";
 import { useT } from "../i18n";
 
@@ -46,6 +49,7 @@ export function useMeetingRecorder() {
 
   const createMeeting = useCreateMeeting(wsId);
   const appendSegment = useAppendMeetingSegment();
+  const appendTextSegment = useAppendMeetingTextSegment();
   const finishMeeting = useFinishMeeting(wsId);
 
   const openNonce = useMeetingRecorderStore((s) => s.openNonce);
@@ -60,8 +64,18 @@ export function useMeetingRecorder() {
   const abortedRef = useRef(false);
   const stoppingRef = useRef(false);
   const seqRef = useRef(0);
+  // Live transcript (provider realtime socket). While it runs, audio chunks
+  // are not uploaded: the text it produced is sent instead, every 30s.
+  const liveRef = useRef<RealtimeTranscriber | null>(null);
+  const liveTextRef = useRef("");
+  const liveFlushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const releaseMedia = useCallback(() => {
+    if (liveFlushTimerRef.current) {
+      clearInterval(liveFlushTimerRef.current);
+      liveFlushTimerRef.current = null;
+    }
+    liveRef.current = null;
     for (const track of tracksRef.current) track.stop();
     tracksRef.current = [];
     const ctx = audioContextRef.current;
@@ -125,6 +139,23 @@ export function useMeetingRecorder() {
       if (abortedRef.current && meetingIdRef.current) void stopRef.current();
     }
   }, [appendSegment, t]);
+
+  /** Sends the live text accumulated since the last flush as one segment. */
+  const flushLiveText = useCallback(async () => {
+    const meetingId = meetingIdRef.current;
+    const text = liveTextRef.current.trim();
+    if (!meetingId || !text) return;
+    liveTextRef.current = "";
+    const seq = seqRef.current;
+    seqRef.current += 1;
+    try {
+      await appendTextSegment.mutateAsync({ meetingId, text, seq });
+    } catch {
+      // Keep the words for the next flush rather than losing them.
+      liveTextRef.current = `${text} ${liveTextRef.current}`.trim();
+      toast.error(t(($) => $.recorder.error_segment));
+    }
+  }, [appendTextSegment, t]);
 
   const start = useCallback(
     async (options?: MeetingRecorderOpenOptions) => {
@@ -203,11 +234,42 @@ export function useMeetingRecorder() {
         ctx.createMediaStreamSource(systemAudio).connect(destination);
       }
 
+      // Live transcript when the server offers it. Failure to connect is
+      // silent: the batch path below covers the whole meeting anyway.
+      if (configStore.getState().meetingRealtimeAvailable) {
+        try {
+          const session = await getApi().realtimeVoiceSession();
+          const transcriber = await startRealtimeTranscriber({
+            stream: destination.stream,
+            session,
+            onDelta: (delta) => {
+              liveTextRef.current += delta;
+              useMeetingRecorderStore.getState().appendLiveTranscript(delta);
+            },
+            onError: () => {
+              // From here on the audio chunks are uploaded again; what the
+              // socket already produced is flushed as text below.
+              if (!liveRef.current) return;
+              liveRef.current = null;
+              useMeetingRecorderStore.getState().setLive(false);
+              toast.error(t(($) => $.recorder.live_lost));
+            },
+          });
+          liveRef.current = transcriber;
+          liveTextRef.current = "";
+          useMeetingRecorderStore.getState().setLive(true);
+        } catch {
+          liveRef.current = null;
+        }
+      }
+
       const recorder = MediaRecorder.isTypeSupported(PREFERRED_MIME)
         ? new MediaRecorder(destination.stream, { mimeType: PREFERRED_MIME })
         : new MediaRecorder(destination.stream);
       recorder.ondataavailable = (event: BlobEvent) => {
         if (abortedRef.current || event.data.size === 0) return;
+        // The live socket already transcribed this stretch of audio.
+        if (liveRef.current) return;
         queueRef.current.push(event.data);
         void pump();
       };
@@ -221,10 +283,13 @@ export function useMeetingRecorder() {
       meetingIdRef.current = meetingId;
       recorderRef.current = recorder;
       recorder.start(TIMESLICE_MS);
+      if (liveRef.current) {
+        liveFlushTimerRef.current = setInterval(() => void flushLiveText(), TIMESLICE_MS);
+      }
       store.started(meetingId, startedAt, systemAudio !== null);
       push(wsPaths.meetingDetail(meetingId));
     },
-    [createMeeting, push, pump, releaseMedia, t, wsPaths],
+    [createMeeting, flushLiveText, push, pump, releaseMedia, t, wsPaths],
   );
 
   const stop = useCallback(async () => {
@@ -233,6 +298,17 @@ export function useMeetingRecorder() {
     stoppingRef.current = true;
     useMeetingRecorderStore.getState().setPhase("finishing");
     try {
+      // Let the live socket deliver its last words, then send them as text.
+      const live = liveRef.current;
+      if (live) {
+        if (liveFlushTimerRef.current) {
+          clearInterval(liveFlushTimerRef.current);
+          liveFlushTimerRef.current = null;
+        }
+        await live.stop();
+        await flushLiveText();
+        liveRef.current = null;
+      }
       // `stop()` emits one final `dataavailable` before `stop`, which is how
       // the tail of the conversation gets uploaded at all.
       const recorder = recorderRef.current;
@@ -267,7 +343,7 @@ export function useMeetingRecorder() {
       stoppingRef.current = false;
       useMeetingRecorderStore.getState().reset();
     }
-  }, [finishMeeting, releaseMedia, t]);
+  }, [finishMeeting, flushLiveText, releaseMedia, t]);
 
   stopRef.current = stop;
 

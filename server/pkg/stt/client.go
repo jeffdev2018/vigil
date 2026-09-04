@@ -15,6 +15,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -33,6 +34,11 @@ type Config struct {
 	// Diarize asks the provider to label speakers. Only providers that accept
 	// the `diarize` multipart field honor it (Voxtral); others ignore the field.
 	Diarize bool
+	// RealtimeModel enables live (word-by-word) transcription through the
+	// provider's realtime WebSocket, authenticated with short-lived tokens
+	// the server mints from POST {base}/v1/client/sessions (Mistral). Empty
+	// disables the feature; batch transcription keeps working.
+	RealtimeModel string
 	// HTTPClient overrides the default client (tests). Nil -> 120s timeout.
 	HTTPClient *http.Client
 }
@@ -49,6 +55,7 @@ func New(cfg Config) *Client {
 	cfg.BaseURL = strings.TrimRight(strings.TrimSpace(cfg.BaseURL), "/")
 	cfg.Model = strings.TrimSpace(cfg.Model)
 	cfg.Language = strings.TrimSpace(cfg.Language)
+	cfg.RealtimeModel = strings.TrimSpace(cfg.RealtimeModel)
 	hc := cfg.HTTPClient
 	if hc == nil {
 		hc = &http.Client{Timeout: 120 * time.Second}
@@ -63,6 +70,95 @@ func (c *Client) Enabled() bool {
 
 // Model returns the configured model id (for diagnostics; never the key).
 func (c *Client) Model() string { return c.cfg.Model }
+
+// RealtimeEnabled reports whether live transcription sessions can be minted.
+func (c *Client) RealtimeEnabled() bool {
+	return c.Enabled() && c.cfg.RealtimeModel != "" && c.cfg.APIKey != ""
+}
+
+// RealtimeSession is what a browser needs to open the provider's realtime
+// WebSocket itself: the URL, a short-lived token (never the API key) and the
+// PCM format the session expects. Audio is 16 kHz mono signed 16-bit LE.
+type RealtimeSession struct {
+	URL        string `json:"url"`
+	Model      string `json:"model"`
+	Token      string `json:"token"`
+	ExpiresAt  string `json:"expires_at"`
+	Encoding   string `json:"encoding"`
+	SampleRate int    `json:"sample_rate"`
+}
+
+// ErrRealtimeNotConfigured is returned when no realtime model is set.
+var ErrRealtimeNotConfigured = errors.New("stt: realtime not configured")
+
+// RealtimeSession mints a client token (POST /v1/client/sessions, Mistral's
+// contract) and returns the connection details for the browser.
+func (c *Client) RealtimeSession(ctx context.Context) (RealtimeSession, error) {
+	if !c.RealtimeEnabled() {
+		return RealtimeSession{}, ErrRealtimeNotConfigured
+	}
+	body, _ := json.Marshal(map[string]string{"purpose": "realtime", "model": c.cfg.RealtimeModel})
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+"/v1/client/sessions", bytes.NewReader(body))
+	if err != nil {
+		return RealtimeSession{}, fmt.Errorf("stt: build request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.cfg.APIKey)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return RealtimeSession{}, fmt.Errorf("stt: request: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if err != nil {
+		return RealtimeSession{}, fmt.Errorf("stt: read response: %w", err)
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		snippet := strings.TrimSpace(string(raw))
+		if len(snippet) > maxErrorBody {
+			snippet = snippet[:maxErrorBody]
+		}
+		return RealtimeSession{}, fmt.Errorf("stt: upstream %d: %s", resp.StatusCode, snippet)
+	}
+	var parsed struct {
+		ExpiresAt    string `json:"expires_at"`
+		ClientSecret struct {
+			Value     string `json:"value"`
+			ExpiresAt string `json:"expires_at"`
+		} `json:"client_secret"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return RealtimeSession{}, fmt.Errorf("stt: decode response: %w", err)
+	}
+	if parsed.ClientSecret.Value == "" {
+		return RealtimeSession{}, errors.New("stt: session response carries no client secret")
+	}
+	expires := parsed.ClientSecret.ExpiresAt
+	if expires == "" {
+		expires = parsed.ExpiresAt
+	}
+	return RealtimeSession{
+		URL:        realtimeURL(c.cfg.BaseURL, c.cfg.RealtimeModel),
+		Model:      c.cfg.RealtimeModel,
+		Token:      parsed.ClientSecret.Value,
+		ExpiresAt:  expires,
+		Encoding:   "pcm_s16le",
+		SampleRate: 16000,
+	}, nil
+}
+
+// realtimeURL turns the HTTP base into the realtime WebSocket endpoint.
+func realtimeURL(base, model string) string {
+	ws := base
+	switch {
+	case strings.HasPrefix(ws, "https://"):
+		ws = "wss://" + strings.TrimPrefix(ws, "https://")
+	case strings.HasPrefix(ws, "http://"):
+		ws = "ws://" + strings.TrimPrefix(ws, "http://")
+	}
+	return ws + "/v1/audio/transcriptions/realtime?model=" + url.QueryEscape(model)
+}
 
 // Result is one transcription. Text is speaker-labelled ("Speaker 1: …" per
 // line) when the provider returned diarized segments, plain otherwise.

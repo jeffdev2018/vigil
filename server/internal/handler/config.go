@@ -85,6 +85,9 @@ type AppConfig struct {
 	// configured (MULTICA_STT_*), so the meetings UI can offer recording
 	// instead of discovering a 409 on the first attempt. A boolean only.
 	MeetingTranscriptionAvailable bool `json:"meeting_transcription_available"`
+	// MeetingRealtimeAvailable: the provider also offers live transcription
+	// (MULTICA_STT_REALTIME_MODEL), so the recorder can show words as spoken.
+	MeetingRealtimeAvailable bool `json:"meeting_realtime_available"`
 
 	// ServerVersion is the running API build version, so self-hosted
 	// operators can confirm what's deployed and include it in bug reports.
@@ -117,6 +120,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	config.CdnSigned = h.CFSigner != nil
 	config.MeetingTranscriptionAvailable = h.STT != nil && h.STT.Enabled()
+	config.MeetingRealtimeAvailable = h.STT != nil && h.STT.RealtimeEnabled()
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()

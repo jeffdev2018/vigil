@@ -32,6 +32,57 @@ func stubSTT(t *testing.T, text string) *httptest.Server {
 	return srv
 }
 
+func TestMeetingLiveTranscriptSegmentsAndRealtimeSession(t *testing.T) {
+	// A provider that also mints realtime client tokens.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/client/sessions" {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = io.WriteString(w, `{"client_secret":{"value":"rt_test","expires_at":"2026-09-04T10:01:00Z"}}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	prev := testHandler.STT
+	testHandler.STT = stt.New(stt.Config{BaseURL: srv.URL, APIKey: "k", Model: "stub", RealtimeModel: "rt-model"})
+	t.Cleanup(func() { testHandler.STT = prev })
+
+	var session map[string]any
+	testutil.Call(t, testHandler.RealtimeVoiceSession, newRequest(http.MethodPost, "/api/voice/realtime-session", nil)).
+		Want(http.StatusOK).JSON(&session)
+	if session["token"] != "rt_test" || session["sample_rate"] != float64(16000) || !strings.Contains(session["url"].(string), "/v1/audio/transcriptions/realtime?model=rt-model") {
+		t.Fatalf("session = %v", session)
+	}
+
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", map[string]string{"title": "Live"})).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+	// The live client sends text it already has; no audio hits the provider.
+	seg := testutil.Call(t, testHandler.AppendMeetingSegment,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/segments", map[string]string{"seq": "1", "text": "  On livre vendredi.  "}), "id", created.ID)).
+		Want(http.StatusOK).Map()
+	if seg["text"] != "On livre vendredi." || seg["segment_count"] != float64(1) {
+		t.Fatalf("segment = %v", seg)
+	}
+	var fetched MeetingResponse
+	testutil.Call(t, testHandler.GetMeeting,
+		testutil.WithURLParams(newRequest(http.MethodGet, "/api/meetings/"+created.ID, nil), "id", created.ID)).
+		Want(http.StatusOK).JSON(&fetched)
+	if fetched.Transcript != "On livre vendredi." {
+		t.Fatalf("transcript = %q", fetched.Transcript)
+	}
+}
+
+func TestRealtimeSessionRequiresRealtimeModel(t *testing.T) {
+	stubSTT(t, "x") // batch only
+	body := testutil.Call(t, testHandler.RealtimeVoiceSession, newRequest(http.MethodPost, "/api/voice/realtime-session", nil)).
+		Want(http.StatusConflict).Map()
+	if body["code"] != "realtime_not_configured" {
+		t.Fatalf("code = %v", body["code"])
+	}
+}
+
 func audioUploadRequest(t *testing.T, path string, seq string) *http.Request {
 	t.Helper()
 	var body bytes.Buffer

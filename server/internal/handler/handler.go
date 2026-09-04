@@ -141,6 +141,7 @@ type Config struct {
 	//   - STTModel         -> MULTICA_STT_MODEL
 	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
 	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
+	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
@@ -153,11 +154,12 @@ type Config struct {
 	// STT* configure the speech-to-text provider behind the voice memo and
 	// meeting transcription endpoints (OpenAI-compatible
 	// /v1/audio/transcriptions). Unset -> those endpoints answer 409.
-	STTBaseURL  string
-	STTAPIKey   string
-	STTModel    string
-	STTLanguage string
-	STTDiarize  bool
+	STTBaseURL       string
+	STTAPIKey        string
+	STTModel         string
+	STTLanguage      string
+	STTDiarize       bool
+	STTRealtimeModel string
 	// ServerVersion is the build version of the running API binary (the same
 	// value main.go stamps via -X main.version and reports on /metrics).
 	// Surfaced through /api/config so self-hosted operators can confirm which
@@ -513,7 +515,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			Timeout: cfg.CloudTimeout,
 		}),
 		LLM: llmClient,
-		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize}),
+		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
 		cfg: cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)

@@ -91,3 +91,38 @@ func TestTranscribeErrors(t *testing.T) {
 		t.Fatalf("error body not truncated: %d chars", len(err.Error()))
 	}
 }
+
+func TestRealtimeSessionMintsClientToken(t *testing.T) {
+	var gotAuth, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/client/sessions" || r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		gotAuth = r.Header.Get("Authorization")
+		b, _ := io.ReadAll(r.Body)
+		gotBody = string(b)
+		w.WriteHeader(http.StatusCreated)
+		_, _ = io.WriteString(w, `{"object":"client.session","purpose":"realtime","expires_at":"2026-09-04T10:01:00Z","client_secret":{"value":"rt_abc","expires_at":"2026-09-04T10:01:00Z"}}`)
+	}))
+	defer srv.Close()
+
+	off := New(Config{BaseURL: srv.URL, APIKey: "k", Model: "m"})
+	if off.RealtimeEnabled() {
+		t.Fatal("realtime must stay off without a realtime model")
+	}
+	c := New(Config{BaseURL: srv.URL, APIKey: "k", Model: "m", RealtimeModel: "voxtral-mini-transcribe-realtime-2602"})
+	s, err := c.RealtimeSession(context.Background())
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	if s.Token != "rt_abc" || s.ExpiresAt != "2026-09-04T10:01:00Z" || s.SampleRate != 16000 || s.Encoding != "pcm_s16le" {
+		t.Fatalf("session = %+v", s)
+	}
+	if want := "ws://" + strings.TrimPrefix(srv.URL, "http://") + "/v1/audio/transcriptions/realtime?model=voxtral-mini-transcribe-realtime-2602"; s.URL != want {
+		t.Fatalf("url = %q, want %q", s.URL, want)
+	}
+	if gotAuth != "Bearer k" || !strings.Contains(gotBody, `"purpose":"realtime"`) || !strings.Contains(gotBody, "voxtral-mini-transcribe-realtime-2602") {
+		t.Fatalf("request = auth:%q body:%q", gotAuth, gotBody)
+	}
+}

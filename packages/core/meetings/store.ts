@@ -37,6 +37,10 @@ interface MeetingRecorderState {
   startedAt: string | null;
   /** Most recent transcribed chunk, shown live under the recorder. */
   lastTranscript: string;
+  /** True while the provider streams words as they are spoken. */
+  live: boolean;
+  /** Words received so far this recording (bounded by the panel, not here). */
+  liveTranscript: string;
   /** False when the user refused screen/tab audio: microphone only. */
   systemAudio: boolean;
   /**
@@ -55,6 +59,8 @@ interface MeetingRecorderState {
   setPhase: (phase: MeetingRecorderPhase) => void;
   started: (meetingId: string, startedAt: string, systemAudio: boolean) => void;
   setLastTranscript: (text: string) => void;
+  setLive: (live: boolean) => void;
+  appendLiveTranscript: (delta: string) => void;
   setSttUnavailable: (unavailable: boolean) => void;
   reset: () => void;
 }
@@ -64,6 +70,8 @@ const IDLE = {
   meetingId: null,
   startedAt: null,
   lastTranscript: "",
+  live: false,
+  liveTranscript: "",
   systemAudio: true,
 };
 
@@ -90,6 +98,8 @@ export const useMeetingRecorderStore = create<MeetingRecorderState>((set) => ({
       lastTranscript: "",
     }),
   setLastTranscript: (lastTranscript) => set({ lastTranscript }),
+  setLive: (live) => set({ live }),
+  appendLiveTranscript: (delta) => set((s) => ({ liveTranscript: s.liveTranscript + delta })),
   setSttUnavailable: (sttUnavailable) => set({ sttUnavailable }),
   reset: () => set({ ...IDLE }),
 }));
