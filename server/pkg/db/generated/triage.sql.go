@@ -142,19 +142,6 @@ func (q *Queries) CountTriageItemsByState(ctx context.Context, workspaceID pgtyp
 	return items, nil
 }
 
-const deleteExpiredTriageItems = `-- name: DeleteExpiredTriageItems :execrows
-DELETE FROM triage_item
-WHERE workspace_id = $1 AND expires_at IS NOT NULL AND expires_at <= now()
-`
-
-func (q *Queries) DeleteExpiredTriageItems(ctx context.Context, workspaceID pgtype.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteExpiredTriageItems, workspaceID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const dismissPendingTriageItem = `-- name: DismissPendingTriageItem :one
 UPDATE triage_item
 SET state = 'dismissed',
@@ -218,6 +205,35 @@ func (q *Queries) DismissPendingTriageItem(ctx context.Context, arg DismissPendi
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const expirePendingTriageItems = `-- name: ExpirePendingTriageItems :execrows
+UPDATE triage_item
+SET state = 'expired',
+    resolution_reason = 'retention: expired unresolved',
+    resolved_at = now(),
+    resolved_by_type = 'system',
+    revision = revision + 1,
+    updated_at = now()
+WHERE id IN (
+    SELECT id FROM triage_item
+    WHERE state = 'pending' AND expires_at IS NOT NULL AND expires_at <= now()
+    ORDER BY expires_at
+    LIMIT $1::int
+)
+`
+
+// Retention sweep, all workspaces, one bounded batch. An item nobody resolved
+// inside its retention window leaves the queue as 'expired' instead of being
+// deleted: resolved items are the auto-classifier's training examples (K61),
+// and a deleted row teaches it nothing. Expiring also frees the item's slot in
+// uq_triage_item_pending_title, so the same title can be captured again.
+func (q *Queries) ExpirePendingTriageItems(ctx context.Context, pageLimit int32) (int64, error) {
+	result, err := q.db.Exec(ctx, expirePendingTriageItems, pageLimit)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const getTriageSource = `-- name: GetTriageSource :one

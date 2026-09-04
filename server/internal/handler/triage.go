@@ -26,6 +26,9 @@ const (
 	triageDefaultPageSize = 50
 	triageMaxPageSize     = 100
 	triageMaxBatchAccept  = 100
+	// One retention sweep touches at most this many rows, so a large backlog
+	// drains over consecutive runs instead of holding one long transaction.
+	triageRetentionSweepBatch = 500
 )
 
 // TriageSourceStats is one inbound source and its 24h activity.
@@ -637,6 +640,15 @@ func (h *Handler) UpdateTriageSource(w http.ResponseWriter, r *http.Request) {
 		Name:  src.Name,
 		Mode:  src.Mode,
 	})
+}
+
+// ExpireStaleTriageItems is the retention sweep behind the scheduler's
+// triage_retention_sweep job. triage.Capture stamps every item with an
+// expires_at (triage.DefaultRetention); an item nobody resolved by then
+// leaves the queue as `expired` rather than being deleted, because resolved
+// items are what the auto-classifier learns from (K61).
+func (h *Handler) ExpireStaleTriageItems(ctx context.Context) (int64, error) {
+	return h.Queries.ExpirePendingTriageItems(ctx, triageRetentionSweepBatch)
 }
 
 func (h *Handler) publishTriageResolved(workspaceID, itemID pgtype.UUID, state string) {

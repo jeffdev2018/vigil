@@ -67,9 +67,25 @@ SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bi
 FROM triage_item
 WHERE workspace_id = $1 AND state = 'pending' AND shadow = false;
 
--- name: DeleteExpiredTriageItems :execrows
-DELETE FROM triage_item
-WHERE workspace_id = $1 AND expires_at IS NOT NULL AND expires_at <= now();
+-- name: ExpirePendingTriageItems :execrows
+-- Retention sweep, all workspaces, one bounded batch. An item nobody resolved
+-- inside its retention window leaves the queue as 'expired' instead of being
+-- deleted: resolved items are the auto-classifier's training examples (K61),
+-- and a deleted row teaches it nothing. Expiring also frees the item's slot in
+-- uq_triage_item_pending_title, so the same title can be captured again.
+UPDATE triage_item
+SET state = 'expired',
+    resolution_reason = 'retention: expired unresolved',
+    resolved_at = now(),
+    resolved_by_type = 'system',
+    revision = revision + 1,
+    updated_at = now()
+WHERE id IN (
+    SELECT id FROM triage_item
+    WHERE state = 'pending' AND expires_at IS NOT NULL AND expires_at <= now()
+    ORDER BY expires_at
+    LIMIT sqlc.arg('page_limit')::int
+);
 
 -- name: ListTriageItems :many
 SELECT * FROM triage_item

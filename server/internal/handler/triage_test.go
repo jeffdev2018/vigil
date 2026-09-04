@@ -137,27 +137,53 @@ func TestTriageSourceUpsertRefreshesName(t *testing.T) {
 	}
 }
 
-func TestDeleteExpiredTriageItems(t *testing.T) {
-	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
-		"workspace_id":     testWorkspaceID,
-		"source_id":        uuid.NewString(),
-		"origin_type":      "autopilot",
-		"title":            "expired item",
-		"normalized_title": "expired item",
-		"state":            "pending",
-		"shadow":           true,
-		"expires_at":       time.Now().Add(-time.Hour).UTC(),
-	})
+// Retention sweep: triage.Capture has always stamped expires_at, but nothing
+// ever read it. A pending item past its window leaves the queue as `expired`
+// — not deleted: the resolved rows are the auto-classifier's examples (K61).
+func TestExpireStaleTriageItems(t *testing.T) {
+	sourceID := uuid.NewString()
+	plant := func(title, state string, expiresAt time.Time) string {
+		cols := testutil.Cols{
+			"workspace_id":     testWorkspaceID,
+			"source_id":        sourceID,
+			"origin_type":      "autopilot",
+			"title":            title,
+			"normalized_title": title,
+			"state":            state,
+			"shadow":           false,
+			"expires_at":       expiresAt,
+		}
+		if state != "pending" {
+			cols["resolved_at"] = time.Now().UTC()
+		}
+		return dbfx.Insert(t, "triage_item", cols)
+	}
+	stale := plant("stale pending item", "pending", time.Now().Add(-time.Hour).UTC())
+	fresh := plant("fresh pending item", "pending", time.Now().Add(time.Hour).UTC())
+	resolved := plant("resolved item past its window", "dismissed", time.Now().Add(-time.Hour).UTC())
 
-	n, err := testHandler.Queries.DeleteExpiredTriageItems(context.Background(), parseUUID(testWorkspaceID))
+	n, err := testHandler.ExpireStaleTriageItems(context.Background())
 	if err != nil {
-		t.Fatalf("delete expired: %v", err)
+		t.Fatalf("expire stale: %v", err)
 	}
 	if n == 0 {
-		t.Fatal("expired item was not purged")
+		t.Fatal("the sweep reported no rows, want at least the stale pending item")
 	}
-	if got := dbfx.Count(t, `SELECT COUNT(*) FROM triage_item WHERE id = $1`, itemID); got != 0 {
-		t.Fatal("expired item row survived the purge")
+
+	if got := triageState(t, stale); got != triage.StateExpired {
+		t.Fatalf("stale item state = %s, want expired", got)
+	}
+	var reason string
+	dbfx.QueryRow(t, `SELECT COALESCE(resolution_reason, '') FROM triage_item WHERE id = $1`, stale).Scan(&reason)
+	if reason == "" {
+		t.Fatal("an expired item must record why it left the queue")
+	}
+	if got := triageState(t, fresh); got != triage.StatePending {
+		t.Fatalf("item inside its window = %s, want pending", got)
+	}
+	// Resolved history is the training set: the sweep must not touch it.
+	if got := triageState(t, resolved); got != triage.StateDismissed {
+		t.Fatalf("already-resolved item = %s, want dismissed", got)
 	}
 }
 
