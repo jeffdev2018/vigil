@@ -28,6 +28,7 @@
     "active": "Active",
     "paused": "Paused",
     "paused_runtime_required": "Paused — the assignee needs a runtime",
+    "paused_failure_rate": "Paused — too many runs failed",
     "archived": "Archived"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "Pause autopilot",
     "activate_aria": "Activate autopilot",
     "paused_runtime_required": "Paused because the assignee lost its runtime. Bind a runtime, then reactivate this autopilot.",
+    "paused_failure_rate": "Auto-paused because too many recent runs failed. Investigate the failures, fix the root cause, then reactivate this autopilot.",
     "bind_runtime": "Bind runtime",
     "edit": "Edit",
     "run_now": "Run now",
@@ -166,6 +168,8 @@
   },
   "trigger_row": {
     "disabled_badge": "Disabled",
+    "enable_aria": "Enable trigger",
+    "edit_trigger": "Edit trigger",
     "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +189,9 @@
     "toast_rotate_failed": "Failed to rotate URL",
     "toast_deleted": "Trigger deleted",
     "toast_delete_failed": "Failed to delete trigger",
+    "toast_enabled": "Trigger enabled",
+    "toast_disabled": "Trigger disabled",
+    "toast_toggle_failed": "Failed to update trigger",
     "delete_dialog": {
       "title": "Delete trigger",
       "description": "This trigger will be removed and the autopilot will stop firing on this schedule. This action cannot be undone.",
@@ -207,6 +214,16 @@
       "ignored": "Ignored",
       "failed": "Failed"
     },
+    "reason": {
+      "trigger_disabled": "Trigger disabled",
+      "autopilot_paused": "Autopilot paused",
+      "autopilot_archived": "Autopilot archived",
+      "event_filtered": "Event filtered out",
+      "criteria_not_matched": "Criteria not matched",
+      "quota_exceeded": "Run limit reached",
+      "invalid_signature": "Signature invalid",
+      "missing_signature": "Signature missing"
+    },
     "signature": {
       "not_required": "No signature",
       "valid": "Signature valid",
@@ -226,6 +243,7 @@
       "content_type": "Content-Type",
       "replayed_from": "Replayed from",
       "error_label": "Error",
+      "reason_label": "Reason",
       "raw_body": "Raw body",
       "selected_headers": "Headers",
       "response_body": "Response body"
@@ -253,6 +271,13 @@
     "toast_added_schedule": "Schedule trigger added",
     "toast_added_webhook": "Webhook trigger added",
     "toast_add_failed": "Failed to add trigger"
+  },
+  "edit_trigger_dialog": {
+    "title": "Edit Trigger",
+    "submit": "Save trigger",
+    "submitting": "Saving...",
+    "toast_saved": "Trigger updated",
+    "toast_save_failed": "Failed to update trigger"
   },
   "dialog": {
     "sr_create": "New Autopilot",

@@ -6,6 +6,7 @@ import { cronPreviewOptions } from "@multica/core/autopilots/queries";
 import { useT } from "../../../i18n";
 import type { ScheduleConfig } from "./model";
 import { toCron } from "./cron-mapping";
+import { effectiveWindowMinutes } from "./model";
 
 /** The server's rejection, split the way the editor is: which input is at fault
  *  (the cron box or the timezone picker), and the parser's own words. */
@@ -45,7 +46,9 @@ export async function findScheduleRejection(
   config: ScheduleConfig,
 ): Promise<ScheduleRejection | null> {
   try {
-    await queryClient.fetchQuery(cronPreviewOptions(wsId, toCron(config), config.timezone));
+    await queryClient.fetchQuery(
+      cronPreviewOptions(wsId, toCron(config), config.timezone, effectiveWindowMinutes(config)),
+    );
     return null;
   } catch (err) {
     if (!(err instanceof ApiError) || err.status !== 400) return null;

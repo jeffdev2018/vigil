@@ -63,7 +63,7 @@ import { AgentPicker, type AssigneeSelection } from "./pickers/agent-picker";
 import { SubscriberMultiSelect } from "./subscriber-multi-select";
 import { AutopilotAccessManager } from "./autopilot-access-manager";
 import { ScheduleEditor } from "./schedule-editor/schedule-editor";
-import { getDefaultScheduleConfig, type ScheduleConfig } from "./schedule-editor/model";
+import { effectiveWindowMinutes, getDefaultScheduleConfig, type ScheduleConfig } from "./schedule-editor/model";
 import { browserTimezone } from "../../common/timezone-select";
 import { parseCron, toCron } from "./schedule-editor/cron-mapping";
 import { useScheduleSubmitGate } from "./schedule-editor/validate";
@@ -222,11 +222,11 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
   const initialCronRef = useRef(toCron(initialCfg));
   const initialTimezoneRef = useRef(initialCfg.timezone);
   const initialEventFiltersRef = useRef(serializeEventFilters(initialEventFilters));
-  const initialWindowRef = useRef(scheduleWindow(initialCfg));
+  const initialWindowRef = useRef(effectiveWindowMinutes(initialCfg));
   const scheduleDirty =
     toCron(schedule) !== initialCronRef.current ||
     schedule.timezone !== initialTimezoneRef.current ||
-    scheduleWindow(schedule) !== initialWindowRef.current;
+    effectiveWindowMinutes(schedule) !== initialWindowRef.current;
   const eventFiltersDirty =
     serializeEventFilters(eventFilters) !== initialEventFiltersRef.current;
 
@@ -351,7 +351,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
               kind: "schedule",
               cron_expression: toCron(schedule),
               timezone: schedule.timezone,
-              window_minutes: scheduleWindow(schedule),
+              window_minutes: effectiveWindowMinutes(schedule),
             });
           }
         } catch (err) {
@@ -403,7 +403,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
                 triggerId: snapshottedTriggerId,
                 cron_expression: toCron(schedule),
                 timezone: schedule.timezone,
-                window_minutes: scheduleWindow(schedule),
+                window_minutes: effectiveWindowMinutes(schedule),
               });
             } else {
               await createTrigger.mutateAsync({
@@ -411,7 +411,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
                 kind: "schedule",
                 cron_expression: toCron(schedule),
                 timezone: schedule.timezone,
-                window_minutes: scheduleWindow(schedule),
+                window_minutes: effectiveWindowMinutes(schedule),
               });
             }
           } catch (err) {
@@ -1154,7 +1154,3 @@ function WebhookCreatedPanel({
   );
 }
 
-/** The band only exists for a fixed time; an interval pattern always fires exactly. */
-function scheduleWindow(config: ScheduleConfig): number {
-  return config.time.kind === "at" ? config.windowMinutes : 0;
-}

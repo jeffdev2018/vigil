@@ -28,6 +28,7 @@
     "active": "启用",
     "paused": "已暂停",
     "paused_runtime_required": "已暂停——执行智能体需绑定运行时",
+    "paused_failure_rate": "已暂停——运行失败过多",
     "archived": "已归档"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "暂停自动化",
     "activate_aria": "启用自动化",
     "paused_runtime_required": "由于执行智能体失去运行时，自动化已暂停。绑定运行时后请重新启用。",
+    "paused_failure_rate": "由于近期运行失败过多，自动化已自动暂停。请排查失败原因并修复后，重新启用该自动化。",
     "bind_runtime": "绑定运行时",
     "edit": "编辑",
     "run_now": "立即运行",
@@ -166,6 +168,8 @@
   },
   "trigger_row": {
     "disabled_badge": "已禁用",
+    "enable_aria": "启用触发器",
+    "edit_trigger": "编辑触发器",
     "deprecated_badge": "已弃用",
     "next_label": "下次：{{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +189,9 @@
     "toast_rotate_failed": "重新生成 URL 失败",
     "toast_deleted": "已删除触发器",
     "toast_delete_failed": "删除触发器失败",
+    "toast_enabled": "已启用触发器",
+    "toast_disabled": "已停用触发器",
+    "toast_toggle_failed": "更新触发器失败",
     "delete_dialog": {
       "title": "删除触发器",
       "description": "将移除该触发器，自动化不再按此时间表运行。此操作不可撤销。",
@@ -207,6 +214,16 @@
       "ignored": "已忽略",
       "failed": "失败"
     },
+    "reason": {
+      "trigger_disabled": "触发器已停用",
+      "autopilot_paused": "自动化已暂停",
+      "autopilot_archived": "自动化已归档",
+      "event_filtered": "事件被过滤",
+      "criteria_not_matched": "未匹配条件",
+      "quota_exceeded": "已达运行上限",
+      "invalid_signature": "签名无效",
+      "missing_signature": "缺少签名"
+    },
     "signature": {
       "not_required": "无需签名",
       "valid": "签名通过",
@@ -226,6 +243,7 @@
       "content_type": "Content-Type",
       "replayed_from": "重放自",
       "error_label": "错误信息",
+      "reason_label": "原因",
       "raw_body": "原始 Body",
       "selected_headers": "保留的请求头",
       "response_body": "响应 Body"
@@ -253,6 +271,13 @@
     "toast_added_schedule": "已添加时间表触发器",
     "toast_added_webhook": "已添加 Webhook 触发器",
     "toast_add_failed": "添加触发器失败"
+  },
+  "edit_trigger_dialog": {
+    "title": "编辑触发器",
+    "submit": "保存触发器",
+    "submitting": "保存中...",
+    "toast_saved": "已更新触发器",
+    "toast_save_failed": "更新触发器失败"
   },
   "dialog": {
     "sr_create": "新建自动化",

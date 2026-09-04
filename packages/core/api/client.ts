@@ -5545,10 +5545,18 @@ export class ApiClient {
     await this.fetch(`/api/autopilots/${autopilotId}/triggers/${triggerId}`, { method: "DELETE" });
   }
 
-  async cronPreview(params: { expr: string; tz: string }): Promise<CronPreviewResponse> {
+  async cronPreview(params: {
+    expr: string;
+    tz: string;
+    /** Firing band in minutes; omitted or 0 previews the exact cron instants. */
+    windowMinutes?: number;
+  }): Promise<CronPreviewResponse> {
     const search = new URLSearchParams();
     search.set("expr", params.expr);
     search.set("tz", params.tz);
+    if (params.windowMinutes !== undefined && params.windowMinutes > 0) {
+      search.set("window_minutes", String(params.windowMinutes));
+    }
     const raw = await this.fetch<unknown>(`/api/autopilots/cron-preview?${search}`);
     return parseWithFallback(
       raw,

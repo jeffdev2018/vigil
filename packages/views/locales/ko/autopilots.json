@@ -28,6 +28,7 @@
     "active": "활성",
     "paused": "일시 중지",
     "paused_runtime_required": "일시 중지됨 — 담당 에이전트에 런타임이 필요합니다",
+    "paused_failure_rate": "일시 중지됨 — 실행 실패가 너무 많습니다",
     "archived": "보관됨"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "오토파일럿 일시 중지",
     "activate_aria": "오토파일럿 활성화",
     "paused_runtime_required": "담당 에이전트의 런타임이 없어 자동화가 일시 중지되었습니다. 런타임을 연결한 후 다시 활성화하세요.",
+    "paused_failure_rate": "최근 실행 실패가 너무 많아 자동으로 일시 중지되었습니다. 실패 원인을 조사해 해결한 뒤 이 오토파일럿을 다시 활성화하세요.",
     "bind_runtime": "런타임 연결",
     "edit": "수정",
     "run_now": "지금 실행",
@@ -166,6 +168,8 @@
   },
   "trigger_row": {
     "disabled_badge": "비활성",
+    "enable_aria": "트리거 활성화",
+    "edit_trigger": "트리거 편집",
     "deprecated_badge": "지원 중단",
     "next_label": "다음: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +189,9 @@
     "toast_rotate_failed": "URL을 재발급하지 못했습니다",
     "toast_deleted": "트리거를 삭제했습니다",
     "toast_delete_failed": "트리거를 삭제하지 못했습니다",
+    "toast_enabled": "트리거를 활성화했습니다",
+    "toast_disabled": "트리거를 비활성화했습니다",
+    "toast_toggle_failed": "트리거를 업데이트하지 못했습니다",
     "delete_dialog": {
       "title": "트리거 삭제",
       "description": "이 트리거가 제거되고 오토파일럿은 이 일정으로 더 이상 실행되지 않습니다. 이 작업은 되돌릴 수 없습니다.",
@@ -207,6 +214,16 @@
       "ignored": "무시됨",
       "failed": "실패함"
     },
+    "reason": {
+      "trigger_disabled": "트리거 비활성화됨",
+      "autopilot_paused": "오토파일럿 일시 중지",
+      "autopilot_archived": "오토파일럿 보관됨",
+      "event_filtered": "이벤트 필터에서 제외됨",
+      "criteria_not_matched": "조건에 맞지 않음",
+      "quota_exceeded": "실행 한도 도달",
+      "invalid_signature": "서명이 올바르지 않음",
+      "missing_signature": "서명 없음"
+    },
     "signature": {
       "not_required": "서명 없음",
       "valid": "유효한 서명",
@@ -226,6 +243,7 @@
       "content_type": "Content-Type",
       "replayed_from": "재실행 원본",
       "error_label": "오류",
+      "reason_label": "사유",
       "raw_body": "원본 본문",
       "selected_headers": "헤더",
       "response_body": "응답 본문"
@@ -253,6 +271,13 @@
     "toast_added_schedule": "일정 트리거를 추가했습니다",
     "toast_added_webhook": "Webhook 트리거를 추가했습니다",
     "toast_add_failed": "트리거를 추가하지 못했습니다"
+  },
+  "edit_trigger_dialog": {
+    "title": "트리거 편집",
+    "submit": "트리거 저장",
+    "submitting": "저장 중...",
+    "toast_saved": "트리거를 업데이트했습니다",
+    "toast_save_failed": "트리거를 업데이트하지 못했습니다"
   },
   "dialog": {
     "sr_create": "새 오토파일럿",

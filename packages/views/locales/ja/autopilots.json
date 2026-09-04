@@ -28,6 +28,7 @@
     "active": "アクティブ",
     "paused": "一時停止中",
     "paused_runtime_required": "一時停止中 — 担当エージェントのランタイムが必要です",
+    "paused_failure_rate": "一時停止中 — 実行の失敗が続いています",
     "archived": "アーカイブ済み"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "オートパイロットを一時停止",
     "activate_aria": "オートパイロットを有効化",
     "paused_runtime_required": "担当エージェントのランタイムが失われたため一時停止しました。ランタイムを設定してから再度有効にしてください。",
+    "paused_failure_rate": "直近の実行の失敗が多すぎたため自動的に一時停止しました。失敗の原因を調査して修正してから、このオートパイロットを再度有効にしてください。",
     "bind_runtime": "ランタイムを設定",
     "edit": "編集",
     "run_now": "今すぐ実行",
@@ -166,6 +168,8 @@
   },
   "trigger_row": {
     "disabled_badge": "無効",
+    "enable_aria": "トリガーを有効化",
+    "edit_trigger": "トリガーを編集",
     "deprecated_badge": "非推奨",
     "next_label": "次回: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +189,9 @@
     "toast_rotate_failed": "URL を再生成できませんでした",
     "toast_deleted": "トリガーを削除しました",
     "toast_delete_failed": "トリガーを削除できませんでした",
+    "toast_enabled": "トリガーを有効にしました",
+    "toast_disabled": "トリガーを無効にしました",
+    "toast_toggle_failed": "トリガーの更新に失敗しました",
     "delete_dialog": {
       "title": "トリガーを削除",
       "description": "このトリガーは削除され、オートパイロットはこのスケジュールでは実行されなくなります。この操作は元に戻せません。",
@@ -207,6 +214,16 @@
       "ignored": "無視",
       "failed": "失敗"
     },
+    "reason": {
+      "trigger_disabled": "トリガー無効",
+      "autopilot_paused": "オートパイロット一時停止中",
+      "autopilot_archived": "オートパイロットアーカイブ済み",
+      "event_filtered": "イベントフィルターで除外",
+      "criteria_not_matched": "条件に一致せず",
+      "quota_exceeded": "実行上限に到達",
+      "invalid_signature": "署名が不正",
+      "missing_signature": "署名なし"
+    },
     "signature": {
       "not_required": "署名なし",
       "valid": "署名は有効",
@@ -226,6 +243,7 @@
       "content_type": "Content-Type",
       "replayed_from": "再実行元",
       "error_label": "エラー",
+      "reason_label": "理由",
       "raw_body": "生の本文",
       "selected_headers": "ヘッダー",
       "response_body": "レスポンス本文"
@@ -253,6 +271,13 @@
     "toast_added_schedule": "スケジュールトリガーを追加しました",
     "toast_added_webhook": "Webhook トリガーを追加しました",
     "toast_add_failed": "トリガーを追加できませんでした"
+  },
+  "edit_trigger_dialog": {
+    "title": "トリガーを編集",
+    "submit": "トリガーを保存",
+    "submitting": "保存中...",
+    "toast_saved": "トリガーを更新しました",
+    "toast_save_failed": "トリガーの更新に失敗しました"
   },
   "dialog": {
     "sr_create": "新規オートパイロット",

@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -40,7 +41,14 @@ import { formatInTimeZone } from "../../../common/format-in-time-zone";
 import { TimezonePicker } from "../pickers/timezone-picker";
 import { useT } from "../../../i18n";
 import type { DayPattern, ScheduleConfig, TimePattern } from "./model";
-import { DAY_KEYS, pad2, timeParts, windowEndTime, windowMinutesBetween } from "./model";
+import {
+  DAY_KEYS,
+  effectiveWindowMinutes,
+  pad2,
+  timeParts,
+  windowEndTime,
+  windowMinutesBetween,
+} from "./model";
 import {
   cronFields,
   extractTimezonePrefix,
@@ -327,6 +335,19 @@ export function ScheduleEditor({
   // needing to be cleared.
   const pendingTzPromotionRef = useRef<string | null>(null);
 
+  // The band is not in the cron text — it lives in its own field — so parseCron
+  // has nothing to read it from and always answers 0. Re-parsing the expression
+  // must not be how a user loses the band they set: carry the editor's own
+  // across, and drop it only for a pattern that cannot hold one.
+  const carriedWindow = value.windowMinutes;
+  const carryWindow = useCallback(
+    (parsed: ScheduleConfig): ScheduleConfig => ({
+      ...parsed,
+      windowMinutes: effectiveWindowMinutes({ ...parsed, windowMinutes: carriedWindow }),
+    }),
+    [carriedWindow],
+  );
+
   /** Commit the cron box's text. Returns whether the editor is in advanced-only
    *  mode afterwards — the caller cannot read that off `advanced`, which still
    *  holds the value from the render being left. */
@@ -352,7 +373,7 @@ export function ScheduleEditor({
       return true;
     }
     pendingTzPromotionRef.current = null;
-    const parsed = parseCron(next, value.timezone);
+    const parsed = carryWindow(parseCron(next, value.timezone));
     // An expression beyond the model keeps the structured schedule underneath
     // it. parseCron has no previous config to work from and hands back the
     // 09:00 defaults with the text in `raw`; letting those defaults land would
@@ -379,8 +400,11 @@ export function ScheduleEditor({
   // the committed expression, not the draft — validation happens once the cron
   // field is left, never on every keystroke.
   const previewExpr = useDebouncedValue(committedCron, PREVIEW_DEBOUNCE_MS);
+  // The band shifts every instant the preview lists, so it is debounced with the
+  // expression rather than firing its own request on each band edit.
+  const previewWindow = useDebouncedValue(effectiveWindowMinutes(value), PREVIEW_DEBOUNCE_MS);
   const preview = useQuery(
-    cronPreviewOptions(wsId, previewExpr, value.timezone, {
+    cronPreviewOptions(wsId, previewExpr, value.timezone, previewWindow, {
       enabled: previewExpr.trim().length > 0,
     }),
   );
@@ -410,8 +434,16 @@ export function ScheduleEditor({
     if (promoted === null || promoted !== committedCron) return;
     if (!previewIsCurrent || !preview.isSuccess) return;
     pendingTzPromotionRef.current = null;
-    onChange(parseCron(promoted, value.timezone));
-  }, [promoted, committedCron, previewIsCurrent, preview.isSuccess, value.timezone, onChange]);
+    onChange(carryWindow(parseCron(promoted, value.timezone)));
+  }, [
+    promoted,
+    committedCron,
+    previewIsCurrent,
+    preview.isSuccess,
+    value.timezone,
+    carryWindow,
+    onChange,
+  ]);
   // The server's last verdict outlives the request that produced it, but only
   // for the exact input it judged — the expression AND the timezone, since the
   // server rejects either. While that input is re-queried (a retry, a refetch
