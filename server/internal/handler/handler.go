@@ -45,6 +45,7 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/stt"
 )
 
 // randomID returns a random 16-byte hex string used as a request ID for
@@ -135,6 +136,11 @@ type Config struct {
 	//   - LLMBaseURL       -> MULTICA_LLM_BASE_URL (OpenAI or any compatible gateway)
 	//   - LLMDefaultModel  -> MULTICA_LLM_DEFAULT_MODEL (used when a request omits `model`)
 	//   - LLMMaxRetries    -> MULTICA_LLM_MAX_RETRIES (transport retry budget)
+	//   - STTBaseURL       -> MULTICA_STT_BASE_URL (OpenAI-compatible /v1/audio/transcriptions)
+	//   - STTAPIKey        -> MULTICA_STT_API_KEY
+	//   - STTModel         -> MULTICA_STT_MODEL
+	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
+	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
@@ -144,6 +150,14 @@ type Config struct {
 	// and cmd/server additionally fails the boot on an out-of-range value before
 	// one reaches this struct. See llm.Config.MaxRetries for the full semantics.
 	LLMMaxRetries *llm.RetryOverride
+	// STT* configure the speech-to-text provider behind the voice memo and
+	// meeting transcription endpoints (OpenAI-compatible
+	// /v1/audio/transcriptions). Unset -> those endpoints answer 409.
+	STTBaseURL  string
+	STTAPIKey   string
+	STTModel    string
+	STTLanguage string
+	STTDiarize  bool
 	// ServerVersion is the build version of the running API binary (the same
 	// value main.go stamps via -X main.version and reports on /metrics).
 	// Surfaced through /api/config so self-hosted operators can confirm which
@@ -378,6 +392,9 @@ type Handler struct {
 	// Config); when unconfigured its Enabled() reports false and callers fall
 	// back silently.
 	LLM *llm.Client
+	// STT transcribes audio for voice memos and meetings. Always non-nil;
+	// Enabled() is false when MULTICA_STT_* is unset.
+	STT *stt.Client
 	// VCSSecretBox encrypts/decrypts per-workspace Git provider access tokens and
 	// webhook secrets at rest (Forgejo / Gitea / GitLab). Nil when
 	// MULTICA_VCS_SECRET_KEY is unset; the connect/webhook handlers return 503
@@ -496,6 +513,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			Timeout: cfg.CloudTimeout,
 		}),
 		LLM: llmClient,
+		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize}),
 		cfg: cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)

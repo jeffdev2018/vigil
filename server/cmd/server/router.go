@@ -436,6 +436,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
 		LLMDefaultModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
 		LLMMaxRetries:            opts.LLMMaxRetries,
+		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
+		STTAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_STT_API_KEY")),
+		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),
+		STTLanguage:              strings.TrimSpace(os.Getenv("MULTICA_STT_LANGUAGE")),
+		STTDiarize:               strings.EqualFold(strings.TrimSpace(os.Getenv("MULTICA_STT_DIARIZE")), "true"),
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
@@ -1957,6 +1962,18 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
 				r.Patch("/sources/{id}", h.UpdateTriageSource)
 			})
+
+			// Meetings: recorded conversations transcribed and summarized into
+			// triage items. Recording, appending and finishing are human-only.
+			r.Route("/api/meetings", func(r chi.Router) {
+				r.Get("/", h.ListMeetings)
+				r.With(handler.RequireHumanActor).Post("/", h.CreateMeeting)
+				r.Get("/{id}", h.GetMeeting)
+				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
+				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
+			})
+			// Voice memo: one-shot transcription for the chat composer.
+			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)
 
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
 			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {

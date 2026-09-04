@@ -1229,6 +1229,22 @@ type LarkUserBinding struct {
 	BoundAt        pgtype.Timestamptz `json:"bound_at"`
 }
 
+type Meeting struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	Title        string             `json:"title"`
+	AppName      string             `json:"app_name"`
+	Status       string             `json:"status"`
+	Transcript   string             `json:"transcript"`
+	SummaryMd    string             `json:"summary_md"`
+	SegmentCount int32              `json:"segment_count"`
+	StartedAt    pgtype.Timestamptz `json:"started_at"`
+	EndedAt      pgtype.Timestamptz `json:"ended_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Member struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

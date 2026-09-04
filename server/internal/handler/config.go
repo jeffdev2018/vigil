@@ -81,6 +81,10 @@ type AppConfig struct {
 	// ignored the unknown JSON field and still returned success, so clients
 	// must fail closed when this declaration is absent.
 	AgentConversationStartersSupported bool `json:"agent_conversation_starters_supported"`
+	// MeetingTranscriptionAvailable tells clients a speech-to-text provider is
+	// configured (MULTICA_STT_*), so the meetings UI can offer recording
+	// instead of discovering a 409 on the first attempt. A boolean only.
+	MeetingTranscriptionAvailable bool `json:"meeting_transcription_available"`
 
 	// ServerVersion is the running API build version, so self-hosted
 	// operators can confirm what's deployed and include it in bug reports.
@@ -112,6 +116,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		config.CdnDomain = h.Storage.CdnDomain()
 	}
 	config.CdnSigned = h.CFSigner != nil
+	config.MeetingTranscriptionAvailable = h.STT != nil && h.STT.Enabled()
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()

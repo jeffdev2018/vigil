@@ -1,0 +1,71 @@
+-- name: CreateMeeting :one
+INSERT INTO meeting (workspace_id, created_by, title, app_name)
+VALUES (
+    sqlc.arg('workspace_id')::uuid,
+    sqlc.arg('created_by')::uuid,
+    sqlc.arg('title')::text,
+    sqlc.arg('app_name')::text
+)
+RETURNING *;
+
+-- name: GetMeeting :one
+SELECT * FROM meeting
+WHERE id = $1 AND workspace_id = $2;
+
+-- name: ListMeetings :many
+-- action_count lets the list show how much a meeting produced without
+-- loading its items; the detail endpoint carries the items themselves.
+SELECT sqlc.embed(meeting),
+       (SELECT COUNT(*) FROM triage_item ti
+         WHERE ti.workspace_id = meeting.workspace_id
+           AND ti.origin_type = 'meeting'
+           AND ti.origin_id = meeting.id)::int AS action_count
+FROM meeting
+WHERE workspace_id = sqlc.arg('workspace_id')::uuid
+ORDER BY started_at DESC, id DESC
+LIMIT sqlc.arg('page_limit')::int
+OFFSET sqlc.arg('page_offset')::int;
+
+-- name: AppendMeetingSegment :one
+-- Appends one transcribed segment. Only a recording meeting accepts text;
+-- the WHERE makes a late segment after finish a no-op the handler reports.
+UPDATE meeting
+SET transcript = CASE WHEN transcript = '' THEN sqlc.arg('text')::text
+                      ELSE transcript || E'\n' || sqlc.arg('text')::text END,
+    segment_count = segment_count + 1,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND status = 'recording'
+RETURNING *;
+
+-- name: StartMeetingSummary :one
+-- recording -> summarizing. Zero rows means the meeting is not in the
+-- recording state (already finishing, done, or failed).
+UPDATE meeting
+SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND status = 'recording'
+RETURNING *;
+
+-- name: CompleteMeeting :one
+UPDATE meeting
+SET status = 'done', summary_md = sqlc.arg('summary_md')::text, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+RETURNING *;
+
+-- name: FailMeeting :exec
+UPDATE meeting
+SET status = 'failed', updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid;
+
+-- name: ListTriageItemsByOrigin :many
+-- Action items extracted from one meeting, in capture order.
+SELECT * FROM triage_item
+WHERE workspace_id = sqlc.arg('workspace_id')::uuid
+  AND origin_type = sqlc.arg('origin_type')::text
+  AND origin_id = sqlc.arg('origin_id')::uuid
+ORDER BY first_seen_at ASC, id ASC;

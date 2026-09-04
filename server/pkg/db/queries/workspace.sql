@@ -190,6 +190,9 @@ cleared_triage_items AS (
 cleared_triage_sources AS (
     DELETE FROM triage_source WHERE workspace_id = $1
 ),
+cleared_meetings AS (
+    DELETE FROM meeting WHERE workspace_id = $1
+),
 ws_mcp_servers AS (
     SELECT id FROM workspace_mcp_server WHERE workspace_id = $1
 ),
