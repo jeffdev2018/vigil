@@ -911,6 +911,29 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "handoff": {
+    "section": "ハンドオフパケット",
+    "none": "まだパケットはありません。",
+    "show_history_one": "以前のパケット {{count}} 件を表示",
+    "show_history_other": "以前のパケット {{count}} 件を表示",
+    "hide_history": "履歴を隠す",
+    "write": "ハンドオフパケットを書く",
+    "objective": "目的",
+    "decisions": "決定事項",
+    "evidence": "証拠",
+    "failed_attempts": "失敗した試み",
+    "next_action": "次のアクション",
+    "one_per_line": "{{field}}（1 行に 1 つ）",
+    "save": "パケットを保存",
+    "cancel": "キャンセル",
+    "create_failed": "ハンドオフパケットを保存できませんでした",
+    "run": "実行 {{id}}",
+    "by": {
+      "agent": "エージェント",
+      "member": "メンバー",
+      "system": "システム"
+    }
+  },
   "routing": {
     "label": "ルーティング",
     "risk": {

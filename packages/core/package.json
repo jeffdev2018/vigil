@@ -43,6 +43,7 @@
     "./issues/decisions": "./issues/decisions.ts",
     "./issues/run-secrets": "./issues/run-secrets.ts",
     "./issues/routing": "./issues/routing.ts",
+    "./issues/handoff": "./issues/handoff.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",
     "./issues/scoping": "./issues/scoping.ts",

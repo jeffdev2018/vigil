@@ -340,6 +340,9 @@ import {
   FailoverHistoryEnvelopeSchema,
   AgentPoolAssignmentSchema,
   IssueRoutingEnvelopeSchema,
+  HandoffPacketSchema,
+  HandoffPacketsEnvelopeSchema,
+  LatestHandoffPacketEnvelopeSchema,
   RoutingSettingsSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
@@ -3116,6 +3119,22 @@ export class ApiClient {
   async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
     return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
+  }
+
+  // Handoff packets (K17).
+  async listHandoffPackets(issueId: string): Promise<import("../issues/handoff").HandoffPacket[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packets`);
+    return parseWithFallback(raw, HandoffPacketsEnvelopeSchema, { packets: [] }, { endpoint: "GET /api/issues/:id/handoff-packets" }).packets;
+  }
+
+  async getLatestHandoffPacket(issueId: string): Promise<import("../issues/handoff").HandoffPacket | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packet/latest`);
+    return parseWithFallback(raw, LatestHandoffPacketEnvelopeSchema, { packet: null }, { endpoint: "GET /api/issues/:id/handoff-packet/latest" }).packet;
+  }
+
+  async createHandoffPacket(issueId: string, input: import("../issues/handoff").HandoffPacketInput): Promise<import("../issues/handoff").HandoffPacket> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packet`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, HandoffPacketSchema, { id: "", issue_id: issueId, ...input, created_by_type: "member", created_by_id: null, created_at: "" }, { endpoint: "POST /api/issues/:id/handoff-packet" });
   }
 
   // Issue router (K27).

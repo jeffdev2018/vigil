@@ -2075,6 +2075,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/failover-history", h.ListIssueFailoverHistory)
 			// Issue router (K27): risk-based pool choice and escalation, auditable per issue.
 			r.Get("/api/issues/{id}/routing-decision", h.GetIssueRoutingDecision)
+			// Handoff packets (K17): structured, immutable records between hands.
+			r.Post("/api/issues/{id}/handoff-packet", h.CreateHandoffPacket)
+			r.Get("/api/issues/{id}/handoff-packet/latest", h.GetLatestHandoffPacket)
+			r.Get("/api/issues/{id}/handoff-packets", h.ListHandoffPackets)
 			r.Get("/api/routing-settings", h.GetRoutingSettings)
 			r.Put("/api/routing-settings", h.PutRoutingSettings)
 			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)

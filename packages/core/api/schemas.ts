@@ -4228,3 +4228,26 @@ export const EMPTY_MEETING_SEGMENT: MeetingSegmentResponse = Object.freeze({
   text: "",
   segment_count: 0,
 }) as MeetingSegmentResponse;
+
+// Handoff packets (K17).
+export const HandoffPacketSchema = z.object({
+  id: z.string().default(""),
+  run_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  objective: z.string().default(""),
+  decisions: z.array(z.string()).catch([]).default([]),
+  evidence: z.array(z.string()).catch([]).default([]),
+  failed_attempts: z.array(z.string()).catch([]).default([]),
+  next_action: z.string().catch("").default(""),
+  created_by_type: z.enum(["agent", "member", "system"]).catch("system").default("system"),
+  created_by_id: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const HandoffPacketsEnvelopeSchema = z.object({
+  packets: z.array(HandoffPacketSchema).catch([]).default([]),
+}).loose();
+
+export const LatestHandoffPacketEnvelopeSchema = z.object({
+  packet: HandoffPacketSchema.nullable().catch(null).default(null),
+}).loose();

@@ -99,6 +99,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"agent_permission_profile":           workspaceDelete,
 	"run_scoped_secret":                  workspaceDelete,
 	"runtime_pool":                       workspaceDelete,
+	"handoff_packet":                     workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

@@ -144,6 +144,8 @@ type Task struct {
 	QuickCreateAttachmentIDs      []string                     `json:"quick_create_attachment_ids,omitempty"`      // attachments uploaded in the quick-create prompt and bound by issue create
 	QuickCreateSourceContext      json.RawMessage              `json:"quick_create_source_context,omitempty"`      // immutable historical context, separate from the new instruction
 	HandoffNote                   string                       `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
+	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
+	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
 
 	SquadID               string `json:"squad_id,omitempty"`                // when the picker was a squad, the squad's UUID; Agent is still the resolved leader
 	SquadName             string `json:"squad_name,omitempty"`              // display name for the picker squad, used in prompt text
@@ -328,4 +330,15 @@ type PluginHookTool struct {
 	Name           string          `json:"name"`
 	Description    string          `json:"description"`
 	InputSchema    json.RawMessage `json:"input_schema,omitempty"`
+}
+
+// HandoffPacket (K17) is what the previous hand left on the issue.
+type HandoffPacket struct {
+	Objective      string   `json:"objective"`
+	Decisions      []string `json:"decisions"`
+	Evidence       []string `json:"evidence"`
+	FailedAttempts []string `json:"failed_attempts"`
+	NextAction     string   `json:"next_action"`
+	CreatedByType  string   `json:"created_by_type"`
+	CreatedAt      string   `json:"created_at"`
 }
