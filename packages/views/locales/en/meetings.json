@@ -42,7 +42,9 @@
     "transcript_empty": "Nothing transcribed yet",
     "transcript_show": "Show transcript",
     "transcript_hide": "Hide transcript",
-    "delete": "Delete"
+    "delete": "Delete",
+    "title_placeholder": "Meeting title",
+    "rename_error": "Could not rename the meeting."
   },
   "recorder": {
     "starting": "Starting the recorder…",

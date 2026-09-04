@@ -40,6 +40,22 @@ export function useAppendMeetingSegment() {
 }
 
 /**
+ * Renames a meeting. Not optimistic either: the server trims and truncates the
+ * title, so the value that comes back is the one to show.
+ */
+export function useRenameMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { meetingId: string; title: string }) =>
+      api.updateMeeting(v.meetingId, { title: v.title }),
+    onSuccess: (meeting) => {
+      qc.setQueryData(meetingKeys.detail(wsId, meeting.id), meeting);
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+    },
+  });
+}
+
+/**
  * Removes a meeting. The detail page navigates back to the list on success, so
  * the caller awaits the server and nothing is dropped from cache optimistically
  * (CLAUDE.md state rules).

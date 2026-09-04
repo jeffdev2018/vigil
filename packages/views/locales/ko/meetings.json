@@ -42,7 +42,9 @@
     "transcript_empty": "아직 전사된 내용이 없습니다",
     "transcript_show": "전사 보기",
     "transcript_hide": "전사 숨기기",
-    "delete": "삭제"
+    "delete": "삭제",
+    "title_placeholder": "미팅 제목",
+    "rename_error": "미팅 이름을 변경하지 못했습니다."
   },
   "recorder": {
     "starting": "녹음을 시작하는 중…",

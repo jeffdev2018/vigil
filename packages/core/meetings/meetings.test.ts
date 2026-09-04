@@ -116,6 +116,25 @@ describe("createMeeting", () => {
   });
 });
 
+describe("updateMeeting", () => {
+  it("parses the renamed meeting", async () => {
+    stubFetchJson({ ...validMeeting, title: "Sprint review" });
+    expect((await client().updateMeeting("meet-1", { title: "Sprint review" })).title).toBe(
+      "Sprint review",
+    );
+  });
+
+  it("degrades a malformed body to the empty fallback instead of throwing", async () => {
+    stubFetchJson({ id: 42 });
+    expect((await client().updateMeeting("meet-1", { title: "x" })).id).toBe("");
+  });
+
+  it("keeps a 403 as an ApiError", async () => {
+    stubFetchJson({ error: "forbidden" }, 403);
+    await expect(client().updateMeeting("meet-1", { title: "x" })).rejects.toBeInstanceOf(ApiError);
+  });
+});
+
 describe("deleteMeeting", () => {
   it("resolves on 204 and keeps a 403 as an ApiError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));

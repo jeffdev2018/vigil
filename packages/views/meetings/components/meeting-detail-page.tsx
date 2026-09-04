@@ -7,7 +7,11 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { meetingDetailOptions } from "@multica/core/meetings/queries";
 import { useMeetingRecorderStore } from "@multica/core/meetings/store";
-import { useDeleteMeeting, useFinishMeeting } from "@multica/core/meetings/mutations";
+import {
+  useDeleteMeeting,
+  useFinishMeeting,
+  useRenameMeeting,
+} from "@multica/core/meetings/mutations";
 import { useAuthStore } from "@multica/core/auth";
 import { toast } from "sonner";
 import type { Meeting, MeetingAction } from "@multica/core/types";
@@ -22,6 +26,7 @@ import { CollectionPageState } from "../../layout/collection-page";
 import { PageHeader } from "../../layout/page-header";
 import { RichContent } from "../../rich-content";
 import { useT, useTimeAgo } from "../../i18n";
+import { TitleEditor } from "../../editor";
 import { useNavigation } from "../../navigation";
 import { DeleteMeetingDialog } from "./delete-meeting-dialog";
 import { MeetingRecorderPanel } from "./meeting-recorder";
@@ -84,6 +89,7 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex max-w-4xl flex-col gap-6 p-6">
+          <MeetingTitle meeting={data} />
           <MeetingMeta meeting={data} />
           {data.status === "recording" ? (
             <RecorderSlot meetingId={data.id} createdBy={data.created_by} />
@@ -195,6 +201,39 @@ function MeetingStatusChip({ status }: { status: string }) {
       />
       {known ? t(($) => $.status[known]) : t(($) => $.status.unknown)}
     </Badge>
+  );
+}
+
+/**
+ * The title, edited in place by whoever may manage the meeting — same
+ * blur-to-save shape as the issue title. `key` is the server's value, so a
+ * rename (or another client's) re-seeds the editor instead of leaving a stale
+ * document behind; the editor is already blurred by then.
+ */
+function MeetingTitle({ meeting }: { meeting: Meeting }) {
+  const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
+  const renameMeeting = useRenameMeeting(wsId);
+
+  if (!meeting.can_manage) {
+    return <h1 className="text-title font-semibold">{meeting.title}</h1>;
+  }
+  return (
+    <TitleEditor
+      key={meeting.title}
+      defaultValue={meeting.title}
+      placeholder={t(($) => $.detail.title_placeholder)}
+      className="w-full text-title font-semibold"
+      onBlur={(value) => {
+        const trimmed = value.trim();
+        // An empty title is refused by the server; treat it as "no change"
+        // rather than bouncing a 400 back at someone who just selected all.
+        if (!trimmed || trimmed === meeting.title) return;
+        renameMeeting
+          .mutateAsync({ meetingId: meeting.id, title: trimmed })
+          .catch(() => toast.error(t(($) => $.detail.rename_error)));
+      }}
+    />
   );
 }
 

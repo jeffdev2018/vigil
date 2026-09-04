@@ -42,7 +42,9 @@
     "transcript_empty": "暂无转录内容",
     "transcript_show": "显示转录",
     "transcript_hide": "隐藏转录",
-    "delete": "删除"
+    "delete": "删除",
+    "title_placeholder": "会议标题",
+    "rename_error": "无法重命名该会议。"
   },
   "recorder": {
     "starting": "正在启动录制…",

@@ -1786,6 +1786,17 @@ export class ApiClient {
     });
   }
 
+  /** Renames a meeting. Title is the only mutable field. */
+  async updateMeeting(id: string, data: { title: string }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id",
+    });
+  }
+
   /** Removes a meeting and its transcript. Recorder or workspace admin/owner. */
   async deleteMeeting(id: string): Promise<void> {
     await this.fetch(`/api/meetings/${encodeURIComponent(id)}`, { method: "DELETE" });

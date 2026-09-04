@@ -299,3 +299,39 @@ func TestMeetingDeletePermissions(t *testing.T) {
 		testutil.WithURLParams(newRequest(http.MethodDelete, "/api/meetings/"+id, nil), "id", id)).
 		Want(http.StatusNoContent)
 }
+
+func TestMeetingRename(t *testing.T) {
+	stubSTT(t, "x")
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", map[string]string{"title": "Sync"})).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+
+	rename := func(t *testing.T, userID string, body any) *testutil.Response {
+		t.Helper()
+		req := testutil.WithURLParams(newRequest(http.MethodPatch, "/api/meetings/"+created.ID, body), "id", created.ID)
+		if userID != "" {
+			req.Header.Set("X-User-ID", userID)
+		}
+		return testutil.Call(t, testHandler.UpdateMeeting, req)
+	}
+
+	var renamed MeetingResponse
+	rename(t, "", map[string]string{"title": "  Sprint review  "}).Want(http.StatusOK).JSON(&renamed)
+	if renamed.Title != "Sprint review" {
+		t.Fatalf("title = %q, want trimmed %q", renamed.Title, "Sprint review")
+	}
+	// An empty title would leave the meeting unnamed in every list.
+	rename(t, "", map[string]string{"title": "   "}).Want(http.StatusBadRequest)
+	rename(t, "", map[string]any{}).Want(http.StatusBadRequest)
+
+	plainUser := dbfx.User(t, "Rename Member", "meeting-rename-member@example.com")
+	dbfx.Member(t, testWorkspaceID, plainUser, "member")
+	rename(t, plainUser, map[string]string{"title": "Hijacked"}).Want(http.StatusForbidden)
+
+	// Over-long titles are cut, not refused: the client already caps them.
+	rename(t, "", map[string]string{"title": strings.Repeat("é", 300)}).Want(http.StatusOK).JSON(&renamed)
+	if n := len([]rune(renamed.Title)); n != meetingMaxTitleRunes {
+		t.Fatalf("title runes = %d, want %d", n, meetingMaxTitleRunes)
+	}
+}

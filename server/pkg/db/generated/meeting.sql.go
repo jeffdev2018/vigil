@@ -330,6 +330,41 @@ func (q *Queries) ListTriageItemsByOrigin(ctx context.Context, arg ListTriageIte
 	return items, nil
 }
 
+const renameMeeting = `-- name: RenameMeeting :one
+UPDATE meeting
+SET title = $1::text, updated_at = now()
+WHERE id = $2::uuid
+  AND workspace_id = $3::uuid
+RETURNING id, workspace_id, created_by, title, app_name, status, transcript, summary_md, segment_count, started_at, ended_at, created_at, updated_at
+`
+
+type RenameMeetingParams struct {
+	Title       string      `json:"title"`
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, renameMeeting, arg.Title, arg.ID, arg.WorkspaceID)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.Title,
+		&i.AppName,
+		&i.Status,
+		&i.Transcript,
+		&i.SummaryMd,
+		&i.SegmentCount,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const startMeetingSummary = `-- name: StartMeetingSummary :one
 UPDATE meeting
 SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()

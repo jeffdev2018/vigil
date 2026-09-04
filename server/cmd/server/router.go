@@ -2017,6 +2017,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/", h.ListMeetings)
 				r.With(handler.RequireHumanActor).Post("/", h.CreateMeeting)
 				r.Get("/{id}", h.GetMeeting)
+				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateMeeting)
 				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
 				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)

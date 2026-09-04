@@ -42,7 +42,9 @@
     "transcript_empty": "まだ文字起こしはありません",
     "transcript_show": "文字起こしを表示",
     "transcript_hide": "文字起こしを隠す",
-    "delete": "削除"
+    "delete": "削除",
+    "title_placeholder": "ミーティング名",
+    "rename_error": "ミーティング名を変更できませんでした。"
   },
   "recorder": {
     "starting": "録音を開始しています…",

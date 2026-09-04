@@ -77,3 +77,10 @@ ORDER BY first_seen_at ASC, id ASC;
 DELETE FROM meeting
 WHERE id = sqlc.arg('id')::uuid
   AND workspace_id = sqlc.arg('workspace_id')::uuid;
+
+-- name: RenameMeeting :one
+UPDATE meeting
+SET title = sqlc.arg('title')::text, updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+RETURNING *;

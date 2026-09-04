@@ -585,6 +585,63 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 	return items
 }
 
+type updateMeetingRequest struct {
+	Title *string `json:"title"`
+}
+
+// UpdateMeeting renames a meeting. PATCH /api/meetings/{id}, {"title": "..."}.
+// The recorder or a workspace admin/owner. Title is the only mutable field:
+// everything else about a meeting is produced by the recording itself.
+func (h *Handler) UpdateMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	var req updateMeetingRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	if req.Title == nil {
+		writeError(w, http.StatusBadRequest, "title is required")
+		return
+	}
+	title := strings.TrimSpace(*req.Title)
+	if title == "" {
+		writeError(w, http.StatusBadRequest, "title cannot be empty")
+		return
+	}
+	if n := len([]rune(title)); n > meetingMaxTitleRunes {
+		title = string([]rune(title)[:meetingMaxTitleRunes])
+	}
+	updated, err := h.Queries.RenameMeeting(r.Context(), db.RenameMeetingParams{
+		Title: title, ID: m.ID, WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "meeting not found")
+			return
+		}
+		slog.Error("rename meeting failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to rename meeting")
+		return
+	}
+	actions, err := h.Queries.ListTriageItemsByOrigin(r.Context(), db.ListTriageItemsByOriginParams{
+		WorkspaceID: workspaceID, OriginType: meetingOriginType, OriginID: m.ID,
+	})
+	if err != nil {
+		slog.Error("list meeting actions failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load meeting")
+		return
+	}
+	resp := meetingToResponse(updated, actions)
+	resp.CanManage = true
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // DeleteMeeting removes a meeting and its transcript for good.
 // DELETE /api/meetings/{id}. The recorder or a workspace admin/owner.
 func (h *Handler) DeleteMeeting(w http.ResponseWriter, r *http.Request) {
