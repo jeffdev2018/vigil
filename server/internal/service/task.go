@@ -1374,15 +1374,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	// auto is an explicit per-agent opt-in, so its choice wins. The decision
 	// trace lands in the routing JSONB column; any degradation falls back to
 	// whatever runtime was selected so far.
-	labelNames := s.listIssueLabelNames(ctx, issue)
-	taskClass := ClassifyTask(issue.Title, labelNames)
-	var routingJSON []byte
-	if agent.RuntimeRouting == RoutingModeAuto {
-		decision := s.RouteTask(ctx, agent, issue.Title, labelNames)
-		if chosen := decision.ChosenRuntime(); chosen.Valid {
-			enqueueRuntimeID, failoverHistory = chosen, nil
-		}
-		routingJSON = decision.Marshal()
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	if stamp.RuntimeID.Valid {
+		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
 	}
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
@@ -1405,8 +1399,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
-		TaskClass:            pgtype.Text{String: taskClass, Valid: true},
-		Routing:              routingJSON,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1578,6 +1572,13 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	originatorUserID := attr.UserID
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
+	// Runtime routing (JEF-237): a mention / thread-parent / squad-leader hop is
+	// an enqueue like any other, so it goes through the same decision.
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	mentionRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		mentionRuntimeID = stamp.RuntimeID
+	}
 	taskID := dbid.NewV7()
 	task, err := s.createTaskWithBudget(ctx, BudgetScope{
 		WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, AgentID: agent.ID,
@@ -1585,7 +1586,7 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 		return q.CreateAgentTask(ctx, db.CreateAgentTaskParams{
 			ID:                   taskID,
 			AgentID:              agentID,
-			RuntimeID:            agent.RuntimeID,
+			RuntimeID:            mentionRuntimeID,
 			IssueID:              issue.ID,
 			Priority:             priorityToInt(issue.Priority),
 			TriggerCommentID:     triggerCommentID,
@@ -1605,6 +1606,8 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 			DelegatedFromTaskID:  attrDelegatedFrom,
 			TriggerEvidenceKind:  attrEvidenceKind,
 			TriggerEvidenceRefID: attrEvidenceRef,
+			TaskClass:            stamp.TaskClass,
+			Routing:              stamp.Routing,
 			// Stamp the reviewed head so dedup can distinguish this run's target
 			// from a later request against a new HEAD (TEN-356).
 			HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1664,11 +1667,16 @@ func (s *TaskService) EnqueueDeferredAssigneeFallback(ctx context.Context, issue
 		return db.AgentTaskQueue{}, err
 	}
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	deferredRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		deferredRuntimeID = stamp.RuntimeID
+	}
 	isLeader := squadID.Valid
 	task, err := s.Queries.CreateDeferredAgentTask(ctx, db.CreateDeferredAgentTaskParams{
 		ID:                   dbid.NewV7(),
 		AgentID:              agentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            deferredRuntimeID,
 		IssueID:              issue.ID,
 		Priority:             priorityToInt(issue.Priority),
 		TriggerCommentID:     triggerCommentID,
@@ -1683,6 +1691,8 @@ func (s *TaskService) EnqueueDeferredAssigneeFallback(ctx context.Context, issue
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 	})
 	if err != nil {
 		slog.Error("deferred fallback enqueue failed", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "error", err)
@@ -1831,11 +1841,18 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 	}
 	attrSource, _, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, requesterID, agent)
+	// Runtime routing (JEF-237): quick-create has no issue yet, so the prompt is
+	// the only description of the work the classifier can see.
+	stamp := s.StampRouting(ctx, agent, prompt, nil)
+	quickCreateRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		quickCreateRuntimeID = stamp.RuntimeID
+	}
 	taskID := dbid.NewV7()
 	createParams := db.CreateQuickCreateTaskParams{
 		ID:                   taskID,
 		AgentID:              agentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            quickCreateRuntimeID,
 		Priority:             priorityToInt("high"),
 		Context:              contextJSON,
 		OriginatorUserID:     requesterID,
@@ -1845,6 +1862,8 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 		OriginatorSource:     attrSource,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 	}
 	var task db.AgentTaskQueue
 	if capture == nil {
@@ -1957,6 +1976,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 		return nil, fmt.Errorf("preflight quick-create issue capacity: %w", err)
 	}
 	overlay := s.buildRuntimeMCPOverlay(ctx, requesterID, agent)
+	// Runtime routing (JEF-237): a manual rerun is a fresh human enqueue, so it
+	// is classified and routed again from the original prompt.
+	stamp := s.StampRouting(ctx, agent, quickCreate.Prompt, nil)
 
 	tx, err := s.TxStarter.Begin(ctx)
 	if err != nil {
@@ -1972,8 +1994,11 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	child, err := qtx.CreateManualQuickCreateRetryTask(ctx, db.CreateManualQuickCreateRetryTaskParams{
 		ActorUserID:          requesterID,
+		RuntimeID:            stamp.RuntimeID,
 		RuntimeMcpOverlay:    overlay.Overlay,
 		RuntimeConnectedApps: overlay.ConnectedApps,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 		NewTaskID:            dbid.NewV7(),
 		SourceTaskID:         sourceTaskID,
 	})
@@ -2269,10 +2294,19 @@ func (s *TaskService) enqueueChatTaskTx(
 			return db.AgentTaskQueue{}, err
 		}
 	}
+	// Runtime routing (JEF-237). A chat turn has no issue, so the session title
+	// is the only description of the work available at enqueue. The router only
+	// runs read-only SELECTs on its own connection, so it is safe to call while
+	// this transaction holds the session/agent locks.
+	stamp := s.StampRouting(ctx, agent, chatSession.Title, nil)
+	chatRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		chatRuntimeID = stamp.RuntimeID
+	}
 	task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
 		ID:                   taskID,
 		AgentID:              chatSession.AgentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            chatRuntimeID,
 		Priority:             2,
 		ChatSessionID:        chatSession.ID,
 		InitiatorUserID:      initiatorUserID,
@@ -2288,6 +2322,8 @@ func (s *TaskService) enqueueChatTaskTx(
 		ChannelContextRevision: pgtype.Int8{
 			Int64: contextRevision, Valid: contextRevision > 0,
 		},
+		TaskClass: stamp.TaskClass,
+		Routing:   stamp.Routing,
 	})
 	if err != nil {
 		return db.AgentTaskQueue{}, fmt.Errorf("create chat task: %w", err)
@@ -2531,6 +2567,10 @@ func (s *TaskService) SendDirectChatMessage(
 	// EnqueueChatTask writes. Without this the direct-chat path was a bypass: it set
 	// originator_user_id but left accountable_user_id / source / evidence NULL,
 	// violating the one-way invariant and dropping the audit source (MUL-4302 §2).
+	// Runtime routing (JEF-237): classify and route from the message the member
+	// just sent. Built before the transaction for the same reason as the overlay.
+	stamp := s.StampRouting(ctx, agent, content, nil)
+
 	attr := attribution.DirectHumanRun(initiatorUserID, attribution.EvidenceChat, session.ID)
 	attr, err := s.applyAttributionFallback(ctx, attr, agent)
 	if err != nil {
@@ -2581,10 +2621,14 @@ func (s *TaskService) SendDirectChatMessage(
 		}
 		out.Queued = queued
 
+		directRuntimeID := carrier.RuntimeID
+		if stamp.RuntimeID.Valid {
+			directRuntimeID = stamp.RuntimeID
+		}
 		task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
 			ID:                   dbid.NewV7(),
 			AgentID:              session.AgentID,
-			RuntimeID:            carrier.RuntimeID,
+			RuntimeID:            directRuntimeID,
 			Priority:             2, // medium priority for chat; matches EnqueueChatTask
 			ChatSessionID:        session.ID,
 			InitiatorUserID:      initiatorUserID,
@@ -2596,6 +2640,8 @@ func (s *TaskService) SendDirectChatMessage(
 			OriginatorSource:     attrSource,
 			TriggerEvidenceKind:  attrEvidenceKind,
 			TriggerEvidenceRefID: attrEvidenceRef,
+			TaskClass:            stamp.TaskClass,
+			Routing:              stamp.Routing,
 		})
 		if err != nil {
 			return fmt.Errorf("create direct chat task: %w", err)

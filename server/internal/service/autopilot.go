@@ -1031,6 +1031,13 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		return &errDispatchSkipped{reason: formatAdmissionReason(ap, "workspace fail-closed: no accountable human for autopilot run"), code: dispatch.ReasonAttributionBlocked}
 	}
 	apSource, _, apEvidenceKind, apEvidenceRef := attributionCreateParams(autopilotAttr)
+	// Runtime routing (JEF-237): an autopilot run has no issue, so the autopilot
+	// title describes the work for the classifier.
+	stamp := s.TaskSvc.StampRouting(ctx, agent, ap.Title, nil)
+	autopilotRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		autopilotRuntimeID = stamp.RuntimeID
+	}
 	taskID := dbid.NewV7()
 	task, err := s.TaskSvc.createTaskWithBudget(ctx, BudgetScope{
 		WorkspaceID: ap.WorkspaceID, ProjectID: ap.ProjectID, AgentID: agent.ID,
@@ -1038,7 +1045,7 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		return q.CreateAutopilotTask(ctx, db.CreateAutopilotTaskParams{
 			ID:             taskID,
 			AgentID:        agent.ID,
-			RuntimeID:      agent.RuntimeID,
+			RuntimeID:      autopilotRuntimeID,
 			Priority:       0,
 			AutopilotRunID: run.ID,
 			// Snapshot the autopilot title so task rows self-describe later
@@ -1054,6 +1061,8 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 			OriginatorSource:     apSource,
 			TriggerEvidenceKind:  apEvidenceKind,
 			TriggerEvidenceRefID: apEvidenceRef,
+			TaskClass:            stamp.TaskClass,
+			Routing:              stamp.Routing,
 		})
 	})
 	if err != nil {

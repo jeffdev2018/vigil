@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AppConfigSchema,
+  CloudRuntimeNodeActionSchema,
+  EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   WecomInstallationSchema,
   ListWecomInstallationsResponseSchema,
   RedeemWecomBindingTokenResponseSchema,
@@ -2321,5 +2323,40 @@ describe("AgentMemory schemas", () => {
       { endpoint: "POST /api/agents/{agentId}/memories" },
     );
     expect(parsed).toEqual(EMPTY_AGENT_MEMORY);
+  });
+});
+
+// Cloud node power actions proxy a fleet service that lives outside this repo,
+// so the schema must survive whatever it returns: unknown keys pass through,
+// missing ones default, and a wholly malformed body degrades to "no new status"
+// instead of throwing on a page the user is already looking at.
+describe("CloudRuntimeNodeActionSchema", () => {
+  it("parses a well-formed action response", () => {
+    expect(
+      CloudRuntimeNodeActionSchema.parse({
+        instance_id: "i-0abc",
+        status: "stopping",
+      }),
+    ).toMatchObject({ instance_id: "i-0abc", status: "stopping" });
+  });
+
+  it("defaults missing fields and keeps unknown ones", () => {
+    const parsed = CloudRuntimeNodeActionSchema.parse({ request_id: "r-1" });
+    expect(parsed.instance_id).toBe("");
+    expect(parsed.status).toBe("");
+    expect(parsed).toMatchObject({ request_id: "r-1" });
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "stopping", 42, { status: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(
+          malformed,
+          CloudRuntimeNodeActionSchema,
+          EMPTY_CLOUD_RUNTIME_NODE_ACTION,
+          { endpoint: "POST /api/cloud-runtime/nodes/stop" },
+        ),
+      ).toEqual(EMPTY_CLOUD_RUNTIME_NODE_ACTION);
+    }
   });
 });

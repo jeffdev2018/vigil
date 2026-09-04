@@ -199,6 +199,9 @@ func TestDetectBuiltinRuntimes_HealthyProbeClearsPendingVerdict(t *testing.T) {
 	stubProbeRetry(t, time.Millisecond, time.Millisecond)
 	d := freshDaemon("")
 	d.cfg.Agents = map[string]AgentEntry{"claude": {Path: "/fake/claude", Command: "claude"}}
+	// detectAgentVersion is stubbed below, so the resolved path is never a
+	// binary this test staged: the sign-in probe must not execute it either.
+	stubCliAuthProbe(t)
 
 	broken := true
 	orig := detectAgentVersion

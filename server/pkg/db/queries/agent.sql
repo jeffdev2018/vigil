@@ -435,6 +435,7 @@ INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, status, priority, context, originator_user_id,
     accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -446,6 +447,8 @@ SELECT
     sqlc.narg(originator_source),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING *;
@@ -467,6 +470,7 @@ INSERT INTO agent_task_queue (
     trigger_summary, is_leader_task, squad_id, escalation_for_task_id, fire_at,
     originator_user_id, accountable_user_id, originator_source,
     delegated_from_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -483,6 +487,8 @@ SELECT
     sqlc.narg(delegated_from_task_id),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -585,7 +591,8 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq, id
+    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
+    task_class, routing, id
 )
 SELECT
     p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -611,6 +618,13 @@ SELECT
     -- Checkpoints (K20): a resume after an interruption counts an attempt and keeps the resume point.
     COALESCE(sqlc.narg('checkpoint_attempts')::int, p.checkpoint_attempts),
     p.last_checkpoint_seq,
+    -- Runtime routing (JEF-237): an automatic retry is the SAME piece of work,
+    -- so it inherits the parent's class instead of falling to 'general' and
+    -- polluting the per-class statistics. It is deliberately not re-routed: the
+    -- retry machinery already owns runtime selection here (failover_history and
+    -- the runtime_id arg above), and the child carries the parent's session_id /
+    -- work_dir, which only resume on the runtime that produced them.
+    p.task_class, p.routing,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
@@ -636,14 +650,21 @@ INSERT INTO agent_task_queue (
     force_fresh_session, is_leader_task, squad_id,
     originator_user_id, accountable_user_id,
     runtime_mcp_overlay, runtime_connected_apps,
-    originator_source, rerun_of_task_id, id
+    originator_source, rerun_of_task_id, task_class, routing, id
 )
 SELECT
-    p.agent_id, p.runtime_id, 'queued', p.priority, p.context,
+    p.agent_id,
+    -- Runtime routing (JEF-237): a manual rerun starts a fresh session, so the
+    -- router may move it off the parent's runtime. NULL keeps the parent's.
+    COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id),
+    'queued', p.priority, p.context,
     TRUE, p.is_leader_task, p.squad_id,
     sqlc.arg(actor_user_id), sqlc.arg(actor_user_id),
     sqlc.narg(runtime_mcp_overlay), sqlc.narg(runtime_connected_apps),
-    'direct_human', p.id, sqlc.arg(new_task_id)
+    'direct_human', p.id,
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
+    sqlc.arg(new_task_id)
 FROM agent_task_queue p
 WHERE p.id = sqlc.arg(source_task_id)
   AND p.status = 'failed'

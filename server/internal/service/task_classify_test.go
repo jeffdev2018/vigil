@@ -47,6 +47,58 @@ func TestClassifyTask(t *testing.T) {
 		{name: "attest is not test", title: "Attest provenance of artifacts", want: TaskClassGeneral},
 		{name: "fixture is not fix", title: "Seed fixture data for demos", want: TaskClassGeneral},
 
+		// Non-English labels, same exact-match rules.
+		{name: "japanese bug label", title: "Something", labels: []string{"バグ"}, want: TaskClassBugfix},
+		{name: "korean feature label", title: "Something", labels: []string{"기능"}, want: TaskClassFeature},
+		{name: "chinese docs label", title: "Something", labels: []string{"文档"}, want: TaskClassDocs},
+		{name: "french chore label", title: "Something", labels: []string{"  Dépendances "}, want: TaskClassChore},
+
+		// Japanese titles: matched as substrings, no word boundary.
+		{name: "ja bugfix", title: "ログイン画面のバグを修正", want: TaskClassBugfix},
+		{name: "ja feature", title: "新機能: ダークモード", want: TaskClassFeature},
+		{name: "ja refactor", title: "クレームパイプラインのリファクタリング", want: TaskClassRefactor},
+		{name: "ja docs", title: "ドキュメントを更新", want: TaskClassDocs},
+		{name: "ja tests", title: "テストを追加", want: TaskClassTests},
+		{name: "ja chore", title: "依存関係を更新", want: TaskClassChore},
+
+		// Korean titles: particles agglutinate, so substrings again.
+		{name: "ko bugfix with particle", title: "로그인 버그가 발생", want: TaskClassBugfix},
+		{name: "ko feature", title: "다크 모드 기능 추가", want: TaskClassFeature},
+		{name: "ko refactor", title: "라우터 리팩터링", want: TaskClassRefactor},
+		{name: "ko docs", title: "문서 업데이트", want: TaskClassDocs},
+		{name: "ko tests", title: "테스트 커버리지 추가", want: TaskClassTests},
+		{name: "ko chore", title: "의존성 업그레이드", want: TaskClassChore},
+
+		// Simplified Chinese titles.
+		{name: "zh bugfix", title: "修复登录超时错误", want: TaskClassBugfix},
+		{name: "zh feature", title: "新增暗色模式功能", want: TaskClassFeature},
+		{name: "zh refactor", title: "重构认领流程", want: TaskClassRefactor},
+		{name: "zh docs", title: "更新接口文档", want: TaskClassDocs},
+		{name: "zh tests", title: "补充路由测试", want: TaskClassTests},
+		{name: "zh chore", title: "升级依赖版本", want: TaskClassChore},
+
+		// French titles: \b works around ASCII edges; accented endings match by prefix.
+		{name: "fr bugfix plantage", title: "Corriger le plantage au démarrage", want: TaskClassBugfix},
+		{name: "fr bugfix bogue", title: "Bogue sur la page de connexion", want: TaskClassBugfix},
+		{name: "fr feature accented ending", title: "Ajouter une fonctionnalité de partage", want: TaskClassFeature},
+		{name: "fr feature plural", title: "Nouvelles fonctionnalités du tableau de bord", want: TaskClassFeature},
+		{name: "fr refactor", title: "Refactorisation du routeur", want: TaskClassRefactor},
+		{name: "fr refactor nettoyage", title: "Nettoyage des handlers hérités", want: TaskClassRefactor},
+		{name: "fr docs", title: "Mettre à jour la documentation de l'API", want: TaskClassDocs},
+		{name: "fr tests couverture", title: "Améliorer la couverture du routeur", want: TaskClassTests},
+		{name: "fr chore", title: "Mise à jour des dépendances", want: TaskClassChore},
+
+		// Priority holds across scripts: a title carrying two class terms takes
+		// the higher rule, it does not fall to the later one.
+		{name: "ja bug term beats feature term", title: "機能のバグを修正する", want: TaskClassBugfix},
+		{name: "ko docs term beats tests term", title: "테스트 문서 작성", want: TaskClassDocs},
+
+		// No false positives on neutral non-English titles.
+		{name: "ja neutral title", title: "オンボーディング体験を改善", want: TaskClassGeneral},
+		{name: "zh neutral title", title: "改进用户引导流程", want: TaskClassGeneral},
+		{name: "ko neutral title", title: "온보딩 흐름 개선", want: TaskClassGeneral},
+		{name: "fr neutral title", title: "Améliorer le parcours d'accueil", want: TaskClassGeneral},
+
 		// Nothing matches.
 		{name: "empty", title: "", want: TaskClassGeneral},
 		{name: "generic title", title: "Improve onboarding flow", want: TaskClassGeneral},

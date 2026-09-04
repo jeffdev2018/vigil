@@ -45,7 +45,7 @@ Multica는 현재 다음 명령을 감지합니다.
 
 ## 2. 로컬에서 로그인 완료
 
-설치 후 터미널에서 도구를 한 번 직접 실행하고 도구 자체의 절차에 따라 로그인하거나 모델 서비스를 설정합니다. 터미널에서 요청을 완료하지 못하면 데몬이 호출할 때도 실패합니다.
+설치 후 도구 자체의 절차에 따라 로그인하거나 모델 서비스를 설정합니다. Claude Code와 Codex는 Multica에서 바로 할 수 있습니다. **런타임** 페이지에서 해당 컴퓨터의 런타임을 열고 로그인을 시작하면, 데몬이 그 컴퓨터에서 CLI의 디바이스 코드 로그인을 실행하고 대화상자에 인증 URL과 일회용 코드가 표시됩니다. 로그아웃도 같은 자리에서 할 수 있습니다. 그 밖의 도구는 해당 컴퓨터의 터미널에서 한 번 직접 실행해야 합니다. 터미널에서 요청을 완료하지 못하면 데몬이 호출할 때도 실패합니다.
 
 CodeArts는 TUI뿐 아니라 `codearts run --model provider/model "OK만 응답하세요"`로 비대화형 모드도 확인하세요. 현재 CodeArts CLI에서는 사용자 지정 provider가 TUI에서 동작하더라도 `run`, `models`, `serve`에 여전히 [`CODEARTS_CLI_AK` / `CODEARTS_CLI_SK`](https://support.huaweicloud.com/usermanual-cli/codeartsagent_cli_0026.html)가 필요할 수 있습니다. Multica는 `~/.codeartsdoer/codearts_cli.json` 또는 `.jsonc`에서 사용자 지정 모델을 찾을 수 있지만, 실행에는 `codearts run`을 사용하므로 해당 인증 요구 사항을 따릅니다.
 

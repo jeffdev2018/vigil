@@ -434,3 +434,36 @@ func chooseRoutingCandidate(candidates, pool []*routingCandidate, rnd *rand.Rand
 	}
 	return best, false
 }
+
+// RoutingStamp is what one enqueue writes into a new task's task_class /
+// routing columns, plus the runtime the router picked for it.
+type RoutingStamp struct {
+	// TaskClass is always set: every task is classified so its outcome feeds
+	// the routing statistics, fixed-mode agents included.
+	TaskClass pgtype.Text
+	// Routing is the marshalled RuntimeRoutingDecision, non-nil only for
+	// auto-routed agents.
+	Routing []byte
+	// RuntimeID is the routed runtime. Invalid when the agent is fixed-mode or
+	// the router degraded: the caller then keeps whatever runtime it had.
+	RuntimeID pgtype.UUID
+}
+
+// StampRouting is the single routing decision every task creator goes through:
+// classify the work, and for a runtime_routing='auto' agent run the router and
+// persist its audit trace. Callers pass whatever text describes the work
+// (issue title, chat message, quick-create prompt, autopilot title) and the
+// issue labels when they have them.
+//
+// It never fails: RouteTask degrades to the agent's bound runtime and the
+// classifier's worst case is the "general" bucket.
+func (s *TaskService) StampRouting(ctx context.Context, agent db.Agent, title string, labels []string) RoutingStamp {
+	stamp := RoutingStamp{TaskClass: pgtype.Text{String: ClassifyTask(title, labels), Valid: true}}
+	if agent.RuntimeRouting != RoutingModeAuto {
+		return stamp
+	}
+	decision := s.RouteTask(ctx, agent, title, labels)
+	stamp.Routing = decision.Marshal()
+	stamp.RuntimeID = decision.ChosenRuntime()
+	return stamp
+}

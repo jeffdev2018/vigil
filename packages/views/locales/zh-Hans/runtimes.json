@@ -57,6 +57,10 @@
     "select_runtime": "内置运行时会自动出现。选择一项查看设置，或添加自定义命令。",
     "no_runtimes_title": "还没有注册运行时",
     "no_runtimes_hint": "启动或重新连接这台机器的守护进程。检测到已安装的 CLI 后，运行时会自动出现在这里。",
+    "skipped_agents": {
+      "title": "已检测到但未注册",
+      "hint": "这些 Agent CLI 已安装在这台机器上，但没有注册成功。解决下面的原因后，运行时会自动出现。"
+    },
     "not_found_title": "未找到机器",
     "not_found_hint": "它可能已离线、被移除，或你已无权访问。",
     "metrics": {
@@ -247,6 +251,27 @@
     "validation": {
       "instance_type_required": "实例规格不能为空",
       "disk_size_invalid": "磁盘大小必须是正整数"
+    },
+    "power": {
+      "start": {
+        "label": "启动",
+        "toast": "正在启动节点。",
+        "failed": "无法启动节点。"
+      },
+      "stop": {
+        "label": "停止",
+        "toast": "正在停止节点。",
+        "failed": "无法停止节点。"
+      },
+      "reboot": {
+        "label": "重启",
+        "confirm": "要重启这个节点吗？正在运行的任务会被中断。",
+        "toast": "正在重启节点。",
+        "failed": "无法重启节点。"
+      },
+      "status": {
+        "label": "刷新状态"
+      }
     }
   },
   "update": {

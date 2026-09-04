@@ -194,12 +194,83 @@ type DaemonRegisterRequest struct {
 		// Type carries the protocol family for both built-in and custom rows
 		// so task routing (agent.New) is unchanged.
 		ProfileID string `json:"profile_id"`
+		// CliAuth is the CLI's own sign-in state as the daemon just probed it
+		// ("authenticated" / "unauthenticated"). Empty means the daemon could
+		// not tell, and the runtime keeps no cli_auth record — registration
+		// replaces metadata wholesale, so "unknown" is the absence of the key,
+		// not a stale claim. Without this a CLI that was already signed in read
+		// as unknown until someone signed in again through the product.
+		CliAuth string `json:"cli_auth"`
 	} `json:"runtimes"`
 	FailedProfiles []struct {
 		ProfileID   string `json:"profile_id"`
 		CommandName string `json:"command_name"`
 		Reason      string `json:"reason"`
 	} `json:"failed_profiles"`
+	// SkippedAgents maps a provider the daemon DID find on the machine to the
+	// reason this probe round dropped it (version undetectable, below the
+	// minimum supported version, binary not executable). Diagnostic only:
+	// nothing routes on it. Persisted on every runtime row of the machine so
+	// the UI can tell "CLI not installed" apart from "CLI installed but
+	// rejected", which is the distinction that made GH #6077 unactionable.
+	SkippedAgents map[string]string `json:"skipped_agents"`
+}
+
+// cliAuthStateFromRegistration turns the daemon's probed sign-in state into the
+// same cli_auth record UpdateRuntimeCliAuthState writes after an interactive
+// sign-in, so both sources feed one shape. Returns nil for an unknown or
+// unrecognised state: the runtime then carries no record and the UI reads it as
+// unknown rather than as a stale claim.
+func cliAuthStateFromRegistration(state string) map[string]any {
+	var authenticated bool
+	switch strings.TrimSpace(state) {
+	case "authenticated":
+		authenticated = true
+	case "unauthenticated":
+		authenticated = false
+	default:
+		return nil
+	}
+	reason := "cli_status_probe"
+	return map[string]any{
+		"authenticated": authenticated,
+		"checked_at":    time.Now().UTC().Format(time.RFC3339),
+		"reason":        reason,
+	}
+}
+
+// Bounds on the daemon-reported skip map. It is diagnostic, but it crosses a
+// request boundary into a JSONB column every workspace member reads back.
+const (
+	maxSkippedAgentEntries   = 32
+	maxSkippedAgentReasonLen = 300
+)
+
+// normalizeSkippedAgents trims and bounds the reported map. It always returns
+// a non-nil map, so the key is written on every registration: an empty map is
+// how a repaired provider stops being reported.
+func normalizeSkippedAgents(raw map[string]string) map[string]string {
+	providers := make([]string, 0, len(raw))
+	for provider := range raw {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	out := make(map[string]string, len(providers))
+	for _, name := range providers {
+		provider := strings.TrimSpace(name)
+		reason := strings.TrimSpace(raw[name])
+		if provider == "" || reason == "" {
+			continue
+		}
+		if len(out) >= maxSkippedAgentEntries {
+			break
+		}
+		if runes := []rune(reason); len(runes) > maxSkippedAgentReasonLen {
+			reason = string(runes[:maxSkippedAgentReasonLen])
+		}
+		out[provider] = reason
+	}
+	return out
 }
 
 type daemonWorkspaceReposResponse struct {
@@ -436,6 +507,8 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	skippedAgents := normalizeSkippedAgents(req.SkippedAgents)
+
 	resp := make([]AgentRuntimeResponse, 0, len(req.Runtimes))
 	for _, runtime := range req.Runtimes {
 		provider := normalizeProvider(runtime.Type)
@@ -463,12 +536,20 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// live request — the resource-save gate and the UI — decide from the
 		// same signal the claim path uses, instead of re-deriving it from a
 		// version string (MUL-5707).
-		metadata, _ := json.Marshal(map[string]any{
+		metadataFields := map[string]any{
 			"version":      runtime.Version,
 			"cli_version":  req.CLIVersion,
 			"launched_by":  req.LaunchedBy,
 			"capabilities": requestClientCapabilities(r),
-		})
+			// Machine-level, so every runtime of this daemon carries the same
+			// snapshot and the UI can read it off whichever row is freshest.
+			"skipped_agents": skippedAgents,
+		}
+		if state := cliAuthStateFromRegistration(runtime.CliAuth); state != nil {
+			state["provider"] = provider
+			metadataFields["cli_auth"] = state
+		}
+		metadata, _ := json.Marshal(metadataFields)
 
 		var registered db.AgentRuntime
 		var inserted bool
@@ -677,6 +758,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					"runtime_profile_registration_error": true,
 					"runtime_profile_failure_reason":     reason,
 					"command_name":                       resolvedCommandName,
+					"skipped_agents":                     skippedAgents,
 				})
 				return db.UpsertAgentRuntimeWithProfileParams{
 					WorkspaceID: wsUUID,

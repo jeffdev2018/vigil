@@ -255,6 +255,12 @@ var (
 	detectAgentVersion   = agent.DetectVersion
 	checkAgentMinVersion = agent.CheckMinVersion
 
+	// probeCliAuthStatus is an indirection over runCliAuthStatus so a test
+	// that stubs detectAgentVersion does not start shelling out to a real CLI
+	// through the sign-in probe instead. Mirrors the detectAgentVersion hook
+	// above; see scripts/go-test-with-agent-cli-guard.sh for the fence.
+	probeCliAuthStatus = runCliAuthStatus
+
 	// listModels is an indirection over agent.ListModels so model-discovery
 	// tests can assert which executable path the daemon enumerates without
 	// shelling out to a real CLI. Mirrors the detectAgentVersion hook above.
@@ -417,6 +423,12 @@ type Daemon struct {
 	// (MUL-5439). Guarded by skippedAgentsMu.
 	skippedAgentsMu sync.RWMutex
 	skippedAgents   map[string]string // provider -> human-readable reason
+
+	// cliAuthStatus caches each provider's last observed CLI sign-in state so
+	// registration can report it without forking the CLI on every tick.
+	// Guarded by cliAuthStatusMu. See cliAuthStateForProvider.
+	cliAuthStatusMu sync.Mutex
+	cliAuthStatus   map[string]cliAuthSnapshot
 
 	// demotedProviders remembers the built-in providers whose version was
 	// CONFIRMED below the minimum supported one and whose runtimes
@@ -655,6 +667,7 @@ func New(cfg Config, logger *slog.Logger) *Daemon {
 		runtimeSet:                newRuntimeSetWatcher(),
 		agentVersions:             make(map[string]string),
 		skippedAgents:             make(map[string]string),
+		cliAuthStatus:             make(map[string]cliAuthSnapshot),
 		resolvedPaths:             make(map[string]healedAgent),
 		wsHBLastAck:               make(map[string]time.Time),
 		activeEnvRoots:            make(map[string]int),
@@ -2298,7 +2311,12 @@ func newRuntimeVerdict(verdict builtinProbeVerdict, reason, execPath string) run
 // not OK. It is surfaced on /health as skipped_agents so a user can tell "CLI
 // not installed" apart from "CLI installed but dropped at registration", which
 // was previously only visible in the daemon log (MUL-5439).
-func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, builtinProbeVerdict) {
+//
+// The third return value is the executable path this probe actually ran, set
+// only on an OK verdict. Callers that need to run the same CLI again must use
+// it rather than resolving the provider a second time: a second resolution can
+// land on a different binary than the one that was just version-gated.
+func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, string, builtinProbeVerdict) {
 	var (
 		lastErr  error
 		attempts int
@@ -2352,7 +2370,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 			}
 			d.logger.Warn("skip registering runtime: re-resolved version too old",
 				"name", name, "version", heal.rejected.Detected, "error", heal.rejected.Error())
-			return heal.rejected.Detected, heal.rejected.Error(), builtinProbeBelowMinimum
+			return heal.rejected.Detected, heal.rejected.Error(), "", builtinProbeBelowMinimum
 		}
 		version, err := detectAgentVersion(ctx, agent.Command{Path: resolved.Path})
 		if err != nil {
@@ -2373,7 +2391,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 				d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "error", err)
 				// The version is returned even though the provider is dropped: the
 				// caller needs it to report what it demoted.
-				return version, err.Error(), builtinProbeBelowMinimum
+				return version, err.Error(), "", builtinProbeBelowMinimum
 			}
 			// The CLI ran but printed something (or nothing) the gate could not
 			// parse. That is "we didn't learn a version", not "we verified it is
@@ -2402,7 +2420,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 			version = d.agentVersion(name)
 		}
 		d.logger.Debug("agent version detected", "name", name, "version", version, "path", resolved.Path)
-		return version, "", builtinProbeOK
+		return version, "", resolved.Path, builtinProbeOK
 	}
 	// The OS refusing to execute the file is not a failed probe, it is a
 	// finding: the CLI is installed, resolvable, and unrunnable. Report it as
@@ -2413,7 +2431,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 	if agent.IsExecFormatError(lastErr) {
 		d.logger.Warn("skip registering runtime: agent CLI is not executable on this machine",
 			"name", name, "attempts", attempts, "error", lastErr)
-		return "", fmt.Sprintf("agent CLI is not executable: %v", lastErr), builtinProbeNotExecutable
+		return "", fmt.Sprintf("agent CLI is not executable: %v", lastErr), "", builtinProbeNotExecutable
 	}
 
 	d.logger.Warn("skip registering runtime", "name", name, "attempts", attempts, "error", lastErr)
@@ -2421,7 +2439,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 	if lastErr != nil {
 		reason = fmt.Sprintf("version detection failed: %v", lastErr)
 	}
-	return "", reason, builtinProbeUnavailable
+	return "", reason, "", builtinProbeUnavailable
 }
 
 // detectBuiltinRuntimes version-detects every configured built-in agent CLI and
@@ -2470,6 +2488,9 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 	type detected struct {
 		name    string
 		version string
+		// path is the binary this round version-gated. Reused verbatim by any
+		// follow-up probe so a second resolution cannot pick a different one.
+		path string
 	}
 	// Snapshot before any probe runs: everything sampled below is at least as
 	// new as every verdict recorded up to this point, which is exactly the
@@ -2487,7 +2508,7 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 	for name, entry := range d.agents() {
 		name, entry := name, entry
 		g.Go(func() error {
-			version, reason, verdict := d.probeBuiltinRuntime(ctx, name, entry)
+			version, reason, execPath, verdict := d.probeBuiltinRuntime(ctx, name, entry)
 			if verdict != builtinProbeOK {
 				// A not-executable verdict is deterministic, but the file can be
 				// unreadable for a moment while an installer overwrites it in
@@ -2509,7 +2530,7 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 			}
 			d.clearNotExecutable(name)
 			mu.Lock()
-			results = append(results, detected{name: name, version: version})
+			results = append(results, detected{name: name, version: version, path: execPath})
 			mu.Unlock()
 			return nil
 		})
@@ -2546,12 +2567,19 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 		if d.cfg.DeviceName != "" {
 			displayName = fmt.Sprintf("%s (%s)", displayName, d.cfg.DeviceName)
 		}
-		runtimes = append(runtimes, map[string]string{
+		entry := map[string]string{
 			"name":    displayName,
 			"type":    r.name,
 			"version": r.version,
 			"status":  "online",
-		})
+		}
+		// Report the CLI's own sign-in state so a runtime that was ALREADY
+		// authenticated stops reading as unknown until someone signs in through
+		// the product. Omitted when the provider cannot be asked.
+		if state := d.cliAuthStateForProvider(ctx, r.name, r.path); state != "" {
+			entry["cli_auth"] = state
+		}
+		runtimes = append(runtimes, entry)
 	}
 	return runtimes, demotable, unavailable
 }
@@ -2687,6 +2715,10 @@ func (d *Daemon) registerRuntimesForWorkspaceBatchLocked(ctx context.Context, wo
 		"launched_by":       d.cfg.LaunchedBy,
 		"runtimes":          runtimes,
 		"failed_profiles":   failedProfiles,
+		// Diagnostic: providers found on this machine that the last probe
+		// round refused to register, so the server can show the reason next to
+		// the machine instead of the CLI simply being absent (MUL-5439).
+		"skipped_agents": d.skippedAgentsSnapshot(),
 	}
 
 	resp, err := d.client.Register(ctx, req)
@@ -2734,6 +2766,7 @@ func (d *Daemon) registerBuiltinRuntimesForWorkspaceLocked(ctx context.Context, 
 		// Deliberately empty: this call carries no profiles, so it must not
 		// report profile failures either.
 		"failed_profiles": []map[string]string{},
+		"skipped_agents":  d.skippedAgentsSnapshot(),
 	}
 	resp, err := d.client.Register(ctx, req)
 	if err != nil {
