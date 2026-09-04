@@ -10,10 +10,17 @@ import (
 )
 
 func cronPreviewRequest(expr, tz string) *http.Request {
+	return cronPreviewWindowRequest(expr, tz, "")
+}
+
+func cronPreviewWindowRequest(expr, tz, windowMinutes string) *http.Request {
 	q := url.Values{}
 	q.Set("expr", expr)
 	if tz != "" {
 		q.Set("tz", tz)
+	}
+	if windowMinutes != "" {
+		q.Set("window_minutes", windowMinutes)
 	}
 	return newRequest("GET", "/api/autopilots/cron-preview?"+q.Encode(), nil)
 }
@@ -183,6 +190,104 @@ func TestCronPreview_BadRequests(t *testing.T) {
 			}
 			if body.Code != tc.code {
 				t.Fatalf("expected code %q, got %q", tc.code, body.Code)
+			}
+		})
+	}
+}
+
+// A windowed trigger fires at a minute the scheduler picks inside the band, so
+// the preview has to show that minute — a preview pinned to the band's start
+// names a time the trigger never fires at.
+func TestCronPreview_WindowShiftsOccurrencesInsideTheBand(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	w := httptest.NewRecorder()
+	testHandler.CronPreview(w, cronPreviewWindowRequest("0 9 * * *", "UTC", "120"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	runs := decodeCronPreview(t, w)
+	if len(runs) != 3 {
+		t.Fatalf("expected 3 next_runs, got %d: %v", len(runs), runs)
+	}
+	var prev time.Time
+	for i, s := range runs {
+		ts, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatalf("next_runs[%d] = %q is not RFC3339: %v", i, s, err)
+		}
+		minutes := ts.UTC().Hour()*60 + ts.UTC().Minute()
+		if minutes < 9*60 || minutes >= 11*60 {
+			t.Fatalf("next_runs[%d] = %q is outside the 09:00-11:00 band", i, s)
+		}
+		if i > 0 && !ts.After(prev) {
+			t.Fatalf("next_runs not strictly ascending: %v", runs)
+		}
+		prev = ts
+	}
+}
+
+// A zero band is the same request as no band at all.
+func TestCronPreview_ZeroWindowFiresOnTheCron(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	w := httptest.NewRecorder()
+	testHandler.CronPreview(w, cronPreviewWindowRequest("0 9 * * *", "UTC", "0"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	for i, s := range decodeCronPreview(t, w) {
+		ts, err := time.Parse(time.RFC3339, s)
+		if err != nil {
+			t.Fatalf("next_runs[%d] not RFC3339: %v", i, err)
+		}
+		if ts.UTC().Hour() != 9 || ts.UTC().Minute() != 0 {
+			t.Fatalf("next_runs[%d] = %q, want exactly 09:00 UTC", i, s)
+		}
+	}
+}
+
+// An expression that never fires again stays a 200 with an empty list once a
+// band is asked for too — the windowed search reports that as an error, and
+// turning it into a 400 would also block the trigger from being saved.
+func TestCronPreview_WindowedNeverFiringExpression(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	w := httptest.NewRecorder()
+	testHandler.CronPreview(w, cronPreviewWindowRequest("0 0 30 2 *", "UTC", "60"))
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+	if runs := decodeCronPreview(t, w); len(runs) != 0 {
+		t.Fatalf("expected no next_runs, got %v", runs)
+	}
+}
+
+// The preview bounds the band exactly as the trigger write paths do, so it can
+// never promise a schedule the PATCH would refuse.
+func TestCronPreview_RejectsUnusableWindow(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	for _, raw := range []string{"abc", "-1", "1440"} {
+		t.Run(raw, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			testHandler.CronPreview(w, cronPreviewWindowRequest("0 9 * * *", "UTC", raw))
+			if w.Code != http.StatusBadRequest {
+				t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+			}
+			var body struct {
+				Error string `json:"error"`
+				Code  string `json:"code"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil || body.Error == "" {
+				t.Fatalf("expected an error body, got %s", w.Body.String())
+			}
+			if body.Code != cronPreviewInvalidWindow {
+				t.Fatalf("expected code %q, got %q", cronPreviewInvalidWindow, body.Code)
 			}
 		})
 	}

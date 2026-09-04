@@ -36,12 +36,16 @@ const previewFailure = {
 // expired-preview refresh is an *extra* fetch on top of the first one, so its
 // absence for a given expression is visible as a missing entry here.
 const previewCalls: string[] = [];
+// Same, for the firing band: the band is not in the expression, so a preview
+// that ignores it lists instants the trigger will never fire at.
+const previewWindows: number[] = [];
 
 vi.mock("@multica/core/autopilots/queries", () => ({
   cronPreviewOptions: (
     wsId: string,
     expr: string,
     tz: string,
+    windowMinutes: number,
     options?: { enabled?: boolean },
   ) => ({
     queryKey: [
@@ -50,6 +54,7 @@ vi.mock("@multica/core/autopilots/queries", () => ({
       "cron-preview",
       expr,
       tz,
+      windowMinutes,
       previewFailure.transport,
       previewFailure.unreadable,
       previewFailure.badTimezone,
@@ -58,6 +63,7 @@ vi.mock("@multica/core/autopilots/queries", () => ({
     ],
     queryFn: async () => {
       previewCalls.push(expr);
+      previewWindows.push(windowMinutes);
       if (previewFailure.expired) {
         // A shared instant, deliberately: the guard must tell the two
         // expressions apart, and it cannot do that from the timestamp alone.
@@ -1118,6 +1124,14 @@ describe("ScheduleEditor firing band", () => {
 
     await waitFor(() => expect(cronOut()).toBe("*/15 * * * *"));
     expect(windowOut()).toBe("0");
+  });
+
+  it("tells the preview endpoint about the band", async () => {
+    previewWindows.length = 0;
+    renderEditor({ ...cron("0 8 * * *"), windowMinutes: 120 });
+    await waitFor(() => expect(screen.getByText("Next runs")).toBeInTheDocument());
+
+    expect(previewWindows).toContain(120);
   });
 
   it("keeps the band through a TZ= promotion", async () => {

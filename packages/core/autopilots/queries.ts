@@ -15,8 +15,8 @@ export const autopilotKeys = {
     [...autopilotKeys.all(wsId), "deliveries", id] as const,
   delivery: (wsId: string, autopilotId: string, deliveryId: string) =>
     [...autopilotKeys.all(wsId), "deliveries", autopilotId, deliveryId] as const,
-  cronPreview: (wsId: string, expr: string, tz: string) =>
-    [...autopilotKeys.all(wsId), "cron-preview", expr, tz] as const,
+  cronPreview: (wsId: string, expr: string, tz: string, windowMinutes: number) =>
+    [...autopilotKeys.all(wsId), "cron-preview", expr, tz, windowMinutes] as const,
 };
 
 export function autopilotQuotaUsageOptions(wsId: string) {
@@ -107,11 +107,15 @@ export function cronPreviewOptions(
   wsId: string,
   expr: string,
   tz: string,
+  // The firing band is not in the expression, so it has to be part of the key
+  // as well as the request — the same cron with and without a band previews to
+  // different instants.
+  windowMinutes: number,
   options?: { enabled?: boolean },
 ) {
   return queryOptions({
-    queryKey: autopilotKeys.cronPreview(wsId, expr, tz),
-    queryFn: () => api.cronPreview({ expr, tz }),
+    queryKey: autopilotKeys.cronPreview(wsId, expr, tz, windowMinutes),
+    queryFn: () => api.cronPreview({ expr, tz, windowMinutes }),
     enabled: options?.enabled ?? true,
     staleTime: 30_000,
     // A 400 (invalid expression/timezone) is a stable answer for this input,

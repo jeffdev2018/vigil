@@ -400,8 +400,11 @@ export function ScheduleEditor({
   // the committed expression, not the draft — validation happens once the cron
   // field is left, never on every keystroke.
   const previewExpr = useDebouncedValue(committedCron, PREVIEW_DEBOUNCE_MS);
+  // The band shifts every instant the preview lists, so it is debounced with the
+  // expression rather than firing its own request on each band edit.
+  const previewWindow = useDebouncedValue(effectiveWindowMinutes(value), PREVIEW_DEBOUNCE_MS);
   const preview = useQuery(
-    cronPreviewOptions(wsId, previewExpr, value.timezone, {
+    cronPreviewOptions(wsId, previewExpr, value.timezone, previewWindow, {
       enabled: previewExpr.trim().length > 0,
     }),
   );

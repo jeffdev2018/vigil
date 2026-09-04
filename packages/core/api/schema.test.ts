@@ -841,6 +841,20 @@ describe("ApiClient schema fallback", () => {
       expect(url).toContain("tz=Asia%2FShanghai");
     });
 
+    it("sends the firing band", async () => {
+      stubFetchJson({ next_runs: [] });
+      const client = new ApiClient("https://api.example.test");
+      await client.cronPreview({ expr: "0 9 * * *", tz: "UTC", windowMinutes: 120 });
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).toContain("window_minutes=120");
+    });
+
+    it("omits the band when the schedule fires exactly on the cron", async () => {
+      stubFetchJson({ next_runs: [] });
+      const client = new ApiClient("https://api.example.test");
+      await client.cronPreview({ expr: "0 9 * * *", tz: "UTC", windowMinutes: 0 });
+      expect(String(vi.mocked(fetch).mock.calls[0]?.[0])).not.toContain("window_minutes");
+    });
+
     it("returns an empty list verbatim when the expression never fires", async () => {
       stubFetchJson({ next_runs: [] });
       const client = new ApiClient("https://api.example.test");
