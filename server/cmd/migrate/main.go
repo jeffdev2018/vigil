@@ -326,6 +326,13 @@ var concurrentIndexCleanups = map[string]string{
 	"508_decision_search_chunk_tsv_index":                       "idx_decision_search_chunk_tsv",
 	"509_decision_search_chunk_workspace_index":                 "idx_decision_search_chunk_workspace",
 	"511_trust_mode_change_agent_index":                         "idx_trust_mode_change_agent",
+	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
+	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
+	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",
+	"519_triage_item_pending_index":                             "idx_triage_item_pending",
+	"520_triage_item_dedupe_index":                              "uq_triage_item_dedupe",
+	"521_triage_item_pending_title_index":                       "uq_triage_item_pending_title",
+	"522_triage_item_issue_index":                               "idx_triage_item_issue",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

@@ -253,6 +253,13 @@ import type {
   AcceptanceCriterion,
   DecisionAnswer,
   AttentionInboxItem,
+  TriageStats,
+  TriageItemsResponse,
+  TriageItemState,
+  TriageSourceMode,
+  TriageBatchAcceptResponse,
+  AcceptTriageItemResponse,
+  DismissTriageItemResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -369,6 +376,13 @@ import {
   UNREADABLE_CRON_PREVIEW_RESPONSE,
   ListIssuesResponseSchema,
   IssueDependenciesResponseSchema,
+  TriageStatsSchema,
+  TriageItemsResponseSchema,
+  TriageBatchAcceptResponseSchema,
+  AcceptTriageItemResponseSchema,
+  DismissTriageItemResponseSchema,
+  EMPTY_TRIAGE_STATS,
+  EMPTY_TRIAGE_ITEMS_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -1552,6 +1566,94 @@ export class ApiClient {
     return parseWithFallback(raw, PlanVerificationsResponseSchema, { verifications: [] }, {
       endpoint: "GET /api/issues/:id/plan/verifications",
     }).verifications;
+  }
+
+  // Triage queue (M2). Stats summarize the visible queue; items lists one
+  // state (default pending) newest-first with keyset pagination.
+  async getTriageStats(options?: { signal?: AbortSignal }): Promise<TriageStats> {
+    const raw = await this.fetch<unknown>(
+      "/api/triage/stats",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<TriageStats>(
+      raw,
+      TriageStatsSchema,
+      EMPTY_TRIAGE_STATS,
+      { endpoint: "GET /api/triage/stats" },
+    );
+  }
+
+  async listTriageItems(
+    params?: { state?: TriageItemState; limit?: number; cursor?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<TriageItemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<TriageItemsResponse>(
+      raw,
+      TriageItemsResponseSchema,
+      EMPTY_TRIAGE_ITEMS_RESPONSE,
+      { endpoint: "GET /api/triage/items" },
+    );
+  }
+
+  async acceptTriageItem(itemId: string): Promise<AcceptTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/accept`,
+      { method: "POST" },
+    );
+    return parseWithFallback<AcceptTriageItemResponse>(
+      raw,
+      AcceptTriageItemResponseSchema,
+      { item_id: itemId, state: "accepted" },
+      { endpoint: "POST /api/triage/items/:id/accept" },
+    );
+  }
+
+  async dismissTriageItem(
+    itemId: string,
+    data?: { reason?: string },
+  ): Promise<DismissTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/dismiss`,
+      { method: "POST", body: JSON.stringify(data ?? {}) },
+    );
+    return parseWithFallback<DismissTriageItemResponse>(
+      raw,
+      DismissTriageItemResponseSchema,
+      { item_id: itemId, state: "dismissed" },
+      { endpoint: "POST /api/triage/items/:id/dismiss" },
+    );
+  }
+
+  async batchAcceptTriageItems(ids: string[]): Promise<TriageBatchAcceptResponse> {
+    const raw = await this.fetch<unknown>("/api/triage/items/batch-accept", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+    return parseWithFallback<TriageBatchAcceptResponse>(
+      raw,
+      TriageBatchAcceptResponseSchema,
+      { items: [] },
+      { endpoint: "POST /api/triage/items/batch-accept" },
+    );
+  }
+
+  async updateTriageSourceMode(
+    sourceId: string,
+    mode: TriageSourceMode,
+  ): Promise<void> {
+    await this.fetch(`/api/triage/sources/${encodeURIComponent(sourceId)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ mode }),
+    });
   }
 
   async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {

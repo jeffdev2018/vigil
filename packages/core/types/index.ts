@@ -114,6 +114,20 @@ export type {
   PluginTokenIssue,
 } from "./plugin";
 export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem } from "./inbox";
+export type {
+  TriageItem,
+  TriageItemPayload,
+  TriageItemState,
+  TriageSource,
+  TriageSourceMode,
+  TriageStats,
+  TriageItemsResponse,
+  TriageBatchOutcome,
+  TriageBatchAcceptResult,
+  TriageBatchAcceptResponse,
+  AcceptTriageItemResponse,
+  DismissTriageItemResponse,
+} from "./triage";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";

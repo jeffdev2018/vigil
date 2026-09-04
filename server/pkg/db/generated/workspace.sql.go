@@ -139,6 +139,12 @@ cleared_issue_properties AS (
 cleared_quick_actions AS (
     DELETE FROM quick_action WHERE workspace_id = $1
 ),
+cleared_triage_items AS (
+    DELETE FROM triage_item WHERE workspace_id = $1
+),
+cleared_triage_sources AS (
+    DELETE FROM triage_source WHERE workspace_id = $1
+),
 ws_mcp_servers AS (
     SELECT id FROM workspace_mcp_server WHERE workspace_id = $1
 ),
@@ -196,6 +202,8 @@ DELETE FROM workspace WHERE workspace.id = $1
 // tables the DELETE below sweeps — they are not cleaned up implicitly. Remove
 // their workspace-owned rows here so they commit or roll back atomically with
 // the workspace row.
+// Triage tables carry no FK by repo rule, so the DELETE below does not reach
+// them. Items first only for readability — with no FK either order commits.
 // VCS tables (migration 213) carry no FK to workspace, so they are not cascaded
 // away by the DELETE below. Sweep the workspace's connections, mirrored PRs,
 // their issue links, and CI statuses here. issue_vcs_pull_request has no

@@ -1,0 +1,50 @@
+{
+  "title": "待审核",
+  "subtitle": "在入站 webhook 投递变成任务之前先审核它们",
+  "stats": {
+    "pending": "{{count}} 个待审核",
+    "oldest": "等待最久 {{age}}",
+    "dropped_24h": "24 小时内丢弃 {{count}} 个",
+    "none_pending": "队列已清空"
+  },
+  "sources": {
+    "label": "来源",
+    "empty": "暂无入站来源",
+    "items_24h": "24 小时内 {{count}} 个",
+    "mode": {
+      "gate": "拦截",
+      "direct": "直接",
+      "blocked": "阻止"
+    }
+  },
+  "list": {
+    "empty_title": "队列已清空",
+    "empty_description": "当来源设为拦截时，它的 webhook 投递会在这里等待，直到有人接受或丢弃。",
+    "loading": "正在加载待审核队列",
+    "load_error": "无法加载待审核队列"
+  },
+  "detail": {
+    "select_prompt": "选择一项进行审核",
+    "from_source": "来自 {{name}}",
+    "body_label": "描述",
+    "no_body": "未捕获描述",
+    "payload_label": "捕获的载荷",
+    "payload_truncated": "载荷过大，仅保留了大小",
+    "no_payload": "未捕获载荷",
+    "collapse_count": "出现 {{count}} 次",
+    "accept": "接受",
+    "accepting": "正在接受",
+    "dismiss": "丢弃",
+    "dismissing": "正在丢弃",
+    "accepted_toast": "已接受，任务已创建",
+    "dismissed_toast": "已丢弃",
+    "merged_toast": "已作为 {{identifier}} 跟踪，已合并",
+    "limit_toast": "已达任务上限，该项保留在队列中",
+    "error_toast": "出了点问题"
+  },
+  "batch": {
+    "accept": "接受 {{count}} 项",
+    "clear": "清除选择",
+    "stopped_toast": "已停止，工作区已达任务上限"
+  }
+}

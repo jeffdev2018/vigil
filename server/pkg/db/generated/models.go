@@ -1632,6 +1632,60 @@ type TaskUsageHourlyRollupState struct {
 	LastError         pgtype.Text        `json:"last_error"`
 }
 
+type TriageItem struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	SourceID    pgtype.UUID `json:"source_id"`
+	OriginType  string      `json:"origin_type"`
+	OriginID    pgtype.UUID `json:"origin_id"`
+	ActorType   pgtype.Text `json:"actor_type"`
+	ActorID     pgtype.UUID `json:"actor_id"`
+	// Transport-level idempotency key (Idempotency-Key / X-GitHub-Delivery). Empty for unsigned senders; content_digest is the fallback then.
+	DedupeKey     string `json:"dedupe_key"`
+	ContentDigest string `json:"content_digest"`
+	Title         string `json:"title"`
+	// lower(btrim(regexp_replace(title, '[[:space:]]+', ' ', 'g'))) — the same normalization issueguard uses, so queue collapse and issue duplicate detection agree.
+	NormalizedTitle    string             `json:"normalized_title"`
+	BodyMarkdown       string             `json:"body_markdown"`
+	Payload            []byte             `json:"payload"`
+	State              string             `json:"state"`
+	DropReason         pgtype.Text        `json:"drop_reason"`
+	ResolutionReason   pgtype.Text        `json:"resolution_reason"`
+	CollapseCount      int32              `json:"collapse_count"`
+	Verdict            []byte             `json:"verdict"`
+	VerdictAgentID     pgtype.UUID        `json:"verdict_agent_id"`
+	VerdictAt          pgtype.Timestamptz `json:"verdict_at"`
+	VerdictRevision    int64              `json:"verdict_revision"`
+	IssueID            pgtype.UUID        `json:"issue_id"`
+	DuplicateOfIssueID pgtype.UUID        `json:"duplicate_of_issue_id"`
+	ReplacedByItemID   pgtype.UUID        `json:"replaced_by_item_id"`
+	// true = captured for measurement while the source is still routed direct; never shown in the triage queue.
+	Shadow         bool               `json:"shadow"`
+	FirstSeenAt    pgtype.Timestamptz `json:"first_seen_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedByType pgtype.Text        `json:"resolved_by_type"`
+	ResolvedByID   pgtype.UUID        `json:"resolved_by_id"`
+	Revision       int64              `json:"revision"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TriageSource struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Kind        string             `json:"kind"`
+	RefID       pgtype.UUID        `json:"ref_id"`
+	Name        string             `json:"name"`
+	Icon        string             `json:"icon"`
+	Mode        string             `json:"mode"`
+	AutoAccept  []byte             `json:"auto_accept"`
+	CapPerHour  int32              `json:"cap_per_hour"`
+	ExpiryDays  int32              `json:"expiry_days"`
+	CreatedByID pgtype.UUID        `json:"created_by_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TrustModeChange struct {
 	ID              pgtype.UUID        `json:"id"`
 	WorkspaceID     pgtype.UUID        `json:"workspace_id"`

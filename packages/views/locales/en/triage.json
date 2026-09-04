@@ -1,0 +1,50 @@
+{
+  "title": "Triage",
+  "subtitle": "Review inbound webhook deliveries before they become issues",
+  "stats": {
+    "pending": "{{count}} pending",
+    "oldest": "Oldest waiting {{age}}",
+    "dropped_24h": "{{count}} dropped in 24h",
+    "none_pending": "Queue is clear"
+  },
+  "sources": {
+    "label": "Sources",
+    "empty": "No inbound sources yet",
+    "items_24h": "{{count}} in 24h",
+    "mode": {
+      "gate": "Gate",
+      "direct": "Direct",
+      "blocked": "Blocked"
+    }
+  },
+  "list": {
+    "empty_title": "Queue is clear",
+    "empty_description": "When a source is set to Gate, its webhook deliveries wait here until a human accepts or dismisses them.",
+    "loading": "Loading triage queue",
+    "load_error": "Could not load the triage queue"
+  },
+  "detail": {
+    "select_prompt": "Select an item to review it",
+    "from_source": "From {{name}}",
+    "body_label": "Description",
+    "no_body": "No description captured",
+    "payload_label": "Captured payload",
+    "payload_truncated": "Payload too large — only its size was kept",
+    "no_payload": "No payload captured",
+    "collapse_count": "Seen {{count}} times",
+    "accept": "Accept",
+    "accepting": "Accepting",
+    "dismiss": "Dismiss",
+    "dismissing": "Dismissing",
+    "accepted_toast": "Accepted — issue created",
+    "dismissed_toast": "Dismissed",
+    "merged_toast": "Already tracked as {{identifier}} — merged",
+    "limit_toast": "Issue limit reached — the item stays in the queue",
+    "error_toast": "Something went wrong"
+  },
+  "batch": {
+    "accept": "Accept {{count}}",
+    "clear": "Clear selection",
+    "stopped_toast": "Stopped — the workspace reached its issue limit"
+  }
+}

@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS triage_item_pkey_uidx;
