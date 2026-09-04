@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AudioLines,
@@ -40,6 +40,7 @@ import { useT, useTimeAgo } from "../../i18n";
 import { TitleEditor } from "../../editor";
 import { useNavigation } from "../../navigation";
 import { DeleteMeetingDialog } from "./delete-meeting-dialog";
+import { parseTranscriptBlocks } from "../transcript-speakers";
 import { MeetingRecorderPanel } from "./meeting-recorder";
 import { meetingStatusDotClass } from "./meetings-page";
 
@@ -415,6 +416,31 @@ function ActionRow({ action }: { action: MeetingAction }) {
   );
 }
 
+/**
+ * The transcript, one paragraph per speaker turn. A diarized batch transcript
+ * arrives as "Speaker 1: …" lines; a live one has no speakers and renders as
+ * plain paragraphs (see transcript-speakers.ts for the parsing rules).
+ */
+function TranscriptBody({ transcript }: { transcript: string }) {
+  const blocks = useMemo(() => parseTranscriptBlocks(transcript), [transcript]);
+  return (
+    <div className="max-h-96 overflow-auto rounded-lg border bg-muted/40 p-3">
+      <div className="flex flex-col gap-3">
+        {blocks.map((block, index) => (
+          <p key={index} className="text-caption leading-relaxed">
+            {block.speaker ? (
+              <span className="mr-2 font-medium text-muted-foreground">
+                {block.speaker}
+              </span>
+            ) : null}
+            <span className="whitespace-pre-wrap">{block.text}</span>
+          </p>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function TranscriptSection({ transcript }: { transcript: string }) {
   const { t } = useT("meetings");
   // Collapsed by default: a transcript is long, and the summary above it is
@@ -441,11 +467,7 @@ function TranscriptSection({ transcript }: { transcript: string }) {
               ? t(($) => $.detail.transcript_hide)
               : t(($) => $.detail.transcript_show)}
           </button>
-          {open ? (
-            <pre className="max-h-96 overflow-auto rounded-lg border bg-muted/40 p-3 font-mono text-caption whitespace-pre-wrap">
-              {transcript}
-            </pre>
-          ) : null}
+          {open ? <TranscriptBody transcript={transcript} /> : null}
         </>
       ) : (
         <p className="text-caption text-muted-foreground">

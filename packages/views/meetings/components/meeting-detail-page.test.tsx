@@ -234,6 +234,19 @@ describe("MeetingDetailPage", () => {
     expect(await screen.findByText(/no summary yet/i)).toBeTruthy();
   });
 
+  // The parsing rules themselves are pinned in transcript-speakers.test.ts;
+  // this only checks the wiring.
+  it("renders a diarized transcript as labelled paragraphs", async () => {
+    data.meeting = meeting({
+      transcript: "Speaker 1: On livre vendredi.\nSpeaker 2: Ok.",
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /show transcript/i }));
+    expect(screen.getByText("Speaker 1")).toBeTruthy();
+    expect(screen.getByText("On livre vendredi.")).toBeTruthy();
+    expect(screen.getByText("Speaker 2")).toBeTruthy();
+  });
+
   it("deleting confirms, awaits the server, then returns to the list", async () => {
     const adapter = renderPage();
     fireEvent.click(await screen.findByRole("button", { name: /^delete$/i }));
