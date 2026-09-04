@@ -30,15 +30,16 @@ const POLL_INTERVAL_MS = 1_000;
 const HELPER_MAX_RESTARTS = 3;
 
 /**
- * Path to the compiled helper, resolved the same way `bundledCliPath()` in
- * daemon-manager.ts resolves the Go CLI:
- *  - dev: `app.getAppPath()` → `apps/desktop`, i.e. `resources/bin/mic-monitor`
- *    (staged by `scripts/bundle-mic-monitor.mjs` before dev starts).
- *  - packaged: `asarUnpack: resources/**` extracts it next to `app.asar`, so
- *    swap the segment to get an executable filesystem path.
+ * Path to the compiled helper. Resolved from this file's location, like
+ * BUNDLED_ICON_PATH in index.ts, so it holds however Electron was started
+ * (`electron .`, `electron out/main/index.js`, packaged):
+ *  - dev: `out/main` → `../../resources/bin/mic-monitor`, staged by
+ *    `scripts/bundle-mic-monitor.mjs` before dev starts.
+ *  - packaged: `asarUnpack: resources/**` extracts it next to `app.asar`,
+ *    while `__dirname` resolves into `app.asar/`, hence the replace.
  */
 export function micMonitorPath(): string {
-  return join(app.getAppPath(), "resources", "bin", "mic-monitor").replace(
+  return join(__dirname, "..", "..", "resources", "bin", "mic-monitor").replace(
     "app.asar",
     "app.asar.unpacked",
   );
