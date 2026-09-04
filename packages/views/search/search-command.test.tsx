@@ -208,6 +208,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
   useWorkspacePaths: () => ({
     inbox: () => "/ws-test/inbox",
     triage: () => "/ws-test/triage",
+    meetings: () => "/ws-test/meetings",
     chat: () => "/ws-test/chat",
     myIssues: () => "/ws-test/my-issues",
     issues: () => "/ws-test/issues",

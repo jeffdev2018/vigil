@@ -366,3 +366,10 @@ export type { AgentVersion, AgentVersionDiff } from "./agent";
 export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
 export type { DecisionRecord, ADRRequirement, BlastRadiusLevel, BlastRadiusRule, BlastRadiusPreview } from "./workspace";
 export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleAction, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";
+export type {
+  Meeting,
+  MeetingAction,
+  MeetingStatus,
+  MeetingListResponse,
+  MeetingSegmentResponse,
+} from "./meeting";

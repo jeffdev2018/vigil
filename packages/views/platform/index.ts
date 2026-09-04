@@ -25,3 +25,10 @@ export {
   type ScrollRestorationAdapter,
   type ScrollRestorationEntry,
 } from "./scroll-restoration";
+export {
+  isMeetingDetectionSupported,
+  subscribeMeetingDetected,
+  setMeetingSelfCapture,
+  type DetectedMeeting,
+  type DetectedMeetingKind,
+} from "./meeting-detection";

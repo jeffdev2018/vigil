@@ -37,6 +37,12 @@ asarUnpack:
   - resources/**
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  # TCC purpose strings for the meeting recorder. macOS refuses the capture
+  # outright (no prompt, no error the app can read) when the Info.plist has
+  # no usage description for the device being asked for.
+  extendInfo:
+    NSMicrophoneUsageDescription: Multica records meetings from your microphone so it can transcribe them and extract action items.
+    NSAudioCaptureUsageDescription: Multica captures system audio so remote participants are included in the meeting transcript.
   target:
     - dmg
     - zip

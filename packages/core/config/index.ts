@@ -37,6 +37,9 @@ interface ConfigState {
   // Older handlers accepted the unknown field and returned success while
   // dropping it, so absent must fail closed.
   agentConversationStartersSupported: boolean;
+  // Whether this server has a speech-to-text provider (MULTICA_STT_*). Absent
+  // on older servers, which cannot record meetings either.
+  meetingTranscriptionAvailable: boolean;
   // Seconds of silence after which an active run is shown as unresponsive
   // (F02). Server-driven so MULTICA_RUN_UNRESPONSIVE_AFTER applies everywhere;
   // the default matches the server's.
@@ -56,6 +59,7 @@ interface ConfigState {
   setServerVersion: (version?: string) => void;
   setLocalWorktreeSupported: (supported?: boolean) => void;
   setAgentConversationStartersSupported: (supported?: boolean) => void;
+  setMeetingTranscriptionAvailable: (available?: boolean) => void;
   setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
 }
 
@@ -73,6 +77,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   serverVersion: "",
   localWorktreeSupported: false,
   agentConversationStartersSupported: false,
+  meetingTranscriptionAvailable: false,
   runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
@@ -89,6 +94,8 @@ export const configStore = createStore<ConfigState>((set) => ({
     set({ localWorktreeSupported: supported === true }),
   setAgentConversationStartersSupported: (supported = false) =>
     set({ agentConversationStartersSupported: supported === true }),
+  setMeetingTranscriptionAvailable: (available = false) =>
+    set({ meetingTranscriptionAvailable: available === true }),
   setRunUnresponsiveAfterSeconds: (seconds) =>
     set({
       runUnresponsiveAfterSeconds:

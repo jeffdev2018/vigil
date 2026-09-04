@@ -12,3 +12,7 @@ attribution for non-interface use. See the LICENSE file for the full text.
 
 This NOTICE file is provided for attribution purposes only and does not
 modify the Multica License.
+
+Portions derived from Rowboat (https://github.com/rowboatlabs/rowboat),
+Apache-2.0: apps/desktop/native/mic-monitor.swift and the meeting-detection
+state machine in apps/desktop/src/main/meeting-detector.ts.

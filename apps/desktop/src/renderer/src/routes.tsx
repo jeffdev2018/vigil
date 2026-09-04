@@ -30,6 +30,8 @@ import {
 import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@multica/views/squads/components";
 import { InboxPage } from "@multica/views/inbox";
 import { TriagePage } from "@multica/views/triage";
+import { MeetingsPage } from "@multica/views/meetings";
+import { MeetingDetailPage } from "./pages/meeting-detail-page";
 import { ChatPage } from "@multica/views/chat";
 import { SettingsPage } from "@multica/views/settings";
 import { useT } from "@multica/views/i18n";
@@ -229,6 +231,16 @@ export const appRoutes: RouteObject[] = [
           },
           { path: "inbox", element: <InboxPage />, handle: { title: "Inbox" } },
           { path: "triage", element: <TriagePage />, handle: { title: "Triage" } },
+          {
+            path: "meetings",
+            element: <MeetingsPage />,
+            handle: { title: "Meetings" },
+          },
+          {
+            path: "meetings/:id",
+            element: <MeetingDetailPage />,
+            handle: { title: "Meeting" },
+          },
           { path: "chat", element: <ChatPage />, handle: { title: "Chat" } },
           {
             path: "attachments/:id/preview",

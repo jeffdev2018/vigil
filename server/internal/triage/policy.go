@@ -54,6 +54,9 @@ const (
 	SourceChannel           = "channel"
 	SourceAgentCreate       = "agent_create"
 	SourceQuickCreate       = "quick_create"
+	// SourceMeeting: action items extracted from a recorded meeting
+	// (ref_id = meeting.id). Always queued, never dispatched directly.
+	SourceMeeting = "meeting"
 )
 
 // Item states. pending is the only state that occupies the queue; dropped is

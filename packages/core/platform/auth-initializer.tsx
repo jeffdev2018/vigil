@@ -95,6 +95,10 @@ export function AuthInitializer({
             cfg.agent_conversation_starters_supported === true,
           );
         configStore.getState().setRunUnresponsiveAfterSeconds(cfg.run_unresponsive_after_seconds);
+        // Absent on servers without the meetings feature: recording stays hidden.
+        configStore
+          .getState()
+          .setMeetingTranscriptionAvailable(cfg.meeting_transcription_available === true);
         if (cfg.posthog_key) {
           initAnalytics({
             key: cfg.posthog_key,

@@ -34,6 +34,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(here, "..");
 const bundleCliScript = resolve(here, "bundle-cli.mjs");
+const bundleMicMonitorScript = resolve(here, "bundle-mic-monitor.mjs");
 
 const PLATFORM_CONFIG = {
   mac: {
@@ -440,6 +441,21 @@ function main() {
         PLATFORM_CONFIG[target.platform].runtimePlatform,
         "--target-arch",
         target.arch,
+      ],
+      {
+        stdio: "inherit",
+        cwd: desktopRoot,
+      },
+    );
+
+    // After the CLI: bundle-cli.mjs clears resources/bin/ before copying.
+    // Best-effort and macOS-only — it exits 0 for every other target.
+    execFileSync(
+      "node",
+      [
+        bundleMicMonitorScript,
+        "--target-platform",
+        PLATFORM_CONFIG[target.platform].runtimePlatform,
       ],
       {
         stdio: "inherit",
