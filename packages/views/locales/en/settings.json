@@ -852,7 +852,25 @@
     "pools_degraded_none": "None",
     "pools_degraded_hint": "Order is preference. The degraded runtime only runs when every other runtime of the pool is unavailable, and the run says so.",
     "pools_save": "Save pool",
-    "pools_failed": "Failed to save the runtime pool"
+    "pools_failed": "Failed to save the runtime pool",
+    "routing_section": "Issue routing",
+    "routing_enabled": "Route issues by risk",
+    "routing_intro": "Each new run goes to the pool of its risk level. Risk comes from the project's blast radius rules matched against the paths the issue names; nothing is inferred by a model.",
+    "routing_levels": {
+      "low": "Low risk",
+      "normal": "Normal risk",
+      "high": "High risk"
+    },
+    "routing_level_hints": {
+      "low": "Every named path merges autonomously.",
+      "normal": "No rule matched, or paths inherit the project default.",
+      "high": "A named path needs dual approval or is read-only; never the cheapest pool when a better one exists."
+    },
+    "routing_pool_aria": "Pool for {{level}}",
+    "routing_pool_agent": "Agent's own pool or runtime",
+    "routing_escalation": "Escalate after consecutive failures",
+    "routing_escalation_description": "After this many failed runs in a row on an issue, the next run goes one risk level up. 0 disables escalation.",
+    "routing_failed": "Failed to save the routing policy"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

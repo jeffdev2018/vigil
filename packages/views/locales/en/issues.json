@@ -942,6 +942,18 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "routing": {
+    "label": "Routing",
+    "risk": {
+      "low": "Low risk",
+      "normal": "Normal risk",
+      "high": "High risk"
+    },
+    "pool": "Pool {{name}}",
+    "agent_pool": "agent's pool",
+    "paths": "{{count}} matched paths",
+    "escalated": "Escalated"
+  },
   "failover": {
     "section": "Runtime failover",
     "run": "Run {{id}}",

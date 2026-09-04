@@ -911,6 +911,18 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "routing": {
+    "label": "라우팅",
+    "risk": {
+      "low": "낮은 위험",
+      "normal": "보통 위험",
+      "high": "높은 위험"
+    },
+    "pool": "풀 {{name}}",
+    "agent_pool": "에이전트의 풀",
+    "paths": "일치 경로 {{count}}개",
+    "escalated": "상향됨"
+  },
   "failover": {
     "section": "런타임 전환",
     "run": "실행 {{id}}",

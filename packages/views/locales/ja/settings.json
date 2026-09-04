@@ -850,7 +850,25 @@
     "pools_degraded_none": "なし",
     "pools_degraded_hint": "順序が優先度です。縮退ランタイムはプールの他のランタイムが全て使えないときだけ動き、実行にその旨が表示されます。",
     "pools_save": "プールを保存",
-    "pools_failed": "ランタイムプールを保存できませんでした"
+    "pools_failed": "ランタイムプールを保存できませんでした",
+    "routing_section": "イシューのルーティング",
+    "routing_enabled": "リスクでイシューを振り分ける",
+    "routing_intro": "新しい実行はリスクレベルに対応するプールへ送られます。リスクはイシューが言及するパスとプロジェクトの blast radius ルールの照合から決まり、モデルによる推定はありません。",
+    "routing_levels": {
+      "low": "低リスク",
+      "normal": "通常リスク",
+      "high": "高リスク"
+    },
+    "routing_level_hints": {
+      "low": "言及されたパスが全て自律マージ可能。",
+      "normal": "一致するルールなし、またはプロジェクト既定を継承。",
+      "high": "言及されたパスに二重承認または読み取り専用が必要。より良いプールがあれば最安プールには送りません。"
+    },
+    "routing_pool_aria": "{{level}} のプール",
+    "routing_pool_agent": "エージェント自身のプールまたはランタイム",
+    "routing_escalation": "連続失敗でエスカレーション",
+    "routing_escalation_description": "イシューでこの回数連続して実行が失敗すると、次の実行はリスクレベルを一段上げます。0 で無効。",
+    "routing_failed": "ルーティング設定を保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

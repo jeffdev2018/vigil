@@ -328,6 +328,8 @@ export interface AgentTask {
   /** Runtime pools (K28): the moves this run made; `degraded` when it landed on the local last resort. */
   failover_history?: { from_runtime_id: string; to_runtime_id: string; reason: string; degraded: boolean; at: string }[] | null;
   degraded?: boolean;
+  /** Issue router (K27): risk level, pool and escalation behind this run. */
+  routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;

@@ -911,6 +911,18 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "routing": {
+    "label": "路由",
+    "risk": {
+      "low": "低风险",
+      "normal": "一般风险",
+      "high": "高风险"
+    },
+    "pool": "池 {{name}}",
+    "agent_pool": "智能体的池",
+    "paths": "{{count}} 个匹配路径",
+    "escalated": "已升级"
+  },
   "failover": {
     "section": "运行时切换",
     "run": "运行 {{id}}",
