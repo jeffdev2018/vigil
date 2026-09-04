@@ -28,7 +28,8 @@
     "empty_description": "当来源设为拦截时，它的 webhook 投递会在这里等待，直到有人接受或丢弃。",
     "loading": "正在加载待审核队列",
     "load_error": "无法加载待审核队列",
-    "empty_history_title": "这里还没有内容"
+    "empty_history_title": "这里还没有内容",
+    "load_more": "加载更多"
   },
   "detail": {
     "select_prompt": "选择一项进行审核",

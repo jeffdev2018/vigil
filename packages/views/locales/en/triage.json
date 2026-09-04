@@ -28,7 +28,8 @@
     "empty_description": "When a source is set to Gate, its webhook deliveries wait here until a human accepts or dismisses them.",
     "loading": "Loading triage queue",
     "load_error": "Could not load the triage queue",
-    "empty_history_title": "Nothing here yet"
+    "empty_history_title": "Nothing here yet",
+    "load_more": "Load more"
   },
   "detail": {
     "select_prompt": "Select an item to review it",

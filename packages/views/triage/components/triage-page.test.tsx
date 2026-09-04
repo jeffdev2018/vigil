@@ -58,6 +58,25 @@ const data = vi.hoisted(() => ({
     ],
     next_cursor: undefined,
   } as TriageItemsResponse,
+  itemsPage2: {
+    items: [
+      {
+        id: "item-2",
+        source_id: "src-1",
+        source_name: "Sentry",
+        source_kind: "autopilot_webhook",
+        origin_type: "autopilot",
+        title: "Second page delivery",
+        body_markdown: "",
+        payload: {},
+        state: "pending",
+        collapse_count: 1,
+        first_seen_at: "2025-12-31T00:00:00Z",
+        revision: 1,
+      },
+    ],
+    next_cursor: undefined,
+  } as TriageItemsResponse,
   dismissed: {
     items: [
       {
@@ -85,10 +104,15 @@ vi.mock("@multica/core/triage/queries", () => ({
     queryKey: ["triage", "ws-1", "stats"],
     queryFn: async () => data.stats,
   }),
-  triageItemsOptions: (_wsId: string, state: string) => ({
+  triageItemsInfiniteOptions: (_wsId: string, state: string) => ({
     queryKey: ["triage", "ws-1", "items", state],
-    queryFn: async () =>
-      state === "dismissed" ? data.dismissed : state === "pending" ? data.items : { items: [] },
+    queryFn: async ({ pageParam }: { pageParam: string }) => {
+      if (state === "dismissed") return data.dismissed;
+      if (state !== "pending") return { items: [] };
+      return pageParam ? data.itemsPage2 : data.items;
+    },
+    initialPageParam: "",
+    getNextPageParam: (last: { next_cursor?: string }) => last.next_cursor || undefined,
   }),
   triageSuggestionsOptions: () => ({
     queryKey: ["triage", "ws-1", "suggestions", ""],
@@ -127,6 +151,7 @@ function renderPage() {
 describe("TriagePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    data.items.next_cursor = undefined;
     data.items.items = [
       {
         id: "item-1",
@@ -199,6 +224,21 @@ describe("TriagePage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /reopen/i }));
     expect(mutations.reopen).toHaveBeenCalledWith("item-9", expect.anything());
+  });
+
+  // The server has always returned next_cursor; before this the page dropped
+  // it and the queue silently stopped at the first page.
+  it("walks next_cursor through a Load more button", async () => {
+    data.items.next_cursor = "cursor-1";
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    expect(screen.queryByText("Second page delivery")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(await screen.findByText("Second page delivery")).toBeTruthy();
+    await waitFor(() =>
+      expect(screen.queryByRole("button", { name: /load more/i })).toBeNull(),
+    );
   });
 
   it("checking a row reveals the batch-accept bar", async () => {

@@ -28,7 +28,8 @@
     "empty_description": "소스를 게이트로 설정하면 해당 웹훅 전달은 사람이 수락하거나 기각할 때까지 여기에 대기합니다.",
     "loading": "트리아지 대기열을 불러오는 중",
     "load_error": "트리아지 대기열을 불러올 수 없습니다",
-    "empty_history_title": "아직 아무것도 없습니다"
+    "empty_history_title": "아직 아무것도 없습니다",
+    "load_more": "더 보기"
   },
   "detail": {
     "select_prompt": "검토할 항목을 선택하세요",

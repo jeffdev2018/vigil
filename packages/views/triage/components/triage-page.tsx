@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Inbox, Check, X, Loader2 } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { ApiError } from "@multica/core/api";
 import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
-import { triageStatsOptions, triageItemsOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
+import { triageStatsOptions, triageItemsInfiniteOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
 import { TriageSuggestionChip, TriageSuggestionPanel } from "./triage-suggestion";
 import {
   useAcceptTriageItem,
@@ -64,12 +64,15 @@ export function TriagePage() {
 
   const statsQuery = useQuery(triageStatsOptions(wsId));
   const [filterState, setFilterState] = useState<TriageItemState>("pending");
-  const itemsQuery = useQuery(triageItemsOptions(wsId, filterState));
+  const itemsQuery = useInfiniteQuery(triageItemsInfiniteOptions(wsId, filterState));
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
 
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  const items = useMemo(
+    () => itemsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [itemsQuery.data],
+  );
 
   // Triage auto-ML (K61): one request for the visible page.
 
@@ -155,6 +158,9 @@ export function TriagePage() {
           onToggleChecked={toggleChecked}
           timeAgo={timeAgo}
           suggestions={suggestions}
+          hasNextPage={itemsQuery.hasNextPage}
+          isFetchingNextPage={itemsQuery.isFetchingNextPage}
+          onLoadMore={() => void itemsQuery.fetchNextPage()}
         />
         <TriageDetail item={selected} wsId={wsId} onResolved={() => setSelectedId(null)} suggestion={selected ? suggestions[selected.id] : undefined} auto={autoSettings} />
       </div>
@@ -274,6 +280,9 @@ function TriageList({
   onToggleChecked,
   timeAgo,
   suggestions = {},
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
 }: {
   items: TriageItem[];
   state: TriageItemState;
@@ -285,6 +294,9 @@ function TriageList({
   onSelect: (id: string) => void;
   onToggleChecked: (id: string) => void;
   timeAgo: (iso: string) => string;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onLoadMore: () => void;
 }) {
   const { t } = useT("triage");
 
@@ -386,6 +398,20 @@ function TriageList({
           </li>
         );
       })}
+      {hasNextPage ? (
+        <li>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="w-full"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+          >
+            {t(($) => $.list.load_more)}
+          </Button>
+        </li>
+      ) : null}
     </ul>
   );
 }

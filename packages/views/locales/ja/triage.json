@@ -28,7 +28,8 @@
     "empty_description": "ソースをゲートに設定すると、その Webhook 配信はここで待機し、人が承認または却下するまで保留されます。",
     "loading": "トリアージキューを読み込み中",
     "load_error": "トリアージキューを読み込めませんでした",
-    "empty_history_title": "まだ何もありません"
+    "empty_history_title": "まだ何もありません",
+    "load_more": "さらに読み込む"
   },
   "detail": {
     "select_prompt": "確認する項目を選択してください",

@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 import type { TriageItemState } from "../types";
 
@@ -23,14 +23,18 @@ export function triageStatsOptions(wsId: string) {
 }
 
 /**
- * One visible queue state (default pending), newest first. Keyset-paginated;
- * the page fetches the first page and the server returns `next_cursor`.
+ * One visible queue state (default pending), newest first. Keyset-paginated:
+ * the server returns `next_cursor` while more rows exist, so the page walks
+ * it with a Load more button instead of silently stopping at the first 50.
  * Shadow measurement rows never appear here — the server filters them.
  */
-export function triageItemsOptions(wsId: string, state: TriageItemState) {
-  return queryOptions({
+export function triageItemsInfiniteOptions(wsId: string, state: TriageItemState) {
+  return infiniteQueryOptions({
     queryKey: triageKeys.items(wsId, state),
-    queryFn: ({ signal }) => api.listTriageItems({ state }, { signal }),
+    queryFn: ({ pageParam, signal }) =>
+      api.listTriageItems({ state, cursor: pageParam || undefined }, { signal }),
+    initialPageParam: "",
+    getNextPageParam: (last) => last.next_cursor || undefined,
   });
 }
 
