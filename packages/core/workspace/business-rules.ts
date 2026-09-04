@@ -20,7 +20,7 @@ export function businessRuleViolationsOptions(wsId: string, ruleId: string) {
 export function useCreateBusinessRule(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { natural_language: string; attach_point: string; title?: string; predicate?: unknown }) => api.createBusinessRule(v),
+    mutationFn: (v: { natural_language: string; attach_point: string; title?: string; predicate?: unknown; action?: { kind: string; priority?: string; assignee_type?: string; assignee_id?: string } }) => api.createBusinessRule(v),
     onSettled: () => qc.invalidateQueries({ queryKey: businessRuleKeys.list(wsId) }),
   });
 }

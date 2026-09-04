@@ -204,7 +204,14 @@ export interface ADRRequirement {
 }
 
 // Business rules (K53).
-export type BusinessRuleAttachPoint = "project_create" | "issue_submit_review" | "agent_run_dispatch";
+export type BusinessRuleAttachPoint = "project_create" | "issue_submit_review" | "agent_run_dispatch" | "webhook_received";
+
+export interface BusinessRuleAction {
+  kind: "dismiss" | "accept" | (string & {});
+  priority?: string;
+  assignee_type?: string;
+  assignee_id?: string;
+}
 export type BusinessRuleStatus = "draft" | "active" | "disabled";
 
 export interface BusinessRule {
@@ -215,6 +222,8 @@ export interface BusinessRule {
   predicate: unknown;
   description: string;
   attach_point: BusinessRuleAttachPoint | (string & {});
+  action?: BusinessRuleAction | null;
+  action_description?: string;
   status: BusinessRuleStatus | (string & {});
   created_by: string;
   created_at: string;

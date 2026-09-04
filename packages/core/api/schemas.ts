@@ -3900,6 +3900,8 @@ export const BusinessRuleSchema = z.object({
   predicate: z.unknown(),
   description: z.string().default(""),
   attach_point: z.string().default("project_create"),
+  action: z.object({ kind: z.string().default("dismiss"), priority: z.string().optional(), assignee_type: z.string().optional(), assignee_id: z.string().optional() }).loose().nullable().optional(),
+  action_description: z.string().optional(),
   status: z.string().default("draft"),
   created_by: z.string().default(""),
   created_at: z.string().default(""),

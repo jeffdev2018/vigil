@@ -62,3 +62,43 @@ func TestBusinessRulePredicateParsesEvaluatesAndDescribes(t *testing.T) {
 		t.Fatalf("project_create fields = %v", f)
 	}
 }
+
+func TestWebhookRulesTextOperatorsAndActions(t *testing.T) {
+	p, err := ParsePredicate([]byte(`{"all":[{"field":"webhook.title","op":"contains","value":"Dependabot"},{"field":"time.weekday","op":"in","value":["saturday","sunday"]}]}`), AttachWebhookReceived)
+	if err != nil {
+		t.Fatal(err)
+	}
+	facts := map[string]any{"webhook.title": "chore(deps): bump lodash (dependabot)", "time.weekday": "sunday"}
+	if ok, _ := p.Evaluate(facts); !ok {
+		t.Fatal("case-insensitive contains on a weekend must match")
+	}
+	facts["time.weekday"] = "monday"
+	if ok, _ := p.Evaluate(facts); ok {
+		t.Fatal("monday must not match")
+	}
+	if !strings.Contains(p.Describe(), "the title of the delivery must contain Dependabot") {
+		t.Fatalf("describe = %q", p.Describe())
+	}
+	for _, bad := range []string{
+		`{"all":[{"field":"webhook.title","op":"gt","value":"x"}]}`,
+		`{"all":[{"field":"webhook.title","op":"contains","value":""}]}`,
+		`{"all":[{"field":"issue.priority","op":"eq","value":"high"}]}`,
+	} {
+		if _, err := ParsePredicate([]byte(bad), AttachWebhookReceived); err == nil {
+			t.Fatalf("%s must be refused", bad)
+		}
+	}
+	if _, err := ParseActionSpec(nil, AttachWebhookReceived); err == nil {
+		t.Fatal("a webhook rule needs an action")
+	}
+	if _, err := ParseActionSpec([]byte(`{"kind":"dismiss"}`), AttachProjectCreate); err == nil {
+		t.Fatal("other attach points carry no action")
+	}
+	a, err := ParseActionSpec([]byte(`{"kind":"accept","priority":"urgent","assignee_type":"agent","assignee_id":"11111111-1111-1111-1111-111111111111"}`), AttachWebhookReceived)
+	if err != nil || a.Describe() != "accept it as an issue, priority urgent, assigned to agent 11111111" {
+		t.Fatalf("action = %+v, %v", a, err)
+	}
+	if _, err := ParseActionSpec([]byte(`{"kind":"accept","priority":"p0"}`), AttachWebhookReceived); err == nil {
+		t.Fatal("bad priority must be refused")
+	}
+}

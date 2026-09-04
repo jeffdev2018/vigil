@@ -35,12 +35,14 @@ type TxStarter interface {
 }
 
 type AutopilotService struct {
-	Queries      *db.Queries
-	TxStarter    TxStarter
-	Bus          *events.Bus
-	TaskSvc      *TaskService
-	Entitlements entitlement.Provider
-	QuotaMetrics AutopilotQuotaMetrics
+	// OnTriageParked (K62) runs the workspace triage rules on a freshly parked item.
+	OnTriageParked func(ctx context.Context, item db.TriageItem)
+	Queries        *db.Queries
+	TxStarter      TxStarter
+	Bus            *events.Bus
+	TaskSvc        *TaskService
+	Entitlements   entitlement.Provider
+	QuotaMetrics   AutopilotQuotaMetrics
 }
 
 // DefaultAutopilotTriggerTimezone is the timezone used to render Autopilot
@@ -1730,6 +1732,10 @@ func (s *AutopilotService) dispatchCreateIssueToTriage(ctx context.Context, ap d
 			"source_id": util.UUIDToString(item.SourceID),
 		},
 	})
+	// Triage rules (K62): a parked delivery may be resolved by a rule at once.
+	if s.OnTriageParked != nil {
+		s.OnTriageParked(ctx, item)
+	}
 	return nil
 }
 

@@ -20,7 +20,7 @@ const draft: BusinessRule = {
 };
 
 vi.mock("@multica/core/workspace/business-rules", () => ({
-  businessRulesOptions: (wsId: string) => ({ queryKey: ["business-rules", wsId], queryFn: async () => ({ rules: state.rules, attach_points: ["project_create", "issue_submit_review"] }) }),
+  businessRulesOptions: (wsId: string) => ({ queryKey: ["business-rules", wsId], queryFn: async () => ({ rules: state.rules, attach_points: ["project_create", "issue_submit_review", "webhook_received"] }) }),
   useCreateBusinessRule: () => ({
     isPending: false,
     mutate: (v: unknown, o: { onSuccess: (r: BusinessRule) => void }) => {
@@ -43,6 +43,9 @@ vi.mock("@multica/core/workspace/business-rules", () => ({
   useDeleteBusinessRule: () => ({ mutate: vi.fn() }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("@multica/core/workspace/queries", () => ({
+  agentListOptions: (wsId: string) => ({ queryKey: ["agents", wsId], queryFn: async () => [{ id: "a1", name: "Oncall bot" }] }),
+}));
 
 import { BusinessRulesSetting } from "./business-rules-setting";
 
@@ -70,12 +73,27 @@ describe("BusinessRulesSetting", () => {
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "A workspace has at most three projects" } });
     fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "project_create" } });
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    expect(state.created[0]).toEqual({ natural_language: "A workspace has at most three projects", attach_point: "project_create" });
+    expect(state.created[0]).toEqual({ natural_language: "A workspace has at most three projects", attach_point: "project_create", action: undefined });
     const preview = await screen.findByTestId("rule-preview");
     expect(preview.textContent).toContain("must be at most 3");
     expect(preview.textContent).toContain("the next project");
     fireEvent.click(screen.getByRole("button", { name: "Activate" }));
     expect(state.statuses[0]).toEqual({ id: "r1", status: "active" });
+  });
+
+  it("sends a triage action with a webhook rule", async () => {
+    render();
+    await screen.findByTestId("rules-empty");
+    fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical becomes P0 for the oncall bot" } });
+    fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "webhook_received" } });
+    fireEvent.change(screen.getByLabelText("Then"), { target: { value: "accept" } });
+    fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "urgent" } });
+    fireEvent.change(await screen.findByLabelText("Assign to agent"), { target: { value: "a1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(state.created[0]).toEqual({
+      natural_language: "Sentry critical becomes P0 for the oncall bot", attach_point: "webhook_received",
+      action: { kind: "accept", priority: "urgent", assignee_type: "agent", assignee_id: "a1" },
+    });
   });
 
   it("lists rules with their status and lets an admin disable an active one", async () => {

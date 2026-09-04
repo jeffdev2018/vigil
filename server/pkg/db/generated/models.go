@@ -431,6 +431,7 @@ type BusinessRule struct {
 	CreatedBy         pgtype.UUID        `json:"created_by"`
 	CreatedAt         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	ActionSpec        []byte             `json:"action_spec"`
 }
 
 type BusinessRuleViolation struct {

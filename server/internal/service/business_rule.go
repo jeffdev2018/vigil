@@ -16,12 +16,15 @@ const (
 	AttachProjectCreate     = "project_create"
 	AttachIssueSubmitReview = "issue_submit_review"
 	AttachAgentRunDispatch  = "agent_run_dispatch"
+	// AttachWebhookReceived (K62): evaluated when a webhook delivery is parked
+	// in the triage queue; a matching rule applies its action.
+	AttachWebhookReceived = "webhook_received"
 )
 
-var AttachPoints = []string{AttachProjectCreate, AttachIssueSubmitReview, AttachAgentRunDispatch}
+var AttachPoints = []string{AttachProjectCreate, AttachIssueSubmitReview, AttachAgentRunDispatch, AttachWebhookReceived}
 
 type RuleField struct {
-	Kind   string   // number | bool | string
+	Kind   string   // number | bool | string | text
 	Label  string   // plain-language name
 	Values []string // allowed values for string fields
 	Attach []string // attach points where the fact exists
@@ -43,6 +46,78 @@ var RuleFields = map[string]RuleField{
 	"issue.decision_count":            {Kind: "number", Label: "the number of decision records on the issue", Attach: issueAttach},
 	"issue.priority":                  {Kind: "string", Label: "the issue priority", Values: []string{"urgent", "high", "medium", "low", "none"}, Attach: issueAttach},
 	"issue.assignee_type":             {Kind: "string", Label: "who the issue is assigned to", Values: []string{"member", "agent", "none"}, Attach: issueAttach},
+	// Webhook deliveries (K62). Text fields take contains / starts_with.
+	"webhook.source_kind":    {Kind: "string", Label: "the kind of source", Values: []string{"autopilot_webhook", "autopilot_schedule", "channel", "agent_create", "quick_create"}, Attach: webhookAttach},
+	"webhook.source_name":    {Kind: "text", Label: "the name of the source (the autopilot or channel)", Attach: webhookAttach},
+	"webhook.title":          {Kind: "text", Label: "the title of the delivery", Attach: webhookAttach},
+	"webhook.body":           {Kind: "text", Label: "the body of the delivery", Attach: webhookAttach},
+	"webhook.payload":        {Kind: "text", Label: "the raw payload of the delivery", Attach: webhookAttach},
+	"webhook.collapse_count": {Kind: "number", Label: "how many deliveries collapsed into this item", Attach: webhookAttach},
+	"time.weekday":           {Kind: "string", Label: "the day of the week (workspace time)", Values: []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"}, Attach: webhookAttach},
+	"time.hour":              {Kind: "number", Label: "the hour of the day, 0-23 (workspace time)", Attach: webhookAttach},
+}
+
+var webhookAttach = []string{AttachWebhookReceived}
+
+// ---- actions (K62) ----
+
+// ActionSpec is what a webhook rule does when its predicate holds.
+type ActionSpec struct {
+	Kind         string `json:"kind"` // dismiss | accept
+	Priority     string `json:"priority,omitempty"`
+	AssigneeType string `json:"assignee_type,omitempty"`
+	AssigneeID   string `json:"assignee_id,omitempty"`
+}
+
+var issuePriorities = []string{"urgent", "high", "medium", "low", "none"}
+
+// ParseActionSpec validates an action; only webhook rules carry one.
+func ParseActionSpec(raw []byte, attach string) (*ActionSpec, error) {
+	if attach != AttachWebhookReceived {
+		if len(raw) > 0 && string(raw) != "null" {
+			return nil, fmt.Errorf("only %s rules carry an action", AttachWebhookReceived)
+		}
+		return nil, nil
+	}
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, fmt.Errorf("a %s rule needs an action", AttachWebhookReceived)
+	}
+	var a ActionSpec
+	if err := json.Unmarshal(raw, &a); err != nil {
+		return nil, fmt.Errorf("action is not valid JSON: %w", err)
+	}
+	switch a.Kind {
+	case "dismiss":
+		return &ActionSpec{Kind: "dismiss"}, nil
+	case "accept":
+		if a.Priority != "" && !contains(issuePriorities, a.Priority) {
+			return nil, fmt.Errorf("priority must be one of %s", strings.Join(issuePriorities, ", "))
+		}
+		if a.AssigneeID != "" && a.AssigneeType != "member" && a.AssigneeType != "agent" {
+			return nil, fmt.Errorf("assignee_type must be member or agent")
+		}
+		if a.AssigneeID == "" {
+			a.AssigneeType = ""
+		}
+		return &a, nil
+	default:
+		return nil, fmt.Errorf("action kind must be dismiss or accept")
+	}
+}
+
+// Describe renders the action in plain language.
+func (a ActionSpec) Describe() string {
+	if a.Kind == "dismiss" {
+		return "dismiss the delivery"
+	}
+	parts := []string{"accept it as an issue"}
+	if a.Priority != "" {
+		parts = append(parts, "priority "+a.Priority)
+	}
+	if a.AssigneeID != "" {
+		parts = append(parts, "assigned to "+a.AssigneeType+" "+a.AssigneeID[:8])
+	}
+	return strings.Join(parts, ", ")
 }
 
 // FieldsFor lists the fields readable at an attach point, sorted.
@@ -76,6 +151,7 @@ type RulePredicate struct {
 var opLabels = map[string]string{
 	"eq": "must be", "ne": "must not be", "lt": "must be less than", "lte": "must be at most",
 	"gt": "must be more than", "gte": "must be at least", "in": "must be one of",
+	"contains": "must contain", "starts_with": "must start with",
 }
 
 // ParsePredicate validates the JSON against the field catalog for an attach
@@ -108,6 +184,11 @@ func ParsePredicate(raw []byte, attach string) (RulePredicate, error) {
 		case "bool":
 			if _, ok := c.Value.(bool); !ok || (c.Op != "eq" && c.Op != "ne") {
 				return p, fmt.Errorf("%s needs eq/ne with true or false", c.Field)
+			}
+		case "text":
+			str, ok := c.Value.(string)
+			if !ok || strings.TrimSpace(str) == "" || (c.Op != "eq" && c.Op != "ne" && c.Op != "contains" && c.Op != "starts_with") {
+				return p, fmt.Errorf("%s needs eq, ne, contains or starts_with with a text value", c.Field)
 			}
 		case "string":
 			if c.Op == "in" {
@@ -176,7 +257,15 @@ func (c RuleCondition) holds(facts map[string]any) bool {
 		if !ok {
 			return false
 		}
-		return (c.Op == "eq") == (s == v)
+		switch c.Op {
+		case "contains":
+			return strings.Contains(strings.ToLower(s), strings.ToLower(v))
+		case "starts_with":
+			return strings.HasPrefix(strings.ToLower(s), strings.ToLower(v))
+		case "ne":
+			return !strings.EqualFold(s, v)
+		}
+		return strings.EqualFold(s, v)
 	case []any:
 		s, ok := got.(string)
 		if !ok {
