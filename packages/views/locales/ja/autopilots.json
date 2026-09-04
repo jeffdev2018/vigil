@@ -166,6 +166,7 @@
   },
   "trigger_row": {
     "disabled_badge": "無効",
+    "enable_aria": "トリガーを有効化",
     "deprecated_badge": "非推奨",
     "next_label": "次回: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +186,9 @@
     "toast_rotate_failed": "URL を再生成できませんでした",
     "toast_deleted": "トリガーを削除しました",
     "toast_delete_failed": "トリガーを削除できませんでした",
+    "toast_enabled": "トリガーを有効にしました",
+    "toast_disabled": "トリガーを無効にしました",
+    "toast_toggle_failed": "トリガーの更新に失敗しました",
     "delete_dialog": {
       "title": "トリガーを削除",
       "description": "このトリガーは削除され、オートパイロットはこのスケジュールでは実行されなくなります。この操作は元に戻せません。",

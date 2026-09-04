@@ -166,6 +166,7 @@
   },
   "trigger_row": {
     "disabled_badge": "已禁用",
+    "enable_aria": "启用触发器",
     "deprecated_badge": "已弃用",
     "next_label": "下次：{{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +186,9 @@
     "toast_rotate_failed": "重新生成 URL 失败",
     "toast_deleted": "已删除触发器",
     "toast_delete_failed": "删除触发器失败",
+    "toast_enabled": "已启用触发器",
+    "toast_disabled": "已停用触发器",
+    "toast_toggle_failed": "更新触发器失败",
     "delete_dialog": {
       "title": "删除触发器",
       "description": "将移除该触发器，自动化不再按此时间表运行。此操作不可撤销。",

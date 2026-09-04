@@ -125,3 +125,29 @@ describe("TriggerRow schedule readback", () => {
     expect(screen.getByText(/at 08:00/i)).toBeInTheDocument();
   });
 });
+
+describe("TriggerRow enable toggle", () => {
+  it("disables an enabled trigger through the update mutation", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    await user.click(screen.getByRole("switch", { name: "Enable trigger" }));
+
+    await waitFor(() => expect(mockUpdateTrigger).toHaveBeenCalledTimes(1));
+    expect(mockUpdateTrigger.mock.calls[0]?.[0]).toMatchObject({
+      autopilotId: AUTOPILOT_ID,
+      triggerId: "trg-1",
+      enabled: false,
+    });
+  });
+
+  it("is not offered to a reader", () => {
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite={false} />,
+    );
+
+    expect(screen.queryByRole("switch")).not.toBeInTheDocument();
+  });
+});

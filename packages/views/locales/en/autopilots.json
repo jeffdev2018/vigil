@@ -166,6 +166,7 @@
   },
   "trigger_row": {
     "disabled_badge": "Disabled",
+    "enable_aria": "Enable trigger",
     "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +186,9 @@
     "toast_rotate_failed": "Failed to rotate URL",
     "toast_deleted": "Trigger deleted",
     "toast_delete_failed": "Failed to delete trigger",
+    "toast_enabled": "Trigger enabled",
+    "toast_disabled": "Trigger disabled",
+    "toast_toggle_failed": "Failed to update trigger",
     "delete_dialog": {
       "title": "Delete trigger",
       "description": "This trigger will be removed and the autopilot will stop firing on this schedule. This action cannot be undone.",

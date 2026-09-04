@@ -8,11 +8,13 @@ import {
   useCreateAutopilotTrigger,
   useDeleteAutopilotTrigger,
   useRotateAutopilotTriggerWebhookToken,
+  useUpdateAutopilotTrigger,
 } from "@multica/core/autopilots/mutations";
 import { buildAutopilotWebhookUrl } from "@multica/core/autopilots";
 import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { Button } from "@multica/ui/components/ui/button";
+import { Switch } from "@multica/ui/components/ui/switch";
 import { cn } from "@multica/ui/lib/utils";
 import { toast } from "sonner";
 import {
@@ -47,9 +49,30 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
   const describeSchedule = useDescribeSchedule();
   const deleteTrigger = useDeleteAutopilotTrigger();
   const rotateToken = useRotateAutopilotTriggerWebhookToken();
+  const updateTrigger = useUpdateAutopilotTrigger();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
+  // Disabling a trigger is the reversible half of deleting one: an autopilot
+  // that fires too often, or a webhook whose sender is misbehaving, can be
+  // stopped without losing the URL or the schedule.
+  const handleToggleEnabled = async (enabled: boolean) => {
+    try {
+      await updateTrigger.mutateAsync({ autopilotId, triggerId: trigger.id, enabled });
+      toast.success(
+        enabled
+          ? t(($) => $.trigger_row.toast_enabled)
+          : t(($) => $.trigger_row.toast_disabled),
+      );
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.trigger_row.toast_toggle_failed),
+      );
+    }
+  };
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -137,7 +160,8 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
           {trigger.label && (
             <span className="text-caption text-muted-foreground">({trigger.label})</span>
           )}
-          {!trigger.enabled && (
+          {/* The switch already states this for anyone who can flip it. */}
+          {!trigger.enabled && !canWrite && (
             <span className="text-caption bg-muted px-1.5 py-0.5 rounded">
               {t(($) => $.trigger_row.disabled_badge)}
             </span>
@@ -201,6 +225,16 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
           </div>
         )}
       </div>
+      {canWrite && (
+        <Switch
+          className="mt-1 shrink-0"
+          size="sm"
+          checked={trigger.enabled}
+          disabled={updateTrigger.isPending}
+          onCheckedChange={handleToggleEnabled}
+          aria-label={t(($) => $.trigger_row.enable_aria)}
+        />
+      )}
       {!showWebhookUrlRow && deleteButton}
       <AlertDialog open={confirmOpen} onOpenChange={(v) => { if (!v && !deleting) setConfirmOpen(false); }}>
         <AlertDialogContent>
