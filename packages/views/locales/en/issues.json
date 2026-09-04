@@ -942,6 +942,23 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "failover": {
+    "section": "Runtime failover",
+    "run": "Run {{id}}",
+    "degraded_badge": "degraded",
+    "exhausted": "Pool exhausted",
+    "degraded_banner": "This run is executing in degraded mode on the pool's local last resort. Treat its output as less capable than the runtime you targeted.",
+    "reasons": {
+      "runtime_offline": "Runtime offline",
+      "runtime_recovery": "Runtime recovery",
+      "runtime_reconnect_timeout": "Runtime reconnect timeout",
+      "agent_error.provider_auth_or_access": "Provider auth or access",
+      "agent_error.provider_quota_limit": "Provider quota",
+      "agent_error.provider_capacity_or_rate_limit": "Provider capacity or rate limit",
+      "agent_error.provider_server_error": "Provider server error",
+      "agent_error.provider_network": "Provider network"
+    }
+  },
   "run_secrets": {
     "section": "Run secrets",
     "run": "Run {{id}}",

@@ -4099,3 +4099,40 @@ export const RunSecretSchema = z.object({
 export const RunSecretsEnvelopeSchema = z.object({
   secrets: z.array(RunSecretSchema).catch([]).default([]),
 }).loose();
+
+// Runtime pools (K28).
+export const RuntimePoolSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  runtime_ids: z.array(z.string()).catch([]).default([]),
+  degraded_runtime_id: z.string().nullable().default(null),
+  agent_count: z.number().catch(0).default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RuntimePoolsEnvelopeSchema = z.object({
+  pools: z.array(RuntimePoolSchema).catch([]).default([]),
+}).loose();
+
+export const FailoverEntrySchema = z.object({
+  from_runtime_id: z.string().default(""),
+  to_runtime_id: z.string().default(""),
+  reason: z.string().default(""),
+  degraded: z.boolean().catch(false).default(false),
+  at: z.string().default(""),
+}).loose();
+
+export const FailoverHistoryEnvelopeSchema = z.object({
+  runs: z.array(z.object({
+    task_id: z.string().default(""),
+    status: z.string().default(""),
+    degraded: z.boolean().catch(false).default(false),
+    failure_reason: z.string().optional(),
+    moves: z.array(FailoverEntrySchema).catch([]).default([]),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+export const AgentPoolAssignmentSchema = z.object({
+  id: z.string().default(""),
+  runtime_pool_id: z.string().nullable().default(null),
+}).loose();

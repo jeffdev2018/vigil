@@ -332,6 +332,10 @@ import {
   PermissionProfilesEnvelopeSchema,
   AgentPermissionAssignmentSchema,
   RunSecretsEnvelopeSchema,
+  RuntimePoolSchema,
+  RuntimePoolsEnvelopeSchema,
+  FailoverHistoryEnvelopeSchema,
+  AgentPoolAssignmentSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
   WhySearchResponseSchema,
@@ -2987,6 +2991,36 @@ export class ApiClient {
   async listAgentTrustHistory(agentId: string): Promise<import("../agents/trust").TrustModeChange[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/history`);
     return parseWithFallback(raw, TrustHistorySchema, { changes: [] }, { endpoint: "GET /api/agents/:id/trust-mode/history" }).changes;
+  }
+
+  // Runtime pools (K28).
+  async listRuntimePools(): Promise<import("../runtimes/pools").RuntimePool[]> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools`);
+    return parseWithFallback(raw, RuntimePoolsEnvelopeSchema, { pools: [] }, { endpoint: "GET /api/runtime-pools" }).pools;
+  }
+
+  async createRuntimePool(input: import("../runtimes/pools").RuntimePoolInput): Promise<import("../runtimes/pools").RuntimePool> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RuntimePoolSchema, { id: "", ...input, agent_count: 0, created_at: "" }, { endpoint: "POST /api/runtime-pools" });
+  }
+
+  async updateRuntimePool(id: string, input: import("../runtimes/pools").RuntimePoolInput): Promise<import("../runtimes/pools").RuntimePool> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RuntimePoolSchema, { id, ...input, agent_count: 0, created_at: "" }, { endpoint: "PUT /api/runtime-pools/:id" });
+  }
+
+  async deleteRuntimePool(id: string): Promise<void> {
+    await this.fetch(`/api/runtime-pools/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async setAgentRuntimePool(agentId: string, poolId: string | null): Promise<{ id: string; runtime_pool_id: string | null }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/runtime-pool`, { method: "PUT", body: JSON.stringify({ pool_id: poolId }) });
+    return parseWithFallback(raw, AgentPoolAssignmentSchema, { id: agentId, runtime_pool_id: poolId }, { endpoint: "PUT /api/agents/:id/runtime-pool" });
+  }
+
+  async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
+    return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
   }
 
   // Run-scoped secrets (K09).

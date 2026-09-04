@@ -2047,6 +2047,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/resolve", h.ResolveRunSecret)
 			})
 			r.Get("/api/issues/{id}/run-secrets", h.ListIssueRunSecrets)
+			// Runtime pools (K28): interchangeable runtimes with automatic failover.
+			r.Route("/api/runtime-pools", func(r chi.Router) {
+				r.Get("/", h.ListRuntimePools)
+				r.Post("/", h.CreateRuntimePool)
+				r.Put("/{id}", h.UpdateRuntimePool)
+				r.Delete("/{id}", h.DeleteRuntimePool)
+			})
+			r.Put("/api/agents/{id}/runtime-pool", h.SetAgentRuntimePool)
+			r.Get("/api/issues/{id}/failover-history", h.ListIssueFailoverHistory)
 			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)
 			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
 			r.Route("/api/search/why", func(r chi.Router) {

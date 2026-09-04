@@ -27,6 +27,9 @@ vi.mock("./inspector/model-picker", () => ({
 vi.mock("./inspector/permission-profile-field", () => ({
   PermissionProfileField: () => null,
 }));
+vi.mock("./inspector/runtime-pool-field", () => ({
+  RuntimePoolField: () => null,
+}));
 vi.mock("./inspector/runtime-picker", () => ({
   RuntimePicker: () => <div data-testid="runtime-picker" />,
 }));

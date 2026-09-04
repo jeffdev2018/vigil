@@ -331,6 +331,7 @@ var concurrentIndexCleanups = map[string]string{
 	"529_agent_permission_profile_workspace_name_index":         "uq_agent_permission_profile_workspace_name",
 	"531_run_scoped_secret_task_index":                         "idx_run_scoped_secret_task",
 	"532_run_scoped_secret_active_index":                       "idx_run_scoped_secret_active",
+	"537_runtime_pool_workspace_index":                         "idx_runtime_pool_workspace",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

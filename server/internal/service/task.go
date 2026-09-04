@@ -1313,10 +1313,13 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	taskID := dbid.NewV7()
+	// Runtime pools (K28): an offline runtime at enqueue sends the task to
+	// the first online runtime of the pool, recorded on the task.
+	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            enqueueRuntimeID,
 		IssueID:              issue.ID,
 		Priority:             priorityToInt(issue.Priority),
 		TriggerCommentID:     triggerCommentID,
@@ -1374,6 +1377,13 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	if err != nil {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", err)
 		return db.AgentTaskQueue{}, fmt.Errorf("create task: %w", err)
+	}
+	if failoverHistory != nil {
+		if moved, merr := s.Queries.SetTaskFailover(ctx, db.SetTaskFailoverParams{ID: task.ID, RuntimeID: task.RuntimeID, FailoverHistory: failoverHistory}); merr != nil {
+			slog.Warn("runtime pool: record enqueue failover failed", "task_id", util.UUIDToString(task.ID), "error", merr)
+		} else {
+			task = moved
+		}
 	}
 
 	slog.Info("task enqueued",
@@ -4953,6 +4963,28 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			}
 		}
 	}
+	// Runtime pools (K28): an infrastructure failure moves the retry to the
+	// next online runtime of the pool, bypassing the generic attempt budget
+	// (each runtime is tried once). An exhausted pool fails distinctly.
+	var failover FailoverTarget
+	if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr == nil {
+		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK {
+			failover = target
+			wantRetry = true
+			retryFireAt = pgtype.Timestamptz{}
+			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
+				retryMaxAttempts = pgtype.Int4{Int32: parent.Attempt + 2, Valid: true}
+			}
+			if retryOverlay.Overlay == nil {
+				if agent, aerr := s.Queries.GetAgent(ctx, parent.AgentID); aerr == nil {
+					retryOverlay = s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent)
+				}
+			}
+		} else if exhausted {
+			failureReason = ReasonRuntimePoolExhausted
+			wantRetry = false
+		}
+	}
 
 	var task db.AgentTaskQueue
 	var retried *db.AgentTaskQueue
@@ -5085,6 +5117,8 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 				MaxAttempts:          retryMaxAttempts,
 				RuntimeMcpOverlay:    retryOverlay.Overlay,
 				RuntimeConnectedApps: retryOverlay.ConnectedApps,
+				RuntimeID:            failover.RuntimeID,
+				FailoverHistory:      failover.History,
 			})
 			switch {
 			case cerr == nil:
@@ -5481,7 +5515,16 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if parent.FailureReason.Valid {
 		reason = parent.FailureReason.String
 	}
-	if !retryableReasons[reason] {
+	// Runtime pools (K28): a pool target overrides the generic budget and
+	// reason gate; an exhausted pool marks the failure distinctly.
+	failover, exhausted := s.failoverForFailedTask(ctx, parent, reason)
+	if exhausted {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonRuntimePoolExhausted, Valid: true}}); err != nil {
+			slog.Warn("runtime pool: mark exhausted failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
+	if !retryableReasons[reason] && !failover.OK {
 		return nil, nil
 	}
 	// Use the reason-aware ceiling, not the raw max_attempts column, so an
@@ -5489,7 +5532,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// allowed its deferred 3rd attempt (retryAttemptCeiling raises the ceiling
 	// to 3). Kept in sync with retryEligible below, which applies the same
 	// ceiling to the primary FailTask path.
-	if parent.Attempt >= retryAttemptCeiling(reason, parent.MaxAttempts) {
+	if !failover.OK && parent.Attempt >= retryAttemptCeiling(reason, parent.MaxAttempts) {
 		slog.Info("task auto-retry skipped: budget exhausted",
 			"task_id", util.UUIDToString(parent.ID),
 			"attempt", parent.Attempt,
@@ -5501,7 +5544,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// Autopilot has its own retry semantics (don't double-trigger) and a task
 	// with no issue/chat link has nowhere to report its retry — retryEligible
 	// covers both, keeping this sweeper path in sync with FailTask's in-tx retry.
-	if !retryEligible(reason, parent) {
+	if !failover.OK && !retryEligible(reason, parent) {
 		return nil, nil
 	}
 
@@ -5524,8 +5567,12 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// NULL for an immediate child), and write the reason-aware ceiling into the
 	// child's max_attempts so the retry chain stays self-consistent.
 	var retryFireAt pgtype.Timestamptz
-	if delay := retryDelayForAttempt(reason, parent.Attempt); delay > 0 {
+	if delay := retryDelayForAttempt(reason, parent.Attempt); delay > 0 && !failover.OK {
 		retryFireAt = pgtype.Timestamptz{Time: time.Now().Add(delay), Valid: true}
+	}
+	retryCeiling := retryAttemptCeiling(reason, parent.MaxAttempts)
+	if failover.OK && retryCeiling < parent.Attempt+2 {
+		retryCeiling = parent.Attempt + 2
 	}
 	// Same advisory slot check as FailTask's path, for the same reason: skip the
 	// work when a successor is already visible. Losing the race is handled by
@@ -5554,9 +5601,11 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		NewTaskID:            dbid.NewV7(),
 		ID:                   parent.ID,
 		FireAt:               retryFireAt,
-		MaxAttempts:          pgtype.Int4{Int32: retryAttemptCeiling(reason, parent.MaxAttempts), Valid: true},
+		MaxAttempts:          pgtype.Int4{Int32: retryCeiling, Valid: true},
 		RuntimeMcpOverlay:    runtimeMCPOverlay.Overlay,
 		RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
+		RuntimeID:            failover.RuntimeID,
+		FailoverHistory:      failover.History,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Workspace torn down, or the pending slot was taken between the check

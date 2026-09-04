@@ -911,6 +911,23 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "failover": {
+    "section": "运行时切换",
+    "run": "运行 {{id}}",
+    "degraded_badge": "降级",
+    "exhausted": "池已耗尽",
+    "degraded_banner": "此运行正在池的本地最后手段上以降级模式执行。请将其结果视为不如目标运行时可靠。",
+    "reasons": {
+      "runtime_offline": "运行时离线",
+      "runtime_recovery": "运行时恢复",
+      "runtime_reconnect_timeout": "运行时重连超时",
+      "agent_error.provider_auth_or_access": "供应商认证或访问",
+      "agent_error.provider_quota_limit": "供应商配额",
+      "agent_error.provider_capacity_or_rate_limit": "供应商容量或速率限制",
+      "agent_error.provider_server_error": "供应商服务器错误",
+      "agent_error.provider_network": "供应商网络"
+    }
+  },
   "run_secrets": {
     "section": "运行密钥",
     "run": "运行 {{id}}",
