@@ -1566,6 +1566,8 @@ export class ApiClient {
     return parseWithFallback(raw, PlanVerificationsResponseSchema, { verifications: [] }, {
       endpoint: "GET /api/issues/:id/plan/verifications",
     }).verifications;
+  }
+
   // Triage queue (M2). Stats summarize the visible queue; items lists one
   // state (default pending) newest-first with keyset pagination.
   async getTriageStats(options?: { signal?: AbortSignal }): Promise<TriageStats> {
