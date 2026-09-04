@@ -191,3 +191,36 @@ export interface ADRRequirement {
   decisions: number;
   run_id?: string;
 }
+
+// Business rules (K53).
+export type BusinessRuleAttachPoint = "project_create" | "issue_submit_review" | "agent_run_dispatch";
+export type BusinessRuleStatus = "draft" | "active" | "disabled";
+
+export interface BusinessRule {
+  id: string;
+  workspace_id: string;
+  title: string;
+  natural_language: string;
+  predicate: unknown;
+  description: string;
+  attach_point: BusinessRuleAttachPoint | (string & {});
+  status: BusinessRuleStatus | (string & {});
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessRuleDryRun {
+  rule: BusinessRule;
+  checked: number;
+  violations: { subject_type: string; subject_id: string; label: string; detail: string }[];
+}
+
+export interface BusinessRuleViolation {
+  id: string;
+  rule_id: string;
+  subject_type: string;
+  subject_id: string;
+  detail: string | null;
+  created_at: string;
+}

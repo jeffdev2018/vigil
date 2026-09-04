@@ -365,6 +365,29 @@ type AutopilotTrigger struct {
 	CreatedByID pgtype.UUID `json:"created_by_id"`
 }
 
+type BusinessRule struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Title             string             `json:"title"`
+	NaturalLanguage   string             `json:"natural_language"`
+	CompiledPredicate []byte             `json:"compiled_predicate"`
+	AttachPoint       string             `json:"attach_point"`
+	Status            string             `json:"status"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BusinessRuleViolation struct {
+	ID          pgtype.UUID        `json:"id"`
+	RuleID      pgtype.UUID        `json:"rule_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	SubjectType string             `json:"subject_type"`
+	SubjectID   pgtype.UUID        `json:"subject_id"`
+	Detail      pgtype.Text        `json:"detail"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChannelBindingToken struct {
 	TokenHash      string             `json:"token_hash"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`

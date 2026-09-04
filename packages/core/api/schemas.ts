@@ -3782,3 +3782,47 @@ export const ADRRequirementSchema = z.object({
   decisions: z.number().default(0),
   run_id: z.string().optional(),
 }).loose();
+
+// Business rules (K53).
+export const BusinessRuleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  title: z.string().default(""),
+  natural_language: z.string().default(""),
+  predicate: z.unknown(),
+  description: z.string().default(""),
+  attach_point: z.string().default("project_create"),
+  status: z.string().default("draft"),
+  created_by: z.string().default(""),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const BusinessRuleListSchema = z.object({
+  rules: z.array(BusinessRuleSchema).catch([]).default([]),
+  attach_points: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const BusinessRuleEnvelopeSchema = z.object({ rule: BusinessRuleSchema }).loose();
+
+export const BusinessRuleDryRunSchema = z.object({
+  rule: BusinessRuleSchema,
+  checked: z.number().default(0),
+  violations: z.array(z.object({
+    subject_type: z.string().default(""),
+    subject_id: z.string().default(""),
+    label: z.string().default(""),
+    detail: z.string().default(""),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+export const BusinessRuleViolationListSchema = z.object({
+  violations: z.array(z.object({
+    id: z.string(),
+    rule_id: z.string().default(""),
+    subject_type: z.string().default(""),
+    subject_id: z.string().default(""),
+    detail: z.string().nullable().default(null),
+    created_at: z.string().default(""),
+  }).loose()).catch([]).default([]),
+}).loose();

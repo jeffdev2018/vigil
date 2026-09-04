@@ -79,6 +79,9 @@ import type {
   AuditLogPage,
   ADRRequirement,
   DecisionRecord,
+  BusinessRule,
+  BusinessRuleDryRun,
+  BusinessRuleViolation,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -300,6 +303,10 @@ import {
   AuditLogPageSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
+  BusinessRuleListSchema,
+  BusinessRuleEnvelopeSchema,
+  BusinessRuleDryRunSchema,
+  BusinessRuleViolationListSchema,
   AgentVersionDiffSchema,
   AgentVersionEnvelopeSchema,
   DashboardUsageDailyListSchema,
@@ -2660,6 +2667,43 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Business rules (K53).
+  async listBusinessRules(): Promise<{ rules: BusinessRule[]; attach_points: string[] }> {
+    const raw = await this.fetch<unknown>("/api/business-rules");
+    return parseWithFallback(raw, BusinessRuleListSchema, { rules: [], attach_points: [] }, { endpoint: "GET /api/business-rules" });
+  }
+
+  async createBusinessRule(data: { natural_language: string; attach_point: string; title?: string; predicate?: unknown }): Promise<BusinessRule> {
+    const raw = await this.fetch<unknown>("/api/business-rules", { method: "POST", body: JSON.stringify(data) });
+    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed business rule response");
+    return parsed.data.rule;
+  }
+
+  async dryRunBusinessRule(id: string): Promise<BusinessRuleDryRun> {
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/dry-run`, { method: "POST" });
+    const parsed = BusinessRuleDryRunSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed dry-run response");
+    return parsed.data;
+  }
+
+  async setBusinessRuleStatus(id: string, status: "active" | "disabled"): Promise<BusinessRule> {
+    const verb = status === "active" ? "activate" : "disable";
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/${verb}`, { method: "PUT" });
+    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed business rule response");
+    return parsed.data.rule;
+  }
+
+  async deleteBusinessRule(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async listBusinessRuleViolations(id: string): Promise<BusinessRuleViolation[]> {
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/violations`);
+    return parseWithFallback(raw, BusinessRuleViolationListSchema, { violations: [] }, { endpoint: "GET /api/business-rules/:id/violations" }).violations;
+  }
+
   // Decision memory (K29).
   async listProjectDecisions(projectId: string, authorType?: "agent" | "member"): Promise<DecisionRecord[]> {
     const q = authorType ? `?author_type=${authorType}` : "";
