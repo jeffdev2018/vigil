@@ -2814,6 +2814,7 @@ INSERT INTO agent_task_queue (
     trigger_summary, is_leader_task, squad_id, escalation_for_task_id, fire_at,
     originator_user_id, accountable_user_id, originator_source,
     delegated_from_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -2830,7 +2831,9 @@ SELECT
     $17,
     $18,
     $19,
-    COALESCE($20::uuid, gen_random_uuid())
+    COALESCE($20::text, 'general'),
+    $21::jsonb,
+    COALESCE($22::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing
 `
@@ -2855,6 +2858,8 @@ type CreateDeferredAgentTaskParams struct {
 	DelegatedFromTaskID  pgtype.UUID        `json:"delegated_from_task_id"`
 	TriggerEvidenceKind  pgtype.Text        `json:"trigger_evidence_kind"`
 	TriggerEvidenceRefID pgtype.UUID        `json:"trigger_evidence_ref_id"`
+	TaskClass            pgtype.Text        `json:"task_class"`
+	Routing              []byte             `json:"routing"`
 	ID                   pgtype.UUID        `json:"id"`
 }
 
@@ -2890,6 +2895,8 @@ func (q *Queries) CreateDeferredAgentTask(ctx context.Context, arg CreateDeferre
 		arg.DelegatedFromTaskID,
 		arg.TriggerEvidenceKind,
 		arg.TriggerEvidenceRefID,
+		arg.TaskClass,
+		arg.Routing,
 		arg.ID,
 	)
 	var i AgentTaskQueue
@@ -3155,16 +3162,23 @@ INSERT INTO agent_task_queue (
     force_fresh_session, is_leader_task, squad_id,
     originator_user_id, accountable_user_id,
     runtime_mcp_overlay, runtime_connected_apps,
-    originator_source, rerun_of_task_id, id
+    originator_source, rerun_of_task_id, task_class, routing, id
 )
 SELECT
-    p.agent_id, p.runtime_id, 'queued', p.priority, p.context,
+    p.agent_id,
+    -- Runtime routing (JEF-237): a manual rerun starts a fresh session, so the
+    -- router may move it off the parent's runtime. NULL keeps the parent's.
+    COALESCE($1::uuid, p.runtime_id),
+    'queued', p.priority, p.context,
     TRUE, p.is_leader_task, p.squad_id,
-    $1, $1,
-    $2, $3,
-    'direct_human', p.id, $4
+    $2, $2,
+    $3, $4,
+    'direct_human', p.id,
+    COALESCE($5::text, 'general'),
+    $6::jsonb,
+    $7
 FROM agent_task_queue p
-WHERE p.id = $5
+WHERE p.id = $8
   AND p.status = 'failed'
   AND p.issue_id IS NULL
   AND p.chat_session_id IS NULL
@@ -3174,9 +3188,12 @@ RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, c
 `
 
 type CreateManualQuickCreateRetryTaskParams struct {
+	RuntimeID            pgtype.UUID `json:"runtime_id"`
 	ActorUserID          pgtype.UUID `json:"actor_user_id"`
 	RuntimeMcpOverlay    []byte      `json:"runtime_mcp_overlay"`
 	RuntimeConnectedApps []byte      `json:"runtime_connected_apps"`
+	TaskClass            pgtype.Text `json:"task_class"`
+	Routing              []byte      `json:"routing"`
 	NewTaskID            pgtype.UUID `json:"new_task_id"`
 	SourceTaskID         pgtype.UUID `json:"source_task_id"`
 }
@@ -3192,9 +3209,12 @@ type CreateManualQuickCreateRetryTaskParams struct {
 // fence; a deleted workspace therefore yields pgx.ErrNoRows and no task.
 func (q *Queries) CreateManualQuickCreateRetryTask(ctx context.Context, arg CreateManualQuickCreateRetryTaskParams) (AgentTaskQueue, error) {
 	row := q.db.QueryRow(ctx, createManualQuickCreateRetryTask,
+		arg.RuntimeID,
 		arg.ActorUserID,
 		arg.RuntimeMcpOverlay,
 		arg.RuntimeConnectedApps,
+		arg.TaskClass,
+		arg.Routing,
 		arg.NewTaskID,
 		arg.SourceTaskID,
 	)
@@ -3279,6 +3299,7 @@ INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, status, priority, context, originator_user_id,
     accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -3290,7 +3311,9 @@ SELECT
     $9,
     $10,
     $11,
-    COALESCE($12::uuid, gen_random_uuid())
+    COALESCE($12::text, 'general'),
+    $13::jsonb,
+    COALESCE($14::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing
 `
@@ -3307,6 +3330,8 @@ type CreateQuickCreateTaskParams struct {
 	OriginatorSource     pgtype.Text `json:"originator_source"`
 	TriggerEvidenceKind  pgtype.Text `json:"trigger_evidence_kind"`
 	TriggerEvidenceRefID pgtype.UUID `json:"trigger_evidence_ref_id"`
+	TaskClass            pgtype.Text `json:"task_class"`
+	Routing              []byte      `json:"routing"`
 	ID                   pgtype.UUID `json:"id"`
 }
 
@@ -3333,6 +3358,8 @@ func (q *Queries) CreateQuickCreateTask(ctx context.Context, arg CreateQuickCrea
 		arg.OriginatorSource,
 		arg.TriggerEvidenceKind,
 		arg.TriggerEvidenceRefID,
+		arg.TaskClass,
+		arg.Routing,
 		arg.ID,
 	)
 	var i AgentTaskQueue
@@ -3421,7 +3448,8 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq, id
+    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
+    task_class, routing, id
 )
 SELECT
     p.agent_id, COALESCE($2::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -3447,6 +3475,13 @@ SELECT
     -- Checkpoints (K20): a resume after an interruption counts an attempt and keeps the resume point.
     COALESCE($8::int, p.checkpoint_attempts),
     p.last_checkpoint_seq,
+    -- Runtime routing (JEF-237): an automatic retry is the SAME piece of work,
+    -- so it inherits the parent's class instead of falling to 'general' and
+    -- polluting the per-class statistics. It is deliberately not re-routed: the
+    -- retry machinery already owns runtime selection here (failover_history and
+    -- the runtime_id arg above), and the child carries the parent's session_id /
+    -- work_dir, which only resume on the runtime that produced them.
+    p.task_class, p.routing,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE($9::uuid, gen_random_uuid())
 FROM agent_task_queue p
