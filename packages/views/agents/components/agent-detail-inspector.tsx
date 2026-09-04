@@ -38,6 +38,7 @@ import { RuntimePicker } from "./inspector/runtime-picker";
 import { ThinkingSettingField } from "./inspector/thinking-prop-row";
 import { ServiceTierSettingField } from "./inspector/service-tier-setting-field";
 import { PermissionProfileField } from "./inspector/permission-profile-field";
+import { RuntimePoolField } from "./inspector/runtime-pool-field";
 
 interface InspectorProps {
   agent: Agent;
@@ -315,6 +316,7 @@ export function AgentDetailInspector({
             />
           </SettingsRow>
           <PermissionProfileField agent={agent} canEdit={canEdit} />
+          <RuntimePoolField agent={agent} canEdit={canEdit} />
         </SettingsCard>
       </SettingsSection>
     </div>

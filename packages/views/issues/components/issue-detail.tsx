@@ -94,6 +94,7 @@ import { ExecutionLogSection } from "./execution-log-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { RunSecretsSection } from "./run-secrets-section";
+import { FailoverSection } from "./failover-section";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2602,6 +2603,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Run-scoped secrets (K09): which keys each run received as tokens; hides itself until one exists. */}
       <RunSecretsSection issueId={id} />
+
+      {/* Runtime failover (K28): moves between runtimes; loud when a run is degraded. */}
+      <FailoverSection issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

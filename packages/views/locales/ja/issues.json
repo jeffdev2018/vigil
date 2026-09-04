@@ -911,6 +911,23 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "failover": {
+    "section": "ランタイム切り替え",
+    "run": "実行 {{id}}",
+    "degraded_badge": "縮退",
+    "exhausted": "プール枯渇",
+    "degraded_banner": "この実行はプールのローカル最終手段で縮退モード動作中です。想定したランタイムより能力が低い結果として扱ってください。",
+    "reasons": {
+      "runtime_offline": "ランタイムがオフライン",
+      "runtime_recovery": "ランタイム復旧",
+      "runtime_reconnect_timeout": "ランタイム再接続タイムアウト",
+      "agent_error.provider_auth_or_access": "プロバイダー認証/アクセス",
+      "agent_error.provider_quota_limit": "プロバイダーの割り当て",
+      "agent_error.provider_capacity_or_rate_limit": "プロバイダーの容量/レート制限",
+      "agent_error.provider_server_error": "プロバイダーのサーバーエラー",
+      "agent_error.provider_network": "プロバイダーのネットワーク"
+    }
+  },
   "run_secrets": {
     "section": "実行シークレット",
     "run": "実行 {{id}}",

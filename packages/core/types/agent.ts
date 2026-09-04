@@ -325,6 +325,9 @@ export interface AgentTask {
   // coarse values; `string & {}` admits the rest without collapsing the
   // hints.
   failure_reason?: TaskFailureReason | (string & {}) | "";
+  /** Runtime pools (K28): the moves this run made; `degraded` when it landed on the local last resort. */
+  failover_history?: { from_runtime_id: string; to_runtime_id: string; reason: string; degraded: boolean; at: string }[] | null;
+  degraded?: boolean;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -573,6 +576,8 @@ export interface Agent {
   trust_mode?: string;
   /** Permission profile (K06) the agent runs under; null or absent means full access. */
   permission_profile_id?: string | null;
+  /** Runtime pool (K28) the agent fails over through; null or absent means its runtime only. */
+  runtime_pool_id?: string | null;
   model: string;
   /**
    * Runtime-native reasoning/effort token (e.g. Claude's

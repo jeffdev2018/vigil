@@ -911,6 +911,23 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "failover": {
+    "section": "런타임 전환",
+    "run": "실행 {{id}}",
+    "degraded_badge": "저하",
+    "exhausted": "풀 소진",
+    "degraded_banner": "이 실행은 풀의 로컬 최후 수단에서 저하 모드로 실행 중입니다. 원래 지정한 런타임보다 능력이 낮은 결과로 취급하세요.",
+    "reasons": {
+      "runtime_offline": "런타임 오프라인",
+      "runtime_recovery": "런타임 복구",
+      "runtime_reconnect_timeout": "런타임 재연결 시간 초과",
+      "agent_error.provider_auth_or_access": "프로바이더 인증/접근",
+      "agent_error.provider_quota_limit": "프로바이더 할당량",
+      "agent_error.provider_capacity_or_rate_limit": "프로바이더 용량/속도 제한",
+      "agent_error.provider_server_error": "프로바이더 서버 오류",
+      "agent_error.provider_network": "프로바이더 네트워크"
+    }
+  },
   "run_secrets": {
     "section": "실행 시크릿",
     "run": "실행 {{id}}",
