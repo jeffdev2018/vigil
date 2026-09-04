@@ -151,3 +151,61 @@ describe("TriggerRow enable toggle", () => {
     expect(screen.queryByRole("switch")).not.toBeInTheDocument();
   });
 });
+
+describe("TriggerRow edit dialog", () => {
+  it("patches the label, cron and band of a schedule trigger", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit trigger" }));
+    await user.type(screen.getByLabelText("Label (optional)"), "Morning sweep");
+    await user.click(screen.getByRole("checkbox", { name: /Sometime between/ }));
+    await user.click(screen.getByRole("button", { name: "Save trigger" }));
+
+    await waitFor(() => expect(mockUpdateTrigger).toHaveBeenCalledTimes(1));
+    expect(mockUpdateTrigger.mock.calls[0]?.[0]).toMatchObject({
+      autopilotId: AUTOPILOT_ID,
+      triggerId: "trg-1",
+      label: "Morning sweep",
+      window_minutes: 60,
+    });
+    expect(mockUpdateTrigger.mock.calls[0]?.[0].cron_expression).toMatch(/(^|\s)0 8 \* \* \*$/);
+  });
+
+  it("patches criteria and filters of a webhook trigger, and no cron", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow
+        trigger={trigger({
+          kind: "webhook",
+          cron_expression: null,
+          timezone: null,
+          webhook_token: "awt_token",
+          webhook_path: "/api/webhooks/autopilots/awt_token",
+          event_match_criteria: "",
+        })}
+        autopilotId={AUTOPILOT_ID}
+        canWrite
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit trigger" }));
+    await user.type(
+      screen.getByLabelText("Only run when…"),
+      "only production incidents",
+    );
+    await user.click(screen.getByRole("button", { name: "Save trigger" }));
+
+    await waitFor(() => expect(mockUpdateTrigger).toHaveBeenCalledTimes(1));
+    const patch = mockUpdateTrigger.mock.calls[0]?.[0];
+    expect(patch).toMatchObject({
+      triggerId: "trg-1",
+      event_match_criteria: "only production incidents",
+      event_filters: [],
+    });
+    expect(patch.cron_expression).toBeUndefined();
+    expect(patch.window_minutes).toBeUndefined();
+  });
+});

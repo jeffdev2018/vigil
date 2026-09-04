@@ -169,6 +169,7 @@
   "trigger_row": {
     "disabled_badge": "已禁用",
     "enable_aria": "启用触发器",
+    "edit_trigger": "编辑触发器",
     "deprecated_badge": "已弃用",
     "next_label": "下次：{{date}}",
     "webhook_url_label": "Webhook URL",
@@ -270,6 +271,13 @@
     "toast_added_schedule": "已添加时间表触发器",
     "toast_added_webhook": "已添加 Webhook 触发器",
     "toast_add_failed": "添加触发器失败"
+  },
+  "edit_trigger_dialog": {
+    "title": "编辑触发器",
+    "submit": "保存触发器",
+    "submitting": "保存中...",
+    "toast_saved": "已更新触发器",
+    "toast_save_failed": "更新触发器失败"
   },
   "dialog": {
     "sr_create": "新建自动化",

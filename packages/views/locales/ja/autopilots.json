@@ -169,6 +169,7 @@
   "trigger_row": {
     "disabled_badge": "無効",
     "enable_aria": "トリガーを有効化",
+    "edit_trigger": "トリガーを編集",
     "deprecated_badge": "非推奨",
     "next_label": "次回: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -270,6 +271,13 @@
     "toast_added_schedule": "スケジュールトリガーを追加しました",
     "toast_added_webhook": "Webhook トリガーを追加しました",
     "toast_add_failed": "トリガーを追加できませんでした"
+  },
+  "edit_trigger_dialog": {
+    "title": "トリガーを編集",
+    "submit": "トリガーを保存",
+    "submitting": "保存中...",
+    "toast_saved": "トリガーを更新しました",
+    "toast_save_failed": "トリガーの更新に失敗しました"
   },
   "dialog": {
     "sr_create": "新規オートパイロット",

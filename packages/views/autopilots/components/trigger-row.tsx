@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import {
-  Zap, Clock, Trash2, Webhook, RotateCw,
+  Zap, Clock, Trash2, Webhook, RotateCw, Pencil,
 } from "lucide-react";
 import {
   useCreateAutopilotTrigger,
@@ -41,7 +41,14 @@ import { useDescribeSchedule } from "./schedule-editor/describe";
 import { formatInTimeZone } from "../../common/format-in-time-zone";
 import { SegmentedToggle } from "../../common/segmented-toggle";
 import { useScheduleSubmitGate } from "./schedule-editor/validate";
-import type { AutopilotTrigger } from "@multica/core/types";
+import { Textarea } from "@multica/ui/components/ui/textarea";
+import { WebhookEventFilterSection } from "./webhook-event-filter-section";
+import { effectiveWindowMinutes } from "./schedule-editor/model";
+import type {
+  AutopilotTrigger,
+  UpdateAutopilotTriggerRequest,
+  WebhookEventFilter,
+} from "@multica/core/types";
 import { useT } from "../../i18n";
 
 export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: AutopilotTrigger; autopilotId: string; canWrite: boolean }) {
@@ -52,6 +59,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
   const updateTrigger = useUpdateAutopilotTrigger();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // Disabling a trigger is the reversible half of deleting one: an autopilot
@@ -139,6 +147,18 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
   // — keep it pinned to the row's top-right corner. Without this the
   // trash icon visually floats above the URL action buttons because the
   // outer flex uses `items-start`.
+  const editButton = canWrite ? (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="h-7 w-7 shrink-0"
+      onClick={() => setEditOpen(true)}
+      title={t(($) => $.trigger_row.edit_trigger)}
+    >
+      <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+    </Button>
+  ) : null;
+
   const deleteButton = canWrite ? (
     <Button
       size="icon"
@@ -218,6 +238,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
                       <RotateCw className={cn("h-3.5 w-3.5 text-muted-foreground", rotateToken.isPending && "animate-spin")} />
                     </Button>
                   )}
+                  {editButton}
                   {deleteButton}
                 </>
               }
@@ -235,7 +256,19 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
           aria-label={t(($) => $.trigger_row.enable_aria)}
         />
       )}
+      {!showWebhookUrlRow && editButton}
       {!showWebhookUrlRow && deleteButton}
+      {/* Mounted only while open: the schedule submit gate's state lives with
+          the dialog, and a closed one kept mounted would carry a stale
+          rejection into its next opening. */}
+      {editOpen && (
+        <EditTriggerDialog
+          open
+          onOpenChange={setEditOpen}
+          autopilotId={autopilotId}
+          trigger={trigger}
+        />
+      )}
       <AlertDialog open={confirmOpen} onOpenChange={(v) => { if (!v && !deleting) setConfirmOpen(false); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -436,3 +469,157 @@ export function AddTriggerDialog({
   );
 }
 
+
+// Editing a trigger in place. Before this, an autopilot's routing rules were
+// only reachable through AutopilotDialog, which speaks for `triggers[0]` alone:
+// the second webhook on an autopilot could be created and deleted but never
+// adjusted, and a schedule's cron could not be corrected without recreating the
+// row (and its next_run_at, and — for webhooks — its URL).
+export function EditTriggerDialog({
+  open,
+  onOpenChange,
+  autopilotId,
+  trigger,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  autopilotId: string;
+  trigger: AutopilotTrigger;
+}) {
+  const { t } = useT("autopilots");
+  const wsId = useWorkspaceId();
+  const updateTrigger = useUpdateAutopilotTrigger();
+  const isSchedule = trigger.kind === "schedule";
+  const isWebhook = trigger.kind === "webhook";
+
+  const [config, setConfig] = useState<ScheduleConfig>(() =>
+    trigger.cron_expression
+      ? {
+          ...parseCron(trigger.cron_expression, trigger.timezone ?? "UTC"),
+          windowMinutes: trigger.window_minutes ?? 0,
+        }
+      : getDefaultScheduleConfig(browserTimezone()),
+  );
+  const [label, setLabel] = useState(trigger.label ?? "");
+  const [eventFilters, setEventFilters] = useState<WebhookEventFilter[]>(
+    trigger.event_filters ?? [],
+  );
+  const [eventCriteria, setEventCriteria] = useState(trigger.event_match_criteria ?? "");
+  const [submitting, setSubmitting] = useState(false);
+  const scheduleGate = useScheduleSubmitGate(wsId);
+  const canSubmit = !submitting && (!isSchedule || scheduleGate.scheduleValid);
+
+  const handleSubmit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    try {
+      // Label is sent unconditionally — "" is how the API clears one, and the
+      // field is a plain text box with no other way to say "remove it".
+      const patch: UpdateAutopilotTriggerRequest = { label: label.trim() };
+      if (isSchedule) {
+        if (!(await scheduleGate.ensureAccepted(config))) {
+          setSubmitting(false);
+          return;
+        }
+        const cronExpr = toCron(config);
+        if (!cronExpr.trim()) {
+          setSubmitting(false);
+          return;
+        }
+        patch.cron_expression = cronExpr;
+        patch.timezone = config.timezone;
+        patch.window_minutes = effectiveWindowMinutes(config);
+      }
+      if (isWebhook) {
+        // Both are authoritative here: an empty list clears the filters and an
+        // empty string clears the criteria, which is what the emptied controls
+        // mean.
+        patch.event_filters = eventFilters;
+        patch.event_match_criteria = eventCriteria.trim();
+      }
+      await updateTrigger.mutateAsync({ autopilotId, triggerId: trigger.id, ...patch });
+      toast.success(t(($) => $.edit_trigger_dialog.toast_saved));
+      onOpenChange(false);
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : t(($) => $.edit_trigger_dialog.toast_save_failed),
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Same min-w-0 as the add dialog: the cron readback is one unbreakable
+          line that would otherwise push the grid track past the dialog. */}
+      <DialogContent className="max-w-sm">
+        <DialogTitle>{t(($) => $.edit_trigger_dialog.title)}</DialogTitle>
+        <div className="min-w-0 space-y-4 pt-2">
+          {isSchedule && (
+            <ScheduleEditor
+              value={config}
+              onChange={(next) => {
+                scheduleGate.clearRejection();
+                setConfig(next);
+              }}
+              wsId={wsId}
+              onValidityChange={scheduleGate.onValidityChange}
+              disabled={submitting}
+            />
+          )}
+          {isWebhook && (
+            <>
+              <WebhookEventFilterSection filters={eventFilters} onChange={setEventFilters} />
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="edit-trigger-event-criteria"
+                  className="text-caption font-medium text-muted-foreground"
+                >
+                  {t(($) => $.dialog.event_criteria_label)}
+                </label>
+                <Textarea
+                  id="edit-trigger-event-criteria"
+                  value={eventCriteria}
+                  onChange={(e) => setEventCriteria(e.target.value)}
+                  placeholder={t(($) => $.dialog.event_criteria_placeholder)}
+                  maxLength={500}
+                  rows={3}
+                  className="text-body"
+                />
+                <p className="text-caption text-muted-foreground leading-relaxed">
+                  {t(($) => $.dialog.event_criteria_hint)}
+                </p>
+              </div>
+            </>
+          )}
+          <div>
+            <label
+              htmlFor="edit-trigger-label"
+              className="text-caption font-medium text-muted-foreground"
+            >
+              {t(($) => $.add_trigger_dialog.label_field)}
+            </label>
+            <input
+              id="edit-trigger-label"
+              type="text"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder={t(($) => $.add_trigger_dialog.label_placeholder)}
+              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-body outline-none focus:ring-1 focus:ring-ring"
+            />
+          </div>
+          <div className="flex justify-end pt-1">
+            <Button size="sm" onClick={handleSubmit} disabled={!canSubmit}>
+              {submitting
+                ? t(($) => $.edit_trigger_dialog.submitting)
+                : t(($) => $.edit_trigger_dialog.submit)}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

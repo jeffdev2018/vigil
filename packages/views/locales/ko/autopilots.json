@@ -169,6 +169,7 @@
   "trigger_row": {
     "disabled_badge": "비활성",
     "enable_aria": "트리거 활성화",
+    "edit_trigger": "트리거 편집",
     "deprecated_badge": "지원 중단",
     "next_label": "다음: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -270,6 +271,13 @@
     "toast_added_schedule": "일정 트리거를 추가했습니다",
     "toast_added_webhook": "Webhook 트리거를 추가했습니다",
     "toast_add_failed": "트리거를 추가하지 못했습니다"
+  },
+  "edit_trigger_dialog": {
+    "title": "트리거 편집",
+    "submit": "트리거 저장",
+    "submitting": "저장 중...",
+    "toast_saved": "트리거를 업데이트했습니다",
+    "toast_save_failed": "트리거를 업데이트하지 못했습니다"
   },
   "dialog": {
     "sr_create": "새 오토파일럿",

@@ -169,6 +169,7 @@
   "trigger_row": {
     "disabled_badge": "Disabled",
     "enable_aria": "Enable trigger",
+    "edit_trigger": "Edit trigger",
     "deprecated_badge": "Deprecated",
     "next_label": "Next: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -270,6 +271,13 @@
     "toast_added_schedule": "Schedule trigger added",
     "toast_added_webhook": "Webhook trigger added",
     "toast_add_failed": "Failed to add trigger"
+  },
+  "edit_trigger_dialog": {
+    "title": "Edit Trigger",
+    "submit": "Save trigger",
+    "submitting": "Saving...",
+    "toast_saved": "Trigger updated",
+    "toast_save_failed": "Failed to update trigger"
   },
   "dialog": {
     "sr_create": "New Autopilot",
