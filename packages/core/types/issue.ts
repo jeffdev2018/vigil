@@ -238,6 +238,12 @@ export interface IssueDependencies {
 export interface IssuePlanStep {
   id: string;
   title: string;
+  /** Plan Gate (K11): step ids this one comes after; sets its stage once approved. */
+  after?: string[];
+  assignee_type?: string;
+  assignee_id?: string;
+  /** The sub-issue the step became, once the plan was materialized. */
+  issue_id?: string;
 }
 
 export interface IssuePlan {
@@ -249,6 +255,8 @@ export interface IssuePlan {
   author_type: string;
   author_id: string;
   superseded_at: string | null;
+  /** Plan Gate (K11): when this version's steps became sub-issues. */
+  materialized_at?: string | null;
   created_at: string;
 }
 

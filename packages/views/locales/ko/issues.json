@@ -898,7 +898,14 @@
     "severity_major": "중대",
     "severity_minor": "경미",
     "severity_outdated": "구식",
-    "no_findings": "계획과 차이가 없습니다."
+    "no_findings": "계획과 차이가 없습니다.",
+    "gate_no_steps": "구조화된 단계가 없어 하위 이슈를 만들 수 없습니다.",
+    "gate_stage": "{{stage}}",
+    "gate_created": "생성됨",
+    "gate_materialized": "하위 이슈 {{count}}개 생성됨",
+    "gate_superseded": "대체되었습니다. 활성 버전을 승인하세요.",
+    "gate_approve": "승인: 하위 이슈 {{count}}개 생성",
+    "gate_failed": "하위 이슈를 만들지 못했습니다"
   },
   "decisions": {
     "section": "결정",

@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { IssuePlanStep, PlanFinding, PlanVerification } from "../types";
+import type { IssuePlan, IssuePlanStep, PlanFinding, PlanVerification } from "../types";
 import { issueKeys } from "./queries";
 
 export function issuePlanOptions(wsId: string, issueId: string) {
@@ -14,6 +14,51 @@ export function planVerificationsOptions(wsId: string, issueId: string) {
   return queryOptions({
     queryKey: issueKeys.planVerifications(wsId, issueId),
     queryFn: ({ signal }) => api.listPlanVerifications(issueId, { signal }),
+  });
+}
+
+// Plan Gate (K11).
+
+/**
+ * Stage per step: 1 + the deepest stage among the steps it comes after.
+ * Mirrors the server's planStages; an unknown or cyclic reference yields
+ * stage 1 for that step here, the server is what refuses it.
+ */
+export function planStepStages(steps: IssuePlanStep[]): Map<string, number> {
+  const byId = new Map(steps.map((s) => [s.id, s]));
+  const stages = new Map<string, number>();
+  const visiting = new Set<string>();
+  const stageOf = (id: string): number => {
+    const known = stages.get(id);
+    if (known !== undefined) return known;
+    if (visiting.has(id)) return 1;
+    visiting.add(id);
+    let stage = 1;
+    for (const dep of byId.get(id)?.after ?? []) {
+      if (dep !== id && byId.has(dep)) stage = Math.max(stage, stageOf(dep) + 1);
+    }
+    visiting.delete(id);
+    stages.set(id, stage);
+    return stage;
+  };
+  for (const s of steps) stageOf(s.id);
+  return stages;
+}
+
+export function isPlanMaterialized(plan: Pick<IssuePlan, "materialized_at">): boolean {
+  return typeof plan.materialized_at === "string" && plan.materialized_at !== "";
+}
+
+export function useMaterializeIssuePlan(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { issueId: string; version: number }) => api.materializeIssuePlan(v.issueId, v.version),
+    onSettled: (_data, _err, v) => {
+      qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, v.issueId) });
+      qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, v.issueId) });
+      // The sub-issues land in lists and the parent's children.
+      qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+    },
   });
 }
 

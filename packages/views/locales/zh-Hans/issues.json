@@ -898,7 +898,14 @@
     "severity_major": "重要",
     "severity_minor": "轻微",
     "severity_outdated": "过时",
-    "no_findings": "与计划没有偏差。"
+    "no_findings": "与计划没有偏差。",
+    "gate_no_steps": "没有结构化步骤，无法创建子议题。",
+    "gate_stage": "{{stage}}",
+    "gate_created": "已创建",
+    "gate_materialized": "已创建 {{count}} 个子议题",
+    "gate_superseded": "已被替代，请批准当前版本。",
+    "gate_approve": "批准并创建 {{count}} 个子议题",
+    "gate_failed": "无法创建子议题"
   },
   "decisions": {
     "section": "决策",

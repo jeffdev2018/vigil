@@ -929,7 +929,14 @@
     "severity_major": "major",
     "severity_minor": "minor",
     "severity_outdated": "outdated",
-    "no_findings": "No divergence from the plan."
+    "no_findings": "No divergence from the plan.",
+    "gate_no_steps": "No structured steps: nothing to create as sub-issues.",
+    "gate_stage": "{{stage}}",
+    "gate_created": "created",
+    "gate_materialized": "{{count}} sub-issues created",
+    "gate_superseded": "Superseded: approve the active version instead.",
+    "gate_approve": "Approve: create {{count}} sub-issues",
+    "gate_failed": "Failed to create the sub-issues"
   },
   "decisions": {
     "section": "Decisions",

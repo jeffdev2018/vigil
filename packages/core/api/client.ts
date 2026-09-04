@@ -225,6 +225,7 @@ import type {
   IssueDependencyType,
   MergeReadiness,
   PRStack,
+  IssuePlan,
   IssuePlanEnvelope,
   IssuePlanStep,
   PlanVerification,
@@ -416,6 +417,7 @@ import {
   PRStackSchema,
   EMPTY_PR_STACK,
   IssuePlanEnvelopeSchema,
+  PlanMaterializationSchema,
   IssueDecisionsResponseSchema,
   AcceptanceCriteriaResponseSchema,
   IssueDecisionEnvelopeSchema,
@@ -1389,6 +1391,19 @@ export class ApiClient {
     return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
       endpoint: "PATCH /api/issues/:id/acceptance-criteria/:criterionId/proof",
     }).criteria;
+  }
+
+  // Plan Gate (K11): approve a plan version into sub-issues.
+  async materializeIssuePlan(issueId: string, version: number): Promise<{ plan: IssuePlan; issues: Issue[] }> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan/${encodeURIComponent(String(version))}/materialize`,
+      { method: "POST", body: "{}" },
+    );
+    const parsed = parseWithFallback<{ plan: IssuePlan; issues: Issue[] } | null>(raw, PlanMaterializationSchema, null, {
+      endpoint: "POST /api/issues/:id/plan/:version/materialize",
+    });
+    if (!parsed) throw new Error("materialize plan returned a malformed response");
+    return parsed;
   }
 
   async listPlanVerifications(issueId: string, options?: { signal?: AbortSignal }): Promise<PlanVerification[]> {

@@ -1327,10 +1327,18 @@ export const IssuePlanSchema = z.object({
   issue_id: z.string().default(""),
   version: z.number().int().default(0),
   content: z.string().default(""),
-  steps: z.array(z.object({ id: z.string().default(""), title: z.string().default("") }).loose()).catch([]).default([]),
+  steps: z.array(z.object({
+    id: z.string().default(""),
+    title: z.string().default(""),
+    after: z.array(z.string()).optional().catch(undefined),
+    assignee_type: z.string().optional(),
+    assignee_id: z.string().optional(),
+    issue_id: z.string().optional(),
+  }).loose()).catch([]).default([]),
   author_type: z.string().default(""),
   author_id: z.string().default(""),
   superseded_at: z.string().nullable().default(null),
+  materialized_at: z.string().nullable().optional().catch(null),
   created_at: z.string().default(""),
 }).loose();
 
@@ -1340,6 +1348,12 @@ export const IssuePlanEnvelopeSchema = z.object({
 }).loose();
 
 export const EMPTY_ISSUE_PLAN: IssuePlanEnvelope = { plan: null, versions: [] };
+
+// Plan Gate (K11): what an approval produced.
+export const PlanMaterializationSchema = z.object({
+  plan: IssuePlanSchema,
+  issues: z.array(IssueSchema).catch([]).default([]),
+}).loose();
 
 export const PlanFindingSchema = z.object({
   severity: z.string().default(""),

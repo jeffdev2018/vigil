@@ -898,7 +898,14 @@
     "severity_major": "大",
     "severity_minor": "小",
     "severity_outdated": "陳腐化",
-    "no_findings": "計画との差異はありません。"
+    "no_findings": "計画との差異はありません。",
+    "gate_no_steps": "構造化されたステップがないため、サブイシューは作成されません。",
+    "gate_stage": "{{stage}}",
+    "gate_created": "作成済み",
+    "gate_materialized": "サブイシューを {{count}} 件作成しました",
+    "gate_superseded": "置き換えられました。有効なバージョンを承認してください。",
+    "gate_approve": "承認してサブイシューを {{count}} 件作成",
+    "gate_failed": "サブイシューを作成できませんでした"
   },
   "decisions": {
     "section": "判断",

@@ -13,6 +13,7 @@ import {
 import type { IssuePlan, PlanFinding, PlanVerification } from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
 import { useT, useTimeAgo } from "../../i18n";
+import { PlanGateBlock } from "./plan-gate-block";
 
 /**
  * Plan verification (F17): the issue's plan (with its version history) and
@@ -76,6 +77,8 @@ export function PlanVerificationSection({ issueId }: { issueId: string }) {
           <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-sans text-caption">
             {shown.content}
           </pre>
+          {/* Plan Gate (K11): the steps and the approval that makes them sub-issues. */}
+          <PlanGateBlock issueId={issueId} plan={shown} />
           {latest ? (
             <VerificationReport verification={latest} />
           ) : (
