@@ -32,6 +32,8 @@ const PAST_STATUS_ORDER: Record<AgentTask["status"], number> = {
   dispatched: 99,
   waiting_local_directory: 99,
   running: 99,
+  deferred: 99,
+  paused: 99,
 };
 
 export default function IssueRunsRoute() {

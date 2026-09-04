@@ -140,6 +140,13 @@ export default function WorkspaceLayout() {
           }}
         />
         <Stack.Screen
+          name="inbox/decisions"
+          options={{
+            title: "Decisions",
+            headerBackTitle: "Back",
+          }}
+        />
+        <Stack.Screen
           name="project/[id]"
           options={{
             title: "Project",

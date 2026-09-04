@@ -154,3 +154,22 @@ export function useArchiveCompletedInbox() {
     },
   });
 }
+
+/**
+ * Inbox zero (K63): answer a Decision Card from the list. Same endpoint and
+ * same cache side effects as web (packages/views/inbox/components/
+ * decisions-view.tsx): no optimistic patch — the server decides whether the
+ * card leaves the list — then invalidate the decisions and the inbox list.
+ */
+export function useRespondInboxDecision() {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  return useMutation({
+    mutationFn: (v: { issueId: string; decisionId: string; answer: { option_id?: string; modified_text?: string } }) =>
+      api.respondIssueDecision(v.issueId, v.decisionId, v.answer),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: inboxKeys.decisions(wsId) });
+      qc.invalidateQueries({ queryKey: inboxKeys.list(wsId) });
+    },
+  });
+}

@@ -128,6 +128,7 @@ import {
 import type { ZodType } from "zod";
 import { getCurrentSlug } from "./workspace-store";
 import { parseWithFallback } from "@/lib/parse-response";
+import { InboxDecisionsSchema, type InboxDecisions } from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 
@@ -470,6 +471,26 @@ class ApiClient {
   }
 
   // --- Inbox ---
+  // Inbox zero (K63): the decisions waiting for me, five at most plus the total.
+  async listInboxDecisions(opts?: { signal?: AbortSignal }): Promise<InboxDecisions> {
+    const raw = await this.fetch<unknown>("/api/inbox/decisions", { signal: opts?.signal });
+    return parseWithFallback(raw, InboxDecisionsSchema, { decisions: [], total: 0 } as InboxDecisions, {
+      endpoint: "listInboxDecisions",
+    });
+  }
+
+  // Decision Cards (K01): the same respond endpoint web uses.
+  async respondIssueDecision(
+    issueId: string,
+    decisionId: string,
+    answer: { option_id?: string; modified_text?: string },
+  ): Promise<void> {
+    await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decisions/${encodeURIComponent(decisionId)}/respond`,
+      { method: "POST", body: JSON.stringify(answer) },
+    );
+  }
+
   async listInbox(opts?: { signal?: AbortSignal }): Promise<InboxItem[]> {
     const raw = await this.fetch<unknown>("/api/inbox", {
       signal: opts?.signal,

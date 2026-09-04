@@ -757,3 +757,31 @@ export const EMPTY_ISSUE_FALLBACK: import("@multica/core/types").Issue = {
 
 // Helpers re-exported for ergonomic single-import at the call site.
 export type { Label, Project, ProjectResource };
+
+// Inbox zero (K63): my pending Decision Cards, options included, ordered and
+// capped on the server. Mirrors packages/core/api/schemas.ts InboxDecisionsSchema.
+export const InboxDecisionSchema = z.object({
+  inbox_item_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  issue_identifier: z.string().catch("").default(""),
+  issue_title: z.string().catch("").default(""),
+  risk_score: z.number().catch(0).default(0),
+  decision: z.object({
+    id: z.string(),
+    issue_id: z.string().default(""),
+    question: z.string().default(""),
+    options: z.array(z.object({ id: z.string(), label: z.string().default(""), impact: z.string().optional() }).loose()).catch([]).default([]),
+    recommended_option_id: z.string().optional(),
+    urgency: z.string().default("normal"),
+    sla_deadline_at: z.string().nullable().optional().catch(null),
+    created_at: z.string().default(""),
+  }).loose(),
+}).loose();
+
+export const InboxDecisionsSchema = z.object({
+  decisions: z.array(InboxDecisionSchema).catch([]).default([]),
+  total: z.number().int().catch(0).default(0),
+}).loose();
+
+export type InboxDecision = z.infer<typeof InboxDecisionSchema>;
+export type InboxDecisions = z.infer<typeof InboxDecisionsSchema>;

@@ -56,6 +56,15 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   quick_create_unconfirmed: "Quick-create needs a check",
   autopilot_paused: "Autopilot paused",
   autopilot_quota_exceeded: "Autopilot run limit reached",
+  decision_request: "Decision requested",
+  decision_escalated: "Decision escalated",
+  ownership_suggested: "Owner suggested",
+  morning_briefing: "Morning briefing",
+  standup_question: "Standup question",
+  weekly_retro: "Weekly retro",
+  trust_promotion_suggested: "Trust promotion suggested",
+  budget_warning: "Budget warning",
+  budget_exceeded: "Budget exceeded",
 };
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).

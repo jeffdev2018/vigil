@@ -16,7 +16,7 @@ import { Header } from "@/components/ui/header";
 import { IconButton } from "@/components/ui/icon-button";
 import { HeaderActions } from "@/components/ui/app-header-actions";
 import { SwipeableInboxRow } from "@/components/inbox/swipeable-inbox-row";
-import { inboxListOptions } from "@/data/queries/inbox";
+import { inboxDecisionsOptions, inboxListOptions } from "@/data/queries/inbox";
 import {
   useArchiveAllInbox,
   useArchiveAllReadInbox,
@@ -46,6 +46,10 @@ export default function Inbox() {
     () => deduplicateInboxItems(rawItems ?? []),
     [rawItems],
   );
+  // Inbox zero (K63): the count of decisions waiting for me, same server
+  // projection as web's `?view=decisions` (cap five + total).
+  const { data: decisions } = useQuery(inboxDecisionsOptions(wsId));
+  const pendingDecisions = decisions?.total ?? 0;
   const markRead = useMarkInboxRead();
   const markAllRead = useMarkAllInboxRead();
   const archive = useArchiveInbox();
@@ -112,6 +116,18 @@ export default function Inbox() {
         title="Inbox"
         right={
           <>
+            {pendingDecisions > 0 && (
+              <IconButton
+                name="checkmark-done-circle-outline"
+                onPress={() =>
+                  router.push({
+                    pathname: "/[workspace]/inbox/decisions",
+                    params: { workspace: wsSlug ?? "" },
+                  })
+                }
+                accessibilityLabel={`${pendingDecisions} decisions waiting for you`}
+              />
+            )}
             <IconButton
               name="ellipsis-horizontal"
               onPress={onPressMenu}
