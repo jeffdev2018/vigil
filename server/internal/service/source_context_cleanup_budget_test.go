@@ -63,6 +63,11 @@ func TestCleanupSourceContextObjectIntentsBoundsAttemptsNotSuccesses(t *testing.
 		lockConn.Release()
 		t.Fatalf("lock source-context cleanup tests: %v", err)
 	}
+	// Intents left by an interrupted run (their source context is gone) would
+	// be claimed ahead of this test's rows and skew the oracle below.
+	if _, err := lockConn.Exec(ctx, `DELETE FROM issue_source_context_object_intent WHERE source_context_id NOT IN (SELECT id FROM issue_source_context)`); err != nil {
+		t.Fatalf("sweep orphan source-context intents: %v", err)
+	}
 	t.Cleanup(func() {
 		_, _ = lockConn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, sourceContextCleanupTestLock)
 		lockConn.Release()
