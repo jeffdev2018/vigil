@@ -201,8 +201,19 @@ func speakerLabel(raw json.RawMessage) string {
 
 const maxErrorBody = 300
 
-// Transcribe uploads audio and returns its text. contentType may be empty.
+// Transcribe uploads audio and returns its text, with speaker labels when
+// diarization is configured. contentType may be empty.
 func (c *Client) Transcribe(ctx context.Context, filename, contentType string, audio io.Reader) (Result, error) {
+	return c.transcribe(ctx, filename, contentType, audio, c.cfg.Diarize)
+}
+
+// TranscribePlain is Transcribe without speaker labels: a dictated memo has
+// one speaker and the "Speaker 1:" prefix would only be noise in a composer.
+func (c *Client) TranscribePlain(ctx context.Context, filename, contentType string, audio io.Reader) (Result, error) {
+	return c.transcribe(ctx, filename, contentType, audio, false)
+}
+
+func (c *Client) transcribe(ctx context.Context, filename, contentType string, audio io.Reader, diarize bool) (Result, error) {
 	if !c.Enabled() {
 		return Result{}, ErrNotConfigured
 	}
@@ -227,7 +238,7 @@ func (c *Client) Transcribe(ctx context.Context, filename, contentType string, a
 			return Result{}, fmt.Errorf("stt: build form: %w", err)
 		}
 	}
-	if c.cfg.Diarize {
+	if diarize {
 		// Voxtral refuses diarize without a timestamp granularity; other
 		// providers ignore both fields.
 		for k, v := range map[string]string{"diarize": "true", "timestamp_granularities": "segment"} {
