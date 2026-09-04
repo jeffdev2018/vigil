@@ -97,6 +97,7 @@ import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
+import { RunLimitBadge } from "./run-limit-badge";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2614,6 +2615,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Handoff packet (K17): what the last hand left, and a form to leave one. */}
       <HandoffPacketCard issueId={id} />
+
+      {/* Run limits (K03): the latest run's warning or stop, with the numbers. */}
+      <RunLimitBadge issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

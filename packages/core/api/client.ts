@@ -341,6 +341,9 @@ import {
   AgentPoolAssignmentSchema,
   IssueRoutingEnvelopeSchema,
   HandoffPacketSchema,
+  RunLimitPolicySchema,
+  RunLimitPoliciesEnvelopeSchema,
+  RunLimitEventsEnvelopeSchema,
   HandoffPacketsEnvelopeSchema,
   LatestHandoffPacketEnvelopeSchema,
   RoutingSettingsSchema,
@@ -3119,6 +3122,31 @@ export class ApiClient {
   async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
     return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
+  }
+
+  // Run limits (K03).
+  async listRunLimitPolicies(): Promise<import("../budgets/run-limits").RunLimitPolicy[]> {
+    const raw = await this.fetch<unknown>(`/api/run-limits`);
+    return parseWithFallback(raw, RunLimitPoliciesEnvelopeSchema, { policies: [] }, { endpoint: "GET /api/run-limits" }).policies;
+  }
+
+  async createRunLimitPolicy(input: import("../budgets/run-limits").RunLimitPolicyInput): Promise<import("../budgets/run-limits").RunLimitPolicy> {
+    const raw = await this.fetch<unknown>(`/api/run-limits`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RunLimitPolicySchema, { id: "", created_at: "", ...input }, { endpoint: "POST /api/run-limits" });
+  }
+
+  async updateRunLimitPolicy(id: string, input: import("../budgets/run-limits").RunLimitPolicyInput): Promise<import("../budgets/run-limits").RunLimitPolicy> {
+    const raw = await this.fetch<unknown>(`/api/run-limits/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RunLimitPolicySchema, { id, created_at: "", ...input }, { endpoint: "PUT /api/run-limits/:id" });
+  }
+
+  async deleteRunLimitPolicy(id: string): Promise<void> {
+    await this.fetch(`/api/run-limits/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async listIssueRunLimitEvents(issueId: string): Promise<import("../budgets/run-limits").RunLimitEvent[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-limit-events`);
+    return parseWithFallback(raw, RunLimitEventsEnvelopeSchema, { events: [] }, { endpoint: "GET /api/issues/:id/run-limit-events" }).events;
   }
 
   // Handoff packets (K17).

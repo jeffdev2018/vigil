@@ -942,6 +942,21 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "run_limits": {
+    "title": "Run limit",
+    "stopped": "Stopped by a run limit",
+    "gates": {
+      "cost": "Cost",
+      "duration": "Duration",
+      "turns": "Turns",
+      "tool_calls": "Tool calls"
+    },
+    "levels": {
+      "warn": "warning",
+      "exceeded": "over the limit (observed)",
+      "stopped": "stopped"
+    }
+  },
   "handoff": {
     "section": "Handoff packet",
     "none": "No packet yet.",

@@ -911,6 +911,21 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "run_limits": {
+    "title": "実行上限",
+    "stopped": "実行上限で停止",
+    "gates": {
+      "cost": "コスト",
+      "duration": "時間",
+      "turns": "ターン",
+      "tool_calls": "ツール呼び出し"
+    },
+    "levels": {
+      "warn": "警告",
+      "exceeded": "上限超過（記録のみ）",
+      "stopped": "停止"
+    }
+  },
   "handoff": {
     "section": "ハンドオフパケット",
     "none": "まだパケットはありません。",

@@ -49,6 +49,25 @@
       "cancelled": "决定不做。"
     }
   },
+  "run_limits": {
+    "title": "运行上限",
+    "intro": "单次运行的上限：成本、时长、轮数、工具调用数。工作区、项目、智能体中最严格的上限生效。enforce 在 100% 时停止运行；observe 仅记录；两者都会在阈值处告警。",
+    "empty": "尚无运行上限。运行仅受上方的周期预算约束。",
+    "add": "新建运行上限",
+    "edit": "编辑",
+    "delete": "删除 {{scope}} 的运行上限",
+    "save": "保存运行上限",
+    "save_failed": "保存运行上限失败",
+    "warn_at": "{{percent}}% 时告警",
+    "cost_usd": "成本（$）",
+    "duration_min": "时长（分钟）",
+    "gates": {
+      "cost": "成本",
+      "duration": "时长",
+      "turns": "轮数",
+      "tool_calls": "工具调用"
+    }
+  },
   "budgets": {
     "title": "运行预算",
     "description": "在智能体开始工作前设置美元限额。强制限额会暂停新运行，观察模式只记录用量。",

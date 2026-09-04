@@ -911,6 +911,21 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "run_limits": {
+    "title": "运行上限",
+    "stopped": "因运行上限停止",
+    "gates": {
+      "cost": "成本",
+      "duration": "时长",
+      "turns": "轮数",
+      "tool_calls": "工具调用"
+    },
+    "levels": {
+      "warn": "告警",
+      "exceeded": "超出上限（仅记录）",
+      "stopped": "已停止"
+    }
+  },
   "handoff": {
     "section": "交接包",
     "none": "尚无交接包。",
