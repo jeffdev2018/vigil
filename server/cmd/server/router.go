@@ -1979,6 +1979,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Issue status catalog (MUL-6243). Reads are open to any member —
 			// every client needs the catalog to render a status. Writes are
 			// gated to workspace owner/admin inside the handlers.
+			// Morning briefing (K30).
+			r.Route("/api/morning-briefing", func(r chi.Router) {
+				r.Get("/today", h.GetMorningBriefingToday)
+				r.Post("/trigger", h.TriggerMorningBriefing)
+			})
 			// Module ownership (K33): rules that suggest an owner and a referent agent.
 			r.Route("/api/module-ownership", func(r chi.Router) {
 				r.Get("/", h.ListModuleOwnership)

@@ -1078,6 +1078,15 @@ type ModuleOwnership struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type MorningBriefingSent struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	SentForDate       pgtype.Date        `json:"sent_for_date"`
+	ChannelsDelivered []byte             `json:"channels_delivered"`
+	Summary           []byte             `json:"summary"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
 type NotificationPreference struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

@@ -304,6 +304,7 @@ var concurrentIndexCleanups = map[string]string{
 	"472_issue_decision_sla_index":                              "idx_issue_decision_sla_pending",
 	"474_issue_completed_at_index":                              "idx_issue_completed_at",
 	"476_module_ownership_workspace_index":                      "idx_module_ownership_workspace",
+	"478_morning_briefing_sent_unique":                          "morning_briefing_sent_workspace_date",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 
