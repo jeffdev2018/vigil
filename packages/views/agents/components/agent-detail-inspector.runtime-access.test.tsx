@@ -26,6 +26,9 @@ vi.mock("../../common/avatar-upload-control", () => ({
   AvatarUploadControl: () => <div data-testid="avatar-upload" />,
 }));
 
+vi.mock("./inspector/permission-profile-field", () => ({
+  PermissionProfileField: () => null,
+}));
 vi.mock("./inspector/runtime-picker", () => ({
   RuntimePicker: () => <div data-testid="runtime-picker" />,
 }));

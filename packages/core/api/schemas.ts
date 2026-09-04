@@ -4062,3 +4062,24 @@ export const BlastRadiusPreviewSchema = z.object({
   rule_id: z.string().optional(),
   path_pattern: z.string().optional(),
 }).loose();
+
+// Permission profiles (K06).
+export const PermissionProfileSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  description: z.string().default(""),
+  read_only: z.boolean().default(false),
+  denied_paths: z.array(z.string()).catch([]).default([]),
+  allowed_commands: z.array(z.string()).catch([]).default([]),
+  hidden_secrets: z.array(z.string()).catch([]).default([]),
+  builtin: z.boolean().default(false),
+}).loose();
+
+export const PermissionProfilesEnvelopeSchema = z.object({
+  profiles: z.array(PermissionProfileSchema).catch([]).default([]),
+}).loose();
+
+export const AgentPermissionAssignmentSchema = z.object({
+  id: z.string().default(""),
+  permission_profile_id: z.string().nullable().default(null),
+}).loose();

@@ -824,7 +824,17 @@
     "gates_spend_description": "この金額未満なら実行に短期の支出トークンが即時発行されます。超える場合は先に判断カードで確認します。",
     "gates_tools_label": "機微な MCP ツール（パターン）",
     "gates_tools_description": "名前がこの正規表現に一致するリモート MCP ツールは、実行前に人の承認を待ちます。",
-    "gates_failed": "承認ゲートを更新できませんでした"
+    "gates_failed": "承認ゲートを更新できませんでした",
+    "profiles_section": "権限プロファイル",
+    "profiles_intro": "エージェントが実行時に触れられる範囲です。プロファイルはエージェント（または個々の実行）に割り当てます。以下のルールはランタイムが許す範囲で強制され（Claude の拒否ルール、Codex の読み取り専用サンドボックス、承認ゲート）、それ以外はモデルに伝えられます。",
+    "profiles_read_only": "読み取り専用",
+    "profiles_denied_paths": "禁止パス",
+    "profiles_denied_paths_description": "実行が読み取り・編集・push できないグロブ（カンマ区切り）。例: .env, infra/**",
+    "profiles_allowed_commands": "許可コマンド",
+    "profiles_allowed_commands_description": "モデルに実行を許可すると伝えるコマンド。* は何でも可。",
+    "profiles_hidden_secrets": "秘匿シークレット",
+    "profiles_hidden_secrets_description": "実行に渡さない環境変数キー（グロブ）。例: *PROD*, *_PASSWORD",
+    "profiles_failed": "権限プロファイルを更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

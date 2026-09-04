@@ -37,6 +37,7 @@ import {
 import { RuntimePicker } from "./inspector/runtime-picker";
 import { ThinkingSettingField } from "./inspector/thinking-prop-row";
 import { ServiceTierSettingField } from "./inspector/service-tier-setting-field";
+import { PermissionProfileField } from "./inspector/permission-profile-field";
 
 interface InspectorProps {
   agent: Agent;
@@ -313,6 +314,7 @@ export function AgentDetailInspector({
               onSave={(next) => update({ max_concurrent_tasks: next })}
             />
           </SettingsRow>
+          <PermissionProfileField agent={agent} canEdit={canEdit} />
         </SettingsCard>
       </SettingsSection>
     </div>
