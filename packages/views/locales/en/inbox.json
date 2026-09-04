@@ -46,7 +46,8 @@
     "attention_title": "Needs your attention",
     "attention_empty": "Nothing needs your attention.",
     "briefing_title": "This morning",
-    "retro_title": "Weekly retro"
+    "retro_title": "Weekly retro",
+    "decisions_title": "Decisions waiting for you"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -161,5 +162,25 @@
     "col_cost": "Cost ($)",
     "skills": "Skill proposals",
     "skills_empty": "Skill proposals arrive with Skill Miner; nothing to propose yet."
+  },
+  "decisions": {
+    "title": "Decisions waiting for you",
+    "loading": "Loading your decisions…",
+    "load_failed": "The decisions could not be loaded.",
+    "empty": "Inbox zero: no decision is waiting for you.",
+    "more": "{{count}} more waiting after these",
+    "urgency": {
+      "high": "urgent",
+      "normal": "normal",
+      "low": "low"
+    },
+    "due": "due {{when}}",
+    "recommended": "recommended",
+    "other": "Answer with something else…",
+    "other_label": "Describe what to do instead",
+    "send": "Send",
+    "cancel": "Cancel",
+    "answered": "Answered",
+    "respond_failed": "The answer could not be sent"
   }
 }

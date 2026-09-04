@@ -507,6 +507,7 @@ import {
   EMPTY_INBOX_UNREAD_SUMMARY,
   InboxItemListSchema,
   AttentionInboxListSchema,
+  InboxDecisionsSchema,
   EMPTY_INBOX_ITEMS,
   NotificationPreferenceResponseSchema,
   EMPTY_NOTIFICATION_PREFERENCE_RESPONSE,
@@ -3571,6 +3572,12 @@ export class ApiClient {
   // Archived notifications, backing the inbox's "Archived" sub-view. Capped
   // server-side (no pagination in v1). Schema-guarded so a contract drift
   // renders an empty archive instead of taking the inbox down with it.
+  // Inbox zero (K63).
+  async listInboxDecisions(): Promise<import("../inbox/queries").InboxDecisions> {
+    const raw = await this.fetch<unknown>("/api/inbox/decisions");
+    return parseWithFallback(raw, InboxDecisionsSchema, { decisions: [], total: 0 }, { endpoint: "GET /api/inbox/decisions" }) as import("../inbox/queries").InboxDecisions;
+  }
+
   async listAttentionInbox(): Promise<AttentionInboxItem[]> {
     const raw = await this.fetch<unknown>("/api/inbox/attention");
     return parseWithFallback(raw, AttentionInboxListSchema, { items: [] }, {

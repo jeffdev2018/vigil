@@ -10,7 +10,7 @@
  * Persisted in the URL as `?view=archived` so a refresh, a back/forward step,
  * or a mobile detail-back returns to the list the user was actually in.
  */
-export type InboxView = "inbox" | "archived" | "attention" | "briefing" | "retro";
+export type InboxView = "inbox" | "archived" | "attention" | "briefing" | "retro" | "decisions";
 
 export const ARCHIVED_VIEW_PARAM = "archived";
 // Attention Inbox (K02): the human-only, risk-ordered projection, `?view=attention`.
@@ -19,3 +19,5 @@ export const ATTENTION_VIEW_PARAM = "attention";
 export const BRIEFING_VIEW_PARAM = "briefing";
 // Weekly retro (K34): the last generated retro, `?view=retro`.
 export const RETRO_VIEW_PARAM = "retro";
+// Inbox zero (K63): the decisions waiting for me, `?view=decisions`.
+export const DECISIONS_VIEW_PARAM = "decisions";

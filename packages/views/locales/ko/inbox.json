@@ -44,7 +44,8 @@
     "attention_title": "주의 필요",
     "attention_empty": "주의가 필요한 항목이 없습니다.",
     "briefing_title": "오늘 아침 브리핑",
-    "retro_title": "주간 회고"
+    "retro_title": "주간 회고",
+    "decisions_title": "결정 대기"
   },
   "detail": {
     "select_prompt": "자세히 볼 알림을 선택하세요",
@@ -159,5 +160,25 @@
     "col_cost": "비용($)",
     "skills": "스킬 제안",
     "skills_empty": "스킬 제안은 Skill Miner와 함께 제공됩니다. 아직 제안이 없습니다."
+  },
+  "decisions": {
+    "title": "당신의 결정을 기다리는 항목",
+    "loading": "결정을 불러오는 중…",
+    "load_failed": "결정을 불러오지 못했습니다.",
+    "empty": "인박스 제로: 기다리는 결정이 없습니다.",
+    "more": "이 외에 {{count}}개가 더 기다리고 있습니다",
+    "urgency": {
+      "high": "긴급",
+      "normal": "보통",
+      "low": "낮음"
+    },
+    "due": "기한 {{when}}",
+    "recommended": "추천",
+    "other": "다른 답변으로 응답…",
+    "other_label": "대신 무엇을 할지 설명",
+    "send": "보내기",
+    "cancel": "취소",
+    "answered": "답변됨",
+    "respond_failed": "답변을 보내지 못했습니다"
   }
 }

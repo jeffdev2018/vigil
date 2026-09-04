@@ -44,7 +44,8 @@
     "attention_title": "要対応",
     "attention_empty": "対応が必要なものはありません。",
     "briefing_title": "今朝のブリーフィング",
-    "retro_title": "週次レトロ"
+    "retro_title": "週次レトロ",
+    "decisions_title": "判断待ち"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -159,5 +160,25 @@
     "col_cost": "コスト（$）",
     "skills": "スキルの提案",
     "skills_empty": "スキルの提案は Skill Miner とともに提供されます。まだ提案はありません。"
+  },
+  "decisions": {
+    "title": "あなたの判断待ち",
+    "loading": "判断を読み込み中…",
+    "load_failed": "判断を読み込めませんでした。",
+    "empty": "インボックスゼロ：待っている判断はありません。",
+    "more": "この他に {{count}} 件が待っています",
+    "urgency": {
+      "high": "緊急",
+      "normal": "通常",
+      "low": "低"
+    },
+    "due": "期限 {{when}}",
+    "recommended": "推奨",
+    "other": "別の回答をする…",
+    "other_label": "代わりに何をするか説明",
+    "send": "送信",
+    "cancel": "キャンセル",
+    "answered": "回答済み",
+    "respond_failed": "回答を送信できませんでした"
   }
 }
