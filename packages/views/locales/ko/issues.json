@@ -1204,5 +1204,42 @@
     "cancel": "취소",
     "failed": "대결 요청에 실패했습니다",
     "identical": "서로 다른 두 에이전트를 선택하세요"
+  },
+  "campaign": {
+    "section": "리팩토링 캠페인",
+    "target": "{{branch}}으로",
+    "status": {
+      "running": "실행 중",
+      "merging": "병합 중",
+      "completed": "완료",
+      "failed": "실패"
+    },
+    "progress": "{{done}}/{{total}} 병합 또는 건너뜀",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "대기",
+      "rebasing": "리베이스·병합 중",
+      "ready": "병합 준비됨",
+      "merged": "병합됨",
+      "conflict": "충돌",
+      "skipped": "건너뜀"
+    },
+    "conflict_hint": "사람의 처리가 필요합니다. 해결하거나 샤드를 건너뛰어 큐를 진행하세요.",
+    "skip": "샤드 #{{n}} 건너뛰기",
+    "open": "리팩토링 캠페인 시작",
+    "name": "캠페인 이름",
+    "target_branch": "대상 브랜치",
+    "leader": "리더 에이전트",
+    "shard": "샤드 {{n}}",
+    "shard_placeholder": "이 샤드가 변경하는 내용",
+    "branch": "샤드 {{n}}의 브랜치",
+    "branch_placeholder": "브랜치(선택)",
+    "assignee": "샤드 {{n}} 담당",
+    "pick_agent": "담당 지정…",
+    "remove": "샤드 {{n}} 제거",
+    "add": "샤드 추가",
+    "launch": "캠페인 시작",
+    "cancel": "취소",
+    "failed": "캠페인 요청에 실패했습니다"
   }
 }

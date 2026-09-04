@@ -1235,5 +1235,42 @@
     "cancel": "Cancel",
     "failed": "The duel request failed",
     "identical": "Pick two different agents"
+  },
+  "campaign": {
+    "section": "Refactoring campaign",
+    "target": "into {{branch}}",
+    "status": {
+      "running": "executing",
+      "merging": "merging",
+      "completed": "completed",
+      "failed": "failed"
+    },
+    "progress": "{{done}}/{{total}} merged or skipped",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "waiting",
+      "rebasing": "rebasing & merging",
+      "ready": "ready to merge",
+      "merged": "merged",
+      "conflict": "conflict",
+      "skipped": "skipped"
+    },
+    "conflict_hint": "Needs a human: resolve it or skip the shard so the queue moves on.",
+    "skip": "Skip shard #{{n}}",
+    "open": "Start a refactoring campaign",
+    "name": "Campaign name",
+    "target_branch": "Target branch",
+    "leader": "Leader agent",
+    "shard": "Shard {{n}}",
+    "shard_placeholder": "What this shard changes",
+    "branch": "Branch of shard {{n}}",
+    "branch_placeholder": "Branch (optional)",
+    "assignee": "Assignee of shard {{n}}",
+    "pick_agent": "Assign to…",
+    "remove": "Remove shard {{n}}",
+    "add": "Add a shard",
+    "launch": "Launch campaign",
+    "cancel": "Cancel",
+    "failed": "The campaign request failed"
   }
 }

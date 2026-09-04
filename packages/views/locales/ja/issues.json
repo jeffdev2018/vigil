@@ -1204,5 +1204,42 @@
     "cancel": "キャンセル",
     "failed": "対決のリクエストに失敗しました",
     "identical": "異なる 2 つのエージェントを選んでください"
+  },
+  "campaign": {
+    "section": "リファクタリングキャンペーン",
+    "target": "{{branch}} へ",
+    "status": {
+      "running": "実行中",
+      "merging": "マージ中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "progress": "{{done}}/{{total}} マージまたはスキップ済み",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "待機中",
+      "rebasing": "リベース・マージ中",
+      "ready": "マージ可能",
+      "merged": "マージ済み",
+      "conflict": "競合",
+      "skipped": "スキップ"
+    },
+    "conflict_hint": "人の対応が必要です。解決するか、シャードをスキップしてキューを進めてください。",
+    "skip": "シャード #{{n}} をスキップ",
+    "open": "リファクタリングキャンペーンを開始",
+    "name": "キャンペーン名",
+    "target_branch": "ターゲットブランチ",
+    "leader": "リーダーエージェント",
+    "shard": "シャード {{n}}",
+    "shard_placeholder": "このシャードで変更する内容",
+    "branch": "シャード {{n}} のブランチ",
+    "branch_placeholder": "ブランチ（任意）",
+    "assignee": "シャード {{n}} の担当",
+    "pick_agent": "担当を選択…",
+    "remove": "シャード {{n}} を削除",
+    "add": "シャードを追加",
+    "launch": "キャンペーンを開始",
+    "cancel": "キャンセル",
+    "failed": "キャンペーンのリクエストに失敗しました"
   }
 }

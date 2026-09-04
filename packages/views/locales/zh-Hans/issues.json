@@ -1204,5 +1204,42 @@
     "cancel": "取消",
     "failed": "对决请求失败",
     "identical": "请选择两个不同的智能体"
+  },
+  "campaign": {
+    "section": "重构战役",
+    "target": "合入 {{branch}}",
+    "status": {
+      "running": "执行中",
+      "merging": "合并中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "progress": "{{done}}/{{total}} 已合并或跳过",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "等待中",
+      "rebasing": "变基与合并中",
+      "ready": "可合并",
+      "merged": "已合并",
+      "conflict": "冲突",
+      "skipped": "已跳过"
+    },
+    "conflict_hint": "需要人工处理：解决冲突或跳过该分片以让队列继续。",
+    "skip": "跳过分片 #{{n}}",
+    "open": "发起重构战役",
+    "name": "战役名称",
+    "target_branch": "目标分支",
+    "leader": "领导智能体",
+    "shard": "分片 {{n}}",
+    "shard_placeholder": "该分片要改动的内容",
+    "branch": "分片 {{n}} 的分支",
+    "branch_placeholder": "分支（可选）",
+    "assignee": "分片 {{n}} 的负责人",
+    "pick_agent": "指派给…",
+    "remove": "移除分片 {{n}}",
+    "add": "添加分片",
+    "launch": "发起战役",
+    "cancel": "取消",
+    "failed": "战役请求失败"
   }
 }
