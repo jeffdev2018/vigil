@@ -263,6 +263,27 @@
     "validation": {
       "instance_type_required": "Instance type is required",
       "disk_size_invalid": "Disk size must be a positive integer"
+    },
+    "power": {
+      "start": {
+        "label": "Start",
+        "toast": "Starting the node.",
+        "failed": "Could not start the node."
+      },
+      "stop": {
+        "label": "Stop",
+        "toast": "Stopping the node.",
+        "failed": "Could not stop the node."
+      },
+      "reboot": {
+        "label": "Reboot",
+        "confirm": "Reboot this node? Anything running on it is interrupted.",
+        "toast": "Rebooting the node.",
+        "failed": "Could not reboot the node."
+      },
+      "status": {
+        "label": "Refresh status"
+      }
     }
   },
   "update": {

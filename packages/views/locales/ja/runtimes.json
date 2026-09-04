@@ -251,6 +251,27 @@
     "validation": {
       "instance_type_required": "インスタンスタイプは必須です",
       "disk_size_invalid": "ディスクサイズは正の整数である必要があります"
+    },
+    "power": {
+      "start": {
+        "label": "起動",
+        "toast": "ノードを起動しています。",
+        "failed": "ノードを起動できませんでした。"
+      },
+      "stop": {
+        "label": "停止",
+        "toast": "ノードを停止しています。",
+        "failed": "ノードを停止できませんでした。"
+      },
+      "reboot": {
+        "label": "再起動",
+        "confirm": "このノードを再起動しますか？実行中の処理は中断されます。",
+        "toast": "ノードを再起動しています。",
+        "failed": "ノードを再起動できませんでした。"
+      },
+      "status": {
+        "label": "ステータスを更新"
+      }
     }
   },
   "update": {

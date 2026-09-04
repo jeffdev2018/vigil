@@ -283,6 +283,8 @@ import type {
 } from "../feedback/types";
 import type {
   CloudRuntimeNode,
+  CloudRuntimeNodeAction,
+  CloudRuntimeNodeActionResult,
   CreateCloudRuntimeNodeRequest,
   ListCloudRuntimeNodesParams,
 } from "../runtimes/cloud-runtime";
@@ -319,6 +321,7 @@ import {
   CommentsListSchema,
   CommentTriggerPreviewSchema,
   IssueTriggerPreviewSchema,
+  CloudRuntimeNodeActionSchema,
   CloudRuntimeNodeListSchema,
   CloudRuntimeNodeSchema,
   AgentBuilderRuntimeSwitchSchema,
@@ -396,6 +399,7 @@ import {
   EMPTY_CHAT_SESSION_LIST,
   EMPTY_PRIORITIZE_QUEUED_CHAT_TASK_RESPONSE,
   EMPTY_CLOUD_RUNTIME_NODE,
+  EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   EMPTY_CLOUD_RUNTIME_NODE_LIST,
   EMPTY_AGENT_BUILDER_SESSION,
   EMPTY_GROUPED_ISSUES_RESPONSE,
@@ -2362,6 +2366,40 @@ export class ApiClient {
       body: JSON.stringify({ instance_id: instanceId }),
       extraHeaders: { "Content-Type": "application/json" },
     });
+  }
+
+  /** Power action on one cloud node: start, stop or reboot. */
+  async actOnCloudRuntimeNode(
+    action: CloudRuntimeNodeAction,
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    return this.postCloudRuntimeNodeAction(action, instanceId);
+  }
+
+  /** Reads one cloud node's current status without refetching the whole list. */
+  async getCloudRuntimeNodeStatus(
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    return this.postCloudRuntimeNodeAction("status", instanceId);
+  }
+
+  private async postCloudRuntimeNodeAction(
+    action: CloudRuntimeNodeAction | "status",
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    const path = `/api/cloud-runtime/nodes/${action}`;
+    const res = await this.fetchRaw(path, {
+      method: "POST",
+      body: JSON.stringify({ instance_id: instanceId }),
+      extraHeaders: { "Content-Type": "application/json" },
+    });
+    const raw = await res.json().catch(() => null) as unknown;
+    return parseWithFallback(
+      raw,
+      CloudRuntimeNodeActionSchema,
+      EMPTY_CLOUD_RUNTIME_NODE_ACTION,
+      { endpoint: `POST ${path}` },
+    );
   }
 
   // ---------------------------------------------------------------------

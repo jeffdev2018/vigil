@@ -101,7 +101,10 @@ import type {
   PRStack,
   IssuePlanEnvelope,
 } from "../types";
-import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
+import type {
+  CloudRuntimeNode,
+  CloudRuntimeNodeActionResult,
+} from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
 
 export const PluginConfigFieldSchema = z.object({
@@ -1864,6 +1867,20 @@ export const CloudRuntimeNodeSchema = z.object({
 }).loose();
 
 export const CloudRuntimeNodeListSchema = z.array(CloudRuntimeNodeSchema);
+
+// Power-action / status responses from the fleet service. That service is not
+// part of this repo, so the schema is deliberately permissive: both fields are
+// defaulted and unknown keys pass through. Only `status` is consumed, and an
+// empty one means "nothing new to show" rather than a broken page.
+export const CloudRuntimeNodeActionSchema = z.object({
+  instance_id: z.string().default(""),
+  status: z.string().default(""),
+}).loose();
+
+export const EMPTY_CLOUD_RUNTIME_NODE_ACTION: CloudRuntimeNodeActionResult = {
+  instance_id: "",
+  status: "",
+};
 
 export const EMPTY_CLOUD_RUNTIME_NODE_LIST: CloudRuntimeNode[] = [];
 
