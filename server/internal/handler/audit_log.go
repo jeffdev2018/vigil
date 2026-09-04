@@ -93,6 +93,11 @@ type AuditLogEntryResponse struct {
 	ApproverType *string         `json:"approver_type"`
 	ApproverID   *string         `json:"approver_id"`
 	Details      json.RawMessage `json:"details"`
+	// Hash chain: chain_seq orders the workspace's entries, hash covers the
+	// entry and prev_hash, so a missing or altered row breaks verification.
+	ChainSeq int64   `json:"chain_seq"`
+	PrevHash *string `json:"prev_hash"`
+	Hash     string  `json:"hash"`
 }
 
 func auditEntryToResponse(e db.AuditLogEntry) AuditLogEntryResponse {
@@ -109,6 +114,7 @@ func auditEntryToResponse(e db.AuditLogEntry) AuditLogEntryResponse {
 		ID: uuidToString(e.ID), WorkspaceID: uuidToString(e.WorkspaceID), OccurredAt: e.OccurredAt.Time.UTC().Format(time.RFC3339Nano),
 		ActorType: e.ActorType, ActorID: uuidToPtr(e.ActorID), Action: e.Action, EntityType: e.EntityType, EntityID: uuidToPtr(e.EntityID),
 		Model: textToPtr(e.Model), CostUsdTicks: cost, ApproverType: textToPtr(e.ApproverType), ApproverID: uuidToPtr(e.ApproverID), Details: details,
+		ChainSeq: e.ChainSeq, PrevHash: textToPtr(e.PrevHash), Hash: e.Hash,
 	}
 }
 
@@ -231,7 +237,7 @@ func (h *Handler) ListAuditLog(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"entries": out, "next_cursor": next})
 }
 
-var auditCSVHeader = []string{"id", "occurred_at", "actor_type", "actor_id", "action", "entity_type", "entity_id", "model", "cost_usd_ticks", "approver_type", "approver_id", "details"}
+var auditCSVHeader = []string{"id", "occurred_at", "actor_type", "actor_id", "action", "entity_type", "entity_id", "model", "cost_usd_ticks", "approver_type", "approver_id", "details", "chain_seq", "prev_hash", "hash"}
 
 func auditCSVRow(e AuditLogEntryResponse) []string {
 	str := func(p *string) string {
@@ -244,7 +250,7 @@ func auditCSVRow(e AuditLogEntryResponse) []string {
 	if e.CostUsdTicks != nil {
 		cost = strconv.FormatInt(*e.CostUsdTicks, 10)
 	}
-	return []string{e.ID, e.OccurredAt, e.ActorType, str(e.ActorID), e.Action, e.EntityType, str(e.EntityID), str(e.Model), cost, str(e.ApproverType), str(e.ApproverID), string(e.Details)}
+	return []string{e.ID, e.OccurredAt, e.ActorType, str(e.ActorID), e.Action, e.EntityType, str(e.EntityID), str(e.Model), cost, str(e.ApproverType), str(e.ApproverID), string(e.Details), strconv.FormatInt(e.ChainSeq, 10), str(e.PrevHash), e.Hash}
 }
 
 // ExportAuditLog — GET /api/audit-log/export?format=csv|json (owner/admin).
@@ -319,4 +325,39 @@ func (h *Handler) ExportAuditLog(w http.ResponseWriter, r *http.Request) {
 	if cw == nil {
 		_, _ = w.Write([]byte("]"))
 	}
+}
+
+// AuditChainStatus is the outcome of walking a workspace's chain.
+type AuditChainStatus struct {
+	OK        bool    `json:"ok"`
+	Total     int64   `json:"total"`
+	HeadHash  string  `json:"head_hash"`
+	BrokenSeq *int64  `json:"broken_seq"`
+	BrokenID  *string `json:"broken_id"`
+}
+
+// VerifyAuditLog — GET /api/audit-log/verify (owner/admin): recomputes every
+// hash and link in the database with the trigger's own function.
+func (h *Handler) VerifyAuditLog(w http.ResponseWriter, r *http.Request) {
+	workspaceID := h.resolveWorkspaceID(r)
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
+	if !ok {
+		return
+	}
+	if _, ok := h.requireWorkspaceRole(w, r, workspaceID, "workspace not found", "owner", "admin"); !ok {
+		return
+	}
+	row, err := h.Queries.VerifyAuditChain(r.Context(), wsUUID)
+	if err != nil {
+		slog.Warn("audit chain verify failed", append(logger.RequestAttrs(r), "error", err)...)
+		writeError(w, http.StatusInternalServerError, "failed to verify the audit log")
+		return
+	}
+	status := AuditChainStatus{OK: !row.BrokenID.Valid, Total: row.Total, HeadHash: row.HeadHash}
+	if row.BrokenID.Valid {
+		seq := row.BrokenSeq
+		status.BrokenSeq = &seq
+		status.BrokenID = uuidToPtr(row.BrokenID)
+	}
+	writeJSON(w, http.StatusOK, status)
 }

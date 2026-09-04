@@ -1,0 +1,4 @@
+DROP TRIGGER IF EXISTS trg_audit_log_entry_chain ON audit_log_entry;
+DROP FUNCTION IF EXISTS audit_log_entry_chain();
+DROP FUNCTION IF EXISTS audit_log_entry_hash(TEXT, UUID, BIGINT, TIMESTAMPTZ, TEXT, UUID, TEXT, TEXT, UUID, TEXT, BIGINT, TEXT, UUID, JSONB);
+ALTER TABLE audit_log_entry DROP COLUMN IF EXISTS chain_seq, DROP COLUMN IF EXISTS prev_hash, DROP COLUMN IF EXISTS hash;
