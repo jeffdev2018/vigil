@@ -114,6 +114,7 @@ type NavKey =
   | "inbox"
   | "triage"
   | "meetings"
+  | "postmortems"
   | "chat"
   | "myIssues"
   | "issues"
@@ -132,6 +133,7 @@ type NavLabelKey =
   | "inbox"
   | "triage"
   | "meetings"
+  | "postmortems"
   | "chat"
   | "my_issues"
   | "issues"
@@ -151,6 +153,7 @@ const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "inbox", labelKey: "inbox" },
   { key: "triage", labelKey: "triage" },
   { key: "meetings", labelKey: "meetings" },
+  { key: "postmortems", labelKey: "postmortems" },
   { key: "chat", labelKey: "chat" },
   { key: "myIssues", labelKey: "my_issues" },
 ];

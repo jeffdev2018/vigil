@@ -230,6 +230,10 @@ type AgentData struct {
 	// daemon decodes provider-specific fields (e.g. openclaw mode +
 	// gateway endpoint, see issue #3260); other backends ignore it.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
+	// Memories are the agent's durable learned facts (JEF-236), rendered
+	// into the brief's Memory section by execenv. Absent on older servers
+	// and when the agent has none.
+	Memories []string `json:"memories,omitempty"`
 }
 
 // DisabledRuntimeSkillData is the task-wire identity of one runtime-local

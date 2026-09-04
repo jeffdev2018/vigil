@@ -41,6 +41,11 @@ const (
 	EventTaskMessage               = "task:message"
 	EventTaskCancelled             = "task:cancelled" // * → cancelled
 
+	// Postmortem events (k68). postmortem:created fires when a failed run gets
+	// a drafted postmortem; postmortem:resolved fires on approve/discard.
+	EventPostmortemCreated  = "postmortem:created"
+	EventPostmortemResolved = "postmortem:resolved"
+
 	// Inbox events
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"
@@ -76,6 +81,12 @@ const (
 	EventSkillCreated = "skill:created"
 	EventSkillUpdated = "skill:updated"
 	EventSkillDeleted = "skill:deleted"
+
+	// Agent memory events (JEF-236). Payload carries the memory row so
+	// clients can update their cache without a refetch.
+	EventAgentMemoryCreated = "agent_memory:created"
+	EventAgentMemoryUpdated = "agent_memory:updated"
+	EventAgentMemoryDeleted = "agent_memory:deleted"
 
 	// Chat events
 	EventChatMessage = "chat:message"

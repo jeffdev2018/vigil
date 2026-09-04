@@ -484,6 +484,18 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// backs auto-titling. A deployment with no MULTICA_LLM_* configuration gets
 	// a disabled client, which turns the feature off rather than failing.
 	taskSvc.QuickActions = llmClient
+	// Post-run memory extraction runs through the same internal LLM layer;
+	// the disabled client of an unconfigured deployment turns it off rather
+	// than failing (JEF-236).
+	taskSvc.MemoryExtraction = llmClient
+	// Post-failure postmortem drafting (k68) uses the same internal LLM layer;
+	// a disabled client falls back to the deterministic scaffold so a
+	// postmortem is still stored.
+	taskSvc.Postmortem = llmClient
+	// Post-success skill distillation (k69) uses the same internal LLM layer;
+	// a disabled client simply turns the pass off (a skill is only worth
+	// storing when genuinely distilled).
+	taskSvc.SkillDistillation = llmClient
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 dbreader.NewPrimaryOnly(queries),

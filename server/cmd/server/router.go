@@ -1254,6 +1254,21 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		service.SubscribePluginEvents(bus, pluginEvents)
 	}
 
+	// Post-run agent memory extraction (JEF-236). Wired unconditionally: the
+	// pass no-ops on a nil/disabled LLM client, so a deployment without
+	// MULTICA_LLM_* pays nothing for the subscription.
+	h.TaskService.SubscribeAgentMemoryExtraction(bus)
+
+	// Post-failure postmortem drafting (k68). Wired unconditionally: without an
+	// assist-layer LLM the pass stores a deterministic scaffold instead, so the
+	// artifact exists in every deployment.
+	h.TaskService.SubscribePostmortemGeneration(bus)
+
+	// Post-success skill distillation (k69). Wired unconditionally: without an
+	// assist-layer LLM the pass no-ops (a skill is only worth storing when
+	// genuinely distilled), so an unconfigured deployment pays nothing.
+	h.TaskService.SubscribeSkillDistillation(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -1999,6 +2014,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			r.Post("/api/tasks/{taskId}/spend-token", h.IssueSpendToken)
 			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
+			// Postmortems (k68). List/get/stats are member-readable; approve and
+			// discard are human-only — a postmortem's fate is a human decision.
+			r.Route("/api/postmortems", func(r chi.Router) {
+				r.Get("/", h.GetPostmortems)
+				r.Get("/stats", h.GetPostmortemsStats)
+				r.With(handler.RequireHumanActor).Post("/{id}/approve", h.ApprovePostmortem)
+				r.With(handler.RequireHumanActor).Post("/{id}/discard", h.DiscardPostmortem)
+				r.Get("/{id}", h.GetPostmortem)
+			})
+
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
 			r.With(handler.RequireHumanActor).Post("/api/tasks/{taskId}/retry-source-context", h.RetrySourceContextQuickCreate)
@@ -2342,6 +2367,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/skills/{skillId}/enabled", h.SetAgentSkillEnabled)
 					r.Put("/runtime-skills/enabled", h.SetAgentRuntimeSkillEnabled)
 					r.Delete("/skills/{skillId}", h.RemoveAgentSkill)
+					// Durable per-agent memory facts (JEF-236), injected into
+					// every run's brief. Same permission model as the agent's
+					// skill bindings above.
+					r.Get("/memories", h.ListAgentMemories)
+					r.Post("/memories", h.CreateAgentMemory)
+					r.Put("/memories/{memoryId}", h.UpdateAgentMemory)
+					r.Delete("/memories/{memoryId}", h.DeleteAgentMemory)
 					// Workspace MCP servers assigned to this agent. Mirrors
 					// the skills routes above: a library entry does nothing
 					// until it is added here, and the binding carries its own

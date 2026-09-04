@@ -18,6 +18,7 @@ import type search from "../locales/en/search.json";
 import type inbox from "../locales/en/inbox.json";
 import type triage from "../locales/en/triage.json";
 import type meetings from "../locales/en/meetings.json";
+import type postmortem from "../locales/en/postmortem.json";
 import type workspace from "../locales/en/workspace.json";
 import type projects from "../locales/en/projects.json";
 import type autopilots from "../locales/en/autopilots.json";
@@ -61,6 +62,7 @@ declare global {
     inbox: typeof inbox;
     triage: typeof triage;
     meetings: typeof meetings;
+    postmortem: typeof postmortem;
     workspace: typeof workspace;
     projects: typeof projects;
     autopilots: typeof autopilots;

@@ -14,6 +14,7 @@ import enSearch from "./en/search.json";
 import enInbox from "./en/inbox.json";
 import enTriage from "./en/triage.json";
 import enMeetings from "./en/meetings.json";
+import enPostmortem from "./en/postmortem.json";
 import enWorkspace from "./en/workspace.json";
 import enProjects from "./en/projects.json";
 import enAutopilots from "./en/autopilots.json";
@@ -41,6 +42,7 @@ import zhHansSearch from "./zh-Hans/search.json";
 import zhHansInbox from "./zh-Hans/inbox.json";
 import zhHansTriage from "./zh-Hans/triage.json";
 import zhHansMeetings from "./zh-Hans/meetings.json";
+import zhHansPostmortem from "./zh-Hans/postmortem.json";
 import zhHansWorkspace from "./zh-Hans/workspace.json";
 import zhHansProjects from "./zh-Hans/projects.json";
 import zhHansAutopilots from "./zh-Hans/autopilots.json";
@@ -68,6 +70,7 @@ import koSearch from "./ko/search.json";
 import koInbox from "./ko/inbox.json";
 import koTriage from "./ko/triage.json";
 import koMeetings from "./ko/meetings.json";
+import koPostmortem from "./ko/postmortem.json";
 import koWorkspace from "./ko/workspace.json";
 import koProjects from "./ko/projects.json";
 import koAutopilots from "./ko/autopilots.json";
@@ -95,6 +98,7 @@ import jaSearch from "./ja/search.json";
 import jaInbox from "./ja/inbox.json";
 import jaTriage from "./ja/triage.json";
 import jaMeetings from "./ja/meetings.json";
+import jaPostmortem from "./ja/postmortem.json";
 import jaWorkspace from "./ja/workspace.json";
 import jaProjects from "./ja/projects.json";
 import jaAutopilots from "./ja/autopilots.json";
@@ -128,6 +132,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     inbox: enInbox,
     triage: enTriage,
     meetings: enMeetings,
+    postmortem: enPostmortem,
     workspace: enWorkspace,
     projects: enProjects,
     autopilots: enAutopilots,
@@ -157,6 +162,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     inbox: zhHansInbox,
     triage: zhHansTriage,
     meetings: zhHansMeetings,
+    postmortem: zhHansPostmortem,
     workspace: zhHansWorkspace,
     projects: zhHansProjects,
     autopilots: zhHansAutopilots,
@@ -186,6 +192,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     inbox: koInbox,
     triage: koTriage,
     meetings: koMeetings,
+    postmortem: koPostmortem,
     workspace: koWorkspace,
     projects: koProjects,
     autopilots: koAutopilots,
@@ -215,6 +222,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     inbox: jaInbox,
     triage: jaTriage,
     meetings: jaMeetings,
+    postmortem: jaPostmortem,
     workspace: jaWorkspace,
     projects: jaProjects,
     autopilots: jaAutopilots,

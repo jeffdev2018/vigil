@@ -88,6 +88,8 @@ export type {
   RuntimeLocalSkillImportRequest,
   RuntimeLocalSkillsResult,
   RuntimeLocalSkillImportResult,
+  AgentMemory,
+  AgentMemorySource,
   IssueUsageSummary,
   MikaBootstrapResponse,
   TaskStatus,
@@ -137,6 +139,13 @@ export type {
   TriageAutoSettings,
   TriageSuggestionsResponse,
 } from "./triage";
+export type {
+  Postmortem,
+  PostmortemState,
+  PostmortemTrigger,
+  PostmortemStats,
+  PostmortemsResponse,
+} from "./postmortem";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";

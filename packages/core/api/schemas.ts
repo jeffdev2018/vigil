@@ -55,7 +55,10 @@ import type {
   RealtimeVoiceSession,
   MeetingListResponse,
   MeetingSegmentResponse,
+  PostmortemStats,
+  PostmortemsResponse,
   Label,
+  AgentMemory,
   MemberWithUser,
   IssueProperty,
   ListPropertiesResponse,
@@ -1567,6 +1570,48 @@ export const DismissTriageItemResponseSchema = z.object({
   item_id: z.string(),
   state: z.string().default("dismissed"),
 }).loose();
+
+// Postmortem autogen (k68). A drafted postmortem for a failed run, reviewed
+// by a human (draft -> approved/discarded).
+export const PostmortemSchema = z.object({
+  id: z.string(),
+  source_task_id: z.string().default(""),
+  issue_id: z.string().optional(),
+  agent_id: z.string().optional(),
+  trigger: z.string().default("failed"),
+  state: z.string().default("draft"),
+  failure_reason: z.string().default(""),
+  summary: z.string().default(""),
+  root_cause: z.string().default(""),
+  impact: z.string().default(""),
+  preventive_rules: z.array(z.string()).default([]),
+  cost_usd_ticks: z.number().optional(),
+  llm_generated: z.boolean().default(false),
+  resolved_at: z.string().nullable().optional(),
+  revision: z.number().default(0),
+  created_at: z.string(),
+}).loose();
+
+export const PostmortemsResponseSchema = z.object({
+  items: z.array(PostmortemSchema).default([]),
+  next_cursor: z.string().optional(),
+}).loose();
+
+export const PostmortemStatsSchema = z.object({
+  draft: z.number().default(0),
+  approved: z.number().default(0),
+  discarded: z.number().default(0),
+}).loose();
+
+export const EMPTY_POSTMORTEM_STATS: PostmortemStats = Object.freeze({
+  draft: 0,
+  approved: 0,
+  discarded: 0,
+}) as PostmortemStats;
+
+export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
+  items: [],
+}) as PostmortemsResponse;
 
 // Response schema for POST /api/issues. Two tightenings over IssueSchema:
 //
@@ -3633,6 +3678,36 @@ export const EMPTY_SKILL_IMPORT_RESULT: SkillImportResult = {
   status: "failed",
   reason: "",
 };
+
+// Agent persistent memories (JEF-236). `source` stays a plain string so a
+// newer backend source kind still parses — consumers render it with a
+// default-bearing branch. Fields default so a partial payload degrades to a
+// renderable row rather than dropping the whole list.
+export const AgentMemorySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  content: z.string().optional().default(""),
+  source: z.string().optional().default("manual"),
+  source_task_id: z.string().nullable().optional().default(null),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+}).loose();
+
+export const EMPTY_AGENT_MEMORY: AgentMemory = {
+  id: "",
+  agent_id: "",
+  content: "",
+  source: "manual",
+  source_task_id: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// The list endpoint returns a bare array (repo convention for list APIs, cf.
+// GET /api/skills), so the schema is the array itself.
+export const AgentMemoryListSchema = z.array(AgentMemorySchema);
+
+export const EMPTY_AGENT_MEMORY_LIST: AgentMemory[] = [];
 
 /**
  * Read shape of one workspace MCP server.

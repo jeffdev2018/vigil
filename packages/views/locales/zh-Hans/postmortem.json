@@ -1,0 +1,40 @@
+{
+  "title": "复盘",
+  "subtitle": "审阅智能体运行失败后起草的复盘",
+  "filter": {
+    "draft": "草稿",
+    "approved": "已批准",
+    "discarded": "已丢弃"
+  },
+  "list": {
+    "empty_title_draft": "没有待处理的草稿",
+    "empty_description_draft": "智能体运行失败时，系统会起草一份复盘，在这里等待你审阅。",
+    "empty_title_approved": "还没有已批准的复盘",
+    "empty_description_approved": "你批准的复盘会保留在这里。",
+    "empty_title_discarded": "还没有已丢弃的复盘",
+    "empty_description_discarded": "你丢弃的复盘会移到这里。",
+    "loading": "正在加载复盘",
+    "load_error": "无法加载复盘"
+  },
+  "detail": {
+    "select_prompt": "选择一份复盘进行审阅",
+    "summary_label": "概要",
+    "root_cause_label": "根本原因",
+    "impact_label": "影响",
+    "rules_label": "预防规则",
+    "no_rules": "暂无建议的预防规则",
+    "failure_reason_label": "失败原因",
+    "llm_generated": "AI 起草",
+    "scaffold_generated": "依据运行事实自动填写",
+    "approve": "批准",
+    "approving": "批准中",
+    "discard": "丢弃",
+    "discarding": "丢弃中",
+    "approved_toast": "复盘已批准",
+    "discarded_toast": "复盘已丢弃",
+    "conflict_toast": "该复盘已被处理",
+    "error_toast": "出了点问题",
+    "resolved_note_approved": "该复盘已获批准。",
+    "resolved_note_discarded": "该复盘已被丢弃。"
+  }
+}

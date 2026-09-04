@@ -102,6 +102,17 @@ func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID
 	return err
 }
 
+const deleteWorkspaceAgentMemories = `-- name: DeleteWorkspaceAgentMemories :exec
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1
+`
+
+// agent_memory carries no FK by repo rule; sweep it before the agent rows it
+// logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentMemories(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentMemories, workspaceID)
+	return err
+}
+
 const deleteWorkspaceAgents = `-- name: DeleteWorkspaceAgents :exec
 DELETE FROM agent WHERE agent.workspace_id = $1
 `
@@ -639,6 +650,16 @@ DELETE FROM plugin_installation WHERE id IN (SELECT id FROM installations)
 // stored bundles as the largest orphan the plugin surface can produce.
 func (q *Queries) DeleteWorkspacePluginData(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspacePluginData, workspaceID)
+	return err
+}
+
+const deleteWorkspacePostmortems = `-- name: DeleteWorkspacePostmortems :exec
+DELETE FROM postmortem WHERE postmortem.workspace_id = $1
+`
+
+// postmortem carries no FK by repo rule; sweep it by workspace.
+func (q *Queries) DeleteWorkspacePostmortems(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspacePostmortems, workspaceID)
 	return err
 }
 

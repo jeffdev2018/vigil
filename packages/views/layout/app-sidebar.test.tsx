@@ -125,6 +125,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
     inbox: () => "/acme/inbox",
     triage: () => "/acme/triage",
     meetings: () => "/acme/meetings",
+    postmortems: () => "/acme/postmortems",
     chat: () => "/acme/chat",
     myIssues: () => "/acme/my-issues",
     issues: () => "/acme/issues",

@@ -129,6 +129,21 @@ func writeAgentIdentity(b *strings.Builder, ctx TaskContextForEnv) {
 	}
 }
 
+// writeAgentMemory emits the Memory section: the durable facts this agent
+// learned from previous runs (JEF-236). Emitted only when the agent has at
+// least one fact, so agents without memory get a byte-identical brief.
+func writeAgentMemory(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.AgentMemories) == 0 {
+		return
+	}
+	b.WriteString("## Memory\n\n")
+	b.WriteString("These are facts you learned from previous tasks. Trust them, but re-verify if the current state contradicts them.\n\n")
+	for _, fact := range ctx.AgentMemories {
+		fmt.Fprintf(b, "- %s\n", fact)
+	}
+	b.WriteString("\n")
+}
+
 // writeRequestingUser emits the Requesting User block when the runtime
 // owner's profile description is non-empty. Sanitisation rules match the
 // legacy implementation; see runtime_config.go for the rationale.
@@ -935,6 +950,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	writeHeader(&b)
 	writeBackgroundTaskSafetySlim(&b)
 	writeAgentIdentity(&b, ctx)
+	writeAgentMemory(&b, ctx)
 	writeRequestingUser(&b, ctx)
 	writeWorkspaceContext(&b, ctx)
 

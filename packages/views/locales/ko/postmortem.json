@@ -1,0 +1,40 @@
+{
+  "title": "포스트모템",
+  "subtitle": "에이전트 실행 실패 후 작성된 포스트모템을 검토하세요",
+  "filter": {
+    "draft": "초안",
+    "approved": "승인됨",
+    "discarded": "폐기됨"
+  },
+  "list": {
+    "empty_title_draft": "대기 중인 초안이 없습니다",
+    "empty_description_draft": "에이전트 실행이 실패하면 포스트모템이 작성되어 검토를 기다리며 여기에 표시됩니다.",
+    "empty_title_approved": "승인된 항목이 없습니다",
+    "empty_description_approved": "승인한 포스트모템은 여기에 보관됩니다.",
+    "empty_title_discarded": "폐기된 항목이 없습니다",
+    "empty_description_discarded": "폐기한 포스트모템은 여기로 이동합니다.",
+    "loading": "포스트모템 불러오는 중",
+    "load_error": "포스트모템을 불러올 수 없습니다"
+  },
+  "detail": {
+    "select_prompt": "포스트모템을 선택하여 검토하세요",
+    "summary_label": "요약",
+    "root_cause_label": "근본 원인",
+    "impact_label": "영향",
+    "rules_label": "예방 규칙",
+    "no_rules": "제안된 예방 규칙이 없습니다",
+    "failure_reason_label": "실패 사유",
+    "llm_generated": "AI 작성",
+    "scaffold_generated": "실행 사실에서 자동 입력",
+    "approve": "승인",
+    "approving": "승인 중",
+    "discard": "폐기",
+    "discarding": "폐기 중",
+    "approved_toast": "포스트모템이 승인되었습니다",
+    "discarded_toast": "포스트모템이 폐기되었습니다",
+    "conflict_toast": "이 포스트모템은 이미 처리되었습니다",
+    "error_toast": "문제가 발생했습니다",
+    "resolved_note_approved": "이 포스트모템은 승인되었습니다.",
+    "resolved_note_discarded": "이 포스트모템은 폐기되었습니다."
+  }
+}

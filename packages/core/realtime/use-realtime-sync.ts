@@ -26,6 +26,7 @@ import {
   agentRunCountsKeys,
   agentTasksKeys,
 } from "../agents/queries";
+import { agentMemoryKeys } from "../agents/memory";
 import { githubKeys } from "../github/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
@@ -49,6 +50,7 @@ import {
 import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueDeleted, onInboxSummaryInvalidate } from "../inbox/ws-updaters";
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
+import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -121,6 +123,7 @@ import type {
   ChatSession,
   ChatSessionCreatedPayload,
   InvitationCreatedPayload,
+  AgentMemoryEventPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -661,6 +664,7 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     qc.invalidateQueries({ queryKey: agentActivityKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: agentRunCountsKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: chatKeys.all(wsId) });
+    qc.invalidateQueries({ queryKey: agentMemoryKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: labelKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: propertyKeys.all(wsId) });
     // A catalog edit missed while disconnected would otherwise sit behind the
@@ -880,6 +884,12 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) onTriageInvalidate(qc, wsId);
       },
+      // postmortem:created / postmortem:resolved move items across review
+      // states; refetch the whole (small) postmortem projection.
+      postmortem: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onPostmortemInvalidate(qc, wsId);
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });
@@ -1005,6 +1015,12 @@ export function useRealtimeSync(
       // every message would flood the network. Specific chat handlers below
       // still receive it via ws.on() (a separate subscription channel).
       "task:message",
+      // agent_memory:* events are handled by dedicated ws.on() handlers
+      // below; keep them out of the prefix dispatch to avoid
+      // double-invalidation.
+      "agent_memory:created",
+      "agent_memory:updated",
+      "agent_memory:deleted",
       // task:completed / task:failed deliberately NOT here. They go through
       // both the task-prefix invalidate (refreshes the agent-task-snapshot
       // cache) AND the chat-specific ws.on() handlers below. The two
@@ -1112,6 +1128,24 @@ export function useRealtimeSync(
       if (!item) return;
       await handleInboxNew(qc, item);
     });
+
+    // Agent persistent memories (JEF-236). Invalidate only — the payload is a
+    // change hint, not a row to merge. When it names the agent we invalidate
+    // just that list; a payload without agent_id falls back to the whole
+    // workspace prefix so a settling contract still converges the cache.
+    const handleAgentMemoryEvent = (p: unknown) => {
+      const payload = (p ?? {}) as AgentMemoryEventPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({
+        queryKey: payload.agent_id
+          ? agentMemoryKeys.list(wsId, payload.agent_id)
+          : agentMemoryKeys.all(wsId),
+      });
+    };
+    const unsubAgentMemoryCreated = ws.on("agent_memory:created", handleAgentMemoryEvent);
+    const unsubAgentMemoryUpdated = ws.on("agent_memory:updated", handleAgentMemoryEvent);
+    const unsubAgentMemoryDeleted = ws.on("agent_memory:deleted", handleAgentMemoryEvent);
 
     // --- Timeline event handlers (global fallback) ---
     // These events are also handled granularly by useIssueTimeline when
@@ -1746,6 +1780,9 @@ export function useRealtimeSync(
       unsubIssuePropertiesChanged();
       unsubPropertyChanged.forEach((unsub) => unsub());
       unsubInboxNew();
+      unsubAgentMemoryCreated();
+      unsubAgentMemoryUpdated();
+      unsubAgentMemoryDeleted();
       unsubCommentCreated();
       unsubCommentUpdated();
       unsubCommentDeleted();

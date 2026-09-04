@@ -7,6 +7,7 @@ import type { TimelineEntry } from "./activity";
 import type { Workspace, MemberWithUser, Invitation } from "./workspace";
 import type { Project } from "./project";
 import type { Label } from "./label";
+import type { Postmortem } from "./postmortem";
 
 // WebSocket event types (matching Go server protocol/events.go)
 export type WSEventType =
@@ -73,6 +74,9 @@ export type WSEventType =
   | "label:created"
   | "label:updated"
   | "label:deleted"
+  | "agent_memory:created"
+  | "agent_memory:updated"
+  | "agent_memory:deleted"
   | "issue_labels:changed"
   | "issue_metadata:changed"
   | "issue_properties:changed"
@@ -93,7 +97,9 @@ export type WSEventType =
   | "pull_request:updated"
   | "pull_request:unlinked"
   | "triage:new"
-  | "triage:resolved";
+  | "triage:resolved"
+  | "postmortem:created"
+  | "postmortem:resolved";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -231,6 +237,16 @@ export interface TriageNewPayload {
 export interface TriageResolvedPayload {
   item_id: string;
   state?: string;
+}
+
+/** A failed run got a drafted postmortem awaiting review. */
+export interface PostmortemCreatedPayload {
+  postmortem: Postmortem;
+}
+
+/** A postmortem was approved or discarded. */
+export interface PostmortemResolvedPayload {
+  postmortem: Postmortem;
 }
 
 export interface CommentCreatedPayload {
@@ -518,6 +534,19 @@ export interface ProjectDeletedPayload {
   project_id: string;
 }
 
+/**
+ * Agent persistent-memory events (JEF-236). The server only needs to tell us
+ * WHICH agent's memory list changed — both identifiers are optional because
+ * the wire contract is still settling; a payload without `agent_id` falls
+ * back to invalidating the workspace-wide memory prefix.
+ */
+export interface AgentMemoryEventPayload {
+  agent_id?: string;
+  /** Memory row id — the server may send it as `memory_id` or bare `id`. */
+  memory_id?: string;
+  id?: string;
+}
+
 export interface InvitationCreatedPayload {
   invitation: Invitation;
   workspace_name?: string;
@@ -641,6 +670,9 @@ export interface WSEventPayloadMap {
   "label:created": unknown;
   "label:updated": unknown;
   "label:deleted": unknown;
+  "agent_memory:created": AgentMemoryEventPayload;
+  "agent_memory:updated": AgentMemoryEventPayload;
+  "agent_memory:deleted": AgentMemoryEventPayload;
   "pin:created": unknown;
   "pin:deleted": unknown;
   "pin:reordered": unknown;
@@ -651,6 +683,8 @@ export interface WSEventPayloadMap {
   "pull_request:unlinked": unknown;
   "triage:new": TriageNewPayload;
   "triage:resolved": TriageResolvedPayload;
+  "postmortem:created": PostmortemCreatedPayload;
+  "postmortem:resolved": PostmortemResolvedPayload;
 }
 
 /**

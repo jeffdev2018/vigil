@@ -1523,3 +1523,20 @@ export interface AgentVersionDiff {
   to: AgentVersion;
   changed_fields: string[];
 }
+
+export type AgentMemorySource = "manual" | "run";
+
+/**
+ * One persistent memory fact an agent carries across runs. `source` tells
+ * whether a human pinned it ("manual") or a run wrote it back ("run");
+ * `source_task_id` links a run-sourced memory to the task that produced it.
+ */
+export interface AgentMemory {
+  id: string;
+  agent_id: string;
+  content: string;
+  source: AgentMemorySource;
+  source_task_id: string | null;
+  created_at: string;
+  updated_at: string;
+}

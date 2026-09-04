@@ -56,6 +56,7 @@ import type {
   User,
   Skill,
   SkillSummary,
+  AgentMemory,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -269,6 +270,10 @@ import type {
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
   TriageSuggestionsResponse,
+  Postmortem,
+  PostmortemState,
+  PostmortemStats,
+  PostmortemsResponse,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -437,6 +442,11 @@ import {
   DismissTriageItemResponseSchema,
   EMPTY_TRIAGE_STATS,
   EMPTY_TRIAGE_ITEMS_RESPONSE,
+  PostmortemSchema,
+  PostmortemsResponseSchema,
+  PostmortemStatsSchema,
+  EMPTY_POSTMORTEM_STATS,
+  EMPTY_POSTMORTEMS_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -602,6 +612,10 @@ import {
   type IssueView,
   type IssueViewPreference,
   type CreateIssueViewRequest,
+  AgentMemorySchema,
+  AgentMemoryListSchema,
+  EMPTY_AGENT_MEMORY,
+  EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -1850,6 +1864,75 @@ export class ApiClient {
     });
   }
 
+  // Postmortem autogen (k68). Stats summarize per-state counts; list returns
+  // one state (default draft) newest-first with keyset pagination.
+  async getPostmortemStats(options?: { signal?: AbortSignal }): Promise<PostmortemStats> {
+    const raw = await this.fetch<unknown>(
+      "/api/postmortems/stats",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemStats>(
+      raw,
+      PostmortemStatsSchema,
+      EMPTY_POSTMORTEM_STATS,
+      { endpoint: "GET /api/postmortems/stats" },
+    );
+  }
+
+  async listPostmortems(
+    params?: { state?: PostmortemState; limit?: number; cursor?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<PostmortemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemsResponse>(
+      raw,
+      PostmortemsResponseSchema,
+      EMPTY_POSTMORTEMS_RESPONSE,
+      { endpoint: "GET /api/postmortems" },
+    );
+  }
+
+  async getPostmortem(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "GET /api/postmortems/:id",
+    });
+  }
+
+  async approvePostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/approve`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/approve",
+    });
+  }
+
+  async discardPostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/discard`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/discard",
+    });
+  }
+
   async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {
     return this.fetch("/api/issues/batch-update", {
       method: "POST",
@@ -3024,6 +3107,54 @@ export class ApiClient {
 
   async listAgentTasks(agentId: string): Promise<AgentTask[]> {
     return this.fetch(`/api/agents/${agentId}/tasks`);
+  }
+
+  // Persistent per-agent memories (JEF-236). The list read validates through
+  // parseWithFallback so a drifting response renders an empty list instead of
+  // breaking the agent page; writes validate too so the caller never caches an
+  // unparsed blob. POST returns 409 when the per-agent cap is reached — that
+  // surfaces as an ApiError the tab toasts.
+  async listAgentMemories(agentId: string): Promise<AgentMemory[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
+    return parseWithFallback(
+      raw,
+      AgentMemoryListSchema,
+      EMPTY_AGENT_MEMORY_LIST,
+      { endpoint: "GET /api/agents/{agentId}/memories" },
+    );
+  }
+
+  async createAgentMemory(agentId: string, content: string): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "POST /api/agents/{agentId}/memories",
+    });
+  }
+
+  async updateAgentMemory(
+    agentId: string,
+    memoryId: string,
+    content: string,
+  ): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${agentId}/memories/${memoryId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    );
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "PUT /api/agents/{agentId}/memories/{memoryId}",
+    });
+  }
+
+  async deleteAgentMemory(agentId: string, memoryId: string): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/memories/${memoryId}`, {
+      method: "DELETE",
+    });
   }
 
   // Workspace-scoped agent task snapshot: every active task

@@ -773,6 +773,10 @@ type TaskAgentData struct {
 	// PermissionProfile (K06) is resolved at claim time: the run's override,
 	// else the agent's. The daemon enforces it; nil means no profile.
 	PermissionProfile *permissionprofile.Profile `json:"permission_profile,omitempty"`
+	// Memories are the agent's durable learned facts (JEF-236), loaded at
+	// claim time and rendered by the daemon as the brief's Memory section.
+	// Omitted when the agent has none.
+	Memories []string `json:"memories,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded

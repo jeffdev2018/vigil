@@ -62,7 +62,8 @@
     "source_runtime_unknown": "ランタイムから",
     "source_clawhub": "ClawHub から",
     "source_skills_sh": "Skills.sh から",
-    "source_github": "GitHub から"
+    "source_github": "GitHub から",
+    "source_distilled": "実行から蒸留"
   },
   "actions": {
     "row_menu": "操作",
