@@ -167,6 +167,8 @@ func runRuntimeSweeper(ctx context.Context, queries *db.Queries, liveness handle
 		taskSvc.MoveWaitingTasksOffOfflineRuntimes(ctx, reconnectGrace, offlineTaskFailBatchSize)
 		// Run limits (K03): the duration cap only moves with the clock.
 		taskSvc.SweepRunLimits(ctx, offlineTaskFailBatchSize)
+		// Preemption (K41): suspended runs come back when capacity frees.
+		taskSvc.ResumePreemptedTasks(ctx, offlineTaskFailBatchSize)
 		sweepExpiredRuntimeReconnectRetries(ctx, queries, taskSvc, reconnectGrace)
 		sweepStaleTasks(ctx, queries, taskSvc, bus, reconnectGrace)
 		sweepExpiredQueuedTasks(ctx, queries, taskSvc, reconnectGrace)

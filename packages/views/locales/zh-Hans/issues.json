@@ -912,6 +912,13 @@
     "gate_failed": "无法创建子议题",
     "step_ref": "步骤 {{id}}"
   },
+  "preemption": {
+    "waiting": "已暂停以让紧急议题先行",
+    "resumed": "曾为紧急议题暂停，现已恢复",
+    "for": "优先让给",
+    "estimate": "智能体一有空位就从检查点恢复，紧急运行优先。",
+    "count": "此议题上有 {{count}} 次暂停"
+  },
   "drift": {
     "stopped": "因偏离停止",
     "run": "运行 {{id}}",

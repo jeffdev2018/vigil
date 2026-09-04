@@ -4338,3 +4338,18 @@ export const DriftPolicySchema = z.object({
   repeated_action_threshold: z.number().int().catch(5).default(5),
   file_reread_threshold: z.number().int().catch(8).default(8),
 }).loose();
+
+// Preemption (K41).
+export const PreemptionSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  preempted_at: z.string().default(""),
+  preempted_by_task_id: z.string().default(""),
+  preempted_by_issue_id: z.string().nullable().catch(null).default(null),
+  preempted_by_identifier: z.string().nullable().catch(null).default(null),
+  resumed_by_task_id: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const PreemptionsEnvelopeSchema = z.object({
+  preemptions: z.array(PreemptionSchema).catch([]).default([]),
+}).loose();

@@ -339,6 +339,9 @@ export interface AgentTask {
   touched_paths?: string[] | null;
   /** Drift detection (K40): why the run was stopped for going in circles. */
   drift_reason?: "repeated_action" | "file_reread_loop" | (string & {}) | "";
+  /** Preemption (K41): suspended to let an urgent issue go first. */
+  preempted_at?: string | null;
+  preempted_by_task_id?: string | null;
   checkpoint_attempts?: number;
   checkpointed_at?: string | null;
   /** Issue router (K27): risk level, pool and escalation behind this run. */

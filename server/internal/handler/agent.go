@@ -411,7 +411,10 @@ type AgentTaskResponse struct {
 	CheckpointedAt          *string `json:"checkpointed_at"`
 	ResumeFromCheckpointSeq int64   `json:"resume_from_checkpoint_seq,omitempty"`
 	// Drift detection (K40): why the run was stopped for going in circles.
-	DriftReason        string                `json:"drift_reason,omitempty"`
+	DriftReason string `json:"drift_reason,omitempty"`
+	// Preemption (K41).
+	PreemptedAt        *string               `json:"preempted_at"`
+	PreemptedByTaskID  *string               `json:"preempted_by_task_id"`
 	Attempt            int32                 `json:"attempt"`
 	MaxAttempts        int32                 `json:"max_attempts"`
 	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
@@ -822,6 +825,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		CheckpointAttempts:     t.CheckpointAttempts,
 		CheckpointedAt:         timestampToPtr(t.CheckpointedAt),
 		DriftReason:            t.DriftReason.String,
+		PreemptedAt:            timestampToPtr(t.PreemptedAt),
+		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
