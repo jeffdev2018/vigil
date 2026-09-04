@@ -73,6 +73,8 @@ import type {
   DashboardCostPerDeliverable,
   AgentScorecard,
   WorkspaceScorecardRow,
+  AgentVersion,
+  AgentVersionDiff,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -290,6 +292,9 @@ import {
   DashboardCostPerDeliverableSchema,
   AgentScorecardSchema,
   WorkspaceScorecardsSchema,
+  AgentVersionsSchema,
+  AgentVersionDiffSchema,
+  AgentVersionEnvelopeSchema,
   DashboardUsageDailyListSchema,
   EMPTY_APP_CONFIG,
   EMPTY_ATTACHMENT,
@@ -2648,6 +2653,31 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Agent versions (K23).
+  async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions`);
+    return parseWithFallback(raw, AgentVersionsSchema, { versions: [] }, { endpoint: "GET /api/agents/:id/versions" }).versions;
+  }
+
+  async getAgentVersionDiff(agentId: string, versionId: string, against: string): Promise<AgentVersionDiff> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/diff?against=${encodeURIComponent(against)}`,
+    );
+    const parsed = parseWithFallback<AgentVersionDiff | null>(raw, AgentVersionDiffSchema, null, { endpoint: "GET /api/agents/:id/versions/:versionId/diff" });
+    if (!parsed) throw new Error("version diff returned a malformed response");
+    return parsed;
+  }
+
+  async rollbackAgentVersion(agentId: string, versionId: string): Promise<AgentVersion> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/rollback`, {
+      method: "POST",
+      body: "{}",
+    });
+    const parsed = parseWithFallback<{ version: AgentVersion } | null>(raw, AgentVersionEnvelopeSchema, null, { endpoint: "POST /api/agents/:id/versions/:versionId/rollback" });
+    if (!parsed) throw new Error("rollback returned a malformed version");
+    return parsed.version;
+  }
+
   // Scorecards (K25).
   async getAgentScorecard(agentId: string, days = 30): Promise<AgentScorecard> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/scorecard?days=${days}`);

@@ -268,7 +268,8 @@
     "discard_dialog_title": "保存していない変更を破棄しますか？",
     "discard_dialog_description": "このタブに保存していない変更があります。今移動すると変更は破棄されます。",
     "discard_keep": "編集を続ける",
-    "discard_confirm": "変更を破棄"
+    "discard_confirm": "変更を破棄",
+    "history": "履歴"
   },
   "create_dialog": {
     "title_create": "エージェントを作成",
@@ -961,5 +962,22 @@
     "reopened": "再オープン",
     "no_intervention": "人の介入なし",
     "mean_cost": "実行あたりの平均コスト"
+  },
+  "history": {
+    "single_version": "まだ 1 つのバージョンしかありません。次の変更から履歴が始まります。",
+    "active": "有効",
+    "by_system": "自動記録",
+    "by_member": "メンバーが保存",
+    "rollback": "ロールバック",
+    "confirm_rollback": "v{{number}} へのロールバックを確定",
+    "cancel": "キャンセル",
+    "rolled_back": "v{{number}} へロールバックし、新しいバージョンとして記録しました",
+    "rollback_failed": "ロールバックできませんでした",
+    "diff_title": "v{{from}} → v{{to}}",
+    "diff_empty": "これらのバージョンは同一です。",
+    "changed_fields": "変更：{{fields}}",
+    "model": "モデル",
+    "skills_count": "有効なスキル：{{from}} → {{to}}",
+    "version_label": "v{{number}}"
   }
 }

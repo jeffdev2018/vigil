@@ -276,7 +276,8 @@
     "discard_dialog_title": "放弃未保存的修改？",
     "discard_dialog_description": "当前 tab 有未保存的修改，离开会丢弃这些修改。",
     "discard_keep": "继续编辑",
-    "discard_confirm": "放弃修改"
+    "discard_confirm": "放弃修改",
+    "history": "历史"
   },
   "creation_studio": {
     "title": "创建智能体",
@@ -961,5 +962,22 @@
     "reopened": "重新打开",
     "no_intervention": "无人工介入",
     "mean_cost": "每次运行平均成本"
+  },
+  "history": {
+    "single_version": "目前只有一个版本，下一次更改后开始记录历史。",
+    "active": "当前",
+    "by_system": "自动记录",
+    "by_member": "由成员保存",
+    "rollback": "回滚",
+    "confirm_rollback": "确认回滚到 v{{number}}",
+    "cancel": "取消",
+    "rolled_back": "已回滚到 v{{number}}，记录为新版本",
+    "rollback_failed": "回滚失败",
+    "diff_title": "v{{from}} → v{{to}}",
+    "diff_empty": "这两个版本完全相同。",
+    "changed_fields": "已更改：{{fields}}",
+    "model": "模型",
+    "skills_count": "启用的技能：{{from}} → {{to}}",
+    "version_label": "v{{number}}"
   }
 }

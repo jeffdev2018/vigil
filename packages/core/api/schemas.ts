@@ -3699,3 +3699,31 @@ export const WorkspaceScorecardsSchema = z.object({
   days: z.number().default(30),
   rows: z.array(z.object({ ...ScorecardTotalsShape, agent_id: z.string(), runtime_id: z.string().optional() }).loose()).catch([]).default([]),
 }).loose();
+
+// Agent versions (K23).
+export const AgentVersionSchema = z.object({
+  id: z.string(),
+  agent_id: z.string().default(""),
+  version_number: z.number().int().default(0),
+  instructions: z.string().default(""),
+  model: z.string().default(""),
+  skill_ids: z.array(z.string()).catch([]).default([]),
+  tool_config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  note: z.string().optional(),
+  created_by_type: z.string().default("system"),
+  created_by_id: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+  active: z.boolean().default(false),
+}).loose();
+
+export const AgentVersionsSchema = z.object({
+  versions: z.array(AgentVersionSchema).catch([]).default([]),
+}).loose();
+
+export const AgentVersionDiffSchema = z.object({
+  from: AgentVersionSchema,
+  to: AgentVersionSchema,
+  changed_fields: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const AgentVersionEnvelopeSchema = z.object({ version: AgentVersionSchema }).loose();

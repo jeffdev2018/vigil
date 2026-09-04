@@ -1352,3 +1352,25 @@ export interface WorkspaceScorecardRow extends ScorecardTotals {
   agent_id: string;
   runtime_id?: string;
 }
+
+// Agent versions (K23).
+export interface AgentVersion {
+  id: string;
+  agent_id: string;
+  version_number: number;
+  instructions: string;
+  model: string;
+  skill_ids: string[];
+  tool_config: Record<string, unknown>;
+  note?: string;
+  created_by_type: string;
+  created_by_id: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface AgentVersionDiff {
+  from: AgentVersion;
+  to: AgentVersion;
+  changed_fields: string[];
+}

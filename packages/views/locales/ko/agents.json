@@ -276,7 +276,8 @@
     "discard_dialog_title": "저장하지 않은 변경사항을 버릴까요?",
     "discard_dialog_description": "이 탭에 저장하지 않은 변경사항이 있습니다. 지금 나가면 변경사항이 사라집니다.",
     "discard_keep": "계속 편집",
-    "discard_confirm": "변경사항 버리기"
+    "discard_confirm": "변경사항 버리기",
+    "history": "기록"
   },
   "create_dialog": {
     "title_create": "에이전트 만들기",
@@ -961,5 +962,22 @@
     "reopened": "재오픈",
     "no_intervention": "사람 개입 없음",
     "mean_cost": "실행당 평균 비용"
+  },
+  "history": {
+    "single_version": "아직 버전이 하나뿐입니다. 다음 변경부터 기록이 시작됩니다.",
+    "active": "활성",
+    "by_system": "자동 기록",
+    "by_member": "멤버가 저장",
+    "rollback": "롤백",
+    "confirm_rollback": "v{{number}}(으)로 롤백 확인",
+    "cancel": "취소",
+    "rolled_back": "v{{number}}(으)로 롤백해 새 버전으로 기록했습니다",
+    "rollback_failed": "롤백하지 못했습니다",
+    "diff_title": "v{{from}} → v{{to}}",
+    "diff_empty": "두 버전이 동일합니다.",
+    "changed_fields": "변경됨: {{fields}}",
+    "model": "모델",
+    "skills_count": "활성 스킬: {{from}} → {{to}}",
+    "version_label": "v{{number}}"
   }
 }

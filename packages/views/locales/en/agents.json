@@ -286,7 +286,8 @@
     "discard_dialog_title": "Discard unsaved changes?",
     "discard_dialog_description": "You have unsaved changes in this tab. Leaving now will discard them.",
     "discard_keep": "Keep editing",
-    "discard_confirm": "Discard changes"
+    "discard_confirm": "Discard changes",
+    "history": "History"
   },
   "creation_studio": {
     "title": "Create an agent",
@@ -983,5 +984,22 @@
     "reopened": "Reopened",
     "no_intervention": "Without a human stepping in",
     "mean_cost": "Mean cost per run"
+  },
+  "history": {
+    "single_version": "Only one version so far: the history starts with the next change.",
+    "active": "active",
+    "by_system": "recorded automatically",
+    "by_member": "saved by a member",
+    "rollback": "Roll back",
+    "confirm_rollback": "Confirm rollback to v{{number}}",
+    "cancel": "Cancel",
+    "rolled_back": "Rolled back to v{{number}} as a new version",
+    "rollback_failed": "Failed to roll back",
+    "diff_title": "v{{from}} → v{{to}}",
+    "diff_empty": "These versions are identical.",
+    "changed_fields": "Changed: {{fields}}",
+    "model": "Model",
+    "skills_count": "Enabled skills: {{from}} → {{to}}",
+    "version_label": "v{{number}}"
   }
 }

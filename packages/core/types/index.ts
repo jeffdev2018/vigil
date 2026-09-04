@@ -343,3 +343,4 @@ export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent"
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing } from "./inbox";
 export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
+export type { AgentVersion, AgentVersionDiff } from "./agent";
