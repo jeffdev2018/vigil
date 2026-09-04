@@ -11,7 +11,11 @@
     "actions": "실행 항목 {{count}}개",
     "no_app": "앱 없음",
     "delete": "미팅 삭제",
-    "row_actions_aria": "{{title}} 작업"
+    "row_actions_aria": "{{title}} 작업",
+    "search_placeholder": "미팅 검색",
+    "load_more": "더 불러오기",
+    "search_empty_title": "일치하는 미팅이 없습니다",
+    "search_empty_description": "불러온 미팅 중 해당 제목이 없습니다. 더 불러오면 이전 기록도 검색할 수 있습니다."
   },
   "capability": {
     "title": "전사가 설정되지 않았습니다",

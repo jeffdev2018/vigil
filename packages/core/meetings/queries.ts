@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 
 export const meetingKeys = {
@@ -8,11 +8,30 @@ export const meetingKeys = {
     [...meetingKeys.all(wsId), "detail", id] as const,
 };
 
-/** The workspace's meetings, newest first. Transcripts are omitted here. */
+/** One page of meetings. The server caps a page at 100; this is its default. */
+export const MEETINGS_PAGE_SIZE = 50;
+
+/**
+ * The workspace's meetings, newest first, a page at a time. Transcripts are
+ * omitted here — the detail endpoint carries them.
+ *
+ * Paged rather than a flat list: the endpoint has always answered with at most
+ * one page, so a workspace past its first 50 meetings simply could not see the
+ * older ones. There is no cursor on this endpoint, so pages are offsets; a
+ * meeting created between two fetches shifts the window by one, which for an
+ * append-only "load older" list is a duplicate row at worst.
+ */
 export function meetingListOptions(wsId: string) {
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: meetingKeys.list(wsId),
-    queryFn: ({ signal }) => api.listMeetings(undefined, { signal }),
+    initialPageParam: 0,
+    queryFn: ({ pageParam, signal }) =>
+      api.listMeetings({ limit: MEETINGS_PAGE_SIZE, offset: pageParam }, { signal }),
+    // A short page is the last one: the endpoint reports no total.
+    getNextPageParam: (page, allPages) =>
+      page.meetings.length < MEETINGS_PAGE_SIZE
+        ? undefined
+        : allPages.reduce((n, p) => n + p.meetings.length, 0),
   });
 }
 

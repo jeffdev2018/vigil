@@ -2,10 +2,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiClient, ApiError, errorCode } from "../api/client";
 import {
+  MEETINGS_PAGE_SIZE,
   MEETING_SUMMARY_STALL_MS,
   isMeetingSummaryStalled,
   meetingDetailOptions,
   meetingKeys,
+  meetingListOptions,
 } from "./queries";
 import { useMeetingPreferencesStore } from "./preferences-store";
 import { useMeetingRecorderStore, openMeetingRecorder, requestStopRecording } from "./store";
@@ -260,6 +262,27 @@ describe("meetingDetailOptions", () => {
   it("stops polling a summarize that has been running too long to still be alive", () => {
     const old = new Date(Date.now() - MEETING_SUMMARY_STALL_MS - 1000).toISOString();
     expect(interval({ status: "summarizing", ended_at: old })).toBe(false);
+  });
+});
+
+describe("meetingListOptions paging", () => {
+  const next = (pages: number[]) => {
+    const all = pages.map((n) => ({ meetings: new Array(n).fill({}) }));
+    const options = meetingListOptions("ws-1");
+    return (options.getNextPageParam as (
+      last: unknown,
+      all: unknown[],
+    ) => number | undefined)(all[all.length - 1], all);
+  };
+
+  it("asks for the next offset while pages come back full", () => {
+    expect(next([MEETINGS_PAGE_SIZE])).toBe(MEETINGS_PAGE_SIZE);
+    expect(next([MEETINGS_PAGE_SIZE, MEETINGS_PAGE_SIZE])).toBe(2 * MEETINGS_PAGE_SIZE);
+  });
+
+  it("stops on a short page — the endpoint reports no total", () => {
+    expect(next([MEETINGS_PAGE_SIZE - 1])).toBeUndefined();
+    expect(next([MEETINGS_PAGE_SIZE, 0])).toBeUndefined();
   });
 });
 

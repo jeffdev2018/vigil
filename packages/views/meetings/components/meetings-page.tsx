@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AudioLines, Info, Mic, MoreHorizontal, Trash2 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useConfigStore } from "@multica/core/config";
@@ -20,6 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@multica/ui/components/ui/dropdown-menu";
+import { Button } from "@multica/ui/components/ui/button";
+import { Input } from "@multica/ui/components/ui/input";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
 import { useRowLink } from "../../navigation";
@@ -64,7 +66,8 @@ function knownStatus(status: string): KnownStatus | null {
 export function MeetingsPage() {
   const wsId = useWorkspaceId();
   const { t } = useT("meetings");
-  const meetingsQuery = useQuery(meetingListOptions(wsId));
+  const meetingsQuery = useInfiniteQuery(meetingListOptions(wsId));
+  const [search, setSearch] = useState("");
   // The server declares its speech-to-text provider in /api/config; a 409
   // `stt_not_configured` on a start attempt is the same fact learned late.
   // Either way it is a capability, not an error to alarm the user with.
@@ -75,31 +78,64 @@ export function MeetingsPage() {
   const sttUnavailable = sttRefused || !transcriptionAvailable;
   const recorderPhase = useMeetingRecorderStore((s) => s.phase);
 
-  const meetings = meetingsQuery.data?.meetings ?? [];
+  const meetings = useMemo(
+    () => meetingsQuery.data?.pages.flatMap((page) => page.meetings) ?? [],
+    [meetingsQuery.data],
+  );
+  // Filtered here rather than server-side: the endpoint has no title search,
+  // and this narrows what has already been loaded — which is what a user
+  // scanning a page of meetings is actually doing.
+  const needle = search.trim().toLowerCase();
+  const visible = useMemo(
+    () =>
+      needle
+        ? meetings.filter((m) => m.title.toLowerCase().includes(needle))
+        : meetings,
+    [meetings, needle],
+  );
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <CollectionPageHeader
         icon={AudioLines}
         title={t(($) => $.list.title)}
-        count={meetings.length}
+        count={visible.length}
         description={t(($) => $.list.subtitle)}
         actions={
-          <CollectionPageHeaderAction
-            icon={Mic}
-            label={t(($) => $.list.record)}
-            disabled={sttUnavailable || recorderPhase !== "idle"}
-            onClick={() => openMeetingRecorder()}
-          />
+          <>
+            <Input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder={t(($) => $.list.search_placeholder)}
+              aria-label={t(($) => $.list.search_placeholder)}
+              className="h-8 w-36 md:w-56"
+            />
+            <CollectionPageHeaderAction
+              icon={Mic}
+              label={t(($) => $.list.record)}
+              disabled={sttUnavailable || recorderPhase !== "idle"}
+              onClick={() => openMeetingRecorder()}
+            />
+          </>
         }
       />
 
       {sttUnavailable ? <CapabilityBanner /> : null}
 
       <MeetingList
-        meetings={meetings}
+        meetings={visible}
         isLoading={meetingsQuery.isLoading}
         isError={meetingsQuery.isError}
+        searching={needle.length > 0}
+        // Only offered on the unfiltered list: loading a page the filter then
+        // hides would look like a button that does nothing.
+        onLoadMore={
+          !needle && meetingsQuery.hasNextPage
+            ? () => void meetingsQuery.fetchNextPage()
+            : undefined
+        }
+        loadingMore={meetingsQuery.isFetchingNextPage}
       />
     </div>
   );
@@ -131,10 +167,16 @@ function MeetingList({
   meetings,
   isLoading,
   isError,
+  searching,
+  onLoadMore,
+  loadingMore,
 }: {
   meetings: Meeting[];
   isLoading: boolean;
   isError: boolean;
+  searching: boolean;
+  onLoadMore?: () => void;
+  loadingMore: boolean;
 }) {
   const { t } = useT("meetings");
 
@@ -161,7 +203,13 @@ function MeetingList({
   }
 
   if (meetings.length === 0) {
-    return (
+    return searching ? (
+      <CollectionPageState
+        icon={AudioLines}
+        title={t(($) => $.list.search_empty_title)}
+        description={t(($) => $.list.search_empty_description)}
+      />
+    ) : (
       <CollectionPageState
         icon={AudioLines}
         title={t(($) => $.list.empty_title)}
@@ -171,11 +219,20 @@ function MeetingList({
   }
 
   return (
-    <ul className="flex min-w-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
-      {meetings.map((meeting) => (
-        <MeetingRow key={meeting.id} meeting={meeting} />
-      ))}
-    </ul>
+    <div className="flex min-w-0 flex-1 flex-col overflow-y-auto p-2">
+      <ul className="flex min-w-0 flex-col gap-1">
+        {meetings.map((meeting) => (
+          <MeetingRow key={meeting.id} meeting={meeting} />
+        ))}
+      </ul>
+      {onLoadMore ? (
+        <div className="flex justify-center py-3">
+          <Button size="sm" variant="outline" disabled={loadingMore} onClick={onLoadMore}>
+            {loadingMore ? t(($) => $.list.loading) : t(($) => $.list.load_more)}
+          </Button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

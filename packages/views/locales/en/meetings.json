@@ -11,7 +11,11 @@
     "actions": "{{count}} actions",
     "no_app": "No app",
     "delete": "Delete meeting",
-    "row_actions_aria": "Actions for {{title}}"
+    "row_actions_aria": "Actions for {{title}}",
+    "search_placeholder": "Search meetings",
+    "load_more": "Load more",
+    "search_empty_title": "No meeting matches",
+    "search_empty_description": "No loaded meeting has that in its title. Load more to search further back."
   },
   "capability": {
     "title": "Transcription is not configured",

@@ -11,7 +11,11 @@
     "actions": "{{count}} 条待办事项",
     "no_app": "未知应用",
     "delete": "删除会议",
-    "row_actions_aria": "{{title}} 的操作"
+    "row_actions_aria": "{{title}} 的操作",
+    "search_placeholder": "搜索会议",
+    "load_more": "加载更多",
+    "search_empty_title": "没有匹配的会议",
+    "search_empty_description": "已加载的会议中没有匹配的标题。加载更多可搜索更早的会议。"
   },
   "capability": {
     "title": "尚未配置语音转录",

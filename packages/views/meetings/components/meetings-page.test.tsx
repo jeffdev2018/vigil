@@ -80,10 +80,16 @@ vi.mock("@multica/core/meetings/mutations", () => ({
   }),
 }));
 
+// Paged: the page asks for the next offset, the fake serves the next slice.
 vi.mock("@multica/core/meetings/queries", () => ({
+  MEETINGS_PAGE_SIZE: 2,
   meetingListOptions: () => ({
     queryKey: ["meetings", "ws-1", "list"],
-    queryFn: async () => data.meetings,
+    initialPageParam: 0,
+    queryFn: ({ pageParam }: { pageParam: number }) =>
+      Promise.resolve({ meetings: data.meetings.meetings.slice(pageParam, pageParam + 2) }),
+    getNextPageParam: (page: { meetings: unknown[] }, all: { meetings: unknown[] }[]) =>
+      page.meetings.length < 2 ? undefined : all.reduce((n, p) => n + p.meetings.length, 0),
   }),
 }));
 
@@ -177,6 +183,35 @@ describe("MeetingsPage", () => {
     expect(
       screen.getByRole("button", { name: /record a meeting/i }).hasAttribute("disabled"),
     ).toBe(true);
+  });
+
+  it("loads the next page on demand and stops once a short page comes back", async () => {
+    data.meetings.meetings = [
+      ...MEETINGS.rows,
+      { ...MEETINGS.rows[0]!, id: "meet-3", title: "Retro" },
+    ];
+    renderPage();
+    await screen.findByText("Weekly sync");
+    // First page only.
+    expect(screen.queryByText("Retro")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /load more/i }));
+    expect(await screen.findByText("Retro")).toBeTruthy();
+    // The short second page was the last one.
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("button", { name: /load more/i })).toBeNull(),
+    );
+  });
+
+  it("filters the loaded meetings by title and says so when nothing matches", async () => {
+    renderPage();
+    await screen.findByText("Weekly sync");
+    const search = screen.getByRole("searchbox", { name: /search meetings/i });
+    fireEvent.change(search, { target: { value: "design" } });
+    expect(screen.getByText("Design review")).toBeTruthy();
+    expect(screen.queryByText("Weekly sync")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "nothing like this" } });
+    expect(screen.getByText("No meeting matches")).toBeTruthy();
   });
 
   it("only a meeting the viewer can manage offers the row actions menu", async () => {
