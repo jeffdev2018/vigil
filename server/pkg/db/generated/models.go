@@ -1589,6 +1589,31 @@ type PluginStorage struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Postmortem struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	// The failed agent run (agent_task_queue.id) this postmortem analyzes.
+	SourceTaskID    pgtype.UUID `json:"source_task_id"`
+	IssueID         pgtype.UUID `json:"issue_id"`
+	AgentID         pgtype.UUID `json:"agent_id"`
+	Trigger         string      `json:"trigger"`
+	State           string      `json:"state"`
+	FailureReason   string      `json:"failure_reason"`
+	Summary         string      `json:"summary"`
+	RootCause       string      `json:"root_cause"`
+	Impact          string      `json:"impact"`
+	PreventiveRules []byte      `json:"preventive_rules"`
+	CostUsdTicks    pgtype.Int8 `json:"cost_usd_ticks"`
+	// true when drafted by the assist-layer LLM, false for the deterministic scaffold.
+	LlmGenerated   bool               `json:"llm_generated"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	ResolvedByType pgtype.Text        `json:"resolved_by_type"`
+	ResolvedByID   pgtype.UUID        `json:"resolved_by_id"`
+	Revision       int64              `json:"revision"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Project struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

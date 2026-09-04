@@ -488,6 +488,10 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// the disabled client of an unconfigured deployment turns it off rather
 	// than failing (JEF-236).
 	taskSvc.MemoryExtraction = llmClient
+	// Post-failure postmortem drafting (k68) uses the same internal LLM layer;
+	// a disabled client falls back to the deterministic scaffold so a
+	// postmortem is still stored.
+	taskSvc.Postmortem = llmClient
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 dbreader.NewPrimaryOnly(queries),

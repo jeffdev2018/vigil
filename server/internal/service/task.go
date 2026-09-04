@@ -92,6 +92,12 @@ type TaskService struct {
 	// configuration. Wired in handler.New from the same *llm.Client that backs
 	// chat auto-titling and quick actions.
 	MemoryExtraction AgentMemoryLLM
+	// Postmortem powers the post-failure postmortem drafting pass (k68).
+	// Optional: nil (or a disabled client) falls back to the deterministic
+	// scaffold, so a postmortem is still stored for a self-hosted deployment
+	// with no MULTICA_LLM_* configuration. Wired in handler.New from the same
+	// *llm.Client that backs chat auto-titling and memory extraction.
+	Postmortem PostmortemLLM
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built
@@ -106,6 +112,12 @@ type TaskService struct {
 	// gates above.
 	memoryExtractionInFlight sync.Map
 	memoryExtractionRunning  atomic.Int64
+
+	// postmortemInFlight (task id -> struct{}{}) and postmortemRunning gate the
+	// post-failure drafting pass: one per task, and a process-wide ceiling.
+	// Zero values are usable, like the gates above.
+	postmortemInFlight sync.Map
+	postmortemRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext

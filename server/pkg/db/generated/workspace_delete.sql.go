@@ -653,6 +653,16 @@ func (q *Queries) DeleteWorkspacePluginData(ctx context.Context, workspaceID pgt
 	return err
 }
 
+const deleteWorkspacePostmortems = `-- name: DeleteWorkspacePostmortems :exec
+DELETE FROM postmortem WHERE postmortem.workspace_id = $1
+`
+
+// postmortem carries no FK by repo rule; sweep it by workspace.
+func (q *Queries) DeleteWorkspacePostmortems(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspacePostmortems, workspaceID)
+	return err
+}
+
 const deleteWorkspacePullRequests = `-- name: DeleteWorkspacePullRequests :exec
 WITH deleted_github_prs AS (
     DELETE FROM github_pull_request
