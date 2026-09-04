@@ -6,20 +6,30 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Spinner } from "@multica/ui/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@multica/ui/components/ui/tooltip";
 import { cn } from "@multica/ui/lib/utils";
-import { useVoiceMemo, type VoiceMemoError } from "../../voice";
-import { useT } from "../../i18n";
+import { useVoiceMemo, type VoiceMemoError } from "./use-voice-memo";
+import { useT } from "../i18n";
 
 /**
- * Microphone toggle for the chat composer: one press records, the next one
- * stops and transcribes. Sits beside the attachment menu, same ghost icon
- * treatment. Hidden entirely by the caller when the server has no
- * transcription provider.
+ * Microphone toggle for a composer: one press records, the next one stops and
+ * transcribes, and the text is handed to `onText`. Sits beside the attachment
+ * control, same ghost icon treatment. Every caller hides it when the server
+ * declares no transcription provider.
+ *
+ * Shared by chat, the issue comment composer and the create-issue description.
+ * Its labels stay in the `chat` namespace, where they already exist in all four
+ * locales and read the same on every surface.
+ *
+ * `onRecordingStart` exists for readonly-first hosts: pressing the microphone
+ * is edit intent, and they need to summon their real editor then rather than
+ * when the text lands seconds later.
  */
 export function VoiceMemoButton({
   onText,
+  onRecordingStart,
   disabled,
 }: {
   onText: (text: string) => void;
+  onRecordingStart?: () => void;
   disabled?: boolean;
 }) {
   const { t } = useT("chat");
@@ -56,7 +66,14 @@ export function VoiceMemoButton({
             aria-label={label}
             aria-pressed={phase === "recording"}
             disabled={disabled || phase === "transcribing"}
-            onClick={() => (phase === "recording" ? stop() : void start())}
+            onClick={() => {
+              if (phase === "recording") {
+                stop();
+                return;
+              }
+              onRecordingStart?.();
+              void start();
+            }}
             className={cn(
               "text-muted-foreground hover:text-foreground",
               phase === "recording" && "text-destructive hover:text-destructive",

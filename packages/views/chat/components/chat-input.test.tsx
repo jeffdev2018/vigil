@@ -188,7 +188,8 @@ vi.mock("../../editor", async () => ({
 
 // The real button owns a MediaRecorder, which jsdom does not have. What this
 // suite is about is what the composer does with the transcribed text.
-vi.mock("./voice-memo-button", () => ({
+vi.mock("../../voice", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../voice")>()),
   VoiceMemoButton: ({ onText }: { onText: (text: string) => void }) => (
     <button type="button" onClick={() => onText("dicté")}>
       voice-memo

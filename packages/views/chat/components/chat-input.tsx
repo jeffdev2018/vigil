@@ -19,7 +19,7 @@ import {
 } from "../../editor/use-coordinated-uploads";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { ChatAddMenu } from "./chat-add-menu";
-import { VoiceMemoButton } from "./voice-memo-button";
+import { VoiceMemoButton } from "../../voice";
 import { useConfigStore } from "@multica/core/config";
 import { useVoiceStore } from "@multica/core/voice/store";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
