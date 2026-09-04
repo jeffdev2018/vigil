@@ -7,6 +7,9 @@ import { Virtuoso, type Components, type VirtuosoHandle } from "react-virtuoso";
 import { cn } from "@multica/ui/lib/utils";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { Button } from "@multica/ui/components/ui/button";
+import { useVoiceStore } from "@multica/core/voice/store";
+import { isSpeechSupported, speakMarkdown, stopSpeaking, useIsSpeaking } from "../../voice";
+import { useLocale } from "../../i18n";
 import {
   Collapsible,
   CollapsibleContent,
@@ -25,8 +28,7 @@ import {
   AlertTriangle,
   ArrowUpRight,
   Copy,
-  RotateCw,
-} from "lucide-react";
+  RotateCw, Volume2, VolumeX } from "lucide-react";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { isTaskMessageTaskId, taskMessagesOptions } from "@multica/core/chat/queries";
 import { RichContent } from "../../rich-content";
@@ -872,8 +874,78 @@ function MessageFooter({
         />
       )}
       {showCopy && <MessageCopyButton message={message} timeline={timeline} />}
+      {showCopy && <MessageListenButton message={message} timeline={timeline} />}
     </div>
   );
+}
+
+/**
+ * Read one assistant reply aloud with the browser's own voices. Also the
+ * single place that honours "the user dictated their message": the first
+ * reply to land after a voice memo starts speaking by itself.
+ */
+function MessageListenButton({
+  message,
+  timeline,
+}: {
+  message: ChatMessage;
+  timeline: ChatTimelineItem[];
+}) {
+  const { t } = useT("chat");
+  const locale = useLocale();
+  const speaking = useIsSpeaking(message.id);
+  const speakNextReply = useVoiceStore((s) => s.speakNextReply);
+  const supported = isSpeechSupported();
+  const text = extractCopyText(message, timeline);
+
+  useEffect(() => {
+    if (!supported || !speakNextReply || !text.trim()) return;
+    useVoiceStore.getState().setSpeakNextReply(false);
+    speakMarkdown(message.id, text, speechLang(locale));
+    // Only the reply that lands right after a dictated message triggers this.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [message.id]);
+
+  if (!supported) return null;
+  const label = speaking ? t(($) => $.voice.stop_listening) : t(($) => $.voice.listen);
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className={cn(
+              "text-faint-foreground hover:text-foreground",
+              speaking && "text-foreground",
+            )}
+            onClick={() => (speaking ? stopSpeaking() : speakMarkdown(message.id, text, speechLang(locale)))}
+            aria-label={label}
+            aria-pressed={speaking}
+          />
+        }
+      >
+        {speaking ? <VolumeX /> : <Volume2 />}
+      </TooltipTrigger>
+      <TooltipContent side="top">{label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** BCP 47 tag for SpeechSynthesis from the app locale ("fr" -> "fr-FR"). */
+function speechLang(locale: string): string {
+  switch (locale) {
+    case "fr":
+      return "fr-FR";
+    case "ja":
+      return "ja-JP";
+    case "ko":
+      return "ko-KR";
+    case "zh-Hans":
+      return "zh-CN";
+    default:
+      return locale.includes("-") ? locale : "en-US";
+  }
 }
 
 function MessageCopyButton({

@@ -51,6 +51,7 @@ import type {
   TriageStats,
   TriageItemsResponse,
   Meeting,
+  VoiceTranscription,
   MeetingListResponse,
   MeetingSegmentResponse,
   Label,
@@ -4193,6 +4194,12 @@ export const MeetingSchema = z.object({
   action_count: z.number().catch(0).default(0),
   summary_unavailable: z.boolean().default(false),
 }).loose();
+
+export const VoiceTranscriptionSchema = z.object({
+  text: z.string().default(""),
+}).loose();
+
+export const EMPTY_VOICE_TRANSCRIPTION: VoiceTranscription = Object.freeze({ text: "" });
 
 export const MeetingListResponseSchema = z.object({
   meetings: z.array(MeetingSchema).default([]),

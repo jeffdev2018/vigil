@@ -244,5 +244,16 @@
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
     "unarchive": "アーカイブを解除"
+  },
+  "voice": {
+    "start": "音声でメッセージを入力",
+    "stop": "停止して文字起こし",
+    "transcribing": "文字起こし中…",
+    "error_unsupported": "このブラウザでは録音できません。",
+    "error_mic_denied": "マイクへのアクセスが拒否されました。",
+    "error_not_configured": "このサーバーでは文字起こしが設定されていません。",
+    "error_failed": "録音を文字起こしできませんでした。",
+    "listen": "読み上げ",
+    "stop_listening": "読み上げを停止"
   }
 }

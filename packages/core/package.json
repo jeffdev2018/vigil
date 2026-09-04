@@ -66,6 +66,8 @@
     "./meetings/queries": "./meetings/queries.ts",
     "./meetings/mutations": "./meetings/mutations.ts",
     "./meetings/store": "./meetings/store.ts",
+    "./voice": "./voice/index.ts",
+    "./voice/store": "./voice/store.ts",
     "./triage": "./triage/index.ts",
     "./triage/queries": "./triage/queries.ts",
     "./triage/mutations": "./triage/mutations.ts",
