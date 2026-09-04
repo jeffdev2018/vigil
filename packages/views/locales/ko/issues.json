@@ -912,6 +912,13 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "checkpoint": {
+    "resumed": "실행이 중단되었다가 {{point}} 자동 재개되었습니다 (재개 {{attempts}}/{{max}}).",
+    "exhausted": "인프라 중단: 자동 재개가 {{attempts}}/{{max}}회 후 포기했습니다. 작업 자체의 실패가 아닙니다.",
+    "from_seq": "체크포인트 메시지 {{seq}}에서",
+    "from_start": "처음부터",
+    "checkpointed": "마지막 체크포인트 {{when}}"
+  },
   "run_control": {
     "pause": "실행 일시정지",
     "pause_hint": "다음 안전한 경계(현재 도구 호출 이후)에서 멈추고 지시를 기다립니다.",

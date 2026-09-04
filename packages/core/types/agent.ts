@@ -333,6 +333,10 @@ export interface AgentTask {
   /** Pause (K19): a human asked for a pause the daemon has not honoured yet. */
   pause_requested_at?: string | null;
   resumed_by_task_id?: string | null;
+  /** Checkpoints (K20): resume point in the transcript and how many interruptions this chain survived. */
+  last_checkpoint_seq?: number | null;
+  checkpoint_attempts?: number;
+  checkpointed_at?: string | null;
   /** Issue router (K27): risk level, pool and escalation behind this run. */
   routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
   created_at: string;

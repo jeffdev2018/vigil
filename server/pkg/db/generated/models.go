@@ -213,6 +213,9 @@ type AgentTaskQueue struct {
 	RoutingDecision     []byte             `json:"routing_decision"`
 	PauseRequestedAt    pgtype.Timestamptz `json:"pause_requested_at"`
 	ResumedByTaskID     pgtype.UUID        `json:"resumed_by_task_id"`
+	LastCheckpointSeq   pgtype.Int8        `json:"last_checkpoint_seq"`
+	CheckpointAttempts  int32              `json:"checkpoint_attempts"`
+	CheckpointedAt      pgtype.Timestamptz `json:"checkpointed_at"`
 }
 
 type AgentToLabel struct {

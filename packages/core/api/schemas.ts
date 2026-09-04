@@ -4297,3 +4297,20 @@ export const RunControlEnvelopeSchema = z.object({
   run: RunControlStateSchema.nullable().catch(null).default(null),
   paused_task_id: z.string().optional(),
 }).loose();
+
+// Checkpoints (K20).
+export const RunCheckpointStatusSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  failure_reason: z.string().catch("").default(""),
+  last_checkpoint_seq: z.number().nullable().catch(null).default(null),
+  checkpointed_at: z.string().nullable().catch(null).default(null),
+  attempts: z.number().catch(0).default(0),
+  max_attempts: z.number().catch(3).default(3),
+  resumed_from_task_id: z.string().nullable().catch(null).default(null),
+  exhausted: z.boolean().catch(false).default(false),
+}).loose();
+
+export const RunCheckpointEnvelopeSchema = z.object({
+  run: RunCheckpointStatusSchema.nullable().catch(null).default(null),
+}).loose();

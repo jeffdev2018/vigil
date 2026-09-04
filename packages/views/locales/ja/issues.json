@@ -912,6 +912,13 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "checkpoint": {
+    "resumed": "実行が中断され、{{point}}から自動再開されました（再開 {{attempts}}/{{max}}）。",
+    "exhausted": "インフラの中断：自動再開は {{attempts}}/{{max}} 回で断念しました。タスク自体の失敗ではありません。",
+    "from_seq": "チェックポイント メッセージ {{seq}}",
+    "from_start": "最初",
+    "checkpointed": "最終チェックポイント {{when}}"
+  },
   "run_control": {
     "pause": "実行を一時停止",
     "pause_hint": "次の安全な境界（現在のツール呼び出しの後）で停止し、指示を待ちます。",

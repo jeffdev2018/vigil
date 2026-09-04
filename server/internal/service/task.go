@@ -4983,6 +4983,7 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 	// next online runtime of the pool, bypassing the generic attempt budget
 	// (each runtime is tried once). An exhausted pool fails distinctly.
 	var failover FailoverTarget
+	var checkpointAttempts pgtype.Int4
 	if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr == nil {
 		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK {
 			failover = target
@@ -4999,6 +5000,14 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 		} else if exhausted {
 			failureReason = ReasonRuntimePoolExhausted
 			wantRetry = false
+		}
+		// Checkpoints (K20): an interruption resumes from the checkpoint a
+		// bounded number of times, then fails distinctly.
+		if attempts, exhausted := checkpointResume(parent, failureReason); exhausted {
+			failureReason = ReasonCheckpointResumeExhausted
+			wantRetry = false
+		} else if attempts.Valid && wantRetry {
+			checkpointAttempts = attempts
 		}
 	}
 
@@ -5135,9 +5144,13 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 				RuntimeConnectedApps: retryOverlay.ConnectedApps,
 				RuntimeID:            failover.RuntimeID,
 				FailoverHistory:      failover.History,
+				CheckpointAttempts:   checkpointAttempts,
 			})
 			switch {
 			case cerr == nil:
+				if checkpointAttempts.Valid {
+					s.recordCheckpointResume(ctx, t, child, failureReason)
+				}
 				transferErr := transferPendingSourceContextToRetry(ctx, qtx, t, child)
 				if errors.Is(transferErr, pgx.ErrNoRows) {
 					deleted, deleteErr := qtx.DeleteUnstartedQuickCreateRetryTask(ctx, child.ID)
@@ -5540,6 +5553,14 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		}
 		return nil, nil
 	}
+	// Checkpoints (K20): bounded resumes after an interruption.
+	checkpointAttempts, checkpointExhausted := checkpointResume(parent, reason)
+	if checkpointExhausted {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonCheckpointResumeExhausted, Valid: true}}); err != nil {
+			slog.Warn("checkpoint: mark exhausted failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
 	if !retryableReasons[reason] && !failover.OK {
 		return nil, nil
 	}
@@ -5622,6 +5643,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
 		RuntimeID:            failover.RuntimeID,
 		FailoverHistory:      failover.History,
+		CheckpointAttempts:   checkpointAttempts,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Workspace torn down, or the pending slot was taken between the check
@@ -5640,6 +5662,9 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 			"error", err,
 		)
 		return nil, err
+	}
+	if checkpointAttempts.Valid {
+		s.recordCheckpointResume(ctx, parent, child, reason)
 	}
 	if err := transferPendingSourceContextToRetry(ctx, qtx, parent, child); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {

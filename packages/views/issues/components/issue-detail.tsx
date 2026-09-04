@@ -98,6 +98,7 @@ import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { RunLimitBadge } from "./run-limit-badge";
+import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2618,6 +2619,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Run limits (K03): the latest run's warning or stop, with the numbers. */}
       <RunLimitBadge issueId={id} />
+
+      {/* Checkpoints (K20): interrupted and resumed automatically, or the chain gave up. */}
+      <RunInterruptedBanner issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />
