@@ -2021,6 +2021,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
 				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
+				r.With(handler.RequireHumanActor).Post("/{id}/resummarize", h.ResummarizeMeeting)
 			})
 			// Voice memo: one-shot transcription for the chat composer.
 			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)

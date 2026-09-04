@@ -365,6 +365,50 @@ func (q *Queries) RenameMeeting(ctx context.Context, arg RenameMeetingParams) (M
 	return i, err
 }
 
+const restartMeetingSummary = `-- name: RestartMeetingSummary :one
+UPDATE meeting
+SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()
+WHERE id = $1::uuid
+  AND workspace_id = $2::uuid
+  AND (
+    status IN ('done', 'failed')
+    OR (status = 'summarizing'
+        AND updated_at < now() - make_interval(secs => $3::int))
+  )
+RETURNING id, workspace_id, created_by, title, app_name, status, transcript, summary_md, segment_count, started_at, ended_at, created_at, updated_at
+`
+
+type RestartMeetingSummaryParams struct {
+	ID                pgtype.UUID `json:"id"`
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	StaleAfterSeconds int32       `json:"stale_after_seconds"`
+}
+
+// Re-runs the summary for a meeting that already stopped recording: a `done`
+// one whose summary was never written (no LLM at the time), a `failed` one, or
+// a `summarizing` one whose finish request died mid-flight. A finish still in
+// flight is protected by stale_after_seconds. Zero rows means "not eligible".
+func (q *Queries) RestartMeetingSummary(ctx context.Context, arg RestartMeetingSummaryParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, restartMeetingSummary, arg.ID, arg.WorkspaceID, arg.StaleAfterSeconds)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.Title,
+		&i.AppName,
+		&i.Status,
+		&i.Transcript,
+		&i.SummaryMd,
+		&i.SegmentCount,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const startMeetingSummary = `-- name: StartMeetingSummary :one
 UPDATE meeting
 SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()

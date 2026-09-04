@@ -335,3 +335,80 @@ func TestMeetingRename(t *testing.T) {
 		t.Fatalf("title runes = %d, want %d", n, meetingMaxTitleRunes)
 	}
 }
+
+// A meeting that finished without an LLM keeps its transcript and no summary.
+// Re-summarizing it later — once a model is configured — must produce both the
+// summary and the action items, without queueing a second copy of an item the
+// same run already captured.
+func TestMeetingResummarize(t *testing.T) {
+	stubSTT(t, "Paul livre le connecteur Stripe vendredi.")
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", map[string]string{"title": "Point Stripe"})).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+	testutil.Call(t, testHandler.AppendMeetingSegment,
+		testutil.WithURLParams(audioUploadRequest(t, "/api/meetings/"+created.ID+"/segments", "1"), "id", created.ID)).
+		Want(http.StatusOK)
+
+	// Finish with no LLM: transcript kept, nothing extracted.
+	var done MeetingResponse
+	testutil.Call(t, testHandler.FinishMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/finish", nil), "id", created.ID)).
+		Want(http.StatusOK).JSON(&done)
+	if done.SummaryMarkdown != "" || len(done.Actions) != 0 {
+		t.Fatalf("finish without LLM = %+v", done)
+	}
+
+	resummarize := func(t *testing.T, userID string) *testutil.Response {
+		t.Helper()
+		req := testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/resummarize", nil), "id", created.ID)
+		if userID != "" {
+			req.Header.Set("X-User-ID", userID)
+		}
+		return testutil.Call(t, testHandler.ResummarizeMeeting, req)
+	}
+
+	plainUser := dbfx.User(t, "Resummarize Member", "meeting-resummarize-member@example.com")
+	dbfx.Member(t, testWorkspaceID, plainUser, "member")
+	resummarize(t, plainUser).Want(http.StatusForbidden)
+
+	withStubLLM(t, stubLLMCompletion(t, http.StatusOK,
+		`{"summary_markdown":"- Livraison Stripe vendredi","actions":[`+
+			`{"title":"Livrer le connecteur Stripe","owner":"Paul","evidence":"Paul livre le connecteur Stripe vendredi."}]}`))
+
+	var again MeetingResponse
+	resummarize(t, "").Want(http.StatusOK).JSON(&again)
+	if again.Status != "done" || again.SummaryMarkdown != "- Livraison Stripe vendredi" || len(again.Actions) != 1 {
+		t.Fatalf("resummarize = %+v", again)
+	}
+	if again.SummaryUnavailable {
+		t.Fatalf("summary_unavailable = true after a successful resummarize")
+	}
+
+	// A second run over the same transcript folds into the pending item that
+	// already exists rather than queueing a duplicate.
+	withStubLLM(t, stubLLMCompletion(t, http.StatusOK,
+		`{"summary_markdown":"- Livraison Stripe vendredi","actions":[`+
+			`{"title":"Livrer le connecteur Stripe","owner":"Paul","evidence":"Paul livre le connecteur Stripe vendredi."}]}`))
+	var third MeetingResponse
+	resummarize(t, "").Want(http.StatusOK).JSON(&third)
+	if len(third.Actions) != 1 || third.Actions[0].TriageItemID != again.Actions[0].TriageItemID {
+		t.Fatalf("resummarize duplicated the action item: %+v", third.Actions)
+	}
+}
+
+// A meeting still recording must be finished, not summarized behind the
+// recorder's back.
+func TestMeetingResummarizeRefusesRecording(t *testing.T) {
+	stubSTT(t, "x")
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", nil)).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+	body := testutil.Call(t, testHandler.ResummarizeMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/resummarize", nil), "id", created.ID)).
+		Want(http.StatusConflict).Map()
+	if body["code"] != "meeting_recording" {
+		t.Fatalf("code = %v", body["code"])
+	}
+}

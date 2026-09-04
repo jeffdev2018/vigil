@@ -44,7 +44,9 @@
     "transcript_hide": "隐藏转录",
     "delete": "删除",
     "title_placeholder": "会议标题",
-    "rename_error": "无法重命名该会议。"
+    "rename_error": "无法重命名该会议。",
+    "resummarize": "重新生成摘要",
+    "resummarize_error": "无法重新生成摘要。"
   },
   "recorder": {
     "starting": "正在启动录制…",

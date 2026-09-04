@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AudioLines, ChevronDown, ChevronRight, ExternalLink, Trash2 } from "lucide-react";
+import {
+  AudioLines,
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { meetingDetailOptions } from "@multica/core/meetings/queries";
@@ -11,6 +18,7 @@ import {
   useDeleteMeeting,
   useFinishMeeting,
   useRenameMeeting,
+  useResummarizeMeeting,
 } from "@multica/core/meetings/mutations";
 import { useAuthStore } from "@multica/core/auth";
 import { toast } from "sonner";
@@ -264,7 +272,12 @@ function SummarySection({ meeting }: { meeting: Meeting }) {
   const { t } = useT("meetings");
   return (
     <section className="flex flex-col gap-2">
-      <SectionHeading>{t(($) => $.detail.summary_title)}</SectionHeading>
+      <div className="flex items-center justify-between gap-2">
+        <SectionHeading>{t(($) => $.detail.summary_title)}</SectionHeading>
+        {meeting.can_manage && meeting.status !== "recording" ? (
+          <ResummarizeButton meeting={meeting} />
+        ) : null}
+      </div>
       {meeting.status === "summarizing" ? (
         <div className="flex flex-col gap-2" aria-busy="true">
           <span className="flex items-center gap-2 text-caption text-muted-foreground">
@@ -287,6 +300,37 @@ function SummarySection({ meeting }: { meeting: Meeting }) {
         </p>
       )}
     </section>
+  );
+}
+
+/**
+ * Re-runs the summary + action-item extraction. Offered on any meeting that
+ * stopped recording, not only an empty one: the reasons a summary is missing or
+ * poor (no model configured at the time, a provider blip, a finish that died
+ * with the tab) are all fixed by asking again.
+ */
+function ResummarizeButton({ meeting }: { meeting: Meeting }) {
+  const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
+  const resummarize = useResummarizeMeeting(wsId);
+  return (
+    <Button
+      size="sm"
+      variant="outline"
+      disabled={resummarize.isPending}
+      onClick={() => {
+        resummarize.mutateAsync(meeting.id).catch(() => {
+          toast.error(t(($) => $.detail.resummarize_error));
+        });
+      }}
+    >
+      {resummarize.isPending ? (
+        <Spinner className="size-3.5" />
+      ) : (
+        <RefreshCw aria-hidden="true" className="size-3.5" />
+      )}
+      {t(($) => $.detail.resummarize)}
+    </Button>
   );
 }
 

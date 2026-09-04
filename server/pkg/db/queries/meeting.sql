@@ -84,3 +84,19 @@ SET title = sqlc.arg('title')::text, updated_at = now()
 WHERE id = sqlc.arg('id')::uuid
   AND workspace_id = sqlc.arg('workspace_id')::uuid
 RETURNING *;
+
+-- name: RestartMeetingSummary :one
+-- Re-runs the summary for a meeting that already stopped recording: a `done`
+-- one whose summary was never written (no LLM at the time), a `failed` one, or
+-- a `summarizing` one whose finish request died mid-flight. A finish still in
+-- flight is protected by stale_after_seconds. Zero rows means "not eligible".
+UPDATE meeting
+SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND (
+    status IN ('done', 'failed')
+    OR (status = 'summarizing'
+        AND updated_at < now() - make_interval(secs => sqlc.arg('stale_after_seconds')::int))
+  )
+RETURNING *;

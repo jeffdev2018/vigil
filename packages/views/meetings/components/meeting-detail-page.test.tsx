@@ -55,6 +55,7 @@ const data = vi.hoisted(() => ({
   rename: vi.fn(async (_v: { meetingId: string; title: string }) => undefined),
   remove: vi.fn(async (_id: string) => undefined),
   finish: vi.fn(async (_id: string) => undefined),
+  resummarize: vi.fn(async (_id: string) => undefined),
 }));
 
 vi.mock("@multica/core/meetings/queries", () => ({
@@ -68,6 +69,7 @@ vi.mock("@multica/core/meetings/mutations", () => ({
   useRenameMeeting: () => ({ mutateAsync: data.rename, isPending: false }),
   useDeleteMeeting: () => ({ mutateAsync: data.remove, isPending: false }),
   useFinishMeeting: () => ({ mutateAsync: data.finish, isPending: false }),
+  useResummarizeMeeting: () => ({ mutateAsync: data.resummarize, isPending: false }),
 }));
 
 vi.mock("@multica/core/meetings/store", () => {
@@ -157,6 +159,26 @@ describe("MeetingDetailPage", () => {
     expect(await screen.findByRole("heading", { name: "Weekly sync" })).toBeTruthy();
     expect(screen.queryByTestId("title-editor")).toBeNull();
     expect(screen.queryByRole("button", { name: /^delete$/i })).toBeNull();
+  });
+
+  it("offers Regenerate summary on a finished meeting and calls the server", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /regenerate summary/i }));
+    expect(data.resummarize).toHaveBeenCalledWith("meet-1");
+  });
+
+  it("hides Regenerate summary while the meeting is still recording", async () => {
+    data.meeting = meeting({ status: "recording" });
+    renderPage();
+    expect(await screen.findByTestId("title-editor")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /regenerate summary/i })).toBeNull();
+  });
+
+  it("hides Regenerate summary from a viewer who cannot manage the meeting", async () => {
+    data.meeting = meeting({ can_manage: false });
+    renderPage();
+    expect(await screen.findByRole("heading", { name: "Weekly sync" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /regenerate summary/i })).toBeNull();
   });
 
   it("deleting confirms, awaits the server, then returns to the list", async () => {

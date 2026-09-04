@@ -33,6 +33,11 @@ const (
 	meetingMaxPage        = 100
 	meetingOriginType     = "meeting"
 	meetingSummaryTimeout = 90 * time.Second
+	// meetingSummaryStale is how long a `summarizing` meeting has to sit
+	// untouched before a re-summarize may take it over. Longer than
+	// meetingSummaryTimeout, so a finish still running is never stolen; it is
+	// also the cutoff the client stops polling at.
+	meetingSummaryStale = 5 * time.Minute
 	// meetingLLMTranscriptCap bounds what one summary call sends upstream.
 	meetingLLMTranscriptCap = 60_000
 	// meetingMaxSegmentTextRunes bounds one text segment sent by a live client.
@@ -495,6 +500,7 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		}
 		resp := meetingToResponse(m, actions)
 		resp.SummaryUnavailable = m.Status == "failed" || (m.SummaryMd == "" && len(actions) == 0)
+		resp.CanManage = h.canManageMeeting(r, m, userID)
 		writeJSON(w, http.StatusOK, resp)
 		return
 	case "summarizing":
@@ -512,7 +518,53 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	h.writeSummarizedMeeting(w, r, m, workspaceID, userID)
+}
 
+// ResummarizeMeeting replays the summary leg of finish for a meeting that
+// already stopped recording. POST /api/meetings/{id}/resummarize.
+//
+// The three cases it exists for: a `done` meeting whose summary was never
+// written because no LLM was configured at the time, a `failed` one, and a
+// `summarizing` one whose finish request died with the tab that sent it.
+//
+// Action items go back through triage.Capture, whose upsert folds a repeat of
+// the same normalized title into the source's existing PENDING item instead of
+// queueing a second copy (uq_triage_item_pending_title). An item the user
+// already accepted or dismissed no longer conflicts, so a re-run can surface it
+// again — which is the point: the transcript really did ask for it.
+func (h *Handler) ResummarizeMeeting(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	if m.Status == "recording" {
+		writeErrorCode(w, http.StatusConflict, "meeting_recording", "finish the meeting before summarizing it")
+		return
+	}
+	started, err := h.Queries.RestartMeetingSummary(r.Context(), db.RestartMeetingSummaryParams{
+		ID: m.ID, WorkspaceID: workspaceID, StaleAfterSeconds: int32(meetingSummaryStale.Seconds()),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// Only reachable from `summarizing`: a finish is still running.
+			writeErrorCode(w, http.StatusConflict, "meeting_summarizing", "meeting is being summarized")
+			return
+		}
+		slog.Error("restart meeting summary failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to summarize meeting")
+		return
+	}
+	h.writeSummarizedMeeting(w, r, started, workspaceID, userID)
+}
+
+// writeSummarizedMeeting is the leg finish and resummarize share: summarize the
+// transcript, queue what it asked for, close the meeting, answer with it. `m`
+// must already be in `summarizing` (this is what releases that state).
+func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request, m db.Meeting, workspaceID pgtype.UUID, userID string) {
 	summary, summarized := meetingSummary{}, false
 	if strings.TrimSpace(m.Transcript) != "" {
 		summary, summarized = h.summarizeMeeting(r.Context(), m.Transcript)
@@ -532,8 +584,19 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	// A re-summarize that produced nothing new still has to report the items the
+	// meeting already owns, so the client's list does not shrink to what this
+	// one call happened to capture.
+	if len(actions) == 0 {
+		if existing, err := h.Queries.ListTriageItemsByOrigin(r.Context(), db.ListTriageItemsByOriginParams{
+			WorkspaceID: workspaceID, OriginType: meetingOriginType, OriginID: m.ID,
+		}); err == nil {
+			actions = existing
+		}
+	}
 	resp := meetingToResponse(done, actions)
 	resp.SummaryUnavailable = !summarized && strings.TrimSpace(m.Transcript) != ""
+	resp.CanManage = h.canManageMeeting(r, done, userID)
 	writeJSON(w, http.StatusOK, resp)
 }
 

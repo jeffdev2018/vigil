@@ -1882,6 +1882,21 @@ export class ApiClient {
     });
   }
 
+  /**
+   * Replays the summary + action-item extraction for a meeting that already
+   * stopped recording. 409 `meeting_recording` when it has not, and
+   * `meeting_summarizing` while a finish is still running.
+   */
+  async resummarizeMeeting(id: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/resummarize`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings/:id/resummarize",
+    });
+  }
+
   // Postmortem autogen (k68). Stats summarize per-state counts; list returns
   // one state (default draft) newest-first with keyset pagination.
   async getPostmortemStats(options?: { signal?: AbortSignal }): Promise<PostmortemStats> {

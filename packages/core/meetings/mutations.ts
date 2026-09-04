@@ -86,3 +86,21 @@ export function useFinishMeeting(wsId: string) {
     },
   });
 }
+
+/**
+ * Re-runs the summary for a meeting that already stopped recording. Like
+ * finish, it can queue triage items, so the queue is invalidated too.
+ */
+export function useResummarizeMeeting(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (meetingId: string) => api.resummarizeMeeting(meetingId),
+    onSuccess: (meeting) => {
+      qc.setQueryData(meetingKeys.detail(wsId, meeting.id), meeting);
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+      qc.invalidateQueries({ queryKey: triageKeys.all(wsId) });
+    },
+  });
+}

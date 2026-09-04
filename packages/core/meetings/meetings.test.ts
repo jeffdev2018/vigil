@@ -186,6 +186,24 @@ describe("finishMeeting", () => {
   });
 });
 
+describe("resummarizeMeeting", () => {
+  it("parses the re-summarized meeting", async () => {
+    stubFetchJson({ ...validMeeting, summary_markdown: "- fresh" });
+    expect((await client().resummarizeMeeting("meet-1")).summary_markdown).toBe("- fresh");
+  });
+
+  it("degrades a malformed body to the empty fallback instead of throwing", async () => {
+    stubFetchJson({ id: null, actions: "nope" });
+    expect((await client().resummarizeMeeting("meet-1")).id).toBe("");
+  });
+
+  it("surfaces meeting_recording so the UI can tell the user to finish first", async () => {
+    stubFetchJson({ code: "meeting_recording", error: "finish it first" }, 409);
+    const err = await client().resummarizeMeeting("meet-1").catch((e: unknown) => e);
+    expect(errorCode(err)).toBe("meeting_recording");
+  });
+});
+
 describe("meetingKeys", () => {
   it("nests list and detail under the workspace prefix", () => {
     expect(meetingKeys.list("ws-1")).toEqual([...meetingKeys.all("ws-1"), "list"]);

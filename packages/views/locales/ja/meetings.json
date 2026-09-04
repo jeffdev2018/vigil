@@ -44,7 +44,9 @@
     "transcript_hide": "文字起こしを隠す",
     "delete": "削除",
     "title_placeholder": "ミーティング名",
-    "rename_error": "ミーティング名を変更できませんでした。"
+    "rename_error": "ミーティング名を変更できませんでした。",
+    "resummarize": "要約を再生成",
+    "resummarize_error": "要約を再生成できませんでした。"
   },
   "recorder": {
     "starting": "録音を開始しています…",

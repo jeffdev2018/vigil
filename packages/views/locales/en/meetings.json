@@ -44,7 +44,9 @@
     "transcript_hide": "Hide transcript",
     "delete": "Delete",
     "title_placeholder": "Meeting title",
-    "rename_error": "Could not rename the meeting."
+    "rename_error": "Could not rename the meeting.",
+    "resummarize": "Regenerate summary",
+    "resummarize_error": "Could not regenerate the summary."
   },
   "recorder": {
     "starting": "Starting the recorder…",
