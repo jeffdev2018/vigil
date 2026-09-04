@@ -1245,6 +1245,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge why search chunks",
+			run:  func() error { return qtx.PurgeWorkspaceWhyChunks(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge weekly retros",
 			run:  func() error { return qtx.PurgeWorkspaceWeeklyRetros(ctx, requester.WorkspaceID) },
 		},

@@ -745,6 +745,18 @@ type DecisionRecord struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
+type DecisionSearchChunk struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	SourceType  string             `json:"source_type"`
+	SourceID    pgtype.UUID        `json:"source_id"`
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	Content     string             `json:"content"`
+	Tsv         interface{}        `json:"tsv"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DingtalkBotIdentity struct {
 	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
 	InstallationID   pgtype.UUID        `json:"installation_id"`
