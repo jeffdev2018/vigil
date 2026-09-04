@@ -10,6 +10,7 @@ import {
   type DetectorState,
   type MicOwner,
 } from "./meeting-detection";
+import { startMicPoller } from "./meeting-detection-pollers";
 
 /**
  * Ambient meeting detection (macOS only).
@@ -124,18 +125,36 @@ export function setupMeetingDetector(
     state = applySelfCapture(state, selfCapture);
   });
 
-  if (process.platform !== "darwin") return;
-
-  const helperPath = micMonitorPath();
-  if (!existsSync(helperPath)) {
-    console.warn(
-      `[meeting-detect] mic-monitor not found at ${helperPath} — ambient detection disabled`,
-    );
+  let stopPoller: (() => void) | null = null;
+  if (process.platform === "darwin") {
+    const helperPath = micMonitorPath();
+    if (!existsSync(helperPath)) {
+      console.warn(
+        `[meeting-detect] mic-monitor not found at ${helperPath} — ambient detection disabled`,
+      );
+      return;
+    }
+    console.log("[meeting-detect] starting ambient meeting detection (CoreAudio helper)");
+    spawnHelper(helperPath);
+  } else if (process.platform === "linux" || process.platform === "win32") {
+    // No native helper here: poll the OS's own view of who records from the
+    // microphone (PulseAudio/PipeWire stream list, Windows consent store).
+    console.log(`[meeting-detect] starting ambient meeting detection (${process.platform} poller)`);
+    stopPoller = startMicPoller({
+      platform: process.platform,
+      onReading: (reading) => {
+        micInUse = reading.micInUse;
+        micOwners = reading.owners;
+      },
+      onDisabled: (reason) => {
+        micInUse = false;
+        micOwners = [];
+        console.warn(`[meeting-detect] ${reason} — ambient detection disabled`);
+      },
+    });
+  } else {
     return;
   }
-
-  console.log("[meeting-detect] starting ambient meeting detection");
-  spawnHelper(helperPath);
 
   const timer = setInterval(() => {
     try {
@@ -161,6 +180,7 @@ export function setupMeetingDetector(
   app.on("will-quit", () => {
     stopping = true;
     clearInterval(timer);
+    stopPoller?.();
     helper?.kill();
   });
 }

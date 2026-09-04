@@ -245,7 +245,9 @@ const desktopAPI = {
     ipcRenderer.invoke("window:open-issue", request),
   /** Ambient meeting detection: macOS only, and only when the mic-monitor
    *  helper shipped with this build (the main process checks the binary). */
-  meetingDetection: { supported: process.platform === "darwin" },
+  meetingDetection: {
+    supported: process.platform === "darwin" || process.platform === "linux" || process.platform === "win32",
+  },
   /** Listen for a conferencing app taking the microphone. Returns an
    *  unsubscribe function. Fires at most once per continuous mic session. */
   onMeetingDetected: (
