@@ -31,7 +31,8 @@ export type InboxItemType =
   | "autopilot_quota_exceeded"
   | "decision_request"
   | "decision_escalated"
-  | "ownership_suggested";
+  | "ownership_suggested"
+  | "morning_briefing";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary
@@ -73,4 +74,23 @@ export interface InboxItem {
 export interface AttentionInboxItem extends InboxItem {
   risk_score: number;
   reason: string;
+}
+
+// Morning briefing (K30).
+export interface BriefingItem {
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  reason?: string;
+  pending_decisions?: number;
+}
+
+export interface MorningBriefing {
+  date: string;
+  merged: BriefingItem[];
+  awaiting_review: BriefingItem[];
+  blocked: BriefingItem[];
+  sent_at: string | null;
+  already_sent?: boolean;
 }

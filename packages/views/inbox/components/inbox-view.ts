@@ -10,8 +10,10 @@
  * Persisted in the URL as `?view=archived` so a refresh, a back/forward step,
  * or a mobile detail-back returns to the list the user was actually in.
  */
-export type InboxView = "inbox" | "archived" | "attention";
+export type InboxView = "inbox" | "archived" | "attention" | "briefing";
 
 export const ARCHIVED_VIEW_PARAM = "archived";
 // Attention Inbox (K02): the human-only, risk-ordered projection, `?view=attention`.
 export const ATTENTION_VIEW_PARAM = "attention";
+// Morning briefing (K30): today's digest, `?view=briefing`.
+export const BRIEFING_VIEW_PARAM = "briefing";

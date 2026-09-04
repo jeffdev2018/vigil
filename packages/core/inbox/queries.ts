@@ -7,6 +7,7 @@ export const inboxKeys = {
   list: (wsId: string) => [...inboxKeys.all(wsId), "list"] as const,
   archived: (wsId: string) => [...inboxKeys.all(wsId), "archived"] as const,
   attention: (wsId: string) => [...inboxKeys.all(wsId), "attention"] as const,
+  briefing: (wsId: string) => [...inboxKeys.all(wsId), "briefing"] as const,
   // Account-level (not workspace-scoped): a single shared cache entry that
   // holds unread counts for every workspace the user belongs to.
   unreadSummary: () => ["inbox", "unread-summary"] as const,
@@ -147,3 +148,12 @@ export const attentionInboxListOptions = (wsId: string) =>
     queryFn: () => api.listAttentionInbox(),
     enabled: wsId.length > 0,
   });
+
+// Morning briefing (K30): today's three sections, recomposed on read.
+export function morningBriefingOptions(wsId: string) {
+  return queryOptions({
+    queryKey: inboxKeys.briefing(wsId),
+    queryFn: ({ signal }) => api.getMorningBriefingToday({ signal }),
+    staleTime: 60_000,
+  });
+}

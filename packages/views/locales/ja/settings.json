@@ -708,7 +708,19 @@
     "ownership_agent": "参照エージェント",
     "ownership_no_agent": "エージェントなし",
     "ownership_add": "ルールを追加",
-    "ownership_failed": "ルールを保存できませんでした"
+    "ownership_failed": "ルールを保存できませんでした",
+    "briefing_section": "朝のブリーフィング",
+    "briefing_enabled_label": "毎日のブリーフィングを送信",
+    "briefing_enabled_description": "毎朝、全メンバーの受信箱に届きます：過去 24 時間の完了、レビュー待ち、ブロック中とその理由。受信箱の「今朝のブリーフィング」からも見られます。",
+    "briefing_hour_label": "送信時刻（時）",
+    "briefing_hour_description": "ワークスペースの現地時刻と IANA タイムゾーン。",
+    "briefing_timezone_label": "タイムゾーン",
+    "briefing_send_label": "今日のブリーフィングを今すぐ送信",
+    "briefing_send_description": "1 日 1 回のみ送信されます。2 回目は送信済みと表示されます。",
+    "briefing_send_now": "今すぐ送信",
+    "briefing_sent": "ブリーフィングを送信しました",
+    "briefing_already_sent": "本日のブリーフィングは送信済みです",
+    "briefing_failed": "朝のブリーフィングを更新できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

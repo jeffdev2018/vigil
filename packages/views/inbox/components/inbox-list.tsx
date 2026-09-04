@@ -56,6 +56,7 @@ export function InboxList({
   onAction,
   onOpenArchived,
   onOpenAttention,
+  onOpenBriefing,
   emptyLabel,
   emptyAction,
 }: {
@@ -71,6 +72,8 @@ export function InboxList({
   onAction: (id: string) => void;
   onOpenArchived: () => void;
   onOpenAttention?: () => void;
+  // Morning briefing (K30): entry into today's digest.
+  onOpenBriefing?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
 }) {
@@ -95,6 +98,20 @@ export function InboxList({
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const isArchivedView = view === "archived";
   const isAttentionView = view === "attention";
+
+  const briefingEntry =
+    view === "inbox" && onOpenBriefing ? (
+      <button
+        type="button"
+        data-testid="inbox-briefing-entry"
+        onClick={onOpenBriefing}
+        className="mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center">☀</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.briefing_title)}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
 
   // Entry into the Attention Inbox, at the top of the main list: what needs a
   // human should be the first thing seen, not the last.
@@ -223,6 +240,7 @@ export function InboxList({
         </div>
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
+        {briefingEntry && <div className="px-2">{briefingEntry}</div>}
         {attentionEntry && <div className="px-2">{attentionEntry}</div>}
         {archivedEntry && <div className="px-2">{archivedEntry}</div>}
       </div>

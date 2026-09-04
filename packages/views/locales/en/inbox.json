@@ -44,7 +44,8 @@
     "unarchive_tooltip": "Unarchive",
     "actions_aria": "Notification actions",
     "attention_title": "Needs your attention",
-    "attention_empty": "Nothing needs your attention."
+    "attention_empty": "Nothing needs your attention.",
+    "briefing_title": "This morning"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -81,7 +82,8 @@
     "autopilot_quota_exceeded": "Autopilot run limit reached",
     "decision_request": "Decision requested",
     "decision_escalated": "Decision overdue",
-    "ownership_suggested": "Ownership suggested"
+    "ownership_suggested": "Ownership suggested",
+    "morning_briefing": "Morning briefing"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -116,5 +118,18 @@
     "unarchive_failed": "Failed to unarchive",
     "archived_load_failed": "Failed to load archived notifications",
     "attention_load_failed": "Could not load the attention inbox."
+  },
+  "briefing": {
+    "loading": "Composing this morning's briefing…",
+    "load_failed": "The briefing could not be loaded.",
+    "sent": "sent {{ago}}",
+    "not_sent": "not sent yet today",
+    "empty": "Nothing done overnight, nothing awaiting review, nothing blocked.",
+    "merged": "Done in the last 24 hours ({{count}})",
+    "awaiting_review": "Awaiting review ({{count}})",
+    "blocked": "Blocked, and why ({{count}})",
+    "approve": "Approve",
+    "approve_failed": "Failed to approve",
+    "pending_decisions": "{{count}} decision waiting"
   }
 }

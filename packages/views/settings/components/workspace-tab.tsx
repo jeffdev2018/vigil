@@ -39,6 +39,7 @@ import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
 import { PlanVerificationSetting } from "./plan-verification-setting";
 import { DecisionSlaSetting } from "./decision-sla-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
+import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
 import {
   SettingsCard,
@@ -478,6 +479,7 @@ export function WorkspaceTab() {
       )}
       {workspace && <DecisionSlaSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <ModuleOwnershipSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <MorningBriefingSetting workspace={workspace} canEdit={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection

@@ -232,6 +232,7 @@ import type {
   PlanVerification,
   IssueDecision,
   ReviewCockpit,
+  MorningBriefing,
   ModuleOwnershipRule,
   OwnershipSuggestion,
   IssueScopingProposal,
@@ -426,6 +427,7 @@ import {
   PlanMaterializationSchema,
   IssueDecisionsResponseSchema,
   ReviewCockpitSchema,
+  MorningBriefingSchema,
   ModuleOwnershipListSchema,
   ModuleOwnershipRuleEnvelopeSchema,
   OwnershipSuggestionEnvelopeSchema,
@@ -1367,6 +1369,21 @@ export class ApiClient {
     });
     if (!parsed) throw new Error("respond decision returned a malformed decision");
     return parsed.decision;
+  }
+
+  // Morning briefing (K30).
+  async getMorningBriefingToday(options?: { signal?: AbortSignal }): Promise<MorningBriefing> {
+    const raw = await this.fetch<unknown>(`/api/morning-briefing/today`, options?.signal ? { signal: options.signal } : undefined);
+    return parseWithFallback(raw, MorningBriefingSchema, { date: "", merged: [], awaiting_review: [], blocked: [], sent_at: null }, {
+      endpoint: "GET /api/morning-briefing/today",
+    });
+  }
+
+  async triggerMorningBriefing(): Promise<MorningBriefing> {
+    const raw = await this.fetch<unknown>(`/api/morning-briefing/trigger`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, MorningBriefingSchema, { date: "", merged: [], awaiting_review: [], blocked: [], sent_at: null }, {
+      endpoint: "POST /api/morning-briefing/trigger",
+    });
   }
 
   // Module ownership (K33).

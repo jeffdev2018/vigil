@@ -42,7 +42,8 @@
     "unarchive_tooltip": "取消归档",
     "actions_aria": "通知操作",
     "attention_title": "需要你处理",
-    "attention_empty": "没有需要你处理的事项。"
+    "attention_empty": "没有需要你处理的事项。",
+    "briefing_title": "今晨简报"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -79,7 +80,8 @@
     "autopilot_quota_exceeded": "自动化执行次数已用完",
     "decision_request": "请求决策",
     "decision_escalated": "决策已逾期",
-    "ownership_suggested": "建议归属"
+    "ownership_suggested": "建议归属",
+    "morning_briefing": "晨间简报"
   },
   "labels": {
     "set_status_to": "状态设为",
@@ -114,5 +116,18 @@
     "unarchive_failed": "取消归档失败",
     "archived_load_failed": "无法加载已归档通知",
     "attention_load_failed": "无法加载需处理列表。"
+  },
+  "briefing": {
+    "loading": "正在生成今晨简报…",
+    "load_failed": "无法加载简报。",
+    "sent": "{{ago}}已发送",
+    "not_sent": "今天尚未发送",
+    "empty": "夜间没有完成、没有待审阅、没有阻塞。",
+    "merged": "过去 24 小时完成（{{count}}）",
+    "awaiting_review": "待审阅（{{count}}）",
+    "blocked": "阻塞及原因（{{count}}）",
+    "approve": "批准",
+    "approve_failed": "批准失败",
+    "pending_decisions": "{{count}} 个决策待回答"
   }
 }

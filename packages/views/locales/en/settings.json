@@ -710,7 +710,19 @@
     "ownership_agent": "Referent agent",
     "ownership_no_agent": "No agent",
     "ownership_add": "Add rule",
-    "ownership_failed": "Failed to save the rule"
+    "ownership_failed": "Failed to save the rule",
+    "briefing_section": "Morning briefing",
+    "briefing_enabled_label": "Send a daily briefing",
+    "briefing_enabled_description": "Every member gets an inbox item each morning: done in the last 24 hours, awaiting review, blocked and why. It also lives in the inbox under “This morning”.",
+    "briefing_hour_label": "Send at (hour)",
+    "briefing_hour_description": "Local hour and IANA timezone of the workspace.",
+    "briefing_timezone_label": "Timezone",
+    "briefing_send_label": "Send today's briefing now",
+    "briefing_send_description": "Sends once per day; a second send says it was already sent.",
+    "briefing_send_now": "Send now",
+    "briefing_sent": "Briefing sent",
+    "briefing_already_sent": "Today's briefing was already sent",
+    "briefing_failed": "Failed to update the morning briefing"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

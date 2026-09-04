@@ -3653,3 +3653,23 @@ export const OwnershipSuggestionEnvelopeSchema = z.object({
     pattern: z.string().default(""),
   }).loose().nullable().catch(null).default(null),
 }).loose();
+
+// Morning briefing (K30). A section that fails to parse is empty, and an
+// empty section is hidden by the view, so a broken line never blanks the day.
+const BriefingItemSchema = z.object({
+  issue_id: z.string(),
+  identifier: z.string().default(""),
+  title: z.string().default(""),
+  status: z.string().default(""),
+  reason: z.string().optional(),
+  pending_decisions: z.number().int().optional(),
+}).loose();
+
+export const MorningBriefingSchema = z.object({
+  date: z.string().default(""),
+  merged: z.array(BriefingItemSchema).catch([]).default([]),
+  awaiting_review: z.array(BriefingItemSchema).catch([]).default([]),
+  blocked: z.array(BriefingItemSchema).catch([]).default([]),
+  sent_at: z.string().nullable().catch(null).default(null),
+  already_sent: z.boolean().optional(),
+}).loose();

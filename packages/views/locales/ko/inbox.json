@@ -42,7 +42,8 @@
     "unarchive_tooltip": "보관 해제",
     "actions_aria": "알림 작업",
     "attention_title": "주의 필요",
-    "attention_empty": "주의가 필요한 항목이 없습니다."
+    "attention_empty": "주의가 필요한 항목이 없습니다.",
+    "briefing_title": "오늘 아침 브리핑"
   },
   "detail": {
     "select_prompt": "자세히 볼 알림을 선택하세요",
@@ -79,7 +80,8 @@
     "autopilot_quota_exceeded": "자동화 실행 한도 도달",
     "decision_request": "결정 요청",
     "decision_escalated": "결정 기한 초과",
-    "ownership_suggested": "담당자 제안"
+    "ownership_suggested": "담당자 제안",
+    "morning_briefing": "아침 브리핑"
   },
   "labels": {
     "set_status_to": "상태 변경:",
@@ -114,5 +116,18 @@
     "unarchive_failed": "보관 해제에 실패했습니다",
     "archived_load_failed": "보관된 알림을 불러오지 못했습니다",
     "attention_load_failed": "주의 필요 목록을 불러오지 못했습니다."
+  },
+  "briefing": {
+    "loading": "오늘 아침 브리핑을 작성하는 중…",
+    "load_failed": "브리핑을 불러오지 못했습니다.",
+    "sent": "{{ago}} 발송",
+    "not_sent": "오늘 아직 발송되지 않음",
+    "empty": "밤사이 완료된 것도, 리뷰 대기도, 차단된 것도 없습니다.",
+    "merged": "지난 24시간 완료 ({{count}})",
+    "awaiting_review": "리뷰 대기 ({{count}})",
+    "blocked": "차단됨과 이유 ({{count}})",
+    "approve": "승인",
+    "approve_failed": "승인하지 못했습니다",
+    "pending_decisions": "결정 대기 {{count}}건"
   }
 }

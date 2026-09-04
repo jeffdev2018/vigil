@@ -341,3 +341,4 @@ export type {
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
 export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
+export type { BriefingItem, MorningBriefing } from "./inbox";

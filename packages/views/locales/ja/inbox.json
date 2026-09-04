@@ -42,7 +42,8 @@
     "unarchive_tooltip": "アーカイブ解除",
     "actions_aria": "通知の操作",
     "attention_title": "要対応",
-    "attention_empty": "対応が必要なものはありません。"
+    "attention_empty": "対応が必要なものはありません。",
+    "briefing_title": "今朝のブリーフィング"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -79,7 +80,8 @@
     "autopilot_quota_exceeded": "自動化の実行上限に達しました",
     "decision_request": "判断を求めています",
     "decision_escalated": "判断が期限超過",
-    "ownership_suggested": "担当者の提案"
+    "ownership_suggested": "担当者の提案",
+    "morning_briefing": "朝のブリーフィング"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -114,5 +116,18 @@
     "unarchive_failed": "アーカイブ解除に失敗しました",
     "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
     "attention_load_failed": "要対応リストを読み込めませんでした。"
+  },
+  "briefing": {
+    "loading": "今朝のブリーフィングを作成中…",
+    "load_failed": "ブリーフィングを読み込めませんでした。",
+    "sent": "{{ago}} に送信",
+    "not_sent": "本日はまだ未送信",
+    "empty": "夜間の完了、レビュー待ち、ブロック中はいずれもありません。",
+    "merged": "過去 24 時間に完了（{{count}}）",
+    "awaiting_review": "レビュー待ち（{{count}}）",
+    "blocked": "ブロック中とその理由（{{count}}）",
+    "approve": "承認",
+    "approve_failed": "承認できませんでした",
+    "pending_decisions": "判断待ち {{count}} 件"
   }
 }
