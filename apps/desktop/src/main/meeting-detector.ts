@@ -52,6 +52,7 @@ let micOwners: MicOwner[] = [];
 let selfCapture = false;
 let helperRestarts = 0;
 let helper: ChildProcess | null = null;
+let stopping = false;
 
 function readHelperStdout(child: ChildProcess): void {
   let buffer = "";
@@ -89,6 +90,7 @@ function spawnHelper(helperPath: string): void {
     helper = null;
     micInUse = false;
     micOwners = [];
+    if (stopping) return;
     if (helperRestarts >= HELPER_MAX_RESTARTS) {
       console.error(
         "[meeting-detect] mic-monitor kept exiting — ambient detection disabled",
@@ -157,6 +159,7 @@ export function setupMeetingDetector(
   }, POLL_INTERVAL_MS);
 
   app.on("will-quit", () => {
+    stopping = true;
     clearInterval(timer);
     helper?.kill();
   });

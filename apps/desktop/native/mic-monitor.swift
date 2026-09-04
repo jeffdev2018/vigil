@@ -177,6 +177,9 @@ while true {
             "{\"pid\":\(o.pid),\"bundleId\":\"\(jsonEscape(o.bundleId))\",\"path\":\"\(jsonEscape(o.path))\"}"
         }.joined(separator: ",")
         print("{\"micInUse\":\(inUse),\"owners\":[\(ownerJson)]}")
+        // stdout is a pipe under Electron: fully buffered by default, so the
+        // consumer would only see lines when the process exits. Flush each one.
+        fflush(stdout)
     }
     Thread.sleep(forTimeInterval: 1.0)
 }
