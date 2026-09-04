@@ -1,6 +1,6 @@
 {
   "title": "トリアージ",
-  "subtitle": "受信した Webhook 配信が課題になる前に確認します",
+  "subtitle": "受信した作業（Webhook 配信やミーティングのアクションアイテム）が課題になる前に確認します",
   "stats": {
     "pending": "保留 {{count}} 件",
     "oldest": "最長の待ち {{age}}",
@@ -14,7 +14,6 @@
     "merged": "統合済み"
   },
   "sources": {
-    "label": "ソース",
     "empty": "受信ソースはまだありません",
     "items_24h": "24 時間で {{count}} 件",
     "mode": {
@@ -25,7 +24,7 @@
   },
   "list": {
     "empty_title": "キューは空です",
-    "empty_description": "ソースをゲートに設定すると、その Webhook 配信はここで待機し、人が承認または却下するまで保留されます。",
+    "empty_description": "ゲートに設定したソースの Webhook 配信と、録音したミーティングのアクションアイテムは、人が承認または却下するまでここで待機します。",
     "loading": "トリアージキューを読み込み中",
     "load_error": "トリアージキューを読み込めませんでした",
     "empty_history_title": "まだ何もありません",

@@ -1,6 +1,6 @@
 {
   "title": "Triage",
-  "subtitle": "Review inbound webhook deliveries before they become issues",
+  "subtitle": "Review inbound work — webhook deliveries and meeting action items — before it becomes issues",
   "stats": {
     "pending": "{{count}} pending",
     "oldest": "Oldest waiting {{age}}",
@@ -14,7 +14,6 @@
     "merged": "Merged"
   },
   "sources": {
-    "label": "Sources",
     "empty": "No inbound sources yet",
     "items_24h": "{{count}} in 24h",
     "mode": {
@@ -25,7 +24,7 @@
   },
   "list": {
     "empty_title": "Queue is clear",
-    "empty_description": "When a source is set to Gate, its webhook deliveries wait here until a human accepts or dismisses them.",
+    "empty_description": "Webhook deliveries from a source set to Gate, and action items from a recorded meeting, wait here until a human accepts or dismisses them.",
     "loading": "Loading triage queue",
     "load_error": "Could not load the triage queue",
     "empty_history_title": "Nothing here yet",

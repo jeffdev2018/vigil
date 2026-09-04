@@ -1,6 +1,6 @@
 {
   "title": "待审核",
-  "subtitle": "在入站 webhook 投递变成任务之前先审核它们",
+  "subtitle": "在入站工作（webhook 投递、会议待办事项）变成任务之前先审核它们",
   "stats": {
     "pending": "{{count}} 个待审核",
     "oldest": "等待最久 {{age}}",
@@ -14,7 +14,6 @@
     "merged": "已合并"
   },
   "sources": {
-    "label": "来源",
     "empty": "暂无入站来源",
     "items_24h": "24 小时内 {{count}} 个",
     "mode": {
@@ -25,7 +24,7 @@
   },
   "list": {
     "empty_title": "队列已清空",
-    "empty_description": "当来源设为拦截时，它的 webhook 投递会在这里等待，直到有人接受或丢弃。",
+    "empty_description": "设为拦截的来源的 webhook 投递，以及录制会议产生的待办事项，都会在这里等待，直到有人接受或丢弃。",
     "loading": "正在加载待审核队列",
     "load_error": "无法加载待审核队列",
     "empty_history_title": "这里还没有内容",
