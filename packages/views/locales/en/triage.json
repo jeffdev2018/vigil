@@ -7,6 +7,12 @@
     "dropped_24h": "{{count}} dropped in 24h",
     "none_pending": "Queue is clear"
   },
+  "filter": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "dismissed": "Dismissed",
+    "merged": "Merged"
+  },
   "sources": {
     "label": "Sources",
     "empty": "No inbound sources yet",
@@ -21,7 +27,8 @@
     "empty_title": "Queue is clear",
     "empty_description": "When a source is set to Gate, its webhook deliveries wait here until a human accepts or dismisses them.",
     "loading": "Loading triage queue",
-    "load_error": "Could not load the triage queue"
+    "load_error": "Could not load the triage queue",
+    "empty_history_title": "Nothing here yet"
   },
   "detail": {
     "select_prompt": "Select an item to review it",
@@ -40,7 +47,8 @@
     "dismissed_toast": "Dismissed",
     "merged_toast": "Already tracked as {{identifier}} — merged",
     "limit_toast": "Issue limit reached — the item stays in the queue",
-    "error_toast": "Something went wrong"
+    "error_toast": "Something went wrong",
+    "resolution_reason": "Reason: {{reason}}"
   },
   "batch": {
     "accept": "Accept {{count}}",

@@ -1505,6 +1505,7 @@ export const TriageItemSchema = z.object({
   state: z.string().default("pending"),
   collapse_count: z.number().default(1),
   drop_reason: z.string().optional(),
+  resolution_reason: z.string().optional(),
   issue_id: z.string().optional(),
   duplicate_of_issue_id: z.string().optional(),
   first_seen_at: z.string(),

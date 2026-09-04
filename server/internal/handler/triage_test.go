@@ -213,3 +213,38 @@ func TestGetTriageStatsCountsShadowAndDrops(t *testing.T) {
 		t.Fatalf("source 24h = items %d dropped %d, want 2 and 1", stats.Items24h, stats.Dropped24h)
 	}
 }
+
+// A resolved item carries why it was resolved — "auto: 92% confidence …" for
+// the auto-classifier, the rule title for a rule, the human's reason for a
+// manual dismiss. The history tabs render it, so the list must expose it.
+func TestListTriageItemsExposesResolutionReason(t *testing.T) {
+	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id":      testWorkspaceID,
+		"source_id":         uuid.NewString(),
+		"origin_type":       "autopilot",
+		"title":             "auto-dismissed delivery",
+		"normalized_title":  "auto-dismissed delivery",
+		"state":             triage.StateDismissed,
+		"shadow":            false,
+		"resolved_at":       time.Now().UTC(),
+		"resolution_reason": "auto: 92% confidence from 10 similar deliveries",
+	})
+
+	var out struct {
+		Items []TriageItemResponse `json:"items"`
+	}
+	testutil.Call(t, testHandler.ListTriageItems,
+		newRequest(http.MethodGet, "/api/triage/items?state=dismissed&limit=100", nil),
+	).Want(http.StatusOK).JSON(&out)
+
+	for _, item := range out.Items {
+		if item.ID != itemID {
+			continue
+		}
+		if item.ResolutionReason != "auto: 92% confidence from 10 similar deliveries" {
+			t.Fatalf("resolution_reason = %q, want the stored reason", item.ResolutionReason)
+		}
+		return
+	}
+	t.Fatalf("dismissed item %s missing from state=dismissed listing", itemID)
+}

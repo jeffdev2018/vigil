@@ -7,6 +7,12 @@
     "dropped_24h": "24 時間で {{count}} 件破棄",
     "none_pending": "キューは空です"
   },
+  "filter": {
+    "pending": "保留",
+    "accepted": "承認済み",
+    "dismissed": "却下済み",
+    "merged": "統合済み"
+  },
   "sources": {
     "label": "ソース",
     "empty": "受信ソースはまだありません",
@@ -21,7 +27,8 @@
     "empty_title": "キューは空です",
     "empty_description": "ソースをゲートに設定すると、その Webhook 配信はここで待機し、人が承認または却下するまで保留されます。",
     "loading": "トリアージキューを読み込み中",
-    "load_error": "トリアージキューを読み込めませんでした"
+    "load_error": "トリアージキューを読み込めませんでした",
+    "empty_history_title": "まだ何もありません"
   },
   "detail": {
     "select_prompt": "確認する項目を選択してください",
@@ -40,7 +47,8 @@
     "dismissed_toast": "却下しました",
     "merged_toast": "既に {{identifier}} として追跡中 — 統合しました",
     "limit_toast": "課題の上限に達しました — 項目はキューに残ります",
-    "error_toast": "問題が発生しました"
+    "error_toast": "問題が発生しました",
+    "resolution_reason": "理由: {{reason}}"
   },
   "batch": {
     "accept": "{{count}} 件を承認",

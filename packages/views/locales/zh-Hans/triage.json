@@ -7,6 +7,12 @@
     "dropped_24h": "24 小时内丢弃 {{count}} 个",
     "none_pending": "队列已清空"
   },
+  "filter": {
+    "pending": "待审核",
+    "accepted": "已接受",
+    "dismissed": "已丢弃",
+    "merged": "已合并"
+  },
   "sources": {
     "label": "来源",
     "empty": "暂无入站来源",
@@ -21,7 +27,8 @@
     "empty_title": "队列已清空",
     "empty_description": "当来源设为拦截时，它的 webhook 投递会在这里等待，直到有人接受或丢弃。",
     "loading": "正在加载待审核队列",
-    "load_error": "无法加载待审核队列"
+    "load_error": "无法加载待审核队列",
+    "empty_history_title": "这里还没有内容"
   },
   "detail": {
     "select_prompt": "选择一项进行审核",
@@ -40,7 +47,8 @@
     "dismissed_toast": "已丢弃",
     "merged_toast": "已作为 {{identifier}} 跟踪，已合并",
     "limit_toast": "已达任务上限，该项保留在队列中",
-    "error_toast": "出了点问题"
+    "error_toast": "出了点问题",
+    "resolution_reason": "原因：{{reason}}"
   },
   "batch": {
     "accept": "接受 {{count}} 项",

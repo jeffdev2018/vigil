@@ -58,6 +58,26 @@ const data = vi.hoisted(() => ({
     ],
     next_cursor: undefined,
   } as TriageItemsResponse,
+  dismissed: {
+    items: [
+      {
+        id: "item-9",
+        source_id: "src-1",
+        source_name: "Sentry",
+        source_kind: "autopilot_webhook",
+        origin_type: "autopilot",
+        title: "Auto-dismissed noise",
+        body_markdown: "",
+        payload: {},
+        state: "dismissed",
+        collapse_count: 1,
+        resolution_reason: "auto: 92% confidence from 10 similar deliveries",
+        first_seen_at: "2026-01-01T00:00:00Z",
+        revision: 2,
+      },
+    ],
+    next_cursor: undefined,
+  } as TriageItemsResponse,
 }));
 
 vi.mock("@multica/core/triage/queries", () => ({
@@ -65,9 +85,10 @@ vi.mock("@multica/core/triage/queries", () => ({
     queryKey: ["triage", "ws-1", "stats"],
     queryFn: async () => data.stats,
   }),
-  triageItemsOptions: () => ({
-    queryKey: ["triage", "ws-1", "items", "pending"],
-    queryFn: async () => data.items,
+  triageItemsOptions: (_wsId: string, state: string) => ({
+    queryKey: ["triage", "ws-1", "items", state],
+    queryFn: async () =>
+      state === "dismissed" ? data.dismissed : state === "pending" ? data.items : { items: [] },
   }),
   triageSuggestionsOptions: () => ({
     queryKey: ["triage", "ws-1", "suggestions", ""],
@@ -77,6 +98,7 @@ vi.mock("@multica/core/triage/queries", () => ({
 }));
 
 const mutations = vi.hoisted(() => ({
+  reopen: vi.fn(),
   accept: vi.fn().mockResolvedValue({ item_id: "item-1", state: "accepted" }),
   dismiss: vi.fn().mockResolvedValue({ item_id: "item-1", state: "dismissed" }),
   batch: vi.fn().mockResolvedValue({ items: [] }),
@@ -84,7 +106,7 @@ const mutations = vi.hoisted(() => ({
 }));
 
 vi.mock("@multica/core/triage/mutations", () => ({
-  useReopenTriageItem: () => ({ mutate: vi.fn(), isPending: false }),
+  useReopenTriageItem: () => ({ mutate: mutations.reopen, isPending: false }),
   useAcceptTriageItem: () => ({ mutateAsync: mutations.accept, isPending: false }),
   useDismissTriageItem: () => ({ mutateAsync: mutations.dismiss, isPending: false }),
   useBatchAcceptTriageItems: () => ({ mutateAsync: mutations.batch, isPending: false }),
@@ -152,10 +174,31 @@ describe("TriagePage", () => {
     renderPage();
     const row = await screen.findByText("Payment gateway timeout");
     fireEvent.click(row);
-    const acceptButton = await screen.findByRole("button", { name: /accept/i });
+    const acceptButton = await screen.findByRole("button", { name: /^accept$/i });
     fireEvent.click(acceptButton);
     await waitFor(() => expect(mutations.accept).toHaveBeenCalledWith("item-1"));
     expect(toast.success).toHaveBeenCalled();
+  });
+
+  // History tabs (pending / accepted / dismissed / merged). Without them the
+  // list only ever asked for pending, so a dismissed item — and the Reopen
+  // button that only renders for one — was unreachable from the UI.
+  it("the dismissed tab lists resolved items, their reason and a Reopen button", async () => {
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismissed" }));
+    const row = await screen.findByText("Auto-dismissed noise");
+    fireEvent.click(row);
+
+    expect(
+      (await screen.findByTestId("triage-resolution-reason")).textContent,
+    ).toContain("auto: 92% confidence from 10 similar deliveries");
+    // A resolved item cannot be accepted or dismissed again.
+    expect(screen.queryByRole("button", { name: /^accept$/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /reopen/i }));
+    expect(mutations.reopen).toHaveBeenCalledWith("item-9", expect.anything());
   });
 
   it("checking a row reveals the batch-accept bar", async () => {

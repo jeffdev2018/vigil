@@ -64,6 +64,7 @@ type TriageItemResponse struct {
 	State              string          `json:"state"`
 	CollapseCount      int32           `json:"collapse_count"`
 	DropReason         string          `json:"drop_reason,omitempty"`
+	ResolutionReason   string          `json:"resolution_reason,omitempty"`
 	IssueID            string          `json:"issue_id,omitempty"`
 	DuplicateOfIssueID string          `json:"duplicate_of_issue_id,omitempty"`
 	FirstSeenAt        time.Time       `json:"first_seen_at"`
@@ -254,6 +255,9 @@ func triageItemToResponse(row db.TriageItem, sourceByID map[string]db.TriageSour
 	}
 	if row.DropReason.Valid {
 		resp.DropReason = row.DropReason.String
+	}
+	if row.ResolutionReason.Valid {
+		resp.ResolutionReason = row.ResolutionReason.String
 	}
 	if row.IssueID.Valid {
 		resp.IssueID = util.UUIDToString(row.IssueID)
