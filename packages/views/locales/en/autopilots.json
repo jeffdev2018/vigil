@@ -28,6 +28,7 @@
     "active": "Active",
     "paused": "Paused",
     "paused_runtime_required": "Paused — the assignee needs a runtime",
+    "paused_failure_rate": "Paused — too many runs failed",
     "archived": "Archived"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "Pause autopilot",
     "activate_aria": "Activate autopilot",
     "paused_runtime_required": "Paused because the assignee lost its runtime. Bind a runtime, then reactivate this autopilot.",
+    "paused_failure_rate": "Auto-paused because too many recent runs failed. Investigate the failures, fix the root cause, then reactivate this autopilot.",
     "bind_runtime": "Bind runtime",
     "edit": "Edit",
     "run_now": "Run now",

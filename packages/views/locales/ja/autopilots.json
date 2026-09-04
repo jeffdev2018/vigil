@@ -28,6 +28,7 @@
     "active": "アクティブ",
     "paused": "一時停止中",
     "paused_runtime_required": "一時停止中 — 担当エージェントのランタイムが必要です",
+    "paused_failure_rate": "一時停止中 — 実行の失敗が続いています",
     "archived": "アーカイブ済み"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "オートパイロットを一時停止",
     "activate_aria": "オートパイロットを有効化",
     "paused_runtime_required": "担当エージェントのランタイムが失われたため一時停止しました。ランタイムを設定してから再度有効にしてください。",
+    "paused_failure_rate": "直近の実行の失敗が多すぎたため自動的に一時停止しました。失敗の原因を調査して修正してから、このオートパイロットを再度有効にしてください。",
     "bind_runtime": "ランタイムを設定",
     "edit": "編集",
     "run_now": "今すぐ実行",

@@ -713,9 +713,10 @@ ORDER BY s.failed DESC, a.id ASC;
 -- Atomically pauses an autopilot only if it is currently active. Returns no
 -- rows when the autopilot was already paused/archived (or another worker
 -- raced first), letting the caller treat that as a benign no-op rather than
--- an error.
+-- an error. The caller names the condition it paused for so the UI can explain
+-- an automation that stopped on its own; NULL leaves it unexplained.
 UPDATE autopilot
-SET status = 'paused', pause_reason = NULL, updated_at = now()
+SET status = 'paused', pause_reason = @pause_reason, updated_at = now()
 WHERE id = $1 AND status = 'active'
 RETURNING *;
 

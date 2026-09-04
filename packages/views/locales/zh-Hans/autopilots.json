@@ -28,6 +28,7 @@
     "active": "启用",
     "paused": "已暂停",
     "paused_runtime_required": "已暂停——执行智能体需绑定运行时",
+    "paused_failure_rate": "已暂停——运行失败过多",
     "archived": "已归档"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "暂停自动化",
     "activate_aria": "启用自动化",
     "paused_runtime_required": "由于执行智能体失去运行时，自动化已暂停。绑定运行时后请重新启用。",
+    "paused_failure_rate": "由于近期运行失败过多，自动化已自动暂停。请排查失败原因并修复后，重新启用该自动化。",
     "bind_runtime": "绑定运行时",
     "edit": "编辑",
     "run_now": "立即运行",

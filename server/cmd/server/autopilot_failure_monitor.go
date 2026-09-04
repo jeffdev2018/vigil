@@ -60,6 +60,11 @@ func envFailureMonitorConfig() failureMonitorConfig {
 	return cfg
 }
 
+// autopilotPauseReasonFailureRate is written to autopilot.pause_reason when
+// this monitor pauses an automation, so the UI can say the pause was the
+// failure sweep's and not a person's.
+const autopilotPauseReasonFailureRate = "failure_rate"
+
 // runAutopilotFailureMonitor periodically pauses autopilots whose recent run
 // history exceeds the configured failure threshold. This stops runaway
 // scheduled autopilots from burning tasks/tokens on a hot loop (e.g. the
@@ -134,7 +139,12 @@ func tickAutopilotFailureMonitor(ctx context.Context, queries *db.Queries, bus *
 	slog.Info("autopilot failure monitor: candidates", "count", len(candidates))
 
 	for _, c := range candidates {
-		paused, err := queries.SystemPauseAutopilot(ctx, c.ID)
+		paused, err := queries.SystemPauseAutopilot(ctx, db.SystemPauseAutopilotParams{
+			ID: c.ID,
+			// Named so the autopilot page can explain a pause nobody asked for.
+			// Kept in step with the UI's `status.paused_failure_rate` label.
+			PauseReason: pgtype.Text{String: autopilotPauseReasonFailureRate, Valid: true},
+		})
 		if err != nil {
 			// pgx returns ErrNoRows when the WHERE status='active' clause
 			// matched zero rows — i.e. another caller (manual UI action,

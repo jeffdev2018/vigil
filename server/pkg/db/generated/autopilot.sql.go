@@ -2125,17 +2125,23 @@ func (q *Queries) SetAutopilotTriggerWebhookToken(ctx context.Context, arg SetAu
 
 const systemPauseAutopilot = `-- name: SystemPauseAutopilot :one
 UPDATE autopilot
-SET status = 'paused', pause_reason = NULL, updated_at = now()
+SET status = 'paused', pause_reason = $2, updated_at = now()
 WHERE id = $1 AND status = 'active'
 RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason
 `
 
+type SystemPauseAutopilotParams struct {
+	ID          pgtype.UUID `json:"id"`
+	PauseReason pgtype.Text `json:"pause_reason"`
+}
+
 // Atomically pauses an autopilot only if it is currently active. Returns no
 // rows when the autopilot was already paused/archived (or another worker
 // raced first), letting the caller treat that as a benign no-op rather than
-// an error.
-func (q *Queries) SystemPauseAutopilot(ctx context.Context, id pgtype.UUID) (Autopilot, error) {
-	row := q.db.QueryRow(ctx, systemPauseAutopilot, id)
+// an error. The caller names the condition it paused for so the UI can explain
+// an automation that stopped on its own; NULL leaves it unexplained.
+func (q *Queries) SystemPauseAutopilot(ctx context.Context, arg SystemPauseAutopilotParams) (Autopilot, error) {
+	row := q.db.QueryRow(ctx, systemPauseAutopilot, arg.ID, arg.PauseReason)
 	var i Autopilot
 	err := row.Scan(
 		&i.ID,

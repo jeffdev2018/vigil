@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
-  Ban, ChevronDown, ChevronRight, Server,
+  Ban, ChevronDown, ChevronRight, Server, AlertTriangle,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { autopilotDetailOptions, autopilotRunsOptions, autopilotRunOptions } from "@multica/core/autopilots/queries";
@@ -271,6 +271,20 @@ function SubscriberChips({
   );
 }
 
+function pauseNoticeFor(
+  t: ReturnType<typeof useT<"autopilots">>["t"],
+  pauseReason: string | null,
+): { icon: typeof Server; text: string } | null {
+  switch (pauseReason) {
+    case "agent_runtime_required":
+      return { icon: Server, text: t(($) => $.detail.paused_runtime_required) };
+    case "failure_rate":
+      return { icon: AlertTriangle, text: t(($) => $.detail.paused_failure_rate) };
+    default:
+      return null;
+  }
+}
+
 export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const { t } = useT("autopilots");
   const wsId = useWorkspaceId();
@@ -351,6 +365,12 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   // edit/run but cannot grant/revoke. Fall back to canWrite when the server
   // doesn't send the field (older backend).
   const canManageAccess = autopilot.can_manage_access ?? canWrite;
+
+  // A pause nobody asked for needs a banner that names the condition — the
+  // recovery differs per reason, and a pause a member made themselves needs no
+  // banner at all. An unknown reason from a newer backend shows none rather
+  // than a blank one.
+  const pauseNotice = pauseNoticeFor(t, autopilot.pause_reason ?? null);
 
   const handleRunNow = async () => {
     try {
@@ -466,20 +486,19 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
         }
       />
 
-      {autopilot.pause_reason === "agent_runtime_required" && (
+      {pauseNotice !== null && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-6 py-2 text-caption text-amber-900 dark:text-amber-100">
-          <Server className="size-3.5 shrink-0" />
-          <span className="flex-1">
-            {t(($) => $.detail.paused_runtime_required)}
-          </span>
-          {autopilot.assignee_type === "agent" && (
-            <AppLink
-              href={`${wsPaths.agentDetail(autopilot.assignee_id)}?view=general`}
-              className="font-medium underline underline-offset-2"
-            >
-              {t(($) => $.detail.bind_runtime)}
-            </AppLink>
-          )}
+          <pauseNotice.icon className="size-3.5 shrink-0" />
+          <span className="flex-1">{pauseNotice.text}</span>
+          {autopilot.pause_reason === "agent_runtime_required" &&
+            autopilot.assignee_type === "agent" && (
+              <AppLink
+                href={`${wsPaths.agentDetail(autopilot.assignee_id)}?view=general`}
+                className="font-medium underline underline-offset-2"
+              >
+                {t(($) => $.detail.bind_runtime)}
+              </AppLink>
+            )}
         </div>
       )}
 

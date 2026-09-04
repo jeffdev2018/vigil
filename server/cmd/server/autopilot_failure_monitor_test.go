@@ -122,6 +122,16 @@ func TestAutopilotFailureMonitor_PausesOffenderAndNotifiesCreator(t *testing.T) 
 	if got := reloadAutopilotStatus(t, queries, offender.ID); got != "paused" {
 		t.Fatalf("expected offender to be paused, got %q", got)
 	}
+	// The pause has to name its own condition: the detail page explains a pause
+	// nobody asked for, and an unset reason reads as a member having paused it.
+	offenderRow, err := queries.GetAutopilot(context.Background(), offender.ID)
+	if err != nil {
+		t.Fatalf("GetAutopilot: %v", err)
+	}
+	if !offenderRow.PauseReason.Valid || offenderRow.PauseReason.String != autopilotPauseReasonFailureRate {
+		t.Fatalf("pause_reason = %q (valid=%v), want %q",
+			offenderRow.PauseReason.String, offenderRow.PauseReason.Valid, autopilotPauseReasonFailureRate)
+	}
 	if got := reloadAutopilotStatus(t, queries, innocent.ID); got != "active" {
 		t.Fatalf("expected innocent to stay active, got %q", got)
 	}
