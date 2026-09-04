@@ -2031,6 +2031,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/suggestions", h.GetAgentTrustSuggestion)
 				r.Get("/history", h.ListAgentTrustHistory)
 			})
+			// Permission profiles (K06): what an agent may touch when it runs.
+			r.Route("/api/permission-profiles", func(r chi.Router) {
+				r.Get("/", h.ListPermissionProfiles)
+				r.Post("/", h.CreatePermissionProfile)
+				r.Patch("/{id}", h.UpdatePermissionProfile)
+				r.Delete("/{id}", h.DeletePermissionProfile)
+			})
+			r.Put("/api/agents/{id}/permission-profile", h.SetAgentPermissionProfile)
+			r.Get("/api/tasks/{taskId}/permission-profile", h.GetTaskPermissionProfile)
+			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)
 			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
 			r.Route("/api/search/why", func(r chi.Router) {
 				r.Get("/", h.SearchWhy)

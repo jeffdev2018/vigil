@@ -25,6 +25,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
@@ -49,8 +50,9 @@ type AgentConversationStarter struct {
 type AgentResponse struct {
 	ID string `json:"id"`
 	// TrustMode (K26): observer | propose | approval | autonomous.
-	TrustMode   string `json:"trust_mode"`
-	WorkspaceID string `json:"workspace_id"`
+	TrustMode           string  `json:"trust_mode"`
+	PermissionProfileID *string `json:"permission_profile_id"`
+	WorkspaceID         string  `json:"workspace_id"`
 	// RuntimeID is the empty string when the agent is unbound — it kept its
 	// configuration and history when its runtime was deleted, and needs a new
 	// runtime before it can run again (MUL-5559). The wire type stays a string
@@ -224,6 +226,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		Status:                   a.Status,
 		MaxConcurrentTasks:       a.MaxConcurrentTasks,
 		TrustMode:                a.TrustMode,
+		PermissionProfileID:      uuidToPtr(a.PermissionProfileID),
 		Model:                    a.Model.String,
 		ThinkingLevel:            a.ThinkingLevel.String,
 		ServiceTier:              a.ServiceTier.String,
@@ -740,6 +743,9 @@ type TaskAgentData struct {
 	// (issue #3260). Other providers ignore the payload entirely. Sent
 	// raw so the daemon can evolve its schema without a server roundtrip.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
+	// PermissionProfile (K06) is resolved at claim time: the run's override,
+	// else the agent's. The daemon enforces it; nil means no profile.
+	PermissionProfile *permissionprofile.Profile `json:"permission_profile,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded

@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uq_agent_permission_profile_workspace_name;

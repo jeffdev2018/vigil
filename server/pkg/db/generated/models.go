@@ -54,6 +54,7 @@ type Agent struct {
 	ServiceTier           pgtype.Text `json:"service_tier"`
 	ConversationStarters  []byte      `json:"conversation_starters"`
 	TrustMode             string      `json:"trust_mode"`
+	PermissionProfileID   pgtype.UUID `json:"permission_profile_id"`
 }
 
 type AgentBuilderDraft struct {
@@ -78,6 +79,20 @@ type AgentMcpServer struct {
 	ServerID  pgtype.UUID        `json:"server_id"`
 	Enabled   bool               `json:"enabled"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type AgentPermissionProfile struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Name            string             `json:"name"`
+	Description     string             `json:"description"`
+	ReadOnly        bool               `json:"read_only"`
+	DeniedPaths     []byte             `json:"denied_paths"`
+	AllowedCommands []byte             `json:"allowed_commands"`
+	HiddenSecrets   []byte             `json:"hidden_secrets"`
+	Builtin         bool               `json:"builtin"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AgentRuntime struct {
@@ -190,7 +205,8 @@ type AgentTaskQueue struct {
 	DurableWorkDir            pgtype.Text `json:"durable_work_dir"`
 	ChannelContextRevision    pgtype.Int8 `json:"channel_context_revision"`
 	// Last proof of activity from the run (claim, start, task message or progress callback). NULL means none recorded since the column was added. Read for liveness display only; never consulted for authorization or transitions.
-	LastActivityAt pgtype.Timestamptz `json:"last_activity_at"`
+	LastActivityAt      pgtype.Timestamptz `json:"last_activity_at"`
+	PermissionProfileID pgtype.UUID        `json:"permission_profile_id"`
 }
 
 type AgentToLabel struct {

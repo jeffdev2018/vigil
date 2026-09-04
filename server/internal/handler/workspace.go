@@ -1245,6 +1245,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge permission profiles",
+			run:  func() error { return qtx.PurgeWorkspacePermissionProfiles(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge blast radius rules",
 			run:  func() error { return qtx.PurgeWorkspaceBlastRadiusRules(ctx, requester.WorkspaceID) },
 		},
