@@ -182,6 +182,14 @@ cleared_issue_properties AS (
 cleared_quick_actions AS (
     DELETE FROM quick_action WHERE workspace_id = $1
 ),
+-- Triage tables carry no FK by repo rule, so the DELETE below does not reach
+-- them. Items first only for readability — with no FK either order commits.
+cleared_triage_items AS (
+    DELETE FROM triage_item WHERE workspace_id = $1
+),
+cleared_triage_sources AS (
+    DELETE FROM triage_source WHERE workspace_id = $1
+),
 ws_mcp_servers AS (
     SELECT id FROM workspace_mcp_server WHERE workspace_id = $1
 ),

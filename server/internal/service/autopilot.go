@@ -22,6 +22,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issueposition"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
+	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -781,6 +782,14 @@ func (s *AutopilotService) dispatchCreateIssue(ctx context.Context, ap db.Autopi
 	})
 	s.captureIssueCreatedFromAutopilot(ap, run, issue, leader.ID)
 
+	// Triage M1 (shadow): record what the inbound queue would have held for a
+	// webhook-originated issue. Routing is unchanged — the issue above was
+	// created exactly as before; capture is fail-open (see
+	// captureTriageShadowCreated).
+	if run.Source == "webhook" {
+		s.captureTriageShadowCreated(ctx, ap, run, issue)
+	}
+
 	// The issue:created notification listener only handles handler.IssueResponse
 	// payloads and only direct-notifies the assignee + @mentions; subscribers
 	// don't get an inbox at creation time on the manual path because there are
@@ -1255,6 +1264,14 @@ func (s *AutopilotService) handleDispatchSkip(ctx context.Context, ap db.Autopil
 	// caught a late readiness regression.
 	s.Queries.UpdateAutopilotLastRunAt(ctx, ap.ID)
 	s.publishRunDone(util.UUIDToString(ap.WorkspaceID), updated, "skipped")
+
+	// Triage M1 (shadow): a webhook delivery that was admitted but produced
+	// no issue (issue limit reached, recent duplicate, ...) is the
+	// silent-loss population the queue exists to hold. Record it.
+	if run.Source == "webhook" {
+		s.captureTriageDrop(ctx, ap, run, skipErr.code)
+	}
+
 	return run, skipErr.code
 }
 
@@ -1540,6 +1557,60 @@ func (s *AutopilotService) captureIssueCreatedFromAutopilot(ap db.Autopilot, run
 		analytics.SourceAutopilot,
 		analytics.PlatformServer,
 	))
+}
+
+// captureTriageShadowCreated records the M1 shadow triage item for an issue a
+// webhook trigger just created. Shadow mode never changes routing; the item
+// only measures what gating would hold. Fail-open: capture is measurement,
+// and a capture error must never break issue dispatch.
+func (s *AutopilotService) captureTriageShadowCreated(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, issue db.Issue) {
+	if _, err := triage.Capture(ctx, s.Queries, triage.CaptureParams{
+		WorkspaceID:     ap.WorkspaceID,
+		SourceKind:      triage.SourceAutopilotWebhook,
+		SourceRefID:     ap.ID,
+		SourceName:      ap.Title,
+		SourceCreatedBy: ap.CreatedByID,
+		OriginType:      "autopilot",
+		OriginID:        ap.ID,
+		Title:           issue.Title,
+		BodyMarkdown:    issue.Description.String,
+		TriggerPayload:  run.TriggerPayload,
+		State:           triage.StatePending,
+		Shadow:          true,
+	}); err != nil {
+		slog.Warn("triage shadow capture failed",
+			"autopilot_id", util.UUIDToString(ap.ID),
+			"run_id", util.UUIDToString(run.ID),
+			"error", err)
+	}
+}
+
+// captureTriageDrop records a webhook delivery that was admitted but produced
+// no issue (issue limit reached, recent duplicate, ...). Same fail-open
+// contract as captureTriageShadowCreated.
+func (s *AutopilotService) captureTriageDrop(ctx context.Context, ap db.Autopilot, run *db.AutopilotRun, code dispatch.ReasonCode) {
+	reason := string(code)
+	if reason == "" {
+		reason = "dispatch_skipped"
+	}
+	if _, err := triage.Capture(ctx, s.Queries, triage.CaptureParams{
+		WorkspaceID:     ap.WorkspaceID,
+		SourceKind:      triage.SourceAutopilotWebhook,
+		SourceRefID:     ap.ID,
+		SourceName:      ap.Title,
+		SourceCreatedBy: ap.CreatedByID,
+		OriginType:      "autopilot",
+		OriginID:        ap.ID,
+		TriggerPayload:  run.TriggerPayload,
+		State:           triage.StateDropped,
+		DropReason:      reason,
+		Shadow:          true,
+	}); err != nil {
+		slog.Warn("triage drop capture failed",
+			"autopilot_id", util.UUIDToString(ap.ID),
+			"run_id", util.UUIDToString(run.ID),
+			"error", err)
+	}
 }
 
 func (s *AutopilotService) captureAutopilotRunStarted(ap db.Autopilot, run db.AutopilotRun, triggerSource string) {
