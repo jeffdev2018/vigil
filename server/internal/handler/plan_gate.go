@@ -298,6 +298,7 @@ func (h *Handler) MaterializeIssuePlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
+	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditPlanMaterialized, "issue_plan", plan.ID, map[string]any{"issue_id": uuidToString(issue.ID), "version": plan.Version, "sub_issues": len(children)}, &auditOpts{ApproverType: actorType, ApproverID: actorID})
 	h.publish(protocol.EventIssueUpdated, uuidToString(issue.WorkspaceID), actorType, actorID, map[string]any{
 		"issue": issueToResponse(issue, h.getIssuePrefix(r.Context(), issue.WorkspaceID)), "children_changed": true,
 	})

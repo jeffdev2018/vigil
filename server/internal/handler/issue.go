@@ -3600,6 +3600,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 	resp := issueToResponse(issue, prefix)
 	slog.Info("issue updated", append(logger.RequestAttrs(r), "issue_id", id, "workspace_id", workspaceID)...)
+	if prevIssue.Status != issue.Status {
+		// Audit log (K08): every status transition, whoever made it.
+		h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditIssueStatus, "issue", issue.ID, map[string]any{"from": prevIssue.Status, "to": issue.Status}, nil)
+	}
 
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
 	assigneeChanged := (req.AssigneeType != nil || req.AssigneeID != nil) &&

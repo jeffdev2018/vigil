@@ -461,6 +461,11 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Settings != nil {
+		if userID, ok := requireUserID(w, r); ok {
+			h.audit(r.Context(), ws.ID, "member", userID, AuditWorkspaceSettings, "workspace", ws.ID, map[string]any{"settings": req.Settings}, nil)
+		}
+	}
 	writeJSON(w, http.StatusOK, h.workspaceToResponse(ws))
 }
 
@@ -1207,6 +1212,17 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			// data statement and the separate whole-workspace task delete.
 			name: "delete tasks",
 			run:  func() error { return deleteWorkspaceTasks(ctx, qtx, requester.WorkspaceID) },
+		},
+		{
+			// Audit log (K08): append-only; the purge is the only delete and
+			// it must announce itself on the transaction first.
+			name: "purge audit log",
+			run: func() error {
+				if _, err := qtx.AllowAuditPurge(ctx); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceAuditLog(ctx, requester.WorkspaceID)
+			},
 		},
 		{
 			name: "delete leaf data",

@@ -331,6 +331,7 @@ func (h *Handler) RollbackAgentVersion(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to record the version")
 		return
 	}
+	h.audit(ctx, agent.WorkspaceID, "member", userID, AuditAgentRolledBack, "agent", agent.ID, map[string]any{"to_version": target.VersionNumber, "new_version": v.VersionNumber}, &auditOpts{Model: target.Model})
 	writeJSON(w, http.StatusOK, map[string]any{"version": agentVersionToResponse(v, true)})
 }
 

@@ -307,6 +307,7 @@ var concurrentIndexCleanups = map[string]string{
 	"478_morning_briefing_sent_unique":                          "morning_briefing_sent_workspace_date",
 	"480_agent_scorecard_daily_unique":                          "agent_scorecard_daily_key",
 	"483_agent_version_unique":                                  "agent_version_agent_number",
+	"485_audit_log_entry_workspace_index":                       "idx_audit_log_entry_workspace_occurred",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

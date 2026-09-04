@@ -367,6 +367,9 @@ func (h *Handler) CreateModuleOwnership(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to create the rule")
 		return
 	}
+	if userID, ok := requireUserID(w, r); ok {
+		h.audit(ctx, wsUUID, "member", userID, AuditOwnershipCreated, "module_ownership", rule.ID, moduleOwnershipToResponse(rule), nil)
+	}
 	writeJSON(w, http.StatusCreated, map[string]any{"rule": moduleOwnershipToResponse(rule)})
 }
 
@@ -393,6 +396,9 @@ func (h *Handler) DeleteModuleOwnership(w http.ResponseWriter, r *http.Request) 
 	if n == 0 {
 		writeError(w, http.StatusNotFound, "rule not found")
 		return
+	}
+	if userID, ok := requireUserID(w, r); ok {
+		h.audit(r.Context(), wsUUID, "member", userID, AuditOwnershipDeleted, "module_ownership", id, nil, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

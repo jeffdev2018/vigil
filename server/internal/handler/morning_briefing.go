@@ -188,6 +188,7 @@ func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing M
 	if err != nil {
 		return true, fmt.Errorf("list members: %w", err)
 	}
+	h.audit(ctx, wsID, actorType, actorID, AuditBriefingSent, "workspace", wsID, map[string]any{"date": briefing.Date, "merged": len(briefing.Merged), "awaiting_review": len(briefing.AwaitingReview), "blocked": len(briefing.Blocked)}, nil)
 	details, _ := json.Marshal(briefing)
 	title := fmt.Sprintf("This morning: %d done · %d awaiting review · %d blocked", len(briefing.Merged), len(briefing.AwaitingReview), len(briefing.Blocked))
 	for _, m := range members {

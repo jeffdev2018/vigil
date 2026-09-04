@@ -132,3 +132,32 @@ export interface ShareLinkInfo {
   creator_name?: string;
   role: MemberRole;
 }
+
+// Audit log (K08).
+export interface AuditLogEntry {
+  id: string;
+  workspace_id: string;
+  occurred_at: string;
+  actor_type: "member" | "agent" | "system" | (string & {});
+  actor_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  model: string | null;
+  cost_usd_ticks: number | null;
+  approver_type: string | null;
+  approver_id: string | null;
+  details: Record<string, unknown>;
+}
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  next_cursor: string;
+}
+
+export interface AuditLogFilter {
+  since?: string;
+  until?: string;
+  actor_type?: string;
+  action?: string;
+}

@@ -332,7 +332,8 @@
       "quick_actions": "Quick Actions",
       "plugins": "Plugins",
       "mcp": "MCP",
-      "billing": "Billing"
+      "billing": "Billing",
+      "audit_log": "Audit log"
     }
   },
   "plugins": {
@@ -1337,5 +1338,28 @@
     "expiry_7d": "7 days",
     "expiry_30d": "30 days",
     "expiry_never": "Never"
+  },
+  "audit": {
+    "description": "Every significant action in this workspace, newest first: decisions asked and answered, plans approved, status changes, proofs, agent rollbacks, ownership rules, briefings, settings. Entries are never edited or deleted.",
+    "actor_type": "Actor",
+    "any_actor": "Any actor",
+    "actor_member": "Member",
+    "actor_agent": "Agent",
+    "actor_system": "System",
+    "action": "Action",
+    "action_placeholder": "Filter by action (e.g. issue.status_changed)",
+    "export_csv": "Export CSV",
+    "export_json": "Export JSON",
+    "export_failed": "Export failed",
+    "loading": "Loading the audit log…",
+    "load_failed": "The audit log could not be loaded.",
+    "empty": "No entry for this filter yet.",
+    "col_when": "When",
+    "col_actor": "Actor",
+    "col_action": "Action",
+    "col_entity": "Entity",
+    "col_details": "Details",
+    "approved": "approved",
+    "load_more": "Load more"
   }
 }

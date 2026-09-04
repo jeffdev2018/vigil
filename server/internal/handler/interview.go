@@ -201,6 +201,7 @@ func (h *Handler) AskRequirementInterview(w http.ResponseWriter, r *http.Request
 		return
 	}
 	h.publishIssueMoved(r, parked, actorType, actorID)
+	h.audit(ctx, issue.WorkspaceID, actorType, actorID, AuditInterviewAsked, "issue", issue.ID, map[string]any{"group_id": uuidToString(groupID), "questions": len(created), "parked_from": resumeStatus}, nil)
 	writeJSON(w, http.StatusCreated, map[string]any{"decisions": created, "status": waitingKey})
 }
 

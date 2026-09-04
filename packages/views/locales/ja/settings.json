@@ -332,7 +332,8 @@
       "quick_actions": "クイックアクション",
       "plugins": "Plugins",
       "mcp": "MCP",
-      "billing": "請求とプラン"
+      "billing": "請求とプラン",
+      "audit_log": "監査ログ"
     }
   },
   "plugins": {
@@ -1330,5 +1331,28 @@
     "expiry_7d": "7日",
     "expiry_30d": "30日",
     "expiry_never": "無期限"
+  },
+  "audit": {
+    "description": "このワークスペースの重要な操作を新しい順に記録します：判断の依頼と回答、プランの承認、ステータス変更、証拠、エージェントのロールバック、担当ルール、ブリーフィング、設定。エントリは編集も削除もされません。",
+    "actor_type": "実行者",
+    "any_actor": "すべて",
+    "actor_member": "メンバー",
+    "actor_agent": "エージェント",
+    "actor_system": "システム",
+    "action": "操作",
+    "action_placeholder": "操作で絞り込み（例：issue.status_changed）",
+    "export_csv": "CSV を書き出し",
+    "export_json": "JSON を書き出し",
+    "export_failed": "書き出しに失敗しました",
+    "loading": "監査ログを読み込み中…",
+    "load_failed": "監査ログを読み込めませんでした。",
+    "empty": "この条件に一致するエントリはまだありません。",
+    "col_when": "日時",
+    "col_actor": "実行者",
+    "col_action": "操作",
+    "col_entity": "対象",
+    "col_details": "詳細",
+    "approved": "承認",
+    "load_more": "さらに読み込む"
   }
 }

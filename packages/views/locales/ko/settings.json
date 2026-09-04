@@ -332,7 +332,8 @@
       "quick_actions": "퀵 액션",
       "plugins": "Plugins",
       "mcp": "MCP",
-      "billing": "결제 및 요금제"
+      "billing": "결제 및 요금제",
+      "audit_log": "감사 로그"
     }
   },
   "plugins": {
@@ -1330,5 +1331,28 @@
     "byo_credentials_unverifiable": "WeCom에 연결하지 못해 이 봇을 확인할 수 없었어요. 인증 정보는 변경되지 않았어요. 잠시 후 다시 시도해 주세요.",
     "byo_install_failed": "봇을 저장하지 못했어요. 저희 쪽 문제입니다. 인증 정보는 변경되지 않았어요. 다시 시도해 보시고, 계속 실패하면 지원팀에 문의해 주세요.",
     "byo_failed_toast": "WeCom 봇을 연결하지 못했어요"
+  },
+  "audit": {
+    "description": "이 워크스페이스의 모든 중요한 작업을 최신순으로 기록합니다: 결정 요청과 답변, 계획 승인, 상태 변경, 증거, 에이전트 롤백, 소유권 규칙, 브리핑, 설정. 항목은 수정되거나 삭제되지 않습니다.",
+    "actor_type": "주체",
+    "any_actor": "모두",
+    "actor_member": "멤버",
+    "actor_agent": "에이전트",
+    "actor_system": "시스템",
+    "action": "작업",
+    "action_placeholder": "작업으로 필터(예: issue.status_changed)",
+    "export_csv": "CSV 내보내기",
+    "export_json": "JSON 내보내기",
+    "export_failed": "내보내기 실패",
+    "loading": "감사 로그를 불러오는 중…",
+    "load_failed": "감사 로그를 불러오지 못했습니다.",
+    "empty": "이 필터에 해당하는 항목이 아직 없습니다.",
+    "col_when": "시각",
+    "col_actor": "주체",
+    "col_action": "작업",
+    "col_entity": "대상",
+    "col_details": "상세",
+    "approved": "승인",
+    "load_more": "더 보기"
   }
 }

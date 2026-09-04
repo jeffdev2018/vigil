@@ -332,7 +332,8 @@
       "quick_actions": "快捷操作",
       "plugins": "Plugins",
       "mcp": "MCP",
-      "billing": "账单与套餐"
+      "billing": "账单与套餐",
+      "audit_log": "审计日志"
     }
   },
   "plugins": {
@@ -1330,5 +1331,28 @@
     "expiry_7d": "7 天",
     "expiry_30d": "30 天",
     "expiry_never": "永久有效"
+  },
+  "audit": {
+    "description": "记录此工作区的每个重要操作，最新在前：决策的提出与回答、计划批准、状态变更、证明、智能体回滚、归属规则、简报、设置。条目不会被编辑或删除。",
+    "actor_type": "操作者",
+    "any_actor": "全部",
+    "actor_member": "成员",
+    "actor_agent": "智能体",
+    "actor_system": "系统",
+    "action": "操作",
+    "action_placeholder": "按操作筛选（如 issue.status_changed）",
+    "export_csv": "导出 CSV",
+    "export_json": "导出 JSON",
+    "export_failed": "导出失败",
+    "loading": "正在加载审计日志…",
+    "load_failed": "无法加载审计日志。",
+    "empty": "此筛选下暂无条目。",
+    "col_when": "时间",
+    "col_actor": "操作者",
+    "col_action": "操作",
+    "col_entity": "对象",
+    "col_details": "详情",
+    "approved": "已批准",
+    "load_more": "加载更多"
   }
 }
