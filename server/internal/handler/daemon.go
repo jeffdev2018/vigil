@@ -3884,6 +3884,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.emitIssueExecutedOnFirstCompletion(r, task)
 	// Handoff packet (K17): every completed run leaves one.
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
+	// Pipelines (K37): the executor's completed run advances the cursor.
+	h.advancePipelineAfterTask(r.Context(), *task)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into

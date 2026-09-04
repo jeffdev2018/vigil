@@ -2082,6 +2082,17 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/state", h.GetRunControlState)
 				r.Get("/checkpoint-status", h.GetRunCheckpointStatus)
 			})
+			// Pipelines (K37): ordered stages an issue moves through.
+			r.Route("/api/pipelines", func(r chi.Router) {
+				r.Get("/", h.ListPipelines)
+				r.Post("/", h.CreatePipeline)
+				r.Patch("/{id}", h.UpdatePipeline)
+				r.Delete("/{id}", h.DeletePipeline)
+			})
+			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
+			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
+			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)
+			r.Post("/api/pipeline-runs/{id}/cancel", h.CancelPipelineRun)
 			// Preemption (K41): which runs were suspended for an urgent issue.
 			r.Get("/api/issues/{id}/preemptions", h.ListIssuePreemptions)
 			// Traffic control (K18): a run editing what a human or another run edits.

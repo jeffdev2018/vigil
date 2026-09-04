@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_pipeline_run_workspace_status;
