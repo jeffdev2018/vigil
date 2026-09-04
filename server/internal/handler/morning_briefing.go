@@ -297,6 +297,7 @@ func (h *Handler) GetMorningBriefingToday(w http.ResponseWriter, r *http.Request
 	_ = date.Scan(briefing.Date)
 	if sent, err := h.Queries.GetMorningBriefingSent(r.Context(), db.GetMorningBriefingSentParams{WorkspaceID: wsUUID, SentForDate: date}); err == nil {
 		briefing.SentAt = timestampToPtr(sent.CreatedAt)
+		_ = json.Unmarshal(sent.ChannelsDelivered, &briefing.ChannelsDelivered)
 	}
 	writeJSON(w, http.StatusOK, briefing)
 }
@@ -339,6 +340,7 @@ func (h *Handler) TriggerMorningBriefing(w http.ResponseWriter, r *http.Request)
 	_ = date.Scan(briefing.Date)
 	if sent, err := h.Queries.GetMorningBriefingSent(r.Context(), db.GetMorningBriefingSentParams{WorkspaceID: wsUUID, SentForDate: date}); err == nil {
 		briefing.SentAt = timestampToPtr(sent.CreatedAt)
+		_ = json.Unmarshal(sent.ChannelsDelivered, &briefing.ChannelsDelivered)
 	}
 	briefing.AlreadySent = !did
 	writeJSON(w, http.StatusOK, briefing)

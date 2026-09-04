@@ -86,6 +86,12 @@ func TestBriefingDeliversToChannelsOncePerDay(t *testing.T) {
 	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE workspace_id = $1 AND action = $2 AND details->>'type' = 'slack' AND details->>'narrated' = 'true'`, testWorkspaceID, AuditBriefingChannelSent); n != 1 {
 		t.Fatalf("channel_sent audit rows = %d", n)
 	}
+	// The API exposes where the day's briefing went.
+	var today MorningBriefingResponse
+	testutil.Call(t, inboxWorkspaceHandler(testHandler.GetMorningBriefingToday), inboxRequest(http.MethodGet, "/api/morning-briefing/today", testWorkspaceID)).Want(http.StatusOK).JSON(&today)
+	if len(today.ChannelsDelivered) != 2 || today.ChannelsDelivered[1] != "slack" {
+		t.Fatalf("today.channels_delivered = %v", today.ChannelsDelivered)
+	}
 	// A second send the same day is refused before any channel is hit.
 	if did, _ := testHandler.sendBriefing(ctx, parseUUID(testWorkspaceID), briefing, "member", testUserID, cfg.Channels); did || len(fake.calls) != 1 {
 		t.Fatalf("second send: did=%v calls=%d", did, len(fake.calls))
