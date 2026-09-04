@@ -89,6 +89,7 @@ vi.mock("./triage-auto-setting", () => ({ TriageAutoSetting: () => null }));
 vi.mock("./approval-gates-setting", () => ({ ApprovalGatesSetting: () => null }));
 vi.mock("./permission-profiles-setting", () => ({ PermissionProfilesSetting: () => null }));
 vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));
+vi.mock("./issue-routing-setting", () => ({ IssueRoutingSetting: () => null }));
 
 vi.mock("./delete-workspace-dialog", () => ({
   DeleteWorkspaceDialog: () => null,

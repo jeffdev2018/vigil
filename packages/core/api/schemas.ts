@@ -4136,3 +4136,27 @@ export const AgentPoolAssignmentSchema = z.object({
   id: z.string().default(""),
   runtime_pool_id: z.string().nullable().default(null),
 }).loose();
+
+// Issue router (K27).
+export const RoutingDecisionSchema = z.object({
+  risk_level: z.enum(["low", "normal", "high"]).catch("normal").default("normal"),
+  matched_paths: z.array(z.string()).catch([]).default([]),
+  target_pool_id: z.string().optional(),
+  target_pool_name: z.string().optional(),
+  runtime_id: z.string().optional(),
+  escalated: z.boolean().catch(false).default(false),
+  escalation_reason: z.string().optional(),
+  decided_at: z.string().default(""),
+}).loose();
+
+export const IssueRoutingEnvelopeSchema = z.object({
+  decision: RoutingDecisionSchema.nullable().catch(null).default(null),
+  task_id: z.string().nullable().catch(null).default(null),
+  task_status: z.string().optional(),
+}).loose();
+
+export const RoutingSettingsSchema = z.object({
+  enabled: z.boolean().catch(false).default(false),
+  pools: z.record(z.string(), z.string()).catch({}).default({}),
+  escalation_failures: z.number().int().catch(2).default(2),
+}).loose();

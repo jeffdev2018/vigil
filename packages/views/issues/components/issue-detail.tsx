@@ -95,6 +95,7 @@ import { PlanVerificationSection } from "./plan-verification-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
+import { RoutingBadge } from "./routing-badge";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
 import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
@@ -2606,6 +2607,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Runtime failover (K28): moves between runtimes; loud when a run is degraded. */}
       <FailoverSection issueId={id} />
+
+      {/* Issue router (K27): risk level, pool and escalation behind the latest run. */}
+      <RoutingBadge issueId={id} />
 
       {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
       <OwnershipSuggestionSection issue={issue} />

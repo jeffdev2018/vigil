@@ -336,6 +336,8 @@ import {
   RuntimePoolsEnvelopeSchema,
   FailoverHistoryEnvelopeSchema,
   AgentPoolAssignmentSchema,
+  IssueRoutingEnvelopeSchema,
+  RoutingSettingsSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
   WhySearchResponseSchema,
@@ -3021,6 +3023,22 @@ export class ApiClient {
   async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
     return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
+  }
+
+  // Issue router (K27).
+  async getIssueRouting(issueId: string): Promise<import("../issues/routing").IssueRouting> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/routing-decision`);
+    return parseWithFallback(raw, IssueRoutingEnvelopeSchema, { decision: null, task_id: null }, { endpoint: "GET /api/issues/:id/routing-decision" });
+  }
+
+  async getRoutingSettings(): Promise<import("../issues/routing").RoutingSettings> {
+    const raw = await this.fetch<unknown>(`/api/routing-settings`);
+    return parseWithFallback(raw, RoutingSettingsSchema, { enabled: false, pools: {}, escalation_failures: 2 }, { endpoint: "GET /api/routing-settings" });
+  }
+
+  async putRoutingSettings(input: import("../issues/routing").RoutingSettings): Promise<import("../issues/routing").RoutingSettings> {
+    const raw = await this.fetch<unknown>(`/api/routing-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RoutingSettingsSchema, input, { endpoint: "PUT /api/routing-settings" });
   }
 
   // Run-scoped secrets (K09).

@@ -850,7 +850,25 @@
     "pools_degraded_none": "无",
     "pools_degraded_hint": "顺序即优先级。仅当池中其他运行时都不可用时才使用降级运行时，且运行会明确标示。",
     "pools_save": "保存池",
-    "pools_failed": "保存运行时池失败"
+    "pools_failed": "保存运行时池失败",
+    "routing_section": "议题路由",
+    "routing_enabled": "按风险路由议题",
+    "routing_intro": "每次新运行会进入对应风险等级的池。风险由议题提及的路径与项目的 blast radius 规则匹配得出，不依赖模型推断。",
+    "routing_levels": {
+      "low": "低风险",
+      "normal": "一般风险",
+      "high": "高风险"
+    },
+    "routing_level_hints": {
+      "low": "所有提及的路径均可自主合并。",
+      "normal": "无匹配规则，或路径继承项目默认值。",
+      "high": "提及的路径需要双重审批或为只读；存在更好的池时绝不使用最便宜的池。"
+    },
+    "routing_pool_aria": "{{level}} 的池",
+    "routing_pool_agent": "智能体自身的池或运行时",
+    "routing_escalation": "连续失败后升级",
+    "routing_escalation_description": "议题连续失败达到此次数后，下一次运行会提升一个风险等级。0 表示禁用。",
+    "routing_failed": "保存路由策略失败"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

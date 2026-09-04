@@ -45,6 +45,7 @@ import { TriageAutoSetting } from "./triage-auto-setting";
 import { ApprovalGatesSetting } from "./approval-gates-setting";
 import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
+import { IssueRoutingSetting } from "./issue-routing-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
 import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
@@ -494,6 +495,7 @@ export function WorkspaceTab() {
       {workspace && <ApprovalGatesSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PermissionProfilesSetting canEdit={canManageWorkspace} />}
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
+      {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection

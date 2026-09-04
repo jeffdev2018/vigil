@@ -911,6 +911,18 @@
     "gate_failed": "サブイシューを作成できませんでした",
     "step_ref": "ステップ {{id}}"
   },
+  "routing": {
+    "label": "ルーティング",
+    "risk": {
+      "low": "低リスク",
+      "normal": "通常リスク",
+      "high": "高リスク"
+    },
+    "pool": "プール {{name}}",
+    "agent_pool": "エージェントのプール",
+    "paths": "一致パス {{count}}",
+    "escalated": "エスカレーション"
+  },
   "failover": {
     "section": "ランタイム切り替え",
     "run": "実行 {{id}}",
