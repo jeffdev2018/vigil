@@ -365,6 +365,7 @@ import {
   AssigneeSuggestionSchema,
   CompetencySettingsSchema,
   CrossReviewListSchema,
+  CrossReviewSettingsSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3412,6 +3413,16 @@ export class ApiClient {
   async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
     return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  async getCrossReviewSettings(): Promise<import("../issues/cross-review").CrossReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/cross-review-settings`);
+    return parseWithFallback(raw, CrossReviewSettingsSchema, { enabled: true, opt_out_project_ids: [] }, { endpoint: "GET /api/cross-review-settings" });
+  }
+
+  async putCrossReviewSettings(input: import("../issues/cross-review").CrossReviewSettings): Promise<import("../issues/cross-review").CrossReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/cross-review-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
   }
 
   async retryCrossReview(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {

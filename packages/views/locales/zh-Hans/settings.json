@@ -931,7 +931,13 @@
     "competency_section": "习得能力",
     "competency_min_sample": "最小样本量",
     "competency_min_sample_description": "低于该数量（已关闭 issue 加对决）时，成功率显示为不可靠而非裸百分比。",
-    "competency_failed": "无法保存能力设置"
+    "competency_failed": "无法保存能力设置",
+    "cross_review_section": "跨供应商评审",
+    "cross_review_enabled": "用另一供应商评审每个交付的 diff",
+    "cross_review_enabled_description": "代码运行交付 diff 后，另一供应商上的智能体会在人工评审前先评审。至少需要两个供应商。",
+    "cross_review_opt_out": "不做跨评审的项目",
+    "cross_review_opt_out_description": "这些项目上的运行不会被评审。",
+    "cross_review_failed": "无法保存跨评审设置"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

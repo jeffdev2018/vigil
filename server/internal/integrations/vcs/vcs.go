@@ -129,7 +129,14 @@ type Provider interface {
 	// ValidateToken confirms the token works against instanceURL and returns
 	// the authenticated account. Maps a 401/403 to ErrUnauthorized.
 	ValidateToken(ctx context.Context, instanceURL, token string) (Account, error)
+	// PullRequestDiff returns the unified diff of a pull / merge request
+	// (K15: the cross-provider reviewer reads it). Maps a 401/403 to
+	// ErrUnauthorized.
+	PullRequestDiff(ctx context.Context, instanceURL, token, owner, repo string, number int) (string, error)
 }
+
+// maxDiffBytes bounds a pull request diff read for the cross-provider review.
+const maxDiffBytes = 4 << 20
 
 // registry maps a Kind to its Provider. Populated by package init in the
 // adapter files (forgejo.go, gitlab.go).

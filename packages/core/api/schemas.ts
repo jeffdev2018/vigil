@@ -4718,6 +4718,11 @@ export const CrossReviewSchema = z.object({
   completed_at: z.string().nullable().catch(null).default(null),
 }).loose();
 
+export const CrossReviewSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  opt_out_project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
 export const CrossReviewListSchema = z.object({
   reviews: z.array(CrossReviewSchema).catch([]).default([]),
 }).loose();

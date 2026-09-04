@@ -47,6 +47,7 @@ import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
+import { CrossReviewSetting } from "./cross-review-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
 import { PipelinesSetting } from "./pipelines-setting";
@@ -501,6 +502,7 @@ export function WorkspaceTab() {
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
+      {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
       {workspace && <PipelinesSetting canManage={canManageWorkspace} />}

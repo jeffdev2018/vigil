@@ -24,9 +24,27 @@ export interface CrossReview {
   completed_at: string | null;
 }
 
+export interface CrossReviewSettings {
+  enabled: boolean;
+  opt_out_project_ids: string[];
+}
+
 export const crossReviewKeys = {
   issue: (wsId: string, issueId: string) => ["cross-reviews", wsId, issueId] as const,
+  settings: (wsId: string) => ["cross-reviews", wsId, "settings"] as const,
 };
+
+export function crossReviewSettingsOptions(wsId: string) {
+  return queryOptions({ queryKey: crossReviewKeys.settings(wsId), queryFn: () => api.getCrossReviewSettings() });
+}
+
+export function useSaveCrossReviewSettings(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: CrossReviewSettings) => api.putCrossReviewSettings(v),
+    onSettled: () => qc.invalidateQueries({ queryKey: crossReviewKeys.settings(wsId) }),
+  });
+}
 
 export function issueCrossReviewsOptions(wsId: string, issueId: string) {
   return queryOptions({ queryKey: crossReviewKeys.issue(wsId, issueId), queryFn: () => api.listCrossReviews(issueId), refetchInterval: 15_000 });

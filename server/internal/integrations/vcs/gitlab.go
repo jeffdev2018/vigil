@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -245,4 +246,45 @@ func splitNamespace(path string) (owner, name string) {
 		return path[:i], path[i+1:]
 	}
 	return "", path
+}
+
+// PullRequestDiff: GET /api/v4/projects/{owner%2Frepo}/merge_requests/{iid}/changes,
+// rebuilt as one unified diff (raw_diffs needs GitLab 16.7+; changes is older).
+func (gitlabProvider) PullRequestDiff(ctx context.Context, instanceURL, token, owner, repo string, number int) (string, error) {
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d/changes", NormalizeInstanceURL(instanceURL), url.PathEscape(owner+"/"+repo), number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("PRIVATE-TOKEN", token)
+	req.Header.Set("Accept", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return "", ErrUnauthorized
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("gitlab changes: status %d", resp.StatusCode)
+	}
+	var payload struct {
+		Changes []struct {
+			OldPath string `json:"old_path"`
+			NewPath string `json:"new_path"`
+			Diff    string `json:"diff"`
+		} `json:"changes"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxDiffBytes)).Decode(&payload); err != nil {
+		return "", fmt.Errorf("gitlab changes: %w", err)
+	}
+	var sb strings.Builder
+	for _, c := range payload.Changes {
+		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n%s", c.OldPath, c.NewPath, c.OldPath, c.NewPath, c.Diff)
+		if !strings.HasSuffix(c.Diff, "\n") {
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String(), nil
 }

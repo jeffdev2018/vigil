@@ -6,8 +6,12 @@ import (
 	"strings"
 	"testing"
 
+	"errors"
+
 	"github.com/google/uuid"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 // Cross-provider self-review (K15): a completed code run with a diff gets
@@ -78,6 +82,9 @@ func TestCrossReviewTriggerReportAndRetry(t *testing.T) {
 		testPool.Exec(ctx, `DELETE FROM agent_task_queue WHERE agent_id IN ($1, $2, $3)`, author, sibling, reviewer)
 	})
 	quietOtherAgents(t, author, sibling, reviewer)
+	prevFetcher := testHandler.DiffFetcher
+	testHandler.DiffFetcher = fakeDiffFetcher{}
+	t.Cleanup(func() { testHandler.DiffFetcher = prevFetcher })
 	ctx := context.Background()
 	// No diff: nothing to review.
 	bare := dbfx.Task(t, author, testutil.Cols{"runtime_id": claude, "issue_id": issue, "status": "completed", "completed_at": testutil.Raw("now()")})
@@ -129,6 +136,71 @@ func TestCrossReviewTriggerReportAndRetry(t *testing.T) {
 		t.Fatalf("after retry = %+v", out.Reviews)
 	}
 	testutil.Call(t, testHandler.RetryCrossReview, testutil.WithURLParams(newRequest(http.MethodPost, "/api/issues/"+issue+"/cross-reviews/retry", nil), "id", issue)).Want(http.StatusConflict)
+}
+
+type fakeDiffFetcher struct{ diff string }
+
+func (f fakeDiffFetcher) FetchIssueDiff(context.Context, db.Issue, string) (string, error) {
+	if f.diff == "" {
+		return "", errors.New("no diff")
+	}
+	return f.diff, nil
+}
+
+// The brief embeds the diff when it can be read; the policy can switch the
+// review off or exclude a project.
+func TestCrossReviewEmbedsDiffAndHonoursPolicy(t *testing.T) {
+	claude := providerRuntime(t, "claude")
+	codex := providerRuntime(t, "codex")
+	author := dbfx.Agent(t, "xr diff author", claude)
+	reviewer := dbfx.Agent(t, "xr diff reviewer", codex)
+	project := dbfx.Project(t, "xr project")
+	issue := dbfx.Issue(t, "Cross review diff issue", testutil.Cols{"project_id": project})
+	rememberSettings(t)
+	quietOtherAgents(t, author, reviewer)
+	prev := testHandler.DiffFetcher
+	testHandler.DiffFetcher = fakeDiffFetcher{diff: "diff --git a/x.go b/x.go\n+fmt.Println(1)\n"}
+	t.Cleanup(func() {
+		testHandler.DiffFetcher = prev
+		testPool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE agent_id IN ($1, $2)`, author, reviewer)
+	})
+	ctx := context.Background()
+	if cfg := service.CrossReviewSettings([]byte(`{"cross_review":{"enabled":false}}`)); cfg.Allows("") {
+		t.Fatal("disabled policy must not allow")
+	}
+	if cfg := service.CrossReviewSettings([]byte(`{"cross_review":{"opt_out_project_ids":["p1",""]}}`)); !cfg.Enabled || cfg.Allows("p1") || !cfg.Allows("p2") {
+		t.Fatalf("opt-out policy = %+v", cfg)
+	}
+	// Project opted out: no review.
+	testutil.Call(t, testHandler.PutCrossReviewSettings, newRequest(http.MethodPut, "/api/cross-review-settings", map[string]any{"enabled": true, "opt_out_project_ids": []string{project}})).Want(http.StatusOK)
+	code := dbfx.Task(t, author, testutil.Cols{"runtime_id": claude, "issue_id": issue, "status": "completed", "completed_at": testutil.Raw("now()")})
+	testHandler.triggerCrossReview(ctx, mustTask(t, code), "https://github.com/org/repo/pull/9", "")
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM agent_task_queue WHERE review_of_task_id = $1`, code); n != 0 {
+		t.Fatal("an opted-out project must not be reviewed")
+	}
+	var got map[string]any
+	testutil.Call(t, testHandler.GetCrossReviewSettings, newRequest(http.MethodGet, "/api/cross-review-settings", nil)).Want(http.StatusOK).JSON(&got)
+	if ids, _ := got["opt_out_project_ids"].([]any); len(ids) != 1 || ids[0] != project {
+		t.Fatalf("settings = %v", got)
+	}
+	testutil.Call(t, testHandler.PutCrossReviewSettings, newRequest(http.MethodPut, "/api/cross-review-settings", map[string]any{"enabled": true, "opt_out_project_ids": []string{"00000000-0000-0000-0000-000000000001"}})).Want(http.StatusUnprocessableEntity)
+	// Back in: the review starts with the diff embedded in its brief.
+	testutil.Call(t, testHandler.PutCrossReviewSettings, newRequest(http.MethodPut, "/api/cross-review-settings", map[string]any{"enabled": true, "opt_out_project_ids": []string{}})).Want(http.StatusOK)
+	testHandler.triggerCrossReview(ctx, mustTask(t, code), "https://github.com/org/repo/pull/9", "")
+	var reviewID string
+	dbfx.QueryRow(t, `SELECT id FROM agent_task_queue WHERE review_of_task_id = $1`, code).Scan(&reviewID)
+	review := mustTask(t, reviewID)
+	if !strings.Contains(review.HandoffNote.String, "```diff\ndiff --git a/x.go b/x.go\n+fmt.Println(1)") || strings.Contains(review.HandoffNote.String, "Read the diff yourself") {
+		t.Fatalf("brief = %q", review.HandoffNote.String)
+	}
+	// Disabled workspace-wide: nothing, even for another issue.
+	testutil.Call(t, testHandler.PutCrossReviewSettings, newRequest(http.MethodPut, "/api/cross-review-settings", map[string]any{"enabled": false, "opt_out_project_ids": []string{}})).Want(http.StatusOK)
+	other := dbfx.Issue(t, "Cross review disabled issue")
+	code2 := dbfx.Task(t, author, testutil.Cols{"runtime_id": claude, "issue_id": other, "status": "completed", "completed_at": testutil.Raw("now()")})
+	testHandler.triggerCrossReview(ctx, mustTask(t, code2), "", "feat/x")
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM agent_task_queue WHERE review_of_task_id = $1`, code2); n != 0 {
+		t.Fatal("disabled policy must not review")
+	}
 }
 
 func TestCrossReviewNeedsASecondProvider(t *testing.T) {
