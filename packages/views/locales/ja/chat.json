@@ -203,6 +203,7 @@
       "reconnecting": "再接続中",
       "retrying": "再試行中",
       "queued": "待機中",
+      "budget_paused": "予算により一時停止",
       "waiting_local_directory": "ローカルディレクトリを待機中",
       "waiting_local_directory_reason": "{{reason}} を待機中",
       "starting_up": "起動中",

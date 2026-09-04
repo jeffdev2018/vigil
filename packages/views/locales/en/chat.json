@@ -207,6 +207,7 @@
       "reconnecting": "Reconnecting",
       "retrying": "Retrying",
       "queued": "Queued",
+      "budget_paused": "Paused by budget",
       "waiting_local_directory": "Waiting for local directory",
       "waiting_local_directory_reason": "Waiting for {{reason}}",
       "starting_up": "Starting up",

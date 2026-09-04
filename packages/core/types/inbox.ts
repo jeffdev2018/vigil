@@ -34,7 +34,9 @@ export type InboxItemType =
   | "ownership_suggested"
   | "morning_briefing"
   | "standup_question"
-  | "weekly_retro";
+  | "weekly_retro"
+  | "budget_warning"
+  | "budget_exceeded";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

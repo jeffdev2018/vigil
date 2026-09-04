@@ -84,7 +84,9 @@
     "ownership_suggested": "担当者の提案",
     "morning_briefing": "朝のブリーフィング",
     "standup_question": "スタンドアップの質問",
-    "weekly_retro": "週次レトロ"
+    "weekly_retro": "週次レトロ",
+    "budget_warning": "予算の警告",
+    "budget_exceeded": "予算上限に達しました"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

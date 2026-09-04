@@ -27,6 +27,7 @@ type StageKey =
   | "reconnecting"
   | "retrying"
   | "queued"
+  | "budget_paused"
   | "waiting_local_directory"
   | "starting_up"
   | "thinking"
@@ -62,6 +63,7 @@ export function pickStageKeys(
   status: string | undefined,
   taskMessages: readonly TaskMessagePayload[],
   availability: AgentAvailability | undefined,
+  waitReason?: string,
 ): {
   stageKey: StageKey;
   toolKey?: ToolKey;
@@ -72,6 +74,9 @@ export function pickStageKeys(
   // active model work. Keep this ahead of availability hints so the specific
   // retry state never degrades to a misleading queued/thinking label.
   if (status === "deferred") return { stageKey: "retrying" };
+  if (status === "queued" && waitReason === "budget_paused") {
+    return { stageKey: "budget_paused", static: true };
+  }
   if (
     (status === "queued" || status === "dispatched") &&
     availability === "offline"
@@ -140,7 +145,7 @@ function useResolveStage(): (
 ) => Stage {
   const { t } = useT("chat");
   return (status, taskMessages, availability, waitReason) => {
-    const decision = pickStageKeys(status, taskMessages, availability);
+    const decision = pickStageKeys(status, taskMessages, availability, waitReason);
     if (decision.toolKey) {
       return {
         label: t(($) => $.status_pill.tools[decision.toolKey!]),
@@ -204,7 +209,7 @@ export function TaskStatusPill({
     status,
     taskMessages,
     availability,
-    status === "waiting_local_directory" ? pendingTask.wait_reason : undefined,
+    pendingTask.wait_reason,
   );
 
   return (

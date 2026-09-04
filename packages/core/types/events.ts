@@ -79,6 +79,7 @@ export type WSEventType =
   | "property:created"
   | "property:updated"
   | "issue_status:changed"
+  | "budget:updated"
   | "pin:created"
   | "pin:deleted"
   | "pin:reordered"
@@ -560,6 +561,7 @@ export interface WSEventPayloadMap {
   "property:created": PropertyChangedPayload;
   "property:updated": PropertyChangedPayload;
   "issue_status:changed": IssueStatusChangedPayload;
+  "budget:updated": unknown;
   "issue_reaction:added": IssueReactionAddedPayload;
   "issue_reaction:removed": IssueReactionRemovedPayload;
   "comment:created": CommentCreatedPayload;

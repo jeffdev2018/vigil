@@ -135,6 +135,7 @@ const (
 	EventAutopilotUpdated  = "autopilot:updated"
 	EventAutopilotDeleted  = "autopilot:deleted"
 	EventAutopilotRunStart = "autopilot:run_start"
+	EventBudgetUpdated     = "budget:updated"
 	EventAutopilotRunDone  = "autopilot:run_done"
 
 	// Squad events

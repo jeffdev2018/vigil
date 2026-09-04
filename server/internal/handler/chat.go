@@ -944,6 +944,9 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	// invoke gate.
 	sent, err := h.TaskService.SendDirectChatMessage(r.Context(), session, agent, parseUUID(userID), req.Content, attachmentIDs, actorType, parseUUID(actorID))
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, service.ErrChatSessionArchived):
 			writeError(w, http.StatusConflict, "chat session is archived")

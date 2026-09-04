@@ -773,6 +773,7 @@ WHERE id = (
     WHERE atq.agent_id = @agent_id
       AND atq.runtime_id = @runtime_id
       AND atq.status = 'queued'
+	  AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
       AND EXISTS (
           SELECT 1
           FROM agent a
@@ -2197,6 +2198,7 @@ ORDER BY priority DESC, created_at ASC;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = $1
   AND atq.status = 'queued'
+	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
       SELECT 1
@@ -2324,6 +2326,7 @@ RETURNING *;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
   AND atq.status = 'queued'
+	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
       SELECT 1

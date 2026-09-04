@@ -70,6 +70,7 @@ import { UsageTrendCard } from "./usage-trend-card";
 import { Leaderboard } from "./leaderboard";
 import { ErrorsTab } from "./errors-tab";
 import { cn } from "@multica/ui/lib/utils";
+import { BudgetNotice } from "./budget-notice";
 
 // Stable references — `data ?? []` would create a new empty array on
 // every render while the query is loading, which breaks useMemo's
@@ -525,6 +526,11 @@ export function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <BudgetNotice onOpen={() => {
+        const slug = navigation.pathname.split("/").filter(Boolean)[0];
+        if (slug) navigation.push(`/${slug}/settings?tab=budgets`);
+      }} />
 
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-6">

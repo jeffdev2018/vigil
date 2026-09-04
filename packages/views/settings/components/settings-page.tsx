@@ -21,6 +21,7 @@ import {
   CreditCard,
   Server,
   ScrollText,
+  WalletCards,
 } from "lucide-react";
 import { GitHubMark } from "./github-mark";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@multica/ui/components/ui/tabs";
@@ -53,6 +54,7 @@ import { PluginsTab } from "./plugins-tab";
 import { AuditLogTab } from "./audit-log-tab";
 import { McpTab } from "./mcp-tab";
 import { BillingTab } from "./billing-tab";
+import { BudgetsTab } from "./budgets-tab";
 import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useT } from "../../i18n";
 
@@ -75,6 +77,7 @@ const WORKSPACE_TAB_KEYS = [
   "labs",
   "members",
   "billing",
+  "budgets",
   "labels",
   "issue_statuses",
   "properties",
@@ -91,6 +94,7 @@ const WORKSPACE_TAB_VALUES = {
   labs: "labs",
   members: "members",
   billing: "billing",
+  budgets: "budgets",
   labels: "labels",
   issue_statuses: "issue-statuses",
   properties: "properties",
@@ -107,6 +111,7 @@ const WORKSPACE_TAB_ICONS = {
   labs: FlaskConical,
   members: Users,
   billing: CreditCard,
+  budgets: WalletCards,
   labels: Tags,
   issue_statuses: CircleDot,
   properties: SlidersHorizontal,
@@ -288,6 +293,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           {billingEnabled ? (
             <TabsContent value="billing"><BillingTab /></TabsContent>
           ) : null}
+          <TabsContent value="budgets"><BudgetsTab /></TabsContent>
           <TabsContent value="labels"><LabelsTab /></TabsContent>
           <TabsContent value="issue-statuses"><IssueStatusesTab /></TabsContent>
           <TabsContent value="properties"><PropertiesTab /></TabsContent>

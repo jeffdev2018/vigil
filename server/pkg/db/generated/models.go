@@ -365,6 +365,57 @@ type AutopilotTrigger struct {
 	CreatedByID pgtype.UUID `json:"created_by_id"`
 }
 
+type BudgetOverride struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	PolicyID    pgtype.UUID        `json:"policy_id"`
+	GrantedBy   pgtype.UUID        `json:"granted_by"`
+	Reason      string             `json:"reason"`
+	ExpiresAt   pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type BudgetPeriod struct {
+	PolicyID         pgtype.UUID        `json:"policy_id"`
+	PeriodStart      pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd        pgtype.Timestamptz `json:"period_end"`
+	SpentUsdTicks    int64              `json:"spent_usd_ticks"`
+	ReservedUsdTicks int64              `json:"reserved_usd_ticks"`
+	WarnNotifiedAt   pgtype.Timestamptz `json:"warn_notified_at"`
+	BlockNotifiedAt  pgtype.Timestamptz `json:"block_notified_at"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BudgetPolicy struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	ScopeType     string             `json:"scope_type"`
+	ScopeID       pgtype.UUID        `json:"scope_id"`
+	LimitUsdTicks int64              `json:"limit_usd_ticks"`
+	Period        string             `json:"period"`
+	WarnBps       int32              `json:"warn_bps"`
+	Action        string             `json:"action"`
+	CreatedBy     pgtype.UUID        `json:"created_by"`
+	Revision      int64              `json:"revision"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BudgetReservation struct {
+	ID               pgtype.UUID        `json:"id"`
+	PolicyID         pgtype.UUID        `json:"policy_id"`
+	PeriodStart      pgtype.Timestamptz `json:"period_start"`
+	PeriodEnd        pgtype.Timestamptz `json:"period_end"`
+	TaskID           pgtype.UUID        `json:"task_id"`
+	EstimateUsdTicks int64              `json:"estimate_usd_ticks"`
+	ActualUsdTicks   pgtype.Int8        `json:"actual_usd_ticks"`
+	State            string             `json:"state"`
+	IdempotencyKey   string             `json:"idempotency_key"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	FinalizedAt      pgtype.Timestamptz `json:"finalized_at"`
+}
+
 type BusinessRule struct {
 	ID                pgtype.UUID        `json:"id"`
 	WorkspaceID       pgtype.UUID        `json:"workspace_id"`

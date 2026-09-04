@@ -84,7 +84,9 @@
     "ownership_suggested": "建议归属",
     "morning_briefing": "晨间简报",
     "standup_question": "站会提问",
-    "weekly_retro": "每周回顾"
+    "weekly_retro": "每周回顾",
+    "budget_warning": "预算警告",
+    "budget_exceeded": "预算已达上限"
   },
   "labels": {
     "set_status_to": "状态设为",

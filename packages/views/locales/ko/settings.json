@@ -49,6 +49,20 @@
       "cancelled": "진행하지 않기로 함."
     }
   },
+  "budgets": {
+    "title": "실행 예산", "description": "에이전트 작업 시작 전에 USD 한도를 설정합니다. 강제 한도는 새 실행을 일시 중지하고 관찰 모드는 측정만 합니다.",
+    "add": "새 예산", "loading": "예산 불러오는 중…", "load_failed": "예산 상태를 새로 고칠 수 없습니다.", "retry": "다시 시도",
+    "empty": "실행 예산 없음", "empty_hint": "워크스페이스, 프로젝트 또는 에이전트 한도를 추가하세요.",
+    "scope": "범위", "target": "대상 선택", "limit": "한도(USD)", "period": "초기화 주기", "warning": "경고 기준(%)", "action": "한도 도달 시",
+    "create_title": "새 예산", "edit_title": "예산 편집", "editor_hint": "사용량에는 완료된 비용과 대기 작업의 예약 금액이 포함됩니다.",
+    "save": "저장", "saving": "저장 중…", "cancel": "취소", "save_failed": "예산을 저장할 수 없습니다.",
+    "edit": "예산 편집", "delete": "예산 삭제", "delete_confirm": "이 예산과 현재 기간 사용량을 삭제할까요?", "override": "임시 예외 허용",
+    "override_reason": "예외 사유(최대 24시간)", "override_created": "24시간 예외를 허용했습니다", "override_active": "예외 적용 중",
+    "reserved": "대기 작업에 {{amount}} 예약됨", "notice_warning": "실행 예산이 한도에 가까워졌습니다.", "notice_blocked": "예산이 한도에 도달해 새 에이전트 실행이 일시 중지되었습니다.", "manage": "예산 관리",
+    "scopes": { "workspace": "워크스페이스", "project": "프로젝트", "agent": "에이전트" },
+    "periods": { "daily": "매일", "weekly": "매주", "monthly": "매월" },
+    "actions": { "enforce": "한도에서 일시 중지", "observe": "관찰만" }
+  },
   "quick_actions": {
     "title": "퀵 액션",
     "description": "실행할 에이전트와 프롬프트를 미리 설정한 뒤, 어떤 태스크의 사이드바에서든 한 번의 클릭으로 실행합니다.",
@@ -333,7 +347,8 @@
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "결제 및 요금제",
-      "audit_log": "감사 로그"
+      "audit_log": "감사 로그",
+      "budgets": "예산"
     }
   },
   "plugins": {

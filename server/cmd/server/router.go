@@ -2026,6 +2026,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 
+			// Budgets
+			r.Route("/api/budgets", func(r chi.Router) {
+				r.Get("/", h.ListBudgetPolicies)
+				r.Get("/status", h.GetBudgetStatus)
+				r.With(handler.RequireHumanActor).Post("/", h.CreateBudgetPolicy)
+				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateBudgetPolicy)
+				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteBudgetPolicy)
+				r.With(handler.RequireHumanActor).Post("/{id}/override", h.CreateBudgetOverride)
+			})
+
 			// Projects
 			r.Route("/api/projects", func(r chi.Router) {
 				r.Get("/search", h.SearchProjects)

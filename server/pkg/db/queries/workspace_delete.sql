@@ -574,6 +574,26 @@ WHERE autopilot_quota_reservation.workspace_id = $1;
 DELETE FROM autopilot_quota_period
 WHERE autopilot_quota_period.workspace_id = $1;
 
+-- name: DeleteWorkspaceBudgetOverrides :exec
+DELETE FROM budget_override
+WHERE budget_override.workspace_id = $1;
+
+-- name: DeleteWorkspaceBudgetReservations :exec
+DELETE FROM budget_reservation
+WHERE budget_reservation.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPeriods :exec
+DELETE FROM budget_period
+WHERE budget_period.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPolicies :exec
+DELETE FROM budget_policy
+WHERE budget_policy.workspace_id = $1;
+
 -- name: DeleteWorkspaceAutopilotChildren :exec
 WITH
 deleted_triggers AS (

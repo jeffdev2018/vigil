@@ -2655,6 +2655,9 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.TaskService.EnqueueQuickCreateTask(r.Context(), wsUUID, requesterUUID, agentUUID, squadUUID, prompt, priority, dueDate, projectUUID, parentIssueUUID, attachmentIDs)
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		if writeIssueLimitReached(w, err) {
 			return
 		}
