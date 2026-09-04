@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { Archive, ChevronRight, Inbox } from "lucide-react";
+import { Archive, ChevronRight, Inbox, RotateCcw } from "lucide-react";
 import { isEditableShortcutTarget } from "@multica/core/shortcuts";
 import { isImeComposing } from "@multica/core/utils";
 import type { InboxItem } from "@multica/core/types";
@@ -57,6 +57,7 @@ export function InboxList({
   onOpenArchived,
   onOpenAttention,
   onOpenBriefing,
+  onOpenRetro,
   emptyLabel,
   emptyAction,
 }: {
@@ -74,6 +75,8 @@ export function InboxList({
   onOpenAttention?: () => void;
   // Morning briefing (K30): entry into today's digest.
   onOpenBriefing?: () => void;
+  // Weekly retro (K34): entry into the last generated retro.
+  onOpenRetro?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
 }) {
@@ -109,6 +112,20 @@ export function InboxList({
       >
         <span className="flex size-7 shrink-0 items-center justify-center">☀</span>
         <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.briefing_title)}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
+
+  const retroEntry =
+    view === "inbox" && onOpenRetro ? (
+      <button
+        type="button"
+        data-testid="inbox-retro-entry"
+        onClick={onOpenRetro}
+        className="mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center"><RotateCcw className="size-4" /></span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.retro_title)}</span>
         <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
       </button>
     ) : null;
@@ -241,6 +258,7 @@ export function InboxList({
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
         {briefingEntry && <div className="px-2">{briefingEntry}</div>}
+        {retroEntry && <div className="px-2">{retroEntry}</div>}
         {attentionEntry && <div className="px-2">{attentionEntry}</div>}
         {archivedEntry && <div className="px-2">{archivedEntry}</div>}
       </div>

@@ -31,6 +31,8 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     decision_escalated: t(($) => $.types.decision_escalated),
     ownership_suggested: t(($) => $.types.ownership_suggested),
     morning_briefing: t(($) => $.types.morning_briefing),
+    standup_question: t(($) => $.types.standup_question),
+    weekly_retro: t(($) => $.types.weekly_retro),
     task_completed: t(($) => $.types.task_completed),
     task_failed: t(($) => $.types.task_failed),
     agent_blocked: t(($) => $.types.agent_blocked),

@@ -3826,3 +3826,35 @@ export const BusinessRuleViolationListSchema = z.object({
     created_at: z.string().default(""),
   }).loose()).catch([]).default([]),
 }).loose();
+
+// Standup and retro (K34).
+export const WeeklyRetroSchema = z.object({
+  week_start: z.string().default(""),
+  week_end: z.string().default(""),
+  runs_total: z.number().default(0),
+  runs_by_status: z.record(z.string(), z.number()).catch({}).default({}),
+  median_minutes: z.number().default(0),
+  failed: z.array(z.object({
+    run_id: z.string().default(""),
+    issue_id: z.string().default(""),
+    identifier: z.string().default(""),
+    title: z.string().default(""),
+    status: z.string().default(""),
+    agent_id: z.string().default(""),
+    minutes: z.number().default(0),
+    error: z.string().optional(),
+  }).loose()).catch([]).default([]),
+  agents: z.array(z.object({
+    agent_id: z.string().default(""),
+    name: z.string().default(""),
+    runs_total: z.number().default(0),
+    runs_failed: z.number().default(0),
+    runs_accepted: z.number().default(0),
+    runs_reopened: z.number().default(0),
+    runs_no_intervention: z.number().default(0),
+    cost_usd_ticks: z.number().default(0),
+  }).loose()).catch([]).default([]),
+  skill_proposals: z.array(z.object({ text: z.string().default(""), source: z.string().default("") }).loose()).catch([]).default([]),
+  narrative: z.string().catch("").default(""),
+  generated_at: z.string().nullable().catch(null).default(null),
+}).loose();

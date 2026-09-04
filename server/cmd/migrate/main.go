@@ -312,6 +312,7 @@ var concurrentIndexCleanups = map[string]string{
 	"489_decision_record_issue_index":                           "idx_decision_record_issue",
 	"491_business_rule_attach_index":                            "idx_business_rule_attach_point",
 	"492_business_rule_violation_index":                         "idx_business_rule_violation_rule",
+	"494_weekly_retro_week_index":                               "idx_weekly_retro_workspace_week",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
 }
 

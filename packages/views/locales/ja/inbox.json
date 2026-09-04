@@ -43,7 +43,8 @@
     "actions_aria": "通知の操作",
     "attention_title": "要対応",
     "attention_empty": "対応が必要なものはありません。",
-    "briefing_title": "今朝のブリーフィング"
+    "briefing_title": "今朝のブリーフィング",
+    "retro_title": "週次レトロ"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -81,7 +82,9 @@
     "decision_request": "判断を求めています",
     "decision_escalated": "判断が期限超過",
     "ownership_suggested": "担当者の提案",
-    "morning_briefing": "朝のブリーフィング"
+    "morning_briefing": "朝のブリーフィング",
+    "standup_question": "スタンドアップの質問",
+    "weekly_retro": "週次レトロ"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -129,5 +132,29 @@
     "approve": "承認",
     "approve_failed": "承認できませんでした",
     "pending_decisions": "判断待ち {{count}} 件"
+  },
+  "retro": {
+    "loading": "レトロを読み込み中…",
+    "load_failed": "レトロを読み込めませんでした。",
+    "retry": "再試行",
+    "empty": "まだレトロは生成されていません。最初のレトロは直近の完了した週を対象にします。",
+    "generate_now": "今すぐ生成",
+    "generated": "レトロを生成しました",
+    "generate_failed": "レトロを生成できませんでした",
+    "regenerate": "再生成",
+    "week": "{{start}} 〜 {{end}} の週",
+    "generated_ago": "{{ago}} に生成",
+    "runs": "今週の実行（{{count}}）",
+    "no_runs": "今週はエージェントの実行がありません。",
+    "median": "中央値 {{minutes}} 分",
+    "failed": "失敗した実行（{{count}}）",
+    "agents": "エージェント",
+    "col_agent": "エージェント",
+    "col_runs": "実行",
+    "col_failed": "失敗",
+    "col_accepted": "受け入れ",
+    "col_cost": "コスト（$）",
+    "skills": "スキルの提案",
+    "skills_empty": "スキルの提案は Skill Miner とともに提供されます。まだ提案はありません。"
   }
 }

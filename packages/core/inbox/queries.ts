@@ -157,3 +157,11 @@ export function morningBriefingOptions(wsId: string) {
     staleTime: 60_000,
   });
 }
+
+// Standup and retro (K34): the stored retro of a week (any day of it), or the latest.
+export function weeklyRetroOptions(wsId: string, week?: string) {
+  return queryOptions({
+    queryKey: ["inbox", wsId, "retro", week ?? "latest"] as const,
+    queryFn: () => api.getWeeklyRetro(week),
+  });
+}

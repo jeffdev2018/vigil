@@ -745,7 +745,15 @@
     "rules_remove": "Delete rule",
     "rules_dry_run_clean": "Dry-run: nothing would be blocked today ({{count}} checked).",
     "rules_dry_run_violations": "Dry-run: {{count}} of {{checked}} would be blocked today.",
-    "rules_failed": "The rule could not be saved"
+    "rules_failed": "The rule could not be saved",
+    "standup_section": "Standup and retro",
+    "standup_enabled_label": "Ask about stuck issues",
+    "standup_enabled_description": "Every day, an issue blocked or waiting for a decision longer than the threshold sends one question to its owner (module owner, else assignee, else creator).",
+    "standup_hours_label": "Stuck after (hours)",
+    "standup_hours_description": "How long an issue may stay blocked or waiting before someone is asked.",
+    "standup_retro_label": "Weekly retro",
+    "standup_retro_description": "Every week, the runs of the last completed week are grouped with each agent's scorecard and sent to the owners and admins.",
+    "standup_failed": "Failed to update the standup settings"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

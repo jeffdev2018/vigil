@@ -32,7 +32,9 @@ export type InboxItemType =
   | "decision_request"
   | "decision_escalated"
   | "ownership_suggested"
-  | "morning_briefing";
+  | "morning_briefing"
+  | "standup_question"
+  | "weekly_retro";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary
@@ -93,4 +95,40 @@ export interface MorningBriefing {
   blocked: BriefingItem[];
   sent_at: string | null;
   already_sent?: boolean;
+}
+
+// Standup and retro (K34).
+export interface RetroRun {
+  run_id: string;
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  agent_id: string;
+  minutes: number;
+  error?: string;
+}
+
+export interface RetroAgent {
+  agent_id: string;
+  name: string;
+  runs_total: number;
+  runs_failed: number;
+  runs_accepted: number;
+  runs_reopened: number;
+  runs_no_intervention: number;
+  cost_usd_ticks: number;
+}
+
+export interface WeeklyRetro {
+  week_start: string;
+  week_end: string;
+  runs_total: number;
+  runs_by_status: Record<string, number>;
+  median_minutes: number;
+  failed: RetroRun[];
+  agents: RetroAgent[];
+  skill_proposals: { text: string; source: string }[];
+  narrative: string;
+  generated_at: string | null;
 }
