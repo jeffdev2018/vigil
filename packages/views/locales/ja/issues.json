@@ -992,5 +992,20 @@
     "member": "担当者",
     "agent": "参照エージェント",
     "assign_failed": "割り当てできませんでした"
+  },
+  "role_view": {
+    "label": "ビュー",
+    "full": "すべて",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "この issue にはまだ判断カードがありません。代わりに実行ログを表示しています。",
+    "cto_cost": "コスト",
+    "cto_cost_value": "{{cost}} · {{tokens}} トークン",
+    "cto_scorecard": "エージェントのスコアカード",
+    "cto_no_agent": "担当エージェントなし",
+    "cto_audit": "監査記録",
+    "cto_audit_empty": "この issue にはまだ記録がありません",
+    "block_failed": "このブロックを読み込めませんでした。"
   }
 }

@@ -992,5 +992,20 @@
     "member": "负责人",
     "agent": "参考智能体",
     "assign_failed": "分配失败"
+  },
+  "role_view": {
+    "label": "视图",
+    "full": "全部",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "此 issue 还没有决策卡，改为显示运行日志。",
+    "cto_cost": "成本",
+    "cto_cost_value": "{{cost}} · {{tokens}} 个 token",
+    "cto_scorecard": "智能体记分卡",
+    "cto_no_agent": "未指派智能体",
+    "cto_audit": "审计记录",
+    "cto_audit_empty": "此 issue 尚无记录",
+    "block_failed": "无法加载此区块。"
   }
 }

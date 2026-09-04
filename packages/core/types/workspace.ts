@@ -160,6 +160,7 @@ export interface AuditLogFilter {
   until?: string;
   actor_type?: string;
   action?: string;
+  entity_id?: string;
 }
 
 // Decision memory (K29).
