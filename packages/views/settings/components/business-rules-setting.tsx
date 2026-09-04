@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Scale, X } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { agentListOptions } from "@multica/core/workspace/queries";
 import {
   businessRulesOptions,
   useCreateBusinessRule,
@@ -36,6 +37,12 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
   const [text, setText] = useState("");
   const [attach, setAttach] = useState("project_create");
   const [preview, setPreview] = useState<BusinessRuleDryRun | null>(null);
+  // Triage rules (K62): what a matching webhook delivery becomes.
+  const [actionKind, setActionKind] = useState<"dismiss" | "accept">("dismiss");
+  const [actionPriority, setActionPriority] = useState("");
+  const [actionAgent, setActionAgent] = useState("");
+  const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  const isWebhook = attach === "webhook_received";
 
   const fail = (e: unknown) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.workspace.rules_failed));
   const attachLabel = (a: string) => {
@@ -46,6 +53,8 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
         return t(($) => $.workspace.rules_attach_issue_submit_review);
       case "agent_run_dispatch":
         return t(($) => $.workspace.rules_attach_agent_run_dispatch);
+      case "webhook_received":
+        return t(($) => $.workspace.rules_attach_webhook_received);
       default:
         return a;
     }
@@ -53,8 +62,13 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
 
   const previewRule = () => {
     if (text.trim() === "") return;
+    const action = isWebhook
+      ? actionKind === "dismiss"
+        ? { kind: "dismiss" }
+        : { kind: "accept", priority: actionPriority || undefined, assignee_type: actionAgent ? "agent" : undefined, assignee_id: actionAgent || undefined }
+      : undefined;
     create.mutate(
-      { natural_language: text.trim(), attach_point: attach },
+      { natural_language: text.trim(), attach_point: attach, action },
       {
         onSuccess: (rule) => dryRun.mutate(rule.id, { onSuccess: setPreview, onError: fail }),
         onError: fail,
@@ -114,7 +128,10 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
                       </button>
                     )}
                   </div>
-                  <p className="text-muted-foreground">{r.description}</p>
+                  <p className="text-muted-foreground">
+                    {r.description}
+                    {r.action_description ? ` → ${r.action_description}` : ""}
+                  </p>
                 </li>
               ))}
             </ul>
@@ -137,6 +154,30 @@ export function BusinessRulesSetting({ workspace, canEdit }: { workspace: Worksp
                     <option key={a} value={a}>{attachLabel(a)}</option>
                   ))}
                 </select>
+                {isWebhook && (
+                  <>
+                    <select aria-label={t(($) => $.workspace.rules_action)} className="h-8 rounded-md border bg-background px-2" value={actionKind} onChange={(e) => setActionKind(e.target.value as "dismiss" | "accept")}>
+                      <option value="dismiss">{t(($) => $.workspace.rules_action_dismiss)}</option>
+                      <option value="accept">{t(($) => $.workspace.rules_action_accept)}</option>
+                    </select>
+                    {actionKind === "accept" && (
+                      <>
+                        <select aria-label={t(($) => $.workspace.rules_action_priority)} className="h-8 rounded-md border bg-background px-2" value={actionPriority} onChange={(e) => setActionPriority(e.target.value)}>
+                          <option value="">{t(($) => $.workspace.rules_action_priority_keep)}</option>
+                          {["urgent", "high", "medium", "low", "none"].map((p) => (
+                            <option key={p} value={p}>{p}</option>
+                          ))}
+                        </select>
+                        <select aria-label={t(($) => $.workspace.rules_action_agent)} className="h-8 rounded-md border bg-background px-2" value={actionAgent} onChange={(e) => setActionAgent(e.target.value)}>
+                          <option value="">{t(($) => $.workspace.rules_action_no_agent)}</option>
+                          {agents.map((a) => (
+                            <option key={a.id} value={a.id}>{a.name}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </>
+                )}
                 <Button type="button" size="sm" variant="outline" disabled={create.isPending || dryRun.isPending || text.trim() === ""} onClick={previewRule}>
                   {t(($) => $.workspace.rules_preview)}
                 </Button>

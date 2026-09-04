@@ -802,7 +802,15 @@
     "standup_hours_description": "How long an issue may stay blocked or waiting before someone is asked.",
     "standup_retro_label": "Weekly retro",
     "standup_retro_description": "Every week, the runs of the last completed week are grouped with each agent's scorecard and sent to the owners and admins.",
-    "standup_failed": "Failed to update the standup settings"
+    "standup_failed": "Failed to update the standup settings",
+    "rules_attach_webhook_received": "a webhook delivery arrives in the triage queue",
+    "rules_action": "Then",
+    "rules_action_dismiss": "dismiss the delivery",
+    "rules_action_accept": "accept it as an issue",
+    "rules_action_priority": "Priority",
+    "rules_action_priority_keep": "keep priority",
+    "rules_action_agent": "Assign to agent",
+    "rules_action_no_agent": "no assignee"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

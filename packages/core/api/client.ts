@@ -2879,7 +2879,7 @@ export class ApiClient {
     return parseWithFallback(raw, BusinessRuleListSchema, { rules: [], attach_points: [] }, { endpoint: "GET /api/business-rules" });
   }
 
-  async createBusinessRule(data: { natural_language: string; attach_point: string; title?: string; predicate?: unknown }): Promise<BusinessRule> {
+  async createBusinessRule(data: { natural_language: string; attach_point: string; title?: string; predicate?: unknown; action?: { kind: string; priority?: string; assignee_type?: string; assignee_id?: string } }): Promise<BusinessRule> {
     const raw = await this.fetch<unknown>("/api/business-rules", { method: "POST", body: JSON.stringify(data) });
     const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
     if (!parsed.success) throw new Error("Malformed business rule response");

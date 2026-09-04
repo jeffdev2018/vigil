@@ -800,7 +800,15 @@
     "standup_hours_description": "誰かに質問するまでに issue がブロックまたは待機していてよい時間。",
     "standup_retro_label": "週次レトロ",
     "standup_retro_description": "毎週、直近の完了した週の実行を各エージェントのスコアカードとともにまとめ、オーナーと管理者に送ります。",
-    "standup_failed": "スタンドアップ設定を更新できませんでした"
+    "standup_failed": "スタンドアップ設定を更新できませんでした",
+    "rules_attach_webhook_received": "Webhook の配信がトリアージキューに届いたとき",
+    "rules_action": "その後",
+    "rules_action_dismiss": "配信を却下",
+    "rules_action_accept": "issue として受け入れ",
+    "rules_action_priority": "優先度",
+    "rules_action_priority_keep": "優先度を維持",
+    "rules_action_agent": "担当エージェント",
+    "rules_action_no_agent": "担当なし"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

@@ -800,7 +800,15 @@
     "standup_hours_description": "누군가에게 질문하기 전까지 이슈가 차단되거나 대기할 수 있는 시간.",
     "standup_retro_label": "주간 회고",
     "standup_retro_description": "매주, 마지막으로 완료된 주의 실행을 각 에이전트의 스코어카드와 함께 정리해 소유자와 관리자에게 보냅니다.",
-    "standup_failed": "스탠드업 설정을 업데이트하지 못했습니다"
+    "standup_failed": "스탠드업 설정을 업데이트하지 못했습니다",
+    "rules_attach_webhook_received": "웹훅 전달이 트리아지 큐에 도착할 때",
+    "rules_action": "그러면",
+    "rules_action_dismiss": "전달 거부",
+    "rules_action_accept": "이슈로 수락",
+    "rules_action_priority": "우선순위",
+    "rules_action_priority_keep": "우선순위 유지",
+    "rules_action_agent": "에이전트에 지정",
+    "rules_action_no_agent": "지정 없음"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",
