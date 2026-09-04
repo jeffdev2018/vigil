@@ -45,7 +45,7 @@ Multica currently detects these commands:
 
 ## 2. Sign in on your machine
 
-After installing, launch the tool once in a terminal on its own and complete its sign-in or model provider setup. If the tool cannot complete requests in the terminal, the daemon's invocations fail the same way.
+After installing, complete the tool's sign-in or model provider setup. For Claude Code and Codex you can do that from Multica: open the **Runtimes** page, find the runtime under its machine, and start the sign-in there. The daemon runs the CLI's device-code login on that computer and the dialog shows the verification URL and one-time code; the same place signs the CLI out again. Every other tool has to be launched once in a terminal on the computer itself. If a tool cannot complete requests in the terminal, the daemon's invocations fail the same way.
 
 For CodeArts, verify the non-interactive path with `codearts run --model provider/model "Reply OK"`, not only the TUI. The current CodeArts CLI can let a custom provider work in the TUI while `run`, `models`, and `serve` still require [`CODEARTS_CLI_AK` / `CODEARTS_CLI_SK`](https://support.huaweicloud.com/usermanual-cli/codeartsagent_cli_0026.html). Multica can discover custom models from `~/.codeartsdoer/codearts_cli.json` or `.jsonc`, but agent runs use `codearts run` and therefore follow its authorization requirements.
 
