@@ -1861,6 +1861,9 @@ export class ApiClient {
     );
     return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
       endpoint: "POST /api/meetings/:id/finish",
+    });
+  }
+
   // Postmortem autogen (k68). Stats summarize per-state counts; list returns
   // one state (default draft) newest-first with keyset pagination.
   async getPostmortemStats(options?: { signal?: AbortSignal }): Promise<PostmortemStats> {

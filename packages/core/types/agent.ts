@@ -1522,6 +1522,7 @@ export interface AgentVersionDiff {
   from: AgentVersion;
   to: AgentVersion;
   changed_fields: string[];
+}
 
 export type AgentMemorySource = "manual" | "run";
 
