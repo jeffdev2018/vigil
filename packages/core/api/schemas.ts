@@ -4039,3 +4039,26 @@ export const TriageSuggestionsResponseSchema = z.object({
   }).loose()).catch({}).default({}),
   auto: z.object({ enabled: z.boolean().default(false), threshold: z.number().default(0.9), min_examples: z.number().default(20) }).loose().catch({ enabled: false, threshold: 0.9, min_examples: 20 }),
 }).loose();
+
+// Blast radius (K07).
+export const BlastRadiusRuleSchema = z.object({
+  id: z.string(),
+  project_id: z.string().default(""),
+  path_pattern: z.string().default(""),
+  autonomy_level: z.string().default("dual_approval"),
+  specificity: z.number().default(0),
+  created_by: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const BlastRadiusRulesSchema = z.object({
+  rules: z.array(BlastRadiusRuleSchema).catch([]).default([]),
+  levels: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const BlastRadiusPreviewSchema = z.object({
+  path: z.string().default(""),
+  level: z.string().default("inherit"),
+  rule_id: z.string().optional(),
+  path_pattern: z.string().optional(),
+}).loose();

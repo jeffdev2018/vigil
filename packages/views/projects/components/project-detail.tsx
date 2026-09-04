@@ -27,6 +27,7 @@ import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor"
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
+import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
 import { IssueSurface } from "../../issues/surface/issue-surface";
@@ -474,6 +475,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Decision memory (K29) */}
       <ProjectDecisionsSection projectId={projectId} />
+
+      {/* Blast radius (K07) */}
+      <ProjectBlastRadiusSection projectId={projectId} />
     </div>
   );
 

@@ -175,5 +175,22 @@
     "author_member": "멤버",
     "empty": "아직 기록된 결정이 없습니다. 수락된 실행이 여기에 추가합니다.",
     "source": "실행 메시지 #{{seq}}"
+  },
+  "blast_radius": {
+    "section": "영향 범위",
+    "description": "권한 위에, 이 프로젝트의 각 경로에서 에이전트가 어디까지 갈 수 있는지. 자율 경로는 승인 게이트를 스스로 통과하고, 읽기 전용 경로는 묻기 전에 쓰기를 거부하며, 이중 승인 경로는 서로 다른 두 사람이 필요합니다. 가장 구체적인 패턴이 우선하며 규칙이 없으면 권한만 적용됩니다.",
+    "empty": "아직 규칙이 없습니다. 에이전트 권한만 적용됩니다.",
+    "pattern": "경로 패턴",
+    "pattern_placeholder": "apps/mobile/**",
+    "level": "자율성",
+    "level_autonomous": "자율",
+    "level_read_only": "읽기 전용",
+    "level_dual_approval": "이중 승인",
+    "level_inherit": "권한에서 상속",
+    "add": "규칙 추가",
+    "remove": "규칙 삭제",
+    "preview": "경로 시험",
+    "preview_placeholder": "server/migrations/500_x.up.sql",
+    "failed": "규칙을 저장하지 못했습니다"
   }
 }

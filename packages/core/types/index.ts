@@ -364,5 +364,5 @@ export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro }
 export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
 export type { AgentVersion, AgentVersionDiff } from "./agent";
 export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
-export type { DecisionRecord, ADRRequirement } from "./workspace";
+export type { DecisionRecord, ADRRequirement, BlastRadiusLevel, BlastRadiusRule, BlastRadiusPreview } from "./workspace";
 export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleAction, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";

@@ -80,6 +80,8 @@ import type {
   AuditChainStatus,
   ADRRequirement,
   DecisionRecord,
+  BlastRadiusRule,
+  BlastRadiusPreview,
   BusinessRule,
   BusinessRuleDryRun,
   WeeklyRetro,
@@ -331,6 +333,9 @@ import {
   WhySearchResponseSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
+  BlastRadiusRuleSchema,
+  BlastRadiusRulesSchema,
+  BlastRadiusPreviewSchema,
   BusinessRuleListSchema,
   WeeklyRetroSchema,
   BusinessRuleEnvelopeSchema,
@@ -2920,6 +2925,28 @@ export class ApiClient {
   async listBusinessRuleViolations(id: string): Promise<BusinessRuleViolation[]> {
     const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/violations`);
     return parseWithFallback(raw, BusinessRuleViolationListSchema, { violations: [] }, { endpoint: "GET /api/business-rules/:id/violations" }).violations;
+  }
+
+  // Blast radius (K07).
+  async listBlastRadiusRules(projectId: string): Promise<{ rules: BlastRadiusRule[]; levels: string[] }> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`);
+    return parseWithFallback(raw, BlastRadiusRulesSchema, { rules: [], levels: [] }, { endpoint: "GET /api/projects/:id/blast-radius-rules" });
+  }
+
+  async createBlastRadiusRule(projectId: string, data: { path_pattern: string; autonomy_level: string }): Promise<BlastRadiusRule> {
+    const raw = await this.fetch<{ rule?: unknown }>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`, { method: "POST", body: JSON.stringify(data) });
+    const parsed = BlastRadiusRuleSchema.safeParse(raw?.rule);
+    if (!parsed.success) throw new Error("Malformed blast radius rule response");
+    return parsed.data;
+  }
+
+  async deleteBlastRadiusRule(projectId: string, ruleId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules/${encodeURIComponent(ruleId)}`, { method: "DELETE" });
+  }
+
+  async previewBlastRadius(projectId: string, path: string): Promise<BlastRadiusPreview> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-preview?path=${encodeURIComponent(path)}`);
+    return parseWithFallback(raw, BlastRadiusPreviewSchema, { path, level: "inherit" }, { endpoint: "GET /api/projects/:id/blast-radius-preview" });
   }
 
   // Decision memory (K29).
