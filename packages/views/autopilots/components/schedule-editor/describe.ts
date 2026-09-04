@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useT } from "../../../i18n";
 import type { ScheduleConfig } from "./model";
-import { consecutiveRuns, DAY_KEYS, pad2 } from "./model";
+import { consecutiveRuns, DAY_KEYS, pad2, windowEndTime } from "./model";
 
 type AutopilotsT = ReturnType<typeof useT<"autopilots">>["t"];
 
@@ -32,7 +32,16 @@ export function describeSchedule(t: AutopilotsT, config: ScheduleConfig): string
   const clauses: string[] = [];
   const { time } = config;
   if (time.kind === "at") {
-    clauses.push(t(($) => $.schedule_editor.describe.time_at, { time: time.time }));
+    if (config.windowMinutes > 0) {
+      clauses.push(
+        t(($) => $.schedule_editor.describe.time_between, {
+          from: time.time,
+          to: windowEndTime(time.time, config.windowMinutes),
+        }),
+      );
+    } else {
+      clauses.push(t(($) => $.schedule_editor.describe.time_at, { time: time.time }));
+    }
   } else if (time.unit === "hours") {
     if (time.window === null) {
       const minute = pad2(time.minute);

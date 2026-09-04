@@ -67,3 +67,17 @@ describe("describeSchedule (zh-Hans)", () => {
     expect(describeExpr(expr)).toBe(expected);
   });
 });
+
+describe("describeSchedule window", () => {
+  const t = fixedT("en", enAutopilots);
+
+  it("describes a band instead of an exact time", () => {
+    const config = { ...parseCron("0 8 * * 1-5", TZ), windowMinutes: 120 };
+    expect(describeSchedule(t, config)).toBe("sometime between 08:00 and 10:00 · Mon–Fri");
+  });
+
+  it("ignores the band for interval patterns", () => {
+    const config = { ...parseCron("15 * * * *", TZ), windowMinutes: 120 };
+    expect(describeSchedule(t, config)).toBe("Every hour at :15 · Every day");
+  });
+});

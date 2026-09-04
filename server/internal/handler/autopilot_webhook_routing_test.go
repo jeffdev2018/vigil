@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
 )
@@ -94,5 +95,48 @@ func TestParseRoutingVerdictToleratesFences(t *testing.T) {
 	}
 	if _, ok := parseRoutingVerdict("I think it is relevant"); ok {
 		t.Fatal("prose must not parse as a verdict")
+	}
+}
+
+func TestScheduleTriggerWindowMinutes(t *testing.T) {
+	agentID := createWebhookTestAgent(t, "Window Agent")
+	apID := createWebhookTestAutopilot(t, agentID, "active", "create_issue")
+	// Only schedule triggers carry a band, bounded to a day.
+	testutilCallCreateTrigger(t, apID, map[string]any{"kind": "webhook", "window_minutes": 30}, http.StatusBadRequest)
+	testutilCallCreateTrigger(t, apID, map[string]any{"kind": "schedule", "cron_expression": "0 8 * * *", "window_minutes": 1440}, http.StatusBadRequest)
+	created := testutilCallCreateTrigger(t, apID, map[string]any{"kind": "schedule", "cron_expression": "0 8 * * *", "timezone": "UTC", "window_minutes": 120}, http.StatusCreated)
+	if created["window_minutes"] != float64(120) {
+		t.Fatalf("window_minutes = %v", created["window_minutes"])
+	}
+	id, _ := created["id"].(string)
+	// PATCH recomputes next_run_at inside the band for this trigger.
+	// One route context carrying both params: a second withURLParam would
+	// replace the first.
+	req := testutil.WithURLParams(newRequest("PATCH", "/api/autopilots/"+apID+"/triggers/"+id, map[string]any{"window_minutes": 60}), "id", apID, "triggerId", id)
+	updated := testutil.Call(t, testHandler.UpdateAutopilotTrigger, req).Want(http.StatusOK).Map()
+	if updated["window_minutes"] != float64(60) {
+		t.Fatalf("updated window_minutes = %v", updated["window_minutes"])
+	}
+	next, _ := updated["next_run_at"].(string)
+	at, err := time.Parse(time.RFC3339, next)
+	if err != nil {
+		t.Fatalf("next_run_at %q: %v", next, err)
+	}
+	// 08:00 + [0, 60) minutes, judged in the trigger's own timezone.
+	if at.UTC().Hour() != 8 {
+		t.Fatalf("next_run_at %s is outside the 08:00–09:00 UTC band", at.UTC().Format(time.RFC3339))
+	}
+}
+
+// A PATCH carrying only the routing rule must apply it: the field used to be
+// read only inside the event_filters branch.
+func TestWebhookCriteriaPatchAlone(t *testing.T) {
+	agentID := createWebhookTestAgent(t, "Criteria Patch Agent")
+	apID := createWebhookTestAutopilot(t, agentID, "active", "create_issue")
+	trig := createWebhookTriggerViaHandler(t, apID)
+	req := testutil.WithURLParams(newRequest("PATCH", "/api/autopilots/"+apID+"/triggers/"+trig.ID, map[string]any{"event_match_criteria": "billing incidents only"}), "id", apID, "triggerId", trig.ID)
+	updated := testutil.Call(t, testHandler.UpdateAutopilotTrigger, req).Want(http.StatusOK).Map()
+	if updated["event_match_criteria"] != "billing incidents only" {
+		t.Fatalf("criteria not applied: %v", updated["event_match_criteria"])
 	}
 }

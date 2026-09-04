@@ -388,7 +388,8 @@
       "time_every_hours_window": "每 {{interval}} 小时",
       "time_every_minute": "每分钟",
       "time_every_minutes": "每 {{interval}} 分钟",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "在 {{from}} 到 {{to}} 之间随机"
     },
     "countdown": {
       "days_hours": "{{days}} 天 {{hours}} 小时 {{minutes}} 分",
@@ -416,8 +417,11 @@
         "thu": "周四",
         "fri": "周五",
         "sat": "周六"
-      }
-    }
+      },
+      "band_end_hour": "结束小时",
+      "band_end_minute": "结束分钟"
+    },
+    "window_toggle": "在以下时段内随机"
   },
   "agent_picker": {
     "filter_placeholder": "筛选智能体或小队...",

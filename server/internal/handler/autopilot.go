@@ -160,6 +160,9 @@ type AutopilotTriggerResponse struct {
 	// EventMatchCriteria is the natural-language routing rule for webhook
 	// triggers ("only deployment failures on production"); empty = none.
 	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes spreads a schedule trigger over a band that starts at
+	// the cron time ("sometime between 08:00 and 10:00" = cron 08:00, 120).
+	WindowMinutes int `json:"window_minutes"`
 }
 
 type AutopilotRunResponse struct {
@@ -237,6 +240,7 @@ func (h *Handler) triggerToResponse(t db.AutopilotTrigger) AutopilotTriggerRespo
 		CreatedAt:      timestampToString(t.CreatedAt),
 		UpdatedAt:      timestampToString(t.UpdatedAt),
 	}
+	resp.WindowMinutes = int(t.WindowMinutes)
 	if t.Kind == "webhook" && t.WebhookToken.Valid && t.WebhookToken.String != "" {
 		path := webhookPathForToken(t.WebhookToken.String)
 		resp.WebhookPath = &path
@@ -372,6 +376,9 @@ type CreateAutopilotTriggerRequest struct {
 	// EventMatchCriteria describes, in plain words, which events should run
 	// this autopilot; the LLM judges each delivery against it. Webhook only.
 	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes (schedule only): fire at a random minute within this
+	// many minutes after the cron time; 0 fires exactly on it. Max 1439.
+	WindowMinutes *int `json:"window_minutes,omitempty"`
 }
 
 // SetSigningSecretRequest is the body shape for PUT
@@ -408,6 +415,8 @@ type UpdateAutopilotTriggerRequest struct {
 	EventFilters *[]WebhookEventFilter `json:"event_filters,omitempty"`
 	// EventMatchCriteria: omitted/null keeps the current text, "" clears it.
 	EventMatchCriteria *string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes: omitted keeps the current band, 0 fires exactly on the cron.
+	WindowMinutes *int `json:"window_minutes,omitempty"`
 }
 
 // ── Handlers ────────────────────────────────────────────────────────────────
@@ -1414,6 +1423,16 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "event_filters is only valid for webhook triggers")
 		return
 	}
+	if req.WindowMinutes != nil {
+		if req.Kind != "schedule" {
+			writeError(w, http.StatusBadRequest, "window_minutes is only valid for schedule triggers")
+			return
+		}
+		if err := validateWindowMinutes(*req.WindowMinutes); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
 	if req.Kind != "webhook" && strings.TrimSpace(req.EventMatchCriteria) != "" {
 		writeError(w, http.StatusBadRequest, "event_match_criteria is only valid for webhook triggers")
 		return
@@ -1517,6 +1536,7 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		Label:              ptrToText(req.Label),
 		WebhookToken:       webhookToken,
 		EventMatchCriteria: pgtype.Text{String: strings.TrimSpace(req.EventMatchCriteria), Valid: req.Kind == "webhook"},
+		WindowMinutes:      pgtype.Int4{Int32: int32(derefInt(req.WindowMinutes)), Valid: req.Kind == "schedule"},
 		// published_by records who is currently responsible for this trigger's
 		// CONFIG: seeded to the creator, re-stamped to whoever later substantively
 		// edits it (MUL-4302). Since MUL-6951 it no longer decides anything about a
@@ -1777,6 +1797,7 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		NextRunAt:      prev.NextRunAt,
 		Label:          prev.Label,
 	}
+	windowMinutes := int(prev.WindowMinutes)
 	if req.Enabled != nil {
 		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
 	}
@@ -1806,13 +1827,6 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusBadRequest, "event_filters is only valid for webhook triggers")
 			return
 		}
-		if req.EventMatchCriteria != nil {
-			if err := validateEventMatchCriteria(*req.EventMatchCriteria); err != nil {
-				writeError(w, http.StatusBadRequest, err.Error())
-				return
-			}
-			params.EventMatchCriteria = pgtype.Text{String: strings.TrimSpace(*req.EventMatchCriteria), Valid: true}
-		}
 		if err := validateWebhookEventFilters(*req.EventFilters); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -1823,6 +1837,26 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		params.EventFilters = encoded
+	}
+
+	if req.WindowMinutes != nil {
+		if prev.Kind != "schedule" {
+			writeError(w, http.StatusBadRequest, "window_minutes is only valid for schedule triggers")
+			return
+		}
+		if err := validateWindowMinutes(*req.WindowMinutes); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		windowMinutes = *req.WindowMinutes
+		params.WindowMinutes = pgtype.Int4{Int32: int32(windowMinutes), Valid: true}
+	}
+	if req.EventMatchCriteria != nil {
+		if err := validateEventMatchCriteria(*req.EventMatchCriteria); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		params.EventMatchCriteria = pgtype.Text{String: strings.TrimSpace(*req.EventMatchCriteria), Valid: true}
 	}
 
 	// Recompute next_run_at if cron or timezone changed.
@@ -1838,7 +1872,7 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		tz = *req.Timezone
 	}
 	if prev.Kind == "schedule" && cronExpr != "" {
-		t, err := computeNextRun(cronExpr, tz)
+		t, err := service.NextWindowedOccurrenceAfterUTC(cronExpr, tz, time.Duration(windowMinutes)*time.Minute, util.UUIDToString(prev.ID), time.Now())
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -2316,6 +2350,21 @@ func (h *Handler) GetAutopilotQuotaUsage(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// validateWindowMinutes bounds the firing band of a schedule trigger.
+func validateWindowMinutes(n int) error {
+	if n < 0 || n > 1439 {
+		return fmt.Errorf("window_minutes must be between 0 and 1439")
+	}
+	return nil
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
 }
 
 // validateEventMatchCriteria bounds the free-text routing rule.

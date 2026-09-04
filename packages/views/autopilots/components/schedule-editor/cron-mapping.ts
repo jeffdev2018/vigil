@@ -469,7 +469,7 @@ export function parseCron(expr: string, timezone: string): ScheduleConfig {
   const time = parseTimeFields(minuteField, hourField);
   if (time === null) return advanced;
 
-  return { time, days, timezone: tz, raw: null };
+  return { time, days, windowMinutes: 0, timezone: tz, raw: null };
 }
 
 /** The wire expression: the timezone rides IN the cron string, as a `TZ=`

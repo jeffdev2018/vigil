@@ -30,6 +30,7 @@ import {
   SelectItem,
 } from "@multica/ui/components/ui/select";
 import { TimeInput } from "@multica/ui/components/ui/time-input";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { cronPreviewOptions } from "@multica/core/autopilots/queries";
 import { ApiError } from "@multica/core/api";
 import { timezoneOptions } from "../../../common/timezone-select";
@@ -39,7 +40,7 @@ import { formatInTimeZone } from "../../../common/format-in-time-zone";
 import { TimezonePicker } from "../pickers/timezone-picker";
 import { useT } from "../../../i18n";
 import type { DayPattern, ScheduleConfig, TimePattern } from "./model";
-import { DAY_KEYS, pad2, timeParts } from "./model";
+import { DAY_KEYS, pad2, timeParts, windowEndTime, windowMinutesBetween } from "./model";
 import {
   cronFields,
   extractTimezonePrefix,
@@ -563,13 +564,44 @@ export function ScheduleEditor({
           }}
         />
         {value.time.kind === "at" ? (
-          <TimeInput
-            value={value.time.time}
-            hourLabel={t(($) => $.schedule_editor.a11y.fixed_hour)}
-            minuteLabel={t(($) => $.schedule_editor.a11y.fixed_minute)}
-            onChange={(v) => setTime({ kind: "at", time: v })}
-            autoFocus={focusTimeFieldRef.current}
-          />
+          <>
+            <TimeInput
+              value={value.time.time}
+              hourLabel={t(($) => $.schedule_editor.a11y.fixed_hour)}
+              minuteLabel={t(($) => $.schedule_editor.a11y.fixed_minute)}
+              onChange={(v) => setTime({ kind: "at", time: v })}
+              autoFocus={focusTimeFieldRef.current}
+            />
+            {/* "Sometime between 08:00 and 10:00": the server picks a different
+                minute inside the band each day, so a daily digest does not land
+                at the exact same second as everything else. */}
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-caption text-muted-foreground">
+                <Checkbox
+                  checked={value.windowMinutes > 0}
+                  onCheckedChange={(checked) =>
+                    onChange({ ...value, windowMinutes: checked === true ? 60 : 0 })
+                  }
+                  aria-label={t(($) => $.schedule_editor.window_toggle)}
+                />
+                {t(($) => $.schedule_editor.window_toggle)}
+              </label>
+              {value.windowMinutes > 0 ? (
+                <TimeInput
+                  value={windowEndTime(value.time.time, value.windowMinutes)}
+                  hourLabel={t(($) => $.schedule_editor.a11y.band_end_hour)}
+                  minuteLabel={t(($) => $.schedule_editor.a11y.band_end_minute)}
+                  onChange={(v) => {
+                    const minutes = windowMinutesBetween(
+                      value.time.kind === "at" ? value.time.time : "00:00",
+                      v,
+                    );
+                    onChange({ ...value, windowMinutes: minutes > 0 ? minutes : 1 });
+                  }}
+                />
+              ) : null}
+            </div>
+          </>
         ) : (
           <EveryTimeControls
             time={value.time}
