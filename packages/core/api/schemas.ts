@@ -3749,3 +3749,36 @@ export const AuditLogPageSchema = z.object({
   entries: z.array(AuditLogEntrySchema).catch([]).default([]),
   next_cursor: z.string().catch("").default(""),
 }).loose();
+
+// Decision memory (K29).
+export const DecisionRecordSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  project_id: z.string().nullable().default(null),
+  issue_id: z.string().default(""),
+  issue_identifier: z.string().optional(),
+  issue_title: z.string().optional(),
+  run_id: z.string().default(""),
+  source_message_seq: z.number().default(0),
+  title: z.string().default(""),
+  context: z.string().default(""),
+  decision: z.string().default(""),
+  consequences: z.string().nullable().default(null),
+  author_type: z.string().default("agent"),
+  author_id: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const DecisionRecordListSchema = z.object({
+  decisions: z.array(DecisionRecordSchema).catch([]).default([]),
+}).loose();
+
+export const ADRRequirementSchema = z.object({
+  required: z.boolean().default(false),
+  satisfied: z.boolean().default(true),
+  files: z.number().default(0),
+  file_threshold: z.number().default(0),
+  migration: z.boolean().default(false),
+  decisions: z.number().default(0),
+  run_id: z.string().optional(),
+}).loose();

@@ -82,6 +82,7 @@ vi.mock("../../navigation", () => ({
 // to the workspace fields.
 vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => null }));
 vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
+vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
 
 vi.mock("./delete-workspace-dialog", () => ({
   DeleteWorkspaceDialog: () => null,

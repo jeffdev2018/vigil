@@ -166,5 +166,14 @@
     "direction_desc": "降順",
     "section_columns": "列",
     "view": "ビュー"
+  },
+  "decisions": {
+    "section": "決定",
+    "author_filter": "作成者",
+    "author_any": "すべて",
+    "author_agent": "エージェント",
+    "author_member": "メンバー",
+    "empty": "まだ決定は記録されていません。受け入れられた実行がここに追加します。",
+    "source": "実行メッセージ #{{seq}}"
   }
 }

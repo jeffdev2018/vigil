@@ -90,6 +90,8 @@ function BlockerLabel({ blocker }: { blocker: MergeBlocker }) {
       return <>{t(($) => $.detail.blocker_blocking_issue, { identifier: blocker.issue_identifier ?? "" })}</>;
     case "no_pr":
       return <>{t(($) => $.detail.blocker_no_pr)}</>;
+    case "adr_required":
+      return <>{t(($) => $.detail.blocker_adr_required, { count })}</>;
     default:
       // A kind this build predates: still a blocker, shown as the server named it.
       return <>{blocker.label || blocker.kind}</>;

@@ -168,5 +168,14 @@
     "direction_desc": "Descending",
     "section_columns": "Columns",
     "view": "View"
+  },
+  "decisions": {
+    "section": "Decisions",
+    "author_filter": "Author",
+    "author_any": "Anyone",
+    "author_agent": "Agent",
+    "author_member": "Member",
+    "empty": "No decision recorded yet. Accepted runs add theirs here.",
+    "source": "run message #{{seq}}"
   }
 }

@@ -38,6 +38,7 @@ import { useNavigation } from "../../navigation";
 import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
 import { PlanVerificationSetting } from "./plan-verification-setting";
 import { DecisionSlaSetting } from "./decision-sla-setting";
+import { AdrGateSetting } from "./adr-gate-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
 import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
@@ -480,6 +481,7 @@ export function WorkspaceTab() {
       {workspace && <DecisionSlaSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <ModuleOwnershipSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <MorningBriefingSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <AdrGateSetting workspace={workspace} canEdit={canManageWorkspace} />}
 
       {membersFetched && (
         <SettingsSection

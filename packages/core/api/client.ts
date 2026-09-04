@@ -77,6 +77,8 @@ import type {
   AgentVersionDiff,
   AuditLogFilter,
   AuditLogPage,
+  ADRRequirement,
+  DecisionRecord,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
@@ -296,6 +298,8 @@ import {
   WorkspaceScorecardsSchema,
   AgentVersionsSchema,
   AuditLogPageSchema,
+  ADRRequirementSchema,
+  DecisionRecordListSchema,
   AgentVersionDiffSchema,
   AgentVersionEnvelopeSchema,
   DashboardUsageDailyListSchema,
@@ -2656,6 +2660,18 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Decision memory (K29).
+  async listProjectDecisions(projectId: string, authorType?: "agent" | "member"): Promise<DecisionRecord[]> {
+    const q = authorType ? `?author_type=${authorType}` : "";
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/decisions${q}`);
+    return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, { endpoint: "GET /api/projects/:id/decisions" }).decisions;
+  }
+
+  async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
+    return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
+  }
+
   // Audit log (K08).
   async listAuditLog(filter: AuditLogFilter, cursor?: string, limit = 50): Promise<AuditLogPage> {
     const search = new URLSearchParams();
