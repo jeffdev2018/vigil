@@ -66,6 +66,13 @@ const (
 	// ReasonIssueLimitReached means a create_issue Autopilot was admitted for a
 	// run, but Cloud's effective workspace issue-count limit blocked the issue.
 	ReasonIssueLimitReached ReasonCode = "issue_limit_reached"
+	// ReasonTriageGated means the webhook source is in gate mode: the delivery
+	// was parked as a pending triage item instead of creating an issue. The
+	// run is complete; a human accepts or dismisses the item from the queue.
+	ReasonTriageGated ReasonCode = "triage_gated"
+	// ReasonTriageBlocked means the webhook source is blocked: the delivery
+	// was refused and recorded as a dropped triage item.
+	ReasonTriageBlocked ReasonCode = "triage_blocked"
 	// ReasonInternalError: an unexpected server error prevented a clean decision.
 	ReasonInternalError ReasonCode = "internal_error"
 )

@@ -50,6 +50,12 @@ const (
 	EventInboxBatchRead     = "inbox:batch-read"
 	EventInboxBatchArchived = "inbox:batch-archived"
 
+	// Triage queue events. triage:new fires when a gated webhook delivery is
+	// parked as a pending item; triage:resolved fires on accept, dismiss, or
+	// merge so live queues converge across clients.
+	EventTriageNew      = "triage:new"
+	EventTriageResolved = "triage:resolved"
+
 	// Workspace events
 	EventWorkspaceUpdated = "workspace:updated"
 	EventWorkspaceDeleted = "workspace:deleted"
