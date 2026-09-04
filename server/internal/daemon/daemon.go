@@ -9731,7 +9731,7 @@ func (d *Daemon) remoteMCPToolGate(task Task, log *slog.Logger) remoteMCPToolGat
 		}
 		var args any
 		_ = json.Unmarshal(params, &args)
-		status, err := client.Ask(ctx, "mcp_tool_call", "MCP tool "+toolName, map[string]any{"tool": toolName, "params": args}, gateDefaultTimeout)
+		status, err := client.Ask(ctx, "mcp_tool_call", "MCP tool "+toolName, map[string]any{"tool": toolName, "params": args, "paths": gateParamPaths(params)}, gateDefaultTimeout)
 		if err != nil {
 			if log != nil {
 				log.Warn("approval gate: ask failed, tool refused", "tool", toolName, "error", err)

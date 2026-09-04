@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/pkg/blastradius"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
@@ -153,6 +154,108 @@ func (h *Handler) openGate(ctx context.Context, task db.AgentTaskQueue, gateType
 	return gate, nil
 }
 
+// gatePaths reads the paths an action touches from its details.
+func gatePaths(details map[string]any) []string {
+	var out []string
+	if list, ok := details["paths"].([]any); ok {
+		for _, v := range list {
+			if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+				out = append(out, strings.TrimSpace(s))
+			}
+		}
+	}
+	return out
+}
+
+// openGateWithBlastRadius (K07) lets the project's rules decide before any
+// card: read_only refuses at once, autonomous approves at once, dual
+// approval asks two different humans, no rule asks one.
+func (h *Handler) openGateWithBlastRadius(ctx context.Context, task db.AgentTaskQueue, gateType, summary string, details map[string]any) (db.ApprovalGateEvent, error) {
+	if details == nil {
+		details = map[string]any{}
+	}
+	paths := gatePaths(details)
+	if !task.IssueID.Valid || len(paths) == 0 {
+		return h.openGate(ctx, task, gateType, summary, details)
+	}
+	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
+	if err != nil {
+		return db.ApprovalGateEvent{}, fmt.Errorf("load issue: %w", err)
+	}
+	rules := h.projectBlastRules(ctx, issue.WorkspaceID, issue.ProjectID)
+	level, ok := blastradius.Worst(rules, paths)
+	if !ok {
+		return h.openGate(ctx, task, gateType, summary, details)
+	}
+	details["blast_radius"] = level
+	settle := func(action, reason string) (db.ApprovalGateEvent, error) {
+		details["reason"] = reason
+		raw, _ := json.Marshal(details)
+		gate, err := h.Queries.CreateApprovalGateEvent(ctx, db.CreateApprovalGateEventParams{
+			ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, TaskID: task.ID, IssueID: issue.ID, GateType: gateType,
+			Summary: summary, Details: raw, ResolvedAction: pgtype.Text{String: action, Valid: true}, ResolvedAt: pgtype.Timestamptz{Time: time.Now(), Valid: true},
+		})
+		if err != nil {
+			return db.ApprovalGateEvent{}, fmt.Errorf("file gate: %w", err)
+		}
+		h.audit(ctx, issue.WorkspaceID, "system", "", AuditGateResolved, "task", task.ID, map[string]any{"gate_id": uuidToString(gate.ID), "gate_type": gateType, "action": action, "reason": reason, "paths": paths}, nil)
+		return gate, nil
+	}
+	switch level {
+	case blastradius.LevelReadOnly:
+		return settle("denied", "read_only")
+	case blastradius.LevelAutonomous:
+		return settle("approved", "autonomous")
+	case blastradius.LevelDualApproval:
+		details["required_approvals"] = 2
+		details["approvers"] = []string{}
+	}
+	return h.openGate(ctx, task, gateType, summary, details)
+}
+
+// gateDualApproval (K07) counts a second, different approver before the
+// gate opens; a first approval files another card for someone else.
+func (h *Handler) gateDualApproval(ctx context.Context, gate db.ApprovalGateEvent, decision db.IssueDecision, actorID string) (settled bool) {
+	var d struct {
+		Required  int      `json:"required_approvals"`
+		Approvers []string `json:"approvers"`
+	}
+	if json.Unmarshal(gate.Details, &d) != nil || d.Required < 2 {
+		return true
+	}
+	seen := false
+	for _, a := range d.Approvers {
+		seen = seen || a == actorID
+	}
+	if !seen {
+		d.Approvers = append(d.Approvers, actorID)
+	}
+	if len(d.Approvers) >= d.Required {
+		return true
+	}
+	// Ask someone else: a new card on the same issue, tracked on the gate.
+	options, _ := json.Marshal([]DecisionOption{
+		{ID: gateApproveOptionID, Label: "Approve (second approver)", Impact: "a second, different approver is required for this path"},
+		{ID: gateDenyOptionID, Label: "Deny", Impact: "the run gets an explicit refusal"},
+	})
+	next, err := h.Queries.CreateIssueDecision(ctx, db.CreateIssueDecisionParams{
+		WorkspaceID: gate.WorkspaceID, IssueID: gate.IssueID, TaskID: gate.TaskID, AskedByType: decision.AskedByType, AskedByID: decision.AskedByID,
+		Question: strings.Replace(decision.Question, "Blocked action ·", "Second approval ·", 1), Options: options, Urgency: "high", SlaDeadlineAt: h.decisionDeadline(ctx, gate.WorkspaceID),
+	})
+	if err != nil {
+		slog.Warn("approval gate: second card failed", "error", err, "gate_id", uuidToString(gate.ID))
+		return false
+	}
+	extra, _ := json.Marshal(map[string]any{"approvers": d.Approvers, "pending_decision_id": uuidToString(next.ID)})
+	if err := h.Queries.AttachSpendToken(ctx, db.AttachSpendTokenParams{ID: gate.ID, Extra: extra}); err != nil {
+		slog.Warn("approval gate: record approver failed", "error", err, "gate_id", uuidToString(gate.ID))
+	}
+	if issue, err := h.Queries.GetIssue(ctx, gate.IssueID); err == nil {
+		h.notifyDecisionRequested(ctx, issue, next, decision.AskedByType, uuidToString(decision.AskedByID))
+	}
+	return false
+}
+
 // resolveGateForDecision is called when a Decision Card is answered: a gate
 // behind it settles and the waiting run reads the outcome. Returns true when
 // the decision was a gate, so the caller does not enqueue a resume run.
@@ -164,6 +267,10 @@ func (h *Handler) resolveGateForDecision(ctx context.Context, decision db.IssueD
 	action := "denied"
 	if optionID == gateApproveOptionID {
 		action = "approved"
+		if !h.gateDualApproval(ctx, gate, decision, actorID) {
+			h.audit(ctx, gate.WorkspaceID, actorType, actorID, AuditGateResolved, "task", gate.TaskID, map[string]any{"gate_id": uuidToString(gate.ID), "gate_type": gate.GateType, "action": "first_approval"}, &auditOpts{ApproverType: actorType, ApproverID: actorID})
+			return true
+		}
 	}
 	extra, _ := json.Marshal(map[string]any{"decided_by_type": actorType, "decided_by_id": actorID})
 	if _, err := h.Queries.ResolveApprovalGateEvent(ctx, db.ResolveApprovalGateEventParams{ID: gate.ID, ResolvedAction: pgtype.Text{String: action, Valid: true}, Extra: extra}); err != nil {
@@ -211,7 +318,7 @@ func (h *Handler) CreateApprovalGate(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "summary is required (at most 500 characters)")
 		return
 	}
-	gate, err := h.openGate(r.Context(), task, req.GateType, req.Summary, req.Details)
+	gate, err := h.openGateWithBlastRadius(r.Context(), task, req.GateType, req.Summary, req.Details)
 	if err != nil {
 		slog.Warn("approval gate: open failed", append(logger.RequestAttrs(r), "error", err)...)
 		writeErrorCode(w, http.StatusUnprocessableEntity, "gate_unavailable", err.Error())

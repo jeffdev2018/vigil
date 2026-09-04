@@ -95,6 +95,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"decision_search_chunk":              workspaceDelete,
 	"trust_mode_change":                  workspaceDelete,
 	"approval_gate_event":                workspaceDelete,
+	"project_blast_radius_rule":          workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

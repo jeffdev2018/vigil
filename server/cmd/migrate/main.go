@@ -327,6 +327,7 @@ var concurrentIndexCleanups = map[string]string{
 	"509_decision_search_chunk_workspace_index":                 "idx_decision_search_chunk_workspace",
 	"511_trust_mode_change_agent_index":                         "idx_trust_mode_change_agent",
 	"525_approval_gate_event_task_index":                        "idx_approval_gate_event_task",
+	"527_project_blast_radius_rule_project_index":               "idx_project_blast_radius_rule_project",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

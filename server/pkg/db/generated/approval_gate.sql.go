@@ -80,9 +80,12 @@ func (q *Queries) CreateApprovalGateEvent(ctx context.Context, arg CreateApprova
 }
 
 const getApprovalGateByDecision = `-- name: GetApprovalGateByDecision :one
-SELECT id, workspace_id, task_id, issue_id, gate_type, decision_request_id, summary, details, resolved_action, created_at, expires_at, resolved_at FROM approval_gate_event WHERE decision_request_id = $1
+SELECT id, workspace_id, task_id, issue_id, gate_type, decision_request_id, summary, details, resolved_action, created_at, expires_at, resolved_at FROM approval_gate_event
+WHERE decision_request_id = $1 OR details->>'pending_decision_id' = $1::text
+LIMIT 1
 `
 
+// A dual-approval gate (K07) files a second card, tracked in details.
 func (q *Queries) GetApprovalGateByDecision(ctx context.Context, decisionRequestID pgtype.UUID) (ApprovalGateEvent, error) {
 	row := q.db.QueryRow(ctx, getApprovalGateByDecision, decisionRequestID)
 	var i ApprovalGateEvent

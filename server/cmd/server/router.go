@@ -2085,6 +2085,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
 					r.Get("/decisions", h.ListProjectDecisions)
+					// Blast radius (K07): autonomy by path pattern.
+					r.Get("/blast-radius-rules", h.ListBlastRadiusRules)
+					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)
+					r.Delete("/blast-radius-rules/{ruleId}", h.DeleteBlastRadiusRule)
+					r.Get("/blast-radius-preview", h.PreviewBlastRadius)
 				})
 			})
 

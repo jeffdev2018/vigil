@@ -40,15 +40,31 @@ if [ -n "$MULTICA_GATE_REMOTE" ] && [ "$url" != "$MULTICA_GATE_REMOTE" ] && [ "$
   exit 0
 fi
 refs=""
+MULTICA_HOOK_STDIN=$(cat)
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ -n "$remote_ref" ] && refs="$refs $remote_ref"
-done
+done <<EOF_REFS
+$(printf '%s\n' "$MULTICA_HOOK_STDIN")
+EOF_REFS
 refs=$(printf '%s' "$refs" | sed 's/^ //')
+# Paths the push touches (K07 blast radius): the pushed commits' files.
+paths=""
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ -n "$local_sha" ] || continue
+  case "$remote_sha" in
+    0000000000000000000000000000000000000000|"") files=$(git diff-tree --no-commit-id --name-only -r "$local_sha" 2>/dev/null) ;;
+    *) files=$(git diff --name-only "$remote_sha" "$local_sha" 2>/dev/null) ;;
+  esac
+  for f in $files; do paths="$paths\"$f\","; done
+done <<EOF_REFS
+$(printf '%s\n' "$MULTICA_HOOK_STDIN")
+EOF_REFS
+paths="[${paths%,}]"
 timeout="${MULTICA_GATE_TIMEOUT:-1800}"
 api="${MULTICA_SERVER_URL%/}/api/tasks/$MULTICA_TASK_ID"
 auth="Authorization: Bearer $MULTICA_TOKEN"
 ws="X-Workspace-ID: $MULTICA_WORKSPACE_ID"
-body=$(printf '{"gate_type":"git_push","summary":"git push %s %s","details":{"remote":"%s","url":"%s","refs":"%s"}}' "$remote" "$refs" "$remote" "$url" "$refs")
+body=$(printf '{"gate_type":"git_push","summary":"git push %s %s","details":{"remote":"%s","url":"%s","refs":"%s","paths":%s}}' "$remote" "$refs" "$remote" "$url" "$refs" "$paths")
 created=$(curl -sS -f -X POST "$api/gates" -H "$auth" -H "$ws" -H 'Content-Type: application/json' -d "$body" 2>/dev/null) || { echo "multica: could not open the approval gate; push refused" >&2; exit 1; }
 gate=$(printf '%s' "$created" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
 [ -n "$gate" ] || { echo "multica: approval gate answer unreadable; push refused" >&2; exit 1; }
@@ -182,4 +198,31 @@ func sensitiveToolMatcher(pattern string) *regexp.Regexp {
 		return regexp.MustCompile(DefaultGateSensitiveTools)
 	}
 	return re
+}
+
+// gateParamPaths lifts path-like arguments out of a tool call so the
+// server can apply the project's blast radius (K07).
+func gateParamPaths(params json.RawMessage) []string {
+	var in struct {
+		Arguments map[string]any `json:"arguments"`
+	}
+	if json.Unmarshal(params, &in) != nil || in.Arguments == nil {
+		return []string{}
+	}
+	out := []string{}
+	for _, key := range []string{"path", "file_path", "filePath", "target", "paths", "files"} {
+		switch v := in.Arguments[key].(type) {
+		case string:
+			if strings.TrimSpace(v) != "" {
+				out = append(out, v)
+			}
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+					out = append(out, s)
+				}
+			}
+		}
+	}
+	return out
 }

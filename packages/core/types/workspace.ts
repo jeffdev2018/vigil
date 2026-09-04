@@ -244,3 +244,23 @@ export interface BusinessRuleViolation {
   detail: string | null;
   created_at: string;
 }
+
+// Blast radius (K07).
+export type BlastRadiusLevel = "autonomous" | "read_only" | "dual_approval";
+
+export interface BlastRadiusRule {
+  id: string;
+  project_id: string;
+  path_pattern: string;
+  autonomy_level: BlastRadiusLevel | (string & {});
+  specificity: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface BlastRadiusPreview {
+  path: string;
+  level: BlastRadiusLevel | "inherit" | (string & {});
+  rule_id?: string;
+  path_pattern?: string;
+}
