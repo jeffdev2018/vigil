@@ -316,6 +316,7 @@ import {
   AgentVersionsSchema,
   AuditLogPageSchema,
   AuditChainStatusSchema,
+  WhySearchResponseSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
   BusinessRuleListSchema,
@@ -2814,6 +2815,12 @@ export class ApiClient {
   async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
     return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
+  }
+
+  // Why search (K55).
+  async searchWhy(q: string, options?: { signal?: AbortSignal }): Promise<{ results: import("../search/why").WhySearchResult[]; query: string }> {
+    const raw = await this.fetch<unknown>(`/api/search/why?q=${encodeURIComponent(q)}`, { signal: options?.signal });
+    return parseWithFallback(raw, WhySearchResponseSchema, { results: [], query: q }, { endpoint: "GET /api/search/why" });
   }
 
   // Audit log (K08).

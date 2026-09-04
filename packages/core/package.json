@@ -48,6 +48,7 @@
     "./issues/role-view-store": "./issues/role-view-store.ts",
     "./agents/versions": "./agents/versions.ts",
     "./workspace/audit": "./workspace/audit.ts",
+    "./search/why": "./search/why.ts",
     "./workspace/business-rules": "./workspace/business-rules.ts",
     "./issues/timeline-sort": "./issues/timeline-sort.ts",
     "./issues/comment-trigger-outcomes": "./issues/comment-trigger-outcomes.ts",

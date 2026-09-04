@@ -9,7 +9,8 @@
     "projects": "プロジェクト",
     "issues": "タスク",
     "cancelled": "キャンセル済み",
-    "recent": "最近の項目"
+    "recent": "最近の項目",
+    "why": "理由"
   },
   "commands": {
     "current_theme_aria": "現在のテーマ",
@@ -33,5 +34,11 @@
   },
   "trigger": {
     "label": "検索..."
+  },
+  "why": {
+    "comment": "コメント",
+    "task_message": "実行メッセージ",
+    "decision_record": "決定記録",
+    "empty": "関連するソースがありません。質問を言い換えてみてください。"
   }
 }
