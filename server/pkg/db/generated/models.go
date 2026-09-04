@@ -1347,6 +1347,41 @@ type PinnedItem struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type Pipeline struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Name        string             `json:"name"`
+	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type PipelineRun struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	PipelineID     pgtype.UUID        `json:"pipeline_id"`
+	CurrentStageID pgtype.UUID        `json:"current_stage_id"`
+	Status         string             `json:"status"`
+	GateDecisionID pgtype.UUID        `json:"gate_decision_id"`
+	LastError      pgtype.Text        `json:"last_error"`
+	StartedBy      pgtype.UUID        `json:"started_by"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
+type PipelineStage struct {
+	ID                pgtype.UUID `json:"id"`
+	PipelineID        pgtype.UUID `json:"pipeline_id"`
+	WorkspaceID       pgtype.UUID `json:"workspace_id"`
+	Position          int32       `json:"position"`
+	Name              string      `json:"name"`
+	ExecutorType      string      `json:"executor_type"`
+	ExecutorID        pgtype.UUID `json:"executor_id"`
+	RequiresHumanGate bool        `json:"requires_human_gate"`
+}
+
 // Verification run of an issue plan (F17): state, findings and per-severity counters. task_id links the agent_task_queue row that produced it. No FK by house rule.
 type PlanVerification struct {
 	ID            pgtype.UUID        `json:"id"`

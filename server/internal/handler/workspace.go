@@ -1245,6 +1245,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge pipeline runs",
+			run:  func() error { return qtx.PurgeWorkspacePipelineRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pipeline stages",
+			run:  func() error { return qtx.PurgeWorkspacePipelineStages(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pipelines",
+			run:  func() error { return qtx.PurgeWorkspacePipelines(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge traffic conflicts",
 			run:  func() error { return qtx.PurgeWorkspaceTrafficConflicts(ctx, requester.WorkspaceID) },
 		},

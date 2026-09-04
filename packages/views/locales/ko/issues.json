@@ -912,6 +912,22 @@
     "gate_failed": "하위 이슈를 만들지 못했습니다",
     "step_ref": "단계 {{id}}"
   },
+  "pipeline": {
+    "pick": "파이프라인 선택",
+    "start": "파이프라인 시작",
+    "last": "마지막 파이프라인: {{name}} ({{status}})",
+    "gate_waiting": "게이트 대기 중",
+    "approve": "승인하고 진행",
+    "retry": "단계 재시도",
+    "cancel": "파이프라인 중지",
+    "failed": "파이프라인 작업이 실패했습니다",
+    "status": {
+      "active": "진행 중",
+      "paused": "일시정지",
+      "completed": "완료",
+      "cancelled": "중지됨"
+    }
+  },
   "preemption": {
     "waiting": "긴급 이슈에 우선권을 주기 위해 일시정지됨",
     "resumed": "긴급 이슈 때문에 일시정지되었다가 재개됨",

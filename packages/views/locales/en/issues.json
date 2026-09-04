@@ -943,6 +943,22 @@
     "gate_failed": "Failed to create the sub-issues",
     "step_ref": "step {{id}}"
   },
+  "pipeline": {
+    "pick": "Choose a pipeline",
+    "start": "Start pipeline",
+    "last": "Last pipeline: {{name}} ({{status}})",
+    "gate_waiting": "Waiting for the gate",
+    "approve": "Approve and advance",
+    "retry": "Retry stage",
+    "cancel": "Stop pipeline",
+    "failed": "The pipeline action failed",
+    "status": {
+      "active": "active",
+      "paused": "paused",
+      "completed": "completed",
+      "cancelled": "stopped"
+    }
+  },
   "preemption": {
     "waiting": "Suspended to let an urgent issue go first",
     "resumed": "Was suspended for an urgent issue and resumed",
