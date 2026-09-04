@@ -722,6 +722,7 @@
       "delete_action": "删除",
       "source_manual": "手动",
       "source_run": "来自运行",
+      "source_postmortem": "来自复盘",
       "dialog_create_title": "添加记忆",
       "dialog_edit_title": "编辑记忆",
       "dialog_description": "每条记忆只记录一个事实,保持简短具体。",

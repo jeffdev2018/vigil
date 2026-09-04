@@ -3,8 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Check, X, Loader2, Sparkles, Wand2 } from "lucide-react";
+import { FileText, Check, X, Loader2, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { paths, useWorkspaceSlug } from "@multica/core/paths";
+import { AppLink } from "../../navigation";
 import { ApiError } from "@multica/core/api";
 import type { Postmortem, PostmortemState } from "@multica/core/types";
 import {
@@ -20,7 +22,7 @@ import {
   CollectionPageHeader,
   CollectionPageState,
 } from "../../layout/collection-page";
-import { Button } from "@multica/ui/components/ui/button";
+import { Button, buttonVariants } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { cn } from "@multica/ui/lib/utils";
@@ -253,6 +255,8 @@ function PostmortemDetailBody({
 }) {
   const { t } = useT("postmortem");
   const timeAgo = useTimeAgo();
+  // Null-safe: the page can render in tests without a workspace route.
+  const slug = useWorkspaceSlug();
   const approve = useApprovePostmortem(wsId);
   const discard = useDiscardPostmortem(wsId);
 
@@ -261,8 +265,13 @@ function PostmortemDetailBody({
 
   const handleApprove = useCallback(async () => {
     try {
-      await approve.mutateAsync(item.id);
-      toast.success(t(($) => $.detail.approved_toast));
+      const result = await approve.mutateAsync(item.id);
+      const applied = result?.applied_rules ?? 0;
+      toast.success(
+        applied > 0
+          ? t(($) => $.detail.rules_toast, { count: applied })
+          : t(($) => $.detail.approved_toast),
+      );
       onResolved();
     } catch (err) {
       handleResolveError(err, t);
@@ -334,6 +343,28 @@ function PostmortemDetailBody({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
+        {slug && (item.issue_id || item.agent_id) ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {item.issue_id ? (
+              <AppLink
+                href={paths.workspace(slug).issueDetail(item.issue_id)}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                <ExternalLink aria-hidden="true" className="size-3.5" />
+                {t(($) => $.detail.open_issue)}
+              </AppLink>
+            ) : null}
+            {item.agent_id ? (
+              <AppLink
+                href={paths.workspace(slug).agentDetail(item.agent_id)}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                <Bot aria-hidden="true" className="size-3.5" />
+                {t(($) => $.detail.open_agent)}
+              </AppLink>
+            ) : null}
+          </div>
+        ) : null}
         <Section label={t(($) => $.detail.summary_label)} body={item.summary} />
         <Section label={t(($) => $.detail.root_cause_label)} body={item.root_cause} />
         <Section label={t(($) => $.detail.impact_label)} body={item.impact} />
@@ -343,13 +374,20 @@ function PostmortemDetailBody({
             {t(($) => $.detail.rules_label)}
           </h3>
           {item.preventive_rules.length > 0 ? (
-            <ul className="flex list-disc flex-col gap-1 pl-5">
-              {item.preventive_rules.map((rule, i) => (
-                <li key={i} className="text-body">
-                  {rule}
-                </li>
-              ))}
-            </ul>
+            <>
+              <ul className="flex list-disc flex-col gap-1 pl-5">
+                {item.preventive_rules.map((rule, i) => (
+                  <li key={i} className="text-body">
+                    {rule}
+                  </li>
+                ))}
+              </ul>
+              {isDraft && item.agent_id ? (
+                <p className="text-caption text-muted-foreground">
+                  {t(($) => $.detail.rules_hint)}
+                </p>
+              ) : null}
+            </>
           ) : (
             <p className="text-caption text-muted-foreground">
               {t(($) => $.detail.no_rules)}

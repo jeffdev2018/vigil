@@ -28,6 +28,8 @@ export interface Postmortem {
   llm_generated: boolean;
   resolved_at?: string | null;
   revision: number;
+  /** Set on the approve response: preventive rules copied into agent memory. */
+  applied_rules?: number;
   created_at: string;
 }
 

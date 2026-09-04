@@ -1524,7 +1524,7 @@ export interface AgentVersionDiff {
   changed_fields: string[];
 }
 
-export type AgentMemorySource = "manual" | "run";
+export type AgentMemorySource = "manual" | "run" | "postmortem";
 
 /**
  * One persistent memory fact an agent carries across runs. `source` tells

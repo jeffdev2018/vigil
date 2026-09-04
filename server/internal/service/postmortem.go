@@ -443,3 +443,57 @@ func (s *TaskService) PublishPostmortemEvent(eventType string, workspaceID pgtyp
 		}},
 	})
 }
+
+// ApplyPostmortemRules copies an approved postmortem's preventive rules into
+// the failed agent's memory so its next run is briefed on them. Rules already
+// present (same normalized text) are skipped. Returns how many were stored.
+// A postmortem without an agent, or without rules, is a no-op.
+func (s *TaskService) ApplyPostmortemRules(ctx context.Context, pm db.Postmortem) (int, error) {
+	if !pm.AgentID.Valid || len(pm.PreventiveRules) == 0 {
+		return 0, nil
+	}
+	var rules []string
+	if err := json.Unmarshal(pm.PreventiveRules, &rules); err != nil {
+		return 0, fmt.Errorf("decode preventive rules: %w", err)
+	}
+	if len(rules) == 0 {
+		return 0, nil
+	}
+	agent, err := s.Queries.GetAgent(ctx, pm.AgentID)
+	if err != nil {
+		return 0, fmt.Errorf("load postmortem agent: %w", err)
+	}
+	existing, err := s.Queries.ListAgentMemories(ctx, db.ListAgentMemoriesParams{AgentID: agent.ID, WorkspaceID: agent.WorkspaceID})
+	if err != nil {
+		return 0, fmt.Errorf("list agent memories: %w", err)
+	}
+	known := make(map[string]struct{}, len(existing))
+	for _, m := range existing {
+		known[normalizeAgentMemoryFact(m.Content)] = struct{}{}
+	}
+	inserted := 0
+	for _, rule := range rules {
+		rule = strings.TrimSpace(rule)
+		key := normalizeAgentMemoryFact(rule)
+		if key == "" || utf8.RuneCountInString(rule) > agentMemoryFactMaxRunes {
+			continue
+		}
+		if _, dup := known[key]; dup {
+			continue
+		}
+		memory, err := s.Queries.CreateAgentMemory(ctx, db.CreateAgentMemoryParams{
+			WorkspaceID:  agent.WorkspaceID,
+			AgentID:      agent.ID,
+			Content:      util.SanitizeTextForPostgres(rule),
+			Source:       "postmortem",
+			SourceTaskID: pm.SourceTaskID,
+		})
+		if err != nil {
+			return inserted, fmt.Errorf("store postmortem rule as agent memory: %w", err)
+		}
+		known[key] = struct{}{}
+		inserted++
+		s.publishAgentMemoryEvent(protocol.EventAgentMemoryCreated, agent, memory)
+	}
+	return inserted, nil
+}

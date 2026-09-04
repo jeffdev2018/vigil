@@ -735,6 +735,7 @@
       "delete_action": "Delete",
       "source_manual": "Manual",
       "source_run": "From a run",
+      "source_postmortem": "From a postmortem",
       "dialog_create_title": "Add memory",
       "dialog_edit_title": "Edit memory",
       "dialog_description": "One fact per memory. Keep it short and specific.",
