@@ -397,6 +397,9 @@ deleted_agent_invocation_targets AS (
     DELETE FROM agent_invocation_target
     WHERE agent_id IN (SELECT id FROM ws_agents)
 ),
+deleted_agent_versions AS (
+    DELETE FROM agent_version WHERE agent_version.workspace_id = $1
+),
 deleted_agent_skills AS (
     DELETE FROM agent_skill
     WHERE agent_id IN (SELECT id FROM ws_agents)

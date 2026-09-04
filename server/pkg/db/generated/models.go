@@ -198,6 +198,21 @@ type AgentToLabel struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type AgentVersion struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	VersionNumber int32              `json:"version_number"`
+	Instructions  string             `json:"instructions"`
+	Model         string             `json:"model"`
+	SkillIds      []byte             `json:"skill_ids"`
+	ToolConfig    []byte             `json:"tool_config"`
+	Note          string             `json:"note"`
+	CreatedByType string             `json:"created_by_type"`
+	CreatedByID   pgtype.UUID        `json:"created_by_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type Attachment struct {
 	ID              pgtype.UUID        `json:"id"`
 	WorkspaceID     pgtype.UUID        `json:"workspace_id"`

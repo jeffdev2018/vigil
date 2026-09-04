@@ -2120,6 +2120,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Route("/{id}", func(r chi.Router) {
 					// Scorecards (K25).
 					r.Get("/scorecard", h.GetAgentScorecard)
+					// Agent versions (K23).
+					r.Get("/versions", h.ListAgentVersions)
+					r.Get("/versions/{versionId}/diff", h.GetAgentVersionDiff)
+					r.Post("/versions/{versionId}/rollback", h.RollbackAgentVersion)
 					r.Get("/", h.GetAgent)
 					r.Put("/", h.UpdateAgent)
 					r.Post("/archive", h.ArchiveAgent)

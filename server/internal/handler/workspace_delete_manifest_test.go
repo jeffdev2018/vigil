@@ -82,6 +82,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"module_ownership":                   workspaceDelete,
 	"morning_briefing_sent":              workspaceDelete,
 	"agent_scorecard_daily":              workspaceDelete,
+	"agent_version":                      workspaceDelete,
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,

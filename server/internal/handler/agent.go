@@ -1716,6 +1716,10 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, existing) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), existing, versionUserID)
+	}
 
 	var req UpdateAgentRequest
 	rawFields, err := decodeJSONBodyWithRawFields(r.Body, &req)

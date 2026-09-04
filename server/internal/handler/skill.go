@@ -2567,6 +2567,10 @@ func (h *Handler) SetAgentSkills(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	var req SetAgentSkillsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2622,6 +2626,10 @@ func (h *Handler) AddAgentSkills(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	var req AddAgentSkillsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2671,6 +2679,10 @@ func (h *Handler) SetAgentSkillEnabled(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	skillID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill_id")
 	if !ok {
@@ -2708,6 +2720,10 @@ func (h *Handler) RemoveAgentSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.canManageAgent(w, r, agent) {
 		return
+	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
 	}
 	skillID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill_id")
 	if !ok {

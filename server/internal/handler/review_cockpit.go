@@ -31,6 +31,8 @@ type ReviewCockpitRun struct {
 	Error         *string `json:"error"`
 	FailureReason string  `json:"failure_reason,omitempty"`
 	HandoffNote   string  `json:"handoff_note,omitempty"`
+	// AgentVersion is the agent version active when the run was created (K23).
+	AgentVersion int32 `json:"agent_version,omitempty"`
 }
 
 func reviewCockpitRun(t db.AgentTaskQueue) ReviewCockpitRun {
@@ -113,6 +115,7 @@ func (h *Handler) GetReviewCockpit(w http.ResponseWriter, r *http.Request) {
 	}
 	if selected != nil {
 		run := reviewCockpitRun(*selected)
+		run.AgentVersion = h.agentVersionNumberAt(ctx, selected.AgentID, selected.CreatedAt.Time)
 		out.Run = &run
 		if usage, err := h.runUsage(ctx, selected.ID); err != nil {
 			fail("usage", err)
