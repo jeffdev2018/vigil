@@ -69,6 +69,7 @@ import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { inboxKeys, deduplicateInboxItems, inboxUnreadSummaryOptions, hasOtherWorkspaceUnread, unreadWorkspaceIds } from "@multica/core/inbox/queries";
 import { chatSessionsOptions } from "@multica/core/chat/queries";
+import { triageStatsOptions } from "@multica/core/triage/queries";
 import { countUnreadChatMessages } from "@multica/core/chat/unread";
 import { useChatStore } from "@multica/core/chat";
 import { api, ApiError } from "@multica/core/api";
@@ -494,6 +495,13 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     () => countUnreadChatMessages(chatSessions, viewedChatSessionId),
     [chatSessions, viewedChatSessionId],
   );
+  // Triage badge: the pending queue is work waiting on a human, exactly like
+  // the inbox count next to it. Shadow rows are excluded server-side.
+  const { data: triageStats } = useQuery({
+    ...triageStatsOptions(wsId ?? ""),
+    enabled: !!wsId,
+  });
+  const triagePendingCount = triageStats?.pending ?? 0;
   // Cross-workspace unread summary backs the workspace-switcher dot. One
   // shared cache entry across workspaces; gated on an active workspace since
   // the endpoint resolves through the workspace-member middleware.
@@ -780,6 +788,13 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         {item.key === "inbox" && unreadCount > 0 && (
                           <CappedNumberFlow
                             value={unreadCount}
+                            animated={false}
+                            className="ml-auto text-caption"
+                          />
+                        )}
+                        {item.key === "triage" && triagePendingCount > 0 && (
+                          <CappedNumberFlow
+                            value={triagePendingCount}
                             animated={false}
                             className="ml-auto text-caption"
                           />

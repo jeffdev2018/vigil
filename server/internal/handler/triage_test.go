@@ -137,27 +137,53 @@ func TestTriageSourceUpsertRefreshesName(t *testing.T) {
 	}
 }
 
-func TestDeleteExpiredTriageItems(t *testing.T) {
-	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
-		"workspace_id":     testWorkspaceID,
-		"source_id":        uuid.NewString(),
-		"origin_type":      "autopilot",
-		"title":            "expired item",
-		"normalized_title": "expired item",
-		"state":            "pending",
-		"shadow":           true,
-		"expires_at":       time.Now().Add(-time.Hour).UTC(),
-	})
+// Retention sweep: triage.Capture has always stamped expires_at, but nothing
+// ever read it. A pending item past its window leaves the queue as `expired`
+// — not deleted: the resolved rows are the auto-classifier's examples (K61).
+func TestExpireStaleTriageItems(t *testing.T) {
+	sourceID := uuid.NewString()
+	plant := func(title, state string, expiresAt time.Time) string {
+		cols := testutil.Cols{
+			"workspace_id":     testWorkspaceID,
+			"source_id":        sourceID,
+			"origin_type":      "autopilot",
+			"title":            title,
+			"normalized_title": title,
+			"state":            state,
+			"shadow":           false,
+			"expires_at":       expiresAt,
+		}
+		if state != "pending" {
+			cols["resolved_at"] = time.Now().UTC()
+		}
+		return dbfx.Insert(t, "triage_item", cols)
+	}
+	stale := plant("stale pending item", "pending", time.Now().Add(-time.Hour).UTC())
+	fresh := plant("fresh pending item", "pending", time.Now().Add(time.Hour).UTC())
+	resolved := plant("resolved item past its window", "dismissed", time.Now().Add(-time.Hour).UTC())
 
-	n, err := testHandler.Queries.DeleteExpiredTriageItems(context.Background(), parseUUID(testWorkspaceID))
+	n, err := testHandler.ExpireStaleTriageItems(context.Background())
 	if err != nil {
-		t.Fatalf("delete expired: %v", err)
+		t.Fatalf("expire stale: %v", err)
 	}
 	if n == 0 {
-		t.Fatal("expired item was not purged")
+		t.Fatal("the sweep reported no rows, want at least the stale pending item")
 	}
-	if got := dbfx.Count(t, `SELECT COUNT(*) FROM triage_item WHERE id = $1`, itemID); got != 0 {
-		t.Fatal("expired item row survived the purge")
+
+	if got := triageState(t, stale); got != triage.StateExpired {
+		t.Fatalf("stale item state = %s, want expired", got)
+	}
+	var reason string
+	dbfx.QueryRow(t, `SELECT COALESCE(resolution_reason, '') FROM triage_item WHERE id = $1`, stale).Scan(&reason)
+	if reason == "" {
+		t.Fatal("an expired item must record why it left the queue")
+	}
+	if got := triageState(t, fresh); got != triage.StatePending {
+		t.Fatalf("item inside its window = %s, want pending", got)
+	}
+	// Resolved history is the training set: the sweep must not touch it.
+	if got := triageState(t, resolved); got != triage.StateDismissed {
+		t.Fatalf("already-resolved item = %s, want dismissed", got)
 	}
 }
 
@@ -212,4 +238,74 @@ func TestGetTriageStatsCountsShadowAndDrops(t *testing.T) {
 	if stats.Items24h != 2 || stats.Dropped24h != 1 {
 		t.Fatalf("source 24h = items %d dropped %d, want 2 and 1", stats.Items24h, stats.Dropped24h)
 	}
+}
+
+// A resolved item carries why it was resolved — "auto: 92% confidence …" for
+// the auto-classifier, the rule title for a rule, the human's reason for a
+// manual dismiss. The history tabs render it, so the list must expose it.
+func TestListTriageItemsExposesResolutionReason(t *testing.T) {
+	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id":      testWorkspaceID,
+		"source_id":         uuid.NewString(),
+		"origin_type":       "autopilot",
+		"title":             "auto-dismissed delivery",
+		"normalized_title":  "auto-dismissed delivery",
+		"state":             triage.StateDismissed,
+		"shadow":            false,
+		"resolved_at":       time.Now().UTC(),
+		"resolution_reason": "auto: 92% confidence from 10 similar deliveries",
+	})
+
+	var out struct {
+		Items []TriageItemResponse `json:"items"`
+	}
+	testutil.Call(t, testHandler.ListTriageItems,
+		newRequest(http.MethodGet, "/api/triage/items?state=dismissed&limit=100", nil),
+	).Want(http.StatusOK).JSON(&out)
+
+	for _, item := range out.Items {
+		if item.ID != itemID {
+			continue
+		}
+		if item.ResolutionReason != "auto: 92% confidence from 10 similar deliveries" {
+			t.Fatalf("resolution_reason = %q, want the stored reason", item.ResolutionReason)
+		}
+		return
+	}
+	t.Fatalf("dismissed item %s missing from state=dismissed listing", itemID)
+}
+
+// The queue view links a meeting-born item back at its meeting, so the item's
+// origin_id has to leave the API — origin_type alone names the kind, not the
+// object.
+func TestListTriageItemsExposesOriginID(t *testing.T) {
+	meetingID := uuid.NewString()
+	itemID := dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id":     testWorkspaceID,
+		"source_id":        uuid.NewString(),
+		"origin_type":      "meeting",
+		"origin_id":        meetingID,
+		"title":            "meeting action item",
+		"normalized_title": "meeting action item",
+		"state":            triage.StatePending,
+		"shadow":           false,
+	})
+
+	var out struct {
+		Items []TriageItemResponse `json:"items"`
+	}
+	testutil.Call(t, testHandler.ListTriageItems,
+		newRequest(http.MethodGet, "/api/triage/items?state=pending&limit=100", nil),
+	).Want(http.StatusOK).JSON(&out)
+
+	for _, item := range out.Items {
+		if item.ID != itemID {
+			continue
+		}
+		if item.OriginType != "meeting" || item.OriginID != meetingID {
+			t.Fatalf("origin = %s/%s, want meeting/%s", item.OriginType, item.OriginID, meetingID)
+		}
+		return
+	}
+	t.Fatalf("pending item %s missing from the listing", itemID)
 }

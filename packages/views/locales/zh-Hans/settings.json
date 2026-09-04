@@ -274,6 +274,10 @@
         "label": "前往收件箱",
         "description": "打开工作区收件箱。"
       },
+      "goTriage": {
+        "label": "前往待审核",
+        "description": "打开待审核队列。"
+      },
       "goChat": {
         "label": "前往聊天",
         "description": "打开工作区聊天。"

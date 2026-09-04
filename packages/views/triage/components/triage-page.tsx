@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Inbox, Check, X, Loader2 } from "lucide-react";
+import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspacePaths } from "@multica/core/paths";
 import { ApiError } from "@multica/core/api";
-import type { TriageItem, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
-import { triageStatsOptions, triageItemsOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
+import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
+import { triageStatsOptions, triageItemsInfiniteOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
 import { TriageSuggestionChip, TriageSuggestionPanel } from "./triage-suggestion";
 import {
   useAcceptTriageItem,
@@ -32,9 +33,14 @@ import {
   SelectValue,
 } from "@multica/ui/components/ui/select";
 import { cn } from "@multica/ui/lib/utils";
+import { AppLink, useNavigation } from "../../navigation";
 import { RichContent } from "../../rich-content";
 
 const SOURCE_MODES: TriageSourceMode[] = ["gate", "direct", "blocked"];
+
+// The four states the list endpoint serves. `pending` is the queue; the other
+// three are history — the only place a dismissed item can be reopened from.
+const ITEM_STATES: TriageItemState[] = ["pending", "accepted", "dismissed", "merged"];
 
 /** Oldest pending age in seconds → an ISO timestamp `timeAgo` can render. */
 function ageSecondsToIso(seconds: number): string {
@@ -59,12 +65,22 @@ export function TriagePage() {
   const timeAgo = useTimeAgo();
 
   const statsQuery = useQuery(triageStatsOptions(wsId));
-  const itemsQuery = useQuery(triageItemsOptions(wsId, "pending"));
+  const [filterState, setFilterState] = useState<TriageItemState>("pending");
+  const itemsQuery = useInfiniteQuery(triageItemsInfiniteOptions(wsId, filterState));
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // `?item=` deep link: a meeting action (paths.triage(itemId)) opens the queue
+  // on the entry it produced. Read once — after that the selection is the
+  // user's, not the URL's.
+  const { searchParams } = useNavigation();
+  const [selectedId, setSelectedId] = useState<string | null>(
+    () => searchParams.get("item"),
+  );
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
 
-  const items = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data]);
+  const items = useMemo(
+    () => itemsQuery.data?.pages.flatMap((page) => page.items) ?? [],
+    [itemsQuery.data],
+  );
 
   // Triage auto-ML (K61): one request for the visible page.
 
@@ -90,6 +106,12 @@ export function TriagePage() {
 
   const clearSelection = useCallback(() => setCheckedIds(new Set()), []);
 
+  const handleFilter = useCallback((state: TriageItemState) => {
+    setFilterState(state);
+    setSelectedId(null);
+    setCheckedIds(new Set());
+  }, []);
+
   return (
     <div className="flex flex-1 min-h-0 flex-col">
       <CollectionPageHeader
@@ -98,6 +120,30 @@ export function TriagePage() {
         count={stats?.pending}
         description={t(($) => $.subtitle)}
       />
+
+      <div className="flex shrink-0 items-center gap-1 border-b px-4 py-2">
+        {ITEM_STATES.map((state) => {
+          const isActive = filterState === state;
+          return (
+            <button
+              key={state}
+              type="button"
+              onClick={() => handleFilter(state)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-caption transition-colors",
+                isActive
+                  ? "bg-accent font-medium text-foreground"
+                  : "text-muted-foreground hover:bg-accent/60",
+              )}
+            >
+              {t(($) => $.filter[state])}
+              {state === "pending" && (stats?.pending ?? 0) > 0 ? (
+                <span className="ml-1 font-mono text-micro tabular-nums">{stats?.pending}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
 
       <TriageStatsBar
         pending={stats?.pending ?? 0}
@@ -111,6 +157,7 @@ export function TriagePage() {
       <div className="flex min-h-0 flex-1">
         <TriageList
           items={items}
+          state={filterState}
           isLoading={itemsQuery.isLoading}
           isError={itemsQuery.isError}
           selectedId={selectedId}
@@ -119,6 +166,9 @@ export function TriagePage() {
           onToggleChecked={toggleChecked}
           timeAgo={timeAgo}
           suggestions={suggestions}
+          hasNextPage={itemsQuery.hasNextPage}
+          isFetchingNextPage={itemsQuery.isFetchingNextPage}
+          onLoadMore={() => void itemsQuery.fetchNextPage()}
         />
         <TriageDetail item={selected} wsId={wsId} onResolved={() => setSelectedId(null)} suggestion={selected ? suggestions[selected.id] : undefined} auto={autoSettings} />
       </div>
@@ -229,6 +279,7 @@ function TriageSourcesStrip({ sources, wsId }: { sources: TriageSource[]; wsId: 
 
 function TriageList({
   items,
+  state,
   isLoading,
   isError,
   selectedId,
@@ -237,8 +288,12 @@ function TriageList({
   onToggleChecked,
   timeAgo,
   suggestions = {},
+  hasNextPage,
+  isFetchingNextPage,
+  onLoadMore,
 }: {
   items: TriageItem[];
+  state: TriageItemState;
   suggestions?: Record<string, TriageSuggestion>;
   isLoading: boolean;
   isError: boolean;
@@ -247,6 +302,9 @@ function TriageList({
   onSelect: (id: string) => void;
   onToggleChecked: (id: string) => void;
   timeAgo: (iso: string) => string;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  onLoadMore: () => void;
 }) {
   const { t } = useT("triage");
 
@@ -279,8 +337,14 @@ function TriageList({
       <div className="flex w-full flex-1 items-center justify-center p-4">
         <CollectionPageState
           icon={Inbox}
-          title={t(($) => $.list.empty_title)}
-          description={t(($) => $.list.empty_description)}
+          title={
+            state === "pending"
+              ? t(($) => $.list.empty_title)
+              : t(($) => $.list.empty_history_title)
+          }
+          description={
+            state === "pending" ? t(($) => $.list.empty_description) : undefined
+          }
         />
       </div>
     );
@@ -310,19 +374,21 @@ function TriageList({
                   : "border-transparent hover:bg-accent/60",
               )}
             >
-              <span
-                onClick={(e) => e.stopPropagation()}
-                className={cn(
-                  "-m-1 flex shrink-0 items-center p-1",
-                  isChecked ? "" : "opacity-0 transition-opacity group-hover:opacity-100",
-                )}
-              >
-                <Checkbox
-                  checked={isChecked}
-                  onCheckedChange={() => onToggleChecked(item.id)}
-                  aria-label={item.title}
-                />
-              </span>
+              {state === "pending" ? (
+                <span
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "-m-1 flex shrink-0 items-center p-1",
+                    isChecked ? "" : "opacity-0 transition-opacity group-hover:opacity-100",
+                  )}
+                >
+                  <Checkbox
+                    checked={isChecked}
+                    onCheckedChange={() => onToggleChecked(item.id)}
+                    aria-label={item.title}
+                  />
+                </span>
+              ) : null}
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="truncate text-body">{item.title}</span>
                 <span className="flex items-center gap-1.5 text-caption text-muted-foreground">
@@ -340,6 +406,20 @@ function TriageList({
           </li>
         );
       })}
+      {hasNextPage ? (
+        <li>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="w-full"
+            disabled={isFetchingNextPage}
+            onClick={onLoadMore}
+          >
+            {t(($) => $.list.load_more)}
+          </Button>
+        </li>
+      ) : null}
     </ul>
   );
 }
@@ -379,21 +459,38 @@ function TriageDetailBody({
 }) {
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
+  const navigation = useNavigation();
+  const wsPaths = useWorkspacePaths();
   const accept = useAcceptTriageItem(wsId);
   const dismiss = useDismissTriageItem(wsId);
 
   const payloadJson = useMemo(() => formatPayload(item.payload), [item.payload]);
   const busy = accept.isPending || dismiss.isPending;
 
+  // The accept response carries the created issue; naming it (and offering a
+  // way in) is the difference between "something happened" and knowing what.
   const handleAccept = useCallback(async () => {
     try {
-      await accept.mutateAsync(item.id);
-      toast.success(t(($) => $.detail.accepted_toast));
+      const res = await accept.mutateAsync(item.id);
+      const issue = res.issue;
+      if (issue?.id && issue.identifier) {
+        toast.success(
+          t(($) => $.detail.accepted_toast_identifier, { identifier: issue.identifier }),
+          {
+            action: {
+              label: t(($) => $.detail.open_issue),
+              onClick: () => navigation.push(wsPaths.issueDetail(issue.id)),
+            },
+          },
+        );
+      } else {
+        toast.success(t(($) => $.detail.accepted_toast));
+      }
       onResolved();
     } catch (err) {
       handleAcceptError(err, t);
     }
-  }, [accept, item.id, onResolved, t]);
+  }, [accept, item.id, navigation, onResolved, t, wsPaths]);
 
   const handleDismiss = useCallback(async () => {
     try {
@@ -418,7 +515,17 @@ function TriageDetailBody({
               ? ` · ${t(($) => $.detail.collapse_count, { count: item.collapse_count })}`
               : ""}
           </p>
+          {item.origin_type === "meeting" && item.origin_id ? (
+            <AppLink
+              href={wsPaths.meetingDetail(item.origin_id)}
+              className="inline-flex items-center gap-1 text-caption text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <ExternalLink aria-hidden="true" className="size-3.5" />
+              {t(($) => $.detail.from_meeting)}
+            </AppLink>
+          ) : null}
         </div>
+        {item.state !== "pending" ? null : (
         <div className="flex shrink-0 items-center gap-2">
           <Button variant="outline" size="sm" onClick={handleDismiss} disabled={busy}>
             {dismiss.isPending ? (
@@ -437,7 +544,17 @@ function TriageDetailBody({
             {accept.isPending ? t(($) => $.detail.accepting) : t(($) => $.detail.accept)}
           </Button>
         </div>
+        )}
       </div>
+
+      {item.resolution_reason ? (
+        <p
+          data-testid="triage-resolution-reason"
+          className="shrink-0 border-b px-4 py-2 text-caption text-muted-foreground"
+        >
+          {t(($) => $.detail.resolution_reason, { reason: item.resolution_reason })}
+        </p>
+      ) : null}
 
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 py-4">
         <section className="flex flex-col gap-1.5">
@@ -510,9 +627,19 @@ function TriageBatchBar({
   const { t } = useT("triage");
   const batchAccept = useBatchAcceptTriageItems(wsId);
 
+  // The server answers 200 with a per-item outcome even when some items were
+  // duplicates or failed; before this the whole array was dropped and the user
+  // was told nothing at all.
   const handleBatch = useCallback(async () => {
     try {
       const res = await batchAccept.mutateAsync(ids);
+      const results = res.items ?? [];
+      const accepted = results.filter((r) => r.outcome === "accepted").length;
+      const duplicates = results.filter((r) => r.outcome === "duplicate").length;
+      const failed = results.length - accepted - duplicates;
+      toast.success(
+        t(($) => $.batch.summary_toast, { accepted, duplicates, failed }),
+      );
       if (res.stopped) {
         toast.error(t(($) => $.batch.stopped_toast));
       }

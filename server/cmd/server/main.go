@@ -787,6 +787,12 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
 		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
 	}
+	// Triage retention: pending items past expires_at leave the queue as
+	// expired, so a queue nobody reads stops growing without losing the
+	// resolved history the auto-classifier learns from.
+	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.ExpireStaleTriageItems)); err != nil {
+		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
+	}
 	// Refactoring campaigns (K42): merge queues move without a board read.
 	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
 		slog.Warn("scheduler: failed to register campaign_merge_queue job", "error", err)

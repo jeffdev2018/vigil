@@ -26,6 +26,9 @@ const (
 	triageDefaultPageSize = 50
 	triageMaxPageSize     = 100
 	triageMaxBatchAccept  = 100
+	// One retention sweep touches at most this many rows, so a large backlog
+	// drains over consecutive runs instead of holding one long transaction.
+	triageRetentionSweepBatch = 500
 )
 
 // TriageSourceStats is one inbound source and its 24h activity.
@@ -58,12 +61,14 @@ type TriageItemResponse struct {
 	SourceName         string          `json:"source_name"`
 	SourceKind         string          `json:"source_kind"`
 	OriginType         string          `json:"origin_type"`
+	OriginID           string          `json:"origin_id,omitempty"`
 	Title              string          `json:"title"`
 	BodyMarkdown       string          `json:"body_markdown"`
 	Payload            json.RawMessage `json:"payload"`
 	State              string          `json:"state"`
 	CollapseCount      int32           `json:"collapse_count"`
 	DropReason         string          `json:"drop_reason,omitempty"`
+	ResolutionReason   string          `json:"resolution_reason,omitempty"`
 	IssueID            string          `json:"issue_id,omitempty"`
 	DuplicateOfIssueID string          `json:"duplicate_of_issue_id,omitempty"`
 	FirstSeenAt        time.Time       `json:"first_seen_at"`
@@ -252,8 +257,14 @@ func triageItemToResponse(row db.TriageItem, sourceByID map[string]db.TriageSour
 	if len(row.Payload) == 0 {
 		resp.Payload = json.RawMessage(`{}`)
 	}
+	if row.OriginID.Valid {
+		resp.OriginID = util.UUIDToString(row.OriginID)
+	}
 	if row.DropReason.Valid {
 		resp.DropReason = row.DropReason.String
+	}
+	if row.ResolutionReason.Valid {
+		resp.ResolutionReason = row.ResolutionReason.String
 	}
 	if row.IssueID.Valid {
 		resp.IssueID = util.UUIDToString(row.IssueID)
@@ -633,6 +644,15 @@ func (h *Handler) UpdateTriageSource(w http.ResponseWriter, r *http.Request) {
 		Name:  src.Name,
 		Mode:  src.Mode,
 	})
+}
+
+// ExpireStaleTriageItems is the retention sweep behind the scheduler's
+// triage_retention_sweep job. triage.Capture stamps every item with an
+// expires_at (triage.DefaultRetention); an item nobody resolved by then
+// leaves the queue as `expired` rather than being deleted, because resolved
+// items are what the auto-classifier learns from (K61).
+func (h *Handler) ExpireStaleTriageItems(ctx context.Context) (int64, error) {
+	return h.Queries.ExpirePendingTriageItems(ctx, triageRetentionSweepBatch)
 }
 
 func (h *Handler) publishTriageResolved(workspaceID, itemID pgtype.UUID, state string) {

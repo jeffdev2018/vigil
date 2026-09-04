@@ -16,9 +16,11 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Meetings: a recording is a series of audio segments transcribed as they
@@ -506,6 +508,14 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 
 // captureMeetingActions queues each extracted action as a pending triage
 // item. Capture errors are logged and skipped: the meeting must still finish.
+//
+// A meeting action is a parked delivery like any other, so it takes the same
+// path a gated webhook takes (autopilot.dispatchTriageGated): announce it with
+// `triage:new`, then run the workspace triage rules (K62), which fall through
+// to the auto-classifier (K61). Without this the queue silently treated
+// meeting-born items as second class — no realtime badge, no rule, no
+// auto-decision. The items are re-read afterwards so the meeting response
+// reports the state a rule may just have moved them to.
 func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, workspaceID pgtype.UUID, userID string, s meetingSummary) []db.TriageItem {
 	items := make([]db.TriageItem, 0, len(s.Actions))
 	for i, a := range s.Actions {
@@ -547,7 +557,49 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 			slog.Warn("capture meeting action failed", "meeting_id", util.UUIDToString(m.ID), "error", err)
 			continue
 		}
+		h.Bus.Publish(events.Event{
+			Type:        protocol.EventTriageNew,
+			WorkspaceID: util.UUIDToString(workspaceID),
+			ActorType:   "system",
+			Payload: map[string]any{
+				"item_id":   util.UUIDToString(item.ID),
+				"source_id": util.UUIDToString(item.SourceID),
+			},
+		})
+		h.ApplyTriageRules(ctx, item)
 		items = append(items, item)
 	}
-	return items
+	return h.refreshTriageItems(ctx, workspaceID, items)
+}
+
+// refreshTriageItems re-reads the captured items so a rule or the
+// auto-classifier that already resolved one is reflected in the response
+// instead of a stale "pending". A read failure keeps the captured rows: the
+// meeting must still finish.
+func (h *Handler) refreshTriageItems(ctx context.Context, workspaceID pgtype.UUID, items []db.TriageItem) []db.TriageItem {
+	if len(items) == 0 {
+		return items
+	}
+	ids := make([]pgtype.UUID, 0, len(items))
+	for _, item := range items {
+		ids = append(ids, item.ID)
+	}
+	fresh, err := h.Queries.ListTriageItemsByIDs(ctx, db.ListTriageItemsByIDsParams{WorkspaceID: workspaceID, Ids: ids})
+	if err != nil {
+		slog.Warn("refresh meeting triage items failed", "error", err)
+		return items
+	}
+	byID := make(map[string]db.TriageItem, len(fresh))
+	for _, item := range fresh {
+		byID[util.UUIDToString(item.ID)] = item
+	}
+	out := make([]db.TriageItem, 0, len(items))
+	for _, item := range items {
+		if updated, ok := byID[util.UUIDToString(item.ID)]; ok {
+			out = append(out, updated)
+			continue
+		}
+		out = append(out, item)
+	}
+	return out
 }

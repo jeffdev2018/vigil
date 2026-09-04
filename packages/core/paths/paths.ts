@@ -56,7 +56,10 @@ function workspaceScoped(slug: string) {
     squads: () => `${ws}/squads`,
     squadDetail: (id: string) => `${ws}/squads/${encode(id)}`,
     inbox: () => `${ws}/inbox`,
-    triage: () => `${ws}/triage`,
+    // `?item=` preselects one queue entry, so a meeting action (or any other
+    // producer) can link straight at the item it created.
+    triage: (itemId?: string) =>
+      itemId ? `${ws}/triage?item=${encode(itemId)}` : `${ws}/triage`,
     meetings: () => `${ws}/meetings`,
     meetingDetail: (id: string) => `${ws}/meetings/${encode(id)}`,
     postmortems: () => `${ws}/postmortems`,

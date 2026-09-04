@@ -28,6 +28,7 @@ vi.mock("@multica/core/modals", () => ({
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({
     inbox: () => "/acme/inbox",
+    triage: () => "/acme/triage",
     chat: () => "/acme/chat",
     myIssues: () => "/acme/my-issues",
     issues: () => "/acme/issues",

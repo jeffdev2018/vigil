@@ -1,14 +1,19 @@
 {
   "title": "Triage",
-  "subtitle": "Review inbound webhook deliveries before they become issues",
+  "subtitle": "Review inbound work — webhook deliveries and meeting action items — before it becomes issues",
   "stats": {
     "pending": "{{count}} pending",
     "oldest": "Oldest waiting {{age}}",
     "dropped_24h": "{{count}} dropped in 24h",
     "none_pending": "Queue is clear"
   },
+  "filter": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "dismissed": "Dismissed",
+    "merged": "Merged"
+  },
   "sources": {
-    "label": "Sources",
     "empty": "No inbound sources yet",
     "items_24h": "{{count}} in 24h",
     "mode": {
@@ -19,9 +24,11 @@
   },
   "list": {
     "empty_title": "Queue is clear",
-    "empty_description": "When a source is set to Gate, its webhook deliveries wait here until a human accepts or dismisses them.",
+    "empty_description": "Webhook deliveries from a source set to Gate, and action items from a recorded meeting, wait here until a human accepts or dismisses them.",
     "loading": "Loading triage queue",
-    "load_error": "Could not load the triage queue"
+    "load_error": "Could not load the triage queue",
+    "empty_history_title": "Nothing here yet",
+    "load_more": "Load more"
   },
   "detail": {
     "select_prompt": "Select an item to review it",
@@ -40,12 +47,17 @@
     "dismissed_toast": "Dismissed",
     "merged_toast": "Already tracked as {{identifier}} — merged",
     "limit_toast": "Issue limit reached — the item stays in the queue",
-    "error_toast": "Something went wrong"
+    "error_toast": "Something went wrong",
+    "resolution_reason": "Reason: {{reason}}",
+    "accepted_toast_identifier": "Accepted — {{identifier}} created",
+    "open_issue": "Open",
+    "from_meeting": "From meeting"
   },
   "batch": {
     "accept": "Accept {{count}}",
     "clear": "Clear selection",
-    "stopped_toast": "Stopped — the workspace reached its issue limit"
+    "stopped_toast": "Stopped — the workspace reached its issue limit",
+    "summary_toast": "{{accepted}} accepted, {{duplicates}} duplicates, {{failed}} failed"
   },
   "suggestion": {
     "title": "Suggestion",

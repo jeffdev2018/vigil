@@ -1,14 +1,19 @@
 {
   "title": "待审核",
-  "subtitle": "在入站 webhook 投递变成任务之前先审核它们",
+  "subtitle": "在入站工作（webhook 投递、会议待办事项）变成任务之前先审核它们",
   "stats": {
     "pending": "{{count}} 个待审核",
     "oldest": "等待最久 {{age}}",
     "dropped_24h": "24 小时内丢弃 {{count}} 个",
     "none_pending": "队列已清空"
   },
+  "filter": {
+    "pending": "待审核",
+    "accepted": "已接受",
+    "dismissed": "已丢弃",
+    "merged": "已合并"
+  },
   "sources": {
-    "label": "来源",
     "empty": "暂无入站来源",
     "items_24h": "24 小时内 {{count}} 个",
     "mode": {
@@ -19,9 +24,11 @@
   },
   "list": {
     "empty_title": "队列已清空",
-    "empty_description": "当来源设为拦截时，它的 webhook 投递会在这里等待，直到有人接受或丢弃。",
+    "empty_description": "设为拦截的来源的 webhook 投递，以及录制会议产生的待办事项，都会在这里等待，直到有人接受或丢弃。",
     "loading": "正在加载待审核队列",
-    "load_error": "无法加载待审核队列"
+    "load_error": "无法加载待审核队列",
+    "empty_history_title": "这里还没有内容",
+    "load_more": "加载更多"
   },
   "detail": {
     "select_prompt": "选择一项进行审核",
@@ -40,12 +47,17 @@
     "dismissed_toast": "已丢弃",
     "merged_toast": "已作为 {{identifier}} 跟踪，已合并",
     "limit_toast": "已达任务上限，该项保留在队列中",
-    "error_toast": "出了点问题"
+    "error_toast": "出了点问题",
+    "resolution_reason": "原因：{{reason}}",
+    "accepted_toast_identifier": "已接受，已创建 {{identifier}}",
+    "open_issue": "打开",
+    "from_meeting": "来自会议"
   },
   "batch": {
     "accept": "接受 {{count}} 项",
     "clear": "清除选择",
-    "stopped_toast": "已停止，工作区已达任务上限"
+    "stopped_toast": "已停止，工作区已达任务上限",
+    "summary_toast": "接受 {{accepted}} 项，重复 {{duplicates}} 项，失败 {{failed}} 项"
   },
   "suggestion": {
     "title": "建议",

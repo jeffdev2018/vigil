@@ -32,6 +32,8 @@ export interface TriageItem {
   source_name: string;
   source_kind: string;
   origin_type: string;
+  /** The object the item came from: a meeting id for `origin_type: "meeting"`, an autopilot id for "autopilot". */
+  origin_id?: string;
   title: string;
   body_markdown: string;
   payload: TriageItemPayload;
@@ -39,6 +41,8 @@ export interface TriageItem {
   state: TriageItemState | (string & {});
   collapse_count: number;
   drop_reason?: string;
+  /** Why the item left the queue: a human's reason, "rule: <title>", or "auto: N% confidence…". */
+  resolution_reason?: string;
   issue_id?: string;
   duplicate_of_issue_id?: string;
   first_seen_at: string;
