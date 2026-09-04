@@ -88,6 +88,7 @@
     "weekly_retro": "週次レトロ",
     "budget_warning": "予算の警告",
     "budget_exceeded": "予算上限に達しました",
+    "postmortem_ready": "ポストモーテム作成済み",
     "trust_promotion_suggested": "信頼モードの昇格提案"
   },
   "labels": {

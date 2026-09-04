@@ -126,11 +126,13 @@ export function MemoryTab({
                   </span>
                   <span className="mt-1.5 flex items-center gap-2 text-caption text-muted-foreground">
                     <Badge
-                      variant={memory.source === "run" ? "secondary" : "outline"}
+                      variant={memory.source === "manual" ? "outline" : "secondary"}
                     >
                       {memory.source === "run"
                         ? t(($) => $.tab_body.memory.source_run)
-                        : t(($) => $.tab_body.memory.source_manual)}
+                        : memory.source === "postmortem"
+                          ? t(($) => $.tab_body.memory.source_postmortem)
+                          : t(($) => $.tab_body.memory.source_manual)}
                     </Badge>
                     {memory.updated_at && <span>{timeAgo(memory.updated_at)}</span>}
                   </span>

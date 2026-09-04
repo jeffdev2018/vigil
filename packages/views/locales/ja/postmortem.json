@@ -35,6 +35,10 @@
     "conflict_toast": "この振り返りはすでに対応済みです",
     "error_toast": "問題が発生しました",
     "resolved_note_approved": "この振り返りは承認されました。",
-    "resolved_note_discarded": "この振り返りは破棄されました。"
+    "resolved_note_discarded": "この振り返りは破棄されました。",
+    "open_issue": "Issue を開く",
+    "open_agent": "エージェントを開く",
+    "rules_toast": "{{count}} 件のルールをエージェントのメモリに追加しました",
+    "rules_hint": "承認すると、これらのルールがエージェントのメモリに追加されます。"
   }
 }

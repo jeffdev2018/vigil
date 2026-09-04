@@ -623,6 +623,7 @@
       "delete_action": "삭제",
       "source_manual": "수동",
       "source_run": "실행에서 생성됨",
+      "source_postmortem": "포스트모템에서",
       "dialog_create_title": "메모리 추가",
       "dialog_edit_title": "메모리 편집",
       "dialog_description": "메모리 하나당 사실 하나씩, 짧고 구체적으로 작성하세요.",

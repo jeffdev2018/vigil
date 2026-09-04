@@ -1589,6 +1589,7 @@ export const PostmortemSchema = z.object({
   llm_generated: z.boolean().default(false),
   resolved_at: z.string().nullable().optional(),
   revision: z.number().default(0),
+  applied_rules: z.number().int().optional(),
   created_at: z.string(),
 }).loose();
 

@@ -90,6 +90,7 @@
     "weekly_retro": "Weekly retro",
     "budget_warning": "Budget warning",
     "budget_exceeded": "Budget limit reached",
+    "postmortem_ready": "Postmortem ready",
     "trust_promotion_suggested": "Trust promotion suggested"
   },
   "labels": {

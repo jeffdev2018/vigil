@@ -35,6 +35,10 @@
     "conflict_toast": "该复盘已被处理",
     "error_toast": "出了点问题",
     "resolved_note_approved": "该复盘已获批准。",
-    "resolved_note_discarded": "该复盘已被丢弃。"
+    "resolved_note_discarded": "该复盘已被丢弃。",
+    "open_issue": "打开 Issue",
+    "open_agent": "打开 Agent",
+    "rules_toast": "已将 {{count}} 条规则加入 Agent 记忆",
+    "rules_hint": "批准后，这些规则会加入 Agent 记忆。"
   }
 }

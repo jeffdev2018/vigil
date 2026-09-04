@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
 func postmortemRequest(method, path, workspaceID string, body any) *http.Request {
@@ -22,7 +24,7 @@ func postmortemWorkspaceHandler(handler http.HandlerFunc) http.HandlerFunc {
 	return middleware.RequireWorkspaceMember(testHandler.Queries)(handler).ServeHTTP
 }
 
-func seedPostmortem(t *testing.T, workspaceID, state string) string {
+func seedPostmortem(t *testing.T, workspaceID, state string, over ...testutil.Cols) string {
 	t.Helper()
 	cols := testutil.Cols{
 		"workspace_id":   workspaceID,
@@ -41,7 +43,66 @@ func seedPostmortem(t *testing.T, workspaceID, state string) string {
 		cols["resolved_by_type"] = "member"
 		cols["resolved_by_id"] = testUserID
 	}
+	for _, o := range over {
+		for k, v := range o {
+			cols[k] = v
+		}
+	}
 	return dbfx.Insert(t, "postmortem", cols)
+}
+
+func TestApprovePostmortemStoresRulesAsAgentMemory(t *testing.T) {
+	workspaceID := dbfx.Workspace(t, "Postmortem rules", "pm-rules-"+uuid.NewString())
+	dbfx.Member(t, workspaceID, testUserID, "owner")
+	agentID := dbfx.Agent(t, "Rules agent", "", testutil.Cols{"workspace_id": workspaceID})
+	t.Cleanup(func() {
+		_, _ = testPool.Exec(context.Background(), `DELETE FROM agent_memory WHERE agent_id = $1`, agentID)
+	})
+	// One duplicate and one blank rule: only the distinct, non-empty rule lands.
+	pmID := seedPostmortem(t, workspaceID, "draft", testutil.Cols{
+		"agent_id":         agentID,
+		"preventive_rules": testutil.Raw(`'["Run the test suite before pushing", "  ", "run the test suite before pushing"]'::jsonb`),
+	})
+
+	var resp PostmortemResponse
+	testutil.Call(t, postmortemWorkspaceHandler(testHandler.ApprovePostmortem),
+		testutil.WithURLParams(
+			postmortemRequest(http.MethodPost, "/api/postmortems/"+pmID+"/approve", workspaceID, nil),
+			"id", pmID)).
+		Want(http.StatusOK).
+		JSON(&resp)
+	if resp.AppliedRules == nil || *resp.AppliedRules != 1 {
+		t.Fatalf("applied_rules = %v, want 1", resp.AppliedRules)
+	}
+
+	memories, err := testHandler.Queries.ListAgentMemories(context.Background(), db.ListAgentMemoriesParams{
+		AgentID: parseUUID(agentID), WorkspaceID: parseUUID(workspaceID),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(memories) != 1 {
+		t.Fatalf("agent memories = %d, want 1", len(memories))
+	}
+	if memories[0].Source != "postmortem" || memories[0].Content != "Run the test suite before pushing" {
+		t.Fatalf("memory = %q/%q, want postmortem/rule text", memories[0].Source, memories[0].Content)
+	}
+
+	// Discard must not touch memory.
+	pm2 := seedPostmortem(t, workspaceID, "draft", testutil.Cols{
+		"agent_id":         agentID,
+		"preventive_rules": testutil.Raw(`'["Never retry a failed deploy"]'::jsonb`),
+	})
+	var discarded PostmortemResponse
+	testutil.Call(t, postmortemWorkspaceHandler(testHandler.DiscardPostmortem),
+		testutil.WithURLParams(
+			postmortemRequest(http.MethodPost, "/api/postmortems/"+pm2+"/discard", workspaceID, nil),
+			"id", pm2)).
+		Want(http.StatusOK).
+		JSON(&discarded)
+	if discarded.AppliedRules != nil {
+		t.Fatalf("applied_rules on discard = %v, want absent", *discarded.AppliedRules)
+	}
 }
 
 func TestListPostmortemsFiltersByState(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,7 +41,10 @@ type PostmortemResponse struct {
 	LlmGenerated    bool       `json:"llm_generated"`
 	ResolvedAt      *time.Time `json:"resolved_at,omitempty"`
 	Revision        int64      `json:"revision"`
-	CreatedAt       time.Time  `json:"created_at"`
+	// AppliedRules is how many preventive rules were stored in the agent's
+	// memory by this approve call. Absent on reads and on discard.
+	AppliedRules *int      `json:"applied_rules,omitempty"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 func postmortemToResponse(pm db.Postmortem) PostmortemResponse {
@@ -231,7 +235,18 @@ func (h *Handler) resolvePostmortem(w http.ResponseWriter, r *http.Request, stat
 	}
 
 	h.TaskService.PublishPostmortemEvent(protocol.EventPostmortemResolved, workspaceID, pm)
-	writeJSON(w, http.StatusOK, postmortemToResponse(pm))
+	resp := postmortemToResponse(pm)
+	if state == "approved" {
+		// The postmortem is already approved; a memory write failure must
+		// not undo that, so report it instead of failing the request.
+		applied, err := h.TaskService.ApplyPostmortemRules(r.Context(), pm)
+		if err != nil {
+			slog.Error("postmortem rules not stored as agent memory",
+				"postmortem_id", util.UUIDToString(pm.ID), "error", err)
+		}
+		resp.AppliedRules = &applied
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func encodePostmortemCursor(createdAt time.Time, id pgtype.UUID) string {

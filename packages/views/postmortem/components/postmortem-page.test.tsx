@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PostmortemsResponse, PostmortemStats } from "@multica/core/types";
 import { toast } from "sonner";
 import { renderWithI18n } from "../../test/i18n";
+import { NavigationProvider, type NavigationAdapter } from "../../navigation";
 import { PostmortemPage } from "./postmortem-page";
 
 vi.mock("sonner", () => ({
@@ -12,6 +13,10 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+vi.mock("@multica/core/paths", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/paths")>()),
+  useWorkspaceSlug: () => "acme",
+}));
 
 const data = vi.hoisted(() => ({
   stats: { draft: 1, approved: 0, discarded: 0 } as PostmortemStats,
@@ -51,7 +56,7 @@ vi.mock("@multica/core/postmortem/queries", () => ({
 }));
 
 const mutations = vi.hoisted(() => ({
-  approve: vi.fn().mockResolvedValue({ id: "pm-1", state: "approved" }),
+  approve: vi.fn().mockResolvedValue({ id: "pm-1", state: "approved", applied_rules: 1 }),
   discard: vi.fn().mockResolvedValue({ id: "pm-1", state: "discarded" }),
 }));
 
@@ -64,10 +69,21 @@ function renderPage() {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const adapter: NavigationAdapter = {
+    push: vi.fn(),
+    replace: vi.fn(),
+    back: vi.fn(),
+    pathname: "/",
+    searchParams: new URLSearchParams(),
+    hash: "",
+    getShareableUrl: (p) => p,
+  };
   return renderWithI18n(
-    <QueryClientProvider client={client}>
-      <PostmortemPage />
-    </QueryClientProvider>,
+    <NavigationProvider value={adapter}>
+      <QueryClientProvider client={client}>
+        <PostmortemPage />
+      </QueryClientProvider>
+    </NavigationProvider>,
   );
 }
 
@@ -125,7 +141,20 @@ describe("PostmortemPage", () => {
     const approveButton = await screen.findByRole("button", { name: "Approve" });
     fireEvent.click(approveButton);
     await waitFor(() => expect(mutations.approve).toHaveBeenCalledWith("pm-1"));
-    expect(toast.success).toHaveBeenCalled();
+    // The approve response reports how many rules became agent memory.
+    expect(toast.success).toHaveBeenCalledWith("1 rules added to the agent's memory");
+  });
+
+  it("links the selected item to its issue and agent", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("The run exhausted the model context."));
+    expect((await screen.findByRole("link", { name: "Open issue" })).getAttribute("href")).toBe(
+      "/acme/issues/issue-1",
+    );
+    expect(screen.getByRole("link", { name: "Open agent" }).getAttribute("href")).toBe(
+      "/acme/agents/agent-1",
+    );
+    expect(screen.getByText("Approving adds these rules to the agent's memory.")).toBeTruthy();
   });
 
   it("discarding the selected item calls the mutation and toasts", async () => {

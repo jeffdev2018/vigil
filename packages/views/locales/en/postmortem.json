@@ -35,6 +35,10 @@
     "conflict_toast": "This postmortem was already resolved",
     "error_toast": "Something went wrong",
     "resolved_note_approved": "This postmortem was approved.",
-    "resolved_note_discarded": "This postmortem was discarded."
+    "resolved_note_discarded": "This postmortem was discarded.",
+    "open_issue": "Open issue",
+    "open_agent": "Open agent",
+    "rules_toast": "{{count}} rules added to the agent's memory",
+    "rules_hint": "Approving adds these rules to the agent's memory."
   }
 }

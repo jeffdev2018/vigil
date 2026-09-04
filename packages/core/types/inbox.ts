@@ -37,7 +37,9 @@ export type InboxItemType =
   | "weekly_retro"
   | "trust_promotion_suggested"
   | "budget_warning"
-  | "budget_exceeded";
+  | "budget_exceeded"
+  // A postmortem was drafted after a failed run and waits for review.
+  | "postmortem_ready";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

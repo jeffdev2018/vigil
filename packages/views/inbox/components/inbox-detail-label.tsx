@@ -46,6 +46,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     autopilot_quota_exceeded: t(($) => $.types.autopilot_quota_exceeded),
     budget_warning: t(($) => $.types.budget_warning),
     budget_exceeded: t(($) => $.types.budget_exceeded),
+    postmortem_ready: t(($) => $.types.postmortem_ready),
   };
 }
 
