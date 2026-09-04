@@ -52,6 +52,7 @@ type AgentResponse struct {
 	// TrustMode (K26): observer | propose | approval | autonomous.
 	TrustMode           string  `json:"trust_mode"`
 	PermissionProfileID *string `json:"permission_profile_id"`
+	RuntimePoolID       *string `json:"runtime_pool_id"`
 	WorkspaceID         string  `json:"workspace_id"`
 	// RuntimeID is the empty string when the agent is unbound — it kept its
 	// configuration and history when its runtime was deleted, and needs a new
@@ -227,6 +228,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		MaxConcurrentTasks:       a.MaxConcurrentTasks,
 		TrustMode:                a.TrustMode,
 		PermissionProfileID:      uuidToPtr(a.PermissionProfileID),
+		RuntimePoolID:            uuidToPtr(a.RuntimePoolID),
 		Model:                    a.Model.String,
 		ThinkingLevel:            a.ThinkingLevel.String,
 		ServiceTier:              a.ServiceTier.String,
@@ -391,10 +393,13 @@ type AgentTaskResponse struct {
 	// LastActivityAt is the run's last proof of life (claim, start, message or
 	// progress callback). Readers derive "unresponsive" from it; absent on rows
 	// that predate the column.
-	LastActivityAt     *string               `json:"last_activity_at,omitempty"`
-	Result             any                   `json:"result"`
-	Error              *string               `json:"error"`
-	FailureReason      string                `json:"failure_reason,omitempty"` // see TaskService.MaybeRetryFailedTask
+	LastActivityAt *string `json:"last_activity_at,omitempty"`
+	Result         any     `json:"result"`
+	Error          *string `json:"error"`
+	FailureReason  string  `json:"failure_reason,omitempty"` // see TaskService.MaybeRetryFailedTask
+	// Runtime pools (K28): the moves this run made, and whether it landed on the degraded runtime.
+	FailoverHistory    json.RawMessage       `json:"failover_history,omitempty"`
+	Degraded           bool                  `json:"degraded"`
 	Attempt            int32                 `json:"attempt"`
 	MaxAttempts        int32                 `json:"max_attempts"`
 	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
@@ -794,6 +799,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		Result:                 result,
 		Error:                  textToPtr(t.Error),
 		FailureReason:          failureReason,
+		FailoverHistory:        json.RawMessage(t.FailoverHistory),
+		Degraded:               service.TaskDegraded(t.FailoverHistory),
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,

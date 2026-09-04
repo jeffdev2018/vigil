@@ -206,7 +206,7 @@ func (q *Queries) RevokeRunScopedSecretsByTask(ctx context.Context, arg RevokeRu
 }
 
 const updateAgentScopedEnvKeys = `-- name: UpdateAgentScopedEnvKeys :one
-UPDATE agent SET scoped_env_keys = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys
+UPDATE agent SET scoped_env_keys = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id
 `
 
 type UpdateAgentScopedEnvKeysParams struct {
@@ -250,6 +250,7 @@ func (q *Queries) UpdateAgentScopedEnvKeys(ctx context.Context, arg UpdateAgentS
 		&i.TrustMode,
 		&i.PermissionProfileID,
 		&i.ScopedEnvKeys,
+		&i.RuntimePoolID,
 	)
 	return i, err
 }

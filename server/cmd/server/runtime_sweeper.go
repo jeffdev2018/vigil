@@ -163,6 +163,8 @@ func runRuntimeSweeper(ctx context.Context, queries *db.Queries, liveness handle
 		// delegated-failure recovery run in independent lower-frequency loops.
 		sweepStaleRuntimes(ctx, queries, liveness, taskSvc, bus)
 		sweepOfflineRuntimeTasks(ctx, queries, taskSvc, reconnectGrace)
+		// Runtime pools (K28): waiting tasks leave a runtime that stays offline.
+		taskSvc.MoveWaitingTasksOffOfflineRuntimes(ctx, reconnectGrace, offlineTaskFailBatchSize)
 		sweepExpiredRuntimeReconnectRetries(ctx, queries, taskSvc, reconnectGrace)
 		sweepStaleTasks(ctx, queries, taskSvc, bus, reconnectGrace)
 		sweepExpiredQueuedTasks(ctx, queries, taskSvc, reconnectGrace)

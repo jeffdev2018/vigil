@@ -56,6 +56,7 @@ type Agent struct {
 	TrustMode             string      `json:"trust_mode"`
 	PermissionProfileID   pgtype.UUID `json:"permission_profile_id"`
 	ScopedEnvKeys         []byte      `json:"scoped_env_keys"`
+	RuntimePoolID         pgtype.UUID `json:"runtime_pool_id"`
 }
 
 type AgentBuilderDraft struct {
@@ -208,6 +209,7 @@ type AgentTaskQueue struct {
 	// Last proof of activity from the run (claim, start, task message or progress callback). NULL means none recorded since the column was added. Read for liveness display only; never consulted for authorization or transitions.
 	LastActivityAt      pgtype.Timestamptz `json:"last_activity_at"`
 	PermissionProfileID pgtype.UUID        `json:"permission_profile_id"`
+	FailoverHistory     []byte             `json:"failover_history"`
 }
 
 type AgentToLabel struct {
@@ -1492,6 +1494,17 @@ type RunScopedSecret struct {
 	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
 	RevokeReason pgtype.Text        `json:"revoke_reason"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type RuntimePool struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Name              string             `json:"name"`
+	RuntimeIds        []byte             `json:"runtime_ids"`
+	DegradedRuntimeID pgtype.UUID        `json:"degraded_runtime_id"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type RuntimeProfile struct {
