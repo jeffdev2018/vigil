@@ -3757,6 +3757,17 @@ export const AuditLogEntrySchema = z.object({
   approver_type: z.string().nullable().default(null),
   approver_id: z.string().nullable().default(null),
   details: z.record(z.string(), z.unknown()).catch({}).default({}),
+  chain_seq: z.number().optional(),
+  prev_hash: z.string().nullable().optional(),
+  hash: z.string().optional(),
+}).loose();
+
+export const AuditChainStatusSchema = z.object({
+  ok: z.boolean().default(false),
+  total: z.number().default(0),
+  head_hash: z.string().default(""),
+  broken_seq: z.number().nullable().default(null),
+  broken_id: z.string().nullable().default(null),
 }).loose();
 
 export const AuditLogPageSchema = z.object({

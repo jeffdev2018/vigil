@@ -345,6 +345,6 @@ export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
 export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
 export type { AgentVersion, AgentVersionDiff } from "./agent";
-export type { AuditLogEntry, AuditLogPage, AuditLogFilter } from "./workspace";
+export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
 export type { DecisionRecord, ADRRequirement } from "./workspace";
 export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";

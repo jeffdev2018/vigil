@@ -148,6 +148,17 @@ export interface AuditLogEntry {
   approver_type: string | null;
   approver_id: string | null;
   details: Record<string, unknown>;
+  chain_seq?: number;
+  prev_hash?: string | null;
+  hash?: string;
+}
+
+export interface AuditChainStatus {
+  ok: boolean;
+  total: number;
+  head_hash: string;
+  broken_seq: number | null;
+  broken_id: string | null;
 }
 
 export interface AuditLogPage {

@@ -23,6 +23,13 @@ describe("audit log client", () => {
     expect(auditKeys.list("w", { action: "a" })).toEqual(["audit-log", "w", "", "", "", "a"]);
   });
 
+  it("reads the chain status and falls back to not ok on garbage", async () => {
+    stubFetch(JSON.stringify({ ok: true, total: 12, head_hash: "abc", broken_seq: null, broken_id: null }));
+    expect((await new ApiClient("https://api.example.test").verifyAuditLog()).head_hash).toBe("abc");
+    stubFetch("[]");
+    expect((await new ApiClient("https://api.example.test").verifyAuditLog()).ok).toBe(false);
+  });
+
   it("returns the export text and throws on a failed export", async () => {
     stubFetch("id,action\n1,x\n", 200, "text/csv");
     expect(await new ApiClient("https://api.example.test").exportAuditLog("csv", {})).toContain("id,action");
