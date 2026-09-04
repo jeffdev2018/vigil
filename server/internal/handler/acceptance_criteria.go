@@ -285,5 +285,7 @@ func (h *Handler) ProveAcceptanceCriterion(w http.ResponseWriter, r *http.Reques
 		}
 	}
 	c.ProofState = c.proofState()
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
+	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditCriterionProved, "issue", issue.ID, map[string]any{"criterion_id": c.ID, "text": c.Text, "proof_type": c.ProofType, "proof_ref": c.ProofRef, "proof_state": c.ProofState}, &auditOpts{ApproverType: "member", ApproverID: c.ValidatedBy})
 	h.writeAcceptanceCriteria(w, r, issue, criteria, userID)
 }

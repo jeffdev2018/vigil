@@ -231,6 +231,22 @@ type Attachment struct {
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
 }
 
+type AuditLogEntry struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	OccurredAt   pgtype.Timestamptz `json:"occurred_at"`
+	ActorType    string             `json:"actor_type"`
+	ActorID      pgtype.UUID        `json:"actor_id"`
+	Action       string             `json:"action"`
+	EntityType   string             `json:"entity_type"`
+	EntityID     pgtype.UUID        `json:"entity_id"`
+	Model        pgtype.Text        `json:"model"`
+	CostUsdTicks pgtype.Int8        `json:"cost_usd_ticks"`
+	ApproverType pgtype.Text        `json:"approver_type"`
+	ApproverID   pgtype.UUID        `json:"approver_id"`
+	Details      []byte             `json:"details"`
+}
+
 type Autopilot struct {
 	ID                 pgtype.UUID        `json:"id"`
 	WorkspaceID        pgtype.UUID        `json:"workspace_id"`

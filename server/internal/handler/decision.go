@@ -171,6 +171,7 @@ func (h *Handler) AskIssueDecision(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.notifyDecisionRequested(r.Context(), issue, decision, actorType, actorID)
+	h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditDecisionAsked, "issue_decision", decision.ID, map[string]any{"issue_id": uuidToString(issue.ID), "question": decision.Question, "urgency": decision.Urgency}, nil)
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	writeJSON(w, http.StatusCreated, map[string]any{"decision": issueDecisionToResponse(decision)})
 }
@@ -292,6 +293,7 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 			updated.ResumeTaskID = task.ID
 		}
 	}
+	h.audit(ctx, issue.WorkspaceID, actorType, actorID, AuditDecisionAnswered, "issue_decision", decision.ID, map[string]any{"issue_id": uuidToString(issue.ID), "question": decision.Question, "answer": req, "resume_task_id": uuidToString(updated.ResumeTaskID)}, &auditOpts{ApproverType: actorType, ApproverID: actorID})
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	writeJSON(w, http.StatusOK, map[string]any{"decision": issueDecisionToResponse(updated)})
 }

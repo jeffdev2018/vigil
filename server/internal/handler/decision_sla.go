@@ -72,6 +72,7 @@ func (h *Handler) EscalateOverdueDecisions(ctx context.Context, now time.Time) (
 		}
 		moved++
 		h.notifyDecisionEscalated(ctx, escalated, sla)
+		h.audit(ctx, escalated.WorkspaceID, "system", "", AuditDecisionEscalated, "issue_decision", escalated.ID, map[string]any{"issue_id": uuidToString(escalated.IssueID), "level": escalated.EscalationLevel}, nil)
 	}
 	return moved, nil
 }
