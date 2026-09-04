@@ -2102,6 +2102,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/issues/{id}/handoff-packet", h.CreateHandoffPacket)
 			r.Get("/api/issues/{id}/handoff-packet/latest", h.GetLatestHandoffPacket)
 			r.Get("/api/issues/{id}/handoff-packets", h.ListHandoffPackets)
+			// Drift detection (K40): thresholds per workspace.
+			r.Get("/api/drift-policy", h.GetDriftPolicy)
+			r.Put("/api/drift-policy", h.PutDriftPolicy)
 			r.Get("/api/routing-settings", h.GetRoutingSettings)
 			r.Put("/api/routing-settings", h.PutRoutingSettings)
 			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)

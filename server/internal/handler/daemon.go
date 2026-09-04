@@ -4729,6 +4729,13 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 	}
 	// Traffic control (K18): editing tool calls name the paths this run touches.
 	h.recordTouchedPaths(r.Context(), task, created)
+	// Drift detection (K40): observe the tool calls, after they are written.
+	for _, msg := range created {
+		if msg.Type == "tool_use" || msg.Type == "tool-use" {
+			h.checkDrift(r.Context(), task)
+			break
+		}
+	}
 	if checkpointSeq > 0 {
 		if err := h.Queries.CheckpointTask(r.Context(), db.CheckpointTaskParams{ID: task.ID, LastCheckpointSeq: pgtype.Int8{Int64: checkpointSeq, Valid: true}}); err != nil {
 			slog.Warn("checkpoint: advance failed", "task_id", taskID, "error", err)

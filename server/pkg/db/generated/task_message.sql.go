@@ -197,6 +197,48 @@ func (q *Queries) DeleteTaskMessages(ctx context.Context, taskID pgtype.UUID) er
 	return err
 }
 
+const listRecentTaskToolUses = `-- name: ListRecentTaskToolUses :many
+SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM (
+    SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM task_message WHERE task_id = $1 AND type IN ('tool_use', 'tool-use') ORDER BY seq DESC LIMIT $2
+) recent ORDER BY seq ASC
+`
+
+type ListRecentTaskToolUsesParams struct {
+	TaskID pgtype.UUID `json:"task_id"`
+	Limit  int32       `json:"limit"`
+}
+
+// Drift detection (K40): the run's latest tool calls, oldest first.
+func (q *Queries) ListRecentTaskToolUses(ctx context.Context, arg ListRecentTaskToolUsesParams) ([]TaskMessage, error) {
+	rows, err := q.db.Query(ctx, listRecentTaskToolUses, arg.TaskID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskMessage{}
+	for rows.Next() {
+		var i TaskMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Seq,
+			&i.Type,
+			&i.Tool,
+			&i.Content,
+			&i.Input,
+			&i.Output,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTaskMessages = `-- name: ListTaskMessages :many
 SELECT id, task_id, seq, type, tool, content, input, output, created_at FROM task_message
 WHERE task_id = $1
@@ -272,4 +314,18 @@ func (q *Queries) ListTaskMessagesSince(ctx context.Context, arg ListTaskMessage
 		return nil, err
 	}
 	return items, nil
+}
+
+const setTaskDriftReason = `-- name: SetTaskDriftReason :exec
+UPDATE agent_task_queue SET drift_reason = $2 WHERE id = $1
+`
+
+type SetTaskDriftReasonParams struct {
+	ID          pgtype.UUID `json:"id"`
+	DriftReason pgtype.Text `json:"drift_reason"`
+}
+
+func (q *Queries) SetTaskDriftReason(ctx context.Context, arg SetTaskDriftReasonParams) error {
+	_, err := q.db.Exec(ctx, setTaskDriftReason, arg.ID, arg.DriftReason)
+	return err
 }

@@ -86,3 +86,12 @@ ORDER BY seq ASC;
 -- name: DeleteTaskMessages :exec
 DELETE FROM task_message
 WHERE task_id = $1;
+
+-- name: ListRecentTaskToolUses :many
+-- Drift detection (K40): the run's latest tool calls, oldest first.
+SELECT * FROM (
+    SELECT * FROM task_message WHERE task_id = $1 AND type IN ('tool_use', 'tool-use') ORDER BY seq DESC LIMIT $2
+) recent ORDER BY seq ASC;
+
+-- name: SetTaskDriftReason :exec
+UPDATE agent_task_queue SET drift_reason = $2 WHERE id = $1;
