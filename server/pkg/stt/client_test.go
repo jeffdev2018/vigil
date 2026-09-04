@@ -10,7 +10,7 @@ import (
 )
 
 func TestTranscribeSendsOpenAICompatibleForm(t *testing.T) {
-	var gotModel, gotLang, gotDiarize, gotFile, gotAuth string
+	var gotModel, gotLang, gotDiarize, gotGranularity, gotFile, gotAuth string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/v1/audio/transcriptions" {
 			t.Errorf("path = %s", r.URL.Path)
@@ -22,6 +22,7 @@ func TestTranscribeSendsOpenAICompatibleForm(t *testing.T) {
 		gotModel = r.FormValue("model")
 		gotLang = r.FormValue("language")
 		gotDiarize = r.FormValue("diarize")
+		gotGranularity = r.FormValue("timestamp_granularities")
 		f, hdr, err := r.FormFile("file")
 		if err != nil {
 			t.Fatalf("file: %v", err)
@@ -45,8 +46,8 @@ func TestTranscribeSendsOpenAICompatibleForm(t *testing.T) {
 	if res.Text != "Bonjour à tous." {
 		t.Fatalf("text = %q", res.Text)
 	}
-	if gotModel != "voxtral-mini-latest" || gotLang != "fr" || gotDiarize != "true" {
-		t.Fatalf("form = model:%q lang:%q diarize:%q", gotModel, gotLang, gotDiarize)
+	if gotModel != "voxtral-mini-latest" || gotLang != "fr" || gotDiarize != "true" || gotGranularity != "segment" {
+		t.Fatalf("form = model:%q lang:%q diarize:%q granularity:%q", gotModel, gotLang, gotDiarize, gotGranularity)
 	}
 	if gotFile != "seg-1.webm:AUDIO" {
 		t.Fatalf("file = %q", gotFile)
@@ -59,7 +60,8 @@ func TestTranscribeSendsOpenAICompatibleForm(t *testing.T) {
 func TestTranscribeLabelsDiarizedSegments(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"text":"on livre vendredi ok","segments":[{"text":"On livre vendredi.","speaker_id":0},{"text":"Ok.","speaker_id":1}]}`)
+		// Mixed shapes: Voxtral's "speaker_1" strings and Whisper-style ints.
+		_, _ = io.WriteString(w, `{"text":"on livre vendredi ok","segments":[{"type":"transcription_segment","text":"On livre vendredi.","start":0.1,"end":3.0,"speaker_id":"speaker_1"},{"text":"Ok.","speaker_id":1}]}`)
 	}))
 	defer srv.Close()
 	c := New(Config{BaseURL: srv.URL, Model: "m"})

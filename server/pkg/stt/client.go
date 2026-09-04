@@ -75,10 +75,32 @@ type Result struct {
 type transcriptionResponse struct {
 	Text     string `json:"text"`
 	Segments []struct {
-		Text      string `json:"text"`
-		Speaker   string `json:"speaker"`
-		SpeakerID *int   `json:"speaker_id"`
+		Text    string `json:"text"`
+		Speaker string `json:"speaker"`
+		// Voxtral sends "speaker_1", Whisper-style servers send 0; keep raw.
+		SpeakerID json.RawMessage `json:"speaker_id"`
 	} `json:"segments"`
+}
+
+// speakerLabel turns a provider speaker id into "Speaker N". A number is
+// zero-based; a string like "speaker_1" keeps its own number.
+func speakerLabel(raw json.RawMessage) string {
+	if len(raw) == 0 || string(raw) == "null" {
+		return ""
+	}
+	var n int
+	if err := json.Unmarshal(raw, &n); err == nil {
+		return fmt.Sprintf("Speaker %d", n+1)
+	}
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil && strings.TrimSpace(str) != "" {
+		str = strings.TrimSpace(str)
+		if i := strings.LastIndexAny(str, "_- "); i >= 0 && i < len(str)-1 {
+			return "Speaker " + str[i+1:]
+		}
+		return str
+	}
+	return ""
 }
 
 const maxErrorBody = 300
@@ -110,8 +132,12 @@ func (c *Client) Transcribe(ctx context.Context, filename, contentType string, a
 		}
 	}
 	if c.cfg.Diarize {
-		if err := mw.WriteField("diarize", "true"); err != nil {
-			return Result{}, fmt.Errorf("stt: build form: %w", err)
+		// Voxtral refuses diarize without a timestamp granularity; other
+		// providers ignore both fields.
+		for k, v := range map[string]string{"diarize": "true", "timestamp_granularities": "segment"} {
+			if err := mw.WriteField(k, v); err != nil {
+				return Result{}, fmt.Errorf("stt: build form: %w", err)
+			}
 		}
 	}
 	if err := mw.Close(); err != nil {
@@ -167,8 +193,8 @@ func formatText(p transcriptionResponse) string {
 			continue
 		}
 		label := strings.TrimSpace(s.Speaker)
-		if label == "" && s.SpeakerID != nil {
-			label = fmt.Sprintf("Speaker %d", *s.SpeakerID+1)
+		if label == "" {
+			label = speakerLabel(s.SpeakerID)
 		}
 		if label != "" {
 			labelled = true
