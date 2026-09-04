@@ -68,6 +68,7 @@ import type {
   RuntimeHourlyActivity,
   RuntimeUsageByAgent,
   RuntimeUsageByHour,
+  RuntimeRoutingStatsResponse,
   DashboardUsageDaily,
   DashboardUsageByAgent,
   DashboardCostPerDeliverable,
@@ -446,6 +447,8 @@ import {
   RuntimeUsageByAgentListSchema,
   RuntimeUsageByHourListSchema,
   RuntimeUsageListSchema,
+  RuntimeRoutingStatsResponseSchema,
+  EMPTY_ROUTING_STATS_RESPONSE,
   SearchIssuesResponseSchema,
   SearchProjectsResponseSchema,
   SquadSchema,
@@ -2846,6 +2849,21 @@ export class ApiClient {
       DashboardFailureByAgentListSchema,
       [],
       { endpoint: "GET /api/dashboard/failures/by-agent" },
+    );
+  }
+
+  /**
+   * 90-day routing stats per (runtime, provider, model, task class) behind
+   * the smart router (JEF-237). Bare-array list response, same convention as
+   * `listSkills` / the runtime usage endpoints.
+   */
+  async listRoutingStats(): Promise<RuntimeRoutingStatsResponse> {
+    const raw = await this.fetch<unknown>("/api/runtimes/routing-stats");
+    return parseWithFallback<RuntimeRoutingStatsResponse>(
+      raw,
+      RuntimeRoutingStatsResponseSchema,
+      EMPTY_ROUTING_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/routing-stats" },
     );
   }
 

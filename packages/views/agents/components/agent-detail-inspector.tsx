@@ -256,17 +256,28 @@ export function AgentDetailInspector({
               members={members}
               currentUserId={currentUserId}
               canEdit={canEdit}
+              routing={agent.runtime_routing ?? "fixed"}
               // Model, thinking level, and service tier are runtime/model
               // native. Clear them together so the new runtime resolves its
               // own defaults instead of inheriting incompatible tokens.
-              onChange={(id) =>
-                update({
+              // Choosing Auto (JEF-237) is NOT a runtime change: the current
+              // runtime becomes the preferred / fallback one and the model
+              // overrides stay.
+              onChange={(id, routing) => {
+                if (routing === "auto") {
+                  return update({ runtime_routing: "auto" });
+                }
+                if (id === agent.runtime_id) {
+                  return update({ runtime_routing: "fixed" });
+                }
+                return update({
                   runtime_id: id,
+                  runtime_routing: "fixed",
                   model: "",
                   thinking_level: "",
                   service_tier: "",
-                })
-              }
+                });
+              }}
             />
           </SettingsRow>
           <SettingsRow

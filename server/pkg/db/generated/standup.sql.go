@@ -80,7 +80,7 @@ func (q *Queries) GetWeeklyRetro(ctx context.Context, arg GetWeeklyRetroParams) 
 
 const listStaleBlockedIssues = `-- name: ListStaleBlockedIssues :many
 
-SELECT issue.id, issue.workspace_id, issue.title, issue.description, issue.status, issue.priority, issue.assignee_type, issue.assignee_id, issue.creator_type, issue.creator_id, issue.parent_issue_id, issue.acceptance_criteria, issue.context_refs, issue.position, issue.due_date, issue.created_at, issue.updated_at, issue.number, issue.project_id, issue.origin_type, issue.origin_id, issue.first_executed_at, issue.start_date, issue.metadata, issue.stage, issue.properties, issue.revision, issue.last_activity_at, issue.completed_at, issue.reopen_count FROM issue
+SELECT issue.id, issue.workspace_id, issue.title, issue.description, issue.status, issue.priority, issue.assignee_type, issue.assignee_id, issue.creator_type, issue.creator_id, issue.parent_issue_id, issue.acceptance_criteria, issue.context_refs, issue.position, issue.due_date, issue.created_at, issue.updated_at, issue.number, issue.project_id, issue.origin_type, issue.origin_id, issue.first_executed_at, issue.start_date, issue.metadata, issue.stage, issue.properties, issue.revision, issue.last_activity_at, issue.reopen_count, issue.completed_at FROM issue
 WHERE issue.workspace_id = $1
   AND (issue.status = 'blocked' OR issue.status IN (SELECT s.key FROM issue_status s WHERE s.workspace_id = $1 AND s.category = 'blocked'))
   AND issue.updated_at < $2
@@ -132,8 +132,8 @@ func (q *Queries) ListStaleBlockedIssues(ctx context.Context, arg ListStaleBlock
 			&i.Properties,
 			&i.Revision,
 			&i.LastActivityAt,
-			&i.CompletedAt,
 			&i.ReopenCount,
+			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -146,7 +146,7 @@ func (q *Queries) ListStaleBlockedIssues(ctx context.Context, arg ListStaleBlock
 }
 
 const listStalePendingDecisionIssues = `-- name: ListStalePendingDecisionIssues :many
-SELECT DISTINCT ON (i.id) i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.completed_at, i.reopen_count FROM issue i
+SELECT DISTINCT ON (i.id) i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at FROM issue i
 JOIN issue_decision d ON d.issue_id = i.id
 WHERE i.workspace_id = $1 AND d.response IS NULL AND d.created_at < $2
 ORDER BY i.id
@@ -196,8 +196,8 @@ func (q *Queries) ListStalePendingDecisionIssues(ctx context.Context, arg ListSt
 			&i.Properties,
 			&i.Revision,
 			&i.LastActivityAt,
-			&i.CompletedAt,
 			&i.ReopenCount,
+			&i.CompletedAt,
 		); err != nil {
 			return nil, err
 		}

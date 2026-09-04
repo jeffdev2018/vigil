@@ -40,6 +40,8 @@ export const dashboardKeys = {
     tz: string,
   ) =>
     [...dashboardKeys.all(wsId), "failures-by-agent", days, projectId, tz] as const,
+  routingStats: (wsId: string) =>
+    [...dashboardKeys.all(wsId), "routing-stats"] as const,
 };
 
 // The server materializes these rollups on a 5-minute cadence, so a mounted
@@ -234,5 +236,20 @@ export function dashboardFailuresByAgentOptions(
       isSameDashboardScope(previousQuery?.queryKey, queryKey)
         ? keepPreviousData(previousData)
         : undefined,
+  });
+}
+
+/**
+ * Smart-router benchmarks (JEF-237): the 90-day per-(runtime, provider,
+ * model, task class) rollup. The window is fixed server-side, so the key
+ * carries no days/project/tz — unlike the rollups above.
+ */
+export function routingStatsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: dashboardKeys.routingStats(wsId),
+    queryFn: () => api.listRoutingStats(),
+    enabled: !!wsId,
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
   });
 }

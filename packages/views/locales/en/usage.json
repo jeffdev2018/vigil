@@ -102,6 +102,19 @@
     "title": "No usage yet",
     "body": "Once agents start working here, their token spend and run time will appear in this view."
   },
+  "routing_benchmarks": {
+    "title": "Smart routing benchmarks",
+    "subtitle": "Last 90 days · per runtime, model and task class",
+    "col_runtime": "Runtime",
+    "col_model": "Model",
+    "col_class": "Task class",
+    "col_samples": "Samples",
+    "col_success": "Success",
+    "col_avg_cost": "Avg cost",
+    "col_avg_duration": "Avg duration",
+    "empty_title": "No routing data yet",
+    "empty_body": "Once agents run in Auto routing mode, their 90-day performance per runtime and model shows up here."
+  },
   "duration": {
     "less_than_minute": "<1m"
   },

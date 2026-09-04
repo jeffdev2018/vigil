@@ -75,14 +75,15 @@ INSERT INTO agent (
     runtime_config, runtime_id, visibility, max_concurrent_tasks, owner_id,
     instructions, custom_env, custom_args, mcp_config, model, thinking_level,
     service_tier, conversation_starters,
-    composio_toolkit_allowlist, permission_mode
+    composio_toolkit_allowlist, permission_mode, runtime_routing
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
     $17, COALESCE(sqlc.narg('conversation_starters')::jsonb, '[]'::jsonb),
     sqlc.narg('composio_toolkit_allowlist')::text[],
-    COALESCE(sqlc.narg('permission_mode'), 'private')
+    COALESCE(sqlc.narg('permission_mode'), 'private'),
+    COALESCE(sqlc.narg('runtime_routing'), 'fixed')
 )
 RETURNING *;
 
@@ -148,6 +149,7 @@ UPDATE agent SET
     runtime_config = COALESCE(sqlc.narg('runtime_config'), runtime_config),
     runtime_mode = COALESCE(sqlc.narg('runtime_mode'), runtime_mode),
     runtime_id = COALESCE(sqlc.narg('runtime_id'), runtime_id),
+    runtime_routing = COALESCE(sqlc.narg('runtime_routing'), runtime_routing),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),
     permission_mode = COALESCE(sqlc.narg('permission_mode'), permission_mode),
     status = COALESCE(sqlc.narg('status'), status),
@@ -319,6 +321,7 @@ INSERT INTO agent_task_queue (
     coalesced_comment_ids, trigger_summary, force_fresh_session, is_leader_task, handoff_note,
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -344,6 +347,8 @@ SELECT
     sqlc.narg(rerun_of_task_id),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -362,6 +367,7 @@ INSERT INTO agent_task_queue (
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id,
     trigger_evidence_kind, trigger_evidence_ref_id, fire_at,
+    task_class, routing,
     id
 )
 SELECT
@@ -387,6 +393,8 @@ SELECT
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
     @fire_at,
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -785,7 +793,10 @@ WHERE id = (
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
             -- A task's persisted runtime is not authority after an agent rebind.
-            AND a.runtime_id = atq.runtime_id
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -894,7 +905,11 @@ WHERE id = (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            -- A task's persisted runtime is not authority after an agent rebind.
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -940,7 +955,11 @@ WHERE id IN (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            -- A task's persisted runtime is not authority after an agent rebind.
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -2210,7 +2229,9 @@ WHERE atq.runtime_id = $1
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
+        -- stamped with the CHOSEN runtime, not their bound fallback runtime.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
         AND (
             r.visibility = 'public'
             OR (
@@ -2338,7 +2359,9 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
+        -- stamped with the CHOSEN runtime, not their bound fallback runtime.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
         AND (
             r.visibility = 'public'
             OR (

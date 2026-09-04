@@ -23,6 +23,7 @@ import {
   dashboardRunTimeDailyOptions,
   dashboardFailuresDailyOptions,
   dashboardFailuresByAgentOptions,
+  routingStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
@@ -68,6 +69,7 @@ import {
 import { ProjectFilter, TimeRangeFilter } from "./dashboard-filters";
 import { UsageTrendCard } from "./usage-trend-card";
 import { Leaderboard } from "./leaderboard";
+import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
 import { ErrorsTab } from "./errors-tab";
 import { cn } from "@multica/ui/lib/utils";
 import { BudgetNotice } from "./budget-notice";
@@ -81,6 +83,8 @@ const EMPTY_RUNTIME: import("@multica/core/types").DashboardAgentRunTime[] = [];
 const EMPTY_RUNTIME_DAILY: import("@multica/core/types").DashboardRunTimeDaily[] = [];
 const EMPTY_FAILURE_DAILY: import("@multica/core/types").DashboardFailureDaily[] = [];
 const EMPTY_FAILURE_BY_AGENT: import("@multica/core/types").DashboardFailureByAgent[] =
+  [];
+const EMPTY_ROUTING_STATS_ROWS: import("@multica/core/types").RuntimeRoutingStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
@@ -233,6 +237,9 @@ export function DashboardPage() {
   const failuresByAgentQuery = useQuery(
     dashboardFailuresByAgentOptions(wsId, days, projectId, viewTZ),
   );
+  // Smart-router benchmarks (JEF-237): fixed 90-day server-side window, so
+  // this query deliberately ignores the page's days/project/tz scope.
+  const routingStatsQuery = useQuery(routingStatsOptions(wsId));
 
   const dailyUsage = dailyQuery.data ?? EMPTY_DAILY;
   const byAgentUsage = byAgentQuery.data ?? EMPTY_BY_AGENT;
@@ -240,6 +247,7 @@ export function DashboardPage() {
   const runTimeDailyRows = runTimeDailyQuery.data ?? EMPTY_RUNTIME_DAILY;
   const failureDailyRows = failuresDailyQuery.data ?? EMPTY_FAILURE_DAILY;
   const failureByAgentRows = failuresByAgentQuery.data ?? EMPTY_FAILURE_BY_AGENT;
+  const routingStats = routingStatsQuery.data?.rows ?? EMPTY_ROUTING_STATS_ROWS;
 
   const queryClient = useQueryClient();
   // "Refreshing" covers any of the six rollups being in flight, whichever
@@ -629,6 +637,14 @@ export function DashboardPage() {
                 />
               </>
             )}
+            {/* Outside the usage loading/empty gate: a workspace whose agents
+                only ever ran in Auto mode still has benchmarks to show, and
+                the card carries its own loading and empty states. */}
+            <RoutingBenchmarksCard
+              rows={routingStats}
+              loading={routingStatsQuery.isLoading}
+              lessThanMinuteLabel={lessThanMinuteLabel}
+            />
           </TabsContent>
 
           <TabsContent value="errors">

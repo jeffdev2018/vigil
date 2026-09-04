@@ -102,6 +102,19 @@
     "title": "暂无消耗数据",
     "body": "当智能体在这里开始运行后，它们的 token 消耗和耗时将出现在此处。"
   },
+  "routing_benchmarks": {
+    "title": "智能路由基准",
+    "subtitle": "近 90 天 · 按运行时、模型和任务类别",
+    "col_runtime": "运行时",
+    "col_model": "模型",
+    "col_class": "任务类别",
+    "col_samples": "样本数",
+    "col_success": "成功率",
+    "col_avg_cost": "平均成本",
+    "col_avg_duration": "平均时长",
+    "empty_title": "暂无路由数据",
+    "empty_body": "当智能体以自动路由模式运行后，这里会显示各运行时和模型近 90 天的表现。"
+  },
   "duration": {
     "less_than_minute": "<1分钟"
   },

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup } from "@testing-library/react";
 import type { MemberWithUser, RuntimeDevice } from "@multica/core/types";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
@@ -119,5 +119,58 @@ describe("RuntimePicker (creation studio)", () => {
       fireEvent.click(button);
     }
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  // Smart routing (JEF-237): Auto is opt-in per surface — the entry only
+  // exists when the host passes onRoutingChange.
+  it("hides the Auto entry when the surface does not handle routing", () => {
+    const { container } = renderPicker();
+    fireEvent.click(trigger(container));
+    expect(
+      screen.queryByRole("button", { name: /Auto \(smart routing\)/ }),
+    ).toBeNull();
+  });
+
+  it("selects Auto without touching the runtime selection", () => {
+    const onRoutingChange = vi.fn();
+    const { container, onSelect } = renderPicker({ onRoutingChange });
+    fireEvent.click(trigger(container));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Auto \(smart routing\)/ }),
+    );
+    expect(onRoutingChange).toHaveBeenCalledWith("auto");
+    // The selected runtime stays — it becomes the preferred / fallback one.
+    expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it("flips back to fixed when a runtime row is picked while in auto mode", () => {
+    const onRoutingChange = vi.fn();
+    const { container, onSelect } = renderPicker({
+      routing: "auto",
+      onRoutingChange,
+      runtimes: [
+        RUNTIMES[0]!,
+        // Own machine + distinct provider base so the row is unambiguous.
+        makeRuntime({
+          id: "rt-b",
+          daemon_id: "daemon-2",
+          name: "Codex (b.local)",
+          provider: "codex",
+        }),
+      ],
+    });
+    fireEvent.click(trigger(container));
+
+    fireEvent.click(screen.getByRole("button", { name: /^Codex/ }));
+    expect(onRoutingChange).toHaveBeenCalledWith("fixed");
+    expect(onSelect).toHaveBeenCalledWith("rt-b");
+  });
+
+  it("labels the trigger with Auto and the preferred runtime in auto mode", () => {
+    const onRoutingChange = vi.fn();
+    renderPicker({ routing: "auto", onRoutingChange });
+    expect(screen.getByText("Auto (smart routing)")).toBeTruthy();
+    expect(screen.getByText("Preferred: Claude (a.local)")).toBeTruthy();
   });
 });
