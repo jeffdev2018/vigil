@@ -2791,3 +2791,27 @@ INSERT INTO agent (
     @owner_id, '', '{}'::jsonb, '[]'::jsonb, 'user', @system_key
 )
 RETURNING *;
+
+-- name: GetPendingTaskForIssueAndAgent :one
+-- Returns the task occupying the pending slot (the same predicate as
+-- idx_one_pending_task_per_issue_agent_v2). Used by the handoff coalescing
+-- path (JEF-241): when an interview answer / review rework / resume arrives
+-- while a run is already queued, its note merges into that task instead of
+-- failing the enqueue on the unique index.
+SELECT * FROM agent_task_queue
+WHERE issue_id = $1 AND agent_id = $2
+  AND (
+    status IN ('queued', 'dispatched')
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  );
+
+-- name: AppendTaskHandoffNote :one
+-- Appends a handoff note to the task's existing one (JEF-241 coalescing).
+-- The separator keeps successive notes readable as distinct blocks.
+UPDATE agent_task_queue
+SET handoff_note = CASE
+    WHEN handoff_note IS NULL OR handoff_note = '' THEN $2
+    ELSE handoff_note || E'\n\n---\n\n' || $2
+  END
+WHERE id = $1
+RETURNING *;

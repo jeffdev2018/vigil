@@ -1284,8 +1284,42 @@ func (s *TaskService) EnqueueTaskForIssueByActor(ctx context.Context, issue db.I
 // variant used when an installed client still sends handoff_note. The note is
 // persisted on the task so both old and current daemons can render it in the
 // run's opening prompt. Empty text behaves like EnqueueTaskForIssueByActor.
+//
+// Coalescing (JEF-241): interview answers, review reworks and resume runs all
+// carry a handoff note, and they commonly arrive while the issue already has
+// a pending task (e.g. the assignment enqueue). The unique pending slot must
+// not swallow the note — it merges into the waiting task so the run still
+// opens with it.
 func (s *TaskService) EnqueueTaskForIssueWithHandoff(ctx context.Context, issue db.Issue, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	task, err := s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return task, err
+	}
+	return s.mergeHandoffIntoPendingTask(ctx, issue, handoffNote)
+}
+
+// mergeHandoffIntoPendingTask appends a handoff note to the task currently
+// occupying the issue's pending slot. The merge is deliberate (not the fresh
+// enqueue's) so attribution, routing and the trigger snapshot of the waiting
+// run stay untouched — only the operator-facing note grows.
+func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.Issue, handoffNote string) (db.AgentTaskQueue, error) {
+	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
+		IssueID: issue.ID,
+		AgentID: issue.AssigneeID,
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)
+	}
+	merged, err := s.Queries.AppendTaskHandoffNote(ctx, db.AppendTaskHandoffNoteParams{
+		ID:          pending.ID,
+		HandoffNote: pgtype.Text{String: handoffNote, Valid: true},
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("append handoff note: %w", err)
+	}
+	slog.Info("handoff note merged into pending task",
+		"issue_id", util.UUIDToString(issue.ID), "task_id", util.UUIDToString(merged.ID))
+	return merged, nil
 }
 
 // enqueueIssueTask is the shared implementation behind EnqueueTaskForIssue
