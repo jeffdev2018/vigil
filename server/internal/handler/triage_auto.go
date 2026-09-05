@@ -220,7 +220,7 @@ func (h *Handler) autoTriage(ctx context.Context, item db.TriageItem) {
 		if actor == "" {
 			return
 		}
-		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, actor, item.ID)
+		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, actor, item.ID, triageAcceptOverrides{})
 		if res.outcome != "accepted" {
 			return
 		}

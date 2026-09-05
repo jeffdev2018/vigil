@@ -85,7 +85,7 @@ func TestTriageAutoSuggestsAppliesAndReopens(t *testing.T) {
 	}
 	testHandler.ApplyTriageRules(context.Background(), mustTriageItem(t, crash))
 	if state := triageState(t, crash); state != "accepted" {
-		res := testHandler.acceptTriageItemCore(context.Background(), parseUUID(testWorkspaceID), testUserID, parseUUID(crash))
+		res := testHandler.acceptTriageItemCore(context.Background(), parseUUID(testWorkspaceID), testUserID, parseUUID(crash), triageAcceptOverrides{})
 		t.Fatalf("crash state = %s, want accepted (direct accept outcome now: %s)", state, res.outcome)
 	}
 	// Reopen the auto-dismissed item; a pending one cannot be reopened.

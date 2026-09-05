@@ -321,7 +321,19 @@ type acceptResult struct {
 // holding the item row locked, so two humans accepting the same item can
 // never create two issues. The acceptor is the issue's creator; the assignee
 // and project are inherited from the origin autopilot while it still exists.
-func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.UUID, userID string, itemID pgtype.UUID) acceptResult {
+// triageAcceptOverrides carries the "Accept as…" controls: what the human
+// chose in the queue instead of whatever the origin autopilot would have
+// given the issue. A zero value means "inherit everything", which is what the
+// batch endpoint and a body-less accept send.
+type triageAcceptOverrides struct {
+	AssigneeType pgtype.Text
+	AssigneeID   pgtype.UUID
+	ProjectID    pgtype.UUID
+	Priority     string
+	LabelIDs     []pgtype.UUID
+}
+
+func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.UUID, userID string, itemID pgtype.UUID, ov triageAcceptOverrides) acceptResult {
 	tx, err := h.TxStarter.Begin(ctx)
 	if err != nil {
 		return acceptResult{outcome: "error"}
@@ -344,7 +356,7 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 
 	var assigneeType pgtype.Text
 	var assigneeID, projectID pgtype.UUID
-	if item.OriginType == "autopilot" && item.OriginID.Valid {
+	if item.OriginType == "autopilot" && item.OriginID.Valid && (!ov.AssigneeType.Valid || !ov.ProjectID.Valid) {
 		if ap, aerr := h.Queries.GetAutopilotInWorkspace(ctx, db.GetAutopilotInWorkspaceParams{
 			ID: item.OriginID, WorkspaceID: workspaceID,
 		}); aerr == nil {
@@ -355,6 +367,17 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 			projectID = ap.ProjectID
 		}
 	}
+	// An explicit choice beats whatever the origin autopilot would have given.
+	if ov.AssigneeType.Valid {
+		assigneeType, assigneeID = ov.AssigneeType, ov.AssigneeID
+	}
+	if ov.ProjectID.Valid {
+		projectID = ov.ProjectID
+	}
+	priority := "none"
+	if ov.Priority != "" {
+		priority = ov.Priority
+	}
 
 	prefix := h.getIssuePrefix(ctx, workspaceID)
 	filler := h.newStatusCategoryFiller(ctx, workspaceID)
@@ -363,7 +386,7 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 		Title:        item.Title,
 		Description:  pgtype.Text{String: item.BodyMarkdown, Valid: item.BodyMarkdown != ""},
 		Status:       "todo",
-		Priority:     "none",
+		Priority:     priority,
 		AssigneeType: assigneeType,
 		AssigneeID:   assigneeID,
 		CreatorType:  "member",
@@ -371,6 +394,7 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 		ProjectID:    projectID,
 		OriginType:   pgtype.Text{String: item.OriginType, Valid: true},
 		OriginID:     item.OriginID,
+		LabelIDs:     ov.LabelIDs,
 	}, service.IssueCreateOpts{
 		BroadcastPayload: func(issue db.Issue, attachments []db.Attachment, labels []db.IssueLabel) map[string]any {
 			resp := issueToResponse(issue, prefix)
@@ -396,6 +420,10 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 		}
 		h.publishTriageResolved(workspaceID, item.ID, triage.StateMerged)
 		return acceptResult{outcome: "duplicate", duplicateOf: *result.DuplicateIssue, prefix: prefix}
+	}
+
+	if errors.Is(err, service.ErrIssueLabelNotFound) {
+		return acceptResult{outcome: "invalid_label"}
 	}
 
 	var limitErr *service.IssueLimitReachedError
@@ -440,7 +468,12 @@ func (h *Handler) AcceptTriageItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res := h.acceptTriageItemCore(r.Context(), workspaceID, userID, itemID)
+	ov, ok := parseTriageAcceptOverrides(w, r)
+	if !ok {
+		return
+	}
+
+	res := h.acceptTriageItemCore(r.Context(), workspaceID, userID, itemID, ov)
 	switch res.outcome {
 	case "accepted":
 		filler := h.newStatusCategoryFiller(r.Context(), workspaceID)
@@ -459,6 +492,8 @@ func (h *Handler) AcceptTriageItem(w http.ResponseWriter, r *http.Request) {
 			"duplicate_issue_id":         util.UUIDToString(res.duplicateOf.ID),
 			"duplicate_issue_identifier": fmt.Sprintf("%s-%d", res.prefix, res.duplicateOf.Number),
 		})
+	case "invalid_label":
+		writeError(w, http.StatusBadRequest, "one of the labels does not exist in this workspace")
 	case "limit_reached":
 		writeError(w, http.StatusPaymentRequired, "workspace has reached its issue limit; the item stays in the queue")
 	case "not_found":
@@ -577,7 +612,7 @@ func (h *Handler) BatchAcceptTriageItems(w http.ResponseWriter, r *http.Request)
 			results = append(results, BatchAcceptTriageItem{ID: raw, Outcome: "not_found"})
 			continue
 		}
-		res := h.acceptTriageItemCore(r.Context(), workspaceID, userID, itemID)
+		res := h.acceptTriageItemCore(r.Context(), workspaceID, userID, itemID, triageAcceptOverrides{})
 		entry := BatchAcceptTriageItem{ID: util.UUIDToString(itemID), Outcome: res.outcome}
 		switch res.outcome {
 		case "accepted":
