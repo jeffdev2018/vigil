@@ -62,6 +62,16 @@ FROM triage_item
 WHERE workspace_id = $1 AND first_seen_at >= now() - INTERVAL '24 hours'
 GROUP BY source_id, state;
 
+-- name: CountPendingTriageItemsBySource :many
+-- What a human still has to look at, per source: real pending items that are
+-- due. Distinct from the 24h volume counter, which also counts what has since
+-- been resolved and what was dropped.
+SELECT source_id, COUNT(*)::bigint AS n
+FROM triage_item
+WHERE workspace_id = $1 AND state = 'pending' AND shadow = false
+  AND (snoozed_until IS NULL OR snoozed_until <= now())
+GROUP BY source_id;
+
 -- name: OldestRealPendingTriageAgeSeconds :one
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bigint AS age_seconds
 FROM triage_item

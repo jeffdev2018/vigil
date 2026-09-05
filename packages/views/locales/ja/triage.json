@@ -5,7 +5,8 @@
     "pending": "保留 {{count}} 件",
     "oldest": "最長の待ち {{age}}",
     "dropped_24h": "24 時間で {{count}} 件破棄",
-    "none_pending": "キューは空です"
+    "none_pending": "キューは空です",
+    "shadow_pending": "{{count}} 件をシャドー記録"
   },
   "filter": {
     "pending": "保留",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "受信ソースはまだありません",
+    "action": "ソース",
+    "title": "受信ソース",
+    "pending": "未処理 {{count}} 件",
+    "dropped_24h": "24 時間で {{count}} 件を破棄",
+    "auto_accept": "自動受理",
+    "cap_per_hour": "1 時間あたりの上限",
+    "expiry_days": "保持期間（日）",
+    "zero_hint": "0 は上限なし、保持期間は既定値になります。",
     "items_24h": "24 時間で {{count}} 件",
     "mode": {
       "gate": "ゲート",

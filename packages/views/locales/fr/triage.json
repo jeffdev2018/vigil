@@ -5,7 +5,8 @@
     "pending": "{{count}} en attente",
     "oldest": "Plus ancien : {{age}}",
     "dropped_24h": "{{count}} rejetés en 24h",
-    "none_pending": "File d'attente vide"
+    "none_pending": "File d'attente vide",
+    "shadow_pending": "{{count}} enregistrés en observation"
   },
   "filter": {
     "pending": "En attente",
@@ -15,6 +16,14 @@
   },
   "sources": {
     "empty": "Aucune source entrante pour le moment",
+    "action": "Sources",
+    "title": "Sources entrantes",
+    "pending": "{{count}} en attente",
+    "dropped_24h": "{{count}} rejetés en 24 h",
+    "auto_accept": "Acceptation automatique",
+    "cap_per_hour": "Plafond horaire",
+    "expiry_days": "Rétention (jours)",
+    "zero_hint": "0 signifie aucun plafond et la rétention par défaut.",
     "items_24h": "{{count}} en 24h",
     "mode": {
       "gate": "Gate",

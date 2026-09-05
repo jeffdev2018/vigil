@@ -77,6 +77,42 @@ func (q *Queries) AcceptPendingTriageItem(ctx context.Context, arg AcceptPending
 	return i, err
 }
 
+const countPendingTriageItemsBySource = `-- name: CountPendingTriageItemsBySource :many
+SELECT source_id, COUNT(*)::bigint AS n
+FROM triage_item
+WHERE workspace_id = $1 AND state = 'pending' AND shadow = false
+  AND (snoozed_until IS NULL OR snoozed_until <= now())
+GROUP BY source_id
+`
+
+type CountPendingTriageItemsBySourceRow struct {
+	SourceID pgtype.UUID `json:"source_id"`
+	N        int64       `json:"n"`
+}
+
+// What a human still has to look at, per source: real pending items that are
+// due. Distinct from the 24h volume counter, which also counts what has since
+// been resolved and what was dropped.
+func (q *Queries) CountPendingTriageItemsBySource(ctx context.Context, workspaceID pgtype.UUID) ([]CountPendingTriageItemsBySourceRow, error) {
+	rows, err := q.db.Query(ctx, countPendingTriageItemsBySource, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountPendingTriageItemsBySourceRow{}
+	for rows.Next() {
+		var i CountPendingTriageItemsBySourceRow
+		if err := rows.Scan(&i.SourceID, &i.N); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countRecentTriageItemsBySource = `-- name: CountRecentTriageItemsBySource :many
 SELECT source_id, state, COUNT(*)::bigint AS n
 FROM triage_item

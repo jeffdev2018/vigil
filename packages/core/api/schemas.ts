@@ -49,6 +49,7 @@ import type {
   InboxItem,
   InboxWorkspaceUnread,
   TriageStats,
+  TriageSource,
   TriageItemsResponse,
   TriageEmailSource,
   Meeting,
@@ -1538,15 +1539,36 @@ export const TriageItemsResponseSchema = z.object({
   next_cursor: z.string().optional(),
 }).loose();
 
+// Also the shape PATCH /api/triage/sources/{id} answers with: the policy is a
+// superset of what the stats carry, and the counters a patch response omits
+// default to zero rather than making a second endpoint necessary.
 export const TriageSourceSchema = z.object({
   id: z.string(),
   kind: z.string().default(""),
   ref_id: z.string().default(""),
   name: z.string().default(""),
   mode: z.string().default("direct"),
+  auto_accept: z.boolean().default(false),
+  cap_per_hour: z.number().default(0),
+  expiry_days: z.number().default(0),
+  pending: z.number().default(0),
   items_24h: z.number().default(0),
   dropped_24h: z.number().default(0),
 }).loose();
+
+export const EMPTY_TRIAGE_SOURCE: TriageSource = Object.freeze({
+  id: "",
+  kind: "",
+  ref_id: "",
+  name: "",
+  mode: "direct",
+  auto_accept: false,
+  cap_per_hour: 0,
+  expiry_days: 0,
+  pending: 0,
+  items_24h: 0,
+  dropped_24h: 0,
+}) as TriageSource;
 
 export const TriageStatsSchema = z.object({
   pending: z.number().default(0),

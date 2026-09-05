@@ -5,7 +5,8 @@
     "pending": "{{count}} 个待审核",
     "oldest": "等待最久 {{age}}",
     "dropped_24h": "24 小时内丢弃 {{count}} 个",
-    "none_pending": "队列已清空"
+    "none_pending": "队列已清空",
+    "shadow_pending": "{{count}} 条影子记录"
   },
   "filter": {
     "pending": "待审核",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "暂无入站来源",
+    "action": "来源",
+    "title": "入站来源",
+    "pending": "待处理 {{count}} 条",
+    "dropped_24h": "24 小时内丢弃 {{count}} 条",
+    "auto_accept": "自动接受",
+    "cap_per_hour": "每小时上限",
+    "expiry_days": "保留天数",
+    "zero_hint": "0 表示不限速并使用默认保留期。",
     "items_24h": "24 小时内 {{count}} 个",
     "mode": {
       "gate": "拦截",

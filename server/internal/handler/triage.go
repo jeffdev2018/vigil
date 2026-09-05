@@ -31,15 +31,23 @@ const (
 	triageRetentionSweepBatch = 500
 )
 
-// TriageSourceStats is one inbound source and its 24h activity.
+// TriageSourceStats is one inbound source: its policy, and what it has done to
+// the queue. Policy travels with the counters because a human reading "40
+// dropped in 24h" is one click away from raising that source's cap, and a
+// second round trip to learn what the cap currently is helps nobody.
 type TriageSourceStats struct {
 	ID         string `json:"id"`
 	Kind       string `json:"kind"`
 	RefID      string `json:"ref_id"`
 	Name       string `json:"name"`
 	Mode       string `json:"mode"`
-	Items24h   int64  `json:"items_24h"`
-	Dropped24h int64  `json:"dropped_24h"`
+	AutoAccept bool   `json:"auto_accept"`
+	CapPerHour int32  `json:"cap_per_hour"`
+	ExpiryDays int32  `json:"expiry_days"`
+	// Real pending items still waiting on a human, this source only.
+	Pending    int64 `json:"pending"`
+	Items24h   int64 `json:"items_24h"`
+	Dropped24h int64 `json:"dropped_24h"`
 }
 
 // TriageStatsResponse summarizes the triage queue for the workspace. In M1
@@ -152,6 +160,16 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	pendingBySource, err := h.Queries.CountPendingTriageItemsBySource(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load triage stats")
+		return
+	}
+	pendingFor := make(map[string]int64, len(pendingBySource))
+	for _, row := range pendingBySource {
+		pendingFor[util.UUIDToString(row.SourceID)] = row.N
+	}
+
 	sources, err := h.Queries.ListTriageSources(ctx, workspaceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load triage stats")
@@ -168,11 +186,15 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 	for _, src := range sources {
 		id := util.UUIDToString(src.ID)
 		stats := TriageSourceStats{
-			ID:    id,
-			Kind:  src.Kind,
-			RefID: util.UUIDToString(src.RefID),
-			Name:  src.Name,
-			Mode:  src.Mode,
+			ID:         id,
+			Kind:       src.Kind,
+			RefID:      util.UUIDToString(src.RefID),
+			Name:       src.Name,
+			Mode:       src.Mode,
+			AutoAccept: triage.AutoAcceptEnabled(src.AutoAccept),
+			CapPerHour: src.CapPerHour,
+			ExpiryDays: src.ExpiryDays,
+			Pending:    pendingFor[id],
 		}
 		if act := activity[id]; act != nil {
 			stats.Items24h = act.items

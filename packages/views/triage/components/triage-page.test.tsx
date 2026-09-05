@@ -57,7 +57,7 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
 const data = vi.hoisted(() => ({
   stats: {
     pending: 1,
-    shadow_pending: 0,
+    shadow_pending: 4,
     dropped_24h: 0,
     snoozed: 2,
     oldest_pending_age_seconds: 3600,
@@ -68,8 +68,12 @@ const data = vi.hoisted(() => ({
         ref_id: "ap-1",
         name: "Sentry",
         mode: "gate",
+        auto_accept: false,
+        cap_per_hour: 0,
+        expiry_days: 14,
+        pending: 1,
         items_24h: 3,
-        dropped_24h: 0,
+        dropped_24h: 2,
       },
     ],
   } as TriageStats,
@@ -206,7 +210,7 @@ const mutations = vi.hoisted(() => ({
   }),
   dismiss: vi.fn().mockResolvedValue({ item_id: "item-1", state: "dismissed" }),
   batch: vi.fn().mockResolvedValue({ items: [] }),
-  updateMode: vi.fn(),
+  updateSource: vi.fn(),
 }));
 
 vi.mock("@multica/core/triage/mutations", () => ({
@@ -217,7 +221,7 @@ vi.mock("@multica/core/triage/mutations", () => ({
   useAcceptTriageItem: () => ({ mutateAsync: mutations.accept, isPending: false }),
   useDismissTriageItem: () => ({ mutateAsync: mutations.dismiss, isPending: false }),
   useBatchAcceptTriageItems: () => ({ mutateAsync: mutations.batch, isPending: false }),
-  useUpdateTriageSourceMode: () => ({ mutate: mutations.updateMode, isPending: false }),
+  useUpdateTriageSourceSettings: () => ({ mutate: mutations.updateSource, isPending: false }),
 }));
 
 function renderPage(search = "") {
@@ -265,15 +269,47 @@ describe("TriagePage", () => {
     ];
   });
 
-  it("renders pending items and the source strip", async () => {
+  it("renders pending items and the shadow measurement", async () => {
     renderPage();
     expect(await screen.findByText("Payment gateway timeout")).toBeTruthy();
-    // Source strip shows the source name (also echoed on the row) and its
-    // current mode label.
     expect(screen.getAllByText("Sentry").length).toBeGreaterThan(0);
-    expect(screen.getByText("Gate")).toBeTruthy();
     // Collapse count surfaces as a ×N badge.
     expect(screen.getByText("×2")).toBeTruthy();
+    // shadow_pending has always been in the response and was never rendered.
+    expect(screen.getByTestId("triage-shadow-pending").textContent).toContain("4");
+  });
+
+  // The sources panel: the per-source counters the response already carried
+  // (pending, dropped_24h) and the three policy fields PATCH accepts but
+  // nothing in the product could write.
+  it("the Sources panel shows a source's counters and patches its policy", async () => {
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    fireEvent.click(screen.getByRole("button", { name: /^sources/i }));
+
+    const card = await screen.findByTestId("triage-source");
+    expect(card.textContent).toContain("1 pending");
+    expect(card.textContent).toContain("3 in 24h");
+    expect(card.textContent).toContain("2 dropped in 24h");
+
+    fireEvent.click(screen.getByRole("switch", { name: /auto-accept/i }));
+    expect(mutations.updateSource).toHaveBeenCalledWith({
+      sourceId: "src-1",
+      patch: { auto_accept: true },
+    });
+
+    const cap = screen.getByLabelText("Cap per hour");
+    fireEvent.change(cap, { target: { value: "25" } });
+    fireEvent.blur(cap);
+    expect(mutations.updateSource).toHaveBeenCalledWith({
+      sourceId: "src-1",
+      patch: { cap_per_hour: 25 },
+    });
+
+    // An unchanged field must not spend a PATCH on blur.
+    mutations.updateSource.mockClear();
+    fireEvent.blur(screen.getByLabelText("Retention (days)"));
+    expect(mutations.updateSource).not.toHaveBeenCalled();
   });
 
   it("shows the empty state when the queue is clear", async () => {

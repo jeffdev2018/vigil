@@ -5,7 +5,8 @@
     "pending": "{{count}} pending",
     "oldest": "Oldest waiting {{age}}",
     "dropped_24h": "{{count}} dropped in 24h",
-    "none_pending": "Queue is clear"
+    "none_pending": "Queue is clear",
+    "shadow_pending": "{{count}} recorded in shadow"
   },
   "filter": {
     "pending": "Pending",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "No inbound sources yet",
+    "action": "Sources",
+    "title": "Inbound sources",
+    "pending": "{{count}} pending",
+    "dropped_24h": "{{count}} dropped in 24h",
+    "auto_accept": "Auto-accept",
+    "cap_per_hour": "Cap per hour",
+    "expiry_days": "Retention (days)",
+    "zero_hint": "0 means no cap and the default retention.",
     "items_24h": "{{count}} in 24h",
     "mode": {
       "gate": "Gate",
