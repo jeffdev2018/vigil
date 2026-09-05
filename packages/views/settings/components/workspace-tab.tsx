@@ -42,6 +42,7 @@ import { AdrGateSetting } from "./adr-gate-setting";
 import { BusinessRulesSetting } from "./business-rules-setting";
 import { StandupSetting } from "./standup-setting";
 import { TriageAutoSetting } from "./triage-auto-setting";
+import { TriageEmailSourceSetting } from "./triage-email-source-setting";
 import { ApprovalGatesSetting } from "./approval-gates-setting";
 import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
@@ -497,6 +498,7 @@ export function WorkspaceTab() {
       {workspace && <BusinessRulesSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <StandupSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <TriageAutoSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {wsId && <TriageEmailSourceSetting wsId={wsId} canEdit={canManageWorkspace} />}
       {workspace && <ApprovalGatesSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PermissionProfilesSetting canEdit={canManageWorkspace} />}
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}

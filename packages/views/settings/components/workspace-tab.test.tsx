@@ -88,6 +88,7 @@ vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
 vi.mock("./business-rules-setting", () => ({ BusinessRulesSetting: () => null }));
 vi.mock("./standup-setting", () => ({ StandupSetting: () => null }));
 vi.mock("./triage-auto-setting", () => ({ TriageAutoSetting: () => null }));
+vi.mock("./triage-email-source-setting", () => ({ TriageEmailSourceSetting: () => null }));
 vi.mock("./approval-gates-setting", () => ({ ApprovalGatesSetting: () => null }));
 vi.mock("./permission-profiles-setting", () => ({ PermissionProfilesSetting: () => null }));
 vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));

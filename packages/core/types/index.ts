@@ -138,6 +138,7 @@ export type {
   TriageSuggestion,
   TriageAutoSettings,
   TriageSuggestionsResponse,
+  TriageEmailSource,
 } from "./triage";
 export type {
   Postmortem,

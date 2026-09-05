@@ -1455,6 +1455,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// purpose: the bearer token in the URL path IS the credential. Workspace
 	// context is derived from the trigger row, never from request headers.
 	r.Post("/api/webhooks/autopilots/{token}", h.HandleAutopilotWebhook)
+	// Email intake for the triage queue. Same contract as the webhook ingress:
+	// the token in the path is the credential, the workspace comes from the
+	// source row it resolves to, never from a request header.
+	r.Post("/api/triage/inbound/email/{token}", h.HandleInboundTriageEmail)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
@@ -2015,6 +2019,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// the flood cap and retention: writes, and human-only like every
 				// other triage write.
 				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSourceSettings)
+				// Mint or rotate the workspace's email intake endpoint. The
+				// token is in the response and nowhere else.
+				r.With(handler.RequireHumanActor).Post("/sources/email", h.CreateTriageEmailSource)
 			})
 
 			// Meetings: recorded conversations transcribed and summarized into

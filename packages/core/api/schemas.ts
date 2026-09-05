@@ -50,6 +50,7 @@ import type {
   InboxWorkspaceUnread,
   TriageStats,
   TriageItemsResponse,
+  TriageEmailSource,
   Meeting,
   VoiceTranscription,
   RealtimeVoiceSession,
@@ -1579,6 +1580,23 @@ export const DismissTriageItemResponseSchema = z.object({
   item_id: z.string(),
   state: z.string().default("dismissed"),
 }).loose();
+
+// Email intake. The token comes back exactly once, when the endpoint is
+// created or rotated; a response missing it is unusable, so it has no default.
+export const TriageEmailSourceSchema = z.object({
+  id: z.string(),
+  mode: z.string().default("gate"),
+  path: z.string().default(""),
+  url: z.string().optional(),
+  token: z.string().default(""),
+}).loose();
+
+export const EMPTY_TRIAGE_EMAIL_SOURCE: TriageEmailSource = Object.freeze({
+  id: "",
+  mode: "gate",
+  path: "",
+  token: "",
+}) as TriageEmailSource;
 
 // Postmortem autogen (k68). A drafted postmortem for a failed run, reviewed
 // by a human (draft -> approved/discarded).
