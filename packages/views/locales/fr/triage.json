@@ -11,7 +11,8 @@
     "pending": "En attente",
     "accepted": "Accepté",
     "dismissed": "Ignoré",
-    "merged": "Fusionné"
+    "merged": "Fusionné",
+    "snoozed": "Reportés"
   },
   "sources": {
     "empty": "Aucune source entrante pour le moment",
@@ -57,7 +58,10 @@
     "accept": "Accepter {{count}}",
     "clear": "Effacer la sélection",
     "stopped_toast": "Arrêté — le workspace a atteint sa limite d'issues",
-    "summary_toast": "{{accepted}} acceptés, {{duplicates}} doublons, {{failed}} échecs"
+    "summary_toast": "{{accepted}} acceptés, {{duplicates}} doublons, {{failed}} échecs",
+    "dismiss": "Rejeter {{count}}",
+    "dismiss_summary": "Rejeter {{count}} éléments avec une raison commune.",
+    "dismiss_summary_toast": "{{dismissed}} rejetés, {{failed}} en échec"
   },
   "suggestion": {
     "title": "Suggestion",
@@ -72,5 +76,43 @@
     "not_ready": "Apprentissage : {{examples}} sur {{min}} décisions nécessaires avant l'application automatique.",
     "reopen": "Rouvrir",
     "reopen_failed": "Échec de la réouverture"
+  },
+  "accept_as": {
+    "label": "Accepter en tant que",
+    "assignee": "Assigné",
+    "assignee_set": "Assigné défini",
+    "priority": "Priorité",
+    "project": "Projet",
+    "project_set": "Projet défini"
+  },
+  "merge": {
+    "action": "Fusionner dans…",
+    "title": "Fusionner dans une issue",
+    "description": "Rattacher cet élément à une issue qui suit déjà ce travail.",
+    "toast": "Fusionné dans {{identifier}}"
+  },
+  "snooze": {
+    "action": "Reporter",
+    "custom": "Date personnalisée",
+    "confirm": "Reporter",
+    "toast": "Reporté",
+    "invalid": "Choisissez un moment futur, à 30 jours au plus",
+    "preset": {
+      "hour": "Dans une heure",
+      "evening": "Ce soir",
+      "tomorrow": "Demain",
+      "next_monday": "Lundi prochain"
+    }
+  },
+  "dismiss_reason": {
+    "label": "Raison (facultatif)",
+    "placeholder": "Pourquoi ce n'est pas du travail à faire ?",
+    "confirm": "Confirmer le rejet"
+  },
+  "verdict": {
+    "badge": "L'agent suggère : {{verdict}}",
+    "accept": "Accepter",
+    "dismiss": "Rejeter",
+    "by": "par {{name}}"
   }
 }

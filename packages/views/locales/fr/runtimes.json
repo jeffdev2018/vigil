@@ -47,6 +47,7 @@
     "section_remote": "Distant",
     "section_cloud": "Cloud",
     "this_machine": "Cet appareil",
+    "cli_sign_in_needed": "Connexion requise",
     "local_badge": "Local · cet appareil",
     "pending_custom_runtimes": "Runtimes personnalisés en attente",
     "runtime_count_one": "{{count}} runtime",
