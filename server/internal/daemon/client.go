@@ -617,7 +617,11 @@ type (
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 )
 
-func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout) (*HeartbeatResponse, error) {
+// SendHeartbeat beats for one runtime. `skipped` is the machine's
+// discovered-but-not-registered diagnostic (MUL-5439), sent ONLY on the beats
+// where it changed since the server last accepted it — a nil map leaves the
+// stored set alone, an empty map clears it.
+func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
 	body := map[string]any{
 		"runtime_id":            runtimeID,
@@ -626,6 +630,9 @@ func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []Di
 	if dirty != nil {
 		// Traffic control (K18): what a human changed in the local checkouts.
 		body["dirty_checkouts"] = dirty
+	}
+	if skipped != nil {
+		body["skipped_agents"] = skipped
 	}
 	if err := c.postJSON(ctx, "/api/daemon/heartbeat", body, &resp); err != nil {
 		return nil, err
