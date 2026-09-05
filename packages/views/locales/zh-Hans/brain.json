@@ -1,0 +1,57 @@
+{
+  "title": "知识库",
+  "subtitle": "每次运行都会收到的共享知识：决策、约定、代码库事实。",
+  "search_placeholder": "搜索笔记",
+  "filter": {
+    "all_tags": "全部标签",
+    "show_archived": "显示已归档"
+  },
+  "source": {
+    "manual": "手动",
+    "agent": "智能体创建",
+    "curation": "已整理",
+    "open_run": "查看运行"
+  },
+  "list": {
+    "loading": "正在加载笔记",
+    "load_error": "无法加载笔记",
+    "empty_title": "暂无笔记",
+    "empty_description": "记下一条决策、约定或关于此工作区的事实，每次运行都会收到它。",
+    "empty_search_title": "没有匹配的笔记",
+    "empty_search_description": "试试更少的关键词，或清除标签筛选。",
+    "pinned": "已置顶",
+    "archived": "已归档"
+  },
+  "detail": {
+    "select_prompt": "选择一条笔记以查看内容。",
+    "edit": "编辑",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "正在保存…",
+    "pin": "置顶",
+    "unpin": "取消置顶",
+    "archive": "归档",
+    "unarchive": "取消归档",
+    "title_label": "标题",
+    "tags_label": "标签",
+    "tags_hint": "用逗号分隔",
+    "content_label": "内容",
+    "content_placeholder": "支持 Markdown。一条笔记只讲一件事。",
+    "empty_content": "这条笔记还没有内容。",
+    "merged_into": "已被每日整理合并到另一条笔记。",
+    "saved_toast": "笔记已保存",
+    "conflict_toast": "有人先一步修改了这条笔记，请重新加载后再应用你的修改。",
+    "error_toast": "无法保存笔记",
+    "archived_toast": "笔记已归档",
+    "unarchived_toast": "笔记已恢复"
+  },
+  "create": {
+    "new": "新建笔记",
+    "heading": "新建笔记",
+    "title_placeholder": "写清事实，而不是主题",
+    "submit": "创建",
+    "submitting": "正在创建…",
+    "created_toast": "笔记已创建",
+    "error_toast": "无法创建笔记"
+  }
+}

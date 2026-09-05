@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { keepPreviousData, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 
 export const brainKeys = {
@@ -22,6 +22,10 @@ export function brainNotesOptions(
   const archived = params?.archived === true;
   return queryOptions({
     queryKey: brainKeys.list(wsId, search, tag, archived),
+    // Each filter combination is its own cache entry, so without this every
+    // keystroke would blank the list AND the tag chips back to the loading
+    // skeleton — including the chip the user is about to click.
+    placeholderData: keepPreviousData,
     queryFn: ({ signal }) =>
       api.listWorkspaceNotes(
         {

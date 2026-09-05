@@ -33,6 +33,7 @@ export type RouteIconName =
   | "Monitor"
   | "Server"
   | "BookOpenText"
+  | "BrainCircuit"
   | "Settings"
   | "File"
   | "FileText"
@@ -49,6 +50,7 @@ export type NavLabelKey =
   | "triage"
   | "meetings"
   | "postmortems"
+  | "brain"
   | "chat"
   | "my_issues"
   | "issues"
@@ -67,6 +69,7 @@ export type WorkspacePageKey =
   | "triage"
   | "meetings"
   | "postmortems"
+  | "brain"
   | "chat"
   | "myIssues"
   | "issues"
@@ -97,6 +100,7 @@ export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   triage: { segment: "triage", icon: "Inbox", navKey: "triage" },
   meetings: { segment: "meetings", icon: "AudioLines", navKey: "meetings" },
   postmortems: { segment: "postmortems", icon: "FileText", navKey: "postmortems" },
+  brain: { segment: "brain", icon: "BrainCircuit", navKey: "brain" },
   chat: { segment: "chat", icon: "MessageSquare", navKey: "chat" },
   myIssues: { segment: "my-issues", icon: "CircleUser", navKey: "my_issues" },
   issues: { segment: "issues", icon: "ListTodo", navKey: "issues" },
