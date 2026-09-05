@@ -27,6 +27,7 @@ import (
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
 	agentpkg "github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -2988,6 +2989,27 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+
+	// Triage: an issue an agent filed on its own initiative, or one captured
+	// through quick-create, is inbound material with a source of its own. The
+	// default is direct — the create below runs unchanged and the item is
+	// recorded as a shadow measurement — but a gated source parks the material
+	// instead (202) and a blocked one refuses it (403).
+	triageRef, triageManaged := h.triageIssueCreateRef(r.Context(), wsUUID, originType, parseUUID(actualCreatorID), safeParseUUID(creatorID))
+	triageParams := triage.CaptureParams{
+		WorkspaceID:     wsUUID,
+		SourceKind:      triageRef.Kind,
+		SourceRefID:     triageRef.RefID,
+		SourceName:      triageRef.Name,
+		SourceCreatedBy: triageRef.CreatedBy,
+		OriginType:      originType.String,
+		OriginID:        originID,
+		Title:           req.Title,
+		BodyMarkdown:    ptrToText(req.Description).String,
+	}
+	if triageManaged && !h.admitIssueCreate(w, r, wsUUID, triageRef, triageParams) {
+		return
 	}
 
 	// Prefix is workspace-level; pre-compute once so both the broadcast

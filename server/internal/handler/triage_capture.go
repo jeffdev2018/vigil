@@ -2,7 +2,11 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
+	"net/http"
+
+	"github.com/jackc/pgx/v5"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -35,23 +39,40 @@ type triageSourceRef struct {
 	CreatedBy pgtype.UUID
 }
 
-// triageRouteFor upserts the source row and returns its admission decision.
+// triageRouteFor returns the source's admission decision, registering the
+// source on its first delivery so a human can find it in settings and gate it.
+// The read comes first because this runs on the issue-create path: an upsert
+// per delivery would be a write on the hottest path in the product to learn
+// something that only changes when someone edits the source.
+//
 // Fail-open: any error resolves to direct, because a triage-table hiccup must
 // never lose inbound work.
 func (h *Handler) triageRouteFor(ctx context.Context, workspaceID pgtype.UUID, ref triageSourceRef) triage.Route {
-	source, err := h.Queries.UpsertTriageSource(ctx, db.UpsertTriageSourceParams{
+	source, err := h.Queries.GetTriageSourceByRef(ctx, db.GetTriageSourceByRefParams{
+		WorkspaceID: workspaceID,
+		Kind:        ref.Kind,
+		RefID:       ref.RefID,
+	})
+	if err == nil {
+		return triage.Decide(source.Mode)
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		slog.Warn("triage source lookup failed, admitting direct",
+			"kind", ref.Kind, "ref_id", util.UUIDToString(ref.RefID), "error", err)
+		return triage.RouteDirect
+	}
+	if _, err := h.Queries.UpsertTriageSource(ctx, db.UpsertTriageSourceParams{
 		WorkspaceID: workspaceID,
 		Kind:        ref.Kind,
 		RefID:       ref.RefID,
 		Name:        ref.Name,
 		CreatedByID: ref.CreatedBy,
-	})
-	if err != nil {
-		slog.Warn("triage source lookup failed, admitting direct",
+	}); err != nil {
+		slog.Warn("triage source registration failed",
 			"kind", ref.Kind, "ref_id", util.UUIDToString(ref.RefID), "error", err)
-		return triage.RouteDirect
 	}
-	return triage.Decide(source.Mode)
+	// A source nobody has configured yet is direct by definition.
+	return triage.RouteDirect
 }
 
 // captureTriageInbound records one inbound item and runs the rest of the
@@ -161,4 +182,78 @@ func channelSourceName(channelType string) string {
 		return "Channel"
 	}
 	return "Channel: " + channelType
+}
+
+// triageIssueCreateRef names the triage source for an issue created through
+// the ordinary API. Two entry points answer to a source of their own:
+//
+//   - agent_create: an agent filing an issue on its own initiative. The source
+//     is the agent, so one over-eager agent can be gated without touching the
+//     others. Its acceptor identity is the agent's owner — the human who is
+//     accountable for what it files.
+//   - quick_create: natural-language capture, one source per workspace.
+//
+// Every other create is a human typing into the product with the issue in
+// front of them; there is nothing to admit.
+func (h *Handler) triageIssueCreateRef(ctx context.Context, workspaceID pgtype.UUID, originType pgtype.Text, actorAgentID pgtype.UUID, actorUserID pgtype.UUID) (triageSourceRef, bool) {
+	switch originType.String {
+	case "agent_create":
+		if !actorAgentID.Valid {
+			return triageSourceRef{}, false
+		}
+		ref := triageSourceRef{Kind: triage.SourceAgentCreate, RefID: actorAgentID, Name: "Agent"}
+		if agent, err := h.Queries.GetAgent(ctx, actorAgentID); err == nil {
+			ref.Name = agent.Name
+			ref.CreatedBy = agent.OwnerID
+		}
+		return ref, true
+	case "quick_create":
+		return triageSourceRef{
+			Kind:      triage.SourceQuickCreate,
+			RefID:     workspaceID,
+			Name:      "Quick create",
+			CreatedBy: actorUserID,
+		}, true
+	}
+	return triageSourceRef{}, false
+}
+
+// admitIssueCreate is the create-path gate. It answers the request itself when
+// the material is held (202, with the queue entry) or refused (403), and
+// reports whether the caller may go on to create the issue.
+func (h *Handler) admitIssueCreate(w http.ResponseWriter, r *http.Request, workspaceID pgtype.UUID, ref triageSourceRef, params triage.CaptureParams) bool {
+	switch h.triageRouteFor(r.Context(), workspaceID, ref) {
+	case triage.RouteQueue:
+		params.State = triage.StatePending
+		item, ok := h.captureTriageInbound(r.Context(), params)
+		if !ok {
+			// Holding must never cost the report.
+			return true
+		}
+		writeJSON(w, http.StatusAccepted, map[string]any{
+			"code":    "triage_held",
+			"error":   "held for triage: a human will review this before it becomes an issue",
+			"item_id": util.UUIDToString(item.ID),
+			"state":   item.State,
+		})
+		return false
+	case triage.RouteDrop:
+		params.State = triage.StateDropped
+		params.DropReason = "source_blocked"
+		h.captureTriageInbound(r.Context(), params)
+		writeError(w, http.StatusForbidden, "this source is blocked from creating issues in this workspace")
+		return false
+	}
+	return true
+}
+
+// safeParseUUID is parseUUID without the panic, for a value whose provenance
+// the caller has not proven. An unparseable id yields the zero UUID, which
+// every consumer here reads as "no such actor".
+func safeParseUUID(s string) pgtype.UUID {
+	id, err := util.ParseUUID(s)
+	if err != nil {
+		return pgtype.UUID{}
+	}
+	return id
 }
