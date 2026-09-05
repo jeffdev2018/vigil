@@ -101,7 +101,8 @@
     "description": "{{appName}} is using the microphone. Take notes?",
     "accept": "Take notes",
     "dismiss": "Not now",
-    "meeting_title": "{{appName}} meeting"
+    "meeting_title": "{{appName}} meeting",
+    "looks_like": "Looks like: {{summary}}"
   },
   "delete_dialog": {
     "title": "Delete “{{title}}”?",

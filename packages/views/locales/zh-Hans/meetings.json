@@ -101,7 +101,8 @@
     "description": "{{appName}} 正在使用麦克风，需要记录吗？",
     "accept": "开始记录",
     "dismiss": "暂不",
-    "meeting_title": "{{appName}} 会议"
+    "meeting_title": "{{appName}} 会议",
+    "looks_like": "看起来是：{{summary}}"
   },
   "delete_dialog": {
     "title": "删除“{{title}}”？",

@@ -2033,6 +2033,18 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/resummarize", h.ResummarizeMeeting)
 			})
+			// Calendar subscription (ICS, no OAuth): the read-only feed URL the
+			// user's calendar already publishes. Personal to the caller in
+			// this workspace, so no path parameter and nothing to authorize
+			// beyond membership.
+			r.Route("/api/calendar", func(r chi.Router) {
+				r.Get("/feed", h.GetCalendarFeed)
+				r.With(handler.RequireHumanActor).Put("/feed", h.SetCalendarFeed)
+				r.With(handler.RequireHumanActor).Delete("/feed", h.DeleteCalendarFeed)
+				// Also the "Check feed" button in Settings: it answers 502
+				// with the reason when the feed cannot be read.
+				r.Get("/upcoming", h.UpcomingCalendar)
+			})
 			// Voice memo: one-shot transcription for the chat composer.
 			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)
 			// Live transcript: a short-lived provider token the browser uses to open

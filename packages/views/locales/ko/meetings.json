@@ -101,7 +101,8 @@
     "description": "{{appName}}이(가) 마이크를 사용 중입니다. 기록할까요?",
     "accept": "기록하기",
     "dismiss": "나중에",
-    "meeting_title": "{{appName}} 회의"
+    "meeting_title": "{{appName}} 회의",
+    "looks_like": "아마도: {{summary}}"
   },
   "delete_dialog": {
     "title": "'{{title}}'을(를) 삭제할까요?",

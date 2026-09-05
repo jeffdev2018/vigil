@@ -263,6 +263,8 @@ import type {
   Meeting,
   MeetingListResponse,
   MeetingSegmentResponse,
+  CalendarFeed,
+  CalendarUpcoming,
   VoiceTranscription,
   RealtimeVoiceSession,
   TriageSourceMode,
@@ -446,6 +448,10 @@ import {
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
   EMPTY_MEETING_SEGMENT,
+  CalendarFeedSchema,
+  CalendarUpcomingSchema,
+  EMPTY_CALENDAR_FEED,
+  EMPTY_CALENDAR_UPCOMING,
   TriageBatchAcceptResponseSchema,
   AcceptTriageItemResponseSchema,
   DismissTriageItemResponseSchema,
@@ -1791,6 +1797,55 @@ export class ApiClient {
     return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
       endpoint: "GET /api/meetings/:id",
     });
+  }
+
+  // Calendar subscription (ICS, no OAuth). Personal to the caller in the
+  // active workspace: there is no id in any of these paths.
+  async getCalendarFeed(options?: { signal?: AbortSignal }): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>(
+      "/api/calendar/feed",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "GET /api/calendar/feed",
+    });
+  }
+
+  /** Saves the feed URL. `https://` and `webcal://` only; 400 otherwise. */
+  async setCalendarFeed(url: string): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>("/api/calendar/feed", {
+      method: "PUT",
+      body: JSON.stringify({ url }),
+    });
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "PUT /api/calendar/feed",
+    });
+  }
+
+  async deleteCalendarFeed(): Promise<void> {
+    await this.fetch("/api/calendar/feed", { method: "DELETE" });
+  }
+
+  /**
+   * What is running now or starting within `within` (a Go duration such as
+   * "30m", capped server-side at two weeks). 502 `calendar_feed_failed` when
+   * the feed cannot be read — which is also how "Check feed" reports itself.
+   */
+  async calendarUpcoming(
+    within?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarUpcoming> {
+    const qs = within ? `?within=${encodeURIComponent(within)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/upcoming${qs}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarUpcoming>(
+      raw,
+      CalendarUpcomingSchema,
+      EMPTY_CALENDAR_UPCOMING,
+      { endpoint: "GET /api/calendar/upcoming" },
+    );
   }
 
   /** Renames a meeting. Title is the only mutable field. */

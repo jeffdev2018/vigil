@@ -101,7 +101,8 @@
     "description": "{{appName}} がマイクを使用しています。記録しますか？",
     "accept": "記録する",
     "dismiss": "後で",
-    "meeting_title": "{{appName}} のミーティング"
+    "meeting_title": "{{appName}} のミーティング",
+    "looks_like": "おそらく：{{summary}}"
   },
   "delete_dialog": {
     "title": "「{{title}}」を削除しますか？",

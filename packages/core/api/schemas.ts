@@ -55,6 +55,8 @@ import type {
   RealtimeVoiceSession,
   MeetingListResponse,
   MeetingSegmentResponse,
+  CalendarUpcoming,
+  CalendarFeed,
   PostmortemStats,
   PostmortemsResponse,
   Label,
@@ -4428,6 +4430,37 @@ export const EMPTY_MEETING: Meeting = Object.freeze({
 export const EMPTY_MEETING_LIST: MeetingListResponse = Object.freeze({
   meetings: [],
 }) as MeetingListResponse;
+
+// Calendar subscription (ICS). Times stay strings: they are ISO instants the
+// UI formats, and a malformed one must not fail the whole parse.
+export const CalendarEventSchema = z.object({
+  summary: z.string().default(""),
+  url: z.string().optional(),
+  start: z.string().default(""),
+  end: z.string().default(""),
+  in_progress: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarUpcomingSchema = z.object({
+  events: z.array(CalendarEventSchema).catch([]).default([]),
+  configured: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarFeedSchema = z.object({
+  url: z.string().default(""),
+  last_fetched_at: z.string().optional(),
+  last_error: z.string().default(""),
+}).loose();
+
+export const EMPTY_CALENDAR_UPCOMING: CalendarUpcoming = Object.freeze({
+  events: [],
+  configured: false,
+}) as CalendarUpcoming;
+
+export const EMPTY_CALENDAR_FEED: CalendarFeed = Object.freeze({
+  url: "",
+  last_error: "",
+}) as CalendarFeed;
 
 export const EMPTY_MEETING_SEGMENT: MeetingSegmentResponse = Object.freeze({
   seq: "",

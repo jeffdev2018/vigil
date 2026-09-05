@@ -388,3 +388,4 @@ export type {
   MeetingSegmentResponse,
 } from "./meeting";
 export type { VoiceTranscription, RealtimeVoiceSession } from "./voice";
+export type { CalendarEvent, CalendarUpcoming, CalendarFeed } from "./calendar";

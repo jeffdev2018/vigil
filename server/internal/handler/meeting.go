@@ -200,6 +200,15 @@ func (h *Handler) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
+		// The calendar knows what this meeting is called. Only when the client
+		// sent no title: a recorder that named the meeting has already made
+		// the decision. A missing, slow or broken feed falls through to the
+		// timestamp — naming a recording is never worth failing to start one.
+		if event, ok := h.currentCalendarEvent(r.Context(), workspaceID, userID, time.Now()); ok {
+			title = event.Summary
+		}
+	}
+	if title == "" {
 		title = "Meeting " + time.Now().UTC().Format("2006-01-02 15:04")
 	}
 	if n := len([]rune(title)); n > meetingMaxTitleRunes {

@@ -2062,6 +2062,17 @@ type User struct {
 	Timezone pgtype.Text `json:"timezone"`
 }
 
+type UserCalendarFeed struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	UserID        pgtype.UUID        `json:"user_id"`
+	Url           string             `json:"url"`
+	LastFetchedAt pgtype.Timestamptz `json:"last_fetched_at"`
+	LastError     string             `json:"last_error"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type UserComposioConnection struct {
 	ID                 pgtype.UUID        `json:"id"`
 	UserID             pgtype.UUID        `json:"user_id"`

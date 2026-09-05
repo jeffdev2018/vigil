@@ -200,6 +200,18 @@
     "meeting_detection": {
       "title": "自动检测会议",
       "hint": "Multica 会检测哪个应用正在使用麦克风，并询问是否记录笔记。它绝不会自行开始录音。"
+    },
+    "calendar_title": "日历",
+    "calendar_feed": {
+      "title": "日历订阅链接",
+      "hint": "粘贴日历发布的只读 iCalendar（.ics）链接。Multica 会读取它，用你正在参加的会议名称为录音命名。支持 https:// 或 webcal://，只读，不会写入。",
+      "placeholder": "https://calendar.example.com/…/basic.ics",
+      "save": "保存",
+      "check": "检查订阅",
+      "remove": "移除",
+      "check_ok": "未来两周有 {{count}} 个日程。",
+      "check_failed": "无法读取日历订阅。",
+      "save_failed": "无法保存日历订阅。"
     }
   },
   "shortcuts": {
