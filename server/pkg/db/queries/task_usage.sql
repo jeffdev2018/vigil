@@ -6,10 +6,11 @@
 -- cost_usd_ticks is the provider's own price for this usage (1e-10 USD), NULL
 -- when it reports none. It is overwritten like the token counters so a
 -- corrected report replaces the previous figure rather than accumulating.
-INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, sqlc.narg('cost_usd_ticks'), now())
+INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, model_key_id, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, sqlc.narg('cost_usd_ticks'), sqlc.narg('model_key_id'), now())
 ON CONFLICT (task_id, provider, model)
 DO UPDATE SET
+    model_key_id = COALESCE(EXCLUDED.model_key_id, task_usage.model_key_id),
     input_tokens = EXCLUDED.input_tokens,
     output_tokens = EXCLUDED.output_tokens,
     cache_read_tokens = EXCLUDED.cache_read_tokens,

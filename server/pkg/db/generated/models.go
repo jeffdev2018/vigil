@@ -314,6 +314,7 @@ type AgentTaskQueue struct {
 	TaskClass           string             `json:"task_class"`
 	Routing             []byte             `json:"routing"`
 	SafeMode            bool               `json:"safe_mode"`
+	ModelKeyID          pgtype.UUID        `json:"model_key_id"`
 }
 
 type AgentToLabel struct {
@@ -2113,6 +2114,7 @@ type TaskUsage struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	// Provider-reported cost in 1e-10 USD. NULL when the provider reports none; those rows are priced client-side from the static rate table.
 	CostUsdTicks pgtype.Int8 `json:"cost_usd_ticks"`
+	ModelKeyID   pgtype.UUID `json:"model_key_id"`
 }
 
 type TaskUsageHourly struct {
@@ -2459,6 +2461,24 @@ type WorkspaceMcpServer struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 	Tools             []byte             `json:"tools"`
 	ToolsDiscoveredAt pgtype.Timestamptz `json:"tools_discovered_at"`
+}
+
+type WorkspaceModelKey struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Scope             string             `json:"scope"`
+	ScopeID           pgtype.UUID        `json:"scope_id"`
+	Provider          string             `json:"provider"`
+	Label             string             `json:"label"`
+	KeyEncrypted      string             `json:"key_encrypted"`
+	KeyHint           string             `json:"key_hint"`
+	Active            bool               `json:"active"`
+	Priority          int32              `json:"priority"`
+	DeactivatedReason string             `json:"deactivated_reason"`
+	DeactivatedAt     pgtype.Timestamptz `json:"deactivated_at"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
 type WorkspaceNote struct {

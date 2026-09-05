@@ -435,6 +435,9 @@ type Handler struct {
 	// error rather than silently storing plaintext. Wired in
 	// cmd/server/router.go after New.
 	VCSSecretBox *secretbox.Box
+	// ModelKeySecretBox (K48) encrypts BYOK model keys at rest; nil disables
+	// the feature (reads work, writes answer 409).
+	ModelKeySecretBox *secretbox.Box
 	// PluginSurfaceTokens seal short-lived launch claims. Nil disables surface
 	// launches; wired from a domain-separated MULTICA_PLUGIN_SECRET_KEY at boot.
 	PluginSurfaceTokens *secretbox.Box
@@ -580,6 +583,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 
 	// Triage rules (K62): rules run on parked deliveries.
 	h.AutopilotService.OnTriageParked = h.onTriageParked
+	// BYOK (K48): the failure path retires a bad key and retries on the next.
+	taskSvc.ModelKeyFailover = h.modelKeyFailover
 	return h
 }
 

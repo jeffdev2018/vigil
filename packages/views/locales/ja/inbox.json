@@ -95,7 +95,8 @@
     "contest_ready": "異議申し立ての判定待ち",
     "org_alert": "組織アラート",
     "decision_auto_decided": "代わりに判断しました",
-    "mcp_alert": "MCP ゲートウェイのアラート"
+    "mcp_alert": "MCP ゲートウェイのアラート",
+    "model_key_alert": "モデルキーが無効化されました"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

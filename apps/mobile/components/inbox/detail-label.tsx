@@ -71,6 +71,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   contest_ready: "Contest ready for your verdict",
   org_alert: "Organisation alert",
   mcp_alert: "MCP gateway alert",
+  model_key_alert: "Model key retired",
   decision_auto_decided: "Decided for you",
 };
 

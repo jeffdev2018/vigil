@@ -184,6 +184,7 @@
     "./billing/queries": "./billing/queries.ts",
     "./billing/mutations": "./billing/mutations.ts",
     "./budgets": "./budgets/index.ts",
+    "./model-keys": "./model-keys/index.ts",
     "./budgets/queries": "./budgets/queries.ts",
     "./budgets/mutations": "./budgets/mutations.ts",
     "./github": "./github/index.ts",

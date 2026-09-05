@@ -60,7 +60,7 @@ func (q *Queries) GetIssueUsageSummary(ctx context.Context, issueID pgtype.UUID)
 }
 
 const getTaskUsage = `-- name: GetTaskUsage :many
-SELECT id, task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, created_at, updated_at, cost_usd_ticks FROM task_usage
+SELECT id, task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, created_at, updated_at, cost_usd_ticks, model_key_id FROM task_usage
 WHERE task_id = $1
 ORDER BY model
 `
@@ -86,6 +86,7 @@ func (q *Queries) GetTaskUsage(ctx context.Context, taskID pgtype.UUID) ([]TaskU
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CostUsdTicks,
+			&i.ModelKeyID,
 		); err != nil {
 			return nil, err
 		}
@@ -667,10 +668,11 @@ func (q *Queries) ListIssueTaskUsage(ctx context.Context, issueID pgtype.UUID) (
 }
 
 const upsertTaskUsage = `-- name: UpsertTaskUsage :exec
-INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, model_key_id, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
 ON CONFLICT (task_id, provider, model)
 DO UPDATE SET
+    model_key_id = COALESCE(EXCLUDED.model_key_id, task_usage.model_key_id),
     input_tokens = EXCLUDED.input_tokens,
     output_tokens = EXCLUDED.output_tokens,
     cache_read_tokens = EXCLUDED.cache_read_tokens,
@@ -688,6 +690,7 @@ type UpsertTaskUsageParams struct {
 	CacheReadTokens  int64       `json:"cache_read_tokens"`
 	CacheWriteTokens int64       `json:"cache_write_tokens"`
 	CostUsdTicks     pgtype.Int8 `json:"cost_usd_ticks"`
+	ModelKeyID       pgtype.UUID `json:"model_key_id"`
 }
 
 // Bumps `updated_at` on INSERT and on conflict so the hourly-rollup worker
@@ -707,6 +710,7 @@ func (q *Queries) UpsertTaskUsage(ctx context.Context, arg UpsertTaskUsageParams
 		arg.CacheReadTokens,
 		arg.CacheWriteTokens,
 		arg.CostUsdTicks,
+		arg.ModelKeyID,
 	)
 	return err
 }

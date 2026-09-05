@@ -95,7 +95,8 @@
     "contest_ready": "이의 제기 판정 대기",
     "org_alert": "조직 알림",
     "decision_auto_decided": "대신 결정함",
-    "mcp_alert": "MCP 게이트웨이 알림"
+    "mcp_alert": "MCP 게이트웨이 알림",
+    "model_key_alert": "모델 키가 비활성화됨"
   },
   "labels": {
     "set_status_to": "상태 변경:",
