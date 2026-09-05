@@ -99,3 +99,59 @@ func TestEnqueueTaskForMentionCoalescesDuplicatePendingTask(t *testing.T) {
 		t.Fatalf("pending task count = %d, want exactly 1", n)
 	}
 }
+
+// TestHandoffNoteMergesIntoPendingTask is the JEF-241 regression: a handoff
+// note (interview answer, review rework, resume) that arrives while the issue
+// already holds a pending task must be appended to that task — never dropped
+// on the unique index — and the waiting task keeps its identity.
+func TestHandoffNoteMergesIntoPendingTask(t *testing.T) {
+	pool := newResolveOriginatorPool(t)
+	ctx := context.Background()
+	q := db.New(pool)
+	workspaceID, userID, agentID, issueID := seedAttributionFixture(t, pool)
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM agent_task_queue WHERE issue_id = $1`, issueID)
+	})
+
+	issueStruct := db.Issue{
+		ID:           util.MustParseUUID(issueID),
+		AssigneeID:   util.MustParseUUID(agentID),
+		Priority:     "medium",
+		CreatorType:  "member",
+		CreatorID:    util.MustParseUUID(userID),
+		WorkspaceID:  util.MustParseUUID(workspaceID),
+		AssigneeType: pgtype.Text{String: "agent", Valid: true},
+	}
+	svc := &TaskService{Queries: q, TxStarter: pool, Bus: events.New()}
+
+	first, err := svc.EnqueueTaskForIssueWithHandoff(ctx, issueStruct, "first note", util.MustParseUUID(userID))
+	if err != nil {
+		t.Fatalf("first enqueue: %v", err)
+	}
+
+	second, err := svc.EnqueueTaskForIssueWithHandoff(ctx, issueStruct, "the human answers: 100 req/min", util.MustParseUUID(userID))
+	if err != nil {
+		t.Fatalf("second enqueue must coalesce, got: %v", err)
+	}
+	if second.ID != first.ID {
+		t.Fatalf("coalesced task id = %v, want the pending task %v", second.ID, first.ID)
+	}
+
+	var note string
+	if err := pool.QueryRow(ctx, `SELECT handoff_note FROM agent_task_queue WHERE id = $1`, first.ID).Scan(&note); err != nil {
+		t.Fatalf("read handoff note: %v", err)
+	}
+	if !strings.Contains(note, "first note") || !strings.Contains(note, "the human answers: 100 req/min") {
+		t.Fatalf("merged note = %q, want both notes", note)
+	}
+
+	var n int
+	if err := pool.QueryRow(ctx,
+		`SELECT count(*) FROM agent_task_queue WHERE issue_id = $1 AND agent_id = $2 AND status IN ('queued','dispatched')`,
+		issueID, agentID).Scan(&n); err != nil {
+		t.Fatalf("count pending tasks: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("pending task count = %d, want exactly 1", n)
+	}
+}
