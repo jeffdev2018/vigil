@@ -90,10 +90,10 @@ multica issue plan report <issue-id> --file findings.json
 
 ```json
 {
-  "summary": "2 of 3 steps delivered; the handler test is missing.",
+  "summary": "2 of 3 steps delivered; the API test is missing.",
   "findings": [
-    {"severity": "major", "title": "No handler test", "detail": "s2 asked for a handler test; none was added.", "files": ["server/internal/handler/foo.go"], "plan_step_id": "s2"},
-    {"severity": "minor", "title": "Route registered under /api/foo instead of /api/foos", "files": ["server/cmd/server/router.go"]}
+    {"severity": "major", "title": "No API test", "detail": "s2 asked for an API test; none was added.", "files": ["src/api/orders"], "plan_step_id": "s2"},
+    {"severity": "minor", "title": "Route registered under /api/order instead of /api/orders", "files": ["src/api/router"]}
   ]
 }
 ```

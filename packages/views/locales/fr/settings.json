@@ -49,73 +49,6 @@
       "cancelled": "Abandonné."
     }
   },
-  "run_limits": {
-    "title": "Limites d'exécution",
-    "intro": "Plafonds pour une seule exécution : coût, durée, tours, appels d'outils. Le plafond le plus restrictif s'applique au workspace, au projet et à l'agent. « Enforce » arrête l'exécution à 100 % ; « observe » enregistre seulement ; les deux alertent au seuil.",
-    "empty": "Aucune limite d'exécution. Les exécutions sont uniquement limitées par les budgets de période ci-dessus.",
-    "add": "Nouvelle limite d'exécution",
-    "edit": "Modifier",
-    "delete": "Supprimer la limite d'exécution pour {{scope}}",
-    "save": "Enregistrer la limite d'exécution",
-    "save_failed": "Échec de l'enregistrement de la limite d'exécution",
-    "warn_at": "alerter à {{percent}}%",
-    "cost_usd": "Coût ($)",
-    "duration_min": "Durée (min)",
-    "gates": {
-      "cost": "Coût",
-      "duration": "Durée",
-      "turns": "Tours",
-      "tool_calls": "Appels d'outils"
-    }
-  },
-  "budgets": {
-    "title": "Budgets d'exécution",
-    "description": "Définissez des limites en USD avant le début du travail des agents. Les limites appliquées suspendent les nouvelles exécutions ; les limites d'observation continuent la mesure.",
-    "add": "Nouveau budget",
-    "loading": "Chargement des budgets…",
-    "load_failed": "Le statut du budget n'a pas pu être actualisé.",
-    "retry": "Réessayer",
-    "empty": "Aucun budget d'exécution",
-    "empty_hint": "Ajoutez une limite de workspace, de projet ou d'agent pour contrôler les dépenses avant l'exécution.",
-    "scope": "Portée",
-    "target": "Choisir une cible",
-    "limit": "Limite (USD)",
-    "period": "Période de réinitialisation",
-    "warning": "Seuil d'alerte (%)",
-    "action": "À la limite",
-    "create_title": "Nouveau budget",
-    "edit_title": "Modifier le budget",
-    "editor_hint": "L'utilisation inclut le coût finalisé et les réservations pour le travail en file d'attente.",
-    "save": "Enregistrer",
-    "saving": "Enregistrement…",
-    "cancel": "Annuler",
-    "save_failed": "Le budget n'a pas pu être enregistré.",
-    "edit": "Modifier le budget",
-    "delete": "Supprimer le budget",
-    "delete_confirm": "Supprimer ce budget et son utilisation pour la période en cours ?",
-    "override": "Accorder une dérogation temporaire",
-    "override_reason": "Motif de cette dérogation (24 heures maximum)",
-    "override_created": "Dérogation de 24 heures accordée",
-    "override_active": "Dérogation active",
-    "reserved": "{{amount}} réservés pour le travail en file d'attente",
-    "notice_warning": "Un budget d'exécution approche de sa limite.",
-    "notice_blocked": "Les nouvelles exécutions d'agent sont en pause car un budget a atteint sa limite.",
-    "manage": "Gérer les budgets",
-    "scopes": {
-      "workspace": "Workspace",
-      "project": "Projet",
-      "agent": "Agent"
-    },
-    "periods": {
-      "daily": "Quotidien",
-      "weekly": "Hebdomadaire",
-      "monthly": "Mensuel"
-    },
-    "actions": {
-      "enforce": "Pause à la limite",
-      "observe": "Observer seulement"
-    }
-  },
   "quick_actions": {
     "title": "Actions rapides",
     "description": "Préconfigurez un agent et un prompt une seule fois, puis déclenchez-le depuis la barre latérale de n'importe quelle issue en un seul clic.",
@@ -276,34 +209,6 @@
         "label": "Archiver la notification",
         "description": "Archiver la notification ouverte, ou la restaurer lors de la lecture des archives."
       },
-      "triageNextItem": {
-        "label": "Triage : élément suivant",
-        "description": "Passer à l'élément suivant de la file de triage."
-      },
-      "triagePrevItem": {
-        "label": "Triage : élément précédent",
-        "description": "Passer à l'élément précédent de la file de triage."
-      },
-      "triageAccept": {
-        "label": "Triage : accepter",
-        "description": "Accepter l'élément de triage ouvert et créer son issue."
-      },
-      "triageDismiss": {
-        "label": "Triage : rejeter",
-        "description": "Rejeter l'élément de triage ouvert."
-      },
-      "triageSnooze": {
-        "label": "Triage : reporter",
-        "description": "Ouvrir le menu de report de l'élément de triage ouvert."
-      },
-      "triageMerge": {
-        "label": "Triage : fusionner",
-        "description": "Fusionner l'élément de triage ouvert dans une issue existante."
-      },
-      "triageReopen": {
-        "label": "Triage : rouvrir",
-        "description": "Remettre en attente un élément de triage rejeté."
-      },
       "send": {
         "label": "Envoyer",
         "description": "Envoyer messages, commentaires, réponses, retours et prompts, et créer des issues."
@@ -319,10 +224,6 @@
       "goInbox": {
         "label": "Aller à la boîte de réception",
         "description": "Ouvrir la boîte de réception du workspace."
-      },
-      "goTriage": {
-        "label": "Aller au Triage",
-        "description": "Ouvrir la file de triage."
       },
       "goChat": {
         "label": "Aller au Chat",
@@ -367,6 +268,38 @@
       "goSettings": {
         "label": "Aller aux paramètres",
         "description": "Ouvrir les paramètres du workspace."
+      },
+      "triageNextItem": {
+        "label": "Triage : élément suivant",
+        "description": "Passer à l'élément suivant de la file de triage."
+      },
+      "triagePrevItem": {
+        "label": "Triage : élément précédent",
+        "description": "Passer à l'élément précédent de la file de triage."
+      },
+      "triageAccept": {
+        "label": "Triage : accepter",
+        "description": "Accepter l'élément de triage ouvert et créer son issue."
+      },
+      "triageDismiss": {
+        "label": "Triage : rejeter",
+        "description": "Rejeter l'élément de triage ouvert."
+      },
+      "triageSnooze": {
+        "label": "Triage : reporter",
+        "description": "Ouvrir le menu de report de l'élément de triage ouvert."
+      },
+      "triageMerge": {
+        "label": "Triage : fusionner",
+        "description": "Fusionner l'élément de triage ouvert dans une issue existante."
+      },
+      "triageReopen": {
+        "label": "Triage : rouvrir",
+        "description": "Remettre en attente un élément de triage rejeté."
+      },
+      "goTriage": {
+        "label": "Aller au Triage",
+        "description": "Ouvrir la file de triage."
       }
     },
     "fixed": {
@@ -422,8 +355,16 @@
     "servers_title": "Serveurs partagés",
     "write_only_note": "Les configurations enregistrées sont en écriture seule : les URL, commandes, en-têtes et variables d'environnement ne sont plus réaffichés. Modifier un serveur remplace sa configuration. Renommer est sans risque : les agents conservent leur attribution.",
     "add_server": "Ajouter un serveur",
-    "edit_server": "Modifier le serveur",
+    "rename_server": "Renommer le serveur",
+    "rename_action": "Renommer",
+    "replace_config": "Remplacer la configuration",
+    "rename_save": "Enregistrer le nom",
+    "rename_cancel": "Annuler le renommage",
+    "rename_required": "Saisissez un nom de serveur.",
+    "rename_invalid": "Utilisez uniquement des lettres, des chiffres, des tirets et des underscores.",
+    "rename_duplicate": "Un serveur portant ce nom existe déjà.",
     "remove_server": "Supprimer le serveur",
+    "remove_action": "Supprimer",
     "empty_title": "Aucun serveur MCP partagé",
     "empty_description": "Ajoutez un serveur ici, puis assignez-le aux agents concernés depuis leur propre onglet MCP.",
     "disabled_badge": "Désactivé",
@@ -434,8 +375,10 @@
     "cancel": "Annuler",
     "added_toast": "Serveur MCP partagé ajouté",
     "updated_toast": "Serveur MCP partagé mis à jour",
+    "renamed_toast": "Serveur MCP partagé renommé",
     "removed_toast": "Serveur MCP partagé supprimé",
     "save_failed_toast": "Impossible d'enregistrer le serveur MCP partagé",
+    "rename_failed_toast": "Impossible de renommer le serveur MCP partagé",
     "remove_failed_toast": "Impossible de supprimer le serveur MCP partagé",
     "tools": {
       "toggle": "Outils",
@@ -463,137 +406,6 @@
       "risk_unknown": "Inconnu"
     }
   },
-  "model_keys": {
-    "title": "Clés de modèle",
-    "description": "Apportez vos propres clés d'API fournisseur. Les runs de cet espace de travail dépensent la clé déclarée ici plutôt que les identifiants du CLI, et leur coût est attribué à la clé.",
-    "not_configured_title": "Le stockage des clés n'est pas configuré",
-    "not_configured_description": "Le serveur n'a pas de MULTICA_MODEL_KEY_SECRET_KEY : aucune clé ne peut être stockée tant que l'opérateur ne l'a pas définie.",
-    "failover_title": "Une clé a été retirée automatiquement",
-    "failover_description": "Un run a échoué sur l'authentification ou le quota du fournisseur, la clé a donc été retirée. Les runs suivants se rabattent sur la clé suivante ou sur les identifiants du CLI.",
-    "failover_auth": "{{vendor}} · {{key}} — retirée {{when}} après un échec d'authentification",
-    "failover_quota": "{{vendor}} · {{key}} — retirée {{when}} après un dépassement de quota",
-    "keys_title": "Clés",
-    "write_only_note": "Les clés sont en écriture seule : seul un indice est réaffiché. Pour changer une clé, faites-la tourner — l'ancienne est conservée comme retirée pour l'historique des coûts.",
-    "empty_title": "Aucune clé BYOK",
-    "empty_description": "Les runs utilisent les identifiants du CLI. Ajoutez une clé pour qu'ils la dépensent à la place.",
-    "admin_only_note": "Seuls les propriétaires et administrateurs de l'espace de travail peuvent gérer les clés de modèle.",
-    "columns": {
-      "scope": "Portée",
-      "vendor": "Fournisseur",
-      "label": "Libellé",
-      "key": "Clé",
-      "status": "Statut",
-      "priority": "Priorité",
-      "usage": "Utilisation"
-    },
-    "scope_workspace": "Espace de travail",
-    "scope_project": "Projet",
-    "status_active": "Active",
-    "status_retired": "Retirée",
-    "reason_rotated": "tournée",
-    "reason_retired": "retirée manuellement",
-    "reason_auth": "retirée automatiquement après un échec d'authentification",
-    "reason_quota": "retirée automatiquement après un dépassement de quota",
-    "usage": "{{tasks}} tâches · {{tokens}} tokens · {{cost}}",
-    "rotate": "Faire tourner la clé",
-    "retire": "Retirer la clé",
-    "add_title": "Ajouter une clé",
-    "add_description": "Une clé de projet prime sur la clé d'espace de travail du même fournisseur. Entre clés d'une même portée, le plus petit numéro de priorité est essayé en premier.",
-    "field_scope": "Portée",
-    "field_project": "Projet",
-    "field_project_placeholder": "Choisir un projet",
-    "field_vendor": "Fournisseur",
-    "field_vendor_placeholder": "Choisir un fournisseur",
-    "field_label": "Libellé",
-    "field_label_placeholder": "Clé d'équipe, essai…",
-    "field_key": "Clé d'API",
-    "field_key_placeholder": "sk-…",
-    "field_new_key": "Nouvelle clé d'API",
-    "field_priority": "Priorité",
-    "field_priority_hint": "La plus basse est essayée en premier.",
-    "submit": "Ajouter la clé",
-    "conflict": "Une clé active existe déjà pour ce fournisseur et cette portée.",
-    "conflict_hint": "Faites tourner la clé existante plutôt que d'en ajouter une autre.",
-    "added_toast": "Clé de modèle ajoutée",
-    "add_failed_toast": "Impossible d'ajouter la clé de modèle",
-    "rotated_toast": "Clé de modèle tournée",
-    "rotate_failed_toast": "Impossible de faire tourner la clé de modèle",
-    "retired_toast": "Clé de modèle retirée",
-    "retire_failed_toast": "Impossible de retirer la clé de modèle",
-    "rotate_title": "Faire tourner la clé",
-    "rotate_description": "La nouvelle valeur remplace {{hint}} pour {{vendor}}. L'ancienne clé est conservée comme retirée pour l'historique des coûts.",
-    "rotate_confirm": "Faire tourner",
-    "retire_title": "Retirer la clé ?",
-    "retire_description": "Les runs sur {{vendor}} se rabattront sur la clé suivante ou sur les identifiants du CLI.",
-    "retire_confirm": "Retirer",
-    "cancel": "Annuler"
-  },
-  "security": {
-    "title": "Sécurité",
-    "description": "Authentification unique via votre fournisseur d'identité, et provisionnement SCIM des membres.",
-    "owner_only_note": "Seul le propriétaire de l'espace de travail peut modifier ces réglages. Les administrateurs peuvent les consulter.",
-    "cancel": "Annuler",
-    "sso": {
-      "not_configured_title": "Le SSO n'est pas configuré sur ce serveur",
-      "not_configured_description": "Le serveur n'a pas de MULTICA_SSO_SECRET_KEY : aucune connexion OIDC ne peut être enregistrée tant que l'opérateur ne l'a pas définie.",
-      "title": "Authentification unique (OIDC)",
-      "description": "Les membres se connectent via votre fournisseur d'identité. Le secret client est en écriture seule : laissez le champ vide pour conserver celui enregistré.",
-      "field_issuer": "URL de l'émetteur",
-      "field_issuer_hint": "L'émetteur OIDC ; son document de découverte est lu depuis /.well-known/openid-configuration.",
-      "field_client_id": "ID client",
-      "field_client_secret": "Secret client",
-      "field_client_secret_unchanged": "inchangé",
-      "field_client_secret_hint": "Plus jamais affiché une fois enregistré.",
-      "field_domains": "Domaines d'e-mail autorisés",
-      "field_domains_hint": "Un par ligne. Laissez vide pour accepter tout domaine renvoyé par le fournisseur.",
-      "field_auto_provision": "Créer les membres automatiquement",
-      "field_auto_provision_hint": "Crée un membre de l'espace de travail à la première connexion via le fournisseur.",
-      "save": "Enregistrer",
-      "saved_toast": "Connexion SSO enregistrée",
-      "save_failed_toast": "Échec de l'enregistrement de la connexion SSO",
-      "remove": "Supprimer la connexion",
-      "remove_confirm_title": "Supprimer la connexion SSO ?",
-      "remove_confirm_description": "Les membres se connecteront à nouveau par code e-mail ou Google, et l'obligation est levée.",
-      "remove_confirm": "Supprimer",
-      "removed_toast": "Connexion SSO supprimée",
-      "enforce": "Imposer le SSO",
-      "enforce_hint": "Une fois imposé, la connexion par code e-mail et Google est refusée pour cet espace de travail.",
-      "enforce_confirm_title": "Imposer le SSO pour cet espace de travail ?",
-      "enforce_confirm_description": "Les membres ne pourront se connecter que via le fournisseur. Vérifiez d'abord que votre propre compte fonctionne avec lui.",
-      "enforce_confirm": "Imposer",
-      "enforced_toast": "Le SSO est maintenant imposé",
-      "unenforced_toast": "Le SSO n'est plus imposé"
-    },
-    "scim": {
-      "title": "Provisionnement SCIM",
-      "description": "Laissez votre fournisseur d'identité créer, mettre à jour et désactiver les membres. Générer un nouveau jeton retire le précédent.",
-      "endpoint_label": "Point de terminaison SCIM",
-      "endpoint_hint": "Collez cette URL et le jeton bearer dans les réglages SCIM de votre fournisseur d'identité.",
-      "generate": "Générer un jeton",
-      "new_token_label": "Nouveau jeton",
-      "shown_once": "Ce jeton n'est affiché qu'une fois. Copiez-le maintenant ; il ne pourra plus être affiché.",
-      "copy": "Copier",
-      "copied": "Copié",
-      "copy_failed": "Échec de la copie",
-      "empty": "Aucun jeton SCIM pour l'instant.",
-      "columns": {
-        "token": "Jeton",
-        "status": "Statut",
-        "created": "Créé",
-        "last_used": "Dernière utilisation"
-      },
-      "status_active": "Actif",
-      "status_revoked": "Révoqué",
-      "never_used": "Jamais",
-      "revoke": "Révoquer",
-      "revoked_toast": "Jeton révoqué",
-      "revoke_failed_toast": "Échec de la révocation du jeton",
-      "created_toast": "Jeton généré",
-      "create_failed_toast": "Échec de la génération du jeton",
-      "rotate_confirm_title": "Remplacer le jeton actif ?",
-      "rotate_confirm_description": "Le jeton actuel cesse de fonctionner immédiatement. Mettez à jour votre fournisseur d'identité avec le nouveau."
-    }
-  },
   "page": {
     "title": "Paramètres",
     "my_account": "Mon compte",
@@ -618,9 +430,9 @@
       "quick_actions": "Actions rapides",
       "plugins": "Plugins",
       "mcp": "MCP",
+      "billing": "Facturation",
       "model_keys": "Clés de modèle",
       "security": "Sécurité",
-      "billing": "Facturation",
       "audit_log": "Journal d'audit",
       "budgets": "Budgets",
       "learning": "Ce que Vigil sait",
@@ -1817,6 +1629,204 @@
     "expiry_7d": "7 jours",
     "expiry_30d": "30 jours",
     "expiry_never": "Jamais"
+  },
+  "run_limits": {
+    "title": "Limites d'exécution",
+    "intro": "Plafonds pour une seule exécution : coût, durée, tours, appels d'outils. Le plafond le plus restrictif s'applique au workspace, au projet et à l'agent. « Enforce » arrête l'exécution à 100 % ; « observe » enregistre seulement ; les deux alertent au seuil.",
+    "empty": "Aucune limite d'exécution. Les exécutions sont uniquement limitées par les budgets de période ci-dessus.",
+    "add": "Nouvelle limite d'exécution",
+    "edit": "Modifier",
+    "delete": "Supprimer la limite d'exécution pour {{scope}}",
+    "save": "Enregistrer la limite d'exécution",
+    "save_failed": "Échec de l'enregistrement de la limite d'exécution",
+    "warn_at": "alerter à {{percent}}%",
+    "cost_usd": "Coût ($)",
+    "duration_min": "Durée (min)",
+    "gates": {
+      "cost": "Coût",
+      "duration": "Durée",
+      "turns": "Tours",
+      "tool_calls": "Appels d'outils"
+    }
+  },
+  "budgets": {
+    "title": "Budgets d'exécution",
+    "description": "Définissez des limites en USD avant le début du travail des agents. Les limites appliquées suspendent les nouvelles exécutions ; les limites d'observation continuent la mesure.",
+    "add": "Nouveau budget",
+    "loading": "Chargement des budgets…",
+    "load_failed": "Le statut du budget n'a pas pu être actualisé.",
+    "retry": "Réessayer",
+    "empty": "Aucun budget d'exécution",
+    "empty_hint": "Ajoutez une limite de workspace, de projet ou d'agent pour contrôler les dépenses avant l'exécution.",
+    "scope": "Portée",
+    "target": "Choisir une cible",
+    "limit": "Limite (USD)",
+    "period": "Période de réinitialisation",
+    "warning": "Seuil d'alerte (%)",
+    "action": "À la limite",
+    "create_title": "Nouveau budget",
+    "edit_title": "Modifier le budget",
+    "editor_hint": "L'utilisation inclut le coût finalisé et les réservations pour le travail en file d'attente.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "cancel": "Annuler",
+    "save_failed": "Le budget n'a pas pu être enregistré.",
+    "edit": "Modifier le budget",
+    "delete": "Supprimer le budget",
+    "delete_confirm": "Supprimer ce budget et son utilisation pour la période en cours ?",
+    "override": "Accorder une dérogation temporaire",
+    "override_reason": "Motif de cette dérogation (24 heures maximum)",
+    "override_created": "Dérogation de 24 heures accordée",
+    "override_active": "Dérogation active",
+    "reserved": "{{amount}} réservés pour le travail en file d'attente",
+    "notice_warning": "Un budget d'exécution approche de sa limite.",
+    "notice_blocked": "Les nouvelles exécutions d'agent sont en pause car un budget a atteint sa limite.",
+    "manage": "Gérer les budgets",
+    "scopes": {
+      "workspace": "Workspace",
+      "project": "Projet",
+      "agent": "Agent"
+    },
+    "periods": {
+      "daily": "Quotidien",
+      "weekly": "Hebdomadaire",
+      "monthly": "Mensuel"
+    },
+    "actions": {
+      "enforce": "Pause à la limite",
+      "observe": "Observer seulement"
+    }
+  },
+  "model_keys": {
+    "title": "Clés de modèle",
+    "description": "Apportez vos propres clés d'API fournisseur. Les runs de cet espace de travail dépensent la clé déclarée ici plutôt que les identifiants du CLI, et leur coût est attribué à la clé.",
+    "not_configured_title": "Le stockage des clés n'est pas configuré",
+    "not_configured_description": "Le serveur n'a pas de MULTICA_MODEL_KEY_SECRET_KEY : aucune clé ne peut être stockée tant que l'opérateur ne l'a pas définie.",
+    "failover_title": "Une clé a été retirée automatiquement",
+    "failover_description": "Un run a échoué sur l'authentification ou le quota du fournisseur, la clé a donc été retirée. Les runs suivants se rabattent sur la clé suivante ou sur les identifiants du CLI.",
+    "failover_auth": "{{vendor}} · {{key}} — retirée {{when}} après un échec d'authentification",
+    "failover_quota": "{{vendor}} · {{key}} — retirée {{when}} après un dépassement de quota",
+    "keys_title": "Clés",
+    "write_only_note": "Les clés sont en écriture seule : seul un indice est réaffiché. Pour changer une clé, faites-la tourner — l'ancienne est conservée comme retirée pour l'historique des coûts.",
+    "empty_title": "Aucune clé BYOK",
+    "empty_description": "Les runs utilisent les identifiants du CLI. Ajoutez une clé pour qu'ils la dépensent à la place.",
+    "admin_only_note": "Seuls les propriétaires et administrateurs de l'espace de travail peuvent gérer les clés de modèle.",
+    "columns": {
+      "scope": "Portée",
+      "vendor": "Fournisseur",
+      "label": "Libellé",
+      "key": "Clé",
+      "status": "Statut",
+      "priority": "Priorité",
+      "usage": "Utilisation"
+    },
+    "scope_workspace": "Espace de travail",
+    "scope_project": "Projet",
+    "status_active": "Active",
+    "status_retired": "Retirée",
+    "reason_rotated": "tournée",
+    "reason_retired": "retirée manuellement",
+    "reason_auth": "retirée automatiquement après un échec d'authentification",
+    "reason_quota": "retirée automatiquement après un dépassement de quota",
+    "usage": "{{tasks}} tâches · {{tokens}} tokens · {{cost}}",
+    "rotate": "Faire tourner la clé",
+    "retire": "Retirer la clé",
+    "add_title": "Ajouter une clé",
+    "add_description": "Une clé de projet prime sur la clé d'espace de travail du même fournisseur. Entre clés d'une même portée, le plus petit numéro de priorité est essayé en premier.",
+    "field_scope": "Portée",
+    "field_project": "Projet",
+    "field_project_placeholder": "Choisir un projet",
+    "field_vendor": "Fournisseur",
+    "field_vendor_placeholder": "Choisir un fournisseur",
+    "field_label": "Libellé",
+    "field_label_placeholder": "Clé d'équipe, essai…",
+    "field_key": "Clé d'API",
+    "field_key_placeholder": "sk-…",
+    "field_new_key": "Nouvelle clé d'API",
+    "field_priority": "Priorité",
+    "field_priority_hint": "La plus basse est essayée en premier.",
+    "submit": "Ajouter la clé",
+    "conflict": "Une clé active existe déjà pour ce fournisseur et cette portée.",
+    "conflict_hint": "Faites tourner la clé existante plutôt que d'en ajouter une autre.",
+    "added_toast": "Clé de modèle ajoutée",
+    "add_failed_toast": "Impossible d'ajouter la clé de modèle",
+    "rotated_toast": "Clé de modèle tournée",
+    "rotate_failed_toast": "Impossible de faire tourner la clé de modèle",
+    "retired_toast": "Clé de modèle retirée",
+    "retire_failed_toast": "Impossible de retirer la clé de modèle",
+    "rotate_title": "Faire tourner la clé",
+    "rotate_description": "La nouvelle valeur remplace {{hint}} pour {{vendor}}. L'ancienne clé est conservée comme retirée pour l'historique des coûts.",
+    "rotate_confirm": "Faire tourner",
+    "retire_title": "Retirer la clé ?",
+    "retire_description": "Les runs sur {{vendor}} se rabattront sur la clé suivante ou sur les identifiants du CLI.",
+    "retire_confirm": "Retirer",
+    "cancel": "Annuler"
+  },
+  "security": {
+    "title": "Sécurité",
+    "description": "Authentification unique via votre fournisseur d'identité, et provisionnement SCIM des membres.",
+    "owner_only_note": "Seul le propriétaire de l'espace de travail peut modifier ces réglages. Les administrateurs peuvent les consulter.",
+    "cancel": "Annuler",
+    "sso": {
+      "not_configured_title": "Le SSO n'est pas configuré sur ce serveur",
+      "not_configured_description": "Le serveur n'a pas de MULTICA_SSO_SECRET_KEY : aucune connexion OIDC ne peut être enregistrée tant que l'opérateur ne l'a pas définie.",
+      "title": "Authentification unique (OIDC)",
+      "description": "Les membres se connectent via votre fournisseur d'identité. Le secret client est en écriture seule : laissez le champ vide pour conserver celui enregistré.",
+      "field_issuer": "URL de l'émetteur",
+      "field_issuer_hint": "L'émetteur OIDC ; son document de découverte est lu depuis /.well-known/openid-configuration.",
+      "field_client_id": "ID client",
+      "field_client_secret": "Secret client",
+      "field_client_secret_unchanged": "inchangé",
+      "field_client_secret_hint": "Plus jamais affiché une fois enregistré.",
+      "field_domains": "Domaines d'e-mail autorisés",
+      "field_domains_hint": "Un par ligne. Laissez vide pour accepter tout domaine renvoyé par le fournisseur.",
+      "field_auto_provision": "Créer les membres automatiquement",
+      "field_auto_provision_hint": "Crée un membre de l'espace de travail à la première connexion via le fournisseur.",
+      "save": "Enregistrer",
+      "saved_toast": "Connexion SSO enregistrée",
+      "save_failed_toast": "Échec de l'enregistrement de la connexion SSO",
+      "remove": "Supprimer la connexion",
+      "remove_confirm_title": "Supprimer la connexion SSO ?",
+      "remove_confirm_description": "Les membres se connecteront à nouveau par code e-mail ou Google, et l'obligation est levée.",
+      "remove_confirm": "Supprimer",
+      "removed_toast": "Connexion SSO supprimée",
+      "enforce": "Imposer le SSO",
+      "enforce_hint": "Une fois imposé, la connexion par code e-mail et Google est refusée pour cet espace de travail.",
+      "enforce_confirm_title": "Imposer le SSO pour cet espace de travail ?",
+      "enforce_confirm_description": "Les membres ne pourront se connecter que via le fournisseur. Vérifiez d'abord que votre propre compte fonctionne avec lui.",
+      "enforce_confirm": "Imposer",
+      "enforced_toast": "Le SSO est maintenant imposé",
+      "unenforced_toast": "Le SSO n'est plus imposé"
+    },
+    "scim": {
+      "title": "Provisionnement SCIM",
+      "description": "Laissez votre fournisseur d'identité créer, mettre à jour et désactiver les membres. Générer un nouveau jeton retire le précédent.",
+      "endpoint_label": "Point de terminaison SCIM",
+      "endpoint_hint": "Collez cette URL et le jeton bearer dans les réglages SCIM de votre fournisseur d'identité.",
+      "generate": "Générer un jeton",
+      "new_token_label": "Nouveau jeton",
+      "shown_once": "Ce jeton n'est affiché qu'une fois. Copiez-le maintenant ; il ne pourra plus être affiché.",
+      "copy": "Copier",
+      "copied": "Copié",
+      "copy_failed": "Échec de la copie",
+      "empty": "Aucun jeton SCIM pour l'instant.",
+      "columns": {
+        "token": "Jeton",
+        "status": "Statut",
+        "created": "Créé",
+        "last_used": "Dernière utilisation"
+      },
+      "status_active": "Actif",
+      "status_revoked": "Révoqué",
+      "never_used": "Jamais",
+      "revoke": "Révoquer",
+      "revoked_toast": "Jeton révoqué",
+      "revoke_failed_toast": "Échec de la révocation du jeton",
+      "created_toast": "Jeton généré",
+      "create_failed_toast": "Échec de la génération du jeton",
+      "rotate_confirm_title": "Remplacer le jeton actif ?",
+      "rotate_confirm_description": "Le jeton actuel cesse de fonctionner immédiatement. Mettez à jour votre fournisseur d'identité avec le nouveau."
+    }
   },
   "audit": {
     "description": "Chaque action significative dans ce workspace, de la plus récente à la plus ancienne : décisions posées et répondues, plans approuvés, changements de statut, preuves, rollbacks d'agent, règles de propriété, briefings, paramètres. Les entrées ne sont jamais modifiées ni supprimées.",
