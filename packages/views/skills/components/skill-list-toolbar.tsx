@@ -81,12 +81,14 @@ const ORIGIN_TYPES: OriginType[] = [
   "skills_sh",
   "github",
   "distilled",
+  "skill_miner",
 ];
 
 function originIcon(type: OriginType) {
   if (type === "manual") return <Pencil className="size-3.5" />;
   if (type === "runtime_local") return <HardDrive className="size-3.5" />;
   if (type === "distilled") return <Sparkles className="size-3.5" />;
+  if (type === "skill_miner") return <Sparkles className="size-3.5" />;
   return <Download className="size-3.5" />;
 }
 
@@ -158,6 +160,7 @@ export function SkillListToolbar({
     skills_sh: t(($) => $.table.source_skills_sh),
     github: t(($) => $.table.source_github),
     distilled: t(($) => $.table.source_distilled),
+    skill_miner: t(($) => $.table.source_mined),
   };
 
   const COLUMN_LABELS: Record<SkillColumnKey, string> = {

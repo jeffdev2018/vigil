@@ -63,7 +63,8 @@
     "source_clawhub": "ClawHub에서 가져옴",
     "source_skills_sh": "Skills.sh에서 가져옴",
     "source_github": "GitHub에서 가져옴",
-    "source_distilled": "런에서 추출"
+    "source_distilled": "런에서 추출",
+    "source_mined": "수정에서 채굴"
   },
   "actions": {
     "row_menu": "작업",
@@ -367,5 +368,17 @@
     "markdown_placeholder": "Markdown 내용 작성...",
     "raw_placeholder": "파일 내용...",
     "raw_aria": "{{path}}의 일반 텍스트 내용"
+  },
+  "miner": {
+    "section": "검토할 스킬 제안 {{n}}건",
+    "intro": "반복되는 사람의 수정에서 채굴되거나 성공한 실행에서 증류되었습니다. 게시하기 전에는 초안이 에이전트에 제공되지 않으며, 폐기해도 원본 신호는 유지됩니다.",
+    "origin_mined": "{{agent}}에 대한 수정 {{n}}건에서(상태 후퇴 {{regressed}}건)",
+    "origin_distilled": "성공한 실행에서 증류",
+    "sources": "출처:",
+    "publish": "게시하고 편집",
+    "dismiss": "폐기",
+    "published": "게시됨 — 에이전트에 연결하기 전에 편집하세요",
+    "dismissed": "제안을 폐기했습니다",
+    "failed": "제안을 업데이트할 수 없습니다"
   }
 }

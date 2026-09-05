@@ -53,6 +53,8 @@ type SkillResponse struct {
 	CreatedBy   *string `json:"created_by"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
+	// Status (K58): draft skills wait for a human before any agent gets them.
+	Status string `json:"status"`
 }
 
 // SkillSummaryResponse is the list-endpoint shape: everything SkillResponse
@@ -72,6 +74,8 @@ type SkillSummaryResponse struct {
 	// Enabled is only populated for agent-scoped skill responses. Workspace
 	// skill lists describe the skill itself, so they omit assignment state.
 	Enabled *bool `json:"enabled,omitempty"`
+	// Status (K58): draft | published.
+	Status string `json:"status,omitempty"`
 }
 
 // AgentSkillSummary is the still-narrower shape used for skills embedded in
@@ -175,6 +179,7 @@ func skillToResponse(s db.Skill) SkillResponse {
 		CreatedBy:   uuidToPtr(s.CreatedBy),
 		CreatedAt:   timestampToString(s.CreatedAt),
 		UpdatedAt:   timestampToString(s.UpdatedAt),
+		Status:      s.Status,
 	}
 }
 
@@ -288,6 +293,8 @@ type UpdateSkillRequest struct {
 	Content     *string                  `json:"content"`
 	Config      any                      `json:"config"`
 	Files       []CreateSkillFileRequest `json:"files,omitempty"`
+	// Status (K58): publishing a mined draft.
+	Status *string `json:"status,omitempty"`
 }
 
 type SetAgentSkillsRequest struct {
@@ -355,6 +362,7 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request) {
 			s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
 			s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 		)
+		resp[i].Status = s.Status
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -597,6 +605,13 @@ func (h *Handler) UpdateSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Content != nil {
 		params.Content = pgtype.Text{String: sanitizeNullBytes(*req.Content), Valid: true}
+	}
+	if req.Status != nil {
+		if *req.Status != "draft" && *req.Status != "published" {
+			writeError(w, http.StatusBadRequest, "status must be draft or published")
+			return
+		}
+		params.Status = pgtype.Text{String: *req.Status, Valid: true}
 	}
 	if req.Config != nil {
 		config, _ := json.Marshal(req.Config)
@@ -2584,6 +2599,9 @@ func (h *Handler) SetAgentSkills(w http.ResponseWriter, r *http.Request) {
 	if !h.validateAgentSkillIDsInWorkspace(w, r, agent, skillUUIDs) {
 		return
 	}
+	if !h.rejectDraftSkills(w, r, skillUUIDs) {
+		return
+	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
@@ -2641,6 +2659,9 @@ func (h *Handler) AddAgentSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.validateAgentSkillIDsInWorkspace(w, r, agent, skillUUIDs) {
+		return
+	}
+	if !h.rejectDraftSkills(w, r, skillUUIDs) {
 		return
 	}
 

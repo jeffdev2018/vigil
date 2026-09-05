@@ -255,8 +255,21 @@ func (h *Handler) composeWeeklyRetro(ctx context.Context, wsID pgtype.UUID, week
 		})
 	}
 	sort.Slice(out.Agents, func(i, j int) bool { return out.Agents[i].RunsTotal > out.Agents[j].RunsTotal })
-	// ponytail: skill proposals wait for Skill Miner (K58); the section stays
-	// so the UI and the contract do not move when it lands.
+	// Skill Miner (K58): the drafts waiting for a human are the week's proposals.
+	if drafts, err := h.Queries.ListDraftSkills(ctx, wsID); err == nil {
+		for _, d := range drafts {
+			source := "skill_miner"
+			var cfg struct {
+				Origin struct {
+					Type string `json:"type"`
+				} `json:"origin"`
+			}
+			if json.Unmarshal(d.Config, &cfg) == nil && cfg.Origin.Type != "" {
+				source = cfg.Origin.Type
+			}
+			out.SkillProposals = append(out.SkillProposals, SkillProposal{Text: d.Name + ": " + d.Description, Source: source})
+		}
+	}
 	return out, nil
 }
 

@@ -2185,6 +2185,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			r.Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
+			// Skill Miner (K58): drafts waiting for review.
+			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
 			r.Get("/api/work-profile", h.GetMyWorkProfile)
 			r.Patch("/api/work-profile/{id}", h.PatchWorkProfileObservation)
 			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)

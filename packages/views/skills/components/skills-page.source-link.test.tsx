@@ -46,6 +46,11 @@ vi.mock("@tanstack/react-query", () => ({
     }
     return { data: [], isLoading: false, error: null, refetch: vi.fn() };
   },
+  // The Skill Miner drafts section (K58) mounts inside the page and builds its
+  // query with these; it renders nothing when the drafts query returns [].
+  queryOptions: (options: unknown) => options,
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
+  useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn() }),
 }));
 
 // Render every row so the anchor under test is always mounted.

@@ -63,7 +63,8 @@
     "source_clawhub": "Depuis ClawHub",
     "source_skills_sh": "Depuis Skills.sh",
     "source_github": "Depuis GitHub",
-    "source_distilled": "Distillé d'une exécution"
+    "source_distilled": "Distillé d'une exécution",
+    "source_mined": "Miné depuis des corrections"
   },
   "actions": {
     "row_menu": "Actions",
@@ -384,5 +385,17 @@
     "markdown_placeholder": "Rédiger le contenu markdown...",
     "raw_placeholder": "Contenu du fichier...",
     "raw_aria": "Contenu en texte brut de {{path}}"
+  },
+  "miner": {
+    "section": "{{n}} proposition(s) de skill à relire",
+    "intro": "Minées depuis des corrections humaines récurrentes ou distillées d'un run réussi. Un brouillon n'est jamais donné à un agent avant que tu le publies ; l'ignorer garde les signaux sources.",
+    "origin_mined": "depuis {{n}} corrections de {{agent}} ({{regressed}} avec un statut reculé)",
+    "origin_distilled": "distillé d'un run réussi",
+    "sources": "Sources :",
+    "publish": "Publier et éditer",
+    "dismiss": "Ignorer",
+    "published": "Publié — édite-le avant de l'attacher à des agents",
+    "dismissed": "Proposition ignorée",
+    "failed": "Impossible de mettre à jour la proposition"
   }
 }

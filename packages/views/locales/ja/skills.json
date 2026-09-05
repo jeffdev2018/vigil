@@ -63,7 +63,8 @@
     "source_clawhub": "ClawHub から",
     "source_skills_sh": "Skills.sh から",
     "source_github": "GitHub から",
-    "source_distilled": "実行から蒸留"
+    "source_distilled": "実行から蒸留",
+    "source_mined": "修正から抽出"
   },
   "actions": {
     "row_menu": "操作",
@@ -367,5 +368,17 @@
     "markdown_placeholder": "Markdown の内容を記述...",
     "raw_placeholder": "ファイルの内容...",
     "raw_aria": "{{path}} のプレーンテキスト"
+  },
+  "miner": {
+    "section": "レビュー待ちのスキル提案 {{n}} 件",
+    "intro": "繰り返される人間の修正から抽出、または成功した実行から蒸留されました。公開するまでドラフトがエージェントに渡ることはなく、却下しても元のシグナルは残ります。",
+    "origin_mined": "{{agent}} への修正 {{n}} 件から（ステータス後退 {{regressed}} 件）",
+    "origin_distilled": "成功した実行から蒸留",
+    "sources": "ソース:",
+    "publish": "公開して編集",
+    "dismiss": "却下",
+    "published": "公開しました。エージェントに割り当てる前に編集してください",
+    "dismissed": "提案を却下しました",
+    "failed": "提案を更新できませんでした"
   }
 }

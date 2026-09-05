@@ -985,6 +985,8 @@ export interface SkillSummary {
   updated_at: string;
 	/** Present only when returned from an agent-scoped assignment endpoint. */
 	enabled?: boolean;
+  /** Skill Miner (K58): a draft waits for a human before any agent gets it. */
+  status?: "draft" | "published" | (string & {});
 }
 
 export interface Skill extends SkillSummary {
@@ -1028,6 +1030,8 @@ export interface UpdateSkillRequest {
   content?: string;
   config?: Record<string, unknown>;
   files?: { path: string; content: string }[];
+  /** Skill Miner (K58): publish a draft. */
+  status?: "draft" | "published";
 }
 
 export interface SetAgentSkillsRequest {

@@ -59,6 +59,7 @@
     "./issues/run-replay": "./issues/run-replay.ts",
     "./issues/watchdog": "./issues/watchdog.ts",
     "./work-profile": "./work-profile/queries.ts",
+    "./skills/drafts": "./skills/drafts.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",
