@@ -640,6 +640,28 @@
     "unresponsive": "응답 없음",
     "unresponsive_tooltip": "{{duration}} 동안 활동 없음"
   },
+  "legs": {
+    "workflow": "워크플로",
+    "count_other": "실행 {{count}}회",
+    "total": "총 {{cost}}",
+    "role": {
+      "draft": "초기",
+      "retry": "다시 시도",
+      "fallback": "대체 실행",
+      "rerun": "재실행",
+      "review": "리뷰",
+      "critique": "반론",
+      "answer": "답변",
+      "revision": "수정",
+      "watchdog": "감시",
+      "duel": "대결",
+      "fanout": "분산",
+      "shard": "샤드",
+      "eval": "평가",
+      "escalation": "에스컬레이션",
+      "other": "단계"
+    }
+  },
   "usage_detail": {
     "title": "사용량 내역",
     "subtitle_other": "{{identifier}} · 실행 {{count}}회",

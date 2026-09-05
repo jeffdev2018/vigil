@@ -437,6 +437,12 @@ type AgentTaskResponse struct {
 	// non-completed status, review runs, rows that predate the feature), so
 	// the UI renders the block conditionally.
 	Confidence json.RawMessage `json:"confidence,omitempty"`
+	// Per-leg accounting (JEF-274): what this run is inside its workflow, and
+	// the primary run every leg of that workflow points at. LegRole is empty
+	// on the primary (draft/single) leg; WorkflowRootTaskID is empty on the
+	// root itself, so a run with neither is a plain single-leg run.
+	LegRole            string `json:"leg_role,omitempty"`
+	WorkflowRootTaskID string `json:"workflow_root_task_id,omitempty"`
 	// Pause, steer, resume (K19).
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
@@ -891,6 +897,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
+		LegRole:                t.LegRole,
+		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),

@@ -640,6 +640,28 @@
     "unresponsive": "无响应",
     "unresponsive_tooltip": "已 {{duration}} 无活动"
   },
+  "legs": {
+    "workflow": "工作流",
+    "count_other": "{{count}} 次运行",
+    "total": "共 {{cost}}",
+    "role": {
+      "draft": "首次",
+      "retry": "重试",
+      "fallback": "回退",
+      "rerun": "重新运行",
+      "review": "评审",
+      "critique": "质疑",
+      "answer": "答复",
+      "revision": "修订",
+      "watchdog": "看护",
+      "duel": "对决",
+      "fanout": "分发",
+      "shard": "分片",
+      "eval": "评测",
+      "escalation": "升级",
+      "other": "环节"
+    }
+  },
   "usage_detail": {
     "title": "用量明细",
     "subtitle_other": "{{identifier}} · {{count}} 次运行",

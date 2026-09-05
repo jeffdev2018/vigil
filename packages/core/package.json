@@ -59,6 +59,7 @@
     "./issues/ci-auto-fix": "./issues/ci-auto-fix.ts",
     "./issues/agent-effects": "./issues/agent-effects.ts",
     "./issues/run-replay": "./issues/run-replay.ts",
+    "./issues/legs": "./issues/legs.ts",
     "./issues/watchdog": "./issues/watchdog.ts",
     "./work-profile": "./work-profile/queries.ts",
     "./goals": "./goals/queries.ts",

@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -458,6 +459,13 @@ func (h *Handler) scanWatchdog(ctx context.Context, wd db.IssueWatchdog, now tim
 	task, err := h.TaskService.EnqueueCrossReviewRun(ctx, root, wd.AgentID, brief, actor)
 	if err != nil {
 		return nil, "", err
+	}
+	// Per-leg accounting (JEF-274): a watchdog scan judges a whole tree, not
+	// one run, so it is its own root — and never a sample of a worker's class.
+	if stamped, serr := h.TaskService.StampLeg(ctx, task, service.LegRoleWatchdog, db.AgentTaskQueue{}); serr != nil {
+		slog.Warn("watchdog: stamp leg failed", "task_id", uuidToString(task.ID), "error", serr)
+	} else {
+		task = stamped
 	}
 	if err := h.Queries.SetWatchdogScan(ctx, db.SetWatchdogScanParams{ID: wd.ID, LastScanTaskID: task.ID}); err != nil {
 		return nil, "", err

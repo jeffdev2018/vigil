@@ -567,6 +567,18 @@ export interface AgentTask {
    * scored the run and on older backends — render conditionally.
    */
   confidence?: TaskConfidence | null;
+  /**
+   * Per-leg accounting (JEF-274). What this run is inside its workflow —
+   * `review`, `revision`, `retry`, `fallback`, … — and the primary run every
+   * leg of that workflow points at.
+   *
+   * Empty / absent `leg_role` is the primary (draft/single) leg; absent
+   * `workflow_root_task_id` means the run IS the root. A run with neither is
+   * a plain single-leg run, which is also what an older backend reports for
+   * every run — render the badge conditionally.
+   */
+  leg_role?: string;
+  workflow_root_task_id?: string;
 }
 
 /**

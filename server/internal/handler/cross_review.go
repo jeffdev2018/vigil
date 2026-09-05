@@ -271,6 +271,11 @@ func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, 
 	if review, err = h.Queries.SetTaskReviewOf(ctx, db.SetTaskReviewOfParams{ID: review.ID, ReviewOfTaskID: task.ID}); err != nil {
 		return db.AgentTaskQueue{}, err
 	}
+	// Per-leg accounting (JEF-274): the review is a leg of the reviewed run's
+	// workflow, and never a sample of the worker's task class.
+	if review, err = h.TaskService.StampLeg(ctx, review, service.LegRoleReview, task); err != nil {
+		return db.AgentTaskQueue{}, err
+	}
 	h.audit(ctx, issue.WorkspaceID, "system", "", AuditCrossReview, "issue", issue.ID, map[string]any{"review_task_id": uuidToString(review.ID), "review_of_task_id": uuidToString(task.ID), "reviewer_agent_id": uuidToString(reviewer.ID), "reviewer_provider": reviewer.Provider, "author_provider": provider, "diff": ref}, nil)
 	h.publish("cross_review:queued", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "review_task_id": uuidToString(review.ID)})
 	return review, nil
@@ -346,6 +351,10 @@ func (h *Handler) maybeReworkAfterReview(ctx context.Context, issue db.Issue, re
 	if err != nil {
 		slog.Warn("cross review: rework enqueue failed", "issue_id", uuidToString(issue.ID), "error", err)
 		return
+	}
+	// The revision belongs to the workflow the review is already part of.
+	if _, err := h.TaskService.StampLeg(ctx, rework, service.LegRoleRevision, reviewTask); err != nil {
+		slog.Warn("cross review: stamp revision leg failed", "task_id", uuidToString(rework.ID), "error", err)
 	}
 	h.publish("cross_review:rework", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "task_id": uuidToString(rework.ID), "cycle": cycles})
 }

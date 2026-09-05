@@ -601,6 +601,12 @@ func (h *Handler) openContest(ctx context.Context, wsUUID pgtype.UUID, t contest
 			return db.Contest{}, fmt.Errorf("enqueue challenger: %w", err)
 		}
 		h.stampReadOnly(ctx, wsUUID, task.ID)
+		// Per-leg accounting (JEF-274): the challenger opens the contest
+		// workflow, so it is its own root; the answer and any later round
+		// hang off it.
+		if _, err := h.TaskService.StampLeg(ctx, task, service.LegRoleCritique, db.AgentTaskQueue{}); err != nil {
+			slog.Warn("contest: stamp critique leg failed", "task_id", uuidToString(task.ID), "error", err)
+		}
 		params.ChallengerTaskID = task.ID
 	} else {
 		raw, err := h.LLM.GenerateJSON(ctx, h.LLM.DefaultModel(), contestLLMPrompt, "MATERIAL ("+t.Type+"):\n"+t.Excerpt, 0.2, 1500)
@@ -686,6 +692,9 @@ func (h *Handler) settleContestRun(ctx context.Context, task db.AgentTaskQueue, 
 		if status == contestStatusObjectionsReady && len(report.Objections) > 0 && c.AuthorAgentID.Valid && c.IssueID.Valid {
 			if issue, err := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: c.IssueID, WorkspaceID: c.WorkspaceID}); err == nil {
 				if answer, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, c.AuthorAgentID, contestAnswerBrief(t, raw), c.CreatedBy); err == nil {
+					if _, serr := h.TaskService.StampLeg(ctx, answer, service.LegRoleAnswer, task); serr != nil {
+						slog.Warn("contest: stamp answer leg failed", "task_id", uuidToString(answer.ID), "error", serr)
+					}
 					if updated, err = h.Queries.SetContestAnswerTask(ctx, db.SetContestAnswerTaskParams{ID: c.ID, AnswerTaskID: answer.ID}); err == nil {
 						h.publish("contest:updated", uuidToString(c.WorkspaceID), "system", "", map[string]any{"contest_id": uuidToString(c.ID), "issue_id": uuidToPtr(c.IssueID), "status": updated.Status})
 						return
@@ -713,6 +722,9 @@ func (h *Handler) settleContestRun(ctx context.Context, task db.AgentTaskQueue, 
 				if _, err := h.Queries.SetContestAnswers(ctx, db.SetContestAnswersParams{ID: c.ID, Answers: raw, Status: contestStatusRunning}); err == nil {
 					if again, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, c.ChallengerAgentID, contestChallengerBrief(t, c.AuthorProvider, int(c.Round)+1, raw), c.CreatedBy); err == nil {
 						h.stampReadOnly(ctx, c.WorkspaceID, again.ID)
+						if _, serr := h.TaskService.StampLeg(ctx, again, service.LegRoleCritique, task); serr != nil {
+							slog.Warn("contest: stamp critique leg failed", "task_id", uuidToString(again.ID), "error", serr)
+						}
 						if updated, err := h.Queries.SetContestChallengerTask(ctx, db.SetContestChallengerTaskParams{ID: c.ID, ChallengerTaskID: again.ID, Round: c.Round + 1}); err == nil {
 							h.publish("contest:updated", uuidToString(c.WorkspaceID), "system", "", map[string]any{"contest_id": uuidToString(c.ID), "issue_id": uuidToPtr(c.IssueID), "status": updated.Status, "round": updated.Round})
 							return

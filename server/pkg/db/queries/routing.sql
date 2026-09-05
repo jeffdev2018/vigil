@@ -75,5 +75,11 @@ WHERE a.workspace_id = @workspace_id
   AND atq.status IN ('completed', 'failed')
   AND atq.completed_at IS NOT NULL
   AND atq.completed_at >= @since::timestamptz
+  -- Per-leg accounting (JEF-274): a review-like leg judges someone else's
+  -- work, so counting it as a sample of the worker's task class measures the
+  -- wrong job — a reviewer's cost, duration and success rate say nothing
+  -- about how a runtime performs on a bugfix. Retry, fallback, revision and
+  -- escalation legs DO count: they are real attempts at the class.
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class;
