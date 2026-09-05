@@ -379,6 +379,9 @@ var concurrentIndexCleanups = map[string]string{
 	"652_goal_workspace_index":                                  "idx_goal_workspace_parent",
 	"653_issue_goal_index":                                      "idx_issue_goal",
 	"654_project_goal_goal_index":                               "idx_project_goal_goal",
+	"657_contest_target_index":                                  "idx_contest_target",
+	"658_contest_task_index":                                    "idx_contest_challenger_task",
+	"659_contest_answer_task_index":                             "idx_contest_answer_task",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 

@@ -362,6 +362,10 @@ import {
   RunReplaySchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
+  ContestSchema,
+  ContestListSchema,
+  ContestPreflightSchema,
+  ContestSettingsSchema,
   GoalSchema,
   ListGoalsResponseSchema,
   GoalDetailResponseSchema,
@@ -3848,6 +3852,45 @@ export class ApiClient {
   async putCrossReviewSettings(input: import("../issues/cross-review").CrossReviewSettings): Promise<import("../issues/cross-review").CrossReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/cross-review-settings`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
+  }
+
+  // Contest (K72)
+  async preflightContest(params: { target_type: string; target_id: string; challenger_agent_id?: string }): Promise<import("../issues/contest").ContestPreflight | null> {
+    const search = new URLSearchParams({ target_type: params.target_type, target_id: params.target_id });
+    if (params.challenger_agent_id) search.set("challenger_agent_id", params.challenger_agent_id);
+    const raw = await this.fetch<unknown>(`/api/contests/preflight?${search}`);
+    return parseWithFallback(raw, ContestPreflightSchema.nullable(), null, { endpoint: "GET /api/contests/preflight" });
+  }
+
+  async createContest(data: { target_type: string; target_id: string; max_rounds?: number; challenger_agent_id?: string }): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>("/api/contests", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "POST /api/contests" });
+  }
+
+  async listContests(params: { issue_id: string } | { target_type: string; target_id: string }): Promise<import("../issues/contest").Contest[]> {
+    const search = new URLSearchParams(params as Record<string, string>);
+    const raw = await this.fetch<unknown>(`/api/contests?${search}`);
+    return parseWithFallback(raw, ContestListSchema, { contests: [] }, { endpoint: "GET /api/contests" }).contests;
+  }
+
+  async getContest(id: string): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "GET /api/contests/:id" });
+  }
+
+  async confirmContest(id: string, verdict: "upheld" | "dismissed" | "mixed", note: string): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}/verdict`, { method: "POST", body: JSON.stringify({ verdict, note }) });
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "POST /api/contests/:id/verdict" });
+  }
+
+  async getContestSettings(): Promise<import("../issues/contest").ContestSettings> {
+    const raw = await this.fetch<unknown>("/api/contest-settings");
+    return parseWithFallback(raw, ContestSettingsSchema, { targets: {}, opt_out_project_ids: [] }, { endpoint: "GET /api/contest-settings" });
+  }
+
+  async putContestSettings(input: import("../issues/contest").ContestSettings): Promise<import("../issues/contest").ContestSettings> {
+    const raw = await this.fetch<unknown>("/api/contest-settings", { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, ContestSettingsSchema, input, { endpoint: "PUT /api/contest-settings" });
   }
 
   async retryCrossReview(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {

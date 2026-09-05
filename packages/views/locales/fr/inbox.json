@@ -94,6 +94,7 @@
     "trust_promotion_suggested": "Promotion de confiance suggérée",
     "triage_stale": "La file de triage stagne",
     "watchdog_escalation": "Escalade du watchdog",
+    "contest_ready": "Contestation prête pour votre verdict",
     "decision_auto_decided": "Décidé pour toi"
   },
   "labels": {

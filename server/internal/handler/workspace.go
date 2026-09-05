@@ -1296,6 +1296,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceAgentDuels(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge contests",
+			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge pipeline runs",
 			run:  func() error { return qtx.PurgeWorkspacePipelineRuns(ctx, requester.WorkspaceID) },
 		},

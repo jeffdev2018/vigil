@@ -8,6 +8,8 @@ import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { useT } from "../../i18n";
 import { useShortcutAction } from "./use-shortcut-action";
+import { ContestButton } from "../../contests/components/contest-button";
+import { TargetContests } from "../../contests/components/target-contests";
 
 /**
  * Triage auto-ML (K61): what the queue learned from past accept / dismiss
@@ -79,6 +81,12 @@ export function TriageSuggestionPanel({ item, suggestion, auto, wsId }: { item: 
           {t(($) => $.suggestion.reopen)}
         </Button>
       )}
+      {item.verdict_agent_id ? (
+        <>
+          <ContestButton targetType="triage_verdict" targetId={item.id} size="xs" className="self-start" />
+          <TargetContests targetType="triage_verdict" targetId={item.id} />
+        </>
+      ) : null}
     </section>
   );
 }

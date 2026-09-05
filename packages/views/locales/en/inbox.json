@@ -94,6 +94,7 @@
     "trust_promotion_suggested": "Trust promotion suggested",
     "triage_stale": "Triage is stalling",
     "watchdog_escalation": "Watchdog escalation",
+    "contest_ready": "Contest ready for your verdict",
     "decision_auto_decided": "Decided for you"
   },
   "labels": {

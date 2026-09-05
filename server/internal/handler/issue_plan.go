@@ -218,6 +218,10 @@ func (h *Handler) SetIssuePlan(w http.ResponseWriter, r *http.Request) {
 			h.askPlanApproval(ctx, r, issue, plan, len(req.Steps), actorType, actorID)
 		}
 	}
+	// Contest (K72): a policy may have a rival model challenge an agent's plan.
+	if actorType == "agent" {
+		h.autoContest(ctx, issue.WorkspaceID, contestTargetPlan, plan.ID)
+	}
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
 	created := issuePlanToResponse(plan)
 	writeJSON(w, http.StatusOK, IssuePlanEnvelope{Plan: &created, Versions: []IssuePlanResponse{created}})
