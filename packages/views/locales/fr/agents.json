@@ -782,6 +782,7 @@
       "source_run": "Depuis un run",
       "source_postmortem": "Issu d'un postmortem",
       "source_issue_link": "Voir l'issue",
+      "state_draft": "Brouillon",
       "dialog_create_title": "Ajouter un souvenir",
       "dialog_edit_title": "Modifier le souvenir",
       "dialog_description": "Un fait par souvenir. Restez court et spécifique.",
@@ -797,7 +798,9 @@
       "save_failed_toast": "Impossible d'enregistrer le souvenir. Réessayez.",
       "delete_failed_toast": "Impossible de supprimer le souvenir. Réessayez.",
       "cap_reached_toast": "Cet agent a déjà 200 souvenirs. Supprimez-en un pour libérer de l'espace.",
-      "extraction_disabled_note": "Aucun modèle de langage n'est configuré sur le serveur, les runs ne peuvent donc pas mémoriser ce qu'ils apprennent. Seuls les faits manuels sont conservés."
+      "extraction_disabled_note": "Aucun modèle de langage n'est configuré sur le serveur, les runs ne peuvent donc pas mémoriser ce qu'ils apprennent. Seuls les faits manuels sont conservés.",
+      "approve_action": "Approuver",
+      "approve_pending": "Approbation…"
     },
     "integrations": {
       "intro": "Connectez cet agent à des plateformes de chat externes pour que vos collaborateurs puissent travailler avec lui là où ils se trouvent.",
@@ -965,6 +968,14 @@
     "routing_candidate_score": "score {{score}}",
     "routing_candidate_confidence": "{{wilson}} % de confiance",
     "routing_candidate_excluded": "Exclu : {{reason}}",
+    "confidence_chip": "{{score}} % de confiance",
+    "confidence_chip_title": "Le niveau de confiance du scorer dans le résultat de ce run",
+    "details_confidence_score": "Confiance",
+    "details_confidence_score_value": "{{score}} %",
+    "details_confidence_model": "Scoré par",
+    "details_confidence_threshold": "Seuil de revue",
+    "details_confidence_threshold_value": "{{threshold}} %",
+    "details_confidence_rationale": "Justification",
     "details_workdir": "Workdir",
     "details_project_directory": "Répertoire du projet",
     "details_created": "Créé",

@@ -534,6 +534,10 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// a disabled client simply turns the pass off (a skill is only worth
 	// storing when genuinely distilled).
 	taskSvc.SkillDistillation = llmClient
+	// Post-success run confidence scoring (JEF-240) uses the same internal LLM
+	// layer; a disabled client simply turns the pass off (a score is only
+	// worth storing when genuinely assessed).
+	taskSvc.RunConfidence = llmClient
 	// Daily workspace Brain curation uses the same internal LLM layer; a
 	// disabled client turns the pass into a logged no-op.
 	taskSvc.BrainCuration = llmClient

@@ -16,6 +16,7 @@ import {
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
   AgentTaskListSchema,
+  ConfidenceReviewSettingsSchema,
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
@@ -89,6 +90,10 @@ import {
   AgentMemoryListSchema,
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
+} from "./schemas";
+import {
+  CrossReviewReportSchema,
+  ProjectReviewConfigSchema,
 } from "./schemas";
 import { parseWithFallback } from "./schema";
 
@@ -779,6 +784,72 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.routing).toBeUndefined();
     // An explicit null stays null — the router ran in fixed mode.
     expect(parsed[1]?.routing).toBeNull();
+  });
+
+  it("parses the confidence record of a scored run", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        confidence: {
+          score: 0.85,
+          rationale: "Tests and diff look consistent",
+          model: "claude-sonnet-4-6",
+          threshold: 0.5,
+          below_threshold: false,
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.confidence?.score).toBe(0.85);
+    expect(parsed[0]?.confidence?.rationale).toBe(
+      "Tests and diff look consistent",
+    );
+    expect(parsed[0]?.confidence?.model).toBe("claude-sonnet-4-6");
+    expect(parsed[0]?.confidence?.threshold).toBe(0.5);
+    expect(parsed[0]?.confidence?.below_threshold).toBe(false);
+  });
+
+  it("accepts task payloads from backends that have not scored the run yet", () => {
+    const parsed = AgentTaskListSchema.parse([
+      task,
+      { ...task, id: "task-2", confidence: null },
+    ]);
+
+    expect(parsed[0]?.confidence).toBeUndefined();
+    // An explicit null stays null — the run is known to be unscored.
+    expect(parsed[1]?.confidence).toBeNull();
+  });
+
+  it("degrades a malformed confidence record without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, confidence: { score: "high", rationale: 42 } },
+      { ...task, id: "task-2", confidence: "not-an-object" },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.confidence).toBeUndefined();
+    expect(parsed[1]?.confidence).toBeUndefined();
+  });
+});
+
+describe("ConfidenceReviewSettingsSchema", () => {
+  it("defaults a bare payload to enabled with the product threshold", () => {
+    expect(ConfidenceReviewSettingsSchema.parse({})).toEqual({
+      enabled: true,
+      threshold: 0.5,
+    });
+  });
+
+  it("round-trips an explicit payload", () => {
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ enabled: false, threshold: 0.7 }),
+    ).toEqual({ enabled: false, threshold: 0.7 });
+  });
+
+  it("catches malformed fields back to the defaults", () => {
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ enabled: "yes", threshold: "a lot" }),
+    ).toEqual({ enabled: true, threshold: 0.5 });
   });
 });
 
@@ -2332,6 +2403,27 @@ describe("AgentMemory schemas", () => {
     expect(parsed.extraction_enabled).toBe(true);
   });
 
+  it("parses the governance state when present", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Hypothesis from a run",
+      source: "run",
+      state: "draft",
+    });
+    expect(parsed.state).toBe("draft");
+  });
+
+  it("defaults a missing state to approved (pre-governance rows)", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Fact written before states existed",
+      source: "manual",
+    });
+    expect(parsed.state).toBe("approved");
+  });
+
   it("falls back to an empty list on a malformed list response", () => {
     const parsed = parseWithFallback(
       { memories: "not-an-array" },
@@ -2557,5 +2649,87 @@ describe("TriageEmailSourceSchema", () => {
         }),
       ).toEqual(EMPTY_TRIAGE_EMAIL_SOURCE);
     }
+  });
+});
+
+// JEF-238: per-project review config and checklist verdicts on the report.
+describe("ProjectReviewConfigSchema", () => {
+  it("parses a full config and keeps unknown fields", () => {
+    const parsed = ProjectReviewConfigSchema.parse({
+      project_id: "p1",
+      checklist: ["no foreign keys in migrations", "tests added"],
+      reviewer_agent_id: "agent-9",
+      gate_enabled: true,
+      max_cycles: 5,
+      future_field: "x",
+    });
+    expect(parsed).toMatchObject({
+      project_id: "p1",
+      checklist: ["no foreign keys in migrations", "tests added"],
+      reviewer_agent_id: "agent-9",
+      gate_enabled: true,
+      max_cycles: 5,
+    });
+    expect((parsed as Record<string, unknown>).future_field).toBe("x");
+  });
+
+  it("applies the documented defaults when the project has no saved config", () => {
+    const parsed = ProjectReviewConfigSchema.parse({ project_id: "p1" });
+    expect(parsed).toMatchObject({
+      checklist: [],
+      reviewer_agent_id: null,
+      gate_enabled: false,
+      max_cycles: 3,
+    });
+  });
+
+  it("degrades malformed fields to the defaults instead of throwing", () => {
+    // project_id stays a plain .default (no .catch), matching the file
+    // convention for identity fields — a bad one fails over wholesale via
+    // parseWithFallback, exercised below.
+    const parsed = ProjectReviewConfigSchema.parse({
+      project_id: "p1",
+      checklist: "not-an-array",
+      reviewer_agent_id: 42,
+      gate_enabled: "yes",
+      max_cycles: "lots",
+    });
+    expect(parsed).toMatchObject({
+      project_id: "p1",
+      checklist: [],
+      reviewer_agent_id: null,
+      gate_enabled: false,
+      max_cycles: 3,
+    });
+    const fallback = { project_id: "p1", checklist: [], reviewer_agent_id: null, gate_enabled: false, max_cycles: 3 };
+    expect(
+      parseWithFallback("nope", ProjectReviewConfigSchema, fallback, { endpoint: "GET /api/projects/:id/review-config" }),
+    ).toEqual(fallback);
+  });
+});
+
+describe("CrossReviewReportSchema.checklist_results", () => {
+  it("parses a report with checklist results", () => {
+    const parsed = CrossReviewReportSchema.parse({
+      verdict: "request_changes",
+      summary: "",
+      checklist_results: [
+        { item: "no foreign keys in migrations", pass: false, note: "adds REFERENCES" },
+        { item: "tests added", pass: true, note: "" },
+      ],
+    });
+    expect(parsed.checklist_results).toHaveLength(2);
+    expect(parsed.checklist_results?.[0]).toMatchObject({ pass: false, note: "adds REFERENCES" });
+  });
+
+  it("leaves checklist_results undefined on reports from before the checklist", () => {
+    const parsed = CrossReviewReportSchema.parse({ verdict: "approve" });
+    expect(parsed.checklist_results).toBeUndefined();
+  });
+
+  it("drops a malformed checklist_results field instead of failing the report", () => {
+    const parsed = CrossReviewReportSchema.parse({ verdict: "approve", checklist_results: "nope" });
+    expect(parsed.checklist_results).toBeUndefined();
+    expect(parsed.verdict).toBe("approve");
   });
 });

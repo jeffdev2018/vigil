@@ -33,6 +33,7 @@ export type WSEventType =
   | "task:failed"
   | "task:message"
   | "task:cancelled"
+  | "task:scored"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -106,7 +107,11 @@ export type WSEventType =
   | "postmortem:resolved"
   | "workspace_note:created"
   | "workspace_note:updated"
-  | "workspace_note:deleted";
+  | "workspace_note:deleted"
+  | "cross_review:queued"
+  | "cross_review:report"
+  | "cross_review:rework"
+  | "cross_review:escalated";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -275,6 +280,26 @@ export interface PostmortemResolvedPayload {
   postmortem: Postmortem;
 }
 
+/** Cross-provider review lifecycle (K15): a review was queued or reported. */
+export interface CrossReviewEventPayload {
+  issue_id: string;
+  review_task_id?: string;
+  verdict?: string;
+}
+
+/** A request_changes verdict sent the task back to the worker (JEF-238). */
+export interface CrossReviewReworkPayload {
+  issue_id: string;
+  task_id: string;
+  cycle: number;
+}
+
+/** The rework-cycle cap was reached; a human must decide (JEF-238). */
+export interface CrossReviewEscalatedPayload {
+  issue_id: string;
+  cycles: number;
+}
+
 export interface CommentCreatedPayload {
   comment: Comment;
   issue_revision?: number;
@@ -419,6 +444,19 @@ export interface TaskCancelledPayload {
   issue_id: string;
   chat_session_id?: string;
   status: string;
+}
+
+// task:scored (JEF-240) fires once the run's confidence score is persisted —
+// after task:completed, never instead of it. `below_threshold` is the
+// backend's verdict against the workspace threshold; when true the issue has
+// also moved into review, so consumers refresh the issue row alongside the
+// task lists.
+export interface TaskScoredPayload {
+  task_id: string;
+  issue_id: string;
+  score: number;
+  threshold: number;
+  below_threshold: boolean;
 }
 
 export interface ReactionAddedPayload {
@@ -652,6 +690,7 @@ export interface WSEventPayloadMap {
   "task:failed": TaskFailedPayload;
   "task:message": TaskMessagePayload;
   "task:cancelled": TaskCancelledPayload;
+  "task:scored": TaskScoredPayload;
   "task:progress": unknown;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;
@@ -715,6 +754,10 @@ export interface WSEventPayloadMap {
   "triage:updated": TriageUpdatedPayload;
   "postmortem:created": PostmortemCreatedPayload;
   "postmortem:resolved": PostmortemResolvedPayload;
+  "cross_review:queued": CrossReviewEventPayload;
+  "cross_review:report": CrossReviewEventPayload;
+  "cross_review:rework": CrossReviewReworkPayload;
+  "cross_review:escalated": CrossReviewEscalatedPayload;
 }
 
 /**

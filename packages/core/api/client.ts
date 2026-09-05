@@ -59,6 +59,7 @@ import type {
   SkillSummary,
   AgentMemory,
   AgentMemoryList,
+  AgentMemoryState,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -120,6 +121,8 @@ import type {
   CreateProjectRequest,
   UpdateProjectRequest,
   ListProjectsResponse,
+  ProjectReviewConfig,
+  UpdateProjectReviewConfigRequest,
   ProjectResource,
   CreateProjectResourceRequest,
   UpdateProjectResourceRequest,
@@ -435,6 +438,8 @@ import {
   UndoReportSchema,
   UndoSettingsSchema,
   CrossReviewSettingsSchema,
+  ProjectReviewConfigSchema,
+  ConfidenceReviewSettingsSchema,
   IssueCIAutoFixSchema,
   CIAutoFixRetryEnvelopeSchema,
   CIAutoFixSettingsSchema,
@@ -3552,13 +3557,13 @@ export class ApiClient {
   async updateAgentMemory(
     agentId: string,
     memoryId: string,
-    content: string,
+    patch: { content?: string; state?: AgentMemoryState },
   ): Promise<AgentMemory> {
     const raw = await this.fetch<unknown>(
       `/api/agents/${agentId}/memories/${memoryId}`,
       {
         method: "PUT",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(patch),
       },
     );
     return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
@@ -3896,6 +3901,17 @@ export class ApiClient {
     return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
   }
 
+  // Confidence review (JEF-240).
+  async getConfidenceReviewSettings(): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/confidence-review-settings`);
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5 }, { endpoint: "GET /api/confidence-review-settings" });
+  }
+
+  async putConfidenceReviewSettings(input: import("../issues/confidence-review").ConfidenceReviewSettings): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/confidence-review-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, input, { endpoint: "PUT /api/confidence-review-settings" });
+  }
+
   // Executable org chart (K75)
   async listOrgTemplates(): Promise<import("../types").OrgTemplate[]> {
     const raw = await this.fetch<unknown>("/api/org/templates");
@@ -4005,6 +4021,18 @@ export class ApiClient {
   async retryCrossReview(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews/retry`, { method: "POST" });
     return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "POST /api/issues/:id/cross-reviews/retry" }).reviews;
+  }
+
+  // Per-project review configuration (JEF-238). GET always answers 200 —
+  // the defaults are the fallback the schema already encodes.
+  async getProjectReviewConfig(projectId: string): Promise<ProjectReviewConfig> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/review-config`);
+    return parseWithFallback(raw, ProjectReviewConfigSchema, { project_id: projectId, checklist: [], reviewer_agent_id: null, gate_enabled: false, max_cycles: 3 }, { endpoint: "GET /api/projects/:id/review-config" });
+  }
+
+  async putProjectReviewConfig(projectId: string, input: UpdateProjectReviewConfigRequest): Promise<ProjectReviewConfig> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/review-config`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, ProjectReviewConfigSchema, { project_id: projectId, ...input }, { endpoint: "PUT /api/projects/:id/review-config" });
   }
 
   // Refactoring campaigns (K42).

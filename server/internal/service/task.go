@@ -94,6 +94,11 @@ type TaskService struct {
 	// postmortem scaffold, a skill is only worth storing when genuinely
 	// distilled, so an unconfigured deployment simply skips it.
 	SkillDistillation SkillDistillationLLM
+	// RunConfidence powers the post-success confidence scoring pass (JEF-240).
+	// Optional: nil (or a disabled client) turns the pass off — a score is only
+	// worth storing when genuinely assessed, so an unconfigured deployment
+	// simply skips it. Wired in handler.New from the same *llm.Client.
+	RunConfidence RunConfidenceLLM
 	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
 	// Optional: nil (or a disabled client) turns extraction off, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*
@@ -138,6 +143,12 @@ type TaskService struct {
 	// above.
 	skillDistillationInFlight sync.Map
 	skillDistillationRunning  atomic.Int64
+
+	// runConfidenceInFlight (task id -> struct{}{}) and runConfidenceRunning
+	// gate the post-success scoring pass: one per task, and a process-wide
+	// ceiling. Zero values are usable, like the gates above.
+	runConfidenceInFlight sync.Map
+	runConfidenceRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext
@@ -1290,8 +1301,42 @@ func (s *TaskService) EnqueueTaskForIssueByActor(ctx context.Context, issue db.I
 // variant used when an installed client still sends handoff_note. The note is
 // persisted on the task so both old and current daemons can render it in the
 // run's opening prompt. Empty text behaves like EnqueueTaskForIssueByActor.
+//
+// Coalescing (JEF-241): interview answers, review reworks and resume runs all
+// carry a handoff note, and they commonly arrive while the issue already has
+// a pending task (e.g. the assignment enqueue). The unique pending slot must
+// not swallow the note — it merges into the waiting task so the run still
+// opens with it.
 func (s *TaskService) EnqueueTaskForIssueWithHandoff(ctx context.Context, issue db.Issue, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	task, err := s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return task, err
+	}
+	return s.mergeHandoffIntoPendingTask(ctx, issue, handoffNote)
+}
+
+// mergeHandoffIntoPendingTask appends a handoff note to the task currently
+// occupying the issue's pending slot. The merge is deliberate (not the fresh
+// enqueue's) so attribution, routing and the trigger snapshot of the waiting
+// run stay untouched — only the operator-facing note grows.
+func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.Issue, handoffNote string) (db.AgentTaskQueue, error) {
+	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
+		IssueID: issue.ID,
+		AgentID: issue.AssigneeID,
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)
+	}
+	merged, err := s.Queries.AppendTaskHandoffNote(ctx, db.AppendTaskHandoffNoteParams{
+		ID:          pending.ID,
+		HandoffNote: pgtype.Text{String: handoffNote, Valid: true},
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("append handoff note: %w", err)
+	}
+	slog.Info("handoff note merged into pending task",
+		"issue_id", util.UUIDToString(issue.ID), "task_id", util.UUIDToString(merged.ID))
+	return merged, nil
 }
 
 // enqueueIssueTask is the shared implementation behind EnqueueTaskForIssue
@@ -7048,13 +7093,14 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 // predictably past it.
 const AgentMemoryBriefCharBudget = 40000
 
-// AgentMemoryFact is the (content, source) pair the brief budget reasons
-// about, so the selection is shared by the claim path (db.AgentMemory rows)
-// and the list endpoint (db.ListAgentMemoriesRow rows) without either owning
-// the rule.
+// AgentMemoryFact is one durable agent memory fact: the (content, source)
+// pair the brief budget reasons about, plus the governance state (JEF-269)
+// the daemon needs to render approved facts apart from unverified drafts.
+// The json tags are the claim-wire shape (TaskAgentData.Memories).
 type AgentMemoryFact struct {
-	Content string
-	Source  string
+	Content string `json:"content"`
+	Source  string `json:"source,omitempty"`
+	State   string `json:"state"`
 }
 
 // SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
@@ -7075,16 +7121,17 @@ func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
 	return kept
 }
 
-// LoadAgentMemories returns the contents of an agent's memory facts (JEF-236),
-// in chronological order for the brief. SQL returns them newest-first, capped
-// at the same 200 the write path enforces; SelectBriefedAgentMemories then
-// applies the character budget and the reverse happens here so the prompt
-// reads oldest → newest, matching how the facts were learned.
+// LoadAgentMemories returns an agent's memory facts (JEF-236) with their
+// governance state (JEF-269), in chronological order for the brief. SQL
+// returns them newest-first, capped at the same 200 the write path enforces;
+// SelectBriefedAgentMemories then applies the character budget and the
+// reverse happens here so the prompt reads oldest → newest, matching how the
+// facts were learned.
 //
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
 // the brief and the claim continues without it (see buildClaimedTaskResponse).
-func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]AgentMemoryFact, error) {
 	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
 		AgentID:     agentID,
 		WorkspaceID: workspaceID,
@@ -7094,14 +7141,14 @@ func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceI
 	}
 	facts := make([]AgentMemoryFact, len(rows))
 	for i, row := range rows {
-		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source}
+		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source, State: row.State}
 	}
 	briefed := SelectBriefedAgentMemories(facts)
-	contents := make([]string, 0, len(briefed))
+	ordered := make([]AgentMemoryFact, 0, len(briefed))
 	for i := len(briefed) - 1; i >= 0; i-- {
-		contents = append(contents, briefed[i].Content)
+		ordered = append(ordered, briefed[i])
 	}
-	return contents, nil
+	return ordered, nil
 }
 
 // workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with

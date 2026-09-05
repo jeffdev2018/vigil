@@ -211,5 +211,21 @@
     "updated": "Role updated",
     "update_failed": "Failed to update the role",
     "read_only": "Only workspace owners, admins and project admins can change roles."
+  },
+  "review": {
+    "section": "Agent review",
+    "description": "When an agent delivers work on this project, a different agent reviews it against the checklist below.",
+    "checklist": "Checklist",
+    "checklist_empty": "No checklist item yet.",
+    "item_placeholder": "e.g. migrations add no foreign keys",
+    "add": "Add item",
+    "remove": "Remove item",
+    "reviewer": "Reviewer agent",
+    "reviewer_auto": "Automatic",
+    "gate": "Gate on approval",
+    "gate_description": "When on, an issue cannot move to done until its latest review approves the work.",
+    "max_cycles": "Max cycles",
+    "save": "Save review settings",
+    "failed": "The review settings could not be saved"
   }
 }

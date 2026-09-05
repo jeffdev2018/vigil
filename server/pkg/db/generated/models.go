@@ -166,6 +166,7 @@ type AgentMemory struct {
 	SourceTaskID pgtype.UUID        `json:"source_task_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	State        string             `json:"state"`
 }
 
 type AgentPermissionProfile struct {
@@ -315,6 +316,7 @@ type AgentTaskQueue struct {
 	Routing             []byte             `json:"routing"`
 	SafeMode            bool               `json:"safe_mode"`
 	ModelKeyID          pgtype.UUID        `json:"model_key_id"`
+	Confidence          []byte             `json:"confidence"`
 }
 
 type AgentToLabel struct {
@@ -1939,6 +1941,17 @@ type ProjectResource struct {
 	Position     int32              `json:"position"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	CreatedBy    pgtype.UUID        `json:"created_by"`
+}
+
+type ProjectReviewConfig struct {
+	ProjectID       pgtype.UUID        `json:"project_id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Checklist       []byte             `json:"checklist"`
+	ReviewerAgentID pgtype.UUID        `json:"reviewer_agent_id"`
+	GateEnabled     bool               `json:"gate_enabled"`
+	MaxCycles       int32              `json:"max_cycles"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type QuickAction struct {

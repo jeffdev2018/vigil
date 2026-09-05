@@ -7303,11 +7303,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	agentName := "agent"
 	var skills []SkillData
 	var instructions string
-	var memories []string
 	agentName = task.Agent.Name
 	skills = task.Agent.Skills
 	instructions = task.Agent.Instructions
-	memories = task.Agent.Memories
+	memories := convertMemoriesForEnv(task.Agent.Memories, task.Agent.MemoryStates)
 
 	// Prepare isolated execution environment.
 	// Repos are passed as metadata only — the agent checks them out on demand
@@ -9565,6 +9564,26 @@ func convertSkillsForEnv(skills []SkillData) []execenv.SkillContextForEnv {
 				Content: f.Content,
 			})
 		}
+	}
+	return result
+}
+
+// convertMemoriesForEnv maps the claim wire memories to the execenv shape.
+// states is the parallel governance array (JEF-269); a fact without a state
+// (a pre-governance server, or a short/missing states array) defaults to
+// approved: before states existed, every stored fact was human-written or
+// human-reviewed, so nothing older deserves the draft quarantine.
+func convertMemoriesForEnv(memories []string, states []string) []execenv.AgentMemoryForEnv {
+	if len(memories) == 0 {
+		return nil
+	}
+	result := make([]execenv.AgentMemoryForEnv, len(memories))
+	for i, content := range memories {
+		state := "approved"
+		if i < len(states) && (states[i] == "draft" || states[i] == "approved") {
+			state = states[i]
+		}
+		result[i] = execenv.AgentMemoryForEnv{Content: content, State: state}
 	}
 	return result
 }

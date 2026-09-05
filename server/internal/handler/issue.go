@@ -3488,6 +3488,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if statusKeyForGuard != "" && !h.planVerificationAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Review gate (JEF-238): a gated project needs an approving cross-review.
+	if statusKeyForGuard != "" && !h.reviewGateAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
 	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
@@ -4316,6 +4320,10 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		if req.Updates.Status != nil {
 			// Plan verification gate (F17): one gated issue refuses the batch.
 			if !h.planVerificationAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			// Review gate (JEF-238): same for a project gating on the review.
+			if !h.reviewGateAllowsStatus(w, r, prevIssue, batchStatusKey) {
 				return
 			}
 			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {

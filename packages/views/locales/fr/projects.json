@@ -211,5 +211,21 @@
     "updated": "Rôle mis à jour",
     "update_failed": "Échec de la mise à jour du rôle",
     "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles."
+  },
+  "review": {
+    "section": "Revue par agent",
+    "description": "Quand un agent livre un travail sur ce projet, un autre agent le relit selon la checklist ci-dessous.",
+    "checklist": "Checklist",
+    "checklist_empty": "Aucun élément de checklist pour le moment.",
+    "item_placeholder": "ex. pas de clé étrangère dans les migrations",
+    "add": "Ajouter un élément",
+    "remove": "Supprimer l'élément",
+    "reviewer": "Agent reviewer",
+    "reviewer_auto": "Automatique",
+    "gate": "Approbation obligatoire",
+    "gate_description": "Quand c'est actif, une issue ne peut pas passer à done tant que sa dernière revue n'a pas approuvé le travail.",
+    "max_cycles": "Cycles max",
+    "save": "Enregistrer les paramètres de revue",
+    "failed": "Les paramètres de revue n'ont pas pu être enregistrés"
   }
 }

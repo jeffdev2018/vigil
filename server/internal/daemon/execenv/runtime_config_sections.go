@@ -130,16 +130,38 @@ func writeAgentIdentity(b *strings.Builder, ctx TaskContextForEnv) {
 }
 
 // writeAgentMemory emits the Memory section: the durable facts this agent
-// learned from previous runs (JEF-236). Emitted only when the agent has at
-// least one fact, so agents without memory get a byte-identical brief.
+// learned from previous runs (JEF-236), governed by review state (JEF-269).
+// Approved facts list first, under the Memory heading; drafts — hypotheses
+// the post-run extraction pass learned on its own — follow under a clearly
+// marked "unverified" sub-heading that tells the agent to re-verify before
+// relying on them. Emitted only when the agent has at least one fact, so
+// agents without memory get a byte-identical brief.
 func writeAgentMemory(b *strings.Builder, ctx TaskContextForEnv) {
 	if len(ctx.AgentMemories) == 0 {
 		return
 	}
-	b.WriteString("## Memory\n\n")
-	b.WriteString("These are facts you learned from previous tasks. Trust them, but re-verify if the current state contradicts them.\n\n")
+	approved := make([]AgentMemoryForEnv, 0, len(ctx.AgentMemories))
+	drafts := make([]AgentMemoryForEnv, 0, len(ctx.AgentMemories))
 	for _, fact := range ctx.AgentMemories {
-		fmt.Fprintf(b, "- %s\n", fact)
+		if fact.State == "draft" {
+			drafts = append(drafts, fact)
+		} else {
+			// Anything but an explicit draft — including the empty state of a
+			// pre-governance server — is trusted as approved.
+			approved = append(approved, fact)
+		}
+	}
+	b.WriteString("## Memory\n\n")
+	b.WriteString("These are facts you learned from previous tasks. Trust them, but re-verify if the current state contradicts them. When you rely on a memory, cite it; when no memory or rule applies, say so instead of improvising.\n\n")
+	for _, fact := range approved {
+		fmt.Fprintf(b, "- %s\n", fact.Content)
+	}
+	if len(drafts) > 0 {
+		b.WriteString("\n### Unverified memories (draft)\n\n")
+		b.WriteString("These hypotheses were learned automatically and no human has reviewed them yet. Re-verify each one against the current state before relying on it.\n\n")
+		for _, fact := range drafts {
+			fmt.Fprintf(b, "- %s\n", fact.Content)
+		}
 	}
 	b.WriteString("\n")
 }

@@ -2289,6 +2289,20 @@ const RuntimeRoutingDecisionSchema = z.object({
   candidates: z.array(RoutingCandidateSchema).optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Run confidence scoring (JEF-240). The scorer's record rides on the task
+// payload; `score` is the one field that defines the record, so a row without
+// it degrades the whole record to "absent" rather than inventing a number.
+// ---------------------------------------------------------------------------
+
+const TaskConfidenceSchema = z.object({
+  score: z.number(),
+  rationale: z.string().default(""),
+  model: z.string().optional(),
+  threshold: z.number().optional(),
+  below_threshold: z.boolean().optional(),
+}).loose();
+
 export const RuntimeRoutingStatsSchema = z.object({
   runtime_id: z.string().default(""),
   runtime_name: z.string().default(""),
@@ -2355,6 +2369,10 @@ export const AgentTaskSchema = z.object({
   // not the whole execution log.
   task_class: z.string().optional().catch(undefined),
   routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
+  // Per-run confidence score (JEF-240). Same independent-degradation rule as
+  // `routing`: a malformed record costs the row its confidence display, not
+  // the whole execution log. Absent until the scorer has scored the run.
+  confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -3916,6 +3934,9 @@ export const AgentMemorySchema = z.object({
   agent_id: z.string(),
   content: z.string().optional().default(""),
   source: z.string().optional().default("manual"),
+  // Governance state (JEF-269). Tolerant default: a pre-governance server
+  // omits the field, and every fact it stored was human-approved.
+  state: z.enum(["draft", "approved"]).optional().default("approved"),
   source_task_id: z.string().nullable().optional().default(null),
   source_issue_id: z.string().nullable().optional().default(null),
   created_at: z.string().optional().default(""),
@@ -3927,6 +3948,7 @@ export const EMPTY_AGENT_MEMORY: AgentMemory = {
   agent_id: "",
   content: "",
   source: "manual",
+  state: "approved",
   source_task_id: null,
   source_issue_id: null,
   created_at: "",
@@ -5003,12 +5025,21 @@ export const AgentCompetencySchema = z.object({
 }).loose();
 
 // Cross-provider self-review (K15).
+export const CrossReviewChecklistResultSchema = z.object({
+  item: z.string().catch("").default(""),
+  pass: z.boolean().catch(false).default(false),
+  note: z.string().catch("").default(""),
+}).loose();
+
 export const CrossReviewReportSchema = z.object({
   verdict: z.enum(["approve", "request_changes", "comment"]).catch("comment").default("comment"),
   risks: z.array(z.string()).catch([]).default([]),
   questions: z.array(z.string()).catch([]).default([]),
   suggestions: z.array(z.string()).catch([]).default([]),
   summary: z.string().catch("").default(""),
+  // Per-item verdicts against the project's review checklist (JEF-238).
+  // Optional: absent on reports produced before the checklist existed.
+  checklist_results: z.array(CrossReviewChecklistResultSchema).optional().catch(undefined),
 }).loose();
 
 export const CrossReviewSchema = z.object({
@@ -5059,6 +5090,15 @@ export const CrossReviewSettingsSchema = z.object({
   opt_out_project_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+// Confidence review (JEF-240): the workspace gate that routes low-confidence
+// runs to human review. The 0 < threshold ≤ 1 bound is enforced server-side;
+// a malformed payload falls back to the product defaults rather than
+// breaking the settings screen.
+export const ConfidenceReviewSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  threshold: z.number().catch(0.5).default(0.5),
+}).loose();
+
 export const CrossReviewListSchema = z.object({
   reviews: z.array(CrossReviewSchema).catch([]).default([]),
 }).loose();
@@ -5102,6 +5142,18 @@ export const UndoReportSchema = z.object({
 export const UndoSettingsSchema = z.object({
   window_hours: z.number().int().catch(24).default(24),
   breaker_threshold: z.number().int().catch(5).default(5),
+}).loose();
+
+// Per-project review configuration (JEF-238): the checklist a reviewer agent
+// checks each diff against, an optional fixed reviewer, the done-gate, and the
+// rework-cycle cap. GET always answers 200 with these defaults when the
+// project has no saved config.
+export const ProjectReviewConfigSchema = z.object({
+  project_id: z.string().default(""),
+  checklist: z.array(z.string()).catch([]).default([]),
+  reviewer_agent_id: z.string().nullable().catch(null).default(null),
+  gate_enabled: z.boolean().catch(false).default(false),
+  max_cycles: z.number().int().catch(3).default(3),
 }).loose();
 
 export const CompetencySettingsSchema = z.object({

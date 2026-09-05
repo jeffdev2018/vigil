@@ -431,6 +431,12 @@ type AgentTaskResponse struct {
 	// predate the router, so the UI renders the block conditionally.
 	TaskClass string          `json:"task_class,omitempty"`
 	Routing   json.RawMessage `json:"routing,omitempty"`
+	// Run confidence (JEF-240): the self-assessed score persisted after a
+	// successful run — score, rationale, model, the threshold that applied and
+	// whether the run landed below it. Empty for unscored runs (disabled LLM,
+	// non-completed status, review runs, rows that predate the feature), so
+	// the UI renders the block conditionally.
+	Confidence json.RawMessage `json:"confidence,omitempty"`
 	// Pause, steer, resume (K19).
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
@@ -826,6 +832,12 @@ type TaskAgentData struct {
 	// claim time and rendered by the daemon as the brief's Memory section.
 	// Omitted when the agent has none.
 	Memories []string `json:"memories,omitempty"`
+	// MemoryStates carries the governance state of each Memories entry by
+	// index ("draft" | "approved", JEF-269). Kept as a parallel array so the
+	// wire shape of Memories never changes: daemons and servers of any age
+	// decode claims in both skew directions. Absent entries (older server)
+	// are treated as approved by the daemon.
+	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded
@@ -879,6 +891,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
+		Confidence:             json.RawMessage(t.Confidence),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),

@@ -50,6 +50,20 @@ export interface RuntimeRoutingDecision {
 }
 
 /**
+ * The scorer's confidence record for a task run (JEF-240). Absent until the
+ * run has been scored; `below_threshold` is the backend's verdict against
+ * the workspace threshold — when omitted, derive it from `score` and
+ * `threshold`. `rationale` is the scorer's ≤280-char explanation.
+ */
+export interface TaskConfidence {
+  score: number;
+  rationale: string;
+  model?: string;
+  threshold?: number;
+  below_threshold?: boolean;
+}
+
+/**
  * One (runtime, provider, model, task_class) row of the 90-day routing-stats
  * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
  * `avg_duration_secs` are null when the rollup has no priced / timed samples.
@@ -548,6 +562,11 @@ export interface AgentTask {
    * conditionally.
    */
   routing?: RuntimeRoutingDecision | null;
+  /**
+   * This run's confidence score (JEF-240). `null`/absent until the scorer has
+   * scored the run and on older backends — render conditionally.
+   */
+  confidence?: TaskConfidence | null;
 }
 
 /**
@@ -1556,6 +1575,13 @@ export interface AgentVersionDiff {
 export type AgentMemorySource = "manual" | "run" | "postmortem";
 
 /**
+ * Governance state of a memory fact (JEF-269): "draft" facts were learned
+ * automatically and await human review; "approved" ones were written or
+ * vetted by a human.
+ */
+export type AgentMemoryState = "draft" | "approved";
+
+/**
  * One persistent memory fact an agent carries across runs. `source` tells
  * whether a human pinned it ("manual") or a run wrote it back ("run");
  * `source_task_id` links a run-sourced memory to the task that produced it.
@@ -1565,6 +1591,7 @@ export interface AgentMemory {
   agent_id: string;
   content: string;
   source: AgentMemorySource;
+  state: AgentMemoryState;
   source_task_id: string | null;
   /** Issue the source task worked on, so a run-sourced fact links back to it.
    *  Null for manual facts and for runs that carried no issue (chat, duel). */

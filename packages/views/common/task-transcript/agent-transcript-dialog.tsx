@@ -828,6 +828,15 @@ export function AgentTranscriptDialog({
     const found = runtimes.find((r) => r.id === runtimeId);
     return found ? runtimeDisplayName(found) : runtimeId;
   };
+  // Confidence score (JEF-240): the header chip carries the percentage, the
+  // ⓘ popover the rationale / model / threshold. `below_threshold` is the
+  // backend's verdict; fall back to comparing against the record's own
+  // threshold when the field predates it.
+  const confidence = task.confidence ?? null;
+  const confidenceBelowThreshold = confidence
+    ? (confidence.below_threshold ??
+      (confidence.threshold != null && confidence.score < confidence.threshold))
+    : false;
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -856,6 +865,7 @@ export function AgentTranscriptDialog({
   const hasRunDetails =
     !!runtimeInfo ||
     !!routing ||
+    !!confidence ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
     !!reasonLabel ||
@@ -933,6 +943,28 @@ export function AgentTranscriptDialog({
                       : t(($) => $.transcript.routed_to, {
                           name: routingRuntimeName(routing.chosen_runtime_id),
                         })}
+                  </span>
+                </>
+              )}
+              {confidence && (
+                <>
+                  <FactDot />
+                  {/* How much the scorer trusts this run's output. Green at or
+                      above the review threshold, amber under it — the color is
+                      the signal, the number the detail. */}
+                  <span
+                    data-testid="confidence-chip"
+                    title={t(($) => $.transcript.confidence_chip_title)}
+                    className={cn(
+                      "shrink-0 rounded-full border px-1.5 py-px text-micro font-medium tabular-nums",
+                      confidenceBelowThreshold
+                        ? "border-warning/30 bg-warning/10 text-warning"
+                        : "border-success/30 bg-success/10 text-success",
+                    )}
+                  >
+                    {t(($) => $.transcript.confidence_chip, {
+                      score: Math.round(confidence.score * 100),
+                    })}
                   </span>
                 </>
               )}
@@ -1052,6 +1084,37 @@ export function AgentTranscriptDialog({
                             })}
                           </ul>
                         </div>
+                      )}
+                      {confidence && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_confidence_score)}
+                            value={t(($) => $.transcript.details_confidence_score_value, {
+                              score: Math.round(confidence.score * 100),
+                            })}
+                          />
+                          {confidence.model && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_model)}
+                              value={confidence.model}
+                            />
+                          )}
+                          {confidence.threshold != null && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_threshold)}
+                              value={t(
+                                ($) => $.transcript.details_confidence_threshold_value,
+                                { threshold: Math.round(confidence.threshold * 100) },
+                              )}
+                            />
+                          )}
+                          {confidence.rationale && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_rationale)}
+                              value={confidence.rationale}
+                            />
+                          )}
+                        </>
                       )}
                       {workdirCopyTarget?.relativePath && (
                         <RunDetailRow

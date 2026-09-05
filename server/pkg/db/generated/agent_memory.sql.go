@@ -29,9 +29,9 @@ func (q *Queries) CountAgentMemories(ctx context.Context, arg CountAgentMemories
 }
 
 const createAgentMemory = `-- name: CreateAgentMemory :one
-INSERT INTO agent_memory (workspace_id, agent_id, content, source, source_task_id)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at
+INSERT INTO agent_memory (workspace_id, agent_id, content, source, source_task_id, state)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state
 `
 
 type CreateAgentMemoryParams struct {
@@ -40,8 +40,12 @@ type CreateAgentMemoryParams struct {
 	Content      string      `json:"content"`
 	Source       string      `json:"source"`
 	SourceTaskID pgtype.UUID `json:"source_task_id"`
+	State        string      `json:"state"`
 }
 
+// state is explicit at every call site (JEF-269): 'manual' and 'postmortem'
+// rows are human-approved at write time, 'run' extraction rows land as
+// 'draft' until a human approves them.
 func (q *Queries) CreateAgentMemory(ctx context.Context, arg CreateAgentMemoryParams) (AgentMemory, error) {
 	row := q.db.QueryRow(ctx, createAgentMemory,
 		arg.WorkspaceID,
@@ -49,6 +53,7 @@ func (q *Queries) CreateAgentMemory(ctx context.Context, arg CreateAgentMemoryPa
 		arg.Content,
 		arg.Source,
 		arg.SourceTaskID,
+		arg.State,
 	)
 	var i AgentMemory
 	err := row.Scan(
@@ -60,6 +65,7 @@ func (q *Queries) CreateAgentMemory(ctx context.Context, arg CreateAgentMemoryPa
 		&i.SourceTaskID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.State,
 	)
 	return i, err
 }
@@ -121,7 +127,7 @@ func (q *Queries) DeleteOldestRunMemories(ctx context.Context, arg DeleteOldestR
 }
 
 const getAgentMemory = `-- name: GetAgentMemory :one
-SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at FROM agent_memory
+SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state FROM agent_memory
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -142,13 +148,14 @@ func (q *Queries) GetAgentMemory(ctx context.Context, arg GetAgentMemoryParams) 
 		&i.SourceTaskID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.State,
 	)
 	return i, err
 }
 
 const listAgentMemories = `-- name: ListAgentMemories :many
 
-SELECT agent_memory.id, agent_memory.workspace_id, agent_memory.agent_id, agent_memory.content, agent_memory.source, agent_memory.source_task_id, agent_memory.created_at, agent_memory.updated_at, t.issue_id AS source_issue_id
+SELECT agent_memory.id, agent_memory.workspace_id, agent_memory.agent_id, agent_memory.content, agent_memory.source, agent_memory.source_task_id, agent_memory.created_at, agent_memory.updated_at, agent_memory.state, t.issue_id AS source_issue_id
 FROM agent_memory
 LEFT JOIN agent_task_queue t ON t.id = agent_memory.source_task_id
 WHERE agent_memory.agent_id = $1 AND agent_memory.workspace_id = $2
@@ -169,6 +176,7 @@ type ListAgentMemoriesRow struct {
 	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	State         string             `json:"state"`
 	SourceIssueID pgtype.UUID        `json:"source_issue_id"`
 }
 
@@ -195,6 +203,7 @@ func (q *Queries) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesPa
 			&i.SourceTaskID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.State,
 			&i.SourceIssueID,
 		); err != nil {
 			return nil, err
@@ -208,7 +217,7 @@ func (q *Queries) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesPa
 }
 
 const listRecentAgentMemories = `-- name: ListRecentAgentMemories :many
-SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at FROM agent_memory
+SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state FROM agent_memory
 WHERE agent_id = $1 AND workspace_id = $2
 ORDER BY created_at DESC, id DESC
 LIMIT 200
@@ -240,6 +249,7 @@ func (q *Queries) ListRecentAgentMemories(ctx context.Context, arg ListRecentAge
 			&i.SourceTaskID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.State,
 		); err != nil {
 			return nil, err
 		}
@@ -251,12 +261,45 @@ func (q *Queries) ListRecentAgentMemories(ctx context.Context, arg ListRecentAge
 	return items, nil
 }
 
+const setAgentMemoryState = `-- name: SetAgentMemoryState :one
+UPDATE agent_memory SET
+    state = $3,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+RETURNING id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state
+`
+
+type SetAgentMemoryStateParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	State       string      `json:"state"`
+}
+
+// The human approval action (JEF-269): flip a 'draft' extraction fact to
+// 'approved' (or back). Validated to ('draft','approved') by the handler.
+func (q *Queries) SetAgentMemoryState(ctx context.Context, arg SetAgentMemoryStateParams) (AgentMemory, error) {
+	row := q.db.QueryRow(ctx, setAgentMemoryState, arg.ID, arg.WorkspaceID, arg.State)
+	var i AgentMemory
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.AgentID,
+		&i.Content,
+		&i.Source,
+		&i.SourceTaskID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+	)
+	return i, err
+}
+
 const updateAgentMemoryContent = `-- name: UpdateAgentMemoryContent :one
 UPDATE agent_memory SET
     content = COALESCE($3, content),
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at
+RETURNING id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at, state
 `
 
 type UpdateAgentMemoryContentParams struct {
@@ -277,6 +320,7 @@ func (q *Queries) UpdateAgentMemoryContent(ctx context.Context, arg UpdateAgentM
 		&i.SourceTaskID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.State,
 	)
 	return i, err
 }

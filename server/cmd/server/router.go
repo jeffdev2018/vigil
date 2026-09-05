@@ -1324,6 +1324,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// genuinely distilled), so an unconfigured deployment pays nothing.
 	h.TaskService.SubscribeSkillDistillation(bus)
 
+	// Post-success run confidence scoring (JEF-240). Wired unconditionally:
+	// without an assist-layer LLM the pass no-ops, so an unconfigured
+	// deployment pays nothing.
+	h.TaskService.SubscribeRunConfidence(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -2393,6 +2398,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/pull-requests/{id}/ci-auto-fix/retry", h.RetryCIAutoFix)
 			r.Get("/api/cross-review-settings", h.GetCrossReviewSettings)
 			r.Put("/api/cross-review-settings", h.PutCrossReviewSettings)
+			// Run confidence scoring (JEF-240): the workspace auto-review threshold.
+			r.Get("/api/confidence-review-settings", h.GetConfidenceReviewSettings)
+			r.Put("/api/confidence-review-settings", h.PutConfidenceReviewSettings)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)
@@ -2490,6 +2498,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)
 					r.Delete("/blast-radius-rules/{ruleId}", h.DeleteBlastRadiusRule)
 					r.Get("/blast-radius-preview", h.PreviewBlastRadius)
+					// Agent review by agent (JEF-238): per-project checklist, pinned reviewer, done gate.
+					r.Get("/review-config", h.GetProjectReviewConfig)
+					r.Put("/review-config", h.PutProjectReviewConfig)
 				})
 			})
 

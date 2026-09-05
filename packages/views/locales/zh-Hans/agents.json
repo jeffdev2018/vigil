@@ -840,7 +840,10 @@
       "save_failed_toast": "保存记忆失败,请重试。",
       "delete_failed_toast": "删除记忆失败,请重试。",
       "cap_reached_toast": "该智能体已有 200 条记忆。请先删除一条再添加。",
-      "extraction_disabled_note": "服务器未配置语言模型,运行学到的内容无法保存。只保留手动添加的事实。"
+      "extraction_disabled_note": "服务器未配置语言模型,运行学到的内容无法保存。只保留手动添加的事实。",
+      "state_draft": "草稿",
+      "approve_action": "批准",
+      "approve_pending": "正在批准…"
     }
   },
   "char_counter": {
@@ -995,7 +998,15 @@
     "routing_candidate_stats": "{{samples}} 次运行 · 成功率 {{rate}}%",
     "routing_candidate_score": "得分 {{score}}",
     "routing_candidate_confidence": "置信度 {{wilson}}%",
-    "routing_candidate_excluded": "已排除：{{reason}}"
+    "routing_candidate_excluded": "已排除：{{reason}}",
+    "confidence_chip": "置信度 {{score}}%",
+    "confidence_chip_title": "评分器对本次运行结果的置信度",
+    "details_confidence_score": "置信度",
+    "details_confidence_score_value": "{{score}}%",
+    "details_confidence_model": "评分模型",
+    "details_confidence_threshold": "评审阈值",
+    "details_confidence_threshold_value": "{{threshold}}%",
+    "details_confidence_rationale": "评分理由"
   },
   "task_failure": {
     "cancelled_by_system": "系统已取消",

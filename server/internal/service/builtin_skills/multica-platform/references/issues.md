@@ -350,7 +350,8 @@ appears beside it.
 ## Asking a human for a decision
 
 When a choice is not yours to make — deleting data, picking between two
-designs, spending real money, touching production — file a Decision Card
+designs, spending real money, touching production — or when you are blocked
+mid-run and cannot proceed without a human's answer, file a Decision Card
 instead of guessing or stalling on a comment:
 
 ```bash

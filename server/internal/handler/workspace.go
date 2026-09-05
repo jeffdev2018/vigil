@@ -1309,6 +1309,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceCIAutoFixRuns(ctx, requester.WorkspaceID) },
 		},
 		{
+			// project_review_config carries no FK; sweep it before the project
+			// rows it logically hangs off.
+			name: "purge project review configs",
+			run:  func() error { return qtx.PurgeWorkspaceProjectReviewConfigs(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge agent competency",
 			run:  func() error { return qtx.PurgeWorkspaceAgentDomainCompetency(ctx, requester.WorkspaceID) },
 		},
