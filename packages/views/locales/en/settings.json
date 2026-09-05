@@ -264,6 +264,34 @@
         "label": "Archive notification",
         "description": "Archive the open inbox notification, or restore it while reading the archive."
       },
+      "triageNextItem": {
+        "label": "Triage: next item",
+        "description": "Move to the next item in the triage queue."
+      },
+      "triagePrevItem": {
+        "label": "Triage: previous item",
+        "description": "Move to the previous item in the triage queue."
+      },
+      "triageAccept": {
+        "label": "Triage: accept",
+        "description": "Accept the open triage item and create its issue."
+      },
+      "triageDismiss": {
+        "label": "Triage: dismiss",
+        "description": "Dismiss the open triage item."
+      },
+      "triageSnooze": {
+        "label": "Triage: snooze",
+        "description": "Open the snooze menu for the open triage item."
+      },
+      "triageMerge": {
+        "label": "Triage: merge",
+        "description": "Merge the open triage item into an existing issue."
+      },
+      "triageReopen": {
+        "label": "Triage: reopen",
+        "description": "Send a dismissed triage item back to pending."
+      },
       "send": {
         "label": "Send",
         "description": "Send chat messages, comments, replies, feedback, and prompts, and create issues in the create dialog."
@@ -851,8 +879,8 @@
     "rules_action_accept": "accept it as an issue",
     "rules_action_priority": "Priority",
     "rules_action_priority_keep": "keep priority",
-    "rules_action_agent": "Assign to agent",
-    "rules_action_no_agent": "no assignee",
+    "rules_action_assignee": "Assignee",
+    "rules_action_assignee_set": "Assignee set",
     "triage_auto_section": "Triage auto-classification",
     "triage_auto_enabled_label": "Let the queue apply confident suggestions",
     "triage_auto_enabled_description": "Every accept or dismiss teaches the queue. When on, a delivery whose nearest past decisions agree above the threshold is classified without a click, reversibly, and audited.",

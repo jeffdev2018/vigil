@@ -43,6 +43,8 @@ export interface TriageItem {
   drop_reason?: string;
   /** Why the item left the queue: a human's reason, "rule: <title>", or "auto: N% confidence…". */
   resolution_reason?: string;
+  /** "member" for a human decision, "system" for an automatic one. */
+  resolved_by_type?: string;
   issue_id?: string;
   duplicate_of_issue_id?: string;
   /** Set while the item is parked by a snooze; cleared once it comes due. */
@@ -60,7 +62,7 @@ export interface TriageItem {
 /** What an agent may suggest on a pending item. Humans still decide. */
 export type TriageVerdict = "accept" | "dismiss";
 
-/** One inbound source and its 24h activity. */
+/** One inbound source: its admission policy, and what it did to the queue. */
 export interface TriageSource {
   id: string;
   kind: string;
@@ -68,8 +70,24 @@ export interface TriageSource {
   name: string;
   /** Loose on purpose: a mode added server-side must not fail the parse. */
   mode: TriageSourceMode | (string & {});
+  /** Resolve this source's items into issues without a human. */
+  auto_accept: boolean;
+  /** Anti-flood ceiling; `0` means no cap. */
+  cap_per_hour: number;
+  /** How long an unresolved item survives; `0` means the default retention. */
+  expiry_days: number;
+  /** Items from this source still waiting on a human. */
+  pending: number;
   items_24h: number;
   dropped_24h: number;
+}
+
+/** The subset of a source's policy a human can patch. */
+export interface TriageSourcePatch {
+  mode?: TriageSourceMode;
+  auto_accept?: boolean;
+  cap_per_hour?: number;
+  expiry_days?: number;
 }
 
 /** Queue volume summary for a workspace. */

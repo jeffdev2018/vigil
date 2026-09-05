@@ -62,6 +62,16 @@ FROM triage_item
 WHERE workspace_id = $1 AND first_seen_at >= now() - INTERVAL '24 hours'
 GROUP BY source_id, state;
 
+-- name: CountPendingTriageItemsBySource :many
+-- What a human still has to look at, per source: real pending items that are
+-- due. Distinct from the 24h volume counter, which also counts what has since
+-- been resolved and what was dropped.
+SELECT source_id, COUNT(*)::bigint AS n
+FROM triage_item
+WHERE workspace_id = $1 AND state = 'pending' AND shadow = false
+  AND (snoozed_until IS NULL OR snoozed_until <= now())
+GROUP BY source_id;
+
 -- name: OldestRealPendingTriageAgeSeconds :one
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bigint AS age_seconds
 FROM triage_item
@@ -111,12 +121,17 @@ WHERE id = $1 AND workspace_id = $2
 FOR UPDATE;
 
 -- name: AcceptPendingTriageItem :one
+-- The acceptor is not always a human: an auto-accept resolves the item as
+-- 'system' with no resolver id (the issue still needs a creator, which is a
+-- separate identity), and records why it was accepted the way the auto-dismiss
+-- path already does.
 UPDATE triage_item
 SET state = 'accepted',
     issue_id = sqlc.arg('issue_id')::uuid,
+    resolution_reason = sqlc.narg('resolution_reason'),
     resolved_at = now(),
-    resolved_by_type = 'member',
-    resolved_by_id = sqlc.arg('resolved_by')::uuid,
+    resolved_by_type = sqlc.arg('resolved_by_type'),
+    resolved_by_id = sqlc.narg('resolved_by')::uuid,
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'

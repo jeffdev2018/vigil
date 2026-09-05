@@ -25,6 +25,75 @@ Repeats collapse: a source that sends the same title twice while the first is
 still pending increments a counter on the existing item instead of adding a
 second one.
 
+## What you can do with an item
+
+Accepting is not the only outcome, and the tabs above the queue (Pending,
+Snoozed, Accepted, Dismissed, Merged) are where the resolved ones stay
+readable.
+
+- **Accept** creates the issue. **Accept as…** sets who it goes to, which
+  project it lands in and at what priority, instead of inheriting whatever the
+  origin autopilot would have given it. An empty choice keeps the inheritance.
+- **Merge into…** folds the item into an issue that already tracks the work.
+  No second issue is created: the item becomes `merged` and the target gets a
+  system comment naming what was folded in.
+- **Snooze** parks the item until a time you pick (an hour, this evening,
+  tomorrow, next Monday, or a date of your own — at most 30 days out). A
+  snoozed item is still `pending`: a snooze hides work, it never resolves it.
+  It leaves the Pending tab, is counted separately in the queue's stats, and
+  comes back on its own when its time passes.
+- **Dismiss** takes a reason. It is optional, and it is what the Dismissed tab
+  and the auto-classifier read afterwards, so it is worth typing.
+- **Reopen** sends a dismissed item back to pending, whoever dismissed it — a
+  human, a rule, or the classifier.
+
+Selecting several pending items with their checkboxes accepts or dismisses
+them together, with one shared reason for a batch dismiss. A batch answers with
+one outcome per item, so the summary names what did *not* go through.
+
+### Agent verdicts
+
+An agent may suggest a verdict on a pending item and nothing more: the item
+stays pending, its state is unchanged, and the suggestion shows up as
+"Agent suggests: Accept/Dismiss" with the agent's reason. Deciding stays
+human-only — every state transition endpoint refuses an agent actor, and the
+verdict endpoint refuses a human one.
+
+From the CLI:
+
+```bash
+multica triage list --pending
+multica triage list --state dismissed --include-snoozed --output json
+multica triage verdict <item-id> --accept --reason "matches last week's outage"
+```
+
+`multica triage verdict` requires exactly one of `--accept` or `--dismiss`.
+
+### Keyboard
+
+The queue is a list you walk without the mouse. `J` / `K` (or Up / Down) move
+through the rows, `Enter` opens the focused one, `Esc` closes the detail. On the
+open item: `A` accepts, `X` dismisses, `S` opens the snooze menu, `M` opens the
+merge picker, and `R` reopens a dismissed one. None of them fires while you are
+typing in a field or while a menu is open, and all of them are rebindable in
+**Settings → Keyboard shortcuts**.
+
+### Endpoints
+
+| Method | Route | Actor | Body |
+| --- | --- | --- | --- |
+| `GET` | `/api/triage/stats` | member | — |
+| `GET` | `/api/triage/items` | member | `?state=`, `?include_snoozed=true`, `?cursor=` |
+| `POST` | `/api/triage/items/{id}/accept` | human | optional `{assignee_type, assignee_id, project_id, priority, labels}` |
+| `POST` | `/api/triage/items/{id}/dismiss` | human | `{reason?}` |
+| `POST` | `/api/triage/items/{id}/merge` | human | `{issue_id}` — a UUID or an identifier like `MUL-42` |
+| `POST` | `/api/triage/items/{id}/snooze` | human | `{until}` — RFC 3339, in the future, at most 30 days out |
+| `POST` | `/api/triage/items/{id}/reopen` | human | — |
+| `POST` | `/api/triage/items/{id}/verdict` | **agent only** | `{verdict: accept\|dismiss, reason?}` |
+| `POST` | `/api/triage/items/batch-accept` | human | `{item_ids[]}` |
+| `POST` | `/api/triage/items/batch-dismiss` | human | `{item_ids[], reason?}` |
+| `PATCH` | `/api/triage/sources/{id}` | human | `{mode?, auto_accept?, cap_per_hour?, expiry_days?}` |
+
 ## Sources
 
 A **source** is one place inbound material comes from. Every source is
@@ -66,6 +135,11 @@ email.
 Blocked is a refusal, not a pause: nothing is queued for later. Use gate when
 you want to read what arrives.
 </Callout>
+
+The **Sources** button in the queue header lists every source with what it put
+in the queue — items still pending, seen in the last 24 hours, dropped in the
+last 24 hours — next to the settings that produced those numbers. A source
+dropping deliveries is where you raise its cap.
 
 Three more settings live on each source:
 
@@ -129,8 +203,11 @@ source kind and name, its title, body and payload, the collapse count, and the
 time of day. The first rule whose condition holds applies its action —
 **dismiss**, or **accept** with an optional priority and assignee.
 
-Rules live in **Settings → Workspace → Business rules**. An item no rule
-matches stays pending.
+Rules live in **Settings → Workspace → Business rules**, and **Create a rule**
+in an item's detail opens the same editor prefilled with that item's source and
+a keyword from its title — a rule is usually recognized in the queue, looking at
+the delivery that made the case. An accept action can route to a member or to
+an agent. An item no rule matches stays pending.
 
 ## Auto-classification
 
@@ -142,6 +219,11 @@ of human decisions to exist first, and a dismissed item can always be reopened.
 
 Suggestions are shown either way; only their automatic application is gated
 behind the setting.
+
+An automatic decision is recorded as the system's, not as a person's: the item
+shows "Auto-accepted by the queue" with the confidence that justified it,
+rather than the name of someone who never clicked. The issue an auto-accept
+creates still needs a creator, and that is the source's creator.
 
 ## Retention
 

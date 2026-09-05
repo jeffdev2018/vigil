@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { AcceptTriageItemOverrides, TriageSourceMode } from "../types";
+import type { AcceptTriageItemOverrides, TriageSourcePatch } from "../types";
 import { issueKeys } from "../issues/queries";
 import { triageKeys } from "./queries";
 
@@ -46,13 +46,13 @@ export function useBatchAcceptTriageItems(wsId: string) {
   });
 }
 
-// Flipping a source's mode only changes future routing, so only the stats
-// (which carry each source's current mode) need a refresh.
-export function useUpdateTriageSourceMode(wsId: string) {
+// A source's policy only changes what future deliveries do, so only the stats
+// (which carry each source's policy and counters) need a refresh.
+export function useUpdateTriageSourceSettings(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (v: { sourceId: string; mode: TriageSourceMode }) =>
-      api.updateTriageSourceMode(v.sourceId, v.mode),
+    mutationFn: (v: { sourceId: string; patch: TriageSourcePatch }) =>
+      api.updateTriageSourceSettings(v.sourceId, v.patch),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: triageKeys.stats(wsId) });
     },

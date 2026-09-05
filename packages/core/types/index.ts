@@ -128,6 +128,7 @@ export type {
   TriageItemState,
   TriageSource,
   TriageSourceMode,
+  TriageSourcePatch,
   TriageStats,
   TriageItemsResponse,
   TriageBatchOutcome,

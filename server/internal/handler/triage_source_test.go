@@ -166,3 +166,49 @@ func TestAutoAcceptResolvesTheItemIntoAnIssue(t *testing.T) {
 	}
 	testPool.Exec(context.Background(), `DELETE FROM issue WHERE id = $1`, issueID)
 }
+
+// The stats response is what the queue header renders, and it used to carry a
+// source's mode and nothing else — no per-source pending count and none of the
+// three policy fields the PATCH above writes, so the panel that explains a
+// queue had no data to show.
+func TestGetTriageStatsCarriesSourcePolicyAndPending(t *testing.T) {
+	src := newPolicyTestSource(t)
+	id := uuidToString(src.ID)
+	patchTriageSource(t, id, map[string]any{
+		"mode": "gate", "auto_accept": true, "cap_per_hour": 25, "expiry_days": 3,
+	}).Want(http.StatusOK)
+
+	// One due pending item and one parked by a snooze: only the due one is
+	// waiting on a human.
+	dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id": testWorkspaceID, "source_id": id, "origin_type": "channel",
+		"title": "due delivery", "normalized_title": "due delivery " + id,
+		"state": triage.StatePending, "shadow": false,
+	})
+	dbfx.Insert(t, "triage_item", testutil.Cols{
+		"workspace_id": testWorkspaceID, "source_id": id, "origin_type": "channel",
+		"title": "parked delivery", "normalized_title": "parked delivery " + id,
+		"state": triage.StatePending, "shadow": false,
+		"snoozed_until": time.Now().Add(48 * time.Hour).UTC(),
+	})
+
+	var out TriageStatsResponse
+	testutil.Call(t, testHandler.GetTriageStats, newRequest(http.MethodGet, "/api/triage/stats", nil)).
+		Want(http.StatusOK).JSON(&out)
+
+	var stats *TriageSourceStats
+	for i := range out.Sources {
+		if out.Sources[i].ID == id {
+			stats = &out.Sources[i]
+		}
+	}
+	if stats == nil {
+		t.Fatalf("source %s missing from stats: %+v", id, out.Sources)
+	}
+	if stats.Mode != "gate" || !stats.AutoAccept || stats.CapPerHour != 25 || stats.ExpiryDays != 3 {
+		t.Fatalf("source policy in stats = %+v, want gate/auto/25/3", stats)
+	}
+	if stats.Pending != 1 {
+		t.Fatalf("source pending = %d, want 1 — the snoozed item is parked, not waiting", stats.Pending)
+	}
+}

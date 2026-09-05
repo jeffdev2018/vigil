@@ -43,8 +43,20 @@ vi.mock("@multica/core/workspace/business-rules", () => ({
   useDeleteBusinessRule: () => ({ mutate: vi.fn() }),
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
-vi.mock("@multica/core/workspace/queries", () => ({
-  agentListOptions: (wsId: string) => ({ queryKey: ["agents", wsId], queryFn: async () => [{ id: "a1", name: "Oncall bot" }] }),
+// The assignee picker has its own suite (issues/components/pickers); what this
+// file owns is the action the form builds out of whatever it returns — and
+// that a member is now one of the answers it can return.
+vi.mock("../../issues/components/pickers", () => ({
+  AssigneePicker: ({ onUpdate }: { onUpdate: (u: { assignee_type: string; assignee_id: string }) => void }) => (
+    <>
+      <button type="button" onClick={() => onUpdate({ assignee_type: "agent", assignee_id: "a1" })}>
+        pick agent
+      </button>
+      <button type="button" onClick={() => onUpdate({ assignee_type: "member", assignee_id: "m1" })}>
+        pick member
+      </button>
+    </>
+  ),
 }));
 
 import { BusinessRulesSetting } from "./business-rules-setting";
@@ -83,16 +95,34 @@ describe("BusinessRulesSetting", () => {
 
   it("sends a triage action with a webhook rule", async () => {
     render();
-    await screen.findByTestId("rules-empty");
+    // The attach points come from the same query as the rules, so wait for the
+    // webhook option itself rather than for the (already empty) rule list.
+    await screen.findByRole("option", { name: /webhook delivery/i });
     fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical becomes P0 for the oncall bot" } });
     fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "webhook_received" } });
     fireEvent.change(screen.getByLabelText("Then"), { target: { value: "accept" } });
     fireEvent.change(screen.getByLabelText("Priority"), { target: { value: "urgent" } });
-    fireEvent.change(await screen.findByLabelText("Assign to agent"), { target: { value: "a1" } });
+    fireEvent.click(await screen.findByRole("button", { name: "pick agent" }));
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(state.created[0]).toEqual({
       natural_language: "Sentry critical becomes P0 for the oncall bot", attach_point: "webhook_received",
       action: { kind: "accept", priority: "urgent", assignee_type: "agent", assignee_id: "a1" },
+    });
+  });
+
+  // The backend has always accepted member assignees (service/business_rule.go);
+  // the editor only ever offered agents, so half the contract was unreachable.
+  it("routes a triage rule to a member as well as to an agent", async () => {
+    render();
+    await screen.findByRole("option", { name: /webhook delivery/i });
+    fireEvent.change(screen.getByLabelText("Rule"), { target: { value: "Sentry critical goes to the oncall human" } });
+    fireEvent.change(screen.getByLabelText("Applies when"), { target: { value: "webhook_received" } });
+    fireEvent.change(screen.getByLabelText("Then"), { target: { value: "accept" } });
+    fireEvent.click(await screen.findByRole("button", { name: "pick member" }));
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(state.created[0]).toEqual({
+      natural_language: "Sentry critical goes to the oncall human", attach_point: "webhook_received",
+      action: { kind: "accept", priority: undefined, assignee_type: "member", assignee_id: "m1" },
     });
   });
 

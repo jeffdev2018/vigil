@@ -264,6 +264,34 @@
         "label": "알림 보관",
         "description": "열린 인박스 알림을 보관합니다. 보관함을 보는 중에는 보관을 해제합니다."
       },
+      "triageNextItem": {
+        "label": "트리아지: 다음 항목",
+        "description": "트리아지 대기열의 다음 항목으로 이동합니다."
+      },
+      "triagePrevItem": {
+        "label": "트리아지: 이전 항목",
+        "description": "트리아지 대기열의 이전 항목으로 이동합니다."
+      },
+      "triageAccept": {
+        "label": "트리아지: 승인",
+        "description": "열려 있는 트리아지 항목을 승인하고 이슈를 만듭니다."
+      },
+      "triageDismiss": {
+        "label": "트리아지: 반려",
+        "description": "열려 있는 트리아지 항목을 반려합니다."
+      },
+      "triageSnooze": {
+        "label": "트리아지: 스누즈",
+        "description": "열려 있는 트리아지 항목의 스누즈 메뉴를 엽니다."
+      },
+      "triageMerge": {
+        "label": "트리아지: 병합",
+        "description": "열려 있는 트리아지 항목을 기존 이슈에 병합합니다."
+      },
+      "triageReopen": {
+        "label": "트리아지: 다시 열기",
+        "description": "반려한 트리아지 항목을 대기 중으로 되돌립니다."
+      },
       "send": {
         "label": "보내기",
         "description": "채팅, 댓글, 답글, 피드백 및 프롬프트를 보내고, 생성 대화상자에서 태스크를 만듭니다."
@@ -849,8 +877,8 @@
     "rules_action_accept": "이슈로 수락",
     "rules_action_priority": "우선순위",
     "rules_action_priority_keep": "우선순위 유지",
-    "rules_action_agent": "에이전트에 지정",
-    "rules_action_no_agent": "지정 없음",
+    "rules_action_assignee": "담당자",
+    "rules_action_assignee_set": "담당자 지정됨",
     "triage_auto_section": "트리아지 자동 분류",
     "triage_auto_enabled_label": "확신도 높은 제안을 큐가 적용하도록 허용",
     "triage_auto_enabled_description": "수락이나 거부할 때마다 큐가 학습합니다. 켜면 가장 가까운 과거 결정들이 임계값 이상으로 일치하는 전달은 클릭 없이 분류되며, 되돌릴 수 있고 감사 기록됩니다.",

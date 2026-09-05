@@ -269,7 +269,8 @@ import type {
   MeetingSegmentResponse,
   VoiceTranscription,
   RealtimeVoiceSession,
-  TriageSourceMode,
+  TriageSource,
+  TriageSourcePatch,
   TriageEmailSource,
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
@@ -448,6 +449,8 @@ import {
   ListIssuesResponseSchema,
   IssueDependenciesResponseSchema,
   TriageStatsSchema,
+  TriageSourceSchema,
+  EMPTY_TRIAGE_SOURCE,
   TriageItemsResponseSchema,
   MeetingSchema,
   MeetingListResponseSchema,
@@ -1820,14 +1823,23 @@ export class ApiClient {
     );
   }
 
-  async updateTriageSourceMode(
+  // One PATCH for the whole source policy: mode, auto-accept, the flood cap and
+  // retention. Every field is optional server-side, so sending only `mode`
+  // leaves a configured cap alone.
+  async updateTriageSourceSettings(
     sourceId: string,
-    mode: TriageSourceMode,
-  ): Promise<void> {
-    await this.fetch(`/api/triage/sources/${encodeURIComponent(sourceId)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ mode }),
-    });
+    patch: TriageSourcePatch,
+  ): Promise<TriageSource> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/sources/${encodeURIComponent(sourceId)}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    );
+    return parseWithFallback<TriageSource>(
+      raw,
+      TriageSourceSchema,
+      { ...EMPTY_TRIAGE_SOURCE, id: sourceId },
+      { endpoint: "PATCH /api/triage/sources/:id" },
+    );
   }
 
   /**

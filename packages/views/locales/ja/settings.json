@@ -264,6 +264,34 @@
         "label": "通知をアーカイブ",
         "description": "開いているインボックス通知をアーカイブします。アーカイブ表示中はアーカイブを解除します。"
       },
+      "triageNextItem": {
+        "label": "トリアージ: 次の項目",
+        "description": "トリアージキューの次の項目に移動します。"
+      },
+      "triagePrevItem": {
+        "label": "トリアージ: 前の項目",
+        "description": "トリアージキューの前の項目に移動します。"
+      },
+      "triageAccept": {
+        "label": "トリアージ: 受理",
+        "description": "開いているトリアージ項目を受理し、Issue を作成します。"
+      },
+      "triageDismiss": {
+        "label": "トリアージ: 却下",
+        "description": "開いているトリアージ項目を却下します。"
+      },
+      "triageSnooze": {
+        "label": "トリアージ: スヌーズ",
+        "description": "開いているトリアージ項目のスヌーズメニューを開きます。"
+      },
+      "triageMerge": {
+        "label": "トリアージ: マージ",
+        "description": "開いているトリアージ項目を既存の Issue にマージします。"
+      },
+      "triageReopen": {
+        "label": "トリアージ: 再開",
+        "description": "却下したトリアージ項目を保留中に戻します。"
+      },
       "send": {
         "label": "送信",
         "description": "チャット、コメント、返信、フィードバック、プロンプトを送信し、作成ダイアログでタスクを作成します。"
@@ -849,8 +877,8 @@
     "rules_action_accept": "issue として受け入れ",
     "rules_action_priority": "優先度",
     "rules_action_priority_keep": "優先度を維持",
-    "rules_action_agent": "担当エージェント",
-    "rules_action_no_agent": "担当なし",
+    "rules_action_assignee": "担当者",
+    "rules_action_assignee_set": "担当者を設定済み",
     "triage_auto_section": "トリアージの自動分類",
     "triage_auto_enabled_label": "確信度の高い提案をキューに適用させる",
     "triage_auto_enabled_description": "受け入れや却下のたびにキューが学習します。有効にすると、過去の近い判断がしきい値以上で一致する配信は、クリックなしで分類されます（取り消し可能、監査記録あり）。",

@@ -40,6 +40,7 @@ import { IssuePickerModal } from "../../modals/issue-picker-modal";
 import { useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 import { SNOOZE_PRESETS, customSnoozeIso, resolveSnoozePreset } from "./snooze-presets";
+import { useShortcutAction } from "./use-shortcut-action";
 
 /**
  * The item's agent suggestion, or null. Loose on purpose: a verdict value
@@ -203,6 +204,15 @@ export function TriageItemActions({
     },
     [item.id, onResolved, snooze, t],
   );
+
+  // Keyboard: the four verbs of an open item. Accept and dismiss run; snooze
+  // and merge open their own pickers, because neither has a sensible default.
+  // Every binding is inert while a mutation is in flight, so a double tap
+  // cannot fire the same accept twice.
+  useShortcutAction("triageAccept", busy ? null : () => void handleAccept());
+  useShortcutAction("triageDismiss", busy ? null : () => void handleDismiss());
+  useShortcutAction("triageSnooze", busy ? null : () => setSnoozeOpen(true));
+  useShortcutAction("triageMerge", busy ? null : () => setMergeOpen(true));
 
   return (
     <div className="flex flex-col gap-2">

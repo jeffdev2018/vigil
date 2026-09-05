@@ -38,15 +38,26 @@ vi.mock("../../modals/issue-picker-modal", () => ({
     </button>
   ),
 }));
+// "Create a rule from this item" reuses the settings form; the rule API has
+// its own suite (settings/components/business-rules-setting.test.tsx).
+vi.mock("@multica/core/workspace/business-rules", () => ({
+  businessRulesOptions: (wsId: string) => ({
+    queryKey: ["business-rules", wsId],
+    queryFn: async () => ({ rules: [], attach_points: ["webhook_received"] }),
+  }),
+  useCreateBusinessRule: () => ({ isPending: false, mutate: vi.fn() }),
+  useDryRunBusinessRule: () => ({ isPending: false, mutate: vi.fn() }),
+  useSetBusinessRuleStatus: () => ({ isPending: false, mutate: vi.fn() }),
+}));
 vi.mock("@multica/core/paths", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/paths")>()),
-  useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}` }),
+  useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}`, settings: () => "/acme/settings" }),
 }));
 
 const data = vi.hoisted(() => ({
   stats: {
     pending: 1,
-    shadow_pending: 0,
+    shadow_pending: 4,
     dropped_24h: 0,
     snoozed: 2,
     oldest_pending_age_seconds: 3600,
@@ -57,8 +68,12 @@ const data = vi.hoisted(() => ({
         ref_id: "ap-1",
         name: "Sentry",
         mode: "gate",
+        auto_accept: false,
+        cap_per_hour: 0,
+        expiry_days: 14,
+        pending: 1,
         items_24h: 3,
-        dropped_24h: 0,
+        dropped_24h: 2,
       },
     ],
   } as TriageStats,
@@ -195,7 +210,7 @@ const mutations = vi.hoisted(() => ({
   }),
   dismiss: vi.fn().mockResolvedValue({ item_id: "item-1", state: "dismissed" }),
   batch: vi.fn().mockResolvedValue({ items: [] }),
-  updateMode: vi.fn(),
+  updateSource: vi.fn(),
 }));
 
 vi.mock("@multica/core/triage/mutations", () => ({
@@ -206,7 +221,7 @@ vi.mock("@multica/core/triage/mutations", () => ({
   useAcceptTriageItem: () => ({ mutateAsync: mutations.accept, isPending: false }),
   useDismissTriageItem: () => ({ mutateAsync: mutations.dismiss, isPending: false }),
   useBatchAcceptTriageItems: () => ({ mutateAsync: mutations.batch, isPending: false }),
-  useUpdateTriageSourceMode: () => ({ mutate: mutations.updateMode, isPending: false }),
+  useUpdateTriageSourceSettings: () => ({ mutate: mutations.updateSource, isPending: false }),
 }));
 
 function renderPage(search = "") {
@@ -254,15 +269,47 @@ describe("TriagePage", () => {
     ];
   });
 
-  it("renders pending items and the source strip", async () => {
+  it("renders pending items and the shadow measurement", async () => {
     renderPage();
     expect(await screen.findByText("Payment gateway timeout")).toBeTruthy();
-    // Source strip shows the source name (also echoed on the row) and its
-    // current mode label.
     expect(screen.getAllByText("Sentry").length).toBeGreaterThan(0);
-    expect(screen.getByText("Gate")).toBeTruthy();
     // Collapse count surfaces as a ×N badge.
     expect(screen.getByText("×2")).toBeTruthy();
+    // shadow_pending has always been in the response and was never rendered.
+    expect(screen.getByTestId("triage-shadow-pending").textContent).toContain("4");
+  });
+
+  // The sources panel: the per-source counters the response already carried
+  // (pending, dropped_24h) and the three policy fields PATCH accepts but
+  // nothing in the product could write.
+  it("the Sources panel shows a source's counters and patches its policy", async () => {
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    fireEvent.click(screen.getByRole("button", { name: /^sources/i }));
+
+    const card = await screen.findByTestId("triage-source");
+    expect(card.textContent).toContain("1 pending");
+    expect(card.textContent).toContain("3 in 24h");
+    expect(card.textContent).toContain("2 dropped in 24h");
+
+    fireEvent.click(screen.getByRole("switch", { name: /auto-accept/i }));
+    expect(mutations.updateSource).toHaveBeenCalledWith({
+      sourceId: "src-1",
+      patch: { auto_accept: true },
+    });
+
+    const cap = screen.getByLabelText("Cap per hour");
+    fireEvent.change(cap, { target: { value: "25" } });
+    fireEvent.blur(cap);
+    expect(mutations.updateSource).toHaveBeenCalledWith({
+      sourceId: "src-1",
+      patch: { cap_per_hour: 25 },
+    });
+
+    // An unchanged field must not spend a PATCH on blur.
+    mutations.updateSource.mockClear();
+    fireEvent.blur(screen.getByLabelText("Retention (days)"));
+    expect(mutations.updateSource).not.toHaveBeenCalled();
   });
 
   it("shows the empty state when the queue is clear", async () => {
@@ -469,6 +516,78 @@ describe("TriagePage", () => {
     );
     await waitFor(() =>
       expect(vi.mocked(toast.success).mock.calls.at(-1)?.[0]).toContain("ACM-9"),
+    );
+  });
+
+  // Keyboard: the focused row is the cursor, so J/K (and Up/Down) only move
+  // focus and the row's own Enter opens the detail. Chord parsing itself is
+  // covered by packages/core/shortcuts/definitions.test.ts.
+  it("J/K move through the rows and Enter opens the focused item", async () => {
+    data.items.items = [
+      data.items.items[0]!,
+      { ...data.items.items[0]!, id: "item-2", title: "Second delivery" },
+    ];
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    const rows = document.querySelectorAll<HTMLElement>("[data-triage-row]");
+    expect(rows).toHaveLength(2);
+
+    fireEvent.keyDown(document, { key: "j" });
+    expect(document.activeElement).toBe(rows[0]);
+    fireEvent.keyDown(document, { key: "j" });
+    expect(document.activeElement).toBe(rows[1]);
+    // Up/Down are list navigation, not a rebindable action: they only work
+    // from a focused row.
+    fireEvent.keyDown(rows[1]!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[0]);
+    fireEvent.keyDown(document, { key: "k" });
+    expect(document.activeElement).toBe(rows[0]);
+
+    fireEvent.keyDown(rows[0]!, { key: "Enter" });
+    expect(await screen.findByTestId("rich-content")).toBeTruthy();
+
+    // Escape closes the detail again.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("rich-content")).toBeNull());
+  });
+
+  it("A accepts the open item", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    await screen.findByRole("button", { name: /^accept$/i });
+
+    fireEvent.keyDown(document, { key: "a" });
+    await waitFor(() =>
+      expect(mutations.accept).toHaveBeenCalledWith({ itemId: "item-1", overrides: {} }),
+    );
+  });
+
+  it("does not fire a binding while the keyboard belongs to a field", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    fireEvent.click(await screen.findByRole("button", { name: /^dismiss$/i }));
+
+    const reason = await screen.findByLabelText(/reason/i);
+    fireEvent.keyDown(reason, { key: "a" });
+    fireEvent.keyDown(reason, { key: "x" });
+    expect(mutations.accept).not.toHaveBeenCalled();
+    expect(mutations.dismiss).not.toHaveBeenCalled();
+  });
+
+  // Rules (K62) are recognized in the queue, not in Settings: the item in front
+  // of the human prefills the rule, and the header links at the full editor.
+  it("drafts a rule prefilled from the open item, and links at the rule settings", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    expect(
+      screen.getByRole("link", { name: /manage rules/i }).getAttribute("href"),
+    ).toBe("/acme/settings?tab=workspace");
+
+    fireEvent.click(await screen.findByRole("button", { name: /^create a rule$/i }));
+
+    const rule = await screen.findByLabelText("Rule");
+    expect((rule as HTMLTextAreaElement).value).toBe(
+      'Deliveries from Sentry whose title contains "Payment"',
     );
   });
 

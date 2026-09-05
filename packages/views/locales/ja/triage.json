@@ -5,7 +5,8 @@
     "pending": "保留 {{count}} 件",
     "oldest": "最長の待ち {{age}}",
     "dropped_24h": "24 時間で {{count}} 件破棄",
-    "none_pending": "キューは空です"
+    "none_pending": "キューは空です",
+    "shadow_pending": "{{count}} 件をシャドー記録"
   },
   "filter": {
     "pending": "保留",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "受信ソースはまだありません",
+    "action": "ソース",
+    "title": "受信ソース",
+    "pending": "未処理 {{count}} 件",
+    "dropped_24h": "24 時間で {{count}} 件を破棄",
+    "auto_accept": "自動受理",
+    "cap_per_hour": "1 時間あたりの上限",
+    "expiry_days": "保持期間（日）",
+    "zero_hint": "0 は上限なし、保持期間は既定値になります。",
     "items_24h": "24 時間で {{count}} 件",
     "mode": {
       "gate": "ゲート",
@@ -52,7 +61,8 @@
     "resolution_reason": "理由: {{reason}}",
     "accepted_toast_identifier": "承認しました — {{identifier}} を作成しました",
     "open_issue": "開く",
-    "from_meeting": "会議から"
+    "from_meeting": "会議から",
+    "auto_accepted": "キューにより自動受理"
   },
   "batch": {
     "accept": "{{count}} 件を承認",
@@ -114,5 +124,13 @@
     "accept": "承認",
     "dismiss": "却下",
     "by": "提案者: {{name}}"
+  },
+  "rule": {
+    "action": "ルールを作成",
+    "title": "この項目からルールを作成",
+    "description": "ルールは配信がキャプチャされた時点、誰かが見る前に実行されます。有効化する前に、コンパイル結果とドライランを確認してください。",
+    "prefill": "{{source}} からの配信のうち、タイトルに「{{keyword}}」を含むもの",
+    "prefill_source": "{{source}} からの配信",
+    "manage": "ルールを管理"
   }
 }

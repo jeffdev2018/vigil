@@ -22,6 +22,8 @@ import {
   WebhookTriggerDryRunSchema,
   TriageEmailSourceSchema,
   EMPTY_TRIAGE_EMAIL_SOURCE,
+  TriageSourceSchema,
+  EMPTY_TRIAGE_SOURCE,
   ScheduleTriggerDryRunSchema,
   UNREADABLE_WEBHOOK_DRY_RUN,
   UNREADABLE_SCHEDULE_DRY_RUN,
@@ -2478,6 +2480,49 @@ describe("trigger dry-run schemas", () => {
       SCHEDULE_ENDPOINT,
     );
     expect(broken).toBe(UNREADABLE_SCHEDULE_DRY_RUN);
+  });
+});
+
+describe("TriageSourceSchema", () => {
+  it("parses a source with its policy and counters", () => {
+    expect(
+      TriageSourceSchema.parse({
+        id: "src-1",
+        kind: "autopilot_webhook",
+        ref_id: "ap-1",
+        name: "Sentry",
+        mode: "gate",
+        auto_accept: true,
+        cap_per_hour: 25,
+        expiry_days: 3,
+        pending: 4,
+        items_24h: 9,
+        dropped_24h: 2,
+      }),
+    ).toMatchObject({ auto_accept: true, cap_per_hour: 25, pending: 4 });
+  });
+
+  // The PATCH response carries the policy but none of the counters; an older
+  // backend carries neither. Both must stay renderable.
+  it("defaults the fields an older backend does not send", () => {
+    const parsed = TriageSourceSchema.parse({ id: "src-1", mode: "direct" });
+    expect(parsed).toMatchObject({
+      auto_accept: false,
+      cap_per_hour: 0,
+      expiry_days: 0,
+      pending: 0,
+      dropped_24h: 0,
+    });
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "src-1", 42, { id: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, TriageSourceSchema, EMPTY_TRIAGE_SOURCE, {
+          endpoint: "PATCH /api/triage/sources/:id",
+        }),
+      ).toEqual(EMPTY_TRIAGE_SOURCE);
+    }
   });
 });
 

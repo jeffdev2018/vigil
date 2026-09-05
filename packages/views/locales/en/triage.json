@@ -5,7 +5,8 @@
     "pending": "{{count}} pending",
     "oldest": "Oldest waiting {{age}}",
     "dropped_24h": "{{count}} dropped in 24h",
-    "none_pending": "Queue is clear"
+    "none_pending": "Queue is clear",
+    "shadow_pending": "{{count}} recorded in shadow"
   },
   "filter": {
     "pending": "Pending",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "No inbound sources yet",
+    "action": "Sources",
+    "title": "Inbound sources",
+    "pending": "{{count}} pending",
+    "dropped_24h": "{{count}} dropped in 24h",
+    "auto_accept": "Auto-accept",
+    "cap_per_hour": "Cap per hour",
+    "expiry_days": "Retention (days)",
+    "zero_hint": "0 means no cap and the default retention.",
     "items_24h": "{{count}} in 24h",
     "mode": {
       "gate": "Gate",
@@ -52,7 +61,8 @@
     "resolution_reason": "Reason: {{reason}}",
     "accepted_toast_identifier": "Accepted — {{identifier}} created",
     "open_issue": "Open",
-    "from_meeting": "From meeting"
+    "from_meeting": "From meeting",
+    "auto_accepted": "Auto-accepted by the queue"
   },
   "batch": {
     "accept": "Accept {{count}}",
@@ -114,5 +124,13 @@
     "accept": "Accept",
     "dismiss": "Dismiss",
     "by": "by {{name}}"
+  },
+  "rule": {
+    "action": "Create a rule",
+    "title": "Create a rule from this item",
+    "description": "A rule runs when a delivery is captured, before anyone sees it. Preview the compiled rule and its dry-run before activating it.",
+    "prefill": "Deliveries from {{source}} whose title contains \"{{keyword}}\"",
+    "prefill_source": "Deliveries from {{source}}",
+    "manage": "Manage rules"
   }
 }

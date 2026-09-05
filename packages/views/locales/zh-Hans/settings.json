@@ -264,6 +264,34 @@
         "label": "归档通知",
         "description": "归档当前打开的收件箱通知；在归档列表中则取消归档。"
       },
+      "triageNextItem": {
+        "label": "分诊：下一条",
+        "description": "移动到分诊队列中的下一条。"
+      },
+      "triagePrevItem": {
+        "label": "分诊：上一条",
+        "description": "移动到分诊队列中的上一条。"
+      },
+      "triageAccept": {
+        "label": "分诊：接受",
+        "description": "接受当前打开的分诊条目并创建议题。"
+      },
+      "triageDismiss": {
+        "label": "分诊：忽略",
+        "description": "忽略当前打开的分诊条目。"
+      },
+      "triageSnooze": {
+        "label": "分诊：稍后处理",
+        "description": "为当前打开的分诊条目打开稍后处理菜单。"
+      },
+      "triageMerge": {
+        "label": "分诊：合并",
+        "description": "把当前打开的分诊条目合并到已有议题。"
+      },
+      "triageReopen": {
+        "label": "分诊：重新打开",
+        "description": "把已忽略的分诊条目退回待处理。"
+      },
       "send": {
         "label": "发送",
         "description": "发送聊天消息、评论、回复、反馈和提示词，并在创建弹窗中创建任务。"
@@ -849,8 +877,8 @@
     "rules_action_accept": "接受为 issue",
     "rules_action_priority": "优先级",
     "rules_action_priority_keep": "保持优先级",
-    "rules_action_agent": "指派给智能体",
-    "rules_action_no_agent": "不指派",
+    "rules_action_assignee": "负责人",
+    "rules_action_assignee_set": "已选择负责人",
     "triage_auto_section": "分诊自动分类",
     "triage_auto_enabled_label": "允许队列应用高置信度建议",
     "triage_auto_enabled_description": "每次接受或忽略都会让队列学习。开启后，与最相近的历史决定一致且高于阈值的投递会无需点击即被分类，可撤销并有审计记录。",

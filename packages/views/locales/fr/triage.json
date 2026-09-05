@@ -5,7 +5,8 @@
     "pending": "{{count}} en attente",
     "oldest": "Plus ancien : {{age}}",
     "dropped_24h": "{{count}} rejetés en 24h",
-    "none_pending": "File d'attente vide"
+    "none_pending": "File d'attente vide",
+    "shadow_pending": "{{count}} enregistrés en observation"
   },
   "filter": {
     "pending": "En attente",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "Aucune source entrante pour le moment",
+    "action": "Sources",
+    "title": "Sources entrantes",
+    "pending": "{{count}} en attente",
+    "dropped_24h": "{{count}} rejetés en 24 h",
+    "auto_accept": "Acceptation automatique",
+    "cap_per_hour": "Plafond horaire",
+    "expiry_days": "Rétention (jours)",
+    "zero_hint": "0 signifie aucun plafond et la rétention par défaut.",
     "items_24h": "{{count}} en 24h",
     "mode": {
       "gate": "Gate",
@@ -52,7 +61,8 @@
     "resolution_reason": "Raison : {{reason}}",
     "accepted_toast_identifier": "Accepté — {{identifier}} créé",
     "open_issue": "Ouvrir l'issue",
-    "from_meeting": "Depuis la réunion"
+    "from_meeting": "Depuis la réunion",
+    "auto_accepted": "Accepté automatiquement par la file"
   },
   "batch": {
     "accept": "Accepter {{count}}",
@@ -114,5 +124,13 @@
     "accept": "Accepter",
     "dismiss": "Rejeter",
     "by": "par {{name}}"
+  },
+  "rule": {
+    "action": "Créer une règle",
+    "title": "Créer une règle à partir de cet élément",
+    "description": "Une règle s'applique à la capture d'une livraison, avant que quiconque la voie. Prévisualisez la règle compilée et son essai à blanc avant de l'activer.",
+    "prefill": "Les livraisons de {{source}} dont le titre contient « {{keyword}} »",
+    "prefill_source": "Les livraisons de {{source}}",
+    "manage": "Gérer les règles"
   }
 }

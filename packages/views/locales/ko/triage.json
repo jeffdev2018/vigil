@@ -5,7 +5,8 @@
     "pending": "대기 {{count}}건",
     "oldest": "가장 오래 대기 {{age}}",
     "dropped_24h": "24시간 내 {{count}}건 삭제됨",
-    "none_pending": "대기열이 비어 있습니다"
+    "none_pending": "대기열이 비어 있습니다",
+    "shadow_pending": "{{count}}건 섀도 기록"
   },
   "filter": {
     "pending": "대기",
@@ -16,6 +17,14 @@
   },
   "sources": {
     "empty": "아직 수신 소스가 없습니다",
+    "action": "소스",
+    "title": "수신 소스",
+    "pending": "대기 {{count}}건",
+    "dropped_24h": "24시간 동안 {{count}}건 폐기",
+    "auto_accept": "자동 승인",
+    "cap_per_hour": "시간당 상한",
+    "expiry_days": "보존 기간(일)",
+    "zero_hint": "0은 상한 없음과 기본 보존 기간을 뜻합니다.",
     "items_24h": "24시간 내 {{count}}건",
     "mode": {
       "gate": "게이트",
@@ -52,7 +61,8 @@
     "resolution_reason": "사유: {{reason}}",
     "accepted_toast_identifier": "수락됨 — {{identifier}} 생성됨",
     "open_issue": "열기",
-    "from_meeting": "회의에서"
+    "from_meeting": "회의에서",
+    "auto_accepted": "대기열이 자동 승인"
   },
   "batch": {
     "accept": "{{count}}건 수락",
@@ -114,5 +124,13 @@
     "accept": "수락",
     "dismiss": "기각",
     "by": "제안: {{name}}"
+  },
+  "rule": {
+    "action": "규칙 만들기",
+    "title": "이 항목으로 규칙 만들기",
+    "description": "규칙은 전달이 캡처되는 시점, 누군가 보기 전에 실행됩니다. 활성화하기 전에 컴파일된 규칙과 드라이런을 확인하세요.",
+    "prefill": "{{source}}에서 온 전달 중 제목에 \"{{keyword}}\"이(가) 포함된 것",
+    "prefill_source": "{{source}}에서 온 전달",
+    "manage": "규칙 관리"
   }
 }

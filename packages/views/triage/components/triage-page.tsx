@@ -1,21 +1,24 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
+import { Inbox, Check, X, Loader2, ExternalLink, Scale, Radio } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
-import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
+import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSourcePatch, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
 import { triageStatsOptions, triageItemsInfiniteOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
 import { TriageSuggestionChip, TriageSuggestionPanel } from "./triage-suggestion";
 import {
   useBatchAcceptTriageItems,
   useBatchDismissTriageItems,
-  useUpdateTriageSourceMode,
+  useUpdateTriageSourceSettings,
 } from "@multica/core/triage/mutations";
 import { TriageItemActions, TriageVerdictBadge, TriageVerdictNote } from "./triage-item-actions";
 import { isSnoozed } from "./snooze-presets";
+import { TriageRuleFromItem } from "./triage-rule-dialog";
+import { useShortcutAction } from "./use-shortcut-action";
+import { isEditableShortcutTarget, isPortalLayerShortcutTarget } from "@multica/core/shortcuts";
 import { useT, useTimeAgo } from "../../i18n";
 import {
   CollectionPageHeader,
@@ -31,6 +34,7 @@ import {
   PopoverTrigger,
 } from "@multica/ui/components/ui/popover";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { Switch } from "@multica/ui/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -58,6 +62,20 @@ function ageSecondsToIso(seconds: number): string {
   return new Date(Date.now() - seconds * 1000).toISOString();
 }
 
+/**
+ * Keyboard cursor for the queue: the focused row IS the cursor, so J/K and the
+ * arrow keys only move DOM focus and the row's own Enter/Space handler opens
+ * the detail. Nothing new to keep in state, and Tab lands on the same rows.
+ */
+function moveRowFocus(list: HTMLElement | null, delta: number): void {
+  if (!list) return;
+  const rows = [...list.querySelectorAll<HTMLElement>("[data-triage-row]")];
+  if (rows.length === 0) return;
+  const current = rows.findIndex((row) => row === document.activeElement);
+  const next = current < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, current + delta));
+  rows[next]?.focus();
+}
+
 function formatPayload(payload: TriageItem["payload"]): string | null {
   const body = payload.body;
   if (body && Object.keys(body).length > 0) {
@@ -74,6 +92,7 @@ export function TriagePage() {
   const wsId = useWorkspaceId();
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
+  const wsPaths = useWorkspacePaths();
 
   const statsQuery = useQuery(triageStatsOptions(wsId));
   const [filterTab, setFilterTab] = useState<TriageTab>("pending");
@@ -122,6 +141,21 @@ export function TriagePage() {
 
   const clearSelection = useCallback(() => setCheckedIds(new Set()), []);
 
+  // Escape clears the open detail. It cannot be a rebindable action (Escape is
+  // reserved for dismissing popups), so it is bound here directly and yields to
+  // any open menu or dialog through the same guards as the other bindings.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented || event.repeat) return;
+      if (isEditableShortcutTarget(event.target)) return;
+      if (isPortalLayerShortcutTarget(event.target)) return;
+      setSelectedId(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const handleFilter = useCallback((tab: TriageTab) => {
     setFilterTab(tab);
     setSelectedId(null);
@@ -135,6 +169,18 @@ export function TriagePage() {
         title={t(($) => $.title)}
         count={stats?.pending}
         description={t(($) => $.subtitle)}
+        actions={
+          <>
+            <TriageSourcesPopover sources={stats?.sources ?? []} wsId={wsId} />
+            <AppLink
+              href={`${wsPaths.settings()}?tab=workspace`}
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-caption transition-colors hover:bg-accent/60"
+            >
+              <Scale aria-hidden="true" className="size-3.5" />
+              {t(($) => $.rule.manage)}
+            </AppLink>
+          </>
+        }
       />
 
       <div className="flex shrink-0 items-center gap-1 border-b px-4 py-2">
@@ -167,10 +213,9 @@ export function TriagePage() {
         pending={stats?.pending ?? 0}
         oldestAgeSeconds={stats?.oldest_pending_age_seconds ?? 0}
         dropped24h={stats?.dropped_24h ?? 0}
+        shadowPending={stats?.shadow_pending ?? 0}
         timeAgo={timeAgo}
       />
-
-      <TriageSourcesStrip sources={stats?.sources ?? []} wsId={wsId} />
 
       <div className="flex min-h-0 flex-1">
         <TriageList
@@ -202,11 +247,14 @@ function TriageStatsBar({
   pending,
   oldestAgeSeconds,
   dropped24h,
+  shadowPending,
   timeAgo,
 }: {
   pending: number;
   oldestAgeSeconds: number;
   dropped24h: number;
+  /** Direct-mode deliveries recorded for measurement; nobody triages these. */
+  shadowPending: number;
   timeAgo: (iso: string) => string;
 }) {
   const { t } = useT("triage");
@@ -223,6 +271,11 @@ function TriageStatsBar({
       {dropped24h > 0 ? (
         <span>{t(($) => $.stats.dropped_24h, { count: dropped24h })}</span>
       ) : null}
+      {shadowPending > 0 ? (
+        <span data-testid="triage-shadow-pending">
+          {t(($) => $.stats.shadow_pending, { count: shadowPending })}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -235,62 +288,153 @@ function knownMode(mode: string): TriageSourceMode {
     : "direct";
 }
 
-function TriageSourcesStrip({ sources, wsId }: { sources: TriageSource[]; wsId: string }) {
+/**
+ * Everything about the inbound sources, behind one header button: what each one
+ * put in the queue (still pending, seen in 24h, dropped in 24h) and the policy
+ * that produced those numbers — mode, auto-accept, the flood cap and retention.
+ * It was a permanent strip that showed the mode and nothing else, so the two
+ * numbers that explain a queue (`pending`, `dropped_24h`) and the three
+ * settings that change them had no home in the product at all.
+ */
+function TriageSourcesPopover({ sources, wsId }: { sources: TriageSource[]; wsId: string }) {
   const { t } = useT("triage");
-  const updateMode = useUpdateTriageSourceMode(wsId);
-
-  if (sources.length === 0) {
-    return (
-      <div className="shrink-0 border-b px-4 py-2 text-caption text-muted-foreground">
-        {t(($) => $.sources.empty)}
-      </div>
-    );
-  }
+  const update = useUpdateTriageSourceSettings(wsId);
+  const patch = (sourceId: string, next: TriageSourcePatch) =>
+    update.mutate({ sourceId, patch: next });
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2">
-      {sources.map((source) => {
-        const mode = knownMode(source.mode);
-        return (
-          <div
-            key={source.id}
-            className="flex items-center gap-1.5 rounded-lg border px-2 py-1"
-          >
-            <span className="max-w-40 truncate text-caption" title={source.name}>
-              {source.name || source.kind}
-            </span>
-            {source.items_24h > 0 ? (
+    <Popover>
+      <PopoverTrigger
+        render={
+          <Button variant="outline" size="sm">
+            <Radio aria-hidden="true" className="size-3.5" />
+            {t(($) => $.sources.action)}
+            {sources.length > 0 ? (
               <span className="font-mono text-micro tabular-nums text-muted-foreground">
-                {t(($) => $.sources.items_24h, { count: source.items_24h })}
+                {sources.length}
               </span>
             ) : null}
-            <Select
-              items={SOURCE_MODES.map((m) => ({
-                value: m,
-                label: t(($) => $.sources.mode[m]),
-              }))}
-              value={mode}
-              disabled={updateMode.isPending}
-              onValueChange={(next) => {
-                if (next && (SOURCE_MODES as string[]).includes(next)) {
-                  updateMode.mutate({ sourceId: source.id, mode: next as TriageSourceMode });
-                }
-              }}
-            >
-              <SelectTrigger size="sm" className="h-6 w-auto gap-1 px-1.5 text-micro">
-                <SelectValue>{t(($) => $.sources.mode[mode])}</SelectValue>
-              </SelectTrigger>
-              <SelectContent align="start">
-                {SOURCE_MODES.map((m) => (
-                  <SelectItem key={m} value={m} className="text-caption">
-                    {t(($) => $.sources.mode[m])}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        );
-      })}
+          </Button>
+        }
+      />
+      <PopoverContent align="end" className="max-h-[70vh] w-96 overflow-y-auto">
+        <div className="flex flex-col gap-2">
+          <p className="text-caption font-medium">{t(($) => $.sources.title)}</p>
+          {sources.length === 0 ? (
+            <p className="text-caption text-muted-foreground">{t(($) => $.sources.empty)}</p>
+          ) : (
+            sources.map((source) => (
+              <TriageSourceCard
+                key={source.id}
+                source={source}
+                disabled={update.isPending}
+                onPatch={(next) => patch(source.id, next)}
+              />
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TriageSourceCard({
+  source,
+  disabled,
+  onPatch,
+}: {
+  source: TriageSource;
+  disabled: boolean;
+  onPatch: (patch: TriageSourcePatch) => void;
+}) {
+  const { t } = useT("triage");
+  const mode = knownMode(source.mode);
+  // The two number fields are uncontrolled and commit on blur: a controlled
+  // input here would PATCH the source once per keystroke.
+  const commitNumber = (raw: string, apply: (n: number) => TriageSourcePatch, current: number) => {
+    const value = Number.parseInt(raw, 10);
+    if (!Number.isFinite(value) || value < 0 || value === current) return;
+    onPatch(apply(value));
+  };
+
+  return (
+    <div data-testid="triage-source" className="flex flex-col gap-2 rounded-lg border p-2">
+      <div className="flex items-center gap-2">
+        <span className="min-w-0 flex-1 truncate text-caption font-medium" title={source.name}>
+          {source.name || source.kind}
+        </span>
+        <Select
+          items={SOURCE_MODES.map((m) => ({ value: m, label: t(($) => $.sources.mode[m]) }))}
+          value={mode}
+          disabled={disabled}
+          onValueChange={(next) => {
+            if (next && (SOURCE_MODES as string[]).includes(next)) {
+              onPatch({ mode: next as TriageSourceMode });
+            }
+          }}
+        >
+          <SelectTrigger size="sm" className="h-6 w-auto gap-1 px-1.5 text-micro">
+            <SelectValue>{t(($) => $.sources.mode[mode])}</SelectValue>
+          </SelectTrigger>
+          <SelectContent align="end">
+            {SOURCE_MODES.map((m) => (
+              <SelectItem key={m} value={m} className="text-caption">
+                {t(($) => $.sources.mode[m])}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-micro text-muted-foreground">
+        <span>{t(($) => $.sources.pending, { count: source.pending })}</span>
+        <span>{t(($) => $.sources.items_24h, { count: source.items_24h })}</span>
+        <span className={source.dropped_24h > 0 ? "text-destructive" : undefined}>
+          {t(($) => $.sources.dropped_24h, { count: source.dropped_24h })}
+        </span>
+      </div>
+
+      <label className="flex items-center justify-between gap-2 text-caption">
+        <span>{t(($) => $.sources.auto_accept)}</span>
+        <Switch
+          aria-label={t(($) => $.sources.auto_accept)}
+          checked={source.auto_accept === true}
+          disabled={disabled}
+          onCheckedChange={(v) => onPatch({ auto_accept: v === true })}
+        />
+      </label>
+
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1 text-micro text-muted-foreground">
+          {t(($) => $.sources.cap_per_hour)}
+          <Input
+            type="number"
+            min={0}
+            className="h-7"
+            aria-label={t(($) => $.sources.cap_per_hour)}
+            defaultValue={String(source.cap_per_hour)}
+            disabled={disabled}
+            onBlur={(e) =>
+              commitNumber(e.target.value, (n) => ({ cap_per_hour: n }), source.cap_per_hour)
+            }
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-micro text-muted-foreground">
+          {t(($) => $.sources.expiry_days)}
+          <Input
+            type="number"
+            min={0}
+            className="h-7"
+            aria-label={t(($) => $.sources.expiry_days)}
+            defaultValue={String(source.expiry_days)}
+            disabled={disabled}
+            onBlur={(e) =>
+              commitNumber(e.target.value, (n) => ({ expiry_days: n }), source.expiry_days)
+            }
+          />
+        </label>
+      </div>
+      <p className="text-micro text-muted-foreground">{t(($) => $.sources.zero_hint)}</p>
     </div>
   );
 }
@@ -325,6 +469,12 @@ function TriageList({
   onLoadMore: () => void;
 }) {
   const { t } = useT("triage");
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // J/K walk the queue from anywhere on the page; Up/Down do the same while a
+  // row already has focus (see the list's own onKeyDown).
+  useShortcutAction("triageNextItem", () => moveRowFocus(listRef.current, 1));
+  useShortcutAction("triagePrevItem", () => moveRowFocus(listRef.current, -1));
 
   if (isLoading) {
     return (
@@ -369,7 +519,15 @@ function TriageList({
   }
 
   return (
-    <ul className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+    <ul
+      ref={listRef}
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        e.preventDefault();
+        moveRowFocus(listRef.current, e.key === "ArrowDown" ? 1 : -1);
+      }}
+      className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
+    >
       {items.map((item) => {
         const isActive = item.id === selectedId;
         const isChecked = checkedIds.has(item.id);
@@ -378,6 +536,7 @@ function TriageList({
             <div
               role="button"
               tabIndex={0}
+              data-triage-row=""
               onClick={() => onSelect(item.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -387,6 +546,7 @@ function TriageList({
               }}
               className={cn(
                 "group flex w-full cursor-pointer items-center gap-2 rounded-lg border px-2 py-2 text-left transition-colors",
+                "outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isActive
                   ? "border-primary/40 bg-accent"
                   : "border-transparent hover:bg-accent/60",
@@ -508,9 +668,23 @@ function TriageDetailBody({
         {item.state === "pending" ? (
           <TriageItemActions item={item} wsId={wsId} onResolved={onResolved} />
         ) : null}
+        {/* A whole class of deliveries is usually recognized here, not in
+            Settings: draft the rule from the item that made the case. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TriageRuleFromItem item={item} wsId={wsId} />
+        </div>
       </div>
 
       <TriageVerdictNote item={item} />
+
+      {item.state === "accepted" && item.resolved_by_type === "system" ? (
+        <p
+          data-testid="triage-auto-accepted"
+          className="shrink-0 border-b px-4 py-2 text-caption font-medium"
+        >
+          {t(($) => $.detail.auto_accepted)}
+        </p>
+      ) : null}
 
       {item.resolution_reason ? (
         <p
