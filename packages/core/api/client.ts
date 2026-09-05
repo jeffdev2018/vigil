@@ -333,6 +333,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import {
   AgentTaskListSchema,
@@ -6216,6 +6217,43 @@ export class ApiClient {
 
   async retireModelKey(workspaceId: string, keyId: string): Promise<{ retired: boolean }> {
     return this.fetch(`/api/workspaces/${workspaceId}/model-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+  }
+
+  // Eval Lab (K24). A proved issue becomes a case; suites of cases are
+  // replayed against one agent version and scored.
+  async promoteIssueToEvalCase(issueId: string): Promise<EvalCase | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/promote-to-eval-case`, { method: "POST" });
+    return parseWithFallback(raw, EvalCaseEnvelopeSchema, { case: null }, { endpoint: "POST /api/issues/:id/promote-to-eval-case" }).case as EvalCase | null;
+  }
+
+  async listEvalCases(workspaceId: string): Promise<EvalCase[]> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/eval-cases`);
+    return parseWithFallback(raw, EvalCaseListSchema, { cases: [] }, { endpoint: "GET /api/workspaces/:id/eval-cases" }).cases as EvalCase[];
+  }
+
+  async listEvalSuites(workspaceId: string): Promise<EvalSuite[]> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/eval-suites`);
+    return parseWithFallback(raw, EvalSuiteListSchema, { suites: [] }, { endpoint: "GET /api/workspaces/:id/eval-suites" }).suites as EvalSuite[];
+  }
+
+  async createEvalSuite(workspaceId: string, input: CreateEvalSuiteRequest): Promise<EvalSuite | null> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/eval-suites`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, EvalSuiteEnvelopeSchema, { suite: null }, { endpoint: "POST /api/workspaces/:id/eval-suites" }).suite as EvalSuite | null;
+  }
+
+  async runEvalSuite(suiteId: string, input: RunEvalSuiteRequest): Promise<EvalRun | null> {
+    const raw = await this.fetch<unknown>(`/api/eval-suites/${encodeURIComponent(suiteId)}/run`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, EvalRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/eval-suites/:id/run" }).run as EvalRun | null;
+  }
+
+  async getEvalRun(runId: string): Promise<EvalRun | null> {
+    const raw = await this.fetch<unknown>(`/api/eval-runs/${encodeURIComponent(runId)}`);
+    return parseWithFallback(raw, EvalRunEnvelopeSchema, { run: null }, { endpoint: "GET /api/eval-runs/:id" }).run as EvalRun | null;
+  }
+
+  async listEvalRuns(workspaceId: string): Promise<EvalRun[]> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/eval-runs`);
+    return parseWithFallback(raw, EvalRunListSchema, { runs: [] }, { endpoint: "GET /api/workspaces/:id/eval-runs" }).runs as EvalRun[];
   }
 
   async listBudgetPolicies(): Promise<BudgetPolicy[]> {

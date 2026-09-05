@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS eval_run_case;
+DROP TABLE IF EXISTS eval_run;
+DROP TABLE IF EXISTS eval_suite;
+DROP TABLE IF EXISTS eval_case;

@@ -623,7 +623,8 @@
       "billing": "Billing",
       "audit_log": "Audit log",
       "budgets": "Budgets",
-      "learning": "What Vigil knows"
+      "learning": "What Vigil knows",
+      "eval_lab": "Eval Lab"
     }
   },
   "plugins": {
@@ -1929,5 +1930,59 @@
     "status_completed": "Completed",
     "status_failed": "Failed",
     "template_badge": "Template"
+  },
+  "eval_lab": {
+    "title": "Eval Lab",
+    "description": "Replay proved issues against an agent version to see whether it still passes. A resolved issue whose acceptance criteria are all proved can be promoted to an eval case from the issue itself.",
+    "suites_title": "Suites",
+    "suites_description": "A suite groups eval cases; running it replays every case against one agent version.",
+    "suites_empty_title": "No suite yet",
+    "suites_empty_hint": "Create one below from the cases you promoted.",
+    "cases_empty_title": "No eval case yet",
+    "cases_empty_hint": "Promote a resolved issue whose acceptance criteria are all proved to create the first case.",
+    "case_count": "{{n}} cases",
+    "case_meta": "Issue #{{number}} · {{criteria}} criteria",
+    "last_run": "last run by {{agent}}:",
+    "never_run": "never run",
+    "run": "Run",
+    "cancel": "Cancel",
+    "agent": "Agent",
+    "version": "Version",
+    "pick_agent": "Pick an agent",
+    "pick_version": "Pick a version",
+    "version_label": "v{{number}}",
+    "new_suite_title": "New suite",
+    "new_suite_description": "Name the suite and pick the cases it replays.",
+    "name_label": "Name",
+    "name_placeholder": "Regression",
+    "select_cases": "Cases",
+    "create": "Create suite",
+    "created_toast": "Suite created",
+    "create_failed": "Could not create the suite",
+    "run_failed": "Could not start the run",
+    "history_title": "Run history",
+    "history_description": "Every replay, newest first. Click a suite name to see the per-case verdicts.",
+    "history_empty": "No run yet",
+    "col_suite": "Suite",
+    "col_agent": "Agent",
+    "col_version": "Version",
+    "col_status": "Status",
+    "col_score": "Score",
+    "col_started": "Started",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "status_unknown": "Unknown",
+    "case_status": {
+      "pending": "Pending",
+      "passed": "Passed",
+      "failed": "Failed",
+      "infra_failed": "Infrastructure failure"
+    },
+    "score_value": "{{score}}/100",
+    "no_score": "—",
+    "no_cases": "No case recorded for this run"
   }
 }

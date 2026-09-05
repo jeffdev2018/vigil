@@ -1373,5 +1373,11 @@
       "ask_proof": "증거 요청",
       "none": "조치 없음"
     }
+  },
+  "eval_promote": {
+    "promote": "평가 케이스로 승격",
+    "added": "평가 랩에 추가됨",
+    "open_eval_lab": "평가 랩 열기",
+    "failed": "이 이슈를 승격하지 못했습니다"
   }
 }

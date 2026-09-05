@@ -1015,6 +1015,52 @@ type DingtalkGroupRoute struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type EvalCase struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	SourceIssueID     pgtype.UUID        `json:"source_issue_id"`
+	SourceIssueNumber int32              `json:"source_issue_number"`
+	Title             string             `json:"title"`
+	Description       string             `json:"description"`
+	Criteria          []byte             `json:"criteria"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+type EvalRun struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	SuiteID        pgtype.UUID        `json:"suite_id"`
+	AgentID        pgtype.UUID        `json:"agent_id"`
+	AgentVersionID pgtype.UUID        `json:"agent_version_id"`
+	Status         string             `json:"status"`
+	Score          pgtype.Int4        `json:"score"`
+	StartedBy      pgtype.UUID        `json:"started_by"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+}
+
+type EvalRunCase struct {
+	RunID     pgtype.UUID        `json:"run_id"`
+	CaseID    pgtype.UUID        `json:"case_id"`
+	IssueID   pgtype.UUID        `json:"issue_id"`
+	TaskID    pgtype.UUID        `json:"task_id"`
+	Status    string             `json:"status"`
+	Score     pgtype.Int4        `json:"score"`
+	Detail    string             `json:"detail"`
+	SettledAt pgtype.Timestamptz `json:"settled_at"`
+}
+
+type EvalSuite struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Name        string             `json:"name"`
+	CaseIds     []byte             `json:"case_ids"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type FanoutBatch struct {
 	ID              pgtype.UUID        `json:"id"`
 	WorkspaceID     pgtype.UUID        `json:"workspace_id"`

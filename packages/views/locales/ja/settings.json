@@ -622,7 +622,8 @@
       "billing": "請求とプラン",
       "audit_log": "監査ログ",
       "budgets": "予算",
-      "learning": "Vigil が知っていること"
+      "learning": "Vigil が知っていること",
+      "eval_lab": "評価ラボ"
     }
   },
   "plugins": {
@@ -1921,5 +1922,59 @@
     "status_completed": "完了",
     "status_failed": "失敗",
     "template_badge": "テンプレート"
+  },
+  "eval_lab": {
+    "title": "評価ラボ",
+    "description": "証明済みの課題をエージェントのバージョンで再実行し、今も合格するかを確認します。受け入れ基準がすべて証明された解決済みの課題は、その課題から評価ケースに昇格できます。",
+    "suites_title": "スイート",
+    "suites_description": "スイートは評価ケースをまとめたものです。実行すると、各ケースを 1 つのエージェントバージョンで再実行します。",
+    "suites_empty_title": "スイートがありません",
+    "suites_empty_hint": "昇格したケースから下で作成してください。",
+    "cases_empty_title": "評価ケースがありません",
+    "cases_empty_hint": "受け入れ基準がすべて証明された解決済みの課題を昇格して、最初のケースを作成してください。",
+    "case_count": "{{n}} 件のケース",
+    "case_meta": "課題 #{{number}} · 基準 {{criteria}} 件",
+    "last_run": "{{agent}} による直近の実行:",
+    "never_run": "未実行",
+    "run": "実行",
+    "cancel": "キャンセル",
+    "agent": "エージェント",
+    "version": "バージョン",
+    "pick_agent": "エージェントを選択",
+    "pick_version": "バージョンを選択",
+    "version_label": "v{{number}}",
+    "new_suite_title": "新しいスイート",
+    "new_suite_description": "スイートに名前を付け、再実行するケースを選択します。",
+    "name_label": "名前",
+    "name_placeholder": "リグレッション",
+    "select_cases": "ケース",
+    "create": "スイートを作成",
+    "created_toast": "スイートを作成しました",
+    "create_failed": "スイートを作成できませんでした",
+    "run_failed": "実行を開始できませんでした",
+    "history_title": "実行履歴",
+    "history_description": "すべての再実行を新しい順に表示します。スイート名をクリックすると、ケースごとの判定が表示されます。",
+    "history_empty": "実行履歴はありません",
+    "col_suite": "スイート",
+    "col_agent": "エージェント",
+    "col_version": "バージョン",
+    "col_status": "ステータス",
+    "col_score": "スコア",
+    "col_started": "開始",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "status_unknown": "不明",
+    "case_status": {
+      "pending": "保留中",
+      "passed": "合格",
+      "failed": "不合格",
+      "infra_failed": "インフラ障害"
+    },
+    "score_value": "{{score}}/100",
+    "no_score": "—",
+    "no_cases": "この実行にはケースが記録されていません"
   }
 }

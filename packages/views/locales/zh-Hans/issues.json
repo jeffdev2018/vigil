@@ -1373,5 +1373,11 @@
       "ask_proof": "要求证据",
       "none": "无操作"
     }
+  },
+  "eval_promote": {
+    "promote": "提升为评测用例",
+    "added": "已加入评测实验室",
+    "open_eval_lab": "打开评测实验室",
+    "failed": "无法提升该问题"
   }
 }

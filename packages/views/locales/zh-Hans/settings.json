@@ -622,7 +622,8 @@
       "billing": "账单与套餐",
       "audit_log": "审计日志",
       "budgets": "预算",
-      "learning": "Vigil 了解的"
+      "learning": "Vigil 了解的",
+      "eval_lab": "评测实验室"
     }
   },
   "plugins": {
@@ -1921,5 +1922,59 @@
     "status_completed": "已完成",
     "status_failed": "失败",
     "template_badge": "模板"
+  },
+  "eval_lab": {
+    "title": "评测实验室",
+    "description": "在某个智能体版本上重放已验证的问题，确认它是否仍然通过。验收标准全部验证通过的已解决问题，可以在问题页面提升为评测用例。",
+    "suites_title": "套件",
+    "suites_description": "套件是一组评测用例；运行套件会在同一个智能体版本上重放每个用例。",
+    "suites_empty_title": "暂无套件",
+    "suites_empty_hint": "用已提升的用例在下方创建一个。",
+    "cases_empty_title": "暂无评测用例",
+    "cases_empty_hint": "提升一个验收标准全部验证通过的已解决问题，创建第一个用例。",
+    "case_count": "{{n}} 个用例",
+    "case_meta": "问题 #{{number}} · {{criteria}} 条标准",
+    "last_run": "{{agent}} 的最近一次运行：",
+    "never_run": "从未运行",
+    "run": "运行",
+    "cancel": "取消",
+    "agent": "智能体",
+    "version": "版本",
+    "pick_agent": "选择智能体",
+    "pick_version": "选择版本",
+    "version_label": "v{{number}}",
+    "new_suite_title": "新建套件",
+    "new_suite_description": "为套件命名，并选择它要重放的用例。",
+    "name_label": "名称",
+    "name_placeholder": "回归",
+    "select_cases": "用例",
+    "create": "创建套件",
+    "created_toast": "套件已创建",
+    "create_failed": "无法创建套件",
+    "run_failed": "无法开始运行",
+    "history_title": "运行记录",
+    "history_description": "全部重放记录，最新在前。点击套件名称可查看每个用例的判定。",
+    "history_empty": "暂无运行记录",
+    "col_suite": "套件",
+    "col_agent": "智能体",
+    "col_version": "版本",
+    "col_status": "状态",
+    "col_score": "得分",
+    "col_started": "开始于",
+    "status": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "已失败"
+    },
+    "status_unknown": "未知",
+    "case_status": {
+      "pending": "等待中",
+      "passed": "通过",
+      "failed": "未通过",
+      "infra_failed": "基础设施故障"
+    },
+    "score_value": "{{score}}/100",
+    "no_score": "—",
+    "no_cases": "该次运行没有记录用例"
   }
 }
