@@ -39,6 +39,7 @@
     "resolved_note_discarded": "该复盘已被丢弃。",
     "open_issue": "打开 Issue",
     "open_agent": "打开 Agent",
+    "open_run": "打开运行",
     "rules_toast": "已将 {{count}} 条规则加入 Agent 记忆",
     "rules_hint": "批准后，这些规则会加入 Agent 记忆。"
   }

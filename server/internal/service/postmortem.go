@@ -84,14 +84,33 @@ func (s *TaskService) SubscribePostmortemGeneration(bus *events.Bus) {
 		if err != nil {
 			return
 		}
-		s.launchPostmortemGeneration(taskID)
+		s.launchPostmortemGeneration(taskID, "failed")
+	})
+	// Costly-run trigger: a run that SUCCEEDED but cost more than the
+	// workspace's threshold. Gated entirely inside the worker, because the
+	// threshold and the run's cost both need the database and this listener
+	// runs inline on the publisher's goroutine.
+	bus.Subscribe(protocol.EventTaskCompleted, func(e events.Event) {
+		payload, ok := e.Payload.(map[string]any)
+		if !ok {
+			return
+		}
+		if status, _ := payload["status"].(string); status != "completed" {
+			return
+		}
+		taskIDRaw, _ := payload["task_id"].(string)
+		taskID, err := util.ParseUUID(taskIDRaw)
+		if err != nil {
+			return
+		}
+		s.launchPostmortemGeneration(taskID, "costly")
 	})
 }
 
 // launchPostmortemGeneration spawns the detached worker with two admission
 // gates: one pass per task (a redelivered event must not race itself) and a
 // process-wide ceiling.
-func (s *TaskService) launchPostmortemGeneration(taskID pgtype.UUID) {
+func (s *TaskService) launchPostmortemGeneration(taskID pgtype.UUID, trigger string) {
 	key := util.UUIDToString(taskID)
 	if _, inFlight := s.postmortemInFlight.LoadOrStore(key, struct{}{}); inFlight {
 		return
@@ -123,9 +142,15 @@ func (s *TaskService) launchPostmortemGeneration(taskID pgtype.UUID) {
 		ctx, cancel := context.WithTimeout(context.Background(), postmortemTimeout)
 		defer cancel()
 
-		if err := s.GeneratePostmortemForTask(ctx, taskID); err != nil {
+		var err error
+		if trigger == "costly" {
+			err = s.GenerateCostlyPostmortemForTask(ctx, taskID)
+		} else {
+			err = s.GeneratePostmortemForTask(ctx, taskID)
+		}
+		if err != nil {
 			slog.Warn("postmortem generation failed",
-				"task_id", key, "error", err)
+				"task_id", key, "trigger", trigger, "error", err)
 		}
 	}()
 }
@@ -158,7 +183,59 @@ func (s *TaskService) GeneratePostmortemForTask(ctx context.Context, taskID pgty
 		}
 		return fmt.Errorf("load task agent: %w", err)
 	}
+	return s.storePostmortem(ctx, task, agent, "failed", failureReason)
+}
 
+// GenerateCostlyPostmortemForTask drafts a postmortem for a run that SUCCEEDED
+// but cost more than the workspace's postmortem_cost_threshold_usd_ticks. A
+// workspace that never set the threshold (NULL, the default) is skipped, so
+// the completed-task subscription costs an untouched deployment one cheap read
+// and nothing else. Synchronous and safe to call directly from tests.
+func (s *TaskService) GenerateCostlyPostmortemForTask(ctx context.Context, taskID pgtype.UUID) error {
+	task, err := s.Queries.GetAgentTask(ctx, taskID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("load completed task: %w", err)
+	}
+	if task.Status != "completed" {
+		return nil
+	}
+
+	agent, err := s.Queries.GetAgent(ctx, task.AgentID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("load task agent: %w", err)
+	}
+
+	ws, err := s.Queries.GetWorkspace(ctx, agent.WorkspaceID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("load workspace: %w", err)
+	}
+	threshold := ws.PostmortemCostThresholdUsdTicks
+	if !threshold.Valid || threshold.Int64 <= 0 {
+		return nil
+	}
+	costTicks, _, _ := s.loadPostmortemUsage(ctx, task.ID)
+	// Strictly greater: "more than $X" is what the setting says, so a run that
+	// lands exactly on the threshold is not costly.
+	if costTicks <= threshold.Int64 {
+		return nil
+	}
+
+	return s.storePostmortem(ctx, task, agent, "costly", "")
+}
+
+// storePostmortem is the shared drafting-and-insert body of both triggers.
+// Everything above it decides WHETHER this run deserves a postmortem; this
+// decides what it says.
+func (s *TaskService) storePostmortem(ctx context.Context, task db.AgentTaskQueue, agent db.Agent, trigger, failureReason string) error {
 	// Idempotent: a postmortem already exists for this run (redelivered event
 	// or a rerun of the pass). CreatePostmortem also guards this via the unique
 	// index; the early read keeps the LLM spend out of the duplicate case.
@@ -176,7 +253,7 @@ func (s *TaskService) GeneratePostmortemForTask(ctx context.Context, taskID pgty
 	costTicks, _, _ := s.loadPostmortemUsage(ctx, task.ID)
 	errMsg := strings.TrimSpace(task.Error.String)
 
-	summary, rootCause, impact, rules, llmUsed := s.draftPostmortem(ctx, issueTitle, failureReason, errMsg, task.Attempt, task.MaxAttempts, transcript)
+	summary, rootCause, impact, rules, llmUsed := s.draftPostmortem(ctx, trigger, issueTitle, failureReason, errMsg, costTicks, task.Attempt, task.MaxAttempts, transcript)
 
 	rulesJSON, err := json.Marshal(rules)
 	if err != nil {
@@ -192,7 +269,7 @@ func (s *TaskService) GeneratePostmortemForTask(ctx context.Context, taskID pgty
 		SourceTaskID:    task.ID,
 		IssueID:         task.IssueID,
 		AgentID:         task.AgentID,
-		Trigger:         "failed",
+		Trigger:         trigger,
 		FailureReason:   failureReason,
 		Summary:         util.SanitizeTextForPostgres(summary),
 		RootCause:       util.SanitizeTextForPostgres(rootCause),
@@ -216,12 +293,12 @@ func (s *TaskService) GeneratePostmortemForTask(ctx context.Context, taskID pgty
 
 // draftPostmortem returns (summary, rootCause, impact, rules, llmUsed). It
 // prefers the assist-layer LLM and falls back to the deterministic scaffold.
-func (s *TaskService) draftPostmortem(ctx context.Context, issueTitle, failureReason, errMsg string, attempt, maxAttempts int32, transcript string) (string, string, string, []string, bool) {
+func (s *TaskService) draftPostmortem(ctx context.Context, trigger, issueTitle, failureReason, errMsg string, costTicks int64, attempt, maxAttempts int32, transcript string) (string, string, string, []string, bool) {
 	if s.Postmortem != nil && s.Postmortem.Enabled() {
 		raw, err := s.Postmortem.GenerateJSON(ctx,
 			"", // deployment default: MULTICA_LLM_DEFAULT_MODEL, else llm.FallbackModel
 			postmortemSystemPrompt,
-			renderPostmortemPrompt(issueTitle, failureReason, errMsg, attempt, maxAttempts, transcript),
+			renderPostmortemPrompt(trigger, issueTitle, failureReason, errMsg, costTicks, attempt, maxAttempts, transcript),
 			0.2,
 			2048,
 		)
@@ -231,7 +308,7 @@ func (s *TaskService) draftPostmortem(ctx context.Context, issueTitle, failureRe
 			return parsed.Summary, parsed.RootCause, parsed.Impact, parsed.Rules, true
 		}
 	}
-	summary, rootCause, impact, rules := scaffoldPostmortem(issueTitle, failureReason, errMsg, attempt, maxAttempts)
+	summary, rootCause, impact, rules := scaffoldPostmortem(trigger, issueTitle, failureReason, errMsg, costTicks, attempt, maxAttempts)
 	return summary, rootCause, impact, rules, false
 }
 
@@ -297,7 +374,7 @@ func (s *TaskService) loadPostmortemUsage(ctx context.Context, taskID pgtype.UUI
 
 // scaffoldPostmortem is the deterministic fallback: a factual postmortem built
 // from the failure data alone, used when no assist-layer LLM is configured.
-func scaffoldPostmortem(issueTitle, failureReason, errMsg string, attempt, maxAttempts int32) (summary, rootCause, impact string, rules []string) {
+func scaffoldPostmortem(trigger, issueTitle, failureReason, errMsg string, costTicks int64, attempt, maxAttempts int32) (summary, rootCause, impact string, rules []string) {
 	reason := failureReason
 	if reason == "" {
 		reason = "unclassified"
@@ -305,6 +382,20 @@ func scaffoldPostmortem(issueTitle, failureReason, errMsg string, attempt, maxAt
 	subject := "The agent run"
 	if issueTitle != "" {
 		subject = fmt.Sprintf("The agent run on %q", issueTitle)
+	}
+	if trigger == "costly" {
+		// The run SUCCEEDED — there is no failure to explain, only a bill.
+		summary = fmt.Sprintf("%s completed but cost %s, over the workspace threshold.", subject, formatUsdTicks(costTicks))
+		rootCause = "Not classified: the run succeeded, so the cost is what needs explaining, not a failure."
+		if issueTitle != "" {
+			impact = fmt.Sprintf("Issue %q was advanced, at an unusually high cost for a single run.", issueTitle)
+		} else {
+			impact = "The work was delivered, at an unusually high cost for a single run."
+		}
+		return summary, rootCause, impact, []string{
+			"Check whether the run re-read the same context repeatedly before acting",
+			"Narrow the task scope, or split it, so a single run carries less context",
+		}
 	}
 	summary = fmt.Sprintf("%s failed (reason: %s, attempt %d/%d).", subject, reason, attempt, maxAttempts)
 	rootCause = fmt.Sprintf("Classified failure reason: %s.", reason)
@@ -496,4 +587,12 @@ func (s *TaskService) ApplyPostmortemRules(ctx context.Context, pm db.Postmortem
 		s.publishAgentMemoryEvent(protocol.EventAgentMemoryCreated, agent, memory)
 	}
 	return inserted, nil
+}
+
+// formatUsdTicks renders a cost_usd_ticks value (1e-10 USD) as a dollar amount
+// for the postmortem text. Four decimals: agent runs are routinely priced in
+// fractions of a cent, and rounding one to "$0.00" would make the whole
+// costly-run postmortem read as nonsense.
+func formatUsdTicks(ticks int64) string {
+	return fmt.Sprintf("$%.4f", float64(ticks)*costTicksPerUSD)
 }

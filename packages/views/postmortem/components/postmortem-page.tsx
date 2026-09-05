@@ -3,7 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FileText, Check, X, Loader2, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
+import { FileText, Check, X, Loader2, ScrollText, Sparkles, Wand2, Bot, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { paths, useWorkspaceSlug } from "@multica/core/paths";
 import { AppLink } from "../../navigation";
@@ -17,6 +17,9 @@ import {
   useApprovePostmortem,
   useDiscardPostmortem,
 } from "@multica/core/postmortem/mutations";
+import { agentTasksOptions } from "@multica/core/agents/queries";
+import { agentListOptions } from "@multica/core/workspace/queries";
+import { TranscriptButton } from "../../common/task-transcript/transcript-button";
 import { useT, useTimeAgo } from "../../i18n";
 import {
   CollectionPageHeader,
@@ -395,6 +398,13 @@ function PostmortemDetailBody({
                 {t(($) => $.detail.open_agent)}
               </AppLink>
             ) : null}
+            {item.agent_id ? (
+              <OpenRunButton
+                wsId={wsId}
+                agentId={item.agent_id}
+                taskId={item.source_task_id}
+              />
+            ) : null}
           </div>
         ) : null}
         <Section label={t(($) => $.detail.summary_label)} body={item.summary} />
@@ -450,4 +460,48 @@ function handleResolveError(
     return;
   }
   toast.error(t(($) => $.detail.error_toast));
+}
+
+/**
+ * Opens the transcript of the run this postmortem analyzes.
+ *
+ * The postmortem stores source_task_id, but there is no single-task endpoint
+ * to resolve it with, so the button reads the agent's run list — the same
+ * cached query the agent's Activity tab uses — and finds the row there. A run
+ * that has aged out of that list (or a postmortem whose agent was deleted)
+ * renders nothing rather than a control that would open an empty dialog.
+ */
+function OpenRunButton({
+  wsId,
+  agentId,
+  taskId,
+}: {
+  wsId: string;
+  agentId: string;
+  taskId: string;
+}) {
+  const { t } = useT("postmortem");
+  const [open, setOpen] = useState(false);
+  const { data: tasks = [] } = useQuery(agentTasksOptions(wsId, agentId));
+  // Workspace-wide agent list: already in cache on every dashboard surface,
+  // and the dialog header needs a name the task row does not carry.
+  const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  const task = tasks.find((candidate) => candidate.id === taskId);
+  if (!task) return null;
+  const agentName = agents.find((agent) => agent.id === agentId)?.name ?? "";
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+        <ScrollText aria-hidden="true" className="size-3.5" />
+        {t(($) => $.detail.open_run)}
+      </Button>
+      <TranscriptButton
+        task={task}
+        agentName={agentName}
+        renderButton={false}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
+  );
 }

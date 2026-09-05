@@ -39,6 +39,7 @@
     "resolved_note_discarded": "This postmortem was discarded.",
     "open_issue": "Open issue",
     "open_agent": "Open agent",
+    "open_run": "Open run",
     "rules_toast": "{{count}} rules added to the agent's memory",
     "rules_hint": "Approving adds these rules to the agent's memory."
   }

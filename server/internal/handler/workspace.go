@@ -104,8 +104,12 @@ type WorkspaceResponse struct {
 	Repos       any     `json:"repos"`
 	IssuePrefix string  `json:"issue_prefix"`
 	AvatarURL   *string `json:"avatar_url"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
+	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
+	// null disables the trigger, which is every workspace's default.
+	PostmortemCostThresholdUsdTicks *int64 `json:"postmortem_cost_threshold_usd_ticks"`
+	CreatedAt                       string `json:"created_at"`
+	UpdatedAt                       string `json:"updated_at"`
 }
 
 func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
@@ -124,17 +128,18 @@ func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
 		repos = []any{}
 	}
 	return WorkspaceResponse{
-		ID:          uuidToString(w.ID),
-		Name:        w.Name,
-		Slug:        w.Slug,
-		Description: textToPtr(w.Description),
-		Context:     textToPtr(w.Context),
-		Settings:    settings,
-		Repos:       repos,
-		IssuePrefix: w.IssuePrefix,
-		AvatarURL:   h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
-		CreatedAt:   timestampToString(w.CreatedAt),
-		UpdatedAt:   timestampToString(w.UpdatedAt),
+		ID:                              uuidToString(w.ID),
+		Name:                            w.Name,
+		Slug:                            w.Slug,
+		Description:                     textToPtr(w.Description),
+		Context:                         textToPtr(w.Context),
+		Settings:                        settings,
+		Repos:                           repos,
+		IssuePrefix:                     w.IssuePrefix,
+		AvatarURL:                       h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
+		PostmortemCostThresholdUsdTicks: int8ToPtr(w.PostmortemCostThresholdUsdTicks),
+		CreatedAt:                       timestampToString(w.CreatedAt),
+		UpdatedAt:                       timestampToString(w.UpdatedAt),
 	}
 }
 
@@ -327,6 +332,11 @@ type UpdateWorkspaceRequest struct {
 	Repos       any     `json:"repos"`
 	IssuePrefix *string `json:"issue_prefix"`
 	AvatarURL   *string `json:"avatar_url"`
+	// PostmortemCostThresholdUsdTicks (k68): 0 turns the costly-run trigger
+	// off (stored as NULL), a positive value arms it. A sentinel rather than
+	// `null` because the rest of this request is COALESCE-partial, where null
+	// already means "leave alone" — and a threshold of $0 is meaningless.
+	PostmortemCostThresholdUsdTicks *int64 `json:"postmortem_cost_threshold_usd_ticks"`
 }
 
 type workspaceRepoRef struct {
@@ -435,6 +445,19 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		params.AvatarUrl = pgtype.Text{String: accepted, Valid: true}
+	}
+
+	// Written first so the row UpdateWorkspace returns already carries it.
+	if req.PostmortemCostThresholdUsdTicks != nil {
+		threshold := pgtype.Int8{}
+		if *req.PostmortemCostThresholdUsdTicks > 0 {
+			threshold = pgtype.Int8{Int64: *req.PostmortemCostThresholdUsdTicks, Valid: true}
+		}
+		if _, err := h.Queries.UpdateWorkspacePostmortemCostThreshold(r.Context(), db.UpdateWorkspacePostmortemCostThresholdParams{ID: idUUID, Threshold: threshold}); err != nil {
+			slog.Warn("update postmortem cost threshold failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update workspace")
+			return
+		}
 	}
 
 	ws, err := h.Queries.UpdateWorkspace(r.Context(), params)

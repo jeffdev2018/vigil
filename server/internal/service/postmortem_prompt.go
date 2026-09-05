@@ -42,10 +42,26 @@ type postmortemDraft struct {
 // renderPostmortemPrompt builds the per-call user message: the issue the run
 // worked on, the classified failure, the last error, retry context, and a
 // bounded transcript tail.
-func renderPostmortemPrompt(issueTitle, failureReason, errMsg string, attempt, maxAttempts int32, transcript string) string {
+func renderPostmortemPrompt(trigger, issueTitle, failureReason, errMsg string, costTicks int64, attempt, maxAttempts int32, transcript string) string {
 	var b strings.Builder
 	if strings.TrimSpace(issueTitle) != "" {
 		fmt.Fprintf(&b, "The run worked on the issue titled: %s\n\n", issueTitle)
+	}
+	if trigger == "costly" {
+		// No failure to classify: the run succeeded and the question is the
+		// bill, so say that plainly instead of asking for a root cause that
+		// does not exist.
+		fmt.Fprintf(&b, "OUTCOME: the run COMPLETED SUCCESSFULLY but cost %s, over the workspace's per-run cost threshold.\n", formatUsdTicks(costTicks))
+		fmt.Fprintf(&b, "ATTEMPT: %d of %d\n", attempt, maxAttempts)
+		b.WriteString("\nTRANSCRIPT TAIL (what the agent spent the run doing):\n")
+		if strings.TrimSpace(transcript) == "" {
+			b.WriteString("(no transcript captured)\n")
+		} else {
+			b.WriteString(transcript)
+			b.WriteString("\n")
+		}
+		b.WriteString("\nWrite the postmortem for this expensive run: what it spent the money on, and what would make the next one cheaper. There is no failure to explain.")
+		return b.String()
 	}
 	fmt.Fprintf(&b, "FAILURE REASON (classified): %s\n", orNone(failureReason))
 	fmt.Fprintf(&b, "ATTEMPT: %d of %d\n", attempt, maxAttempts)

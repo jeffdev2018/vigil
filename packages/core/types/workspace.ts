@@ -15,6 +15,12 @@ export interface Workspace {
   repos: WorkspaceRepo[];
   issue_prefix: string;
   avatar_url: string | null;
+  /**
+   * Draft a postmortem when a run that SUCCEEDED costs more than this many
+   * cost_usd_ticks (1e-10 USD). `null` disables the trigger and is every
+   * workspace's default; absent on a backend that predates the setting.
+   */
+  postmortem_cost_threshold_usd_ticks?: number | null;
   created_at: string;
   updated_at: string;
 }

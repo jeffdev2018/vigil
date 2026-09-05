@@ -44,6 +44,43 @@ const data = vi.hoisted(() => ({
   } as PostmortemsResponse,
 }));
 
+// The "Open run" control resolves source_task_id through the agent's run list;
+// the dialog itself is covered by agent-transcript-dialog.test.tsx, so it is
+// stubbed here down to the props this page has to get right.
+const runs = vi.hoisted(() => ({
+  tasks: [{ id: "task-1", agent_id: "agent-1", status: "failed" }] as unknown[],
+}));
+
+vi.mock("@multica/core/agents/queries", () => ({
+  agentTasksOptions: () => ({
+    queryKey: ["agent-tasks", "ws-1", "agent-1"],
+    queryFn: async () => runs.tasks,
+  }),
+}));
+
+vi.mock("@multica/core/workspace/queries", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/workspace/queries")>()),
+  agentListOptions: () => ({
+    queryKey: ["agents", "ws-1"],
+    queryFn: async () => [{ id: "agent-1", name: "Ada" }],
+  }),
+}));
+
+vi.mock("../../common/task-transcript/transcript-button", () => ({
+  TranscriptButton: ({
+    task,
+    agentName,
+    open,
+  }: {
+    task: { id: string };
+    agentName: string;
+    open: boolean;
+  }) =>
+    open ? (
+      <div data-testid="transcript-dialog">{`${task.id}:${agentName}`}</div>
+    ) : null,
+}));
+
 vi.mock("@multica/core/postmortem/queries", () => ({
   postmortemStatsOptions: () => ({
     queryKey: ["postmortem", "ws-1", "stats"],
@@ -163,6 +200,29 @@ describe("PostmortemPage", () => {
       "/acme/agents/agent-1",
     );
     expect(screen.getByText("Approving adds these rules to the agent's memory.")).toBeTruthy();
+  });
+
+  it("opens the run this postmortem analyzes", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("The run exhausted the model context."));
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open run" }));
+
+    expect(await screen.findByTestId("transcript-dialog")).toHaveTextContent(
+      "task-1:Ada",
+    );
+  });
+
+  it("offers no run to open when the source task is not in the agent's list", async () => {
+    // Aged out of the run list, or the agent was deleted: a control that would
+    // open an empty dialog is worse than no control.
+    runs.tasks = [];
+    renderPage();
+    fireEvent.click(await screen.findByText("The run exhausted the model context."));
+
+    await screen.findByRole("link", { name: "Open agent" });
+    expect(screen.queryByRole("button", { name: "Open run" })).not.toBeInTheDocument();
+    runs.tasks = [{ id: "task-1", agent_id: "agent-1", status: "failed" }];
   });
 
   it("discarding the selected item calls the mutation and toasts", async () => {

@@ -39,6 +39,7 @@
     "resolved_note_discarded": "この振り返りは破棄されました。",
     "open_issue": "Issue を開く",
     "open_agent": "エージェントを開く",
+    "open_run": "実行を開く",
     "rules_toast": "{{count}} 件のルールをエージェントのメモリに追加しました",
     "rules_hint": "承認すると、これらのルールがエージェントのメモリに追加されます。"
   }

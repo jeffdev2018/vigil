@@ -2176,6 +2176,8 @@ type Workspace struct {
 	AvatarUrl    pgtype.Text        `json:"avatar_url"`
 	// When TRUE, an agent run that resolves to no precise accountable human (would be owner_fallback) is refused at enqueue instead of degrading to the agent owner (MUL-4302 §3.5). Default FALSE = owner_fallback. Never affects authorization (originator_user_id).
 	AttributionFailClosed bool `json:"attribution_fail_closed"`
+	// Draft a postmortem when a completed run costs more than this many cost_usd_ticks (1e-10 USD). NULL disables the costly trigger.
+	PostmortemCostThresholdUsdTicks pgtype.Int8 `json:"postmortem_cost_threshold_usd_ticks"`
 }
 
 type WorkspaceInvitation struct {

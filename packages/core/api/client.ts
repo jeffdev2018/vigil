@@ -3928,7 +3928,10 @@ export class ApiClient {
     });
   }
 
-  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string }): Promise<Workspace> {
+  // postmortem_cost_threshold_usd_ticks: 0 turns the costly-run postmortem
+  // trigger off (the server stores NULL), a positive value arms it. Omitting
+  // the field leaves the stored threshold alone, like every other field here.
+  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string; postmortem_cost_threshold_usd_ticks?: number }): Promise<Workspace> {
     return this.fetch(`/api/workspaces/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
