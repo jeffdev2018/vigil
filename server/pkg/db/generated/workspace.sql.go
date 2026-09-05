@@ -14,7 +14,7 @@ import (
 const createWorkspace = `-- name: CreateWorkspace :one
 INSERT INTO workspace (name, slug, description, context, issue_prefix)
 VALUES ($1, $2, $3, $4, $5)
-RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks
 `
 
 type CreateWorkspaceParams struct {
@@ -48,6 +48,7 @@ func (q *Queries) CreateWorkspace(ctx context.Context, arg CreateWorkspaceParams
 		&i.IssueCounter,
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
 	)
 	return i, err
 }
@@ -139,6 +140,15 @@ cleared_issue_properties AS (
 cleared_quick_actions AS (
     DELETE FROM quick_action WHERE workspace_id = $1
 ),
+cleared_triage_items AS (
+    DELETE FROM triage_item WHERE workspace_id = $1
+),
+cleared_triage_sources AS (
+    DELETE FROM triage_source WHERE workspace_id = $1
+),
+cleared_meetings AS (
+    DELETE FROM meeting WHERE workspace_id = $1
+),
 ws_mcp_servers AS (
     SELECT id FROM workspace_mcp_server WHERE workspace_id = $1
 ),
@@ -196,6 +206,8 @@ DELETE FROM workspace WHERE workspace.id = $1
 // tables the DELETE below sweeps — they are not cleaned up implicitly. Remove
 // their workspace-owned rows here so they commit or roll back atomically with
 // the workspace row.
+// Triage tables carry no FK by repo rule, so the DELETE below does not reach
+// them. Items first only for readability — with no FK either order commits.
 // VCS tables (migration 213) carry no FK to workspace, so they are not cascaded
 // away by the DELETE below. Sweep the workspace's connections, mirrored PRs,
 // their issue links, and CI statuses here. issue_vcs_pull_request has no
@@ -227,7 +239,7 @@ func (q *Queries) GetDaemonWorkspace(ctx context.Context, id pgtype.UUID) (GetDa
 }
 
 const getWorkspace = `-- name: GetWorkspace :one
-SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed FROM workspace
+SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks FROM workspace
 WHERE id = $1
 `
 
@@ -248,6 +260,7 @@ func (q *Queries) GetWorkspace(ctx context.Context, id pgtype.UUID) (Workspace, 
 		&i.IssueCounter,
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
 	)
 	return i, err
 }
@@ -267,7 +280,7 @@ func (q *Queries) GetWorkspaceAttributionFailClosed(ctx context.Context, id pgty
 }
 
 const getWorkspaceBySlug = `-- name: GetWorkspaceBySlug :one
-SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed FROM workspace
+SELECT id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks FROM workspace
 WHERE slug = $1
 `
 
@@ -288,6 +301,7 @@ func (q *Queries) GetWorkspaceBySlug(ctx context.Context, slug string) (Workspac
 		&i.IssueCounter,
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
 	)
 	return i, err
 }
@@ -345,7 +359,8 @@ func (q *Queries) ListDaemonWorkspaces(ctx context.Context, userID pgtype.UUID) 
 const listWorkspaces = `-- name: ListWorkspaces :many
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
-       w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed
+       w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
+       w.postmortem_cost_threshold_usd_ticks
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1
@@ -375,6 +390,7 @@ func (q *Queries) ListWorkspaces(ctx context.Context, userID pgtype.UUID) ([]Wor
 			&i.IssueCounter,
 			&i.AvatarUrl,
 			&i.AttributionFailClosed,
+			&i.PostmortemCostThresholdUsdTicks,
 		); err != nil {
 			return nil, err
 		}
@@ -441,7 +457,7 @@ UPDATE workspace SET
     avatar_url = COALESCE($8, avatar_url),
     updated_at = now()
 WHERE id = $1
-RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks
 `
 
 type UpdateWorkspaceParams struct {
@@ -481,6 +497,46 @@ func (q *Queries) UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams
 		&i.IssueCounter,
 		&i.AvatarUrl,
 		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
+	)
+	return i, err
+}
+
+const updateWorkspacePostmortemCostThreshold = `-- name: UpdateWorkspacePostmortemCostThreshold :one
+UPDATE workspace SET
+    postmortem_cost_threshold_usd_ticks = $2::bigint,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, name, slug, description, settings, created_at, updated_at, context, repos, issue_prefix, issue_counter, avatar_url, attribution_fail_closed, postmortem_cost_threshold_usd_ticks
+`
+
+type UpdateWorkspacePostmortemCostThresholdParams struct {
+	ID        pgtype.UUID `json:"id"`
+	Threshold pgtype.Int8 `json:"threshold"`
+}
+
+// Costly-run postmortems (k68). Kept out of UpdateWorkspace because that
+// statement is COALESCE-partial ("NULL means leave alone"), which cannot
+// express "clear this setting" — and clearing it is how the trigger is
+// switched off.
+func (q *Queries) UpdateWorkspacePostmortemCostThreshold(ctx context.Context, arg UpdateWorkspacePostmortemCostThresholdParams) (Workspace, error) {
+	row := q.db.QueryRow(ctx, updateWorkspacePostmortemCostThreshold, arg.ID, arg.Threshold)
+	var i Workspace
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Slug,
+		&i.Description,
+		&i.Settings,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Context,
+		&i.Repos,
+		&i.IssuePrefix,
+		&i.IssueCounter,
+		&i.AvatarUrl,
+		&i.AttributionFailClosed,
+		&i.PostmortemCostThresholdUsdTicks,
 	)
 	return i, err
 }

@@ -185,6 +185,7 @@ WHERE t.id = $1 AND t.autopilot_id = $2 AND a.workspace_id = $3;
 INSERT INTO autopilot_trigger (
     autopilot_id, kind, enabled, cron_expression, timezone,
     next_run_at, webhook_token, label, provider, event_filters,
+    event_match_criteria, window_minutes,
     published_by_type, published_by_id,
     created_by_type, created_by_id
 ) VALUES (
@@ -192,6 +193,8 @@ INSERT INTO autopilot_trigger (
     sqlc.narg('next_run_at'), sqlc.narg('webhook_token'), sqlc.narg('label'),
     COALESCE(sqlc.narg('provider')::text, 'generic'),
     sqlc.narg('event_filters'),
+    COALESCE(sqlc.narg('event_match_criteria')::text, ''),
+    COALESCE(sqlc.narg('window_minutes')::int, 0),
     sqlc.narg('published_by_type'), sqlc.narg('published_by_id'),
     sqlc.narg('created_by_type'), sqlc.narg('created_by_id')
 ) RETURNING *;
@@ -228,6 +231,8 @@ UPDATE autopilot_trigger SET
     next_run_at = sqlc.narg('next_run_at'),
     label = COALESCE(sqlc.narg('label'), label),
     event_filters = COALESCE(sqlc.narg('event_filters'), event_filters),
+    event_match_criteria = COALESCE(sqlc.narg('event_match_criteria')::text, event_match_criteria),
+    window_minutes = COALESCE(sqlc.narg('window_minutes')::int, window_minutes),
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -420,6 +425,12 @@ WHERE autopilot_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: CountAutopilotRuns :one
+-- Total for the paged list above. The page length is NOT the total: a page of
+-- 20 out of 300 runs reported "total: 20", which is what the UI showed.
+SELECT count(*) FROM autopilot_run
+WHERE autopilot_id = $1;
+
 -- name: UpdateAutopilotRunIssueCreated :one
 UPDATE autopilot_run
 SET status = 'issue_created', issue_id = $2
@@ -559,7 +570,7 @@ RETURNING *;
 -- Filters out webhook / api triggers, disabled triggers, paused/archived
 -- autopilots, and any trigger missing its cron expression. ORDER BY id
 -- keeps the per-tick scope list stable across replicas.
-SELECT t.id, t.autopilot_id, t.cron_expression, t.timezone, t.created_at, t.last_fired_at
+SELECT t.id, t.autopilot_id, t.cron_expression, t.timezone, t.window_minutes, t.created_at, t.last_fired_at
 FROM autopilot_trigger t
 JOIN autopilot a ON a.id = t.autopilot_id
 WHERE t.kind = 'schedule'
@@ -593,6 +604,7 @@ INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, status, priority, autopilot_run_id, trigger_summary,
     originator_user_id, accountable_user_id, rule_version_id,
     originator_source, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -603,6 +615,8 @@ SELECT
     sqlc.narg(originator_source),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING *;
@@ -708,9 +722,10 @@ ORDER BY s.failed DESC, a.id ASC;
 -- Atomically pauses an autopilot only if it is currently active. Returns no
 -- rows when the autopilot was already paused/archived (or another worker
 -- raced first), letting the caller treat that as a benign no-op rather than
--- an error.
+-- an error. The caller names the condition it paused for so the UI can explain
+-- an automation that stopped on its own; NULL leaves it unexplained.
 UPDATE autopilot
-SET status = 'paused', pause_reason = NULL, updated_at = now()
+SET status = 'paused', pause_reason = @pause_reason, updated_at = now()
 WHERE id = $1 AND status = 'active'
 RETURNING *;
 

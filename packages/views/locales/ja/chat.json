@@ -203,6 +203,7 @@
       "reconnecting": "再接続中",
       "retrying": "再試行中",
       "queued": "待機中",
+      "budget_paused": "予算により一時停止",
       "waiting_local_directory": "ローカルディレクトリを待機中",
       "waiting_local_directory_reason": "{{reason}} を待機中",
       "starting_up": "起動中",
@@ -243,5 +244,16 @@
     "delete": "チャットを削除",
     "archive": "チャットをアーカイブ",
     "unarchive": "アーカイブを解除"
+  },
+  "voice": {
+    "start": "音声でメッセージを入力",
+    "stop": "停止して文字起こし",
+    "transcribing": "文字起こし中…",
+    "error_unsupported": "このブラウザでは録音できません。",
+    "error_mic_denied": "マイクへのアクセスが拒否されました。",
+    "error_not_configured": "このサーバーでは文字起こしが設定されていません。",
+    "error_failed": "録音を文字起こしできませんでした。",
+    "listen": "読み上げ",
+    "stop_listening": "読み上げを停止"
   }
 }

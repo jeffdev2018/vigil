@@ -207,6 +207,7 @@
       "reconnecting": "Reconnecting",
       "retrying": "Retrying",
       "queued": "Queued",
+      "budget_paused": "Paused by budget",
       "waiting_local_directory": "Waiting for local directory",
       "waiting_local_directory_reason": "Waiting for {{reason}}",
       "starting_up": "Starting up",
@@ -247,5 +248,16 @@
     "archive": "Archive chat",
     "unarchive": "Unarchive chat",
     "delete": "Delete chat"
+  },
+  "voice": {
+    "start": "Dictate a message",
+    "stop": "Stop and transcribe",
+    "transcribing": "Transcribing…",
+    "error_unsupported": "This browser cannot record audio.",
+    "error_mic_denied": "Microphone access was refused.",
+    "error_not_configured": "Transcription is not configured on this server.",
+    "error_failed": "The recording could not be transcribed.",
+    "listen": "Listen",
+    "stop_listening": "Stop listening"
   }
 }

@@ -531,6 +531,18 @@ export function onIssueUpdated(
     }
     qc.invalidateQueries({ queryKey: issueKeys.childrenByParentsAll(wsId) });
   }
+  // Dependency lists embed the other issue's snapshot and change on both
+  // sides of a link, so any admitted update refetches the open ones.
+  qc.invalidateQueries({ queryKey: issueKeys.dependenciesAll(wsId) });
+  // A blocker's status or a dependency edit changes another issue's merge
+  // readiness and stack; active ones refetch.
+  qc.invalidateQueries({ queryKey: ["github", "merge-readiness"] });
+  qc.invalidateQueries({ queryKey: ["github", "pr-stack"] });
+  // Plan and verification changes ride issue:updated (F17); active lists refetch.
+  qc.invalidateQueries({ queryKey: issueKeys.plan(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.planVerifications(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue.id) });
+  qc.invalidateQueries({ queryKey: issueKeys.acceptance(wsId, issue.id) });
   reconcileIssueFullSnapshotRevision(qc, wsId, issue.id, issue.revision);
 }
 

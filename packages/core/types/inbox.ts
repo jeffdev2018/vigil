@@ -28,7 +28,27 @@ export type InboxItemType =
   // System notifications are intentionally issue-less. Keep them in the
   // same Inbox model so read/archive/realtime behavior remains consistent.
   | "autopilot_paused"
-  | "autopilot_quota_exceeded";
+  | "autopilot_quota_exceeded"
+  | "decision_request"
+  | "decision_escalated"
+  | "ownership_suggested"
+  | "morning_briefing"
+  | "standup_question"
+  | "weekly_retro"
+  | "trust_promotion_suggested"
+  | "budget_warning"
+  | "budget_exceeded"
+  // A postmortem was drafted after a failed run and waits for review.
+  | "postmortem_ready"
+  | "watchdog_escalation"
+  | "contest_ready"
+  | "org_alert"
+  // The MCP gateway (K77): a high-risk tool ran, or a monthly review proposes unused tools for removal.
+  | "mcp_alert"
+  | "decision_auto_decided"
+  // The triage queue has items nobody has decided on for two days. Filed for
+  // the workspace's admins/owners, at most once a day per workspace.
+  | "triage_stale";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary
@@ -64,4 +84,68 @@ export interface InboxItem {
   archived: boolean;
   created_at: string;
   details: Record<string, string> | null;
+}
+
+/** Attention Inbox (K02): an inbox item with its server-computed risk. */
+export interface AttentionInboxItem extends InboxItem {
+  risk_score: number;
+  reason: string;
+}
+
+// Morning briefing (K30).
+export interface BriefingItem {
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  reason?: string;
+  pending_decisions?: number;
+}
+
+export interface MorningBriefing {
+  // Multichannel digest (K64): the LLM narration and where the day's briefing went.
+  narrative?: string;
+  channels_delivered?: string[];
+  date: string;
+  merged: BriefingItem[];
+  awaiting_review: BriefingItem[];
+  blocked: BriefingItem[];
+  sent_at: string | null;
+  already_sent?: boolean;
+}
+
+// Standup and retro (K34).
+export interface RetroRun {
+  run_id: string;
+  issue_id: string;
+  identifier: string;
+  title: string;
+  status: string;
+  agent_id: string;
+  minutes: number;
+  error?: string;
+}
+
+export interface RetroAgent {
+  agent_id: string;
+  name: string;
+  runs_total: number;
+  runs_failed: number;
+  runs_accepted: number;
+  runs_reopened: number;
+  runs_no_intervention: number;
+  cost_usd_ticks: number;
+}
+
+export interface WeeklyRetro {
+  week_start: string;
+  week_end: string;
+  runs_total: number;
+  runs_by_status: Record<string, number>;
+  median_minutes: number;
+  failed: RetroRun[];
+  agents: RetroAgent[];
+  skill_proposals: { text: string; source: string }[];
+  narrative: string;
+  generated_at: string | null;
 }

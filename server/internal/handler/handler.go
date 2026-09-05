@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/push"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -45,6 +46,8 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/stt"
+	"github.com/multica-ai/multica/server/pkg/tts"
 )
 
 // randomID returns a random 16-byte hex string used as a request ID for
@@ -135,6 +138,17 @@ type Config struct {
 	//   - LLMBaseURL       -> MULTICA_LLM_BASE_URL (OpenAI or any compatible gateway)
 	//   - LLMDefaultModel  -> MULTICA_LLM_DEFAULT_MODEL (used when a request omits `model`)
 	//   - LLMMaxRetries    -> MULTICA_LLM_MAX_RETRIES (transport retry budget)
+	//   - STTBaseURL       -> MULTICA_STT_BASE_URL (OpenAI-compatible /v1/audio/transcriptions)
+	//   - STTAPIKey        -> MULTICA_STT_API_KEY
+	//   - STTModel         -> MULTICA_STT_MODEL
+	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
+	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
+	//   - LLMRoutingModel  -> MULTICA_LLM_ROUTING_MODEL (small fast model for webhook event routing; empty = default model)
+	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
+	//   - TTSBaseURL       -> MULTICA_TTS_BASE_URL (OpenAI-compatible /v1/audio/speech)
+	//   - TTSAPIKey        -> MULTICA_TTS_API_KEY
+	//   - TTSModel         -> MULTICA_TTS_MODEL
+	//   - TTSVoice         -> MULTICA_TTS_VOICE
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
@@ -143,7 +157,24 @@ type Config struct {
 	// The type carries the validation: it can only be built through llm.Retries,
 	// and cmd/server additionally fails the boot on an out-of-range value before
 	// one reaches this struct. See llm.Config.MaxRetries for the full semantics.
-	LLMMaxRetries *llm.RetryOverride
+	LLMMaxRetries   *llm.RetryOverride
+	LLMRoutingModel string
+	// STT* configure the speech-to-text provider behind the voice memo and
+	// meeting transcription endpoints (OpenAI-compatible
+	// /v1/audio/transcriptions). Unset -> those endpoints answer 409.
+	STTBaseURL       string
+	STTAPIKey        string
+	STTModel         string
+	STTLanguage      string
+	STTDiarize       bool
+	STTRealtimeModel string
+
+	// TTS* configure the text-to-speech provider behind "read this aloud".
+	// Unset leaves the browser's own speechSynthesis as the only voice.
+	TTSBaseURL string
+	TTSAPIKey  string
+	TTSModel   string
+	TTSVoice   string
 	// ServerVersion is the build version of the running API binary (the same
 	// value main.go stamps via -X main.version and reports on /metrics).
 	// Surfaced through /api/config so self-hosted operators can confirm which
@@ -192,6 +223,7 @@ type Handler struct {
 	DaemonRuntimeGone      RuntimeGoneNotifier
 	Bus                    *events.Bus
 	TaskService            *service.TaskService
+	BudgetService          *service.BudgetService
 	PluginService          *service.PluginService
 	IssueService           *service.IssueService
 	AutopilotService       *service.AutopilotService
@@ -206,6 +238,7 @@ type Handler struct {
 	EmailService          *service.EmailService
 	UpdateStore           UpdateStore
 	ModelListStore        ModelListStore
+	CliAuthStore          CliAuthStore
 	LocalSkillListStore   LocalSkillListStore
 	LocalSkillImportStore LocalSkillImportStore
 	FeatureFlags          *featureflag.Service
@@ -342,6 +375,18 @@ type Handler struct {
 	// TelegramBindingTokens mints/redeems the user-binding tokens behind the
 	// "link your Telegram account" prompt. Nil unless Telegram is configured.
 	TelegramBindingTokens *telegram.BindingTokenService
+	// DiffFetcher (K15) reads the diff a cross-provider review is about; nil
+	// means the built-in GitHub App / VCS connection reader.
+	DiffFetcher PullRequestDiffFetcher
+	// PRMerger (K42) merges a shard's pull request through the platform API;
+	// nil means the built-in GitHub App / VCS connection merger.
+	PRMerger PullRequestMerger
+	// Push (K64) delivers mobile notifications through Expo; nil disables push.
+	Push push.Sender
+	// DigestSenders (K64) post the morning digest into a chat, keyed by
+	// channel type ("slack", "telegram"). Wired in cmd/server/router.go for
+	// each configured platform; a type without a sender is skipped.
+	DigestSenders map[string]ChannelDigestSender
 	// TelegramOutbound owns the asynchronous terminal-delivery worker pool.
 	// The process owner starts and joins it; the synchronous event bus only
 	// enqueues EventChatDone work.
@@ -376,6 +421,13 @@ type Handler struct {
 	// Config); when unconfigured its Enabled() reports false and callers fall
 	// back silently.
 	LLM *llm.Client
+	// STT transcribes audio for voice memos and meetings. Always non-nil;
+	// Enabled() is false when MULTICA_STT_* is unset.
+	STT *stt.Client
+	// TTS synthesizes speech for "read this aloud". Always non-nil;
+	// Enabled() is false when MULTICA_TTS_* is unset, and the client falls
+	// back to the browser's own speechSynthesis.
+	TTS *tts.Client
 	// VCSSecretBox encrypts/decrypts per-workspace Git provider access tokens and
 	// webhook secrets at rest (Forgejo / Gitea / GitLab). Nil when
 	// MULTICA_VCS_SECRET_KEY is unset; the connect/webhook handlers return 503
@@ -449,12 +501,29 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	)
 
 	taskSvc := service.NewTaskService(queries, txStarter, hub, bus, daemonHub)
+	budgetSvc := service.NewBudgetService(queries, txStarter, bus)
+	taskSvc.Budget = budgetSvc
 	taskSvc.Analytics = analyticsClient
 	taskSvc.SourceContextStorage = store
 	// Chat follow-up suggestions run through the same internal LLM layer that
 	// backs auto-titling. A deployment with no MULTICA_LLM_* configuration gets
 	// a disabled client, which turns the feature off rather than failing.
 	taskSvc.QuickActions = llmClient
+	// Post-run memory extraction runs through the same internal LLM layer;
+	// the disabled client of an unconfigured deployment turns it off rather
+	// than failing (JEF-236).
+	taskSvc.MemoryExtraction = llmClient
+	// Post-failure postmortem drafting (k68) uses the same internal LLM layer;
+	// a disabled client falls back to the deterministic scaffold so a
+	// postmortem is still stored.
+	taskSvc.Postmortem = llmClient
+	// Post-success skill distillation (k69) uses the same internal LLM layer;
+	// a disabled client simply turns the pass off (a skill is only worth
+	// storing when genuinely distilled).
+	taskSvc.SkillDistillation = llmClient
+	// Daily workspace Brain curation uses the same internal LLM layer; a
+	// disabled client turns the pass into a logged no-op.
+	taskSvc.BrainCuration = llmClient
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 dbreader.NewPrimaryOnly(queries),
@@ -467,12 +536,14 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		DaemonRuntimeGone:            daemonRuntimeGone,
 		Bus:                          bus,
 		TaskService:                  taskSvc,
+		BudgetService:                budgetSvc,
 		PluginService:                service.NewPluginService(queries, txStarter),
 		IssueService:                 service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),
 		ModelListStore:               NewInMemoryModelListStore(),
+		CliAuthStore:                 NewInMemoryCliAuthStore(),
 		ModelCatalogCache:            NewInMemoryModelCatalogCache(),
 		LocalSkillListStore:          NewInMemoryLocalSkillListStore(),
 		LocalSkillImportStore:        NewInMemoryLocalSkillImportStore(),
@@ -490,6 +561,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			Timeout: cfg.CloudTimeout,
 		}),
 		LLM: llmClient,
+		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
+		TTS: tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
 		cfg: cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
@@ -505,6 +578,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	}
 	h.PRRefresh = ghsnapshot.NewManager(ghClient, queries, txStarter, h.broadcastPRSnapshotApplied)
 
+	// Triage rules (K62): rules run on parked deliveries.
+	h.AutopilotService.OnTriageParked = h.onTriageParked
 	return h
 }
 

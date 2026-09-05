@@ -148,6 +148,17 @@ never cancels tasks now. `CancelTasksForIssue` fires only from the issue-deletio
 paths (`DeleteIssue` / `BatchDeleteIssues`), where the owning issue row is going
 away, so no task is left orphaned.
 
+## Undo journal and "show me first" (K69)
+
+| Behavior | Source |
+| --- | --- |
+| Run-token writes journaled with their previous value (`agent_effect`) | `server/internal/handler/agent_effect.go` (`recordEffect`, `recordIssueEffects`), `server/internal/service/agent_effect.go` (`RecordAgentEffect`) |
+| Hooks: issue update/create, comment create/edit/delete, note create/edit/archive/delete, triage verdict, chat reply | `server/internal/handler/issue.go`, `comment.go`, `workspace_note.go`, `triage_verdict.go`, `server/internal/service/task.go` (`createAgentComment`, `recordChatReplyEffect`) |
+| Undo endpoints `POST /api/tasks/{id}/undo`, `POST /api/agent-effects/{id}/undo`, journal `GET /api/issues/{id}/agent-effects` | `server/cmd/server/router.go`, `server/internal/handler/agent_effect.go` (`undoEffects`, `reverseEffect`) |
+| Undo window and breaker threshold, `GET/PUT /api/undo-settings` | `server/internal/service/agent_effect.go` (`UndoSettings`), `server/internal/handler/agent_effect.go` (`checkUndoBreaker`) |
+| Preview mode `PUT /api/agents/{id}/effect-mode`; held writes answer `202` + `X-Pending-Effect` | `server/internal/handler/agent_effect_preview.go` (`previewRun`, `recordPending`, `writePending`) |
+| End of run files one decision; approval replays, discard rejects, failed run drops | `server/internal/handler/agent_effect_preview.go` (`settlePendingEffects`, `applyPreviewForDecision`), `server/internal/handler/daemon.go` (`CompleteTask`, `failTask`), `server/internal/handler/decision.go` (`answerDecisionCore`) |
+
 ## Ownership-only assignment and duplicate-run awareness
 
 | Behavior | Source |
@@ -166,6 +177,38 @@ The self-assignment guard is intentionally pair-scoped. It does not treat
 "this agent is busy on some other issue" as a reason to suppress a fresh
 cross-issue handoff, because serial sub-issue promotion and triage batches rely
 on those assignments creating their normal queued runs.
+
+## Goal ancestry in the brief (F22)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| Claim of an issue with a parent carries `goal_ancestry` (root first, depth 1 = direct parent) and `goal_ancestry_omitted`; root issues omit the field | `server/internal/handler/goal_ancestry.go` (`resolveClaimGoalAncestry`, `applyTo`); wired in `server/internal/handler/daemon.go` (issue claim after `projectCtx.applyTo`, quick-create parent block) | new citation |
+| Chain walked by `ListIssueAncestors` (recursive CTE, workspace-scoped, depth-capped; no FK so a cycle is cut at its first repeated id) | `server/pkg/db/queries/issue.sql` (`ListIssueAncestors`) | new citation |
+| Caps: 5 levels, 8 KiB total, 2 KiB per description, 12 criteria per node; descriptions shed farthest-first, identifier and title never cut | `server/internal/handler/goal_ancestry.go` (`goalAncestryMax*`, `capGoalAncestryBytes`) | new citation |
+| Claim of an issue serving a goal carries `mission_chain` (mission first); the brief renders `## Mission and goals` after Goal Ancestry; agents propose attachment through `POST /api/issues/{id}/goal-proposal` and a human decision settles it | `server/internal/handler/goal.go` (`resolveClaimMissionChain`, `ProposeIssueGoal`, `applyGoalForDecision`); `server/internal/daemon/execenv/runtime_config_sections.go` (`writeMissionChain`) | new citation |
+| Brief renders `## Goal Ancestry` between Project Context and Issue Metadata, with the omitted-level line; absent when the chain is empty or the server predates the field | `server/internal/daemon/execenv/runtime_config_sections.go` (`writeGoalAncestry`); wire mirror `server/internal/daemon/types.go` (`Task.GoalAncestry`) | new citation |
+## Outcome Contract (K12)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica criteria list|set|prove` call `GET`/`PUT /api/issues/{id}/acceptance-criteria` and `PATCH .../acceptance-criteria/{criterionId}/proof`; proof types `test`, `file`, `screenshot`, `url` need a ref, `human_validation` from a task token only reaches `pending_human` | `server/cmd/multica/cmd_criteria.go`; `server/internal/handler/acceptance_criteria.go` (`SetAcceptanceCriteria`, `ProveAcceptanceCriterion`) | new citation |
+| A move to a done-category status is refused with `409 unsatisfied_acceptance_criteria` listing the criteria, on single and batch updates | `server/internal/handler/acceptance_criteria.go` (`acceptanceCriteriaAllowStatus`); `server/internal/handler/issue.go` (`UpdateIssue`, `BatchUpdateIssues`) | new citation |
+| Legacy bare-string criteria read as unproven with positional ids; a stored `proof_state` is never trusted, it is recomputed from the proof | `server/internal/handler/acceptance_criteria.go` (`parseAcceptanceCriteria`) | new citation |
+
+## Requirement Interview (K13)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica interview ask` posts 1-3 questions to `POST /api/issues/{id}/interview`; each is a Decision Card sharing `interview_group_id`; the issue is parked in the workspace's `waiting_for_pm` custom status (blocked category, created on first use); a second interview while one is pending is 409 `interview_pending` | `server/cmd/multica/cmd_interview.go`; `server/internal/handler/interview.go` (`AskRequirementInterview`, `ensureInterviewStatus`) | new citation |
+| Answering a question does not resume the run; the last answer restores the previous status and queues one run whose handoff note starts with `Requirement interview answered:` listing every answer in order | `server/internal/handler/interview.go` (`finishInterviewIfComplete`, `interviewAnswerNote`); `server/internal/handler/decision.go` (`RespondIssueDecision`) | new citation |
+
+## Decision Cards (K01)
+
+| Behavior | File:line | Drifted from |
+|---|---|---|
+| `multica decision ask` files `POST /api/issues/{id}/decisions` with question, options (2-8, unique ids), recommendation, urgency; the run id comes from `X-Task-ID` | `server/cmd/multica/cmd_decision.go`; `server/internal/handler/decision.go` (`AskIssueDecision`) | new citation |
+| A human answers once via `POST /api/issues/{id}/decisions/{decisionId}/respond` (`option_id` xor `modified_text`); a second answer is 409 `already_decided` | `server/internal/handler/decision.go` (`RespondIssueDecision`); `server/pkg/db/queries/decision.sql` (`RespondIssueDecision`) | new citation |
+| On an agent-assigned issue the answer queues one run whose handoff note starts with `Decision on «…»` | `server/internal/handler/decision.go` (`decisionHandoffNote`, `EnqueueTaskForIssueWithHandoff`) | new citation |
 
 ## Sub-issue stages (barrier wake)
 
@@ -214,6 +257,21 @@ about the issue — there is no assignee gate (MUL-6417).
 | `--value` name / email / id → `member:<uuid>` resolution (same member lookup as `--assignee`) | `server/cmd/multica/cmd_property.go` (`resolveActorPropertyRef`, `memberOnlyKinds`) |
 | Shared actor-reference types and helpers | `packages/core/types/property.ts` (`parseActorRef`, `actorRefsFromValue`, `MAX_ISSUE_PROPERTY_ACTOR_VALUES`) |
 | API routes (`/api/properties`, PUT/DELETE `/api/issues/{id}/properties/{propertyId}`) | `server/cmd/server/router.go` |
+| A run leaves a structured handoff packet (`POST /api/issues/{issue}/handoff-packet`); packets are immutable, a completing run without one gets a system packet, and the latest packet rides the next claim into the per-turn prompt beside the legacy `handoff_note` | `server/internal/handler/handoff_packet.go` (`CreateHandoffPacket`, `ensureCompletionHandoffPacket`, `latestHandoffPacket`); `server/internal/daemon/prompt.go` (`renderHandoffPacket`) | new citation |
+
+## `multica triage list` / `multica triage verdict` — suggest, never decide
+
+| Behavior | File:line |
+|---|---|
+| CLI commands `triage list` / `triage verdict <item-id>` | `server/cmd/multica/cmd_triage.go` (`triageListCmd`, `triageVerdictCmd`) |
+| `--accept` / `--dismiss` are mutually exclusive and one is required | `server/cmd/multica/cmd_triage.go` (`triageVerdictFromFlags`) |
+| `--pending` / `--state` / `--include-snoozed` map onto the list query | `server/cmd/multica/cmd_triage.go` (`runTriageList`) |
+| Route `POST /api/triage/items/{id}/verdict` — the only triage write NOT behind `RequireHumanActor` | `server/cmd/server/router.go` (triage route group) |
+| Handler refuses a non-agent actor with 403 | `server/internal/handler/triage_actions.go` (`SetTriageVerdict`) |
+| Verdict is advisory: only a `pending` item takes one, state is untouched, `verdict_revision` increments | `server/pkg/db/queries/triage.sql` (`SetTriageItemVerdict`) |
+| Stored shape `{"verdict":…,"reason":…}` in `triage_item.verdict` (JSONB) | `server/internal/handler/triage_actions.go` (`TriageVerdict`) |
+| `verdict` / `verdict_reason` / `verdict_agent_id` / `verdict_at` on the listing | `server/internal/handler/triage.go` (`TriageItemResponse`, `triageItemToResponse`) |
+| Human-only counterparts (accept, dismiss, merge, snooze, batch) | `server/cmd/server/router.go` (`handler.RequireHumanActor`) |
 
 ## Verification command
 
@@ -228,4 +286,22 @@ grep -n 'extractIdentifiers(\|extractClosingIdentifiers(\|derivePRState(' intern
 grep -n 'qualifyingIdents\|reference_only\|ReferenceOnly' internal/handler/github.go pkg/db/queries/github.sql
 grep -n 'prevIssue.Status == "backlog"\|func (h \*Handler) shouldEnqueueAgentTask' internal/handler/issue.go
 grep -n 'func notifyParentOfChildDone'       internal/handler/issue_child_done.go
+grep -n 'triageVerdictFromFlags\|triageListCmd\|triageVerdictCmd' cmd/multica/cmd_triage.go
+grep -n 'func (h \*Handler) SetTriageVerdict' internal/handler/triage_actions.go
+grep -n 'SetTriageItemVerdict' pkg/db/queries/triage.sql
 ```
+
+## Triage may hold an agent-created issue
+
+| Behavior | File:line |
+|---|---|
+| Source kind for an agent-authored create (`agent_create`) | `server/internal/handler/triage_capture.go` — `triageIssueCreateRef` |
+| Gate runs before `IssueService.Create` | `server/internal/handler/issue.go` — `admitIssueCreate` call in `CreateIssue` |
+| Held response: `202` + `{"code":"triage_held","item_id":...}` | `server/internal/handler/triage_capture.go` — `admitIssueCreate` |
+| Blocked response: `403` | `server/internal/handler/triage_capture.go` — `admitIssueCreate` |
+| Mode → route mapping (`gate`/`direct`/`blocked`) | `server/internal/triage/policy.go` — `Decide` |
+| Pinned by | `server/internal/handler/triage_issue_create_test.go` |
+
+Citations here are by symbol rather than line: this section documents a control
+flow that moves with every edit to `CreateIssue`, and a stale line number is
+worse than a name the reader can grep.

@@ -186,6 +186,17 @@ vi.mock("../../editor", async () => ({
   }),
 }));
 
+// The real button owns a MediaRecorder, which jsdom does not have. What this
+// suite is about is what the composer does with the transcribed text.
+vi.mock("../../voice", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../voice")>()),
+  VoiceMemoButton: ({ onText }: { onText: (text: string) => void }) => (
+    <button type="button" onClick={() => onText("dicté")}>
+      voice-memo
+    </button>
+  ),
+}));
+
 vi.mock("../../projects/components/project-picker", () => ({
   ProjectPicker: ({
     projectId,
@@ -244,6 +255,8 @@ vi.mock("@multica/core/chat", () => {
 
 import { ChatInput } from "./chat-input";
 import { useChatStore } from "@multica/core/chat";
+import { configStore } from "@multica/core/config";
+import { useVoiceStore } from "@multica/core/voice/store";
 
 type ChatInputOnSend = React.ComponentProps<typeof ChatInput>["onSend"];
 type ChatInputCommit = Parameters<ChatInputOnSend>[2];
@@ -1536,5 +1549,77 @@ describe("ChatInput revoked-access placeholder", () => {
     renderInput({ agentName: "Multica" });
 
     expect(editorProps.last?.placeholder).toBe("Message Multica…");
+  });
+});
+
+// Reading a reply aloud is armed by SENDING a dictated message, not by
+// transcribing one. Arming at transcription left the flag set on a memo the
+// user then deleted or carried into another conversation, and some later reply
+// started talking. The store's own rules are pinned in core/voice/voice.test.ts.
+describe("ChatInput voice memo arming", () => {
+  beforeEach(() => {
+    useVoiceStore.getState().resetSpeech();
+    configStore.getState().setMeetingTranscriptionAvailable(true);
+  });
+
+  async function send() {
+    let sendButton: HTMLElement;
+    await waitFor(() => {
+      const buttons = screen.getAllByRole("button");
+      sendButton = buttons[buttons.length - 1]!;
+      expect(sendButton).not.toBeDisabled();
+    });
+    fireEvent.click(sendButton!);
+  }
+
+  it("arms the reply only once the dictated message is actually sent", async () => {
+    const onSend = vi.fn<ChatInputOnSend>(async () => true);
+    renderInput({ onSend });
+
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
+    expect(useVoiceStore.getState().dictating).toBe(true);
+
+    await send();
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(useVoiceStore.getState().speakNextReply).toBe(true);
+  });
+
+  it("leaves a typed message silent", async () => {
+    const onSend = vi.fn<ChatInputOnSend>(async () => true);
+    renderInput({ onSend });
+    fireEvent.change(screen.getByTestId("editor"), { target: { value: "typed" } });
+
+    await send();
+    await waitFor(() => expect(onSend).toHaveBeenCalledTimes(1));
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
+  });
+
+  it("drops an unsent memo when the composer goes away", () => {
+    const { unmount } = renderInput();
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    unmount();
+    expect(useVoiceStore.getState().dictating).toBe(false);
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
+  });
+
+  it("drops an armed reply when the composer moves to another conversation", async () => {
+    const onSend = vi.fn<ChatInputOnSend>(async () => true);
+    const { rerender } = render(element({ onSend }));
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    await send();
+    await waitFor(() => expect(useVoiceStore.getState().speakNextReply).toBe(true));
+
+    // The send created this session (null -> uuid): that is not a switch, and
+    // the reply it is waiting for is the one about to land here.
+    const state = useChatStore.getState() as unknown as { activeSessionId: string | null };
+    state.activeSessionId = "session-1";
+    rerender(element({ onSend }));
+    expect(useVoiceStore.getState().speakNextReply).toBe(true);
+
+    // Moving to a different conversation is.
+    state.activeSessionId = "session-2";
+    rerender(element({ onSend }));
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
   });
 });

@@ -190,7 +190,22 @@ func Discover(ctx context.Context, rawEndpoint string, allowedHosts, protocolVer
 	if err != nil {
 		return nil, "", err
 	}
-	client := NewSecureHTTPClient(endpoint)
+	return discover(ctx, NewSecureHTTPClient(endpoint), endpoint, protocolVersions, headers)
+}
+
+// DiscoverEndpoint lists the tools of an administrator-configured HTTP MCP
+// server (K77 catalogue). The endpoint is trusted as configured: it may be
+// private or plain http, which is why the public-endpoint validation of
+// Discover does not apply here.
+func DiscoverEndpoint(ctx context.Context, rawEndpoint string, headers http.Header) ([]Tool, string, error) {
+	endpoint, err := url.Parse(strings.TrimSpace(rawEndpoint))
+	if err != nil || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.Host == "" {
+		return nil, "", errors.New("the MCP server url must be an http(s) endpoint")
+	}
+	return discover(ctx, &http.Client{Timeout: 30 * time.Second}, endpoint, nil, headers)
+}
+
+func discover(ctx context.Context, client *http.Client, endpoint *url.URL, protocolVersions []string, headers http.Header) ([]Tool, string, error) {
 	sessionID := ""
 	// An empty list means "whatever this build supports", not "nothing is
 	// acceptable". The response is checked against this same slice further

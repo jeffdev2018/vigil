@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"github.com/multica-ai/multica/server/internal/service"
 	"net/http"
 	"net/url"
 	"os"
@@ -80,6 +81,18 @@ type AppConfig struct {
 	// ignored the unknown JSON field and still returned success, so clients
 	// must fail closed when this declaration is absent.
 	AgentConversationStartersSupported bool `json:"agent_conversation_starters_supported"`
+	// MeetingTranscriptionAvailable tells clients a speech-to-text provider is
+	// configured (MULTICA_STT_*), so the meetings UI can offer recording
+	// instead of discovering a 409 on the first attempt. A boolean only.
+	MeetingTranscriptionAvailable bool `json:"meeting_transcription_available"`
+	// MeetingRealtimeAvailable: the provider also offers live transcription
+	// (MULTICA_STT_REALTIME_MODEL), so the recorder can show words as spoken.
+	MeetingRealtimeAvailable bool `json:"meeting_realtime_available"`
+	// TTSAvailable tells clients a text-to-speech provider is configured
+	// (MULTICA_TTS_*), so "read aloud" goes through the server voice instead
+	// of the browser's own speechSynthesis. Absent reads as false: the
+	// browser fallback works everywhere.
+	TTSAvailable bool `json:"tts_available"`
 
 	// ServerVersion is the running API build version, so self-hosted
 	// operators can confirm what's deployed and include it in bug reports.
@@ -87,6 +100,10 @@ type AppConfig struct {
 	// which is continuously deployed so its users can't act on the version —
 	// and empty for dev builds that aren't stamped via -X main.version.
 	ServerVersion string `json:"server_version,omitempty"`
+	// RunUnresponsiveAfterSeconds is the run liveness threshold the UI applies
+	// to last_activity_at (F02). Omitted by older servers; the client falls
+	// back to its own default.
+	RunUnresponsiveAfterSeconds float64 `json:"run_unresponsive_after_seconds,omitempty"`
 }
 
 // GetConfig is mounted on the public (unauthenticated) route group because
@@ -107,8 +124,12 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 		config.CdnDomain = h.Storage.CdnDomain()
 	}
 	config.CdnSigned = h.CFSigner != nil
+	config.MeetingTranscriptionAvailable = h.STT != nil && h.STT.Enabled()
+	config.MeetingRealtimeAvailable = h.STT != nil && h.STT.RealtimeEnabled()
+	config.TTSAvailable = h.TTS != nil && h.TTS.Enabled()
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
+	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()
 	config.FeatureFlags = featureflags.EvaluateFrontendPublicFlags(r.Context(), h.FeatureFlags)
 	// Only surface the build version on self-hosted deployments. The managed
 	// cloud is continuously deployed and its users can't choose the build, so

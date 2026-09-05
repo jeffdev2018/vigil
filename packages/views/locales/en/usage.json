@@ -102,7 +102,54 @@
     "title": "No usage yet",
     "body": "Once agents start working here, their token spend and run time will appear in this view."
   },
+  "routing_benchmarks": {
+    "title": "Smart routing benchmarks",
+    "subtitle": "Last 90 days · per runtime, model and task class",
+    "col_runtime": "Runtime",
+    "col_model": "Model",
+    "col_class": "Task class",
+    "class": {
+      "general": "General",
+      "bugfix": "Bug fix",
+      "feature": "Feature",
+      "refactor": "Refactor",
+      "docs": "Docs",
+      "tests": "Tests",
+      "chore": "Chore"
+    },
+    "col_samples": "Samples",
+    "col_success": "Success",
+    "col_avg_cost": "Avg cost",
+    "col_avg_duration": "Avg duration",
+    "empty_title": "No routing data yet",
+    "empty_body": "Once agents run in Auto routing mode, their 90-day performance per runtime and model shows up here."
+  },
   "duration": {
     "less_than_minute": "<1m"
+  },
+  "deliverable": {
+    "issue_label": "Cost per closed issue · {{days}}D",
+    "pr_label": "Cost per merged PR · {{days}}D",
+    "hint": "{{count}} closed · mean ${{mean}}",
+    "floor": "some usage unpriced",
+    "none": "None in this period",
+    "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
+  },
+  "scorecards": {
+    "title": "Agent scorecards · {{days}}D",
+    "scope_note": "Workspace-wide, all projects · UTC days",
+    "agent": "Agent",
+    "runs": "Runs",
+    "accepted": "Accepted",
+    "failed": "Failed",
+    "reopened": "Reopened",
+    "no_intervention": "No human",
+    "mean_cost": "Mean cost",
+    "low_sample": "(few runs)"
+  },
+  "autopilot_quota": {
+    "title": "Autopilot runs this period: {{used}} / {{limit}}",
+    "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
+    "reached": "Limit reached — autopilots will not fire until the period resets."
   }
 }

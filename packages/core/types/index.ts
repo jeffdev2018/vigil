@@ -1,4 +1,4 @@
-export type { Issue, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext } from "./issue";
+export type { Issue, IssueScopingProposal, ScopingFile, IssueDependency, IssueDependencies, IssueDependencyType, IssueStatus, IssuePriority, IssueAssigneeType, IssueMetadata, IssueMetadataValue, IssueReaction, SourceContextAttachment, SourceContextAuthor, SourceContextIssueSnapshot, SourceContextCommentSnapshot, SourceContextSnapshot, SourceContextLimitUsage, SourceContextPreview, SourceContextAuthorState, IssueSourceContext, IssuePlan, IssuePlanStep, IssuePlanEnvelope, PlanFinding, PlanFindingSeverity, PlanVerification, IssueDecision, DecisionOption, DecisionAnswer, AcceptanceCriterion, AcceptanceProofType, AcceptanceProofState } from "./issue";
 export type {
   IssueStatusCategory,
   IssueStatusEntry,
@@ -40,6 +40,11 @@ export type {
   AgentPermissionScope,
   StoredAgentDraft,
   UpdateAgentRequest,
+  AgentRuntimeRouting,
+  RuntimeRoutingCandidate,
+  RuntimeRoutingDecision,
+  RuntimeRoutingStats,
+  RuntimeRoutingStatsResponse,
   AgentEnvResponse,
   UpdateAgentEnvRequest,
   Skill,
@@ -71,6 +76,7 @@ export type {
   RuntimeModelThinkingLevel,
   RuntimeModelListRequest,
   RuntimeModelListStatus,
+	RuntimeCliAuthRequest,
   RuntimeModelsResult,
   RuntimeLocalSkillStatus,
   RuntimeLocalSkillImportAction,
@@ -82,11 +88,15 @@ export type {
   RuntimeLocalSkillImportRequest,
   RuntimeLocalSkillsResult,
   RuntimeLocalSkillImportResult,
+  AgentMemory,
+  AgentMemoryList,
+  AgentMemorySource,
   IssueUsageSummary,
   MikaBootstrapResponse,
+  TaskStatus,
 } from "./agent";
 export { RUNTIME_PROFILE_PROTOCOL_FAMILIES } from "./agent";
-export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo } from "./workspace";
+export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo, McpToolRisk, McpToolClass, McpCatalogTool, McpToolPolicy, McpServerToolCatalog } from "./workspace";
 export type {
   PluginInstallation,
   PluginConfigField,
@@ -111,7 +121,47 @@ export type {
   PluginMCPTool,
   PluginTokenIssue,
 } from "./plugin";
-export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread } from "./inbox";
+export type { InboxItem, InboxSeverity, InboxItemType, InboxWorkspaceUnread, AttentionInboxItem } from "./inbox";
+export type {
+  TriageItem,
+  TriageItemPayload,
+  TriageItemState,
+  TriageSource,
+  TriageSourceMode,
+  TriageSourcePatch,
+  TriageStats,
+  TriageItemsResponse,
+  TriageBatchOutcome,
+  TriageBatchAcceptResult,
+  TriageBatchAcceptResponse,
+  AcceptTriageItemResponse,
+  AcceptTriageItemOverrides,
+  DismissTriageItemResponse,
+  MergeTriageItemResponse,
+  SnoozeTriageItemResponse,
+  TriageBatchDismissResult,
+  TriageBatchDismissResponse,
+  TriageVerdict,
+  TriageNeighbor,
+  TriageSuggestion,
+  TriageAutoSettings,
+  TriageSuggestionsResponse,
+  TriageEmailSource,
+} from "./triage";
+export type {
+  Postmortem,
+  PostmortemState,
+  PostmortemTrigger,
+  PostmortemStats,
+  PostmortemsResponse,
+} from "./postmortem";
+export type {
+  WorkspaceNote,
+  WorkspaceNoteSource,
+  WorkspaceNotesResponse,
+  CreateWorkspaceNoteInput,
+  UpdateWorkspaceNoteInput,
+} from "./workspace-note";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";
@@ -168,6 +218,11 @@ export type {
   ChatDraftRestoresResponse,
 } from "./chat";
 export type { StorageAdapter } from "./storage";
+export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
+export type {
+  OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
+  OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
+} from "./org";
 export type {
   Project,
   ProjectStatus,
@@ -199,6 +254,13 @@ export type {
   GitHubRepository,
   ListGitHubRepositoriesResponse,
   GitHubConnectResponse,
+  MergeReadinessChecks,
+  MergeReadinessPR,
+  MergeBlockerKind,
+  MergeBlocker,
+  MergeReadiness,
+  PRStackNode,
+  PRStack,
 } from "./github";
 export type {
   VCSProvider,
@@ -275,6 +337,9 @@ export type {
   WebhookDeliveryStatus,
   WebhookSignatureStatus,
   ListWebhookDeliveriesResponse,
+  WebhookTriggerDryRunRequest,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
 } from "./autopilot";
 export type {
   Squad,
@@ -330,3 +395,34 @@ export type {
   WorkspaceSubscriptionSeatReconcileResult,
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
+export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
+export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
+export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
+export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
+export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";
+export type { AgentVersion, AgentVersionDiff } from "./agent";
+export type { AuditLogEntry, AuditLogPage, AuditLogFilter, AuditChainStatus } from "./workspace";
+export type { DecisionRecord, ADRRequirement, BlastRadiusLevel, BlastRadiusRule, BlastRadiusPreview } from "./workspace";
+export type { BusinessRule, BusinessRuleAttachPoint, BusinessRuleAction, BusinessRuleStatus, BusinessRuleDryRun, BusinessRuleViolation } from "./workspace";
+export type {
+  Meeting,
+  MeetingAction,
+  MeetingStatus,
+  MeetingListResponse,
+  MeetingSegmentResponse,
+} from "./meeting";
+export type { VoiceTranscription, RealtimeVoiceSession } from "./voice";
+export type { CalendarEvent, CalendarUpcoming, CalendarFeed } from "./calendar";
+export type {
+  TransferSecret,
+  TransferManifest,
+  TransferCollision,
+  TransferStrategy,
+  TransferPreview,
+  TransferReport,
+  TransferImportResult,
+  TransferRun,
+  WorkspaceTemplate,
+  TransferExportOptions,
+  TransferSecretValues,
+} from "./transfer";

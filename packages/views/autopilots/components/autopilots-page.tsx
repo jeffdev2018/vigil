@@ -240,6 +240,24 @@ function CheckboxCell({
   );
 }
 
+// A system pause has to say which condition stopped the automation: a lost
+// runtime is rebound, a failure sweep is investigated, and a pause somebody
+// asked for needs no explanation at all. An unknown reason from a newer
+// backend degrades to the plain "Paused" label.
+function pausedTitle(
+  t: ReturnType<typeof useT<"autopilots">>["t"],
+  pauseReason: string | null,
+): string {
+  switch (pauseReason) {
+    case "agent_runtime_required":
+      return t(($) => $.status.paused_runtime_required);
+    case "failure_rate":
+      return t(($) => $.status.paused_failure_rate);
+    default:
+      return t(($) => $.status.paused);
+  }
+}
+
 function NameCell({ autopilot }: { autopilot: Autopilot }) {
   const { t } = useT("autopilots");
   return (
@@ -251,11 +269,7 @@ function NameCell({ autopilot }: { autopilot: Autopilot }) {
           paused automation needs an inline signal. */}
       {autopilot.status === "paused" && (
         <span
-          title={
-            autopilot.pause_reason === "agent_runtime_required"
-              ? t(($) => $.status.paused_runtime_required)
-              : t(($) => $.status.paused)
-          }
+          title={pausedTitle(t, autopilot.pause_reason ?? null)}
           className="flex shrink-0 items-center text-amber-500"
         >
           <Pause className="size-3" />

@@ -759,3 +759,32 @@ FROM comment c
 JOIN ancestor_ids path ON path.id = c.id
 ORDER BY c.id
 FOR UPDATE OF c;
+
+-- name: CountUnresolvedThreadsByIssue :one
+-- Merge readiness (F10): top-level member/agent comments on the issue whose
+-- thread carries no resolution. A thread's single resolved comment can sit on
+-- the root or on any descendant (see ClearOtherThreadResolutions), so the
+-- thread is walked before deciding it is open. System comments never form a
+-- thread a reviewer has to resolve.
+WITH RECURSIVE thread AS (
+    SELECT c.id, c.id AS root_id, c.resolved_at
+    FROM comment c
+    WHERE c.issue_id = $1 AND c.parent_id IS NULL AND c.author_type <> 'system'
+  UNION ALL
+    SELECT child.id, t.root_id, child.resolved_at
+    FROM comment child
+    JOIN thread t ON child.parent_id = t.id
+)
+SELECT COUNT(*)::bigint
+FROM (
+    SELECT root_id
+    FROM thread
+    GROUP BY root_id
+    HAVING BOOL_AND(resolved_at IS NULL)
+) open_threads;
+
+-- name: ListCommentContentsByIssue :many
+-- Merge readiness (F10): the markdown bodies the open-todo counter scans.
+SELECT content FROM comment
+WHERE issue_id = $1 AND author_type <> 'system'
+ORDER BY created_at ASC;

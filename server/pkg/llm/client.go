@@ -44,12 +44,21 @@
 //     Sends the tail of the conversation: up to 6 messages, the reply being
 //     answered capped at 3000 runes (2000 head + 1000 tail) and each older
 //     message at 800.
+//   - Issue scoping assistant — server/internal/handler/issue_scoping.go.
+//     Sends the raw text a member typed to draft an issue (capped at 8000
+//     runes) and the target project's title and description. Nothing else
+//     from the workspace.
+//   - Agent memory extraction — server/internal/service/agent_memory_extract.go.
+//     Sends a completed run's issue title and final output (bounded at 6000
+//     runes, head+tail) plus the agent's existing memory facts, and asks for
+//     durable repo/workflow conventions. The prompt forbids secrets and
+//     ephemeral task details.
 //
-// Both consumers send private chat content, which is why an unconfigured
-// deployment making zero upstream requests is a contract rather than a side
-// effect: New with no API key and no base URL returns a disabled client whose
-// every call fails with ErrNotConfigured before an HTTP request is ever built,
-// and both consumers check Enabled() before doing any work
+// All three consumers send private user or run content, which is why an
+// unconfigured deployment making zero upstream requests is a contract rather
+// than a side effect: New with no API key and no base URL returns a disabled
+// client whose every call fails with ErrNotConfigured before an HTTP request
+// is ever built, and every consumer checks Enabled() before doing any work
 // (TestUnconfiguredClientMakesZeroUpstreamRequests). An operator who must not
 // let THIS layer send chat content leaves MULTICA_LLM_API_KEY and
 // MULTICA_LLM_BASE_URL empty; the product stays whole (client-derived chat

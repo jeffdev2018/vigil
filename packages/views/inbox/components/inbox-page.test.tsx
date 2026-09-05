@@ -17,14 +17,19 @@ vi.mock("react-resizable-panels", () => ({
 // The page runs two queries — the active list and the archived one. They are
 // told apart by the queryKey their options carry, so each test can stock the
 // two lists independently.
-const listData: { active: InboxItem[]; archived: InboxItem[] } = {
+const listData: { active: InboxItem[]; archived: InboxItem[]; attention: InboxItem[] } = {
   active: [],
   archived: [],
+  attention: [],
 };
 
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[] }) => ({
-    data: options.queryKey.includes("archived") ? listData.archived : listData.active,
+    data: options.queryKey.includes("archived")
+      ? listData.archived
+      : options.queryKey.includes("attention")
+        ? listData.attention
+        : listData.active,
     isLoading: false,
     isError: false,
   }),
@@ -56,6 +61,7 @@ vi.mock("@multica/core/issues/stores/draft-store", () => ({
 vi.mock("@multica/core/inbox/queries", () => ({
   inboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "list"] }),
   archivedInboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "archived"] }),
+  attentionInboxListOptions: () => ({ queryKey: ["inbox", "workspace-1", "attention"] }),
   deduplicateInboxItems: (items: InboxItem[]) => items.filter((i) => !i.archived),
   deduplicateArchivedInboxItems: (items: InboxItem[]) => items.filter((i) => i.archived),
   useInboxUnreadCount: () => 2,
@@ -151,14 +157,23 @@ vi.mock("./inbox-list", () => ({
     onSelect,
     emptyLabel,
     emptyAction,
+    attentionCount,
+    onOpenAttention,
   }: {
     items: InboxItem[];
     view: string;
     onSelect: (item: InboxItem) => void;
     emptyLabel?: string;
     emptyAction?: React.ReactNode;
+    attentionCount?: number;
+    onOpenAttention?: () => void;
   }) => (
-    <div data-testid="list" data-view={view}>
+    <div data-testid="list" data-view={view} data-attention-count={attentionCount}>
+      {onOpenAttention && (
+        <button type="button" data-testid="open-attention" onClick={onOpenAttention}>
+          attention
+        </button>
+      )}
       {items.map((i) => (
         <button key={i.id} data-testid="row" onClick={() => onSelect(i)}>
           {i.id}
@@ -237,6 +252,7 @@ function item(overrides: Partial<InboxItem> = {}): InboxItem {
 function reset() {
   listData.active = [];
   listData.archived = [];
+  listData.attention = [];
   searchParams = new URLSearchParams();
   replace.mockClear();
   markReadMutate.mockClear();
@@ -369,6 +385,31 @@ describe("InboxPage", () => {
     render(<InboxPage />);
 
     expect(screen.getByTestId("row")).toHaveTextContent("legacy-todo");
+  });
+
+  // Attention Inbox (K02): a third view, entered from the main list and
+  // addressable by URL, showing only what the server ranked as human-needed.
+  it("renders the attention list from ?view=attention and passes its count to the main list", () => {
+    reset();
+    listData.active = [item({ id: "active-1" })];
+    listData.attention = [item({ id: "attention-1", type: "task_failed", severity: "action_required" })];
+
+    const { unmount } = render(<InboxPage />);
+    expect(screen.getByTestId("list").dataset.attentionCount).toBe("1");
+    unmount();
+
+    searchParams = new URLSearchParams("view=attention");
+    render(<InboxPage />);
+    expect(screen.getByTestId("list").dataset.view).toBe("attention");
+    expect(screen.getByTestId("row").textContent).toBe("attention-1");
+  });
+
+  it("opens the attention view from the main list entry", () => {
+    reset();
+    listData.attention = [item({ id: "attention-1" })];
+    render(<InboxPage />);
+    fireEvent.click(screen.getByTestId("open-attention"));
+    expect(screen.getByTestId("list").dataset.view).toBe("attention");
   });
 
   it("renders the archived list when the URL asks for it", () => {

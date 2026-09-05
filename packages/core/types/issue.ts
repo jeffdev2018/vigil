@@ -188,6 +188,9 @@ export interface Issue {
   creator_id: string;
   parent_issue_id: string | null;
   project_id: string | null;
+  // Goal the issue names itself (K74); null means it inherits its project's.
+  // Optional only for a server that predates it.
+  goal_id?: string | null;
   position: number;
   // Ordered barrier group among sibling sub-issues (null = unstaged). The
   // parent assignee is notified/woken only when every sub-issue in a stage
@@ -214,6 +217,175 @@ export interface Issue {
    * created_at/updated_at values are second-precision; parse before comparing.
    */
   last_activity_at?: string | null;
+  /**
+   * What produced this issue when it was not typed by hand — "meeting" for an
+   * action item a recording extracted, plus the other triage origins.
+   *
+   * Absent means "this response did not resolve it" (list, board and search
+   * rows do not), never "no origin": read it from a detail response.
+   */
+  origin_type?: string | null;
+  origin_id?: string | null;
   /** Present only on issue detail responses for issues created from a comment. */
   source_context?: IssueSourceContext;
+}
+
+export type IssueDependencyType = "blocks" | "blocked_by" | "related";
+
+/** One relation seen from the requested issue; `type` is relative to it. */
+export interface IssueDependency {
+  id: string;
+  type: IssueDependencyType | (string & {});
+  issue: Issue;
+}
+
+export interface IssueDependencies {
+  blocks: IssueDependency[];
+  blocked_by: IssueDependency[];
+  related: IssueDependency[];
+}
+
+// ── Plan verification (F17) ─────────────────────────────────────────────────
+
+export interface IssuePlanStep {
+  id: string;
+  title: string;
+  /** Plan Gate (K11): step ids this one comes after; sets its stage once approved. */
+  after?: string[];
+  assignee_type?: string;
+  assignee_id?: string;
+  /** The sub-issue the step became, once the plan was materialized. */
+  issue_id?: string;
+}
+
+export interface IssuePlan {
+  id: string;
+  issue_id: string;
+  version: number;
+  content: string;
+  steps: IssuePlanStep[];
+  author_type: string;
+  author_id: string;
+  superseded_at: string | null;
+  /** Plan Gate (K11): when this version's steps became sub-issues. */
+  materialized_at?: string | null;
+  created_at: string;
+}
+
+export interface IssuePlanEnvelope {
+  plan: IssuePlan | null;
+  versions: IssuePlan[];
+}
+
+export type PlanFindingSeverity = "critical" | "major" | "minor" | "outdated";
+
+/** `severity` is open on the wire: an unknown value is shown, never dropped. */
+export interface PlanFinding {
+  severity: PlanFindingSeverity | (string & {});
+  title: string;
+  detail?: string;
+  files?: string[];
+  plan_step_id?: string;
+}
+
+export interface PlanVerification {
+  id: string;
+  issue_id: string;
+  plan_id: string;
+  plan_version: number;
+  task_id: string;
+  source_task_id: string;
+  state: "queued" | "running" | "reported" | "failed" | (string & {});
+  findings: PlanFinding[];
+  critical_count: number;
+  major_count: number;
+  minor_count: number;
+  outdated_count: number;
+  summary: string | null;
+  reported_at: string | null;
+  created_at: string;
+}
+
+// ── Outcome Contract (K12) ──────────────────────────────────────────────────
+
+export type AcceptanceProofType = "test" | "file" | "screenshot" | "url" | "human_validation" | (string & {});
+export type AcceptanceProofState = "missing" | "pending_human" | "satisfied" | (string & {});
+
+/** One acceptance criterion and the proof behind it; the server owns the state. */
+export interface AcceptanceCriterion {
+  id: string;
+  text: string;
+  proof_type?: AcceptanceProofType;
+  proof_ref?: string;
+  proof_state: AcceptanceProofState;
+  validated_by?: string;
+  proved_at?: string;
+}
+
+// ── Issue scoping assistant (K14) ───────────────────────────────────────────
+
+export interface ScopingFile {
+  path: string;
+  reason?: string;
+}
+
+/** A proposed issue for a human to review; nothing is created from it directly. */
+export interface IssueScopingProposal {
+  title: string;
+  description: string;
+  acceptance_criteria: string[];
+  probable_files: ScopingFile[];
+}
+
+// ── Decision Cards (K01) ────────────────────────────────────────────────────
+
+export interface DecisionOption {
+  id: string;
+  label: string;
+  impact?: string;
+}
+
+export interface DecisionAnswer {
+  option_id?: string;
+  modified_text?: string;
+}
+
+export interface IssueDecision {
+  id: string;
+  issue_id: string;
+  task_id?: string;
+  asked_by_type: string;
+  asked_by_id: string;
+  question: string;
+  options: DecisionOption[];
+  recommended_option_id?: string;
+  urgency: "low" | "normal" | "high" | (string & {});
+  response: DecisionAnswer | null;
+  responded_by_type?: string;
+  responded_by_id?: string;
+  responded_at: string | null;
+  resume_task_id?: string;
+  /** Plan Gate (K11): the plan version an approval card is about. */
+  plan_version?: number;
+  /** Requirement Interview (K13): questions asked together share a group. */
+  interview_group_id?: string;
+  interview_position?: number;
+  /** Decision SLA (K35): deadline under the workspace policy, escalation so far. */
+  sla_deadline_at?: string | null;
+  escalation_level?: number;
+  escalated_at?: string | null;
+  created_at: string;
+  /** Vigil learns you (K71): what the reader's own history says about this decision. */
+  learned?: DecisionHint | null;
+}
+
+export interface DecisionHint {
+  signature: string;
+  option_id: string;
+  option_label: string;
+  count: number;
+  total: number;
+  rate: number;
+  auto: boolean;
+  stake: "normal" | "high" | (string & {});
 }

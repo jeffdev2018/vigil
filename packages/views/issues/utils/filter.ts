@@ -15,6 +15,11 @@ export interface IssueFilters {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  /** Goal ids (K74). Optional so positional callers stay untouched. */
+  goalFilters?: string[];
+  /** project id → goal ids, so an issue without its own goal matches
+   *  through the project it belongs to. */
+  projectGoalIds?: Record<string, string[]>;
   /** Custom-property filters: definition id → selected values (OR within
    *  a definition, AND across definitions; checkbox uses "true"/"false"). */
   propertyFilters?: Record<string, PropertyFilterValue[]>;
@@ -41,6 +46,11 @@ export interface IssueFilterState {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  /** Goal ids (K74). Optional so positional callers stay untouched. */
+  goalFilters?: string[];
+  /** project id → goal ids, so an issue without its own goal matches
+   *  through the project it belongs to. */
+  projectGoalIds?: Record<string, string[]>;
   propertyFilters?: Record<string, PropertyFilterValue[]>;
   workingOnly: boolean;
   /** See IssueFilters.showSubIssues — only an explicit `false` hides. */
@@ -244,6 +254,17 @@ export function applyIssueFilters(
       }
     }
 
+    const goalFilters = filters.goalFilters ?? [];
+    if (goalFilters.length > 0) {
+      const direct = !!issue.goal_id && goalFilters.includes(issue.goal_id);
+      // No goal of its own: the issue serves whatever its project serves.
+      const inherited =
+        !issue.goal_id &&
+        !!issue.project_id &&
+        (filters.projectGoalIds?.[issue.project_id] ?? []).some((g) => goalFilters.includes(g));
+      if (!direct && !inherited) return false;
+    }
+
     if (labelFilters.length > 0) {
       // OR semantics within the filter: keep issues that carry any of the
       // selected labels. Matches existing priority / project multi-select.
@@ -271,6 +292,8 @@ export function filterIssues(issues: Issue[], filters: IssueFilters): Issue[] {
       projectFilters: filters.projectFilters,
       includeNoProject: filters.includeNoProject,
       labelFilters: filters.labelFilters,
+      goalFilters: filters.goalFilters,
+      projectGoalIds: filters.projectGoalIds,
       propertyFilters: filters.propertyFilters,
       workingOnly: filters.agentRunningFilter === true,
       showSubIssues: filters.showSubIssues,

@@ -18,6 +18,7 @@ const server = (over: Record<string, unknown>) => ({
   workspace_id: "workspace-1",
   name: "linear",
   transport: "http",
+  tool_count: 3,
   created_at: "2026-08-14T00:00:00Z",
   updated_at: "2026-08-14T00:00:00Z",
   ...over,
@@ -88,6 +89,9 @@ describe("McpTab", () => {
     expect(screen.getByText("HTTP")).toBeInTheDocument();
     expect(screen.getByText("local-tool")).toBeInTheDocument();
     expect(screen.getByText("stdio")).toBeInTheDocument();
+    // Catalogue size per row (K77); the catalogue editor is covered in
+    // mcp-tool-catalog.test.tsx.
+    expect(screen.getAllByText("3 tools")).toHaveLength(2);
   });
 
   it("adds a server to the library", async () => {

@@ -317,6 +317,10 @@ export function AgentTranscriptDialog({
   const [copiedBranch, showCopiedBranch] = useCopyFeedback();
   const [agentInfo, setAgentInfo] = useState<Agent | null>(null);
   const [runtimeInfo, setRuntimeInfo] = useState<AgentRuntime | null>(null);
+  // Full runtime list, kept so an auto-routed run can name the runtime the
+  // router actually chose (which may differ from task.runtime_id on older
+  // backends) and resolve candidate names in the ⓘ popover.
+  const [runtimes, setRuntimes] = useState<AgentRuntime[]>([]);
   const workdirCopyTarget = useMemo(
     () => resolveWorkdirCopyTarget([task]),
     [task],
@@ -599,15 +603,22 @@ export function AgentTranscriptDialog({
     }
 
     if (task.runtime_id) {
-      api.listRuntimes().then((runtimes) => {
+      api.listRuntimes().then((list) => {
         if (cancelled) return;
-        const rt = runtimes.find((r) => r.id === task.runtime_id);
+        setRuntimes(list);
+        const rt = list.find((r) => r.id === task.runtime_id);
         if (rt) setRuntimeInfo(rt);
+      }).catch(() => {});
+    } else if (task.routing?.chosen_runtime_id) {
+      // Auto-routed tasks still carry the runtimes fetch for the chosen /
+      // candidate names even when the task's own runtime id is empty.
+      api.listRuntimes().then((list) => {
+        if (!cancelled) setRuntimes(list);
       }).catch(() => {});
     }
 
     return () => { cancelled = true; };
-  }, [open, task.agent_id, task.runtime_id]);
+  }, [open, task.agent_id, task.runtime_id, task.routing?.chosen_runtime_id]);
 
   // Elapsed time for live tasks
   useEffect(() => {
@@ -808,6 +819,15 @@ export function AgentTranscriptDialog({
   // Diagnostic detail for the ⓘ popover: everything a reader needs only when
   // debugging this specific run, kept off the always-visible surface.
   const providerLabel = runtimeInfo?.provider ? transcriptProviderLabel(runtimeInfo.provider) : null;
+  // Smart routing (JEF-237): when the router ran this task in auto mode, the
+  // header says where it landed and why; the ⓘ popover carries the scored
+  // candidate list. Names resolve from the same runtimes fetch as
+  // runtimeInfo, falling back to the raw id while it loads.
+  const routing = task.routing ?? null;
+  const routingRuntimeName = (runtimeId: string): string => {
+    const found = runtimes.find((r) => r.id === runtimeId);
+    return found ? runtimeDisplayName(found) : runtimeId;
+  };
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -835,6 +855,7 @@ export function AgentTranscriptDialog({
       : cancelReasonLabel(task, t);
   const hasRunDetails =
     !!runtimeInfo ||
+    !!routing ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
     !!reasonLabel ||
@@ -898,6 +919,23 @@ export function AgentTranscriptDialog({
                   </span>
                 </>
               )}
+              {routing && (
+                <>
+                  <FactDot />
+                  {/* Why the router sent this run where it did — the one-line
+                      answer to "why is this on a different machine". */}
+                  <span className="min-w-0 truncate">
+                    {routing.reason
+                      ? t(($) => $.transcript.routed_to_reason, {
+                          name: routingRuntimeName(routing.chosen_runtime_id),
+                          reason: routing.reason,
+                        })
+                      : t(($) => $.transcript.routed_to, {
+                          name: routingRuntimeName(routing.chosen_runtime_id),
+                        })}
+                  </span>
+                </>
+              )}
             </div>
 
             {/* What this run cost, in the header of the run you are reading —
@@ -948,6 +986,72 @@ export function AgentTranscriptDialog({
                       )}
                       {runtimeInfo && (
                         <RunDetailRow label={t(($) => $.transcript.details_mode)} value={runtimeInfo.runtime_mode} />
+                      )}
+                      {routing?.reason && (
+                        <RunDetailRow
+                          label={t(($) => $.transcript.details_routing_reason)}
+                          value={routing.reason}
+                        />
+                      )}
+                      {routing?.candidates && routing.candidates.length > 0 && (
+                        <div className="pt-1">
+                          <div className="mb-1 text-micro font-medium uppercase tracking-wider text-muted-foreground">
+                            {t(($) => $.transcript.routing_candidates_title)}
+                          </div>
+                          <ul className="space-y-1.5">
+                            {routing.candidates.map((candidate) => {
+                              const extras = [
+                                // The score is what the router actually ranked
+                                // on, so it leads the extras.
+                                candidate.score != null
+                                  ? t(($) => $.transcript.routing_candidate_score, {
+                                      score: candidate.score.toFixed(2),
+                                    })
+                                  : null,
+                                candidate.wilson_lower != null
+                                  ? t(($) => $.transcript.routing_candidate_confidence, {
+                                      wilson: Math.round(candidate.wilson_lower * 100),
+                                    })
+                                  : null,
+                                candidate.avg_cost_usd != null
+                                  ? formatUsd(candidate.avg_cost_usd)
+                                  : null,
+                                candidate.avg_duration_secs != null
+                                  ? formatElapsedMs(candidate.avg_duration_secs * 1000)
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ");
+                              return (
+                                <li
+                                  key={`${candidate.runtime_id}:${candidate.model}`}
+                                  className="min-w-0"
+                                >
+                                  <div className="truncate text-foreground">
+                                    {routingRuntimeName(candidate.runtime_id)}
+                                    {candidate.provider || candidate.model
+                                      ? ` · ${candidate.provider}/${candidate.model}`
+                                      : ""}
+                                  </div>
+                                  <div className="text-muted-foreground">
+                                    {t(($) => $.transcript.routing_candidate_stats, {
+                                      samples: candidate.samples,
+                                      rate: Math.round(candidate.success_rate * 100),
+                                    })}
+                                    {extras ? ` · ${extras}` : ""}
+                                  </div>
+                                  {candidate.excluded_reason && (
+                                    <div className="italic text-muted-foreground">
+                                      {t(($) => $.transcript.routing_candidate_excluded, {
+                                        reason: candidate.excluded_reason,
+                                      })}
+                                    </div>
+                                  )}
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        </div>
                       )}
                       {workdirCopyTarget?.relativePath && (
                         <RunDetailRow

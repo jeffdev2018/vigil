@@ -148,3 +148,38 @@ describe("InboxDetailLabel localized values", () => {
     expect(container.textContent).not.toContain("Aug");
   });
 });
+
+// The triage digest is a workspace-level notice: it has no issue, so its
+// count has to come from `details`.
+//
+// `InboxItem.details` is declared as Record<string, string>, but the endpoint
+// is `.loose()` and the server writes `count` as a JSON number (as the morning
+// briefing writes its own counters). The casts below are that gap, not a
+// shape this component invented — hence the string case too.
+const digestDetails = (value: unknown): InboxItem["details"] =>
+  value as InboxItem["details"];
+
+describe("InboxDetailLabel triage digest", () => {
+  it("says how many items are waiting", () => {
+    const { container } = render(
+      <InboxDetailLabel
+        item={item({
+          type: "triage_stale",
+          details: digestDetails({ count: 7, day: "2026-09-04" }),
+        })}
+      />,
+    );
+    expect(container.textContent).toBe("7 triage items waiting");
+  });
+
+  it("falls back to the type label when the count is missing or unusable", () => {
+    for (const details of [null, { count: 0 }, { count: "many" }]) {
+      const { container } = render(
+        <InboxDetailLabel
+          item={item({ type: "triage_stale", details: digestDetails(details) })}
+        />,
+      );
+      expect(container.textContent).toBe(en.types.triage_stale);
+    }
+  });
+});

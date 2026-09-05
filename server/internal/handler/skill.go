@@ -53,6 +53,8 @@ type SkillResponse struct {
 	CreatedBy   *string `json:"created_by"`
 	CreatedAt   string  `json:"created_at"`
 	UpdatedAt   string  `json:"updated_at"`
+	// Status (K58): draft skills wait for a human before any agent gets them.
+	Status string `json:"status"`
 }
 
 // SkillSummaryResponse is the list-endpoint shape: everything SkillResponse
@@ -72,6 +74,8 @@ type SkillSummaryResponse struct {
 	// Enabled is only populated for agent-scoped skill responses. Workspace
 	// skill lists describe the skill itself, so they omit assignment state.
 	Enabled *bool `json:"enabled,omitempty"`
+	// Status (K58): draft | published.
+	Status string `json:"status,omitempty"`
 }
 
 // AgentSkillSummary is the still-narrower shape used for skills embedded in
@@ -175,6 +179,7 @@ func skillToResponse(s db.Skill) SkillResponse {
 		CreatedBy:   uuidToPtr(s.CreatedBy),
 		CreatedAt:   timestampToString(s.CreatedAt),
 		UpdatedAt:   timestampToString(s.UpdatedAt),
+		Status:      s.Status,
 	}
 }
 
@@ -288,6 +293,8 @@ type UpdateSkillRequest struct {
 	Content     *string                  `json:"content"`
 	Config      any                      `json:"config"`
 	Files       []CreateSkillFileRequest `json:"files,omitempty"`
+	// Status (K58): publishing a mined draft.
+	Status *string `json:"status,omitempty"`
 }
 
 type SetAgentSkillsRequest struct {
@@ -355,6 +362,7 @@ func (h *Handler) ListSkills(w http.ResponseWriter, r *http.Request) {
 			s.ID, s.WorkspaceID, s.Name, s.Description, s.Config,
 			s.CreatedBy, s.CreatedAt, s.UpdatedAt,
 		)
+		resp[i].Status = s.Status
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -597,6 +605,13 @@ func (h *Handler) UpdateSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Content != nil {
 		params.Content = pgtype.Text{String: sanitizeNullBytes(*req.Content), Valid: true}
+	}
+	if req.Status != nil {
+		if *req.Status != "draft" && *req.Status != "published" {
+			writeError(w, http.StatusBadRequest, "status must be draft or published")
+			return
+		}
+		params.Status = pgtype.Text{String: *req.Status, Valid: true}
 	}
 	if req.Config != nil {
 		config, _ := json.Marshal(req.Config)
@@ -2567,6 +2582,10 @@ func (h *Handler) SetAgentSkills(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	var req SetAgentSkillsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2578,6 +2597,9 @@ func (h *Handler) SetAgentSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.validateAgentSkillIDsInWorkspace(w, r, agent, skillUUIDs) {
+		return
+	}
+	if !h.rejectDraftSkills(w, r, skillUUIDs) {
 		return
 	}
 
@@ -2622,6 +2644,10 @@ func (h *Handler) AddAgentSkills(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	var req AddAgentSkillsRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -2633,6 +2659,9 @@ func (h *Handler) AddAgentSkills(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.validateAgentSkillIDsInWorkspace(w, r, agent, skillUUIDs) {
+		return
+	}
+	if !h.rejectDraftSkills(w, r, skillUUIDs) {
 		return
 	}
 
@@ -2671,6 +2700,10 @@ func (h *Handler) SetAgentSkillEnabled(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, agent) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
+	}
 
 	skillID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill_id")
 	if !ok {
@@ -2708,6 +2741,10 @@ func (h *Handler) RemoveAgentSkill(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.canManageAgent(w, r, agent) {
 		return
+	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), agent, versionUserID)
 	}
 	skillID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "skillId"), "skill_id")
 	if !ok {

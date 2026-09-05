@@ -1,0 +1,57 @@
+{
+  "title": "Brain",
+  "subtitle": "모든 실행에 전달되는 공유 지식: 결정, 규칙, 코드베이스에 대한 사실.",
+  "search_placeholder": "노트 검색",
+  "filter": {
+    "all_tags": "모든 태그",
+    "show_archived": "보관된 항목 표시"
+  },
+  "source": {
+    "manual": "수동",
+    "agent": "에이전트 작성",
+    "curation": "정리됨",
+    "open_run": "실행 열기"
+  },
+  "list": {
+    "loading": "노트를 불러오는 중",
+    "load_error": "노트를 불러오지 못했습니다",
+    "empty_title": "아직 노트가 없습니다",
+    "empty_description": "결정, 규칙, 이 워크스페이스에 대한 사실을 적어 두세요. 모든 실행에 전달됩니다.",
+    "empty_search_title": "일치하는 노트가 없습니다",
+    "empty_search_description": "검색어를 줄이거나 태그 필터를 해제해 보세요.",
+    "pinned": "고정됨",
+    "archived": "보관됨"
+  },
+  "detail": {
+    "select_prompt": "노트를 선택하면 내용이 표시됩니다.",
+    "edit": "편집",
+    "cancel": "취소",
+    "save": "저장",
+    "saving": "저장 중…",
+    "pin": "고정",
+    "unpin": "고정 해제",
+    "archive": "보관",
+    "unarchive": "보관 해제",
+    "title_label": "제목",
+    "tags_label": "태그",
+    "tags_hint": "쉼표로 구분",
+    "content_label": "내용",
+    "content_placeholder": "Markdown. 노트 하나에 하나의 내용만.",
+    "empty_content": "이 노트에는 아직 내용이 없습니다.",
+    "merged_into": "일일 정리 과정에서 다른 노트로 병합되었습니다.",
+    "saved_toast": "노트를 저장했습니다",
+    "conflict_toast": "다른 사람이 먼저 편집했습니다. 다시 불러온 뒤 변경 사항을 적용하세요.",
+    "error_toast": "노트를 저장하지 못했습니다",
+    "archived_toast": "노트를 보관했습니다",
+    "unarchived_toast": "노트를 복원했습니다"
+  },
+  "create": {
+    "new": "새 노트",
+    "heading": "새 노트",
+    "title_placeholder": "주제가 아니라 사실을 적으세요",
+    "submit": "만들기",
+    "submitting": "만드는 중…",
+    "created_toast": "노트를 만들었습니다",
+    "error_toast": "노트를 만들지 못했습니다"
+  }
+}

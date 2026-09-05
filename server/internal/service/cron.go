@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,4 +137,70 @@ func parseCronSchedule(cronExpr, timezone string) (cron.Schedule, *time.Location
 		return nil, nil, fmt.Errorf("invalid timezone %q: %w", timezone, err)
 	}
 	return sched, loc, nil
+}
+
+// WindowOffset spreads a trigger's firing over a band: it returns an offset
+// in [0, window) for one cron occurrence, derived from a hash of the trigger
+// id and the occurrence so every scheduler replica computes the same slot
+// without shared state. "Sometime between 08:00 and 10:00" is a cron at
+// 08:00 with a 2h window; the actual minute differs from day to day but is
+// fixed for a given day. A window <= 0 returns 0.
+func WindowOffset(triggerID string, occurrence time.Time, window time.Duration) time.Duration {
+	if window <= 0 {
+		return 0
+	}
+	h := fnv.New64a()
+	_, _ = h.Write([]byte(triggerID))
+	_, _ = h.Write([]byte("|"))
+	_, _ = h.Write([]byte(strconv.FormatInt(occurrence.UTC().Unix(), 10)))
+	seconds := int64(window / time.Second)
+	if seconds <= 0 {
+		return 0
+	}
+	return time.Duration(int64(h.Sum64()%uint64(seconds))) * time.Second
+}
+
+// NextWindowedOccurrencesUTC is NextOccurrencesUTC with each band start
+// shifted by WindowOffset; the result holds the shifted instants in
+// (after, until], ascending. Band starts up to `window` before `after` are
+// considered, since their shifted instant may fall inside the range.
+func NextWindowedOccurrencesUTC(cronExpr, timezone string, window time.Duration, triggerID string, after, until time.Time) ([]time.Time, error) {
+	if window <= 0 {
+		return NextOccurrencesUTC(cronExpr, timezone, after, until)
+	}
+	starts, err := NextOccurrencesUTC(cronExpr, timezone, after.Add(-window), until)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]time.Time, 0, len(starts))
+	for _, start := range starts {
+		shifted := start.Add(WindowOffset(triggerID, start, window))
+		if shifted.After(after) && !shifted.After(until) {
+			out = append(out, shifted)
+		}
+	}
+	return out, nil
+}
+
+// NextWindowedOccurrenceAfterUTC returns the first shifted instant strictly
+// after `after` for a windowed trigger.
+func NextWindowedOccurrenceAfterUTC(cronExpr, timezone string, window time.Duration, triggerID string, after time.Time) (time.Time, error) {
+	if window <= 0 {
+		return NextOccurrenceAfterUTC(cronExpr, timezone, after)
+	}
+	cursor := after.Add(-window)
+	for i := 0; i < 64; i++ {
+		start, err := NextOccurrenceAfterUTC(cronExpr, timezone, cursor)
+		if err != nil {
+			return time.Time{}, err
+		}
+		if start.IsZero() {
+			return time.Time{}, fmt.Errorf("cron has no further occurrence")
+		}
+		if shifted := start.Add(WindowOffset(triggerID, start, window)); shifted.After(after) {
+			return shifted, nil
+		}
+		cursor = start
+	}
+	return time.Time{}, fmt.Errorf("cron windowed occurrence search exhausted")
 }

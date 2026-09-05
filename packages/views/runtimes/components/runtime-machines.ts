@@ -1,4 +1,5 @@
 import { deriveRuntimeHealth, type RuntimeHealth } from "@multica/core/runtimes";
+import { readRuntimeCliAuthState } from "@multica/core/runtimes/cli-auth";
 import type { AgentRuntime } from "@multica/core/types";
 import { formatDeviceInfo } from "../utils";
 
@@ -436,4 +437,21 @@ function sectionRank(section: RuntimeMachineSection): number {
     case "cloud":
       return 2;
   }
+}
+
+/**
+ * Providers on this machine whose CLI reported itself signed out, deduped and
+ * sorted. The machine list shows a badge from it; the sign-in control itself
+ * lives on the machine detail (CliAuthSection), which the row already links
+ * to. A runtime whose daemon never reported a CLI auth state at all is not
+ * "signed out" — only an explicit `authenticated: false` counts.
+ */
+export function machineCliSignInNeeded(machine: RuntimeMachine): string[] {
+  const providers = new Set<string>();
+  for (const runtime of machine.runtimes) {
+    if (readRuntimeCliAuthState(runtime.metadata)?.authenticated === false) {
+      providers.add(runtime.provider);
+    }
+  }
+  return [...providers].sort();
 }

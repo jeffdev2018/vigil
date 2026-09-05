@@ -28,6 +28,7 @@
     "active": "启用",
     "paused": "已暂停",
     "paused_runtime_required": "已暂停——执行智能体需绑定运行时",
+    "paused_failure_rate": "已暂停——运行失败过多",
     "archived": "已归档"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "暂停自动化",
     "activate_aria": "启用自动化",
     "paused_runtime_required": "由于执行智能体失去运行时，自动化已暂停。绑定运行时后请重新启用。",
+    "paused_failure_rate": "由于近期运行失败过多，自动化已自动暂停。请排查失败原因并修复后，重新启用该自动化。",
     "bind_runtime": "绑定运行时",
     "edit": "编辑",
     "run_now": "立即运行",
@@ -111,7 +113,10 @@
       "cancel": "取消",
       "confirm": "删除",
       "deleting": "删除中..."
-    }
+    },
+    "load_more": "加载更多",
+    "loading_more": "加载中…",
+    "showing_count": "{{total}} 条中的 {{shown}} 条"
   },
   "access": {
     "title": "管理访问",
@@ -166,6 +171,8 @@
   },
   "trigger_row": {
     "disabled_badge": "已禁用",
+    "enable_aria": "启用触发器",
+    "edit_trigger": "编辑触发器",
     "deprecated_badge": "已弃用",
     "next_label": "下次：{{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +192,9 @@
     "toast_rotate_failed": "重新生成 URL 失败",
     "toast_deleted": "已删除触发器",
     "toast_delete_failed": "删除触发器失败",
+    "toast_enabled": "已启用触发器",
+    "toast_disabled": "已停用触发器",
+    "toast_toggle_failed": "更新触发器失败",
     "delete_dialog": {
       "title": "删除触发器",
       "description": "将移除该触发器，自动化不再按此时间表运行。此操作不可撤销。",
@@ -207,6 +217,16 @@
       "ignored": "已忽略",
       "failed": "失败"
     },
+    "reason": {
+      "trigger_disabled": "触发器已停用",
+      "autopilot_paused": "自动化已暂停",
+      "autopilot_archived": "自动化已归档",
+      "event_filtered": "事件被过滤",
+      "criteria_not_matched": "未匹配条件",
+      "quota_exceeded": "已达运行上限",
+      "invalid_signature": "签名无效",
+      "missing_signature": "缺少签名"
+    },
     "signature": {
       "not_required": "无需签名",
       "valid": "签名通过",
@@ -226,6 +246,7 @@
       "content_type": "Content-Type",
       "replayed_from": "重放自",
       "error_label": "错误信息",
+      "reason_label": "原因",
       "raw_body": "原始 Body",
       "selected_headers": "保留的请求头",
       "response_body": "响应 Body"
@@ -240,6 +261,48 @@
       "disabled_queued": "投递仍在排队，处理完成后再重放"
     }
   },
+  "dry_run": {
+    "open": "用示例事件测试",
+    "title": "用示例事件测试",
+    "description": "把这个负载完整走一遍投递判定：事件过滤、路由条件、暂停状态和运行额度。不会留下任何记录，既不产生投递也不产生运行。",
+    "sample_label": "示例",
+    "payload_label": "事件负载（JSON）",
+    "run": "运行试跑",
+    "running": "运行中…",
+    "replay_action": "以试跑方式重放",
+    "invalid_json": "JSON 无效：{{message}}",
+    "invalid_shape": "负载必须是 JSON 对象或数组。",
+    "verdict_would_run": "这个事件会触发自动驾驶",
+    "verdict_blocked": "这个事件不会触发自动驾驶",
+    "verdict_unreadable": "无法读取判定结果",
+    "matched_filters": "命中的过滤条件：",
+    "toast_failed": "试跑失败"
+  },
+  "next_runs": {
+    "label": "接下来的运行",
+    "loading": "加载中…",
+    "unavailable": "无法获取接下来的运行",
+    "never": "这个计划不会再触发。",
+    "blocked": "不会运行：{{reason}}",
+    "blocked_unknown": "已被拦截",
+    "window_hint": "在计划时间之后的 {{minutes}} 分钟内随机某一分钟触发。"
+  },
+  "signing_secret": {
+    "label": "签名密钥",
+    "hint": "设置后，每次投递都必须带上 X-Hub-Signature-256: sha256=<用该密钥对原始报文做 HMAC-SHA256 的十六进制值>。没有签名或签名不符的投递会被拒绝并返回 401。",
+    "not_configured": "未设置签名密钥 —— 仅凭 Webhook URL 认证调用方。",
+    "configured": "已设置（结尾为 {{hint}}）。",
+    "shown_once": "请立即复制，密钥只显示这一次。",
+    "generate": "生成签名密钥",
+    "rotate": "轮换签名密钥",
+    "clear": "移除",
+    "copy": "复制密钥",
+    "copied": "已复制签名密钥",
+    "copy_failed": "复制失败",
+    "toast_rotated": "签名密钥已更新 —— 需要重新配置发送方",
+    "toast_cleared": "已移除签名密钥",
+    "toast_failed": "更新签名密钥失败"
+  },
   "add_trigger_dialog": {
     "title": "添加触发器",
     "type_label": "类型",
@@ -253,6 +316,13 @@
     "toast_added_schedule": "已添加时间表触发器",
     "toast_added_webhook": "已添加 Webhook 触发器",
     "toast_add_failed": "添加触发器失败"
+  },
+  "edit_trigger_dialog": {
+    "title": "编辑触发器",
+    "submit": "保存触发器",
+    "submitting": "保存中...",
+    "toast_saved": "已更新触发器",
+    "toast_save_failed": "更新触发器失败"
   },
   "dialog": {
     "sr_create": "新建自动化",
@@ -328,7 +398,10 @@
         "label": "仅运行",
         "description": "静默运行，不创建任务"
       }
-    }
+    },
+    "event_criteria_label": "仅在以下情况运行…",
+    "event_criteria_placeholder": "例如：生产环境部署失败，或涉及计费的拉取请求",
+    "event_criteria_hint": "用你自己的话描述哪些事件应触发此自动驾驶。每次投递都会据此宽松判断，拿不准时会运行。留空则仅依据事件过滤器。"
   },
   "schedule_editor": {
     "time_label": "时间",
@@ -385,7 +458,8 @@
       "time_every_hours_window": "每 {{interval}} 小时",
       "time_every_minute": "每分钟",
       "time_every_minutes": "每 {{interval}} 分钟",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "在 {{from}} 到 {{to}} 之间随机"
     },
     "countdown": {
       "days_hours": "{{days}} 天 {{hours}} 小时 {{minutes}} 分",
@@ -413,8 +487,11 @@
         "thu": "周四",
         "fri": "周五",
         "sat": "周六"
-      }
-    }
+      },
+      "band_end_hour": "结束小时",
+      "band_end_minute": "结束分钟"
+    },
+    "window_toggle": "在以下时段内随机"
   },
   "agent_picker": {
     "filter_placeholder": "筛选智能体或小队...",

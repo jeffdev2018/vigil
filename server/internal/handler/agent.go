@@ -25,6 +25,8 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
@@ -47,8 +49,14 @@ type AgentConversationStarter struct {
 }
 
 type AgentResponse struct {
-	ID          string `json:"id"`
-	WorkspaceID string `json:"workspace_id"`
+	ID string `json:"id"`
+	// TrustMode (K26): observer | propose | approval | autonomous.
+	TrustMode string `json:"trust_mode"`
+	// EffectMode (K69): apply | preview ("show me first").
+	EffectMode          string  `json:"effect_mode"`
+	PermissionProfileID *string `json:"permission_profile_id"`
+	RuntimePoolID       *string `json:"runtime_pool_id"`
+	WorkspaceID         string  `json:"workspace_id"`
 	// RuntimeID is the empty string when the agent is unbound — it kept its
 	// configuration and history when its runtime was deleted, and needs a new
 	// runtime before it can run again (MUL-5559). The wire type stays a string
@@ -75,12 +83,16 @@ type AgentResponse struct {
 	SystemKey string `json:"system_key,omitempty"`
 	// SystemInstructions is the read-only product half of a system agent's
 	// prompt, filled from the server binary. Empty for ordinary agents.
-	SystemInstructions string          `json:"system_instructions,omitempty"`
-	AvatarURL          *string         `json:"avatar_url"`
-	RuntimeMode        string          `json:"runtime_mode"`
-	RuntimeConfig      any             `json:"runtime_config"`
-	CustomArgs         []string        `json:"custom_args"`
-	McpConfig          json.RawMessage `json:"mcp_config"`
+	SystemInstructions string  `json:"system_instructions,omitempty"`
+	AvatarURL          *string `json:"avatar_url"`
+	RuntimeMode        string  `json:"runtime_mode"`
+	// RuntimeRouting is the runtime selection mode (JEF-237): "fixed" (bound
+	// runtime always) or "auto" (server picks runtime+model per task from run
+	// statistics). RuntimeID/Model remain the auto-mode fallback.
+	RuntimeRouting string          `json:"runtime_routing"`
+	RuntimeConfig  any             `json:"runtime_config"`
+	CustomArgs     []string        `json:"custom_args"`
+	McpConfig      json.RawMessage `json:"mcp_config"`
 	// custom_env is intentionally NOT serialized on agent resources. The
 	// agent_list/get/create/update/archive/restore responses and WS events
 	// only expose coarse metadata (has_custom_env, custom_env_key_count) so
@@ -211,6 +223,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		SystemInstructions:       systemInstructionsFor(a),
 		AvatarURL:                h.resolveAvatarURLPtr(textToPtr(a.AvatarUrl)),
 		RuntimeMode:              a.RuntimeMode,
+		RuntimeRouting:           a.RuntimeRouting,
 		RuntimeConfig:            rc,
 		CustomArgs:               customArgs,
 		McpConfig:                mcpConfig,
@@ -221,6 +234,10 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		InvocationTargets:        []AgentInvocationTargetDTO{},
 		Status:                   a.Status,
 		MaxConcurrentTasks:       a.MaxConcurrentTasks,
+		TrustMode:                a.TrustMode,
+		EffectMode:               a.EffectMode,
+		PermissionProfileID:      uuidToPtr(a.PermissionProfileID),
+		RuntimePoolID:            uuidToPtr(a.RuntimePoolID),
 		Model:                    a.Model.String,
 		ThinkingLevel:            a.ThinkingLevel.String,
 		ServiceTier:              a.ServiceTier.String,
@@ -348,6 +365,9 @@ type AgentTaskResponse struct {
 	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
 	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
+	// McpGateway (K77): the effective class of every catalogued tool of the
+	// agent's bound workspace servers, enforced by the daemon's local gateway.
+	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
 	// PluginHookTools are the workspace's agent-trigger plugin hooks, which the
 	// daemon renders as MCP tools for this task. Resolved at claim time so
 	// disabling or uninstalling a plugin takes effect on the next task rather
@@ -375,31 +395,79 @@ type AgentTaskResponse struct {
 	// IssueStatusesOmitted is how many active custom statuses were dropped by
 	// the cap, so the brief can say the list is incomplete instead of
 	// presenting a truncated catalog as the whole one.
-	IssueStatusesOmitted int                   `json:"issue_statuses_omitted,omitempty"`
-	ThreadName           string                `json:"thread_name,omitempty"` // semantic title for provider-native session/thread history
-	Status               string                `json:"status"`
-	Priority             int32                 `json:"priority"`
-	DispatchedAt         *string               `json:"dispatched_at"`
-	StartedAt            *string               `json:"started_at"`
-	CompletedAt          *string               `json:"completed_at"`
-	Result               any                   `json:"result"`
-	Error                *string               `json:"error"`
-	FailureReason        string                `json:"failure_reason,omitempty"` // see TaskService.MaybeRetryFailedTask
-	Attempt              int32                 `json:"attempt"`
-	MaxAttempts          int32                 `json:"max_attempts"`
-	ParentTaskID         *string               `json:"parent_task_id,omitempty"`
-	IsLeaderTask         bool                  `json:"is_leader_task,omitempty"`
-	LeaderRoleResolved   bool                  `json:"leader_role_resolved,omitempty"` // claim-only capability, always true here: IsLeaderTask/SquadID authoritatively answer "is this a leader run", so the daemon must not infer the role from briefing text. Servers predating it make no such promise — before #4951 they sent no is_leader_task at all, after it they sent the flag without guaranteeing a briefing — so a daemon seeing no capability keeps the legacy inference. Never rendered into a prompt; see daemon.taskIsSquadLeader (MUL-5811). Mirror field: internal/daemon/types.go, same JSON name
-	Agent                *TaskAgentData        `json:"agent,omitempty"`
-	ConnectedApps        []ConnectedAppData    `json:"connected_apps,omitempty"` // daemon-claim only: per-run app capabilities mounted through runtime MCP overlays
-	Repos                []RepoData            `json:"repos,omitempty"`
-	ProjectID            string                `json:"project_id,omitempty"`          // issue's project, when present
-	ProjectTitle         string                `json:"project_title,omitempty"`       // for surfacing in agent context
-	ProjectDescription   string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
-	ProjectResources     []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
-	CreatedAt            string                `json:"created_at"`
-	PriorSessionID       string                `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
-	PriorWorkDir         string                `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
+	IssueStatusesOmitted int     `json:"issue_statuses_omitted,omitempty"`
+	ThreadName           string  `json:"thread_name,omitempty"` // semantic title for provider-native session/thread history
+	Status               string  `json:"status"`
+	Priority             int32   `json:"priority"`
+	DispatchedAt         *string `json:"dispatched_at"`
+	StartedAt            *string `json:"started_at"`
+	CompletedAt          *string `json:"completed_at"`
+	// LastActivityAt is the run's last proof of life (claim, start, message or
+	// progress callback). Readers derive "unresponsive" from it; absent on rows
+	// that predate the column.
+	LastActivityAt *string `json:"last_activity_at,omitempty"`
+	Result         any     `json:"result"`
+	Error          *string `json:"error"`
+	FailureReason  string  `json:"failure_reason,omitempty"` // see TaskService.MaybeRetryFailedTask
+	// Runtime pools (K28): the moves this run made, and whether it landed on the degraded runtime.
+	FailoverHistory json.RawMessage `json:"failover_history,omitempty"`
+	Degraded        bool            `json:"degraded"`
+	// Issue router (K27): risk level, pool and escalation behind this run.
+	RoutingDecision json.RawMessage `json:"routing_decision,omitempty"`
+	// Runtime router (JEF-237): the class the router segmented this task on,
+	// and the full decision trace it persisted — candidates with their Wilson
+	// lower bound and score, the exclusions, and the reason it settled on the
+	// chosen runtime. Distinct from RoutingDecision above, which is the ISSUE
+	// router's risk/pool trace. Empty for fixed-mode runs and for rows that
+	// predate the router, so the UI renders the block conditionally.
+	TaskClass string          `json:"task_class,omitempty"`
+	Routing   json.RawMessage `json:"routing,omitempty"`
+	// Pause, steer, resume (K19).
+	PauseRequestedAt *string `json:"pause_requested_at"`
+	ResumedByTaskID  *string `json:"resumed_by_task_id"`
+	// Checkpoints (K20).
+	LastCheckpointSeq       *int64  `json:"last_checkpoint_seq"`
+	CheckpointAttempts      int32   `json:"checkpoint_attempts"`
+	CheckpointedAt          *string `json:"checkpointed_at"`
+	ResumeFromCheckpointSeq int64   `json:"resume_from_checkpoint_seq,omitempty"`
+	// Drift detection (K40): why the run was stopped for going in circles.
+	DriftReason string `json:"drift_reason,omitempty"`
+	// Preemption (K41).
+	PreemptedAt        *string               `json:"preempted_at"`
+	PreemptedByTaskID  *string               `json:"preempted_by_task_id"`
+	Attempt            int32                 `json:"attempt"`
+	MaxAttempts        int32                 `json:"max_attempts"`
+	ParentTaskID       *string               `json:"parent_task_id,omitempty"`
+	IsLeaderTask       bool                  `json:"is_leader_task,omitempty"`
+	LeaderRoleResolved bool                  `json:"leader_role_resolved,omitempty"` // claim-only capability, always true here: IsLeaderTask/SquadID authoritatively answer "is this a leader run", so the daemon must not infer the role from briefing text. Servers predating it make no such promise — before #4951 they sent no is_leader_task at all, after it they sent the flag without guaranteeing a briefing — so a daemon seeing no capability keeps the legacy inference. Never rendered into a prompt; see daemon.taskIsSquadLeader (MUL-5811). Mirror field: internal/daemon/types.go, same JSON name
+	Agent              *TaskAgentData        `json:"agent,omitempty"`
+	ConnectedApps      []ConnectedAppData    `json:"connected_apps,omitempty"` // daemon-claim only: per-run app capabilities mounted through runtime MCP overlays
+	Repos              []RepoData            `json:"repos,omitempty"`
+	ProjectID          string                `json:"project_id,omitempty"`          // issue's project, when present
+	ProjectTitle       string                `json:"project_title,omitempty"`       // for surfacing in agent context
+	ProjectDescription string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
+	ProjectResources   []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
+	// GoalAncestry is the claimed issue's parent chain, root first (F22), so the
+	// brief can say why the task exists. Omitted on root issues and by older
+	// servers; a daemon that predates it writes the brief it always did.
+	GoalAncestry        []GoalAncestryNode `json:"goal_ancestry,omitempty"`
+	GoalAncestryOmitted int                `json:"goal_ancestry_omitted,omitempty"`
+	// MissionChain (K74) is the goal chain the issue serves, mission first:
+	// the goal it names or inherits from its project, up to the root. Omitted
+	// when the issue serves no goal and by older servers.
+	MissionChain []MissionChainNode `json:"mission_chain,omitempty"`
+	// Org (K75) names the structure and unit the run works in, with its
+	// autonomy tier, allow and deny lists and escalation path.
+	Org *OrgContext `json:"org,omitempty"`
+	// WorkspaceNotes are the workspace Brain notes this run gets: every pinned
+	// note plus the most recently updated others. The daemon writes them as
+	// files under .multica/knowledge. Workspace-scoped, so unlike the agent's
+	// memories they are shared by every agent in the workspace. Omitted when
+	// the Brain is empty and by older servers.
+	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
+	CreatedAt      string                 `json:"created_at"`
+	PriorSessionID string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
+	PriorWorkDir   string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
 	// PriorSessionResumeUnavailable is set when a more recent Codex session was
 	// withheld because its rollout was missing (MUL-5305); PriorSessionID (if
 	// any) is then an older fallback. The daemon surfaces the continuity gap in
@@ -462,10 +530,12 @@ type AgentTaskResponse struct {
 	QuickCreateAttachmentIDs []string               `json:"quick_create_attachment_ids,omitempty"` // attachment ids uploaded in the quick-create prompt and bound on issue create
 	QuickCreateSourceContext json.RawMessage        `json:"quick_create_source_context,omitempty"` // immutable historical context for source-context quick-create
 	HandoffNote              string                 `json:"handoff_note,omitempty"`                // legacy assignment handoff instruction retained for installed clients; rendered by the daemon only in the per-turn prompt
-	SquadID                  string                 `json:"squad_id,omitempty"`                    // for quick-create tasks where the picker was a squad; Agent is still the resolved leader
-	SquadName                string                 `json:"squad_name,omitempty"`                  // display name for the picker squad
-	ParentIssueID            string                 `json:"parent_issue_id,omitempty"`             // for quick-create tasks opened from "Add sub issue" — UUID of the parent issue the new issue should be filed under
-	ParentIssueIdentifier    string                 `json:"parent_issue_identifier,omitempty"`     // human-readable identifier (e.g. MUL-123) of the quick-create parent issue, resolved on claim for prompt context
+	// HandoffPacket (K17): the latest structured handoff on the issue, for the resuming agent.
+	HandoffPacket         *HandoffPacketResponse `json:"handoff_packet,omitempty"`
+	SquadID               string                 `json:"squad_id,omitempty"`                // for quick-create tasks where the picker was a squad; Agent is still the resolved leader
+	SquadName             string                 `json:"squad_name,omitempty"`              // display name for the picker squad
+	ParentIssueID         string                 `json:"parent_issue_id,omitempty"`         // for quick-create tasks opened from "Add sub issue" — UUID of the parent issue the new issue should be filed under
+	ParentIssueIdentifier string                 `json:"parent_issue_identifier,omitempty"` // human-readable identifier (e.g. MUL-123) of the quick-create parent issue, resolved on claim for prompt context
 	// RequestingUserName + RequestingUserProfileDescription mirror the user
 	// the agent is acting on behalf of (see daemon/types.go). v1 sources them
 	// from the runtime owner so they're populated for daemon runtimes and
@@ -710,24 +780,34 @@ type TaskUsageData struct {
 // TaskAgentData holds agent info included in claim responses so the daemon
 // can set up the execution environment (branch naming, skill files, instructions).
 type TaskAgentData struct {
-	ID                    string                      `json:"id"`
-	Name                  string                      `json:"name"`
-	Instructions          string                      `json:"instructions"`
-	Skills                []service.AgentSkillData    `json:"skills,omitempty"`
-	SkillRefs             []service.AgentSkillRefData `json:"skill_refs,omitempty"`
-	CustomEnv             map[string]string           `json:"custom_env,omitempty"`
-	CustomArgs            []string                    `json:"custom_args,omitempty"`
-	McpConfig             json.RawMessage             `json:"mcp_config,omitempty"`
-	Model                 string                      `json:"model,omitempty"`
-	ThinkingLevel         string                      `json:"thinking_level,omitempty"`
-	ServiceTier           string                      `json:"service_tier,omitempty"`
-	DisabledRuntimeSkills []DisabledRuntimeSkill      `json:"disabled_runtime_skills,omitempty"`
+	ID           string                      `json:"id"`
+	Name         string                      `json:"name"`
+	Instructions string                      `json:"instructions"`
+	Skills       []service.AgentSkillData    `json:"skills,omitempty"`
+	SkillRefs    []service.AgentSkillRefData `json:"skill_refs,omitempty"`
+	CustomEnv    map[string]string           `json:"custom_env,omitempty"`
+	CustomArgs   []string                    `json:"custom_args,omitempty"`
+	McpConfig    json.RawMessage             `json:"mcp_config,omitempty"`
+	// TrustMode (K26) lets the daemon's MCP gateway (K77) cap a tool the
+	// claim did not list.
+	TrustMode             string                 `json:"trust_mode,omitempty"`
+	Model                 string                 `json:"model,omitempty"`
+	ThinkingLevel         string                 `json:"thinking_level,omitempty"`
+	ServiceTier           string                 `json:"service_tier,omitempty"`
+	DisabledRuntimeSkills []DisabledRuntimeSkill `json:"disabled_runtime_skills,omitempty"`
 	// RuntimeConfig is the agent's saved runtime_config JSON as-is. The
 	// daemon decodes it per-provider — e.g. the openclaw backend reads
 	// `mode` + `gateway.*` to choose between embedded and gateway routing
 	// (issue #3260). Other providers ignore the payload entirely. Sent
 	// raw so the daemon can evolve its schema without a server roundtrip.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
+	// PermissionProfile (K06) is resolved at claim time: the run's override,
+	// else the agent's. The daemon enforces it; nil means no profile.
+	PermissionProfile *permissionprofile.Profile `json:"permission_profile,omitempty"`
+	// Memories are the agent's durable learned facts (JEF-236), loaded at
+	// claim time and rendered by the daemon as the brief's Memory section.
+	// Omitted when the agent has none.
+	Memories []string `json:"memories,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded
@@ -772,9 +852,23 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		DispatchedAt:           timestampToPtr(t.DispatchedAt),
 		StartedAt:              timestampToPtr(t.StartedAt),
 		CompletedAt:            timestampToPtr(t.CompletedAt),
+		LastActivityAt:         timestampToPtr(t.LastActivityAt),
 		Result:                 result,
 		Error:                  textToPtr(t.Error),
 		FailureReason:          failureReason,
+		FailoverHistory:        json.RawMessage(t.FailoverHistory),
+		Degraded:               service.TaskDegraded(t.FailoverHistory),
+		RoutingDecision:        json.RawMessage(t.RoutingDecision),
+		TaskClass:              t.TaskClass,
+		Routing:                json.RawMessage(t.Routing),
+		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
+		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
+		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),
+		CheckpointAttempts:     t.CheckpointAttempts,
+		CheckpointedAt:         timestampToPtr(t.CheckpointedAt),
+		DriftReason:            t.DriftReason.String,
+		PreemptedAt:            timestampToPtr(t.PreemptedAt),
+		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
@@ -1144,6 +1238,10 @@ type CreateAgentRequest struct {
 	Model              string                     `json:"model"`
 	ThinkingLevel      string                     `json:"thinking_level"`
 	ServiceTier        string                     `json:"service_tier"`
+	// RuntimeRouting opts the agent into server-side runtime routing
+	// (JEF-237): "auto" picks the runtime per task from historical stats.
+	// Empty/absent defaults to "fixed" (the only mode older servers know).
+	RuntimeRouting string `json:"runtime_routing"`
 	// ComposioToolkitAllowlist seeds the per-task overlay gate (MUL-3869). On
 	// create only the calling user can be the owner, so we accept the field
 	// unconditionally here; the cross-owner permission gate lives on PUT.
@@ -1241,6 +1339,13 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Visibility == "" {
 		req.Visibility = "private"
+	}
+	if req.RuntimeRouting == "" {
+		req.RuntimeRouting = service.RoutingModeFixed
+	}
+	if req.RuntimeRouting != service.RoutingModeFixed && req.RuntimeRouting != service.RoutingModeAuto {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("runtime_routing must be %q or %q", service.RoutingModeFixed, service.RoutingModeAuto))
+		return
 	}
 	if err := defaultAndValidateAgentMaxConcurrentTasks(rawFields, &req.MaxConcurrentTasks); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -1407,6 +1512,7 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 		ServiceTier:              pgtype.Text{String: req.ServiceTier, Valid: req.ServiceTier != ""},
 		ConversationStarters:     sp,
 		ComposioToolkitAllowlist: allowlist,
+		RuntimeRouting:           req.RuntimeRouting,
 	})
 	if err != nil {
 		// Unique constraint on (workspace_id, name) — return a clear conflict error
@@ -1422,6 +1528,9 @@ func (h *Handler) CreateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := replaceInvocationTargetsWithQueries(r.Context(), qtx, created.ID, parseUUID(ownerID), perm.targets); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to save agent access")
+		return
+	}
+	if !h.rejectDraftSkills(w, r, skillUUIDs) {
 		return
 	}
 	for _, skillID := range skillUUIDs {
@@ -1478,7 +1587,11 @@ type UpdateAgentRequest struct {
 	ConversationStarters *[]AgentConversationStarter `json:"conversation_starters"`
 	AvatarURL            *string                     `json:"avatar_url"`
 	RuntimeID            *string                     `json:"runtime_id"`
-	RuntimeConfig        any                         `json:"runtime_config"`
+	// RuntimeRouting opts the agent into server-side runtime routing
+	// (JEF-237). Valid values: "fixed", "auto". Switching to "auto" never
+	// touches runtime_id — the bound runtime stays the routing fallback.
+	RuntimeRouting *string `json:"runtime_routing"`
+	RuntimeConfig  any     `json:"runtime_config"`
 	// custom_env is intentionally NOT updatable through this endpoint.
 	// Use `PUT /api/agents/{id}/env` for env changes — that path admits
 	// the agent owner or a workspace owner/admin, denies agent actors,
@@ -1706,6 +1819,10 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 	if !h.canManageAgent(w, r, existing) {
 		return
 	}
+	// Agent versions (K23): snapshot what this change leaves behind.
+	if versionUserID, ok := requireUserID(w, r); ok {
+		defer h.recordAgentVersion(r.Context(), existing, versionUserID)
+	}
 
 	var req UpdateAgentRequest
 	rawFields, err := decodeJSONBodyWithRawFields(r.Body, &req)
@@ -1877,6 +1994,13 @@ func (h *Handler) UpdateAgent(w http.ResponseWriter, r *http.Request) {
 		// receiving an obvious foreign model ID (e.g. Claude Code -> Codex).
 		// Unknown/custom model strings are preserved by the helper.
 		params.Model = pgtype.Text{String: "", Valid: true}
+	}
+	if req.RuntimeRouting != nil {
+		if *req.RuntimeRouting != service.RoutingModeFixed && *req.RuntimeRouting != service.RoutingModeAuto {
+			writeError(w, http.StatusBadRequest, fmt.Sprintf("runtime_routing must be %q or %q", service.RoutingModeFixed, service.RoutingModeAuto))
+			return
+		}
+		params.RuntimeRouting = pgtype.Text{String: *req.RuntimeRouting, Valid: true}
 	}
 
 	// thinking_level handling (MUL-2339). Tri-state semantics:

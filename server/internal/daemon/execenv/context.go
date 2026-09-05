@@ -189,6 +189,14 @@ func writeContextFiles(workDir, provider string, ctx TaskContextForEnv, manifest
 		return fmt.Errorf("write project resources: %w", err)
 	}
 
+	// Workspace Brain notes ride the same best-effort path: the brief's
+	// Workspace Knowledge section names the directory, so a run whose notes
+	// failed to write degrades to "the directory is empty" rather than to a
+	// brief promising files that are not there.
+	if err := writeWorkspaceKnowledge(workDir, ctx, manifest); err != nil {
+		return fmt.Errorf("write workspace knowledge: %w", err)
+	}
+
 	return nil
 }
 

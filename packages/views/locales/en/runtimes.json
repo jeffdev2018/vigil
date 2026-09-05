@@ -47,6 +47,7 @@
     "section_remote": "Remote",
     "section_cloud": "Cloud",
     "this_machine": "This device",
+    "cli_sign_in_needed": "Sign-in needed",
     "local_badge": "Local · this machine",
     "pending_custom_runtimes": "Pending custom runtimes",
     "runtime_count_one": "{{count}} runtime",
@@ -59,6 +60,10 @@
     "select_runtime": "Built-in runtimes appear automatically. Select one for settings, or add a custom command.",
     "no_runtimes_title": "No runtimes registered",
     "no_runtimes_hint": "Start or reconnect this machine's daemon. Its installed CLI runtimes will appear here automatically.",
+    "skipped_agents": {
+      "title": "Detected but not registered",
+      "hint": "These agent CLIs are installed on this machine but were not registered. Fix the reason below and the runtime appears on its own."
+    },
     "not_found_title": "Machine not found",
     "not_found_hint": "It may be offline, removed, or no longer available to you.",
     "metrics": {
@@ -259,6 +264,27 @@
     "validation": {
       "instance_type_required": "Instance type is required",
       "disk_size_invalid": "Disk size must be a positive integer"
+    },
+    "power": {
+      "start": {
+        "label": "Start",
+        "toast": "Starting the node.",
+        "failed": "Could not start the node."
+      },
+      "stop": {
+        "label": "Stop",
+        "toast": "Stopping the node.",
+        "failed": "Could not stop the node."
+      },
+      "reboot": {
+        "label": "Reboot",
+        "confirm": "Reboot this node? Anything running on it is interrupted.",
+        "toast": "Rebooting the node.",
+        "failed": "Could not reboot the node."
+      },
+      "status": {
+        "label": "Refresh status"
+      }
     }
   },
   "update": {
@@ -283,6 +309,27 @@
       "failed": "Update failed",
       "timeout": "Timeout"
     }
+  },
+  "cli_auth": {
+    "authenticated": "Authenticated",
+    "not_authenticated": "Not authenticated",
+    "unknown": "Unknown",
+    "connect": "Connect",
+    "disconnect": "Disconnect",
+    "offline": "The runtime is offline. Reconnect its daemon before signing in.",
+    "help": "Authentication help",
+    "failed": "CLI authentication failed",
+    "title": "Connect {{provider}}",
+    "disconnecting_title": "Disconnect {{provider}}",
+    "machine_scope": "Authentication is stored by the CLI on this machine and applies to every workspace using it. No token is sent to Multica.",
+    "waiting": "Waiting for the CLI…",
+    "expires_in": "expires in {{seconds}}s",
+    "open_url": "Open this verification page",
+    "copy_url": "Copy verification URL",
+    "code": "One-time code",
+    "copy_code": "Copy code",
+    "completed": "The CLI is authenticated.",
+    "disconnected": "The CLI is disconnected."
   },
   "charts": {
     "heatmap_less": "Less",

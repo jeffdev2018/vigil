@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/multica-ai/multica/server/internal/dispatch"
+	"github.com/multica-ai/multica/server/internal/service"
 )
 
 // Unified execution-admission contract (MUL-4525).
@@ -61,6 +63,8 @@ const (
 	ReasonAttributionBlocked    = dispatch.ReasonAttributionBlocked
 	ReasonAlreadyActive         = dispatch.ReasonAlreadyActive
 	ReasonSelfTriggerSuppressed = dispatch.ReasonSelfTriggerSuppressed
+	ReasonQuotaExceeded         = dispatch.ReasonQuotaExceeded
+	ReasonBudgetExceeded        = dispatch.ReasonBudgetExceeded
 	ReasonInternalError         = dispatch.ReasonInternalError
 )
 
@@ -106,6 +110,20 @@ func (h *Handler) writeDispatchBlocked(w http.ResponseWriter, status int, code D
 	})
 }
 
+func (h *Handler) writeBudgetExceeded(w http.ResponseWriter, err error) bool {
+	var budgetErr *service.BudgetExceededError
+	if !errors.As(err, &budgetErr) {
+		return false
+	}
+	writeJSON(w, http.StatusConflict, map[string]any{
+		"error": dispatchBlockedFallbackMessage(ReasonBudgetExceeded), "reason_code": ReasonBudgetExceeded,
+		"policy_id": uuidToString(budgetErr.PolicyID), "limit_usd_ticks": budgetErr.LimitTicks,
+		"spent_usd_ticks": budgetErr.SpentTicks, "reserved_usd_ticks": budgetErr.ReservedTicks,
+		"period_end": budgetErr.PeriodEnd.UTC().Format("2006-01-02T15:04:05Z07:00"),
+	})
+	return true
+}
+
 // dispatchBlockedFallbackMessage is the legacy `error` string paired with a
 // reason code. It is intentionally generic and non-enumerating: it must be safe
 // to show to a caller who is not allowed to know whether the target exists.
@@ -125,6 +143,10 @@ func dispatchBlockedFallbackMessage(code DispatchReasonCode) string {
 		return "the run couldn't be attributed to a responsible member"
 	case ReasonAlreadyActive:
 		return "a run is already active for this target"
+	case ReasonQuotaExceeded:
+		return "the autopilot run allowance has been reached"
+	case ReasonBudgetExceeded:
+		return "the workspace budget has been reached"
 	default:
 		return "the run was blocked"
 	}

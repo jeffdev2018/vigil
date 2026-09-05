@@ -77,8 +77,10 @@ import { LabelChip } from "../../labels/label-chip";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { SubIssuesAgentWorkingChip } from "./sub-issues-agent-working-chip";
 import { ProjectPicker } from "../../projects/components/project-picker";
+import { GoalPicker } from "../../goals/components/goal-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { CommentCard } from "./comment-card";
+import { MeetingOriginLink } from "./meeting-origin-link";
 import { SourceContextBadge } from "./source-context-viewer";
 import { RevisionConflictCompare } from "./revision-conflict-compare";
 import { CommentInput } from "./comment-input";
@@ -91,9 +93,36 @@ import { ThreadNavPanel, mentionsUser, type ThreadNavThread } from "./thread-nav
 import { collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
+import { PlanVerificationSection } from "./plan-verification-section";
+import { DecisionCardsSection } from "./decision-cards-section";
+import { RunSecretsSection } from "./run-secrets-section";
+import { FailoverSection } from "./failover-section";
+import { RoutingBadge } from "./routing-badge";
+import { HandoffPacketCard } from "./handoff-packet-card";
+import { CrossReviewSection } from "./cross-review-section";
+import { ContestsSection } from "../../contests/components/contests-section";
+import { IssueOrgSection } from "../../org/components/issue-org-section";
+import { AgentEffectsSection } from "./agent-effects-section";
+import { WatchdogSection } from "./watchdog-section";
+import { RunLimitBadge } from "./run-limit-badge";
+import { RunInterruptedBanner } from "./run-interrupted-banner";
+import { TrafficConflictBanner } from "./traffic-conflict-banner";
+import { DriftBadge } from "./drift-badge";
+import { PreemptedBadge } from "./preempted-badge";
+import { PipelineProgress } from "./pipeline-progress";
+import { FanoutSection } from "./fanout-section";
+import { DuelSection } from "./duel-section";
+import { CampaignBoard } from "./campaign-board";
+import { RoleView, RoleViewTabs } from "./role-view";
+import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
+import { AcceptanceCriteriaSection } from "./acceptance-criteria-section";
+import { OwnershipSuggestionSection } from "./ownership-suggestion-section";
+import { CompetencySuggestion } from "./competency-suggestion";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
+import { MergeReadinessPanel } from "./merge-readiness-panel";
+import { PRStackList } from "./pr-stack-list";
 import { useGitHubSettings } from "@multica/core/github";
 import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "@multica/core/auth";
@@ -137,6 +166,7 @@ import { PAGE_GUTTER } from "../../layout/page-header";
 import { ProgressRing } from "./progress-ring";
 import { matchesPinyin } from "../../editor/extensions/pinyin-match";
 import { useT } from "../../i18n";
+import { IssueDependenciesSection } from "./issue-dependencies-section";
 import { useIssueDetailScrollRestore } from "../hooks/use-issue-detail-scroll-restore";
 import { useInPageFind } from "../hooks/use-in-page-find";
 import { useStickyComposer } from "../hooks/use-sticky-composer";
@@ -1197,6 +1227,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const [pullRequestsOpen, setPullRequestsOpen] = useState(true);
   const [metadataOpen, setMetadataOpen] = useState(false);
   const githubSettings = useGitHubSettings();
+  const roleView = useIssueRoleViewStore((st) => st.view);
 
   // Per-issue, per-session set of optional properties currently visible in
   // the sidebar Properties section. Seeded on issue switch with whichever
@@ -2336,6 +2367,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               onUpdate={handleUpdateField}
             />
           </PropRow>
+          <PropRow label={t(($) => $.detail.prop_goal)}>
+            <div className="flex min-w-0 items-center gap-2">
+              <GoalPicker goalId={issue.goal_id ?? null} onUpdate={handleUpdateField} />
+              {!issue.goal_id && (breadcrumbProject?.goal_ids?.length ?? 0) > 0 && (
+                <span className="text-caption text-muted-foreground">{t(($) => $.detail.goal_inherited)}</span>
+              )}
+            </div>
+          </PropRow>
 
           {/* Optional props — rendered only when set on the issue OR added
               via "+ Add property" in this session. Row order follows the
@@ -2554,6 +2593,8 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </div>
       )}
 
+      <IssueDependenciesSection issueId={issue.id} />
+
       {/* Pull requests — hidden when the workspace disables the PR sidebar
           (or the GitHub master switch is off). Backend data is kept either
           way so re-enabling restores the section instantly. */}
@@ -2567,15 +2608,101 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             {t(($) => $.detail.section_pull_requests)}
             <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${pullRequestsOpen ? "rotate-90" : ""}`} />
           </button>
-          {pullRequestsOpen && <div className="pl-2"><PullRequestList issueId={id} /></div>}
+          {pullRequestsOpen && <div className="pl-2">
+            <MergeReadinessPanel issueId={id} />
+            <PRStackList issueId={id} />
+            <PullRequestList issueId={id} />
+          </div>}
         </div>
       )}
 
+      {/* Role views (K32): PM / QA / CTO recompose the blocks below from
+          the same data; "full" is the page as before. */}
+      <RoleViewTabs />
+      {roleView !== "full" ? <RoleView view={roleView} issue={issue} /> : <>
       {/* Execution log — active runs + collapsed past runs, each carrying its
           own token spend, with the issue total on the section header.
           Self-contained; owns its own collapse state and WS subscriptions.
           Hides itself when there are no runs to show. */}
+      {/* Decision Cards — questions an agent asked on this issue (K01).
+          Hides itself until a card exists; pending cards lead. */}
+      <DecisionCardsSection issueId={id} />
+
+      {/* Run-scoped secrets (K09): which keys each run received as tokens; hides itself until one exists. */}
+      <RunSecretsSection issueId={id} />
+
+      {/* Runtime failover (K28): moves between runtimes; loud when a run is degraded. */}
+      <FailoverSection issueId={id} />
+
+      {/* Issue router (K27): risk level, pool and escalation behind the latest run. */}
+      <RoutingBadge issueId={id} />
+
+      {/* Handoff packet (K17): what the last hand left, and a form to leave one. */}
+      <HandoffPacketCard issueId={id} />
+
+      {/* Cross-provider self-review (K15): another provider's report on the last diff, before the human review. */}
+      <CrossReviewSection issueId={id} />
+
+      {/* Contest (K72): rival-model objections on this issue's outputs, and the human verdict. */}
+      <ContestsSection issueId={id} />
+
+      {/* Org chart (K75): market offers on this issue, escalate and route-now. */}
+      <IssueOrgSection issueId={id} issue={issue} />
+
+      {/* Undo for agent actions (K69): what each run changed here, and the button to take it back. */}
+      <AgentEffectsSection issueId={id} />
+      <WatchdogSection issueId={id} />
+
+      {/* Run limits (K03): the latest run's warning or stop, with the numbers. */}
+      <RunLimitBadge issueId={id} />
+
+      {/* Checkpoints (K20): interrupted and resumed automatically, or the chain gave up. */}
+      <RunInterruptedBanner issueId={id} />
+
+      {/* Traffic control (K18): the run edits what a human or another run edits. */}
+      <TrafficConflictBanner issueId={id} />
+
+      {/* Drift detection (K40): the exact reason a run was stopped for going in circles. */}
+      <DriftBadge issueId={id} />
+
+      {/* Preemption (K41): suspended to let an urgent issue go first. */}
+      <PreemptedBadge issueId={id} />
+
+      {/* Pipelines (K37): progress through the stages, or a picker to start one. */}
+      <PipelineProgress issueId={id} />
+
+      {/* Fan-out / fan-in (K38): parallel specialist runs and the synthesis. */}
+      <FanoutSection issueId={id} />
+
+      {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
+      <DuelSection issueId={id} />
+
+      {/* Refactoring campaigns (K42): sharded fan-out with a sequential merge queue. */}
+      <CampaignBoard issueId={id} />
+
+      {/* Module ownership (K33): who a matching rule suggests; applied on click. */}
+      <OwnershipSuggestionSection issue={issue} />
+
+      {/* Learned competency (K43): each agent's success history on this kind of task. */}
+      <CompetencySuggestion issueId={id} />
+
+      {/* Outcome Contract — acceptance criteria and their proofs (K12). The
+          server refuses done while one lacks proof; this shows which. */}
+      <AcceptanceCriteriaSection issueId={id} />
+
+      {/* Review cockpit (K16): one screen for the reviewer. */}
+      <div className="px-2">
+        <AppLink href={paths.issueReview(id)} className="text-caption text-muted-foreground hover:text-foreground">
+          {t(($) => $.review_cockpit.open)} →
+        </AppLink>
+      </div>
+
       <ExecutionLogSection issueId={id} identifier={issue.identifier} />
+
+      {/* Plan verification — the issue plan and its newest verification
+          report (F17). Hides itself until a plan is published. */}
+      <PlanVerificationSection issueId={id} />
+      </>}
 
       {/* Details — creator and timestamps. Sits below the execution log
           because it is the least-read block in the sidebar: the values
@@ -3038,6 +3165,8 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               }}
             />
           )}
+
+          <MeetingOriginLink issue={issue} />
 
           <div
             {...descDropZoneProps}

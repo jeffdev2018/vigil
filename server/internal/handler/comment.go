@@ -1859,6 +1859,15 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// "Show me first" (K69): a preview-mode run's comment is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview && authorType == "agent" {
+		payload := map[string]any{"content": req.Content, "type": req.Type, "parent_id": uuidToPtr(parentID)}
+		if eff, ok := h.recordPending(r, agentID, taskID, issue.WorkspaceID, issue.ID, service.EffectCommentCreate, "issue", issue.ID,
+			map[string]any{"type": req.Type, "excerpt": truncate(req.Content, 200)}, payload, true); ok {
+			writePending(w, eff, map[string]any{"id": uuidToString(eff.ID), "issue_id": uuidToString(issue.ID), "content": req.Content, "type": req.Type, "pending_approval": true})
+			return
+		}
+	}
 	created, err := h.Queries.CreateComment(r.Context(), db.CreateCommentParams{
 		ID:           dbid.NewV7(),
 		IssueID:      issue.ID,
@@ -1876,6 +1885,10 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	comment := created.Comment()
+	// Why search (K55): a comment is searchable as soon as it exists.
+	h.indexWhy(r.Context(), comment.WorkspaceID, whySourceComment, comment.ID, comment.IssueID, comment.Content)
+	// Undo (K69): a run's comment can be taken back.
+	h.recordEffect(r, comment.WorkspaceID, comment.IssueID, service.EffectCommentCreate, "comment", comment.ID, map[string]any{}, map[string]any{"type": comment.Type, "excerpt": truncate(comment.Content, 200)}, true)
 
 	// Link uploaded attachments to this comment.
 	if len(attachmentIDs) > 0 {
@@ -1887,6 +1900,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	resp := commentToResponse(comment, nil, groupedAtt[uuidToString(comment.ID)])
 	resp.IssueRevision = created.IssueRevision
 	slog.Info("comment created", append(logger.RequestAttrs(r), "comment_id", uuidToString(comment.ID), "issue_id", issueID)...)
+	// Skill Miner (K58): a human speaking right after an agent may be correcting it.
+	h.detectCorrectionSignal(r.Context(), issue, comment, authorType)
 	h.publish(protocol.EventCommentCreated, uuidToString(issue.WorkspaceID), authorType, authorID, map[string]any{
 		"comment":             resp,
 		"issue_title":         issue.Title,
@@ -3484,6 +3499,10 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	resp := commentToResponse(comment, grouped[cid], groupedAtt[cid])
 	resp.IssueRevision = issueRevision
 	slog.Info("comment updated", append(logger.RequestAttrs(r), "comment_id", commentId)...)
+	if oldContent != req.Content {
+		// Undo (K69): the previous text comes back on reversal.
+		h.recordEffect(r, existing.WorkspaceID, existing.IssueID, service.EffectCommentUpdate, "comment", existing.ID, map[string]any{"content": oldContent}, map[string]any{"content": req.Content}, true)
+	}
 	eventPayload := map[string]any{"comment": resp}
 	if issueRevision > 0 {
 		eventPayload["issue_revision"] = issueRevision
@@ -3551,6 +3570,15 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		slog.Info("comment parent issue no longer exists", "issue_id", uuidToString(comment.IssueID), "comment_id", commentId)
 	}
 
+	// "Show me first" (K69): a preview-mode run's deletion is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview && actorType == "agent" {
+		if eff, ok := h.recordPending(r, agentID, taskID, comment.WorkspaceID, comment.IssueID, service.EffectCommentDelete, "comment", comment.ID,
+			map[string]any{"excerpt": truncate(comment.Content, 200)}, map[string]any{}, true); ok {
+			writePending(w, eff, map[string]any{"comment_id": uuidToString(comment.ID), "pending_approval": true})
+			return
+		}
+	}
+
 	// Collect attachment URLs before CASCADE delete removes them.
 	attachmentURLs, _ := h.Queries.ListAttachmentURLsByCommentID(r.Context(), comment.ID)
 
@@ -3582,6 +3610,10 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		}
 		return
 	}
+	// Why search (K55): the chunk leaves with its comment.
+	h.unindexWhy(r.Context(), whySourceComment, comment.ID)
+	// Undo (K69): a run's deletion is reversible (attachments are not restored).
+	h.recordEffect(r, comment.WorkspaceID, comment.IssueID, service.EffectCommentDelete, "comment", comment.ID, commentEffectSnapshot(comment), map[string]any{}, true)
 
 	h.deleteS3Objects(r.Context(), attachmentURLs)
 	slog.Info("comment deleted", append(logger.RequestAttrs(r), "comment_id", commentId, "issue_id", uuidToString(comment.IssueID))...)

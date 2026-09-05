@@ -317,4 +317,8 @@ func (h *Handler) mirrorVCSCIStatus(ctx context.Context, conn db.VcsConnection, 
 			"issue_id": uuidToString(issueID),
 		})
 	}
+	// CI auto-fix (K49): a red status on an agent's pull request.
+	if ev.State == "failed" {
+		h.autoFixVCSHead(ctx, conn, ev.SHA)
+	}
 }

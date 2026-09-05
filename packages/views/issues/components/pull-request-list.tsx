@@ -24,6 +24,9 @@ import {
   type PullRequestMergeStatus,
 } from "@multica/core/github";
 import type { GitHubPullRequest, GitHubPullRequestState } from "@multica/core/types";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { issueCIAutoFixOptions, type IssueCIAutoFix } from "@multica/core/issues/ci-auto-fix";
+import { CIAutoFixChip } from "./ci-auto-fix-chip";
 import { cn } from "@multica/ui/lib/utils";
 import { useT, useTimeAgo } from "../../i18n";
 
@@ -47,6 +50,9 @@ export function PullRequestList({ issueId }: { issueId: string }) {
   const { t } = useT("issues");
   const [expanded, setExpanded] = useState(false);
   const { data, isLoading } = useQuery(issuePullRequestsOptions(issueId));
+  // CI auto-fix (K49): one query for the issue, a chip per pull request.
+  const wsId = useWorkspaceId();
+  const { data: autoFix } = useQuery(issueCIAutoFixOptions(wsId, issueId));
   const prs = data?.pull_requests ?? [];
 
   if (isLoading) {
@@ -71,12 +77,12 @@ export function PullRequestList({ issueId }: { issueId: string }) {
   return (
     <div className="space-y-1">
       {expandedHead.map((pr) => (
-        <PullRequestRow key={pr.id} pr={pr} />
+        <PullRequestRow key={pr.id} pr={pr} issueId={issueId} wsId={wsId} autoFix={autoFix} />
       ))}
       {useCollapse ? (
         <div className="space-y-1">
           {expanded
-            ? collapsedTail.map((pr) => <PullRequestRow key={pr.id} pr={pr} />)
+            ? collapsedTail.map((pr) => <PullRequestRow key={pr.id} pr={pr} issueId={issueId} wsId={wsId} autoFix={autoFix} />)
             : null}
           <button
             type="button"
@@ -93,7 +99,7 @@ export function PullRequestList({ issueId }: { issueId: string }) {
   );
 }
 
-function PullRequestRow({ pr }: { pr: GitHubPullRequest }) {
+function PullRequestRow({ pr, issueId, wsId, autoFix }: { pr: GitHubPullRequest; issueId: string; wsId: string; autoFix: IssueCIAutoFix | undefined }) {
   const { t } = useT("issues");
   const cfg = STATE_ICON[pr.state] ?? { icon: GitPullRequest, className: "" };
   const StateIcon = cfg.icon;
@@ -119,6 +125,8 @@ function PullRequestRow({ pr }: { pr: GitHubPullRequest }) {
         <p className="text-micro text-muted-foreground truncate">
           {pr.repo_owner}/{pr.repo_name}#{pr.number} · {stateLabel}
           {pr.author_login ? ` · @${pr.author_login}` : null}
+          {" "}
+          <CIAutoFixChip issueId={issueId} wsId={wsId} pullRequestId={pr.id} data={autoFix} />
         </p>
         <PullRequestRowDetails pr={pr} />
       </div>

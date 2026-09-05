@@ -647,6 +647,59 @@ func TestWebhookHandler_PausedAutopilotReturnsIgnored(t *testing.T) {
 	}
 }
 
+// Every non-dispatched outcome persists its reason as a stable code, not just
+// as English in the free-text error column: the Deliveries UI localizes the
+// code, and "ignored" on its own does not say which of eight causes it was.
+func TestWebhookHandler_IgnoredDeliveriesPersistTheirReasonCode(t *testing.T) {
+	agentID := createWebhookTestAgent(t, "WebhookReasonCode Agent")
+
+	cases := []struct {
+		name    string
+		status  string
+		disable bool
+		want    string
+	}{
+		{name: "paused autopilot", status: "paused", want: "autopilot_paused"},
+		{name: "archived autopilot", status: "archived", want: "autopilot_archived"},
+		{name: "disabled trigger", status: "active", disable: true, want: "trigger_disabled"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			apID := createWebhookTestAutopilot(t, agentID, tc.status, "run_only")
+			trig := createWebhookTriggerViaHandler(t, apID)
+			if tc.disable {
+				if _, err := testHandler.Queries.UpdateAutopilotTrigger(context.Background(), db.UpdateAutopilotTriggerParams{
+					ID:      parseUUID(trig.ID),
+					Enabled: pgtype.Bool{Bool: false, Valid: true},
+				}); err != nil {
+					t.Fatalf("disable trigger: %v", err)
+				}
+			}
+
+			w := postWebhook(t, *trig.WebhookToken, map[string]any{"x": 1}, nil)
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200, got %d body=%s", w.Code, w.Body.String())
+			}
+			var resp map[string]any
+			if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+				t.Fatalf("decode: %v", err)
+			}
+			deliveryID, _ := resp["delivery_id"].(string)
+			if deliveryID == "" {
+				t.Fatalf("no delivery_id in %s", w.Body.String())
+			}
+			delivery, err := testHandler.Queries.GetWebhookDelivery(context.Background(), parseUUID(deliveryID))
+			if err != nil {
+				t.Fatalf("get delivery: %v", err)
+			}
+			if !delivery.ReasonCode.Valid || delivery.ReasonCode.String != tc.want {
+				t.Fatalf("reason_code = %q (valid=%v), want %q",
+					delivery.ReasonCode.String, delivery.ReasonCode.Valid, tc.want)
+			}
+		})
+	}
+}
+
 func TestWebhookHandler_ActiveDispatchesRunWithPayload(t *testing.T) {
 	agentID := createWebhookTestAgent(t, "WebhookDispatch Agent")
 	apID := createWebhookTestAutopilot(t, agentID, "active", "run_only")

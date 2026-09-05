@@ -660,6 +660,7 @@ func main() {
 	// claim until the cache TTL expires.
 	taskSvc, autopilotSvc := backgroundServices(h)
 	registerAutopilotListeners(bus, autopilotSvc)
+	registerPlanVerificationListeners(bus, taskSvc)
 
 	// Construct a LivenessStore that mirrors the one wired into the HTTP
 	// handler. Both the heartbeat write path (handler) and the sweeper read
@@ -750,6 +751,9 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.TaskUsageHourlyJob(pool)); err != nil {
 		slog.Warn("scheduler: failed to register task_usage_hourly rollup job", "error", err)
 	}
+	if err := schedulerMgr.Register(scheduler.BudgetReservationReconciliationJob(h.BudgetService)); err != nil {
+		slog.Warn("scheduler: failed to register budget reservation reconciliation job", "error", err)
+	}
 	// MUL-3551: scheduled-Autopilot dispatch runs on the same DB-backed
 	// scheduler. The job owns its plan_times via PlansForScope (each
 	// trigger has its own cron expression, so the Cadence planner does
@@ -763,6 +767,59 @@ func main() {
 	// machinery. The job is inert while plugins_v1 is disabled.
 	if err := schedulerMgr.Register(scheduler.PluginHookScheduleDispatchJob(queries, h.PluginService)); err != nil {
 		slog.Warn("scheduler: failed to register plugin_hook_schedule_dispatch job", "error", err)
+	}
+	// Decision SLA (K35): overdue Decision Cards step to their substitute,
+	// then the workspace leads.
+	if err := schedulerMgr.Register(scheduler.SkillMinerJob(pool, h.MineSkills)); err != nil {
+		slog.Warn("scheduler: failed to register skill_miner job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
+		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
+		slog.Warn("scheduler: failed to register org_tick job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.McpBindingReviewJob(pool, h.ReviewMcpBindings)); err != nil {
+		slog.Warn("scheduler: failed to register mcp_binding_review job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
+		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
+	}
+	// Scorecards (K25): recompute the last days of per-agent metrics.
+	if err := schedulerMgr.Register(scheduler.AgentScorecardRollupJob(pool, h.RollupAgentScorecards)); err != nil {
+		slog.Warn("scheduler: failed to register agent_scorecard_rollup job", "error", err)
+	}
+	// Morning briefing (K30): one daily digest per enabled workspace.
+	if err := schedulerMgr.Register(scheduler.StandupJob(pool, h.RunStandup)); err != nil {
+		slog.Warn("scheduler: failed to register standup job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.WeeklyRetroJob(pool, h.GenerateDueWeeklyRetros)); err != nil {
+		slog.Warn("scheduler: failed to register weekly_retro job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
+		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
+	}
+	// Triage digest: tell a workspace's admins when nobody has decided on the
+	// queue for two days. The queue reports its own age to whoever opens it,
+	// which is the person already looking; this reaches the one who stopped.
+	if err := schedulerMgr.Register(scheduler.TriageStaleDigestJob(pool, h.RunTriageStaleDigest)); err != nil {
+		slog.Warn("scheduler: failed to register triage_stale_digest job", "error", err)
+	}
+	// Triage retention: pending items past expires_at leave the queue as
+	// expired, so a queue nobody reads stops growing without losing the
+	// resolved history the auto-classifier learns from.
+	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.SweepTriageQueue)); err != nil {
+		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
+	}
+	// Workspace Brain: a daily pass merges near-duplicate notes, retitles the
+	// vague ones, normalizes tags and archives what stopped being true. Inert
+	// without an assist-layer LLM.
+	if err := schedulerMgr.Register(scheduler.WorkspaceBrainCurationJob(pool, h.TaskService.CurateWorkspaceBrains)); err != nil {
+		slog.Warn("scheduler: failed to register workspace_brain_curation job", "error", err)
+	}
+	// Refactoring campaigns (K42): merge queues move without a board read.
+	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
+		slog.Warn("scheduler: failed to register campaign_merge_queue job", "error", err)
 	}
 	go func() {
 		_ = schedulerMgr.Run(sweepCtx)

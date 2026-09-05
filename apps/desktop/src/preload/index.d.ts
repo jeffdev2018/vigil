@@ -120,6 +120,20 @@ interface DesktopAPI {
   openIssueWindow: (
     request: IssueWindowRequest,
   ) => Promise<{ ok: true } | { ok: false; reason: "invalid_request" }>;
+  /** Ambient meeting detection availability (macOS only). */
+  meetingDetection: { supported: boolean };
+  /** Listen for a conferencing app taking the microphone. Returns an
+   *  unsubscribe function. */
+  onMeetingDetected: (
+    callback: (payload: {
+      appName: string;
+      kind: "huddle" | "call" | "meeting";
+      bundleId: string;
+    }) => void,
+  ) => () => void;
+  /** Report that our own renderer holds the microphone. */
+  setMeetingSelfCapture: (active: boolean) => void;
+  setMeetingDetectionEnabled: (enabled: boolean) => void;
 }
 
 type DaemonReauthResult =

@@ -125,6 +125,7 @@
     "chip_op_before": "早于 {{value}}",
     "chip_op_after": "晚于 {{value}}",
     "section_project": "项目",
+    "section_goal": "目标",
     "section_label": "标签",
     "section_date": "日期",
     "date_field": "字段",
@@ -376,6 +377,8 @@
     "prop_start_date": "开始日期",
     "prop_due_date": "截止日期",
     "prop_project": "项目",
+    "prop_goal": "目标",
+    "goal_inherited": "继承自项目",
     "prop_labels": "标签",
     "add_property_action": "添加字段",
     "prop_created_by": "创建者",
@@ -436,7 +439,27 @@
     "workdir_path_copy_failed": "复制本地 workdir 路径失败",
     "workdir_path_unavailable": "暂无本地 workdir — 这个任务还没被本地智能体运行过",
     "unsubscribe_subtree_succeeded": "已取消订阅此任务及其子任务。",
-    "subscription_update_failed": "无法更新订阅状态，请重试。"
+    "subscription_update_failed": "无法更新订阅状态，请重试。",
+    "section_blocks": "阻塞",
+    "section_blocked_by": "被阻塞",
+    "merge_ready": "可以合并",
+    "merge_not_ready": "尚不能合并",
+    "merge_stale_hint": "数据可能已过期",
+    "merge_blockers_more": "还有 {{count}} 项",
+    "blocker_checks_failing": "#{{pr}} 检查失败",
+    "blocker_checks_pending": "#{{pr}} 检查进行中",
+    "blocker_merge_conflict": "#{{pr}} 存在合并冲突",
+    "blocker_merge_not_clean": "#{{pr}} 尚不可合并",
+    "blocker_stale_snapshot": "#{{pr}} 数据已过期",
+    "blocker_unresolved_threads": "{{count}} 个未解决的评审线程",
+    "blocker_open_todos": "评论中有 {{count}} 个未完成的待办",
+    "blocker_blocking_issue": "被 {{identifier}} 阻塞",
+    "blocker_no_pr": "没有打开的拉取请求",
+    "pr_stack_title": "PR 堆栈",
+    "pr_stack_truncated": "在 {{depth}} 层处截断",
+    "pr_stack_cyclic": "依赖循环：部分层级已隐藏",
+    "blocker_adr_required": "需要架构决策记录（编辑了 {{count}} 个文件）",
+    "from_meeting": "来自会议"
   },
   "timeline": {
     "loading": "加载中…"
@@ -491,12 +514,14 @@
     "trigger_blocked_runtime_offline": "该目标的运行时已离线",
     "trigger_blocked_runtime_unusable": "该目标的 CLI 在它所在的机器上无法运行 —— 需要在那台机器上重装",
     "trigger_blocked_agent_runtime_required": "该目标未绑定运行时——绑定后才能运行",
+    "trigger_blocked_budget_exceeded": "工作区预算已达到限额，此运行已暂停",
     "trigger_blocked_generic": "该目标不会被触发",
     "trigger_blocked_short_invocation_not_allowed": "找不到或无权限",
     "trigger_blocked_short_target_unavailable": "不可用",
     "trigger_blocked_short_runtime_offline": "运行时离线",
     "trigger_blocked_short_runtime_unusable": "CLI 无法运行",
     "trigger_blocked_short_agent_runtime_required": "需绑定运行时",
+    "trigger_blocked_short_budget_exceeded": "预算已达上限",
     "trigger_blocked_short_generic": "不会触发",
     "send_reply_failed": "发送回复失败",
     "delete_failed": "删除评论失败",
@@ -609,7 +634,11 @@
       "source_backfill": "回填的归因",
       "source_unattributed": "未解析到责任成员"
     },
-    "usage_total_tooltip": "这个任务的 token 用量——点击查看每次运行的明细"
+    "usage_total_tooltip": "这个任务的 token 用量——点击查看每次运行的明细",
+    "status_deferred": "已延期",
+    "status_paused": "已暂停",
+    "unresponsive": "无响应",
+    "unresponsive_tooltip": "已 {{duration}} 无活动"
   },
   "usage_detail": {
     "title": "用量明细",
@@ -690,7 +719,10 @@
     "remove_parent_issue": "移除父任务",
     "remove_parent_issue_success": "已移除父任务",
     "add_sub_issue": "添加子任务...",
-    "delete_issue": "删除任务"
+    "delete_issue": "删除任务",
+    "add_blocking": "添加阻塞的任务...",
+    "add_blocked_by": "添加被阻塞于...",
+    "remove_dependency": "移除依赖"
   },
   "pickers": {
     "custom_property": {
@@ -855,5 +887,491 @@
     "surface_loading": "正在加载 {{name}}…",
     "surface_unavailable": "{{name}} 的界面无法加载，已安装的版本可能不包含它。",
     "surface_navigated": "{{name}} 试图把面板替换成从别处加载的页面。已经拦下并断开连接，建议告知工作区管理员。"
+  },
+  "plan_verification": {
+    "section": "计划验证",
+    "plan_version": "计划 v{{version}}",
+    "version_picker": "计划版本",
+    "superseded": "已被取代",
+    "no_verification": "尚无验证运行。",
+    "state_queued": "验证已排队",
+    "state_running": "验证中",
+    "state_failed": "验证失败",
+    "verdict_critical": "{{count}} 个严重偏差",
+    "verdict_clean": "与计划一致",
+    "failed_hint": "验证运行结束但没有报告。重新运行任务以再次验证。",
+    "pending_hint": "验证运行会将交付的变更与此计划进行比对。",
+    "report_for": "计划 v{{version}} 的报告",
+    "severity_critical": "严重",
+    "severity_major": "重要",
+    "severity_minor": "轻微",
+    "severity_outdated": "过时",
+    "no_findings": "与计划没有偏差。",
+    "gate_no_steps": "没有结构化步骤，无法创建子议题。",
+    "gate_stage": "{{stage}}",
+    "gate_created": "已创建",
+    "gate_materialized": "已创建 {{count}} 个子议题",
+    "gate_superseded": "已被替代，请批准当前版本。",
+    "gate_approve": "批准并创建 {{count}} 个子议题",
+    "gate_failed": "无法创建子议题",
+    "step_ref": "步骤 {{id}}"
+  },
+  "fanout": {
+    "section": "扇出",
+    "count": "{{done}}/{{total}} 已结算",
+    "status": {
+      "pending": "进行中",
+      "partial_failure": "部分失败",
+      "complete": "完成"
+    },
+    "partial": "{{failed}} 个子任务最终失败；综合仍会开始，并须说明缺失的部分。",
+    "synthesis": "已为领导者排队综合运行 {{id}}",
+    "open": "分派给专家",
+    "leader": "领导者智能体",
+    "sub_task": "子任务 {{n}}",
+    "sub_task_placeholder": "该专家应做什么",
+    "assignee": "子任务 {{n}} 的负责人",
+    "pick_agent": "指派给…",
+    "remove": "移除子任务 {{n}}",
+    "add": "添加子任务",
+    "launch": "启动扇出",
+    "cancel": "取消",
+    "failed": "扇出请求失败"
+  },
+  "pipeline": {
+    "pick": "选择流水线",
+    "start": "启动流水线",
+    "last": "上次流水线：{{name}}（{{status}}）",
+    "gate_waiting": "等待关卡",
+    "approve": "批准并前进",
+    "retry": "重试阶段",
+    "cancel": "停止流水线",
+    "failed": "流水线操作失败",
+    "status": {
+      "active": "进行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "cancelled": "已停止"
+    }
+  },
+  "preemption": {
+    "waiting": "已暂停以让紧急议题先行",
+    "resumed": "曾为紧急议题暂停，现已恢复",
+    "for": "优先让给",
+    "estimate": "智能体一有空位就从检查点恢复，紧急运行优先。",
+    "count": "此议题上有 {{count}} 次暂停"
+  },
+  "drift": {
+    "stopped": "因偏离停止",
+    "run": "运行 {{id}}",
+    "reasons": {
+      "repeated_action": "同一工具调用重复次数过多",
+      "file_reread_loop": "未写入却反复读取同一文件"
+    }
+  },
+  "traffic": {
+    "human": "此运行正在编辑某人在本地检出中正在更改的文件",
+    "agent": "此运行正在编辑另一运行（{{id}}）正在编辑的文件",
+    "pause": "暂停运行",
+    "ignore": "忽略",
+    "show_history_other": "显示 {{count}} 个已处理冲突",
+    "hide_history": "隐藏已处理冲突",
+    "failed": "流量控制操作失败",
+    "status": {
+      "active": "进行中",
+      "ignored": "已忽略",
+      "resolved": "已解决"
+    }
+  },
+  "checkpoint": {
+    "resumed": "运行被中断并已{{point}}自动恢复（恢复 {{attempts}}/{{max}}）。",
+    "exhausted": "基础设施中断：自动恢复在 {{attempts}}/{{max}} 次后放弃。这不是任务本身失败。",
+    "from_seq": "从检查点消息 {{seq}}",
+    "from_start": "从头",
+    "checkpointed": "最近检查点 {{when}}"
+  },
+  "run_control": {
+    "pause": "暂停运行",
+    "pause_hint": "在下一个安全边界（当前工具调用之后）停止并等待你的指示。",
+    "pause_pending": "等待暂停",
+    "pause_pending_hint": "正在等待当前工具调用完成。",
+    "paused_title": "已暂停。留下指示后继续同一会话。",
+    "instruction": "指示",
+    "instruction_placeholder": "需要改变什么？运行会从停止处继续，并优先处理这条指示。",
+    "send": "发送指示",
+    "resume": "继续",
+    "resume_needs_instruction": "请先至少留下一条指示。",
+    "failed": "运行控制请求失败"
+  },
+  "run_limits": {
+    "title": "运行上限",
+    "stopped": "因运行上限停止",
+    "gates": {
+      "cost": "成本",
+      "duration": "时长",
+      "turns": "轮数",
+      "tool_calls": "工具调用"
+    },
+    "levels": {
+      "warn": "告警",
+      "exceeded": "超出上限（仅记录）",
+      "stopped": "已停止"
+    }
+  },
+  "handoff": {
+    "section": "交接包",
+    "none": "尚无交接包。",
+    "show_history_other": "显示 {{count}} 个较早的交接包",
+    "hide_history": "隐藏历史",
+    "write": "撰写交接包",
+    "objective": "目标",
+    "decisions": "决定",
+    "evidence": "证据",
+    "failed_attempts": "失败的尝试",
+    "next_action": "下一步",
+    "one_per_line": "{{field}}，每行一项",
+    "save": "保存交接包",
+    "cancel": "取消",
+    "create_failed": "保存交接包失败",
+    "run": "运行 {{id}}",
+    "by": {
+      "agent": "智能体",
+      "member": "成员",
+      "system": "系统"
+    }
+  },
+  "routing": {
+    "label": "路由",
+    "risk": {
+      "low": "低风险",
+      "normal": "一般风险",
+      "high": "高风险"
+    },
+    "pool": "池 {{name}}",
+    "agent_pool": "智能体的池",
+    "paths": "{{count}} 个匹配路径",
+    "escalated": "已升级"
+  },
+  "failover": {
+    "section": "运行时切换",
+    "run": "运行 {{id}}",
+    "degraded_badge": "降级",
+    "exhausted": "池已耗尽",
+    "degraded_banner": "此运行正在池的本地最后手段上以降级模式执行。请将其结果视为不如目标运行时可靠。",
+    "reasons": {
+      "runtime_offline": "运行时离线",
+      "runtime_recovery": "运行时恢复",
+      "runtime_reconnect_timeout": "运行时重连超时",
+      "agent_error.provider_auth_or_access": "供应商认证或访问",
+      "agent_error.provider_quota_limit": "供应商配额",
+      "agent_error.provider_capacity_or_rate_limit": "供应商容量或速率限制",
+      "agent_error.provider_server_error": "供应商服务器错误",
+      "agent_error.provider_network": "供应商网络"
+    }
+  },
+  "run_secrets": {
+    "section": "运行密钥",
+    "run": "运行 {{id}}",
+    "status": {
+      "active": "有效",
+      "revoked": "已撤销",
+      "expired": "已过期"
+    }
+  },
+  "decisions": {
+    "section": "决策",
+    "recommended": "推荐",
+    "modify": "给出其他回答…",
+    "modify_placeholder": "描述应该改为怎么做",
+    "send": "发送",
+    "cancel": "取消",
+    "resumed": "智能体已继续",
+    "answer_failed": "记录决策失败",
+    "interview_title": "需求访谈",
+    "interview_hint": "所有问题回答后，智能体才会继续。",
+    "sla_due": "请在 {{time}} 前回答",
+    "sla_overdue": "已逾期，等待升级",
+    "sla_substitute": "已逾期 · 已升级给替补",
+    "sla_leads": "已逾期 · 已升级给工作区负责人",
+    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。"
+  },
+  "acceptance": {
+    "section": "验收标准",
+    "add": "添加验收标准",
+    "add_placeholder": "添加标准…",
+    "attach": "附加证明",
+    "validate": "我来确认",
+    "remove": "移除",
+    "save": "保存",
+    "cancel": "取消",
+    "proof_type": "证明类型",
+    "ref_placeholder": "测试命令、路径或 URL",
+    "state_missing": "尚无证明",
+    "state_pending_human": "等待人工确认",
+    "state_satisfied": "已证明",
+    "update_failed": "无法更新验收标准",
+    "types": {
+      "test": "测试",
+      "file": "文件",
+      "screenshot": "截图",
+      "url": "链接",
+      "human_validation": "人工确认"
+    }
+  },
+  "review_cockpit": {
+    "open": "打开审阅驾驶舱",
+    "back": "返回议题",
+    "run": "运行",
+    "runs_none": "此议题尚无运行。",
+    "select_run": "运行",
+    "run_completed": "{{ago}}完成",
+    "cost": "本次运行成本",
+    "cost_none": "本次运行没有记录用量。",
+    "cost_unpriced": "未定价",
+    "cost_floor": "（下限：部分用量没有价格）",
+    "tokens": "输入 {{input}} · 输出 {{output}}",
+    "pull_requests": "拉取请求",
+    "prs_unavailable": "无法加载拉取请求。",
+    "no_pr": "尚无拉取请求。",
+    "checks": "检查 {{passed}}/{{total}}",
+    "ready": "可以合并",
+    "blockers": "{{count}} 个阻碍",
+    "open_questions": "待回答的问题",
+    "none_open": "没有等待人工回答的问题。",
+    "criteria": "验收标准",
+    "criteria_none": "此议题没有验收标准。",
+    "plan_verification": "计划验证",
+    "plan_none": "没有验证报告。",
+    "plan_counts": "critical {{critical}} · major {{major}} · minor {{minor}}",
+    "self_review": "跨供应商自审",
+    "self_review_none": "尚不可用。",
+    "approve": "批准",
+    "request_changes": "请求修改",
+    "approve_blocked": "检查完成前无法批准。",
+    "failed_sections": "部分区块无法加载：{{sections}}。",
+    "error": "无法加载审阅驾驶舱。",
+    "retry": "重试",
+    "move_failed": "无法更改议题状态"
+  },
+  "ownership": {
+    "section": "建议的负责人",
+    "matched": "匹配 {{what}}",
+    "matched_label": "标签规则",
+    "assign_owner": "分配给 {{name}}",
+    "assign_agent": "分配给 {{name}}",
+    "member": "负责人",
+    "agent": "参考智能体",
+    "assign_failed": "分配失败"
+  },
+  "role_view": {
+    "label": "视图",
+    "full": "全部",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "此 issue 还没有决策卡，改为显示运行日志。",
+    "cto_cost": "成本",
+    "cto_cost_value": "{{cost}} · {{tokens}} 个 token",
+    "cto_scorecard": "智能体记分卡",
+    "cto_no_agent": "未指派智能体",
+    "cto_audit": "审计记录",
+    "cto_audit_empty": "此 issue 尚无记录",
+    "block_failed": "无法加载此区块。"
+  },
+  "duel": {
+    "section": "智能体对决",
+    "status": {
+      "running": "进行中",
+      "verdict_ready": "等待你的裁定",
+      "confirmed": "已确认",
+      "inconclusive": "无法判定"
+    },
+    "candidate": "候选 {{side}}",
+    "cost": "成本",
+    "duration": "耗时",
+    "tool_calls": "工具调用",
+    "quality": "仲裁评分",
+    "arbiter_pick": "仲裁选择：{{side}}",
+    "arbiter_tie": "仲裁选择：平局",
+    "arbiter_unavailable": "没有仲裁裁定（{{error}}），请比较两次运行后决定。",
+    "inconclusive": "一位候选最终失败，无法比较。",
+    "choose": "确认 {{side}}",
+    "tie": "判为平局",
+    "winner": "胜者：{{side}}",
+    "winner_tie": "已判平局",
+    "open": "发起对决",
+    "agent_a": "智能体 A",
+    "agent_b": "智能体 B",
+    "pick_agent": "选择智能体…",
+    "launch": "发起对决",
+    "cancel": "取消",
+    "failed": "对决请求失败",
+    "identical": "请选择两个不同的智能体"
+  },
+  "campaign": {
+    "section": "重构战役",
+    "target": "合入 {{branch}}",
+    "status": {
+      "running": "执行中",
+      "merging": "合并中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "progress": "{{done}}/{{total}} 已合并或跳过",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "等待中",
+      "rebasing": "变基与合并中",
+      "ready": "可合并",
+      "merged": "已合并",
+      "conflict": "冲突",
+      "skipped": "已跳过"
+    },
+    "conflict_hint": "需要人工处理：解决冲突或跳过该分片以让队列继续。",
+    "skip": "跳过分片 #{{n}}",
+    "open": "发起重构战役",
+    "name": "战役名称",
+    "target_branch": "目标分支",
+    "leader": "领导智能体",
+    "shard": "分片 {{n}}",
+    "shard_placeholder": "该分片要改动的内容",
+    "branch": "分片 {{n}} 的分支",
+    "branch_placeholder": "分支（可选）",
+    "assignee": "分片 {{n}} 的负责人",
+    "pick_agent": "指派给…",
+    "remove": "移除分片 {{n}}",
+    "add": "添加分片",
+    "launch": "发起战役",
+    "cancel": "取消",
+    "failed": "战役请求失败"
+  },
+  "competency": {
+    "section": "此类任务的成功历史",
+    "domain": "领域 {{domain}}",
+    "row": "{{name}}：{{rate}}（{{count}} 个 issue）",
+    "duels": "对决 {{wins}} 胜 / {{losses}} 负",
+    "low_sample": "数据不足（{{count}}/{{min}}）",
+    "empty": "尚无智能体在此类任务上有历史记录。"
+  },
+  "cross_review": {
+    "section": "跨供应商评审",
+    "by": "{{provider}} 上的 {{name}}",
+    "in_progress": "评审进行中",
+    "failed": "评审失败",
+    "verdict": {
+      "approve": "通过",
+      "request_changes": "需要修改",
+      "comment": "评论"
+    },
+    "risks": "风险",
+    "questions": "问题",
+    "suggestions": "建议",
+    "retry": "重新评审",
+    "retry_failed": "重试失败",
+    "previous": "{{count}} 次早先尝试"
+  },
+  "agent_effects": {
+    "section": "智能体的改动",
+    "window": "{{hours}} 小时内可撤销",
+    "run_by": "{{name}} 的运行",
+    "undo_run": "撤销此运行（{{count}}）",
+    "undo_single": "撤销",
+    "undone": "已撤销 {{count}} 项改动",
+    "skipped": "已跳过 {{count}} 项：{{reason}}",
+    "breaker": "断路器触发：智能体已切换到 {{mode}} 模式",
+    "failed": "撤销失败",
+    "states": {
+      "reversed": "已撤销",
+      "expired": "已过期",
+      "not_reversible": "不可撤销",
+      "failed": "撤销失败",
+      "held": "等待批准",
+      "approved": "已批准",
+      "rejected": "已丢弃"
+    },
+    "reasons": {
+      "already_reversed": "已撤销",
+      "not_reversible": "不可撤销",
+      "window_expired": "已过期",
+      "reverse_failed": "撤销失败",
+      "not_applied": "保留的写入，无需撤销"
+    },
+    "kinds": {
+      "issue_status": "状态 {{from}} → {{to}}",
+      "issue_assignee": "负责人已更改",
+      "issue_field": "{{field}}：{{from}} → {{to}}",
+      "comment_create": "评论：{{excerpt}}",
+      "comment_update": "评论已编辑",
+      "note_create": "已创建笔记：{{title}}",
+      "note_update": "已编辑笔记：{{title}}",
+      "note_archive": "笔记已归档",
+      "triage_verdict": "分诊判定：{{verdict}}",
+      "issue_create": "已创建议题：{{title}}",
+      "issue_update": "议题更新：{{fields}}",
+      "comment_delete": "删除了评论：“{{excerpt}}”",
+      "note_delete": "删除了笔记“{{title}}”",
+      "chat_message": "在聊天中回复：“{{excerpt}}”（撤销会在同一会话中发布更正）"
+    }
+  },
+  "ci_auto_fix": {
+    "in_progress": "正在修复 CI",
+    "fixed": "CI 已自动修复",
+    "failed": "CI 修复失败（{{count}}）",
+    "exhausted": "{{count}} 次尝试后 CI 仍为红色",
+    "retry": "重试",
+    "retry_failed": "无法开始重试"
+  },
+  "watchdog": {
+    "section": "看门狗",
+    "intro": "一个可选的、不同于负责人的智能体会在此议题及其子议题停止后进行检查，判断停止是否合理。它从不亲自执行工作，在赢得信任之前，其重新打开操作需经你批准。",
+    "by": "{{name}} · 静止 {{rest}} 分钟后",
+    "agent": "看门狗智能体",
+    "pick_agent": "选择智能体",
+    "owner": "人类负责人",
+    "owner_me": "我",
+    "rest": "静止（分钟）",
+    "instructions": "指示",
+    "instructions_placeholder": "需要严格的方面，什么算作证据…",
+    "save": "保存看门狗",
+    "cancel": "取消",
+    "edit": "编辑",
+    "remove": "移除",
+    "enabled": "看门狗已启用",
+    "saved": "看门狗已保存",
+    "save_failed": "无法保存看门狗",
+    "removed": "看门狗已移除",
+    "scan_now": "立即扫描",
+    "scan_started": "扫描已开始",
+    "scan_failed": "无法开始扫描",
+    "last_scan": "上次扫描 {{when}}",
+    "streak": "连续 {{n}} 次重启",
+    "confirm": "确认",
+    "overturn": "推翻",
+    "review_failed": "无法审核判定",
+    "missing": "缺少的标准：{{criterion}}",
+    "dropped": "已忽略树外的 {{n}} 条发现",
+    "verdicts": {
+      "legitimate": "合理停止",
+      "motion": "重新推进",
+      "escalate": "已升级"
+    },
+    "outcomes": {
+      "reopened": "议题已重新打开",
+      "asked_proof": "已要求证据",
+      "escalated": "已交给负责人",
+      "awaiting_decision": "等待你的决定",
+      "dismissed": "已驳回",
+      "noted": "已记录",
+      "pending": "待处理"
+    },
+    "reviews": {
+      "confirmed": "已由人类确认",
+      "overturned": "已由人类推翻"
+    },
+    "actions": {
+      "reopen": "重新打开",
+      "ask_proof": "要求证据",
+      "none": "无操作"
+    }
   }
 }

@@ -72,6 +72,7 @@ import {
 import { useT } from "../i18n";
 import { matchesPinyin } from "../editor/extensions/pinyin-match";
 import { HighlightText } from "./highlight-text";
+import { WhySearchGroup } from "./why-search-group";
 import { useSearchStore } from "./search-store";
 
 // The palette's Pages group is generated from WORKSPACE_PAGES, the same
@@ -90,13 +91,19 @@ import { useSearchStore } from "./search-store";
 // keywords are filled in.
 const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   inbox: ["inbox", "notifications", "收件箱", "通知"],
+  triage: ["triage", "queue", "review", "inbound", "待审核", "审核"],
+  meetings: ["meetings", "meeting", "record", "transcript", "summary", "会议", "录制", "转录"],
+  postmortems: ["postmortem", "postmortems", "failure", "retrospective", "复盘", "振り返り"],
   chat: ["chat", "messages", "conversation", "聊天", "消息", "对话"],
   myIssues: ["my", "issues", "assigned", "mine", "我的", "任务"],
   issues: ["issues", "tasks", "bugs", "任务"],
   projects: ["projects", "kanban", "项目"],
+  goals: ["goals", "objectives", "okr", "目标", "objectifs", "ゴール", "목표"],
+  org: ["org", "organization", "org chart", "structure", "organigramme", "组织", "組織", "조직"],
   autopilots: ["autopilot", "autopilots", "automation", "schedule", "cron", "webhook", "自动化", "定时"],
   agents: ["agents", "bots", "ai", "智能体"],
   squads: ["squads", "teams", "小队", "团队"],
+  brain: ["brain", "knowledge", "notes", "wiki", "知识库", "笔记", "ナレッジ", "지식"],
   usage: ["usage", "analytics", "stats", "metrics", "统计", "分析", "用量"],
   runtimes: ["runtimes", "environments", "machines", "运行时"],
   skills: ["skills", "library", "技能"],
@@ -854,6 +861,9 @@ export function SearchCommand() {
                   {t(($) => $.empty.no_results)}
                 </CommandPrimitive.Empty>
               )}
+
+            {/* Why search (K55): questions find the comment, run message or decision that answers them. */}
+            <WhySearchGroup query={query} groupClassName={GROUP_CLASS} onNavigated={() => setOpen(false)} />
 
             {/*
               Render order is the cross-type cancelled partition (MUL-5824):

@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Stack, Redirect } from "expo-router";
 import { useAuthStore } from "@/data/auth-store";
+import { registerForPush } from "@/lib/push";
 
 /**
  * Auth-required layout. Redirects to /login when no user is loaded.
@@ -10,6 +12,11 @@ import { useAuthStore } from "@/data/auth-store";
  */
 export default function AppLayout() {
   const user = useAuthStore((s) => s.user);
+  // Mobile push (K64): register this device once the user is known.
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId) void registerForPush();
+  }, [userId]);
   if (!user) return <Redirect href="/login" />;
   return <Stack screenOptions={{ headerShown: false }} />;
 }

@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "目标",
+    "new_goal": "新建目标",
+    "add_sub_goal": "添加子目标",
+    "edit": "编辑",
+    "delete": "删除",
+    "empty": "还没有目标",
+    "empty_description": "目标说明工作为了什么。把项目和任务关联到目标上，进度会沿着树向上汇总。",
+    "expand": "显示任务",
+    "collapse": "隐藏任务",
+    "no_issues": "还没有任务服务于这个目标。",
+    "loading_issues": "加载任务中...",
+    "progress": "已完成 {{done}} / {{total}}",
+    "no_owner": "无负责人",
+    "no_due_date": "无截止日期"
+  },
+  "status": {
+    "draft": "草稿",
+    "active": "进行中",
+    "done": "已达成",
+    "dropped": "已放弃"
+  },
+  "form": {
+    "create_title": "新建目标",
+    "edit_title": "编辑目标",
+    "title": "标题",
+    "title_placeholder": "我们想达成什么？",
+    "description": "描述",
+    "success_measure": "成功标准",
+    "success_measure_placeholder": "怎样算达成？",
+    "due_date": "截止日期",
+    "owner": "负责人",
+    "owner_none": "无负责人",
+    "owner_hint": "进行中的目标需要一位人类负责人。",
+    "status": "状态",
+    "parent": "上级目标",
+    "parent_none": "无上级（顶层目标）",
+    "cancel": "取消",
+    "create": "创建目标",
+    "save": "保存",
+    "error": "无法保存目标"
+  },
+  "delete_dialog": {
+    "title": "删除这个目标？",
+    "description": "关联的任务和项目会被解除关联。仍有子目标的目标无法删除。",
+    "cancel": "取消",
+    "confirm": "删除",
+    "error": "无法删除目标"
+  },
+  "picker": {
+    "no_goal": "无目标（继承自项目）",
+    "search_placeholder": "搜索目标...",
+    "empty": "还没有目标"
+  },
+  "project_section": {
+    "header": "目标",
+    "empty": "这个项目还没有服务于任何目标。",
+    "link": "关联目标",
+    "no_goals": "请先创建一个目标。",
+    "error": "无法更新项目的目标"
+  }
+}

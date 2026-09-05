@@ -19,6 +19,8 @@ const CONTENT_LANG_BY_LOCALE: Record<SupportedLocale, ContentLang> = {
   "zh-Hans": "zh",
   ko: "ko",
   ja: "ja",
+  // Onboarding content is not localized in French yet: English content.
+  fr: "en",
 };
 
 /**

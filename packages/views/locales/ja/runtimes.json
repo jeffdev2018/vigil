@@ -47,6 +47,7 @@
     "section_remote": "リモート",
     "section_cloud": "クラウド",
     "this_machine": "このデバイス",
+    "cli_sign_in_needed": "サインインが必要",
     "local_badge": "ローカル · このマシン",
     "pending_custom_runtimes": "登録待ちのカスタムランタイム",
     "runtime_count_other": "ランタイム {{count}} 個",
@@ -57,6 +58,10 @@
     "select_runtime": "組み込みランタイムは自動的に表示されます。設定を見るか、カスタムコマンドを追加してください。",
     "no_runtimes_title": "登録済みのランタイムがありません",
     "no_runtimes_hint": "このマシンのデーモンを起動または再接続してください。インストール済みの CLI ランタイムが自動的に表示されます。",
+    "skipped_agents": {
+      "title": "検出済み・未登録",
+      "hint": "これらのエージェント CLI はこのマシンにインストールされていますが、登録されませんでした。下記の理由を解消すると、ランタイムは自動的に表示されます。"
+    },
     "not_found_title": "マシンが見つかりません",
     "not_found_hint": "オフライン、削除済み、またはアクセスできなくなった可能性があります。",
     "metrics": {
@@ -247,6 +252,27 @@
     "validation": {
       "instance_type_required": "インスタンスタイプは必須です",
       "disk_size_invalid": "ディスクサイズは正の整数である必要があります"
+    },
+    "power": {
+      "start": {
+        "label": "起動",
+        "toast": "ノードを起動しています。",
+        "failed": "ノードを起動できませんでした。"
+      },
+      "stop": {
+        "label": "停止",
+        "toast": "ノードを停止しています。",
+        "failed": "ノードを停止できませんでした。"
+      },
+      "reboot": {
+        "label": "再起動",
+        "confirm": "このノードを再起動しますか？実行中の処理は中断されます。",
+        "toast": "ノードを再起動しています。",
+        "failed": "ノードを再起動できませんでした。"
+      },
+      "status": {
+        "label": "ステータスを更新"
+      }
     }
   },
   "update": {
@@ -271,6 +297,27 @@
       "failed": "更新に失敗しました",
       "timeout": "タイムアウト"
     }
+  },
+  "cli_auth": {
+    "authenticated": "認証済み",
+    "not_authenticated": "未認証",
+    "unknown": "不明",
+    "connect": "接続",
+    "disconnect": "切断",
+    "offline": "ランタイムはオフラインです。先にデーモンを再接続してください。",
+    "help": "認証ヘルプ",
+    "failed": "CLI の認証に失敗しました",
+    "title": "{{provider}} に接続",
+    "disconnecting_title": "{{provider}} を切断",
+    "machine_scope": "認証情報はこのマシンの CLI に保存され、それを使うすべてのワークスペースに適用されます。トークンは Multica に送信されません。",
+    "waiting": "CLI を待機中…",
+    "expires_in": "残り {{seconds}} 秒",
+    "open_url": "この認証ページを開く",
+    "copy_url": "認証 URL をコピー",
+    "code": "ワンタイムコード",
+    "copy_code": "コードをコピー",
+    "completed": "CLI は認証されました。",
+    "disconnected": "CLI は切断されました。"
   },
   "charts": {
     "heatmap_less": "少ない",

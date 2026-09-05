@@ -1,0 +1,46 @@
+{
+  "title": "Postmortems",
+  "subtitle": "Consultez les postmortems rédigés après l'échec d'exécutions d'agents",
+  "filter": {
+    "draft": "Brouillon",
+    "approved": "Approuvé",
+    "discarded": "Rejeté"
+  },
+  "list": {
+    "empty_title_draft": "Aucun brouillon en attente",
+    "empty_description_draft": "Lorsqu'une exécution d'agent échoue, un postmortem est rédigé et attend votre revue ici.",
+    "empty_title_approved": "Rien n'a encore été approuvé",
+    "empty_description_approved": "Les postmortems que vous approuvez sont conservés ici.",
+    "empty_title_discarded": "Rien n'a encore été rejeté",
+    "empty_description_discarded": "Les postmortems que vous rejetez sont déplacés ici.",
+    "loading": "Chargement des postmortems",
+    "load_error": "Impossible de charger les postmortems",
+    "load_more": "Charger plus"
+  },
+  "detail": {
+    "select_prompt": "Sélectionnez un postmortem pour le consulter",
+    "summary_label": "Résumé",
+    "root_cause_label": "Cause racine",
+    "impact_label": "Impact",
+    "rules_label": "Règles préventives",
+    "no_rules": "Aucune règle préventive suggérée",
+    "failure_reason_label": "Raison de l'échec",
+    "llm_generated": "Rédigé par l'IA",
+    "scaffold_generated": "Rempli automatiquement via les faits d'exécution",
+    "approve": "Approuver",
+    "approving": "Approbation en cours",
+    "discard": "Rejeter",
+    "discarding": "Suppression en cours",
+    "approved_toast": "Postmortem approuvé",
+    "discarded_toast": "Postmortem supprimé",
+    "conflict_toast": "Ce postmortem a déjà été résolu",
+    "error_toast": "Une erreur est survenue",
+    "resolved_note_approved": "Ce postmortem a été approuvé.",
+    "resolved_note_discarded": "Ce postmortem a été supprimé.",
+    "open_issue": "Ouvrir l'issue",
+    "open_agent": "Ouvrir l'agent",
+    "open_run": "Ouvrir le run",
+    "rules_toast": "{{count}} règles ajoutées à la mémoire de l'agent",
+    "rules_hint": "L'approbation ajoute ces règles à la mémoire de l'agent."
+  }
+}

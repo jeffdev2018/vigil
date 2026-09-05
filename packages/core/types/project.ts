@@ -21,6 +21,8 @@ export interface Project {
   issue_count: number;
   done_count: number;
   resource_count: number;
+  // Goals the project serves (K74); its issues inherit them.
+  goal_ids?: string[];
 }
 
 export interface CreateProjectRequest {

@@ -528,3 +528,11 @@ func sleepCtx(ctx context.Context, d time.Duration) bool {
 		return true
 	}
 }
+
+// Client exposes the GitHub App client for one-off reads (K15 diff fetch).
+func (m *Manager) Client() *Client {
+	if m == nil {
+		return nil
+	}
+	return m.client
+}

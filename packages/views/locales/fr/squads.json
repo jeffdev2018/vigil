@@ -1,0 +1,148 @@
+{
+  "page": {
+    "title": "Squads",
+    "new_button": "Nouvelle squad",
+    "empty_no_squads": "Aucune squad pour le moment. Créez-en une pour commencer.",
+    "empty_no_match": "Aucune squad ne correspond à vos filtres.",
+    "table": {
+      "name": "Squad",
+      "leader": "Leader",
+      "members": "Membres",
+      "creator": "Créé par",
+      "created": "Créé"
+    },
+    "no_matches": "Aucune squad ne correspond",
+    "row_menu": "Actions de la squad",
+    "archive_action": "Archiver"
+  },
+  "inspector": {
+    "details_section": "Détails",
+    "archive_button": "Archiver"
+  },
+  "member_type": {
+    "agent": "Agent",
+    "member": "Membre"
+  },
+  "archive_dialog": {
+    "title": "Archiver cette squad ?",
+    "description": "\"{{name}}\" sera archivée. Les issues actuellement assignées à cette squad seront transférées à son leader. Cette action est irréversible — créez une nouvelle squad si vous souhaitez rétablir le routage.",
+    "cancel": "Annuler",
+    "confirm": "Archiver",
+    "archiving": "Archivage…",
+    "success": "Squad archivée"
+  },
+  "name_editor": {
+    "title": "Renommer la squad",
+    "placeholder": "Nom de la squad",
+    "required": "Le nom est requis",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saved": "Enregistré",
+    "save_failed": "Échec de l'enregistrement"
+  },
+  "add_member_dialog": {
+    "title": "Ajouter un membre",
+    "description": "Ajoutez un membre du workspace ou un agent à cette squad.",
+    "label_member": "Membre",
+    "label_role": "Rôle",
+    "label_optional": "(optionnel)",
+    "cancel": "Annuler",
+    "select_target": "Sélectionnez un membre ou un agent",
+    "search_placeholder": "Rechercher des membres ou agents...",
+    "members_section": "Membres",
+    "agents_section": "Agents",
+    "role_placeholder": "ex. Reviewer, Frontend Lead",
+    "add": "Ajouter"
+  },
+  "role_editor": {
+    "empty": "Ajouter un rôle…",
+    "placeholder": "Rôle (ex. Reviewer)"
+  },
+  "description_dialog": {
+    "title": "Modifier la description",
+    "placeholder_empty": "Ajouter une description",
+    "cancel": "Annuler",
+    "responsibility_placeholder": "De quoi cette squad est-elle responsable ?",
+    "save": "Enregistrer"
+  },
+  "discard_changes_dialog": {
+    "title": "Ignorer les modifications non enregistrées ?",
+    "description": "Vous avez des modifications non enregistrées sur cet onglet. Le changement d'onglet les annulera.",
+    "keep_editing": "Continuer l'édition",
+    "discard_button": "Ignorer"
+  },
+  "members_tab": {
+    "section_title": "Membres",
+    "section_count_one": "{{count}} membre dans cette squad",
+    "section_count_other": "{{count}} membres dans cette squad",
+    "add_member_button": "Ajouter un membre",
+    "create_agent_button": "Créer un agent",
+    "leader_chip": "Leader",
+    "view_agent_tooltip": "Ouvrir les détails de l'agent",
+    "make_leader_tooltip": "Définir comme leader de la squad",
+    "remove_member_tooltip": "Retirer de la squad",
+    "status_working": "Actif",
+    "status_idle": "Inactif",
+    "status_offline": "Hors ligne",
+    "status_unstable": "Instable",
+    "status_archived": "Archivé",
+    "issue_status_blocked": "bloqué",
+    "active_issue_more": "et {{count}} autres",
+    "last_active_label": "Dernière activité {{time}}"
+  },
+  "detail_tabs": {
+    "members": "Membres",
+    "instructions": "Instructions"
+  },
+  "details": {
+    "leader": "Leader",
+    "members": "Membres",
+    "created_by": "Créé par",
+    "created": "Créé le",
+    "updated": "Mis à jour"
+  },
+  "toasts": {
+    "member_added": "Membre ajouté",
+    "member_add_failed": "Échec de l'ajout du membre",
+    "member_removed": "Membre supprimé",
+    "member_remove_failed": "Échec de la suppression du membre",
+    "role_updated": "Rôle mis à jour",
+    "role_update_failed": "Échec de la mise à jour du rôle",
+    "leader_updated": "Leader mis à jour",
+    "leader_update_failed": "Échec de la mise à jour du leader",
+    "archive_failed": "Échec de l'archivage de l'escouade",
+    "instructions_saved": "Instructions enregistrées"
+  },
+  "profile_card": {
+    "unavailable": "Escouade indisponible",
+    "detail_link": "Détail →",
+    "archived": "Archivée",
+    "member_count_one": "{{count}} membre",
+    "member_count_other": "{{count}} membres",
+    "members_section": "Membres",
+    "more_members_one": "+{{count}} autre",
+    "more_members_other": "+{{count}} autres"
+  },
+  "instructions_tab": {
+    "description": "Les instructions de l'escouade sont injectées dans le prompt de l'agent leader lorsqu'il traite une issue assignée à cette escouade. Utilisez-les pour lui fournir des directives générales, des conventions de travail, ou tout contexte qu'il doit respecter à chaque exécution.",
+    "unsaved_changes": "Modifications non enregistrées",
+    "save_button": "Enregistrer",
+    "placeholder": "Par ex. : Toujours commencer par écrire un test qui échoue. Préférer les commits petits et atomiques."
+  },
+  "scope": {
+    "mine": "Mes",
+    "all": "Toutes"
+  },
+  "toolbar": {
+    "display": "Affichage",
+    "sort_by": "Trier par",
+    "direction_asc": "Croissant",
+    "direction_desc": "Décroissant",
+    "section_columns": "Colonnes",
+    "result_count_title": "Squads correspondantes / toutes les squads",
+    "filter_label": "Filtrer",
+    "filter_active_count_one": "{{count}} filtre",
+    "filter_active_count_other": "{{count}} filtres",
+    "clear_filters": "Effacer les filtres"
+  }
+}

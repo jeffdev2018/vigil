@@ -10,9 +10,11 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
+import { budgetKeys } from "../budgets/queries";
 import { runtimeKeys } from "../runtimes/queries";
 import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
@@ -24,6 +26,8 @@ import {
   agentRunCountsKeys,
   agentTasksKeys,
 } from "../agents/queries";
+import { agentMemoryKeys } from "../agents/memory";
+import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
@@ -46,6 +50,9 @@ import {
 } from "../issues/cache-coordinator";
 import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueDeleted, onInboxSummaryInvalidate } from "../inbox/ws-updaters";
 import { inboxKeys } from "../inbox/queries";
+import { onTriageInvalidate } from "../triage/ws-updaters";
+import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
+import { onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -118,6 +125,8 @@ import type {
   ChatSession,
   ChatSessionCreatedPayload,
   InvitationCreatedPayload,
+  AgentMemoryEventPayload,
+  MeetingEventPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -652,11 +661,17 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: autopilotKeys.all(wsId) });
+    qc.invalidateQueries({ queryKey: budgetKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: agentTaskSnapshotKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: workspaceWorkingAgentsKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: agentActivityKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: agentRunCountsKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: chatKeys.all(wsId) });
+    qc.invalidateQueries({ queryKey: agentMemoryKeys.all(wsId) });
+    // A meeting that finished summarizing during the gap: the detail view only
+    // polls while it believes the meeting is still summarizing, and the list
+    // never polls at all.
+    qc.invalidateQueries({ queryKey: meetingKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: labelKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: propertyKeys.all(wsId) });
     // A catalog edit missed while disconnected would otherwise sit behind the
@@ -730,6 +745,24 @@ export interface RealtimeSyncStores {
  * @param stores - Platform-created Zustand store instances for auth and workspace
  * @param onToast - Optional callback for showing toast messages (platform-specific)
  */
+// Minimum gap between two cache stamps for the same run: task:message fires
+// per streamed chunk, and a 5 s resolution is far below any liveness threshold.
+const RUN_ACTIVITY_TOUCH_MIN_MS = 5_000;
+
+function touchCachedRunActivity(qc: QueryClient, taskId: string) {
+  const now = new Date();
+  for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
+    if (!Array.isArray(tasks)) continue;
+    const idx = tasks.findIndex((t) => t?.id === taskId);
+    if (idx === -1) continue;
+    const previous = tasks[idx]?.last_activity_at;
+    if (previous && now.getTime() - new Date(previous).getTime() < RUN_ACTIVITY_TOUCH_MIN_MS) continue;
+    const next = tasks.slice();
+    next[idx] = { ...tasks[idx]!, last_activity_at: now.toISOString() };
+    qc.setQueryData<AgentTask[]>(key, next);
+  }
+}
+
 export function useRealtimeSync(
   ws: WSClient | null,
   stores: RealtimeSyncStores,
@@ -848,6 +881,30 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: autopilotKeys.all(wsId) });
       },
+      budget: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: budgetKeys.all(wsId) });
+      },
+      // triage:new / triage:resolved / triage:updated all change what the queue
+      // shows — a state move, an agent verdict, a snooze — and the server owns
+      // the split, so refetch the whole (small) triage projection.
+      triage: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onTriageInvalidate(qc, wsId);
+      },
+      // postmortem:created / postmortem:resolved move items across review
+      // states; refetch the whole (small) postmortem projection.
+      postmortem: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onPostmortemInvalidate(qc, wsId);
+      },
+      // workspace_note:created / :updated / :deleted all reshuffle the Brain
+      // ordering and its tag facets, both server-owned; refetch the whole
+      // (small) projection.
+      workspace_note: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onWorkspaceNoteInvalidate(qc, wsId);
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });
@@ -880,6 +937,8 @@ export function useRealtimeSync(
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
         qc.invalidateQueries({ queryKey: ["github", "pull-requests"] });
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness"] });
+      qc.invalidateQueries({ queryKey: ["github", "pr-stack"] });
       },
       // Powers the agent presence cache: any task lifecycle change
       // (dispatch / completed / failed / cancelled) refreshes the
@@ -971,6 +1030,12 @@ export function useRealtimeSync(
       // every message would flood the network. Specific chat handlers below
       // still receive it via ws.on() (a separate subscription channel).
       "task:message",
+      // agent_memory:* events are handled by dedicated ws.on() handlers
+      // below; keep them out of the prefix dispatch to avoid
+      // double-invalidation.
+      "agent_memory:created",
+      "agent_memory:updated",
+      "agent_memory:deleted",
       // task:completed / task:failed deliberately NOT here. They go through
       // both the task-prefix invalidate (refreshes the agent-task-snapshot
       // cache) AND the chat-specific ws.on() handlers below. The two
@@ -1079,6 +1144,45 @@ export function useRealtimeSync(
       await handleInboxNew(qc, item);
     });
 
+    // Agent persistent memories (JEF-236). Invalidate only — the payload is a
+    // change hint, not a row to merge. When it names the agent we invalidate
+    // just that list; a payload without agent_id falls back to the whole
+    // workspace prefix so a settling contract still converges the cache.
+    const handleAgentMemoryEvent = (p: unknown) => {
+      const payload = (p ?? {}) as AgentMemoryEventPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({
+        queryKey: payload.agent_id
+          ? agentMemoryKeys.list(wsId, payload.agent_id)
+          : agentMemoryKeys.all(wsId),
+      });
+    };
+    const unsubAgentMemoryCreated = ws.on("agent_memory:created", handleAgentMemoryEvent);
+    const unsubAgentMemoryUpdated = ws.on("agent_memory:updated", handleAgentMemoryEvent);
+    const unsubAgentMemoryDeleted = ws.on("agent_memory:deleted", handleAgentMemoryEvent);
+
+    // Meetings (K52). Invalidate only — the payload is a change hint and the
+    // transcript is not on the wire. The detail view's 3s poll of a
+    // `summarizing` meeting stays as the fallback for a dropped socket; this
+    // is what makes the transition land immediately in every other client.
+    const handleMeetingEvent = (p: unknown) => {
+      const payload = (p ?? {}) as MeetingEventPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      // The list carries each meeting's status, so it is stale on every one of
+      // these events; the detail only when the event names a meeting.
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+      if (payload.meeting_id) {
+        qc.invalidateQueries({
+          queryKey: meetingKeys.detail(wsId, payload.meeting_id),
+        });
+      }
+    };
+    const unsubMeetingCreated = ws.on("meeting:created", handleMeetingEvent);
+    const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
+    const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
+
     // --- Timeline event handlers (global fallback) ---
     // These events are also handled granularly by useIssueTimeline when
     // IssueDetail is mounted. This global handler exists to mark the
@@ -1106,6 +1210,7 @@ export function useRealtimeSync(
       const { comment, issue_revision: issueRevision } = p as CommentCreatedPayload;
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
       // A new comment bumps the parent issue's updated_at server-side
       // (MUL-5009), so any open board/list sorted by "Updated date" has
       // drifted. Refetch just those keys to re-sort the commented card into
@@ -1130,6 +1235,7 @@ export function useRealtimeSync(
       const { comment, issue_revision } = p as CommentUpdatedPayload;
       if (!comment?.issue_id) return;
       invalidateTimeline(comment.issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
       const wsId = getCurrentWsId();
       if (wsId) {
         invalidateLastActivitySortedIssueLists(qc, wsId);
@@ -1145,6 +1251,7 @@ export function useRealtimeSync(
       const { issue_id, issue_revision } = p as CommentDeletedPayload;
       if (!issue_id) return;
       invalidateTimeline(issue_id);
+      qc.invalidateQueries({ queryKey: ["github", "merge-readiness", issue_id] });
       const wsId = getCurrentWsId();
       if (wsId) {
         invalidateLastActivitySortedIssueLists(qc, wsId);
@@ -1158,12 +1265,18 @@ export function useRealtimeSync(
 
     const unsubCommentResolved = ws.on("comment:resolved", (p) => {
       const { comment } = p as CommentResolvedPayload;
-      if (comment?.issue_id) invalidateTimeline(comment.issue_id);
+      if (comment?.issue_id) {
+        invalidateTimeline(comment.issue_id);
+        qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
+      }
     });
 
     const unsubCommentUnresolved = ws.on("comment:unresolved", (p) => {
       const { comment } = p as CommentUnresolvedPayload;
-      if (comment?.issue_id) invalidateTimeline(comment.issue_id);
+      if (comment?.issue_id) {
+        invalidateTimeline(comment.issue_id);
+        qc.invalidateQueries({ queryKey: ["github", "merge-readiness", comment.issue_id] });
+      }
     });
 
     const unsubActivityCreated = ws.on("activity:created", (p) => {
@@ -1370,6 +1483,10 @@ export function useRealtimeSync(
 
     const unsubTaskMessage = ws.on("task:message", (p) => {
       const payload = p as TaskMessagePayload;
+      // A streamed message is proof of life (F02): stamp the run's
+      // last_activity_at in the issue run lists so an "unresponsive" badge
+      // clears without a refetch. Throttled per run inside the helper.
+      touchCachedRunActivity(qc, payload.task_id);
       // Cheap Map lookup, and it runs before anything allocates — this is the
       // hot path for every run in the workspace, not just the visible ones.
       if (!isTaskMessageTimelineHeld(qc, payload.task_id)) return;
@@ -1699,6 +1816,12 @@ export function useRealtimeSync(
       unsubIssuePropertiesChanged();
       unsubPropertyChanged.forEach((unsub) => unsub());
       unsubInboxNew();
+      unsubAgentMemoryCreated();
+      unsubAgentMemoryUpdated();
+      unsubAgentMemoryDeleted();
+      unsubMeetingCreated();
+      unsubMeetingUpdated();
+      unsubMeetingDeleted();
       unsubCommentCreated();
       unsubCommentUpdated();
       unsubCommentDeleted();

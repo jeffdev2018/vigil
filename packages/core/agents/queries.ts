@@ -156,3 +156,30 @@ export function agentBuilderSessionListOptions(wsId: string) {
     staleTime: 0,
   });
 }
+
+// Scorecards (K25).
+export const scorecardKeys = {
+  agent: (wsId: string, agentId: string, days: number) => ["scorecard", wsId, agentId, days] as const,
+  workspace: (wsId: string, days: number) => ["scorecards", wsId, days] as const,
+};
+
+export function agentScorecardOptions(wsId: string, agentId: string, days = 30) {
+  return queryOptions({
+    queryKey: scorecardKeys.agent(wsId, agentId, days),
+    queryFn: () => api.getAgentScorecard(agentId, days),
+    staleTime: 60_000,
+  });
+}
+
+export function workspaceScorecardsOptions(wsId: string, days = 30) {
+  return queryOptions({
+    queryKey: scorecardKeys.workspace(wsId, days),
+    queryFn: () => api.listWorkspaceScorecards(days),
+    staleTime: 60_000,
+  });
+}
+
+/** A rate as a percentage, or null when there is nothing to divide by. */
+export function scorecardRate(part: number, whole: number): number | null {
+  return whole > 0 ? Math.round((part / whole) * 100) : null;
+}

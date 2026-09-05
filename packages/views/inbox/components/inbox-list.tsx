@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
-import { Archive, ChevronRight, Inbox } from "lucide-react";
+import { Archive, Check, ChevronRight, Inbox, RotateCcw } from "lucide-react";
 import { isEditableShortcutTarget } from "@multica/core/shortcuts";
 import { isImeComposing } from "@multica/core/utils";
 import type { InboxItem } from "@multica/core/types";
@@ -51,9 +51,14 @@ export function InboxList({
   view,
   selectedKey,
   archivedCount,
+  attentionCount = 0,
   onSelect,
   onAction,
   onOpenArchived,
+  onOpenAttention,
+  onOpenBriefing,
+  onOpenDecisions,
+  onOpenRetro,
   emptyLabel,
   emptyAction,
 }: {
@@ -63,9 +68,18 @@ export function InboxList({
   // Deduplicated archived-issue count. Only read in the main view, to label the
   // entry into the archive; the entry hides at zero.
   archivedCount: number;
+  // Attention Inbox (K02) count; the entry at the top of the main list hides at zero.
+  attentionCount?: number;
   onSelect: (item: InboxItem) => void;
   onAction: (id: string) => void;
   onOpenArchived: () => void;
+  onOpenAttention?: () => void;
+  // Morning briefing (K30): entry into today's digest.
+  onOpenBriefing?: () => void;
+  // Inbox zero (K63): the decisions waiting for me.
+  onOpenDecisions?: () => void;
+  // Weekly retro (K34): entry into the last generated retro.
+  onOpenRetro?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
 }) {
@@ -89,6 +103,68 @@ export function InboxList({
   );
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const isArchivedView = view === "archived";
+  const isAttentionView = view === "attention";
+
+  const briefingEntry =
+    view === "inbox" && onOpenBriefing ? (
+      <button
+        type="button"
+        data-testid="inbox-briefing-entry"
+        onClick={onOpenBriefing}
+        className="mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center">☀</span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.briefing_title)}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
+
+  const decisionsEntry =
+    view === "inbox" && onOpenDecisions ? (
+      <button
+        type="button"
+        data-testid="inbox-decisions-entry"
+        onClick={onOpenDecisions}
+        className="mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center"><Check className="size-4" /></span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.decisions_title)}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
+
+  const retroEntry =
+    view === "inbox" && onOpenRetro ? (
+      <button
+        type="button"
+        data-testid="inbox-retro-entry"
+        onClick={onOpenRetro}
+        className="mb-1 flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-muted-foreground outline-none transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center"><RotateCcw className="size-4" /></span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.retro_title)}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
+
+  // Entry into the Attention Inbox, at the top of the main list: what needs a
+  // human should be the first thing seen, not the last.
+  const attentionEntry =
+    view === "inbox" && attentionCount > 0 && onOpenAttention ? (
+      <button
+        type="button"
+        data-testid="inbox-attention-entry"
+        onClick={onOpenAttention}
+        className="mb-1 flex h-10 w-full items-center gap-2 rounded-md px-2 text-left text-caption text-warning outline-none transition-colors hover:bg-accent/50 focus-visible:ring-1 focus-visible:ring-ring"
+      >
+        <span className="flex size-7 shrink-0 items-center justify-center">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-warning" />
+        </span>
+        <span className="min-w-0 flex-1 truncate font-medium">{t(($) => $.list.attention_title)}</span>
+        <span className="shrink-0 tabular-nums">{attentionCount}</span>
+        <ChevronRight className="size-4 shrink-0 text-faint-foreground" />
+      </button>
+    ) : null;
 
   // Keyboard focus for the list lives on the scroll container, not on a row:
   // virtualization unmounts the row the user clicked as soon as it scrolls
@@ -190,12 +266,18 @@ export function InboxList({
             {emptyLabel ??
               (isArchivedView
                 ? t(($) => $.list.archived_empty)
-                : t(($) => $.list.empty))}
+                : isAttentionView
+                  ? t(($) => $.list.attention_empty)
+                  : t(($) => $.list.empty))}
           </p>
           {emptyAction && <div className="mt-3">{emptyAction}</div>}
         </div>
         {/* Still offer the archive when the main list is empty — that is
             exactly when a user goes looking for what they filed away. */}
+        {briefingEntry && <div className="px-2">{briefingEntry}</div>}
+        {decisionsEntry && <div className="px-2">{decisionsEntry}</div>}
+        {retroEntry && <div className="px-2">{retroEntry}</div>}
+        {attentionEntry && <div className="px-2">{attentionEntry}</div>}
         {archivedEntry && <div className="px-2">{archivedEntry}</div>}
       </div>
     );

@@ -36,6 +36,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
+	"github.com/multica-ai/multica/server/internal/push"
 	"github.com/multica-ai/multica/server/internal/realtime"
 	"github.com/multica-ai/multica/server/internal/seatcapacity"
 	"github.com/multica-ai/multica/server/internal/service"
@@ -436,9 +437,24 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
 		LLMDefaultModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
 		LLMMaxRetries:            opts.LLMMaxRetries,
+		LLMRoutingModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_ROUTING_MODEL")),
+		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
+		STTAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_STT_API_KEY")),
+		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),
+		STTLanguage:              strings.TrimSpace(os.Getenv("MULTICA_STT_LANGUAGE")),
+		STTDiarize:               strings.EqualFold(strings.TrimSpace(os.Getenv("MULTICA_STT_DIARIZE")), "true"),
+		STTRealtimeModel:         strings.TrimSpace(os.Getenv("MULTICA_STT_REALTIME_MODEL")),
+		TTSBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_TTS_BASE_URL")),
+		TTSAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_TTS_API_KEY")),
+		TTSModel:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_MODEL")),
+		TTSVoice:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_VOICE")),
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	// Mobile push (K64): Expo push needs no credentials; MULTICA_PUSH_DISABLED=1 turns it off.
+	if os.Getenv("MULTICA_PUSH_DISABLED") != "1" {
+		h.Push = push.NewExpoSender(os.Getenv("MULTICA_EXPO_PUSH_ENDPOINT"))
+	}
 	invitationRateLimits := handler.DefaultInvitationRateLimits()
 	invitationRateLimits.Actor.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_ACTOR_10M", invitationRateLimits.Actor.Limit)
 	invitationRateLimits.Workspace.Limit = envNonNegativeInt("RATE_LIMIT_INVITATION_WORKSPACE_24H", invitationRateLimits.Workspace.Limit)
@@ -498,6 +514,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	if rdb != nil {
 		h.UpdateStore = handler.NewRedisUpdateStore(rdb)
 		h.ModelListStore = handler.NewRedisModelListStore(rdb)
+		h.CliAuthStore = handler.NewRedisCliAuthStore(rdb)
 		h.ModelCatalogCache = handler.NewRedisModelCatalogCache(rdb)
 		h.LocalSkillListStore = handler.NewRedisLocalSkillListStore(rdb)
 		h.LocalSkillImportStore = handler.NewRedisLocalSkillImportStore(rdb)
@@ -522,6 +539,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	channelRegistry := channel.NewRegistry()
 	channelRouter := engine.NewRouter(h.IssueService, h.TaskService, queries, engine.RouterConfig{
 		Logger: slog.Default(), Lifecycle: h,
+		// A `/issue` typed in a channel is inbound material: it answers to the
+		// channel's own triage source before it becomes an issue.
+		Triage: h,
 	})
 	// Debounce the per-session run trigger so a burst of messages collapses
 	// into one agent run instead of one per message (MUL-2968).
@@ -594,6 +614,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					Logger:  slog.Default(),
 				})
 				h.LarkAPIClient = larkClient
+				// Multichannel digest (K64): the morning briefing can be posted to Feishu/Lark.
+				if h.DigestSenders == nil {
+					h.DigestSenders = map[string]handler.ChannelDigestSender{}
+				}
+				h.DigestSenders[string(channel.TypeFeishu)] = lark.NewDigestSender(larkClient, installSvc)
 
 				// Channel-backed store: routes the lark package's DB seams
 				// onto the channel_* tables (MUL-3515). Interface-wired
@@ -800,6 +825,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			}
 			channelRouter.Register(slack.TypeSlack, slack.NewSlackResolverSet(queries, pool, slackReplier, slackTyping, slackMedia))
 			slack.NewOutbound(queries, box.Open, slog.Default()).Register(bus)
+			// Multichannel digest (K64): the morning briefing can be posted to Slack.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(slack.TypeSlack)] = slack.NewDigestSender(box.Open, slog.Default())
 
 			// On-demand history reader behind the unified `multica chat history`
 			// command (MUL-3871): pull the session's Slack conversation when the
@@ -823,7 +853,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Socket Mode connection per active Slack installation, authenticated
 			// with that installation's OWN app-level token (xapp-, pasted at BYO
 			// install) — no deployment-level app token, no single connection.
-			slack.RegisterSlack(channelRegistry, slack.ChannelDeps{Decrypt: box.Open, Logger: slog.Default(), Slash: slackSlash})
+			slack.RegisterSlack(channelRegistry, slack.ChannelDeps{Decrypt: box.Open, Logger: slog.Default(), Slash: slackSlash, Interactions: &handler.SlackDigestActions{H: h}})
 
 			// BYO self-serve install (paste bot token + app-level token). The
 			// InstallService needs only the at-rest encryption key — there is no
@@ -872,6 +902,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			botNames := dingtalk.NewBotNameResolver(dingtalkClient, box.Open)
 			channelRouter.Register(dingtalk.TypeDingTalk, dingtalk.NewDingTalkResolverSet(queries, pool, replier, ack, media, botNames))
 			dingtalk.NewOutbound(queries, box.Open, dingtalkClient, slog.Default()).Register(bus)
+			// Multichannel digest (K64): the morning briefing can be posted to DingTalk.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(dingtalk.TypeDingTalk)] = dingtalk.NewDigestSender(dingtalkClient, box.Open)
 			dingtalk.RegisterDingTalk(channelRegistry, dingtalk.ChannelDeps{
 				Decrypt:  box.Open,
 				Client:   dingtalkClient,
@@ -950,6 +985,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					Fallback: "企业微信会话",
 				})
 
+				// Multichannel digest (K64): the morning briefing can be posted to WeCom.
+				if h.DigestSenders == nil {
+					h.DigestSenders = map[string]handler.ChannelDigestSender{}
+				}
+				h.DigestSenders[string(wecom.TypeWecom)] = wecom.NewDigestSender(wecomSenders)
 				wecom.RegisterWecom(channelRegistry, wecom.ChannelDeps{
 					Credentials: credsResolver,
 					Senders:     wecomSenders,
@@ -1096,6 +1136,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			telegramTyping := telegram.NewTypingNotifier(box.Open, "", nil, slog.Default())
 			channelRouter.Register(telegram.TypeTelegram, telegram.NewTelegramResolverSet(queries, pool, telegramReplier, telegramTyping))
 			telegramOutbound := telegram.NewOutbound(queries, box.Open, "", nil, slog.Default())
+			// Multichannel digest (K64): the morning briefing can be posted to Telegram.
+			if h.DigestSenders == nil {
+				h.DigestSenders = map[string]handler.ChannelDigestSender{}
+			}
+			h.DigestSenders[string(telegram.TypeTelegram)] = telegram.NewDigestSender(box.Open, "", nil, slog.Default())
 			telegramOutbound.Register(bus)
 			h.TelegramOutbound = telegramOutbound
 
@@ -1235,6 +1280,21 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		pluginEvents := service.NewPluginEventDispatcher(h.PluginService)
 		service.SubscribePluginEvents(bus, pluginEvents)
 	}
+
+	// Post-run agent memory extraction (JEF-236). Wired unconditionally: the
+	// pass no-ops on a nil/disabled LLM client, so a deployment without
+	// MULTICA_LLM_* pays nothing for the subscription.
+	h.TaskService.SubscribeAgentMemoryExtraction(bus)
+
+	// Post-failure postmortem drafting (k68). Wired unconditionally: without an
+	// assist-layer LLM the pass stores a deterministic scaffold instead, so the
+	// artifact exists in every deployment.
+	h.TaskService.SubscribePostmortemGeneration(bus)
+
+	// Post-success skill distillation (k69). Wired unconditionally: without an
+	// assist-layer LLM the pass no-ops (a skill is only worth storing when
+	// genuinely distilled), so an unconfigured deployment pays nothing.
+	h.TaskService.SubscribeSkillDistillation(bus)
 
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
@@ -1399,6 +1459,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// purpose: the bearer token in the URL path IS the credential. Workspace
 	// context is derived from the trigger row, never from request headers.
 	r.Post("/api/webhooks/autopilots/{token}", h.HandleAutopilotWebhook)
+	// Email intake for the triage queue. Same contract as the webhook ingress:
+	// the token in the path is the credential, the workspace comes from the
+	// source row it resolves to, never from a request header.
+	r.Post("/api/triage/inbound/email/{token}", h.HandleInboundTriageEmail)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
@@ -1461,10 +1525,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Get("/runtimes/{runtimeId}/tasks/pending", h.ListPendingTasksByRuntime)
 		r.Post("/runtimes/{runtimeId}/update/{updateId}/result", h.ReportUpdateResult)
 		r.Post("/runtimes/{runtimeId}/models/{requestId}/result", h.ReportModelListResult)
+		r.Post("/runtimes/{runtimeId}/cli-auth/{requestId}/report", h.ReportCliAuthResult)
 		r.Post("/runtimes/{runtimeId}/local-skills/{requestId}/result", h.ReportLocalSkillListResult)
 		r.Post("/runtimes/{runtimeId}/local-skills/import/{requestId}/result", h.ReportLocalSkillImportResult)
 
 		r.Get("/tasks/{taskId}/status", h.GetTaskStatus)
+		r.Post("/tasks/{taskId}/paused", h.AckTaskPaused)
 		r.Post("/tasks/{taskId}/start", h.StartTask)
 		r.Post("/tasks/{taskId}/wait-local-directory", h.MarkTaskWaitingLocalDirectory)
 		r.Post("/tasks/{taskId}/progress", h.ReportTaskProgress)
@@ -1594,6 +1660,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// The payload is names and transports only; the stored
 					// entries are write-only.
 					r.Get("/mcp-servers", h.ListWorkspaceMcpServers)
+					r.Get("/mcp-servers/{serverId}/tools", h.ListWorkspaceMcpServerTools)
 					// Installed Plugins are member-visible so a member can
 					// see what is mounted in their workspace and which scopes
 					// it holds; install / configure / remove stay admin-only.
@@ -1620,6 +1687,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/mcp-servers", h.CreateWorkspaceMcpServer)
 					r.Put("/mcp-servers/{serverId}", h.UpdateWorkspaceMcpServer)
 					r.Delete("/mcp-servers/{serverId}", h.DeleteWorkspaceMcpServer)
+					r.Post("/mcp-servers/{serverId}/tools/discover", h.DiscoverWorkspaceMcpServerTools)
+					r.Put("/mcp-servers/{serverId}/tools", h.SetWorkspaceMcpServerTools)
 					r.Post("/share-links", h.CreateShareLink)
 					r.Delete("/share-links/{linkId}", h.RevokeShareLink)
 					r.Get("/share-links", h.ListShareLinks)
@@ -1877,6 +1946,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/query", h.QueryIssues)
 				r.Post("/", h.CreateIssue)
 				r.Post("/quick-create", h.QuickCreateIssue)
+				// Issue scoping assistant (K14): raw text in, reviewed proposal out.
+				r.Post("/scoping/propose", h.ProposeIssueScoping)
 				r.Post("/preview-trigger", h.PreviewIssueTrigger)
 				r.Post("/batch-update", h.BatchUpdateIssues)
 				r.Post("/batch-delete", h.BatchDeleteIssues)
@@ -1913,7 +1984,131 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/properties/{propertyId}", h.SetIssueProperty)
 					r.Delete("/properties/{propertyId}", h.DeleteIssueProperty)
 					r.Get("/pull-requests", h.ListPullRequestsForIssue)
+					r.Get("/dependencies", h.ListIssueDependencies)
+					r.Post("/dependencies", h.CreateIssueDependency)
+					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
+					r.Get("/merge-readiness", h.GetIssueMergeReadiness)
+					// Review cockpit (K16): one read for the reviewer.
+					r.Get("/review-cockpit", h.GetReviewCockpit)
+					r.Get("/pr-stack", h.GetIssuePRStack)
+					r.Get("/plan", h.GetIssuePlan)
+					r.Put("/plan", h.SetIssuePlan)
+					// Plan Gate (K11): a human approves a plan version into sub-issues.
+					r.With(handler.RequireHumanActor).Post("/plan/{version}/materialize", h.MaterializeIssuePlan)
+					r.Get("/plan/verifications", h.ListPlanVerifications)
+					r.Post("/plan/verifications/{runId}", h.ReportPlanVerification)
+					r.Get("/ownership-suggestion", h.GetOwnershipSuggestion)
+					r.Get("/acceptance-criteria", h.ListAcceptanceCriteria)
+					r.Put("/acceptance-criteria", h.SetAcceptanceCriteria)
+					r.Patch("/acceptance-criteria/{criterionId}/proof", h.ProveAcceptanceCriterion)
+					r.Get("/adr-required", h.GetIssueADRRequirement)
+					r.Post("/decision-records", h.CreateIssueDecisions)
+					r.Get("/decisions", h.ListIssueDecisions)
+					// Requirement Interview (K13): up to three cards at once, issue parked.
+					r.Post("/interview", h.AskRequirementInterview)
+					r.Post("/decisions", h.AskIssueDecision)
+					r.With(handler.RequireHumanActor).Post("/decisions/{decisionId}/respond", h.RespondIssueDecision)
 				})
+			})
+
+			// Triage queue. Stats/list are member-readable; accept/dismiss are
+			// human-only — agents may suggest verdicts, humans decide.
+			r.Route("/api/triage", func(r chi.Router) {
+				r.Get("/stats", h.GetTriageStats)
+				r.Get("/items", h.ListTriageItems)
+				r.With(handler.RequireHumanActor).Post("/items/batch-accept", h.BatchAcceptTriageItems)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/accept", h.AcceptTriageItem)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/dismiss", h.DismissTriageItem)
+				// Merge folds an item into an issue that already tracks the work.
+				r.With(handler.RequireHumanActor).Post("/items/{id}/merge", h.MergeTriageItem)
+				// Snooze parks a pending item until a chosen time.
+				r.With(handler.RequireHumanActor).Post("/items/{id}/snooze", h.SnoozeTriageItem)
+				// The one triage write agents may make: a suggested verdict.
+				// Humans still decide — this never changes the item's state.
+				r.Post("/items/{id}/verdict", h.SetTriageVerdict)
+				r.With(handler.RequireHumanActor).Post("/items/batch-dismiss", h.BatchDismissTriageItems)
+				// Triage auto-ML (K61): suggestions for visible items; reopen a dismissed one.
+				r.Get("/suggestions", h.GetTriageSuggestions)
+				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
+				// The source policy — mode (the queue's kill switch), auto-accept,
+				// the flood cap and retention: writes, and human-only like every
+				// other triage write.
+				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSourceSettings)
+				// Mint or rotate the workspace's email intake endpoint. The
+				// token is in the response and nowhere else.
+				r.With(handler.RequireHumanActor).Post("/sources/email", h.CreateTriageEmailSource)
+			})
+
+			// Meetings: recorded conversations transcribed and summarized into
+			// triage items. Recording, appending and finishing are human-only.
+			r.Route("/api/meetings", func(r chi.Router) {
+				r.Get("/", h.ListMeetings)
+				r.With(handler.RequireHumanActor).Post("/", h.CreateMeeting)
+				r.Get("/{id}", h.GetMeeting)
+				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateMeeting)
+				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteMeeting)
+				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
+				// Correcting one transcribed paragraph after the fact. The
+				// summary is deliberately NOT re-run: the client offers the
+				// existing regenerate button instead.
+				r.With(handler.RequireHumanActor).Patch("/{id}/segments/{seq}", h.UpdateMeetingSegment)
+				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
+				r.With(handler.RequireHumanActor).Post("/{id}/resummarize", h.ResummarizeMeeting)
+			})
+			// Calendar subscription (ICS, no OAuth): the read-only feed URL the
+			// user's calendar already publishes. Personal to the caller in
+			// this workspace, so no path parameter and nothing to authorize
+			// beyond membership.
+			r.Route("/api/calendar", func(r chi.Router) {
+				r.Get("/feed", h.GetCalendarFeed)
+				r.With(handler.RequireHumanActor).Put("/feed", h.SetCalendarFeed)
+				r.With(handler.RequireHumanActor).Delete("/feed", h.DeleteCalendarFeed)
+				// Also the "Check feed" button in Settings: it answers 502
+				// with the reason when the feed cannot be read.
+				r.Get("/upcoming", h.UpcomingCalendar)
+			})
+			// Voice memo: one-shot transcription for the chat composer.
+			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)
+			// Live transcript: a short-lived provider token the browser uses to open
+			// the realtime WebSocket itself. The API key never leaves the server.
+			r.With(handler.RequireHumanActor).Post("/api/voice/realtime-session", h.RealtimeVoiceSession)
+			// Read aloud: text in, audio bytes out. 409 when no TTS provider is
+			// configured, which is the client's cue to use speechSynthesis.
+			r.With(handler.RequireHumanActor).Post("/api/voice/speak", h.SpeakVoice)
+
+			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
+			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {
+				r.Get("/", h.ListApprovalGates)
+				r.Post("/", h.CreateApprovalGate)
+				r.Get("/{gateId}", h.GetApprovalGate)
+			})
+			// Governed MCP gateway (K77): the daemon reports catalogues and calls.
+			r.Post("/api/tasks/{taskId}/mcp-catalog", h.ReportMcpCatalog)
+			r.Post("/api/tasks/{taskId}/mcp-calls", h.ReportMcpCall)
+			r.Post("/api/tasks/{taskId}/spend-token", h.IssueSpendToken)
+			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
+			// Postmortems (k68). List/get/stats are member-readable; approve and
+			// discard are human-only — a postmortem's fate is a human decision.
+			// Workspace Brain: shared knowledge notes. Every member reads
+			// and writes; delete is narrower (see DeleteWorkspaceNote).
+			// Agent runs reach the same routes with a task token.
+			r.Route("/api/workspace/notes", func(r chi.Router) {
+				r.Get("/", h.ListWorkspaceNotes)
+				r.Post("/", h.CreateWorkspaceNote)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetWorkspaceNote)
+					r.Patch("/", h.UpdateWorkspaceNote)
+					r.Delete("/", h.DeleteWorkspaceNote)
+					r.Post("/archive", h.ArchiveWorkspaceNote)
+					r.Post("/unarchive", h.UnarchiveWorkspaceNote)
+				})
+			})
+			r.Route("/api/postmortems", func(r chi.Router) {
+				r.Get("/", h.GetPostmortems)
+				r.Get("/stats", h.GetPostmortemsStats)
+				r.With(handler.RequireHumanActor).Post("/{id}/approve", h.ApprovePostmortem)
+				r.With(handler.RequireHumanActor).Post("/{id}/discard", h.DiscardPostmortem)
+				r.Get("/{id}", h.GetPostmortem)
 			})
 
 			// Task messages (user-facing, not daemon auth)
@@ -1955,6 +2150,231 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Issue status catalog (MUL-6243). Reads are open to any member —
 			// every client needs the catalog to render a status. Writes are
 			// gated to workspace owner/admin inside the handlers.
+			// Audit log (K08).
+			r.Route("/api/audit-log", func(r chi.Router) {
+				r.Get("/", h.ListAuditLog)
+				r.Get("/export", h.ExportAuditLog)
+				r.Get("/verify", h.VerifyAuditLog)
+			})
+			// Scorecards (K25).
+			r.Get("/api/scorecards", h.ListWorkspaceScorecards)
+			// Morning briefing (K30).
+			r.Route("/api/morning-briefing", func(r chi.Router) {
+				r.Get("/today", h.GetMorningBriefingToday)
+				r.Post("/trigger", h.TriggerMorningBriefing)
+			})
+			// Module ownership (K33): rules that suggest an owner and a referent agent.
+			r.Route("/api/module-ownership", func(r chi.Router) {
+				r.Get("/", h.ListModuleOwnership)
+				r.Post("/", h.CreateModuleOwnership)
+				r.Delete("/{id}", h.DeleteModuleOwnership)
+			})
+			// Trust Dial (K26): the agent's autonomy mode, its suggestion and its history.
+			r.Route("/api/agents/{id}/trust-mode", func(r chi.Router) {
+				r.Get("/", h.GetAgentTrustMode)
+				r.Put("/", h.SetAgentTrustMode)
+				r.Get("/suggestions", h.GetAgentTrustSuggestion)
+				r.Get("/history", h.ListAgentTrustHistory)
+			})
+			// "Show me first" (K69): hold the agent's writes for approval.
+			// Replay (K70): the run as one hash-chained event stream, and a resume point.
+			r.Get("/api/tasks/{taskId}/replay", h.GetTaskReplay)
+			r.Post("/api/tasks/{taskId}/replay/resume", h.ResumeTaskReplay)
+			r.Post("/api/tasks/{taskId}/replay/simulate", h.SimulateTaskReplay)
+			// Task watchdog (K73).
+			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
+				r.Get("/", h.GetIssueWatchdog)
+				r.Put("/", h.SetIssueWatchdog)
+				r.Delete("/", h.DeleteIssueWatchdog)
+				r.Get("/verdicts", h.ListIssueWatchdogVerdicts)
+				r.Post("/scan", h.ScanIssueWatchdogNow)
+			})
+			r.Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
+			// Goals with ancestry (K74).
+			r.Route("/api/goals", func(r chi.Router) {
+				r.Get("/", h.ListGoals)
+				r.Post("/", h.CreateGoal)
+				r.Get("/{id}", h.GetGoal)
+				r.Put("/{id}", h.UpdateGoal)
+				r.Delete("/{id}", h.DeleteGoal)
+			})
+			r.Post("/api/issues/{id}/goal-proposal", h.ProposeIssueGoal)
+			// Contest (K72): a rival model challenges an agent output.
+			r.Route("/api/contests", func(r chi.Router) {
+				r.Get("/preflight", h.PreflightContest)
+				r.Get("/", h.ListContests)
+				r.Post("/", h.CreateContest)
+				r.Get("/{id}", h.GetContest)
+				r.Post("/{id}/verdict", h.ConfirmContest)
+			})
+			r.Get("/api/contest-settings", h.GetContestSettings)
+			r.Put("/api/contest-settings", h.PutContestSettings)
+			// Executable org chart (K75).
+			r.Route("/api/org", func(r chi.Router) {
+				r.Get("/templates", h.ListOrgTemplates)
+				r.Get("/resolve", h.ResolveOrgStructure)
+				r.Get("/", h.ListOrgStructures)
+				r.Post("/", h.CreateOrgStructure)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetOrgStructure)
+					r.Put("/", h.UpdateOrgStructure)
+					r.Delete("/", h.DeleteOrgStructure)
+					r.Get("/preflight", h.PreflightOrgStructure)
+					r.Get("/health", h.GetOrgHealth)
+					r.Post("/{action}", h.SetOrgStructureStatus)
+				})
+			})
+			// Workspace export / import (K76).
+			r.Route("/api/workspace-transfer", func(r chi.Router) {
+				r.Post("/export", h.ExportWorkspace)
+				r.Post("/preview", h.PreviewWorkspaceImport)
+				r.Post("/import", h.ImportWorkspace)
+				r.Get("/runs", h.ListWorkspaceTransferRuns)
+			})
+			r.Post("/api/issues/{id}/escalate", h.EscalateIssue)
+			r.Post("/api/issues/{id}/org-route", h.RouteIssueNow)
+			r.Get("/api/issues/{id}/org-offers", h.ListIssueOrgOffers)
+			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
+			// Skill Miner (K58): drafts waiting for review.
+			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
+			r.Get("/api/workspace-templates", h.ListWorkspaceTemplates)
+			r.Get("/api/work-profile", h.GetMyWorkProfile)
+			r.Patch("/api/work-profile/{id}", h.PatchWorkProfileObservation)
+			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)
+			r.Post("/api/decision-examples/{id}/overturn", h.OverturnDecisionExample)
+			r.Put("/api/issues/{id}/contract-risk", h.SetIssueContractRisk)
+			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
+			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
+			// Permission profiles (K06): what an agent may touch when it runs.
+			r.Route("/api/permission-profiles", func(r chi.Router) {
+				r.Get("/", h.ListPermissionProfiles)
+				r.Post("/", h.CreatePermissionProfile)
+				r.Patch("/{id}", h.UpdatePermissionProfile)
+				r.Delete("/{id}", h.DeletePermissionProfile)
+			})
+			r.Put("/api/agents/{id}/permission-profile", h.SetAgentPermissionProfile)
+			r.Get("/api/tasks/{taskId}/permission-profile", h.GetTaskPermissionProfile)
+			// Run-scoped secrets (K09): tokens instead of values, revoked at the end of the run.
+			r.Route("/api/tasks/{taskId}/secrets", func(r chi.Router) {
+				r.Get("/", h.ListTaskRunSecrets)
+				r.Post("/revoke-all", h.RevokeTaskRunSecrets)
+				r.Post("/resolve", h.ResolveRunSecret)
+			})
+			r.Get("/api/issues/{id}/run-secrets", h.ListIssueRunSecrets)
+			// Runtime pools (K28): interchangeable runtimes with automatic failover.
+			r.Route("/api/runtime-pools", func(r chi.Router) {
+				r.Get("/", h.ListRuntimePools)
+				r.Post("/", h.CreateRuntimePool)
+				r.Put("/{id}", h.UpdateRuntimePool)
+				r.Delete("/{id}", h.DeleteRuntimePool)
+			})
+			r.Put("/api/agents/{id}/runtime-pool", h.SetAgentRuntimePool)
+			r.Get("/api/issues/{id}/failover-history", h.ListIssueFailoverHistory)
+			// Issue router (K27): risk-based pool choice and escalation, auditable per issue.
+			r.Get("/api/issues/{id}/routing-decision", h.GetIssueRoutingDecision)
+			// Handoff packets (K17): structured, immutable records between hands.
+			// Pause, steer, resume (K19): correct a run without restarting it.
+			r.Route("/api/issues/{id}/run", func(r chi.Router) {
+				r.Get("/state", h.GetRunControlState)
+				r.Get("/checkpoint-status", h.GetRunCheckpointStatus)
+			})
+			// Pipelines (K37): ordered stages an issue moves through.
+			r.Route("/api/pipelines", func(r chi.Router) {
+				r.Get("/", h.ListPipelines)
+				r.Post("/", h.CreatePipeline)
+				r.Patch("/{id}", h.UpdatePipeline)
+				r.Delete("/{id}", h.DeletePipeline)
+			})
+			// Fan-out / fan-in (K38): parallel specialist runs and a synthesis.
+			r.Post("/api/issues/{id}/fanout", h.StartFanout)
+			r.Get("/api/issues/{id}/fanout", h.GetIssueFanout)
+			r.Get("/api/fanout-batches/{id}", h.GetFanoutBatch)
+			// Agent duel (K39): two independent runs, an arbiter, a human verdict.
+			r.Post("/api/issues/{id}/duel", h.StartAgentDuel)
+			r.Get("/api/issues/{id}/duel", h.GetIssueAgentDuel)
+			r.Get("/api/duels/{id}", h.GetAgentDuel)
+			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
+			// Refactoring campaigns (K42): sharded fan-out plus a sequential merge queue.
+			r.Post("/api/refactor-campaigns", h.CreateRefactorCampaign)
+			r.Get("/api/refactor-campaigns/{id}", h.GetRefactorCampaign)
+			r.Get("/api/issues/{id}/refactor-campaign", h.GetIssueRefactorCampaign)
+			r.Post("/api/campaign-shards/{id}/skip", h.SkipCampaignShard)
+			// Learned competency (K43): success history per agent and domain.
+			r.Get("/api/agents/{id}/competency", h.GetAgentCompetency)
+			r.Get("/api/issues/{id}/assignee-suggestion", h.GetAssigneeSuggestion)
+			r.Get("/api/competency-settings", h.GetCompetencySettings)
+			r.Put("/api/competency-settings", h.PutCompetencySettings)
+			// Cross-provider self-review (K15): reports and manual retry.
+			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
+			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)
+			// Undo for agent actions (K69).
+			r.Get("/api/issues/{id}/agent-effects", h.ListIssueAgentEffects)
+			r.Post("/api/tasks/{id}/undo", h.UndoTaskEffects)
+			r.Post("/api/agent-effects/{id}/undo", h.UndoAgentEffect)
+			r.Get("/api/undo-settings", h.GetUndoSettings)
+			r.Put("/api/undo-settings", h.PutUndoSettings)
+			// Mobile push (K64): the app's Expo token.
+			r.Put("/api/me/push-token", h.RegisterPushToken)
+			r.Delete("/api/me/push-token", h.UnregisterPushToken)
+			// CI auto-fix (K49): correction runs on agents' red pull requests.
+			r.Get("/api/ci-auto-fix-settings", h.GetCIAutoFixSettings)
+			r.Put("/api/ci-auto-fix-settings", h.PutCIAutoFixSettings)
+			r.Get("/api/issues/{id}/ci-auto-fix", h.ListIssueCIAutoFix)
+			r.Post("/api/pull-requests/{id}/ci-auto-fix/retry", h.RetryCIAutoFix)
+			r.Get("/api/cross-review-settings", h.GetCrossReviewSettings)
+			r.Put("/api/cross-review-settings", h.PutCrossReviewSettings)
+			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
+			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
+			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)
+			r.Post("/api/pipeline-runs/{id}/cancel", h.CancelPipelineRun)
+			// Preemption (K41): which runs were suspended for an urgent issue.
+			r.Get("/api/issues/{id}/preemptions", h.ListIssuePreemptions)
+			// Traffic control (K18): a run editing what a human or another run edits.
+			r.Route("/api/issues/{id}/traffic-conflicts", func(r chi.Router) {
+				r.Get("/", h.ListTrafficConflicts)
+				r.Post("/{cid}/ignore", h.IgnoreTrafficConflict)
+				r.Post("/pause", h.PauseRun)
+				r.Post("/steer", h.SteerRun)
+				r.Post("/resume", h.ResumeRun)
+			})
+			// Run limits (K03): caps on one run, warn then stop.
+			r.Route("/api/run-limits", func(r chi.Router) {
+				r.Get("/", h.ListRunLimitPolicies)
+				r.Post("/", h.CreateRunLimitPolicy)
+				r.Put("/{id}", h.UpdateRunLimitPolicy)
+				r.Delete("/{id}", h.DeleteRunLimitPolicy)
+			})
+			r.Get("/api/tasks/{taskId}/budget-status", h.GetTaskBudgetStatus)
+			r.Get("/api/issues/{id}/run-limit-events", h.ListIssueRunLimitEvents)
+			r.Post("/api/issues/{id}/handoff-packet", h.CreateHandoffPacket)
+			r.Get("/api/issues/{id}/handoff-packet/latest", h.GetLatestHandoffPacket)
+			r.Get("/api/issues/{id}/handoff-packets", h.ListHandoffPackets)
+			// Drift detection (K40): thresholds per workspace.
+			r.Get("/api/drift-policy", h.GetDriftPolicy)
+			r.Put("/api/drift-policy", h.PutDriftPolicy)
+			r.Get("/api/routing-settings", h.GetRoutingSettings)
+			r.Put("/api/routing-settings", h.PutRoutingSettings)
+			r.Put("/api/tasks/{taskId}/permission-profile", h.SetTaskPermissionProfile)
+			// Why search (K55): a question in plain language finds the comment, run message or decision that answers it.
+			r.Route("/api/search/why", func(r chi.Router) {
+				r.Get("/", h.SearchWhy)
+				r.Post("/reindex", h.ReindexWhy)
+			})
+			// Standup and retro (K34): the weekly retro; standup questions arrive as inbox items.
+			r.Route("/api/retro", func(r chi.Router) {
+				r.Get("/weekly", h.GetWeeklyRetro)
+				r.Post("/weekly/regenerate", h.RegenerateWeeklyRetro)
+			})
+			// Business rules (K53): plain-language rules compiled once, enforced deterministically.
+			r.Route("/api/business-rules", func(r chi.Router) {
+				r.Get("/", h.ListBusinessRules)
+				r.Post("/", h.CreateBusinessRule)
+				r.Post("/{id}/dry-run", h.DryRunBusinessRule)
+				r.Put("/{id}/activate", h.ActivateBusinessRule)
+				r.Put("/{id}/disable", h.DisableBusinessRule)
+				r.Delete("/{id}", h.DeleteBusinessRule)
+				r.Get("/{id}/violations", h.ListBusinessRuleViolations)
+			})
 			r.Route("/api/issue-statuses", func(r chi.Router) {
 				r.Get("/", h.ListIssueStatuses)
 				r.Post("/", h.CreateIssueStatus)
@@ -1963,6 +2383,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Patch("/", h.UpdateIssueStatus)
 					r.Delete("/", h.ArchiveIssueStatus)
 				})
+			})
+
+			// Budgets
+			r.Route("/api/budgets", func(r chi.Router) {
+				r.Get("/", h.ListBudgetPolicies)
+				r.Get("/status", h.GetBudgetStatus)
+				r.With(handler.RequireHumanActor).Post("/", h.CreateBudgetPolicy)
+				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateBudgetPolicy)
+				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteBudgetPolicy)
+				r.With(handler.RequireHumanActor).Post("/{id}/override", h.CreateBudgetOverride)
 			})
 
 			// Projects
@@ -1978,6 +2408,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/resources", h.CreateProjectResource)
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
+					r.Get("/decisions", h.ListProjectDecisions)
+					// Goals (K74): the goals a project serves.
+					r.Put("/goals", h.SetProjectGoals)
+					// Blast radius (K07): autonomy by path pattern.
+					r.Get("/blast-radius-rules", h.ListBlastRadiusRules)
+					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)
+					r.Delete("/blast-radius-rules/{ruleId}", h.DeleteBlastRadiusRule)
+					r.Get("/blast-radius-preview", h.PreviewBlastRadius)
 				})
 			})
 
@@ -2022,6 +2460,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 						r.Delete("/", h.DeleteAutopilotTrigger)
 						r.Post("/rotate-webhook-token", h.RotateAutopilotTriggerWebhookToken)
 						r.Put("/signing-secret", h.SetAutopilotTriggerSigningSecret)
+						// Dry-run: same path, one verb per trigger kind.
+						// POST replays a sample webhook payload through the
+						// delivery decision; GET previews a schedule's next
+						// firing instants. Neither writes anything.
+						r.Post("/dry-run", h.DryRunAutopilotWebhookTrigger)
+						r.Get("/dry-run", h.DryRunAutopilotScheduleTrigger)
 					})
 					r.Post("/collaborators", h.AddAutopilotCollaborator)
 					r.Delete("/collaborators/{userId}", h.RemoveAutopilotCollaborator)
@@ -2081,6 +2525,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// the system instruction layer. Idempotent per workspace.
 				r.Post("/mika", h.CreateMikaAgent)
 				r.Route("/{id}", func(r chi.Router) {
+					// Scorecards (K25).
+					r.Get("/scorecard", h.GetAgentScorecard)
+					// Agent versions (K23).
+					r.Get("/versions", h.ListAgentVersions)
+					r.Get("/versions/{versionId}/diff", h.GetAgentVersionDiff)
+					r.Post("/versions/{versionId}/rollback", h.RollbackAgentVersion)
 					r.Get("/", h.GetAgent)
 					r.Put("/", h.UpdateAgent)
 					r.Post("/archive", h.ArchiveAgent)
@@ -2097,6 +2547,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/skills/{skillId}/enabled", h.SetAgentSkillEnabled)
 					r.Put("/runtime-skills/enabled", h.SetAgentRuntimeSkillEnabled)
 					r.Delete("/skills/{skillId}", h.RemoveAgentSkill)
+					// Durable per-agent memory facts (JEF-236), injected into
+					// every run's brief. Same permission model as the agent's
+					// skill bindings above.
+					r.Get("/memories", h.ListAgentMemories)
+					r.Post("/memories", h.CreateAgentMemory)
+					r.Put("/memories/{memoryId}", h.UpdateAgentMemory)
+					r.Delete("/memories/{memoryId}", h.DeleteAgentMemory)
 					// Workspace MCP servers assigned to this agent. Mirrors
 					// the skills routes above: a library entry does nothing
 					// until it is added here, and the binding carries its own
@@ -2104,6 +2561,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/mcp-servers", h.ListAgentMcpServers)
 					r.Post("/mcp-servers", h.AddAgentMcpServer)
 					r.Put("/mcp-servers/{serverId}/enabled", h.SetAgentMcpServerEnabled)
+					r.Put("/mcp-servers/{serverId}/policy", h.SetAgentMcpServerPolicy)
 					r.Delete("/mcp-servers/{serverId}", h.RemoveAgentMcpServer)
 					// Dedicated env-management endpoint. Admits the agent
 					// owner or a workspace owner/admin; agent actors are
@@ -2157,11 +2615,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/runtime/daily", h.GetDashboardRunTimeDaily)
 				r.Get("/failures/daily", h.GetDashboardFailuresDaily)
 				r.Get("/failures/by-agent", h.GetDashboardFailuresByAgent)
+				// Cost per deliverable (K04).
+				r.Get("/cost-per-deliverable", h.GetDashboardCostPerDeliverable)
 			})
 
 			// Runtimes
 			r.Route("/api/runtimes", func(r chi.Router) {
 				r.Get("/", h.ListAgentRuntimes)
+				// Literal segment registered before {runtimeId} so chi never
+				// binds "routing-stats" as a runtime id.
+				r.Get("/routing-stats", h.GetRuntimeRoutingStats)
 				r.Route("/{runtimeId}", func(r chi.Router) {
 					r.Patch("/", h.UpdateAgentRuntime)
 					r.Get("/usage", h.GetRuntimeUsage)
@@ -2172,6 +2635,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/update/{updateId}", h.GetUpdate)
 					r.Post("/models", h.InitiateListModels)
 					r.Get("/models/{requestId}", h.GetModelListRequest)
+					r.Post("/cli-auth", h.InitiateCliAuth)
+					r.Get("/cli-auth/{requestId}", h.GetCliAuthRequest)
+					r.Delete("/cli-auth", h.InitiateCliLogout)
 					r.Post("/local-skills", h.InitiateListLocalSkills)
 					r.Get("/local-skills/{requestId}", h.GetLocalSkillListRequest)
 					r.Post("/local-skills/import", h.InitiateImportLocalSkill)
@@ -2276,6 +2742,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// Separate from "/" so the main list keeps its contract and
 				// never carries the unbounded archive.
 				r.Get("/archived", h.ListArchivedInbox)
+				// Attention Inbox (K02): the human-only projection, ordered by risk.
+				r.Get("/attention", h.ListAttentionInbox)
+				// Inbox zero (K63): my pending Decision Cards, options included, capped at five.
+				r.Get("/decisions", h.ListInboxDecisions)
 				r.Get("/unread-count", h.CountUnreadInbox)
 				// Cross-workspace unread summary: account-level, keyed on the
 				// user. Backs the workspace-switcher dot for OTHER workspaces.

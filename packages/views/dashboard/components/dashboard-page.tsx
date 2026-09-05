@@ -23,12 +23,16 @@ import {
   dashboardRunTimeDailyOptions,
   dashboardFailuresDailyOptions,
   dashboardFailuresByAgentOptions,
+  routingStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
 import { KpiCard } from "../../runtimes/components/shared";
+import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
+import { AgentScorecardsCard } from "./agent-scorecards-card";
+import { AutopilotQuotaCard } from "./autopilot-quota-card";
 import { useNavigation } from "../../navigation";
 import {
   addDaysIso,
@@ -66,8 +70,10 @@ import {
 import { ProjectFilter, TimeRangeFilter } from "./dashboard-filters";
 import { UsageTrendCard } from "./usage-trend-card";
 import { Leaderboard } from "./leaderboard";
+import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
 import { ErrorsTab } from "./errors-tab";
 import { cn } from "@multica/ui/lib/utils";
+import { BudgetNotice } from "./budget-notice";
 
 // Stable references — `data ?? []` would create a new empty array on
 // every render while the query is loading, which breaks useMemo's
@@ -78,6 +84,8 @@ const EMPTY_RUNTIME: import("@multica/core/types").DashboardAgentRunTime[] = [];
 const EMPTY_RUNTIME_DAILY: import("@multica/core/types").DashboardRunTimeDaily[] = [];
 const EMPTY_FAILURE_DAILY: import("@multica/core/types").DashboardFailureDaily[] = [];
 const EMPTY_FAILURE_BY_AGENT: import("@multica/core/types").DashboardFailureByAgent[] =
+  [];
+const EMPTY_ROUTING_STATS_ROWS: import("@multica/core/types").RuntimeRoutingStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
@@ -230,6 +238,9 @@ export function DashboardPage() {
   const failuresByAgentQuery = useQuery(
     dashboardFailuresByAgentOptions(wsId, days, projectId, viewTZ),
   );
+  // Smart-router benchmarks (JEF-237): fixed 90-day server-side window, so
+  // this query deliberately ignores the page's days/project/tz scope.
+  const routingStatsQuery = useQuery(routingStatsOptions(wsId));
 
   const dailyUsage = dailyQuery.data ?? EMPTY_DAILY;
   const byAgentUsage = byAgentQuery.data ?? EMPTY_BY_AGENT;
@@ -237,6 +248,7 @@ export function DashboardPage() {
   const runTimeDailyRows = runTimeDailyQuery.data ?? EMPTY_RUNTIME_DAILY;
   const failureDailyRows = failuresDailyQuery.data ?? EMPTY_FAILURE_DAILY;
   const failureByAgentRows = failuresByAgentQuery.data ?? EMPTY_FAILURE_BY_AGENT;
+  const routingStats = routingStatsQuery.data?.rows ?? EMPTY_ROUTING_STATS_ROWS;
 
   const queryClient = useQueryClient();
   // "Refreshing" covers any of the six rollups being in flight, whichever
@@ -524,6 +536,11 @@ export function DashboardPage() {
         </div>
       </div>
 
+      <BudgetNotice onOpen={() => {
+        const slug = navigation.pathname.split("/").filter(Boolean)[0];
+        if (slug) navigation.push(`/${slug}/settings?tab=budgets`);
+      }} />
+
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto max-w-6xl p-6">
           <TabsContent value="usage" className="space-y-5">
@@ -593,6 +610,18 @@ export function DashboardPage() {
                   />
                 </div>
 
+                {/* Cost per deliverable (K04): what a closed issue and a
+                    merged PR cost, against the previous period. */}
+                <CostPerDeliverableCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
+
+                {/* Scorecards (K25): which agent works, one row per agent. */}
+                <AgentScorecardsCard wsId={wsId} days={days} />
+
+                {/* Autopilot quota (K68): the only place outside workspace
+                    billing settings where the people who watch autopilots can
+                    see how much of the period's allowance is left. */}
+                <AutopilotQuotaCard wsId={wsId} />
+
                 <UsageTrendCard
                   allowedDims={allowedDims}
                   dailyCost={dailyCost}
@@ -614,6 +643,14 @@ export function DashboardPage() {
                 />
               </>
             )}
+            {/* Outside the usage loading/empty gate: a workspace whose agents
+                only ever ran in Auto mode still has benchmarks to show, and
+                the card carries its own loading and empty states. */}
+            <RoutingBenchmarksCard
+              rows={routingStats}
+              loading={routingStatsQuery.isLoading}
+              lessThanMinuteLabel={lessThanMinuteLabel}
+            />
           </TabsContent>
 
           <TabsContent value="errors">

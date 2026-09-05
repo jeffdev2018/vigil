@@ -78,6 +78,29 @@ vi.mock("../../navigation", () => ({
   useNavigation: () => ({ push: vi.fn() }),
 }));
 
+// Module ownership (K33) has its own queries and tests; the tab test keeps
+// to the workspace fields.
+vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => null }));
+vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
+vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
+vi.mock("./cross-review-setting", () => ({ CrossReviewSetting: () => null }));
+vi.mock("./contest-setting", () => ({ ContestSetting: () => null }));
+vi.mock("./export-import-setting", () => ({ ExportImportSetting: () => null }));
+vi.mock("./ci-auto-fix-setting", () => ({ CIAutoFixSetting: () => null }));
+vi.mock("./undo-setting", () => ({ UndoSetting: () => null }));
+vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
+vi.mock("./business-rules-setting", () => ({ BusinessRulesSetting: () => null }));
+vi.mock("./standup-setting", () => ({ StandupSetting: () => null }));
+vi.mock("./triage-auto-setting", () => ({ TriageAutoSetting: () => null }));
+vi.mock("./triage-email-source-setting", () => ({ TriageEmailSourceSetting: () => null }));
+vi.mock("./approval-gates-setting", () => ({ ApprovalGatesSetting: () => null }));
+vi.mock("./permission-profiles-setting", () => ({ PermissionProfilesSetting: () => null }));
+vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));
+vi.mock("./issue-routing-setting", () => ({ IssueRoutingSetting: () => null }));
+vi.mock("./traffic-control-setting", () => ({ TrafficControlSetting: () => null }));
+vi.mock("./drift-detection-setting", () => ({ DriftDetectionSetting: () => null }));
+vi.mock("./pipelines-setting", () => ({ PipelinesSetting: () => null }));
+
 vi.mock("./delete-workspace-dialog", () => ({
   DeleteWorkspaceDialog: () => null,
 }));

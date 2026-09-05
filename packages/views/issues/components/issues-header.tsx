@@ -12,6 +12,7 @@ import {
   Filter,
   FolderKanban,
   FolderMinus,
+  Target,
   List,
   Rows3,
   SignalHigh,
@@ -65,6 +66,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { memberListOptions, agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { goalListOptions } from "@multica/core/goals";
+import { flattenGoalTree } from "../../goals/components/goal-tree";
 import { labelListOptions } from "@multica/core/labels/queries";
 import { propertyListOptions } from "@multica/core/properties";
 import { propertyIdFromViewKey } from "@multica/core/issues/stores/view-store";
@@ -141,6 +144,7 @@ function getActiveFilterCount(
     creatorFilters: ActorFilterValue[];
     projectFilters: string[];
     includeNoProject: boolean;
+    goalFilters?: string[];
     labelFilters: string[];
     propertyFilters?: Record<string, PropertyFilterValue[]>;
     dateFilter?: IssueDateFilter | null;
@@ -163,6 +167,7 @@ function getActiveFilterCount(
     delta(state.projectFilters, baseline?.project) > 0 ||
     (state.includeNoProject && !(baseline?.includeNoProject ?? false));
   if (projectDelta) count++;
+  if ((state.goalFilters ?? []).length > 0) count++;
   if (delta(state.labelFilters, baseline?.label) > 0) count++;
   for (const [id, selected] of Object.entries(state.propertyFilters ?? {})) {
     // Property members can be operator objects — compare through their
@@ -494,6 +499,50 @@ function ActorSubContent({
 // ---------------------------------------------------------------------------
 // Project sub-menu content
 // ---------------------------------------------------------------------------
+
+/**
+ * Goal facet (K74): the tree root-first, indented by depth. No facet counts —
+ * an issue serves a goal directly or through its project, and the count
+ * would have to resolve the project map on every open.
+ */
+function GoalSubContent({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (goalId: string) => void;
+}) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const { data: goals = [] } = useQuery(goalListOptions(wsId));
+  const rows = useMemo(() => flattenGoalTree(goals), [goals]);
+
+  return (
+    <div className="max-h-64 overflow-y-auto p-1">
+      {rows.map(({ goal, depth }) => {
+        const checked = selected.includes(goal.id);
+        return (
+          <DropdownMenuCheckboxItem
+            key={goal.id}
+            checked={checked}
+            onCheckedChange={() => onToggle(goal.id)}
+            className={FILTER_ITEM_CLASS}
+            style={{ paddingLeft: `${0.5 + depth}rem` }}
+          >
+            <HoverCheck checked={checked} />
+            <Target className="size-3.5 text-muted-foreground" />
+            <span className="truncate">{goal.title}</span>
+          </DropdownMenuCheckboxItem>
+        );
+      })}
+      {rows.length === 0 && (
+        <div className="px-2 py-3 text-center text-body text-muted-foreground">
+          {t(($) => $.filters.no_results)}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ProjectSubContent({
   counts,
@@ -1429,6 +1478,7 @@ export function IssueFilterMenu({
   const creatorFilters = useViewStore((s) => s.creatorFilters);
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
+  const goalFilters = useViewStore((s) => s.goalFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const viewStoreApi = useViewStoreApi();
@@ -1463,6 +1513,7 @@ export function IssueFilterMenu({
         creatorFilters,
         projectFilters,
         includeNoProject,
+        goalFilters,
         labelFilters,
         dateFilter: showDateFilter ? dateFilter : null,
       },
@@ -1712,6 +1763,22 @@ export function IssueFilterMenu({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
+            {/* Goal (K74) */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Target className="size-3.5" />
+                <span className="flex-1">{t(($) => $.filters.section_goal)}</span>
+                {goalFilters.length > 0 && (
+                  <span className="text-caption text-primary font-medium">
+                    {goalFilters.length}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-auto min-w-52 p-0">
+                <GoalSubContent selected={goalFilters} onToggle={act.toggleGoalFilter} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             {/* Label */}
             <DropdownMenuSub
               onOpenChange={(open) =>
@@ -1849,6 +1916,7 @@ export function IssueDisplayControls({
   const creatorFilters = useViewStore((s) => s.creatorFilters);
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
+  const goalFilters = useViewStore((s) => s.goalFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const cardPropertyIds = useViewStore((s) => s.cardPropertyIds);
@@ -1912,6 +1980,7 @@ export function IssueDisplayControls({
       creatorFilters,
       projectFilters,
       includeNoProject,
+      goalFilters,
       labelFilters,
       dateFilter: showDateFilter ? dateFilter : null,
     },

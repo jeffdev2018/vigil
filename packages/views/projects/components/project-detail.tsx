@@ -26,6 +26,10 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { ProjectGoalsSection } from "./project-goals-section";
+import { ProjectOrgSection } from "./project-org-section";
+import { ProjectDecisionsSection } from "./project-decisions-section";
+import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
 import { IssueSurface } from "../../issues/surface/issue-surface";
@@ -468,8 +472,20 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         </div>}
       </div>
 
+      {/* Goals (K74) */}
+      <ProjectGoalsSection projectId={projectId} />
+
+      {/* Org structure in force (K75) */}
+      <ProjectOrgSection projectId={projectId} />
+
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+
+      {/* Decision memory (K29) */}
+      <ProjectDecisionsSection projectId={projectId} />
+
+      {/* Blast radius (K07) */}
+      <ProjectBlastRadiusSection projectId={projectId} />
     </div>
   );
 

@@ -2,23 +2,18 @@
 
 import { useState } from "react";
 import {
-  Zap, Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
-  Ban, ChevronDown, ChevronRight,
-  Webhook, RotateCw, Server,
+  Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
+  Ban, ChevronDown, ChevronRight, Server, AlertTriangle,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { autopilotDetailOptions, autopilotRunsOptions, autopilotRunOptions } from "@multica/core/autopilots/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
 import {
   useUpdateAutopilot,
   useDeleteAutopilot,
   useTriggerAutopilot,
-  useCreateAutopilotTrigger,
-  useDeleteAutopilotTrigger,
-  useRotateAutopilotTriggerWebhookToken,
 } from "@multica/core/autopilots/mutations";
-import { buildAutopilotWebhookUrl } from "@multica/core/autopilots";
-import { api, clientErrorMessage, dispatchReasonCode } from "@multica/core/api";
+import { clientErrorMessage, dispatchReasonCode } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -31,11 +26,6 @@ import { Switch } from "@multica/ui/components/ui/switch";
 import { cn } from "@multica/ui/lib/utils";
 import { toast } from "sonner";
 import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from "@multica/ui/components/ui/dialog";
-import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -45,20 +35,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@multica/ui/components/ui/alert-dialog";
-import { ScheduleEditor } from "./schedule-editor/schedule-editor";
-import { WebhookUrlField } from "./webhook-url-field";
-import { getDefaultScheduleConfig, type ScheduleConfig } from "./schedule-editor/model";
-import { browserTimezone } from "../../common/timezone-select";
-import { cronFields, parseCron, toCron } from "./schedule-editor/cron-mapping";
-import { useDescribeSchedule } from "./schedule-editor/describe";
 import { formatInTimeZone } from "../../common/format-in-time-zone";
-import { SegmentedToggle } from "../../common/segmented-toggle";
-import { useScheduleSubmitGate } from "./schedule-editor/validate";
+import { AddTriggerDialog, TriggerRow } from "./trigger-row";
 import type {
   AutopilotExecutionMode,
   AutopilotRun,
   AutopilotSubscriber,
-  AutopilotTrigger,
 } from "@multica/core/types";
 import type { AgentTask } from "@multica/core/types/agent";
 import { ReadonlyContent } from "../../editor";
@@ -255,356 +237,6 @@ function SkippedRunsGroup({
   );
 }
 
-function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: AutopilotTrigger; autopilotId: string; canWrite: boolean }) {
-  const { t, i18n } = useT("autopilots");
-  const describeSchedule = useDescribeSchedule();
-  const deleteTrigger = useDeleteAutopilotTrigger();
-  const rotateToken = useRotateAutopilotTriggerWebhookToken();
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [rotateOpen, setRotateOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = async () => {
-    setDeleting(true);
-    try {
-      await deleteTrigger.mutateAsync({ autopilotId, triggerId: trigger.id });
-      toast.success(t(($) => $.trigger_row.toast_deleted));
-      setConfirmOpen(false);
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : t(($) => $.trigger_row.toast_delete_failed),
-      );
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const isWebhook = trigger.kind === "webhook";
-  const isApi = trigger.kind === "api";
-  // Resolve the URL from the server's webhook_url first, then compose
-  // from the API base URL (desktop) or window.origin (web). Falls back
-  // to the relative path if neither is available.
-  const webhookUrl = isWebhook
-    ? buildAutopilotWebhookUrl({
-        trigger,
-        apiBaseUrl: api.getBaseUrl(),
-        currentOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
-      })
-    : null;
-
-  const handleRotate = async () => {
-    try {
-      await rotateToken.mutateAsync({ autopilotId, triggerId: trigger.id });
-      toast.success(t(($) => $.trigger_row.toast_rotated));
-      setRotateOpen(false);
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : t(($) => $.trigger_row.toast_rotate_failed),
-      );
-    }
-  };
-
-  const Icon = isWebhook ? Webhook : isApi ? Zap : Clock;
-  const showWebhookUrlRow = isWebhook && webhookUrl;
-  // null when the expression is beyond the structured model — those rows keep
-  // showing the raw cron on its own.
-  const scheduleConfig = trigger.cron_expression
-    ? parseCron(trigger.cron_expression, trigger.timezone ?? "UTC")
-    : null;
-  const scheduleDescription = scheduleConfig ? describeSchedule(scheduleConfig) : null;
-
-  // Delete control extracted so a webhook trigger can render it inline
-  // with Copy / Rotate on the URL action row (where the other action
-  // buttons live), while schedule / api triggers — which have no URL row
-  // — keep it pinned to the row's top-right corner. Without this the
-  // trash icon visually floats above the URL action buttons because the
-  // outer flex uses `items-start`.
-  const deleteButton = canWrite ? (
-    <Button
-      size="icon"
-      variant="ghost"
-      className="h-7 w-7 shrink-0"
-      onClick={() => setConfirmOpen(true)}
-      title={t(($) => $.trigger_row.delete_dialog.confirm)}
-    >
-      <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
-    </Button>
-  ) : null;
-
-  return (
-    <div className="flex items-start gap-3 rounded-md border px-3 py-2">
-      <Icon className="h-4 w-4 shrink-0 text-muted-foreground mt-0.5" />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-body font-medium">{t(($) => $.trigger_kind[trigger.kind])}</span>
-          {trigger.label && (
-            <span className="text-caption text-muted-foreground">({trigger.label})</span>
-          )}
-          {!trigger.enabled && (
-            <span className="text-caption bg-muted px-1.5 py-0.5 rounded">
-              {t(($) => $.trigger_row.disabled_badge)}
-            </span>
-          )}
-          {isApi && (
-            <span className="text-caption bg-muted px-1.5 py-0.5 rounded">
-              {t(($) => $.trigger_row.deprecated_badge)}
-            </span>
-          )}
-        </div>
-        {trigger.cron_expression && (
-          // The plain-language line leads; the raw expression drops to a
-          // secondary line so the two never run together as one blob.
-          <div className="mt-0.5 space-y-0.5">
-            <div className="text-caption text-muted-foreground">
-              {scheduleDescription ?? trigger.cron_expression}
-              {trigger.timezone && ` (${trigger.timezone})`}
-            </div>
-            {scheduleDescription !== null && scheduleConfig !== null && (
-              // Fields only: the zone already reads out in the sentence above,
-              // where a person can use it — same rule as the editor's readback.
-              <div className="font-mono text-micro text-muted-foreground">
-                {cronFields(scheduleConfig)}
-              </div>
-            )}
-          </div>
-        )}
-        {trigger.next_run_at && (
-          <div className="text-caption text-muted-foreground">
-            {t(($) => $.trigger_row.next_label, {
-              date: formatInTimeZone(
-                trigger.next_run_at,
-                trigger.timezone ?? undefined,
-                i18n.language,
-              ),
-            })}
-          </div>
-        )}
-        {showWebhookUrlRow && (
-          <div className="mt-1.5">
-            <WebhookUrlField
-              url={webhookUrl}
-              actions={
-                <>
-                  {canWrite && (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-7 w-7 shrink-0"
-                      onClick={() => setRotateOpen(true)}
-                      title={t(($) => $.trigger_row.rotate_url)}
-                      disabled={rotateToken.isPending}
-                    >
-                      <RotateCw className={cn("h-3.5 w-3.5 text-muted-foreground", rotateToken.isPending && "animate-spin")} />
-                    </Button>
-                  )}
-                  {deleteButton}
-                </>
-              }
-            />
-          </div>
-        )}
-      </div>
-      {!showWebhookUrlRow && deleteButton}
-      <AlertDialog open={confirmOpen} onOpenChange={(v) => { if (!v && !deleting) setConfirmOpen(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t(($) => $.trigger_row.delete_dialog.title)}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t(($) => $.trigger_row.delete_dialog.description)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>
-              {t(($) => $.trigger_row.delete_dialog.cancel)}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-destructive text-white hover:bg-destructive/90"
-            >
-              {deleting
-                ? t(($) => $.trigger_row.delete_dialog.deleting)
-                : t(($) => $.trigger_row.delete_dialog.confirm)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={rotateOpen} onOpenChange={(v) => { if (!v && !rotateToken.isPending) setRotateOpen(false); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t(($) => $.trigger_row.rotate_confirm_title)}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t(($) => $.trigger_row.rotate_confirm_description)}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={rotateToken.isPending}>
-              {t(($) => $.trigger_row.rotate_confirm_cancel)}
-            </AlertDialogCancel>
-            <AlertDialogAction onClick={handleRotate} disabled={rotateToken.isPending}>
-              {rotateToken.isPending
-                ? t(($) => $.trigger_row.rotate_in_progress)
-                : t(($) => $.trigger_row.rotate_confirm_action)}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
-  );
-}
-
-function AddTriggerDialog({
-  open,
-  onOpenChange,
-  autopilotId,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  autopilotId: string;
-}) {
-  const { t } = useT("autopilots");
-  const wsId = useWorkspaceId();
-  const createTrigger = useCreateAutopilotTrigger();
-  const [kind, setKind] = useState<"schedule" | "webhook">("schedule");
-  const [config, setConfig] = useState<ScheduleConfig>(() =>
-    getDefaultScheduleConfig(browserTimezone()),
-  );
-  const [label, setLabel] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const scheduleGate = useScheduleSubmitGate(wsId);
-  const canSubmit = !submitting && (kind !== "schedule" || scheduleGate.scheduleValid);
-
-  const handleSubmit = async () => {
-    if (!canSubmit) return;
-    setSubmitting(true);
-    try {
-      if (kind === "schedule") {
-        if (!(await scheduleGate.ensureAccepted(config))) {
-          setSubmitting(false);
-          return;
-        }
-        const cronExpr = toCron(config);
-        if (!cronExpr.trim()) {
-          setSubmitting(false);
-          return;
-        }
-        await createTrigger.mutateAsync({
-          autopilotId,
-          kind: "schedule",
-          cron_expression: cronExpr,
-          timezone: config.timezone || undefined,
-          label: label.trim() || undefined,
-        });
-        toast.success(t(($) => $.add_trigger_dialog.toast_added_schedule));
-      } else {
-        await createTrigger.mutateAsync({
-          autopilotId,
-          kind: "webhook",
-          label: label.trim() || undefined,
-        });
-        toast.success(t(($) => $.add_trigger_dialog.toast_added_webhook));
-      }
-      onOpenChange(false);
-      setKind("schedule");
-      setConfig(getDefaultScheduleConfig(browserTimezone()));
-      setLabel("");
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : t(($) => $.add_trigger_dialog.toast_add_failed),
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogTitle>{t(($) => $.add_trigger_dialog.title)}</DialogTitle>
-        {/* DialogContent is a grid, so without min-w-0 this item's min-width is
-            its content's — and the cron readback is one unbreakable line that
-            would push the track past the dialog instead of truncating. */}
-        <div className="min-w-0 space-y-4 pt-2">
-          <div>
-            <label className="text-caption font-medium text-muted-foreground">
-              {t(($) => $.add_trigger_dialog.type_label)}
-            </label>
-            <div className="mt-1">
-              <SegmentedToggle
-                value={kind}
-                onChange={setKind}
-                buttonClassName="px-3 py-1.5 text-body"
-                options={[
-                  [
-                    "schedule",
-                    <span key="schedule" className="flex items-center justify-center gap-1.5">
-                      <Clock className="h-3.5 w-3.5" />
-                      {t(($) => $.add_trigger_dialog.type_schedule)}
-                    </span>,
-                  ],
-                  [
-                    "webhook",
-                    <span key="webhook" className="flex items-center justify-center gap-1.5">
-                      <Webhook className="h-3.5 w-3.5" />
-                      {t(($) => $.add_trigger_dialog.type_webhook)}
-                    </span>,
-                  ],
-                ]}
-              />
-            </div>
-          </div>
-
-          {kind === "schedule" ? (
-            <ScheduleEditor
-              value={config}
-              onChange={(next) => {
-                scheduleGate.clearRejection();
-                setConfig(next);
-              }}
-              wsId={wsId}
-              onValidityChange={scheduleGate.onValidityChange}
-              // Same reason as the autopilot dialog: the submit path reads the
-              // schedule, validates it over the network, then writes what it
-              // read — an edit landing inside that window would be discarded.
-              disabled={submitting}
-            />
-          ) : (
-            <p className="rounded-md bg-muted/50 px-3 py-2 text-caption text-muted-foreground">
-              {t(($) => $.add_trigger_dialog.webhook_help)}
-            </p>
-          )}
-
-          <div>
-            <label className="text-caption font-medium text-muted-foreground">
-              {t(($) => $.add_trigger_dialog.label_field)}
-            </label>
-            <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder={t(($) => $.add_trigger_dialog.label_placeholder)}
-              className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-body outline-none focus:ring-1 focus:ring-ring"
-            />
-          </div>
-          <div className="flex justify-end pt-1">
-            <Button size="sm" onClick={handleSubmit} disabled={!canSubmit}>
-              {submitting
-                ? t(($) => $.add_trigger_dialog.submitting)
-                : t(($) => $.add_trigger_dialog.submit)}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 // Read-only chip row; edits flow through AutopilotDialog → SubscriberMultiSelect
 // so the detail page never holds in-flight selection state.
 function SubscriberChips({
@@ -639,6 +271,20 @@ function SubscriberChips({
   );
 }
 
+function pauseNoticeFor(
+  t: ReturnType<typeof useT<"autopilots">>["t"],
+  pauseReason: string | null,
+): { icon: typeof Server; text: string } | null {
+  switch (pauseReason) {
+    case "agent_runtime_required":
+      return { icon: Server, text: t(($) => $.detail.paused_runtime_required) };
+    case "failure_rate":
+      return { icon: AlertTriangle, text: t(($) => $.detail.paused_failure_rate) };
+    default:
+      return null;
+  }
+}
+
 export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const { t } = useT("autopilots");
   const wsId = useWorkspaceId();
@@ -647,7 +293,10 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const { getActorName } = useActorName();
 
   const { data, isLoading } = useQuery(autopilotDetailOptions(wsId, autopilotId));
-  const { data: runs = [], isLoading: runsLoading } = useQuery(autopilotRunsOptions(wsId, autopilotId));
+  const runsQuery = useInfiniteQuery(autopilotRunsOptions(wsId, autopilotId));
+  const runs = runsQuery.data?.items ?? [];
+  const runsTotal = runsQuery.data?.total ?? 0;
+  const runsLoading = runsQuery.isLoading;
   const updateAutopilot = useUpdateAutopilot();
   const deleteAutopilot = useDeleteAutopilot();
   const triggerAutopilot = useTriggerAutopilot();
@@ -719,6 +368,12 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   // edit/run but cannot grant/revoke. Fall back to canWrite when the server
   // doesn't send the field (older backend).
   const canManageAccess = autopilot.can_manage_access ?? canWrite;
+
+  // A pause nobody asked for needs a banner that names the condition — the
+  // recovery differs per reason, and a pause a member made themselves needs no
+  // banner at all. An unknown reason from a newer backend shows none rather
+  // than a blank one.
+  const pauseNotice = pauseNoticeFor(t, autopilot.pause_reason ?? null);
 
   const handleRunNow = async () => {
     try {
@@ -834,20 +489,19 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
         }
       />
 
-      {autopilot.pause_reason === "agent_runtime_required" && (
+      {pauseNotice !== null && (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-6 py-2 text-caption text-amber-900 dark:text-amber-100">
-          <Server className="size-3.5 shrink-0" />
-          <span className="flex-1">
-            {t(($) => $.detail.paused_runtime_required)}
-          </span>
-          {autopilot.assignee_type === "agent" && (
-            <AppLink
-              href={`${wsPaths.agentDetail(autopilot.assignee_id)}?view=general`}
-              className="font-medium underline underline-offset-2"
-            >
-              {t(($) => $.detail.bind_runtime)}
-            </AppLink>
-          )}
+          <pauseNotice.icon className="size-3.5 shrink-0" />
+          <span className="flex-1">{pauseNotice.text}</span>
+          {autopilot.pause_reason === "agent_runtime_required" &&
+            autopilot.assignee_type === "agent" && (
+              <AppLink
+                href={`${wsPaths.agentDetail(autopilot.assignee_id)}?view=general`}
+                className="font-medium underline underline-offset-2"
+              >
+                {t(($) => $.detail.bind_runtime)}
+              </AppLink>
+            )}
         </div>
       )}
 
@@ -979,9 +633,21 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
 
           {/* Run History */}
           <section className="space-y-3">
-            <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
-              {t(($) => $.detail.section_run_history)}
-            </h2>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
+                {t(($) => $.detail.section_run_history)}
+              </h2>
+              {/* The total is a COUNT, not the page length: an autopilot with
+                  300 runs must not look like it has 20. */}
+              {runsTotal > 0 && (
+                <span className="text-caption text-muted-foreground tabular-nums">
+                  {t(($) => $.detail.showing_count, {
+                    shown: runs.length,
+                    total: runsTotal,
+                  })}
+                </span>
+              )}
+            </div>
             {runsLoading ? (
               <div className="space-y-1">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -993,11 +659,27 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
                 {t(($) => $.detail.no_runs)}
               </div>
             ) : (
-              <RunHistoryList
-                runs={runs}
-                agentId={autopilot.assignee_id}
-                agentName={getActorName(autopilot.assignee_type, autopilot.assignee_id)}
-              />
+              <>
+                <RunHistoryList
+                  runs={runs}
+                  agentId={autopilot.assignee_id}
+                  agentName={getActorName(autopilot.assignee_type, autopilot.assignee_id)}
+                />
+                {runsQuery.hasNextPage && (
+                  <div className="flex justify-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => runsQuery.fetchNextPage()}
+                      disabled={runsQuery.isFetchingNextPage}
+                    >
+                      {runsQuery.isFetchingNextPage
+                        ? t(($) => $.detail.loading_more)
+                        : t(($) => $.detail.load_more)}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

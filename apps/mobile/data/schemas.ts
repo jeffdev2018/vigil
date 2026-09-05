@@ -22,10 +22,12 @@ import type {
   InboxItem,
   IssueLabelsResponse,
   Label,
+  ListGoalsResponse,
   ListLabelsResponse,
   ListProjectResourcesResponse,
   ListProjectsResponse,
   MemberWithUser,
+  OrgStructure,
   PinnedItem,
   Project,
   ProjectResource,
@@ -38,7 +40,33 @@ import type {
   User,
   Workspace,
 } from "@multica/core/types";
-import { IssueSchema } from "@multica/core/api/schemas";
+import {
+  AgentEffectListSchema,
+  AgentEffectSchema,
+  IssueSchema,
+  UndoReportSchema,
+} from "@multica/core/api/schemas";
+
+/**
+ * Undo for agent actions (K69). Types derive from the core zod schemas
+ * (on the mobile sharing whitelist) instead of `packages/core/issues/
+ * agent-effects.ts`, whose interfaces sit next to TanStack hooks that pull
+ * in web's api client. Fallbacks mirror `packages/core/api/client.ts`
+ * (`listIssueAgentEffects` / `undoTask` / `undoAgentEffect`).
+ */
+export type AgentEffect = z.infer<typeof AgentEffectSchema>;
+export type AgentEffectList = z.infer<typeof AgentEffectListSchema>;
+export type UndoReport = z.infer<typeof UndoReportSchema>;
+export const EMPTY_AGENT_EFFECT_LIST: AgentEffectList = {
+  effects: [],
+  window_hours: 24,
+};
+export const EMPTY_UNDO_REPORT: UndoReport = {
+  reversed: 0,
+  skipped: [],
+  breaker: { tripped: false, trust_mode: "" },
+  effects: [],
+};
 
 /** Upload response. Only fields mobile actually consumes — `url` to put
  *  into the markdown link, `filename` for the `[📎 name](url)` form, `id`
@@ -183,6 +211,144 @@ export const EMPTY_LIST_PROJECTS_RESPONSE: ListProjectsResponse = {
   projects: [],
   total: 0,
 };
+
+// Goals with ancestry (K74). Mirror of `GoalSchema` / `ListGoalsResponseSchema`
+// in packages/core/api/schemas.ts — same fields, same enum, same fallbacks.
+const GoalStatusSchema = z
+  .enum(["draft", "active", "done", "dropped"])
+  .catch("draft");
+
+export const GoalSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  parent_goal_id: z.string().nullable().catch(null).default(null),
+  title: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  success_measure: z.string().catch("").default(""),
+  due_date: z.string().nullable().catch(null).default(null),
+  owner_id: z.string().nullable().catch(null).default(null),
+  status: GoalStatusSchema.default("draft"),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  // Rolled up over sub-goals by the server; never re-summed client-side.
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const ListGoalsResponseSchema = z.object({
+  goals: z.array(GoalSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_LIST_GOALS_RESPONSE: ListGoalsResponse = {
+  goals: [],
+  total: 0,
+};
+
+// Executable org chart (K75). Mirror of `OrgStructureSchema` /
+// `OrgStructureListSchema` in packages/core/api/schemas.ts — same fields,
+// same enums, same fallbacks. Mobile renders units only, so edges / rules /
+// committees / market stay loose passthrough.
+const OrgMemberSchema = z.object({
+  type: z.enum(["member", "agent"]).catch("member"),
+  id: z.string().catch(""),
+  role: z.string().optional(),
+  role_id: z.string().optional(),
+}).loose();
+
+export const OrgUnitSchema = z.object({
+  id: z.string().catch(""),
+  name: z.string().catch(""),
+  kind: z.string().optional(),
+  owner_id: z.string().optional(),
+  excludes: z
+    .array(z.enum(["untrusted_input", "sensitive_data", "external_effects"]))
+    .catch([])
+    .default([]),
+  autonomy: z
+    .enum(["read_only", "draft", "approve_payload", "auto"])
+    .catch("draft"),
+  allow: z.array(z.string()).catch([]).default([]),
+  deny: z.array(z.string()).catch([]).default([]),
+  escalation_quota_per_day: z.number().catch(5).default(5),
+  members: z.array(OrgMemberSchema).catch([]).default([]),
+  roles: z
+    .array(
+      z.object({
+        id: z.string().catch(""),
+        name: z.string().catch(""),
+        responsibilities: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+      }).loose(),
+    )
+    .catch([])
+    .default([]),
+}).loose();
+
+const EMPTY_ORG_MARKET = {
+  price_cap_usd_ticks: 0,
+  offers_per_agent_per_day: 5,
+  min_offers: 2,
+};
+
+export const OrgDefinitionSchema = z.object({
+  units: z.array(OrgUnitSchema).catch([]).default([]),
+  edges: z.array(z.looseObject({})).catch([]).default([]),
+  rules: z.array(z.looseObject({})).catch([]).default([]),
+  committees: z.array(z.looseObject({})).catch([]).default([]),
+  market: z
+    .object({
+      price_cap_usd_ticks: z.number().catch(0).default(0),
+      offers_per_agent_per_day: z.number().catch(5).default(5),
+      min_offers: z.number().catch(2).default(2),
+    })
+    .loose()
+    .catch(EMPTY_ORG_MARKET),
+}).loose();
+
+const EMPTY_ORG_DEFINITION = {
+  units: [],
+  edges: [],
+  rules: [],
+  committees: [],
+  market: EMPTY_ORG_MARKET,
+};
+
+export const OrgStructureSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  model: z
+    .enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"])
+    .catch("owner_network"),
+  name: z.string().catch(""),
+  status: z.enum(["draft", "active", "paused", "dissolved"]).catch("draft"),
+  revision: z.number().catch(1).default(1),
+  revision_id: z.string().nullable().catch(null).default(null),
+  definition: OrgDefinitionSchema.catch(EMPTY_ORG_DEFINITION),
+  owner_id: z.string().nullable().catch(null).default(null),
+  dissolve_at: z.string().nullable().catch(null).default(null),
+  end_condition: z.string().catch("").default(""),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  eval_attestation: z.string().catch("").default(""),
+  paused_reason: z.string().catch("").default(""),
+  dissolved_at: z.string().nullable().catch(null).default(null),
+  paused_units: z.array(z.string()).catch([]).default([]),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const OrgStructureListSchema = z.object({
+  structures: z.array(OrgStructureSchema).catch([]).default([]),
+}).loose();
+
+export interface OrgStructureList {
+  structures: OrgStructure[];
+}
+
+export const EMPTY_ORG_STRUCTURE_LIST: OrgStructureList = { structures: [] };
 
 // Fallback for `GET /api/projects/{id}` when the response shape drifts.
 // `id` defaults to empty — caller can detect "not found / drift" by checking
@@ -623,6 +789,13 @@ export const AgentSchema: z.ZodType<Agent> = z.object({
   workspace_id: z.string().default(""),
   runtime_id: z.string().default(""),
   runtime_bound: z.boolean().optional(),
+  // Smart runtime routing (JEF-237). "fixed" pins the agent to runtime_id;
+  // "auto" lets the router pick per task, keeping runtime_id as the preferred
+  // fallback. Older backends omit it — consumers must read undefined as
+  // "fixed", which is why this stays optional rather than defaulting.
+  runtime_routing: z
+    .enum(["fixed", "auto"])
+    .optional() as unknown as z.ZodType<Agent["runtime_routing"]>,
   name: z.string().default(""),
   description: z.string().default(""),
   instructions: z.string().default(""),
@@ -680,6 +853,9 @@ export const RuntimeSchema: z.ZodType<RuntimeDevice> = z.object({
   workspace_id: z.string().default(""),
   daemon_id: z.string().nullable().default(null),
   name: z.string().default(""),
+  // User-set alias (MUL-4217). Absent on an older backend — `runtimeDisplayName`
+  // treats null/blank as "use name".
+  custom_name: z.string().nullable().default(null),
   runtime_mode: z.string().catch("local") as unknown as z.ZodType<
     RuntimeDevice["runtime_mode"]
   >,
@@ -757,3 +933,108 @@ export const EMPTY_ISSUE_FALLBACK: import("@multica/core/types").Issue = {
 
 // Helpers re-exported for ergonomic single-import at the call site.
 export type { Label, Project, ProjectResource };
+
+// Inbox zero (K63): my pending Decision Cards, options included, ordered and
+// capped on the server. Mirrors packages/core/api/schemas.ts InboxDecisionsSchema.
+export const InboxDecisionSchema = z.object({
+  inbox_item_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  issue_identifier: z.string().catch("").default(""),
+  issue_title: z.string().catch("").default(""),
+  risk_score: z.number().catch(0).default(0),
+  decision: z.object({
+    id: z.string(),
+    issue_id: z.string().default(""),
+    question: z.string().default(""),
+    options: z.array(z.object({ id: z.string(), label: z.string().default(""), impact: z.string().optional() }).loose()).catch([]).default([]),
+    recommended_option_id: z.string().optional(),
+    urgency: z.string().default("normal"),
+    sla_deadline_at: z.string().nullable().optional().catch(null),
+    created_at: z.string().default(""),
+  }).loose(),
+}).loose();
+
+export const InboxDecisionsSchema = z.object({
+  decisions: z.array(InboxDecisionSchema).catch([]).default([]),
+  total: z.number().int().catch(0).default(0),
+}).loose();
+
+export type InboxDecision = z.infer<typeof InboxDecisionSchema>;
+export type InboxDecisions = z.infer<typeof InboxDecisionsSchema>;
+
+// ---------------------------------------------------------------------------
+// Run replay (GET /api/tasks/{taskId}/replay) — mobile-only until web's
+// scrubber promotes a schema to core. Mirrors `RunReplayResponse` in
+// server/internal/handler/task_replay.go. Event `kind` stays a free string so
+// a kind newer than this build still renders (Behavioral parity: never drop a
+// category).
+// ---------------------------------------------------------------------------
+
+export const RunReplayActorSchema = z.looseObject({
+  type: z.string().default(""),
+  id: z.string().default(""),
+  name: z.string().default(""),
+});
+
+export const RunReplayEventSchema = z.looseObject({
+  seq: z.number(),
+  at: z.string(),
+  kind: z.string(),
+  actor: RunReplayActorSchema.default({ type: "", id: "", name: "" }),
+  title: z.string().default(""),
+  text: z.string().default(""),
+  data: z.record(z.string(), z.unknown()).nullable().default(null),
+  source: z.string().default(""),
+  source_id: z.string().default(""),
+  prev_hash: z.string().default(""),
+  hash: z.string().default(""),
+});
+
+export const RunReplayLinkSchema = z.looseObject({
+  relation: z.string(),
+  task_id: z.string(),
+  agent_id: z.string().default(""),
+  agent_name: z.string().default(""),
+});
+
+export const RunReplaySchema = z.looseObject({
+  run: z.looseObject({
+    id: z.string(),
+    issue_id: z.string().default(""),
+    agent_id: z.string().default(""),
+    agent_name: z.string().default(""),
+    status: z.string().default(""),
+    trust_mode: z.string().default(""),
+    effect_mode: z.string().default(""),
+    model: z.string().default(""),
+    runtime_id: z.string().default(""),
+    created_at: z.string().nullable().default(null),
+    started_at: z.string().nullable().default(null),
+    completed_at: z.string().nullable().default(null),
+    links: z.array(RunReplayLinkSchema).nullable().default([]),
+  }),
+  events: z.array(RunReplayEventSchema).nullable().default([]),
+  total: z.number().default(0),
+  next_cursor: z.number().nullable().default(null),
+  head_hash: z.string().default(""),
+  cost: z
+    .looseObject({
+      input_tokens: z.number().default(0),
+      output_tokens: z.number().default(0),
+      cost_usd_ticks: z.number().nullable().default(null),
+    })
+    .default({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }),
+  sealed: z
+    .looseObject({
+      events: z.number().default(0),
+      head_hash: z.string().default(""),
+      sealed_at: z.string().default(""),
+      verified: z.boolean().default(false),
+    })
+    .nullable()
+    .default(null),
+});
+
+export type RunReplayEvent = z.infer<typeof RunReplayEventSchema>;
+export type RunReplayLink = z.infer<typeof RunReplayLinkSchema>;
+export type RunReplay = z.infer<typeof RunReplaySchema>;

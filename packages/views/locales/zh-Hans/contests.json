@@ -1,0 +1,79 @@
+{
+  "button": "质询",
+  "dialog": {
+    "title": "质询这条输出",
+    "description": "对手模型读取输出并列出编号的异议。作者逐条回应，由你裁定。",
+    "loading": "正在准备质询…",
+    "preflight_failed": "无法准备质询",
+    "challenger": "质询方",
+    "same_vendor": "同一厂商的另一模型",
+    "service_model": "服务模型",
+    "cost": "预估费用",
+    "quota": "每日配额",
+    "quota_value": "{{used}}/{{limit}}",
+    "quota_reached": "今天的质询配额已用完，明天再试。",
+    "existing": "已有质询",
+    "rounds": "轮数",
+    "round_1": "1 轮",
+    "round_2": "2 轮",
+    "launch": "发起",
+    "cancel": "取消",
+    "launched": "质询已发起",
+    "launch_failed": "无法发起质询"
+  },
+  "target": {
+    "task_result": "运行结果",
+    "plan": "计划",
+    "triage_verdict": "审核裁定",
+    "meeting_summary": "会议摘要"
+  },
+  "status": {
+    "running": "质询中",
+    "objections_ready": "异议已就绪",
+    "answering": "作者回应中",
+    "answered": "已回应",
+    "confirmed": "已裁定",
+    "failed": "失败"
+  },
+  "severity": {
+    "high": "高",
+    "medium": "中",
+    "low": "低"
+  },
+  "kind": {
+    "missing": "遗漏",
+    "false": "错误",
+    "risky": "有风险"
+  },
+  "answer_verdict": {
+    "accept": "接受",
+    "refute": "反驳",
+    "fix": "修正"
+  },
+  "verdict": {
+    "upheld": "成立",
+    "dismissed": "驳回",
+    "mixed": "部分成立"
+  },
+  "panel": {
+    "challenged_by": "由 {{provider}} 质询",
+    "round": "第 {{round}}/{{max}} 轮",
+    "objections": "异议",
+    "answers": "作者回应",
+    "nothing": "没有可质询之处",
+    "evidence": "依据",
+    "expected_proof": "期望的证明",
+    "proof": "证明",
+    "waiting_author": "等待作者回应",
+    "no_author": "没有可回应的作者",
+    "no_answer": "未回应",
+    "your_verdict": "你的裁定",
+    "note_placeholder": "备注（可选）",
+    "confirmed_on": "于 {{date}} 裁定",
+    "confirm_failed": "无法记录裁定"
+  },
+  "section": {
+    "title": "质询",
+    "count": "{{count}} 条质询"
+  }
+}

@@ -102,7 +102,54 @@
     "title": "아직 사용량이 없습니다",
     "body": "여기에서 에이전트가 실행을 시작하면 토큰 비용과 실행 시간이 이 화면에 표시됩니다."
   },
+  "routing_benchmarks": {
+    "title": "스마트 라우팅 벤치마크",
+    "subtitle": "최근 90일 · 런타임, 모델, 작업 클래스별",
+    "col_runtime": "런타임",
+    "col_model": "모델",
+    "col_class": "작업 클래스",
+    "class": {
+      "general": "일반",
+      "bugfix": "버그 수정",
+      "feature": "기능",
+      "refactor": "리팩터링",
+      "docs": "문서",
+      "tests": "테스트",
+      "chore": "잡무"
+    },
+    "col_samples": "샘플",
+    "col_success": "성공률",
+    "col_avg_cost": "평균 비용",
+    "col_avg_duration": "평균 소요 시간",
+    "empty_title": "라우팅 데이터가 아직 없습니다",
+    "empty_body": "에이전트가 자동 라우팅 모드로 실행되면 런타임과 모델별 90일 성능이 여기에 표시됩니다."
+  },
   "duration": {
     "less_than_minute": "1분 미만"
+  },
+  "deliverable": {
+    "issue_label": "완료 이슈당 비용 · {{days}}일",
+    "pr_label": "병합 PR당 비용 · {{days}}일",
+    "hint": "{{count}}건 완료 · 평균 ${{mean}}",
+    "floor": "일부 사용량 가격 없음",
+    "none": "이 기간에는 없음",
+    "empty": "지난 {{days}}일 동안 실행이 있는 완료 이슈나 병합된 PR이 없습니다."
+  },
+  "scorecards": {
+    "title": "에이전트 스코어카드 · {{days}}일",
+    "scope_note": "워크스페이스 전체, 모든 프로젝트 · UTC 기준 일자",
+    "agent": "에이전트",
+    "runs": "실행",
+    "accepted": "수락",
+    "failed": "실패",
+    "reopened": "재오픈",
+    "no_intervention": "개입 없음",
+    "mean_cost": "평균 비용",
+    "low_sample": "(실행 적음)"
+  },
+  "autopilot_quota": {
+    "title": "이번 기간 오토파일럿 실행: {{used}} / {{limit}}",
+    "near_limit": "한도에 근접했습니다. 한도에 도달하면 오토파일럿이 실행되지 않습니다.",
+    "reached": "한도에 도달했습니다. 기간이 초기화될 때까지 오토파일럿이 실행되지 않습니다."
   }
 }

@@ -1,0 +1,136 @@
+{
+  "title": "Triage",
+  "subtitle": "Examinez les livraisons de webhooks entrants avant qu'elles ne deviennent des issues",
+  "stats": {
+    "pending": "{{count}} en attente",
+    "oldest": "Plus ancien : {{age}}",
+    "dropped_24h": "{{count}} rejetés en 24h",
+    "none_pending": "File d'attente vide",
+    "shadow_pending": "{{count}} enregistrés en observation"
+  },
+  "filter": {
+    "pending": "En attente",
+    "accepted": "Accepté",
+    "dismissed": "Ignoré",
+    "merged": "Fusionné",
+    "snoozed": "Reportés"
+  },
+  "sources": {
+    "empty": "Aucune source entrante pour le moment",
+    "action": "Sources",
+    "title": "Sources entrantes",
+    "pending": "{{count}} en attente",
+    "dropped_24h": "{{count}} rejetés en 24 h",
+    "auto_accept": "Acceptation automatique",
+    "cap_per_hour": "Plafond horaire",
+    "expiry_days": "Rétention (jours)",
+    "zero_hint": "0 signifie aucun plafond et la rétention par défaut.",
+    "items_24h": "{{count}} en 24h",
+    "mode": {
+      "gate": "Gate",
+      "direct": "Direct",
+      "blocked": "Bloqué"
+    }
+  },
+  "list": {
+    "empty_title": "File d'attente vide",
+    "empty_description": "Lorsqu'une source est configurée sur Gate, ses livraisons de webhooks attendent ici jusqu'à ce qu'un humain les accepte ou les rejette.",
+    "loading": "Chargement de la file de triage",
+    "load_error": "Impossible de charger la file de triage",
+    "empty_history_title": "Rien pour le moment",
+    "load_more": "Charger plus"
+  },
+  "detail": {
+    "select_prompt": "Sélectionnez un élément pour l'examiner",
+    "from_source": "De {{name}}",
+    "body_label": "Description",
+    "no_body": "Aucune description capturée",
+    "payload_label": "Payload capturé",
+    "payload_truncated": "Payload trop volumineux — seule sa taille a été conservée",
+    "no_payload": "Aucun payload capturé",
+    "collapse_count": "Vu {{count}} fois",
+    "accept": "Accepter",
+    "accepting": "Acceptation en cours",
+    "dismiss": "Ignorer",
+    "dismissing": "Rejet en cours",
+    "accepted_toast": "Accepté — issue créée",
+    "dismissed_toast": "Ignoré",
+    "merged_toast": "Déjà suivi sous {{identifier}} — fusionné",
+    "limit_toast": "Limite d'issues atteinte — l'élément reste dans la file d'attente",
+    "error_toast": "Une erreur est survenue",
+    "resolution_reason": "Raison : {{reason}}",
+    "accepted_toast_identifier": "Accepté — {{identifier}} créé",
+    "open_issue": "Ouvrir l'issue",
+    "from_meeting": "Depuis la réunion",
+    "auto_accepted": "Accepté automatiquement par la file"
+  },
+  "batch": {
+    "accept": "Accepter {{count}}",
+    "clear": "Effacer la sélection",
+    "stopped_toast": "Arrêté — le workspace a atteint sa limite d'issues",
+    "summary_toast": "{{accepted}} acceptés, {{duplicates}} doublons, {{failed}} échecs",
+    "dismiss": "Rejeter {{count}}",
+    "dismiss_summary": "Rejeter {{count}} éléments avec une raison commune.",
+    "dismiss_summary_toast": "{{dismissed}} rejetés, {{failed}} en échec"
+  },
+  "suggestion": {
+    "title": "Suggestion",
+    "none": "Aucune décision similaire passée pour le moment.",
+    "dismiss": "ignorer",
+    "accept": "accepter",
+    "would_dismiss": "Serait ignoré",
+    "would_accept": "Serait accepté",
+    "confidence": "Confiance de {{percent}} % basée sur {{count}} livraisons similaires",
+    "auto_on": "L'application automatique est activée : appliquée au-dessus de {{threshold}} %.",
+    "auto_off": "L'application automatique est désactivée : un humain décide. Activez-la dans Paramètres → Workspace.",
+    "not_ready": "Apprentissage : {{examples}} sur {{min}} décisions nécessaires avant l'application automatique.",
+    "reopen": "Rouvrir",
+    "reopen_failed": "Échec de la réouverture"
+  },
+  "accept_as": {
+    "label": "Accepter en tant que",
+    "assignee": "Assigné",
+    "assignee_set": "Assigné défini",
+    "priority": "Priorité",
+    "project": "Projet",
+    "project_set": "Projet défini"
+  },
+  "merge": {
+    "action": "Fusionner dans…",
+    "title": "Fusionner dans une issue",
+    "description": "Rattacher cet élément à une issue qui suit déjà ce travail.",
+    "toast": "Fusionné dans {{identifier}}"
+  },
+  "snooze": {
+    "action": "Reporter",
+    "custom": "Date personnalisée",
+    "confirm": "Reporter",
+    "toast": "Reporté",
+    "invalid": "Choisissez un moment futur, à 30 jours au plus",
+    "preset": {
+      "hour": "Dans une heure",
+      "evening": "Ce soir",
+      "tomorrow": "Demain",
+      "next_monday": "Lundi prochain"
+    }
+  },
+  "dismiss_reason": {
+    "label": "Raison (facultatif)",
+    "placeholder": "Pourquoi ce n'est pas du travail à faire ?",
+    "confirm": "Confirmer le rejet"
+  },
+  "verdict": {
+    "badge": "L'agent suggère : {{verdict}}",
+    "accept": "Accepter",
+    "dismiss": "Rejeter",
+    "by": "par {{name}}"
+  },
+  "rule": {
+    "action": "Créer une règle",
+    "title": "Créer une règle à partir de cet élément",
+    "description": "Une règle s'applique à la capture d'une livraison, avant que quiconque la voie. Prévisualisez la règle compilée et son essai à blanc avant de l'activer.",
+    "prefill": "Les livraisons de {{source}} dont le titre contient « {{keyword}} »",
+    "prefill_source": "Les livraisons de {{source}}",
+    "manage": "Gérer les règles"
+  }
+}

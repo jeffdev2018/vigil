@@ -56,6 +56,8 @@ import type {
   User,
   Skill,
   SkillSummary,
+  AgentMemory,
+  AgentMemoryList,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -68,14 +70,32 @@ import type {
   RuntimeHourlyActivity,
   RuntimeUsageByAgent,
   RuntimeUsageByHour,
+  RuntimeRoutingStatsResponse,
   DashboardUsageDaily,
   DashboardUsageByAgent,
+  DashboardCostPerDeliverable,
+  AgentScorecard,
+  WorkspaceScorecardRow,
+  AgentVersion,
+  AgentVersionDiff,
+  AuditLogFilter,
+  AuditLogPage,
+  AuditChainStatus,
+  ADRRequirement,
+  DecisionRecord,
+  BlastRadiusRule,
+  BlastRadiusPreview,
+  BusinessRule,
+  BusinessRuleDryRun,
+  WeeklyRetro,
+  BusinessRuleViolation,
   DashboardAgentRunTime,
   DashboardRunTimeDaily,
   DashboardFailureDaily,
   DashboardFailureByAgent,
   RuntimeUpdate,
   RuntimeModelListRequest,
+	RuntimeCliAuthRequest,
   RuntimeLocalSkillListRequest,
   CreateRuntimeLocalSkillImportRequest,
   RuntimeLocalSkillImportRequest,
@@ -142,6 +162,9 @@ import type {
   UpdateAutopilotTriggerRequest,
   ListAutopilotsResponse,
   CronPreviewResponse,
+  WebhookTriggerDryRunRequest,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
   GetAutopilotResponse,
   AutopilotCollaboratorsResponse,
   ListAutopilotRunsResponse,
@@ -221,6 +244,63 @@ import type {
   CreateCommentSubIssueManualRequest,
   CreateCommentSubIssueAgentRequest,
   CreateCommentSubIssueRequest,
+  IssueDependencies,
+  IssueDependencyType,
+  MergeReadiness,
+  PRStack,
+  IssuePlan,
+  IssuePlanEnvelope,
+  IssuePlanStep,
+  PlanVerification,
+  IssueDecision,
+  ReviewCockpit,
+  MorningBriefing,
+  ModuleOwnershipRule,
+  OwnershipSuggestion,
+  IssueScopingProposal,
+  AcceptanceCriterion,
+  DecisionAnswer,
+  AttentionInboxItem,
+  TriageStats,
+  TriageItemsResponse,
+  TriageItemState,
+  Meeting,
+  MeetingListResponse,
+  MeetingSegmentResponse,
+  CalendarFeed,
+  CalendarUpcoming,
+  VoiceTranscription,
+  RealtimeVoiceSession,
+  TriageSource,
+  TriageSourcePatch,
+  TriageEmailSource,
+  TriageBatchAcceptResponse,
+  AcceptTriageItemResponse,
+  DismissTriageItemResponse,
+  MergeTriageItemResponse,
+  SnoozeTriageItemResponse,
+  AcceptTriageItemOverrides,
+  TriageBatchDismissResponse,
+  TriageSuggestionsResponse,
+  Postmortem,
+  PostmortemState,
+  PostmortemStats,
+  PostmortemsResponse,
+  WorkspaceNote,
+  WorkspaceNotesResponse,
+  CreateWorkspaceNoteInput,
+  UpdateWorkspaceNoteInput,
+  TransferPreview,
+  TransferReport,
+  TransferImportResult,
+  TransferRun,
+  WorkspaceTemplate,
+  TransferExportOptions,
+  TransferStrategy,
+  TransferSecretValues,
+  McpServerToolCatalog,
+  McpToolPolicy,
+  McpToolRisk,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -230,6 +310,8 @@ import type {
 } from "../feedback/types";
 import type {
   CloudRuntimeNode,
+  CloudRuntimeNodeAction,
+  CloudRuntimeNodeActionResult,
   CreateCloudRuntimeNodeRequest,
   ListCloudRuntimeNodesParams,
 } from "../runtimes/cloud-runtime";
@@ -237,6 +319,17 @@ import { type Logger, noopLogger } from "../logger";
 import { createRequestId, createSafeId } from "../utils";
 import { getCurrentSlug } from "../platform/workspace-storage";
 import { parseWithFallback } from "./schema";
+import {
+  BudgetOverrideSchema,
+  BudgetPolicyListSchema,
+  BudgetPolicySchema,
+  BudgetStatusListSchema,
+  type BudgetOverride,
+  type BudgetPolicy,
+  type BudgetStatus,
+  type CreateBudgetPolicyRequest,
+  type UpdateBudgetPolicyRequest,
+} from "../budgets/schemas";
 import {
   AgentTaskListSchema,
   AttachmentResponseSchema,
@@ -255,6 +348,7 @@ import {
   CommentsListSchema,
   CommentTriggerPreviewSchema,
   IssueTriggerPreviewSchema,
+  CloudRuntimeNodeActionSchema,
   CloudRuntimeNodeListSchema,
   CloudRuntimeNodeSchema,
   AgentBuilderRuntimeSwitchSchema,
@@ -267,6 +361,99 @@ import {
   DashboardFailureDailyListSchema,
   DashboardFailureByAgentListSchema,
   DashboardUsageByAgentListSchema,
+  DashboardCostPerDeliverableSchema,
+  AgentScorecardSchema,
+  WorkspaceScorecardsSchema,
+  AgentVersionsSchema,
+  AuditLogPageSchema,
+  AuditChainStatusSchema,
+  TriageSuggestionsResponseSchema,
+  TrustModeEnvelopeSchema,
+  EffectModeEnvelopeSchema,
+  RunReplaySchema,
+  WatchdogEnvelopeSchema,
+  WorkProfileSchema,
+  OrgStructureSchema,
+  OrgStructureListSchema,
+  OrgStructureDetailSchema,
+  OrgTemplateListSchema,
+  OrgHealthSchema,
+  OrgPreflightSchema,
+  OrgOfferListSchema,
+  OrgResolveSchema,
+  TransferPreviewSchema,
+  TransferImportResultSchema,
+  TransferRunListSchema,
+  WorkspaceTemplateListSchema,
+  IssueEnvelopeSchema,
+  ContestSchema,
+  ContestListSchema,
+  ContestPreflightSchema,
+  ContestSettingsSchema,
+  GoalSchema,
+  ListGoalsResponseSchema,
+  GoalDetailResponseSchema,
+  ProjectGoalsResponseSchema,
+  SkillDraftListSchema,
+  WatchdogVerdictListSchema,
+  WatchdogScanResultSchema,
+  WatchdogVerdictEnvelopeSchema,
+  ReplayResumeResultSchema,
+  ReplaySimulateResultSchema,
+  PermissionProfileSchema,
+  PermissionProfilesEnvelopeSchema,
+  AgentPermissionAssignmentSchema,
+  RunSecretsEnvelopeSchema,
+  RuntimePoolSchema,
+  RuntimePoolsEnvelopeSchema,
+  FailoverHistoryEnvelopeSchema,
+  AgentPoolAssignmentSchema,
+  IssueRoutingEnvelopeSchema,
+  HandoffPacketSchema,
+  RunLimitPolicySchema,
+  RunControlEnvelopeSchema,
+  RunCheckpointEnvelopeSchema,
+  TrafficConflictSchema,
+  DriftPolicySchema,
+  PreemptionsEnvelopeSchema,
+  PipelineSchema,
+  PipelinesEnvelopeSchema,
+  PipelineRunEnvelopeSchema,
+  FanoutEnvelopeSchema,
+  AgentDuelEnvelopeSchema,
+  RefactorCampaignEnvelopeSchema,
+  AgentCompetencySchema,
+  AssigneeSuggestionSchema,
+  CompetencySettingsSchema,
+  CrossReviewListSchema,
+  AgentEffectListSchema,
+  UndoReportSchema,
+  UndoSettingsSchema,
+  CrossReviewSettingsSchema,
+  IssueCIAutoFixSchema,
+  CIAutoFixRetryEnvelopeSchema,
+  CIAutoFixSettingsSchema,
+  TrafficConflictsEnvelopeSchema,
+  RunLimitPoliciesEnvelopeSchema,
+  RunLimitEventsEnvelopeSchema,
+  HandoffPacketsEnvelopeSchema,
+  LatestHandoffPacketEnvelopeSchema,
+  RoutingSettingsSchema,
+  TrustSuggestionSchema,
+  TrustHistorySchema,
+  WhySearchResponseSchema,
+  ADRRequirementSchema,
+  DecisionRecordListSchema,
+  BlastRadiusRuleSchema,
+  BlastRadiusRulesSchema,
+  BlastRadiusPreviewSchema,
+  BusinessRuleListSchema,
+  WeeklyRetroSchema,
+  BusinessRuleEnvelopeSchema,
+  BusinessRuleDryRunSchema,
+  BusinessRuleViolationListSchema,
+  AgentVersionDiffSchema,
+  AgentVersionEnvelopeSchema,
   DashboardUsageDailyListSchema,
   EMPTY_APP_CONFIG,
   EMPTY_ATTACHMENT,
@@ -276,6 +463,7 @@ import {
   EMPTY_CHAT_SESSION_LIST,
   EMPTY_PRIORITIZE_QUEUED_CHAT_TASK_RESPONSE,
   EMPTY_CLOUD_RUNTIME_NODE,
+  EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   EMPTY_CLOUD_RUNTIME_NODE_LIST,
   EMPTY_AGENT_BUILDER_SESSION,
   EMPTY_GROUPED_ISSUES_RESPONSE,
@@ -306,6 +494,45 @@ import {
   CronPreviewResponseSchema,
   UNREADABLE_CRON_PREVIEW_RESPONSE,
   ListIssuesResponseSchema,
+  IssueDependenciesResponseSchema,
+  TriageStatsSchema,
+  TriageSourceSchema,
+  EMPTY_TRIAGE_SOURCE,
+  TriageItemsResponseSchema,
+  MeetingSchema,
+  MeetingListResponseSchema,
+  VoiceTranscriptionSchema,
+  EMPTY_VOICE_TRANSCRIPTION,
+  RealtimeVoiceSessionSchema,
+  EMPTY_REALTIME_VOICE_SESSION,
+  MeetingSegmentResponseSchema,
+  EMPTY_MEETING,
+  EMPTY_MEETING_LIST,
+  EMPTY_MEETING_SEGMENT,
+  CalendarFeedSchema,
+  CalendarUpcomingSchema,
+  EMPTY_CALENDAR_FEED,
+  EMPTY_CALENDAR_UPCOMING,
+  TriageBatchAcceptResponseSchema,
+  AcceptTriageItemResponseSchema,
+  DismissTriageItemResponseSchema,
+  MergeTriageItemResponseSchema,
+  SnoozeTriageItemResponseSchema,
+  TriageBatchDismissResponseSchema,
+
+  TriageEmailSourceSchema,
+  EMPTY_TRIAGE_EMAIL_SOURCE,
+  EMPTY_TRIAGE_STATS,
+  EMPTY_TRIAGE_ITEMS_RESPONSE,
+  PostmortemSchema,
+  PostmortemsResponseSchema,
+  PostmortemStatsSchema,
+  EMPTY_POSTMORTEM_STATS,
+  EMPTY_POSTMORTEMS_RESPONSE,
+  WorkspaceNoteSchema,
+  WorkspaceNotesResponseSchema,
+  EMPTY_WORKSPACE_NOTE,
+  EMPTY_WORKSPACE_NOTES_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -316,6 +543,8 @@ import {
   RuntimeUsageByAgentListSchema,
   RuntimeUsageByHourListSchema,
   RuntimeUsageListSchema,
+  RuntimeRoutingStatsResponseSchema,
+  EMPTY_ROUTING_STATS_RESPONSE,
   SearchIssuesResponseSchema,
   SearchProjectsResponseSchema,
   SquadSchema,
@@ -325,6 +554,10 @@ import {
   TimelineEntriesSchema,
   UserSchema,
   WebhookDeliveryResponseSchema,
+  WebhookTriggerDryRunSchema,
+  ScheduleTriggerDryRunSchema,
+  UNREADABLE_WEBHOOK_DRY_RUN,
+  UNREADABLE_SCHEDULE_DRY_RUN,
   BillingBalanceSchema,
   BillingTransactionsPageSchema,
   BillingBatchesPageSchema,
@@ -376,6 +609,8 @@ import {
   InboxUnreadSummarySchema,
   EMPTY_INBOX_UNREAD_SUMMARY,
   InboxItemListSchema,
+  AttentionInboxListSchema,
+  InboxDecisionsSchema,
   EMPTY_INBOX_ITEMS,
   NotificationPreferenceResponseSchema,
   EMPTY_NOTIFICATION_PREFERENCE_RESPONSE,
@@ -398,6 +633,23 @@ import {
   EMPTY_ISSUE_PROPERTIES_RESPONSE,
   EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
   IssuePullRequestsResponseSchema,
+  MergeReadinessSchema,
+  EMPTY_MERGE_READINESS,
+  PRStackSchema,
+  EMPTY_PR_STACK,
+  IssuePlanEnvelopeSchema,
+  PlanMaterializationSchema,
+  IssueDecisionsResponseSchema,
+  ReviewCockpitSchema,
+  MorningBriefingSchema,
+  ModuleOwnershipListSchema,
+  ModuleOwnershipRuleEnvelopeSchema,
+  OwnershipSuggestionEnvelopeSchema,
+  IssueScopingEnvelopeSchema,
+  AcceptanceCriteriaResponseSchema,
+  IssueDecisionEnvelopeSchema,
+  EMPTY_ISSUE_PLAN,
+  PlanVerificationsResponseSchema,
   ResourceLabelsResponseSchema,
   EMPTY_LABEL,
   EMPTY_LIST_LABELS_RESPONSE,
@@ -411,6 +663,7 @@ import {
   EMPTY_LIST_GITHUB_INSTALLATIONS_RESPONSE,
   EMPTY_LIST_GITHUB_REPOSITORIES_RESPONSE,
   RuntimeModelListRequestSchema,
+	RuntimeCliAuthRequestSchema,
   MALFORMED_RUNTIME_MODEL_LIST_REQUEST,
   SkillSchema,
   EMPTY_SKILL,
@@ -438,6 +691,7 @@ import {
   PluginInstallationSchema,
   PluginPreviewSchema,
   WorkspaceMcpServerListSchema,
+  McpServerToolCatalogSchema,
   WorkspaceMcpServerSchema,
   ShareLinkSchema,
   ShareLinkListResponseSchema,
@@ -449,6 +703,10 @@ import {
   type IssueView,
   type IssueViewPreference,
   type CreateIssueViewRequest,
+  AgentMemorySchema,
+  AgentMemoryListSchema,
+  EMPTY_AGENT_MEMORY,
+  EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -660,6 +918,16 @@ function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
   const encoded = search.toString();
   return encoded ? `?${encoded}` : "";
 }
+
+const EMPTY_TRANSFER_REPORT: TransferReport = { created: {}, merged: {}, skipped: [], secrets_pending: [], warnings: [] };
+const EMPTY_TRANSFER_PREVIEW: TransferPreview = {
+  manifest: { format_version: 0, exported_at: "", name: "", template: false, source: { Name: "", Slug: "" }, counts: {}, secrets: [] },
+  collisions: [],
+  secrets: [],
+  strategies: ["rename", "merge", "skip"],
+};
+const EMPTY_MCP_CATALOG: McpServerToolCatalog = { tools: [], discovered_at: null, risks: [] };
+const EMPTY_RETRO: WeeklyRetro = { week_start: "", week_end: "", runs_total: 0, runs_by_status: {}, median_minutes: 0, failed: [], agents: [], skill_proposals: [], narrative: "", generated_at: null };
 
 export class ApiClient {
   private baseUrl: string;
@@ -888,6 +1156,7 @@ export class ApiClient {
     if (params?.assignee_types?.length) search.set("assignee_types", params.assignee_types.join(","));
     if (params?.creator_id) search.set("creator_id", params.creator_id);
     if (params?.project_id) search.set("project_id", params.project_id);
+    if (params?.goal_id) search.set("goal_id", params.goal_id);
     if (params?.assignee_filters?.length) {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
@@ -1256,6 +1525,784 @@ export class ApiClient {
 
   async deleteIssue(id: string): Promise<void> {
     await this.fetch(`/api/issues/${id}`, { method: "DELETE" });
+  }
+
+  async listIssueDependencies(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<IssueDependencies> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/dependencies`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<IssueDependencies>(
+      raw,
+      IssueDependenciesResponseSchema,
+      { blocks: [], blocked_by: [], related: [] },
+      { endpoint: "GET /api/issues/:id/dependencies" },
+    );
+  }
+
+  async createIssueDependency(
+    id: string,
+    data: { target_issue_id: string; type: IssueDependencyType },
+  ): Promise<void> {
+    await this.fetch(`/api/issues/${encodeURIComponent(id)}/dependencies`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteIssueDependency(id: string, dependencyId: string): Promise<void> {
+    await this.fetch(
+      `/api/issues/${encodeURIComponent(id)}/dependencies/${encodeURIComponent(dependencyId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  async getIssuePlan(issueId: string, options?: { signal?: AbortSignal }): Promise<IssuePlanEnvelope> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
+      endpoint: "GET /api/issues/:id/plan",
+    });
+  }
+
+  async setIssuePlan(issueId: string, data: { content: string; steps?: IssuePlanStep[] }): Promise<IssuePlanEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/plan`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, IssuePlanEnvelopeSchema, EMPTY_ISSUE_PLAN, {
+      endpoint: "PUT /api/issues/:id/plan",
+    });
+  }
+
+  async listIssueDecisions(issueId: string, options?: { signal?: AbortSignal }): Promise<IssueDecision[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decisions`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, IssueDecisionsResponseSchema, { decisions: [] }, {
+      endpoint: "GET /api/issues/:id/decisions",
+    }).decisions;
+  }
+
+  async respondIssueDecision(issueId: string, decisionId: string, answer: DecisionAnswer): Promise<IssueDecision> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decisions/${encodeURIComponent(decisionId)}/respond`,
+      { method: "POST", body: JSON.stringify(answer) },
+    );
+    const parsed = parseWithFallback<{ decision: IssueDecision } | null>(raw, IssueDecisionEnvelopeSchema, null, {
+      endpoint: "POST /api/issues/:id/decisions/:decisionId/respond",
+    });
+    if (!parsed) throw new Error("respond decision returned a malformed decision");
+    return parsed.decision;
+  }
+
+  // Morning briefing (K30).
+  async getMorningBriefingToday(options?: { signal?: AbortSignal }): Promise<MorningBriefing> {
+    const raw = await this.fetch<unknown>(`/api/morning-briefing/today`, options?.signal ? { signal: options.signal } : undefined);
+    return parseWithFallback(raw, MorningBriefingSchema, { date: "", merged: [], awaiting_review: [], blocked: [], sent_at: null }, {
+      endpoint: "GET /api/morning-briefing/today",
+    });
+  }
+
+  async triggerMorningBriefing(): Promise<MorningBriefing> {
+    const raw = await this.fetch<unknown>(`/api/morning-briefing/trigger`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, MorningBriefingSchema, { date: "", merged: [], awaiting_review: [], blocked: [], sent_at: null }, {
+      endpoint: "POST /api/morning-briefing/trigger",
+    });
+  }
+
+  // Module ownership (K33).
+  async listModuleOwnership(): Promise<ModuleOwnershipRule[]> {
+    const raw = await this.fetch<unknown>(`/api/module-ownership`);
+    return parseWithFallback(raw, ModuleOwnershipListSchema, { rules: [] }, { endpoint: "GET /api/module-ownership" }).rules;
+  }
+
+  async createModuleOwnership(data: {
+    path_pattern?: string;
+    label_id?: string;
+    owner_user_id: string;
+    referent_agent_id?: string;
+    priority?: number;
+  }): Promise<ModuleOwnershipRule> {
+    const raw = await this.fetch<unknown>(`/api/module-ownership`, { method: "POST", body: JSON.stringify(data) });
+    const parsed = parseWithFallback<{ rule: ModuleOwnershipRule } | null>(raw, ModuleOwnershipRuleEnvelopeSchema, null, {
+      endpoint: "POST /api/module-ownership",
+    });
+    if (!parsed) throw new Error("create ownership rule returned a malformed rule");
+    return parsed.rule;
+  }
+
+  async deleteModuleOwnership(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/module-ownership/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getOwnershipSuggestion(issueId: string, options?: { signal?: AbortSignal }): Promise<OwnershipSuggestion | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/ownership-suggestion`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, OwnershipSuggestionEnvelopeSchema, { suggestion: null }, {
+      endpoint: "GET /api/issues/:id/ownership-suggestion",
+    }).suggestion;
+  }
+
+  // Review cockpit (K16).
+  async getReviewCockpit(issueId: string, runId?: string, options?: { signal?: AbortSignal }): Promise<ReviewCockpit> {
+    const q = runId ? `?run_id=${encodeURIComponent(runId)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/review-cockpit${q}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    const parsed = parseWithFallback<ReviewCockpit | null>(raw, ReviewCockpitSchema, null, {
+      endpoint: "GET /api/issues/:id/review-cockpit",
+    });
+    if (!parsed) throw new Error("review cockpit returned a malformed response");
+    return parsed;
+  }
+
+  // Issue scoping assistant (K14).
+  async proposeIssueScoping(data: { raw_text: string; project_id?: string }): Promise<IssueScopingProposal> {
+    const raw = await this.fetch<unknown>(`/api/issues/scoping/propose`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    const parsed = parseWithFallback<{ proposal: IssueScopingProposal } | null>(raw, IssueScopingEnvelopeSchema, null, {
+      endpoint: "POST /api/issues/scoping/propose",
+    });
+    if (!parsed || (!parsed.proposal.title && !parsed.proposal.description)) {
+      throw new Error("the scoping assistant returned an empty proposal");
+    }
+    return parsed.proposal;
+  }
+
+  // Outcome Contract (K12).
+  async listAcceptanceCriteria(issueId: string, options?: { signal?: AbortSignal }): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "GET /api/issues/:id/acceptance-criteria",
+    }).criteria;
+  }
+
+  async setAcceptanceCriteria(issueId: string, criteria: { id?: string; text: string }[]): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria`, {
+      method: "PUT",
+      body: JSON.stringify({ criteria }),
+    });
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "PUT /api/issues/:id/acceptance-criteria",
+    }).criteria;
+  }
+
+  async proveAcceptanceCriterion(
+    issueId: string,
+    criterionId: string,
+    proof: { proof_type: string; proof_ref?: string },
+  ): Promise<AcceptanceCriterion[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/acceptance-criteria/${encodeURIComponent(criterionId)}/proof`,
+      { method: "PATCH", body: JSON.stringify(proof) },
+    );
+    return parseWithFallback(raw, AcceptanceCriteriaResponseSchema, { criteria: [] }, {
+      endpoint: "PATCH /api/issues/:id/acceptance-criteria/:criterionId/proof",
+    }).criteria;
+  }
+
+  // Plan Gate (K11): approve a plan version into sub-issues.
+  async materializeIssuePlan(issueId: string, version: number): Promise<{ plan: IssuePlan; issues: Issue[] }> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan/${encodeURIComponent(String(version))}/materialize`,
+      { method: "POST", body: "{}" },
+    );
+    const parsed = parseWithFallback<{ plan: IssuePlan; issues: Issue[] } | null>(raw, PlanMaterializationSchema, null, {
+      endpoint: "POST /api/issues/:id/plan/:version/materialize",
+    });
+    if (!parsed) throw new Error("materialize plan returned a malformed response");
+    return parsed;
+  }
+
+  async listPlanVerifications(issueId: string, options?: { signal?: AbortSignal }): Promise<PlanVerification[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/plan/verifications`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, PlanVerificationsResponseSchema, { verifications: [] }, {
+      endpoint: "GET /api/issues/:id/plan/verifications",
+    }).verifications;
+  }
+
+  // Triage queue (M2). Stats summarize the visible queue; items lists one
+  // state (default pending) newest-first with keyset pagination.
+  async getTriageStats(options?: { signal?: AbortSignal }): Promise<TriageStats> {
+    const raw = await this.fetch<unknown>(
+      "/api/triage/stats",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<TriageStats>(
+      raw,
+      TriageStatsSchema,
+      EMPTY_TRIAGE_STATS,
+      { endpoint: "GET /api/triage/stats" },
+    );
+  }
+
+  async listTriageItems(
+    params?: {
+      state?: TriageItemState;
+      limit?: number;
+      cursor?: string;
+      /** Pending items parked by a snooze are hidden unless this is set. */
+      includeSnoozed?: boolean;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<TriageItemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    if (params?.includeSnoozed) search.set("include_snoozed", "true");
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<TriageItemsResponse>(
+      raw,
+      TriageItemsResponseSchema,
+      EMPTY_TRIAGE_ITEMS_RESPONSE,
+      { endpoint: "GET /api/triage/items" },
+    );
+  }
+
+  // Triage auto-ML (K61).
+  async getTriageSuggestions(ids: string[], options?: { signal?: AbortSignal }): Promise<TriageSuggestionsResponse> {
+    const raw = await this.fetch<unknown>(`/api/triage/suggestions?ids=${encodeURIComponent(ids.join(","))}`, options?.signal ? { signal: options.signal } : undefined);
+    return parseWithFallback(raw, TriageSuggestionsResponseSchema, { suggestions: {}, auto: { enabled: false, threshold: 0.9, min_examples: 20 } }, { endpoint: "GET /api/triage/suggestions" });
+  }
+
+  async reopenTriageItem(itemId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/triage/items/${encodeURIComponent(itemId)}/reopen`, { method: "POST" });
+  }
+
+  /**
+   * `overrides` is the "Accept as…" choice. An empty body keeps the server's
+   * inheritance from the origin autopilot, which is what the batch does.
+   */
+  async acceptTriageItem(
+    itemId: string,
+    overrides?: AcceptTriageItemOverrides,
+  ): Promise<AcceptTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/accept`,
+      { method: "POST", body: JSON.stringify(overrides ?? {}) },
+    );
+    return parseWithFallback<AcceptTriageItemResponse>(
+      raw,
+      AcceptTriageItemResponseSchema,
+      { item_id: itemId, state: "accepted" },
+      { endpoint: "POST /api/triage/items/:id/accept" },
+    );
+  }
+
+  async dismissTriageItem(
+    itemId: string,
+    data?: { reason?: string },
+  ): Promise<DismissTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/dismiss`,
+      { method: "POST", body: JSON.stringify(data ?? {}) },
+    );
+    return parseWithFallback<DismissTriageItemResponse>(
+      raw,
+      DismissTriageItemResponseSchema,
+      { item_id: itemId, state: "dismissed" },
+      { endpoint: "POST /api/triage/items/:id/dismiss" },
+    );
+  }
+
+  async mergeTriageItem(itemId: string, issueId: string): Promise<MergeTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/merge`,
+      { method: "POST", body: JSON.stringify({ issue_id: issueId }) },
+    );
+    return parseWithFallback<MergeTriageItemResponse>(
+      raw,
+      MergeTriageItemResponseSchema,
+      { item_id: itemId, state: "merged", duplicate_of_issue_id: issueId, duplicate_issue_identifier: "" },
+      { endpoint: "POST /api/triage/items/:id/merge" },
+    );
+  }
+
+  /** `until` is an ISO timestamp: in the future and at most 30 days out. */
+  async snoozeTriageItem(itemId: string, until: string): Promise<SnoozeTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/snooze`,
+      { method: "POST", body: JSON.stringify({ until }) },
+    );
+    return parseWithFallback<SnoozeTriageItemResponse>(
+      raw,
+      SnoozeTriageItemResponseSchema,
+      { item_id: itemId, state: "pending", snoozed_until: until },
+      { endpoint: "POST /api/triage/items/:id/snooze" },
+    );
+  }
+
+  async batchDismissTriageItems(
+    itemIds: string[],
+    reason?: string,
+  ): Promise<TriageBatchDismissResponse> {
+    const raw = await this.fetch<unknown>("/api/triage/items/batch-dismiss", {
+      method: "POST",
+      body: JSON.stringify({ item_ids: itemIds, reason }),
+    });
+    return parseWithFallback<TriageBatchDismissResponse>(
+      raw,
+      TriageBatchDismissResponseSchema,
+      { items: [] },
+      { endpoint: "POST /api/triage/items/batch-dismiss" },
+    );
+  }
+
+  async batchAcceptTriageItems(ids: string[]): Promise<TriageBatchAcceptResponse> {
+    const raw = await this.fetch<unknown>("/api/triage/items/batch-accept", {
+      method: "POST",
+      body: JSON.stringify({ ids }),
+    });
+    return parseWithFallback<TriageBatchAcceptResponse>(
+      raw,
+      TriageBatchAcceptResponseSchema,
+      { items: [] },
+      { endpoint: "POST /api/triage/items/batch-accept" },
+    );
+  }
+
+  // One PATCH for the whole source policy: mode, auto-accept, the flood cap and
+  // retention. Every field is optional server-side, so sending only `mode`
+  // leaves a configured cap alone.
+  async updateTriageSourceSettings(
+    sourceId: string,
+    patch: TriageSourcePatch,
+  ): Promise<TriageSource> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/sources/${encodeURIComponent(sourceId)}`,
+      { method: "PATCH", body: JSON.stringify(patch) },
+    );
+    return parseWithFallback<TriageSource>(
+      raw,
+      TriageSourceSchema,
+      { ...EMPTY_TRIAGE_SOURCE, id: sourceId },
+      { endpoint: "PATCH /api/triage/sources/:id" },
+    );
+  }
+
+  /**
+   * Mint the workspace's email intake endpoint, or rotate its token when one
+   * already exists. The token is in this response and nowhere else — the
+   * server keeps only its digest — so the caller must show it before it is
+   * discarded. Rotation revokes the previous token immediately.
+   */
+  async createTriageEmailSource(): Promise<TriageEmailSource> {
+    const raw = await this.fetch<unknown>("/api/triage/sources/email", { method: "POST" });
+    return parseWithFallback<TriageEmailSource>(raw, TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE, {
+      endpoint: "POST /api/triage/sources/email",
+    });
+  }
+
+  // Meetings. A recording is created first, then audio segments are uploaded
+  // one at a time and transcribed as they arrive; finishing summarizes the
+  // transcript and queues each action item as a pending triage item.
+  //
+  // Every write answers 409 with a machine-readable `code` (see errorCode):
+  // `stt_not_configured`, `meeting_not_recording`, `meeting_too_long`,
+  // `meeting_summarizing`. Callers branch on the code, never the message.
+  async createMeeting(data?: { title?: string; app_name?: string }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>("/api/meetings", {
+      method: "POST",
+      body: JSON.stringify(data ?? {}),
+    });
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings",
+    });
+  }
+
+  async listMeetings(
+    params?: { limit?: number; offset?: number },
+    options?: { signal?: AbortSignal },
+  ): Promise<MeetingListResponse> {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.offset !== undefined) search.set("offset", String(params.offset));
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/meetings${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<MeetingListResponse>(
+      raw,
+      MeetingListResponseSchema,
+      EMPTY_MEETING_LIST,
+      { endpoint: "GET /api/meetings" },
+    );
+  }
+
+  async getMeeting(id: string, options?: { signal?: AbortSignal }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "GET /api/meetings/:id",
+    });
+  }
+
+  // Calendar subscription (ICS, no OAuth). Personal to the caller in the
+  // active workspace: there is no id in any of these paths.
+  async getCalendarFeed(options?: { signal?: AbortSignal }): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>(
+      "/api/calendar/feed",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "GET /api/calendar/feed",
+    });
+  }
+
+  /** Saves the feed URL. `https://` and `webcal://` only; 400 otherwise. */
+  async setCalendarFeed(url: string): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>("/api/calendar/feed", {
+      method: "PUT",
+      body: JSON.stringify({ url }),
+    });
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "PUT /api/calendar/feed",
+    });
+  }
+
+  async deleteCalendarFeed(): Promise<void> {
+    await this.fetch("/api/calendar/feed", { method: "DELETE" });
+  }
+
+  /**
+   * What is running now or starting within `within` (a Go duration such as
+   * "30m", capped server-side at two weeks). 502 `calendar_feed_failed` when
+   * the feed cannot be read — which is also how "Check feed" reports itself.
+   */
+  async calendarUpcoming(
+    within?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarUpcoming> {
+    const qs = within ? `?within=${encodeURIComponent(within)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/upcoming${qs}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarUpcoming>(
+      raw,
+      CalendarUpcomingSchema,
+      EMPTY_CALENDAR_UPCOMING,
+      { endpoint: "GET /api/calendar/upcoming" },
+    );
+  }
+
+  /** Renames a meeting. Title is the only mutable field. */
+  async updateMeeting(id: string, data: { title: string }): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id",
+    });
+  }
+
+  /** Removes a meeting and its transcript. Recorder or workspace admin/owner. */
+  async deleteMeeting(id: string): Promise<void> {
+    await this.fetch(`/api/meetings/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  /**
+   * Uploads one recorded audio chunk. Not routed through `this.fetch`: the
+   * browser has to set the multipart boundary itself (same reason as
+   * uploadFile). `fetchRaw` still applies the shared auth/CSRF headers and
+   * the structured ApiError path, which is what carries the 409 `code`.
+   */
+  /** Voice memo: one audio file in, its text out (POST /api/voice/transcribe). */
+  // `language` is an ISO-639-1 code from the user's voice preference; "" (or
+  // omitted) leaves the server on its own MULTICA_STT_LANGUAGE default. The
+  // server validates the value, so an unknown one degrades to that default
+  // rather than reaching the provider.
+  async transcribeVoice(audio: Blob, language = ""): Promise<VoiceTranscription> {
+    const formData = new FormData();
+    formData.append("file", audio, "memo.webm");
+    if (language) formData.append("language", language);
+    const res = await this.fetchRaw("/api/voice/transcribe", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<VoiceTranscription>(
+      raw,
+      VoiceTranscriptionSchema,
+      EMPTY_VOICE_TRANSCRIPTION,
+      { endpoint: "POST /api/voice/transcribe" },
+    );
+  }
+
+  /**
+   * Read aloud: one block of text in, audio bytes out
+   * (POST /api/voice/speak). 409 `tts_not_configured` when the deployment has
+   * no provider — the caller falls back to the browser's speechSynthesis.
+   * At most 4000 characters per call; the caller splits by sentence.
+   */
+  async speak(text: string, language?: string): Promise<Blob> {
+    const res = await this.fetchRaw("/api/voice/speak", {
+      method: "POST",
+      extraHeaders: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language: language ?? "" }),
+    });
+    return res.blob();
+  }
+
+  /** Short-lived token for the provider's realtime transcription socket. */
+  async realtimeVoiceSession(): Promise<RealtimeVoiceSession> {
+    const raw = await this.fetch<unknown>("/api/voice/realtime-session", { method: "POST" });
+    return parseWithFallback<RealtimeVoiceSession>(
+      raw,
+      RealtimeVoiceSessionSchema,
+      EMPTY_REALTIME_VOICE_SESSION,
+      { endpoint: "POST /api/voice/realtime-session" },
+    );
+  }
+
+  /** Live clients send text they already transcribed instead of audio. */
+  async appendMeetingTextSegment(
+    id: string,
+    text: string,
+    seq: number,
+  ): Promise<MeetingSegmentResponse> {
+    const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}/segments`, {
+      method: "POST",
+      body: JSON.stringify({ seq: String(seq), text }),
+    });
+    return parseWithFallback<MeetingSegmentResponse>(
+      raw,
+      MeetingSegmentResponseSchema,
+      EMPTY_MEETING_SEGMENT,
+      { endpoint: "POST /api/meetings/{id}/segments (text)" },
+    );
+  }
+
+  async appendMeetingSegment(
+    id: string,
+    chunk: Blob,
+    seq: number,
+  ): Promise<MeetingSegmentResponse> {
+    const formData = new FormData();
+    formData.append("file", chunk, `segment-${seq}.webm`);
+    formData.append("seq", String(seq));
+    const res = await this.fetchRaw(`/api/meetings/${encodeURIComponent(id)}/segments`, {
+      method: "POST",
+      body: formData,
+    });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<MeetingSegmentResponse>(
+      raw,
+      MeetingSegmentResponseSchema,
+      EMPTY_MEETING_SEGMENT,
+      { endpoint: "POST /api/meetings/:id/segments" },
+    );
+  }
+
+  /**
+   * Rewrites one transcript paragraph of a finished meeting. `seq` is the
+   * 0-based line index in the stored transcript, and `text` the whole line
+   * (speaker label included when the line had one). 409 `meeting_not_done`
+   * while the meeting has not finished, `meeting_transcript_changed` when
+   * someone else saved first.
+   */
+  async updateMeetingSegment(id: string, seq: number, text: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/segments/${encodeURIComponent(String(seq))}`,
+      { method: "PATCH", body: JSON.stringify({ text }) },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id/segments/:seq",
+    });
+  }
+
+  async finishMeeting(id: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/finish`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings/:id/finish",
+    });
+  }
+
+  /**
+   * Replays the summary + action-item extraction for a meeting that already
+   * stopped recording. 409 `meeting_recording` when it has not, and
+   * `meeting_summarizing` while a finish is still running.
+   */
+  async resummarizeMeeting(id: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/resummarize`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "POST /api/meetings/:id/resummarize",
+    });
+  }
+
+  // Postmortem autogen (k68). Stats summarize per-state counts; list returns
+  // one state (default draft) newest-first with keyset pagination.
+  async getPostmortemStats(options?: { signal?: AbortSignal }): Promise<PostmortemStats> {
+    const raw = await this.fetch<unknown>(
+      "/api/postmortems/stats",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemStats>(
+      raw,
+      PostmortemStatsSchema,
+      EMPTY_POSTMORTEM_STATS,
+      { endpoint: "GET /api/postmortems/stats" },
+    );
+  }
+
+  async listPostmortems(
+    params?: { state?: PostmortemState; limit?: number; cursor?: string },
+    options?: { signal?: AbortSignal },
+  ): Promise<PostmortemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<PostmortemsResponse>(
+      raw,
+      PostmortemsResponseSchema,
+      EMPTY_POSTMORTEMS_RESPONSE,
+      { endpoint: "GET /api/postmortems" },
+    );
+  }
+
+  async getPostmortem(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "GET /api/postmortems/:id",
+    });
+  }
+
+  async approvePostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/approve`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/approve",
+    });
+  }
+
+  async discardPostmortem(id: string): Promise<Postmortem | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/postmortems/${encodeURIComponent(id)}/discard`,
+      { method: "POST" },
+    );
+    return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
+      endpoint: "POST /api/postmortems/:id/discard",
+    });
+  }
+
+  // Workspace Brain. Shared knowledge notes: every workspace member reads and
+  // writes; delete is narrower (workspace admin or the note's author).
+  async listWorkspaceNotes(
+    params?: { search?: string; tag?: string; archived?: boolean; limit?: number },
+    options?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNotesResponse> {
+    const search = new URLSearchParams();
+    if (params?.search) search.set("search", params.search);
+    if (params?.tag) search.set("tag", params.tag);
+    if (params?.archived === true) search.set("archived", "true");
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<WorkspaceNotesResponse>(
+      raw,
+      WorkspaceNotesResponseSchema,
+      EMPTY_WORKSPACE_NOTES_RESPONSE,
+      { endpoint: "GET /api/workspace/notes" },
+    );
+  }
+
+  async getWorkspaceNote(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "GET /api/workspace/notes/:id",
+    });
+  }
+
+  async createWorkspaceNote(input: CreateWorkspaceNoteInput): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>("/api/workspace/notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "POST /api/workspace/notes",
+    });
+  }
+
+  async updateWorkspaceNote(
+    id: string,
+    input: UpdateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "PATCH /api/workspace/notes/:id",
+    });
+  }
+
+  async deleteWorkspaceNote(id: string): Promise<void> {
+    await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async setWorkspaceNoteArchived(id: string, archived: boolean): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/${encodeURIComponent(id)}/${archived ? "archive" : "unarchive"}`,
+      { method: "POST" },
+    );
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "POST /api/workspace/notes/:id/archive",
+    });
   }
 
   async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {
@@ -1685,6 +2732,40 @@ export class ApiClient {
       body: JSON.stringify({ instance_id: instanceId }),
       extraHeaders: { "Content-Type": "application/json" },
     });
+  }
+
+  /** Power action on one cloud node: start, stop or reboot. */
+  async actOnCloudRuntimeNode(
+    action: CloudRuntimeNodeAction,
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    return this.postCloudRuntimeNodeAction(action, instanceId);
+  }
+
+  /** Reads one cloud node's current status without refetching the whole list. */
+  async getCloudRuntimeNodeStatus(
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    return this.postCloudRuntimeNodeAction("status", instanceId);
+  }
+
+  private async postCloudRuntimeNodeAction(
+    action: CloudRuntimeNodeAction | "status",
+    instanceId: string,
+  ): Promise<CloudRuntimeNodeActionResult> {
+    const path = `/api/cloud-runtime/nodes/${action}`;
+    const res = await this.fetchRaw(path, {
+      method: "POST",
+      body: JSON.stringify({ instance_id: instanceId }),
+      extraHeaders: { "Content-Type": "application/json" },
+    });
+    const raw = await res.json().catch(() => null) as unknown;
+    return parseWithFallback(
+      raw,
+      CloudRuntimeNodeActionSchema,
+      EMPTY_CLOUD_RUNTIME_NODE_ACTION,
+      { endpoint: `POST ${path}` },
+    );
   }
 
   // ---------------------------------------------------------------------
@@ -2159,6 +3240,21 @@ export class ApiClient {
     );
   }
 
+  // Cost per deliverable (K04).
+  async getDashboardCostPerDeliverable(
+    params: { days?: number; project_id?: string | null; tz?: string },
+  ): Promise<DashboardCostPerDeliverable> {
+    const search = new URLSearchParams();
+    if (params.days) search.set("days", String(params.days));
+    if (params.project_id) search.set("project_id", params.project_id);
+    if (params.tz) search.set("tz", params.tz);
+    const raw = await this.fetch<unknown>(`/api/dashboard/cost-per-deliverable?${search}`);
+    const empty = { count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null };
+    return parseWithFallback(raw, DashboardCostPerDeliverableSchema, { days: params.days ?? 30, issues: empty, pull_requests: empty }, {
+      endpoint: "GET /api/dashboard/cost-per-deliverable",
+    });
+  }
+
   async getDashboardUsageByAgent(
     params: { days?: number; project_id?: string | null; tz?: string },
   ): Promise<DashboardUsageByAgent[]> {
@@ -2245,6 +3341,21 @@ export class ApiClient {
     );
   }
 
+  /**
+   * 90-day routing stats per (runtime, provider, model, task class) behind
+   * the smart router (JEF-237). Bare-array list response, same convention as
+   * `listSkills` / the runtime usage endpoints.
+   */
+  async listRoutingStats(): Promise<RuntimeRoutingStatsResponse> {
+    const raw = await this.fetch<unknown>("/api/runtimes/routing-stats");
+    return parseWithFallback<RuntimeRoutingStatsResponse>(
+      raw,
+      RuntimeRoutingStatsResponseSchema,
+      EMPTY_ROUTING_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/routing-stats" },
+    );
+  }
+
   async initiateUpdate(
     runtimeId: string,
     targetVersion: string,
@@ -2305,6 +3416,69 @@ export class ApiClient {
     );
   }
 
+  async initiateCliAuth(runtimeId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/cli-auth`, {
+      method: "POST",
+    });
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: "",
+        runtime_id: runtimeId,
+        action: "login",
+        status: "failed",
+        error: "invalid CLI authentication response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "POST /api/runtimes/{id}/cli-auth" },
+    );
+  }
+
+  async initiateCliLogout(runtimeId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/cli-auth`, {
+      method: "DELETE",
+    });
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: "",
+        runtime_id: runtimeId,
+        action: "logout",
+        status: "failed",
+        error: "invalid CLI sign-out response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "DELETE /api/runtimes/{id}/cli-auth" },
+    );
+  }
+
+  async getCliAuthResult(runtimeId: string, requestId: string): Promise<RuntimeCliAuthRequest> {
+    const raw = await this.fetch<unknown>(
+      `/api/runtimes/${runtimeId}/cli-auth/${requestId}`,
+    );
+    return parseWithFallback<RuntimeCliAuthRequest>(
+      raw,
+      RuntimeCliAuthRequestSchema,
+      {
+        id: requestId,
+        runtime_id: runtimeId,
+        action: "login",
+        status: "failed",
+        error: "invalid CLI authentication response",
+        created_at: "",
+        updated_at: "",
+        expires_at: "",
+      },
+      { endpoint: "GET /api/runtimes/{id}/cli-auth/{requestId}" },
+    );
+  }
+
   async initiateListLocalSkills(
     runtimeId: string,
   ): Promise<RuntimeLocalSkillListRequest> {
@@ -2339,6 +3513,54 @@ export class ApiClient {
 
   async listAgentTasks(agentId: string): Promise<AgentTask[]> {
     return this.fetch(`/api/agents/${agentId}/tasks`);
+  }
+
+  // Persistent per-agent memories (JEF-236). The list read validates through
+  // parseWithFallback so a drifting response renders an empty list instead of
+  // breaking the agent page; writes validate too so the caller never caches an
+  // unparsed blob. POST returns 409 when the per-agent cap is reached — that
+  // surfaces as an ApiError the tab toasts.
+  async listAgentMemories(agentId: string): Promise<AgentMemoryList> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
+    return parseWithFallback(
+      raw,
+      AgentMemoryListSchema,
+      EMPTY_AGENT_MEMORY_LIST,
+      { endpoint: "GET /api/agents/{agentId}/memories" },
+    );
+  }
+
+  async createAgentMemory(agentId: string, content: string): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`, {
+      method: "POST",
+      body: JSON.stringify({ content }),
+    });
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "POST /api/agents/{agentId}/memories",
+    });
+  }
+
+  async updateAgentMemory(
+    agentId: string,
+    memoryId: string,
+    content: string,
+  ): Promise<AgentMemory> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${agentId}/memories/${memoryId}`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ content }),
+      },
+    );
+    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+      endpoint: "PUT /api/agents/{agentId}/memories/{memoryId}",
+    });
+  }
+
+  async deleteAgentMemory(agentId: string, memoryId: string): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/memories/${memoryId}`, {
+      method: "DELETE",
+    });
   }
 
   // Workspace-scoped agent task snapshot: every active task
@@ -2379,6 +3601,680 @@ export class ApiClient {
   // completed_at. One workspace-wide fetch backs both the Agents-list
   // sparkline (uses trailing 7 buckets) and the agent detail "Last 30
   // days" panel (uses all 30).
+  // Standup and retro (K34). Null when no retro exists for the week yet.
+  async getWeeklyRetro(week?: string): Promise<WeeklyRetro | null> {
+    const q = week ? `?week=${encodeURIComponent(week)}` : "";
+    let raw: unknown;
+    try {
+      raw = await this.fetch<unknown>(`/api/retro/weekly${q}`);
+    } catch (e) {
+      if (typeof e === "object" && e !== null && (e as { status?: number }).status === 404) return null;
+      throw e;
+    }
+    return parseWithFallback(raw, WeeklyRetroSchema, EMPTY_RETRO, { endpoint: "GET /api/retro/weekly" });
+  }
+
+  async regenerateWeeklyRetro(week?: string): Promise<WeeklyRetro> {
+    const raw = await this.fetch<unknown>("/api/retro/weekly/regenerate", { method: "POST", body: JSON.stringify(week ? { week } : {}) });
+    return parseWithFallback(raw, WeeklyRetroSchema, EMPTY_RETRO, { endpoint: "POST /api/retro/weekly/regenerate" });
+  }
+
+  // Business rules (K53).
+  async listBusinessRules(): Promise<{ rules: BusinessRule[]; attach_points: string[] }> {
+    const raw = await this.fetch<unknown>("/api/business-rules");
+    return parseWithFallback(raw, BusinessRuleListSchema, { rules: [], attach_points: [] }, { endpoint: "GET /api/business-rules" });
+  }
+
+  async createBusinessRule(data: { natural_language: string; attach_point: string; title?: string; predicate?: unknown; action?: { kind: string; priority?: string; assignee_type?: string; assignee_id?: string } }): Promise<BusinessRule> {
+    const raw = await this.fetch<unknown>("/api/business-rules", { method: "POST", body: JSON.stringify(data) });
+    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed business rule response");
+    return parsed.data.rule;
+  }
+
+  async dryRunBusinessRule(id: string): Promise<BusinessRuleDryRun> {
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/dry-run`, { method: "POST" });
+    const parsed = BusinessRuleDryRunSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed dry-run response");
+    return parsed.data;
+  }
+
+  async setBusinessRuleStatus(id: string, status: "active" | "disabled"): Promise<BusinessRule> {
+    const verb = status === "active" ? "activate" : "disable";
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/${verb}`, { method: "PUT" });
+    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Malformed business rule response");
+    return parsed.data.rule;
+  }
+
+  async deleteBusinessRule(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async listBusinessRuleViolations(id: string): Promise<BusinessRuleViolation[]> {
+    const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/violations`);
+    return parseWithFallback(raw, BusinessRuleViolationListSchema, { violations: [] }, { endpoint: "GET /api/business-rules/:id/violations" }).violations;
+  }
+
+  // Blast radius (K07).
+  async listBlastRadiusRules(projectId: string): Promise<{ rules: BlastRadiusRule[]; levels: string[] }> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`);
+    return parseWithFallback(raw, BlastRadiusRulesSchema, { rules: [], levels: [] }, { endpoint: "GET /api/projects/:id/blast-radius-rules" });
+  }
+
+  async createBlastRadiusRule(projectId: string, data: { path_pattern: string; autonomy_level: string }): Promise<BlastRadiusRule> {
+    const raw = await this.fetch<{ rule?: unknown }>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`, { method: "POST", body: JSON.stringify(data) });
+    const parsed = BlastRadiusRuleSchema.safeParse(raw?.rule);
+    if (!parsed.success) throw new Error("Malformed blast radius rule response");
+    return parsed.data;
+  }
+
+  async deleteBlastRadiusRule(projectId: string, ruleId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules/${encodeURIComponent(ruleId)}`, { method: "DELETE" });
+  }
+
+  async previewBlastRadius(projectId: string, path: string): Promise<BlastRadiusPreview> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-preview?path=${encodeURIComponent(path)}`);
+    return parseWithFallback(raw, BlastRadiusPreviewSchema, { path, level: "inherit" }, { endpoint: "GET /api/projects/:id/blast-radius-preview" });
+  }
+
+  // Decision memory (K29).
+  async listProjectDecisions(projectId: string, authorType?: "agent" | "member"): Promise<DecisionRecord[]> {
+    const q = authorType ? `?author_type=${authorType}` : "";
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/decisions${q}`);
+    return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, { endpoint: "GET /api/projects/:id/decisions" }).decisions;
+  }
+
+  async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
+    return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
+  }
+
+  // Trust Dial (K26).
+  async getAgentTrustMode(agentId: string): Promise<{ agent_id: string; mode: string; modes: string[] }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode`);
+    return parseWithFallback(raw, TrustModeEnvelopeSchema, { agent_id: agentId, mode: "propose", modes: [] }, { endpoint: "GET /api/agents/:id/trust-mode" });
+  }
+
+  async setAgentTrustMode(agentId: string, mode: string, reason?: string): Promise<{ mode: string }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode`, { method: "PUT", body: JSON.stringify({ mode, reason: reason ?? "" }) });
+    return parseWithFallback(raw, TrustModeEnvelopeSchema, { agent_id: agentId, mode, modes: [] }, { endpoint: "PUT /api/agents/:id/trust-mode" });
+  }
+
+  async getAgentTrustSuggestion(agentId: string): Promise<import("../agents/trust").TrustSuggestion> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/suggestions`);
+    return parseWithFallback(raw, TrustSuggestionSchema, {
+      eligible: false, current_mode: "propose", metrics: { days: 30, runs_total: 0, accepted_rate: 0, no_intervention_rate: 0, reopen_rate: 0 },
+      thresholds: { days: 30, min_runs: 10, min_accepted_rate: 0.8, min_no_intervention_rate: 0.7, max_reopen_rate: 0.1 }, reasons: [],
+    }, { endpoint: "GET /api/agents/:id/trust-mode/suggestions" });
+  }
+
+  async listAgentTrustHistory(agentId: string): Promise<import("../agents/trust").TrustModeChange[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode/history`);
+    return parseWithFallback(raw, TrustHistorySchema, { changes: [] }, { endpoint: "GET /api/agents/:id/trust-mode/history" }).changes;
+  }
+
+  // Runtime pools (K28).
+  async listRuntimePools(): Promise<import("../runtimes/pools").RuntimePool[]> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools`);
+    return parseWithFallback(raw, RuntimePoolsEnvelopeSchema, { pools: [] }, { endpoint: "GET /api/runtime-pools" }).pools;
+  }
+
+  async createRuntimePool(input: import("../runtimes/pools").RuntimePoolInput): Promise<import("../runtimes/pools").RuntimePool> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RuntimePoolSchema, { id: "", ...input, agent_count: 0, created_at: "" }, { endpoint: "POST /api/runtime-pools" });
+  }
+
+  async updateRuntimePool(id: string, input: import("../runtimes/pools").RuntimePoolInput): Promise<import("../runtimes/pools").RuntimePool> {
+    const raw = await this.fetch<unknown>(`/api/runtime-pools/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RuntimePoolSchema, { id, ...input, agent_count: 0, created_at: "" }, { endpoint: "PUT /api/runtime-pools/:id" });
+  }
+
+  async deleteRuntimePool(id: string): Promise<void> {
+    await this.fetch(`/api/runtime-pools/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async setAgentRuntimePool(agentId: string, poolId: string | null): Promise<{ id: string; runtime_pool_id: string | null }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/runtime-pool`, { method: "PUT", body: JSON.stringify({ pool_id: poolId }) });
+    return parseWithFallback(raw, AgentPoolAssignmentSchema, { id: agentId, runtime_pool_id: poolId }, { endpoint: "PUT /api/agents/:id/runtime-pool" });
+  }
+
+  async listIssueFailoverHistory(issueId: string): Promise<import("../runtimes/pools").RunFailover[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/failover-history`);
+    return parseWithFallback(raw, FailoverHistoryEnvelopeSchema, { runs: [] }, { endpoint: "GET /api/issues/:id/failover-history" }).runs;
+  }
+
+  // Pause, steer, resume (K19).
+  async getRunState(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/state`);
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/run/state" }).run;
+  }
+
+  async pauseRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/pause`, { method: "POST" });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/pause" }).run;
+  }
+
+  async steerRun(issueId: string, instruction: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/steer`, { method: "POST", body: JSON.stringify({ instruction }) });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/steer" }).run;
+  }
+
+  async resumeRun(issueId: string): Promise<import("../issues/run-control").RunControlState | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/resume`, { method: "POST" });
+    return parseWithFallback(raw, RunControlEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/run/resume" }).run;
+  }
+
+  // Fan-out / fan-in (K38).
+  async getIssueFanout(issueId: string): Promise<import("../issues/fanout").FanoutBatch | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/fanout`);
+    return parseWithFallback(raw, FanoutEnvelopeSchema, { batch: null }, { endpoint: "GET /api/issues/:id/fanout" }).batch;
+  }
+
+  async startFanout(issueId: string, input: import("../issues/fanout").FanoutInput): Promise<import("../issues/fanout").FanoutBatch | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/fanout`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, FanoutEnvelopeSchema, { batch: null }, { endpoint: "POST /api/issues/:id/fanout" }).batch;
+  }
+
+  // Agent duel (K39).
+  async getIssueDuel(issueId: string): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/duel`);
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "GET /api/issues/:id/duel" }).duel;
+  }
+
+  async startDuel(issueId: string, input: import("../issues/duel").DuelInput): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/duel`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/issues/:id/duel" }).duel;
+  }
+
+  async confirmDuel(duelId: string, winner: import("../issues/duel").DuelWinner): Promise<import("../issues/duel").AgentDuel | null> {
+    const raw = await this.fetch<unknown>(`/api/duels/${encodeURIComponent(duelId)}/confirm`, { method: "POST", body: JSON.stringify({ winner }) });
+    return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/duels/:id/confirm" }).duel;
+  }
+
+  // Learned competency (K43).
+  async getAgentCompetency(agentId: string): Promise<import("../agents/competency").AgentCompetency> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/competency`);
+    return parseWithFallback(raw, AgentCompetencySchema, { agent_id: agentId, min_sample: 5, rows: [] }, { endpoint: "GET /api/agents/:id/competency" });
+  }
+
+  async getCompetencySettings(): Promise<import("../agents/competency").CompetencySettings> {
+    const raw = await this.fetch<unknown>(`/api/competency-settings`);
+    return parseWithFallback(raw, CompetencySettingsSchema, { min_sample: 5 }, { endpoint: "GET /api/competency-settings" });
+  }
+
+  async putCompetencySettings(input: import("../agents/competency").CompetencySettings): Promise<import("../agents/competency").CompetencySettings> {
+    const raw = await this.fetch<unknown>(`/api/competency-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CompetencySettingsSchema, input, { endpoint: "PUT /api/competency-settings" });
+  }
+
+  async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/assignee-suggestion`);
+    return parseWithFallback(raw, AssigneeSuggestionSchema, { domain_key: "", min_sample: 5, candidates: [], ownership: null }, { endpoint: "GET /api/issues/:id/assignee-suggestion" });
+  }
+
+  // Cross-provider self-review (K15).
+  async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
+    return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  // "Show me first" (K69).
+  async getAgentEffectMode(agentId: string): Promise<import("../agents/trust").EffectModeEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/effect-mode`);
+    return parseWithFallback(raw, EffectModeEnvelopeSchema, { agent_id: agentId, mode: "apply" }, { endpoint: "GET /api/agents/:id/effect-mode" });
+  }
+
+  async setAgentEffectMode(agentId: string, mode: import("../agents/trust").EffectMode): Promise<import("../agents/trust").EffectModeEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/effect-mode`, { method: "PUT", body: JSON.stringify({ mode }) });
+    return parseWithFallback(raw, EffectModeEnvelopeSchema, { agent_id: agentId, mode }, { endpoint: "PUT /api/agents/:id/effect-mode" });
+  }
+
+  // Undo for agent actions (K69).
+  async listIssueAgentEffects(issueId: string): Promise<import("../issues/agent-effects").AgentEffectList> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/agent-effects`);
+    return parseWithFallback(raw, AgentEffectListSchema, { effects: [], window_hours: 24 }, { endpoint: "GET /api/issues/:id/agent-effects" });
+  }
+
+  async undoTask(taskId: string): Promise<import("../issues/agent-effects").UndoReport> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/undo`, { method: "POST" });
+    return parseWithFallback(raw, UndoReportSchema, { reversed: 0, skipped: [], breaker: { tripped: false, trust_mode: "" }, effects: [] }, { endpoint: "POST /api/tasks/:id/undo" });
+  }
+
+  async undoAgentEffect(effectId: string): Promise<import("../issues/agent-effects").UndoReport> {
+    const raw = await this.fetch<unknown>(`/api/agent-effects/${encodeURIComponent(effectId)}/undo`, { method: "POST" });
+    return parseWithFallback(raw, UndoReportSchema, { reversed: 0, skipped: [], breaker: { tripped: false, trust_mode: "" }, effects: [] }, { endpoint: "POST /api/agent-effects/:id/undo" });
+  }
+
+  async getUndoSettings(): Promise<import("../issues/agent-effects").UndoSettings> {
+    const raw = await this.fetch<unknown>(`/api/undo-settings`);
+    return parseWithFallback(raw, UndoSettingsSchema, { window_hours: 24, breaker_threshold: 5 }, { endpoint: "GET /api/undo-settings" });
+  }
+
+  async putUndoSettings(input: import("../issues/agent-effects").UndoSettings): Promise<import("../issues/agent-effects").UndoSettings> {
+    const raw = await this.fetch<unknown>(`/api/undo-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, UndoSettingsSchema, input, { endpoint: "PUT /api/undo-settings" });
+  }
+
+  // CI auto-fix (K49).
+  async getIssueCIAutoFix(issueId: string): Promise<import("../issues/ci-auto-fix").IssueCIAutoFix> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/ci-auto-fix`);
+    return parseWithFallback(raw, IssueCIAutoFixSchema, { runs: [], enabled: false, max_attempts: 3 }, { endpoint: "GET /api/issues/:id/ci-auto-fix" });
+  }
+
+  async retryCIAutoFix(pullRequestId: string): Promise<import("../issues/ci-auto-fix").CIAutoFixRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pull-requests/${encodeURIComponent(pullRequestId)}/ci-auto-fix/retry`, { method: "POST" });
+    return parseWithFallback(raw, CIAutoFixRetryEnvelopeSchema, { run: null }, { endpoint: "POST /api/pull-requests/:id/ci-auto-fix/retry" }).run;
+  }
+
+  async getCIAutoFixSettings(): Promise<import("../issues/ci-auto-fix").CIAutoFixSettings> {
+    const raw = await this.fetch<unknown>(`/api/ci-auto-fix-settings`);
+    return parseWithFallback(raw, CIAutoFixSettingsSchema, { enabled: false, max_attempts: 3, budget_usd_ticks: 0 }, { endpoint: "GET /api/ci-auto-fix-settings" });
+  }
+
+  async putCIAutoFixSettings(input: import("../issues/ci-auto-fix").CIAutoFixSettings): Promise<import("../issues/ci-auto-fix").CIAutoFixSettings> {
+    const raw = await this.fetch<unknown>(`/api/ci-auto-fix-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CIAutoFixSettingsSchema, input, { endpoint: "PUT /api/ci-auto-fix-settings" });
+  }
+
+  async getCrossReviewSettings(): Promise<import("../issues/cross-review").CrossReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/cross-review-settings`);
+    return parseWithFallback(raw, CrossReviewSettingsSchema, { enabled: true, opt_out_project_ids: [] }, { endpoint: "GET /api/cross-review-settings" });
+  }
+
+  async putCrossReviewSettings(input: import("../issues/cross-review").CrossReviewSettings): Promise<import("../issues/cross-review").CrossReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/cross-review-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
+  }
+
+  // Executable org chart (K75)
+  async listOrgTemplates(): Promise<import("../types").OrgTemplate[]> {
+    const raw = await this.fetch<unknown>("/api/org/templates");
+    return parseWithFallback(raw, OrgTemplateListSchema, { templates: [] }, { endpoint: "GET /api/org/templates" }).templates as import("../types").OrgTemplate[];
+  }
+
+  async listOrgStructures(): Promise<import("../types").OrgStructure[]> {
+    const raw = await this.fetch<unknown>("/api/org");
+    return parseWithFallback(raw, OrgStructureListSchema, { structures: [] }, { endpoint: "GET /api/org" }).structures as import("../types").OrgStructure[];
+  }
+
+  async resolveOrgStructure(projectId?: string | null): Promise<import("../types").OrgStructure | null> {
+    const search = new URLSearchParams();
+    if (projectId) search.set("project_id", projectId);
+    const raw = await this.fetch<unknown>(`/api/org/resolve?${search}`);
+    return parseWithFallback(raw, OrgResolveSchema, { structure: null }, { endpoint: "GET /api/org/resolve" }).structure as import("../types").OrgStructure | null;
+  }
+
+  async getOrgStructure(id: string): Promise<{ structure: import("../types").OrgStructure; revisions: import("../types").OrgRevision[] } | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, OrgStructureDetailSchema.nullable(), null, { endpoint: "GET /api/org/:id" }) as { structure: import("../types").OrgStructure; revisions: import("../types").OrgRevision[] } | null;
+  }
+
+  async createOrgStructure(data: import("../types").OrgWriteRequest): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>("/api/org", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "POST /api/org" }) as import("../types").OrgStructure | null;
+  }
+
+  async updateOrgStructure(id: string, data: import("../types").OrgWriteRequest): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "PUT /api/org/:id" }) as import("../types").OrgStructure | null;
+  }
+
+  async setOrgStructureStatus(id: string, action: "activate" | "pause" | "resume" | "dissolve", body: { eval_attestation?: string; reason?: string } = {}): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/${action}`, { method: "POST", body: JSON.stringify(body) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "POST /api/org/:id/:action" }) as import("../types").OrgStructure | null;
+  }
+
+  async deleteOrgStructure(id: string): Promise<void> {
+    await this.fetch(`/api/org/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getOrgHealth(id: string): Promise<import("../types").OrgHealth> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/health`);
+    return parseWithFallback(raw, OrgHealthSchema, { structure_id: id, window_days: 7, routed: 0, unrouted: 0, escalations: 0, stacked_escalations: 0, reassigned_outside: 0, market_short: 0, breakers: 0, human_review_items: 0, drift_rate: 0, units: [], proposals: [] }, { endpoint: "GET /api/org/:id/health" }) as import("../types").OrgHealth;
+  }
+
+  async preflightOrgStructure(id: string): Promise<import("../types").OrgPreflight> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/preflight`);
+    return parseWithFallback(raw, OrgPreflightSchema, { model: "", pattern: "", coordination_runs_per_issue: 0, coordination_cost_usd_ticks_per_issue: 0, human_review_items_per_issue: 0, human_review_seconds_per_issue: 0, units: 0, units_without_owner: 0, agents: 0, activation_requirements: [] }, { endpoint: "GET /api/org/:id/preflight" });
+  }
+
+  async listIssueOrgOffers(issueId: string): Promise<import("../types").OrgOffer[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/org-offers`);
+    return parseWithFallback(raw, OrgOfferListSchema, { offers: [] }, { endpoint: "GET /api/issues/:id/org-offers" }).offers;
+  }
+
+  async escalateIssue(issueId: string, reason: string): Promise<Issue | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/escalate`, { method: "POST", body: JSON.stringify({ reason }) });
+    return parseWithFallback(raw, IssueEnvelopeSchema, { issue: null }, { endpoint: "POST /api/issues/:id/escalate" }).issue as Issue | null;
+  }
+
+  async routeIssueNow(issueId: string): Promise<Issue | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/org-route`, { method: "POST" });
+    return parseWithFallback(raw, IssueEnvelopeSchema, { issue: null }, { endpoint: "POST /api/issues/:id/org-route" }).issue as Issue | null;
+  }
+
+  // Contest (K72)
+  async preflightContest(params: { target_type: string; target_id: string; challenger_agent_id?: string }): Promise<import("../issues/contest").ContestPreflight | null> {
+    const search = new URLSearchParams({ target_type: params.target_type, target_id: params.target_id });
+    if (params.challenger_agent_id) search.set("challenger_agent_id", params.challenger_agent_id);
+    const raw = await this.fetch<unknown>(`/api/contests/preflight?${search}`);
+    return parseWithFallback(raw, ContestPreflightSchema.nullable(), null, { endpoint: "GET /api/contests/preflight" });
+  }
+
+  async createContest(data: { target_type: string; target_id: string; max_rounds?: number; challenger_agent_id?: string }): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>("/api/contests", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "POST /api/contests" });
+  }
+
+  async listContests(params: { issue_id: string } | { target_type: string; target_id: string }): Promise<import("../issues/contest").Contest[]> {
+    const search = new URLSearchParams(params as Record<string, string>);
+    const raw = await this.fetch<unknown>(`/api/contests?${search}`);
+    return parseWithFallback(raw, ContestListSchema, { contests: [] }, { endpoint: "GET /api/contests" }).contests;
+  }
+
+  async getContest(id: string): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "GET /api/contests/:id" });
+  }
+
+  async confirmContest(id: string, verdict: "upheld" | "dismissed" | "mixed", note: string): Promise<import("../issues/contest").Contest | null> {
+    const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}/verdict`, { method: "POST", body: JSON.stringify({ verdict, note }) });
+    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "POST /api/contests/:id/verdict" });
+  }
+
+  async getContestSettings(): Promise<import("../issues/contest").ContestSettings> {
+    const raw = await this.fetch<unknown>("/api/contest-settings");
+    return parseWithFallback(raw, ContestSettingsSchema, { targets: {}, opt_out_project_ids: [] }, { endpoint: "GET /api/contest-settings" });
+  }
+
+  async putContestSettings(input: import("../issues/contest").ContestSettings): Promise<import("../issues/contest").ContestSettings> {
+    const raw = await this.fetch<unknown>("/api/contest-settings", { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, ContestSettingsSchema, input, { endpoint: "PUT /api/contest-settings" });
+  }
+
+  async retryCrossReview(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews/retry`, { method: "POST" });
+    return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "POST /api/issues/:id/cross-reviews/retry" }).reviews;
+  }
+
+  // Refactoring campaigns (K42).
+  async getIssueCampaign(issueId: string): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/refactor-campaign`);
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "GET /api/issues/:id/refactor-campaign" }).campaign;
+  }
+
+  async createCampaign(input: import("../issues/campaign").CampaignInput): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/refactor-campaigns`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "POST /api/refactor-campaigns" }).campaign;
+  }
+
+  async skipCampaignShard(shardId: string): Promise<import("../issues/campaign").RefactorCampaign | null> {
+    const raw = await this.fetch<unknown>(`/api/campaign-shards/${encodeURIComponent(shardId)}/skip`, { method: "POST" });
+    return parseWithFallback(raw, RefactorCampaignEnvelopeSchema, { campaign: null }, { endpoint: "POST /api/campaign-shards/:id/skip" }).campaign;
+  }
+
+  // Pipelines (K37).
+  async listPipelines(): Promise<import("../pipelines").Pipeline[]> {
+    const raw = await this.fetch<unknown>(`/api/pipelines`);
+    return parseWithFallback(raw, PipelinesEnvelopeSchema, { pipelines: [] }, { endpoint: "GET /api/pipelines" }).pipelines;
+  }
+
+  async createPipeline(input: import("../pipelines").PipelineInput): Promise<import("../pipelines").Pipeline> {
+    const raw = await this.fetch<unknown>(`/api/pipelines`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, PipelineSchema, { id: "", name: input.name, stages: [], open_runs: 0, created_at: "" }, { endpoint: "POST /api/pipelines" });
+  }
+
+  async updatePipeline(id: string, input: import("../pipelines").PipelineInput): Promise<import("../pipelines").Pipeline> {
+    const raw = await this.fetch<unknown>(`/api/pipelines/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(input) });
+    return parseWithFallback(raw, PipelineSchema, { id, name: input.name, stages: [], open_runs: 0, created_at: "" }, { endpoint: "PATCH /api/pipelines/:id" });
+  }
+
+  async deletePipeline(id: string): Promise<void> {
+    await this.fetch(`/api/pipelines/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getIssuePipelineRun(issueId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pipeline-run`);
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/pipeline-run" }).run;
+  }
+
+  async startPipelineRun(issueId: string, pipelineId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pipeline-run`, { method: "POST", body: JSON.stringify({ pipeline_id: pipelineId }) });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/issues/:id/pipeline-run" }).run;
+  }
+
+  async advancePipelineRun(runId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pipeline-runs/${encodeURIComponent(runId)}/advance`, { method: "POST" });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/pipeline-runs/:id/advance" }).run;
+  }
+
+  async cancelPipelineRun(runId: string): Promise<import("../pipelines").PipelineRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pipeline-runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+    return parseWithFallback(raw, PipelineRunEnvelopeSchema, { run: null }, { endpoint: "POST /api/pipeline-runs/:id/cancel" }).run;
+  }
+
+  // Preemption (K41).
+  async listIssuePreemptions(issueId: string): Promise<import("../issues/preemption").Preemption[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/preemptions`);
+    return parseWithFallback(raw, PreemptionsEnvelopeSchema, { preemptions: [] }, { endpoint: "GET /api/issues/:id/preemptions" }).preemptions;
+  }
+
+  // Drift detection (K40).
+  async getDriftPolicy(): Promise<import("../issues/drift").DriftPolicy> {
+    const raw = await this.fetch<unknown>(`/api/drift-policy`);
+    return parseWithFallback(raw, DriftPolicySchema, { enabled: true, repeated_action_threshold: 5, file_reread_threshold: 8 }, { endpoint: "GET /api/drift-policy" });
+  }
+
+  async putDriftPolicy(input: import("../issues/drift").DriftPolicy): Promise<import("../issues/drift").DriftPolicy> {
+    const raw = await this.fetch<unknown>(`/api/drift-policy`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, DriftPolicySchema, input, { endpoint: "PUT /api/drift-policy" });
+  }
+
+  // Traffic control (K18).
+  async listTrafficConflicts(issueId: string): Promise<import("../issues/traffic").TrafficConflict[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/traffic-conflicts`);
+    return parseWithFallback(raw, TrafficConflictsEnvelopeSchema, { conflicts: [] }, { endpoint: "GET /api/issues/:id/traffic-conflicts" }).conflicts;
+  }
+
+  async ignoreTrafficConflict(issueId: string, conflictId: string): Promise<import("../issues/traffic").TrafficConflict> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/traffic-conflicts/${encodeURIComponent(conflictId)}/ignore`, { method: "POST" });
+    return parseWithFallback(raw, TrafficConflictSchema, { id: conflictId, task_id: "", kind: "agent", paths: [], other_task_id: null, handoff_packet_id: null, status: "ignored", created_at: "", resolved_at: null }, { endpoint: "POST /api/issues/:id/traffic-conflicts/:cid/ignore" });
+  }
+
+  // Checkpoints (K20).
+  async getRunCheckpointStatus(issueId: string): Promise<import("../issues/checkpoint").RunCheckpointStatus | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run/checkpoint-status`);
+    return parseWithFallback(raw, RunCheckpointEnvelopeSchema, { run: null }, { endpoint: "GET /api/issues/:id/run/checkpoint-status" }).run;
+  }
+
+  // Run limits (K03).
+  async listRunLimitPolicies(): Promise<import("../budgets/run-limits").RunLimitPolicy[]> {
+    const raw = await this.fetch<unknown>(`/api/run-limits`);
+    return parseWithFallback(raw, RunLimitPoliciesEnvelopeSchema, { policies: [] }, { endpoint: "GET /api/run-limits" }).policies;
+  }
+
+  async createRunLimitPolicy(input: import("../budgets/run-limits").RunLimitPolicyInput): Promise<import("../budgets/run-limits").RunLimitPolicy> {
+    const raw = await this.fetch<unknown>(`/api/run-limits`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RunLimitPolicySchema, { id: "", created_at: "", ...input }, { endpoint: "POST /api/run-limits" });
+  }
+
+  async updateRunLimitPolicy(id: string, input: import("../budgets/run-limits").RunLimitPolicyInput): Promise<import("../budgets/run-limits").RunLimitPolicy> {
+    const raw = await this.fetch<unknown>(`/api/run-limits/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RunLimitPolicySchema, { id, created_at: "", ...input }, { endpoint: "PUT /api/run-limits/:id" });
+  }
+
+  async deleteRunLimitPolicy(id: string): Promise<void> {
+    await this.fetch(`/api/run-limits/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async listIssueRunLimitEvents(issueId: string): Promise<import("../budgets/run-limits").RunLimitEvent[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-limit-events`);
+    return parseWithFallback(raw, RunLimitEventsEnvelopeSchema, { events: [] }, { endpoint: "GET /api/issues/:id/run-limit-events" }).events;
+  }
+
+  // Handoff packets (K17).
+  async listHandoffPackets(issueId: string): Promise<import("../issues/handoff").HandoffPacket[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packets`);
+    return parseWithFallback(raw, HandoffPacketsEnvelopeSchema, { packets: [] }, { endpoint: "GET /api/issues/:id/handoff-packets" }).packets;
+  }
+
+  async getLatestHandoffPacket(issueId: string): Promise<import("../issues/handoff").HandoffPacket | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packet/latest`);
+    return parseWithFallback(raw, LatestHandoffPacketEnvelopeSchema, { packet: null }, { endpoint: "GET /api/issues/:id/handoff-packet/latest" }).packet;
+  }
+
+  async createHandoffPacket(issueId: string, input: import("../issues/handoff").HandoffPacketInput): Promise<import("../issues/handoff").HandoffPacket> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packet`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, HandoffPacketSchema, { id: "", issue_id: issueId, ...input, created_by_type: "member", created_by_id: null, created_at: "" }, { endpoint: "POST /api/issues/:id/handoff-packet" });
+  }
+
+  // Issue router (K27).
+  async getIssueRouting(issueId: string): Promise<import("../issues/routing").IssueRouting> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/routing-decision`);
+    return parseWithFallback(raw, IssueRoutingEnvelopeSchema, { decision: null, task_id: null }, { endpoint: "GET /api/issues/:id/routing-decision" });
+  }
+
+  async getRoutingSettings(): Promise<import("../issues/routing").RoutingSettings> {
+    const raw = await this.fetch<unknown>(`/api/routing-settings`);
+    return parseWithFallback(raw, RoutingSettingsSchema, { enabled: false, pools: {}, escalation_failures: 2 }, { endpoint: "GET /api/routing-settings" });
+  }
+
+  async putRoutingSettings(input: import("../issues/routing").RoutingSettings): Promise<import("../issues/routing").RoutingSettings> {
+    const raw = await this.fetch<unknown>(`/api/routing-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RoutingSettingsSchema, input, { endpoint: "PUT /api/routing-settings" });
+  }
+
+  // Run-scoped secrets (K09).
+  async listIssueRunSecrets(issueId: string): Promise<import("../issues/run-secrets").RunSecret[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-secrets`);
+    return parseWithFallback(raw, RunSecretsEnvelopeSchema, { secrets: [] }, { endpoint: "GET /api/issues/:id/run-secrets" }).secrets;
+  }
+
+  // Permission profiles (K06).
+  async listPermissionProfiles(): Promise<import("../agents/permission-profiles").PermissionProfile[]> {
+    const raw = await this.fetch<unknown>(`/api/permission-profiles`);
+    return parseWithFallback(raw, PermissionProfilesEnvelopeSchema, { profiles: [] }, { endpoint: "GET /api/permission-profiles" }).profiles;
+  }
+
+  async updatePermissionProfile(id: string, patch: import("../agents/permission-profiles").PermissionProfilePatch): Promise<import("../agents/permission-profiles").PermissionProfile> {
+    const raw = await this.fetch<unknown>(`/api/permission-profiles/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(patch) });
+    return parseWithFallback(raw, PermissionProfileSchema, { id, name: "", description: "", read_only: false, denied_paths: [], allowed_commands: [], hidden_secrets: [], builtin: false }, { endpoint: "PATCH /api/permission-profiles/:id" });
+  }
+
+  async setAgentPermissionProfile(agentId: string, profileId: string | null): Promise<{ id: string; permission_profile_id: string | null }> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/permission-profile`, { method: "PUT", body: JSON.stringify({ profile_id: profileId }) });
+    return parseWithFallback(raw, AgentPermissionAssignmentSchema, { id: agentId, permission_profile_id: profileId }, { endpoint: "PUT /api/agents/:id/permission-profile" });
+  }
+
+  // Why search (K55).
+  async searchWhy(q: string, options?: { signal?: AbortSignal }): Promise<{ results: import("../search/why").WhySearchResult[]; query: string }> {
+    const raw = await this.fetch<unknown>(`/api/search/why?q=${encodeURIComponent(q)}`, { signal: options?.signal });
+    return parseWithFallback(raw, WhySearchResponseSchema, { results: [], query: q }, { endpoint: "GET /api/search/why" });
+  }
+
+  // Audit log (K08).
+  async listAuditLog(filter: AuditLogFilter, cursor?: string, limit = 50): Promise<AuditLogPage> {
+    const search = new URLSearchParams();
+    for (const [k, v] of Object.entries(filter)) if (v) search.set(k, v);
+    if (cursor) search.set("cursor", cursor);
+    search.set("limit", String(limit));
+    const raw = await this.fetch<unknown>(`/api/audit-log?${search}`);
+    return parseWithFallback(raw, AuditLogPageSchema, { entries: [], next_cursor: "" }, { endpoint: "GET /api/audit-log" });
+  }
+
+  async verifyAuditLog(): Promise<AuditChainStatus> {
+    const raw = await this.fetch<unknown>("/api/audit-log/verify");
+    return parseWithFallback(raw, AuditChainStatusSchema, { ok: false, total: 0, head_hash: "", broken_seq: null, broken_id: null }, { endpoint: "GET /api/audit-log/verify" });
+  }
+
+  /** The export body as text, ready to be saved by the caller. */
+  async exportAuditLog(format: "csv" | "json", filter: AuditLogFilter): Promise<string> {
+    const search = new URLSearchParams({ format });
+    for (const [k, v] of Object.entries(filter)) if (v) search.set(k, v);
+    const res = await this.fetchRaw(`/api/audit-log/export?${search}`);
+    if (!res.ok) throw new Error(`export failed (${res.status})`);
+    return res.text();
+  }
+
+  // Workspace export / import (K76). The export is a zip download; preview and
+  // import send the bundle as multipart, so they bypass `this.fetch` like
+  // uploadFile does.
+  async exportWorkspace(options: TransferExportOptions): Promise<{ blob: Blob; filename: string; runId: string }> {
+    const res = await this.fetchRaw("/api/workspace-transfer/export", { method: "POST", body: JSON.stringify(options) });
+    if (!res.ok) throw new Error(`export failed (${res.status})`);
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(disposition);
+    return { blob: await res.blob(), filename: match?.[1] ?? "workspace.multica.zip", runId: res.headers.get("X-Transfer-Run-ID") ?? "" };
+  }
+
+  async previewWorkspaceImport(file: File | Blob): Promise<TransferPreview> {
+    const formData = new FormData();
+    formData.append("file", file, "bundle.zip");
+    const res = await this.fetchRaw("/api/workspace-transfer/preview", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<TransferPreview>(raw, TransferPreviewSchema, EMPTY_TRANSFER_PREVIEW, { endpoint: "POST /api/workspace-transfer/preview" });
+  }
+
+  async importWorkspace(file: File | Blob, strategy: TransferStrategy, secrets: TransferSecretValues = {}): Promise<TransferImportResult> {
+    const formData = new FormData();
+    formData.append("file", file, "bundle.zip");
+    formData.append("strategy", strategy);
+    formData.append("secrets", JSON.stringify(secrets));
+    const res = await this.fetchRaw("/api/workspace-transfer/import", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<TransferImportResult>(raw, TransferImportResultSchema, { run_id: "", report: EMPTY_TRANSFER_REPORT }, { endpoint: "POST /api/workspace-transfer/import" });
+  }
+
+  async listWorkspaceTransferRuns(): Promise<TransferRun[]> {
+    const raw = await this.fetch<unknown>("/api/workspace-transfer/runs");
+    return parseWithFallback(raw, TransferRunListSchema, { runs: [] }, { endpoint: "GET /api/workspace-transfer/runs" }).runs as TransferRun[];
+  }
+
+  async listWorkspaceTemplates(): Promise<WorkspaceTemplate[]> {
+    const raw = await this.fetch<unknown>("/api/workspace-templates");
+    return parseWithFallback(raw, WorkspaceTemplateListSchema, { templates: [] }, { endpoint: "GET /api/workspace-templates" }).templates as WorkspaceTemplate[];
+  }
+
+  // Agent versions (K23).
+  async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions`);
+    return parseWithFallback(raw, AgentVersionsSchema, { versions: [] }, { endpoint: "GET /api/agents/:id/versions" }).versions;
+  }
+
+  async getAgentVersionDiff(agentId: string, versionId: string, against: string): Promise<AgentVersionDiff> {
+    const raw = await this.fetch<unknown>(
+      `/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/diff?against=${encodeURIComponent(against)}`,
+    );
+    const parsed = parseWithFallback<AgentVersionDiff | null>(raw, AgentVersionDiffSchema, null, { endpoint: "GET /api/agents/:id/versions/:versionId/diff" });
+    if (!parsed) throw new Error("version diff returned a malformed response");
+    return parsed;
+  }
+
+  async rollbackAgentVersion(agentId: string, versionId: string): Promise<AgentVersion> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions/${encodeURIComponent(versionId)}/rollback`, {
+      method: "POST",
+      body: "{}",
+    });
+    const parsed = parseWithFallback<{ version: AgentVersion } | null>(raw, AgentVersionEnvelopeSchema, null, { endpoint: "POST /api/agents/:id/versions/:versionId/rollback" });
+    if (!parsed) throw new Error("rollback returned a malformed version");
+    return parsed.version;
+  }
+
+  // Scorecards (K25).
+  async getAgentScorecard(agentId: string, days = 30): Promise<AgentScorecard> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/scorecard?days=${days}`);
+    const empty = { runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true };
+    return parseWithFallback(raw, AgentScorecardSchema, { agent_id: agentId, days, totals: empty, previous: empty, series: [] }, {
+      endpoint: "GET /api/agents/:id/scorecard",
+    });
+  }
+
+  async listWorkspaceScorecards(days = 30): Promise<WorkspaceScorecardRow[]> {
+    const raw = await this.fetch<unknown>(`/api/scorecards?days=${days}`);
+    return parseWithFallback(raw, WorkspaceScorecardsSchema, { days, rows: [] }, { endpoint: "GET /api/scorecards" }).rows;
+  }
+
   async getWorkspaceAgentActivity30d(): Promise<AgentActivityBucket[]> {
     return this.fetch(`/api/agent-activity-30d`);
   }
@@ -2394,6 +4290,82 @@ export class ApiClient {
 
   async listTaskMessages(taskId: string): Promise<TaskMessagePayload[]> {
     return this.fetch(`/api/tasks/${taskId}/messages`);
+  }
+
+  // Skill Miner (K58).
+  async listSkillDrafts(): Promise<import("../skills/drafts").SkillDraft[]> {
+    const raw = await this.fetch<unknown>("/api/skill-miner/drafts");
+    return parseWithFallback(raw, SkillDraftListSchema, { drafts: [] }, { endpoint: "GET /api/skill-miner/drafts" }).drafts;
+  }
+
+  // Vigil learns you (K71).
+  async getWorkProfile(): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>("/api/work-profile");
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "GET /api/work-profile" });
+  }
+
+  async patchWorkProfileObservation(id: string, auto: boolean): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>(`/api/work-profile/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ auto }) });
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "PATCH /api/work-profile/:id" });
+  }
+
+  async deleteWorkProfileObservation(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/work-profile/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async overturnDecisionExample(id: string): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>(`/api/decision-examples/${encodeURIComponent(id)}/overturn`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "POST /api/decision-examples/:id/overturn" });
+  }
+
+  // Task watchdog (K73).
+  async getIssueWatchdog(issueId: string): Promise<import("../issues/watchdog").Watchdog | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`);
+    return parseWithFallback(raw, WatchdogEnvelopeSchema, { watchdog: null }, { endpoint: "GET /api/issues/:id/watchdog" }).watchdog;
+  }
+
+  async setIssueWatchdog(issueId: string, body: import("../issues/watchdog").WatchdogInput): Promise<import("../issues/watchdog").Watchdog | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`, { method: "PUT", body: JSON.stringify(body) });
+    return parseWithFallback(raw, WatchdogEnvelopeSchema, { watchdog: null }, { endpoint: "PUT /api/issues/:id/watchdog" }).watchdog;
+  }
+
+  async deleteIssueWatchdog(issueId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`, { method: "DELETE" });
+  }
+
+  async listIssueWatchdogVerdicts(issueId: string): Promise<import("../issues/watchdog").WatchdogVerdict[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog/verdicts`);
+    return parseWithFallback(raw, WatchdogVerdictListSchema, { verdicts: [] }, { endpoint: "GET /api/issues/:id/watchdog/verdicts" }).verdicts;
+  }
+
+  async scanIssueWatchdogNow(issueId: string): Promise<{ task_id: string }> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog/scan`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, WatchdogScanResultSchema, { task_id: "" }, { endpoint: "POST /api/issues/:id/watchdog/scan" });
+  }
+
+  async reviewWatchdogVerdict(verdictId: string, confirmed: boolean): Promise<import("../issues/watchdog").WatchdogVerdict> {
+    const raw = await this.fetch<unknown>(`/api/watchdog-verdicts/${encodeURIComponent(verdictId)}/review`, { method: "POST", body: JSON.stringify({ confirmed }) });
+    const fallback: import("../issues/watchdog").WatchdogVerdict = { id: verdictId, watchdog_id: "", issue_id: "", task_id: "", verdict: "escalate", summary: "", findings: [], dropped: [], applied: {}, decision_id: null, human_review: confirmed ? "confirmed" : "overturned", contract_revision: 0, created_at: "" };
+    return parseWithFallback(raw, WatchdogVerdictEnvelopeSchema, { verdict: fallback }, { endpoint: "POST /api/watchdog-verdicts/:id/review" }).verdict;
+  }
+
+  // Run replay (K70).
+  async getTaskReplay(taskId: string, cursor = 0, limit = 200): Promise<import("../issues/run-replay").RunReplay> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay?cursor=${cursor}&limit=${limit}`);
+    return parseWithFallback(raw, RunReplaySchema, {
+      run: { id: taskId, safe_mode: false, snapshot: null, plan: null, drift: 0, issue_id: "", agent_id: "", agent_name: "", status: "", trust_mode: "", effect_mode: "", model: "", created_at: null, started_at: null, completed_at: null, links: [] },
+      events: [], total: 0, next_cursor: null, head_hash: "", cost: { input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }, sealed: null,
+    }, { endpoint: "GET /api/tasks/:id/replay" });
+  }
+
+  async simulateTaskReplay(taskId: string): Promise<import("../issues/run-replay").ReplaySimulateResult> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay/simulate`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, ReplaySimulateResultSchema, { task_id: "", safe_mode: true }, { endpoint: "POST /api/tasks/:id/replay/simulate" });
+  }
+
+  async resumeTaskReplay(taskId: string, seq: number, instruction: string): Promise<import("../issues/run-replay").ReplayResumeResult> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay/resume`, { method: "POST", body: JSON.stringify({ seq, instruction }) });
+    return parseWithFallback(raw, ReplayResumeResultSchema, { task_id: "", from_seq: seq }, { endpoint: "POST /api/tasks/:id/replay/resume" });
   }
 
   async listTasksByIssue(issueId: string): Promise<AgentTask[]> {
@@ -2454,6 +4426,19 @@ export class ApiClient {
   // Archived notifications, backing the inbox's "Archived" sub-view. Capped
   // server-side (no pagination in v1). Schema-guarded so a contract drift
   // renders an empty archive instead of taking the inbox down with it.
+  // Inbox zero (K63).
+  async listInboxDecisions(): Promise<import("../inbox/queries").InboxDecisions> {
+    const raw = await this.fetch<unknown>("/api/inbox/decisions");
+    return parseWithFallback(raw, InboxDecisionsSchema, { decisions: [], total: 0 }, { endpoint: "GET /api/inbox/decisions" }) as import("../inbox/queries").InboxDecisions;
+  }
+
+  async listAttentionInbox(): Promise<AttentionInboxItem[]> {
+    const raw = await this.fetch<unknown>("/api/inbox/attention");
+    return parseWithFallback(raw, AttentionInboxListSchema, { items: [] }, {
+      endpoint: "GET /api/inbox/attention",
+    }).items as AttentionInboxItem[];
+  }
+
   async listArchivedInbox(): Promise<InboxItem[]> {
     const raw = await this.fetch<unknown>("/api/inbox/archived");
     return parseWithFallback(raw, InboxItemListSchema, EMPTY_INBOX_ITEMS, {
@@ -2549,14 +4534,17 @@ export class ApiClient {
     return this.fetch(`/api/workspaces/${id}`);
   }
 
-  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string }): Promise<Workspace> {
+  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string; template_run_id?: string }): Promise<Workspace> {
     return this.fetch("/api/workspaces", {
       method: "POST",
       body: JSON.stringify(data),
     });
   }
 
-  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string }): Promise<Workspace> {
+  // postmortem_cost_threshold_usd_ticks: 0 turns the costly-run postmortem
+  // trigger off (the server stores NULL), a positive value arms it. Omitting
+  // the field leaves the stored threshold alone, like every other field here.
+  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string; postmortem_cost_threshold_usd_ticks?: number }): Promise<Workspace> {
     return this.fetch(`/api/workspaces/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
@@ -2666,6 +4654,28 @@ export class ApiClient {
     return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], {
       endpoint: "PUT /api/agents/{id}/mcp-servers/{serverId}/enabled",
     });
+  }
+
+  // Governed MCP gateway (K77): the catalogue of a workspace server and the
+  // per-tool policy of a binding.
+  async listWorkspaceMcpServerTools(workspaceId: string, serverId: string): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools`);
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "GET /api/workspaces/{id}/mcp-servers/{serverId}/tools" });
+  }
+
+  async discoverWorkspaceMcpServerTools(workspaceId: string, serverId: string): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools/discover`, { method: "POST" });
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "POST /api/workspaces/{id}/mcp-servers/{serverId}/tools/discover" });
+  }
+
+  async setWorkspaceMcpServerTools(workspaceId: string, serverId: string, tools: { name: string; description?: string; risk?: McpToolRisk }[]): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools`, { method: "PUT", body: JSON.stringify({ tools }) });
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "PUT /api/workspaces/{id}/mcp-servers/{serverId}/tools" });
+  }
+
+  async setAgentMcpServerPolicy(agentId: string, serverId: string, policy: McpToolPolicy): Promise<WorkspaceMcpServer[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/mcp-servers/${encodeURIComponent(serverId)}/policy`, { method: "PUT", body: JSON.stringify(policy) });
+    return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], { endpoint: "PUT /api/agents/{id}/mcp-servers/{serverId}/policy" });
   }
 
   async removeAgentMcpServer(agentId: string, serverId: string): Promise<WorkspaceMcpServer[]> {
@@ -3576,6 +5586,36 @@ export class ApiClient {
     await this.fetch(`/api/projects/${id}`, { method: "DELETE" });
   }
 
+  // Goals with ancestry (K74)
+  async listGoals(): Promise<import("../types").ListGoalsResponse> {
+    const raw = await this.fetch<unknown>("/api/goals");
+    return parseWithFallback(raw, ListGoalsResponseSchema, { goals: [], total: 0 }, { endpoint: "GET /api/goals" });
+  }
+
+  async getGoal(id: string): Promise<{ goal: import("../types").Goal | null; issues: Issue[] }> {
+    const raw = await this.fetch<unknown>(`/api/goals/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, GoalDetailResponseSchema.extend({ goal: GoalSchema.nullable().catch(null) }), { goal: null, issues: [] }, { endpoint: "GET /api/goals/:id" });
+  }
+
+  async createGoal(data: import("../types").GoalWriteRequest): Promise<import("../types").Goal | null> {
+    const raw = await this.fetch<unknown>("/api/goals", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, GoalSchema.nullable(), null, { endpoint: "POST /api/goals" });
+  }
+
+  async updateGoal(id: string, data: import("../types").GoalWriteRequest): Promise<import("../types").Goal | null> {
+    const raw = await this.fetch<unknown>(`/api/goals/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, GoalSchema.nullable(), null, { endpoint: "PUT /api/goals/:id" });
+  }
+
+  async deleteGoal(id: string): Promise<void> {
+    await this.fetch(`/api/goals/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async setProjectGoals(projectId: string, goalIds: string[]): Promise<string[]> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/goals`, { method: "PUT", body: JSON.stringify({ goal_ids: goalIds }) });
+    return parseWithFallback(raw, ProjectGoalsResponseSchema, { goal_ids: [] }, { endpoint: "PUT /api/projects/:id/goals" }).goal_ids;
+  }
+
   // Project resources
   async listProjectResources(
     projectId: string,
@@ -4090,6 +6130,42 @@ export class ApiClient {
     }) as SquadMemberStatusListResponse;
   }
 
+  // Budgets
+  async listBudgetPolicies(): Promise<BudgetPolicy[]> {
+    const raw = await this.fetch<unknown>("/api/budgets");
+    return parseWithFallback(raw, BudgetPolicyListSchema, [], { endpoint: "GET /api/budgets" });
+  }
+
+  async getBudgetStatus(scope: { projectId?: string; agentId?: string } = {}): Promise<BudgetStatus[]> {
+    const query = new URLSearchParams();
+    if (scope.projectId) query.set("project_id", scope.projectId);
+    if (scope.agentId) query.set("agent_id", scope.agentId);
+    const suffix = query.size ? `?${query}` : "";
+    const raw = await this.fetch<unknown>(`/api/budgets/status${suffix}`);
+    return parseWithFallback(raw, BudgetStatusListSchema, [], { endpoint: "GET /api/budgets/status" });
+  }
+
+  async createBudgetPolicy(data: CreateBudgetPolicyRequest): Promise<BudgetPolicy> {
+    const raw = await this.fetch<unknown>("/api/budgets", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "POST /api/budgets" });
+  }
+
+  async updateBudgetPolicy(id: string, data: UpdateBudgetPolicyRequest): Promise<BudgetPolicy> {
+    const raw = await this.fetch<unknown>(`/api/budgets/${id}`, { method: "PATCH", body: JSON.stringify(data) });
+    return parseWithFallback(raw, BudgetPolicySchema, {} as BudgetPolicy, { endpoint: "PATCH /api/budgets/:id" });
+  }
+
+  async deleteBudgetPolicy(id: string): Promise<void> {
+    await this.fetch(`/api/budgets/${id}`, { method: "DELETE" });
+  }
+
+  async createBudgetOverride(id: string, reason: string, durationHours = 24): Promise<BudgetOverride> {
+    const raw = await this.fetch<unknown>(`/api/budgets/${id}/override`, {
+      method: "POST", body: JSON.stringify({ reason, duration_hours: durationHours }),
+    });
+    return parseWithFallback(raw, BudgetOverrideSchema, {} as BudgetOverride, { endpoint: "POST /api/budgets/:id/override" });
+  }
+
   // Autopilots
   async listAutopilots(params?: { status?: string }): Promise<ListAutopilotsResponse> {
     const search = new URLSearchParams();
@@ -4207,10 +6283,18 @@ export class ApiClient {
     await this.fetch(`/api/autopilots/${autopilotId}/triggers/${triggerId}`, { method: "DELETE" });
   }
 
-  async cronPreview(params: { expr: string; tz: string }): Promise<CronPreviewResponse> {
+  async cronPreview(params: {
+    expr: string;
+    tz: string;
+    /** Firing band in minutes; omitted or 0 previews the exact cron instants. */
+    windowMinutes?: number;
+  }): Promise<CronPreviewResponse> {
     const search = new URLSearchParams();
     search.set("expr", params.expr);
     search.set("tz", params.tz);
+    if (params.windowMinutes !== undefined && params.windowMinutes > 0) {
+      search.set("window_minutes", String(params.windowMinutes));
+    }
     const raw = await this.fetch<unknown>(`/api/autopilots/cron-preview?${search}`);
     return parseWithFallback(
       raw,
@@ -4227,6 +6311,50 @@ export class ApiClient {
     return this.fetch(
       `/api/autopilots/${autopilotId}/triggers/${triggerId}/rotate-webhook-token`,
       { method: "POST" },
+    );
+  }
+
+  // Dry-runs replay a real decision without side effects. The webhook one
+  // POSTs a sample payload (and the classifier runs for real, so it costs an
+  // upstream call and needs write access); the schedule one is a GET preview
+  // of the next firing instants. Both parse through a schema: an unreadable
+  // verdict degrades to the `unreadable` sentinel, never to a fake "blocked".
+  async dryRunAutopilotWebhookTrigger(
+    autopilotId: string,
+    triggerId: string,
+    body: WebhookTriggerDryRunRequest,
+  ): Promise<WebhookTriggerDryRunResult> {
+    const raw = await this.fetch<unknown>(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/dry-run`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return parseWithFallback(raw, WebhookTriggerDryRunSchema, UNREADABLE_WEBHOOK_DRY_RUN, {
+      endpoint: "POST /api/autopilots/:id/triggers/:triggerId/dry-run",
+    });
+  }
+
+  async dryRunAutopilotScheduleTrigger(
+    autopilotId: string,
+    triggerId: string,
+  ): Promise<ScheduleTriggerDryRunResult> {
+    const raw = await this.fetch<unknown>(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/dry-run`,
+    );
+    return parseWithFallback(raw, ScheduleTriggerDryRunSchema, UNREADABLE_SCHEDULE_DRY_RUN, {
+      endpoint: "GET /api/autopilots/:id/triggers/:triggerId/dry-run",
+    });
+  }
+
+  // Write-only: the new secret is never echoed back. The response is the
+  // trigger with has_signing_secret / signing_secret_hint refreshed.
+  async setAutopilotTriggerSigningSecret(
+    autopilotId: string,
+    triggerId: string,
+    signingSecret: string,
+  ): Promise<AutopilotTrigger> {
+    return this.fetch(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/signing-secret`,
+      { method: "PUT", body: JSON.stringify({ signing_secret: signingSecret }) },
     );
   }
 
@@ -4353,6 +6481,20 @@ export class ApiClient {
       EMPTY_ISSUE_PULL_REQUESTS_RESPONSE,
       { endpoint: "GET /api/issues/:id/pull-requests" },
     );
+  }
+
+  async getIssueMergeReadiness(issueId: string): Promise<MergeReadiness> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/merge-readiness`);
+    return parseWithFallback(raw, MergeReadinessSchema, EMPTY_MERGE_READINESS, {
+      endpoint: "GET /api/issues/:id/merge-readiness",
+    });
+  }
+
+  async getIssuePRStack(issueId: string): Promise<PRStack> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/pr-stack`);
+    return parseWithFallback(raw, PRStackSchema, EMPTY_PR_STACK, {
+      endpoint: "GET /api/issues/:id/pr-stack",
+    });
   }
 
   // VCS integration (Forgejo / Gitea / GitLab)

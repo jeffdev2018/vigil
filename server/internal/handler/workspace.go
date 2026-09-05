@@ -95,17 +95,24 @@ func normalizeIssuePrefix(raw string) (string, bool) {
 const issuePrefixFormatError = "issue prefix must be 1-10 uppercase letters or digits"
 
 type WorkspaceResponse struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
-	Description *string `json:"description"`
-	Context     *string `json:"context"`
-	Settings    any     `json:"settings"`
-	Repos       any     `json:"repos"`
-	IssuePrefix string  `json:"issue_prefix"`
-	AvatarURL   *string `json:"avatar_url"`
-	CreatedAt   string  `json:"created_at"`
-	UpdatedAt   string  `json:"updated_at"`
+	// Template / TemplateError (K76) report the template seed of a workspace just created from one.
+	Template      map[string]any `json:"template,omitempty"`
+	TemplateError string         `json:"template_error,omitempty"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Slug          string         `json:"slug"`
+	Description   *string        `json:"description"`
+	Context       *string        `json:"context"`
+	Settings      any            `json:"settings"`
+	Repos         any            `json:"repos"`
+	IssuePrefix   string         `json:"issue_prefix"`
+	AvatarURL     *string        `json:"avatar_url"`
+	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
+	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
+	// null disables the trigger, which is every workspace's default.
+	PostmortemCostThresholdUsdTicks *int64 `json:"postmortem_cost_threshold_usd_ticks"`
+	CreatedAt                       string `json:"created_at"`
+	UpdatedAt                       string `json:"updated_at"`
 }
 
 func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
@@ -124,17 +131,18 @@ func (h *Handler) workspaceToResponse(w db.Workspace) WorkspaceResponse {
 		repos = []any{}
 	}
 	return WorkspaceResponse{
-		ID:          uuidToString(w.ID),
-		Name:        w.Name,
-		Slug:        w.Slug,
-		Description: textToPtr(w.Description),
-		Context:     textToPtr(w.Context),
-		Settings:    settings,
-		Repos:       repos,
-		IssuePrefix: w.IssuePrefix,
-		AvatarURL:   h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
-		CreatedAt:   timestampToString(w.CreatedAt),
-		UpdatedAt:   timestampToString(w.UpdatedAt),
+		ID:                              uuidToString(w.ID),
+		Name:                            w.Name,
+		Slug:                            w.Slug,
+		Description:                     textToPtr(w.Description),
+		Context:                         textToPtr(w.Context),
+		Settings:                        settings,
+		Repos:                           repos,
+		IssuePrefix:                     w.IssuePrefix,
+		AvatarURL:                       h.resolveAvatarURLPtr(textToPtr(w.AvatarUrl)),
+		PostmortemCostThresholdUsdTicks: int8ToPtr(w.PostmortemCostThresholdUsdTicks),
+		CreatedAt:                       timestampToString(w.CreatedAt),
+		UpdatedAt:                       timestampToString(w.UpdatedAt),
 	}
 }
 
@@ -197,6 +205,8 @@ type CreateWorkspaceRequest struct {
 	Description *string `json:"description"`
 	Context     *string `json:"context"`
 	IssuePrefix *string `json:"issue_prefix"`
+	// TemplateRunID (K76) seeds the new workspace from a template export the creator can read.
+	TemplateRunID *string `json:"template_run_id"`
 }
 
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -292,6 +302,11 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed issue statuses: "+err.Error())
 		return
 	}
+	// Org chart (K75): a new workspace starts as an owner network.
+	if err := h.seedDefaultOrg(r.Context(), qtx, ws.ID, parseUUID(userID)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
+		return
+	}
 
 	// NOTE: CreateWorkspace deliberately does NOT mark the user as
 	// onboarded. The `onboarded_at` flag is owned by CompleteOnboarding
@@ -316,7 +331,18 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	h.notifyDaemonWorkspacesChanged(userID)
 
 	slog.Info("workspace created", append(logger.RequestAttrs(r), "workspace_id", wsID, "name", ws.Name, "slug", ws.Slug)...)
-	writeJSON(w, http.StatusCreated, h.workspaceToResponse(ws))
+	resp := h.workspaceToResponse(ws)
+	// Workspace templates (K76): the configuration of a template export lands
+	// in the new workspace; a failure leaves the workspace, and says so.
+	if req.TemplateRunID != nil && *req.TemplateRunID != "" {
+		if result, err := h.applyWorkspaceTemplate(r.Context(), ws.ID, *req.TemplateRunID, userID); err != nil {
+			slog.Warn("workspace template failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "error", err)...)
+			resp.TemplateError = err.Error()
+		} else {
+			resp.Template = result
+		}
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 type UpdateWorkspaceRequest struct {
@@ -327,6 +353,11 @@ type UpdateWorkspaceRequest struct {
 	Repos       any     `json:"repos"`
 	IssuePrefix *string `json:"issue_prefix"`
 	AvatarURL   *string `json:"avatar_url"`
+	// PostmortemCostThresholdUsdTicks (k68): 0 turns the costly-run trigger
+	// off (stored as NULL), a positive value arms it. A sentinel rather than
+	// `null` because the rest of this request is COALESCE-partial, where null
+	// already means "leave alone" — and a threshold of $0 is meaningless.
+	PostmortemCostThresholdUsdTicks *int64 `json:"postmortem_cost_threshold_usd_ticks"`
 }
 
 type workspaceRepoRef struct {
@@ -437,6 +468,19 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		params.AvatarUrl = pgtype.Text{String: accepted, Valid: true}
 	}
 
+	// Written first so the row UpdateWorkspace returns already carries it.
+	if req.PostmortemCostThresholdUsdTicks != nil {
+		threshold := pgtype.Int8{}
+		if *req.PostmortemCostThresholdUsdTicks > 0 {
+			threshold = pgtype.Int8{Int64: *req.PostmortemCostThresholdUsdTicks, Valid: true}
+		}
+		if _, err := h.Queries.UpdateWorkspacePostmortemCostThreshold(r.Context(), db.UpdateWorkspacePostmortemCostThresholdParams{ID: idUUID, Threshold: threshold}); err != nil {
+			slog.Warn("update postmortem cost threshold failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to update workspace")
+			return
+		}
+	}
+
 	ws, err := h.Queries.UpdateWorkspace(r.Context(), params)
 	if err != nil {
 		slog.Warn("update workspace failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", id)...)
@@ -461,6 +505,11 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.Settings != nil {
+		if userID, ok := requireUserID(w, r); ok {
+			h.audit(r.Context(), ws.ID, "member", userID, AuditWorkspaceSettings, "workspace", ws.ID, map[string]any{"settings": req.Settings}, nil)
+		}
+	}
 	writeJSON(w, http.StatusOK, h.workspaceToResponse(ws))
 }
 
@@ -1193,6 +1242,22 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteChatPinnedAgentsByWorkspace(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete budget overrides",
+			run:  func() error { return qtx.DeleteWorkspaceBudgetOverrides(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete budget reservations",
+			run:  func() error { return qtx.DeleteWorkspaceBudgetReservations(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete budget periods",
+			run:  func() error { return qtx.DeleteWorkspaceBudgetPeriods(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete budget policies",
+			run:  func() error { return qtx.DeleteWorkspaceBudgetPolicies(ctx, requester.WorkspaceID) },
+		},
+		{
 			// This is the first stage that touches usage rollups. Keep the
 			// global rollup lock out of relationship preparation so unrelated
 			// workspaces skip the shortest possible rollup window. This wait
@@ -1207,6 +1272,130 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			// data statement and the separate whole-workspace task delete.
 			name: "delete tasks",
 			run:  func() error { return deleteWorkspaceTasks(ctx, qtx, requester.WorkspaceID) },
+		},
+		{
+			// Audit log (K08): append-only; the purge is the only delete and
+			// it must announce itself on the transaction first.
+			name: "purge audit log",
+			run: func() error {
+				if _, err := qtx.AllowAuditPurge(ctx); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceAuditLog(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			name: "purge decision records",
+			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge fanout members",
+			run:  func() error { return qtx.PurgeWorkspaceFanoutMembers(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge fanout batches",
+			run:  func() error { return qtx.PurgeWorkspaceFanoutBatches(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge campaign shards",
+			run:  func() error { return qtx.PurgeWorkspaceCampaignShards(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge refactor campaigns",
+			run:  func() error { return qtx.PurgeWorkspaceRefactorCampaigns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge ci auto-fix runs",
+			run:  func() error { return qtx.PurgeWorkspaceCIAutoFixRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge agent competency",
+			run:  func() error { return qtx.PurgeWorkspaceAgentDomainCompetency(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge agent duels",
+			run:  func() error { return qtx.PurgeWorkspaceAgentDuels(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge contests",
+			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge org structures",
+			run:  func() error { return qtx.PurgeWorkspaceOrg(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge transfer runs",
+			run:  func() error { return qtx.PurgeWorkspaceTransferRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pipeline runs",
+			run:  func() error { return qtx.PurgeWorkspacePipelineRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pipeline stages",
+			run:  func() error { return qtx.PurgeWorkspacePipelineStages(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pipelines",
+			run:  func() error { return qtx.PurgeWorkspacePipelines(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge traffic conflicts",
+			run:  func() error { return qtx.PurgeWorkspaceTrafficConflicts(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge run limit events",
+			run:  func() error { return qtx.PurgeWorkspaceRunLimitEvents(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge run limits",
+			run:  func() error { return qtx.PurgeWorkspaceRunLimits(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge handoff packets",
+			run:  func() error { return qtx.PurgeWorkspaceHandoffPackets(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge runtime pools",
+			run:  func() error { return qtx.PurgeWorkspaceRuntimePools(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge run scoped secrets",
+			run:  func() error { return qtx.PurgeWorkspaceRunScopedSecrets(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge permission profiles",
+			run:  func() error { return qtx.PurgeWorkspacePermissionProfiles(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge blast radius rules",
+			run:  func() error { return qtx.PurgeWorkspaceBlastRadiusRules(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge approval gate events",
+			run:  func() error { return qtx.PurgeWorkspaceApprovalGateEvents(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge trust mode changes",
+			run:  func() error { return qtx.PurgeWorkspaceTrustModeChanges(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge why search chunks",
+			run:  func() error { return qtx.PurgeWorkspaceWhyChunks(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge weekly retros",
+			run:  func() error { return qtx.PurgeWorkspaceWeeklyRetros(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge business rules",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceBusinessRuleViolations(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceBusinessRules(ctx, requester.WorkspaceID)
+			},
 		},
 		{
 			name: "delete leaf data",
@@ -1225,12 +1414,44 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceAutopilotQuotaPeriods(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete plan verifications",
+			run:  func() error { return qtx.DeleteWorkspacePlanVerifications(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete issue plans",
+			run:  func() error { return qtx.DeleteWorkspaceIssuePlans(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete issue decisions",
+			run:  func() error { return qtx.DeleteWorkspaceIssueDecisions(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete chat messages",
 			run:  func() error { return qtx.DeleteWorkspaceChatMessages(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete communication roots",
 			run:  func() error { return qtx.DeleteWorkspaceCommunicationRoots(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete correction signals",
+			run:  func() error { return qtx.DeleteWorkspaceCorrectionSignals(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete decision training examples",
+			run:  func() error { return qtx.DeleteWorkspaceDecisionTrainingExamples(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete work profile observations",
+			run:  func() error { return qtx.DeleteWorkspaceWorkProfileObservations(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete watchdog verdicts",
+			run:  func() error { return qtx.DeleteWorkspaceWatchdogVerdicts(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete watchdogs",
+			run:  func() error { return qtx.DeleteWorkspaceWatchdogs(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete comments",
@@ -1290,6 +1511,26 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "delete plugin data",
 			run:  func() error { return qtx.DeleteWorkspacePluginData(ctx, requester.WorkspaceID) },
+		},
+		{
+			// agent_memory carries no FK; sweep it before the agent rows it
+			// logically hangs off.
+			name: "delete agent memories",
+			run:  func() error { return qtx.DeleteWorkspaceAgentMemories(ctx, requester.WorkspaceID) },
+		},
+		{
+			// postmortem carries no FK; sweep it with the workspace.
+			name: "delete postmortems",
+			run:  func() error { return qtx.DeleteWorkspacePostmortems(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete agent effects",
+			run:  func() error { return qtx.DeleteWorkspaceAgentEffects(ctx, requester.WorkspaceID) },
+		},
+		{
+			// workspace_note (Brain) carries no FK; sweep it with the workspace.
+			name: "delete workspace notes",
+			run:  func() error { return qtx.DeleteWorkspaceNotes(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete agents",

@@ -110,6 +110,7 @@ export function useIssueSurfaceData({
   creatorFilters,
   projectFilters,
   includeNoProject,
+  goalFilters,
   labelFilters,
   propertyFilters,
   workingIssueIDs,
@@ -139,6 +140,7 @@ export function useIssueSurfaceData({
   creatorFilters: IssueFilterState["creatorFilters"];
   projectFilters: string[];
   includeNoProject: boolean;
+  goalFilters: string[];
   labelFilters: string[];
   propertyFilters: Record<string, PropertyFilterValue[]>;
   /** Distinct running-task issue ids projected by `/api/working-agents`. */
@@ -150,6 +152,24 @@ export function useIssueSurfaceData({
     ...issueSurfaceGanttOptions(wsId, projectId ?? "", queryPlan),
     enabled: usesGantt,
   });
+  const {
+    data: projectData,
+    refetch: refetchProjects,
+  } = useQuery({
+    ...projectListOptions(wsId),
+    enabled: loadProjects || goalFilters.length > 0,
+  });
+  const projects = projectData ?? EMPTY_PROJECTS;
+  const projectMap = useMemo(
+    () => new Map(projects.map((project) => [project.id, project])),
+    [projects],
+  );
+  // Goal filter (K74): an issue without its own goal matches through its
+  // project, so the projection needs the project → goals map.
+  const projectGoalIds = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.id, p.goal_ids ?? []])),
+    [projects],
+  );
   const workingFilterContext = useMemo(
     () => ({ runningIssueIds: workingIssueIDs }),
     [workingIssueIDs],
@@ -181,6 +201,8 @@ export function useIssueSurfaceData({
       creatorFilters,
       projectFilters,
       includeNoProject,
+      goalFilters,
+      projectGoalIds,
       labelFilters,
       propertyFilters,
       workingOnly: agentRunningFilter,
@@ -190,11 +212,13 @@ export function useIssueSurfaceData({
       assigneeFilters,
       agentRunningFilter,
       creatorFilters,
+      goalFilters,
       includeNoAssignee,
       includeNoProject,
       labelFilters,
       priorityFilters,
       projectFilters,
+      projectGoalIds,
       propertyFilters,
       showSubIssues,
       statusFilters,
@@ -290,18 +314,6 @@ export function useIssueSurfaceData({
     refetch: refetchChildProgress,
   } = useQuery(childIssueProgressOptions(wsId));
   const childProgressMap = childProgressData ?? EMPTY_CHILD_PROGRESS;
-  const {
-    data: projectData,
-    refetch: refetchProjects,
-  } = useQuery({
-    ...projectListOptions(wsId),
-    enabled: loadProjects,
-  });
-  const projects = projectData ?? EMPTY_PROJECTS;
-  const projectMap = useMemo(
-    () => new Map(projects.map((project) => [project.id, project])),
-    [projects],
-  );
   const resolveTableExportLookups = useCallback(
     async (needs: { projects: boolean; childProgress: boolean }) => {
       const [projectResult, progressResult] = await Promise.all([
@@ -374,6 +386,8 @@ export function useIssueSurfaceData({
       creatorFilters,
       projectFilters,
       includeNoProject,
+      goalFilters,
+      projectGoalIds,
       labelFilters,
       propertyFilters,
       showSubIssues,
@@ -382,12 +396,14 @@ export function useIssueSurfaceData({
       assigneeFilters,
       agentRunningFilter,
       creatorFilters,
+      goalFilters,
       includeNoAssignee,
       includeNoProject,
       labelFilters,
       propertyFilters,
       priorityFilters,
       projectFilters,
+      projectGoalIds,
       showSubIssues,
       workingIssueIDs,
     ],

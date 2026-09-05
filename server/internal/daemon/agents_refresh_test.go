@@ -820,3 +820,63 @@ func resetShellResolveCacheForTest(t *testing.T) {
 	reset()
 	t.Cleanup(reset)
 }
+
+// TestPendingSkippedAgents pins the "send only when it changed" rule for the
+// heartbeat's skipped-agents diagnostic: the first beat always carries the
+// set, later beats stay silent until it actually changes, and a set that
+// emptied sends an explicit empty map so the server clears the stale entry.
+func TestPendingSkippedAgents(t *testing.T) {
+	d := &Daemon{skippedAgents: map[string]string{}, skippedAgentsSent: map[string]string{}}
+	const rid = "runtime-1"
+
+	d.setSkippedAgents(map[string]string{"claude": "too old"})
+	skipped, fp, changed := d.pendingSkippedAgents(rid)
+	if !changed || skipped["claude"] != "too old" {
+		t.Fatalf("first beat: skipped=%v changed=%v, want the set to be sent", skipped, changed)
+	}
+	d.markSkippedAgentsSent(rid, fp)
+
+	if _, _, changed := d.pendingSkippedAgents(rid); changed {
+		t.Fatal("an unchanged set was queued for a second send")
+	}
+
+	// A different reason for the same provider is a change.
+	d.setSkippedAgents(map[string]string{"claude": "not executable"})
+	skipped, fp, changed = d.pendingSkippedAgents(rid)
+	if !changed || skipped["claude"] != "not executable" {
+		t.Fatalf("changed reason: skipped=%v changed=%v", skipped, changed)
+	}
+	d.markSkippedAgentsSent(rid, fp)
+
+	// Repaired: an explicit empty (non-nil) map so the server clears it.
+	d.setSkippedAgents(map[string]string{})
+	skipped, fp, changed = d.pendingSkippedAgents(rid)
+	if !changed || skipped == nil || len(skipped) != 0 {
+		t.Fatalf("repair beat: skipped=%v changed=%v, want a non-nil empty map", skipped, changed)
+	}
+	d.markSkippedAgentsSent(rid, fp)
+	if _, _, changed := d.pendingSkippedAgents(rid); changed {
+		t.Fatal("the empty set was queued again after being accepted")
+	}
+
+	// Each runtime tracks its own send: a second runtime has not seen it yet.
+	if _, _, changed := d.pendingSkippedAgents("runtime-2"); !changed {
+		t.Fatal("a runtime that never sent the set was treated as up to date")
+	}
+}
+
+// The fingerprint must not depend on map iteration order, and must separate
+// "nothing skipped" from any real set.
+func TestSkippedAgentsFingerprint(t *testing.T) {
+	a := skippedAgentsFingerprint(map[string]string{"claude": "x", "codex": "y"})
+	b := skippedAgentsFingerprint(map[string]string{"codex": "y", "claude": "x"})
+	if a != b {
+		t.Fatalf("fingerprint depends on map order: %q vs %q", a, b)
+	}
+	if skippedAgentsFingerprint(nil) != "" {
+		t.Fatal("an empty set must fingerprint to the empty string")
+	}
+	if a == "" {
+		t.Fatal("a non-empty set fingerprinted to the empty-set sentinel")
+	}
+}

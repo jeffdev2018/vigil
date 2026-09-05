@@ -16,6 +16,7 @@ const draft = (): AgentDraft => ({
   conversationStarters: [],
   avatarUrl: null,
   runtimeId: "runtime-1",
+  runtimeRouting: "fixed",
   model: "model-1",
   thinkingLevel: "",
   serviceTier: "",

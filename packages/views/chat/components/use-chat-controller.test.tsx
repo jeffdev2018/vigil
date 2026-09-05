@@ -154,9 +154,10 @@ vi.mock("@multica/core/chat", () => ({
 vi.mock("@multica/core/realtime", () => ({
   removeChatMessageFromCaches: h.removeFromCaches,
 }));
-vi.mock("@multica/core/logger", () => ({
-  createLogger: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }),
-}));
+vi.mock("@multica/core/logger", () => {
+  const silent = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+  return { createLogger: () => silent, noopLogger: silent };
+});
 vi.mock("../../i18n", () => ({ useT: () => ({ t: () => "x" }) }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 

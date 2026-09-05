@@ -8,6 +8,13 @@ import enIssues from "../../locales/en/issues.json";
 
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
+// The list renders under the workspace route in the app; CI auto-fix (K49) is a
+// separate query whose rows are covered by ci-auto-fix-chip.test.tsx.
+vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+vi.mock("@multica/core/issues/ci-auto-fix", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/issues/ci-auto-fix")>()),
+  issueCIAutoFixOptions: () => ({ queryKey: ["ci-auto-fix"], queryFn: async () => undefined }),
+}));
 vi.mock("@multica/core/github/queries", async () => {
   const actual = await vi.importActual<typeof import("@multica/core/github/queries")>(
     "@multica/core/github/queries",

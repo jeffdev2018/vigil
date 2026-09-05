@@ -12,8 +12,9 @@ import {
   Copy,
   Check,
   Webhook,
+  FlaskConical,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   autopilotDeliveriesOptions,
   autopilotDeliveryOptions,
@@ -32,6 +33,12 @@ import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { toast } from "sonner";
 import { useLocale, useT } from "../../i18n";
+import { reasonExplanation, useDeliveryReasonLabel } from "./delivery-reason";
+import { WebhookDryRunDialog } from "./webhook-dry-run-dialog";
+
+// Re-exported: the reason helpers moved into their own module (the dry-run
+// speaks the same enum) but this is where callers and tests already look.
+export { reasonExplanation, useDeliveryReasonLabel };
 import type {
   WebhookDelivery,
   WebhookDeliveryStatus,
@@ -107,11 +114,14 @@ export function WebhookDeliveriesSection({
   const { t } = useT("autopilots");
   const wsId = useWorkspaceId();
 
-  const { data: deliveries = [], isLoading } = useQuery(
+  const deliveriesQuery = useInfiniteQuery(
     autopilotDeliveriesOptions(wsId, autopilotId, {
       enabled: hasWebhookTrigger,
     }),
   );
+  const deliveries = deliveriesQuery.data?.items ?? [];
+  const total = deliveriesQuery.data?.total ?? 0;
+  const isLoading = deliveriesQuery.isLoading;
 
   // No webhook trigger configured → the entire section is irrelevant. We hide
   // it rather than render an empty card to keep the detail page short for
@@ -120,9 +130,18 @@ export function WebhookDeliveriesSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
-        {t(($) => $.deliveries.section_title)}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
+          {t(($) => $.deliveries.section_title)}
+        </h2>
+        {/* Server-side COUNT: the delivery log is the only place an operator
+            can see how much traffic a webhook actually took. */}
+        {total > 0 && (
+          <span className="text-caption text-muted-foreground tabular-nums">
+            {t(($) => $.detail.showing_count, { shown: deliveries.length, total })}
+          </span>
+        )}
+      </div>
       {isLoading ? (
         <div className="space-y-1">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -134,15 +153,31 @@ export function WebhookDeliveriesSection({
           {t(($) => $.deliveries.empty)}
         </div>
       ) : (
-        <div className="rounded-md border overflow-hidden">
-          {deliveries.map((delivery) => (
-            <DeliveryRow
-              key={delivery.id}
-              delivery={delivery}
-              autopilotId={autopilotId}
-            />
-          ))}
-        </div>
+        <>
+          <div className="rounded-md border overflow-hidden">
+            {deliveries.map((delivery) => (
+              <DeliveryRow
+                key={delivery.id}
+                delivery={delivery}
+                autopilotId={autopilotId}
+              />
+            ))}
+          </div>
+          {deliveriesQuery.hasNextPage && (
+            <div className="flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => deliveriesQuery.fetchNextPage()}
+                disabled={deliveriesQuery.isFetchingNextPage}
+              >
+                {deliveriesQuery.isFetchingNextPage
+                  ? t(($) => $.detail.loading_more)
+                  : t(($) => $.detail.load_more)}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
@@ -167,6 +202,7 @@ function DeliveryRow({
     t(($) => $.deliveries.status[delivery.status as WebhookDeliveryStatus]) ??
     delivery.status;
   const providerLabel = delivery.provider || "—";
+  const reasonLabel = useDeliveryReasonLabel(delivery.reason_code);
 
   return (
     <>
@@ -185,6 +221,14 @@ function DeliveryRow({
         <span className={cn("w-24 shrink-0 text-caption font-medium", visual.color)}>
           {statusLabel}
         </span>
+        {reasonLabel !== null && (
+          <span
+            className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-caption text-muted-foreground"
+            title={reasonExplanation(delivery.reason_code, delivery.error) ?? undefined}
+          >
+            {reasonLabel}
+          </span>
+        )}
         <span className="w-20 shrink-0 text-caption text-muted-foreground truncate">
           {providerLabel}
         </span>
@@ -246,6 +290,8 @@ function DeliveryDetailDialog({
   const full = detail ?? delivery;
   const visual = visualForStatus(full.status);
   const StatusIcon = visual.icon;
+  const reasonLabel = useDeliveryReasonLabel(full.reason_code);
+  const explanation = reasonExplanation(full.reason_code, full.error);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -274,6 +320,7 @@ function DeliveryDetailDialog({
                   full.status}
               </span>
             </div>
+            {reasonLabel !== null && <Badge variant="secondary">{reasonLabel}</Badge>}
             <Badge variant="outline">{full.provider || "—"}</Badge>
             <code className="rounded bg-muted px-2 py-0.5 text-caption font-mono">
               {full.event || t(($) => $.webhook_payload.unknown_event)}
@@ -334,12 +381,24 @@ function DeliveryDetailDialog({
             )}
           </dl>
 
-          {full.error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive">
+          {/* An ignored delivery did what it was told to do — the classifier's
+              explanation belongs in a muted box, not the destructive one that
+              means something went wrong. */}
+          {explanation !== null && (
+            <div
+              className={cn(
+                "rounded-md border px-3 py-2 text-caption",
+                full.status === "ignored"
+                  ? "bg-muted/40 text-muted-foreground"
+                  : "border-destructive/30 bg-destructive/5 text-destructive",
+              )}
+            >
               <div className="font-medium">
-                {t(($) => $.deliveries.detail.error_label)}
+                {full.status === "ignored"
+                  ? (reasonLabel ?? t(($) => $.deliveries.detail.reason_label))
+                  : t(($) => $.deliveries.detail.error_label)}
               </div>
-              <div className="mt-0.5 font-mono break-all">{full.error}</div>
+              <div className="mt-0.5 break-all">{explanation}</div>
             </div>
           )}
 
@@ -347,13 +406,16 @@ function DeliveryDetailDialog({
           <DetailSections detail={detail} isLoading={isLoading} />
 
           {/* Replay button */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between gap-2 pt-2">
             <ReplayHint delivery={full} />
-            <ReplayButton
-              autopilotId={autopilotId}
-              delivery={full}
-              onSuccess={() => onOpenChange(false)}
-            />
+            <div className="flex shrink-0 items-center gap-2">
+              <DryRunReplayButton autopilotId={autopilotId} delivery={full} />
+              <ReplayButton
+                autopilotId={autopilotId}
+                delivery={full}
+                onSuccess={() => onOpenChange(false)}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -496,6 +558,77 @@ function CodeBlock({ label, value }: { label: string; value: string }) {
       </pre>
     </div>
   );
+}
+
+// Re-judging a stored payload against the trigger's CURRENT configuration is
+// the question an operator has after changing a filter — and unlike Replay it
+// costs no run. Needs the raw body, which only the detail response carries.
+function DryRunReplayButton({
+  autopilotId,
+  delivery,
+}: {
+  autopilotId: string;
+  delivery: WebhookDelivery;
+}) {
+  const { t } = useT("autopilots");
+  const [open, setOpen] = useState(false);
+  const rawBody = delivery.raw_body;
+  if (!rawBody) return null;
+
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+        <FlaskConical className="h-3.5 w-3.5 mr-1" />
+        {t(($) => $.dry_run.replay_action)}
+      </Button>
+      {open && (
+        <WebhookDryRunDialog
+          open
+          onOpenChange={setOpen}
+          autopilotId={autopilotId}
+          trigger={{
+            id: delivery.trigger_id,
+            provider: delivery.provider,
+            // The stored delivery does not carry the trigger's filter list;
+            // the payload is supplied verbatim, so no sample is needed.
+            event_filters: [],
+          }}
+          initialPayload={prettyJSON(rawBody)}
+          initialHeaders={inferenceHeaders(delivery.selected_headers)}
+        />
+      )}
+    </>
+  );
+}
+
+/** Pretty-print for the editor when the stored body is minified; a body that
+ *  no longer parses is handed over untouched so the user can see and fix it. */
+function prettyJSON(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+// Only the headers the server's event inference reads. The persisted subset
+// also holds User-Agent and a signature-present flag, neither of which changes
+// a routing decision.
+const INFERENCE_HEADERS: Record<string, string> = {
+  "x-github-event": "X-GitHub-Event",
+  "x-gitlab-event": "X-Gitlab-Event",
+  "x-event-type": "X-Event-Type",
+};
+
+function inferenceHeaders(
+  selected: Record<string, unknown> | null | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, canonical] of Object.entries(INFERENCE_HEADERS)) {
+    const value = selected?.[key];
+    if (typeof value === "string" && value !== "") out[canonical] = value;
+  }
+  return out;
 }
 
 function ReplayHint({ delivery }: { delivery: WebhookDelivery }) {

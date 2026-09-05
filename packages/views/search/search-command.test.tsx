@@ -131,6 +131,7 @@ const {
   mockResolvedExpandAll: vi.fn(),
 }));
 
+vi.mock("./why-search-group", () => ({ WhySearchGroup: () => null }));
 vi.mock("@multica/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",
@@ -206,13 +207,19 @@ vi.mock("@multica/core/paths", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/paths")>()),
   useWorkspacePaths: () => ({
     inbox: () => "/ws-test/inbox",
+    triage: () => "/ws-test/triage",
+    meetings: () => "/ws-test/meetings",
+    postmortems: () => "/ws-test/postmortems",
     chat: () => "/ws-test/chat",
     myIssues: () => "/ws-test/my-issues",
     issues: () => "/ws-test/issues",
     projects: () => "/ws-test/projects",
+    goals: () => "/ws-test/goals",
+    org: () => "/ws-test/org",
     autopilots: () => "/ws-test/autopilots",
     agents: () => "/ws-test/agents",
     squads: () => "/ws-test/squads",
+    brain: () => "/ws-test/brain",
     usage: () => "/ws-test/usage",
     runtimes: () => "/ws-test/runtimes",
     skills: () => "/ws-test/skills",

@@ -157,6 +157,12 @@ type AutopilotTriggerResponse struct {
 	// a JSON array of {event, actions?} objects — never as a base64 string
 	// (which is what []byte would produce through encoding/json).
 	EventFilters []WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria is the natural-language routing rule for webhook
+	// triggers ("only deployment failures on production"); empty = none.
+	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes spreads a schedule trigger over a band that starts at
+	// the cron time ("sometime between 08:00 and 10:00" = cron 08:00, 120).
+	WindowMinutes int `json:"window_minutes"`
 }
 
 type AutopilotRunResponse struct {
@@ -234,6 +240,7 @@ func (h *Handler) triggerToResponse(t db.AutopilotTrigger) AutopilotTriggerRespo
 		CreatedAt:      timestampToString(t.CreatedAt),
 		UpdatedAt:      timestampToString(t.UpdatedAt),
 	}
+	resp.WindowMinutes = int(t.WindowMinutes)
 	if t.Kind == "webhook" && t.WebhookToken.Valid && t.WebhookToken.String != "" {
 		path := webhookPathForToken(t.WebhookToken.String)
 		resp.WebhookPath = &path
@@ -251,6 +258,7 @@ func (h *Handler) triggerToResponse(t db.AutopilotTrigger) AutopilotTriggerRespo
 			hint := signingSecretHint(t.SigningSecret.String)
 			resp.SigningSecretHint = &hint
 		}
+		resp.EventMatchCriteria = t.EventMatchCriteria
 		if len(t.EventFilters) > 0 {
 			var filters []WebhookEventFilter
 			if err := json.Unmarshal(t.EventFilters, &filters); err == nil {
@@ -365,6 +373,12 @@ type CreateAutopilotTriggerRequest struct {
 	// EventFilters is an optional list of {event, actions?} scopes. Only
 	// meaningful for webhook triggers. nil/empty means "accept all events".
 	EventFilters []WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria describes, in plain words, which events should run
+	// this autopilot; the LLM judges each delivery against it. Webhook only.
+	EventMatchCriteria string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes (schedule only): fire at a random minute within this
+	// many minutes after the cron time; 0 fires exactly on it. Max 1439.
+	WindowMinutes *int `json:"window_minutes,omitempty"`
 }
 
 // SetSigningSecretRequest is the body shape for PUT
@@ -399,6 +413,10 @@ type UpdateAutopilotTriggerRequest struct {
 	// there is no way to tell "field absent from the PATCH body" from "field
 	// present but empty", and the user can never clear filters once set.
 	EventFilters *[]WebhookEventFilter `json:"event_filters,omitempty"`
+	// EventMatchCriteria: omitted/null keeps the current text, "" clears it.
+	EventMatchCriteria *string `json:"event_match_criteria,omitempty"`
+	// WindowMinutes: omitted keeps the current band, 0 fires exactly on the cron.
+	WindowMinutes *int `json:"window_minutes,omitempty"`
 }
 
 // ── Handlers ────────────────────────────────────────────────────────────────
@@ -1405,6 +1423,24 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusBadRequest, "event_filters is only valid for webhook triggers")
 		return
 	}
+	if req.WindowMinutes != nil {
+		if req.Kind != "schedule" {
+			writeError(w, http.StatusBadRequest, "window_minutes is only valid for schedule triggers")
+			return
+		}
+		if err := validateWindowMinutes(*req.WindowMinutes); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+	}
+	if req.Kind != "webhook" && strings.TrimSpace(req.EventMatchCriteria) != "" {
+		writeError(w, http.StatusBadRequest, "event_match_criteria is only valid for webhook triggers")
+		return
+	}
+	if err := validateEventMatchCriteria(req.EventMatchCriteria); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := validateWebhookEventFilters(req.EventFilters); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -1467,7 +1503,7 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 			writeError(w, http.StatusInternalServerError, "failed to encode event_filters")
 			return
 		}
-		trigger, err := h.createWebhookTriggerWithMintedToken(r, ap, ptrToText(req.Label), provider, eventFiltersBytes, publisherID)
+		trigger, err := h.createWebhookTriggerWithMintedToken(r, ap, ptrToText(req.Label), provider, eventFiltersBytes, req.EventMatchCriteria, publisherID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to create trigger")
 			return
@@ -1491,14 +1527,16 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 	qtx := h.Queries.WithTx(tx)
 
 	trigger, err := qtx.CreateAutopilotTrigger(r.Context(), db.CreateAutopilotTriggerParams{
-		AutopilotID:    ap.ID,
-		Kind:           req.Kind,
-		Enabled:        true,
-		CronExpression: cronText,
-		Timezone:       tzText,
-		NextRunAt:      nextRunAt,
-		Label:          ptrToText(req.Label),
-		WebhookToken:   webhookToken,
+		AutopilotID:        ap.ID,
+		Kind:               req.Kind,
+		Enabled:            true,
+		CronExpression:     cronText,
+		Timezone:           tzText,
+		NextRunAt:          nextRunAt,
+		Label:              ptrToText(req.Label),
+		WebhookToken:       webhookToken,
+		EventMatchCriteria: pgtype.Text{String: strings.TrimSpace(req.EventMatchCriteria), Valid: req.Kind == "webhook"},
+		WindowMinutes:      pgtype.Int4{Int32: int32(derefInt(req.WindowMinutes)), Valid: req.Kind == "schedule"},
 		// published_by records who is currently responsible for this trigger's
 		// CONFIG: seeded to the creator, re-stamped to whoever later substantively
 		// edits it (MUL-4302). Since MUL-6951 it no longer decides anything about a
@@ -1514,6 +1552,22 @@ func (h *Handler) CreateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create trigger")
 		return
+	}
+	// A band needs the trigger id to pick its slot, which only exists after
+	// the INSERT: re-point the display-only next_run_at inside the band.
+	if trigger.Kind == "schedule" && trigger.WindowMinutes > 0 && trigger.CronExpression.Valid {
+		tz := "UTC"
+		if trigger.Timezone.Valid && trigger.Timezone.String != "" {
+			tz = trigger.Timezone.String
+		}
+		if next, err := service.NextWindowedOccurrenceAfterUTC(trigger.CronExpression.String, tz, time.Duration(trigger.WindowMinutes)*time.Minute, util.UUIDToString(trigger.ID), time.Now()); err == nil {
+			if updated, err := qtx.UpdateAutopilotTrigger(r.Context(), db.UpdateAutopilotTriggerParams{
+				ID:        trigger.ID,
+				NextRunAt: pgtype.Timestamptz{Time: next, Valid: true},
+			}); err == nil {
+				trigger = updated
+			}
+		}
 	}
 	if err := h.recordAutopilotRuleVersion(r.Context(), qtx, ap, "member", publisherID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create trigger")
@@ -1551,6 +1605,7 @@ func (h *Handler) createWebhookTriggerWithMintedToken(
 	label pgtype.Text,
 	provider string,
 	eventFilters []byte,
+	eventMatchCriteria string,
 	publisherID pgtype.UUID,
 ) (db.AutopilotTrigger, error) {
 	ctx := r.Context()
@@ -1565,13 +1620,14 @@ func (h *Handler) createWebhookTriggerWithMintedToken(
 		}
 		qtx := h.Queries.WithTx(tx)
 		trigger, err := qtx.CreateAutopilotTrigger(ctx, db.CreateAutopilotTriggerParams{
-			AutopilotID:  ap.ID,
-			Kind:         "webhook",
-			Enabled:      true,
-			Label:        label,
-			WebhookToken: pgtype.Text{String: token, Valid: true},
-			Provider:     pgtype.Text{String: provider, Valid: provider != ""},
-			EventFilters: eventFilters,
+			AutopilotID:        ap.ID,
+			Kind:               "webhook",
+			Enabled:            true,
+			Label:              label,
+			WebhookToken:       pgtype.Text{String: token, Valid: true},
+			Provider:           pgtype.Text{String: provider, Valid: provider != ""},
+			EventFilters:       eventFilters,
+			EventMatchCriteria: pgtype.Text{String: strings.TrimSpace(eventMatchCriteria), Valid: true},
 			// published_by records CONFIG responsibility only: seeded to the creator,
 			// re-stamped to a later substantive editor (MUL-4302). It has no bearing
 			// on the runs this trigger fires (MUL-6951).
@@ -1757,6 +1813,7 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		NextRunAt:      prev.NextRunAt,
 		Label:          prev.Label,
 	}
+	windowMinutes := int(prev.WindowMinutes)
 	if req.Enabled != nil {
 		params.Enabled = pgtype.Bool{Bool: *req.Enabled, Valid: true}
 	}
@@ -1798,6 +1855,26 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		params.EventFilters = encoded
 	}
 
+	if req.WindowMinutes != nil {
+		if prev.Kind != "schedule" {
+			writeError(w, http.StatusBadRequest, "window_minutes is only valid for schedule triggers")
+			return
+		}
+		if err := validateWindowMinutes(*req.WindowMinutes); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		windowMinutes = *req.WindowMinutes
+		params.WindowMinutes = pgtype.Int4{Int32: int32(windowMinutes), Valid: true}
+	}
+	if req.EventMatchCriteria != nil {
+		if err := validateEventMatchCriteria(*req.EventMatchCriteria); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		params.EventMatchCriteria = pgtype.Text{String: strings.TrimSpace(*req.EventMatchCriteria), Valid: true}
+	}
+
 	// Recompute next_run_at if cron or timezone changed.
 	cronExpr := prev.CronExpression.String
 	if req.CronExpression != nil {
@@ -1811,7 +1888,7 @@ func (h *Handler) UpdateAutopilotTrigger(w http.ResponseWriter, r *http.Request)
 		tz = *req.Timezone
 	}
 	if prev.Kind == "schedule" && cronExpr != "" {
-		t, err := computeNextRun(cronExpr, tz)
+		t, err := service.NextWindowedOccurrenceAfterUTC(cronExpr, tz, time.Duration(windowMinutes)*time.Minute, util.UUIDToString(prev.ID), time.Now())
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -2123,6 +2200,14 @@ func (h *Handler) ListAutopilotRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A real count, not the page length: "N of total" is the only thing that
+	// tells a reader whether there is more history behind this page.
+	total, err := h.Queries.CountAutopilotRuns(r.Context(), autopilot.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list runs")
+		return
+	}
+
 	resp := make([]AutopilotRunResponse, len(runs))
 	for i, run := range runs {
 		// Omit trigger_payload in the list response — a webhook envelope
@@ -2131,7 +2216,7 @@ func (h *Handler) ListAutopilotRuns(w http.ResponseWriter, r *http.Request) {
 		// full payload from GetAutopilotRun.
 		resp[i] = runToResponseSlim(run)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"runs": resp, "total": len(resp)})
+	writeJSON(w, http.StatusOK, map[string]any{"runs": resp, "total": total})
 }
 
 // GetAutopilotRun returns a single run including its full trigger_payload.
@@ -2209,6 +2294,9 @@ func (h *Handler) TriggerAutopilot(w http.ResponseWriter, r *http.Request) {
 	}
 	run, reasonCode, err := h.AutopilotService.DispatchAutopilotManualWithKey(r.Context(), autopilot, pgtype.UUID{}, nil, memberActorUserID(actorType, actorID), idempotencyKey)
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		var quotaErr *service.AutopilotQuotaExceededError
 		if errors.As(err, &quotaErr) {
 			retryAfter := int64(time.Until(quotaErr.ResetAt).Seconds())
@@ -2233,6 +2321,11 @@ func (h *Handler) TriggerAutopilot(w http.ResponseWriter, r *http.Request) {
 			"autopilot_id", uuidToString(autopilot.ID),
 		)
 		writeError(w, http.StatusInternalServerError, "failed to trigger autopilot")
+		return
+	}
+
+	if reasonCode == ReasonBudgetExceeded {
+		h.writeDispatchBlocked(w, http.StatusConflict, ReasonBudgetExceeded)
 		return
 	}
 
@@ -2281,4 +2374,27 @@ func (h *Handler) GetAutopilotQuotaUsage(w http.ResponseWriter, r *http.Request)
 		}
 	}
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// validateWindowMinutes bounds the firing band of a schedule trigger.
+func validateWindowMinutes(n int) error {
+	if n < 0 || n > 1439 {
+		return fmt.Errorf("window_minutes must be between 0 and 1439")
+	}
+	return nil
+}
+
+func derefInt(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// validateEventMatchCriteria bounds the free-text routing rule.
+func validateEventMatchCriteria(text string) error {
+	if n := len([]rune(strings.TrimSpace(text))); n > 500 {
+		return fmt.Errorf("event_match_criteria must be at most 500 characters")
+	}
+	return nil
 }

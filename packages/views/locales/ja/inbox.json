@@ -40,7 +40,12 @@
     "archived_title": "アーカイブ済み",
     "archived_empty": "アーカイブされた通知はありません",
     "unarchive_tooltip": "アーカイブ解除",
-    "actions_aria": "通知の操作"
+    "actions_aria": "通知の操作",
+    "attention_title": "要対応",
+    "attention_empty": "対応が必要なものはありません。",
+    "briefing_title": "今朝のブリーフィング",
+    "retro_title": "週次レトロ",
+    "decisions_title": "判断待ち"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -74,7 +79,23 @@
     "quick_create_failed": "エージェントでの作成に失敗",
     "quick_create_unconfirmed": "エージェントでの作成結果は未確認",
     "autopilot_paused": "自動化を一時停止しました",
-    "autopilot_quota_exceeded": "自動化の実行上限に達しました"
+    "autopilot_quota_exceeded": "自動化の実行上限に達しました",
+    "decision_request": "判断を求めています",
+    "decision_escalated": "判断が期限超過",
+    "ownership_suggested": "担当者の提案",
+    "morning_briefing": "朝のブリーフィング",
+    "standup_question": "スタンドアップの質問",
+    "weekly_retro": "週次レトロ",
+    "budget_warning": "予算の警告",
+    "budget_exceeded": "予算上限に達しました",
+    "postmortem_ready": "ポストモーテム作成済み",
+    "trust_promotion_suggested": "信頼モードの昇格提案",
+    "triage_stale": "トリアージが滞っています",
+    "watchdog_escalation": "ウォッチドッグのエスカレーション",
+    "contest_ready": "異議申し立ての判定待ち",
+    "org_alert": "組織アラート",
+    "decision_auto_decided": "代わりに判断しました",
+    "mcp_alert": "MCP ゲートウェイのアラート"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -88,7 +109,8 @@
     "reacted_to_comment": "あなたのコメントに {{emoji}} のリアクションをしました",
     "created_with_agent": "エージェントで作成: {{identifier}}",
     "failed_with_detail": "失敗: {{detail}}",
-    "autopilot_quota_blocked": "上限に達したため実行をブロックしました"
+    "autopilot_quota_blocked": "上限に達したため実行をブロックしました",
+    "triage_items_waiting": "トリアージ待ちが{{count}}件"
   },
   "toasts": {
     "source_context_retry_started": "元のコンテキストで再試行を開始しました",
@@ -107,6 +129,66 @@
     "archive_all_read_failed": "既読の項目をアーカイブできませんでした",
     "archive_completed_failed": "完了した項目をアーカイブできませんでした",
     "unarchive_failed": "アーカイブ解除に失敗しました",
-    "archived_load_failed": "アーカイブ済み通知を読み込めませんでした"
+    "archived_load_failed": "アーカイブ済み通知を読み込めませんでした",
+    "attention_load_failed": "要対応リストを読み込めませんでした。"
+  },
+  "briefing": {
+    "loading": "今朝のブリーフィングを作成中…",
+    "load_failed": "ブリーフィングを読み込めませんでした。",
+    "sent": "{{ago}} に送信",
+    "not_sent": "本日はまだ未送信",
+    "empty": "夜間の完了、レビュー待ち、ブロック中はいずれもありません。",
+    "merged": "過去 24 時間に完了（{{count}}）",
+    "awaiting_review": "レビュー待ち（{{count}}）",
+    "blocked": "ブロック中とその理由（{{count}}）",
+    "approve": "承認",
+    "approve_failed": "承認できませんでした",
+    "pending_decisions": "判断待ち {{count}} 件",
+    "channels": "{{channels}} にも送信済み"
+  },
+  "retro": {
+    "loading": "レトロを読み込み中…",
+    "load_failed": "レトロを読み込めませんでした。",
+    "retry": "再試行",
+    "empty": "まだレトロは生成されていません。最初のレトロは直近の完了した週を対象にします。",
+    "generate_now": "今すぐ生成",
+    "generated": "レトロを生成しました",
+    "generate_failed": "レトロを生成できませんでした",
+    "regenerate": "再生成",
+    "week": "{{start}} 〜 {{end}} の週",
+    "generated_ago": "{{ago}} に生成",
+    "runs": "今週の実行（{{count}}）",
+    "no_runs": "今週はエージェントの実行がありません。",
+    "median": "中央値 {{minutes}} 分",
+    "failed": "失敗した実行（{{count}}）",
+    "agents": "エージェント",
+    "col_agent": "エージェント",
+    "col_runs": "実行",
+    "col_failed": "失敗",
+    "col_accepted": "受け入れ",
+    "col_cost": "コスト（$）",
+    "skills": "スキルの提案",
+    "skills_empty": "スキルの提案は Skill Miner とともに提供されます。まだ提案はありません。"
+  },
+  "decisions": {
+    "title": "あなたの判断待ち",
+    "loading": "判断を読み込み中…",
+    "load_failed": "判断を読み込めませんでした。",
+    "empty": "インボックスゼロ：待っている判断はありません。",
+    "more": "この他に {{count}} 件が待っています",
+    "urgency": {
+      "high": "緊急",
+      "normal": "通常",
+      "low": "低"
+    },
+    "due": "期限 {{when}}",
+    "recommended": "推奨",
+    "other": "別の回答をする…",
+    "other_label": "代わりに何をするか説明",
+    "send": "送信",
+    "cancel": "キャンセル",
+    "answered": "回答済み",
+    "respond_failed": "回答を送信できませんでした",
+    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。"
   }
 }

@@ -28,6 +28,7 @@
     "active": "활성",
     "paused": "일시 중지",
     "paused_runtime_required": "일시 중지됨 — 담당 에이전트에 런타임이 필요합니다",
+    "paused_failure_rate": "일시 중지됨 — 실행 실패가 너무 많습니다",
     "archived": "보관됨"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "오토파일럿 일시 중지",
     "activate_aria": "오토파일럿 활성화",
     "paused_runtime_required": "담당 에이전트의 런타임이 없어 자동화가 일시 중지되었습니다. 런타임을 연결한 후 다시 활성화하세요.",
+    "paused_failure_rate": "최근 실행 실패가 너무 많아 자동으로 일시 중지되었습니다. 실패 원인을 조사해 해결한 뒤 이 오토파일럿을 다시 활성화하세요.",
     "bind_runtime": "런타임 연결",
     "edit": "수정",
     "run_now": "지금 실행",
@@ -111,7 +113,10 @@
       "cancel": "취소",
       "confirm": "삭제",
       "deleting": "삭제하는 중..."
-    }
+    },
+    "load_more": "더 보기",
+    "loading_more": "불러오는 중...",
+    "showing_count": "{{total}}개 중 {{shown}}개"
   },
   "access": {
     "title": "접근 권한 관리",
@@ -166,6 +171,8 @@
   },
   "trigger_row": {
     "disabled_badge": "비활성",
+    "enable_aria": "트리거 활성화",
+    "edit_trigger": "트리거 편집",
     "deprecated_badge": "지원 중단",
     "next_label": "다음: {{date}}",
     "webhook_url_label": "Webhook URL",
@@ -185,6 +192,9 @@
     "toast_rotate_failed": "URL을 재발급하지 못했습니다",
     "toast_deleted": "트리거를 삭제했습니다",
     "toast_delete_failed": "트리거를 삭제하지 못했습니다",
+    "toast_enabled": "트리거를 활성화했습니다",
+    "toast_disabled": "트리거를 비활성화했습니다",
+    "toast_toggle_failed": "트리거를 업데이트하지 못했습니다",
     "delete_dialog": {
       "title": "트리거 삭제",
       "description": "이 트리거가 제거되고 오토파일럿은 이 일정으로 더 이상 실행되지 않습니다. 이 작업은 되돌릴 수 없습니다.",
@@ -207,6 +217,16 @@
       "ignored": "무시됨",
       "failed": "실패함"
     },
+    "reason": {
+      "trigger_disabled": "트리거 비활성화됨",
+      "autopilot_paused": "오토파일럿 일시 중지",
+      "autopilot_archived": "오토파일럿 보관됨",
+      "event_filtered": "이벤트 필터에서 제외됨",
+      "criteria_not_matched": "조건에 맞지 않음",
+      "quota_exceeded": "실행 한도 도달",
+      "invalid_signature": "서명이 올바르지 않음",
+      "missing_signature": "서명 없음"
+    },
     "signature": {
       "not_required": "서명 없음",
       "valid": "유효한 서명",
@@ -226,6 +246,7 @@
       "content_type": "Content-Type",
       "replayed_from": "재실행 원본",
       "error_label": "오류",
+      "reason_label": "사유",
       "raw_body": "원본 본문",
       "selected_headers": "헤더",
       "response_body": "응답 본문"
@@ -240,6 +261,48 @@
       "disabled_queued": "아직 대기 중입니다. 처리된 후 재실행하세요"
     }
   },
+  "dry_run": {
+    "open": "샘플 이벤트로 테스트",
+    "title": "샘플 이벤트로 테스트",
+    "description": "이 페이로드를 전체 전달 판정(필터, 라우팅 기준, 일시중지 상태, 실행 한도)에 그대로 통과시킵니다. 전달도 실행도 기록되지 않습니다.",
+    "sample_label": "샘플",
+    "payload_label": "이벤트 페이로드 (JSON)",
+    "run": "드라이런 실행",
+    "running": "실행 중...",
+    "replay_action": "드라이런으로 재생",
+    "invalid_json": "잘못된 JSON: {{message}}",
+    "invalid_shape": "페이로드는 JSON 객체 또는 배열이어야 합니다.",
+    "verdict_would_run": "이 이벤트는 오토파일럿을 실행합니다",
+    "verdict_blocked": "이 이벤트는 오토파일럿을 실행하지 않습니다",
+    "verdict_unreadable": "판정 결과를 읽을 수 없습니다",
+    "matched_filters": "일치한 필터:",
+    "toast_failed": "드라이런에 실패했습니다"
+  },
+  "next_runs": {
+    "label": "다음 실행",
+    "loading": "불러오는 중...",
+    "unavailable": "다음 실행을 가져올 수 없습니다",
+    "never": "이 일정은 다시 실행되지 않습니다.",
+    "blocked": "실행되지 않음: {{reason}}",
+    "blocked_unknown": "차단됨",
+    "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
+  },
+  "signing_secret": {
+    "label": "서명 시크릿",
+    "hint": "설정하면 모든 전달에 X-Hub-Signature-256: sha256=<이 시크릿을 키로 한 원본 본문의 HMAC-SHA256 16진값>이 필요합니다. 서명이 없거나 잘못된 전달은 401로 거부됩니다.",
+    "not_configured": "서명 시크릿 없음 — 웹훅 URL만으로 인증합니다.",
+    "configured": "설정됨(끝 {{hint}}).",
+    "shown_once": "지금 복사하세요. 한 번만 표시됩니다.",
+    "generate": "서명 시크릿 생성",
+    "rotate": "서명 시크릿 교체",
+    "clear": "삭제",
+    "copy": "시크릿 복사",
+    "copied": "서명 시크릿을 복사했습니다",
+    "copy_failed": "복사하지 못했습니다",
+    "toast_rotated": "서명 시크릿을 갱신했습니다 — 발신 측을 다시 설정해야 합니다",
+    "toast_cleared": "서명 시크릿을 삭제했습니다",
+    "toast_failed": "서명 시크릿 갱신에 실패했습니다"
+  },
   "add_trigger_dialog": {
     "title": "트리거 추가",
     "type_label": "유형",
@@ -253,6 +316,13 @@
     "toast_added_schedule": "일정 트리거를 추가했습니다",
     "toast_added_webhook": "Webhook 트리거를 추가했습니다",
     "toast_add_failed": "트리거를 추가하지 못했습니다"
+  },
+  "edit_trigger_dialog": {
+    "title": "트리거 편집",
+    "submit": "트리거 저장",
+    "submitting": "저장 중...",
+    "toast_saved": "트리거를 업데이트했습니다",
+    "toast_save_failed": "트리거를 업데이트하지 못했습니다"
   },
   "dialog": {
     "sr_create": "새 오토파일럿",
@@ -328,7 +398,10 @@
         "label": "실행만",
         "description": "태스크를 만들지 않고 조용히 실행합니다"
       }
-    }
+    },
+    "event_criteria_label": "다음 경우에만 실행…",
+    "event_criteria_placeholder": "예: 프로덕션 배포 실패, 또는 결제를 건드리는 풀 리퀘스트",
+    "event_criteria_hint": "이 오토파일럿을 실행해야 하는 이벤트를 직접 설명하세요. 각 전달은 이 설명에 대해 관대하게 판단되며, 애매하면 실행됩니다. 비워 두면 이벤트 필터만 적용됩니다."
   },
   "schedule_editor": {
     "time_label": "시간",
@@ -385,7 +458,8 @@
       "time_every_hours_window": "{{interval}}시간마다",
       "time_every_minute": "매분",
       "time_every_minutes": "{{interval}}분마다",
-      "window": "{{from}}–{{to}}"
+      "window": "{{from}}–{{to}}",
+      "time_between": "{{from}}과 {{to}} 사이 임의 시각"
     },
     "countdown": {
       "days_hours": "{{days}}일 {{hours}}시간 {{minutes}}분",
@@ -413,8 +487,11 @@
         "thu": "목요일",
         "fri": "금요일",
         "sat": "토요일"
-      }
-    }
+      },
+      "band_end_hour": "종료 시",
+      "band_end_minute": "종료 분"
+    },
+    "window_toggle": "다음 시간대 중 임의 시각"
   },
   "agent_picker": {
     "filter_placeholder": "에이전트 또는 스쿼드 필터...",

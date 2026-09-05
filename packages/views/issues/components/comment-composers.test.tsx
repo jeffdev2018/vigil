@@ -6,6 +6,7 @@ import type { UploadResult } from "@multica/core/hooks/use-file-upload";
 import type { Attachment } from "@multica/core/types";
 import { useCommentComposerStore, useCommentDraftStore } from "@multica/core/issues/stores";
 import { WorkspaceSlugProvider } from "@multica/core/paths";
+import { configStore } from "@multica/core/config";
 import { renderWithI18n } from "../../test/i18n";
 import { CommentInput } from "./comment-input";
 import { ReplyInput } from "./reply-input";
@@ -40,6 +41,9 @@ const editorQuickActionMenu = vi.hoisted(() => ({
 // posted comment instead), a thread reply keeps the caret for the next reply.
 const focusCalls = vi.hoisted(() => ({ focused: 0, blurred: 0 }));
 const insertMarkdownSpy = vi.hoisted(() => vi.fn());
+// Recording and transcribing are two steps seconds apart; the fake button
+// arms `pending` on press and the test fires it when the text would come back.
+const voiceMemo = vi.hoisted(() => ({ pending: null as null | (() => void) }));
 const insertPlaceholderSpy = vi.hoisted(() => vi.fn());
 const insertMarkdownBehavior = vi.hoisted(() => ({ succeed: true }));
 // Lets a test drop the editor's uploading placeholder out of the document
@@ -67,6 +71,28 @@ vi.mock("@multica/core/hooks/use-file-upload", async () => ({
     "@multica/core/hooks/use-file-upload",
   )),
   useFileUpload: () => ({ uploadWithToast }),
+}));
+
+// The real button owns a MediaRecorder, which jsdom does not have. What
+// matters here is where the transcribed text lands.
+vi.mock("../../voice", () => ({
+  VoiceMemoButton: ({
+    onText,
+    onRecordingStart,
+  }: {
+    onText: (text: string) => void;
+    onRecordingStart?: () => void;
+  }) => (
+    <button
+      type="button"
+      onClick={() => {
+        onRecordingStart?.();
+        voiceMemo.pending = () => onText("dicté au micro");
+      }}
+    >
+      voice-memo
+    </button>
+  ),
 }));
 
 vi.mock("../../common/actor-avatar", () => ({
@@ -264,6 +290,8 @@ beforeEach(() => {
   apiListQuickActions.mockReset();
   apiRenderQuickAction.mockReset();
   insertMarkdownSpy.mockReset();
+  voiceMemo.pending = null;
+  configStore.getState().setMeetingTranscriptionAvailable(false);
   insertPlaceholderSpy.mockReset();
   insertMarkdownBehavior.succeed = true;
   localStorage.clear();
@@ -1115,5 +1143,44 @@ describe("sticky composer preference", () => {
 
     activateComposer("comment-composer-shell");
     expect(screen.getByTestId("editor").parentElement?.className).not.toContain("max-h-[40vh]");
+  });
+});
+
+// A voice memo has to work from the composer's resting state — a static shell
+// with no Tiptap instance behind it. Pressing the microphone is edit intent, so
+// it summons the real editor then, not when the transcript lands seconds later.
+describe("CommentInput voice memo", () => {
+  beforeEach(() => {
+    configStore.getState().setMeetingTranscriptionAvailable(true);
+  });
+
+  it("dictates into the comment, activating the editor on the press", async () => {
+    renderCommentInput();
+    expect(screen.getByTestId("comment-composer-shell")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    await waitFor(() => expect(screen.queryByTestId("comment-composer-shell")).toBeNull());
+
+    act(() => voiceMemo.pending?.());
+    expect(insertMarkdownSpy).toHaveBeenCalledWith("dicté au micro");
+  });
+
+  it("keeps the words in the draft when the editor is not up to take them", async () => {
+    renderCommentInput();
+    fireEvent.click(screen.getByRole("button", { name: "voice-memo" }));
+    await waitFor(() => expect(screen.queryByTestId("comment-composer-shell")).toBeNull());
+
+    insertMarkdownBehavior.succeed = false;
+    act(() => voiceMemo.pending?.());
+    expect(useCommentDraftStore.getState().getDraft("new:issue-1")).toContain(
+      "dicté au micro",
+    );
+  });
+
+  it("is absent when the server declares no transcription provider", () => {
+    configStore.getState().setMeetingTranscriptionAvailable(false);
+    // Same capability gate as the chat composer.
+    renderCommentInput();
+    expect(screen.queryByRole("button", { name: "voice-memo" })).toBeNull();
   });
 });

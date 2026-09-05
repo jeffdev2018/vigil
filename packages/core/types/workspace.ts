@@ -15,6 +15,12 @@ export interface Workspace {
   repos: WorkspaceRepo[];
   issue_prefix: string;
   avatar_url: string | null;
+  /**
+   * Draft a postmortem when a run that SUCCEEDED costs more than this many
+   * cost_usd_ticks (1e-10 USD). `null` disables the trigger and is every
+   * workspace's default; absent on a backend that predates the setting.
+   */
+  postmortem_cost_threshold_usd_ticks?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +44,37 @@ export interface WorkspaceMcpServer {
   enabled?: boolean;
   created_at: string;
   updated_at: string;
+  /** Catalogue size (K77); on an agent's list, the catalogue itself with the class in force. */
+  tool_count: number;
+  tool_policy?: McpToolPolicy;
+  tools?: McpCatalogTool[];
+}
+
+/** Governed MCP gateway (K77). */
+export type McpToolRisk = "read" | "internal_write" | "external_effect" | "sensitive_data" | "unknown";
+export type McpToolClass = "act_alone" | "ask" | "never";
+
+export interface McpCatalogTool {
+  name: string;
+  description?: string;
+  schema_digest?: string;
+  risk: McpToolRisk;
+  risk_source: "auto" | "manual";
+  /** Effective class for the agent, present on an agent's binding list only. */
+  class?: McpToolClass;
+  last_used_at?: string;
+}
+
+export interface McpToolPolicy {
+  /** by_risk (default), ask or never; never turns `tools` into a strict allowlist. */
+  default?: "by_risk" | "ask" | "never";
+  tools?: Record<string, McpToolClass>;
+}
+
+export interface McpServerToolCatalog {
+  tools: McpCatalogTool[];
+  discovered_at: string | null;
+  risks: McpToolRisk[];
 }
 
 export interface Member {
@@ -131,4 +168,136 @@ export interface ShareLinkInfo {
   workspace_slug: string;
   creator_name?: string;
   role: MemberRole;
+}
+
+// Audit log (K08).
+export interface AuditLogEntry {
+  id: string;
+  workspace_id: string;
+  occurred_at: string;
+  actor_type: "member" | "agent" | "system" | (string & {});
+  actor_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  model: string | null;
+  cost_usd_ticks: number | null;
+  approver_type: string | null;
+  approver_id: string | null;
+  details: Record<string, unknown>;
+  chain_seq?: number;
+  prev_hash?: string | null;
+  hash?: string;
+}
+
+export interface AuditChainStatus {
+  ok: boolean;
+  total: number;
+  head_hash: string;
+  broken_seq: number | null;
+  broken_id: string | null;
+}
+
+export interface AuditLogPage {
+  entries: AuditLogEntry[];
+  next_cursor: string;
+}
+
+export interface AuditLogFilter {
+  since?: string;
+  until?: string;
+  actor_type?: string;
+  action?: string;
+  entity_id?: string;
+}
+
+// Decision memory (K29).
+export interface DecisionRecord {
+  id: string;
+  workspace_id: string;
+  project_id: string | null;
+  issue_id: string;
+  issue_identifier?: string;
+  issue_title?: string;
+  run_id: string;
+  source_message_seq: number;
+  title: string;
+  context: string;
+  decision: string;
+  consequences: string | null;
+  author_type: "agent" | "member" | (string & {});
+  author_id: string | null;
+  created_at: string;
+}
+
+export interface ADRRequirement {
+  required: boolean;
+  satisfied: boolean;
+  files: number;
+  file_threshold: number;
+  migration: boolean;
+  decisions: number;
+  run_id?: string;
+}
+
+// Business rules (K53).
+export type BusinessRuleAttachPoint = "project_create" | "issue_submit_review" | "agent_run_dispatch" | "webhook_received";
+
+export interface BusinessRuleAction {
+  kind: "dismiss" | "accept" | (string & {});
+  priority?: string;
+  assignee_type?: string;
+  assignee_id?: string;
+}
+export type BusinessRuleStatus = "draft" | "active" | "disabled";
+
+export interface BusinessRule {
+  id: string;
+  workspace_id: string;
+  title: string;
+  natural_language: string;
+  predicate: unknown;
+  description: string;
+  attach_point: BusinessRuleAttachPoint | (string & {});
+  action?: BusinessRuleAction | null;
+  action_description?: string;
+  status: BusinessRuleStatus | (string & {});
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessRuleDryRun {
+  rule: BusinessRule;
+  checked: number;
+  violations: { subject_type: string; subject_id: string; label: string; detail: string }[];
+}
+
+export interface BusinessRuleViolation {
+  id: string;
+  rule_id: string;
+  subject_type: string;
+  subject_id: string;
+  detail: string | null;
+  created_at: string;
+}
+
+// Blast radius (K07).
+export type BlastRadiusLevel = "autonomous" | "read_only" | "dual_approval";
+
+export interface BlastRadiusRule {
+  id: string;
+  project_id: string;
+  path_pattern: string;
+  autonomy_level: BlastRadiusLevel | (string & {});
+  specificity: number;
+  created_by: string;
+  created_at: string;
+}
+
+export interface BlastRadiusPreview {
+  path: string;
+  level: BlastRadiusLevel | "inherit" | (string & {});
+  rule_id?: string;
+  path_pattern?: string;
 }

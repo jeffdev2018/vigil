@@ -168,5 +168,31 @@
     "direction_desc": "Descending",
     "section_columns": "Columns",
     "view": "View"
+  },
+  "decisions": {
+    "section": "Decisions",
+    "author_filter": "Author",
+    "author_any": "Anyone",
+    "author_agent": "Agent",
+    "author_member": "Member",
+    "empty": "No decision recorded yet. Accepted runs add theirs here.",
+    "source": "run message #{{seq}}"
+  },
+  "blast_radius": {
+    "section": "Blast radius",
+    "description": "How far an agent may go on each path of this project, on top of its permissions: autonomous paths pass approval gates by themselves, read-only paths refuse any write before asking, dual-approval paths need two different humans. The most specific pattern wins; without a rule the agent's permissions decide.",
+    "empty": "No rule yet: the agent's permissions alone apply.",
+    "pattern": "Path pattern",
+    "pattern_placeholder": "apps/mobile/**",
+    "level": "Autonomy",
+    "level_autonomous": "Autonomous",
+    "level_read_only": "Read only",
+    "level_dual_approval": "Dual approval",
+    "level_inherit": "Inherited from permissions",
+    "add": "Add rule",
+    "remove": "Remove rule",
+    "preview": "Try a path",
+    "preview_placeholder": "server/migrations/500_x.up.sql",
+    "failed": "The rule could not be saved"
   }
 }

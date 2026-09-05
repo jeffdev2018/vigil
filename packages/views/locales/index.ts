@@ -12,10 +12,17 @@ import enMembers from "./en/members.json";
 import enMyIssues from "./en/my-issues.json";
 import enSearch from "./en/search.json";
 import enInbox from "./en/inbox.json";
+import enTriage from "./en/triage.json";
+import enMeetings from "./en/meetings.json";
+import enPostmortem from "./en/postmortem.json";
+import enBrain from "./en/brain.json";
 import enWorkspace from "./en/workspace.json";
 import enProjects from "./en/projects.json";
 import enAutopilots from "./en/autopilots.json";
 import enSkills from "./en/skills.json";
+import enGoals from "./en/goals.json";
+import enOrg from "./en/org.json";
+import enContests from "./en/contests.json";
 import enChat from "./en/chat.json";
 import enModals from "./en/modals.json";
 import enRuntimes from "./en/runtimes.json";
@@ -37,10 +44,17 @@ import zhHansMembers from "./zh-Hans/members.json";
 import zhHansMyIssues from "./zh-Hans/my-issues.json";
 import zhHansSearch from "./zh-Hans/search.json";
 import zhHansInbox from "./zh-Hans/inbox.json";
+import zhHansTriage from "./zh-Hans/triage.json";
+import zhHansMeetings from "./zh-Hans/meetings.json";
+import zhHansPostmortem from "./zh-Hans/postmortem.json";
+import zhHansBrain from "./zh-Hans/brain.json";
 import zhHansWorkspace from "./zh-Hans/workspace.json";
 import zhHansProjects from "./zh-Hans/projects.json";
 import zhHansAutopilots from "./zh-Hans/autopilots.json";
 import zhHansSkills from "./zh-Hans/skills.json";
+import zhHansGoals from "./zh-Hans/goals.json";
+import zhHansOrg from "./zh-Hans/org.json";
+import zhHansContests from "./zh-Hans/contests.json";
 import zhHansChat from "./zh-Hans/chat.json";
 import zhHansModals from "./zh-Hans/modals.json";
 import zhHansRuntimes from "./zh-Hans/runtimes.json";
@@ -62,10 +76,17 @@ import koMembers from "./ko/members.json";
 import koMyIssues from "./ko/my-issues.json";
 import koSearch from "./ko/search.json";
 import koInbox from "./ko/inbox.json";
+import koTriage from "./ko/triage.json";
+import koMeetings from "./ko/meetings.json";
+import koPostmortem from "./ko/postmortem.json";
+import koBrain from "./ko/brain.json";
 import koWorkspace from "./ko/workspace.json";
 import koProjects from "./ko/projects.json";
 import koAutopilots from "./ko/autopilots.json";
 import koSkills from "./ko/skills.json";
+import koGoals from "./ko/goals.json";
+import koOrg from "./ko/org.json";
+import koContests from "./ko/contests.json";
 import koChat from "./ko/chat.json";
 import koModals from "./ko/modals.json";
 import koRuntimes from "./ko/runtimes.json";
@@ -87,10 +108,17 @@ import jaMembers from "./ja/members.json";
 import jaMyIssues from "./ja/my-issues.json";
 import jaSearch from "./ja/search.json";
 import jaInbox from "./ja/inbox.json";
+import jaTriage from "./ja/triage.json";
+import jaMeetings from "./ja/meetings.json";
+import jaPostmortem from "./ja/postmortem.json";
+import jaBrain from "./ja/brain.json";
 import jaWorkspace from "./ja/workspace.json";
 import jaProjects from "./ja/projects.json";
 import jaAutopilots from "./ja/autopilots.json";
 import jaSkills from "./ja/skills.json";
+import jaGoals from "./ja/goals.json";
+import jaOrg from "./ja/org.json";
+import jaContests from "./ja/contests.json";
 import jaChat from "./ja/chat.json";
 import jaModals from "./ja/modals.json";
 import jaRuntimes from "./ja/runtimes.json";
@@ -99,11 +127,77 @@ import jaUsage from "./ja/usage.json";
 import jaUi from "./ja/ui.json";
 import jaSquads from "./ja/squads.json";
 import jaBilling from "./ja/billing.json";
+import frCommon from "./fr/common.json";
+import frAuth from "./fr/auth.json";
+import frSettings from "./fr/settings.json";
+import frIssues from "./fr/issues.json";
+import frAgents from "./fr/agents.json";
+import frEditor from "./fr/editor.json";
+import frOnboarding from "./fr/onboarding.json";
+import frInvite from "./fr/invite.json";
+import frLabels from "./fr/labels.json";
+import frMembers from "./fr/members.json";
+import frMyIssues from "./fr/my-issues.json";
+import frSearch from "./fr/search.json";
+import frInbox from "./fr/inbox.json";
+import frTriage from "./fr/triage.json";
+import frMeetings from "./fr/meetings.json";
+import frPostmortem from "./fr/postmortem.json";
+import frWorkspace from "./fr/workspace.json";
+import frProjects from "./fr/projects.json";
+import frAutopilots from "./fr/autopilots.json";
+import frSkills from "./fr/skills.json";
+import frGoals from "./fr/goals.json";
+import frOrg from "./fr/org.json";
+import frContests from "./fr/contests.json";
+import frChat from "./fr/chat.json";
+import frModals from "./fr/modals.json";
+import frRuntimes from "./fr/runtimes.json";
+import frLayout from "./fr/layout.json";
+import frUsage from "./fr/usage.json";
+import frBrain from "./fr/brain.json";
+import frUi from "./fr/ui.json";
+import frSquads from "./fr/squads.json";
+import frBilling from "./fr/billing.json";
 
 // Single source of truth for the resource bundle. Both apps (web layout +
 // desktop App.tsx) import from here so adding a locale or namespace happens
 // in exactly one place.
 export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
+  fr: {
+    common: frCommon,
+    auth: frAuth,
+    settings: frSettings,
+    issues: frIssues,
+    agents: frAgents,
+    editor: frEditor,
+    onboarding: frOnboarding,
+    invite: frInvite,
+    labels: frLabels,
+    members: frMembers,
+    "my-issues": frMyIssues,
+    search: frSearch,
+    inbox: frInbox,
+    triage: frTriage,
+    meetings: frMeetings,
+    postmortem: frPostmortem,
+    workspace: frWorkspace,
+    projects: frProjects,
+    autopilots: frAutopilots,
+    skills: frSkills,
+    goals: frGoals,
+    org: frOrg,
+    contests: frContests,
+    chat: frChat,
+    modals: frModals,
+    runtimes: frRuntimes,
+    layout: frLayout,
+    usage: frUsage,
+    brain: frBrain,
+    ui: frUi,
+    squads: frSquads,
+    billing: frBilling,
+  },
   en: {
     common: enCommon,
     auth: enAuth,
@@ -118,10 +212,17 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": enMyIssues,
     search: enSearch,
     inbox: enInbox,
+    triage: enTriage,
+    meetings: enMeetings,
+    postmortem: enPostmortem,
+    brain: enBrain,
     workspace: enWorkspace,
     projects: enProjects,
     autopilots: enAutopilots,
     skills: enSkills,
+    goals: enGoals,
+    org: enOrg,
+    contests: enContests,
     chat: enChat,
     modals: enModals,
     runtimes: enRuntimes,
@@ -145,10 +246,17 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": zhHansMyIssues,
     search: zhHansSearch,
     inbox: zhHansInbox,
+    triage: zhHansTriage,
+    meetings: zhHansMeetings,
+    postmortem: zhHansPostmortem,
+    brain: zhHansBrain,
     workspace: zhHansWorkspace,
     projects: zhHansProjects,
     autopilots: zhHansAutopilots,
     skills: zhHansSkills,
+    goals: zhHansGoals,
+    org: zhHansOrg,
+    contests: zhHansContests,
     chat: zhHansChat,
     modals: zhHansModals,
     runtimes: zhHansRuntimes,
@@ -172,10 +280,17 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": koMyIssues,
     search: koSearch,
     inbox: koInbox,
+    triage: koTriage,
+    meetings: koMeetings,
+    postmortem: koPostmortem,
+    brain: koBrain,
     workspace: koWorkspace,
     projects: koProjects,
     autopilots: koAutopilots,
     skills: koSkills,
+    goals: koGoals,
+    org: koOrg,
+    contests: koContests,
     chat: koChat,
     modals: koModals,
     runtimes: koRuntimes,
@@ -199,10 +314,17 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     "my-issues": jaMyIssues,
     search: jaSearch,
     inbox: jaInbox,
+    triage: jaTriage,
+    meetings: jaMeetings,
+    postmortem: jaPostmortem,
+    brain: jaBrain,
     workspace: jaWorkspace,
     projects: jaProjects,
     autopilots: jaAutopilots,
     skills: jaSkills,
+    goals: jaGoals,
+    org: jaOrg,
+    contests: jaContests,
     chat: jaChat,
     modals: jaModals,
     runtimes: jaRuntimes,

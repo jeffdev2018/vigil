@@ -62,7 +62,9 @@
     "source_runtime_unknown": "From a runtime",
     "source_clawhub": "From ClawHub",
     "source_skills_sh": "From Skills.sh",
-    "source_github": "From GitHub"
+    "source_github": "From GitHub",
+    "source_distilled": "Distilled from a run",
+    "source_mined": "Mined from corrections"
   },
   "actions": {
     "row_menu": "Actions",
@@ -383,5 +385,17 @@
     "markdown_placeholder": "Write markdown content...",
     "raw_placeholder": "File content...",
     "raw_aria": "Plain text content of {{path}}"
+  },
+  "miner": {
+    "section": "{{n}} skill proposal(s) to review",
+    "intro": "Mined from recurring human corrections or distilled from a successful run. A draft is never given to an agent until you publish it; dismissing keeps the source signals.",
+    "origin_mined": "from {{n}} corrections of {{agent}} ({{regressed}} with a status moved back)",
+    "origin_distilled": "distilled from a successful run",
+    "sources": "Sources:",
+    "publish": "Publish and edit",
+    "dismiss": "Dismiss",
+    "published": "Published — edit it before attaching it to agents",
+    "dismissed": "Proposal dismissed",
+    "failed": "Could not update the proposal"
   }
 }

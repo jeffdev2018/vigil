@@ -62,7 +62,9 @@
     "source_runtime_unknown": "来自某个运行时",
     "source_clawhub": "来自 ClawHub",
     "source_skills_sh": "来自 Skills.sh",
-    "source_github": "来自 GitHub"
+    "source_github": "来自 GitHub",
+    "source_distilled": "从运行提炼",
+    "source_mined": "从纠正中挖掘"
   },
   "actions": {
     "row_menu": "操作",
@@ -366,5 +368,17 @@
     "markdown_placeholder": "输入 Markdown 内容...",
     "raw_placeholder": "文件内容...",
     "raw_aria": "{{path}} 的纯文本内容"
+  },
+  "miner": {
+    "section": "{{n}} 个待审阅的技能提案",
+    "intro": "从反复出现的人工纠正中挖掘，或从成功的运行中提炼。发布之前草稿绝不会交给智能体；丢弃会保留来源信号。",
+    "origin_mined": "来自对 {{agent}} 的 {{n}} 次纠正（{{regressed}} 次状态回退）",
+    "origin_distilled": "从成功的运行中提炼",
+    "sources": "来源：",
+    "publish": "发布并编辑",
+    "dismiss": "丢弃",
+    "published": "已发布，请在附加到智能体前编辑",
+    "dismissed": "提案已丢弃",
+    "failed": "无法更新提案"
   }
 }

@@ -11,7 +11,7 @@ When you assign an issue to an agent, Multica creates a run that a runtime on a 
 
 ![Diagram of a run: on the left, the Multica area records and schedules — an issue triggers the creation of a run; on the right, in the "your computer" area, the daemon claims the run, launches the AI coding tool, and reads and writes the working directory; progress messages stream back to the execution log in real time, and the daemon writes the final result back to the issue](/images/docs/how-a-run-works.webp)
 
-1. **The issue provides the context.** The issue holds the work description, the discussion, and the assignee. When it is assigned to an agent, the system uses that agent's instructions, model, skills, and runtime configuration.
+1. **The issue provides the context.** The issue holds the work description, the discussion, and the assignee. When it is assigned to an agent, the system uses that agent's instructions, model, skills, and runtime configuration. If the issue is a sub-issue, the run also receives its goal ancestry: the chain of parent issues above it, from the top-level goal down to the direct parent, so the agent knows why the task exists.
 2. **Multica creates a run.** The run enters the queue; if no runtime is online, it waits there.
 3. **A runtime claims the run.** An online runtime on a connected computer claims the run and invokes the AI coding tool the agent is configured to use.
 4. **The AI coding tool executes locally.** The tool reads the working directory, runs commands, and produces results.

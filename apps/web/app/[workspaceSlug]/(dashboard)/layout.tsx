@@ -5,6 +5,7 @@ import { DashboardLayout } from "@multica/views/layout";
 import { MulticaIcon } from "@multica/ui/components/common/multica-icon";
 import { SearchCommand, SearchTrigger } from "@multica/views/search";
 import { FloatingChat } from "@multica/views/chat";
+import { RecordingPill } from "@multica/views/meetings";
 import { WebNotificationBridge } from "@/components/web-notification-bridge";
 import { WorkspaceDocumentTitle } from "@/platform/workspace-document-title";
 
@@ -25,6 +26,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <SearchCommand />
             <WebNotificationBridge />
             <FloatingChat />
+            {/* Owns the single MediaRecorder for this shell and shows the
+                recording indicator on every page. */}
+            <RecordingPill />
           </>
         }
       >

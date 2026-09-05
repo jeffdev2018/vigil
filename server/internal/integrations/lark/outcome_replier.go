@@ -205,9 +205,19 @@ func (r *LarkOutcomeReplier) Reply(ctx context.Context, inst Installation, msg I
 		}
 	case OutcomeIngested:
 		// The agent's chat reply itself goes through the Patcher. An /issue
-		// command gets an immediate product result: either the newly created
-		// issue or the active duplicate that blocked it. Gate on IssueID.Valid
+		// command gets an immediate product result: the newly created issue,
+		// the active duplicate that blocked it, or a triage hold. Gate on those
 		// so a plain chat message stays silent here.
+		if res.IssueHeld {
+			if err := r.sendChatNotice(ctx, inst, msg, issueHeldCopy); err != nil {
+				r.log.Warn("lark outcome replier: triage hold notice failed",
+					"installation_id", uuidString(inst.ID),
+					"chat_id", string(msg.ChatID),
+					"err", err.Error(),
+				)
+			}
+			return
+		}
 		if res.IssueID.Valid {
 			if err := r.sendIssueOutcome(ctx, inst, msg, res); err != nil {
 				r.log.Warn("lark outcome replier: issue outcome reply failed",
@@ -417,4 +427,8 @@ const (
 	chatStartedCopy         = "✅ 已新建 Multica 对话。你的下一条消息会进入该对话。"
 	issueUsageCopy          = "请填写任务标题，格式如下：\n\n`/issue <标题>`\n`[描述]`（可选）"
 	issueUsageWithMediaCopy = "请添加标题，并与图片或视频一起重新发送（*图片或视频可以位于命令之前或之后*）：\n\n`/issue <标题>`\n`[描述]`（可选）"
+	// The reporter's own title is deliberately NOT echoed here: this notice
+	// goes back into the room, and the created/duplicate replies pay for that
+	// echo with a sanitizer this fixed copy does not need.
+	issueHeldCopy = "🗂 已进入待审队列，稍后由成员处理。"
 )

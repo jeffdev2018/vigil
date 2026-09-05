@@ -2397,6 +2397,7 @@ describe("ApiClient workspace MCP servers", () => {
     workspace_id: "ws-1",
     name: "linear",
     transport: "http",
+    tool_count: 0,
     created_at: "2026-08-14T00:00:00Z",
     updated_at: "2026-08-14T00:00:00Z",
   };

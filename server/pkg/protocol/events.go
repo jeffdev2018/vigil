@@ -41,6 +41,18 @@ const (
 	EventTaskMessage               = "task:message"
 	EventTaskCancelled             = "task:cancelled" // * → cancelled
 
+	// Postmortem events (k68). postmortem:created fires when a failed run gets
+	// a drafted postmortem; postmortem:resolved fires on approve/discard.
+	EventPostmortemCreated  = "postmortem:created"
+	EventPostmortemResolved = "postmortem:resolved"
+
+	// Workspace Brain events. workspace_note:created / :updated fire on every
+	// write (create, edit, archive, unarchive, curation rewrite);
+	// workspace_note:deleted fires on a permanent delete.
+	EventWorkspaceNoteCreated = "workspace_note:created"
+	EventWorkspaceNoteUpdated = "workspace_note:updated"
+	EventWorkspaceNoteDeleted = "workspace_note:deleted"
+
 	// Inbox events
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"
@@ -49,6 +61,24 @@ const (
 	EventInboxUnarchived    = "inbox:unarchived"
 	EventInboxBatchRead     = "inbox:batch-read"
 	EventInboxBatchArchived = "inbox:batch-archived"
+
+	// Meeting events (K52). The detail view polls a `summarizing` meeting
+	// every 3s as a fallback; these push the transitions so a second client —
+	// or the tab that started the recording — sees the summary appear, and a
+	// rename or delete land, without waiting for a poll.
+	EventMeetingCreated = "meeting:created"
+	EventMeetingUpdated = "meeting:updated"
+	EventMeetingDeleted = "meeting:deleted"
+
+	// Triage queue events. triage:new fires when a gated webhook delivery is
+	// parked as a pending item; triage:resolved fires on accept, dismiss, or
+	// merge so live queues converge across clients.
+	EventTriageNew      = "triage:new"
+	EventTriageResolved = "triage:resolved"
+	// triage:updated fires when an item changes without leaving the queue —
+	// an agent's suggested verdict, a snooze — so open queues converge
+	// without waiting for the next poll.
+	EventTriageUpdated = "triage:updated"
 
 	// Workspace events
 	EventWorkspaceUpdated = "workspace:updated"
@@ -70,6 +100,12 @@ const (
 	EventSkillCreated = "skill:created"
 	EventSkillUpdated = "skill:updated"
 	EventSkillDeleted = "skill:deleted"
+
+	// Agent memory events (JEF-236). Payload carries the memory row so
+	// clients can update their cache without a refetch.
+	EventAgentMemoryCreated = "agent_memory:created"
+	EventAgentMemoryUpdated = "agent_memory:updated"
+	EventAgentMemoryDeleted = "agent_memory:deleted"
 
 	// Chat events
 	EventChatMessage = "chat:message"
@@ -135,6 +171,7 @@ const (
 	EventAutopilotUpdated  = "autopilot:updated"
 	EventAutopilotDeleted  = "autopilot:deleted"
 	EventAutopilotRunStart = "autopilot:run_start"
+	EventBudgetUpdated     = "budget:updated"
 	EventAutopilotRunDone  = "autopilot:run_done"
 
 	// Squad events

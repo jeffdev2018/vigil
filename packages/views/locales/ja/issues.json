@@ -125,6 +125,7 @@
     "chip_op_before": "{{value}} より前",
     "chip_op_after": "{{value}} より後",
     "section_project": "プロジェクト",
+    "section_goal": "ゴール",
     "section_label": "ラベル",
     "section_date": "日付",
     "date_field": "項目",
@@ -376,6 +377,8 @@
     "prop_start_date": "開始日",
     "prop_due_date": "期限",
     "prop_project": "プロジェクト",
+    "prop_goal": "ゴール",
+    "goal_inherited": "プロジェクトから継承",
     "prop_labels": "ラベル",
     "add_property_action": "プロパティを追加",
     "prop_created_by": "作成者",
@@ -436,7 +439,27 @@
     "project_directory_path_copied": "プロジェクトディレクトリのパスをコピーしました",
     "project_directory_path_copied_with_branch": "プロジェクトディレクトリのパスをコピーしました — 作業は {{branch}} ブランチにあります",
     "workdir_path_copy_failed": "作業ディレクトリのパスをコピーできませんでした",
-    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのタスクを実行していません"
+    "workdir_path_unavailable": "まだローカルの作業ディレクトリがありません。ローカルエージェントがこのタスクを実行していません",
+    "section_blocks": "ブロック中",
+    "section_blocked_by": "ブロックされている",
+    "merge_ready": "マージ可能",
+    "merge_not_ready": "まだマージできません",
+    "merge_stale_hint": "データが古い可能性があります",
+    "merge_blockers_more": "他 {{count}} 件",
+    "blocker_checks_failing": "#{{pr}} のチェックが失敗",
+    "blocker_checks_pending": "#{{pr}} のチェックが未完了",
+    "blocker_merge_conflict": "#{{pr}} にマージコンフリクト",
+    "blocker_merge_not_clean": "#{{pr}} はまだマージできません",
+    "blocker_stale_snapshot": "#{{pr}} のデータが古い",
+    "blocker_unresolved_threads": "未解決のレビュースレッド {{count}} 件",
+    "blocker_open_todos": "コメント内の未完了 todo {{count}} 件",
+    "blocker_blocking_issue": "{{identifier}} にブロックされています",
+    "blocker_no_pr": "オープンなプルリクエストがありません",
+    "pr_stack_title": "PR スタック",
+    "pr_stack_truncated": "{{depth}} 階層で打ち切り",
+    "pr_stack_cyclic": "依存関係の循環: 一部の階層は非表示",
+    "blocker_adr_required": "アーキテクチャ決定記録が必要です（{{count}} ファイル編集）",
+    "from_meeting": "ミーティングから"
   },
   "timeline": {
     "loading": "読み込み中..."
@@ -491,12 +514,14 @@
     "trigger_blocked_runtime_offline": "この対象のランタイムがオフラインです",
     "trigger_blocked_runtime_unusable": "この対象の CLI はそのマシンで実行できません — そのマシンで再インストールしてください",
     "trigger_blocked_agent_runtime_required": "この対象にはランタイムがありません — 実行するにはバインドしてください",
+    "trigger_blocked_budget_exceeded": "ワークスペース予算が上限に達したため、この実行は一時停止中です",
     "trigger_blocked_generic": "この対象はトリガーされません",
     "trigger_blocked_short_invocation_not_allowed": "未検出または権限なし",
     "trigger_blocked_short_target_unavailable": "利用不可",
     "trigger_blocked_short_runtime_offline": "ランタイム オフライン",
     "trigger_blocked_short_runtime_unusable": "CLI を実行できません",
     "trigger_blocked_short_agent_runtime_required": "ランタイム未設定",
+    "trigger_blocked_short_budget_exceeded": "予算上限",
     "trigger_blocked_short_generic": "トリガーされません",
     "send_reply_failed": "返信を送信できませんでした",
     "delete_failed": "コメントを削除できませんでした",
@@ -609,7 +634,11 @@
       "source_backfill": "バックフィルされた帰属",
       "source_unattributed": "責任メンバーを解決できません"
     },
-    "usage_total_tooltip": "このタスクのトークン使用量 — クリックで実行ごとの内訳"
+    "usage_total_tooltip": "このタスクのトークン使用量 — クリックで実行ごとの内訳",
+    "status_deferred": "延期中",
+    "status_paused": "一時停止",
+    "unresponsive": "応答なし",
+    "unresponsive_tooltip": "{{duration}} 活動がありません"
   },
   "usage_detail": {
     "title": "使用量の内訳",
@@ -690,7 +719,10 @@
     "remove_parent_issue": "親タスクを解除",
     "remove_parent_issue_success": "親タスクを解除しました",
     "add_sub_issue": "サブタスクを追加...",
-    "delete_issue": "タスクを削除"
+    "delete_issue": "タスクを削除",
+    "add_blocking": "ブロック対象を追加...",
+    "add_blocked_by": "ブロック元を追加...",
+    "remove_dependency": "依存関係を解除"
   },
   "pickers": {
     "custom_property": {
@@ -855,5 +887,491 @@
     "surface_loading": "{{name}} を読み込んでいます…",
     "surface_unavailable": "{{name}} のインターフェースを読み込めません。インストール済みのバージョンに含まれていない可能性があります。",
     "surface_navigated": "{{name}} がパネルを外部から読み込んだページに置き換えようとしました。停止して接続を切りました。ワークスペース管理者に知らせてください。"
+  },
+  "plan_verification": {
+    "section": "計画の検証",
+    "plan_version": "計画 v{{version}}",
+    "version_picker": "計画のバージョン",
+    "superseded": "旧版",
+    "no_verification": "検証の実行はまだありません。",
+    "state_queued": "検証待ち",
+    "state_running": "検証中",
+    "state_failed": "検証に失敗",
+    "verdict_critical": "重大 {{count}} 件",
+    "verdict_clean": "計画どおり",
+    "failed_hint": "検証の実行はレポートなしで終了しました。タスクを再実行して再検証してください。",
+    "pending_hint": "検証の実行が、納品された変更をこの計画と照合します。",
+    "report_for": "計画 v{{version}} のレポート",
+    "severity_critical": "重大",
+    "severity_major": "大",
+    "severity_minor": "小",
+    "severity_outdated": "陳腐化",
+    "no_findings": "計画との差異はありません。",
+    "gate_no_steps": "構造化されたステップがないため、サブイシューは作成されません。",
+    "gate_stage": "{{stage}}",
+    "gate_created": "作成済み",
+    "gate_materialized": "サブイシューを {{count}} 件作成しました",
+    "gate_superseded": "置き換えられました。有効なバージョンを承認してください。",
+    "gate_approve": "承認してサブイシューを {{count}} 件作成",
+    "gate_failed": "サブイシューを作成できませんでした",
+    "step_ref": "ステップ {{id}}"
+  },
+  "fanout": {
+    "section": "ファンアウト",
+    "count": "{{done}}/{{total}} 完了",
+    "status": {
+      "pending": "進行中",
+      "partial_failure": "一部失敗",
+      "complete": "完了"
+    },
+    "partial": "{{failed}} 件のサブタスクが失敗しました。統合は開始されますが、欠けている部分を明示する必要があります。",
+    "synthesis": "リーダー向けの統合実行 {{id}} をキューに入れました",
+    "open": "専門エージェントに分配",
+    "leader": "リーダーエージェント",
+    "sub_task": "サブタスク {{n}}",
+    "sub_task_placeholder": "この専門エージェントがやること",
+    "assignee": "サブタスク {{n}} の担当",
+    "pick_agent": "担当を選択…",
+    "remove": "サブタスク {{n}} を削除",
+    "add": "サブタスクを追加",
+    "launch": "ファンアウトを開始",
+    "cancel": "キャンセル",
+    "failed": "ファンアウトの要求に失敗しました"
+  },
+  "pipeline": {
+    "pick": "パイプラインを選択",
+    "start": "パイプラインを開始",
+    "last": "前回のパイプライン: {{name}}（{{status}}）",
+    "gate_waiting": "ゲート待ち",
+    "approve": "承認して進める",
+    "retry": "ステージを再試行",
+    "cancel": "パイプラインを停止",
+    "failed": "パイプラインの操作に失敗しました",
+    "status": {
+      "active": "進行中",
+      "paused": "一時停止",
+      "completed": "完了",
+      "cancelled": "停止"
+    }
+  },
+  "preemption": {
+    "waiting": "緊急イシューを優先するため一時停止中",
+    "resumed": "緊急イシューのため一時停止し、再開しました",
+    "for": "優先されたイシュー：",
+    "estimate": "エージェントに空きができ次第、緊急の実行を優先してチェックポイントから再開します。",
+    "count": "このイシューで {{count}} 回の一時停止"
+  },
+  "drift": {
+    "stopped": "逸脱により停止",
+    "run": "実行 {{id}}",
+    "reasons": {
+      "repeated_action": "同じツール呼び出しを繰り返しすぎました",
+      "file_reread_loop": "書き込みなしに同じファイルを読み続けています"
+    }
+  },
+  "traffic": {
+    "human": "この実行は、ローカルチェックアウトで人が変更中のファイルを編集しています",
+    "agent": "この実行は、別の実行（{{id}}）が編集中のファイルを編集しています",
+    "pause": "実行を一時停止",
+    "ignore": "無視",
+    "show_history_other": "解決済みの競合 {{count}} 件を表示",
+    "hide_history": "解決済みの競合を隠す",
+    "failed": "トラフィック制御の操作に失敗しました",
+    "status": {
+      "active": "進行中",
+      "ignored": "無視",
+      "resolved": "解決済み"
+    }
+  },
+  "checkpoint": {
+    "resumed": "実行が中断され、{{point}}から自動再開されました（再開 {{attempts}}/{{max}}）。",
+    "exhausted": "インフラの中断：自動再開は {{attempts}}/{{max}} 回で断念しました。タスク自体の失敗ではありません。",
+    "from_seq": "チェックポイント メッセージ {{seq}}",
+    "from_start": "最初",
+    "checkpointed": "最終チェックポイント {{when}}"
+  },
+  "run_control": {
+    "pause": "実行を一時停止",
+    "pause_hint": "次の安全な境界（現在のツール呼び出しの後）で停止し、指示を待ちます。",
+    "pause_pending": "一時停止待ち",
+    "pause_pending_hint": "現在のツール呼び出しの完了を待っています。",
+    "paused_title": "一時停止中。指示を残してから同じセッションを再開します。",
+    "instruction": "指示",
+    "instruction_placeholder": "何を変えますか？実行は停止した位置からこの指示を先頭にして続きます。",
+    "send": "指示を送る",
+    "resume": "再開",
+    "resume_needs_instruction": "先に指示を 1 つ以上残してください。",
+    "failed": "実行の操作に失敗しました"
+  },
+  "run_limits": {
+    "title": "実行上限",
+    "stopped": "実行上限で停止",
+    "gates": {
+      "cost": "コスト",
+      "duration": "時間",
+      "turns": "ターン",
+      "tool_calls": "ツール呼び出し"
+    },
+    "levels": {
+      "warn": "警告",
+      "exceeded": "上限超過（記録のみ）",
+      "stopped": "停止"
+    }
+  },
+  "handoff": {
+    "section": "ハンドオフパケット",
+    "none": "まだパケットはありません。",
+    "show_history_other": "以前のパケット {{count}} 件を表示",
+    "hide_history": "履歴を隠す",
+    "write": "ハンドオフパケットを書く",
+    "objective": "目的",
+    "decisions": "決定事項",
+    "evidence": "証拠",
+    "failed_attempts": "失敗した試み",
+    "next_action": "次のアクション",
+    "one_per_line": "{{field}}（1 行に 1 つ）",
+    "save": "パケットを保存",
+    "cancel": "キャンセル",
+    "create_failed": "ハンドオフパケットを保存できませんでした",
+    "run": "実行 {{id}}",
+    "by": {
+      "agent": "エージェント",
+      "member": "メンバー",
+      "system": "システム"
+    }
+  },
+  "routing": {
+    "label": "ルーティング",
+    "risk": {
+      "low": "低リスク",
+      "normal": "通常リスク",
+      "high": "高リスク"
+    },
+    "pool": "プール {{name}}",
+    "agent_pool": "エージェントのプール",
+    "paths": "一致パス {{count}}",
+    "escalated": "エスカレーション"
+  },
+  "failover": {
+    "section": "ランタイム切り替え",
+    "run": "実行 {{id}}",
+    "degraded_badge": "縮退",
+    "exhausted": "プール枯渇",
+    "degraded_banner": "この実行はプールのローカル最終手段で縮退モード動作中です。想定したランタイムより能力が低い結果として扱ってください。",
+    "reasons": {
+      "runtime_offline": "ランタイムがオフライン",
+      "runtime_recovery": "ランタイム復旧",
+      "runtime_reconnect_timeout": "ランタイム再接続タイムアウト",
+      "agent_error.provider_auth_or_access": "プロバイダー認証/アクセス",
+      "agent_error.provider_quota_limit": "プロバイダーの割り当て",
+      "agent_error.provider_capacity_or_rate_limit": "プロバイダーの容量/レート制限",
+      "agent_error.provider_server_error": "プロバイダーのサーバーエラー",
+      "agent_error.provider_network": "プロバイダーのネットワーク"
+    }
+  },
+  "run_secrets": {
+    "section": "実行シークレット",
+    "run": "実行 {{id}}",
+    "status": {
+      "active": "有効",
+      "revoked": "失効",
+      "expired": "期限切れ"
+    }
+  },
+  "decisions": {
+    "section": "判断",
+    "recommended": "推奨",
+    "modify": "別の回答をする…",
+    "modify_placeholder": "代わりに何をすべきか記述してください",
+    "send": "送信",
+    "cancel": "キャンセル",
+    "resumed": "エージェント再開",
+    "answer_failed": "判断を記録できませんでした",
+    "interview_title": "要件インタビュー",
+    "interview_hint": "すべての質問に回答するとエージェントが再開します。",
+    "sla_due": "{{time}} までに回答",
+    "sla_overdue": "期限超過、エスカレーション待ち",
+    "sla_substitute": "期限超過 · 代理担当者にエスカレーション済み",
+    "sla_leads": "期限超過 · ワークスペースのリードにエスカレーション済み",
+    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。"
+  },
+  "acceptance": {
+    "section": "受け入れ基準",
+    "add": "受け入れ基準を追加",
+    "add_placeholder": "基準を追加…",
+    "attach": "証拠を添付",
+    "validate": "自分で確認済みにする",
+    "remove": "削除",
+    "save": "保存",
+    "cancel": "キャンセル",
+    "proof_type": "証拠の種類",
+    "ref_placeholder": "テストコマンド、パス、または URL",
+    "state_missing": "証拠なし",
+    "state_pending_human": "人による確認待ち",
+    "state_satisfied": "証明済み",
+    "update_failed": "受け入れ基準を更新できませんでした",
+    "types": {
+      "test": "テスト",
+      "file": "ファイル",
+      "screenshot": "スクリーンショット",
+      "url": "リンク",
+      "human_validation": "人による確認"
+    }
+  },
+  "review_cockpit": {
+    "open": "レビューコックピットを開く",
+    "back": "イシューに戻る",
+    "run": "実行",
+    "runs_none": "このイシューにはまだ実行がありません。",
+    "select_run": "実行",
+    "run_completed": "{{ago}} に完了",
+    "cost": "この実行のコスト",
+    "cost_none": "この実行の使用量は記録されていません。",
+    "cost_unpriced": "価格なし",
+    "cost_floor": "（下限：一部の使用量に価格がありません）",
+    "tokens": "入力 {{input}} · 出力 {{output}}",
+    "pull_requests": "プルリクエスト",
+    "prs_unavailable": "プルリクエストを読み込めませんでした。",
+    "no_pr": "プルリクエストはまだありません。",
+    "checks": "チェック {{passed}}/{{total}}",
+    "ready": "マージ可能",
+    "blockers": "ブロッカー {{count}} 件",
+    "open_questions": "未回答の質問",
+    "none_open": "人の回答待ちの質問はありません。",
+    "criteria": "受け入れ基準",
+    "criteria_none": "このイシューに受け入れ基準はありません。",
+    "plan_verification": "プラン検証",
+    "plan_none": "検証レポートはありません。",
+    "plan_counts": "critical {{critical}} · major {{major}} · minor {{minor}}",
+    "self_review": "クロスプロバイダーのセルフレビュー",
+    "self_review_none": "まだ利用できません。",
+    "approve": "承認",
+    "request_changes": "変更を依頼",
+    "approve_blocked": "チェックが完了するまで承認できません。",
+    "failed_sections": "一部のセクションを読み込めませんでした：{{sections}}。",
+    "error": "レビューコックピットを読み込めませんでした。",
+    "retry": "再試行",
+    "move_failed": "イシューのステータスを変更できませんでした"
+  },
+  "ownership": {
+    "section": "提案された担当者",
+    "matched": "{{what}} に一致",
+    "matched_label": "ラベルのルール",
+    "assign_owner": "{{name}} に割り当て",
+    "assign_agent": "{{name}} に割り当て",
+    "member": "担当者",
+    "agent": "参照エージェント",
+    "assign_failed": "割り当てできませんでした"
+  },
+  "role_view": {
+    "label": "ビュー",
+    "full": "すべて",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "この issue にはまだ判断カードがありません。代わりに実行ログを表示しています。",
+    "cto_cost": "コスト",
+    "cto_cost_value": "{{cost}} · {{tokens}} トークン",
+    "cto_scorecard": "エージェントのスコアカード",
+    "cto_no_agent": "担当エージェントなし",
+    "cto_audit": "監査記録",
+    "cto_audit_empty": "この issue にはまだ記録がありません",
+    "block_failed": "このブロックを読み込めませんでした。"
+  },
+  "duel": {
+    "section": "エージェント対決",
+    "status": {
+      "running": "実行中",
+      "verdict_ready": "判定待ち",
+      "confirmed": "確定",
+      "inconclusive": "判定不能"
+    },
+    "candidate": "候補 {{side}}",
+    "cost": "コスト",
+    "duration": "所要時間",
+    "tool_calls": "ツール呼び出し",
+    "quality": "審判スコア",
+    "arbiter_pick": "審判の選択: {{side}}",
+    "arbiter_tie": "審判の選択: 引き分け",
+    "arbiter_unavailable": "審判の判定なし（{{error}}）。実行を比較して決めてください。",
+    "inconclusive": "一方の候補が失敗したため比較できません。",
+    "choose": "{{side}} を確定",
+    "tie": "引き分けにする",
+    "winner": "勝者: {{side}}",
+    "winner_tie": "引き分け",
+    "open": "対決を開始",
+    "agent_a": "エージェント A",
+    "agent_b": "エージェント B",
+    "pick_agent": "エージェントを選択…",
+    "launch": "対決を開始",
+    "cancel": "キャンセル",
+    "failed": "対決のリクエストに失敗しました",
+    "identical": "異なる 2 つのエージェントを選んでください"
+  },
+  "campaign": {
+    "section": "リファクタリングキャンペーン",
+    "target": "{{branch}} へ",
+    "status": {
+      "running": "実行中",
+      "merging": "マージ中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "progress": "{{done}}/{{total}} マージまたはスキップ済み",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "待機中",
+      "rebasing": "リベース・マージ中",
+      "ready": "マージ可能",
+      "merged": "マージ済み",
+      "conflict": "競合",
+      "skipped": "スキップ"
+    },
+    "conflict_hint": "人の対応が必要です。解決するか、シャードをスキップしてキューを進めてください。",
+    "skip": "シャード #{{n}} をスキップ",
+    "open": "リファクタリングキャンペーンを開始",
+    "name": "キャンペーン名",
+    "target_branch": "ターゲットブランチ",
+    "leader": "リーダーエージェント",
+    "shard": "シャード {{n}}",
+    "shard_placeholder": "このシャードで変更する内容",
+    "branch": "シャード {{n}} のブランチ",
+    "branch_placeholder": "ブランチ（任意）",
+    "assignee": "シャード {{n}} の担当",
+    "pick_agent": "担当を選択…",
+    "remove": "シャード {{n}} を削除",
+    "add": "シャードを追加",
+    "launch": "キャンペーンを開始",
+    "cancel": "キャンセル",
+    "failed": "キャンペーンのリクエストに失敗しました"
+  },
+  "competency": {
+    "section": "この種のタスクでの成功履歴",
+    "domain": "ドメイン {{domain}}",
+    "row": "{{name}}: {{rate}}（{{count}} 件）",
+    "duels": "対決 {{wins}} 勝 / {{losses}} 敗",
+    "low_sample": "データ不足（{{count}}/{{min}}）",
+    "empty": "この種のタスクの履歴を持つエージェントはまだいません。"
+  },
+  "cross_review": {
+    "section": "別プロバイダーによるレビュー",
+    "by": "{{provider}} の {{name}}",
+    "in_progress": "レビュー中",
+    "failed": "レビュー失敗",
+    "verdict": {
+      "approve": "承認",
+      "request_changes": "変更要求",
+      "comment": "コメント"
+    },
+    "risks": "リスク",
+    "questions": "質問",
+    "suggestions": "提案",
+    "retry": "レビューを再実行",
+    "retry_failed": "再実行に失敗しました",
+    "previous": "以前の試行 {{count}} 件"
+  },
+  "agent_effects": {
+    "section": "エージェントの変更",
+    "window": "{{hours}} 時間は取り消し可能",
+    "run_by": "{{name}} の実行",
+    "undo_run": "この実行を取り消す（{{count}}）",
+    "undo_single": "取り消す",
+    "undone": "{{count}} 件の変更を取り消しました",
+    "skipped": "{{count}} 件をスキップ: {{reason}}",
+    "breaker": "ブレーカー作動: エージェントは {{mode}} モードになりました",
+    "failed": "取り消しに失敗しました",
+    "states": {
+      "reversed": "取り消し済み",
+      "expired": "期限切れ",
+      "not_reversible": "取り消し不可",
+      "failed": "取り消し失敗",
+      "held": "承認待ち",
+      "approved": "承認済み",
+      "rejected": "破棄"
+    },
+    "reasons": {
+      "already_reversed": "取り消し済み",
+      "not_reversible": "取り消し不可",
+      "window_expired": "期限切れ",
+      "reverse_failed": "取り消し失敗",
+      "not_applied": "保留中の書き込み、取り消す対象なし"
+    },
+    "kinds": {
+      "issue_status": "ステータス {{from}} → {{to}}",
+      "issue_assignee": "担当者を変更",
+      "issue_field": "{{field}}: {{from}} → {{to}}",
+      "comment_create": "コメント: {{excerpt}}",
+      "comment_update": "コメントを編集",
+      "note_create": "ノート作成: {{title}}",
+      "note_update": "ノート編集: {{title}}",
+      "note_archive": "ノートをアーカイブ",
+      "triage_verdict": "トリアージ判定: {{verdict}}",
+      "issue_create": "Issue 作成: {{title}}",
+      "issue_update": "Issue の更新: {{fields}}",
+      "comment_delete": "コメントを削除: 「{{excerpt}}」",
+      "note_delete": "ノート「{{title}}」を削除",
+      "chat_message": "チャットで返信: 「{{excerpt}}」（取り消すと同じスレッドに訂正を投稿します）"
+    }
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI 修正中",
+    "fixed": "CI を自動修正しました",
+    "failed": "CI 修正に失敗（{{count}}）",
+    "exhausted": "{{count}} 回試行後も CI が赤のまま",
+    "retry": "再試行",
+    "retry_failed": "再試行を開始できませんでした"
+  },
+  "watchdog": {
+    "section": "ウォッチドッグ",
+    "intro": "担当者とは別のオプションのエージェントが、この Issue とサブ Issue が停止した後に検査し、停止が正当かどうかを判断します。作業自体は行わず、信頼を得るまで再オープンはあなたの承認を経ます。",
+    "by": "{{name}} · 停止 {{rest}} 分後",
+    "agent": "ウォッチドッグのエージェント",
+    "pick_agent": "エージェントを選択",
+    "owner": "人間のオーナー",
+    "owner_me": "自分",
+    "rest": "停止時間（分）",
+    "instructions": "指示",
+    "instructions_placeholder": "厳しく見る点、証拠として認めるもの…",
+    "save": "ウォッチドッグを保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "remove": "削除",
+    "enabled": "ウォッチドッグ有効",
+    "saved": "ウォッチドッグを保存しました",
+    "save_failed": "ウォッチドッグを保存できませんでした",
+    "removed": "ウォッチドッグを削除しました",
+    "scan_now": "今すぐスキャン",
+    "scan_started": "スキャンを開始しました",
+    "scan_failed": "スキャンを開始できませんでした",
+    "last_scan": "最終スキャン {{when}}",
+    "streak": "{{n}} 回連続の再開",
+    "confirm": "確認",
+    "overturn": "却下",
+    "review_failed": "判定をレビューできませんでした",
+    "missing": "不足している基準: {{criterion}}",
+    "dropped": "ツリー外の指摘 {{n}} 件を無視しました",
+    "verdicts": {
+      "legitimate": "正当な停止",
+      "motion": "再開",
+      "escalate": "エスカレーション"
+    },
+    "outcomes": {
+      "reopened": "Issue を再オープン",
+      "asked_proof": "証拠を要求",
+      "escalated": "オーナーに送付",
+      "awaiting_decision": "あなたの判断待ち",
+      "dismissed": "却下",
+      "noted": "記録済み",
+      "pending": "保留中"
+    },
+    "reviews": {
+      "confirmed": "人間が確認",
+      "overturned": "人間が却下"
+    },
+    "actions": {
+      "reopen": "再オープン",
+      "ask_proof": "証拠を要求",
+      "none": "アクションなし"
+    }
   }
 }

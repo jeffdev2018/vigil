@@ -203,6 +203,7 @@
       "reconnecting": "다시 연결 중",
       "retrying": "재시도 중",
       "queued": "대기 중",
+      "budget_paused": "예산으로 일시 중지",
       "waiting_local_directory": "로컬 디렉터리 대기 중",
       "waiting_local_directory_reason": "{{reason}} 대기 중",
       "starting_up": "시작 중",
@@ -243,5 +244,16 @@
     "delete": "채팅 삭제",
     "archive": "채팅 보관",
     "unarchive": "채팅 보관 해제"
+  },
+  "voice": {
+    "start": "음성으로 메시지 입력",
+    "stop": "중지하고 전사",
+    "transcribing": "전사 중…",
+    "error_unsupported": "이 브라우저에서는 오디오를 녹음할 수 없습니다.",
+    "error_mic_denied": "마이크 접근이 거부되었습니다.",
+    "error_not_configured": "이 서버에는 전사가 설정되어 있지 않습니다.",
+    "error_failed": "녹음을 전사할 수 없습니다.",
+    "listen": "듣기",
+    "stop_listening": "듣기 중지"
   }
 }

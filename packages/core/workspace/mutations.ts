@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Workspace } from "../types";
+import type { McpToolPolicy, Workspace } from "../types";
 import { api } from "../api";
 import { defaultStorage } from "../platform/storage";
 import { clearWorkspaceStorage } from "../platform/storage-cleanup";
@@ -18,6 +18,8 @@ export function useCreateWorkspace() {
       description?: string;
       /** Omit to let the server derive it from the slug. */
       issue_prefix?: string;
+      /** Seed the new workspace from a saved template run (K76). */
+      template_run_id?: string;
     }) => api.createWorkspace(data),
     // Seed the workspace list cache BEFORE callers navigate to /{newWs.slug}/issues.
     // The destination [workspaceSlug]/layout queries by slug from this cache;
@@ -152,6 +154,11 @@ export function useAddAgentMcpServer(agentId: string) {
 export function useSetAgentMcpServerEnabled(agentId: string) {
   return useAgentMcpMutation(agentId, ({ serverId, enabled }: { serverId: string; enabled: boolean }) =>
     api.setAgentMcpServerEnabled(agentId, serverId, enabled));
+}
+
+export function useSetAgentMcpServerPolicy(agentId: string) {
+  return useAgentMcpMutation(agentId, ({ serverId, policy }: { serverId: string; policy: McpToolPolicy }) =>
+    api.setAgentMcpServerPolicy(agentId, serverId, policy));
 }
 
 export function useRemoveAgentMcpServer(agentId: string) {

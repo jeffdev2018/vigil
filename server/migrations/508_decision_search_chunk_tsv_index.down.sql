@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_decision_search_chunk_tsv;

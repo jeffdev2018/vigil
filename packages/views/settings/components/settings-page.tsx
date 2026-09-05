@@ -5,6 +5,7 @@ import {
   User,
   SlidersHorizontal,
   Key,
+  Brain,
   Settings,
   Users,
   FolderGit2,
@@ -20,6 +21,8 @@ import {
   Blocks,
   CreditCard,
   Server,
+  ScrollText,
+  WalletCards,
 } from "lucide-react";
 import { GitHubMark } from "./github-mark";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@multica/ui/components/ui/tabs";
@@ -36,6 +39,7 @@ import { PreferencesTab } from "./preferences-tab";
 import { ChatTab } from "./chat-tab";
 import { IssueTab } from "./issue-tab";
 import { TokensTab } from "./tokens-tab";
+import { LearningTab } from "./learning-tab";
 import { WorkspaceTab } from "./workspace-tab";
 import { MembersTab } from "./members-tab";
 import { RepositoriesTab } from "./repositories-tab";
@@ -49,12 +53,14 @@ import { PropertiesTab } from "./properties-tab";
 import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
 import { PluginsTab } from "./plugins-tab";
+import { AuditLogTab } from "./audit-log-tab";
 import { McpTab } from "./mcp-tab";
 import { BillingTab } from "./billing-tab";
+import { BudgetsTab } from "./budgets-tab";
 import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useT } from "../../i18n";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences", "shortcuts", "issue", "chat", "notifications", "tokens"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "preferences", "shortcuts", "issue", "chat", "notifications", "tokens", "learning"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
   preferences: SlidersHorizontal,
@@ -63,6 +69,7 @@ const ACCOUNT_TAB_ICONS = {
   chat: MessageCircle,
   notifications: Bell,
   tokens: Key,
+  learning: Brain,
 } as const;
 
 const WORKSPACE_TAB_KEYS = [
@@ -73,12 +80,14 @@ const WORKSPACE_TAB_KEYS = [
   "labs",
   "members",
   "billing",
+  "budgets",
   "labels",
   "issue_statuses",
   "properties",
   "quick_actions",
   "mcp",
   "plugins",
+  "audit_log",
 ] as const;
 const WORKSPACE_TAB_VALUES = {
   general: "workspace",
@@ -88,12 +97,14 @@ const WORKSPACE_TAB_VALUES = {
   labs: "labs",
   members: "members",
   billing: "billing",
+  budgets: "budgets",
   labels: "labels",
   issue_statuses: "issue-statuses",
   properties: "properties",
   quick_actions: "quick-actions",
   mcp: "mcp",
   plugins: "plugins",
+  audit_log: "audit-log",
 } as const;
 const WORKSPACE_TAB_ICONS = {
   general: Settings,
@@ -103,12 +114,14 @@ const WORKSPACE_TAB_ICONS = {
   labs: FlaskConical,
   members: Users,
   billing: CreditCard,
+  budgets: WalletCards,
   labels: Tags,
   issue_statuses: CircleDot,
   properties: SlidersHorizontal,
   quick_actions: Zap,
   mcp: Server,
   plugins: Blocks,
+  audit_log: ScrollText,
 } as const;
 
 const DEFAULT_TAB = "profile";
@@ -274,6 +287,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="chat"><ChatTab /></TabsContent>
           <TabsContent value="notifications"><NotificationsTab /></TabsContent>
           <TabsContent value="tokens"><TokensTab /></TabsContent>
+          <TabsContent value="learning"><LearningTab /></TabsContent>
           <TabsContent value="workspace"><WorkspaceTab /></TabsContent>
           <TabsContent value="repositories"><RepositoriesTab /></TabsContent>
           <TabsContent value="github"><GitHubTab /></TabsContent>
@@ -283,12 +297,14 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           {billingEnabled ? (
             <TabsContent value="billing"><BillingTab /></TabsContent>
           ) : null}
+          <TabsContent value="budgets"><BudgetsTab /></TabsContent>
           <TabsContent value="labels"><LabelsTab /></TabsContent>
           <TabsContent value="issue-statuses"><IssueStatusesTab /></TabsContent>
           <TabsContent value="properties"><PropertiesTab /></TabsContent>
           <TabsContent value="quick-actions"><QuickActionsTab /></TabsContent>
           <TabsContent value="mcp"><McpTab /></TabsContent>
           {pluginsEnabled ? <TabsContent value="plugins"><PluginsTab /></TabsContent> : null}
+          <TabsContent value="audit-log"><AuditLogTab /></TabsContent>
           {extraAccountTabs?.map((tab) => (
             <TabsContent key={tab.value} value={tab.value}>{tab.content}</TabsContent>
           ))}

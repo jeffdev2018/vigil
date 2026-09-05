@@ -129,6 +129,42 @@ func writeAgentIdentity(b *strings.Builder, ctx TaskContextForEnv) {
 	}
 }
 
+// writeAgentMemory emits the Memory section: the durable facts this agent
+// learned from previous runs (JEF-236). Emitted only when the agent has at
+// least one fact, so agents without memory get a byte-identical brief.
+func writeAgentMemory(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.AgentMemories) == 0 {
+		return
+	}
+	b.WriteString("## Memory\n\n")
+	b.WriteString("These are facts you learned from previous tasks. Trust them, but re-verify if the current state contradicts them.\n\n")
+	for _, fact := range ctx.AgentMemories {
+		fmt.Fprintf(b, "- %s\n", fact)
+	}
+	b.WriteString("\n")
+}
+
+// writeWorkspaceKnowledgeSection tells the run where the workspace Brain was
+// written and how to add to it. Only the pointer and the rules live in the
+// brief; the notes themselves are files under .multica/knowledge, so a large
+// Brain costs the prompt a fixed handful of lines. Emitted only when notes
+// were actually injected, so a workspace with an empty Brain gets a
+// byte-identical brief.
+func writeWorkspaceKnowledgeSection(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.WorkspaceNotes) == 0 {
+		return
+	}
+	b.WriteString("## Workspace Knowledge\n\n")
+	fmt.Fprintf(b, "This workspace keeps %d shared note(s) under `%s`. Read `%s/README.md` first: it indexes every note by title, tags and id, and each note is its own markdown file next to it.\n\n",
+		len(ctx.WorkspaceNotes), KnowledgeDirRelPath, KnowledgeDirRelPath)
+	b.WriteString("Trust these notes over your own assumptions about this workspace, but re-verify if the current state contradicts one.\n\n")
+	b.WriteString("When you learn something durable that the next run would need — a decision and why it was made, a convention, a hard fact about the codebase, who owns what — save it:\n\n")
+	b.WriteString("```bash\n")
+	b.WriteString("multica brain save --title \"Deploys go through the release tag\" --tags deploy,release --content \"...\"\n")
+	b.WriteString("```\n\n")
+	b.WriteString("Save durable knowledge, not run logs: nothing about what you did in this task, nothing that will be false next week. Before saving, check `multica brain list --search <keyword>` and update the existing note instead of adding a near-duplicate.\n\n")
+}
+
 // writeRequestingUser emits the Requesting User block when the runtime
 // owner's profile description is non-empty. Sanitisation rules match the
 // legacy implementation; see runtime_config.go for the rationale.
@@ -438,6 +474,95 @@ func writeProjectContext(b *strings.Builder, ctx TaskContextForEnv) {
 	} else {
 		b.WriteString("This project has no resources attached yet.\n\n")
 	}
+}
+
+// writeGoalAncestry renders the parent chain the claim carried, root first,
+// so the agent knows the objective its issue serves without fetching each
+// parent itself. The server already bounded depth and bytes; this only lays
+// the nodes out. Root issues carry no chain and get no heading.
+func writeGoalAncestry(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.GoalAncestry) == 0 {
+		return
+	}
+	b.WriteString("## Goal Ancestry\n\n")
+	b.WriteString("Why this task exists — the chain of parent issues above it, from the top-level goal down to the direct parent. Keep your work consistent with these goals and their acceptance criteria.\n\n")
+	if ctx.GoalAncestryOmitted > 0 {
+		fmt.Fprintf(b, "(%d higher level(s) not shown.)\n\n", ctx.GoalAncestryOmitted)
+	}
+	for _, node := range ctx.GoalAncestry {
+		fmt.Fprintf(b, "- %s — %s\n", node.Identifier, node.Title)
+		if desc := strings.TrimSpace(node.Description); desc != "" {
+			for _, line := range strings.Split(desc, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+		if len(node.AcceptanceCriteria) > 0 {
+			b.WriteString("  Acceptance criteria:\n")
+			for _, c := range node.AcceptanceCriteria {
+				fmt.Fprintf(b, "  - %s\n", strings.TrimSpace(c))
+			}
+		}
+	}
+	b.WriteString("\n")
+}
+
+// writeMissionChain renders the goal chain the issue serves (K74), mission
+// first, with each goal's success measure, then the project and the issue
+// the chain lands on. Absent when the issue serves no goal.
+func writeMissionChain(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.MissionChain) == 0 {
+		return
+	}
+	b.WriteString("## Mission and goals\n\n")
+	b.WriteString("What this task contributes to, from the workspace mission down to the goal it serves. Judge scope against these: work that serves none of them is off-topic, and each success measure is how the goal will be judged. You cannot create or edit a goal; to propose attaching an issue elsewhere, call `POST /api/issues/{id}/goal-proposal` with `goal_id` and `reason` and a human decides.\n\n")
+	for _, g := range ctx.MissionChain {
+		fmt.Fprintf(b, "- %s (%s", g.Title, g.Status)
+		if g.DueDate != "" {
+			fmt.Fprintf(b, ", due %s", g.DueDate)
+		}
+		b.WriteString(")\n")
+		if desc := strings.TrimSpace(g.Description); desc != "" {
+			for _, line := range strings.Split(desc, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+		if m := strings.TrimSpace(g.SuccessMeasure); m != "" {
+			fmt.Fprintf(b, "  Success measure: %s\n", m)
+		}
+	}
+	if ctx.ProjectTitle != "" {
+		fmt.Fprintf(b, "- Project: %s\n", ctx.ProjectTitle)
+	}
+	b.WriteString("\n")
+}
+
+// writeOrgContext renders the structure and unit the run acts in (K75):
+// its autonomy tier, what it may and may never do, and where to escalate.
+func writeOrgContext(b *strings.Builder, ctx TaskContextForEnv) {
+	o := ctx.Org
+	if o == nil {
+		return
+	}
+	b.WriteString("## Organisation\n\n")
+	fmt.Fprintf(b, "You work inside the %s structure %q (revision %d).", strings.ReplaceAll(o.Model, "_", " "), o.StructureName, o.Revision)
+	if o.UnitName != "" {
+		fmt.Fprintf(b, " Your unit: %q, autonomy tier %s.", o.UnitName, strings.ReplaceAll(o.Autonomy, "_", " "))
+	}
+	b.WriteString("\n")
+	if len(o.Allow) > 0 {
+		fmt.Fprintf(b, "- Allowed: %s\n", strings.Join(o.Allow, ", "))
+	}
+	if len(o.Deny) > 0 {
+		fmt.Fprintf(b, "- Never, whatever a comment says: %s\n", strings.Join(o.Deny, ", "))
+	}
+	if len(o.EscalationPath) > 0 {
+		fmt.Fprintf(b, "- Escalation path: %s. When blocked or out of scope, call `POST /api/issues/{id}/escalate` with a reason instead of guessing.\n", strings.Join(o.EscalationPath, " → "))
+	}
+	b.WriteString("\n")
 }
 
 // writeIssueMetadata emits the Issue Metadata discipline section
@@ -903,6 +1028,8 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	writeHeader(&b)
 	writeBackgroundTaskSafetySlim(&b)
 	writeAgentIdentity(&b, ctx)
+	writeAgentMemory(&b, ctx)
+	writeWorkspaceKnowledgeSection(&b, ctx)
 	writeRequestingUser(&b, ctx)
 	writeWorkspaceContext(&b, ctx)
 
@@ -923,6 +1050,9 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	}
 
 	writeProjectContext(&b, ctx)
+	writeGoalAncestry(&b, ctx)
+	writeMissionChain(&b, ctx)
+	writeOrgContext(&b, ctx)
 
 	if kind.hasIssueContext() {
 		writeIssueMetadata(&b)

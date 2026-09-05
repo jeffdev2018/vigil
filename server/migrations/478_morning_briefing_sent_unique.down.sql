@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS morning_briefing_sent_workspace_date;

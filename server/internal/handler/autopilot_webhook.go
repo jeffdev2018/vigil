@@ -518,45 +518,48 @@ func (h *Handler) HandleAutopilotWebhook(w http.ResponseWriter, r *http.Request)
 		if ip != "" && h.WebhookIPRateLimiter != nil {
 			h.WebhookIPRateLimiter.Allow(r.Context(), ip)
 		}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusRejected, http.StatusUnauthorized, respBody, reason)
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusRejected, http.StatusUnauthorized, respBody, reason, reason)
 		writeJSON(w, http.StatusUnauthorized, respBody)
 		return
 	}
 
-	// 9. Trigger disabled / autopilot paused / archived → ignored. We return
-	//     200 so the sender's webhook-retry machinery doesn't keep hammering
-	//     us; the "ignored" status + delivery row makes the no-op visible if
-	//     the operator inspects the delivery log.
-	if !trigRow.Enabled {
-		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "trigger_disabled"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "trigger_disabled")
-		writeJSON(w, http.StatusOK, respBody)
-		return
-	}
-	if autopilot.Status == "archived" {
-		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "autopilot_archived"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_archived")
-		writeJSON(w, http.StatusOK, respBody)
-		return
-	}
-	if autopilot.Status != "active" {
-		respBody := map[string]any{"status": "ignored", "delivery_id": uuidToString(delivery.ID), "reason": "autopilot_paused"}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "autopilot_paused")
-		writeJSON(w, http.StatusOK, respBody)
-		return
-	}
-
-	// 10. Event filter scope → ignored. If the trigger declares a concrete
-	//     event_filters list and the incoming event is outside that scope,
-	//     record an ignored delivery without creating an expensive run/task.
-	if !webhookEventAllowedByTriggerScope(trigRow.EventFilters, envelope) {
+	// 9-10b. Trigger/autopilot state, event-filter scope and the
+	//        natural-language routing rule are ONE decision — see
+	//        evaluateWebhookDelivery. The dry-run endpoint replays the exact
+	//        same function against a sample payload, so a verdict shown in the
+	//        editor cannot drift from what ingress will actually do.
+	//
+	//        All four verdicts answer 200 so the sender's webhook-retry
+	//        machinery doesn't keep hammering us; the "ignored" status + the
+	//        delivery row make the no-op visible in the delivery log.
+	decision := evaluateWebhookDelivery(webhookDeliveryState{
+		TriggerEnabled:     trigRow.Enabled,
+		AutopilotStatus:    autopilot.Status,
+		EventFilters:       trigRow.EventFilters,
+		EventMatchCriteria: trigRow.EventMatchCriteria,
+		Provider:           trigRow.Provider,
+		Envelope:           envelope,
+	}, func(criteria, provider string, env WebhookEnvelope) webhookRoutingVerdict {
+		return h.webhookEventMatchesCriteria(r.Context(), criteria, provider, env)
+	})
+	if !decision.Run {
 		respBody := map[string]any{
 			"status":      "ignored",
 			"delivery_id": uuidToString(delivery.ID),
-			"reason":      "event_filtered",
-			"event":       envelope.Event,
+			"reason":      decision.ReasonCode,
 		}
-		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, "event_filtered")
+		// The persisted error carries the classifier's own sentence so the
+		// deliveries UI can show why the routing rule said no.
+		errText := decision.ReasonCode
+		switch decision.ReasonCode {
+		case reasonEventFiltered:
+			respBody["event"] = envelope.Event
+		case reasonCriteriaNotMatched:
+			respBody["event"] = envelope.Event
+			respBody["explanation"] = decision.Explanation
+			errText = reasonCriteriaNotMatched + ": " + decision.Explanation
+		}
+		h.finaliseDeliveryTerminal(r, delivery.ID, deliveryStatusIgnored, http.StatusOK, respBody, errText, decision.ReasonCode)
 		writeJSON(w, http.StatusOK, respBody)
 		return
 	}
@@ -682,8 +685,17 @@ func encodeWebhookEventFiltersAlways(filters []WebhookEventFilter) ([]byte, erro
 // filters (NULL / empty) or when the incoming envelope matches at least one
 // declared filter.
 func webhookEventAllowedByTriggerScope(eventFilters []byte, envelope WebhookEnvelope) bool {
+	allowed, _ := matchWebhookEventFilters(eventFilters, envelope)
+	return allowed
+}
+
+// matchWebhookEventFilters is the matcher itself. It also reports WHICH
+// filters matched: a dry-run has to tell "no filter declared, so everything
+// passes" from "the `pull_request` row is what let this through", and the
+// boolean alone cannot.
+func matchWebhookEventFilters(eventFilters []byte, envelope WebhookEnvelope) (bool, []WebhookEventFilter) {
 	if len(eventFilters) == 0 {
-		return true
+		return true, nil
 	}
 	var filters []WebhookEventFilter
 	if err := json.Unmarshal(eventFilters, &filters); err != nil {
@@ -693,24 +705,31 @@ func webhookEventAllowedByTriggerScope(eventFilters []byte, envelope WebhookEnve
 		// "only allow X" policy is worse than dropping events until an
 		// operator notices.
 		slog.Warn("webhook: malformed event_filters, denying", "error", err)
-		return false
+		return false, nil
 	}
 	if len(filters) == 0 {
-		return true
+		return true, nil
 	}
 	_, eventName, eventAction := splitWebhookEvent(envelope.Event)
 	actionCandidates := webhookActionCandidates(eventAction, envelope.EventPayload)
+	matched := []WebhookEventFilter{}
 	for _, f := range filters {
 		if f.Event != eventName {
 			continue
 		}
 		if len(f.Actions) == 0 {
-			return true
+			matched = append(matched, f)
+			continue
 		}
+		// Labelled break: two candidate actions can both name the same
+		// filter row, and reporting it twice would make the dry-run's
+		// matched list lie about how many rows are in play.
+	actions:
 		for _, action := range actionCandidates {
 			for _, allowed := range f.Actions {
 				if action == allowed {
-					return true
+					matched = append(matched, f)
+					break actions
 				}
 			}
 		}
@@ -721,7 +740,7 @@ func webhookEventAllowedByTriggerScope(eventFilters []byte, envelope WebhookEnve
 		// the others depending on iteration order — see PR #3231 review.
 		// Keep scanning so any later filter still gets its chance.
 	}
-	return false
+	return len(matched) > 0, matched
 }
 
 // splitWebhookEvent splits a normalized event like "github.workflow_run.completed"

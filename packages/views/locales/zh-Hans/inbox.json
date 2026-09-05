@@ -40,7 +40,12 @@
     "archived_title": "已归档",
     "archived_empty": "暂无已归档通知",
     "unarchive_tooltip": "取消归档",
-    "actions_aria": "通知操作"
+    "actions_aria": "通知操作",
+    "attention_title": "需要你处理",
+    "attention_empty": "没有需要你处理的事项。",
+    "briefing_title": "今晨简报",
+    "retro_title": "每周回顾",
+    "decisions_title": "待你决定"
   },
   "detail": {
     "select_prompt": "选择一条通知查看详情",
@@ -74,7 +79,23 @@
     "quick_create_failed": "通过智能体创建失败",
     "quick_create_unconfirmed": "通过智能体创建结果未确认",
     "autopilot_paused": "自动化已暂停",
-    "autopilot_quota_exceeded": "自动化执行次数已用完"
+    "autopilot_quota_exceeded": "自动化执行次数已用完",
+    "decision_request": "请求决策",
+    "decision_escalated": "决策已逾期",
+    "ownership_suggested": "建议归属",
+    "morning_briefing": "晨间简报",
+    "standup_question": "站会提问",
+    "weekly_retro": "每周回顾",
+    "budget_warning": "预算警告",
+    "budget_exceeded": "预算已达上限",
+    "postmortem_ready": "复盘已生成",
+    "trust_promotion_suggested": "建议提升信任模式",
+    "triage_stale": "待分类队列已停滞",
+    "watchdog_escalation": "看门狗升级",
+    "contest_ready": "质询已就绪，等待你的裁定",
+    "org_alert": "组织提醒",
+    "decision_auto_decided": "已代你决定",
+    "mcp_alert": "MCP 网关提醒"
   },
   "labels": {
     "set_status_to": "状态设为",
@@ -88,7 +109,8 @@
     "reacted_to_comment": "用 {{emoji}} 回应了你的评论",
     "created_with_agent": "通过智能体创建：{{identifier}}",
     "failed_with_detail": "失败：{{detail}}",
-    "autopilot_quota_blocked": "执行已被阻止：额度已用完"
+    "autopilot_quota_blocked": "执行已被阻止：额度已用完",
+    "triage_items_waiting": "{{count}} 项待分类"
   },
   "toasts": {
     "source_context_retry_started": "已使用原始上下文开始重试",
@@ -107,6 +129,66 @@
     "archive_all_read_failed": "归档已读失败",
     "archive_completed_failed": "归档已完成失败",
     "unarchive_failed": "取消归档失败",
-    "archived_load_failed": "无法加载已归档通知"
+    "archived_load_failed": "无法加载已归档通知",
+    "attention_load_failed": "无法加载需处理列表。"
+  },
+  "briefing": {
+    "loading": "正在生成今晨简报…",
+    "load_failed": "无法加载简报。",
+    "sent": "{{ago}}已发送",
+    "not_sent": "今天尚未发送",
+    "empty": "夜间没有完成、没有待审阅、没有阻塞。",
+    "merged": "过去 24 小时完成（{{count}}）",
+    "awaiting_review": "待审阅（{{count}}）",
+    "blocked": "阻塞及原因（{{count}}）",
+    "approve": "批准",
+    "approve_failed": "批准失败",
+    "pending_decisions": "{{count}} 个决策待回答",
+    "channels": "也已发送到 {{channels}}"
+  },
+  "retro": {
+    "loading": "正在加载回顾…",
+    "load_failed": "无法加载回顾。",
+    "retry": "重试",
+    "empty": "尚未生成回顾。第一份回顾覆盖最近一个完整的周。",
+    "generate_now": "立即生成",
+    "generated": "回顾已生成",
+    "generate_failed": "生成回顾失败",
+    "regenerate": "重新生成",
+    "week": "{{start}} 至 {{end}} 这一周",
+    "generated_ago": "生成于 {{ago}}",
+    "runs": "本周运行（{{count}}）",
+    "no_runs": "本周没有智能体运行。",
+    "median": "中位数 {{minutes}} 分钟",
+    "failed": "失败的运行（{{count}}）",
+    "agents": "智能体",
+    "col_agent": "智能体",
+    "col_runs": "运行",
+    "col_failed": "失败",
+    "col_accepted": "已接受",
+    "col_cost": "成本（$）",
+    "skills": "技能建议",
+    "skills_empty": "技能建议将随 Skill Miner 一起提供；暂无建议。"
+  },
+  "decisions": {
+    "title": "等待你决定的事项",
+    "loading": "正在加载决定…",
+    "load_failed": "无法加载决定。",
+    "empty": "收件箱清零：没有等待你的决定。",
+    "more": "此外还有 {{count}} 项在等待",
+    "urgency": {
+      "high": "紧急",
+      "normal": "普通",
+      "low": "低"
+    },
+    "due": "截止 {{when}}",
+    "recommended": "推荐",
+    "other": "用其他方式回答…",
+    "other_label": "说明改为怎么做",
+    "send": "发送",
+    "cancel": "取消",
+    "answered": "已回答",
+    "respond_failed": "无法发送回答",
+    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。"
   }
 }

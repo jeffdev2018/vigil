@@ -30,12 +30,15 @@ import { cn } from "@multica/ui/lib/utils";
 import { ActivityTab } from "./tabs/activity-tab";
 import { InstructionsTab } from "./tabs/instructions-tab";
 import { SkillsTab } from "./tabs/skills-tab";
+import { MemoryTab } from "./tabs/memory-tab";
 import { EnvTab } from "./tabs/env-tab";
 import { CustomArgsTab } from "./tabs/custom-args-tab";
 import { McpConfigTab } from "./tabs/mcp-config-tab";
 import { AgentMcpTab } from "./tabs/agent-mcp-tab";
 import { IntegrationsTab } from "./tabs/integrations-tab";
 import { RuntimeConfigTab } from "./tabs/runtime-config-tab";
+import { HistoryTab } from "./tabs/history-tab";
+import { TrustTab } from "./tabs/trust-tab";
 import { AgentDetailInspector } from "./agent-detail-inspector";
 import { AgentAccessSettings } from "./agent-access-settings";
 import { AgentOverviewSummary } from "./agent-overview-summary";
@@ -50,6 +53,7 @@ export type DetailTab =
   | "work"
   | "instructions"
   | "skills"
+  | "memory"
   | "mcp_config"
   | "composio_mcp"
   | "integrations"
@@ -57,13 +61,16 @@ export type DetailTab =
   | "access"
   | "env"
   | "custom_args"
-  | "runtime_config";
+  | "runtime_config"
+  | "history"
+  | "trust";
 
 type SecondaryTab = {
   id: DetailTab;
   labelKey:
     | "instructions"
     | "skills"
+    | "memory"
     | "mcp_config"
     | "composio_mcp"
     | "integrations"
@@ -71,12 +78,15 @@ type SecondaryTab = {
     | "access"
     | "environment"
     | "custom_args"
-    | "runtime_config";
+    | "runtime_config"
+    | "history"
+    | "trust";
 };
 
 const CAPABILITY_TABS: SecondaryTab[] = [
   { id: "instructions", labelKey: "instructions" },
   { id: "skills", labelKey: "skills" },
+  { id: "memory", labelKey: "memory" },
   { id: "mcp_config", labelKey: "mcp_config" },
   { id: "composio_mcp", labelKey: "composio_mcp" },
   { id: "integrations", labelKey: "integrations" },
@@ -88,6 +98,8 @@ const SETTINGS_TABS: SecondaryTab[] = [
   { id: "env", labelKey: "environment" },
   { id: "custom_args", labelKey: "custom_args" },
   { id: "runtime_config", labelKey: "runtime_config" },
+  { id: "history", labelKey: "history" },
+  { id: "trust", labelKey: "trust" },
 ];
 
 const TOP_TABS: { id: DetailSection; labelKey: DetailSection }[] = [
@@ -438,6 +450,9 @@ export function AgentOverviewPane({
                       canEdit={canEdit}
                     />
                   )}
+                  {effectiveView === "memory" && (
+                    <MemoryTab agent={agent} canEdit={canEdit} />
+                  )}
                   {effectiveView === "mcp_config" && (
                     <McpConfigTab
                       agent={agent}
@@ -492,6 +507,10 @@ export function AgentOverviewPane({
                       onDirtyChange={setActiveDirty}
                     />
                   )}
+                  {/* Agent versions (K23): what the agent ran with, and rollback. */}
+                  {effectiveView === "history" && <HistoryTab agent={agent} canEdit={canEdit} />}
+                  {/* Trust Dial (K26): how far the agent may act before it asks. */}
+                  {effectiveView === "trust" && <TrustTab agent={agent} canEdit={canEdit} />}
                 </div>
               </div>
             </section>

@@ -1,7 +1,8 @@
 -- name: ListWorkspaces :many
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
-       w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed
+       w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
+       w.postmortem_cost_threshold_usd_ticks
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1
@@ -182,6 +183,17 @@ cleared_issue_properties AS (
 cleared_quick_actions AS (
     DELETE FROM quick_action WHERE workspace_id = $1
 ),
+-- Triage tables carry no FK by repo rule, so the DELETE below does not reach
+-- them. Items first only for readability — with no FK either order commits.
+cleared_triage_items AS (
+    DELETE FROM triage_item WHERE workspace_id = $1
+),
+cleared_triage_sources AS (
+    DELETE FROM triage_source WHERE workspace_id = $1
+),
+cleared_meetings AS (
+    DELETE FROM meeting WHERE workspace_id = $1
+),
 ws_mcp_servers AS (
     SELECT id FROM workspace_mcp_server WHERE workspace_id = $1
 ),
@@ -237,3 +249,14 @@ cleared_client_usage_workspace AS (
     UPDATE client_usage_daily SET workspace_id = NULL WHERE workspace_id = $1
 )
 DELETE FROM workspace WHERE workspace.id = $1;
+
+-- name: UpdateWorkspacePostmortemCostThreshold :one
+-- Costly-run postmortems (k68). Kept out of UpdateWorkspace because that
+-- statement is COALESCE-partial ("NULL means leave alone"), which cannot
+-- express "clear this setting" — and clearing it is how the trigger is
+-- switched off.
+UPDATE workspace SET
+    postmortem_cost_threshold_usd_ticks = sqlc.narg('threshold')::bigint,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;

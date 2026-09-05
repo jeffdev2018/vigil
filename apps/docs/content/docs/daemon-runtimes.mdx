@@ -155,6 +155,57 @@ multica runtime profile unset-path <profile-id>
 
 Editing a profile only affects runs claimed afterwards. Before deleting a profile, deal with the active agents still bound to its runtimes. Deleting only the runtime instance on one computer does not delete the profile — a running daemon will re-register it.
 
+## CLI authentication
+
+For some runtimes, the runtime page can start the provider's sign-in flow on the daemon machine. Open the verification URL, enter the one-time code, and keep the dialog open until the CLI confirms completion. The provider token is written only to that CLI's local configuration; Multica stores only the non-secret authenticated status and timestamp.
+
+| Provider | Sign in | Sign out | Reported status |
+| --- | --- | --- | --- |
+| Claude Code (`claude`) | Yes | Yes | Yes |
+| Codex (`codex`) | Yes | Yes | Yes |
+| Cursor (`cursor-agent`) | Yes | Yes | No |
+| GitHub Copilot (`copilot`) | Yes | No | No |
+
+A runtime only shows the sign-in button for a provider whose CLI documents a command that works without a terminal. Every other detected CLI shows a link to its own authentication documentation instead: `opencode auth login` and its peers prompt for a provider to pick, so run by the daemon they would wait for input nobody can give, and most of the remaining CLIs read an API key from the environment and have no sign-in flow at all.
+
+The status column is the same distinction, one step further: it is only "yes" where the CLI documents a status command that exits 0 when signed in and non-zero when not. `cursor-agent status` prints the account but promises no exit code, so trusting it would report every Cursor runtime as signed in. Where it says no, the runtime reports its sign-in state as unknown and the page says so.
+
+Authentication is machine-wide. If one daemon serves several workspaces, connecting or disconnecting a provider affects every workspace that uses that CLI on the machine.
+
+## Smart routing
+
+Each agent has a routing mode. **Fixed** is the default: the agent always runs on the runtime it is bound to, with the model configured on the agent. **Auto** lets the server pick the most promising (runtime, model) pair for each task from the historical run statistics of the workspace. The bound runtime and model stay in place as the fallback — a task is routed only when the statistics support it.
+
+The candidate set for an auto-routed task is the runtimes that could legally claim it right now: online, with a fresh heartbeat, and visible to the agent's owner. Candidate models per runtime are the models actually observed on that runtime, plus the agent's own model.
+
+### Task classes
+
+Statistics are segmented by task class, so a runtime that is good at documentation does not win bugfix tasks on the strength of that record. Every enqueued task is stamped with exactly one class:
+
+`general`, `bugfix`, `feature`, `refactor`, `docs`, `tests`, `chore`
+
+Classification is deterministic and never calls a model. The issue's labels are read first (`bug`, `feature`, `refactor`, `docs`, `tests`, `chore` and their common variants), then whole-word keywords in the issue title, and `general` when nothing matches.
+
+### Scoring
+
+Within one task class, each candidate is scored as:
+
+```text
+score = wilson_lower_95(success rate) − 0.3 × normalized cost − 0.1 × normalized duration
+```
+
+- The success term is the **lower bound of the 95% Wilson confidence interval**, not the raw success rate, so one success out of one run never outranks a long strong record.
+- Average cost and average duration are min-max normalized across the scored candidates; a candidate with no cost or duration data takes the neutral midpoint instead of looking free or instant.
+- A candidate needs at least 5 runs to be scored at all. From 10 runs onward, a candidate below a 50% success rate is excluded outright.
+- 10% of decisions are an **exploration draw**: instead of the best score, the least-sampled candidate that is not yet scored is picked, so new pairs can accrue the history they need.
+- The window is the trailing **90 days**.
+
+Every decision — the chosen pair, the reason, and every candidate with its samples, success rate, Wilson bound, cost and duration — is stored on the task as an audit trace.
+
+### Benchmarks
+
+The **Smart routing benchmarks** card on the dashboard's Usage tab shows the same 90-day statistics the router scores on, one row per runtime, model and task class, with samples, success rate, average cost and average duration. Rows are sorted by sample count, so the best-measured evidence comes first. The window is fixed at 90 days and does not follow the page's time-range filter.
+
 ## Troubleshooting an offline runtime
 
 Check in this order:

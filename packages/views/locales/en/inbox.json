@@ -42,7 +42,12 @@
     "archived_title": "Archived",
     "archived_empty": "No archived notifications",
     "unarchive_tooltip": "Unarchive",
-    "actions_aria": "Notification actions"
+    "actions_aria": "Notification actions",
+    "attention_title": "Needs your attention",
+    "attention_empty": "Nothing needs your attention.",
+    "briefing_title": "This morning",
+    "retro_title": "Weekly retro",
+    "decisions_title": "Decisions waiting for you"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -76,7 +81,23 @@
     "quick_create_failed": "Create with agent failed",
     "quick_create_unconfirmed": "Create with agent unconfirmed",
     "autopilot_paused": "Autopilot paused",
-    "autopilot_quota_exceeded": "Autopilot run limit reached"
+    "autopilot_quota_exceeded": "Autopilot run limit reached",
+    "decision_request": "Decision requested",
+    "decision_escalated": "Decision overdue",
+    "ownership_suggested": "Ownership suggested",
+    "morning_briefing": "Morning briefing",
+    "standup_question": "Standup question",
+    "weekly_retro": "Weekly retro",
+    "budget_warning": "Budget warning",
+    "budget_exceeded": "Budget limit reached",
+    "postmortem_ready": "Postmortem ready",
+    "trust_promotion_suggested": "Trust promotion suggested",
+    "triage_stale": "Triage is stalling",
+    "watchdog_escalation": "Watchdog escalation",
+    "contest_ready": "Contest ready for your verdict",
+    "org_alert": "Organisation alert",
+    "decision_auto_decided": "Decided for you",
+    "mcp_alert": "MCP gateway alert"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -90,7 +111,8 @@
     "reacted_to_comment": "Reacted {{emoji}} to your comment",
     "created_with_agent": "Created with agent: {{identifier}}",
     "failed_with_detail": "Failed: {{detail}}",
-    "autopilot_quota_blocked": "Run blocked because the limit was reached"
+    "autopilot_quota_blocked": "Run blocked because the limit was reached",
+    "triage_items_waiting": "{{count}} triage items waiting"
   },
   "toasts": {
     "source_context_retry_started": "Retry started with the original context",
@@ -109,6 +131,66 @@
     "archive_all_read_failed": "Failed to archive read items",
     "archive_completed_failed": "Failed to archive completed",
     "unarchive_failed": "Failed to unarchive",
-    "archived_load_failed": "Failed to load archived notifications"
+    "archived_load_failed": "Failed to load archived notifications",
+    "attention_load_failed": "Could not load the attention inbox."
+  },
+  "briefing": {
+    "loading": "Composing this morning's briefing…",
+    "load_failed": "The briefing could not be loaded.",
+    "sent": "sent {{ago}}",
+    "not_sent": "not sent yet today",
+    "empty": "Nothing done overnight, nothing awaiting review, nothing blocked.",
+    "merged": "Done in the last 24 hours ({{count}})",
+    "awaiting_review": "Awaiting review ({{count}})",
+    "blocked": "Blocked, and why ({{count}})",
+    "approve": "Approve",
+    "approve_failed": "Failed to approve",
+    "pending_decisions": "{{count}} decision waiting",
+    "channels": "also sent to {{channels}}"
+  },
+  "retro": {
+    "loading": "Loading the retro…",
+    "load_failed": "The retro could not be loaded.",
+    "retry": "Retry",
+    "empty": "No retro generated yet. The first one covers the last completed week.",
+    "generate_now": "Generate now",
+    "generated": "Retro generated",
+    "generate_failed": "Failed to generate the retro",
+    "regenerate": "Regenerate",
+    "week": "Week of {{start}} to {{end}}",
+    "generated_ago": "generated {{ago}}",
+    "runs": "Runs this week ({{count}})",
+    "no_runs": "No agent run this week.",
+    "median": "median {{minutes}} min",
+    "failed": "Failed runs ({{count}})",
+    "agents": "Agents",
+    "col_agent": "Agent",
+    "col_runs": "Runs",
+    "col_failed": "Failed",
+    "col_accepted": "Accepted",
+    "col_cost": "Cost ($)",
+    "skills": "Skill proposals",
+    "skills_empty": "Skill proposals arrive with Skill Miner; nothing to propose yet."
+  },
+  "decisions": {
+    "title": "Decisions waiting for you",
+    "loading": "Loading your decisions…",
+    "load_failed": "The decisions could not be loaded.",
+    "empty": "Inbox zero: no decision is waiting for you.",
+    "more": "{{count}} more waiting after these",
+    "urgency": {
+      "high": "urgent",
+      "normal": "normal",
+      "low": "low"
+    },
+    "due": "due {{when}}",
+    "recommended": "recommended",
+    "other": "Answer with something else…",
+    "other_label": "Describe what to do instead",
+    "send": "Send",
+    "cancel": "Cancel",
+    "answered": "Answered",
+    "respond_failed": "The answer could not be sent",
+    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request."
   }
 }

@@ -183,3 +183,13 @@ WHERE d.autopilot_id = $1
   AND a.workspace_id = $2
 ORDER BY d.created_at DESC
 LIMIT $3 OFFSET $4;
+
+-- name: CountWebhookDeliveriesByAutopilot :one
+-- Same workspace scoping as the list. Separate from it because the page rows
+-- and the total answer different questions: "total: len(page)" made the
+-- Deliveries section claim a 20-row page was everything there was.
+SELECT count(*)
+FROM webhook_delivery d
+JOIN autopilot a ON a.id = d.autopilot_id
+WHERE d.autopilot_id = $1
+  AND a.workspace_id = $2;

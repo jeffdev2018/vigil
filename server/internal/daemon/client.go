@@ -582,13 +582,27 @@ func (c *Client) RecoverOrphans(ctx context.Context, runtimeID string) error {
 // detect terminal/interruption signals (cancelled, failed, completed, or a
 // 404 task-not-found) while a task is executing.
 func (c *Client) GetTaskStatus(ctx context.Context, taskID string) (string, error) {
+	status, _, err := c.GetTaskControl(ctx, taskID)
+	return status, err
+}
+
+// GetTaskControl (K19) reads the task's status and whether a human asked
+// for a pause; the daemon honours the pause at the next safe boundary.
+func (c *Client) GetTaskControl(ctx context.Context, taskID string) (status string, pauseRequested bool, err error) {
 	var resp struct {
-		Status string `json:"status"`
+		Status         string `json:"status"`
+		PauseRequested bool   `json:"pause_requested"`
 	}
 	if err := c.getJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/status", taskID), &resp); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return resp.Status, nil
+	return resp.Status, resp.PauseRequested, nil
+}
+
+// AckTaskPaused (K19) tells the server the run stopped at a safe boundary
+// and where its session lives so a resume continues it.
+func (c *Client) AckTaskPaused(ctx context.Context, taskID, sessionID, workDir, branchName string) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/paused", taskID), map[string]string{"session_id": sessionID, "work_dir": workDir, "branch_name": branchName}, nil)
 }
 
 // HeartbeatResponse, PendingUpdate, etc. alias the wire types so HTTP and WS
@@ -598,16 +612,29 @@ type (
 	HeartbeatResponse       = protocol.DaemonHeartbeatAckPayload
 	PendingUpdate           = protocol.DaemonHeartbeatPendingUpdate
 	PendingModelList        = protocol.DaemonHeartbeatPendingModelList
+	PendingCliAuth          = protocol.DaemonHeartbeatPendingCliAuth
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
 )
 
-func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string) (*HeartbeatResponse, error) {
+// SendHeartbeat beats for one runtime. `skipped` is the machine's
+// discovered-but-not-registered diagnostic (MUL-5439), sent ONLY on the beats
+// where it changed since the server last accepted it — a nil map leaves the
+// stored set alone, an empty map clears it.
+func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
-	if err := c.postJSON(ctx, "/api/daemon/heartbeat", map[string]any{
+	body := map[string]any{
 		"runtime_id":            runtimeID,
 		"supports_batch_import": true,
-	}, &resp); err != nil {
+	}
+	if dirty != nil {
+		// Traffic control (K18): what a human changed in the local checkouts.
+		body["dirty_checkouts"] = dirty
+	}
+	if skipped != nil {
+		body["skipped_agents"] = skipped
+	}
+	if err := c.postJSON(ctx, "/api/daemon/heartbeat", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -621,6 +648,12 @@ func (c *Client) ReportUpdateResult(ctx context.Context, runtimeID, updateID str
 // ReportModelListResult sends the model-discovery result back to the server.
 func (c *Client) ReportModelListResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/models/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportCliAuthResult sends only public device-code progress and terminal
+// status. Provider credentials stay in the CLI's local config.
+func (c *Client) ReportCliAuthResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/cli-auth/%s/report", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillListResult sends the runtime-local-skill inventory back to the server.
@@ -1246,4 +1279,18 @@ func (c *Client) InvokeAgentPluginHook(ctx context.Context, daemonToken, taskID,
 		return nil, errors.New("the plugin hook did not succeed")
 	}
 	return response.Output, nil
+}
+
+// ResolveRunSecret (K09) trades a run-scoped token for its value. The value
+// lives only in the broker's memory for one outgoing call.
+func (c *Client) ResolveRunSecret(ctx context.Context, taskToken, taskID, secretToken string) (string, error) {
+	var response struct {
+		Key   string `json:"key"`
+		Value string `json:"value"`
+	}
+	path := fmt.Sprintf("/api/tasks/%s/secrets/resolve", url.PathEscape(taskID))
+	if err := c.postJSONWithToken(ctx, path, taskToken, map[string]string{"token": secretToken}, &response); err != nil {
+		return "", err
+	}
+	return response.Value, nil
 }

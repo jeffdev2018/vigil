@@ -166,5 +166,31 @@
     "direction_desc": "降順",
     "section_columns": "列",
     "view": "ビュー"
+  },
+  "decisions": {
+    "section": "決定",
+    "author_filter": "作成者",
+    "author_any": "すべて",
+    "author_agent": "エージェント",
+    "author_member": "メンバー",
+    "empty": "まだ決定は記録されていません。受け入れられた実行がここに追加します。",
+    "source": "実行メッセージ #{{seq}}"
+  },
+  "blast_radius": {
+    "section": "影響範囲",
+    "description": "権限に加えて、このプロジェクトの各パスでエージェントがどこまで進めるか。自律パスは承認ゲートを自動で通過し、読み取り専用パスは確認前に書き込みを拒否し、二重承認パスは別々の 2 人の承認が必要です。最も具体的なパターンが優先され、ルールがなければ権限だけで決まります。",
+    "empty": "ルールはまだありません。エージェントの権限のみが適用されます。",
+    "pattern": "パスパターン",
+    "pattern_placeholder": "apps/mobile/**",
+    "level": "自律度",
+    "level_autonomous": "自律",
+    "level_read_only": "読み取り専用",
+    "level_dual_approval": "二重承認",
+    "level_inherit": "権限から継承",
+    "add": "ルールを追加",
+    "remove": "ルールを削除",
+    "preview": "パスを試す",
+    "preview_placeholder": "server/migrations/500_x.up.sql",
+    "failed": "ルールを保存できませんでした"
   }
 }

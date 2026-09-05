@@ -1,3 +1,20 @@
+-- agent_task_queue status matrix (F02). Eight statuses, no state engine: each
+-- transition is a WHERE guard on its UPDATE, and a refused transition is a
+-- zero-row update, never an error. Locked by
+-- internal/handler/task_transition_matrix_test.go.
+--
+--   queued                  -> dispatched (ClaimAgentTask), deferred, cancelled
+--   deferred                -> queued (PromoteDeferred*), cancelled
+--   dispatched              -> running (StartAgentTask), waiting_local_directory,
+--                              failed, cancelled
+--   waiting_local_directory -> running (StartAgentTask), failed, cancelled
+--   running                 -> completed, failed, cancelled
+--   completed | failed | cancelled : terminal
+--
+-- last_activity_at is a liveness hint stamped on claim, start and on every
+-- daemon messages / progress callback (TouchAgentTaskActivity); "unresponsive"
+-- is derived by readers and never written.
+
 -- name: ListAgents :many
 SELECT * FROM agent
 WHERE workspace_id = $1 AND archived_at IS NULL AND kind = 'user'
@@ -58,14 +75,15 @@ INSERT INTO agent (
     runtime_config, runtime_id, visibility, max_concurrent_tasks, owner_id,
     instructions, custom_env, custom_args, mcp_config, model, thinking_level,
     service_tier, conversation_starters,
-    composio_toolkit_allowlist, permission_mode
+    composio_toolkit_allowlist, permission_mode, runtime_routing
 ) VALUES (
     $1, $2, $3, $4, $5,
     $6, $7, $8, $9, $10,
     $11, $12, $13, $14, $15, $16,
     $17, COALESCE(sqlc.narg('conversation_starters')::jsonb, '[]'::jsonb),
     sqlc.narg('composio_toolkit_allowlist')::text[],
-    COALESCE(sqlc.narg('permission_mode'), 'private')
+    COALESCE(sqlc.narg('permission_mode'), 'private'),
+    COALESCE(sqlc.narg('runtime_routing'), 'fixed')
 )
 RETURNING *;
 
@@ -131,6 +149,7 @@ UPDATE agent SET
     runtime_config = COALESCE(sqlc.narg('runtime_config'), runtime_config),
     runtime_mode = COALESCE(sqlc.narg('runtime_mode'), runtime_mode),
     runtime_id = COALESCE(sqlc.narg('runtime_id'), runtime_id),
+    runtime_routing = COALESCE(sqlc.narg('runtime_routing'), runtime_routing),
     visibility = COALESCE(sqlc.narg('visibility'), visibility),
     permission_mode = COALESCE(sqlc.narg('permission_mode'), permission_mode),
     status = COALESCE(sqlc.narg('status'), status),
@@ -302,6 +321,7 @@ INSERT INTO agent_task_queue (
     coalesced_comment_ids, trigger_summary, force_fresh_session, is_leader_task, handoff_note,
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -327,6 +347,8 @@ SELECT
     sqlc.narg(rerun_of_task_id),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -345,6 +367,7 @@ INSERT INTO agent_task_queue (
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id,
     trigger_evidence_kind, trigger_evidence_ref_id, fire_at,
+    task_class, routing,
     id
 )
 SELECT
@@ -370,6 +393,8 @@ SELECT
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
     @fire_at,
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -410,6 +435,7 @@ INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, status, priority, context, originator_user_id,
     accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -421,6 +447,8 @@ SELECT
     sqlc.narg(originator_source),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING *;
@@ -442,6 +470,7 @@ INSERT INTO agent_task_queue (
     trigger_summary, is_leader_task, squad_id, escalation_for_task_id, fire_at,
     originator_user_id, accountable_user_id, originator_source,
     delegated_from_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
+    task_class, routing,
     id
 )
 SELECT
@@ -458,6 +487,8 @@ SELECT
     sqlc.narg(delegated_from_task_id),
     sqlc.narg(trigger_evidence_kind),
     sqlc.narg(trigger_evidence_ref_id),
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -560,10 +591,11 @@ INSERT INTO agent_task_queue (
     originator_source, delegated_from_task_id, rule_version_id,
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
-    channel_context_revision, id
+    channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
+    task_class, routing, id
 )
 SELECT
-    p.agent_id, p.runtime_id, p.issue_id, p.chat_session_id, p.autopilot_run_id,
+    p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
     CASE WHEN sqlc.narg(fire_at)::timestamptz IS NOT NULL THEN 'deferred' ELSE 'queued' END,
     CASE WHEN p.chat_session_id IS NOT NULL THEN GREATEST(p.priority, 3) ELSE p.priority END,
     p.trigger_comment_id, p.coalesced_comment_ids, p.trigger_summary, p.context,
@@ -581,6 +613,18 @@ SELECT
     p.trigger_evidence_kind, p.trigger_evidence_ref_id, p.id,
     p.chat_input_task_id, sqlc.narg(fire_at),
     p.channel_context_revision,
+    -- Runtime pools (K28): a failover child records where it moved and why.
+    COALESCE(sqlc.narg('failover_history')::jsonb, p.failover_history),
+    -- Checkpoints (K20): a resume after an interruption counts an attempt and keeps the resume point.
+    COALESCE(sqlc.narg('checkpoint_attempts')::int, p.checkpoint_attempts),
+    p.last_checkpoint_seq,
+    -- Runtime routing (JEF-237): an automatic retry is the SAME piece of work,
+    -- so it inherits the parent's class instead of falling to 'general' and
+    -- polluting the per-class statistics. It is deliberately not re-routed: the
+    -- retry machinery already owns runtime selection here (failover_history and
+    -- the runtime_id arg above), and the child carries the parent's session_id /
+    -- work_dir, which only resume on the runtime that produced them.
+    p.task_class, p.routing,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
@@ -606,14 +650,21 @@ INSERT INTO agent_task_queue (
     force_fresh_session, is_leader_task, squad_id,
     originator_user_id, accountable_user_id,
     runtime_mcp_overlay, runtime_connected_apps,
-    originator_source, rerun_of_task_id, id
+    originator_source, rerun_of_task_id, task_class, routing, id
 )
 SELECT
-    p.agent_id, p.runtime_id, 'queued', p.priority, p.context,
+    p.agent_id,
+    -- Runtime routing (JEF-237): a manual rerun starts a fresh session, so the
+    -- router may move it off the parent's runtime. NULL keeps the parent's.
+    COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id),
+    'queued', p.priority, p.context,
     TRUE, p.is_leader_task, p.squad_id,
     sqlc.arg(actor_user_id), sqlc.arg(actor_user_id),
     sqlc.narg(runtime_mcp_overlay), sqlc.narg(runtime_connected_apps),
-    'direct_human', p.id, sqlc.arg(new_task_id)
+    'direct_human', p.id,
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
+    sqlc.arg(new_task_id)
 FROM agent_task_queue p
 WHERE p.id = sqlc.arg(source_task_id)
   AND p.status = 'failed'
@@ -749,19 +800,24 @@ WHERE atq.id = $1 AND a.workspace_id = $2;
 UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
+    last_activity_at = now(),
     prepare_lease_expires_at = now() + make_interval(secs => @prepare_lease_secs::double precision)
 WHERE id = (
     SELECT atq.id FROM agent_task_queue atq
     WHERE atq.agent_id = @agent_id
       AND atq.runtime_id = @runtime_id
       AND atq.status = 'queued'
+	  AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
       AND EXISTS (
           SELECT 1
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
             -- A task's persisted runtime is not authority after an agent rebind.
-            AND a.runtime_id = atq.runtime_id
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -870,7 +926,11 @@ WHERE id = (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            -- A task's persisted runtime is not authority after an agent rebind.
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -916,7 +976,11 @@ WHERE id IN (
           FROM agent a
           JOIN agent_runtime r ON r.id = atq.runtime_id
           WHERE a.id = atq.agent_id
-            AND a.runtime_id = atq.runtime_id
+            -- A task's persisted runtime is not authority after an agent rebind.
+            -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
+            -- exception: the router stamps their task with the CHOSEN runtime,
+            -- which legitimately differs from the bound fallback runtime.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -961,10 +1025,19 @@ RETURNING *;
 UPDATE agent_task_queue
 SET status = 'running',
     started_at = now(),
+    last_activity_at = now(),
     wait_reason = NULL,
     prepare_lease_expires_at = NULL
 WHERE id = $1 AND status IN ('dispatched', 'waiting_local_directory')
 RETURNING *;
+
+-- name: TouchAgentTaskActivity :exec
+-- Run-level heartbeat (F02). Called from the daemon's messages and progress
+-- callbacks; the status guard keeps a late callback from a settled run from
+-- reviving its liveness.
+UPDATE agent_task_queue
+SET last_activity_at = now()
+WHERE id = $1 AND status IN ('dispatched', 'running', 'waiting_local_directory');
 
 -- name: MarkAgentTaskWaitingLocalDirectory :one
 -- Transitions a freshly-dispatched task into 'waiting_local_directory' while
@@ -1130,7 +1203,7 @@ WITH retired_sessions AS (
     FROM agent_task_queue t
     WHERE t.agent_id = $1 AND t.issue_id = $2
       AND t.session_id IS NOT NULL
-      AND t.status IN ('completed', 'failed', 'cancelled')
+      AND t.status IN ('completed', 'failed', 'cancelled', 'paused')
     ORDER BY t.session_id, COALESCE(t.completed_at, t.started_at, t.dispatched_at, t.created_at) DESC
 )
 SELECT session_id, work_dir, runtime_id FROM latest_per_session
@@ -2170,13 +2243,16 @@ ORDER BY priority DESC, created_at ASC;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = $1
   AND atq.status = 'queued'
+	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
       SELECT 1
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
+        -- stamped with the CHOSEN runtime, not their bound fallback runtime.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
         AND (
             r.visibility = 'public'
             OR (
@@ -2297,13 +2373,16 @@ RETURNING *;
 SELECT atq.* FROM agent_task_queue atq
 WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
   AND atq.status = 'queued'
+	AND atq.wait_reason IS DISTINCT FROM 'budget_paused'
   AND EXISTS (
       -- Keep this authorization fence in sync with ClaimAgentTask.
       SELECT 1
       FROM agent a
       JOIN agent_runtime r ON r.id = atq.runtime_id
       WHERE a.id = atq.agent_id
-        AND a.runtime_id = atq.runtime_id
+        -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
+        -- stamped with the CHOSEN runtime, not their bound fallback runtime.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
         AND (
             r.visibility = 'public'
             OR (

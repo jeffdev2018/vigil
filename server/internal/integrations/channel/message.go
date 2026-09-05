@@ -214,3 +214,12 @@ type SendResult struct {
 	// may leave it empty and return only MessageID for compatibility.
 	MessageIDs []string
 }
+
+// DigestAction (K64) is one button of a rich digest: a link (URL set) or a
+// callback the platform posts back carrying Value. Adapters that cannot
+// render buttons append the links as text.
+type DigestAction struct {
+	Label string
+	URL   string
+	Value string
+}

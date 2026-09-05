@@ -242,6 +242,21 @@
       "error_daemon_version": "이 에이전트의 데몬 CLI({{current}})가 필요한 버전 {{min}}보다 낮습니다. 에이전트로 만들기를 사용하려면 데몬을 업그레이드하세요.",
       "error_unknown": "제출하지 못했습니다. 다시 시도하세요.",
       "sub_issue_of": "{{identifier}}의 하위 태스크"
-    }
+    },
+    "scoping_toggle": "몇 문장으로 초안 작성",
+    "scoping_placeholder": "이슈를 몇 문장으로 설명하세요…",
+    "scoping_submit": "초안 작성",
+    "scoping_drafting": "작성 중…",
+    "scoping_note": "초안이 아래 양식에 채워집니다. 만들기 전에 검토하고 수정하세요.",
+    "scoping_criteria_label": "인수 기준(한 줄에 하나)",
+    "scoping_failed": "어시스턴트를 사용할 수 없습니다. 입력한 글은 유지되니 직접 이슈를 작성하세요.",
+    "scoping_criteria_failed": "이슈는 만들어졌지만 인수 기준을 저장하지 못했습니다. 이슈에서 추가하세요."
+  },
+  "add_dependency": {
+    "title_blocks": "차단 대상 선택",
+    "title_blocked_by": "차단 원인 선택",
+    "description": "이 태스크와 연결할 태스크를 검색하세요",
+    "toast_failed": "의존성을 추가하지 못했습니다",
+    "toast_success": "{{identifier}}을(를) 연결했습니다"
   }
 }

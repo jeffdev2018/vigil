@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -42,6 +43,9 @@ const (
 type AgentEnvResponse struct {
 	AgentID   string            `json:"agent_id"`
 	CustomEnv map[string]string `json:"custom_env"`
+	// ScopedKeys (K09) are the keys a run receives as revocable tokens
+	// instead of values.
+	ScopedKeys []string `json:"scoped_keys"`
 }
 
 // UpdateAgentEnvRequest is the wire shape for `PUT
@@ -49,6 +53,8 @@ type AgentEnvResponse struct {
 // surfaces, less to misuse.
 type UpdateAgentEnvRequest struct {
 	CustomEnv map[string]string `json:"custom_env"`
+	// ScopedKeys (K09), when present, replaces the run-scoped key list.
+	ScopedKeys *[]string `json:"scoped_keys"`
 }
 
 // authorizeAgentEnv enforces the per-request auth contract for the env
@@ -169,8 +175,9 @@ func (h *Handler) GetAgentEnv(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, AgentEnvResponse{
-		AgentID:   uuidToString(agent.ID),
-		CustomEnv: customEnv,
+		AgentID:    uuidToString(agent.ID),
+		CustomEnv:  customEnv,
+		ScopedKeys: scopedEnvKeys(agent),
 	})
 }
 
@@ -231,6 +238,20 @@ func (h *Handler) UpdateAgentEnv(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update env")
 		return
 	}
+	if req.ScopedKeys != nil {
+		keys := []string{}
+		for _, k := range *req.ScopedKeys {
+			if k = strings.TrimSpace(k); k != "" {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		raw, _ := json.Marshal(keys)
+		if updated, err = qtx.UpdateAgentScopedEnvKeys(r.Context(), db.UpdateAgentScopedEnvKeysParams{ID: agent.ID, ScopedEnvKeys: raw}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to update scoped keys")
+			return
+		}
+	}
 
 	auditDetails := map[string]any{
 		"agent_id":       uuidToString(agent.ID),
@@ -278,8 +299,9 @@ func (h *Handler) UpdateAgentEnv(w http.ResponseWriter, r *http.Request) {
 	h.publish(protocol.EventAgentStatus, workspaceID, "member", uuidToString(member.UserID), map[string]any{"agent": broadcastAgentResponse(resp)})
 
 	writeJSON(w, http.StatusOK, AgentEnvResponse{
-		AgentID:   uuidToString(updated.ID),
-		CustomEnv: merged,
+		AgentID:    uuidToString(updated.ID),
+		CustomEnv:  merged,
+		ScopedKeys: scopedEnvKeys(updated),
 	})
 }
 

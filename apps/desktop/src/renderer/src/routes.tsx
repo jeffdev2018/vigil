@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createMemoryRouter, Outlet, useMatches } from "react-router-dom";
 import type { RouteObject } from "react-router-dom";
 import { IssueDetailPage } from "./pages/issue-detail-page";
+import { ReviewCockpitPage } from "./pages/review-cockpit-page";
 import { ProjectDetailPage } from "./pages/project-detail-page";
 import { AutopilotDetailPage } from "./pages/autopilot-detail-page";
 import { SkillDetailPage } from "./pages/skill-detail-page";
@@ -15,6 +16,8 @@ import {
 import { AttachmentPreviewRoute } from "./pages/attachment-preview-page";
 import { IssuesPage } from "@multica/views/issues/components";
 import { ProjectsPage } from "@multica/views/projects/components";
+import { GoalsPage } from "@multica/views/goals/components";
+import { OrgPage } from "@multica/views/org/components";
 import { DashboardPage } from "@multica/views/dashboard";
 import { AutopilotsPage } from "@multica/views/autopilots/components";
 import { MyIssuesPage } from "@multica/views/my-issues";
@@ -28,6 +31,11 @@ import {
 } from "@multica/views/agents";
 import { SquadsPage, SquadDetailPage as SquadDetailPageView } from "@multica/views/squads/components";
 import { InboxPage } from "@multica/views/inbox";
+import { TriagePage } from "@multica/views/triage";
+import { MeetingsPage } from "@multica/views/meetings";
+import { MeetingDetailPage } from "./pages/meeting-detail-page";
+import { PostmortemPage } from "@multica/views/postmortem";
+import { BrainPage } from "@multica/views/brain";
 import { ChatPage } from "@multica/views/chat";
 import { SettingsPage } from "@multica/views/settings";
 import { useT } from "@multica/views/i18n";
@@ -138,6 +146,11 @@ export const appRoutes: RouteObject[] = [
             handle: { title: "Issue" },
           },
           {
+            path: "issues/:id/review",
+            element: <ReviewCockpitPage />,
+            handle: { title: "Review" },
+          },
+          {
             path: "projects",
             element: <ProjectsPage />,
             handle: { title: "Projects" },
@@ -146,6 +159,16 @@ export const appRoutes: RouteObject[] = [
             path: "projects/:id",
             element: <ProjectDetailPage />,
             handle: { title: "Project" },
+          },
+          {
+            path: "goals",
+            element: <GoalsPage />,
+            handle: { title: "Goals" },
+          },
+          {
+            path: "org",
+            element: <OrgPage />,
+            handle: { title: "Org" },
           },
           {
             path: "autopilots",
@@ -221,6 +244,19 @@ export const appRoutes: RouteObject[] = [
             handle: { title: "Squad" },
           },
           { path: "inbox", element: <InboxPage />, handle: { title: "Inbox" } },
+          { path: "triage", element: <TriagePage />, handle: { title: "Triage" } },
+          {
+            path: "meetings",
+            element: <MeetingsPage />,
+            handle: { title: "Meetings" },
+          },
+          {
+            path: "meetings/:id",
+            element: <MeetingDetailPage />,
+            handle: { title: "Meeting" },
+          },
+          { path: "postmortems", element: <PostmortemPage />, handle: { title: "Postmortems" } },
+          { path: "brain", element: <BrainPage />, handle: { title: "Brain" } },
           { path: "chat", element: <ChatPage />, handle: { title: "Chat" } },
           {
             path: "attachments/:id/preview",

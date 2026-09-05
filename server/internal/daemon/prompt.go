@@ -220,6 +220,10 @@ func buildPromptBody(task Task, provider string) string {
 		b.WriteString("You were handed this issue with a handoff note. Treat it as the assigner's scoping instruction for this run; follow it before doing anything broader, and do not reply to it as if it were a comment:\n\n")
 		fmt.Fprintf(&b, "> %s\n\n", task.HandoffNote)
 	}
+	if task.ResumeFromCheckpointSeq > 0 {
+		fmt.Fprintf(&b, "This run resumes automatically after an infrastructure interruption. The previous attempt reached transcript message %d on the same session: continue from where it stopped and do not redo completed steps.\n\n", task.ResumeFromCheckpointSeq)
+	}
+	b.WriteString(renderHandoffPacket(task.HandoffPacket))
 	fmt.Fprintf(&b, "Start by running `multica issue get %s --output json` to understand your task, then complete it.\n", task.IssueID)
 	fmt.Fprintf(&b, "For comment history, follow the rule in your runtime workflow file (assignment-triggered tasks treat the read as mandatory). Scan the threads first with `multica issue comment list %s --roots-only --summary --compact --output json`, then expand only what matters with `--thread <thread-id> --tail 30`. For `--since` incremental polling, pagination, and folding, see `multica issue comment list --help`.\n", task.IssueID)
 	return b.String()
@@ -766,4 +770,33 @@ func taskIsSquadLeader(task Task) bool {
 		return task.Agent != nil && strings.Contains(task.Agent.Instructions, squadBriefingMarker)
 	}
 	return task.IsLeaderTask || task.SquadID != ""
+}
+
+// renderHandoffPacket (K17) puts the previous hand's structured record in
+// front of the resuming agent, failed attempts included so they are not
+// repeated. Empty when the issue has none.
+func renderHandoffPacket(p *HandoffPacket) string {
+	if p == nil {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("The previous run left a handoff packet. Read it before anything else; do not repeat its failed attempts, and start from its next action unless the issue says otherwise:\n\n")
+	fmt.Fprintf(&b, "- Objective: %s\n", p.Objective)
+	list := func(label string, items []string) {
+		if len(items) == 0 {
+			return
+		}
+		fmt.Fprintf(&b, "- %s:\n", label)
+		for _, it := range items {
+			fmt.Fprintf(&b, "  - %s\n", it)
+		}
+	}
+	list("Decisions", p.Decisions)
+	list("Evidence", p.Evidence)
+	list("Failed attempts", p.FailedAttempts)
+	if p.NextAction != "" {
+		fmt.Fprintf(&b, "- Next action: %s\n", p.NextAction)
+	}
+	b.WriteString("\nWhen you finish or pause, leave your own packet: `POST /api/issues/{issue}/handoff-packet` with objective, decisions, evidence, failed_attempts and next_action (run_id = your task id).\n\n")
+	return b.String()
 }

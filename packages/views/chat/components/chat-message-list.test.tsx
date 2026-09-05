@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import { chatKeys } from "@multica/core/chat/queries";
-import type { TaskMessagePayload } from "@multica/core/types";
+import type { ChatMessage, TaskMessagePayload } from "@multica/core/types";
 import type { ReactElement } from "react";
 import enChat from "../../locales/en/chat.json";
 
@@ -46,9 +46,24 @@ vi.mock("react-virtuoso", () => ({
   },
 }));
 
+// SpeechSynthesis does not exist in jsdom; the speech module is the boundary.
+vi.mock("../../voice", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../voice")>()),
+  isSpeechSupported: () => true,
+  speakMarkdown: vi.fn(),
+  stopSpeaking: vi.fn(),
+  useIsSpeaking: () => false,
+}));
+
 import { ChatMessageList } from "./chat-message-list";
+import * as speech from "../../voice";
+import { useVoiceStore } from "@multica/core/voice/store";
 
 const TEST_RESOURCES = { en: { chat: enChat } };
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 const TASK_ID = "6af44cbe-80ab-4dfe-b07d-bd3cfd588f4d";
 
 function taskMsg(
@@ -586,5 +601,59 @@ describe("ChatMessageList onboarding starter cards", () => {
       await screen.findByRole("button", { name: "Get a board up in minutes" }),
     ).toBeEnabled();
     expect(screen.getByRole("button", { name: "Later chip" })).toBeEnabled();
+  });
+});
+
+// The rule that decides WHETHER a reply is armed lives in the voice store and
+// is pinned in packages/core/voice/voice.test.ts. What this covers is the
+// consumer: the reply that lands after a dictated message reads itself aloud,
+// and does not when the user has turned the preference off since.
+describe("ChatMessageList spoken reply", () => {
+  function assistantMessage(id: string): ChatMessage {
+    return {
+      id,
+      chat_session_id: "session-1",
+      role: "assistant",
+      content: "On livre vendredi.",
+      task_id: null,
+      created_at: "2026-01-01T09:00:00Z",
+    };
+  }
+
+  function renderReply(id: string) {
+    render(
+      <I18nProvider locale="en" resources={TEST_RESOURCES}>
+        <QueryClientProvider client={new QueryClient()}>
+          <ChatMessageList
+            messages={[assistantMessage(id)]}
+            pendingTask={null}
+            availability="online"
+          />
+        </QueryClientProvider>
+      </I18nProvider>,
+    );
+  }
+
+  it("speaks the reply to a dictated message, and consumes the flag", () => {
+    useVoiceStore.getState().resetSpeech();
+    useVoiceStore.getState().setReadRepliesAloud(true);
+    useVoiceStore.getState().setSpeakNextReply(true);
+
+    renderReply("msg-spoken");
+
+    expect(speech.speakMarkdown).toHaveBeenCalledTimes(1);
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
+  });
+
+  it("stays silent when the preference is off, and still consumes the flag", () => {
+    useVoiceStore.getState().resetSpeech();
+    useVoiceStore.getState().setReadRepliesAloud(false);
+    // Armed before the user turned the preference off mid-run.
+    useVoiceStore.getState().setSpeakNextReply(true);
+
+    renderReply("msg-silent");
+
+    expect(speech.speakMarkdown).not.toHaveBeenCalled();
+    expect(useVoiceStore.getState().speakNextReply).toBe(false);
   });
 });

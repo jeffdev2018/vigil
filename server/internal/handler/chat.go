@@ -770,6 +770,12 @@ func (h *Handler) DeleteChatSession(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to remove chat session agent label assignments")
 		return
 	}
+	// agent_memory has no FK by repo rule; sweep the carrier agent's rows in
+	// the same transaction as the agent delete itself.
+	if err := qtx.DeleteAgentMemoriesForAgent(r.Context(), session.AgentID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to clean up chat session agent memories")
+		return
+	}
 	if err := qtx.DeleteSystemAgentByID(r.Context(), session.AgentID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to clean up chat session agent")
 		return
@@ -944,6 +950,9 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 	// invoke gate.
 	sent, err := h.TaskService.SendDirectChatMessage(r.Context(), session, agent, parseUUID(userID), req.Content, attachmentIDs, actorType, parseUUID(actorID))
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		switch {
 		case errors.Is(err, service.ErrChatSessionArchived):
 			writeError(w, http.StatusConflict, "chat session is archived")

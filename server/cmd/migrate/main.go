@@ -297,7 +297,98 @@ var concurrentIndexCleanups = map[string]string{
 	"440_github_pr_head_sha_index":                              "idx_github_pull_request_head_sha",
 	"443_issue_project_status_index":                            "idx_issue_project_status",
 	"445_comment_delegated_failure_unsettled_index":             "idx_comment_delegated_failure_unsettled",
+	"452_task_active_last_activity_index":                       "idx_agent_task_active_last_activity",
+	"464_issue_plan_issue_version_key":                          "issue_plan_issue_version_key",
+	"465_plan_verification_issue_index":                         "idx_plan_verification_issue",
+	"467_issue_decision_issue_index":                            "idx_issue_decision_issue",
+	"571_issue_decision_sla_index":                              "idx_issue_decision_sla_pending",
+	"474_issue_completed_at_index":                              "idx_issue_completed_at",
+	"476_module_ownership_workspace_index":                      "idx_module_ownership_workspace",
+	"478_morning_briefing_sent_unique":                          "morning_briefing_sent_workspace_date",
+	"480_agent_scorecard_daily_unique":                          "agent_scorecard_daily_key",
+	"483_agent_version_unique":                                  "agent_version_agent_number",
+	"485_audit_log_entry_workspace_index":                       "idx_audit_log_entry_workspace_occurred",
+	"488_decision_record_project_index":                         "idx_decision_record_project",
+	"489_decision_record_issue_index":                           "idx_decision_record_issue",
+	"491_business_rule_attach_index":                            "idx_business_rule_attach_point",
+	"492_business_rule_violation_index":                         "idx_business_rule_violation_rule",
+	"494_weekly_retro_week_index":                               "idx_weekly_retro_workspace_week",
+	"496_budget_policy_id_index":                                "uq_budget_policy_id",
+	"497_budget_policy_scope_index":                             "uq_budget_policy_scope",
+	"498_budget_period_scope_index":                             "uq_budget_period_scope",
+	"499_budget_reservation_id_index":                           "uq_budget_reservation_id",
+	"500_budget_reservation_key_index":                          "uq_budget_reservation_key",
+	"501_budget_reservation_state_index":                        "idx_budget_reservation_reserved",
+	"502_budget_override_id_index":                              "uq_budget_override_id",
+	"503_budget_override_policy_index":                          "idx_budget_override_policy_expiry",
+	"505_audit_log_entry_chain_index":                           "idx_audit_log_entry_chain",
+	"507_decision_search_chunk_source_index":                    "uq_decision_search_chunk_source",
+	"508_decision_search_chunk_tsv_index":                       "idx_decision_search_chunk_tsv",
+	"509_decision_search_chunk_workspace_index":                 "idx_decision_search_chunk_workspace",
+	"511_trust_mode_change_agent_index":                         "idx_trust_mode_change_agent",
+	"525_approval_gate_event_task_index":                        "idx_approval_gate_event_task",
+	"527_project_blast_radius_rule_project_index":               "idx_project_blast_radius_rule_project",
+	"529_agent_permission_profile_workspace_name_index":         "uq_agent_permission_profile_workspace_name",
+	"531_run_scoped_secret_task_index":                          "idx_run_scoped_secret_task",
+	"532_run_scoped_secret_active_index":                        "idx_run_scoped_secret_active",
+	"537_runtime_pool_workspace_index":                          "idx_runtime_pool_workspace",
+	"540_handoff_packet_issue_index":                            "idx_handoff_packet_issue",
+	"542_run_limit_policy_scope_index":                          "uq_run_limit_policy_scope",
+	"543_run_limit_event_task_index":                            "idx_run_limit_event_task",
+	"548_traffic_conflict_issue_index":                          "idx_traffic_conflict_issue",
+	"552_pipeline_stage_position_index":                         "uq_pipeline_stage_position",
+	"553_pipeline_run_open_issue_index":                         "uq_pipeline_run_open_issue",
+	"554_pipeline_run_workspace_status_index":                   "idx_pipeline_run_workspace_status",
+	"556_fanout_batch_workspace_status_index":                   "idx_fanout_batch_workspace_status",
+	"557_fanout_batch_member_task_index":                        "uq_fanout_batch_member_task",
+	"558_fanout_batch_open_issue_index":                         "uq_fanout_batch_open_issue",
+	"534_meeting_workspace_index":                               "idx_meeting_workspace_started",
+	"560_agent_duel_issue_index":                                "idx_agent_duel_issue_created",
+	"562_campaign_shard_position_index":                         "uq_campaign_shard_position",
+	"563_campaign_shard_status_index":                           "idx_campaign_shard_campaign_status",
+	"565_agent_domain_competency_index":                         "uq_agent_domain_competency",
+	"567_task_review_of_index":                                  "idx_agent_task_queue_review_of",
+	"586_mobile_push_token_index":                               "uq_mobile_push_token_user_token",
+	"590_ci_auto_fix_run_pr_head_index":                         "uq_ci_auto_fix_run_pr_head",
+	"591_ci_auto_fix_run_issue_index":                           "idx_ci_auto_fix_run_issue",
+	"616_triage_item_snoozed_index":                             "idx_triage_item_snoozed",
+	"641_user_calendar_feed_user_index":                         "uq_user_calendar_feed_user",
+	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
+	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
+	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",
+	"519_triage_item_pending_index":                             "idx_triage_item_pending",
+	"520_triage_item_dedupe_index":                              "uq_triage_item_dedupe",
+	"521_triage_item_pending_title_index":                       "uq_triage_item_pending_title",
+	"522_triage_item_issue_index":                               "idx_triage_item_issue",
 	"446_issue_properties_bigm_index":                           "idx_issue_properties_bigm",
+	"575_task_routing_stats_index":                              "idx_agent_task_queue_routing_stats",
+	"577_agent_memory_pkey_index":                               "agent_memory_pkey_uidx",
+	"579_agent_memory_agent_idx":                                "idx_agent_memory_agent",
+	"581_postmortem_pkey_index":                                 "postmortem_pkey_uidx",
+	"583_postmortem_source_task_index":                          "uq_postmortem_source_task",
+	"584_postmortem_workspace_state_index":                      "idx_postmortem_workspace_state",
+	"626_workspace_note_pkey_index":                             "workspace_note_pkey_uidx",
+	"628_workspace_note_workspace_updated_index":                "idx_workspace_note_workspace_updated",
+	"629_workspace_note_search_index":                           "idx_workspace_note_search",
+	"637_agent_effect_issue_index":                              "idx_agent_effect_workspace_issue",
+	"638_agent_effect_reversed_index":                           "idx_agent_effect_agent_reversed",
+	"643_agent_effect_pending_index":                            "idx_agent_effect_task_pending",
+	"646_watchdog_verdict_index":                                "idx_watchdog_verdict_watchdog",
+	"648_decision_training_example_index":                       "idx_decision_training_example_user_signature",
+	"650_agent_correction_signal_index":                         "idx_agent_correction_signal_agent",
+	"652_goal_workspace_index":                                  "idx_goal_workspace_parent",
+	"653_issue_goal_index":                                      "idx_issue_goal",
+	"654_project_goal_goal_index":                               "idx_project_goal_goal",
+	"657_contest_target_index":                                  "idx_contest_target",
+	"658_contest_task_index":                                    "idx_contest_challenger_task",
+	"659_contest_answer_task_index":                             "idx_contest_answer_task",
+	"661_org_structure_project_index":                           "uq_org_structure_project_live",
+	"662_org_structure_default_index":                           "uq_org_structure_default_live",
+	"663_org_flow_index":                                        "idx_org_flow_structure",
+	"664_org_offer_index":                                       "idx_org_offer_issue",
+	"667_workspace_transfer_run_index":                          "idx_workspace_transfer_run_workspace",
+	"669_issue_completed_at_index_after_column":                 "idx_issue_completed_at",
+	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
@@ -407,6 +498,11 @@ var upMigrationConditions = map[string]migrationCondition{
 	// else, rather than failing the run (and with it backend startup) on every
 	// database without the extension.
 	"446_issue_properties_bigm_index": whenOperatorClassAvailable(issuePropertiesBigramOperatorClass),
+	// issue.completed_at was introduced by a migration later renumbered to 572,
+	// so a fresh database reaches 474 before the column exists. Skip the index
+	// there; migration 669 builds it once the column is in place, and a
+	// database that already ran 474 records 669 as a no-op (IF NOT EXISTS).
+	"474_issue_completed_at_index": whenColumnExists("issue", "completed_at"),
 }
 
 func hooksForDirection(direction string) map[string]preMigrationHook {
@@ -477,6 +573,25 @@ func whenIndexNotUsable(requirement usableIndexRequirement) migrationCondition {
 //
 // Checking the extension alone would be weaker: an opclass in a schema outside
 // the search_path still fails the CREATE INDEX, which would abort the run.
+// whenColumnExists applies a migration only once the named column exists.
+func whenColumnExists(table, column string) migrationCondition {
+	return func(ctx context.Context, conn *pgxpool.Conn) (bool, string, error) {
+		var exists bool
+		if err := conn.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2
+			)
+		`, table, column).Scan(&exists); err != nil {
+			return false, "", fmt.Errorf("inspect column %s.%s: %w", table, column, err)
+		}
+		if !exists {
+			return false, fmt.Sprintf("column %s.%s does not exist yet", table, column), nil
+		}
+		return true, "", nil
+	}
+}
+
 func whenOperatorClassAvailable(opclass extensionOperatorClass) migrationCondition {
 	return func(ctx context.Context, conn *pgxpool.Conn) (bool, string, error) {
 		var available bool

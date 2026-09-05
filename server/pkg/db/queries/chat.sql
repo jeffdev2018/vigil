@@ -1063,7 +1063,7 @@ INSERT INTO agent_task_queue (
     agent_id, runtime_id, issue_id, status, priority, chat_session_id,
     initiator_user_id, originator_user_id, accountable_user_id, force_fresh_session, runtime_mcp_overlay,
     runtime_connected_apps, originator_source, trigger_evidence_kind, trigger_evidence_ref_id,
-    fire_at, channel_context_revision, id
+    fire_at, channel_context_revision, task_class, routing, id
 )
 SELECT
     $1, $2, NULL,
@@ -1079,6 +1079,8 @@ SELECT
     sqlc.narg(trigger_evidence_ref_id),
     sqlc.narg('fire_at')::timestamptz,
     sqlc.narg('channel_context_revision')::bigint,
+    COALESCE(sqlc.narg('task_class')::text, 'general'),
+    sqlc.narg('routing')::jsonb,
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, NULL, $2)
 RETURNING *;

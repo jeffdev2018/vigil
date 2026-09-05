@@ -1,0 +1,132 @@
+{
+  "avatar_upload": {
+    "change": "Changer d'avatar",
+    "remove": "Supprimer",
+    "select_image": "Veuillez choisir un fichier image.",
+    "updated": "Avatar mis à jour",
+    "failed": "Échec de l'envoi de l'avatar",
+    "upload_image": "Importer une image",
+    "emoji_label": "Émoji",
+    "more_emojis": "Plus d'émojis…",
+    "emoji_loading": "Chargement…"
+  },
+  "avatar_crop": {
+    "title": "Modifier l'avatar",
+    "zoom": "Zoom",
+    "zoom_in": "Agrandir",
+    "zoom_out": "Réduire",
+    "rotate": "Pivoter",
+    "reset": "Réinitialiser",
+    "cancel": "Annuler",
+    "apply": "Enregistrer",
+    "uploading": "Envoi en cours…",
+    "loading": "Chargement…",
+    "load_failed": "Impossible de charger l'image"
+  },
+  "color_picker": {
+    "saturation": "Saturation et luminosité",
+    "hue": "Teinte",
+    "hex": "Couleur hexadécimale",
+    "eyedropper": "Choisir une couleur sur l'écran",
+    "presets": "Préréglages",
+    "random": "Aléatoire"
+  },
+  "save": "Enregistrer",
+  "cancel": "Annuler",
+  "delete": "Supprimer",
+  "confirm": "Confirmer",
+  "loading": "Chargement...",
+  "time": {
+    "just_now": "à l'instant",
+    "minutes_ago": "il y a {{count}} min",
+    "hours_ago": "il y a {{count}} h",
+    "days_ago": "il y a {{count}} j"
+  },
+  "lark_bind": {
+    "page_title": "Associer votre compte Lark",
+    "redeeming": "Validation du token d'association…",
+    "needs_auth_description": "Connectez-vous à Multica pour finaliser l'association. Le token dans le lien associe votre compte Lark à cet utilisateur Multica, vous devez donc d'abord être connecté.",
+    "sign_in": "Se connecter",
+    "done_title": "Votre compte est associé.",
+    "done_description": "Votre prochain message au Bot dans Lark sera directement transmis à l'Agent. Vous pouvez fermer cet onglet.",
+    "error_title": "Impossible de finaliser l'association",
+    "error_admin_hint": "Si le problème persiste, demandez à l'administrateur du workspace de vous renvoyer le lien d'association depuis Lark.",
+    "error_missing_token": "Le token d'association est manquant dans le lien. Demandez au Bot de vous en envoyer un nouveau dans Lark.",
+    "error_expired": "Ce lien d'association est invalide ou a expiré (les liens sont valides 15 minutes). Demandez au Bot de vous en envoyer un nouveau.",
+    "error_already_bound": "Ce compte Lark est déjà associé à un autre utilisateur Multica. Les transferts de compte nécessitent une dissociation explicite au préalable.",
+    "error_not_member": "Vous êtes connecté à un compte Multica qui n'est pas membre de ce workspace.",
+    "error_unknown": "Une erreur est survenue. Veuillez réessayer, et si le problème persiste, contactez l'administrateur du workspace."
+  },
+  "slack_bind": {
+    "page_title": "Associer votre compte Slack",
+    "redeeming": "Association de votre compte…",
+    "needs_auth_description": "Connectez-vous à Multica pour finaliser l'association. Le token contenu dans le lien associe votre compte Slack à cet utilisateur Multica, vous devez donc d'abord être connecté.",
+    "sign_in": "Se connecter",
+    "done_title": "Comptes associés.",
+    "done_description": "Votre prochain message au bot dans Slack sera transmis directement à l'agent. Vous pouvez fermer cet onglet.",
+    "error_title": "Impossible de finaliser l'association",
+    "error_admin_hint": "Si le problème persiste, envoyez à nouveau un message au bot dans Slack pour obtenir un nouveau lien.",
+    "error_missing_token": "Le token est absent du lien. Envoyez à nouveau un message au bot dans Slack pour en obtenir un nouveau.",
+    "error_expired": "Ce lien est invalide ou expiré (les liens sont valides 15 minutes). Envoyez à nouveau un message au bot pour en obtenir un nouveau.",
+    "error_already_bound": "Ce compte Slack est déjà associé à un autre utilisateur Multica. Vous devez d'abord le dissocier explicitement.",
+    "error_not_member": "Vous êtes connecté à un compte Multica qui n'est pas membre de ce workspace.",
+    "error_unknown": "Une erreur est survenue. Réessayez, et si le problème persiste, contactez l'administrateur du workspace."
+  },
+  "dingtalk_bind": {
+    "page_title": "Associer votre compte DingTalk",
+    "redeeming": "Association de votre compte…",
+    "needs_auth_description": "Connectez-vous à Multica pour finaliser l'association. Le token contenu dans le lien associe votre compte DingTalk à cet utilisateur Multica, vous devez donc d'abord être connecté.",
+    "sign_in": "Se connecter",
+    "done_title": "Comptes associés.",
+    "done_description": "Votre prochain message au bot dans DingTalk sera transmis directement à l'agent. Vous pouvez fermer cet onglet.",
+    "error_title": "Impossible de finaliser l'association",
+    "error_admin_hint": "Si le problème persiste, envoyez à nouveau un message au bot dans DingTalk pour obtenir un nouveau lien.",
+    "error_missing_token": "Le token est absent du lien. Envoyez à nouveau un message au bot dans DingTalk pour en obtenir un nouveau.",
+    "error_expired": "Ce lien est invalide ou expiré (les liens sont valides 15 minutes). Envoyez à nouveau un message au bot pour en obtenir un nouveau.",
+    "error_already_bound": "Ce compte DingTalk est déjà associé à un autre utilisateur Multica. Vous devez d'abord le dissocier explicitement.",
+    "error_not_member": "Vous êtes connecté à un compte Multica qui n'est pas membre de ce workspace.",
+    "error_unknown": "Une erreur est survenue. Réessayez, et si le problème persiste, contactez l'administrateur du workspace."
+  },
+  "telegram_bind": {
+    "page_title": "Associer votre compte Telegram",
+    "redeeming": "Liaison de votre compte…",
+    "needs_auth_description": "Connectez-vous à Multica pour finaliser la liaison. Le token dans le lien associe votre compte Telegram à cet utilisateur Multica, vous devez donc d'abord être connecté.",
+    "sign_in": "Se connecter",
+    "done_title": "Votre compte est lié.",
+    "done_description": "Votre prochain message au bot dans Telegram sera directement transmis à l'agent. Vous pouvez fermer cet onglet.",
+    "error_title": "Impossible de finaliser la liaison",
+    "error_admin_hint": "Si le problème persiste, envoyez un nouveau message au bot dans Telegram pour obtenir un nouveau lien.",
+    "error_missing_token": "Le token est manquant dans le lien. Envoyez un nouveau message au bot dans Telegram pour en obtenir un nouveau.",
+    "error_expired": "Ce lien est invalide ou a expiré (les liens sont valables 15 minutes). Envoyez un nouveau message au bot dans Telegram pour en obtenir un nouveau.",
+    "error_already_bound": "Ce compte Telegram est déjà lié à un autre utilisateur Multica. Les transferts de compte nécessitent une dissociation explicite au préalable.",
+    "error_not_member": "Vous êtes connecté à un compte Multica qui n'est pas membre de ce workspace.",
+    "error_unknown": "Une erreur est survenue. Veuillez réessayer, et si le problème persiste, contactez l'administrateur du workspace."
+  },
+  "expandable_description": {
+    "expand": "Afficher plus",
+    "collapse": "Afficher moins"
+  },
+  "wecom_bind": {
+    "page_title": "Lier votre compte Multica",
+    "redeeming": "Liaison de votre compte…",
+    "needs_auth_description": "Connectez-vous à Multica pour finaliser la liaison. Le token dans le lien associe votre identité WeCom à cet utilisateur Multica, vous devez donc d'abord être connecté.",
+    "sign_in": "Se connecter",
+    "done_title": "Votre compte est lié.",
+    "done_description": "Votre prochain message au bot intelligent dans WeCom sera directement transmis à l'agent. Vous pouvez fermer cet onglet.",
+    "error_title": "Impossible de finaliser la liaison",
+    "error_admin_hint": "Si le problème persiste, envoyez un nouveau message au bot dans WeCom pour obtenir un nouveau lien.",
+    "error_missing_token": "Le token est manquant dans le lien. Envoyez un nouveau message au bot dans WeCom pour en obtenir un nouveau.",
+    "error_expired": "Ce lien est invalide ou a expiré (les liens sont valables 15 minutes). Envoyez un nouveau message au bot pour en obtenir un nouveau.",
+    "error_already_bound": "Cette identité WeCom est déjà liée à un autre utilisateur Multica. Les transferts de compte nécessitent une dissociation explicite au préalable.",
+    "error_not_member": "Vous êtes connecté à un compte Multica qui n'est pas membre de ce workspace.",
+    "error_unknown": "Une erreur est survenue. Réessayez et, si le problème persiste, contactez l'administrateur du workspace."
+  },
+  "not_found": {
+    "title": "Page non trouvée",
+    "description": "La page que vous recherchez n'existe pas ou a été déplacée.",
+    "back_to_multica": "Retour à Multica"
+  },
+  "navigation": {
+    "open_in_new_tab": "Ouvrir dans un nouvel onglet"
+  }
+}

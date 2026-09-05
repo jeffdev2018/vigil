@@ -35,6 +35,58 @@ type ProjectResourceForEnv struct {
 	Label        string          `json:"label,omitempty"` // optional user-supplied label
 }
 
+// GoalAncestryForEnv is one ancestor issue in the goal chain. It is the wire
+// shape too (json tags mirror handler.GoalAncestryNode), so the daemon decodes
+// straight into it. Depth counts from the claimed issue: 1 is the direct parent.
+type GoalAncestryForEnv struct {
+	Identifier         string   `json:"identifier"`
+	Title              string   `json:"title"`
+	Description        string   `json:"description,omitempty"`
+	AcceptanceCriteria []string `json:"acceptance_criteria,omitempty"`
+	Depth              int      `json:"depth"`
+}
+
+// MissionChainForEnv is one goal of the chain the issue serves (K74), mission
+// first. Wire shape too (json tags mirror handler.MissionChainNode).
+type MissionChainForEnv struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Description    string `json:"description,omitempty"`
+	SuccessMeasure string `json:"success_measure,omitempty"`
+	Status         string `json:"status"`
+	DueDate        string `json:"due_date,omitempty"`
+	Depth          int    `json:"depth"`
+}
+
+// OrgContextForEnv (K75) is the structure and unit a run acts in. Wire shape
+// too (json tags mirror handler.OrgContext).
+type OrgContextForEnv struct {
+	StructureID    string   `json:"structure_id"`
+	StructureName  string   `json:"structure_name"`
+	Model          string   `json:"model"`
+	Revision       int32    `json:"revision"`
+	RevisionID     string   `json:"revision_id"`
+	UnitID         string   `json:"unit_id,omitempty"`
+	UnitName       string   `json:"unit_name,omitempty"`
+	Autonomy       string   `json:"autonomy,omitempty"`
+	Allow          []string `json:"allow,omitempty"`
+	Deny           []string `json:"deny,omitempty"`
+	EscalationPath []string `json:"escalation_path,omitempty"`
+}
+
+// WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
+// is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
+// daemon decodes straight into it.
+type WorkspaceNoteForEnv struct {
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Content string   `json:"content,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
+	Pinned  bool     `json:"pinned,omitempty"`
+	Source  string   `json:"source,omitempty"`
+	Updated string   `json:"updated_at,omitempty"`
+}
+
 // PrepareParams holds all inputs needed to set up an execution environment.
 type PrepareParams struct {
 	WorkspacesRoot  string // base path for all envs (e.g., ~/multica_workspaces)
@@ -154,14 +206,38 @@ type TaskContextForEnv struct {
 	AgentID                       string // unique ID of the dispatched agent
 	AgentName                     string
 	AgentInstructions             string // agent identity/persona instructions, injected into CLAUDE.md
-	AgentSkills                   []SkillContextForEnv
-	DisabledRuntimeSkills         []RuntimeSkillRefForEnv
-	Repos                         []RepoContextForEnv     // workspace repos available for checkout
-	ProjectID                     string                  // active project for this task, when present
-	ProjectTitle                  string                  // human-readable project title
-	ProjectDescription            string                  // durable project-level context, rendered into the brief's Project Context section
-	ProjectResources              []ProjectResourceForEnv // resources attached to the project
-	ChatSessionID                 string                  // non-empty for chat tasks
+	// AgentMemories are the agent's durable learned facts (JEF-236), rendered
+	// as the brief's Memory section. They are per-agent stable state (they
+	// change only between runs, never mid-run), so unlike per-turn values they
+	// belong in the brief rather than the per-turn prompt.
+	AgentMemories []string
+	// WorkspaceNotes are the workspace Brain notes injected into this run:
+	// every pinned note plus the most recently updated ones. They are written
+	// as files under .multica/knowledge/ and announced by the brief's
+	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
+	// they are shared by every agent in the workspace.
+	WorkspaceNotes        []WorkspaceNoteForEnv
+	AgentSkills           []SkillContextForEnv
+	DisabledRuntimeSkills []RuntimeSkillRefForEnv
+	Repos                 []RepoContextForEnv     // workspace repos available for checkout
+	ProjectID             string                  // active project for this task, when present
+	ProjectTitle          string                  // human-readable project title
+	ProjectDescription    string                  // durable project-level context, rendered into the brief's Project Context section
+	ProjectResources      []ProjectResourceForEnv // resources attached to the project
+	// GoalAncestry is the claimed issue's parent chain, root first (F22),
+	// already capped and byte-bounded by the server. Like WorkspaceContext it
+	// is durable configuration, not per-turn state: editing a parent issue may
+	// legitimately change brief bytes between runs of a resumed session.
+	// Empty — including on servers that never send the field — renders the
+	// brief byte-identical to before.
+	GoalAncestry        []GoalAncestryForEnv
+	GoalAncestryOmitted int
+	// MissionChain (K74) is the goal chain the issue serves, mission first,
+	// already capped by the server. Empty renders the brief byte-identical.
+	MissionChain []MissionChainForEnv
+	// Org (K75): the structure and unit the run acts in; nil renders nothing.
+	Org           *OrgContextForEnv
+	ChatSessionID string // non-empty for chat tasks
 	// ChatChannelType is the IM platform behind a chat session ("slack",
 	// "feishu", "wecom"); empty for a web/mobile chat. It names the surface in
 	// the brief's copy; what that surface can DELIVER is the separate field

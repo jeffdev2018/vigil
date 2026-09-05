@@ -690,6 +690,81 @@ describe("AgentTranscriptDialog", () => {
   });
 });
 
+describe("AgentTranscriptDialog — smart routing", () => {
+  const routedTask: AgentTask = {
+    ...baseTask,
+    runtime_id: "runtime-1",
+    task_class: "bugfix",
+    routing: {
+      mode: "auto",
+      chosen_runtime_id: "runtime-1",
+      chosen_model: "claude-sonnet-4-6",
+      reason: "highest success rate for bugfix tasks",
+      candidates: [
+        {
+          runtime_id: "runtime-1",
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+          samples: 42,
+          success_rate: 0.93,
+          wilson_lower: 0.82,
+          avg_cost_usd: 0.12,
+          avg_duration_secs: 45,
+          score: 0.81,
+        },
+        {
+          runtime_id: "runtime-2",
+          provider: "codex",
+          model: "gpt-5",
+          samples: 3,
+          success_rate: 0.67,
+          avg_cost_usd: null,
+          avg_duration_secs: null,
+          excluded_reason: "too few samples",
+        },
+      ],
+    },
+  };
+
+  it("states where the router sent the run and why, up front", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([runtimeFor("claude")]);
+
+    renderDialog(items, { task: routedTask });
+
+    expect(
+      await screen.findByText(
+        "Routed to claude runtime — highest success rate for bugfix tasks",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("lists the scored candidates in the run details popover", async () => {
+    const user = userEvent.setup();
+    vi.mocked(api.listRuntimes).mockResolvedValue([runtimeFor("claude")]);
+
+    renderDialog(items, { task: routedTask });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Routing reason")).toBeInTheDocument();
+    expect(screen.getByText("Routing candidates")).toBeInTheDocument();
+    // The score and the Wilson lower bound are the two numbers the router
+    // actually ranked on, so they lead the per-candidate line.
+    expect(
+      screen.getByText(
+        /42 runs · 93% success · score 0\.81 · 82% confidence · \$0\.12/,
+      ),
+    ).toBeInTheDocument();
+    // The excluded candidate keeps its reason; unresolved runtime ids render raw.
+    expect(screen.getByText(/runtime-2/)).toBeInTheDocument();
+    expect(screen.getByText("Excluded: too few samples")).toBeInTheDocument();
+  });
+
+  it("renders no routing line for a fixed-mode task", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByText(/^Routed to /)).not.toBeInTheDocument();
+  });
+});
+
 describe("AgentTranscriptDialog — work directory handoff", () => {
   it("shows and copies the durable project directory after worktree cleanup", async () => {
     renderDialog(items, {

@@ -27,6 +27,7 @@ import (
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
 	agentpkg "github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -69,7 +70,16 @@ type IssueResponse struct {
 	CreatorID     string  `json:"creator_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
 	ProjectID     *string `json:"project_id"`
-	Position      float64 `json:"position"`
+	// GoalID (K74) is the goal the issue names itself; absent means it inherits its project's.
+	GoalID *string `json:"goal_id"`
+	// OriginType / OriginID record what produced the issue when it was not
+	// typed by hand — today "meeting" (accepting an action item a recording
+	// extracted) and the other triage origins. Omitted, like status_category,
+	// by renderings that do not load the columns (the list/board/search rows);
+	// absent means "this endpoint did not resolve it", never "no origin".
+	OriginType *string `json:"origin_type,omitempty"`
+	OriginID   *string `json:"origin_id,omitempty"`
+	Position   float64 `json:"position"`
 	// Stage groups sub-issues under the same parent into ordered barrier
 	// groups (null = unstaged). See issue_child_done.go for how a closed
 	// stage gates the child-done -> parent wake.
@@ -316,6 +326,9 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
+		OriginType:     textToPtr(i.OriginType),
+		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -353,6 +366,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -422,6 +436,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -860,7 +875,7 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position,
 		i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id,
-		i.revision,
+		i.revision, i.goal_id,
 		COUNT(*) OVER() AS total_count,
 		%s AS match_source,
 		%s AS matched_comment_content
@@ -960,6 +975,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 				&sr.issue.Number,
 				&sr.issue.ProjectID,
 				&sr.issue.Revision,
+				&sr.issue.GoalID,
 				&sr.totalCount,
 				&sr.matchSource,
 				&sr.matchedCommentContent,
@@ -1101,6 +1117,14 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		projectFilter = id
 	}
+	var goalFilter pgtype.UUID
+	if g := r.URL.Query().Get("goal_id"); g != "" {
+		id, ok := parseUUIDOrBadRequest(w, g, "goal_id")
+		if !ok {
+			return
+		}
+		goalFilter = id
+	}
 	// involves_user_id widens the assignee filter to surface issues where the
 	// user is the indirect assignee (their owned agent, or a squad they belong
 	// to / lead / have an agent inside). Direct member-assignment is excluded
@@ -1154,6 +1178,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			AssigneeIds:        assigneeIdsFilter,
 			CreatorID:          creatorFilter,
 			ProjectID:          projectFilter,
+			GoalID:             goalFilter,
 			InvolvesUserID:     involvesUserFilter,
 			MetadataFilter:     metadataFilter,
 			PropertiesFilter:   openPropertiesFilter,
@@ -1345,6 +1370,9 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	if projectFilter.Valid {
 		where = append(where, fmt.Sprintf("i.project_id = %s::uuid", addArg(projectFilter)))
 	}
+	if goalFilter.Valid {
+		where = append(where, goalFilterSQL(addArg(goalFilter)))
+	}
 
 	// Table facets must be part of the server window. Applying them after
 	// LIMIT/OFFSET hides matches that live on later pages and makes `total`
@@ -1502,7 +1530,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision
+	   i.revision, i.goal_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1543,6 +1571,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Stage,
 			&row.Properties,
 			&row.Revision,
+			&row.GoalID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -1862,6 +1891,13 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		where = append(where, fmt.Sprintf("i.project_id = %s::uuid", addArg(id)))
 	}
+	if raw := r.URL.Query().Get("goal_id"); raw != "" {
+		id, ok := parseUUIDOrBadRequest(w, raw, "goal_id")
+		if !ok {
+			return
+		}
+		where = append(where, goalFilterSQL(addArg(id)))
+	}
 	if filter, ok := parseMetadataFilterParam(w, r.URL.Query().Get("metadata")); !ok {
 		return
 	} else if filter != nil {
@@ -2093,7 +2129,7 @@ WITH ranked AS (
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
-		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision,
+		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -2106,7 +2142,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
-	number, project_id, metadata, stage, properties, revision, group_total
+	number, project_id, metadata, stage, properties, revision, goal_id, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -2155,6 +2191,7 @@ ORDER BY
 			&row.Stage,
 			&row.Properties,
 			&row.Revision,
+			&row.GoalID,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -2655,6 +2692,9 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	task, err := h.TaskService.EnqueueQuickCreateTask(r.Context(), wsUUID, requesterUUID, agentUUID, squadUUID, prompt, priority, dueDate, projectUUID, parentIssueUUID, attachmentIDs)
 	if err != nil {
+		if h.writeBudgetExceeded(w, err) {
+			return
+		}
 		if writeIssueLimitReached(w, err) {
 			return
 		}
@@ -2772,6 +2812,7 @@ type CreateIssueRequest struct {
 	AssigneeID    *string  `json:"assignee_id"`
 	ParentIssueID *string  `json:"parent_issue_id"`
 	ProjectID     *string  `json:"project_id"`
+	GoalID        *string  `json:"goal_id"`
 	Stage         *int32   `json:"stage,omitempty"`
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
@@ -2889,6 +2930,14 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 		projectID = id
 	}
+	var goalUUID pgtype.UUID
+	if req.GoalID != nil {
+		id, ok := h.validateIssueGoal(w, r, wsUUID, *req.GoalID)
+		if !ok {
+			return
+		}
+		goalUUID = id
+	}
 	// Project existence and the final parent boundary check are enforced inside
 	// IssueService.Create atomically with the create. The handler preloads a
 	// supplied parent only because the assignee gate must bind any autopilot
@@ -2976,6 +3025,27 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 		}
+	}
+
+	// Triage: an issue an agent filed on its own initiative, or one captured
+	// through quick-create, is inbound material with a source of its own. The
+	// default is direct — the create below runs unchanged and the item is
+	// recorded as a shadow measurement — but a gated source parks the material
+	// instead (202) and a blocked one refuses it (403).
+	triageRef, triageManaged := h.triageIssueCreateRef(r.Context(), wsUUID, originType, parseUUID(actualCreatorID), safeParseUUID(creatorID))
+	triageParams := triage.CaptureParams{
+		WorkspaceID:     wsUUID,
+		SourceKind:      triageRef.Kind,
+		SourceRefID:     triageRef.RefID,
+		SourceName:      triageRef.Name,
+		SourceCreatedBy: triageRef.CreatedBy,
+		OriginType:      originType.String,
+		OriginID:        originID,
+		Title:           req.Title,
+		BodyMarkdown:    ptrToText(req.Description).String,
+	}
+	if triageManaged && !h.admitIssueCreate(w, r, wsUUID, triageRef, triageParams) {
+		return
 	}
 
 	// Prefix is workspace-level; pre-compute once so both the broadcast
@@ -3092,6 +3162,20 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Goals (K74): the goal an issue names is set after the create transaction.
+	if goalUUID.Valid {
+		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
+			slog.Warn("create issue: set goal failed", "error", err, "issue_id", uuidToString(issue.ID))
+		} else {
+			issue.GoalID = goalUUID
+		}
+	}
+	// Undo (K69): a created issue is journaled but not reversible; deleting it would take its comments and runs with it.
+	h.recordEffect(r, issue.WorkspaceID, issue.ID, service.EffectIssueCreate, "issue", issue.ID, map[string]any{}, map[string]any{"title": issue.Title}, false)
+	// Module ownership (K33): tell the owner of a matching rule, never assign.
+	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
+	// Org chart (K75): the structure in force routes the new issue.
+	issue = h.orgRouteIssue(r.Context(), issue, creatorType, actualCreatorID)
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
@@ -3126,6 +3210,7 @@ type UpdateIssueRequest struct {
 	DueDate         *string  `json:"due_date"`
 	ParentIssueID   *string  `json:"parent_issue_id"`
 	ProjectID       *string  `json:"project_id"`
+	GoalID          *string  `json:"goal_id"`
 	Stage           *int32   `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
@@ -3396,6 +3481,23 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		statusKeyForGuard = statusKey
 		params.Status = pgtype.Text{String: statusKey, Valid: true}
 	}
+	// Plan verification gate (F17): a critical finding on the active plan
+	// keeps the issue out of the done category while the workspace asks for it.
+	if statusKeyForGuard != "" && !h.planVerificationAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
+	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Business rules (K53): entering review must satisfy the active rules.
+	if !h.issueSubmitReviewAllowed(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Trust Dial (K26): an observer never moves an issue; propose needs an approved plan.
+	if !h.trustModeAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	if req.Priority != nil {
 		if !validateIssueEnum(w, "priority", *req.Priority, validIssuePriorities) {
 			return
@@ -3546,6 +3648,16 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Show me first" (K69): a preview-mode run's write is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview {
+		payload := rawFieldsToMap(rawFields)
+		if eff, ok := h.recordPending(r, agentID, taskID, prevIssue.WorkspaceID, prevIssue.ID, service.EffectIssueUpdate, "issue", prevIssue.ID, payload, payload, true); ok {
+			resp := issueToResponse(prevIssue, h.getIssuePrefix(r.Context(), prevIssue.WorkspaceID))
+			h.fillStatusCategory(r.Context(), prevIssue.WorkspaceID, &resp)
+			writePending(w, eff, resp)
+			return
+		}
+	}
 	var issue db.Issue
 	attachmentsChanged := false
 	if req.Description != nil || req.TitleBase != nil || req.DescriptionBase != nil || len(attachmentIDs) > 0 {
@@ -3585,10 +3697,38 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine actor identity: agent (via X-Agent-ID header) or member.
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Goals (K74): members set the goal; an agent proposes it through a decision.
+	if _, touched := rawFields["goal_id"]; touched && actorType == "member" {
+		goalUUID := pgtype.UUID{}
+		if req.GoalID != nil {
+			id, ok := h.validateIssueGoal(w, r, prevIssue.WorkspaceID, *req.GoalID)
+			if !ok {
+				return
+			}
+			goalUUID = id
+		}
+		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to set goal")
+			return
+		}
+		issue.GoalID = goalUUID
+	}
+	// Undo (K69): every field a run changed is journaled with its previous value.
+	h.recordIssueEffects(r, prevIssue, issue)
 
 	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 	resp := issueToResponse(issue, prefix)
 	slog.Info("issue updated", append(logger.RequestAttrs(r), "issue_id", id, "workspace_id", workspaceID)...)
+	if prevIssue.Status != issue.Status {
+		// Audit log (K08): every status transition, whoever made it.
+		h.audit(r.Context(), issue.WorkspaceID, actorType, actorID, AuditIssueStatus, "issue", issue.ID, map[string]any{"from": prevIssue.Status, "to": issue.Status}, nil)
+		// Decision memory (K29): an accepted issue gets its run's decisions extracted.
+		if h.issueAccepted(r.Context(), issue) {
+			h.extractDecisionsAsync(issue)
+		}
+		// Learned competency (K43): the assignee agent's tally moves with the outcome.
+		h.recordCompetencyOutcome(r.Context(), prevIssue, issue)
+	}
 
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
 	assigneeChanged := (req.AssigneeType != nil || req.AssigneeID != nil) &&
@@ -3676,6 +3816,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	// fails best-effort.
 	if statusChanged {
 		h.notifyParentOfChildDone(r.Context(), prevIssue, issue)
+	}
+	// Org chart (K75): a human moving the issue out of its unit is a drift signal.
+	if assigneeChanged {
+		h.orgObserveReassignment(r.Context(), issue, actorType, actorID)
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -4164,6 +4308,13 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			params.Description = pgtype.Text{String: *req.Updates.Description, Valid: true}
 		}
 		if req.Updates.Status != nil {
+			// Plan verification gate (F17): one gated issue refuses the batch.
+			if !h.planVerificationAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}
 		}
 		if req.Updates.Priority != nil {
@@ -4457,4 +4608,10 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("batch delete issues", append(logger.RequestAttrs(r), "count", deleted)...)
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
+// goalFilterSQL matches issues that name the goal or inherit it from their
+// project (K74); argRef is the bound goal id placeholder.
+func goalFilterSQL(argRef string) string {
+	return fmt.Sprintf("(i.goal_id = %s::uuid OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = %s::uuid)))", argRef, argRef)
 }

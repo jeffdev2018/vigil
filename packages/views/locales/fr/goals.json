@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Objectifs",
+    "new_goal": "Nouvel objectif",
+    "add_sub_goal": "Ajouter un sous-objectif",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "empty": "Aucun objectif pour l'instant",
+    "empty_description": "Un objectif dit à quoi sert le travail. Reliez-lui des projets et des tâches : la progression remonte l'arbre.",
+    "expand": "Afficher les tâches",
+    "collapse": "Masquer les tâches",
+    "no_issues": "Aucune tâche ne sert encore cet objectif.",
+    "loading_issues": "Chargement des tâches...",
+    "progress": "{{done}} / {{total}} terminées",
+    "no_owner": "Sans responsable",
+    "no_due_date": "Sans échéance"
+  },
+  "status": {
+    "draft": "Brouillon",
+    "active": "Actif",
+    "done": "Atteint",
+    "dropped": "Abandonné"
+  },
+  "form": {
+    "create_title": "Nouvel objectif",
+    "edit_title": "Modifier l'objectif",
+    "title": "Titre",
+    "title_placeholder": "Que cherche-t-on à atteindre ?",
+    "description": "Description",
+    "success_measure": "Mesure de succès",
+    "success_measure_placeholder": "Comment saura-t-on qu'il est atteint ?",
+    "due_date": "Échéance",
+    "owner": "Responsable",
+    "owner_none": "Sans responsable",
+    "owner_hint": "Un objectif actif a besoin d'un responsable humain.",
+    "status": "Statut",
+    "parent": "Objectif parent",
+    "parent_none": "Aucun parent (objectif de premier niveau)",
+    "cancel": "Annuler",
+    "create": "Créer l'objectif",
+    "save": "Enregistrer",
+    "error": "Impossible d'enregistrer l'objectif"
+  },
+  "delete_dialog": {
+    "title": "Supprimer cet objectif ?",
+    "description": "Les tâches et projets reliés sont détachés. Un objectif qui a encore des sous-objectifs ne peut pas être supprimé.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer",
+    "error": "Impossible de supprimer l'objectif"
+  },
+  "picker": {
+    "no_goal": "Aucun objectif (hérité du projet)",
+    "search_placeholder": "Rechercher un objectif...",
+    "empty": "Aucun objectif pour l'instant"
+  },
+  "project_section": {
+    "header": "Objectifs",
+    "empty": "Ce projet ne sert encore aucun objectif.",
+    "link": "Relier des objectifs",
+    "no_goals": "Créez d'abord un objectif.",
+    "error": "Impossible de mettre à jour les objectifs du projet"
+  }
+}

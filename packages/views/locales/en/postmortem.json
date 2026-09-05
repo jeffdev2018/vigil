@@ -1,0 +1,46 @@
+{
+  "title": "Postmortems",
+  "subtitle": "Review the postmortems drafted after failed agent runs",
+  "filter": {
+    "draft": "Draft",
+    "approved": "Approved",
+    "discarded": "Discarded"
+  },
+  "list": {
+    "empty_title_draft": "No drafts waiting",
+    "empty_description_draft": "When an agent run fails, a postmortem is drafted and waits here for your review.",
+    "empty_title_approved": "Nothing approved yet",
+    "empty_description_approved": "Postmortems you approve are kept here.",
+    "empty_title_discarded": "Nothing discarded yet",
+    "empty_description_discarded": "Postmortems you discard are moved here.",
+    "loading": "Loading postmortems",
+    "load_error": "Could not load postmortems",
+    "load_more": "Load more"
+  },
+  "detail": {
+    "select_prompt": "Select a postmortem to review it",
+    "summary_label": "Summary",
+    "root_cause_label": "Root cause",
+    "impact_label": "Impact",
+    "rules_label": "Preventive rules",
+    "no_rules": "No preventive rules suggested",
+    "failure_reason_label": "Failure reason",
+    "llm_generated": "AI-drafted",
+    "scaffold_generated": "Auto-filled from run facts",
+    "approve": "Approve",
+    "approving": "Approving",
+    "discard": "Discard",
+    "discarding": "Discarding",
+    "approved_toast": "Postmortem approved",
+    "discarded_toast": "Postmortem discarded",
+    "conflict_toast": "This postmortem was already resolved",
+    "error_toast": "Something went wrong",
+    "resolved_note_approved": "This postmortem was approved.",
+    "resolved_note_discarded": "This postmortem was discarded.",
+    "open_issue": "Open issue",
+    "open_agent": "Open agent",
+    "open_run": "Open run",
+    "rules_toast": "{{count}} rules added to the agent's memory",
+    "rules_hint": "Approving adds these rules to the agent's memory."
+  }
+}

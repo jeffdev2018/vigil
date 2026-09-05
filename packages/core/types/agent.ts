@@ -4,6 +4,75 @@ export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
 export type AgentRuntimeMode = "local" | "cloud";
 
+// ---------------------------------------------------------------------------
+// Smart runtime routing (JEF-237)
+//
+// `runtime_routing: "fixed"` (default) pins the agent to its `runtime_id`.
+// `"auto"` lets the router pick a runtime per task from recent performance
+// stats; the agent's `runtime_id` stays set as the preferred / fallback
+// runtime. Older backends omit the field — consumers must treat `undefined`
+// as "fixed".
+// ---------------------------------------------------------------------------
+export type AgentRuntimeRouting = "fixed" | "auto";
+
+/**
+ * One candidate the router scored while deciding where to run a task. All
+ * stats fields describe that candidate's recent history for the task's class;
+ * `excluded_reason` is set when the candidate was considered but ruled out.
+ */
+export interface RuntimeRoutingCandidate {
+  runtime_id: string;
+  provider: string;
+  model: string;
+  samples: number;
+  success_rate: number;
+  /** Conservative success estimate (Wilson lower bound) the router ranks on:
+   *  a perfect record over one run never outranks a strong record over many. */
+  wilson_lower?: number;
+  avg_cost_usd?: number | null;
+  avg_duration_secs?: number | null;
+  score?: number;
+  excluded_reason?: string;
+}
+
+/**
+ * The router's decision record for a task run in auto mode. `chosen_model`
+ * is set when the router also picked the model. `candidates` is the scored
+ * shortlist, when the backend ships it. `mode` is an open string on the wire
+ * (only "auto" today) so an installed client survives new modes.
+ */
+export interface RuntimeRoutingDecision {
+  mode: "auto" | (string & {});
+  chosen_runtime_id: string;
+  chosen_model?: string;
+  reason: string;
+  candidates?: RuntimeRoutingCandidate[];
+}
+
+/**
+ * One (runtime, provider, model, task_class) row of the 90-day routing-stats
+ * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
+ * `avg_duration_secs` are null when the rollup has no priced / timed samples.
+ */
+export interface RuntimeRoutingStats {
+  runtime_id: string;
+  runtime_name: string;
+  provider: string;
+  model: string;
+  task_class: string;
+  samples: number;
+  success_rate: number;
+  avg_cost_usd: number | null;
+  avg_duration_secs: number | null;
+}
+
+// Envelope of GET /api/runtimes/routing-stats: the window is stated
+// explicitly so the UI displays the exact range the numbers cover.
+export interface RuntimeRoutingStatsResponse {
+  window_days: number;
+  rows: RuntimeRoutingStats[];
+}
+
 export type AgentVisibility = "workspace" | "private";
 
 // ---------------------------------------------------------------------------
@@ -275,6 +344,18 @@ export interface TaskAttribution {
   rerun_of_task_id?: string;
 }
 
+export type TaskStatus =
+  | "queued"
+  | "deferred"
+  | "dispatched"
+  | "waiting_local_directory"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  /** Pause, steer, resume (K19): stopped at a safe boundary, waiting for a human. */
+  | "paused";
+
 export interface AgentTask {
   id: string;
   agent_id: string;
@@ -288,18 +369,21 @@ export interface AgentTask {
   // because another task currently owns the same on-disk path lock.
   // Treated as an active (non-terminal) state alongside queued/dispatched/
   // running by every consumer that buckets tasks into "active vs done".
-  status:
-    | "queued"
-    | "dispatched"
-    | "waiting_local_directory"
-    | "running"
-    | "completed"
-    | "failed"
-    | "cancelled";
+  // `deferred` is a run parked for a retry backoff (migration 128). Open
+  // string on the wire like failure_reason: a server may grow a status this
+  // build predates, and normalizeRunState (agents/run-state.ts) folds any
+  // unknown value into `pending` rather than dropping the row.
+  status: TaskStatus | (string & {});
   priority: number;
   dispatched_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  /**
+   * Last proof of life from the run: claim, start, or a daemon message /
+   * progress callback (F02). Readers derive "unresponsive" from it; absent on
+   * older servers and on rows that predate the column.
+   */
+  last_activity_at?: string | null;
   result: unknown;
   error: string | null;
   // Empty string when the task is not in a failed state (the backend uses
@@ -312,6 +396,25 @@ export interface AgentTask {
   // coarse values; `string & {}` admits the rest without collapsing the
   // hints.
   failure_reason?: TaskFailureReason | (string & {}) | "";
+  /** Runtime pools (K28): the moves this run made; `degraded` when it landed on the local last resort. */
+  failover_history?: { from_runtime_id: string; to_runtime_id: string; reason: string; degraded: boolean; at: string }[] | null;
+  degraded?: boolean;
+  /** Pause (K19): a human asked for a pause the daemon has not honoured yet. */
+  pause_requested_at?: string | null;
+  resumed_by_task_id?: string | null;
+  /** Checkpoints (K20): resume point in the transcript and how many interruptions this chain survived. */
+  last_checkpoint_seq?: number | null;
+  /** Traffic control (K18): repo-relative paths this run edited, from its tool calls. */
+  touched_paths?: string[] | null;
+  /** Drift detection (K40): why the run was stopped for going in circles. */
+  drift_reason?: "repeated_action" | "file_reread_loop" | (string & {}) | "";
+  /** Preemption (K41): suspended to let an urgent issue go first. */
+  preempted_at?: string | null;
+  preempted_by_task_id?: string | null;
+  checkpoint_attempts?: number;
+  checkpointed_at?: string | null;
+  /** Issue router (K27): risk level, pool and escalation behind this run. */
+  routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -416,6 +519,17 @@ export interface AgentTask {
    * reporting was not free, we just don't know what it cost.
    */
   usage?: TaskUsage[];
+  /**
+   * Server-assigned task class used by the smart router (JEF-237). Empty /
+   * absent on tasks that predate the classifier or ran in fixed mode.
+   */
+  task_class?: string;
+  /**
+   * The router's decision when this task ran in auto routing mode (JEF-237).
+   * `null`/absent for fixed-mode tasks and older backends — render
+   * conditionally.
+   */
+  routing?: RuntimeRoutingDecision | null;
 }
 
 /**
@@ -556,6 +670,14 @@ export interface Agent {
   invocation_targets: AgentInvocationTarget[];
   status: AgentStatus;
   max_concurrent_tasks: number;
+  /** Trust Dial (K26): observer | propose | approval | autonomous. Absent on older backends. */
+  trust_mode?: string;
+  /** "Show me first" (K69): apply | preview. */
+  effect_mode?: string;
+  /** Permission profile (K06) the agent runs under; null or absent means full access. */
+  permission_profile_id?: string | null;
+  /** Runtime pool (K28) the agent fails over through; null or absent means its runtime only. */
+  runtime_pool_id?: string | null;
   model: string;
   /**
    * Runtime-native reasoning/effort token (e.g. Claude's
@@ -573,7 +695,16 @@ export interface Agent {
    * Fast). Empty/undefined means no override: local Codex configuration and
    * account defaults remain authoritative.
    */
+  /**
+   * Codex service-tier catalog ID. See `Agent.service_tier`.
+   */
   service_tier?: string;
+  /**
+   * Smart runtime routing mode (JEF-237). Absent on older backends; treat
+   * `undefined` as "fixed". In "auto" the agent's `runtime_id` is the
+   * preferred / fallback runtime, not a hard pin.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   owner_id: string | null;
   skills: AgentSkillSummary[];
   /** Runtime-local skills this agent must not inherit. Older servers omit it. */
@@ -631,6 +762,11 @@ export interface CreateAgentRequest {
   conversation_starters?: AgentConversationStarter[];
   avatar_url?: string;
   runtime_id: string;
+  /**
+   * Routing mode (JEF-237). In "auto", `runtime_id` is still required — it
+   * is the preferred / fallback runtime the router starts from.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   runtime_config?: Record<string, unknown>;
   custom_env?: Record<string, string>;
   custom_args?: string[];
@@ -684,6 +820,11 @@ export interface StoredAgentDraft {
   conversation_starters: AgentConversationStarter[];
   avatar_url: string | null;
   model: string;
+  /**
+   * Routing mode (JEF-237). Required on write; drafts persisted by older
+   * clients lack it, so readers must default to "fixed".
+   */
+  runtime_routing: AgentRuntimeRouting;
   thinking_level: string;
   service_tier: string;
   skill_ids: string[];
@@ -727,6 +868,13 @@ export interface UpdateAgentRequest {
   conversation_starters?: AgentConversationStarter[];
   avatar_url?: string;
   runtime_id?: string;
+  /**
+   * Routing mode (JEF-237). Omitted → no change. Switching to "auto" keeps
+   * the current `runtime_id` as the preferred / fallback runtime and must
+   * NOT clear `model` / `thinking_level` / `service_tier` — unlike a runtime
+   * switch, which still clears them.
+   */
+  runtime_routing?: AgentRuntimeRouting;
   runtime_config?: Record<string, unknown>;
   /**
    * NOTE: `custom_env` is intentionally NOT updatable through this
@@ -799,6 +947,8 @@ export interface UpdateAgentRequest {
 export interface AgentEnvResponse {
   agent_id: string;
   custom_env: Record<string, string>;
+  /** Run-scoped secrets (K09): keys a run receives as revocable tokens. Absent on older backends. */
+  scoped_keys?: string[];
 }
 
 /**
@@ -810,6 +960,8 @@ export interface AgentEnvResponse {
  */
 export interface UpdateAgentEnvRequest {
   custom_env: Record<string, string>;
+  /** Run-scoped secrets (K09): replaces the scoped key list when present. */
+  scoped_keys?: string[];
 }
 
 // Skills
@@ -833,6 +985,8 @@ export interface SkillSummary {
   updated_at: string;
 	/** Present only when returned from an agent-scoped assignment endpoint. */
 	enabled?: boolean;
+  /** Skill Miner (K58): a draft waits for a human before any agent gets it. */
+  status?: "draft" | "published" | (string & {});
 }
 
 export interface Skill extends SkillSummary {
@@ -876,6 +1030,8 @@ export interface UpdateSkillRequest {
   content?: string;
   config?: Record<string, unknown>;
   files?: { path: string; content: string }[];
+  /** Skill Miner (K58): publish a draft. */
+  status?: "draft" | "published";
 }
 
 export interface SetAgentSkillsRequest {
@@ -1179,6 +1335,21 @@ export interface RuntimeModelListRequest {
   cached_at?: string;
 }
 
+export interface RuntimeCliAuthRequest {
+  id: string;
+  runtime_id: string;
+  action: string;
+  // Kept open so an older client fails closed on a newer terminal state.
+  status: string;
+  verification_url?: string;
+  user_code?: string;
+  authenticated?: boolean;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
 // Result shape returned by resolveRuntimeModels — includes the
 // "supported" bit so the UI can distinguish "no models discovered"
 // from "provider does not honour per-agent model selection".
@@ -1297,4 +1468,101 @@ export interface RuntimeLocalSkillImportResult {
   status: "created" | "updated" | "conflict";
   skill?: Skill;
   conflict?: RuntimeLocalSkillImportConflict;
+}
+
+// Cost per deliverable (K04).
+export interface DeliverableCostStats {
+  count: number;
+  mean_usd_ticks: number;
+  median_usd_ticks: number;
+  total_usd_ticks: number;
+  uncosted_count: number;
+  trend_pct: number | null;
+}
+
+export interface DashboardCostPerDeliverable {
+  days: number;
+  issues: DeliverableCostStats;
+  pull_requests: DeliverableCostStats;
+}
+
+// Scorecards (K25).
+export interface ScorecardTotals {
+  runs_total: number;
+  runs_failed: number;
+  runs_cancelled: number;
+  runs_accepted: number;
+  runs_reopened: number;
+  runs_no_intervention: number;
+  cost_usd_ticks_total: number;
+  low_sample: boolean;
+}
+
+export interface AgentScorecard {
+  agent_id: string;
+  days: number;
+  totals: ScorecardTotals;
+  previous: ScorecardTotals;
+  series: (ScorecardTotals & { day: string })[];
+}
+
+export interface WorkspaceScorecardRow extends ScorecardTotals {
+  agent_id: string;
+  runtime_id?: string;
+}
+
+// Agent versions (K23).
+export interface AgentVersion {
+  id: string;
+  agent_id: string;
+  version_number: number;
+  instructions: string;
+  model: string;
+  skill_ids: string[];
+  tool_config: Record<string, unknown>;
+  note?: string;
+  created_by_type: string;
+  created_by_id: string | null;
+  created_at: string;
+  active: boolean;
+}
+
+export interface AgentVersionDiff {
+  from: AgentVersion;
+  to: AgentVersion;
+  changed_fields: string[];
+}
+
+export type AgentMemorySource = "manual" | "run" | "postmortem";
+
+/**
+ * One persistent memory fact an agent carries across runs. `source` tells
+ * whether a human pinned it ("manual") or a run wrote it back ("run");
+ * `source_task_id` links a run-sourced memory to the task that produced it.
+ */
+export interface AgentMemory {
+  id: string;
+  agent_id: string;
+  content: string;
+  source: AgentMemorySource;
+  source_task_id: string | null;
+  /** Issue the source task worked on, so a run-sourced fact links back to it.
+   *  Null for manual facts and for runs that carried no issue (chat, duel). */
+  source_issue_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * GET /api/agents/{id}/memories. The counters live beside the rows because
+ * neither is derivable client-side: the brief carries a character budget the
+ * server owns, and whether runs can write facts back depends on the
+ * deployment having an LLM configured.
+ */
+export interface AgentMemoryList {
+  memories: AgentMemory[];
+  /** How many of `memories` the next run brief would actually carry. */
+  briefed_count: number;
+  /** Whether the post-run extraction pass can run at all. */
+  extraction_enabled: boolean;
 }

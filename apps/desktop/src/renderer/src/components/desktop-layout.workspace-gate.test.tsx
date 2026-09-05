@@ -103,6 +103,10 @@ vi.mock("@multica/views/search", () => ({
 vi.mock("@multica/views/chat", () => ({
   FloatingChat: () => <div data-testid="floating-chat" />,
 }));
+vi.mock("@multica/views/meetings", () => ({
+  RecordingPill: () => null,
+  MeetingDetectedPrompt: () => null,
+}));
 
 vi.mock("./tab-bar", () => ({ TabBar: () => null }));
 vi.mock("./window-overlay", () => ({ WindowOverlay: () => null }));

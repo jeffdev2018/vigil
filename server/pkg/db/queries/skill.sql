@@ -10,7 +10,7 @@ ORDER BY name ASC;
 -- by list endpoints (CLI table, web list page) where the body is never read;
 -- shipping it everywhere blew up payload size on workspaces with many skills
 -- and caused 15s CLI timeouts from high-latency regions (GH multica-ai/multica#2174).
-SELECT id, workspace_id, name, description, config, created_by, created_at, updated_at
+SELECT id, workspace_id, name, description, config, created_by, created_at, updated_at, status
 FROM skill
 WHERE workspace_id = $1
 ORDER BY name ASC;
@@ -40,6 +40,7 @@ UPDATE skill SET
     description = COALESCE(sqlc.narg('description'), description),
     content = COALESCE(sqlc.narg('content'), content),
     config = COALESCE(sqlc.narg('config'), config),
+    status = COALESCE(sqlc.narg('status'), status),
     updated_at = now()
 WHERE id = $1
 RETURNING *;

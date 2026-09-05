@@ -125,6 +125,7 @@
     "chip_op_before": "{{value}} 이전",
     "chip_op_after": "{{value}} 이후",
     "section_project": "프로젝트",
+    "section_goal": "목표",
     "section_label": "라벨",
     "section_date": "날짜",
     "date_field": "필드",
@@ -376,6 +377,8 @@
     "prop_start_date": "시작일",
     "prop_due_date": "마감일",
     "prop_project": "프로젝트",
+    "prop_goal": "목표",
+    "goal_inherited": "프로젝트에서 상속",
     "prop_labels": "라벨",
     "add_property_action": "속성 추가",
     "prop_created_by": "생성자",
@@ -436,7 +439,27 @@
     "project_directory_path_copied": "프로젝트 디렉터리 경로를 복사했습니다",
     "project_directory_path_copied_with_branch": "프로젝트 디렉터리 경로를 복사했습니다 — 작업은 {{branch}} 브랜치에 있습니다",
     "workdir_path_copy_failed": "작업 디렉터리 경로를 복사하지 못했습니다",
-    "workdir_path_unavailable": "아직 로컬 작업 디렉터리가 없습니다. 로컬 에이전트가 이 태스크를 실행하지 않았습니다"
+    "workdir_path_unavailable": "아직 로컬 작업 디렉터리가 없습니다. 로컬 에이전트가 이 태스크를 실행하지 않았습니다",
+    "section_blocks": "차단 중",
+    "section_blocked_by": "차단됨",
+    "merge_ready": "병합 가능",
+    "merge_not_ready": "아직 병합할 수 없음",
+    "merge_stale_hint": "데이터가 오래되었을 수 있음",
+    "merge_blockers_more": "+{{count}}개 더",
+    "blocker_checks_failing": "#{{pr}} 체크 실패",
+    "blocker_checks_pending": "#{{pr}} 체크 대기 중",
+    "blocker_merge_conflict": "#{{pr}} 병합 충돌",
+    "blocker_merge_not_clean": "#{{pr}} 아직 병합 불가",
+    "blocker_stale_snapshot": "#{{pr}} 데이터 오래됨",
+    "blocker_unresolved_threads": "미해결 리뷰 스레드 {{count}}개",
+    "blocker_open_todos": "댓글의 미완료 todo {{count}}개",
+    "blocker_blocking_issue": "{{identifier}}에 의해 차단됨",
+    "blocker_no_pr": "열린 풀 리퀘스트 없음",
+    "pr_stack_title": "PR 스택",
+    "pr_stack_truncated": "{{depth}}단계에서 잘림",
+    "pr_stack_cyclic": "의존성 순환: 일부 단계가 숨겨짐",
+    "blocker_adr_required": "아키텍처 결정 기록 필요({{count}}개 파일 편집)",
+    "from_meeting": "미팅에서 생성"
   },
   "timeline": {
     "loading": "불러오는 중..."
@@ -491,12 +514,14 @@
     "trigger_blocked_runtime_offline": "이 대상의 런타임이 오프라인입니다",
     "trigger_blocked_runtime_unusable": "이 대상의 CLI를 해당 기기에서 실행할 수 없습니다 — 그 기기에서 다시 설치하세요",
     "trigger_blocked_agent_runtime_required": "이 대상에 런타임이 없습니다 — 실행하려면 런타임을 연결하세요",
+    "trigger_blocked_budget_exceeded": "워크스페이스 예산이 한도에 도달해 이 실행이 일시 중지되었습니다",
     "trigger_blocked_generic": "이 대상은 트리거되지 않습니다",
     "trigger_blocked_short_invocation_not_allowed": "찾을 수 없음 또는 권한 없음",
     "trigger_blocked_short_target_unavailable": "사용 불가",
     "trigger_blocked_short_runtime_offline": "런타임 오프라인",
     "trigger_blocked_short_runtime_unusable": "CLI 실행 불가",
     "trigger_blocked_short_agent_runtime_required": "런타임 필요",
+    "trigger_blocked_short_budget_exceeded": "예산 한도 도달",
     "trigger_blocked_short_generic": "트리거 안 됨",
     "send_reply_failed": "답글을 보내지 못했습니다",
     "delete_failed": "댓글을 삭제하지 못했습니다",
@@ -609,7 +634,11 @@
       "source_backfill": "백필된 귀속",
       "source_unattributed": "책임 멤버를 확인할 수 없음"
     },
-    "usage_total_tooltip": "이 태스크의 토큰 사용량 — 클릭하면 실행별 내역"
+    "usage_total_tooltip": "이 태스크의 토큰 사용량 — 클릭하면 실행별 내역",
+    "status_deferred": "지연됨",
+    "status_paused": "일시정지됨",
+    "unresponsive": "응답 없음",
+    "unresponsive_tooltip": "{{duration}} 동안 활동 없음"
   },
   "usage_detail": {
     "title": "사용량 내역",
@@ -690,7 +719,10 @@
     "remove_parent_issue": "상위 태스크 제거",
     "remove_parent_issue_success": "상위 태스크를 제거했습니다",
     "add_sub_issue": "하위 태스크 추가...",
-    "delete_issue": "태스크 삭제"
+    "delete_issue": "태스크 삭제",
+    "add_blocking": "차단 대상 추가...",
+    "add_blocked_by": "차단 원인 추가...",
+    "remove_dependency": "의존성 제거"
   },
   "pickers": {
     "custom_property": {
@@ -855,5 +887,491 @@
     "surface_loading": "{{name}} 불러오는 중…",
     "surface_unavailable": "{{name}}의 인터페이스를 불러올 수 없습니다. 설치된 버전에 포함되어 있지 않을 수 있습니다.",
     "surface_navigated": "{{name}}이(가) 패널을 외부에서 불러온 페이지로 바꾸려 했습니다. 중지하고 연결을 끊었습니다. 워크스페이스 관리자에게 알리세요."
+  },
+  "plan_verification": {
+    "section": "계획 검증",
+    "plan_version": "계획 v{{version}}",
+    "version_picker": "계획 버전",
+    "superseded": "대체됨",
+    "no_verification": "아직 검증 실행이 없습니다.",
+    "state_queued": "검증 대기 중",
+    "state_running": "검증 중",
+    "state_failed": "검증 실패",
+    "verdict_critical": "치명적 {{count}}건",
+    "verdict_clean": "계획과 일치",
+    "failed_hint": "검증 실행이 보고서 없이 끝났습니다. 태스크를 다시 실행해 재검증하세요.",
+    "pending_hint": "검증 실행이 전달된 변경 사항을 이 계획과 비교합니다.",
+    "report_for": "계획 v{{version}} 보고서",
+    "severity_critical": "치명적",
+    "severity_major": "중대",
+    "severity_minor": "경미",
+    "severity_outdated": "구식",
+    "no_findings": "계획과 차이가 없습니다.",
+    "gate_no_steps": "구조화된 단계가 없어 하위 이슈를 만들 수 없습니다.",
+    "gate_stage": "{{stage}}",
+    "gate_created": "생성됨",
+    "gate_materialized": "하위 이슈 {{count}}개 생성됨",
+    "gate_superseded": "대체되었습니다. 활성 버전을 승인하세요.",
+    "gate_approve": "승인: 하위 이슈 {{count}}개 생성",
+    "gate_failed": "하위 이슈를 만들지 못했습니다",
+    "step_ref": "단계 {{id}}"
+  },
+  "fanout": {
+    "section": "팬아웃",
+    "count": "{{done}}/{{total}} 정리됨",
+    "status": {
+      "pending": "진행 중",
+      "partial_failure": "부분 실패",
+      "complete": "완료"
+    },
+    "partial": "하위 작업 {{failed}}개가 최종 실패했습니다. 종합은 그래도 시작되며 누락된 부분을 명시해야 합니다.",
+    "synthesis": "리더용 종합 실행 {{id}}이(가) 대기열에 추가됨",
+    "open": "전문 에이전트에게 분배",
+    "leader": "리더 에이전트",
+    "sub_task": "하위 작업 {{n}}",
+    "sub_task_placeholder": "이 전문 에이전트가 할 일",
+    "assignee": "하위 작업 {{n}} 담당자",
+    "pick_agent": "담당자 선택…",
+    "remove": "하위 작업 {{n}} 제거",
+    "add": "하위 작업 추가",
+    "launch": "팬아웃 시작",
+    "cancel": "취소",
+    "failed": "팬아웃 요청이 실패했습니다"
+  },
+  "pipeline": {
+    "pick": "파이프라인 선택",
+    "start": "파이프라인 시작",
+    "last": "마지막 파이프라인: {{name}} ({{status}})",
+    "gate_waiting": "게이트 대기 중",
+    "approve": "승인하고 진행",
+    "retry": "단계 재시도",
+    "cancel": "파이프라인 중지",
+    "failed": "파이프라인 작업이 실패했습니다",
+    "status": {
+      "active": "진행 중",
+      "paused": "일시정지",
+      "completed": "완료",
+      "cancelled": "중지됨"
+    }
+  },
+  "preemption": {
+    "waiting": "긴급 이슈에 우선권을 주기 위해 일시정지됨",
+    "resumed": "긴급 이슈 때문에 일시정지되었다가 재개됨",
+    "for": "우선권을 받은 이슈:",
+    "estimate": "에이전트에 여유가 생기는 즉시 체크포인트에서 재개됩니다(긴급 실행 우선).",
+    "count": "이 이슈에서 {{count}}회 일시정지"
+  },
+  "drift": {
+    "stopped": "이탈로 중단됨",
+    "run": "실행 {{id}}",
+    "reasons": {
+      "repeated_action": "같은 도구 호출을 너무 많이 반복함",
+      "file_reread_loop": "쓰기 없이 같은 파일을 반복해서 읽음"
+    }
+  },
+  "traffic": {
+    "human": "이 실행은 사람이 로컬 체크아웃에서 변경 중인 파일을 편집하고 있습니다",
+    "agent": "이 실행은 다른 실행({{id}})이 편집 중인 파일을 편집하고 있습니다",
+    "pause": "실행 일시정지",
+    "ignore": "무시",
+    "show_history_other": "정리된 충돌 {{count}}개 보기",
+    "hide_history": "정리된 충돌 숨기기",
+    "failed": "트래픽 제어 작업이 실패했습니다",
+    "status": {
+      "active": "활성",
+      "ignored": "무시됨",
+      "resolved": "해결됨"
+    }
+  },
+  "checkpoint": {
+    "resumed": "실행이 중단되었다가 {{point}} 자동 재개되었습니다 (재개 {{attempts}}/{{max}}).",
+    "exhausted": "인프라 중단: 자동 재개가 {{attempts}}/{{max}}회 후 포기했습니다. 작업 자체의 실패가 아닙니다.",
+    "from_seq": "체크포인트 메시지 {{seq}}에서",
+    "from_start": "처음부터",
+    "checkpointed": "마지막 체크포인트 {{when}}"
+  },
+  "run_control": {
+    "pause": "실행 일시정지",
+    "pause_hint": "다음 안전한 경계(현재 도구 호출 이후)에서 멈추고 지시를 기다립니다.",
+    "pause_pending": "일시정지 대기",
+    "pause_pending_hint": "현재 도구 호출이 끝나기를 기다리는 중입니다.",
+    "paused_title": "일시정지됨. 지시를 남긴 뒤 같은 세션을 재개합니다.",
+    "instruction": "지시",
+    "instruction_placeholder": "무엇을 바꿔야 하나요? 실행은 멈춘 지점에서 이 지시를 먼저 보고 이어집니다.",
+    "send": "지시 보내기",
+    "resume": "재개",
+    "resume_needs_instruction": "먼저 지시를 하나 이상 남기세요.",
+    "failed": "실행 제어 요청이 실패했습니다"
+  },
+  "run_limits": {
+    "title": "실행 한도",
+    "stopped": "실행 한도로 중단됨",
+    "gates": {
+      "cost": "비용",
+      "duration": "시간",
+      "turns": "턴",
+      "tool_calls": "도구 호출"
+    },
+    "levels": {
+      "warn": "경고",
+      "exceeded": "한도 초과 (기록만)",
+      "stopped": "중단됨"
+    }
+  },
+  "handoff": {
+    "section": "핸드오프 패킷",
+    "none": "아직 패킷이 없습니다.",
+    "show_history_other": "이전 패킷 {{count}}개 보기",
+    "hide_history": "기록 숨기기",
+    "write": "핸드오프 패킷 작성",
+    "objective": "목표",
+    "decisions": "결정 사항",
+    "evidence": "증거",
+    "failed_attempts": "실패한 시도",
+    "next_action": "다음 작업",
+    "one_per_line": "{{field}}, 한 줄에 하나",
+    "save": "패킷 저장",
+    "cancel": "취소",
+    "create_failed": "핸드오프 패킷을 저장하지 못했습니다",
+    "run": "실행 {{id}}",
+    "by": {
+      "agent": "에이전트",
+      "member": "멤버",
+      "system": "시스템"
+    }
+  },
+  "routing": {
+    "label": "라우팅",
+    "risk": {
+      "low": "낮은 위험",
+      "normal": "보통 위험",
+      "high": "높은 위험"
+    },
+    "pool": "풀 {{name}}",
+    "agent_pool": "에이전트의 풀",
+    "paths": "일치 경로 {{count}}개",
+    "escalated": "상향됨"
+  },
+  "failover": {
+    "section": "런타임 전환",
+    "run": "실행 {{id}}",
+    "degraded_badge": "저하",
+    "exhausted": "풀 소진",
+    "degraded_banner": "이 실행은 풀의 로컬 최후 수단에서 저하 모드로 실행 중입니다. 원래 지정한 런타임보다 능력이 낮은 결과로 취급하세요.",
+    "reasons": {
+      "runtime_offline": "런타임 오프라인",
+      "runtime_recovery": "런타임 복구",
+      "runtime_reconnect_timeout": "런타임 재연결 시간 초과",
+      "agent_error.provider_auth_or_access": "프로바이더 인증/접근",
+      "agent_error.provider_quota_limit": "프로바이더 할당량",
+      "agent_error.provider_capacity_or_rate_limit": "프로바이더 용량/속도 제한",
+      "agent_error.provider_server_error": "프로바이더 서버 오류",
+      "agent_error.provider_network": "프로바이더 네트워크"
+    }
+  },
+  "run_secrets": {
+    "section": "실행 시크릿",
+    "run": "실행 {{id}}",
+    "status": {
+      "active": "활성",
+      "revoked": "폐기됨",
+      "expired": "만료됨"
+    }
+  },
+  "decisions": {
+    "section": "결정",
+    "recommended": "권장",
+    "modify": "다른 답변 입력…",
+    "modify_placeholder": "대신 무엇을 할지 설명하세요",
+    "send": "보내기",
+    "cancel": "취소",
+    "resumed": "에이전트 재개됨",
+    "answer_failed": "결정을 기록하지 못했습니다",
+    "interview_title": "요구사항 인터뷰",
+    "interview_hint": "모든 질문에 답하면 에이전트가 재개됩니다.",
+    "sla_due": "{{time}}까지 답변",
+    "sla_overdue": "기한 초과, 에스컬레이션 대기",
+    "sla_substitute": "기한 초과 · 대리인에게 에스컬레이션됨",
+    "sla_leads": "기한 초과 · 워크스페이스 리드에게 에스컬레이션됨",
+    "learned": "이 유형의 요청에서 {{total}}번 중 {{count}}번 « {{label}} »을 선택했습니다."
+  },
+  "acceptance": {
+    "section": "인수 기준",
+    "add": "인수 기준 추가",
+    "add_placeholder": "기준 추가…",
+    "attach": "증거 첨부",
+    "validate": "직접 확인",
+    "remove": "삭제",
+    "save": "저장",
+    "cancel": "취소",
+    "proof_type": "증거 유형",
+    "ref_placeholder": "테스트 명령, 경로 또는 URL",
+    "state_missing": "증거 없음",
+    "state_pending_human": "사람의 확인 대기 중",
+    "state_satisfied": "증명됨",
+    "update_failed": "인수 기준을 업데이트하지 못했습니다",
+    "types": {
+      "test": "테스트",
+      "file": "파일",
+      "screenshot": "스크린샷",
+      "url": "링크",
+      "human_validation": "사람의 확인"
+    }
+  },
+  "review_cockpit": {
+    "open": "리뷰 콕핏 열기",
+    "back": "이슈로 돌아가기",
+    "run": "실행",
+    "runs_none": "이 이슈에는 아직 실행이 없습니다.",
+    "select_run": "실행",
+    "run_completed": "{{ago}} 완료",
+    "cost": "이 실행의 비용",
+    "cost_none": "이 실행의 사용량이 기록되지 않았습니다.",
+    "cost_unpriced": "가격 없음",
+    "cost_floor": "(최소값: 일부 사용량에 가격이 없음)",
+    "tokens": "입력 {{input}} · 출력 {{output}}",
+    "pull_requests": "풀 리퀘스트",
+    "prs_unavailable": "풀 리퀘스트를 불러오지 못했습니다.",
+    "no_pr": "아직 풀 리퀘스트가 없습니다.",
+    "checks": "검사 {{passed}}/{{total}}",
+    "ready": "병합 준비 완료",
+    "blockers": "차단 요소 {{count}}개",
+    "open_questions": "열린 질문",
+    "none_open": "사람의 답변을 기다리는 질문이 없습니다.",
+    "criteria": "인수 기준",
+    "criteria_none": "이 이슈에 인수 기준이 없습니다.",
+    "plan_verification": "계획 검증",
+    "plan_none": "보고된 검증이 없습니다.",
+    "plan_counts": "critical {{critical}} · major {{major}} · minor {{minor}}",
+    "self_review": "교차 공급자 자체 리뷰",
+    "self_review_none": "아직 사용할 수 없습니다.",
+    "approve": "승인",
+    "request_changes": "변경 요청",
+    "approve_blocked": "검사가 끝날 때까지 승인은 대기합니다.",
+    "failed_sections": "일부 섹션을 불러오지 못했습니다: {{sections}}.",
+    "error": "리뷰 콕핏을 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "move_failed": "이슈 상태를 변경하지 못했습니다"
+  },
+  "ownership": {
+    "section": "제안된 담당자",
+    "matched": "{{what}} 일치",
+    "matched_label": "라벨 규칙",
+    "assign_owner": "{{name}}에게 배정",
+    "assign_agent": "{{name}}에게 배정",
+    "member": "담당자",
+    "agent": "참조 에이전트",
+    "assign_failed": "배정하지 못했습니다"
+  },
+  "role_view": {
+    "label": "보기",
+    "full": "전체",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "이 이슈에는 아직 결정 카드가 없어 실행 로그를 대신 표시합니다.",
+    "cto_cost": "비용",
+    "cto_cost_value": "{{cost}} · {{tokens}} 토큰",
+    "cto_scorecard": "에이전트 스코어카드",
+    "cto_no_agent": "지정된 에이전트 없음",
+    "cto_audit": "감사 기록",
+    "cto_audit_empty": "이 이슈에 기록된 항목이 아직 없습니다",
+    "block_failed": "이 블록을 불러오지 못했습니다."
+  },
+  "duel": {
+    "section": "에이전트 대결",
+    "status": {
+      "running": "진행 중",
+      "verdict_ready": "판정 대기",
+      "confirmed": "확정됨",
+      "inconclusive": "판정 불가"
+    },
+    "candidate": "후보 {{side}}",
+    "cost": "비용",
+    "duration": "소요 시간",
+    "tool_calls": "도구 호출",
+    "quality": "심판 점수",
+    "arbiter_pick": "심판 선택: {{side}}",
+    "arbiter_tie": "심판 선택: 무승부",
+    "arbiter_unavailable": "심판 판정 없음({{error}}). 실행을 비교하고 결정하세요.",
+    "inconclusive": "한 후보가 최종 실패하여 비교할 수 없습니다.",
+    "choose": "{{side}} 확정",
+    "tie": "무승부 처리",
+    "winner": "승자: {{side}}",
+    "winner_tie": "무승부 선언",
+    "open": "대결 시작",
+    "agent_a": "에이전트 A",
+    "agent_b": "에이전트 B",
+    "pick_agent": "에이전트 선택…",
+    "launch": "대결 시작",
+    "cancel": "취소",
+    "failed": "대결 요청에 실패했습니다",
+    "identical": "서로 다른 두 에이전트를 선택하세요"
+  },
+  "campaign": {
+    "section": "리팩토링 캠페인",
+    "target": "{{branch}}으로",
+    "status": {
+      "running": "실행 중",
+      "merging": "병합 중",
+      "completed": "완료",
+      "failed": "실패"
+    },
+    "progress": "{{done}}/{{total}} 병합 또는 건너뜀",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "대기",
+      "rebasing": "리베이스·병합 중",
+      "ready": "병합 준비됨",
+      "merged": "병합됨",
+      "conflict": "충돌",
+      "skipped": "건너뜀"
+    },
+    "conflict_hint": "사람의 처리가 필요합니다. 해결하거나 샤드를 건너뛰어 큐를 진행하세요.",
+    "skip": "샤드 #{{n}} 건너뛰기",
+    "open": "리팩토링 캠페인 시작",
+    "name": "캠페인 이름",
+    "target_branch": "대상 브랜치",
+    "leader": "리더 에이전트",
+    "shard": "샤드 {{n}}",
+    "shard_placeholder": "이 샤드가 변경하는 내용",
+    "branch": "샤드 {{n}}의 브랜치",
+    "branch_placeholder": "브랜치(선택)",
+    "assignee": "샤드 {{n}} 담당",
+    "pick_agent": "담당 지정…",
+    "remove": "샤드 {{n}} 제거",
+    "add": "샤드 추가",
+    "launch": "캠페인 시작",
+    "cancel": "취소",
+    "failed": "캠페인 요청에 실패했습니다"
+  },
+  "competency": {
+    "section": "이 유형의 작업 성공 이력",
+    "domain": "도메인 {{domain}}",
+    "row": "{{name}}: {{rate}} ({{count}}건)",
+    "duels": "대결 {{wins}}승 / {{losses}}패",
+    "low_sample": "데이터 부족 ({{count}}/{{min}})",
+    "empty": "이 유형의 작업 이력이 있는 에이전트가 아직 없습니다."
+  },
+  "cross_review": {
+    "section": "교차 프로바이더 리뷰",
+    "by": "{{provider}}의 {{name}}",
+    "in_progress": "리뷰 진행 중",
+    "failed": "리뷰 실패",
+    "verdict": {
+      "approve": "승인",
+      "request_changes": "변경 요청",
+      "comment": "코멘트"
+    },
+    "risks": "위험",
+    "questions": "질문",
+    "suggestions": "제안",
+    "retry": "리뷰 다시 실행",
+    "retry_failed": "재실행에 실패했습니다",
+    "previous": "이전 시도 {{count}}회"
+  },
+  "agent_effects": {
+    "section": "에이전트 변경 사항",
+    "window": "{{hours}}시간 동안 되돌릴 수 있음",
+    "run_by": "{{name}} 실행",
+    "undo_run": "이 실행 되돌리기 ({{count}})",
+    "undo_single": "되돌리기",
+    "undone": "{{count}}개 변경을 되돌렸습니다",
+    "skipped": "{{count}}개 건너뜀: {{reason}}",
+    "breaker": "차단기 작동: 에이전트가 {{mode}} 모드로 전환되었습니다",
+    "failed": "되돌리기 실패",
+    "states": {
+      "reversed": "되돌림",
+      "expired": "기간 만료",
+      "not_reversible": "되돌릴 수 없음",
+      "failed": "되돌리기 실패",
+      "held": "승인 대기",
+      "approved": "승인됨",
+      "rejected": "폐기됨"
+    },
+    "reasons": {
+      "already_reversed": "이미 되돌림",
+      "not_reversible": "되돌릴 수 없음",
+      "window_expired": "기간 만료",
+      "reverse_failed": "되돌리기 실패",
+      "not_applied": "보류된 쓰기, 되돌릴 것 없음"
+    },
+    "kinds": {
+      "issue_status": "상태 {{from}} → {{to}}",
+      "issue_assignee": "담당자 변경",
+      "issue_field": "{{field}}: {{from}} → {{to}}",
+      "comment_create": "댓글: {{excerpt}}",
+      "comment_update": "댓글 수정",
+      "note_create": "노트 생성: {{title}}",
+      "note_update": "노트 수정: {{title}}",
+      "note_archive": "노트 보관",
+      "triage_verdict": "분류 판정: {{verdict}}",
+      "issue_create": "이슈 생성: {{title}}",
+      "issue_update": "이슈 업데이트: {{fields}}",
+      "comment_delete": "댓글 삭제: “{{excerpt}}”",
+      "note_delete": "노트 “{{title}}” 삭제",
+      "chat_message": "채팅 답변: “{{excerpt}}” (되돌리면 같은 스레드에 정정 메시지를 게시합니다)"
+    }
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI 수정 진행 중",
+    "fixed": "CI 자동 수정됨",
+    "failed": "CI 수정 실패({{count}})",
+    "exhausted": "{{count}}회 시도 후에도 CI 실패",
+    "retry": "다시 시도",
+    "retry_failed": "다시 시도를 시작하지 못했습니다"
+  },
+  "watchdog": {
+    "section": "워치독",
+    "intro": "담당자와 다른 선택적 에이전트가 이 이슈와 하위 이슈가 멈춘 뒤 검사하여 중단이 정당한지 판단합니다. 작업을 직접 하지 않으며, 신뢰를 얻기 전까지 재오픈은 당신의 승인을 거칩니다.",
+    "by": "{{name}} · 휴지 {{rest}}분 후",
+    "agent": "워치독 에이전트",
+    "pick_agent": "에이전트 선택",
+    "owner": "담당 사람",
+    "owner_me": "나",
+    "rest": "휴지(분)",
+    "instructions": "지시",
+    "instructions_placeholder": "엄격히 볼 점, 증거로 인정할 것…",
+    "save": "워치독 저장",
+    "cancel": "취소",
+    "edit": "편집",
+    "remove": "제거",
+    "enabled": "워치독 활성",
+    "saved": "워치독을 저장했습니다",
+    "save_failed": "워치독을 저장할 수 없습니다",
+    "removed": "워치독을 제거했습니다",
+    "scan_now": "지금 스캔",
+    "scan_started": "스캔을 시작했습니다",
+    "scan_failed": "스캔을 시작할 수 없습니다",
+    "last_scan": "마지막 스캔 {{when}}",
+    "streak": "연속 {{n}}회 재개",
+    "confirm": "확인",
+    "overturn": "번복",
+    "review_failed": "판정을 검토할 수 없습니다",
+    "missing": "누락된 기준: {{criterion}}",
+    "dropped": "트리 밖의 지적 {{n}}건을 무시했습니다",
+    "verdicts": {
+      "legitimate": "정당한 중단",
+      "motion": "다시 진행",
+      "escalate": "에스컬레이션"
+    },
+    "outcomes": {
+      "reopened": "이슈 재오픈",
+      "asked_proof": "증거 요청",
+      "escalated": "담당자에게 전달",
+      "awaiting_decision": "당신의 결정 대기",
+      "dismissed": "기각",
+      "noted": "기록됨",
+      "pending": "대기 중"
+    },
+    "reviews": {
+      "confirmed": "사람이 확인",
+      "overturned": "사람이 번복"
+    },
+    "actions": {
+      "reopen": "재오픈",
+      "ask_proof": "증거 요청",
+      "none": "조치 없음"
+    }
   }
 }

@@ -1,0 +1,136 @@
+{
+  "title": "Triage",
+  "subtitle": "Review inbound work — webhook deliveries and meeting action items — before it becomes issues",
+  "stats": {
+    "pending": "{{count}} pending",
+    "oldest": "Oldest waiting {{age}}",
+    "dropped_24h": "{{count}} dropped in 24h",
+    "none_pending": "Queue is clear",
+    "shadow_pending": "{{count}} recorded in shadow"
+  },
+  "filter": {
+    "pending": "Pending",
+    "accepted": "Accepted",
+    "dismissed": "Dismissed",
+    "merged": "Merged",
+    "snoozed": "Snoozed"
+  },
+  "sources": {
+    "empty": "No inbound sources yet",
+    "action": "Sources",
+    "title": "Inbound sources",
+    "pending": "{{count}} pending",
+    "dropped_24h": "{{count}} dropped in 24h",
+    "auto_accept": "Auto-accept",
+    "cap_per_hour": "Cap per hour",
+    "expiry_days": "Retention (days)",
+    "zero_hint": "0 means no cap and the default retention.",
+    "items_24h": "{{count}} in 24h",
+    "mode": {
+      "gate": "Gate",
+      "direct": "Direct",
+      "blocked": "Blocked"
+    }
+  },
+  "list": {
+    "empty_title": "Queue is clear",
+    "empty_description": "Webhook deliveries from a source set to Gate, and action items from a recorded meeting, wait here until a human accepts or dismisses them.",
+    "loading": "Loading triage queue",
+    "load_error": "Could not load the triage queue",
+    "empty_history_title": "Nothing here yet",
+    "load_more": "Load more"
+  },
+  "detail": {
+    "select_prompt": "Select an item to review it",
+    "from_source": "From {{name}}",
+    "body_label": "Description",
+    "no_body": "No description captured",
+    "payload_label": "Captured payload",
+    "payload_truncated": "Payload too large — only its size was kept",
+    "no_payload": "No payload captured",
+    "collapse_count": "Seen {{count}} times",
+    "accept": "Accept",
+    "accepting": "Accepting",
+    "dismiss": "Dismiss",
+    "dismissing": "Dismissing",
+    "accepted_toast": "Accepted — issue created",
+    "dismissed_toast": "Dismissed",
+    "merged_toast": "Already tracked as {{identifier}} — merged",
+    "limit_toast": "Issue limit reached — the item stays in the queue",
+    "error_toast": "Something went wrong",
+    "resolution_reason": "Reason: {{reason}}",
+    "accepted_toast_identifier": "Accepted — {{identifier}} created",
+    "open_issue": "Open",
+    "from_meeting": "From meeting",
+    "auto_accepted": "Auto-accepted by the queue"
+  },
+  "batch": {
+    "accept": "Accept {{count}}",
+    "clear": "Clear selection",
+    "stopped_toast": "Stopped — the workspace reached its issue limit",
+    "summary_toast": "{{accepted}} accepted, {{duplicates}} duplicates, {{failed}} failed",
+    "dismiss": "Dismiss {{count}}",
+    "dismiss_summary": "Dismiss {{count}} items with one shared reason.",
+    "dismiss_summary_toast": "{{dismissed}} dismissed, {{failed}} failed"
+  },
+  "suggestion": {
+    "title": "Suggestion",
+    "none": "No similar past decision yet.",
+    "dismiss": "dismiss",
+    "accept": "accept",
+    "would_dismiss": "Would be dismissed",
+    "would_accept": "Would be accepted",
+    "confidence": "{{percent}}% confidence from {{count}} similar deliveries",
+    "auto_on": "Auto-apply is on: applied above {{threshold}}%.",
+    "auto_off": "Auto-apply is off: a human decides. Enable it in Settings → Workspace.",
+    "not_ready": "Learning: {{examples}} of {{min}} decisions needed before auto-apply.",
+    "reopen": "Reopen",
+    "reopen_failed": "Failed to reopen"
+  },
+  "accept_as": {
+    "label": "Accept as",
+    "assignee": "Assignee",
+    "assignee_set": "Assignee set",
+    "priority": "Priority",
+    "project": "Project",
+    "project_set": "Project set"
+  },
+  "merge": {
+    "action": "Merge into…",
+    "title": "Merge into issue",
+    "description": "Fold this item into an issue that already tracks the work.",
+    "toast": "Merged into {{identifier}}"
+  },
+  "snooze": {
+    "action": "Snooze",
+    "custom": "Custom date",
+    "confirm": "Snooze",
+    "toast": "Snoozed",
+    "invalid": "Pick a time in the future, at most 30 days away",
+    "preset": {
+      "hour": "In an hour",
+      "evening": "This evening",
+      "tomorrow": "Tomorrow",
+      "next_monday": "Next Monday"
+    }
+  },
+  "dismiss_reason": {
+    "label": "Reason (optional)",
+    "placeholder": "Why is this not work?",
+    "confirm": "Confirm dismiss"
+  },
+  "verdict": {
+    "badge": "Agent suggests: {{verdict}}",
+    "accept": "Accept",
+    "dismiss": "Dismiss",
+    "by": "by {{name}}"
+  },
+  "rule": {
+    "action": "Create a rule",
+    "title": "Create a rule from this item",
+    "description": "A rule runs when a delivery is captured, before anyone sees it. Preview the compiled rule and its dry-run before activating it.",
+    "prefill": "Deliveries from {{source}} whose title contains \"{{keyword}}\"",
+    "prefill_source": "Deliveries from {{source}}",
+    "manage": "Manage rules"
+  }
+}

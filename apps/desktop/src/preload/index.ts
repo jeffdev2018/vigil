@@ -243,6 +243,44 @@ const desktopAPI = {
   /** Open a validated issue-detail route in a dedicated native window. */
   openIssueWindow: (request: IssueWindowRequest) =>
     ipcRenderer.invoke("window:open-issue", request),
+  /** Ambient meeting detection. macOS watches CoreAudio through the
+   *  mic-monitor helper shipped with this build; Linux and Windows poll the
+   *  OS's own record-stream list instead. Everywhere else there is nothing to
+   *  watch with. `supported` is the platform answer only — the main process
+   *  still disables detection at runtime when the macOS helper binary is
+   *  missing or a poller has no backend. */
+  meetingDetection: {
+    supported:
+      process.platform === "darwin" ||
+      process.platform === "linux" ||
+      process.platform === "win32",
+  },
+  /** Listen for a conferencing app taking the microphone. Returns an
+   *  unsubscribe function. Fires at most once per continuous mic session. */
+  onMeetingDetected: (
+    callback: (payload: {
+      appName: string;
+      kind: "huddle" | "call" | "meeting";
+      bundleId: string;
+    }) => void,
+  ) => {
+    const handler = (
+      _event: Electron.IpcRendererEvent,
+      payload: { appName: string; kind: "huddle" | "call" | "meeting"; bundleId: string },
+    ) => callback(payload);
+    ipcRenderer.on("meeting:detected", handler);
+    return () => {
+      ipcRenderer.removeListener("meeting:detected", handler);
+    };
+  },
+  /** Report that OUR renderer holds the microphone, so ambient detection
+   *  never prompts about the recording we started ourselves. */
+  setMeetingSelfCapture: (active: boolean) =>
+    ipcRenderer.send("meeting:self-capture", active),
+  /** Turn ambient detection on or off (Settings → Preferences). The main
+   *  process stops the helper / poller outright rather than muting prompts. */
+  setMeetingDetectionEnabled: (enabled: boolean) =>
+    ipcRenderer.send("meeting:detection-enabled", enabled),
 };
 
 type DaemonReauthResult =

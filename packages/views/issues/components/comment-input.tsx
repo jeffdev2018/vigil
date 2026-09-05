@@ -8,6 +8,8 @@ import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { contentReferencesAttachment } from "@multica/core/types";
 import { formatShortcut, useShortcut } from "@multica/core/shortcuts";
 import { useCommentDraftStore } from "@multica/core/issues/stores";
+import { useConfigStore } from "@multica/core/config";
+import { VoiceMemoButton } from "../../voice";
 import { useT } from "../../i18n";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
@@ -72,6 +74,9 @@ function CommentInput({ issueId, onSubmit, onAccepted }: CommentInputProps) {
   const { isDragOver, dropZoneProps } = useFileDropZone({
     onDrop: lazy.uploadOrQueue,
   });
+  // Voice memo: shown only when the server declares a transcription provider,
+  // same gate as the chat composer.
+  const voiceEnabled = useConfigStore((s) => s.meetingTranscriptionAvailable);
   // Sticky preference (Settings → Preferences): issue-detail pins this
   // composer to the bottom of the scroll viewport when enabled. Shared with
   // the host so the height cap below can never outlive the pinning.
@@ -278,6 +283,19 @@ function CommentInput({ issueId, onSubmit, onAccepted }: CommentInputProps) {
         />
       </div>
       <div className="absolute bottom-1 right-1.5 flex items-center gap-1">
+        {voiceEnabled && (
+          <VoiceMemoButton
+            // Pressing the microphone is edit intent: summon the real editor
+            // now, so the transcript has somewhere to land seconds later.
+            onRecordingStart={() => lazy.activate()}
+            onText={(text) => {
+              if (editorRef.current?.insertMarkdownAtEnd(text)) return;
+              // The editor is not up (activation lost a race, or the mount
+              // died): keep the words in the draft rather than dropping them.
+              setDraft(draftKey, [initialDraft, text].filter(Boolean).join("\n\n"));
+            }}
+          />
+        )}
         <FileUploadButton
           size="sm"
           multiple

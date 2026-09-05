@@ -166,5 +166,31 @@
     "direction_desc": "降序",
     "section_columns": "列",
     "view": "视图"
+  },
+  "decisions": {
+    "section": "决策",
+    "author_filter": "作者",
+    "author_any": "全部",
+    "author_agent": "智能体",
+    "author_member": "成员",
+    "empty": "尚未记录任何决策。被接受的运行会在此添加。",
+    "source": "运行消息 #{{seq}}"
+  },
+  "blast_radius": {
+    "section": "影响范围",
+    "description": "在权限之上，智能体在此项目各路径上能走多远：自主路径自行通过审批关卡，只读路径在询问前拒绝任何写入，双重审批路径需要两位不同的人。最具体的模式优先；没有规则时由智能体权限决定。",
+    "empty": "尚无规则：仅智能体权限生效。",
+    "pattern": "路径模式",
+    "pattern_placeholder": "apps/mobile/**",
+    "level": "自主级别",
+    "level_autonomous": "自主",
+    "level_read_only": "只读",
+    "level_dual_approval": "双重审批",
+    "level_inherit": "继承自权限",
+    "add": "添加规则",
+    "remove": "删除规则",
+    "preview": "试一个路径",
+    "preview_placeholder": "server/migrations/500_x.up.sql",
+    "failed": "无法保存规则"
   }
 }

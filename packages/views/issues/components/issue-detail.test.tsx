@@ -110,6 +110,7 @@ vi.mock("@multica/core/paths", async () => {
 });
 
 // Mock navigation
+vi.mock("./role-view", () => ({ RoleViewTabs: () => null, RoleView: () => null }));
 vi.mock("../../navigation", () => ({
   AppLink: ({ children, href, ...props }: any) => (
     <a href={href} {...props}>

@@ -73,6 +73,10 @@ deleted_notification_preferences AS (
     DELETE FROM notification_preference
     WHERE notification_preference.workspace_id = $1
 ),
+deleted_calendar_feeds AS (
+    DELETE FROM user_calendar_feed
+    WHERE user_calendar_feed.workspace_id = $1
+),
 deleted_pins AS (
     DELETE FROM pinned_item WHERE pinned_item.workspace_id = $1
 ),
@@ -99,6 +103,27 @@ WHERE workspace_invitation.workspace_id = $1
 
 func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceAdministration, workspaceID)
+	return err
+}
+
+const deleteWorkspaceAgentEffects = `-- name: DeleteWorkspaceAgentEffects :exec
+DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1
+`
+
+// agent_effect carries no FK by repo rule; sweep it by workspace.
+func (q *Queries) DeleteWorkspaceAgentEffects(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentEffects, workspaceID)
+	return err
+}
+
+const deleteWorkspaceAgentMemories = `-- name: DeleteWorkspaceAgentMemories :exec
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1
+`
+
+// agent_memory carries no FK by repo rule; sweep it before the agent rows it
+// logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentMemories(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentMemories, workspaceID)
 	return err
 }
 
@@ -169,6 +194,50 @@ func (q *Queries) DeleteWorkspaceAutopilots(ctx context.Context, workspaceID pgt
 	return err
 }
 
+const deleteWorkspaceBudgetOverrides = `-- name: DeleteWorkspaceBudgetOverrides :exec
+DELETE FROM budget_override
+WHERE budget_override.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceBudgetOverrides(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetOverrides, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetPeriods = `-- name: DeleteWorkspaceBudgetPeriods :exec
+DELETE FROM budget_period
+WHERE budget_period.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+)
+`
+
+func (q *Queries) DeleteWorkspaceBudgetPeriods(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetPeriods, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetPolicies = `-- name: DeleteWorkspaceBudgetPolicies :exec
+DELETE FROM budget_policy
+WHERE budget_policy.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceBudgetPolicies(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetPolicies, workspaceID)
+	return err
+}
+
+const deleteWorkspaceBudgetReservations = `-- name: DeleteWorkspaceBudgetReservations :exec
+DELETE FROM budget_reservation
+WHERE budget_reservation.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+)
+`
+
+func (q *Queries) DeleteWorkspaceBudgetReservations(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceBudgetReservations, workspaceID)
+	return err
+}
+
 const deleteWorkspaceChatMessages = `-- name: DeleteWorkspaceChatMessages :exec
 DELETE FROM chat_message
 WHERE chat_session_id IN (
@@ -226,6 +295,26 @@ func (q *Queries) DeleteWorkspaceConnections(ctx context.Context, workspaceID pg
 	return err
 }
 
+const deleteWorkspaceIssueDecisions = `-- name: DeleteWorkspaceIssueDecisions :exec
+DELETE FROM issue_decision
+WHERE issue_decision.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceIssueDecisions(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceIssueDecisions, workspaceID)
+	return err
+}
+
+const deleteWorkspaceIssuePlans = `-- name: DeleteWorkspaceIssuePlans :exec
+DELETE FROM issue_plan
+WHERE issue_plan.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceIssuePlans(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceIssuePlans, workspaceID)
+	return err
+}
+
 const deleteWorkspaceIssueRoots = `-- name: DeleteWorkspaceIssueRoots :exec
 WITH
 deleted_issues AS (
@@ -233,6 +322,15 @@ deleted_issues AS (
 ),
 deleted_labels AS (
     DELETE FROM issue_label WHERE issue_label.workspace_id = $1
+),
+deleted_module_ownership AS (
+    DELETE FROM module_ownership WHERE module_ownership.workspace_id = $1
+),
+deleted_morning_briefings AS (
+    DELETE FROM morning_briefing_sent WHERE morning_briefing_sent.workspace_id = $1
+),
+deleted_scorecards AS (
+    DELETE FROM agent_scorecard_daily WHERE agent_scorecard_daily.workspace_id = $1
 ),
 deleted_properties AS (
     DELETE FROM issue_property WHERE issue_property.workspace_id = $1
@@ -368,6 +466,9 @@ deleted_agent_invocation_targets AS (
     DELETE FROM agent_invocation_target
     WHERE agent_id IN (SELECT id FROM ws_agents)
 ),
+deleted_agent_versions AS (
+    DELETE FROM agent_version WHERE agent_version.workspace_id = $1
+),
 deleted_agent_skills AS (
     DELETE FROM agent_skill
     WHERE agent_id IN (SELECT id FROM ws_agents)
@@ -500,6 +601,26 @@ func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtyp
 	return err
 }
 
+const deleteWorkspaceNotes = `-- name: DeleteWorkspaceNotes :exec
+DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1
+`
+
+// workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+func (q *Queries) DeleteWorkspaceNotes(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceNotes, workspaceID)
+	return err
+}
+
+const deleteWorkspacePlanVerifications = `-- name: DeleteWorkspacePlanVerifications :exec
+DELETE FROM plan_verification
+WHERE plan_verification.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspacePlanVerifications(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspacePlanVerifications, workspaceID)
+	return err
+}
+
 const deleteWorkspacePluginData = `-- name: DeleteWorkspacePluginData :exec
 WITH installations AS MATERIALIZED (
     SELECT plugin_installation.id
@@ -556,6 +677,16 @@ func (q *Queries) DeleteWorkspacePluginData(ctx context.Context, workspaceID pgt
 	return err
 }
 
+const deleteWorkspacePostmortems = `-- name: DeleteWorkspacePostmortems :exec
+DELETE FROM postmortem WHERE postmortem.workspace_id = $1
+`
+
+// postmortem carries no FK by repo rule; sweep it by workspace.
+func (q *Queries) DeleteWorkspacePostmortems(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspacePostmortems, workspaceID)
+	return err
+}
+
 const deleteWorkspacePullRequests = `-- name: DeleteWorkspacePullRequests :exec
 WITH deleted_github_prs AS (
     DELETE FROM github_pull_request
@@ -576,6 +707,12 @@ deleted_runtimes AS (
 ),
 deleted_profiles AS (
     DELETE FROM runtime_profile WHERE runtime_profile.workspace_id = $1
+),
+deleted_goals AS (
+    DELETE FROM goal WHERE goal.workspace_id = $1
+),
+deleted_project_goals AS (
+    DELETE FROM project_goal WHERE project_goal.workspace_id = $1
 )
 DELETE FROM project WHERE project.workspace_id = $1
 `

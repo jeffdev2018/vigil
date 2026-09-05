@@ -3,11 +3,26 @@
 import { useId, useMemo, useState } from "react";
 import type { FormEvent, HTMLAttributes } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Cloud, Loader2, RefreshCw, Rocket, Trash2 } from "lucide-react";
+import {
+  Cloud,
+  Loader2,
+  Play,
+  RefreshCw,
+  RotateCw,
+  Square,
+  Trash2,
+  Rocket,
+} from "lucide-react";
 import { toast } from "sonner";
-import type { CloudRuntimeNode } from "@multica/core/runtimes";
+import type {
+  CloudRuntimeNode,
+  CloudRuntimeNodeAction,
+} from "@multica/core/runtimes";
 import {
   cloudRuntimeNodeListOptions,
+  isCloudRuntimeNodePending,
+  useCloudRuntimeNodeAction,
+  useCloudRuntimeNodeStatus,
   useCreateCloudRuntimeNode,
   useDeleteCloudRuntimeNode,
 } from "@multica/core/runtimes";
@@ -193,7 +208,11 @@ export function CloudRuntimeDialog({ onClose }: { onClose: () => void }) {
                 <div className="max-h-[410px] overflow-y-auto p-2">
                   <div className="space-y-2">
                     {sortedNodes.map((node) => (
-                      <CloudRuntimeNodeRow key={node.id} node={node} wsId={wsId} />
+                      <CloudRuntimeNodeRow
+                        key={node.id}
+                        node={node}
+                        wsId={wsId}
+                      />
                     ))}
                   </div>
                 </div>
@@ -295,9 +314,41 @@ function LabeledInput({
   );
 }
 
-function CloudRuntimeNodeRow({ node, wsId }: { node: CloudRuntimeNode; wsId: string }) {
+function CloudRuntimeNodeRow({
+  node,
+  wsId,
+}: {
+  node: CloudRuntimeNode;
+  wsId: string;
+}) {
   const { t } = useT("runtimes");
   const deleteNode = useDeleteCloudRuntimeNode(wsId);
+  const powerAction = useCloudRuntimeNodeAction(wsId);
+  const refreshStatus = useCloudRuntimeNodeStatus(wsId);
+  const status = node.status.toLowerCase();
+  const transitioning = isCloudRuntimeNodePending(node.status);
+  // A node the fleet is already moving takes no further power action until it
+  // settles; start/stop are offered on the state each can actually leave.
+  const canStart = !transitioning && status !== "running";
+  const canStop = !transitioning && status === "running";
+  const busy = powerAction.isPending || deleteNode.isPending;
+
+  const runPower = (action: CloudRuntimeNodeAction) => {
+    powerAction.mutate(
+      { action, instanceId: node.instance_id },
+      {
+        onSuccess: () =>
+          toast.success(t(($) => $.cloud_runtime.power[action].toast)),
+        onError: (err) =>
+          toast.error(
+            err instanceof Error
+              ? err.message
+              : t(($) => $.cloud_runtime.power[action].failed),
+          ),
+      },
+    );
+  };
+
   const title =
     node.name.trim() ||
     node.instance_id.trim() ||
@@ -323,32 +374,98 @@ function CloudRuntimeNodeRow({ node, wsId }: { node: CloudRuntimeNode; wsId: str
             )}
           </div>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-destructive"
-          disabled={deleteNode.isPending}
-          onClick={() => {
-            if (!confirm(t(($) => $.cloud_runtime.delete_confirm))) return;
-            deleteNode.mutate(node.instance_id, {
-              onSuccess: () => toast.success(t(($) => $.cloud_runtime.toast_deleted)),
-              onError: (err) =>
-                toast.error(
-                  err instanceof Error
-                    ? err.message
-                    : t(($) => $.cloud_runtime.toast_delete_failed),
-                ),
-            });
-          }}
-          aria-label={t(($) => $.cloud_runtime.delete)}
-        >
-          {deleteNode.isPending ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Trash2 className="h-3.5 w-3.5" />
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground"
+            disabled={refreshStatus.isPending}
+            onClick={() => refreshStatus.mutate(node.instance_id)}
+            aria-label={t(($) => $.cloud_runtime.power.status.label)}
+            title={t(($) => $.cloud_runtime.power.status.label)}
+          >
+            <RefreshCw
+              className={cn(
+                "h-3.5 w-3.5",
+                refreshStatus.isPending && "animate-spin",
+              )}
+            />
+          </Button>
+          {canStart && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0 text-muted-foreground"
+              disabled={busy}
+              onClick={() => runPower("start")}
+              aria-label={t(($) => $.cloud_runtime.power.start.label)}
+              title={t(($) => $.cloud_runtime.power.start.label)}
+            >
+              <Play className="h-3.5 w-3.5" />
+            </Button>
           )}
-        </Button>
+          {canStop && (
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground"
+                disabled={busy}
+                onClick={() => runPower("stop")}
+                aria-label={t(($) => $.cloud_runtime.power.stop.label)}
+                title={t(($) => $.cloud_runtime.power.stop.label)}
+              >
+                <Square className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 p-0 text-muted-foreground"
+                disabled={busy}
+                onClick={() => {
+                  if (!confirm(t(($) => $.cloud_runtime.power.reboot.confirm)))
+                    return;
+                  runPower("reboot");
+                }}
+                aria-label={t(($) => $.cloud_runtime.power.reboot.label)}
+                title={t(($) => $.cloud_runtime.power.reboot.label)}
+              >
+                <RotateCw className="h-3.5 w-3.5" />
+              </Button>
+            </>
+          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+            disabled={deleteNode.isPending}
+            onClick={() => {
+              if (!confirm(t(($) => $.cloud_runtime.delete_confirm))) return;
+              deleteNode.mutate(node.instance_id, {
+                onSuccess: () =>
+                  toast.success(t(($) => $.cloud_runtime.toast_deleted)),
+                onError: (err) =>
+                  toast.error(
+                    err instanceof Error
+                      ? err.message
+                      : t(($) => $.cloud_runtime.toast_delete_failed),
+                  ),
+              });
+            }}
+            aria-label={t(($) => $.cloud_runtime.delete)}
+          >
+            {deleteNode.isPending ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </div>
       </div>
       {node.instance_id && (
         <div className="mt-2 truncate font-mono text-micro text-muted-foreground">

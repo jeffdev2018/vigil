@@ -126,6 +126,7 @@
     "chip_op_before": "before {{value}}",
     "chip_op_after": "after {{value}}",
     "section_project": "Project",
+    "section_goal": "Goal",
     "section_label": "Label",
     "section_date": "Date",
     "date_field": "Field",
@@ -380,6 +381,8 @@
     "prop_start_date": "Start date",
     "prop_due_date": "Due date",
     "prop_project": "Project",
+    "prop_goal": "Goal",
+    "goal_inherited": "Inherited from project",
     "prop_labels": "Labels",
     "add_property_action": "Add property",
     "prop_created_by": "Created by",
@@ -442,7 +445,27 @@
     "project_directory_path_copied": "Project directory path copied",
     "project_directory_path_copied_with_branch": "Project directory path copied — work is on {{branch}}",
     "workdir_path_copy_failed": "Failed to copy workdir path",
-    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent"
+    "workdir_path_unavailable": "No local workdir yet — issue has not been run by a local agent",
+    "section_blocks": "Blocks",
+    "section_blocked_by": "Blocked by",
+    "merge_ready": "Ready to merge",
+    "merge_not_ready": "Not ready to merge",
+    "merge_stale_hint": "data may be stale",
+    "merge_blockers_more": "+{{count}} more",
+    "blocker_checks_failing": "Failing checks on #{{pr}}",
+    "blocker_checks_pending": "Checks pending on #{{pr}}",
+    "blocker_merge_conflict": "Merge conflict on #{{pr}}",
+    "blocker_merge_not_clean": "Not mergeable yet on #{{pr}}",
+    "blocker_stale_snapshot": "Stale data on #{{pr}}",
+    "blocker_unresolved_threads": "{{count}} unresolved review thread(s)",
+    "blocker_open_todos": "{{count}} open todo(s) in comments",
+    "blocker_blocking_issue": "Blocked by {{identifier}}",
+    "blocker_no_pr": "No open pull request",
+    "pr_stack_title": "PR stack",
+    "pr_stack_truncated": "Stack cut after {{depth}} levels",
+    "pr_stack_cyclic": "Dependency cycle: some levels are hidden",
+    "blocker_adr_required": "Architecture decision record required ({{count}} files edited)",
+    "from_meeting": "From meeting"
   },
   "timeline": {
     "loading": "Loading..."
@@ -502,12 +525,14 @@
     "trigger_blocked_runtime_offline": "This target's runtime is offline",
     "trigger_blocked_runtime_unusable": "This target's agent CLI can't run on its machine — reinstall it there",
     "trigger_blocked_agent_runtime_required": "This target has no runtime — bind one to run it",
+    "trigger_blocked_budget_exceeded": "This run is paused because a workspace budget reached its limit",
     "trigger_blocked_generic": "This target won't be triggered",
     "trigger_blocked_short_invocation_not_allowed": "Not found or no permission",
     "trigger_blocked_short_target_unavailable": "Unavailable",
     "trigger_blocked_short_runtime_offline": "Runtime offline",
     "trigger_blocked_short_runtime_unusable": "CLI can't run",
     "trigger_blocked_short_agent_runtime_required": "Needs a runtime",
+    "trigger_blocked_short_budget_exceeded": "Budget reached",
     "trigger_blocked_short_generic": "Won't start",
     "send_reply_failed": "Failed to send reply",
     "delete_failed": "Failed to delete comment",
@@ -633,7 +658,11 @@
       "source_backfill": "Backfilled attribution",
       "source_unattributed": "No responsible member resolved"
     },
-    "usage_total_tooltip": "Token usage for this issue — click for the per-run breakdown"
+    "usage_total_tooltip": "Token usage for this issue — click for the per-run breakdown",
+    "status_deferred": "Deferred",
+    "status_paused": "Paused",
+    "unresponsive": "Not responding",
+    "unresponsive_tooltip": "No activity for {{duration}}"
   },
   "usage_detail": {
     "title": "Usage breakdown",
@@ -721,7 +750,10 @@
     "remove_parent_issue": "Remove parent issue",
     "remove_parent_issue_success": "Removed parent issue",
     "add_sub_issue": "Add sub-issue...",
-    "delete_issue": "Delete issue"
+    "delete_issue": "Delete issue",
+    "add_blocking": "Mark as blocking...",
+    "add_blocked_by": "Mark as blocked by...",
+    "remove_dependency": "Remove dependency"
   },
   "pickers": {
     "custom_property": {
@@ -886,5 +918,493 @@
     "surface_loading": "Loading {{name}}…",
     "surface_unavailable": "{{name}} could not load its interface. The installed version may not include it.",
     "surface_navigated": "{{name}} tried to replace its panel with a page loaded from elsewhere. It has been stopped and disconnected — tell your workspace admin."
+  },
+  "plan_verification": {
+    "section": "Plan verification",
+    "plan_version": "Plan v{{version}}",
+    "version_picker": "Plan version",
+    "superseded": "superseded",
+    "no_verification": "No verification run yet.",
+    "state_queued": "Verification queued",
+    "state_running": "Verifying",
+    "state_failed": "Verification failed",
+    "verdict_critical": "{{count}} critical",
+    "verdict_clean": "Matches the plan",
+    "failed_hint": "The verification run ended without a report. Rerun the issue to verify again.",
+    "pending_hint": "A verification run will compare the delivered changes to this plan.",
+    "report_for": "Report for plan v{{version}}",
+    "severity_critical": "critical",
+    "severity_major": "major",
+    "severity_minor": "minor",
+    "severity_outdated": "outdated",
+    "no_findings": "No divergence from the plan.",
+    "gate_no_steps": "No structured steps: nothing to create as sub-issues.",
+    "gate_stage": "{{stage}}",
+    "gate_created": "created",
+    "gate_materialized": "{{count}} sub-issues created",
+    "gate_superseded": "Superseded: approve the active version instead.",
+    "gate_approve": "Approve: create {{count}} sub-issues",
+    "gate_failed": "Failed to create the sub-issues",
+    "step_ref": "step {{id}}"
+  },
+  "fanout": {
+    "section": "Fan-out",
+    "count": "{{done}}/{{total}} settled",
+    "status": {
+      "pending": "in progress",
+      "partial_failure": "partial failure",
+      "complete": "complete"
+    },
+    "partial": "{{failed}} sub-task(s) failed for good; the synthesis starts anyway and must say what is missing.",
+    "synthesis": "Synthesis run {{id}} queued for the leader",
+    "open": "Fan out to specialists",
+    "leader": "Leader agent",
+    "sub_task": "Sub-task {{n}}",
+    "sub_task_placeholder": "What this specialist should do",
+    "assignee": "Assignee of sub-task {{n}}",
+    "pick_agent": "Assign to…",
+    "remove": "Remove sub-task {{n}}",
+    "add": "Add a sub-task",
+    "launch": "Launch fan-out",
+    "cancel": "Cancel",
+    "failed": "The fan-out request failed"
+  },
+  "pipeline": {
+    "pick": "Choose a pipeline",
+    "start": "Start pipeline",
+    "last": "Last pipeline: {{name}} ({{status}})",
+    "gate_waiting": "Waiting for the gate",
+    "approve": "Approve and advance",
+    "retry": "Retry stage",
+    "cancel": "Stop pipeline",
+    "failed": "The pipeline action failed",
+    "status": {
+      "active": "active",
+      "paused": "paused",
+      "completed": "completed",
+      "cancelled": "stopped"
+    }
+  },
+  "preemption": {
+    "waiting": "Suspended to let an urgent issue go first",
+    "resumed": "Was suspended for an urgent issue and resumed",
+    "for": "Priority given to",
+    "estimate": "Resumes from its checkpoint as soon as the agent has a free slot, urgent runs first.",
+    "count": "{{count}} suspensions on this issue"
+  },
+  "drift": {
+    "stopped": "Stopped for drift",
+    "run": "run {{id}}",
+    "reasons": {
+      "repeated_action": "the same tool call repeated too many times",
+      "file_reread_loop": "re-reading the same file without writing to it"
+    }
+  },
+  "traffic": {
+    "human": "This run is editing files a human is changing in the local checkout",
+    "agent": "This run is editing files another run ({{id}}) is editing",
+    "pause": "Pause the run",
+    "ignore": "Ignore",
+    "show_history_one": "Show {{count}} settled conflict",
+    "show_history_other": "Show {{count}} settled conflicts",
+    "hide_history": "Hide settled conflicts",
+    "failed": "The traffic control action failed",
+    "status": {
+      "active": "active",
+      "ignored": "ignored",
+      "resolved": "resolved"
+    }
+  },
+  "checkpoint": {
+    "resumed": "Run interrupted and resumed automatically {{point}} (resume {{attempts}}/{{max}}).",
+    "exhausted": "Infrastructure interruptions: the automatic resume gave up after {{attempts}}/{{max}} attempts. This is not the task failing on its own.",
+    "from_seq": "from checkpoint message {{seq}}",
+    "from_start": "from the start",
+    "checkpointed": "last checkpoint {{when}}"
+  },
+  "run_control": {
+    "pause": "Pause the run",
+    "pause_hint": "Stops at the next safe boundary (after the current tool call) and waits for your instruction.",
+    "pause_pending": "pause pending",
+    "pause_pending_hint": "Waiting for the current tool call to finish.",
+    "paused_title": "Paused. Leave an instruction, then resume the same session.",
+    "instruction": "Instruction",
+    "instruction_placeholder": "What should change? The run continues from where it stopped with this in front of it.",
+    "send": "Send instruction",
+    "resume": "Resume",
+    "resume_needs_instruction": "Leave at least one instruction first.",
+    "failed": "The run control request failed"
+  },
+  "run_limits": {
+    "title": "Run limit",
+    "stopped": "Stopped by a run limit",
+    "gates": {
+      "cost": "Cost",
+      "duration": "Duration",
+      "turns": "Turns",
+      "tool_calls": "Tool calls"
+    },
+    "levels": {
+      "warn": "warning",
+      "exceeded": "over the limit (observed)",
+      "stopped": "stopped"
+    }
+  },
+  "handoff": {
+    "section": "Handoff packet",
+    "none": "No packet yet.",
+    "show_history_one": "Show {{count}} earlier packet",
+    "show_history_other": "Show {{count}} earlier packets",
+    "hide_history": "Hide history",
+    "write": "Write a handoff packet",
+    "objective": "Objective",
+    "decisions": "Decisions",
+    "evidence": "Evidence",
+    "failed_attempts": "Failed attempts",
+    "next_action": "Next action",
+    "one_per_line": "{{field}}, one per line",
+    "save": "Save packet",
+    "cancel": "Cancel",
+    "create_failed": "Failed to save the handoff packet",
+    "run": "run {{id}}",
+    "by": {
+      "agent": "agent",
+      "member": "member",
+      "system": "system"
+    }
+  },
+  "routing": {
+    "label": "Routing",
+    "risk": {
+      "low": "Low risk",
+      "normal": "Normal risk",
+      "high": "High risk"
+    },
+    "pool": "Pool {{name}}",
+    "agent_pool": "agent's pool",
+    "paths": "{{count}} matched paths",
+    "escalated": "Escalated"
+  },
+  "failover": {
+    "section": "Runtime failover",
+    "run": "Run {{id}}",
+    "degraded_badge": "degraded",
+    "exhausted": "Pool exhausted",
+    "degraded_banner": "This run is executing in degraded mode on the pool's local last resort. Treat its output as less capable than the runtime you targeted.",
+    "reasons": {
+      "runtime_offline": "Runtime offline",
+      "runtime_recovery": "Runtime recovery",
+      "runtime_reconnect_timeout": "Runtime reconnect timeout",
+      "agent_error.provider_auth_or_access": "Provider auth or access",
+      "agent_error.provider_quota_limit": "Provider quota",
+      "agent_error.provider_capacity_or_rate_limit": "Provider capacity or rate limit",
+      "agent_error.provider_server_error": "Provider server error",
+      "agent_error.provider_network": "Provider network"
+    }
+  },
+  "run_secrets": {
+    "section": "Run secrets",
+    "run": "Run {{id}}",
+    "status": {
+      "active": "active",
+      "revoked": "revoked",
+      "expired": "expired"
+    }
+  },
+  "decisions": {
+    "section": "Decisions",
+    "recommended": "recommended",
+    "modify": "Answer with something else…",
+    "modify_placeholder": "Describe what to do instead",
+    "send": "Send",
+    "cancel": "Cancel",
+    "resumed": "agent resumed",
+    "answer_failed": "Failed to record the decision",
+    "interview_title": "Requirement interview",
+    "interview_hint": "The agent resumes once every question is answered.",
+    "sla_due": "Answer by {{time}}",
+    "sla_overdue": "Overdue, escalation pending",
+    "sla_substitute": "Overdue · escalated to the substitute",
+    "sla_leads": "Overdue · escalated to the workspace leads",
+    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request."
+  },
+  "acceptance": {
+    "section": "Acceptance criteria",
+    "add": "Add an acceptance criterion",
+    "add_placeholder": "Add a criterion…",
+    "attach": "Attach a proof",
+    "validate": "Validate myself",
+    "remove": "Remove",
+    "save": "Save",
+    "cancel": "Cancel",
+    "proof_type": "Proof type",
+    "ref_placeholder": "Test command, path or URL",
+    "state_missing": "No proof yet",
+    "state_pending_human": "Waiting for a human to validate",
+    "state_satisfied": "Proven",
+    "update_failed": "Failed to update the acceptance criteria",
+    "types": {
+      "test": "Test",
+      "file": "File",
+      "screenshot": "Screenshot",
+      "url": "Link",
+      "human_validation": "Human validation"
+    }
+  },
+  "review_cockpit": {
+    "open": "Open the review cockpit",
+    "back": "Back to the issue",
+    "run": "Run",
+    "runs_none": "No run on this issue yet.",
+    "select_run": "Run",
+    "run_completed": "finished {{ago}}",
+    "cost": "Cost of this run",
+    "cost_none": "No usage recorded for this run.",
+    "cost_unpriced": "Unpriced",
+    "cost_floor": "(at least: some usage has no price)",
+    "tokens": "{{input}} in · {{output}} out",
+    "pull_requests": "Pull requests",
+    "prs_unavailable": "Pull requests could not be loaded.",
+    "no_pr": "No pull request yet.",
+    "checks": "{{passed}}/{{total}} checks",
+    "ready": "Ready to merge",
+    "blockers": "{{count}} blockers",
+    "open_questions": "Open questions",
+    "none_open": "No question waiting for a human.",
+    "criteria": "Acceptance criteria",
+    "criteria_none": "No acceptance criteria on this issue.",
+    "plan_verification": "Plan verification",
+    "plan_none": "No verification reported.",
+    "plan_counts": "{{critical}} critical · {{major}} major · {{minor}} minor",
+    "self_review": "Cross-provider self-review",
+    "self_review_none": "Not available yet.",
+    "approve": "Approve",
+    "request_changes": "Request changes",
+    "approve_blocked": "Approval waits for the checks to finish.",
+    "failed_sections": "Some sections could not be loaded: {{sections}}.",
+    "error": "The review cockpit could not be loaded.",
+    "retry": "Retry",
+    "move_failed": "Failed to change the issue status"
+  },
+  "ownership": {
+    "section": "Suggested owner",
+    "matched": "Matched {{what}}",
+    "matched_label": "a label rule",
+    "assign_owner": "Assign to {{name}}",
+    "assign_agent": "Assign to {{name}}",
+    "member": "the owner",
+    "agent": "the referent agent",
+    "assign_failed": "Failed to assign"
+  },
+  "role_view": {
+    "label": "View",
+    "full": "Full",
+    "pm": "PM",
+    "qa": "QA",
+    "cto": "CTO",
+    "pm_empty": "No decision card on this issue yet; the run log is shown instead.",
+    "cto_cost": "Cost",
+    "cto_cost_value": "{{cost}} · {{tokens}} tokens",
+    "cto_scorecard": "Agent scorecard",
+    "cto_no_agent": "No agent assigned",
+    "cto_audit": "Audit trail",
+    "cto_audit_empty": "Nothing recorded on this issue yet",
+    "block_failed": "This block could not be loaded."
+  },
+  "duel": {
+    "section": "Agent duel",
+    "status": {
+      "running": "running",
+      "verdict_ready": "awaiting your verdict",
+      "confirmed": "confirmed",
+      "inconclusive": "inconclusive"
+    },
+    "candidate": "Candidate {{side}}",
+    "cost": "Cost",
+    "duration": "Duration",
+    "tool_calls": "Tool calls",
+    "quality": "Arbiter score",
+    "arbiter_pick": "Arbiter's pick: {{side}}",
+    "arbiter_tie": "Arbiter's pick: tie",
+    "arbiter_unavailable": "No arbiter verdict ({{error}}); compare the runs and decide.",
+    "inconclusive": "A candidate failed for good: no comparison possible.",
+    "choose": "Confirm {{side}}",
+    "tie": "Call it a tie",
+    "winner": "Winner: {{side}}",
+    "winner_tie": "Declared a tie",
+    "open": "Start a duel",
+    "agent_a": "Agent A",
+    "agent_b": "Agent B",
+    "pick_agent": "Pick an agent…",
+    "launch": "Launch duel",
+    "cancel": "Cancel",
+    "failed": "The duel request failed",
+    "identical": "Pick two different agents"
+  },
+  "campaign": {
+    "section": "Refactoring campaign",
+    "target": "into {{branch}}",
+    "status": {
+      "running": "executing",
+      "merging": "merging",
+      "completed": "completed",
+      "failed": "failed"
+    },
+    "progress": "{{done}}/{{total}} merged or skipped",
+    "position": "#{{n}}",
+    "merge_status": {
+      "pending": "waiting",
+      "rebasing": "rebasing & merging",
+      "ready": "ready to merge",
+      "merged": "merged",
+      "conflict": "conflict",
+      "skipped": "skipped"
+    },
+    "conflict_hint": "Needs a human: resolve it or skip the shard so the queue moves on.",
+    "skip": "Skip shard #{{n}}",
+    "open": "Start a refactoring campaign",
+    "name": "Campaign name",
+    "target_branch": "Target branch",
+    "leader": "Leader agent",
+    "shard": "Shard {{n}}",
+    "shard_placeholder": "What this shard changes",
+    "branch": "Branch of shard {{n}}",
+    "branch_placeholder": "Branch (optional)",
+    "assignee": "Assignee of shard {{n}}",
+    "pick_agent": "Assign to…",
+    "remove": "Remove shard {{n}}",
+    "add": "Add a shard",
+    "launch": "Launch campaign",
+    "cancel": "Cancel",
+    "failed": "The campaign request failed"
+  },
+  "competency": {
+    "section": "Success history on this kind of task",
+    "domain": "Domain {{domain}}",
+    "row": "{{name}}: {{rate}} ({{count}} issues)",
+    "duels": "{{wins}} won / {{losses}} lost duels",
+    "low_sample": "not enough data yet ({{count}}/{{min}})",
+    "empty": "No agent has a history on this kind of task yet."
+  },
+  "cross_review": {
+    "section": "Cross-provider review",
+    "by": "by {{name}} on {{provider}}",
+    "in_progress": "review in progress",
+    "failed": "review failed",
+    "verdict": {
+      "approve": "approve",
+      "request_changes": "changes requested",
+      "comment": "comment"
+    },
+    "risks": "Risks",
+    "questions": "Questions",
+    "suggestions": "Suggestions",
+    "retry": "Retry the review",
+    "retry_failed": "The retry failed",
+    "previous": "{{count}} earlier attempt(s)"
+  },
+  "agent_effects": {
+    "section": "Agent changes",
+    "window": "reversible for {{hours}} h",
+    "run_by": "Run by {{name}}",
+    "undo_run": "Undo this run ({{count}})",
+    "undo_single": "Undo",
+    "undone": "{{count}} change(s) reversed",
+    "skipped": "{{count}} change(s) skipped: {{reason}}",
+    "breaker": "Breaker tripped: the agent now runs in {{mode}} mode",
+    "failed": "Undo failed",
+    "states": {
+      "reversed": "reversed",
+      "expired": "window expired",
+      "not_reversible": "not reversible",
+      "failed": "reversal failed",
+      "held": "awaiting approval",
+      "approved": "approved",
+      "rejected": "discarded"
+    },
+    "reasons": {
+      "already_reversed": "already reversed",
+      "not_reversible": "not reversible",
+      "window_expired": "window expired",
+      "reverse_failed": "reversal failed",
+      "not_applied": "held write, nothing to reverse"
+    },
+    "kinds": {
+      "issue_status": "Status {{from}} → {{to}}",
+      "issue_assignee": "Assignee changed",
+      "issue_field": "{{field}}: {{from}} → {{to}}",
+      "comment_create": "Comment: {{excerpt}}",
+      "comment_update": "Comment edited",
+      "note_create": "Note created: {{title}}",
+      "note_update": "Note edited: {{title}}",
+      "note_archive": "Note archived",
+      "triage_verdict": "Triage verdict: {{verdict}}",
+      "issue_create": "Issue created: {{title}}",
+      "issue_update": "Issue update: {{fields}}",
+      "comment_delete": "Deleted a comment: “{{excerpt}}”",
+      "note_delete": "Deleted the note “{{title}}”",
+      "chat_message": "Replied in chat: “{{excerpt}}” (undo posts a retraction in the same thread)"
+    }
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI fix in progress",
+    "fixed": "CI fixed automatically",
+    "failed": "CI fix failed ({{count}})",
+    "exhausted": "CI still red after {{count}} attempts",
+    "retry": "Retry",
+    "retry_failed": "The retry could not start"
+  },
+  "watchdog": {
+    "section": "Watchdog",
+    "intro": "An optional agent, different from the assignee, inspects this issue and its sub-issues once they are at rest and says whether the stop is legitimate. It never does the work, and its reopenings go through you until it has earned trust.",
+    "by": "{{name}} · after {{rest}} min at rest",
+    "agent": "Watchdog agent",
+    "pick_agent": "Pick an agent",
+    "owner": "Human owner",
+    "owner_me": "Me",
+    "rest": "Rest (minutes)",
+    "instructions": "Instructions",
+    "instructions_placeholder": "What to be strict about, what counts as proof…",
+    "save": "Save watchdog",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "remove": "Remove",
+    "enabled": "Watchdog enabled",
+    "saved": "Watchdog saved",
+    "save_failed": "Could not save the watchdog",
+    "removed": "Watchdog removed",
+    "scan_now": "Scan now",
+    "scan_started": "Scan started",
+    "scan_failed": "Could not start the scan",
+    "last_scan": "Last scan {{when}}",
+    "streak": "{{n}} relaunch(es) in a row",
+    "confirm": "Confirm",
+    "overturn": "Overturn",
+    "review_failed": "Could not review the verdict",
+    "missing": "missing criterion: {{criterion}}",
+    "dropped": "{{n}} finding(s) outside the tree were ignored",
+    "verdicts": {
+      "legitimate": "Legitimate stop",
+      "motion": "Put back in motion",
+      "escalate": "Escalated"
+    },
+    "outcomes": {
+      "reopened": "issues reopened",
+      "asked_proof": "proofs requested",
+      "escalated": "sent to the owner",
+      "awaiting_decision": "waiting for your decision",
+      "dismissed": "dismissed",
+      "noted": "noted",
+      "pending": "pending"
+    },
+    "reviews": {
+      "confirmed": "confirmed by a human",
+      "overturned": "overturned by a human"
+    },
+    "actions": {
+      "reopen": "reopen",
+      "ask_proof": "ask for a proof",
+      "none": "no action"
+    }
   }
 }

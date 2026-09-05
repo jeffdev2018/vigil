@@ -9,7 +9,8 @@
     "projects": "Projects",
     "issues": "Issues",
     "cancelled": "Cancelled",
-    "recent": "Recent"
+    "recent": "Recent",
+    "why": "Why"
   },
   "commands": {
     "current_theme_aria": "Current theme",
@@ -33,5 +34,11 @@
   },
   "trigger": {
     "label": "Search..."
+  },
+  "why": {
+    "comment": "Comment",
+    "task_message": "Run message",
+    "decision_record": "Decision record",
+    "empty": "No relevant source. Try rephrasing the question."
   }
 }

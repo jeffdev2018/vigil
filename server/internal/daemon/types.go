@@ -2,8 +2,11 @@ package daemon
 
 import (
 	"encoding/json"
+	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
 
@@ -76,6 +79,10 @@ type Task struct {
 	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
 	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
+	// McpGateway (K77) is the per-tool policy the daemon enforces on every MCP
+	// server of the run. Nil on a server too old to send it: the daemon then
+	// classifies each tool itself and caps it with the agent's trust dial.
+	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
 	// RemoteMCPDaemonToken stays inside the daemon and authenticates the local
 	// broker's credential-resolution calls. It must never enter agent env/config.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`
@@ -93,51 +100,67 @@ type Task struct {
 	// order. Rendered into the brief's status-command line; empty (including on
 	// old servers that never send the field) keeps the brief byte-identical to
 	// the built-in-only form. IssueStatusesOmitted is the cap overflow count.
-	IssueStatuses                 []IssueStatusData      `json:"issue_statuses,omitempty"`
-	IssueStatusesOmitted          int                    `json:"issue_statuses_omitted,omitempty"`
-	ThreadName                    string                 `json:"thread_name,omitempty"` // semantic title for provider-native session/thread history
-	Agent                         *AgentData             `json:"agent,omitempty"`
-	ConnectedApps                 []ConnectedAppData     `json:"connected_apps,omitempty"` // per-run app capabilities mounted through runtime MCP overlays
-	Repos                         []RepoData             `json:"repos,omitempty"`
-	ProjectID                     string                 `json:"project_id,omitempty"`                       // active project for this task, when present
-	ProjectTitle                  string                 `json:"project_title,omitempty"`                    // human-readable project title for context injection
-	ProjectDescription            string                 `json:"project_description,omitempty"`              // durable project-level context injected into the brief
-	ProjectResources              []ProjectResourceData  `json:"project_resources,omitempty"`                // project-scoped resources to expose to the agent
-	IsLeaderTask                  bool                   `json:"is_leader_task,omitempty"`                   // true when executing in the squad-leader coordinator role
-	LeaderRoleResolved            bool                   `json:"leader_role_resolved,omitempty"`             // server capability: IsLeaderTask/SquadID authoritatively answer "is this a leader run". Absent on servers predating it — those before #4951 never sent is_leader_task at all, later ones send it without this guarantee — so taskIsSquadLeader falls back to the briefing marker for both (MUL-5811)
-	PriorSessionID                string                 `json:"prior_session_id,omitempty"`                 // Claude session ID from a previous task on this issue
-	PriorWorkDir                  string                 `json:"prior_work_dir,omitempty"`                   // work_dir from a previous task on this issue
-	PriorSessionResumeUnavailable bool                   `json:"prior_session_resume_unavailable,omitempty"` // MUL-5305: server signals a more recent Codex session was withheld (rollout missing) and PriorSessionID (if any) is an older fallback; the run must disclose the continuity gap even if that older session resumes cleanly. Absent/false on old servers.
-	TriggerCommentID              string                 `json:"trigger_comment_id,omitempty"`               // comment that triggered this task
-	CoalescedCommentIDs           []string               `json:"coalesced_comment_ids,omitempty"`            // MUL-4195: earlier comments folded into this run while it was still queued; the agent must address these in addition to the (newest) triggering comment. Empty for old servers / non-merged runs
-	CoalescedComments             []CoalescedCommentData `json:"coalesced_comments,omitempty"`               // MUL-4195: full detail of the folded comments (thread_id/author/created_at/content) so the prompt can address each without assuming a shared thread. Empty for old servers / non-merged runs
-	TriggerThreadID               string                 `json:"trigger_thread_id,omitempty"`                // root comment ID for the triggering thread; falls back to trigger_comment_id on old servers
-	TriggerCommentContent         string                 `json:"trigger_comment_content,omitempty"`          // content of the triggering comment
-	TriggerAuthorType             string                 `json:"trigger_author_type,omitempty"`              // "agent" or "member" — author kind for the triggering comment
-	TriggerAuthorName             string                 `json:"trigger_author_name,omitempty"`              // display name of the triggering comment author
-	NewCommentCount               int                    `json:"new_comment_count,omitempty"`                // issue-wide comments since this agent's last run (excludes its own and the injected trigger); 0/omitted for old daemons or cold start
-	NewCommentsSince              string                 `json:"new_comments_since,omitempty"`               // RFC3339 anchor (last run's started_at) the count is measured from; empty on cold start
-	ChatSessionID                 string                 `json:"chat_session_id,omitempty"`                  // non-empty for chat tasks
-	ChatChannelType               string                 `json:"chat_channel_type,omitempty"`                // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Drives the channel-awareness block in the prompt
-	ChatChannelDeliversFiles      bool                   `json:"chat_channel_delivers_files,omitempty"`      // server capability: this deployment carries a file the agent produces the last hop into this conversation. Absent on a server predating it, which reads as false — the run is told to describe its file in words, and the worst case is a delivery that could have happened did not. Must never be re-derived from chat_channel_type: whether the hop exists depends on the SERVER's storage and adapter wiring, which no daemon can see (MUL-4899)
-	ChatType                      string                 `json:"chat_type,omitempty"`                        // "group" when the channel conversation is a shared room, "p2p" for a 1:1 with the bot. Empty for a web chat or an old server; the per-turn prompt then reports unknown rather than guessing 1:1
-	ChatInThread                  bool                   `json:"chat_in_thread,omitempty"`                   // true when the latest @mention was a thread reply; selects which read command the prompt tells the agent to start with
-	ChatMessage                   string                 `json:"chat_message,omitempty"`                     // user message content for chat tasks
-	ChatMessageAttachments        []ChatAttachmentMeta   `json:"chat_message_attachments,omitempty"`         // attachments linked to the chat message; agent uses these to `multica attachment download <id>`
-	ChatIntro                     bool                   `json:"chat_intro,omitempty"`                       // legacy compatibility for historical is_agent_intro sessions; new agent creation no longer creates these chats
-	RegenerateQuickActionsFor     string                 `json:"regenerate_quick_actions_for,omitempty"`     // set only by servers predating server-side quick-actions generation (MUL-5573). Read as a REFUSAL marker, never executed: see the guard in runTask
-	AutopilotRunID                string                 `json:"autopilot_run_id,omitempty"`                 // non-empty for autopilot run_only tasks
-	AutopilotID                   string                 `json:"autopilot_id,omitempty"`                     // autopilot that spawned this run
-	AutopilotTitle                string                 `json:"autopilot_title,omitempty"`                  // autopilot title used as task context
-	AutopilotDescription          string                 `json:"autopilot_description,omitempty"`            // autopilot description used as task prompt
-	AutopilotSource               string                 `json:"autopilot_source,omitempty"`                 // manual, schedule, webhook, or api
-	AutopilotTriggerPayload       json.RawMessage        `json:"autopilot_trigger_payload,omitempty"`        // optional trigger payload for webhook/api runs
-	QuickCreatePrompt             string                 `json:"quick_create_prompt,omitempty"`              // user's natural-language input for quick-create tasks
-	QuickCreatePriority           string                 `json:"quick_create_priority,omitempty"`            // explicit priority selected in quick-create
-	QuickCreateDueDate            string                 `json:"quick_create_due_date,omitempty"`            // explicit calendar due date selected in quick-create
-	QuickCreateAttachmentIDs      []string               `json:"quick_create_attachment_ids,omitempty"`      // attachments uploaded in the quick-create prompt and bound by issue create
-	QuickCreateSourceContext      json.RawMessage        `json:"quick_create_source_context,omitempty"`      // immutable historical context, separate from the new instruction
-	HandoffNote                   string                 `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
+	IssueStatuses        []IssueStatusData     `json:"issue_statuses,omitempty"`
+	IssueStatusesOmitted int                   `json:"issue_statuses_omitted,omitempty"`
+	ThreadName           string                `json:"thread_name,omitempty"` // semantic title for provider-native session/thread history
+	Agent                *AgentData            `json:"agent,omitempty"`
+	ConnectedApps        []ConnectedAppData    `json:"connected_apps,omitempty"` // per-run app capabilities mounted through runtime MCP overlays
+	Repos                []RepoData            `json:"repos,omitempty"`
+	ProjectID            string                `json:"project_id,omitempty"`          // active project for this task, when present
+	ProjectTitle         string                `json:"project_title,omitempty"`       // human-readable project title for context injection
+	ProjectDescription   string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
+	ProjectResources     []ProjectResourceData `json:"project_resources,omitempty"`   // project-scoped resources to expose to the agent
+	// Mirror of handler.AgentTaskResponse.GoalAncestry (F22): the issue's
+	// parent chain, root first. Absent from older servers and on root issues.
+	GoalAncestry        []execenv.GoalAncestryForEnv `json:"goal_ancestry,omitempty"`
+	GoalAncestryOmitted int                          `json:"goal_ancestry_omitted,omitempty"`
+	// Mirror of handler.AgentTaskResponse.MissionChain (K74).
+	MissionChain []execenv.MissionChainForEnv `json:"mission_chain,omitempty"`
+	// Mirror of handler.AgentTaskResponse.Org (K75).
+	Org *execenv.OrgContextForEnv `json:"org,omitempty"`
+	// WorkspaceNotes mirrors handler.AgentTaskResponse.WorkspaceNotes: the
+	// workspace Brain notes this run gets, written to .multica/knowledge by
+	// execenv. Absent from older servers and when the Brain is empty.
+	WorkspaceNotes                []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	IsLeaderTask                  bool                          `json:"is_leader_task,omitempty"`                   // true when executing in the squad-leader coordinator role
+	LeaderRoleResolved            bool                          `json:"leader_role_resolved,omitempty"`             // server capability: IsLeaderTask/SquadID authoritatively answer "is this a leader run". Absent on servers predating it — those before #4951 never sent is_leader_task at all, later ones send it without this guarantee — so taskIsSquadLeader falls back to the briefing marker for both (MUL-5811)
+	PriorSessionID                string                        `json:"prior_session_id,omitempty"`                 // Claude session ID from a previous task on this issue
+	PriorWorkDir                  string                        `json:"prior_work_dir,omitempty"`                   // work_dir from a previous task on this issue
+	PriorSessionResumeUnavailable bool                          `json:"prior_session_resume_unavailable,omitempty"` // MUL-5305: server signals a more recent Codex session was withheld (rollout missing) and PriorSessionID (if any) is an older fallback; the run must disclose the continuity gap even if that older session resumes cleanly. Absent/false on old servers.
+	TriggerCommentID              string                        `json:"trigger_comment_id,omitempty"`               // comment that triggered this task
+	CoalescedCommentIDs           []string                      `json:"coalesced_comment_ids,omitempty"`            // MUL-4195: earlier comments folded into this run while it was still queued; the agent must address these in addition to the (newest) triggering comment. Empty for old servers / non-merged runs
+	CoalescedComments             []CoalescedCommentData        `json:"coalesced_comments,omitempty"`               // MUL-4195: full detail of the folded comments (thread_id/author/created_at/content) so the prompt can address each without assuming a shared thread. Empty for old servers / non-merged runs
+	TriggerThreadID               string                        `json:"trigger_thread_id,omitempty"`                // root comment ID for the triggering thread; falls back to trigger_comment_id on old servers
+	TriggerCommentContent         string                        `json:"trigger_comment_content,omitempty"`          // content of the triggering comment
+	TriggerAuthorType             string                        `json:"trigger_author_type,omitempty"`              // "agent" or "member" — author kind for the triggering comment
+	TriggerAuthorName             string                        `json:"trigger_author_name,omitempty"`              // display name of the triggering comment author
+	NewCommentCount               int                           `json:"new_comment_count,omitempty"`                // issue-wide comments since this agent's last run (excludes its own and the injected trigger); 0/omitted for old daemons or cold start
+	NewCommentsSince              string                        `json:"new_comments_since,omitempty"`               // RFC3339 anchor (last run's started_at) the count is measured from; empty on cold start
+	ChatSessionID                 string                        `json:"chat_session_id,omitempty"`                  // non-empty for chat tasks
+	ChatChannelType               string                        `json:"chat_channel_type,omitempty"`                // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Drives the channel-awareness block in the prompt
+	ChatChannelDeliversFiles      bool                          `json:"chat_channel_delivers_files,omitempty"`      // server capability: this deployment carries a file the agent produces the last hop into this conversation. Absent on a server predating it, which reads as false — the run is told to describe its file in words, and the worst case is a delivery that could have happened did not. Must never be re-derived from chat_channel_type: whether the hop exists depends on the SERVER's storage and adapter wiring, which no daemon can see (MUL-4899)
+	ChatType                      string                        `json:"chat_type,omitempty"`                        // "group" when the channel conversation is a shared room, "p2p" for a 1:1 with the bot. Empty for a web chat or an old server; the per-turn prompt then reports unknown rather than guessing 1:1
+	ChatInThread                  bool                          `json:"chat_in_thread,omitempty"`                   // true when the latest @mention was a thread reply; selects which read command the prompt tells the agent to start with
+	ChatMessage                   string                        `json:"chat_message,omitempty"`                     // user message content for chat tasks
+	ChatMessageAttachments        []ChatAttachmentMeta          `json:"chat_message_attachments,omitempty"`         // attachments linked to the chat message; agent uses these to `multica attachment download <id>`
+	ChatIntro                     bool                          `json:"chat_intro,omitempty"`                       // legacy compatibility for historical is_agent_intro sessions; new agent creation no longer creates these chats
+	RegenerateQuickActionsFor     string                        `json:"regenerate_quick_actions_for,omitempty"`     // set only by servers predating server-side quick-actions generation (MUL-5573). Read as a REFUSAL marker, never executed: see the guard in runTask
+	AutopilotRunID                string                        `json:"autopilot_run_id,omitempty"`                 // non-empty for autopilot run_only tasks
+	AutopilotID                   string                        `json:"autopilot_id,omitempty"`                     // autopilot that spawned this run
+	AutopilotTitle                string                        `json:"autopilot_title,omitempty"`                  // autopilot title used as task context
+	AutopilotDescription          string                        `json:"autopilot_description,omitempty"`            // autopilot description used as task prompt
+	AutopilotSource               string                        `json:"autopilot_source,omitempty"`                 // manual, schedule, webhook, or api
+	AutopilotTriggerPayload       json.RawMessage               `json:"autopilot_trigger_payload,omitempty"`        // optional trigger payload for webhook/api runs
+	QuickCreatePrompt             string                        `json:"quick_create_prompt,omitempty"`              // user's natural-language input for quick-create tasks
+	QuickCreatePriority           string                        `json:"quick_create_priority,omitempty"`            // explicit priority selected in quick-create
+	QuickCreateDueDate            string                        `json:"quick_create_due_date,omitempty"`            // explicit calendar due date selected in quick-create
+	QuickCreateAttachmentIDs      []string                      `json:"quick_create_attachment_ids,omitempty"`      // attachments uploaded in the quick-create prompt and bound by issue create
+	QuickCreateSourceContext      json.RawMessage               `json:"quick_create_source_context,omitempty"`      // immutable historical context, separate from the new instruction
+	HandoffNote                   string                        `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
+	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
+	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
+	// ResumeFromCheckpointSeq (K20): non-zero when this run continues an interrupted one.
+	ResumeFromCheckpointSeq int64 `json:"resume_from_checkpoint_seq,omitempty"`
 
 	SquadID               string `json:"squad_id,omitempty"`                // when the picker was a squad, the squad's UUID; Agent is still the resolved leader
 	SquadName             string `json:"squad_name,omitempty"`              // display name for the picker squad, used in prompt text
@@ -200,14 +223,20 @@ type CoalescedCommentData struct {
 
 // AgentData holds agent details returned by the claim endpoint.
 type AgentData struct {
-	ID                    string                     `json:"id"`
-	Name                  string                     `json:"name"`
-	Instructions          string                     `json:"instructions"`
-	Skills                []SkillData                `json:"skills,omitempty"`
-	SkillRefs             []SkillRefData             `json:"skill_refs,omitempty"`
-	CustomEnv             map[string]string          `json:"custom_env,omitempty"`
-	CustomArgs            []string                   `json:"custom_args,omitempty"`
-	McpConfig             json.RawMessage            `json:"mcp_config,omitempty"`
+	ID           string            `json:"id"`
+	Name         string            `json:"name"`
+	Instructions string            `json:"instructions"`
+	Skills       []SkillData       `json:"skills,omitempty"`
+	SkillRefs    []SkillRefData    `json:"skill_refs,omitempty"`
+	CustomEnv    map[string]string `json:"custom_env,omitempty"`
+	CustomArgs   []string          `json:"custom_args,omitempty"`
+	// PermissionProfile (K06) is resolved by the server at claim time; nil
+	// means the run has no profile and nothing below is applied.
+	PermissionProfile *permissionprofile.Profile `json:"permission_profile,omitempty"`
+	McpConfig         json.RawMessage            `json:"mcp_config,omitempty"`
+	// TrustMode (K26) caps what an unlisted MCP tool may do when the claim
+	// carries no gateway policy; empty reads as "propose".
+	TrustMode             string                     `json:"trust_mode,omitempty"`
 	Model                 string                     `json:"model,omitempty"`
 	ThinkingLevel         string                     `json:"thinking_level,omitempty"`
 	ServiceTier           string                     `json:"service_tier,omitempty"`
@@ -217,6 +246,10 @@ type AgentData struct {
 	// daemon decodes provider-specific fields (e.g. openclaw mode +
 	// gateway endpoint, see issue #3260); other backends ignore it.
 	RuntimeConfig json.RawMessage `json:"runtime_config,omitempty"`
+	// Memories are the agent's durable learned facts (JEF-236), rendered
+	// into the brief's Memory section by execenv. Absent on older servers
+	// and when the agent has none.
+	Memories []string `json:"memories,omitempty"`
 }
 
 // DisabledRuntimeSkillData is the task-wire identity of one runtime-local
@@ -319,4 +352,15 @@ type PluginHookTool struct {
 	Name           string          `json:"name"`
 	Description    string          `json:"description"`
 	InputSchema    json.RawMessage `json:"input_schema,omitempty"`
+}
+
+// HandoffPacket (K17) is what the previous hand left on the issue.
+type HandoffPacket struct {
+	Objective      string   `json:"objective"`
+	Decisions      []string `json:"decisions"`
+	Evidence       []string `json:"evidence"`
+	FailedAttempts []string `json:"failed_attempts"`
+	NextAction     string   `json:"next_action"`
+	CreatedByType  string   `json:"created_by_type"`
+	CreatedAt      string   `json:"created_at"`
 }

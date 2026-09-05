@@ -26,6 +26,7 @@ import { RenameMachineDialog } from "./rename-machine-dialog";
 import { RuntimeProfilesDialog } from "./runtime-profiles-dialog";
 import { pendingRuntimesForProfiles } from "./pending-runtime";
 import { MachineCliSection } from "./machine-cli-section";
+import { SkippedAgentsSection } from "./skipped-agents-section";
 import { HealthIcon, useHealthLabel } from "./shared";
 import { useT, useTimeAgo } from "../../i18n";
 
@@ -342,6 +343,7 @@ export function RuntimeDetailPage({
               </p>
             </div>
           )}
+          <SkippedAgentsSection runtimes={machineRuntimes} />
         </div>
       </div>
 

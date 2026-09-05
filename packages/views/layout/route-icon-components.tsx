@@ -1,9 +1,12 @@
 import {
+  AudioLines,
   Inbox,
   MessageSquare,
   CircleUser,
   ListTodo,
   FolderKanban,
+  Target,
+  Network,
   Zap,
   Bot,
   Users,
@@ -11,6 +14,7 @@ import {
   Monitor,
   Server,
   BookOpenText,
+  BrainCircuit,
   Settings,
   File,
   FileText,
@@ -32,11 +36,14 @@ import { resolveRouteIconName, type RouteIconName } from "@multica/core/paths";
  * missing key a compile error.
  */
 export const ROUTE_ICON_COMPONENTS: Record<RouteIconName, LucideIcon> = {
+  AudioLines,
   Inbox,
   MessageSquare,
   CircleUser,
   ListTodo,
   FolderKanban,
+  Target,
+  Network,
   Zap,
   Bot,
   Users,
@@ -44,6 +51,7 @@ export const ROUTE_ICON_COMPONENTS: Record<RouteIconName, LucideIcon> = {
   Monitor,
   Server,
   BookOpenText,
+  BrainCircuit,
   Settings,
   File,
   FileText,

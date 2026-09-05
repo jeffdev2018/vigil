@@ -388,6 +388,9 @@ deleted_agent_invocation_targets AS (
     DELETE FROM agent_invocation_target
     WHERE agent_id IN (SELECT id FROM ws_agents)
 ),
+deleted_agent_versions AS (
+    DELETE FROM agent_version WHERE agent_version.workspace_id = $1
+),
 deleted_agent_skills AS (
     DELETE FROM agent_skill
     WHERE agent_id IN (SELECT id FROM ws_agents)
@@ -536,6 +539,15 @@ deleted_issues AS (
 deleted_labels AS (
     DELETE FROM issue_label WHERE issue_label.workspace_id = $1
 ),
+deleted_module_ownership AS (
+    DELETE FROM module_ownership WHERE module_ownership.workspace_id = $1
+),
+deleted_morning_briefings AS (
+    DELETE FROM morning_briefing_sent WHERE morning_briefing_sent.workspace_id = $1
+),
+deleted_scorecards AS (
+    DELETE FROM agent_scorecard_daily WHERE agent_scorecard_daily.workspace_id = $1
+),
 deleted_properties AS (
     DELETE FROM issue_property WHERE issue_property.workspace_id = $1
 ),
@@ -561,6 +573,26 @@ WHERE autopilot_quota_reservation.workspace_id = $1;
 -- name: DeleteWorkspaceAutopilotQuotaPeriods :exec
 DELETE FROM autopilot_quota_period
 WHERE autopilot_quota_period.workspace_id = $1;
+
+-- name: DeleteWorkspaceBudgetOverrides :exec
+DELETE FROM budget_override
+WHERE budget_override.workspace_id = $1;
+
+-- name: DeleteWorkspaceBudgetReservations :exec
+DELETE FROM budget_reservation
+WHERE budget_reservation.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPeriods :exec
+DELETE FROM budget_period
+WHERE budget_period.policy_id IN (
+    SELECT id FROM budget_policy WHERE workspace_id = $1
+);
+
+-- name: DeleteWorkspaceBudgetPolicies :exec
+DELETE FROM budget_policy
+WHERE budget_policy.workspace_id = $1;
 
 -- name: DeleteWorkspaceAutopilotChildren :exec
 WITH
@@ -595,6 +627,23 @@ WITH deleted_squads AS (
     DELETE FROM squad WHERE squad.workspace_id = $1
 )
 DELETE FROM skill WHERE skill.workspace_id = $1;
+
+-- name: DeleteWorkspaceAgentMemories :exec
+-- agent_memory carries no FK by repo rule; sweep it before the agent rows it
+-- logically hangs off.
+DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
+
+-- name: DeleteWorkspacePostmortems :exec
+-- postmortem carries no FK by repo rule; sweep it by workspace.
+DELETE FROM postmortem WHERE postmortem.workspace_id = $1;
+
+-- name: DeleteWorkspaceAgentEffects :exec
+-- agent_effect carries no FK by repo rule; sweep it by workspace.
+DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1;
+
+-- name: DeleteWorkspaceNotes :exec
+-- workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1;
 
 -- name: DeleteWorkspacePluginData :exec
 -- Plugin relationships have no foreign keys or cascades. Storage and secrets
@@ -656,6 +705,12 @@ deleted_runtimes AS (
 ),
 deleted_profiles AS (
     DELETE FROM runtime_profile WHERE runtime_profile.workspace_id = $1
+),
+deleted_goals AS (
+    DELETE FROM goal WHERE goal.workspace_id = $1
+),
+deleted_project_goals AS (
+    DELETE FROM project_goal WHERE project_goal.workspace_id = $1
 )
 DELETE FROM project WHERE project.workspace_id = $1;
 
@@ -667,6 +722,10 @@ deleted_members AS (
 deleted_notification_preferences AS (
     DELETE FROM notification_preference
     WHERE notification_preference.workspace_id = $1
+),
+deleted_calendar_feeds AS (
+    DELETE FROM user_calendar_feed
+    WHERE user_calendar_feed.workspace_id = $1
 ),
 deleted_pins AS (
     DELETE FROM pinned_item WHERE pinned_item.workspace_id = $1
@@ -690,3 +749,15 @@ deleted_share_links AS (
 )
 DELETE FROM workspace_invitation
 WHERE workspace_invitation.workspace_id = $1;
+
+-- name: DeleteWorkspacePlanVerifications :exec
+DELETE FROM plan_verification
+WHERE plan_verification.workspace_id = $1;
+
+-- name: DeleteWorkspaceIssuePlans :exec
+DELETE FROM issue_plan
+WHERE issue_plan.workspace_id = $1;
+
+-- name: DeleteWorkspaceIssueDecisions :exec
+DELETE FROM issue_decision
+WHERE issue_decision.workspace_id = $1;

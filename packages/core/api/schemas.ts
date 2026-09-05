@@ -48,7 +48,24 @@ import type {
   GitHubPullRequest,
   InboxItem,
   InboxWorkspaceUnread,
+  TriageStats,
+  TriageSource,
+  TriageItemsResponse,
+  TriageEmailSource,
+  Meeting,
+  VoiceTranscription,
+  RealtimeVoiceSession,
+  MeetingListResponse,
+  MeetingSegmentResponse,
+  CalendarUpcoming,
+  CalendarFeed,
+  PostmortemStats,
+  PostmortemsResponse,
+  WorkspaceNote,
+  WorkspaceNotesResponse,
   Label,
+  AgentMemory,
+  AgentMemoryList,
   MemberWithUser,
   IssueProperty,
   ListPropertiesResponse,
@@ -82,12 +99,21 @@ import type {
   Skill,
   SkillImportResult,
   Squad,
+  RuntimeRoutingStatsResponse,
   TimelineEntry,
   User,
   WebhookDelivery,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
   WorkspaceMcpServer,
+  MergeReadiness,
+  PRStack,
+  IssuePlanEnvelope,
 } from "../types";
-import type { CloudRuntimeNode } from "../runtimes/cloud-runtime";
+import type {
+  CloudRuntimeNode,
+  CloudRuntimeNodeActionResult,
+} from "../runtimes/cloud-runtime";
 import type { CreateFeedbackResponse } from "../feedback/types";
 
 export const PluginConfigFieldSchema = z.object({
@@ -434,6 +460,68 @@ export const EMPTY_ISSUE_PULL_REQUESTS_RESPONSE: { pull_requests: GitHubPullRequ
   pull_requests: [],
 };
 
+// Merge readiness (F10). `ready` never defaults to true: a malformed or
+// partial answer reads as "not ready", and an unknown blocker kind stays a
+// blocker (see github/merge-readiness.ts).
+export const MergeReadinessPRSchema = z.object({
+  id: z.string(),
+  source: z.string().default(""),
+  number: z.number().default(0),
+  title: z.string().default(""),
+  html_url: z.string().default(""),
+  state: z.string().default(""),
+  mergeable: z.string().nullable().default(null),
+  merge_state: z.string().nullable().default(null),
+  checks: z.object({
+    total: z.number().default(0),
+    passed: z.number().default(0),
+    failed: z.number().default(0),
+    pending: z.number().default(0),
+  }).default({ total: 0, passed: 0, failed: 0, pending: 0 }),
+  stale_snapshot: z.boolean().default(false),
+  ready: z.boolean().default(false),
+}).loose();
+
+export const MergeBlockerSchema = z.object({
+  kind: z.string(),
+  label: z.string().default(""),
+  count: z.number().optional(),
+  issue_identifier: z.string().optional(),
+  pr_number: z.number().optional(),
+}).loose();
+
+export const MergeReadinessSchema = z.object({
+  prs: z.array(MergeReadinessPRSchema).default([]),
+  blockers: z.array(MergeBlockerSchema).default([]),
+  unresolved_threads: z.number().default(0),
+  open_todos: z.number().default(0),
+  ready: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_MERGE_READINESS: MergeReadiness = {
+  prs: [],
+  blockers: [],
+  unresolved_threads: 0,
+  open_todos: 0,
+  ready: false,
+};
+
+export const PRStackSchema = z.object({
+  nodes: z.array(z.object({
+    issue_id: z.string(),
+    identifier: z.string().default(""),
+    title: z.string().default(""),
+    status: z.string().default(""),
+    depth: z.number().default(0),
+    prs: z.array(MergeReadinessPRSchema).default([]),
+    ready: z.boolean().default(false),
+  }).loose()).default([]),
+  truncated: z.boolean().default(false),
+  cyclic: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_PR_STACK: PRStack = { nodes: [], truncated: false, cyclic: false };
+
 // Label responses are consumed by settings tables and resource pickers. Keep
 // the resource type lenient so newer server scopes do not break older clients,
 // while defaulting fields that predate scoped label catalogs.
@@ -724,6 +812,10 @@ export const EMPTY_ISSUE_PROPERTIES_RESPONSE: IssuePropertiesResponse = {
 
 export interface AppConfigResponse {
   cdn_domain: string;
+  /** Speech-to-text provider configured (MULTICA_STT_*); absent on older servers. */
+  meeting_transcription_available?: boolean;
+  meeting_realtime_available?: boolean;
+  tts_available?: boolean;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
   // publicly fetchable and must not be used as native media sources
@@ -754,6 +846,10 @@ export interface AppConfigResponse {
    * silently ignored the unknown field, so absent must be treated as false. */
   agent_conversation_starters_supported?: boolean;
   server_version?: string;
+  /** Run liveness threshold in seconds (F02): an active run whose
+   * last_activity_at is older than this is shown as unresponsive. Omitted by
+   * older servers; the client keeps its own default. */
+  run_unresponsive_after_seconds?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -952,7 +1048,11 @@ export const AppConfigSchema = z.object({
   feature_flags: FeatureFlagsSchema,
   local_worktree_supported: BooleanWithDefaultSchema(false),
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
+  meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
+  meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
+  tts_available: BooleanWithDefaultSchema(false).optional(),
   server_version: OptionalStringSchema,
+  run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();
 
 export const EMPTY_APP_CONFIG: AppConfigResponse = {
@@ -1226,6 +1326,12 @@ export const IssueSchema = z.object({
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
+  // Goals (K74) predate older backends; absent parses to null.
+  goal_id: z.string().nullable().optional().default(null),
+  // Detail-only, and absent on an older backend. Absent means "not resolved
+  // here", so consumers must not read it as "no origin".
+  origin_type: z.string().nullish(),
+  origin_id: z.string().nullish(),
   position: z.number(),
   // Older backends predate `stage`; default to null so a missing field parses
   // cleanly into the non-optional Issue.stage (number | null).
@@ -1249,10 +1355,412 @@ export const IssueSchema = z.object({
   source_context: IssueSourceContextSchema.optional().catch(undefined),
 }).loose();
 
+// Plan verification (F17). Findings are LLM output: severity stays a string
+// and an unknown value is kept as data; nothing here can make a plan look
+// verified by default.
+export const IssuePlanSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  version: z.number().int().default(0),
+  content: z.string().default(""),
+  steps: z.array(z.object({
+    id: z.string().default(""),
+    title: z.string().default(""),
+    after: z.array(z.string()).optional().catch(undefined),
+    assignee_type: z.string().optional(),
+    assignee_id: z.string().optional(),
+    issue_id: z.string().optional(),
+  }).loose()).catch([]).default([]),
+  author_type: z.string().default(""),
+  author_id: z.string().default(""),
+  superseded_at: z.string().nullable().default(null),
+  materialized_at: z.string().nullable().optional().catch(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const IssuePlanEnvelopeSchema = z.object({
+  plan: IssuePlanSchema.nullable().catch(null).default(null),
+  versions: z.array(IssuePlanSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_ISSUE_PLAN: IssuePlanEnvelope = { plan: null, versions: [] };
+
+// Plan Gate (K11): what an approval produced.
+export const PlanMaterializationSchema = z.object({
+  plan: IssuePlanSchema,
+  issues: z.array(IssueSchema).catch([]).default([]),
+}).loose();
+
+export const PlanFindingSchema = z.object({
+  severity: z.string().default(""),
+  title: z.string().default(""),
+  detail: z.string().optional(),
+  files: z.array(z.string()).optional(),
+  plan_step_id: z.string().optional(),
+}).loose();
+
+export const PlanVerificationSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  plan_id: z.string().default(""),
+  plan_version: z.number().int().default(0),
+  task_id: z.string().default(""),
+  source_task_id: z.string().default(""),
+  state: z.string().default("queued"),
+  findings: z.array(PlanFindingSchema).catch([]).default([]),
+  critical_count: z.number().int().default(0),
+  major_count: z.number().int().default(0),
+  minor_count: z.number().int().default(0),
+  outdated_count: z.number().int().default(0),
+  summary: z.string().nullable().default(null),
+  reported_at: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const PlanVerificationsResponseSchema = z.object({
+  verifications: z.array(PlanVerificationSchema).catch([]).default([]),
+}).loose();
+
+// Issue scoping assistant (K14). Every field degrades on its own: a model that
+// skipped the files still yields a usable draft.
+export const IssueScopingProposalSchema = z.object({
+  title: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  acceptance_criteria: z.array(z.string()).catch([]).default([]),
+  probable_files: z.array(z.object({ path: z.string(), reason: z.string().optional() }).loose()).catch([]).default([]),
+}).loose();
+
+export const IssueScopingEnvelopeSchema = z.object({
+  proposal: IssueScopingProposalSchema,
+}).loose();
+
+// Decision Cards (K01). A card is data from an agent: nothing here decides.
+export const IssueDecisionSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  task_id: z.string().optional(),
+  asked_by_type: z.string().default(""),
+  asked_by_id: z.string().default(""),
+  question: z.string().default(""),
+  options: z.array(z.object({
+    id: z.string(),
+    label: z.string().default(""),
+    impact: z.string().optional(),
+  }).loose()).catch([]).default([]),
+  recommended_option_id: z.string().optional(),
+  urgency: z.string().default("normal"),
+  response: z.object({
+    option_id: z.string().optional(),
+    modified_text: z.string().optional(),
+  }).loose().nullable().catch(null).default(null),
+  responded_by_type: z.string().optional(),
+  responded_by_id: z.string().optional(),
+  responded_at: z.string().nullable().default(null),
+  resume_task_id: z.string().optional(),
+  plan_version: z.number().int().optional().catch(undefined),
+  interview_group_id: z.string().optional().catch(undefined),
+  interview_position: z.number().int().optional().catch(undefined),
+  sla_deadline_at: z.string().nullable().optional().catch(null),
+  escalation_level: z.number().int().optional().catch(0),
+  escalated_at: z.string().nullable().optional().catch(null),
+  created_at: z.string().default(""),
+  learned: z.object({
+    signature: z.string().catch("").default(""),
+    option_id: z.string().catch("").default(""),
+    option_label: z.string().catch("").default(""),
+    count: z.number().catch(0).default(0),
+    total: z.number().catch(0).default(0),
+    rate: z.number().catch(0).default(0),
+    auto: z.boolean().catch(false).default(false),
+    stake: z.string().catch("normal").default("normal"),
+  }).loose().nullable().optional().catch(null),
+}).loose();
+
+export const IssueDecisionsResponseSchema = z.object({
+  decisions: z.array(IssueDecisionSchema).catch([]).default([]),
+}).loose();
+
+export const IssueDecisionEnvelopeSchema = z.object({
+  decision: IssueDecisionSchema,
+}).loose();
+
+// Outcome Contract (K12). An unknown proof_type or proof_state is kept as text
+// and rendered by the UI's default branch; a malformed criterion drops the list.
+export const AcceptanceCriterionSchema = z.object({
+  id: z.string(),
+  text: z.string().default(""),
+  proof_type: z.string().optional(),
+  proof_ref: z.string().optional(),
+  proof_state: z.string().default("missing"),
+  validated_by: z.string().optional(),
+  proved_at: z.string().optional(),
+}).loose();
+
+export const AcceptanceCriteriaResponseSchema = z.object({
+  criteria: z.array(AcceptanceCriterionSchema).catch([]).default([]),
+}).loose();
+
 export const ListIssuesResponseSchema = z.object({
   issues: z.array(IssueSchema).default([]),
   total: z.number().default(0),
 }).loose();
+
+// GET /api/issues/:id/dependencies. `type` is relative to the requested
+// issue ("blocks" = it blocks `issue`). Kept as a plain string so a relation
+// type added server-side lands in `related` instead of failing the parse.
+export const IssueDependencySchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  issue: IssueSchema,
+}).loose();
+
+export const IssueDependenciesResponseSchema = z.object({
+  blocks: z.array(IssueDependencySchema).default([]),
+  blocked_by: z.array(IssueDependencySchema).default([]),
+  related: z.array(IssueDependencySchema).default([]),
+}).loose();
+
+// Triage queue (M2). Payload is the stored capture JSONB — an object whose
+// exact keys (`size` / `body` / `truncated`) are additive display data, so it
+// is parsed as a loose record rather than a fixed shape.
+export const TriageItemSchema = z.object({
+  id: z.string(),
+  source_id: z.string().default(""),
+  source_name: z.string().default(""),
+  source_kind: z.string().default(""),
+  origin_type: z.string().default(""),
+  origin_id: z.string().optional(),
+  title: z.string().default(""),
+  body_markdown: z.string().default(""),
+  payload: z.record(z.string(), z.unknown()).default({}),
+  state: z.string().default("pending"),
+  collapse_count: z.number().default(1),
+  drop_reason: z.string().optional(),
+  resolution_reason: z.string().optional(),
+  /** "member" when a human decided, "system" for an automatic resolution. */
+  resolved_by_type: z.string().optional(),
+  issue_id: z.string().optional(),
+  duplicate_of_issue_id: z.string().optional(),
+  /** Set while the item is parked by a snooze; cleared once it comes due. */
+  snoozed_until: z.string().nullable().optional(),
+  /** An agent's suggestion. Advisory: the item is still pending. */
+  verdict: z.string().optional(),
+  verdict_reason: z.string().optional(),
+  verdict_agent_id: z.string().optional(),
+  verdict_at: z.string().nullable().optional(),
+  first_seen_at: z.string(),
+  resolved_at: z.string().nullable().optional(),
+  revision: z.number().default(0),
+}).loose();
+
+export const TriageItemsResponseSchema = z.object({
+  items: z.array(TriageItemSchema).default([]),
+  next_cursor: z.string().optional(),
+}).loose();
+
+// Also the shape PATCH /api/triage/sources/{id} answers with: the policy is a
+// superset of what the stats carry, and the counters a patch response omits
+// default to zero rather than making a second endpoint necessary.
+export const TriageSourceSchema = z.object({
+  id: z.string(),
+  kind: z.string().default(""),
+  ref_id: z.string().default(""),
+  name: z.string().default(""),
+  mode: z.string().default("direct"),
+  auto_accept: z.boolean().default(false),
+  cap_per_hour: z.number().default(0),
+  expiry_days: z.number().default(0),
+  pending: z.number().default(0),
+  items_24h: z.number().default(0),
+  dropped_24h: z.number().default(0),
+}).loose();
+
+export const EMPTY_TRIAGE_SOURCE: TriageSource = Object.freeze({
+  id: "",
+  kind: "",
+  ref_id: "",
+  name: "",
+  mode: "direct",
+  auto_accept: false,
+  cap_per_hour: 0,
+  expiry_days: 0,
+  pending: 0,
+  items_24h: 0,
+  dropped_24h: 0,
+}) as TriageSource;
+
+export const TriageStatsSchema = z.object({
+  pending: z.number().default(0),
+  snoozed: z.number().default(0),
+  shadow_pending: z.number().default(0),
+  dropped_24h: z.number().default(0),
+  oldest_pending_age_seconds: z.number().default(0),
+  sources: z.array(TriageSourceSchema).default([]),
+}).loose();
+
+export const EMPTY_TRIAGE_STATS: TriageStats = Object.freeze({
+  pending: 0,
+  snoozed: 0,
+  shadow_pending: 0,
+  dropped_24h: 0,
+  oldest_pending_age_seconds: 0,
+  sources: [],
+}) as TriageStats;
+
+export const EMPTY_TRIAGE_ITEMS_RESPONSE: TriageItemsResponse = Object.freeze({
+  items: [],
+}) as TriageItemsResponse;
+
+export const TriageBatchAcceptResultSchema = z.object({
+  id: z.string(),
+  outcome: z.string().default("error"),
+  issue_id: z.string().optional(),
+  duplicate_of_issue_id: z.string().optional(),
+  duplicate_issue_identifier: z.string().optional(),
+}).loose();
+
+export const TriageBatchAcceptResponseSchema = z.object({
+  items: z.array(TriageBatchAcceptResultSchema).default([]),
+  stopped: z.string().optional(),
+}).loose();
+
+export const AcceptTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("accepted"),
+  issue: IssueSchema.optional(),
+}).loose();
+
+export const DismissTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("dismissed"),
+}).loose();
+
+export const MergeTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("merged"),
+  duplicate_of_issue_id: z.string().default(""),
+  duplicate_issue_identifier: z.string().default(""),
+}).loose();
+
+export const SnoozeTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("pending"),
+  snoozed_until: z.string().nullable().optional(),
+}).loose();
+
+export const TriageBatchDismissResultSchema = z.object({
+  id: z.string(),
+  outcome: z.string().default("error"),
+}).loose();
+
+export const TriageBatchDismissResponseSchema = z.object({
+  items: z.array(TriageBatchDismissResultSchema).default([]),
+}).loose();
+
+// Email intake. The token comes back exactly once, when the endpoint is
+// created or rotated; a response missing it is unusable, so it has no default.
+export const TriageEmailSourceSchema = z.object({
+  id: z.string(),
+  mode: z.string().default("gate"),
+  path: z.string().default(""),
+  url: z.string().optional(),
+  token: z.string().default(""),
+}).loose();
+
+export const EMPTY_TRIAGE_EMAIL_SOURCE: TriageEmailSource = Object.freeze({
+  id: "",
+  mode: "gate",
+  path: "",
+  token: "",
+}) as TriageEmailSource;
+
+// Postmortem autogen (k68). A drafted postmortem for a failed run, reviewed
+// by a human (draft -> approved/discarded).
+export const PostmortemSchema = z.object({
+  id: z.string(),
+  source_task_id: z.string().default(""),
+  issue_id: z.string().optional(),
+  agent_id: z.string().optional(),
+  trigger: z.string().default("failed"),
+  state: z.string().default("draft"),
+  failure_reason: z.string().default(""),
+  summary: z.string().default(""),
+  root_cause: z.string().default(""),
+  impact: z.string().default(""),
+  preventive_rules: z.array(z.string()).default([]),
+  cost_usd_ticks: z.number().optional(),
+  llm_generated: z.boolean().default(false),
+  resolved_at: z.string().nullable().optional(),
+  revision: z.number().default(0),
+  applied_rules: z.number().int().optional(),
+  created_at: z.string(),
+}).loose();
+
+export const PostmortemsResponseSchema = z.object({
+  items: z.array(PostmortemSchema).default([]),
+  next_cursor: z.string().optional(),
+}).loose();
+
+export const PostmortemStatsSchema = z.object({
+  draft: z.number().default(0),
+  approved: z.number().default(0),
+  discarded: z.number().default(0),
+}).loose();
+
+export const EMPTY_POSTMORTEM_STATS: PostmortemStats = Object.freeze({
+  draft: 0,
+  approved: 0,
+  discarded: 0,
+}) as PostmortemStats;
+
+// Workspace Brain. One shared knowledge note; `revision` is the
+// optimistic-concurrency token the PATCH must send back.
+export const WorkspaceNoteSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  title: z.string().default(""),
+  content: z.string().default(""),
+  tags: z.array(z.string()).default([]),
+  source: z.string().default("manual"),
+  source_task_id: z.string().nullable().optional(),
+  source_agent_id: z.string().nullable().optional(),
+  pinned: z.boolean().default(false),
+  archived_at: z.string().nullable().optional(),
+  merged_into: z.string().nullable().optional(),
+  created_by_type: z.string().default("member"),
+  created_by_id: z.string().nullable().optional(),
+  revision: z.number().default(0),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const WorkspaceNotesResponseSchema = z.object({
+  items: z.array(WorkspaceNoteSchema).default([]),
+  tags: z.array(z.string()).default([]),
+}).loose();
+
+export const EMPTY_WORKSPACE_NOTES_RESPONSE: WorkspaceNotesResponse = Object.freeze({
+  items: [],
+  tags: [],
+}) as WorkspaceNotesResponse;
+
+export const EMPTY_WORKSPACE_NOTE: WorkspaceNote = Object.freeze({
+  id: "",
+  workspace_id: "",
+  title: "",
+  content: "",
+  tags: [],
+  source: "manual",
+  pinned: false,
+  created_by_type: "member",
+  revision: 0,
+  created_at: "",
+  updated_at: "",
+}) as WorkspaceNote;
+
+export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
+  items: [],
+}) as PostmortemsResponse;
 
 // Response schema for POST /api/issues. Two tightenings over IssueSchema:
 //
@@ -1315,6 +1823,7 @@ const ProjectSchema = z.object({
   issue_count: z.number().default(0),
   done_count: z.number().default(0),
   resource_count: z.number().default(0),
+  goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
 const SearchProjectResultSchema = ProjectSchema.extend({
@@ -1504,6 +2013,20 @@ export const CloudRuntimeNodeSchema = z.object({
 }).loose();
 
 export const CloudRuntimeNodeListSchema = z.array(CloudRuntimeNodeSchema);
+
+// Power-action / status responses from the fleet service. That service is not
+// part of this repo, so the schema is deliberately permissive: both fields are
+// defaulted and unknown keys pass through. Only `status` is consumed, and an
+// empty one means "nothing new to show" rather than a broken page.
+export const CloudRuntimeNodeActionSchema = z.object({
+  instance_id: z.string().default(""),
+  status: z.string().default(""),
+}).loose();
+
+export const EMPTY_CLOUD_RUNTIME_NODE_ACTION: CloudRuntimeNodeActionResult = {
+  instance_id: "",
+  status: "",
+};
 
 export const EMPTY_CLOUD_RUNTIME_NODE_LIST: CloudRuntimeNode[] = [];
 
@@ -1741,6 +2264,57 @@ const TaskUsageSchema = z.object({
   cost_usd_ticks: z.number().optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Smart routing (JEF-237). The router's decision record rides on the task
+// payload; per-candidate stats default rather than fail so one thin row in
+// the scored shortlist still lets the decision render.
+// ---------------------------------------------------------------------------
+
+const RoutingCandidateSchema = z.object({
+  runtime_id: z.string().default(""),
+  provider: z.string().default(""),
+  model: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  wilson_lower: z.number().optional(),
+  avg_cost_usd: z.number().nullable().optional(),
+  avg_duration_secs: z.number().nullable().optional(),
+  score: z.number().optional(),
+  excluded_reason: z.string().optional(),
+}).loose();
+
+// `mode` stays an open string (only "auto" today) so an installed client
+// keeps the decision when the backend grows new modes.
+const RuntimeRoutingDecisionSchema = z.object({
+  mode: z.string().default("auto"),
+  chosen_runtime_id: z.string().default(""),
+  chosen_model: z.string().optional(),
+  reason: z.string().default(""),
+  candidates: z.array(RoutingCandidateSchema).optional(),
+}).loose();
+
+export const RuntimeRoutingStatsSchema = z.object({
+  runtime_id: z.string().default(""),
+  runtime_name: z.string().default(""),
+  provider: z.string().default(""),
+  model: z.string().default(""),
+  task_class: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  avg_cost_usd: z.number().nullable().default(null),
+  avg_duration_secs: z.number().nullable().default(null),
+}).loose();
+
+export const RuntimeRoutingStatsResponseSchema = z.object({
+  window_days: z.number().default(90),
+  rows: z.array(RuntimeRoutingStatsSchema).default([]),
+}).loose();
+
+export const EMPTY_ROUTING_STATS_RESPONSE: RuntimeRoutingStatsResponse = {
+  window_days: 90,
+  rows: [],
+};
+
 export const AgentTaskSchema = z.object({
   id: z.string(),
   agent_id: z.string().default(""),
@@ -1751,6 +2325,7 @@ export const AgentTaskSchema = z.object({
   dispatched_at: z.string().nullable().default(null),
   started_at: z.string().nullable().default(null),
   completed_at: z.string().nullable().default(null),
+  last_activity_at: z.string().nullish(),
   result: z.unknown().default(null),
   error: z.string().nullable().default(null),
   failure_reason: z.string().optional(),
@@ -1779,6 +2354,11 @@ export const AgentTaskSchema = z.object({
   // `.catch(undefined)` collapses a bad array to "no usage recorded", which
   // the UI already renders as an em dash.
   usage: z.array(TaskUsageSchema).optional().catch(undefined),
+  // Smart-routing fields (JEF-237). Same independent-degradation rule as
+  // `usage`: a malformed decision record costs the row its routing display,
+  // not the whole execution log.
+  task_class: z.string().optional().catch(undefined),
+  routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -2309,6 +2889,51 @@ export const UNREADABLE_CRON_PREVIEW_RESPONSE: CronPreviewResponse = {
   next_runs: null,
 };
 
+// ---------------------------------------------------------------------------
+// Trigger dry-runs. `reason_code` stays `z.string()` (the reason enum is
+// server-canonical and the UI renders unknown codes verbatim), and
+// `matched_filters` defaults to [] so an older server that omits it degrades
+// to "no filter named" instead of collapsing the whole verdict.
+//
+// `would_run` has NO default: a verdict we cannot read must not masquerade as
+// "this event would be dropped" — the fallbacks below say so explicitly.
+// ---------------------------------------------------------------------------
+
+export const WebhookTriggerDryRunSchema = z.object({
+  would_run: z.boolean(),
+  reason_code: z.string().nullable().default(null),
+  explanation: z.string().default(""),
+  matched_filters: z
+    .array(z.object({ event: z.string(), actions: z.array(z.string()).optional() }).loose())
+    .default([]),
+  event: z.string().default(""),
+}).loose();
+
+export const ScheduleTriggerDryRunSchema = z.object({
+  next_runs: z.array(z.string()),
+  would_run: z.boolean(),
+  reason_code: z.string().nullable().default(null),
+  window_minutes: z.number().default(0),
+}).loose();
+
+// `unreadable` is the sentinel both dry-run surfaces branch on: it is neither
+// "would run" nor a named blocking reason, so the UI says the preview could
+// not be read rather than inventing a verdict.
+export const UNREADABLE_WEBHOOK_DRY_RUN: WebhookTriggerDryRunResult = {
+  would_run: false,
+  reason_code: "unreadable",
+  explanation: "",
+  matched_filters: [],
+  event: "",
+};
+
+export const UNREADABLE_SCHEDULE_DRY_RUN: ScheduleTriggerDryRunResult = {
+  next_runs: [],
+  would_run: false,
+  reason_code: "unreadable",
+  window_minutes: 0,
+};
+
 export const EMPTY_WEBHOOK_DELIVERY: WebhookDelivery = {
   id: "",
   workspace_id: "",
@@ -2429,6 +3054,29 @@ export const InboxItemListSchema = z.array(
 );
 
 export const EMPTY_INBOX_ITEMS: InboxItem[] = [];
+
+// Attention Inbox (K02): the same rows plus a server-computed risk.
+// Inbox zero (K63): my pending Decision Cards, options included.
+export const InboxDecisionsSchema = z.object({
+  decisions: z.array(z.object({
+    inbox_item_id: z.string().default(""),
+    issue_id: z.string().default(""),
+    issue_identifier: z.string().catch("").default(""),
+    issue_title: z.string().catch("").default(""),
+    risk_score: z.number().catch(0).default(0),
+    decision: IssueDecisionSchema,
+  }).loose()).catch([]).default([]),
+  total: z.number().int().catch(0).default(0),
+}).loose();
+
+export const AttentionInboxListSchema = z.object({
+  items: z.array(
+    InboxItemListSchema.element.extend({
+      risk_score: z.number().default(0),
+      reason: z.string().default(""),
+    }),
+  ).catch([]).default([]),
+}).loose();
 
 // ---------------------------------------------------------------------------
 // Billing schemas (cloud-billing proxy surface)
@@ -2987,6 +3635,20 @@ export const MALFORMED_RUNTIME_MODEL_LIST_REQUEST: RuntimeModelListRequest = {
   updated_at: "",
 };
 
+export const RuntimeCliAuthRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string(),
+  action: z.string(),
+  status: z.string(),
+  verification_url: z.string().url().optional(),
+  user_code: z.string().optional(),
+  authenticated: z.boolean().optional(),
+  error: z.string().optional(),
+  created_at: z.string(),
+  updated_at: z.string(),
+  expires_at: z.string(),
+}).loose();
+
 export const DingTalkInstallationSchema = z.object({
   id: z.string(),
   workspace_id: z.string().default(""),
@@ -3183,7 +3845,29 @@ export const SkillSchema = z.object({
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
   files: z.array(SkillFileSchema).optional().default([]),
+  status: z.string().catch("published").default("published"),
 }).loose();
+
+// Skill Miner (K58).
+export const SkillDraftSchema = z.object({
+  id: z.string().default(""),
+  workspace_id: z.string().catch("").default(""),
+  name: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch("").default(""),
+  updated_at: z.string().catch("").default(""),
+  status: z.string().catch("draft").default("draft"),
+  sources: z.array(z.object({
+    issue_id: z.string().catch("").default(""),
+    issue_number: z.number().catch(0).default(0),
+    issue_title: z.string().catch("").default(""),
+    comment_id: z.string().catch("").default(""),
+    status_regressed: z.boolean().catch(false).default(false),
+  }).loose()).catch([]).default([]),
+}).loose();
+export const SkillDraftListSchema = z.object({ drafts: z.array(SkillDraftSchema).catch([]).default([]) }).loose();
 
 export const EMPTY_SKILL: Skill = {
   id: "",
@@ -3227,6 +3911,47 @@ export const EMPTY_SKILL_IMPORT_RESULT: SkillImportResult = {
   reason: "",
 };
 
+// Agent persistent memories (JEF-236). `source` stays a plain string so a
+// newer backend source kind still parses — consumers render it with a
+// default-bearing branch. Fields default so a partial payload degrades to a
+// renderable row rather than dropping the whole list.
+export const AgentMemorySchema = z.object({
+  id: z.string(),
+  agent_id: z.string(),
+  content: z.string().optional().default(""),
+  source: z.string().optional().default("manual"),
+  source_task_id: z.string().nullable().optional().default(null),
+  source_issue_id: z.string().nullable().optional().default(null),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+}).loose();
+
+export const EMPTY_AGENT_MEMORY: AgentMemory = {
+  id: "",
+  agent_id: "",
+  content: "",
+  source: "manual",
+  source_task_id: null,
+  source_issue_id: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// The list endpoint wraps the rows so it can report how many of them a run
+// brief actually carries and whether the extraction pass is configured —
+// neither is derivable from the rows.
+export const AgentMemoryListSchema = z.object({
+  memories: z.array(AgentMemorySchema).optional().default([]),
+  briefed_count: z.number().optional().default(0),
+  extraction_enabled: z.boolean().optional().default(false),
+}).loose();
+
+export const EMPTY_AGENT_MEMORY_LIST: AgentMemoryList = {
+  memories: [],
+  briefed_count: 0,
+  extraction_enabled: false,
+};
+
 /**
  * Read shape of one workspace MCP server.
  *
@@ -3240,6 +3965,21 @@ export const EMPTY_SKILL_IMPORT_RESULT: SkillImportResult = {
  * `transport` stays a plain string (not an enum) so an unknown value from a
  * newer backend still parses — the UI has a default branch for it.
  */
+const McpToolRiskSchema = z.enum(["read", "internal_write", "external_effect", "sensitive_data", "unknown"]).catch("unknown");
+const McpToolClassSchema = z.enum(["act_alone", "ask", "never"]).catch("ask");
+export const McpCatalogToolSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  schema_digest: z.string().optional(),
+  risk: McpToolRiskSchema,
+  risk_source: z.enum(["auto", "manual"]).catch("auto"),
+  class: McpToolClassSchema.optional(),
+  last_used_at: z.string().optional(),
+});
+export const McpToolPolicySchema = z.object({
+  default: z.enum(["by_risk", "ask", "never"]).optional().catch(undefined),
+  tools: z.record(z.string(), McpToolClassSchema).optional().catch(undefined),
+});
 export const WorkspaceMcpServerSchema = z.object({
   id: z.string().default(""),
   workspace_id: z.string().default(""),
@@ -3248,7 +3988,16 @@ export const WorkspaceMcpServerSchema = z.object({
   enabled: z.boolean().optional(),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
+  // K77: still strict — only the governed fields are let through, never the entry.
+  tool_count: z.number().catch(0).default(0),
+  tool_policy: McpToolPolicySchema.optional().catch(undefined),
+  tools: z.array(McpCatalogToolSchema).optional().catch(undefined),
 });
+export const McpServerToolCatalogSchema = z.object({
+  tools: z.array(McpCatalogToolSchema).catch([]).default([]),
+  discovered_at: z.string().nullable().catch(null).default(null),
+  risks: z.array(McpToolRiskSchema).catch([]).default([]),
+}).loose();
 
 export const WorkspaceMcpServerListSchema = z.array(WorkspaceMcpServerSchema);
 
@@ -3257,6 +4006,7 @@ export const EMPTY_WORKSPACE_MCP_SERVER: WorkspaceMcpServer = {
   workspace_id: "",
   name: "",
   transport: "unknown",
+  tool_count: 0,
   created_at: "",
   updated_at: "",
 };
@@ -3341,3 +4091,1426 @@ export const EMPTY_JOIN_SHARE_LINK_RESPONSE: {
   workspace_id: "",
   workspace_slug: "",
 };
+
+// Review cockpit (K16). Each section degrades on its own so one broken
+// source never blanks the page; failed_sections names what the server could
+// not load.
+const ReviewCockpitRunSchema = z.object({
+  id: z.string(),
+  status: z.string().default(""),
+  agent_id: z.string().default(""),
+  created_at: z.string().default(""),
+  started_at: z.string().nullable().default(null),
+  completed_at: z.string().nullable().default(null),
+  error: z.string().nullable().default(null),
+  failure_reason: z.string().optional(),
+  handoff_note: z.string().optional(),
+}).loose();
+
+export const ReviewCockpitSchema = z.object({
+  issue: IssueSchema,
+  run: ReviewCockpitRunSchema.nullable().catch(null).default(null),
+  runs: z.array(ReviewCockpitRunSchema).catch([]).default([]),
+  merge_readiness: MergeReadinessSchema.nullable().catch(null).default(null),
+  usage: z.object({
+    input_tokens: z.number().default(0),
+    output_tokens: z.number().default(0),
+    cache_read_tokens: z.number().default(0),
+    cache_write_tokens: z.number().default(0),
+    cost_usd_ticks: z.number().nullable().default(null),
+    uncosted: z.boolean().default(false),
+  }).loose().nullable().catch(null).default(null),
+  open_questions: z.array(IssueDecisionSchema).catch([]).default([]),
+  criteria: z.array(AcceptanceCriterionSchema).catch([]).default([]),
+  plan_verification: PlanVerificationSchema.nullable().catch(null).default(null),
+  self_review: z.unknown().nullable().default(null),
+  failed_sections: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Cost per deliverable (K04).
+const DeliverableCostStatsSchema = z.object({
+  count: z.number().default(0),
+  mean_usd_ticks: z.number().default(0),
+  median_usd_ticks: z.number().default(0),
+  total_usd_ticks: z.number().default(0),
+  uncosted_count: z.number().default(0),
+  trend_pct: z.number().nullable().catch(null).default(null),
+}).loose();
+
+export const DashboardCostPerDeliverableSchema = z.object({
+  days: z.number().default(30),
+  issues: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
+  pull_requests: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
+}).loose();
+
+// Module ownership (K33).
+export const ModuleOwnershipRuleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  path_pattern: z.string().nullable().default(null),
+  label_id: z.string().nullable().default(null),
+  owner_user_id: z.string().default(""),
+  referent_agent_id: z.string().nullable().default(null),
+  priority: z.number().int().default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const ModuleOwnershipRuleEnvelopeSchema = z.object({
+  rule: ModuleOwnershipRuleSchema,
+}).loose();
+
+export const ModuleOwnershipListSchema = z.object({
+  rules: z.array(ModuleOwnershipRuleSchema).catch([]).default([]),
+}).loose();
+
+export const OwnershipSuggestionSchema = z.object({
+  rule_id: z.string().default(""),
+  owner_user_id: z.string(),
+  referent_agent_id: z.string().nullable().default(null),
+  matched: z.string().default(""),
+  pattern: z.string().default(""),
+}).loose();
+
+export const OwnershipSuggestionEnvelopeSchema = z.object({
+  suggestion: OwnershipSuggestionSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Morning briefing (K30). A section that fails to parse is empty, and an
+// empty section is hidden by the view, so a broken line never blanks the day.
+const BriefingItemSchema = z.object({
+  issue_id: z.string(),
+  identifier: z.string().default(""),
+  title: z.string().default(""),
+  status: z.string().default(""),
+  reason: z.string().optional(),
+  pending_decisions: z.number().int().optional(),
+}).loose();
+
+export const MorningBriefingSchema = z.object({
+  date: z.string().default(""),
+  merged: z.array(BriefingItemSchema).catch([]).default([]),
+  awaiting_review: z.array(BriefingItemSchema).catch([]).default([]),
+  blocked: z.array(BriefingItemSchema).catch([]).default([]),
+  sent_at: z.string().nullable().catch(null).default(null),
+  already_sent: z.boolean().optional(),
+  narrative: z.string().catch("").default(""),
+  channels_delivered: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Scorecards (K25).
+const ScorecardTotalsShape = {
+  runs_total: z.number().default(0),
+  runs_failed: z.number().default(0),
+  runs_cancelled: z.number().default(0),
+  runs_accepted: z.number().default(0),
+  runs_reopened: z.number().default(0),
+  runs_no_intervention: z.number().default(0),
+  cost_usd_ticks_total: z.number().default(0),
+  low_sample: z.boolean().default(true),
+};
+const ScorecardTotalsSchema = z.object(ScorecardTotalsShape).loose();
+
+export const AgentScorecardSchema = z.object({
+  agent_id: z.string().default(""),
+  days: z.number().default(30),
+  totals: ScorecardTotalsSchema.catch({ runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true }),
+  previous: ScorecardTotalsSchema.catch({ runs_total: 0, runs_failed: 0, runs_cancelled: 0, runs_accepted: 0, runs_reopened: 0, runs_no_intervention: 0, cost_usd_ticks_total: 0, low_sample: true }),
+  series: z.array(z.object({ ...ScorecardTotalsShape, day: z.string() }).loose()).catch([]).default([]),
+}).loose();
+
+export const WorkspaceScorecardsSchema = z.object({
+  days: z.number().default(30),
+  rows: z.array(z.object({ ...ScorecardTotalsShape, agent_id: z.string(), runtime_id: z.string().optional() }).loose()).catch([]).default([]),
+}).loose();
+
+// Agent versions (K23).
+export const AgentVersionSchema = z.object({
+  id: z.string(),
+  agent_id: z.string().default(""),
+  version_number: z.number().int().default(0),
+  instructions: z.string().default(""),
+  model: z.string().default(""),
+  skill_ids: z.array(z.string()).catch([]).default([]),
+  tool_config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  note: z.string().optional(),
+  created_by_type: z.string().default("system"),
+  created_by_id: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+  active: z.boolean().default(false),
+}).loose();
+
+export const AgentVersionsSchema = z.object({
+  versions: z.array(AgentVersionSchema).catch([]).default([]),
+}).loose();
+
+export const AgentVersionDiffSchema = z.object({
+  from: AgentVersionSchema,
+  to: AgentVersionSchema,
+  changed_fields: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const AgentVersionEnvelopeSchema = z.object({ version: AgentVersionSchema }).loose();
+
+// Audit log (K08).
+export const AuditLogEntrySchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  occurred_at: z.string().default(""),
+  actor_type: z.string().default("system"),
+  actor_id: z.string().nullable().default(null),
+  action: z.string().default(""),
+  entity_type: z.string().default(""),
+  entity_id: z.string().nullable().default(null),
+  model: z.string().nullable().default(null),
+  cost_usd_ticks: z.number().nullable().default(null),
+  approver_type: z.string().nullable().default(null),
+  approver_id: z.string().nullable().default(null),
+  details: z.record(z.string(), z.unknown()).catch({}).default({}),
+  chain_seq: z.number().optional(),
+  prev_hash: z.string().nullable().optional(),
+  hash: z.string().optional(),
+}).loose();
+
+export const AuditChainStatusSchema = z.object({
+  ok: z.boolean().default(false),
+  total: z.number().default(0),
+  head_hash: z.string().default(""),
+  broken_seq: z.number().nullable().default(null),
+  broken_id: z.string().nullable().default(null),
+}).loose();
+
+export const AuditLogPageSchema = z.object({
+  entries: z.array(AuditLogEntrySchema).catch([]).default([]),
+  next_cursor: z.string().catch("").default(""),
+}).loose();
+
+// Decision memory (K29).
+export const DecisionRecordSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  project_id: z.string().nullable().default(null),
+  issue_id: z.string().default(""),
+  issue_identifier: z.string().optional(),
+  issue_title: z.string().optional(),
+  run_id: z.string().default(""),
+  source_message_seq: z.number().default(0),
+  title: z.string().default(""),
+  context: z.string().default(""),
+  decision: z.string().default(""),
+  consequences: z.string().nullable().default(null),
+  author_type: z.string().default("agent"),
+  author_id: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const DecisionRecordListSchema = z.object({
+  decisions: z.array(DecisionRecordSchema).catch([]).default([]),
+}).loose();
+
+export const ADRRequirementSchema = z.object({
+  required: z.boolean().default(false),
+  satisfied: z.boolean().default(true),
+  files: z.number().default(0),
+  file_threshold: z.number().default(0),
+  migration: z.boolean().default(false),
+  decisions: z.number().default(0),
+  run_id: z.string().optional(),
+}).loose();
+
+// Business rules (K53).
+export const BusinessRuleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  title: z.string().default(""),
+  natural_language: z.string().default(""),
+  predicate: z.unknown(),
+  description: z.string().default(""),
+  attach_point: z.string().default("project_create"),
+  action: z.object({ kind: z.string().default("dismiss"), priority: z.string().optional(), assignee_type: z.string().optional(), assignee_id: z.string().optional() }).loose().nullable().optional(),
+  action_description: z.string().optional(),
+  status: z.string().default("draft"),
+  created_by: z.string().default(""),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const BusinessRuleListSchema = z.object({
+  rules: z.array(BusinessRuleSchema).catch([]).default([]),
+  attach_points: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const BusinessRuleEnvelopeSchema = z.object({ rule: BusinessRuleSchema }).loose();
+
+export const BusinessRuleDryRunSchema = z.object({
+  rule: BusinessRuleSchema,
+  checked: z.number().default(0),
+  violations: z.array(z.object({
+    subject_type: z.string().default(""),
+    subject_id: z.string().default(""),
+    label: z.string().default(""),
+    detail: z.string().default(""),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+export const BusinessRuleViolationListSchema = z.object({
+  violations: z.array(z.object({
+    id: z.string(),
+    rule_id: z.string().default(""),
+    subject_type: z.string().default(""),
+    subject_id: z.string().default(""),
+    detail: z.string().nullable().default(null),
+    created_at: z.string().default(""),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+// Standup and retro (K34).
+export const WeeklyRetroSchema = z.object({
+  week_start: z.string().default(""),
+  week_end: z.string().default(""),
+  runs_total: z.number().default(0),
+  runs_by_status: z.record(z.string(), z.number()).catch({}).default({}),
+  median_minutes: z.number().default(0),
+  failed: z.array(z.object({
+    run_id: z.string().default(""),
+    issue_id: z.string().default(""),
+    identifier: z.string().default(""),
+    title: z.string().default(""),
+    status: z.string().default(""),
+    agent_id: z.string().default(""),
+    minutes: z.number().default(0),
+    error: z.string().optional(),
+  }).loose()).catch([]).default([]),
+  agents: z.array(z.object({
+    agent_id: z.string().default(""),
+    name: z.string().default(""),
+    runs_total: z.number().default(0),
+    runs_failed: z.number().default(0),
+    runs_accepted: z.number().default(0),
+    runs_reopened: z.number().default(0),
+    runs_no_intervention: z.number().default(0),
+    cost_usd_ticks: z.number().default(0),
+  }).loose()).catch([]).default([]),
+  skill_proposals: z.array(z.object({ text: z.string().default(""), source: z.string().default("") }).loose()).catch([]).default([]),
+  narrative: z.string().catch("").default(""),
+  generated_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+// Why search (K55).
+export const WhySearchResponseSchema = z.object({
+  results: z.array(z.object({
+    id: z.string(),
+    source_type: z.string().default("comment"),
+    source_id: z.string().default(""),
+    issue_id: z.string().nullable().default(null),
+    issue_identifier: z.string().optional(),
+    issue_title: z.string().optional(),
+    snippet: z.string().default(""),
+    score: z.number().default(0),
+    created_at: z.string().default(""),
+  }).loose()).catch([]).default([]),
+  query: z.string().default(""),
+}).loose();
+
+// Trust Dial (K26).
+export const TrustModeEnvelopeSchema = z.object({
+  agent_id: z.string().default(""),
+  mode: z.string().default("propose"),
+  modes: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// "Show me first" (K69).
+export const EffectModeEnvelopeSchema = z.object({
+  agent_id: z.string().default(""),
+  mode: z.enum(["apply", "preview"]).catch("apply").default("apply"),
+}).loose();
+
+export const TrustSuggestionSchema = z.object({
+  eligible: z.boolean().default(false),
+  current_mode: z.string().default("propose"),
+  suggested_mode: z.string().optional(),
+  metrics: z.object({
+    days: z.number().default(30),
+    runs_total: z.number().default(0),
+    accepted_rate: z.number().default(0),
+    no_intervention_rate: z.number().default(0),
+    reopen_rate: z.number().default(0),
+  }).loose().catch({ days: 30, runs_total: 0, accepted_rate: 0, no_intervention_rate: 0, reopen_rate: 0 }),
+  thresholds: z.object({
+    days: z.number().default(30),
+    min_runs: z.number().default(10),
+    min_accepted_rate: z.number().default(0.8),
+    min_no_intervention_rate: z.number().default(0.7),
+    max_reopen_rate: z.number().default(0.1),
+  }).loose().catch({ days: 30, min_runs: 10, min_accepted_rate: 0.8, min_no_intervention_rate: 0.7, max_reopen_rate: 0.1 }),
+  reasons: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const TrustHistorySchema = z.object({
+  changes: z.array(z.object({
+    id: z.string(),
+    from_mode: z.string().default(""),
+    to_mode: z.string().default(""),
+    reason: z.string().nullable().default(null),
+    triggered_by_type: z.string().default("member"),
+    triggered_by_id: z.string().nullable().default(null),
+    created_at: z.string().default(""),
+    demotion: z.boolean().default(false),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+// Triage auto-ML (K61).
+export const TriageSuggestionsResponseSchema = z.object({
+  suggestions: z.record(z.string(), z.object({
+    item_id: z.string().default(""),
+    ready: z.boolean().default(false),
+    examples: z.number().default(0),
+    min_examples: z.number().default(20),
+    suggested: z.string().optional(),
+    confidence: z.number().default(0),
+    neighbors: z.array(z.object({ id: z.string(), title: z.string().default(""), state: z.string().default(""), score: z.number().default(0) }).loose()).catch([]).default([]),
+  }).loose()).catch({}).default({}),
+  auto: z.object({ enabled: z.boolean().default(false), threshold: z.number().default(0.9), min_examples: z.number().default(20) }).loose().catch({ enabled: false, threshold: 0.9, min_examples: 20 }),
+}).loose();
+
+// Blast radius (K07).
+export const BlastRadiusRuleSchema = z.object({
+  id: z.string(),
+  project_id: z.string().default(""),
+  path_pattern: z.string().default(""),
+  autonomy_level: z.string().default("dual_approval"),
+  specificity: z.number().default(0),
+  created_by: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const BlastRadiusRulesSchema = z.object({
+  rules: z.array(BlastRadiusRuleSchema).catch([]).default([]),
+  levels: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const BlastRadiusPreviewSchema = z.object({
+  path: z.string().default(""),
+  level: z.string().default("inherit"),
+  rule_id: z.string().optional(),
+  path_pattern: z.string().optional(),
+}).loose();
+
+// Permission profiles (K06).
+export const PermissionProfileSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  description: z.string().default(""),
+  read_only: z.boolean().default(false),
+  denied_paths: z.array(z.string()).catch([]).default([]),
+  allowed_commands: z.array(z.string()).catch([]).default([]),
+  hidden_secrets: z.array(z.string()).catch([]).default([]),
+  builtin: z.boolean().default(false),
+}).loose();
+
+export const PermissionProfilesEnvelopeSchema = z.object({
+  profiles: z.array(PermissionProfileSchema).catch([]).default([]),
+}).loose();
+
+export const AgentPermissionAssignmentSchema = z.object({
+  id: z.string().default(""),
+  permission_profile_id: z.string().nullable().default(null),
+}).loose();
+
+// Run-scoped secrets (K09): keys and status only, never a value.
+export const RunSecretSchema = z.object({
+  id: z.string().default(""),
+  task_id: z.string().default(""),
+  key: z.string().default(""),
+  status: z.enum(["active", "revoked", "expired"]).catch("revoked").default("revoked"),
+  expires_at: z.string().default(""),
+  revoked_at: z.string().nullable().default(null),
+  revoke_reason: z.string().nullable().default(null),
+  created_at: z.string().default(""),
+}); // strips unknown fields on purpose: a value must never reach the client
+
+export const RunSecretsEnvelopeSchema = z.object({
+  secrets: z.array(RunSecretSchema).catch([]).default([]),
+}).loose();
+
+// Runtime pools (K28).
+export const RuntimePoolSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  runtime_ids: z.array(z.string()).catch([]).default([]),
+  degraded_runtime_id: z.string().nullable().default(null),
+  agent_count: z.number().catch(0).default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RuntimePoolsEnvelopeSchema = z.object({
+  pools: z.array(RuntimePoolSchema).catch([]).default([]),
+}).loose();
+
+export const FailoverEntrySchema = z.object({
+  from_runtime_id: z.string().default(""),
+  to_runtime_id: z.string().default(""),
+  reason: z.string().default(""),
+  degraded: z.boolean().catch(false).default(false),
+  at: z.string().default(""),
+}).loose();
+
+export const FailoverHistoryEnvelopeSchema = z.object({
+  runs: z.array(z.object({
+    task_id: z.string().default(""),
+    status: z.string().default(""),
+    degraded: z.boolean().catch(false).default(false),
+    failure_reason: z.string().optional(),
+    moves: z.array(FailoverEntrySchema).catch([]).default([]),
+  }).loose()).catch([]).default([]),
+}).loose();
+
+export const AgentPoolAssignmentSchema = z.object({
+  id: z.string().default(""),
+  runtime_pool_id: z.string().nullable().default(null),
+}).loose();
+
+// Issue router (K27).
+export const RoutingDecisionSchema = z.object({
+  risk_level: z.enum(["low", "normal", "high"]).catch("normal").default("normal"),
+  matched_paths: z.array(z.string()).catch([]).default([]),
+  target_pool_id: z.string().optional(),
+  target_pool_name: z.string().optional(),
+  runtime_id: z.string().optional(),
+  escalated: z.boolean().catch(false).default(false),
+  escalation_reason: z.string().optional(),
+  decided_at: z.string().default(""),
+}).loose();
+
+export const IssueRoutingEnvelopeSchema = z.object({
+  decision: RoutingDecisionSchema.nullable().catch(null).default(null),
+  task_id: z.string().nullable().catch(null).default(null),
+  task_status: z.string().optional(),
+}).loose();
+
+export const RoutingSettingsSchema = z.object({
+  enabled: z.boolean().catch(false).default(false),
+  pools: z.record(z.string(), z.string()).catch({}).default({}),
+  escalation_failures: z.number().int().catch(2).default(2),
+}).loose();
+
+// Meetings: recorded conversations transcribed segment by segment, then
+// summarized into a markdown summary plus one pending triage item per action.
+export const MeetingActionSchema = z.object({
+  triage_item_id: z.string(),
+  title: z.string().default(""),
+  state: z.string().default("pending"),
+  issue_id: z.string().optional(),
+}).loose();
+
+export const MeetingSchema = z.object({
+  id: z.string(),
+  title: z.string().default(""),
+  app_name: z.string().default(""),
+  status: z.string().default("done"),
+  // The list endpoint omits transcripts; only the detail endpoint carries one.
+  transcript: z.string().default(""),
+  summary_markdown: z.string().default(""),
+  segment_count: z.number().default(0),
+  created_by: z.string().default(""),
+  started_at: z.string().default(""),
+  ended_at: z.string().optional(),
+  actions: z.array(MeetingActionSchema).catch([]).default([]),
+  // Filled by the list endpoint (which omits `actions`); 0 on the detail endpoint.
+  action_count: z.number().catch(0).default(0),
+  summary_unavailable: z.boolean().default(false),
+  // Absent on an older backend: default to false so the UI hides the
+  // destructive affordances rather than offering ones the server will refuse.
+  can_manage: z.boolean().catch(false).default(false),
+}).loose();
+
+export const RealtimeVoiceSessionSchema = z.object({
+  url: z.string().default(""),
+  model: z.string().default(""),
+  token: z.string().default(""),
+  expires_at: z.string().default(""),
+  encoding: z.string().default("pcm_s16le"),
+  sample_rate: z.number().catch(16000).default(16000),
+}).loose();
+
+export const EMPTY_REALTIME_VOICE_SESSION: RealtimeVoiceSession = Object.freeze({
+  url: "",
+  model: "",
+  token: "",
+  expires_at: "",
+  encoding: "pcm_s16le",
+  sample_rate: 16000,
+});
+
+export const VoiceTranscriptionSchema = z.object({
+  text: z.string().default(""),
+}).loose();
+
+export const EMPTY_VOICE_TRANSCRIPTION: VoiceTranscription = Object.freeze({ text: "" });
+
+export const MeetingListResponseSchema = z.object({
+  meetings: z.array(MeetingSchema).default([]),
+}).loose();
+
+export const MeetingSegmentResponseSchema = z.object({
+  seq: z.string().default(""),
+  text: z.string().default(""),
+  segment_count: z.number().default(0),
+}).loose();
+
+export const EMPTY_MEETING: Meeting = Object.freeze({
+  id: "",
+  title: "",
+  app_name: "",
+  status: "failed",
+  transcript: "",
+  summary_markdown: "",
+  segment_count: 0,
+  created_by: "",
+  started_at: "",
+  actions: [],
+  action_count: 0,
+  summary_unavailable: false,
+  can_manage: false,
+}) as Meeting;
+
+export const EMPTY_MEETING_LIST: MeetingListResponse = Object.freeze({
+  meetings: [],
+}) as MeetingListResponse;
+
+// Calendar subscription (ICS). Times stay strings: they are ISO instants the
+// UI formats, and a malformed one must not fail the whole parse.
+export const CalendarEventSchema = z.object({
+  summary: z.string().default(""),
+  url: z.string().optional(),
+  start: z.string().default(""),
+  end: z.string().default(""),
+  in_progress: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarUpcomingSchema = z.object({
+  events: z.array(CalendarEventSchema).catch([]).default([]),
+  configured: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarFeedSchema = z.object({
+  url: z.string().default(""),
+  last_fetched_at: z.string().optional(),
+  last_error: z.string().default(""),
+}).loose();
+
+export const EMPTY_CALENDAR_UPCOMING: CalendarUpcoming = Object.freeze({
+  events: [],
+  configured: false,
+}) as CalendarUpcoming;
+
+export const EMPTY_CALENDAR_FEED: CalendarFeed = Object.freeze({
+  url: "",
+  last_error: "",
+}) as CalendarFeed;
+
+export const EMPTY_MEETING_SEGMENT: MeetingSegmentResponse = Object.freeze({
+  seq: "",
+  text: "",
+  segment_count: 0,
+}) as MeetingSegmentResponse;
+
+// Handoff packets (K17).
+export const HandoffPacketSchema = z.object({
+  id: z.string().default(""),
+  run_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  objective: z.string().default(""),
+  decisions: z.array(z.string()).catch([]).default([]),
+  evidence: z.array(z.string()).catch([]).default([]),
+  failed_attempts: z.array(z.string()).catch([]).default([]),
+  next_action: z.string().catch("").default(""),
+  created_by_type: z.enum(["agent", "member", "system"]).catch("system").default("system"),
+  created_by_id: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+}).loose();
+
+export const HandoffPacketsEnvelopeSchema = z.object({
+  packets: z.array(HandoffPacketSchema).catch([]).default([]),
+}).loose();
+
+export const LatestHandoffPacketEnvelopeSchema = z.object({
+  packet: HandoffPacketSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Run limits (K03).
+export const RunLimitPolicySchema = z.object({
+  id: z.string().default(""),
+  scope_type: z.enum(["workspace", "project", "agent"]).catch("workspace").default("workspace"),
+  scope_id: z.string().nullable().catch(null).default(null),
+  max_cost_usd_ticks: z.number().nullable().catch(null).default(null),
+  max_duration_seconds: z.number().nullable().catch(null).default(null),
+  max_turns: z.number().nullable().catch(null).default(null),
+  max_tool_calls: z.number().nullable().catch(null).default(null),
+  warn_bps: z.number().catch(8000).default(8000),
+  action: z.enum(["observe", "enforce"]).catch("enforce").default("enforce"),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RunLimitPoliciesEnvelopeSchema = z.object({
+  policies: z.array(RunLimitPolicySchema).catch([]).default([]),
+}).loose();
+
+export const RunLimitEventSchema = z.object({
+  task_id: z.string().default(""),
+  gate: z.enum(["cost", "duration", "turns", "tool_calls"]).catch("cost").default("cost"),
+  level: z.enum(["warn", "exceeded", "stopped"]).catch("warn").default("warn"),
+  observed: z.number().catch(0).default(0),
+  limit: z.number().catch(0).default(0),
+  policy_id: z.string().default(""),
+  created_at: z.string().default(""),
+}).loose();
+
+export const RunLimitEventsEnvelopeSchema = z.object({
+  events: z.array(RunLimitEventSchema).catch([]).default([]),
+}).loose();
+
+// Pause, steer, resume (K19).
+export const RunControlStateSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  pause_pending: z.boolean().catch(false).default(false),
+  instructions: z.array(z.string()).catch([]).default([]),
+  resumed_by_task_id: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RunControlEnvelopeSchema = z.object({
+  run: RunControlStateSchema.nullable().catch(null).default(null),
+  paused_task_id: z.string().optional(),
+}).loose();
+
+// Checkpoints (K20).
+export const RunCheckpointStatusSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  failure_reason: z.string().catch("").default(""),
+  last_checkpoint_seq: z.number().nullable().catch(null).default(null),
+  checkpointed_at: z.string().nullable().catch(null).default(null),
+  attempts: z.number().catch(0).default(0),
+  max_attempts: z.number().catch(3).default(3),
+  resumed_from_task_id: z.string().nullable().catch(null).default(null),
+  exhausted: z.boolean().catch(false).default(false),
+}).loose();
+
+export const RunCheckpointEnvelopeSchema = z.object({
+  run: RunCheckpointStatusSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Traffic control (K18).
+export const TrafficConflictSchema = z.object({
+  id: z.string().default(""),
+  task_id: z.string().default(""),
+  kind: z.enum(["human", "agent"]).catch("agent").default("agent"),
+  paths: z.array(z.string()).catch([]).default([]),
+  other_task_id: z.string().nullable().catch(null).default(null),
+  handoff_packet_id: z.string().nullable().catch(null).default(null),
+  status: z.enum(["active", "ignored", "resolved"]).catch("resolved").default("resolved"),
+  created_at: z.string().default(""),
+  resolved_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const TrafficConflictsEnvelopeSchema = z.object({
+  conflicts: z.array(TrafficConflictSchema).catch([]).default([]),
+}).loose();
+
+// Drift detection (K40).
+export const DriftPolicySchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  repeated_action_threshold: z.number().int().catch(5).default(5),
+  file_reread_threshold: z.number().int().catch(8).default(8),
+}).loose();
+
+// Preemption (K41).
+export const PreemptionSchema = z.object({
+  task_id: z.string().default(""),
+  status: z.string().default(""),
+  preempted_at: z.string().default(""),
+  preempted_by_task_id: z.string().default(""),
+  preempted_by_issue_id: z.string().nullable().catch(null).default(null),
+  preempted_by_identifier: z.string().nullable().catch(null).default(null),
+  resumed_by_task_id: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const PreemptionsEnvelopeSchema = z.object({
+  preemptions: z.array(PreemptionSchema).catch([]).default([]),
+}).loose();
+
+// Pipelines (K37).
+export const PipelineStageSchema = z.object({
+  id: z.string().default(""),
+  position: z.number().int().catch(0).default(0),
+  name: z.string().default(""),
+  executor_type: z.enum(["agent", "squad"]).catch("agent").default("agent"),
+  executor_id: z.string().default(""),
+  requires_human_gate: z.boolean().catch(false).default(false),
+}).loose();
+
+export const PipelineSchema = z.object({
+  id: z.string().default(""),
+  name: z.string().default(""),
+  stages: z.array(PipelineStageSchema).catch([]).default([]),
+  open_runs: z.number().catch(0).default(0),
+  created_at: z.string().default(""),
+}).loose();
+
+export const PipelinesEnvelopeSchema = z.object({
+  pipelines: z.array(PipelineSchema).catch([]).default([]),
+}).loose();
+
+export const PipelineRunSchema = z.object({
+  id: z.string().default(""),
+  pipeline_id: z.string().default(""),
+  pipeline_name: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["active", "paused", "completed", "cancelled"]).catch("active").default("active"),
+  current_stage_id: z.string().nullable().catch(null).default(null),
+  current_index: z.number().int().catch(-1).default(-1),
+  gate_decision_id: z.string().nullable().catch(null).default(null),
+  last_error: z.string().nullable().catch(null).default(null),
+  stages: z.array(PipelineStageSchema).catch([]).default([]),
+  started_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const PipelineRunEnvelopeSchema = z.object({
+  run: PipelineRunSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Fan-out / fan-in (K38).
+export const FanoutMemberSchema = z.object({
+  id: z.string().default(""),
+  child_issue_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  assignee_agent_id: z.string().default(""),
+  description: z.string().default(""),
+  outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  settled_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const FanoutBatchSchema = z.object({
+  id: z.string().default(""),
+  parent_issue_id: z.string().default(""),
+  leader_agent_id: z.string().default(""),
+  status: z.enum(["pending", "partial_failure", "complete"]).catch("pending").default("pending"),
+  expected_count: z.number().int().catch(0).default(0),
+  completed_count: z.number().int().catch(0).default(0),
+  failed_count: z.number().int().catch(0).default(0),
+  synthesis_task_id: z.string().nullable().catch(null).default(null),
+  members: z.array(FanoutMemberSchema).catch([]).default([]),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const FanoutEnvelopeSchema = z.object({
+  batch: FanoutBatchSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Agent duel (K39).
+export const AgentDuelSideSchema = z.object({
+  agent_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  cost_usd_ticks: z.number().catch(0).default(0),
+  duration_seconds: z.number().catch(0).default(0),
+  tool_calls: z.number().int().catch(0).default(0),
+  quality_score: z.number().nullable().catch(null).default(null),
+  summary: z.string().catch("").default(""),
+}).loose();
+
+const emptyDuelSide = AgentDuelSideSchema.parse({});
+
+export const AgentDuelSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["running", "verdict_ready", "confirmed", "inconclusive"]).catch("running").default("running"),
+  a: AgentDuelSideSchema.catch(emptyDuelSide).default(emptyDuelSide),
+  b: AgentDuelSideSchema.catch(emptyDuelSide).default(emptyDuelSide),
+  arbiter_winner: z.enum(["a", "b", "tie"]).nullable().catch(null).default(null),
+  reasoning: z.string().catch("").default(""),
+  arbiter_error: z.string().nullable().catch(null).default(null),
+  winner: z.enum(["a", "b", "tie"]).nullable().catch(null).default(null),
+  confirmed_by: z.string().nullable().catch(null).default(null),
+  confirmed_at: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  settled_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const AgentDuelEnvelopeSchema = z.object({
+  duel: AgentDuelSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Refactoring campaigns (K42).
+export const CampaignBlockerSchema = z.object({
+  kind: z.string().default(""),
+  label: z.string().default(""),
+  count: z.number().optional(),
+  pr_number: z.number().optional(),
+}).loose();
+
+export const CampaignShardSchema = z.object({
+  id: z.string().default(""),
+  child_issue_id: z.string().default(""),
+  task_id: z.string().default(""),
+  task_status: z.string().default(""),
+  run_outcome: z.enum(["completed", "failed"]).nullable().catch(null).default(null),
+  assignee_agent_id: z.string().default(""),
+  description: z.string().default(""),
+  branch_name: z.string().default(""),
+  merge_position: z.number().int().catch(0).default(0),
+  merge_status: z.enum(["pending", "rebasing", "ready", "merged", "conflict", "skipped"]).catch("pending").default("pending"),
+  merge_task_id: z.string().nullable().catch(null).default(null),
+  blockers: z.array(CampaignBlockerSchema).catch([]).default([]),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const RefactorCampaignSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  fanout_batch_id: z.string().default(""),
+  name: z.string().default(""),
+  target_branch: z.string().default(""),
+  status: z.enum(["running", "merging", "completed", "failed"]).catch("running").default("running"),
+  shards: z.array(CampaignShardSchema).catch([]).default([]),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RefactorCampaignEnvelopeSchema = z.object({
+  campaign: RefactorCampaignSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Learned competency (K43).
+export const CompetencyRowSchema = z.object({
+  agent_id: z.string().default(""),
+  agent_name: z.string().catch("").default(""),
+  domain_key: z.string().default(""),
+  success_count: z.number().int().catch(0).default(0),
+  total_count: z.number().int().catch(0).default(0),
+  duel_wins: z.number().int().catch(0).default(0),
+  duel_losses: z.number().int().catch(0).default(0),
+  sample_size: z.number().int().catch(0).default(0),
+  score: z.number().catch(0).default(0),
+  reliable: z.boolean().catch(false).default(false),
+  updated_at: z.string().catch("").default(""),
+}).loose();
+
+export const AgentCompetencySchema = z.object({
+  agent_id: z.string().default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  rows: z.array(CompetencyRowSchema).catch([]).default([]),
+}).loose();
+
+// Cross-provider self-review (K15).
+export const CrossReviewReportSchema = z.object({
+  verdict: z.enum(["approve", "request_changes", "comment"]).catch("comment").default("comment"),
+  risks: z.array(z.string()).catch([]).default([]),
+  questions: z.array(z.string()).catch([]).default([]),
+  suggestions: z.array(z.string()).catch([]).default([]),
+  summary: z.string().catch("").default(""),
+}).loose();
+
+export const CrossReviewSchema = z.object({
+  task_id: z.string().default(""),
+  review_of_task_id: z.string().default(""),
+  reviewer_agent_id: z.string().default(""),
+  reviewer_name: z.string().catch("").default(""),
+  reviewer_provider: z.string().catch("").default(""),
+  status: z.string().default(""),
+  report: CrossReviewReportSchema.nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+// CI auto-fix (K49).
+export const CIAutoFixRunSchema = z.object({
+  id: z.string().default(""),
+  provider: z.string().default(""),
+  pull_request_id: z.string().default(""),
+  head_sha: z.string().default(""),
+  issue_id: z.string().default(""),
+  task_id: z.string().nullable().catch(null).default(null),
+  task_status: z.string().catch("").default(""),
+  attempt: z.number().int().catch(0).default(0),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  manual: z.boolean().catch(false).default(false),
+  created_at: z.string().default(""),
+}).loose();
+
+export const IssueCIAutoFixSchema = z.object({
+  runs: z.array(CIAutoFixRunSchema).catch([]).default([]),
+  enabled: z.boolean().catch(false).default(false),
+  max_attempts: z.number().int().catch(3).default(3),
+}).loose();
+
+export const CIAutoFixRetryEnvelopeSchema = z.object({
+  run: CIAutoFixRunSchema.nullable().catch(null).default(null),
+}).loose();
+
+export const CIAutoFixSettingsSchema = z.object({
+  enabled: z.boolean().catch(false).default(false),
+  max_attempts: z.number().int().catch(3).default(3),
+  budget_usd_ticks: z.number().catch(0).default(0),
+}).loose();
+
+export const CrossReviewSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  opt_out_project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const CrossReviewListSchema = z.object({
+  reviews: z.array(CrossReviewSchema).catch([]).default([]),
+}).loose();
+
+// Undo for agent actions (K69).
+export const AgentEffectSchema = z.object({
+  id: z.string(),
+  task_id: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  issue_id: z.string().nullable().catch(null).default(null),
+  kind: z.string().catch("").default(""),
+  target_type: z.string().catch("").default(""),
+  target_id: z.string().catch("").default(""),
+  before: z.record(z.string(), z.unknown()).catch({}).default({}),
+  after: z.record(z.string(), z.unknown()).catch({}).default({}),
+  reversible: z.boolean().catch(false).default(false),
+  status: z.string().catch("applied").default("applied"),
+  decision_id: z.string().nullable().catch(null).default(null),
+  payload: z.record(z.string(), z.unknown()).catch({}).default({}),
+  reversed_at: z.string().nullable().catch(null).default(null),
+  reversed_by_type: z.string().nullable().catch(null).default(null),
+  reverse_error: z.string().nullable().catch(null).default(null),
+  within_window: z.boolean().catch(false).default(false),
+  expires_at: z.string().catch("").default(""),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const AgentEffectListSchema = z.object({
+  effects: z.array(AgentEffectSchema).catch([]).default([]),
+  window_hours: z.number().int().catch(24).default(24),
+}).loose();
+
+export const UndoReportSchema = z.object({
+  reversed: z.number().int().catch(0).default(0),
+  skipped: z.array(z.object({ id: z.string().catch("").default(""), kind: z.string().catch("").default(""), reason: z.string().catch("").default("") }).loose()).catch([]).default([]),
+  breaker: z.object({ tripped: z.boolean().catch(false).default(false), trust_mode: z.string().catch("").default("") }).loose().catch({ tripped: false, trust_mode: "" }).default({ tripped: false, trust_mode: "" }),
+  effects: z.array(AgentEffectSchema).catch([]).default([]),
+}).loose();
+
+export const UndoSettingsSchema = z.object({
+  window_hours: z.number().int().catch(24).default(24),
+  breaker_threshold: z.number().int().catch(5).default(5),
+}).loose();
+
+export const CompetencySettingsSchema = z.object({
+  min_sample: z.number().int().catch(5).default(5),
+}).loose();
+
+export const AssigneeSuggestionSchema = z.object({
+  domain_key: z.string().default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  candidates: z.array(CompetencyRowSchema).catch([]).default([]),
+  ownership: OwnershipSuggestionSchema.nullable().catch(null).default(null),
+}).loose();
+
+// Run replay (K70): one hash-chained event stream per run.
+export const ReplayEventSchema = z.object({
+  seq: z.number().catch(0).default(0),
+  at: z.string().catch("").default(""),
+  kind: z.string().catch("unknown").default("unknown"),
+  actor: z.object({
+    type: z.string().catch("").default(""),
+    id: z.string().catch("").default(""),
+    name: z.string().catch("").default(""),
+  }).loose().catch({ type: "", id: "", name: "" }).default({ type: "", id: "", name: "" }),
+  title: z.string().catch("").default(""),
+  text: z.string().catch("").default(""),
+  data: z.record(z.string(), z.unknown()).catch({}).default({}),
+  data_class: z.string().catch("internal").default("internal"),
+  in_plan: z.boolean().nullable().catch(null).default(null),
+  source: z.string().catch("").default(""),
+  source_id: z.string().catch("").default(""),
+  prev_hash: z.string().catch("").default(""),
+  hash: z.string().catch("").default(""),
+}).loose();
+
+export const RunReplaySchema = z.object({
+  run: z.object({
+    id: z.string().default(""),
+    safe_mode: z.boolean().catch(false).default(false),
+    snapshot: z.object({
+      trust_mode: z.string().catch("").default(""),
+      effect_mode: z.string().catch("").default(""),
+      model: z.string().catch("").default(""),
+      thinking_level: z.string().catch("").default(""),
+      permission_profile_id: z.string().catch("").default(""),
+      runtime_id: z.string().catch("").default(""),
+      safe_mode: z.boolean().catch(false).default(false),
+      plan_version: z.number().catch(0).default(0),
+      recorded_at: z.string().catch("").default(""),
+    }).loose().nullable().catch(null).default(null),
+    plan: z.object({ version: z.number().catch(0).default(0), steps: z.number().catch(0).default(0) }).loose().nullable().catch(null).default(null),
+    drift: z.number().catch(0).default(0),
+    issue_id: z.string().catch("").default(""),
+    agent_id: z.string().catch("").default(""),
+    agent_name: z.string().catch("").default(""),
+    status: z.string().catch("").default(""),
+    trust_mode: z.string().catch("").default(""),
+    effect_mode: z.string().catch("").default(""),
+    model: z.string().catch("").default(""),
+    created_at: z.string().nullable().catch(null).default(null),
+    started_at: z.string().nullable().catch(null).default(null),
+    completed_at: z.string().nullable().catch(null).default(null),
+    links: z.array(z.object({
+      relation: z.string().default(""),
+      task_id: z.string().default(""),
+      agent_id: z.string().catch("").default(""),
+      agent_name: z.string().catch("").default(""),
+    }).loose()).catch([]).default([]),
+  }).loose(),
+  events: z.array(ReplayEventSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+  next_cursor: z.number().nullable().catch(null).default(null),
+  head_hash: z.string().catch("").default(""),
+  cost: z.object({
+    input_tokens: z.number().catch(0).default(0),
+    output_tokens: z.number().catch(0).default(0),
+    cost_usd_ticks: z.number().nullable().catch(null).default(null),
+  }).loose().catch({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }).default({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }),
+  sealed: z.object({
+    events: z.number().catch(0).default(0),
+    head_hash: z.string().catch("").default(""),
+    sealed_at: z.string().catch("").default(""),
+    verified: z.boolean().catch(false).default(false),
+  }).loose().nullable().catch(null).default(null),
+}).loose();
+
+export const ReplayResumeResultSchema = z.object({
+  task_id: z.string().default(""),
+  from_seq: z.number().catch(0).default(0),
+}).loose();
+
+export const ReplaySimulateResultSchema = z.object({
+  task_id: z.string().default(""),
+  safe_mode: z.boolean().catch(true).default(true),
+}).loose();
+
+// Task watchdog (K73).
+export const WatchdogSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  owner_id: z.string().catch("").default(""),
+  instructions: z.string().catch("").default(""),
+  rest_minutes: z.number().catch(30).default(30),
+  enabled: z.boolean().catch(true).default(true),
+  last_scan_task_id: z.string().nullable().catch(null).default(null),
+  last_scanned_at: z.string().nullable().catch(null).default(null),
+  motion_streak: z.number().catch(0).default(0),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogEnvelopeSchema = z.object({ watchdog: WatchdogSchema.nullable().catch(null).default(null) }).loose();
+
+export const WatchdogFindingSchema = z.object({
+  issue: z.string().catch("").default(""),
+  issue_id: z.string().catch("").default(""),
+  action: z.string().catch("none").default("none"),
+  reason: z.string().catch("").default(""),
+  missing_criterion: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogVerdictSchema = z.object({
+  id: z.string().default(""),
+  watchdog_id: z.string().catch("").default(""),
+  issue_id: z.string().catch("").default(""),
+  task_id: z.string().catch("").default(""),
+  verdict: z.enum(["legitimate", "motion", "escalate"]).catch("escalate").default("escalate"),
+  summary: z.string().catch("").default(""),
+  findings: z.array(WatchdogFindingSchema).catch([]).default([]),
+  dropped: z.array(WatchdogFindingSchema).catch([]).default([]),
+  applied: z.record(z.string(), z.unknown()).catch({}).default({}),
+  decision_id: z.string().nullable().catch(null).default(null),
+  human_review: z.enum(["pending", "confirmed", "overturned"]).catch("pending").default("pending"),
+  contract_revision: z.number().catch(0).default(0),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogVerdictListSchema = z.object({ verdicts: z.array(WatchdogVerdictSchema).catch([]).default([]) }).loose();
+
+export const WatchdogScanResultSchema = z.object({ task_id: z.string().default("") }).loose();
+export const WatchdogVerdictEnvelopeSchema = z.object({ verdict: WatchdogVerdictSchema }).loose();
+
+// Vigil learns you (K71).
+export const WorkProfileObservationSchema = z.object({
+  id: z.string().default(""),
+  key: z.string().catch("").default(""),
+  kind: z.string().catch("").default(""),
+  value: z.record(z.string(), z.unknown()).catch({}).default({}),
+  source: z.string().catch("").default(""),
+  count: z.number().catch(0).default(0),
+  corrections: z.number().catch(0).default(0),
+  auto: z.boolean().catch(false).default(false),
+  state: z.enum(["learned", "proposed"]).catch("learned").default("learned"),
+  stake: z.string().catch("normal").default("normal"),
+  first_observed_at: z.string().catch("").default(""),
+  last_observed_at: z.string().catch("").default(""),
+}).loose();
+
+export const WorkProfileSchema = z.object({
+  observations: z.array(WorkProfileObservationSchema).catch([]).default([]),
+  examples: z.number().catch(0).default(0),
+  auto_decided: z.number().catch(0).default(0),
+  overturned: z.number().catch(0).default(0),
+  review_load_seconds: z.number().catch(0).default(0),
+  adaptation_surface: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Goals with ancestry (K74).
+const GoalStatusSchema = z.enum(["draft", "active", "done", "dropped"]).catch("draft");
+export const GoalSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  parent_goal_id: z.string().nullable().catch(null).default(null),
+  title: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  success_measure: z.string().catch("").default(""),
+  due_date: z.string().nullable().catch(null).default(null),
+  owner_id: z.string().nullable().catch(null).default(null),
+  status: GoalStatusSchema.default("draft"),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const ListGoalsResponseSchema = z.object({
+  goals: z.array(GoalSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+export const GoalDetailResponseSchema = z.object({
+  goal: GoalSchema,
+  issues: z.array(IssueSchema).catch([]).default([]),
+}).loose();
+export const ProjectGoalsResponseSchema = z.object({
+  goal_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Contest (K72): a rival model's objections, the author's answers, the human verdict.
+const ContestObjectionSchema = z.object({
+  n: z.number().catch(0).default(0),
+  severity: z.enum(["high", "medium", "low"]).catch("medium"),
+  kind: z.enum(["missing", "false", "risky"]).catch("risky"),
+  claim: z.string().catch("").default(""),
+  evidence: z.string().catch("").default(""),
+  expected_proof: z.string().catch("").default(""),
+}).loose();
+const ContestAnswerSchema = z.object({
+  n: z.number().catch(0).default(0),
+  verdict: z.enum(["accept", "refute", "fix"]).catch("accept"),
+  note: z.string().catch("").default(""),
+  proof: z.string().catch("").default(""),
+}).loose();
+export const ContestSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  issue_id: z.string().nullable().catch(null).default(null),
+  target_type: z.enum(["task_result", "plan", "triage_verdict", "meeting_summary"]).catch("task_result"),
+  target_id: z.string().catch(""),
+  target_excerpt: z.string().catch("").default(""),
+  author_agent_id: z.string().nullable().catch(null).default(null),
+  author_provider: z.string().catch("").default(""),
+  challenger_kind: z.enum(["agent", "llm"]).catch("agent"),
+  challenger_agent_id: z.string().nullable().catch(null).default(null),
+  challenger_provider: z.string().catch("").default(""),
+  same_vendor: z.boolean().catch(false).default(false),
+  challenger_task_id: z.string().nullable().catch(null).default(null),
+  answer_task_id: z.string().nullable().catch(null).default(null),
+  round: z.number().catch(1).default(1),
+  max_rounds: z.number().catch(1).default(1),
+  objections: z.array(ContestObjectionSchema).catch([]).default([]),
+  answers: z.array(ContestAnswerSchema).catch([]).default([]),
+  nothing_to_contest: z.string().catch("").default(""),
+  status: z.enum(["running", "objections_ready", "answering", "answered", "confirmed", "failed"]).catch("running"),
+  human_verdict: z.enum(["upheld", "dismissed", "mixed"]).nullable().catch(null).default(null),
+  verdict_note: z.string().catch("").default(""),
+  confirmed_by: z.string().nullable().catch(null).default(null),
+  confirmed_at: z.string().nullable().catch(null).default(null),
+  auto: z.boolean().catch(false).default(false),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const ContestListSchema = z.object({
+  contests: z.array(ContestSchema).catch([]).default([]),
+}).loose();
+export const ContestPreflightSchema = z.object({
+  target_type: z.string().catch(""),
+  target_id: z.string().catch(""),
+  issue_id: z.string().nullable().catch(null).default(null),
+  author_agent_id: z.string().nullable().catch(null).default(null),
+  author_provider: z.string().catch("").default(""),
+  challenger: z.object({
+    kind: z.enum(["agent", "llm"]).catch("agent"),
+    agent_id: z.string().catch("").default(""),
+    name: z.string().catch("").default(""),
+    provider: z.string().catch("").default(""),
+    same_vendor: z.boolean().catch(false).default(false),
+  }).loose(),
+  estimated_cost_usd_ticks: z.number().catch(0).default(0),
+  quota_used: z.number().catch(0).default(0),
+  quota_limit: z.number().catch(0).default(0),
+  max_rounds: z.number().catch(2).default(2),
+  existing: z.number().catch(0).default(0),
+}).loose();
+export const ContestSettingsSchema = z.object({
+  targets: z.record(z.string(), z.boolean()).catch({}).default({}),
+  opt_out_project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Executable org chart (K75).
+const OrgMemberSchema = z.object({ type: z.enum(["member", "agent"]).catch("member"), id: z.string().catch(""), role: z.string().optional(), role_id: z.string().optional() }).loose();
+const OrgRoleSchema = z.object({ id: z.string().catch(""), name: z.string().catch(""), responsibilities: z.string().optional(), keywords: z.array(z.string()).optional() }).loose();
+const OrgUnitSchema = z.object({
+  id: z.string().catch(""),
+  name: z.string().catch(""),
+  kind: z.string().optional(),
+  owner_id: z.string().optional(),
+  squad_id: z.string().optional(),
+  mission_goal_id: z.string().optional(),
+  budget_usd_ticks: z.number().optional(),
+  excludes: z.array(z.enum(["untrusted_input", "sensitive_data", "external_effects"])).catch([]).default([]),
+  autonomy: z.enum(["read_only", "draft", "approve_payload", "auto"]).catch("draft"),
+  allow: z.array(z.string()).catch([]).default([]),
+  deny: z.array(z.string()).catch([]).default([]),
+  escalation_quota_per_day: z.number().catch(5).default(5),
+  human_approval: z.boolean().optional(),
+  approval_risk: z.string().optional(),
+  deciders: z.record(z.string(), z.string()).optional(),
+  members: z.array(OrgMemberSchema).catch([]).default([]),
+  roles: z.array(OrgRoleSchema).catch([]).default([]),
+}).loose();
+export const OrgDefinitionSchema = z.object({
+  units: z.array(OrgUnitSchema).catch([]).default([]),
+  edges: z.array(z.object({ from: z.string(), to: z.string(), kind: z.enum(["reports_to", "backs_up", "escalates_to", "consults"]).catch("reports_to"), human_approval: z.boolean().optional() }).loose()).catch([]).default([]),
+  rules: z.array(z.object({ id: z.string().catch(""), labels: z.array(z.string()).optional(), paths: z.array(z.string()).optional(), keywords: z.array(z.string()).optional(), target_unit: z.string().catch(""), priority: z.number().catch(0).default(0) }).loose()).catch([]).default([]),
+  committees: z.array(z.object({ decision_type: z.string(), unit_ids: z.array(z.string()).default([]), quorum: z.number().catch(1), max_rounds: z.number().catch(1) }).loose()).catch([]).default([]),
+  market: z.object({ price_cap_usd_ticks: z.number().catch(0).default(0), offers_per_agent_per_day: z.number().catch(5).default(5), min_offers: z.number().catch(2).default(2) }).loose().catch({ price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 }),
+}).loose();
+export const OrgStructureSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  model: z.enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"]).catch("owner_network"),
+  name: z.string().catch(""),
+  status: z.enum(["draft", "active", "paused", "dissolved"]).catch("draft"),
+  revision: z.number().catch(1).default(1),
+  revision_id: z.string().nullable().catch(null).default(null),
+  definition: OrgDefinitionSchema.catch({ units: [], edges: [], rules: [], committees: [], market: { price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 } }),
+  owner_id: z.string().nullable().catch(null).default(null),
+  dissolve_at: z.string().nullable().catch(null).default(null),
+  end_condition: z.string().catch("").default(""),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  eval_attestation: z.string().catch("").default(""),
+  paused_reason: z.string().catch("").default(""),
+  dissolved_at: z.string().nullable().catch(null).default(null),
+  paused_units: z.array(z.string()).catch([]).default([]),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const OrgStructureListSchema = z.object({ structures: z.array(OrgStructureSchema).catch([]).default([]) }).loose();
+export const OrgStructureDetailSchema = z.object({
+  structure: OrgStructureSchema,
+  revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgTemplateListSchema = z.object({
+  templates: z.array(z.object({ model: z.string(), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
+}).loose();
+export const OrgHealthSchema = z.object({
+  structure_id: z.string().catch(""),
+  window_days: z.number().catch(7),
+  routed: z.number().catch(0),
+  unrouted: z.number().catch(0),
+  escalations: z.number().catch(0),
+  stacked_escalations: z.number().catch(0),
+  reassigned_outside: z.number().catch(0),
+  market_short: z.number().catch(0),
+  breakers: z.number().catch(0),
+  human_review_items: z.number().catch(0),
+  drift_rate: z.number().catch(0),
+  units: z.array(z.object({ unit_id: z.string(), name: z.string().catch(""), routed: z.number().catch(0), escalations: z.number().catch(0), reassigned_outside: z.number().catch(0), vacant_roles: z.array(z.string()).catch([]), saturated_agents: z.array(z.string()).catch([]), paused: z.boolean().catch(false), spend_usd_ticks: z.number().catch(0), budget_usd_ticks: z.number().catch(0), human_review_items: z.number().catch(0) }).loose()).catch([]).default([]),
+  proposals: z.array(z.object({ key: z.string(), unit_id: z.string().optional(), title: z.string().catch(""), body: z.string().catch(""), measure: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgPreflightSchema = z.object({
+  model: z.string().catch(""), pattern: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), coordination_cost_usd_ticks_per_issue: z.number().catch(0),
+  human_review_items_per_issue: z.number().catch(0), human_review_seconds_per_issue: z.number().catch(0), units: z.number().catch(0), units_without_owner: z.number().catch(0), agents: z.number().catch(0),
+  activation_requirements: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const OrgOfferListSchema = z.object({
+  offers: z.array(z.object({ id: z.string(), agent_id: z.string().catch(""), agent_name: z.string().catch(""), confidence: z.number().catch(0), cost_usd_ticks: z.number().catch(0), eta_hours: z.number().catch(0), status: z.enum(["pending", "won", "lost", "over_cap"]).catch("pending"), created_at: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgResolveSchema = z.object({ structure: OrgStructureSchema.nullable().catch(null) }).loose();
+export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();
+
+// Workspace export / import (K76).
+const TransferSecretSchema = z.object({ scope: z.string().catch(""), name: z.string().catch(""), key: z.string().catch(""), scoped: z.boolean().catch(false) }).loose();
+const TransferCollisionSchema = z.object({ kind: z.string().catch(""), name: z.string().catch(""), existing_id: z.string().catch("") }).loose();
+const TransferCountsSchema = z.record(z.string(), z.number()).catch({}).default({});
+export const TransferManifestSchema = z.object({
+  format_version: z.number().catch(0),
+  exported_at: z.string().catch(""),
+  name: z.string().catch(""),
+  template: z.boolean().catch(false),
+  source: z.object({ Name: z.string().catch(""), Slug: z.string().catch("") }).loose().catch({ Name: "", Slug: "" }),
+  counts: TransferCountsSchema,
+  secrets: z.array(TransferSecretSchema).catch([]).default([]),
+}).loose();
+export const TransferPreviewSchema = z.object({
+  manifest: TransferManifestSchema,
+  collisions: z.array(TransferCollisionSchema).catch([]).default([]),
+  secrets: z.array(TransferSecretSchema).catch([]).default([]),
+  strategies: z.array(z.enum(["rename", "merge", "skip"])).catch(["rename", "merge", "skip"]).default(["rename", "merge", "skip"]),
+}).loose();
+export const TransferReportSchema = z.object({
+  created: TransferCountsSchema,
+  merged: TransferCountsSchema,
+  skipped: z.array(TransferCollisionSchema).catch([]).default([]),
+  secrets_pending: z.array(TransferSecretSchema).catch([]).default([]),
+  warnings: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const TransferImportResultSchema = z.object({ run_id: z.string().catch(""), report: TransferReportSchema }).loose();
+export const TransferRunListSchema = z.object({
+  runs: z.array(z.object({
+    id: z.string(),
+    direction: z.enum(["export", "import"]).catch("export"),
+    status: z.enum(["running", "completed", "failed"]).catch("failed"),
+    name: z.string().catch(""),
+    template: z.boolean().catch(false),
+    strategy: z.string().catch(""),
+    source_name: z.string().catch(""),
+    bundle_sha256: z.string().catch(""),
+    report: z.record(z.string(), z.unknown()).catch({}).default({}),
+    created_by: z.string().nullable().catch(null),
+    created_at: z.string().catch(""),
+    completed_at: z.string().nullable().catch(null),
+  }).loose()).catch([]).default([]),
+}).loose();
+export const WorkspaceTemplateListSchema = z.object({
+  templates: z.array(z.object({
+    id: z.string(),
+    name: z.string().catch(""),
+    source_name: z.string().catch(""),
+    workspace_name: z.string().catch(""),
+    report: z.record(z.string(), z.unknown()).catch({}).default({}),
+    created_at: z.string().catch(""),
+  }).loose()).catch([]).default([]),
+}).loose();

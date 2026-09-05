@@ -301,6 +301,101 @@ a run you see may finish a second later, and one you don't see may start a
 second later. Coordinate through the issue's comments — the reads tell you whom
 to coordinate with.
 
+## Goal ancestry rides the brief
+
+When the claimed issue has a parent, the brief carries `## Goal Ancestry`:
+the parent chain from the top-level goal down, each with identifier, title,
+description and acceptance criteria. Read it before `multica issue get` — it
+is why your issue exists; stay consistent with it. Capped at five levels and
+8 KiB (a `(N higher level(s) not shown.)` line says when cut); a root issue
+gets no section; children still come from `multica issue children`.
+Quick-create runs from "Add sub issue" get it for the parent. An issue serving
+a workspace goal also gets `## Mission and goals`; you never set a goal, you
+propose one via `POST /api/issues/{id}/goal-proposal` (`references/goals.md`).
+
+## Before coding on a vague issue: the requirement interview
+
+When the issue does not say enough to start — which behavior, which surface,
+which of two readings — do not guess and do not start coding. Ask one to
+three multiple-choice questions at once, then finish your turn:
+
+```bash
+multica interview ask <issue-id> --file questions.json
+```
+
+`questions.json`:
+
+```json
+{"questions": [
+  {"question": "Should the export include archived issues?",
+   "options": [{"id": "yes", "label": "Yes, everything"}, {"id": "no", "label": "Active issues only"}],
+   "recommended_option_id": "no"},
+  {"question": "Which format?",
+   "options": [{"id": "csv", "label": "CSV"}, {"id": "json", "label": "JSON"}, {"id": "both", "label": "Both"}]}
+]}
+```
+
+The issue moves to **Waiting for PM** until every question is answered; then
+it returns to its previous status and you are resumed with a handoff note
+that starts with `Requirement interview answered:` and lists each answer in
+order. Multiple choice only: no open questions here (a single open decision is
+`multica decision ask`). Ask only what the issue does not settle; a simple
+issue needs no interview.
+
+## Leaving a handoff packet
+
+When you finish or pause, leave a structured handoff packet on the issue so
+the next hand (an agent or a human) does not rebuild your context from the
+transcript. `POST /api/issues/{issue}/handoff-packet` with `run_id` (your
+task id), `objective`, `decisions`, `evidence`, `failed_attempts` and
+`next_action`. Failed attempts matter most: they stop the next run from
+repeating them. Packets are immutable; to correct one, post another. A run
+that completes without one gets a system packet (objective, delivery pointer,
+next action) so the chain never breaks. On your next claim the latest packet
+is rendered at the top of your prompt; the legacy `handoff_note` still
+appears beside it.
+
+## Asking a human for a decision
+
+When a choice is not yours to make — deleting data, picking between two
+designs, spending real money, touching production — file a Decision Card
+instead of guessing or stalling on a comment:
+
+```bash
+multica decision ask <issue-id> \
+  --question "Drop the legacy orders_v1 table?" \
+  --option "drop=Drop it|irreversible, frees 40 GB" \
+  --option "keep=Keep it for now|no risk, migration stays partial" \
+  --recommend keep --urgency high
+```
+
+Two to eight options with stable ids, one recommendation, an urgency of
+`low`, `normal` or `high`. Then **finish your turn**: the human answers from
+the issue, and Multica queues a new run on the issue whose handoff note starts
+with `Decision on «…»` and names the chosen option (or the human's own text).
+Read that note first and proceed. A card is never a substitute for reading
+the issue; ask only what the issue does not already settle.
+
+## Proving acceptance criteria
+
+An issue can carry acceptance criteria, each with a proof. The issue cannot
+move to `done` while a criterion lacks a satisfied proof: the status change is
+refused with `409 unsatisfied_acceptance_criteria` naming the criteria. Read
+them first, and attach a proof as you satisfy each one:
+
+```bash
+multica criteria list <issue-id>
+multica criteria prove <issue-id> <criterion-id> --type test --ref "go test ./internal/handler"
+multica criteria prove <issue-id> <criterion-id> --type url --ref "https://ci.example/run/42"
+multica criteria prove <issue-id> <criterion-id> --type human_validation
+```
+
+`test`, `file`, `screenshot` and `url` proofs need a `--ref` naming what
+proves it. A `human_validation` from a run only marks the criterion as
+waiting for the human: their own click satisfies it, not your claim. If the
+issue has no criteria yet and the task states some, set them with
+`multica criteria set <issue-id> --text "..." --text "..."` before starting.
+
 ## Sub-issues: `todo` starts work now, `backlog` parks it
 
 On an agent-assigned issue, create status decides whether the assignee fires
@@ -321,6 +416,12 @@ multica issue status <child-id> todo   # promote when the previous step is truly
 ```
 
 Creating every serial step as `todo` enqueues the whole chain at once.
+
+Issues you create may be held for human triage: a workspace can gate the
+`agent_create` source, and the API then answers `202` with
+`{"code":"triage_held"}` and a queue entry id instead of `201` and an issue.
+Nothing was lost — a human accepts it — but there is no issue id to work
+against yet, so do not retry the create and do not treat the item id as one.
 
 ### Stages: order sub-issues into barrier groups
 
@@ -362,6 +463,11 @@ Read each sub-issue's description before promoting and only promote items whose
 stated dependencies are met; if a description conflicts with the parent's
 breakdown, leave it `backlog` and comment to confirm first.
 
+## Triage verdicts
+
+Inbound work waits in the triage queue; agents suggest a verdict, humans
+decide. Commands and rules: `references/triage-verdicts.md`.
+
 ## Incorrect → correct
 
 PR title (link the issue):
@@ -388,9 +494,8 @@ multica issue create --title "Step 3" --parent <issue-id> --assignee <agent> --s
 ## References
 
 `references/working-on-issues-source-map.md` — accurate `file:line` for every
-contract above: the `pull-requests` CLI and route, the PR response field list,
-`derivePRState`, the two-path link (`extractIdentifiers`) vs close-intent
-(`extractClosingIdentifiers`) proof, the backlog enqueue lines, child-done
-notify, the stage column / `stageBarrierClosed` barrier and the `--stage` /
-`issue children` CLI, and the metadata CLI. Re-derive before depending on an
-exact line.
+contract above (PR CLI / route / response, `derivePRState`, link vs close-intent
+proof, backlog enqueue, child-done notify, `stageBarrierClosed`, `--stage` /
+`issue children` / metadata CLI, triage verdict CLI / route / handler).
+`references/undo-and-show-me-first.md` — the undo journal and the `202` "show
+me first" contract: queued for approval, not done, not an error.

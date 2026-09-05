@@ -19,7 +19,11 @@ func testLogger() *slog.Logger {
 }
 
 func TestGitEnv(t *testing.T) {
-	t.Parallel()
+	// The host (a CI runner, an agent harness) may already carry env-scoped
+	// git config; this case is the "no pre-existing config" one, so clear
+	// the count for its duration. GIT_CONFIG_COUNT is process-wide, hence
+	// no t.Parallel here (see TestGitEnvPreservesExistingConfig).
+	t.Setenv("GIT_CONFIG_COUNT", "")
 	env := gitEnv()
 
 	// Must contain GIT_TERMINAL_PROMPT=0.

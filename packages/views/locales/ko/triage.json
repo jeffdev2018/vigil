@@ -1,0 +1,136 @@
+{
+  "title": "트리아지",
+  "subtitle": "들어온 작업(웹훅 전달, 회의 실행 항목)이 이슈가 되기 전에 검토합니다",
+  "stats": {
+    "pending": "대기 {{count}}건",
+    "oldest": "가장 오래 대기 {{age}}",
+    "dropped_24h": "24시간 내 {{count}}건 삭제됨",
+    "none_pending": "대기열이 비어 있습니다",
+    "shadow_pending": "{{count}}건 섀도 기록"
+  },
+  "filter": {
+    "pending": "대기",
+    "accepted": "수락됨",
+    "dismissed": "기각됨",
+    "merged": "병합됨",
+    "snoozed": "미룸"
+  },
+  "sources": {
+    "empty": "아직 수신 소스가 없습니다",
+    "action": "소스",
+    "title": "수신 소스",
+    "pending": "대기 {{count}}건",
+    "dropped_24h": "24시간 동안 {{count}}건 폐기",
+    "auto_accept": "자동 승인",
+    "cap_per_hour": "시간당 상한",
+    "expiry_days": "보존 기간(일)",
+    "zero_hint": "0은 상한 없음과 기본 보존 기간을 뜻합니다.",
+    "items_24h": "24시간 내 {{count}}건",
+    "mode": {
+      "gate": "게이트",
+      "direct": "직접",
+      "blocked": "차단"
+    }
+  },
+  "list": {
+    "empty_title": "대기열이 비어 있습니다",
+    "empty_description": "게이트로 설정한 소스의 웹훅 전달과 녹음한 회의의 실행 항목은 사람이 수락하거나 기각할 때까지 여기에 대기합니다.",
+    "loading": "트리아지 대기열을 불러오는 중",
+    "load_error": "트리아지 대기열을 불러올 수 없습니다",
+    "empty_history_title": "아직 아무것도 없습니다",
+    "load_more": "더 보기"
+  },
+  "detail": {
+    "select_prompt": "검토할 항목을 선택하세요",
+    "from_source": "출처: {{name}}",
+    "body_label": "설명",
+    "no_body": "캡처된 설명이 없습니다",
+    "payload_label": "캡처된 페이로드",
+    "payload_truncated": "페이로드가 너무 커서 크기만 보관했습니다",
+    "no_payload": "캡처된 페이로드가 없습니다",
+    "collapse_count": "{{count}}회 감지됨",
+    "accept": "수락",
+    "accepting": "수락 중",
+    "dismiss": "기각",
+    "dismissing": "기각 중",
+    "accepted_toast": "수락됨 — 이슈가 생성되었습니다",
+    "dismissed_toast": "기각됨",
+    "merged_toast": "이미 {{identifier}}(으)로 추적 중 — 병합되었습니다",
+    "limit_toast": "이슈 한도에 도달했습니다 — 항목은 대기열에 남습니다",
+    "error_toast": "문제가 발생했습니다",
+    "resolution_reason": "사유: {{reason}}",
+    "accepted_toast_identifier": "수락됨 — {{identifier}} 생성됨",
+    "open_issue": "열기",
+    "from_meeting": "회의에서",
+    "auto_accepted": "대기열이 자동 승인"
+  },
+  "batch": {
+    "accept": "{{count}}건 수락",
+    "clear": "선택 해제",
+    "stopped_toast": "중지됨 — 워크스페이스가 이슈 한도에 도달했습니다",
+    "summary_toast": "수락 {{accepted}}건, 중복 {{duplicates}}건, 실패 {{failed}}건",
+    "dismiss": "{{count}}건 기각",
+    "dismiss_summary": "공통 사유로 {{count}}건을 기각합니다.",
+    "dismiss_summary_toast": "기각 {{dismissed}}건, 실패 {{failed}}건"
+  },
+  "suggestion": {
+    "title": "제안",
+    "none": "아직 비슷한 과거 결정이 없습니다.",
+    "dismiss": "거부",
+    "accept": "수락",
+    "would_dismiss": "거부될 예정",
+    "would_accept": "수락될 예정",
+    "confidence": "유사한 전달 {{count}}건 기준 확신도 {{percent}}%",
+    "auto_on": "자동 적용 켜짐: {{threshold}}% 이상이면 적용됩니다.",
+    "auto_off": "자동 적용 꺼짐: 사람이 결정합니다. 설정 → 워크스페이스에서 켤 수 있습니다.",
+    "not_ready": "학습 중: 자동 적용에는 결정 {{min}}건이 필요합니다(현재 {{examples}}건).",
+    "reopen": "다시 열기",
+    "reopen_failed": "다시 열지 못했습니다"
+  },
+  "accept_as": {
+    "label": "다음으로 수락",
+    "assignee": "담당자",
+    "assignee_set": "담당자 지정됨",
+    "priority": "우선순위",
+    "project": "프로젝트",
+    "project_set": "프로젝트 지정됨"
+  },
+  "merge": {
+    "action": "이슈에 병합…",
+    "title": "이슈에 병합",
+    "description": "이미 같은 작업을 추적 중인 이슈에 이 항목을 병합합니다.",
+    "toast": "{{identifier}}에 병합했습니다"
+  },
+  "snooze": {
+    "action": "미루기",
+    "custom": "직접 지정",
+    "confirm": "미루기",
+    "toast": "미뤘습니다",
+    "invalid": "미래이면서 30일 이내의 시각을 선택하세요",
+    "preset": {
+      "hour": "1시간 뒤",
+      "evening": "오늘 저녁",
+      "tomorrow": "내일",
+      "next_monday": "다음 주 월요일"
+    }
+  },
+  "dismiss_reason": {
+    "label": "사유(선택)",
+    "placeholder": "왜 작업이 아닌가요?",
+    "confirm": "기각 확인"
+  },
+  "verdict": {
+    "badge": "에이전트 제안: {{verdict}}",
+    "accept": "수락",
+    "dismiss": "기각",
+    "by": "제안: {{name}}"
+  },
+  "rule": {
+    "action": "규칙 만들기",
+    "title": "이 항목으로 규칙 만들기",
+    "description": "규칙은 전달이 캡처되는 시점, 누군가 보기 전에 실행됩니다. 활성화하기 전에 컴파일된 규칙과 드라이런을 확인하세요.",
+    "prefill": "{{source}}에서 온 전달 중 제목에 \"{{keyword}}\"이(가) 포함된 것",
+    "prefill_source": "{{source}}에서 온 전달",
+    "manage": "규칙 관리"
+  }
+}

@@ -194,12 +194,83 @@ type DaemonRegisterRequest struct {
 		// Type carries the protocol family for both built-in and custom rows
 		// so task routing (agent.New) is unchanged.
 		ProfileID string `json:"profile_id"`
+		// CliAuth is the CLI's own sign-in state as the daemon just probed it
+		// ("authenticated" / "unauthenticated"). Empty means the daemon could
+		// not tell, and the runtime keeps no cli_auth record — registration
+		// replaces metadata wholesale, so "unknown" is the absence of the key,
+		// not a stale claim. Without this a CLI that was already signed in read
+		// as unknown until someone signed in again through the product.
+		CliAuth string `json:"cli_auth"`
 	} `json:"runtimes"`
 	FailedProfiles []struct {
 		ProfileID   string `json:"profile_id"`
 		CommandName string `json:"command_name"`
 		Reason      string `json:"reason"`
 	} `json:"failed_profiles"`
+	// SkippedAgents maps a provider the daemon DID find on the machine to the
+	// reason this probe round dropped it (version undetectable, below the
+	// minimum supported version, binary not executable). Diagnostic only:
+	// nothing routes on it. Persisted on every runtime row of the machine so
+	// the UI can tell "CLI not installed" apart from "CLI installed but
+	// rejected", which is the distinction that made GH #6077 unactionable.
+	SkippedAgents map[string]string `json:"skipped_agents"`
+}
+
+// cliAuthStateFromRegistration turns the daemon's probed sign-in state into the
+// same cli_auth record UpdateRuntimeCliAuthState writes after an interactive
+// sign-in, so both sources feed one shape. Returns nil for an unknown or
+// unrecognised state: the runtime then carries no record and the UI reads it as
+// unknown rather than as a stale claim.
+func cliAuthStateFromRegistration(state string) map[string]any {
+	var authenticated bool
+	switch strings.TrimSpace(state) {
+	case "authenticated":
+		authenticated = true
+	case "unauthenticated":
+		authenticated = false
+	default:
+		return nil
+	}
+	reason := "cli_status_probe"
+	return map[string]any{
+		"authenticated": authenticated,
+		"checked_at":    time.Now().UTC().Format(time.RFC3339),
+		"reason":        reason,
+	}
+}
+
+// Bounds on the daemon-reported skip map. It is diagnostic, but it crosses a
+// request boundary into a JSONB column every workspace member reads back.
+const (
+	maxSkippedAgentEntries   = 32
+	maxSkippedAgentReasonLen = 300
+)
+
+// normalizeSkippedAgents trims and bounds the reported map. It always returns
+// a non-nil map, so the key is written on every registration: an empty map is
+// how a repaired provider stops being reported.
+func normalizeSkippedAgents(raw map[string]string) map[string]string {
+	providers := make([]string, 0, len(raw))
+	for provider := range raw {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	out := make(map[string]string, len(providers))
+	for _, name := range providers {
+		provider := strings.TrimSpace(name)
+		reason := strings.TrimSpace(raw[name])
+		if provider == "" || reason == "" {
+			continue
+		}
+		if len(out) >= maxSkippedAgentEntries {
+			break
+		}
+		if runes := []rune(reason); len(runes) > maxSkippedAgentReasonLen {
+			reason = string(runes[:maxSkippedAgentReasonLen])
+		}
+		out[provider] = reason
+	}
+	return out
 }
 
 type daemonWorkspaceReposResponse struct {
@@ -436,6 +507,8 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	skippedAgents := normalizeSkippedAgents(req.SkippedAgents)
+
 	resp := make([]AgentRuntimeResponse, 0, len(req.Runtimes))
 	for _, runtime := range req.Runtimes {
 		provider := normalizeProvider(runtime.Type)
@@ -463,12 +536,20 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 		// live request — the resource-save gate and the UI — decide from the
 		// same signal the claim path uses, instead of re-deriving it from a
 		// version string (MUL-5707).
-		metadata, _ := json.Marshal(map[string]any{
+		metadataFields := map[string]any{
 			"version":      runtime.Version,
 			"cli_version":  req.CLIVersion,
 			"launched_by":  req.LaunchedBy,
 			"capabilities": requestClientCapabilities(r),
-		})
+			// Machine-level, so every runtime of this daemon carries the same
+			// snapshot and the UI can read it off whichever row is freshest.
+			"skipped_agents": skippedAgents,
+		}
+		if state := cliAuthStateFromRegistration(runtime.CliAuth); state != nil {
+			state["provider"] = provider
+			metadataFields["cli_auth"] = state
+		}
+		metadata, _ := json.Marshal(metadataFields)
 
 		var registered db.AgentRuntime
 		var inserted bool
@@ -677,6 +758,7 @@ func (h *Handler) DaemonRegister(w http.ResponseWriter, r *http.Request) {
 					"runtime_profile_registration_error": true,
 					"runtime_profile_failure_reason":     reason,
 					"command_name":                       resolvedCommandName,
+					"skipped_agents":                     skippedAgents,
 				})
 				return db.UpsertAgentRuntimeWithProfileParams{
 					WorkspaceID: wsUUID,
@@ -984,6 +1066,14 @@ func (h *Handler) DaemonDeregister(w http.ResponseWriter, r *http.Request) {
 type DaemonHeartbeatRequest struct {
 	RuntimeID           string `json:"runtime_id"`
 	SupportsBatchImport bool   `json:"supports_batch_import,omitempty"`
+	// DirtyCheckouts (K18): files a human changed in the daemon's local
+	// checkouts. Optional; daemons that do not send it change nothing.
+	DirtyCheckouts []service.DirtyCheckout `json:"dirty_checkouts,omitempty"`
+	// SkippedAgents (MUL-5439) is the machine's discovered-but-not-registered
+	// diagnostic, the same map registration carries. Daemons send it only on
+	// the beats where it changed, so absent means "leave what is stored
+	// alone" and an empty object means "nothing is skipped any more".
+	SkippedAgents map[string]string `json:"skipped_agents,omitempty"`
 }
 
 // heartbeatHasPendingTimeout bounds the cheap HasPending probe on the
@@ -1115,6 +1205,22 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	authMs = time.Since(start).Milliseconds()
 
 	updateStart := time.Now()
+	if req.DirtyCheckouts != nil {
+		if raw, err := json.Marshal(req.DirtyCheckouts); err == nil {
+			if err := h.Queries.UpdateAgentRuntimeDirtyCheckouts(r.Context(), db.UpdateAgentRuntimeDirtyCheckoutsParams{ID: rt.ID, Dirty: raw}); err != nil {
+				slog.Warn("traffic: store dirty checkouts failed", "runtime_id", req.RuntimeID, "error", err)
+			}
+		}
+	}
+	if req.SkippedAgents != nil {
+		// Same normalization and same metadata key registration writes, so the
+		// two paths cannot disagree on the shape the UI reads.
+		if raw, err := json.Marshal(normalizeSkippedAgents(req.SkippedAgents)); err == nil {
+			if err := h.Queries.UpdateRuntimeSkippedAgents(r.Context(), db.UpdateRuntimeSkippedAgentsParams{ID: rt.ID, SkippedAgents: raw}); err != nil {
+				slog.Warn("heartbeat: store skipped agents failed", "runtime_id", req.RuntimeID, "error", err)
+			}
+		}
+	}
 	if err := h.recordHeartbeat(r.Context(), rt); err != nil {
 		updateMs = time.Since(updateStart).Milliseconds()
 		outcome = "error_update"
@@ -1149,6 +1255,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	if ack.PendingModelList != nil {
 		resp["pending_model_list"] = ack.PendingModelList
+	}
+	if ack.PendingCliAuth != nil {
+		resp["pending_cli_auth"] = ack.PendingCliAuth
 	}
 	if ack.PendingLocalSkills != nil {
 		resp["pending_local_skills"] = ack.PendingLocalSkills
@@ -1363,6 +1472,23 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 		} else {
 			slog.Warn("model list HasPending failed", "error", probeModelErr, "runtime_id", runtimeID)
 		}
+	}
+
+	probeCliAuthCtx, cancelProbeCliAuth := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
+	hasCliAuth, probeCliAuthErr := h.CliAuthStore.HasPending(probeCliAuthCtx, runtimeID)
+	cancelProbeCliAuth()
+	switch {
+	case probeCliAuthErr == nil && hasCliAuth:
+		pendingCliAuth, popErr := h.CliAuthStore.PopPending(ctx, runtimeID)
+		if popErr != nil {
+			slog.Warn("CLI auth PopPending failed", "error", popErr, "runtime_id", runtimeID)
+		} else if pendingCliAuth != nil {
+			ack.PendingCliAuth = &protocol.DaemonHeartbeatPendingCliAuth{
+				ID: pendingCliAuth.ID, Action: pendingCliAuth.Action,
+			}
+		}
+	case probeCliAuthErr != nil:
+		slog.Warn("CLI auth HasPending failed", "error", probeCliAuthErr, "runtime_id", runtimeID)
 	}
 
 	// Probe then claim the local-skill list queue. The probe is bounded so a
@@ -2038,6 +2164,47 @@ func claimResponseAgentIdentityMatches(resp AgentTaskResponse) bool {
 	return resp.AgentID != "" && resp.Agent != nil && resp.Agent.ID == resp.AgentID
 }
 
+// taskRoutingTrace is the minimal projection of the task's routing audit
+// trace (agent_task_queue.routing, JEF-237) the claim path needs: which
+// runtime/model the router chose. The full candidate list stays in the DB
+// column and never crosses the wire.
+type taskRoutingTrace struct {
+	Mode            string `json:"mode"`
+	ChosenRuntimeID string `json:"chosen_runtime_id"`
+	ChosenModel     string `json:"chosen_model"`
+}
+
+// parseTaskRoutingTrace decodes the routing trace of a task, returning nil
+// for unrouted tasks (NULL column — every fixed-mode task) and for corrupt
+// payloads (fail closed: the claim path then applies the fixed-mode fences).
+func parseTaskRoutingTrace(task *db.AgentTaskQueue) *taskRoutingTrace {
+	if len(task.Routing) == 0 {
+		return nil
+	}
+	var trace taskRoutingTrace
+	if err := json.Unmarshal(task.Routing, &trace); err != nil {
+		slog.Warn("daemon claim: unreadable routing trace; treating task as unrouted",
+			"task_id", uuidToString(task.ID), "error", err)
+		return nil
+	}
+	return &trace
+}
+
+// routedTaskMatchesClaimedRuntime reports whether a task stamped with a
+// runtime other than the agent's bound one is a legitimate router decision:
+// the agent is still in auto mode and the task's trace names exactly the
+// stamped runtime as its choice. Anything else (flipped back to fixed, trace
+// absent/corrupt, trace pointing elsewhere) keeps the strict mismatch fence.
+func routedTaskMatchesClaimedRuntime(agent db.Agent, task *db.AgentTaskQueue) bool {
+	if agent.RuntimeRouting != service.RoutingModeAuto {
+		return false
+	}
+	trace := parseTaskRoutingTrace(task)
+	return trace != nil &&
+		trace.Mode == service.RoutingModeAuto &&
+		trace.ChosenRuntimeID == uuidToString(task.RuntimeID)
+}
+
 // buildClaimedTaskResponse assembles the full daemon claim payload for a
 // single already-claimed task and computes the exact comment ids embedded in
 // it (deliveredCommentIDs). Shared by the per-runtime handler
@@ -2049,6 +2216,12 @@ func claimResponseAgentIdentityMatches(resp AgentTaskResponse) bool {
 func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQueue, runtime db.AgentRuntime, runtimeID, runtimeWorkspaceID string) (resp AgentTaskResponse, deliveredCommentIDs []pgtype.UUID, agentSkillCount, builtinSkillCount int, failure *claimBuildFailure) {
 	// Build response with fresh agent data (name + skills + custom_env + custom_args).
 	resp = taskToResponse(*task, runtimeWorkspaceID)
+	// Handoff packet (K17): the resuming agent reads what the last hand left.
+	resp.HandoffPacket = h.latestHandoffPacket(r.Context(), task.IssueID)
+	// Checkpoints (K20): a resumed run is told where the interrupted one stopped.
+	if task.CheckpointAttempts > 0 && task.LastCheckpointSeq.Valid {
+		resp.ResumeFromCheckpointSeq = task.LastCheckpointSeq.Int64
+	}
 	var issueNumber int32
 	// Claim-only capability: this server resolves the squad-leader role on the
 	// wire (is_leader_task / squad_id), so the daemon must not re-derive it
@@ -2117,7 +2290,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// changing task state, but Agent mutations do not stay locked through HTTP
 	// response assembly. Recheck the freshly loaded Agent here so a rebind or
 	// owner change that committed after the claim cannot reach the daemon.
-	if agent.RuntimeID != task.RuntimeID {
+	// A routed task (JEF-237) is exempt when the agent is still in auto mode
+	// AND the task's routing trace confirms the runtime the router chose is
+	// exactly the one stamped on the row — an agent flipped back to fixed
+	// mode, or a task whose runtime no longer matches its trace, fails closed.
+	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),
@@ -2178,6 +2355,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		slog.Warn("daemon claim: load agent mcp servers failed; using agent mcp_config",
 			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
 	} else if len(bound) > 0 {
+		resp.McpGateway = claimMcpGateway(agent, bound)
 		bindings := make([]WorkspaceMcpBinding, 0, len(bound))
 		for _, server := range bound {
 			bindings = append(bindings, WorkspaceMcpBinding{Name: server.Name, Config: json.RawMessage(server.Config)})
@@ -2211,6 +2389,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		runtimeConfig = json.RawMessage(agent.RuntimeConfig)
 	}
 	resp.Agent = &TaskAgentData{
+		TrustMode:             agent.TrustMode,
 		ID:                    uuidToString(agent.ID),
 		Name:                  agent.Name,
 		Instructions:          agent.Instructions,
@@ -2222,6 +2401,12 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		ServiceTier:           agent.ServiceTier.String,
 		RuntimeConfig:         runtimeConfig,
 		DisabledRuntimeSkills: disabledRuntimeSkillsFor(agent.DisabledRuntimeSkills, runtimeID, runtime.Provider),
+	}
+	// A routed task (JEF-237) carries the router's chosen model in its trace;
+	// the daemon must run THAT model on the chosen runtime, not the agent's
+	// configured fallback model.
+	if trace := parseTaskRoutingTrace(task); trace != nil && trace.ChosenModel != "" {
+		resp.Agent.Model = trace.ChosenModel
 	}
 	// System agents carry a product-owned instruction layer that ships with
 	// this binary instead of being copied into their row at creation. That
@@ -2235,6 +2420,13 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	if agent.SystemKey.String == service.MikaSystemKey {
 		resp.Agent.Instructions = service.ComposeMikaInstructions(agent.Name, agent.Instructions)
 	}
+	// Permission profile (K06): the daemon enforces what it can, the model reads the rest.
+	if profile, _, ok := h.taskPermissionProfile(r.Context(), *task, &agent); ok {
+		resp.Agent.PermissionProfile = &profile
+		resp.Agent.Instructions = strings.TrimRight(resp.Agent.Instructions, "\n") + "\n\n" + profile.PromptSection()
+	}
+	// Run-scoped secrets (K09): scoped keys leave as tokens, never as values.
+	resp.Agent.CustomEnv = h.issueRunSecrets(r.Context(), *task, agent, resp.Agent.PermissionProfile, resp.Agent.CustomEnv)
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID)
 		if err != nil {
@@ -2252,6 +2444,28 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		builtinSkillCount = len(builtinSkills)
 		skills = append(skills, builtinSkills...)
 		resp.Agent.Skills = skills
+	}
+	// Memory facts (JEF-236) ride the same single assembly point. Unlike the
+	// skill load above this is deliberately NON-blocking: skills fail closed
+	// because a partial skill set is indistinguishable from a correct one,
+	// while a missing Memory section is plainly visible in the brief — a
+	// failed read must never stop an agent from being dispatched.
+	if memories, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
+		slog.Warn("daemon claim: load agent memories failed; continuing without memory",
+			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
+	} else if len(memories) > 0 {
+		resp.Agent.Memories = memories
+	}
+	// Workspace Brain notes ride the same assembly point and the same
+	// non-blocking contract: the shared knowledge base is briefing context,
+	// so a failed read costs the run its Workspace Knowledge section, never
+	// its dispatch. Unlike memories these hang off the workspace, not the
+	// agent, so every agent in the workspace sees the same set.
+	if notes, err := h.TaskService.LoadWorkspaceNotesForBrief(r.Context(), agent.WorkspaceID); err != nil {
+		slog.Warn("daemon claim: load workspace notes failed; continuing without the Brain",
+			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(agent.WorkspaceID), "error", err)
+	} else if len(notes) > 0 {
+		resp.WorkspaceNotes = workspaceNotesToContext(notes)
 	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
@@ -2419,6 +2633,24 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			}
 		}
 		projectCtx.applyTo(&resp)
+
+		// Goal ancestry is context, not authority: a read failure degrades to
+		// the brief without the section rather than holding the task back.
+		if ancestry, err := h.resolveClaimGoalAncestry(r.Context(), issue.ID, issue.WorkspaceID, false); err != nil {
+			slog.Warn("issue claim: load goal ancestry failed; claim delivered without it",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		} else {
+			ancestry.applyTo(&resp)
+		}
+		// Mission chain (K74): context too; a read failure drops the section.
+		if chain, err := h.resolveClaimMissionChain(r.Context(), issue); err != nil {
+			slog.Warn("issue claim: load mission chain failed; claim delivered without it",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		} else {
+			resp.MissionChain = chain
+		}
+		// Org chart (K75): the structure and unit this run acts in.
+		resp.Org = h.resolveClaimOrgContext(r.Context(), issue, task.AgentID)
 
 		// Load every planned input as one chronological, de-duplicated set.
 		// The trigger is included here so the delivery receipt can only contain
@@ -3021,6 +3253,17 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 							if ws, werr := h.Queries.GetWorkspace(r.Context(), wsUUID); werr == nil {
 								resp.ParentIssueIdentifier = ws.IssuePrefix + "-" + strconv.Itoa(int(parent.Number))
 							}
+							// The new issue will be filed under the parent, so the
+							// parent itself is the nearest goal ancestor.
+							if ancestry, aerr := h.resolveClaimGoalAncestry(r.Context(), parent.ID, wsUUID, true); aerr != nil {
+								slog.Warn("quick-create claim: load goal ancestry failed; claim delivered without it",
+									"task_id", uuidToString(task.ID), "parent_issue_id", qc.ParentIssueID, "error", aerr)
+							} else {
+								ancestry.applyTo(&resp)
+							}
+							if chain, cerr := h.resolveClaimMissionChain(r.Context(), parent); cerr == nil {
+								resp.MissionChain = chain
+							}
 						} else if qc.SourceContextID != "" && errors.Is(perr, pgx.ErrNoRows) {
 							// A contextual quick-create already owns an immutable
 							// snapshot. If its source was deleted before this first
@@ -3611,6 +3854,8 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("task started", "task_id", taskID, "agent_id", uuidToString(task.AgentID))
+	// Replay (K70): what the run started with, as it was at that instant.
+	h.recordRunSnapshot(r.Context(), *task, workspaceID)
 	writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 }
 
@@ -3683,8 +3928,18 @@ func (h *Handler) ReportTaskProgress(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	h.touchTaskActivity(r, task.ID)
 	h.TaskService.ReportProgress(r.Context(), taskID, workspaceID, req.Summary, req.Step, req.Total)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// touchTaskActivity records the run-level heartbeat (F02). Best effort: the
+// callback that carried the proof of life already succeeded, so a failed stamp
+// only delays the liveness badge and is not worth failing the daemon's request.
+func (h *Handler) touchTaskActivity(r *http.Request, taskID pgtype.UUID) {
+	if err := h.Queries.TouchAgentTaskActivity(r.Context(), taskID); err != nil {
+		slog.Warn("touch task activity failed", "error", err, "task_id", uuidToString(taskID))
+	}
 }
 
 // CompleteTask marks a running task as completed.
@@ -3812,6 +4067,30 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.emitIssueExecutedOnFirstCompletion(r, task)
+	// Handoff packet (K17): every completed run leaves one.
+	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
+	// Pipelines (K37): the executor's completed run advances the cursor.
+	h.advancePipelineAfterTask(r.Context(), *task)
+	// Fan-out (K38): a settled child moves the barrier.
+	h.updateFanoutBarrier(r.Context(), *task)
+	// Agent duel (K39): a finished candidate run moves the duel.
+	h.updateDuelBarrier(r.Context(), *task)
+	// "Show me first" (K69): the held writes become one decision.
+	h.settlePendingEffects(r.Context(), *task, true)
+	// Replay (K70): seal the run's event chain into the audit log.
+	h.sealRunReplay(r.Context(), *task)
+	// Refactoring campaigns (K42): a finished merge run moves the queue.
+	h.updateCampaignMergeRun(r.Context(), *task)
+	// Cross-provider self-review (K15): a finished review leaves its report;
+	// a finished code run gets reviewed by another provider.
+	h.storeCrossReviewReport(r.Context(), *task, req.Output)
+	// Task watchdog (K73): a finished scan leaves its verdict and acts within its tier.
+	h.storeWatchdogVerdict(r.Context(), *task, req.Output)
+	// Contest (K72): a finished challenger or answer run moves its contest;
+	// a finished issue run may be contested by policy.
+	h.settleContestRun(r.Context(), *task, req.Output)
+	h.autoContestTaskResult(r.Context(), *task)
+	h.triggerCrossReview(r.Context(), *task, req.PRURL, req.BranchName)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into
@@ -3831,6 +4110,7 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// completion shrinks the window where a compromised agent process
 	// can keep making API calls after its task finishes. Failure here is
 	// non-fatal; the expiry / cascade are the durable guards.
+	h.revokeRunSecrets(r.Context(), task.ID, "run_finished", "system", "")
 	if err := h.Queries.DeleteTaskTokensByTask(r.Context(), task.ID); err != nil {
 		slog.Warn("complete task: failed to revoke task tokens", "task_id", uuidToString(task.ID), "error", err)
 	}
@@ -4413,6 +4693,10 @@ func (h *Handler) ReportTaskUsage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Run limits (K03): fresh usage may cross a cap.
+	h.TaskService.EvaluateRunLimits(r.Context(), task)
+	// CI auto-fix (K49): a correction run has its own budget.
+	h.enforceCIAutoFixBudget(r.Context(), task)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -4428,7 +4712,8 @@ func (h *Handler) GetTaskStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, map[string]string{"status": task.Status})
+	// Pause (K19): the daemon polls this; it stops at the next safe boundary.
+	writeJSON(w, http.StatusOK, map[string]any{"status": task.Status, "pause_requested": task.PauseRequestedAt.Valid})
 }
 
 // FailTask marks a running task as failed.
@@ -4500,10 +4785,21 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		return
 	}
 	h.TaskService.NotifyTaskFinished(*task)
+	// Fan-out (K38): a child failed for good settles its member.
+	h.updateFanoutBarrier(r.Context(), *task)
+	// Agent duel (K39): a candidate that failed for good ends the duel.
+	h.updateDuelBarrier(r.Context(), *task)
+	// "Show me first" (K69): a failed run drops its held writes.
+	h.settlePendingEffects(r.Context(), *task, false)
+	// Replay (K70): seal the run's event chain into the audit log.
+	h.sealRunReplay(r.Context(), *task)
+	// Refactoring campaigns (K42): a merge run that failed for good is a conflict.
+	h.updateCampaignMergeRun(r.Context(), *task)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-
 	// terminal window. The 24h expiry / cascade are the durable guards.
+	h.revokeRunSecrets(r.Context(), task.ID, "run_finished", "system", "")
 	if err := h.Queries.DeleteTaskTokensByTask(r.Context(), task.ID); err != nil {
 		slog.Warn("fail task: failed to revoke task tokens", "task_id", uuidToString(task.ID), "error", err)
 	}
@@ -4642,6 +4938,28 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to persist task message")
 		return
 	}
+	h.touchTaskActivity(r, task.ID)
+	// Checkpoints (K20): a tool result or a finished text turn is a resume point.
+	var checkpointSeq int64
+	for _, msg := range created {
+		if (msg.Type == "tool_result" || msg.Type == "text") && int64(msg.Seq) > checkpointSeq {
+			checkpointSeq = int64(msg.Seq)
+		}
+	}
+	// Traffic control (K18): editing tool calls name the paths this run touches.
+	h.recordTouchedPaths(r.Context(), task, created)
+	// Drift detection (K40): observe the tool calls, after they are written.
+	for _, msg := range created {
+		if msg.Type == "tool_use" || msg.Type == "tool-use" {
+			h.checkDrift(r.Context(), task)
+			break
+		}
+	}
+	if checkpointSeq > 0 {
+		if err := h.Queries.CheckpointTask(r.Context(), db.CheckpointTaskParams{ID: task.ID, LastCheckpointSeq: pgtype.Int8{Int64: checkpointSeq, Valid: true}}); err != nil {
+			slog.Warn("checkpoint: advance failed", "task_id", taskID, "error", err)
+		}
+	}
 
 	if workspaceID != "" {
 		// CreateTaskMessages orders its result by seq, which is the daemon's
@@ -4650,6 +4968,10 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		// guarantee, and subscribers render these events as they arrive, so the
 		// ordering lives in the query rather than in the clients.
 		for _, m := range created {
+			// Why search (K55): an agent's text message is what answers "why".
+			if m.Type == "text" && task.IssueID.Valid && workspaceID != "" {
+				h.indexWhy(r.Context(), parseUUID(workspaceID), whySourceTaskMessage, m.ID, task.IssueID, m.Content.String)
+			}
 			// The ordered CTE makes sqlc name the row type after the query
 			// rather than reusing the table model; the columns are the table's,
 			// in order, so the conversion is checked by the compiler and breaks
@@ -4659,6 +4981,10 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Run limits (K03): turns and tool calls are counted from messages.
+	h.TaskService.EvaluateRunLimits(r.Context(), task)
+	// CI auto-fix (K49): a correction run has its own budget.
+	h.enforceCIAutoFixBudget(r.Context(), task)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

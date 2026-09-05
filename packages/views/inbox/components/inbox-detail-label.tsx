@@ -27,6 +27,13 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     new_comment: t(($) => $.types.new_comment),
     mentioned: t(($) => $.types.mentioned),
     review_requested: t(($) => $.types.review_requested),
+    decision_request: t(($) => $.types.decision_request),
+    decision_escalated: t(($) => $.types.decision_escalated),
+    ownership_suggested: t(($) => $.types.ownership_suggested),
+    morning_briefing: t(($) => $.types.morning_briefing),
+    standup_question: t(($) => $.types.standup_question),
+    weekly_retro: t(($) => $.types.weekly_retro),
+    trust_promotion_suggested: t(($) => $.types.trust_promotion_suggested),
     task_completed: t(($) => $.types.task_completed),
     task_failed: t(($) => $.types.task_failed),
     agent_blocked: t(($) => $.types.agent_blocked),
@@ -37,6 +44,15 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     quick_create_unconfirmed: t(($) => $.types.quick_create_unconfirmed),
     autopilot_paused: t(($) => $.types.autopilot_paused),
     autopilot_quota_exceeded: t(($) => $.types.autopilot_quota_exceeded),
+    budget_warning: t(($) => $.types.budget_warning),
+    budget_exceeded: t(($) => $.types.budget_exceeded),
+    postmortem_ready: t(($) => $.types.postmortem_ready),
+    watchdog_escalation: t(($) => $.types.watchdog_escalation),
+    contest_ready: t(($) => $.types.contest_ready),
+    org_alert: t(($) => $.types.org_alert),
+    mcp_alert: t(($) => $.types.mcp_alert),
+    decision_auto_decided: t(($) => $.types.decision_auto_decided),
+    triage_stale: t(($) => $.types.triage_stale),
   };
 }
 
@@ -131,6 +147,13 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
       // so the detail is shown as-is with no "Failed:" framing.
       const detail = getQuickCreateOutcomeDetail(item);
       if (detail) return <span>{detail}</span>;
+      return <span>{typeLabels[item.type]}</span>;
+    }
+    case "triage_stale": {
+      const count = Number(details.count);
+      if (Number.isFinite(count) && count > 0) {
+        return <span>{t(($) => $.labels.triage_items_waiting, { count })}</span>;
+      }
       return <span>{typeLabels[item.type]}</span>;
     }
     case "autopilot_quota_exceeded":

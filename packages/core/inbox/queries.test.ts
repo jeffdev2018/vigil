@@ -215,3 +215,37 @@ describe("inboxKeys.unreadSummary", () => {
     expect(inboxKeys.unreadSummary()).toEqual(["inbox", "unread-summary"]);
   });
 });
+
+// Attention Inbox (K02): the endpoint's parsing is defensive like the rest of
+// the API layer — a malformed body yields an empty list, never a throw.
+describe("listAttentionInbox", () => {
+  async function call(body: unknown) {
+    const { ApiClient } = await import("../api/client");
+    const { vi } = await import("vitest");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } }),
+      ),
+    );
+    try {
+      return await new ApiClient("https://api.example.test").listAttentionInbox();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  it("keeps risk_score and reason and defaults them when the server omits them", async () => {
+    const rows = await call({ items: [{ ...item({ id: "a" }), risk_score: 85, reason: "decision_urgent" }, item({ id: "b" })] });
+    expect(rows.map((r) => [r.id, r.risk_score, r.reason])).toEqual([["a", 85, "decision_urgent"], ["b", 0, ""]]);
+  });
+
+  it("falls back to an empty list on a malformed body", async () => {
+    expect(await call({ items: "nope" })).toEqual([]);
+    expect(await call("garbage")).toEqual([]);
+  });
+
+  it("keys the attention list under the workspace", () => {
+    expect(inboxKeys.attention("workspace-1")).toEqual([...inboxKeys.all("workspace-1"), "attention"]);
+  });
+});

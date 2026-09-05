@@ -36,7 +36,15 @@ An autopilot is enabled by default after saving; **Run now** manually executes t
 
 ## Run on a schedule
 
-The schedule editor lets you pick the run time, repeat days, time window, and timezone, and previews the upcoming run times. One autopilot can have multiple schedules; enabling or disabling an individual trigger is done with the CLI's `autopilot trigger-update` — see [Using the CLI](/cli) for the parameters.
+The schedule editor lets you pick the run time, repeat days, time window, and timezone, and previews the upcoming run times. One autopilot can have multiple schedules; each row on the autopilot's page has its own switch to enable or disable it, and a pencil to edit its schedule, band, and label. The same fields are available from the CLI's `autopilot trigger-update` — see [Using the CLI](/cli) for the parameters.
+
+### Spread runs over a time window
+
+A fixed time fires every day at exactly that minute. Tick **Sometime between** and give an end time to turn it into a band: Multica then picks one minute inside the band for each occurrence, and the minute differs from day to day.
+
+Use it when the exact minute doesn't matter and firing on the hour does: a daily digest at 09:00 sharp lands at the same second as everything else scheduled at 09:00, on your side and on the APIs the agent calls.
+
+The band is stored separately from the cron expression — the cron marks the start of the band, not the firing time — so the "next runs" preview shows the shifted instants, not the band's start. The chosen minute is stable for a given day: it is derived from the trigger and the occurrence, not drawn fresh, so every server computing it agrees.
 
 When you need more complex rules, edit the standard 5-field cron directly:
 
@@ -82,6 +90,17 @@ When one source sends several event types, add event filters to the trigger. Eac
 
 For example, with `workflow_run` as the event name and `completed, failed` as the actions, only those two kinds of `workflow_run` results are accepted. Multica recognizes the event and action from common request headers and payload fields, including GitHub's `X-GitHub-Event` and the `action` field in the body.
 
+### Route events in your own words
+
+Filters match on names. When the distinction you care about isn't in the event name — "only production incidents", "only pull requests that touch billing" — describe it in the trigger's **Only run when…** field instead. Every delivery that gets past the event filters is then judged against that description by a language model, and only a relevant one creates a run.
+
+Two properties are worth knowing before you rely on it:
+
+- **It fails open.** No model configured, an upstream error, or an answer Multica can't read all count as relevant, and the autopilot runs. A broken model never silences your webhook — but it also means "no run" is a verdict, while "a run" may be a fallback.
+- **It is deliberately liberal.** When the judgement is genuinely ambiguous, the delivery runs. Use the description to exclude what clearly does not matter, not to express a rule you need enforced exactly — that belongs in the event filters, or in the agent's own runbook.
+
+A delivery turned away this way is recorded as `ignored` with the reason `criteria_not_matched`, and the model's own one-line explanation is kept on the delivery, so you can see what it judged and why.
+
 ### Protect the webhook URL
 
 <Callout type="warning">
@@ -89,6 +108,35 @@ The token in the webhook URL is the calling credential. Don't put the full URL i
 </Callout>
 
 Only the autopilot's creator, workspace owners/admins, and collaborators granted access can view the full URL. The UI hides the token in the URL by default, and copying doesn't require revealing it; click the URL or the eye icon to view the full address.
+
+### Sign the deliveries
+
+The URL token proves the caller knows a secret; a signing secret proves the *body* was not changed on the way. Open the trigger's **Edit trigger** dialog and click **Generate signing secret**. Multica shows the value once — copy it then, because only the last four characters are kept visible afterwards — and every later delivery must carry:
+
+```
+X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the exact raw body, keyed with the secret>
+```
+
+This is the GitHub webhook scheme, so pasting the same secret into a GitHub webhook's *Secret* field is all the configuration GitHub needs. Signing yourself:
+
+```bash
+BODY='{"event":"build.completed","eventPayload":{"status":"success"}}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$MULTICA_SIGNING_SECRET" -r | cut -d' ' -f1)
+curl -X POST "$MULTICA_WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: sha256=$SIG" \
+  -d "$BODY"
+```
+
+While a secret is configured, a delivery with no signature or a wrong one is rejected with 401 and recorded as `rejected` — it never reaches the autopilot and cannot be replayed. **Rotate signing secret** replaces the value immediately, so update the sender in the same sitting; **Remove** clears it and reverts the trigger to URL-only authentication.
+
+### Test a trigger before it fires
+
+**Test with a sample event** on a webhook trigger replays a payload you paste through the whole delivery decision — event filters, the **Only run when…** description (the model really is asked), the pause state and the run limit — and tells you whether it *would* run and, if not, which of those said no. Nothing is recorded: no delivery, no run, no quota charged.
+
+The editor opens on a sample built from the trigger's own event filters, so the starting payload is one the trigger accepts. From a past delivery's detail view, **Replay as dry-run** re-judges that exact body against the trigger's *current* configuration — the question worth asking right after changing a filter, and unlike **Replay** it costs nothing.
+
+Schedule triggers get the same treatment from **Next runs** on the trigger row: the next five instants the scheduler itself would pick, band offset included, plus a note when a paused autopilot, a disabled trigger or an exhausted run limit would suppress the dispatch anyway.
 
 ### Webhook response reference
 
@@ -99,6 +147,7 @@ When debugging a sender, use this table to interpret Multica's responses:
 | 200 | `accepted` | Accepted and a run was created; returns the delivery and run IDs. |
 | 200 | `skipped` | Accepted, but this run was skipped (for example, the runtime is offline in run-only mode); includes the reason. |
 | 200 | `ignored` | No run created: the trigger is disabled, the autopilot is paused or archived, or the event was filtered; the `reason` field explains why. |
+| 200 | `ignored`, `reason: criteria_not_matched` | The delivery passed the event filters but the trigger's **Only run when…** description does not cover it; `explanation` carries the model's reasoning. |
 | 200 | `duplicate` | The idempotency key hit an existing delivery; returns the original delivery ID and doesn't run again. |
 | 400 | Error message | The body is empty, not valid JSON, or not a JSON object/array. |
 | 401 | `rejected` | The trigger has a signing secret configured, but the request is missing a signature or the signature doesn't match. |
@@ -107,7 +156,9 @@ When debugging a sender, use this table to interpret Multica's responses:
 | 429 | Error message | Too many requests; retry later per the `Retry-After` response header. |
 | 500 | Error message | Multica internal error; the sender can retry later. |
 
-Business-level ignores — pausing, archiving, and event filtering — return 200 rather than 4xx, so senders don't retry endlessly.
+Business-level ignores — pausing, archiving, event filtering, and criteria routing — return 200 rather than 4xx, so senders don't retry endlessly.
+
+Every ignored delivery keeps its reason as a stable code on the delivery record, and the Deliveries list on the autopilot's page shows it next to the status, so you can tell a paused autopilot from a filtered event without reading logs.
 
 Event and action inference order:
 
@@ -147,7 +198,12 @@ multica autopilot get <autopilot-id> --output json
 multica autopilot trigger <autopilot-id>
 multica autopilot runs <autopilot-id>
 multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
+multica autopilot trigger-add <autopilot-id> --kind webhook --event-match-criteria "only production incidents"
+multica autopilot trigger-update <autopilot-id> <trigger-id> --window-minutes 120
+multica autopilot trigger-dry-run <autopilot-id> <trigger-id> --payload-file event.json
 ```
+
+`trigger-dry-run` takes `--payload-file` for a webhook trigger and nothing at all for a schedule one, which previews its next runs instead.
 
 `autopilot get` sets `webhook_token`, `webhook_path`, and `webhook_url` to `null` by default, and returns `has_webhook_token` plus `webhook_token_hint` instead. Add `--show-secrets` only when you intentionally need the live credential; the CLI prints a warning to stderr so piped JSON stays valid.
 

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   AppConfigSchema,
+  CloudRuntimeNodeActionSchema,
+  EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   WecomInstallationSchema,
   ListWecomInstallationsResponseSchema,
   RedeemWecomBindingTokenResponseSchema,
@@ -17,6 +19,14 @@ import {
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
+  WebhookTriggerDryRunSchema,
+  TriageEmailSourceSchema,
+  EMPTY_TRIAGE_EMAIL_SOURCE,
+  TriageSourceSchema,
+  EMPTY_TRIAGE_SOURCE,
+  ScheduleTriggerDryRunSchema,
+  UNREADABLE_WEBHOOK_DRY_RUN,
+  UNREADABLE_SCHEDULE_DRY_RUN,
   CommentTriggerPreviewSchema,
   DashboardAgentRunTimeListSchema,
   DashboardRunTimeDailyListSchema,
@@ -52,6 +62,8 @@ import {
   RuntimeUsageByAgentListSchema,
   RuntimeUsageByHourListSchema,
   RuntimeUsageListSchema,
+  RuntimeRoutingStatsResponseSchema,
+  EMPTY_ROUTING_STATS_RESPONSE,
   SendChatMessageResponseSchema,
   SquadListSchema,
   SquadSchema,
@@ -71,6 +83,12 @@ import {
   IssueStatusEntrySchema,
   EMPTY_LIST_ISSUE_STATUSES_RESPONSE,
   EMPTY_ISSUE_STATUS_ENTRY,
+} from "./schemas";
+import {
+  AgentMemorySchema,
+  AgentMemoryListSchema,
+  EMPTY_AGENT_MEMORY,
+  EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 import { parseWithFallback } from "./schema";
 
@@ -595,6 +613,17 @@ describe("AgentTaskListSchema", () => {
     trigger_comment_id: "comment-3",
   };
 
+  it("keeps last_activity_at and an unknown status such as deferred (F02)", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, status: "deferred", last_activity_at: "2026-07-10T00:01:00Z" },
+      { ...task, id: "task-2" },
+    ]);
+    expect(parsed[0]?.status).toBe("deferred");
+    expect(parsed[0]?.last_activity_at).toBe("2026-07-10T00:01:00Z");
+    // Older servers omit the field; the run must still parse.
+    expect(parsed[1]?.last_activity_at).toBeUndefined();
+  });
+
   it("preserves planned and delivered comment IDs for a task run", () => {
     const parsed = AgentTaskListSchema.parse([
       {
@@ -680,6 +709,159 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.durable_work_dir).toBeUndefined();
     expect(parsed[0]?.relative_durable_work_dir).toBeUndefined();
     expect(parsed[0]?.branch_name).toBeUndefined();
+  });
+
+  it("parses the routing decision and task class from auto-routed tasks", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        task_class: "bugfix",
+        routing: {
+          mode: "auto",
+          chosen_runtime_id: "runtime-2",
+          chosen_model: "claude-sonnet-4-6",
+          reason: "highest success rate for bugfix tasks",
+          candidates: [
+            {
+              runtime_id: "runtime-2",
+              provider: "claude",
+              model: "claude-sonnet-4-6",
+              samples: 42,
+              success_rate: 0.93,
+              avg_cost_usd: 0.12,
+              avg_duration_secs: 45.5,
+              score: 0.81,
+            },
+            {
+              runtime_id: "runtime-1",
+              provider: "codex",
+              model: "gpt-5",
+              samples: 3,
+              success_rate: 0.67,
+              avg_cost_usd: null,
+              avg_duration_secs: null,
+              excluded_reason: "too few samples",
+            },
+          ],
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.task_class).toBe("bugfix");
+    expect(parsed[0]?.routing?.mode).toBe("auto");
+    expect(parsed[0]?.routing?.chosen_runtime_id).toBe("runtime-2");
+    expect(parsed[0]?.routing?.candidates).toHaveLength(2);
+    expect(parsed[0]?.routing?.candidates?.[1]?.excluded_reason).toBe(
+      "too few samples",
+    );
+  });
+
+  it("accepts task payloads from older backends without routing fields", () => {
+    const parsed = AgentTaskListSchema.parse([task]);
+    expect(parsed[0]?.task_class).toBeUndefined();
+    expect(parsed[0]?.routing).toBeUndefined();
+  });
+
+  it("degrades a malformed routing decision without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        routing: { mode: 7, chosen_runtime_id: null, candidates: "nope" },
+      },
+      {
+        ...task,
+        id: "task-2",
+        routing: null,
+      },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.routing).toBeUndefined();
+    // An explicit null stays null — the router ran in fixed mode.
+    expect(parsed[1]?.routing).toBeNull();
+  });
+});
+
+describe("RuntimeRoutingStatsResponseSchema", () => {
+  it("parses a full 90-day stats envelope, keeping null averages", () => {
+    const parsed = RuntimeRoutingStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          runtime_id: "runtime-1",
+          runtime_name: "Claude (mbp.local)",
+          provider: "claude",
+          model: "claude-sonnet-4-6",
+          task_class: "bugfix",
+          samples: 42,
+          success_rate: 0.93,
+          avg_cost_usd: 0.12,
+          avg_duration_secs: 45.5,
+        },
+        {
+          runtime_id: "runtime-2",
+          runtime_name: "Codex (mbp.local)",
+          provider: "codex",
+          model: "gpt-5",
+          task_class: "bugfix",
+          samples: 3,
+          success_rate: 0.67,
+          avg_cost_usd: null,
+          avg_duration_secs: null,
+        },
+      ],
+    });
+
+    expect(parsed.window_days).toBe(90);
+    expect(parsed.rows[0]?.avg_cost_usd).toBe(0.12);
+    expect(parsed.rows[1]?.avg_cost_usd).toBeNull();
+    expect(parsed.rows[1]?.avg_duration_secs).toBeNull();
+  });
+
+  it("defaults thin rows instead of rejecting them", () => {
+    const parsed = RuntimeRoutingStatsResponseSchema.parse({
+      rows: [{ runtime_id: "runtime-1" }],
+    });
+
+    expect(parsed.rows[0]).toMatchObject({
+      runtime_id: "runtime-1",
+      runtime_name: "",
+      samples: 0,
+      success_rate: 0,
+      avg_cost_usd: null,
+      avg_duration_secs: null,
+    });
+  });
+
+  it("keeps unknown extra fields and falls back on a malformed envelope", () => {
+    const withExtra = RuntimeRoutingStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          runtime_id: "runtime-1",
+          runtime_name: "Claude",
+          provider: "claude",
+          model: "sonnet",
+          task_class: "review",
+          samples: 5,
+          success_rate: 1,
+          avg_cost_usd: 0.01,
+          avg_duration_secs: 12,
+          future_field: "kept",
+        },
+      ],
+    });
+    expect(
+      (withExtra.rows[0] as Record<string, unknown>).future_field,
+    ).toBe("kept");
+
+    const parsed = parseWithFallback(
+      { rows: [{ runtime_id: "runtime-1", samples: "many" }] },
+      RuntimeRoutingStatsResponseSchema,
+      EMPTY_ROUTING_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/routing-stats" },
+    );
+    expect(parsed).toEqual(EMPTY_ROUTING_STATS_RESPONSE);
   });
 });
 
@@ -2101,5 +2283,279 @@ describe("issue status catalog schemas", () => {
       { endpoint: "POST /api/issue-statuses" },
     );
     expect(parsed).toEqual(EMPTY_ISSUE_STATUS_ENTRY);
+  });
+});
+
+describe("AgentMemory schemas", () => {
+  it("parses a full memory row and keeps unknown fields", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Prefers terse summaries",
+      source: "run",
+      source_task_id: "task-9",
+      created_at: "2026-08-30T10:00:00Z",
+      updated_at: "2026-09-01T12:00:00Z",
+      future_field: { nested: true },
+    });
+    expect(parsed.source).toBe("run");
+    expect(parsed.source_task_id).toBe("task-9");
+    expect((parsed as Record<string, unknown>).future_field).toEqual({ nested: true });
+  });
+
+  it("keeps an unknown source kind as a string instead of failing the row", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "x",
+      source: "imported",
+    });
+    expect(parsed.source).toBe("imported");
+  });
+
+  it("defaults the list counters when a backend omits them", () => {
+    const parsed = AgentMemoryListSchema.parse({
+      memories: [{ id: "mem-1", agent_id: "agent-1" }],
+    });
+    expect(parsed.briefed_count).toBe(0);
+    expect(parsed.extraction_enabled).toBe(false);
+    expect(parsed.memories[0]?.source_issue_id).toBeNull();
+  });
+
+  it("keeps the list counters a backend does send", () => {
+    const parsed = AgentMemoryListSchema.parse({
+      memories: [],
+      briefed_count: 12,
+      extraction_enabled: true,
+    });
+    expect(parsed.briefed_count).toBe(12);
+    expect(parsed.extraction_enabled).toBe(true);
+  });
+
+  it("falls back to an empty list on a malformed list response", () => {
+    const parsed = parseWithFallback(
+      { memories: "not-an-array" },
+      AgentMemoryListSchema,
+      EMPTY_AGENT_MEMORY_LIST,
+      { endpoint: "GET /api/agents/{agentId}/memories" },
+    );
+    expect(parsed).toEqual(EMPTY_AGENT_MEMORY_LIST);
+  });
+
+  it("falls back to the empty memory on a malformed single-memory response", () => {
+    const parsed = parseWithFallback(
+      { id: 42, content: 7 },
+      AgentMemorySchema,
+      EMPTY_AGENT_MEMORY,
+      { endpoint: "POST /api/agents/{agentId}/memories" },
+    );
+    expect(parsed).toEqual(EMPTY_AGENT_MEMORY);
+  });
+});
+
+// Cloud node power actions proxy a fleet service that lives outside this repo,
+// so the schema must survive whatever it returns: unknown keys pass through,
+// missing ones default, and a wholly malformed body degrades to "no new status"
+// instead of throwing on a page the user is already looking at.
+describe("CloudRuntimeNodeActionSchema", () => {
+  it("parses a well-formed action response", () => {
+    expect(
+      CloudRuntimeNodeActionSchema.parse({
+        instance_id: "i-0abc",
+        status: "stopping",
+      }),
+    ).toMatchObject({ instance_id: "i-0abc", status: "stopping" });
+  });
+
+  it("defaults missing fields and keeps unknown ones", () => {
+    const parsed = CloudRuntimeNodeActionSchema.parse({ request_id: "r-1" });
+    expect(parsed.instance_id).toBe("");
+    expect(parsed.status).toBe("");
+    expect(parsed).toMatchObject({ request_id: "r-1" });
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "stopping", 42, { status: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(
+          malformed,
+          CloudRuntimeNodeActionSchema,
+          EMPTY_CLOUD_RUNTIME_NODE_ACTION,
+          { endpoint: "POST /api/cloud-runtime/nodes/stop" },
+        ),
+      ).toEqual(EMPTY_CLOUD_RUNTIME_NODE_ACTION);
+    }
+  });
+});
+
+describe("trigger dry-run schemas", () => {
+  const WEBHOOK_ENDPOINT = { endpoint: "POST /api/autopilots/:id/triggers/:triggerId/dry-run" };
+  const SCHEDULE_ENDPOINT = { endpoint: "GET /api/autopilots/:id/triggers/:triggerId/dry-run" };
+
+  it("keeps a blocked verdict with its reason and the classifier's sentence", () => {
+    const parsed = parseWithFallback(
+      {
+        would_run: false,
+        reason_code: "criteria_not_matched",
+        explanation: "staging, and it succeeded",
+        matched_filters: [{ event: "deploy", actions: ["finished"] }],
+        event: "deploy.finished",
+      },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.would_run).toBe(false);
+    expect(parsed.reason_code).toBe("criteria_not_matched");
+    expect(parsed.matched_filters).toEqual([{ event: "deploy", actions: ["finished"] }]);
+  });
+
+  it("passes an unknown reason code through for the UI to render verbatim", () => {
+    const parsed = parseWithFallback(
+      { would_run: false, reason_code: "some_future_gate", explanation: "", matched_filters: [], event: "x" },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.reason_code).toBe("some_future_gate");
+  });
+
+  it("tolerates an older server omitting matched_filters and explanation", () => {
+    const parsed = parseWithFallback(
+      { would_run: true, reason_code: null },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.would_run).toBe(true);
+    expect(parsed.matched_filters).toEqual([]);
+    expect(parsed.explanation).toBe("");
+  });
+
+  it("degrades a malformed verdict to the unreadable sentinel, never to a decision", () => {
+    for (const malformed of ["nope", null, {}, { would_run: "yes" }]) {
+      const parsed = parseWithFallback(
+        malformed,
+        WebhookTriggerDryRunSchema,
+        UNREADABLE_WEBHOOK_DRY_RUN,
+        WEBHOOK_ENDPOINT,
+      );
+      // The sentinel is neither "would run" nor a named gate — the dialog
+      // says the preview could not be read instead of inventing a verdict.
+      expect(parsed).toBe(UNREADABLE_WEBHOOK_DRY_RUN);
+      expect(parsed.reason_code).toBe("unreadable");
+    }
+  });
+
+  it("reads a schedule preview and its blocking reason", () => {
+    const parsed = parseWithFallback(
+      {
+        next_runs: ["2126-07-14T08:30:00Z"],
+        would_run: false,
+        reason_code: "autopilot_paused",
+        window_minutes: 120,
+      },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(parsed.next_runs).toEqual(["2126-07-14T08:30:00Z"]);
+    expect(parsed.reason_code).toBe("autopilot_paused");
+    expect(parsed.window_minutes).toBe(120);
+  });
+
+  it("keeps an empty next_runs distinct from an unreadable preview", () => {
+    const never = parseWithFallback(
+      { next_runs: [], would_run: true, reason_code: null, window_minutes: 0 },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(never.reason_code).toBeNull();
+
+    const broken = parseWithFallback(
+      { would_run: true },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(broken).toBe(UNREADABLE_SCHEDULE_DRY_RUN);
+  });
+});
+
+describe("TriageSourceSchema", () => {
+  it("parses a source with its policy and counters", () => {
+    expect(
+      TriageSourceSchema.parse({
+        id: "src-1",
+        kind: "autopilot_webhook",
+        ref_id: "ap-1",
+        name: "Sentry",
+        mode: "gate",
+        auto_accept: true,
+        cap_per_hour: 25,
+        expiry_days: 3,
+        pending: 4,
+        items_24h: 9,
+        dropped_24h: 2,
+      }),
+    ).toMatchObject({ auto_accept: true, cap_per_hour: 25, pending: 4 });
+  });
+
+  // The PATCH response carries the policy but none of the counters; an older
+  // backend carries neither. Both must stay renderable.
+  it("defaults the fields an older backend does not send", () => {
+    const parsed = TriageSourceSchema.parse({ id: "src-1", mode: "direct" });
+    expect(parsed).toMatchObject({
+      auto_accept: false,
+      cap_per_hour: 0,
+      expiry_days: 0,
+      pending: 0,
+      dropped_24h: 0,
+    });
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "src-1", 42, { id: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, TriageSourceSchema, EMPTY_TRIAGE_SOURCE, {
+          endpoint: "PATCH /api/triage/sources/:id",
+        }),
+      ).toEqual(EMPTY_TRIAGE_SOURCE);
+    }
+  });
+});
+
+describe("TriageEmailSourceSchema", () => {
+  it("parses the mint/rotate response", () => {
+    expect(
+      TriageEmailSourceSchema.parse({
+        id: "src-1",
+        mode: "gate",
+        path: "/api/triage/inbound/email/mti_abc",
+        url: "https://multica.test/api/triage/inbound/email/mti_abc",
+        token: "mti_abc",
+      }),
+    ).toMatchObject({ id: "src-1", token: "mti_abc" });
+  });
+
+  it("keeps a deployment with no public URL usable", () => {
+    const parsed = TriageEmailSourceSchema.parse({
+      id: "src-1",
+      path: "/api/triage/inbound/email/mti_abc",
+      token: "mti_abc",
+    });
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.mode).toBe("gate");
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "mti_abc", 42, { id: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE, {
+          endpoint: "POST /api/triage/sources/email",
+        }),
+      ).toEqual(EMPTY_TRIAGE_EMAIL_SOURCE);
+    }
   });
 });

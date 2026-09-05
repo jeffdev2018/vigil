@@ -14,10 +14,18 @@ export type ShortcutActionId =
   | "findInIssue"
   | "openThreadNav"
   | "archiveInboxItem"
+  | "triageNextItem"
+  | "triagePrevItem"
+  | "triageAccept"
+  | "triageDismiss"
+  | "triageSnooze"
+  | "triageMerge"
+  | "triageReopen"
   | "send"
   | "goBack"
   | "goForward"
   | "goInbox"
+  | "goTriage"
   | "goChat"
   | "goMyIssues"
   | "goIssues"
@@ -116,6 +124,18 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
     defaultShortcut: createShortcutChord("E"),
     allowInEditable: false,
   },
+  // Triage queue bindings. Plain letters, because the queue is a list a human
+  // walks with both hands off the mouse: J/K move through the rows (Up/Down
+  // work too, and are not rebindable — they are list navigation, not a product
+  // action), and A/X/S/M/R act on the item whose detail is open. None of them
+  // is allowed inside an editor, so typing a dismiss reason never triggers one.
+  { id: "triageNextItem", category: "general", defaultShortcut: createShortcutChord("J"), allowInEditable: false },
+  { id: "triagePrevItem", category: "general", defaultShortcut: createShortcutChord("K"), allowInEditable: false },
+  { id: "triageAccept", category: "general", defaultShortcut: createShortcutChord("A"), allowInEditable: false },
+  { id: "triageDismiss", category: "general", defaultShortcut: createShortcutChord("X"), allowInEditable: false },
+  { id: "triageSnooze", category: "general", defaultShortcut: createShortcutChord("S"), allowInEditable: false },
+  { id: "triageMerge", category: "general", defaultShortcut: createShortcutChord("M"), allowInEditable: false },
+  { id: "triageReopen", category: "general", defaultShortcut: createShortcutChord("R"), allowInEditable: false },
   { id: "send", category: "general", defaultShortcut: primary("Enter"), allowInEditable: true },
   // Browser-style history navigation (Mod+[ / Mod+]). Neither bracket is
   // app-owned (PRIMARY_RESERVED_KEYS) nor browser-owned
@@ -125,6 +145,7 @@ export const SHORTCUT_ACTIONS: readonly ShortcutActionDefinition[] = [
   { id: "goBack", category: "navigation", defaultShortcut: primary("["), allowInEditable: false },
   { id: "goForward", category: "navigation", defaultShortcut: primary("]"), allowInEditable: false },
   { id: "goInbox", category: "navigation", defaultShortcut: null, allowInEditable: false },
+  { id: "goTriage", category: "navigation", defaultShortcut: null, allowInEditable: false },
   { id: "goChat", category: "navigation", defaultShortcut: null, allowInEditable: false },
   { id: "goMyIssues", category: "navigation", defaultShortcut: null, allowInEditable: false },
   { id: "goIssues", category: "navigation", defaultShortcut: null, allowInEditable: false },

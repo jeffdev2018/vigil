@@ -29,8 +29,14 @@ function workspaceScoped(slug: string) {
     usage: () => `${ws}/usage`,
     issues: () => `${ws}/issues`,
     issueDetail: (id: string) => `${ws}/issues/${encode(id)}`,
+    // Review cockpit (K16): the reviewer's single screen for an issue's run.
+    issueReview: (id: string) => `${ws}/issues/${encode(id)}/review`,
     projects: () => `${ws}/projects`,
     projectDetail: (id: string) => `${ws}/projects/${encode(id)}`,
+    // Goals with ancestry (K74): the tree every project and issue serves.
+    goals: () => `${ws}/goals`,
+    // Executable org chart (K75): the structures routing work in this workspace.
+    org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,
     autopilotDetail: (id: string) => `${ws}/autopilots/${encode(id)}`,
     agents: () => `${ws}/agents`,
@@ -54,6 +60,14 @@ function workspaceScoped(slug: string) {
     squads: () => `${ws}/squads`,
     squadDetail: (id: string) => `${ws}/squads/${encode(id)}`,
     inbox: () => `${ws}/inbox`,
+    // `?item=` preselects one queue entry, so a meeting action (or any other
+    // producer) can link straight at the item it created.
+    triage: (itemId?: string) =>
+      itemId ? `${ws}/triage?item=${encode(itemId)}` : `${ws}/triage`,
+    meetings: () => `${ws}/meetings`,
+    meetingDetail: (id: string) => `${ws}/meetings/${encode(id)}`,
+    postmortems: () => `${ws}/postmortems`,
+    brain: () => `${ws}/brain`,
     chat: () => `${ws}/chat`,
     chatWithAgent: (agentId: string) =>
       `${ws}/chat?agent=${encode(agentId)}`,

@@ -49,6 +49,7 @@ export function useStatusLabel(status: AgentTask["status"]): string {
   const { t } = useT("issues");
   switch (status) {
     case "queued": return t(($) => $.execution_log.status_queued);
+    case "deferred": return t(($) => $.execution_log.status_deferred);
     case "dispatched": return t(($) => $.execution_log.status_dispatched);
     case "waiting_local_directory":
       return t(($) => $.execution_log.status_waiting_local_directory);
@@ -56,6 +57,7 @@ export function useStatusLabel(status: AgentTask["status"]): string {
     case "completed": return t(($) => $.execution_log.status_completed);
     case "failed": return t(($) => $.execution_log.status_failed);
     case "cancelled": return t(($) => $.execution_log.status_cancelled);
+    case "paused": return t(($) => $.execution_log.status_paused);
     default: return status;
   }
 }

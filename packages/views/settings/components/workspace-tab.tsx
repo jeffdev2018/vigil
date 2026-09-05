@@ -36,6 +36,29 @@ import type { Workspace } from "@multica/core/types";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
 import { useNavigation } from "../../navigation";
 import { DeleteWorkspaceDialog } from "./delete-workspace-dialog";
+import { PlanVerificationSetting } from "./plan-verification-setting";
+import { DecisionSlaSetting } from "./decision-sla-setting";
+import { AdrGateSetting } from "./adr-gate-setting";
+import { BusinessRulesSetting } from "./business-rules-setting";
+import { StandupSetting } from "./standup-setting";
+import { TriageAutoSetting } from "./triage-auto-setting";
+import { TriageEmailSourceSetting } from "./triage-email-source-setting";
+import { ApprovalGatesSetting } from "./approval-gates-setting";
+import { PermissionProfilesSetting } from "./permission-profiles-setting";
+import { RuntimePoolsSetting } from "./runtime-pools-setting";
+import { IssueRoutingSetting } from "./issue-routing-setting";
+import { CompetencySetting } from "./competency-setting";
+import { CrossReviewSetting } from "./cross-review-setting";
+import { ContestSetting } from "./contest-setting";
+import { ExportImportSetting } from "./export-import-setting";
+import { CIAutoFixSetting } from "./ci-auto-fix-setting";
+import { UndoSetting } from "./undo-setting";
+import { TrafficControlSetting } from "./traffic-control-setting";
+import { DriftDetectionSetting } from "./drift-detection-setting";
+import { PostmortemCostSetting } from "./postmortem-cost-setting";
+import { PipelinesSetting } from "./pipelines-setting";
+import { ModuleOwnershipSetting } from "./module-ownership-setting";
+import { MorningBriefingSetting } from "./morning-briefing-setting";
 import { useT } from "../../i18n";
 import {
   SettingsCard,
@@ -467,6 +490,35 @@ export function WorkspaceTab() {
       {/* Danger Zone — gated on the member query settling so the owner-only
           Delete button and the sole-owner Leave guidance don't flash in
           after mount. */}
+      {workspace && (
+        <PlanVerificationSetting
+          workspace={workspace}
+          canEdit={canManageWorkspace}
+        />
+      )}
+      {workspace && <DecisionSlaSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <ModuleOwnershipSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <MorningBriefingSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <AdrGateSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <BusinessRulesSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <StandupSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <TriageAutoSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {wsId && <TriageEmailSourceSetting wsId={wsId} canEdit={canManageWorkspace} />}
+      {workspace && <ApprovalGatesSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <PermissionProfilesSetting canEdit={canManageWorkspace} />}
+      {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
+      {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
+      {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
+      {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
+      {workspace && <ContestSetting canEdit={canManageWorkspace} />}
+      {workspace && <ExportImportSetting canEdit={canManageWorkspace} />}
+      {workspace && <CIAutoFixSetting canEdit={canManageWorkspace} />}
+      {workspace && <UndoSetting canEdit={canManageWorkspace} />}
+      {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
+      {workspace && <PostmortemCostSetting workspace={workspace} canEdit={canManageWorkspace} />}
+      {workspace && <PipelinesSetting canManage={canManageWorkspace} />}
+
       {membersFetched && (
         <SettingsSection
           title={

@@ -10,6 +10,7 @@ type ModalType =
   | "feedback"
   | "issue-set-parent"
   | "issue-add-child"
+  | "issue-add-dependency"
   | "issue-delete-confirm"
   | "issue-run-confirm"
   | null;

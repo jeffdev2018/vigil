@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -245,4 +246,83 @@ func splitNamespace(path string) (owner, name string) {
 		return path[:i], path[i+1:]
 	}
 	return "", path
+}
+
+// PullRequestDiff: GET /api/v4/projects/{owner%2Frepo}/merge_requests/{iid}/changes,
+// rebuilt as one unified diff (raw_diffs needs GitLab 16.7+; changes is older).
+func (gitlabProvider) PullRequestDiff(ctx context.Context, instanceURL, token, owner, repo string, number int) (string, error) {
+	endpoint := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d/changes", NormalizeInstanceURL(instanceURL), url.PathEscape(owner+"/"+repo), number)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("PRIVATE-TOKEN", token)
+	req.Header.Set("Accept", "application/json")
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return "", ErrUnauthorized
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("gitlab changes: status %d", resp.StatusCode)
+	}
+	var payload struct {
+		Changes []struct {
+			OldPath string `json:"old_path"`
+			NewPath string `json:"new_path"`
+			Diff    string `json:"diff"`
+		} `json:"changes"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxDiffBytes)).Decode(&payload); err != nil {
+		return "", fmt.Errorf("gitlab changes: %w", err)
+	}
+	var sb strings.Builder
+	for _, c := range payload.Changes {
+		fmt.Fprintf(&sb, "diff --git a/%s b/%s\n--- a/%s\n+++ b/%s\n%s", c.OldPath, c.NewPath, c.OldPath, c.NewPath, c.Diff)
+		if !strings.HasSuffix(c.Diff, "\n") {
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String(), nil
+}
+
+// MergePullRequest: PUT …/merge_requests/{iid}/rebase (best effort), then
+// PUT …/merge_requests/{iid}/merge. 405/406 mean the MR cannot be merged.
+func (gitlabProvider) MergePullRequest(ctx context.Context, instanceURL, token, owner, repo string, number int) (MergeResult, error) {
+	base := fmt.Sprintf("%s/api/v4/projects/%s/merge_requests/%d", NormalizeInstanceURL(instanceURL), url.PathEscape(owner+"/"+repo), number)
+	do := func(endpoint string) (int, string, error) {
+		req, err := http.NewRequestWithContext(ctx, http.MethodPut, endpoint, nil)
+		if err != nil {
+			return 0, "", err
+		}
+		req.Header.Set("PRIVATE-TOKEN", token)
+		resp, err := httpClient.Do(req)
+		if err != nil {
+			return 0, "", err
+		}
+		defer resp.Body.Close()
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return resp.StatusCode, string(b), nil
+	}
+	if status, _, err := do(base + "/rebase"); err != nil {
+		return MergeResult{}, err
+	} else if status == http.StatusConflict {
+		return MergeResult{Conflict: true, Detail: "rebase conflict"}, nil
+	}
+	status, body, err := do(base + "/merge")
+	if err != nil {
+		return MergeResult{}, err
+	}
+	switch {
+	case status == http.StatusUnauthorized || status == http.StatusForbidden:
+		return MergeResult{}, ErrUnauthorized
+	case status == http.StatusOK:
+		return MergeResult{Merged: true}, nil
+	case status == http.StatusMethodNotAllowed || status == http.StatusNotAcceptable || status == http.StatusConflict:
+		return MergeResult{Conflict: true, Detail: strings.TrimSpace(body)}, nil
+	}
+	return MergeResult{}, fmt.Errorf("gitlab merge: status %d", status)
 }

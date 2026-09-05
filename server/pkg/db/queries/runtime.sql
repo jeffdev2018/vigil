@@ -237,6 +237,14 @@ SET status = 'offline',
     updated_at = now()
 WHERE id = $1;
 
+-- name: UpdateRuntimeCliAuthState :exec
+-- Authentication tokens remain exclusively in the provider CLI's local
+-- config. Only the non-secret status snapshot is durable.
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('cli_auth', @cli_auth::jsonb),
+    updated_at = now()
+WHERE id = $1;
+
 -- name: SelectStaleOnlineRuntimes :many
 -- Lists online runtimes whose last_seen_at exceeds the stale window. The
 -- sweeper uses this as a candidate set, then optionally filters via the
@@ -545,3 +553,14 @@ SELECT EXISTS (
 -- Final fail-closed assertion after UnbindTasksFromRuntime. A non-zero result
 -- aborts the transaction instead of relying on the legacy ON DELETE CASCADE.
 SELECT count(*) FROM agent_task_queue WHERE runtime_id = $1;
+
+-- name: UpdateRuntimeSkippedAgents :exec
+-- Machine-level diagnostic (MUL-5439): providers found on this host that the
+-- daemon refused to register, and why. Registration writes it with the rest of
+-- metadata; the heartbeat re-merges it on the beats where the set changed, so a
+-- CLI that broke — or got repaired — between registrations shows up without
+-- waiting for the next register.
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('skipped_agents', @skipped_agents::jsonb),
+    updated_at = now()
+WHERE id = $1;

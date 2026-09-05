@@ -72,3 +72,43 @@ describe("openExternalSafely", () => {
     expect(shell.openExternal).not.toHaveBeenCalled();
   });
 });
+
+describe("openExternalSafely — System Settings deep links", () => {
+  beforeEach(() => {
+    vi.mocked(shell.openExternal).mockClear();
+  });
+
+  it("passes the two allowlisted macOS privacy panes to the shell", () => {
+    for (const url of [
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+    ]) {
+      openExternalSafely(url);
+      expect(shell.openExternal).toHaveBeenLastCalledWith(url);
+    }
+  });
+
+  it("blocks every other x-apple.systempreferences URL", () => {
+    // The allowlist is exact strings, not a scheme: a renderer that could open
+    // any preference pane could open more than the one we deep-link to.
+    for (const url of [
+      "x-apple.systempreferences:com.apple.preference.security",
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles",
+      "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone&extra",
+      "X-APPLE.SYSTEMPREFERENCES:com.apple.preference.security?Privacy_Microphone",
+    ]) {
+      openExternalSafely(url);
+      expect(shell.openExternal).not.toHaveBeenCalled();
+    }
+  });
+
+  it("still reports the allowlisted panes as non-http", () => {
+    // isSafeExternalHttpUrl guards downloads and navigation, which must NOT
+    // learn about this exception.
+    expect(
+      isSafeExternalHttpUrl(
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+      ),
+    ).toBe(false);
+  });
+});

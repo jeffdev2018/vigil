@@ -1,0 +1,136 @@
+{
+  "title": "トリアージ",
+  "subtitle": "受信した作業（Webhook 配信やミーティングのアクションアイテム）が課題になる前に確認します",
+  "stats": {
+    "pending": "保留 {{count}} 件",
+    "oldest": "最長の待ち {{age}}",
+    "dropped_24h": "24 時間で {{count}} 件破棄",
+    "none_pending": "キューは空です",
+    "shadow_pending": "{{count}} 件をシャドー記録"
+  },
+  "filter": {
+    "pending": "保留",
+    "accepted": "承認済み",
+    "dismissed": "却下済み",
+    "merged": "統合済み",
+    "snoozed": "スヌーズ中"
+  },
+  "sources": {
+    "empty": "受信ソースはまだありません",
+    "action": "ソース",
+    "title": "受信ソース",
+    "pending": "未処理 {{count}} 件",
+    "dropped_24h": "24 時間で {{count}} 件を破棄",
+    "auto_accept": "自動受理",
+    "cap_per_hour": "1 時間あたりの上限",
+    "expiry_days": "保持期間（日）",
+    "zero_hint": "0 は上限なし、保持期間は既定値になります。",
+    "items_24h": "24 時間で {{count}} 件",
+    "mode": {
+      "gate": "ゲート",
+      "direct": "直接",
+      "blocked": "ブロック"
+    }
+  },
+  "list": {
+    "empty_title": "キューは空です",
+    "empty_description": "ゲートに設定したソースの Webhook 配信と、録音したミーティングのアクションアイテムは、人が承認または却下するまでここで待機します。",
+    "loading": "トリアージキューを読み込み中",
+    "load_error": "トリアージキューを読み込めませんでした",
+    "empty_history_title": "まだ何もありません",
+    "load_more": "さらに読み込む"
+  },
+  "detail": {
+    "select_prompt": "確認する項目を選択してください",
+    "from_source": "送信元: {{name}}",
+    "body_label": "説明",
+    "no_body": "説明は取得されていません",
+    "payload_label": "取得したペイロード",
+    "payload_truncated": "ペイロードが大きすぎるため、サイズのみ保持しました",
+    "no_payload": "ペイロードは取得されていません",
+    "collapse_count": "{{count}} 回検出",
+    "accept": "承認",
+    "accepting": "承認中",
+    "dismiss": "却下",
+    "dismissing": "却下中",
+    "accepted_toast": "承認しました — 課題を作成しました",
+    "dismissed_toast": "却下しました",
+    "merged_toast": "既に {{identifier}} として追跡中 — 統合しました",
+    "limit_toast": "課題の上限に達しました — 項目はキューに残ります",
+    "error_toast": "問題が発生しました",
+    "resolution_reason": "理由: {{reason}}",
+    "accepted_toast_identifier": "承認しました — {{identifier}} を作成しました",
+    "open_issue": "開く",
+    "from_meeting": "会議から",
+    "auto_accepted": "キューにより自動受理"
+  },
+  "batch": {
+    "accept": "{{count}} 件を承認",
+    "clear": "選択を解除",
+    "stopped_toast": "停止しました — ワークスペースが課題の上限に達しました",
+    "summary_toast": "承認 {{accepted}} 件、重複 {{duplicates}} 件、失敗 {{failed}} 件",
+    "dismiss": "{{count}} 件を却下",
+    "dismiss_summary": "共通の理由で {{count}} 件を却下します。",
+    "dismiss_summary_toast": "却下 {{dismissed}} 件、失敗 {{failed}} 件"
+  },
+  "suggestion": {
+    "title": "提案",
+    "none": "似た過去の判断はまだありません。",
+    "dismiss": "却下",
+    "accept": "受け入れ",
+    "would_dismiss": "却下される見込み",
+    "would_accept": "受け入れられる見込み",
+    "confidence": "類似する配信 {{count}} 件から確信度 {{percent}}%",
+    "auto_on": "自動適用は有効：{{threshold}}% 以上で適用されます。",
+    "auto_off": "自動適用は無効：人が判断します。設定 → ワークスペースで有効化できます。",
+    "not_ready": "学習中：自動適用には {{min}} 件の判断が必要です（現在 {{examples}} 件）。",
+    "reopen": "再開",
+    "reopen_failed": "再開できませんでした"
+  },
+  "accept_as": {
+    "label": "次として承認",
+    "assignee": "担当者",
+    "assignee_set": "担当者を設定済み",
+    "priority": "優先度",
+    "project": "プロジェクト",
+    "project_set": "プロジェクトを設定済み"
+  },
+  "merge": {
+    "action": "課題に統合…",
+    "title": "課題に統合",
+    "description": "この項目を、既に同じ作業を追跡している課題に統合します。",
+    "toast": "{{identifier}} に統合しました"
+  },
+  "snooze": {
+    "action": "スヌーズ",
+    "custom": "日時を指定",
+    "confirm": "スヌーズ",
+    "toast": "スヌーズしました",
+    "invalid": "未来かつ 30 日以内の日時を選択してください",
+    "preset": {
+      "hour": "1 時間後",
+      "evening": "今夜",
+      "tomorrow": "明日",
+      "next_monday": "次の月曜日"
+    }
+  },
+  "dismiss_reason": {
+    "label": "理由（任意）",
+    "placeholder": "なぜ作業ではないのか",
+    "confirm": "却下を確定"
+  },
+  "verdict": {
+    "badge": "エージェントの提案: {{verdict}}",
+    "accept": "承認",
+    "dismiss": "却下",
+    "by": "提案者: {{name}}"
+  },
+  "rule": {
+    "action": "ルールを作成",
+    "title": "この項目からルールを作成",
+    "description": "ルールは配信がキャプチャされた時点、誰かが見る前に実行されます。有効化する前に、コンパイル結果とドライランを確認してください。",
+    "prefill": "{{source}} からの配信のうち、タイトルに「{{keyword}}」を含むもの",
+    "prefill_source": "{{source}} からの配信",
+    "manage": "ルールを管理"
+  }
+}

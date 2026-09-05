@@ -44,6 +44,7 @@ vi.mock("@multica/core/workspace/mutations", () => ({
   useAddAgentMcpServer: () => ({ mutateAsync: mockAddServer, isPending: false }),
   useSetAgentMcpServerEnabled: () => ({ mutateAsync: mockSetEnabled, isPending: false }),
   useRemoveAgentMcpServer: () => ({ mutateAsync: mockRemoveServer, isPending: false }),
+  useSetAgentMcpServerPolicy: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 const wsServer = (over: Record<string, unknown>) => ({
@@ -379,6 +380,9 @@ describe("McpConfigTab workspace servers", () => {
 
     expect(await screen.findByText("shared-linear")).toBeInTheDocument();
     expect(screen.getByText(/From the workspace library/)).toBeInTheDocument();
+    // Each assigned row carries its per-tool policy disclosure (K77); the
+    // editor itself is covered in mcp-tool-policy.test.tsx.
+    expect(screen.getByRole("button", { name: "Policy" })).toBeInTheDocument();
   });
 
   // The defining property of this model: a library entry nobody assigned must

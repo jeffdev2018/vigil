@@ -1,11 +1,15 @@
 import { queryOptions, useQuery } from "@tanstack/react-query";
 import { api } from "../api";
-import type { InboxItem, InboxWorkspaceUnread } from "../types";
+import type { InboxItem, InboxWorkspaceUnread, IssueDecision } from "../types";
 
 export const inboxKeys = {
   all: (wsId: string) => ["inbox", wsId] as const,
   list: (wsId: string) => [...inboxKeys.all(wsId), "list"] as const,
   archived: (wsId: string) => [...inboxKeys.all(wsId), "archived"] as const,
+  attention: (wsId: string) => [...inboxKeys.all(wsId), "attention"] as const,
+  briefing: (wsId: string) => [...inboxKeys.all(wsId), "briefing"] as const,
+  // Inbox zero (K63): my pending Decision Cards, capped at five.
+  decisions: (wsId: string) => [...inboxKeys.all(wsId), "decisions"] as const,
   // Account-level (not workspace-scoped): a single shared cache entry that
   // holds unread counts for every workspace the user belongs to.
   unreadSummary: () => ["inbox", "unread-summary"] as const,
@@ -137,4 +141,53 @@ function groupInboxItemsByIssue(items: InboxItem[]): InboxItem[] {
     (a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
   );
+}
+
+// Inbox zero (K63): the cards waiting for me, options included, ordered and
+// capped on the server (risk then deadline, five plus the total).
+export interface InboxDecision {
+  inbox_item_id: string;
+  issue_id: string;
+  issue_identifier: string;
+  issue_title: string;
+  risk_score: number;
+  decision: IssueDecision;
+}
+
+export interface InboxDecisions {
+  decisions: InboxDecision[];
+  total: number;
+}
+
+export const inboxDecisionsOptions = (wsId: string) =>
+  queryOptions({
+    queryKey: inboxKeys.decisions(wsId),
+    queryFn: () => api.listInboxDecisions(),
+    enabled: wsId.length > 0,
+    refetchInterval: 30_000,
+  });
+
+/** Attention Inbox (K02): human-only items, ordered by risk on the server. */
+export const attentionInboxListOptions = (wsId: string) =>
+  queryOptions({
+    queryKey: inboxKeys.attention(wsId),
+    queryFn: () => api.listAttentionInbox(),
+    enabled: wsId.length > 0,
+  });
+
+// Morning briefing (K30): today's three sections, recomposed on read.
+export function morningBriefingOptions(wsId: string) {
+  return queryOptions({
+    queryKey: inboxKeys.briefing(wsId),
+    queryFn: ({ signal }) => api.getMorningBriefingToday({ signal }),
+    staleTime: 60_000,
+  });
+}
+
+// Standup and retro (K34): the stored retro of a week (any day of it), or the latest.
+export function weeklyRetroOptions(wsId: string, week?: string) {
+  return queryOptions({
+    queryKey: ["inbox", wsId, "retro", week ?? "latest"] as const,
+    queryFn: () => api.getWeeklyRetro(week),
+  });
 }

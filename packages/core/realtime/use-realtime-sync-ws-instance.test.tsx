@@ -12,6 +12,7 @@ import { chatKeys } from "../chat/queries";
 import { workspaceWorkingAgentsKeys } from "../agents/queries";
 import { workspaceKeys } from "../workspace/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
+import { meetingKeys } from "../meetings/queries";
 import {
   markWorkspaceDeletePending,
   unmarkWorkspaceDeletePending,
@@ -116,11 +117,12 @@ describe("useRealtimeSync — ws instance change", () => {
     rerender({ ws: ws2 });
 
     // Should have called invalidateQueries for all workspace-scoped keys
-    // (16 workspace-scoped [incl. property definitions] + 6 per-issue
-    // prefixes + the workspace working-agents projection + 5 per-chat
-    // prefixes + 1 workspaceKeys.list() + 1 cross-workspace inbox unread
-    // summary = 31 calls)
-    expect(invalidateSpy).toHaveBeenCalledTimes(31);
+    // (18 workspace-scoped [incl. property definitions, agent memories and
+    // meetings] + 6 per-issue prefixes + the workspace working-agents
+    // projection + 5 per-chat prefixes + 1 workspaceKeys.list() + 1
+    // cross-workspace inbox unread summary + budget policy/status scope
+    // = 34 calls)
+    expect(invalidateSpy).toHaveBeenCalledTimes(34);
   });
 
   it("does not re-invalidate when rerendered with the same ws instance", () => {
@@ -329,6 +331,53 @@ describe("useRealtimeSync — queued chat promotion", () => {
     expect(invalidate).toHaveBeenCalledWith({
       queryKey: chatKeys.messagesPage("session-1"),
     });
+  });
+});
+
+describe("useRealtimeSync — meeting events", () => {
+  it("invalidates the list and the named meeting on every transition", () => {
+    for (const event of ["meeting:created", "meeting:updated", "meeting:deleted"]) {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const ws = createMockWs();
+      const invalidate = vi.spyOn(qc, "invalidateQueries");
+      renderHook(() => useRealtimeSync(ws, createStores()), {
+        wrapper: createWrapper(qc),
+      });
+      const handler = vi
+        .mocked(ws.on)
+        .mock.calls.find(([name]) => name === event)?.[1];
+      expect(handler, `no handler registered for ${event}`).toBeDefined();
+
+      invalidate.mockClear();
+      (handler as (payload: unknown) => void)({ meeting_id: "meeting-1" });
+
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: meetingKeys.list("ws-1"),
+      });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: meetingKeys.detail("ws-1", "meeting-1"),
+      });
+    }
+  });
+
+  it("still refreshes the list when the payload names no meeting", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const ws = createMockWs();
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    renderHook(() => useRealtimeSync(ws, createStores()), {
+      wrapper: createWrapper(qc),
+    });
+    const handler = vi
+      .mocked(ws.on)
+      .mock.calls.find(([name]) => name === "meeting:updated")?.[1];
+
+    invalidate.mockClear();
+    (handler as (payload: unknown) => void)({});
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: meetingKeys.list("ws-1"),
+    });
+    expect(invalidate).toHaveBeenCalledTimes(1);
   });
 });
 

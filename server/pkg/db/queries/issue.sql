@@ -8,7 +8,7 @@
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision
+       i.revision, i.goal_id
 FROM issue i
 WHERE i.workspace_id = $1
   AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status'))
@@ -18,6 +18,8 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('creator_id')::uuid IS NULL OR i.creator_id = sqlc.narg('creator_id'))
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('scheduled')::bool IS NULL OR (i.start_date IS NOT NULL OR i.due_date IS NOT NULL))
+  AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
+       OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   AND (
     sqlc.narg('involves_user_id')::uuid IS NULL
@@ -350,7 +352,7 @@ DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision
+       i.revision, i.goal_id
 FROM issue i
 WHERE i.workspace_id = $1
   -- Negate only known terminal keys so an unknown legacy key remains visible.
@@ -360,6 +362,8 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('assignee_ids')::uuid[] IS NULL OR i.assignee_id = ANY(sqlc.narg('assignee_ids')::uuid[]))
   AND (sqlc.narg('creator_id')::uuid IS NULL OR i.creator_id = sqlc.narg('creator_id'))
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id'))
+  AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
+       OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   -- properties_filter is a jsonb array of groups, each group an array of
   -- patterns (built by parsePropertiesFilterParam): the issue must match at
@@ -463,6 +467,8 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('creator_id')::uuid IS NULL OR i.creator_id = sqlc.narg('creator_id'))
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('scheduled')::bool IS NULL OR (i.start_date IS NOT NULL OR i.due_date IS NOT NULL))
+  AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
+       OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   AND (
     sqlc.narg('involves_user_id')::uuid IS NULL
@@ -610,3 +616,60 @@ FROM (
     WHERE workspace_id = $1
     LIMIT sqlc.arg('limit')::bigint
 ) bounded_issues;
+
+-- name: ListIssueAncestors :many
+-- Ancestors of @issue_id from its direct parent upward (depth 1 = parent),
+-- workspace-scoped so a parent in another tenant ends the chain. Nothing stops
+-- a cycle through parent_issue_id, so the walk is hard-capped by @max_depth and
+-- the handler dedups ids on top (F22).
+WITH RECURSIVE chain AS (
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, 1 AS depth
+    FROM issue p
+    JOIN issue child ON child.parent_issue_id = p.id
+    WHERE child.id = @issue_id
+      AND child.workspace_id = @workspace_id
+      AND p.workspace_id = @workspace_id
+  UNION ALL
+    SELECT p.id, p.parent_issue_id, p.number, p.title, p.description, p.acceptance_criteria, c.depth + 1
+    FROM issue p
+    JOIN chain c ON p.id = c.parent_issue_id
+    WHERE p.workspace_id = @workspace_id
+      AND c.depth < @max_depth::int
+)
+SELECT id, number, title, description, acceptance_criteria, depth::int AS depth
+FROM chain
+ORDER BY depth ASC;
+-- Outcome Contract (K12): the criteria list with its proofs, owned by the
+-- issue. Not part of the revisioned edit surface, so no revision bump.
+-- name: UpdateIssueAcceptanceCriteria :one
+-- Every criteria write is a new contract revision (K73 cites it).
+UPDATE issue
+SET acceptance_criteria = $2, contract_revision = contract_revision + 1, updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: SetIssueContractRisk :one
+UPDATE issue SET contract_risk = $3, updated_at = now() WHERE id = $1 AND workspace_id = $2 RETURNING *;
+
+-- name: ListIssueDescendants :many
+-- Descendants of @issue_id (depth 1 = children), workspace-scoped and
+-- hard-capped by @max_depth like ListIssueAncestors (a parent_issue_id cycle
+-- is not prevented by the schema).
+WITH RECURSIVE tree AS (
+    SELECT c.id, c.parent_issue_id, 1 AS depth
+    FROM issue c
+    WHERE c.parent_issue_id = @issue_id AND c.workspace_id = @workspace_id
+  UNION ALL
+    SELECT c.id, c.parent_issue_id, t.depth + 1
+    FROM issue c
+    JOIN tree t ON c.parent_issue_id = t.id
+    WHERE c.workspace_id = @workspace_id AND t.depth < @max_depth::int
+)
+SELECT i.*, t.depth::int AS depth
+FROM tree t JOIN issue i ON i.id = t.id
+ORDER BY t.depth ASC, i.number ASC;
+
+-- name: CountActiveTasksForIssues :one
+SELECT COUNT(*)::bigint FROM agent_task_queue
+WHERE issue_id = ANY(@issue_ids::uuid[])
+  AND status IN ('queued', 'dispatched', 'running', 'waiting_local_directory');

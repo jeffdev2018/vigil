@@ -255,6 +255,12 @@ var (
 	detectAgentVersion   = agent.DetectVersion
 	checkAgentMinVersion = agent.CheckMinVersion
 
+	// probeCliAuthStatus is an indirection over runCliAuthStatus so a test
+	// that stubs detectAgentVersion does not start shelling out to a real CLI
+	// through the sign-in probe instead. Mirrors the detectAgentVersion hook
+	// above; see scripts/go-test-with-agent-cli-guard.sh for the fence.
+	probeCliAuthStatus = runCliAuthStatus
+
 	// listModels is an indirection over agent.ListModels so model-discovery
 	// tests can assert which executable path the daemon enumerates without
 	// shelling out to a real CLI. Mirrors the detectAgentVersion hook above.
@@ -417,6 +423,20 @@ type Daemon struct {
 	// (MUL-5439). Guarded by skippedAgentsMu.
 	skippedAgentsMu sync.RWMutex
 	skippedAgents   map[string]string // provider -> human-readable reason
+	// skippedAgentsSent remembers, per runtime, the fingerprint of the skip
+	// set the server last accepted. Register carries the set, but a CLI that
+	// breaks (or gets repaired) between registrations would otherwise leave a
+	// stale diagnostic on the machine for as long as the daemon stays up — so
+	// the heartbeat re-sends it, and only when it actually changed. Guarded by
+	// skippedAgentsSentMu.
+	skippedAgentsSentMu sync.Mutex
+	skippedAgentsSent   map[string]string // runtime id -> fingerprint
+
+	// cliAuthStatus caches each provider's last observed CLI sign-in state so
+	// registration can report it without forking the CLI on every tick.
+	// Guarded by cliAuthStatusMu. See cliAuthStateForProvider.
+	cliAuthStatusMu sync.Mutex
+	cliAuthStatus   map[string]cliAuthSnapshot
 
 	// demotedProviders remembers the built-in providers whose version was
 	// CONFIRMED below the minimum supported one and whose runtimes
@@ -526,7 +546,11 @@ type Daemon struct {
 	pendingWorkLastRun  map[string]time.Time // runtime_id -> when the last hint-driven heartbeat started
 
 	cancelFunc context.CancelFunc // set by Run(); called by triggerRestart
-	rootCtx    context.Context    // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
+	// pauseControls (K19): one pause control per running task id.
+	pauseControls sync.Map
+	// durableCheckouts (K18): local checkouts humans work in, keyed by path.
+	durableCheckouts sync.Map
+	rootCtx          context.Context // set by Run(); used by long-running recoveries that must survive per-runtime ctx cancellation
 	// restartMu guards restartBinary. Two goroutines can reach triggerRestart —
 	// the server-triggered handleUpdate and the autoUpdateLoop — and
 	// trySelfReload reads RestartBinary() from the latter to avoid racing the
@@ -651,6 +675,8 @@ func New(cfg Config, logger *slog.Logger) *Daemon {
 		runtimeSet:                newRuntimeSetWatcher(),
 		agentVersions:             make(map[string]string),
 		skippedAgents:             make(map[string]string),
+		skippedAgentsSent:         make(map[string]string),
+		cliAuthStatus:             make(map[string]cliAuthSnapshot),
 		resolvedPaths:             make(map[string]healedAgent),
 		wsHBLastAck:               make(map[string]time.Time),
 		activeEnvRoots:            make(map[string]int),
@@ -2294,7 +2320,12 @@ func newRuntimeVerdict(verdict builtinProbeVerdict, reason, execPath string) run
 // not OK. It is surfaced on /health as skipped_agents so a user can tell "CLI
 // not installed" apart from "CLI installed but dropped at registration", which
 // was previously only visible in the daemon log (MUL-5439).
-func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, builtinProbeVerdict) {
+//
+// The third return value is the executable path this probe actually ran, set
+// only on an OK verdict. Callers that need to run the same CLI again must use
+// it rather than resolving the provider a second time: a second resolution can
+// land on a different binary than the one that was just version-gated.
+func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry AgentEntry) (string, string, string, builtinProbeVerdict) {
 	var (
 		lastErr  error
 		attempts int
@@ -2348,7 +2379,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 			}
 			d.logger.Warn("skip registering runtime: re-resolved version too old",
 				"name", name, "version", heal.rejected.Detected, "error", heal.rejected.Error())
-			return heal.rejected.Detected, heal.rejected.Error(), builtinProbeBelowMinimum
+			return heal.rejected.Detected, heal.rejected.Error(), "", builtinProbeBelowMinimum
 		}
 		version, err := detectAgentVersion(ctx, agent.Command{Path: resolved.Path})
 		if err != nil {
@@ -2369,7 +2400,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 				d.logger.Warn("skip registering runtime: version too old", "name", name, "version", version, "error", err)
 				// The version is returned even though the provider is dropped: the
 				// caller needs it to report what it demoted.
-				return version, err.Error(), builtinProbeBelowMinimum
+				return version, err.Error(), "", builtinProbeBelowMinimum
 			}
 			// The CLI ran but printed something (or nothing) the gate could not
 			// parse. That is "we didn't learn a version", not "we verified it is
@@ -2398,7 +2429,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 			version = d.agentVersion(name)
 		}
 		d.logger.Debug("agent version detected", "name", name, "version", version, "path", resolved.Path)
-		return version, "", builtinProbeOK
+		return version, "", resolved.Path, builtinProbeOK
 	}
 	// The OS refusing to execute the file is not a failed probe, it is a
 	// finding: the CLI is installed, resolvable, and unrunnable. Report it as
@@ -2409,7 +2440,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 	if agent.IsExecFormatError(lastErr) {
 		d.logger.Warn("skip registering runtime: agent CLI is not executable on this machine",
 			"name", name, "attempts", attempts, "error", lastErr)
-		return "", fmt.Sprintf("agent CLI is not executable: %v", lastErr), builtinProbeNotExecutable
+		return "", fmt.Sprintf("agent CLI is not executable: %v", lastErr), "", builtinProbeNotExecutable
 	}
 
 	d.logger.Warn("skip registering runtime", "name", name, "attempts", attempts, "error", lastErr)
@@ -2417,7 +2448,7 @@ func (d *Daemon) probeBuiltinRuntime(ctx context.Context, name string, entry Age
 	if lastErr != nil {
 		reason = fmt.Sprintf("version detection failed: %v", lastErr)
 	}
-	return "", reason, builtinProbeUnavailable
+	return "", reason, "", builtinProbeUnavailable
 }
 
 // detectBuiltinRuntimes version-detects every configured built-in agent CLI and
@@ -2466,6 +2497,9 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 	type detected struct {
 		name    string
 		version string
+		// path is the binary this round version-gated. Reused verbatim by any
+		// follow-up probe so a second resolution cannot pick a different one.
+		path string
 	}
 	// Snapshot before any probe runs: everything sampled below is at least as
 	// new as every verdict recorded up to this point, which is exactly the
@@ -2483,7 +2517,7 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 	for name, entry := range d.agents() {
 		name, entry := name, entry
 		g.Go(func() error {
-			version, reason, verdict := d.probeBuiltinRuntime(ctx, name, entry)
+			version, reason, execPath, verdict := d.probeBuiltinRuntime(ctx, name, entry)
 			if verdict != builtinProbeOK {
 				// A not-executable verdict is deterministic, but the file can be
 				// unreadable for a moment while an installer overwrites it in
@@ -2505,7 +2539,7 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 			}
 			d.clearNotExecutable(name)
 			mu.Lock()
-			results = append(results, detected{name: name, version: version})
+			results = append(results, detected{name: name, version: version, path: execPath})
 			mu.Unlock()
 			return nil
 		})
@@ -2542,12 +2576,19 @@ func (d *Daemon) detectBuiltinRuntimes(ctx context.Context) ([]map[string]string
 		if d.cfg.DeviceName != "" {
 			displayName = fmt.Sprintf("%s (%s)", displayName, d.cfg.DeviceName)
 		}
-		runtimes = append(runtimes, map[string]string{
+		entry := map[string]string{
 			"name":    displayName,
 			"type":    r.name,
 			"version": r.version,
 			"status":  "online",
-		})
+		}
+		// Report the CLI's own sign-in state so a runtime that was ALREADY
+		// authenticated stops reading as unknown until someone signs in through
+		// the product. Omitted when the provider cannot be asked.
+		if state := d.cliAuthStateForProvider(ctx, r.name, r.path); state != "" {
+			entry["cli_auth"] = state
+		}
+		runtimes = append(runtimes, entry)
 	}
 	return runtimes, demotable, unavailable
 }
@@ -2683,6 +2724,10 @@ func (d *Daemon) registerRuntimesForWorkspaceBatchLocked(ctx context.Context, wo
 		"launched_by":       d.cfg.LaunchedBy,
 		"runtimes":          runtimes,
 		"failed_profiles":   failedProfiles,
+		// Diagnostic: providers found on this machine that the last probe
+		// round refused to register, so the server can show the reason next to
+		// the machine instead of the CLI simply being absent (MUL-5439).
+		"skipped_agents": d.skippedAgentsSnapshot(),
 	}
 
 	resp, err := d.client.Register(ctx, req)
@@ -2730,6 +2775,7 @@ func (d *Daemon) registerBuiltinRuntimesForWorkspaceLocked(ctx context.Context, 
 		// Deliberately empty: this call carries no profiles, so it must not
 		// report profile failures either.
 		"failed_profiles": []map[string]string{},
+		"skipped_agents":  d.skippedAgentsSnapshot(),
 	}
 	resp, err := d.client.Register(ctx, req)
 	if err != nil {
@@ -4178,12 +4224,16 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 	// heartbeat goes silent the freshness window expires and HTTP resumes
 	// automatically on the next tick — that is the fallback the WS path
 	// relies on.
-	if d.wsHeartbeatRecentlyAcked(rid) {
+	// A changed skip set is only carried by the HTTP body, so it also
+	// overrides the WS shortcut for exactly one tick — otherwise a daemon on a
+	// healthy WebSocket would never report that a CLI broke or got repaired.
+	skipped, skippedFingerprint, skippedChanged := d.pendingSkippedAgents(rid)
+	if !skippedChanged && d.wsHeartbeatRecentlyAcked(rid) {
 		d.logger.Debug("heartbeat: skipping HTTP tick, WS recently acked", "runtime_id", rid)
 		return false
 	}
 	d.logger.Debug("heartbeat: HTTP tick", "runtime_id", rid)
-	resp, err := d.client.SendHeartbeat(ctx, rid)
+	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx), skipped)
 	if err != nil {
 		if ctx.Err() == nil {
 			if isRuntimeNotFoundError(err) {
@@ -4206,6 +4256,11 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 		go d.handleRuntimeGone(rid)
 		return false
 	}
+	if skippedChanged {
+		// Only now: a set marked sent before the server accepted it would be
+		// dropped for the rest of this daemon's life.
+		d.markSkippedAgentsSent(rid, skippedFingerprint)
+	}
 	d.handleHeartbeatActions(ctx, rid, resp)
 	return false
 }
@@ -4218,11 +4273,12 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp == nil {
 		return
 	}
-	if resp.PendingUpdate != nil || resp.PendingModelList != nil || resp.PendingLocalSkills != nil || resp.PendingLocalSkillImport != nil {
+	if resp.PendingUpdate != nil || resp.PendingModelList != nil || resp.PendingCliAuth != nil || resp.PendingLocalSkills != nil || resp.PendingLocalSkillImport != nil {
 		d.logger.Debug("heartbeat: pending actions",
 			"runtime_id", runtimeID,
 			"update", resp.PendingUpdate != nil,
 			"model_list", resp.PendingModelList != nil,
+			"cli_auth", resp.PendingCliAuth != nil,
 			"local_skills", resp.PendingLocalSkills != nil,
 			"local_skill_import", resp.PendingLocalSkillImport != nil,
 		)
@@ -4233,6 +4289,11 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+		}
+	}
+	if resp.PendingCliAuth != nil {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			go d.handleCliAuth(context.WithoutCancel(ctx), *rt, *resp.PendingCliAuth)
 		}
 	}
 	if resp.PendingLocalSkills != nil {
@@ -4328,7 +4389,7 @@ func (d *Daemon) handlePendingWorkHint(runtimeID, kind string) {
 		return
 	}
 	hbCtx, cancel := context.WithTimeout(ctx, pendingWorkHeartbeatTimeout)
-	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID)
+	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil, nil)
 	cancel()
 	if err != nil {
 		if isRuntimeNotFoundError(err) {
@@ -4370,26 +4431,11 @@ func (d *Daemon) handleModelList(ctx context.Context, rt Runtime, requestID stri
 	// so a custom runtime must never fail on the built-in lookup. A custom
 	// path is also never re-resolved: like runTask, we don't second-guess a
 	// path the profile pinned.
-	var execPath string
-	// fixedArgs mirrors the launch prefix runTask would use. Discovery has to
-	// enumerate the CLI the profile actually runs, so a subcommand wrapper is
-	// probed as `ccms start q36 models`, not `ccms models` (GH #7046).
-	var fixedArgs []string
-	if customSpec, isCustom := d.customProfileLaunchForRuntime(rt.ID); isCustom {
-		execPath = customSpec.path
-		fixedArgs = agent.FilterLaunchPrefix(rt.Provider, customSpec.fixedArgs, d.logger)
-		d.logger.Info("model list uses custom runtime profile command",
-			"runtime_id", rt.ID, "provider", rt.Provider, "command_path", execPath,
-			"fixed_args", len(fixedArgs))
-	} else if entry, ok := d.agents()[rt.Provider]; ok {
-		// Built-in provider: self-heal a pinned executable path an in-place
-		// upgrade deleted (MUL-4486).
-		entry, _ = d.resolveAgentEntry(ctx, rt.Provider, entry)
-		execPath = entry.Path
-	} else {
+	execPath, fixedArgs, err := d.resolveRuntimeCommand(ctx, rt)
+	if err != nil {
 		d.reportModelListResult(ctx, rt, requestID, map[string]any{
 			"status": "failed",
-			"error":  fmt.Sprintf("no agent configured for provider %q", rt.Provider),
+			"error":  err.Error(),
 		})
 		return
 	}
@@ -4598,6 +4644,12 @@ func (d *Daemon) reportLocalSkillImportResult(ctx context.Context, rt Runtime, r
 func (d *Daemon) reportModelListResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
 	d.reportRuntimeResultWithRetry(ctx, "model_list", rt.ID, requestID, func(ctx context.Context) error {
 		return d.client.ReportModelListResult(ctx, rt.ID, requestID, payload)
+	})
+}
+
+func (d *Daemon) reportCliAuthResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
+	d.reportRuntimeResultWithRetry(ctx, "cli_auth", rt.ID, requestID, func(ctx context.Context) error {
+		return d.client.ReportCliAuthResult(ctx, rt.ID, requestID, payload)
 	})
 }
 
@@ -5288,7 +5340,11 @@ func (d *Daemon) watchTaskCancellation(ctx context.Context, taskID string, pollI
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		check := func() bool {
-			status, err := d.client.GetTaskStatus(ctx, taskID)
+			status, pauseRequested, err := d.client.GetTaskControl(ctx, taskID)
+			if err == nil && pauseRequested {
+				// Pause (K19): interrupt at the next safe boundary, not now.
+				d.pauseControlFor(taskID).request(ctx)
+			}
 			if !shouldInterruptAgent(status, err) {
 				return false
 			}
@@ -5435,15 +5491,39 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 		pollInterval = 5 * time.Second
 	}
 	cancelledByPoll := d.watchTaskCancellation(runCtx, task.ID, pollInterval, taskLog)
+	pauseCtl := d.pauseControlFor(task.ID)
+	defer d.pauseControls.Delete(task.ID)
 	go func() {
 		select {
 		case <-cancelledByPoll:
+			runCancel()
+		case <-pauseCtl.boundary:
+			taskLog.Info("pause requested: safe boundary reached, interrupting agent")
 			runCancel()
 		case <-runCtx.Done():
 		}
 	}()
 
 	result, err := d.runner.run(runCtx, task, provider, slot, taskLog)
+	d.rememberCheckout(result.DurableWorkDir)
+
+	// Pause (K19): the run stopped at a boundary on a human's request. Report
+	// where the session lives and leave the result to the resumed run.
+	if pauseCtl.paused() {
+		select {
+		case <-cancelledByPoll:
+		default:
+			if len(result.Usage) > 0 {
+				if usageErr := d.client.ReportTaskUsage(ctx, task.ID, result.Usage); usageErr != nil {
+					taskLog.Warn("report task usage failed", "error", usageErr)
+				}
+			}
+			if ackErr := d.client.AckTaskPaused(ctx, task.ID, result.SessionID, result.WorkDir, result.BranchName); ackErr != nil {
+				taskLog.Warn("pause ack failed; the run stays running server-side until the sweeper decides", "error", ackErr)
+			}
+			return
+		}
+	}
 
 	// Report usage before any early return — the agent accumulates tokens
 	// whether the task completes, errors, or is cancelled mid-run by the poll
@@ -7168,9 +7248,11 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	agentName := "agent"
 	var skills []SkillData
 	var instructions string
+	var memories []string
 	agentName = task.Agent.Name
 	skills = task.Agent.Skills
 	instructions = task.Agent.Instructions
+	memories = task.Agent.Memories
 
 	// Prepare isolated execution environment.
 	// Repos are passed as metadata only — the agent checks them out on demand
@@ -7191,6 +7273,8 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentID:                          task.AgentID,
 		AgentName:                        agentName,
 		AgentInstructions:                instructions,
+		AgentMemories:                    memories,
+		WorkspaceNotes:                   task.WorkspaceNotes,
 		AgentSkills:                      convertSkillsForEnv(skills),
 		DisabledRuntimeSkills:            convertDisabledRuntimeSkillsForEnv(task.Agent, task.RuntimeID, provider),
 		Repos:                            convertReposForEnv(task.Repos),
@@ -7198,6 +7282,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		ProjectTitle:                     task.ProjectTitle,
 		ProjectDescription:               task.ProjectDescription,
 		ProjectResources:                 convertProjectResourcesForEnv(task.ProjectResources),
+		GoalAncestry:                     task.GoalAncestry,
+		GoalAncestryOmitted:              task.GoalAncestryOmitted,
+		MissionChain:                     task.MissionChain,
+		Org:                              task.Org,
 		ChatSessionID:                    task.ChatSessionID,
 		ChatChannelType:                  task.ChatChannelType,
 		ChatChannelDeliversFiles:         task.ChatChannelDeliversFiles,
@@ -7290,6 +7378,8 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		func(resolveCtx context.Context, contributionID string) (http.Header, error) {
 			return d.client.ResolveRemoteMCPCredential(resolveCtx, task.RemoteMCPDaemonToken, task.ID, contributionID)
 		},
+		d.remoteMCPToolGate(task, taskLog),
+		d.runSecretResolver(task),
 		taskLog,
 	)
 	if remoteMCPErr != nil {
@@ -7346,6 +7436,26 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 			effectiveMcpConfig = merged
 		}
+		// Governed MCP gateway (K77): every remaining server goes through a
+		// daemon-owned endpoint that classifies, gates and attributes each
+		// tool call. A gateway failure keeps the run alive; servers whose
+		// policy holds a never/ask decision are dropped rather than passed
+		// through ungoverned.
+		wrapped, gatewayDiagnostics, mcpGatewayServers, gatewayErr := startTaskMcpGateway(
+			prepareCtx, ctx, task, provider, effectiveMcpConfig,
+			d.mcpGatewayDepsFor(task, remoteMCPConfig, taskLog), taskLog,
+		)
+		if gatewayErr != nil {
+			taskLog.Warn("MCP gateway unavailable; mcp_config passed through", "error", gatewayErr)
+		} else {
+			effectiveMcpConfig = wrapped
+		}
+		if mcpGatewayServers != nil {
+			defer mcpGatewayServers.Close()
+		}
+		for _, diagnostic := range gatewayDiagnostics {
+			taskLog.Warn("MCP gateway degraded", "reason", diagnostic)
+		}
 		if provider == "cursor" {
 			cursorMcpAuthSource = strings.TrimSpace(task.Agent.CustomEnv[execenv.CursorMcpAuthSourceEnv])
 		}
@@ -7359,6 +7469,9 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	if task.Agent != nil && provider == "openclaw" {
 		openclawMode, openclawGateway = decodeOpenclawRuntimeConfig(task.Agent.RuntimeConfig, d.logger)
 	}
+	// Permission profile (K06): withhold hidden secrets and add the flags the
+	// provider enforces, once, before anything reads the agent payload.
+	applyPermissionProfile(task.Agent, provider, taskLog)
 	var agentEnvOverrides map[string]string
 	var agentCustomArgs []string
 	if task.Agent != nil {
@@ -7853,6 +7966,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, err
 	}
 	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir)
+	// Approval gates (K05): every git push from this run goes through the
+	// daemon's pre-push hook, which asks the server.
+	if hooksDir, err := ensureGateHooksDir(env.MulticaConfigRoot); err != nil {
+		taskLog.Warn("approval gates: hook directory unavailable, pushes are not gated", "error", err)
+	} else {
+		for k, v := range gateEnvironment(hooksDir, gitRemoteURL(env.WorkDir), gateDefaultTimeout) {
+			agentEnv[k] = v
+		}
+	}
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
 	}
@@ -8907,6 +9029,7 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 						Tool:   toolName,
 						Output: output,
 					})
+					d.pauseControlFor(taskID).atBoundary() // K19: a tool result is a safe boundary
 					mu.Unlock()
 				case agent.MessageThinking:
 					if msg.Content != "" {
@@ -9705,4 +9828,39 @@ func defaultArgsForProvider(cfg Config, provider string) []string {
 		return nil
 	}
 	return append([]string(nil), args...)
+}
+
+// remoteMCPToolGate (K05) asks the server before a sensitive remote MCP tool
+// runs for this task; a run without a task-scoped token is not gated.
+func (d *Daemon) remoteMCPToolGate(task Task, log *slog.Logger) remoteMCPToolGate {
+	token, err := taskScopedAuthToken(task)
+	if err != nil {
+		return nil
+	}
+	matcher := sensitiveToolMatcher(os.Getenv("MULTICA_GATE_SENSITIVE_TOOLS"))
+	client := newApprovalGateClient(d.cfg.ServerBaseURL, token, task.ID)
+	return func(ctx context.Context, toolName string, params json.RawMessage) (bool, string) {
+		// Permission profile (K06): a denied path is refused without asking.
+		if task.Agent != nil && task.Agent.PermissionProfile != nil {
+			if denied := task.Agent.PermissionProfile.DeniedAmong(gateParamPaths(params)); len(denied) > 0 {
+				return false, "the permission profile " + task.Agent.PermissionProfile.Name + " denies " + strings.Join(denied, ", ")
+			}
+		}
+		if !matcher.MatchString(toolName) {
+			return true, ""
+		}
+		var args any
+		_ = json.Unmarshal(params, &args)
+		status, err := client.Ask(ctx, "mcp_tool_call", "MCP tool "+toolName, map[string]any{"tool": toolName, "params": args, "paths": gateParamPaths(params)}, gateDefaultTimeout)
+		if err != nil {
+			if log != nil {
+				log.Warn("approval gate: ask failed, tool refused", "tool", toolName, "error", err)
+			}
+			return false, "the approval gate could not be reached"
+		}
+		if status == "approved" {
+			return true, ""
+		}
+		return false, "a human " + status + " this tool call"
+	}
 }

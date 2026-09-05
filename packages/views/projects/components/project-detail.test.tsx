@@ -49,6 +49,22 @@ vi.mock("@multica/core/projects/mutations", () => ({
   useDeleteProject: () => ({ mutate: mocks.deleteProject }),
 }));
 
+// The goals section (K74) reads the goal list through its own module; the
+// react-query mock above has no `queryOptions`, so stub the module here.
+vi.mock("@multica/core/goals", () => ({
+  goalListOptions: () => ({ queryKey: ["goals"] }),
+  goalProgress: () => 0,
+  goalChildren: () => [],
+  useSetProjectGoals: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
+// The org section (K75) has the same constraint: stub its query factories.
+vi.mock("@multica/core/org", () => ({
+  orgResolveOptions: () => ({ queryKey: ["org-resolve"] }),
+  orgTemplatesOptions: () => ({ queryKey: ["org-templates"] }),
+  useCreateOrgStructure: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@multica/core/pins", () => ({
   pinListOptions: () => ({ queryKey: ["pins"] }),
   useCreatePin: () => ({ mutate: vi.fn() }),
@@ -78,6 +94,7 @@ vi.mock("@multica/core/chat", () => ({
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({
     projects: () => "/test-workspace/projects",
+    org: () => "/test-workspace/org",
   }),
 }));
 
@@ -218,6 +235,8 @@ vi.mock("../../issues/components/priority-icon", () => ({
   PriorityIcon: () => null,
 }));
 
+vi.mock("./project-decisions-section", () => ({ ProjectDecisionsSection: () => null }));
+vi.mock("./project-blast-radius-section", () => ({ ProjectBlastRadiusSection: () => null }));
 vi.mock("./project-resources-section", () => ({
   ProjectResourcesSection: () => null,
 }));

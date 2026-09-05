@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -44,6 +46,9 @@ type TaskService struct {
 	Analytics analytics.Client
 	Metrics   *obsmetrics.BusinessMetrics
 	Wakeup    TaskWakeupNotifier
+	// Budget applies workspace-owned spend policies. Nil preserves the legacy
+	// path for tests and deployments that construct TaskService directly.
+	Budget *BudgetService
 	// Entitlements supplies Cloud's workspace-scoped issue-count instruction.
 	// Nil keeps self-hosted and isolated test services unlimited.
 	Entitlements entitlement.Provider
@@ -77,6 +82,32 @@ type TaskService struct {
 	// state for a self-hosted deployment with no MULTICA_LLM_* configuration.
 	// Wired in router.go from the same *llm.Client that backs chat auto-titling.
 	QuickActions ChatQuickActionsLLM
+	// RoutingRand is the randomness source for the runtime router's
+	// epsilon-exploration draw (JEF-237). Optional: nil falls back to a
+	// time-seeded source. Tests inject a seeded *rand.Rand for determinism.
+	RoutingRand *rand.Rand
+	// SkillDistillation powers the post-success skill distillation pass (k69).
+	// Optional: nil (or a disabled client) turns the pass off — unlike the
+	// postmortem scaffold, a skill is only worth storing when genuinely
+	// distilled, so an unconfigured deployment simply skips it.
+	SkillDistillation SkillDistillationLLM
+	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
+	// Optional: nil (or a disabled client) turns extraction off, which is the
+	// expected state for a self-hosted deployment with no MULTICA_LLM_*
+	// configuration. Wired in handler.New from the same *llm.Client that backs
+	// chat auto-titling and quick actions.
+	MemoryExtraction AgentMemoryLLM
+	// Postmortem powers the post-failure postmortem drafting pass (k68).
+	// Optional: nil (or a disabled client) falls back to the deterministic
+	// scaffold, so a postmortem is still stored for a self-hosted deployment
+	// with no MULTICA_LLM_* configuration. Wired in handler.New from the same
+	// *llm.Client that backs chat auto-titling and memory extraction.
+	Postmortem PostmortemLLM
+	// BrainCuration powers the daily workspace Brain curation pass. Optional:
+	// nil (or a disabled client) makes the pass a logged no-op, which is the
+	// expected state for a self-hosted deployment with no MULTICA_LLM_*
+	// configuration. Wired in handler.New from the same *llm.Client.
+	BrainCuration WorkspaceNoteCurationLLM
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built
@@ -84,6 +115,26 @@ type TaskService struct {
 	// shedding everything.
 	quickActionsInFlight sync.Map
 	quickActionsRunning  atomic.Int64
+
+	// memoryExtractionInFlight (agent id -> struct{}{}) and
+	// memoryExtractionRunning gate the post-run fact pass: one per agent, and
+	// a process-wide ceiling. Zero values are usable, like the quick-actions
+	// gates above.
+	memoryExtractionInFlight sync.Map
+	memoryExtractionRunning  atomic.Int64
+
+	// postmortemInFlight (task id -> struct{}{}) and postmortemRunning gate the
+	// post-failure drafting pass: one per task, and a process-wide ceiling.
+	// Zero values are usable, like the gates above.
+	postmortemInFlight sync.Map
+	postmortemRunning  atomic.Int64
+
+	// skillDistillationInFlight (task id -> struct{}{}) and
+	// skillDistillationRunning gate the post-success distillation pass: one per
+	// task, and a process-wide ceiling. Zero values are usable, like the gates
+	// above.
+	skillDistillationInFlight sync.Map
+	skillDistillationRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext
@@ -187,6 +238,14 @@ const (
 	// aligned: a runtime must not start work after it is stale enough to be
 	// marked offline.
 	RuntimeClaimFreshnessSeconds = 150.0
+
+	// DefaultRunUnresponsiveAfterSeconds is how long an active run may stay
+	// silent (no message / progress callback) before readers label it
+	// unresponsive. Deliberately far above Linear's 10 s: CLI silences are
+	// uneven (a compile, a long tool call) and a twitchy badge is noise. The
+	// verdict is derived at read time, never stored, and never fails the run;
+	// the 2.5 h wall-clock sweeper keeps that role.
+	DefaultRunUnresponsiveAfterSeconds = 90.0
 	// claimResponseRecoveryWindow must exceed daemon client.Timeout for
 	// /tasks/claim (30s) plus /tasks/{id}/start (30s) plus scheduling slack.
 	// Longer pre-start work is protected by prepareLeaseDuration instead of
@@ -194,6 +253,18 @@ const (
 	claimResponseRecoveryWindow = 90 * time.Second
 	prepareLeaseDuration        = 45 * time.Second
 )
+
+// RunUnresponsiveAfterSeconds returns the liveness threshold, overridable per
+// deployment with MULTICA_RUN_UNRESPONSIVE_AFTER (seconds, > 0).
+func RunUnresponsiveAfterSeconds() float64 {
+	if v := os.Getenv("MULTICA_RUN_UNRESPONSIVE_AFTER"); v != "" {
+		if secs, err := strconv.ParseFloat(v, 64); err == nil && secs > 0 {
+			return secs
+		}
+		slog.Warn("MULTICA_RUN_UNRESPONSIVE_AFTER ignored: expected a positive number of seconds", "value", v)
+	}
+	return DefaultRunUnresponsiveAfterSeconds
+}
 
 func (s *TaskService) trackTaskForReclaim(task db.AgentTaskQueue, checkAfter time.Time) {
 	if !task.RuntimeID.Valid || !task.ID.Valid || task.Status != "dispatched" {
@@ -329,6 +400,41 @@ func NewTaskService(q *db.Queries, tx TxStarter, hub *realtime.Hub, bus *events.
 		wakeup = wakeups[0]
 	}
 	return &TaskService{Queries: q, TxStarter: tx, Hub: hub, Bus: bus, Wakeup: wakeup}
+}
+
+func (s *TaskService) createTaskWithBudget(
+	ctx context.Context,
+	scope BudgetScope,
+	taskID pgtype.UUID,
+	create func(*db.Queries) (db.AgentTaskQueue, error),
+) (db.AgentTaskQueue, error) {
+	if s.Budget == nil {
+		return create(s.Queries)
+	}
+	if s.TxStarter == nil {
+		return db.AgentTaskQueue{}, errors.New("budget admission requires a transaction starter")
+	}
+	tx, err := s.TxStarter.Begin(ctx)
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("begin budget admission: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	q := s.Queries.WithTx(tx)
+	changed, err := s.Budget.ReserveTaskInTx(ctx, q, scope, taskID)
+	if err != nil {
+		return db.AgentTaskQueue{}, err
+	}
+	task, err := create(q)
+	if err != nil {
+		return db.AgentTaskQueue{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("commit budget admission: %w", err)
+	}
+	if changed {
+		s.Budget.NotifyBudgetChange(ctx, scope.WorkspaceID)
+	}
+	return task, nil
 }
 
 var trivialDoneMarkers = []string{
@@ -845,6 +951,9 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 	// window where a compromised process could keep authenticating
 	// against the API until the 24h expiry. Failure is non-fatal — the
 	// expiry / FK cascade are the durable guards. MUL-2600.
+	if _, err := s.Queries.RevokeRunScopedSecretsByTask(ctx, db.RevokeRunScopedSecretsByTaskParams{TaskID: task.ID, RevokeReason: pgtype.Text{String: "run_cancelled", Valid: true}}); err != nil {
+		slog.Warn("cancel task: failed to revoke run secrets", "task_id", util.UUIDToString(task.ID), "error", err)
+	}
 	if err := s.Queries.DeleteTaskTokensByTask(ctx, task.ID); err != nil {
 		slog.Warn("cancel task: failed to revoke task tokens",
 			"task_id", util.UUIDToString(task.ID), "error", err)
@@ -1250,10 +1359,34 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	originatorUserID := attr.UserID
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
+	taskID := dbid.NewV7()
+	// Runtime pools (K28): an offline runtime at enqueue sends the task to
+	// the first online runtime of the pool, recorded on the task.
+	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
+	// Issue router (K27): risk and past failures may pick another pool first.
+	var routingDecision *RoutingDecision
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent); ok {
+		routingDecision = decision
+		if routed.Valid {
+			enqueueRuntimeID, failoverHistory = routed, nil
+		}
+	}
+
+	// Runtime routing (JEF-237). Every task is stamped with its task class so
+	// future runs feed the routing statistics even for fixed-mode agents. In
+	// auto mode the router picks the runtime from historical stats per class,
+	// after the pool failover (K28) and the issue router (K27) had their say:
+	// auto is an explicit per-agent opt-in, so its choice wins. The decision
+	// trace lands in the routing JSONB column; any degradation falls back to
+	// whatever runtime was selected so far.
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	if stamp.RuntimeID.Valid {
+		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
+	}
 	createParams := db.CreateAgentTaskParams{
-		ID:                   dbid.NewV7(),
+		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            enqueueRuntimeID,
 		IssueID:              issue.ID,
 		Priority:             priorityToInt(issue.Priority),
 		TriggerCommentID:     triggerCommentID,
@@ -1271,14 +1404,20 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
 	}
-	var task db.AgentTaskQueue
-	if fireAt.Valid {
-		task, err = s.Queries.CreateDeferredChannelIssueTask(ctx, db.CreateDeferredChannelIssueTaskParams{
-			ID:                   dbid.NewV7(),
+	task, err := s.createTaskWithBudget(ctx, BudgetScope{
+		WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, AgentID: agent.ID,
+	}, taskID, func(q *db.Queries) (db.AgentTaskQueue, error) {
+		if !fireAt.Valid {
+			return q.CreateAgentTask(ctx, createParams)
+		}
+		return q.CreateDeferredChannelIssueTask(ctx, db.CreateDeferredChannelIssueTaskParams{
+			ID:                   taskID,
 			AgentID:              createParams.AgentID,
 			RuntimeID:            createParams.RuntimeID,
 			IssueID:              createParams.IssueID,
@@ -1301,14 +1440,31 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			RerunOfTaskID:        createParams.RerunOfTaskID,
 			TriggerEvidenceKind:  createParams.TriggerEvidenceKind,
 			TriggerEvidenceRefID: createParams.TriggerEvidenceRefID,
+			TaskClass:            createParams.TaskClass,
+			Routing:              createParams.Routing,
 			FireAt:               fireAt,
 		})
-	} else {
-		task, err = s.Queries.CreateAgentTask(ctx, createParams)
-	}
+	})
 	if err != nil {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", err)
 		return db.AgentTaskQueue{}, fmt.Errorf("create task: %w", err)
+	}
+	if failoverHistory != nil {
+		if moved, merr := s.Queries.SetTaskFailover(ctx, db.SetTaskFailoverParams{ID: task.ID, RuntimeID: task.RuntimeID, FailoverHistory: failoverHistory}); merr != nil {
+			slog.Warn("runtime pool: record enqueue failover failed", "task_id", util.UUIDToString(task.ID), "error", merr)
+		} else {
+			task = moved
+		}
+	}
+	// Preemption (K41): an urgent run on a saturated agent suspends the lowest-priority one.
+	s.PreemptForUrgentTask(ctx, task, agent)
+	if routingDecision != nil {
+		raw, _ := json.Marshal(routingDecision)
+		if routed, rerr := s.Queries.SetTaskRoutingDecision(ctx, db.SetTaskRoutingDecisionParams{ID: task.ID, RoutingDecision: raw}); rerr != nil {
+			slog.Warn("issue router: record decision failed", "task_id", util.UUIDToString(task.ID), "error", rerr)
+		} else {
+			task = routed
+		}
 	}
 
 	slog.Info("task enqueued",
@@ -1340,6 +1496,20 @@ func (s *TaskService) EnqueueTaskForMention(ctx context.Context, issue db.Issue,
 
 // EnqueueTaskForThreadParent creates a queued task for the agent who authored
 // the direct parent comment a member replied to.
+// EnqueueDuelRun (K39) queues an independent, fresh-session run of issue by
+// agentID — assignee or not — briefed by handoffNote. The run is a mention
+// run underneath: nothing about the issue (assignee, status) changes.
+func (s *TaskService) EnqueueDuelRun(ctx context.Context, issue db.Issue, agentID pgtype.UUID, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTask(ctx, issue, agentID, pgtype.UUID{}, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{})
+}
+
+// EnqueueCrossReviewRun (K15) queues a fresh-session run of issue by the
+// reviewer agent, briefed only by handoffNote (the diff to read), never by
+// the author's conversation.
+func (s *TaskService) EnqueueCrossReviewRun(ctx context.Context, issue db.Issue, reviewerID pgtype.UUID, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTask(ctx, issue, reviewerID, pgtype.UUID{}, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{})
+}
+
 func (s *TaskService) EnqueueTaskForThreadParent(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID) (db.AgentTaskQueue, error) {
 	return s.enqueueMentionTask(ctx, issue, agentID, triggerCommentID, false, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{})
 }
@@ -1407,32 +1577,46 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	originatorUserID := attr.UserID
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
-	task, err := s.Queries.CreateAgentTask(ctx, db.CreateAgentTaskParams{
-		ID:                   dbid.NewV7(),
-		AgentID:              agentID,
-		RuntimeID:            agent.RuntimeID,
-		IssueID:              issue.ID,
-		Priority:             priorityToInt(issue.Priority),
-		TriggerCommentID:     triggerCommentID,
-		CoalescedCommentIds:  coalescedCommentIDs,
-		TriggerSummary:       s.buildCommentTriggerSummary(ctx, issue.WorkspaceID, triggerCommentID),
-		IsLeaderTask:         pgtype.Bool{Bool: isLeader, Valid: isLeader},
-		ForceFreshSession:    pgtype.Bool{Bool: forceFreshSession, Valid: forceFreshSession},
-		HandoffNote:          pgtype.Text{String: handoffNote, Valid: handoffNote != ""},
-		SquadID:              squadID,
-		OriginatorUserID:     originatorUserID,
-		AccountableUserID:    attr.AccountableUserID,
-		RuleVersionID:        attr.RuleVersionID,
-		RerunOfTaskID:        rerunOfTaskID,
-		RuntimeMcpOverlay:    runtimeMCPOverlay.Overlay,
-		RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
-		OriginatorSource:     attrSource,
-		DelegatedFromTaskID:  attrDelegatedFrom,
-		TriggerEvidenceKind:  attrEvidenceKind,
-		TriggerEvidenceRefID: attrEvidenceRef,
-		// Stamp the reviewed head so dedup can distinguish this run's target
-		// from a later request against a new HEAD (TEN-356).
-		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
+	// Runtime routing (JEF-237): a mention / thread-parent / squad-leader hop is
+	// an enqueue like any other, so it goes through the same decision.
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	mentionRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		mentionRuntimeID = stamp.RuntimeID
+	}
+	taskID := dbid.NewV7()
+	task, err := s.createTaskWithBudget(ctx, BudgetScope{
+		WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, AgentID: agent.ID,
+	}, taskID, func(q *db.Queries) (db.AgentTaskQueue, error) {
+		return q.CreateAgentTask(ctx, db.CreateAgentTaskParams{
+			ID:                   taskID,
+			AgentID:              agentID,
+			RuntimeID:            mentionRuntimeID,
+			IssueID:              issue.ID,
+			Priority:             priorityToInt(issue.Priority),
+			TriggerCommentID:     triggerCommentID,
+			CoalescedCommentIds:  coalescedCommentIDs,
+			TriggerSummary:       s.buildCommentTriggerSummary(ctx, issue.WorkspaceID, triggerCommentID),
+			IsLeaderTask:         pgtype.Bool{Bool: isLeader, Valid: isLeader},
+			ForceFreshSession:    pgtype.Bool{Bool: forceFreshSession, Valid: forceFreshSession},
+			HandoffNote:          pgtype.Text{String: handoffNote, Valid: handoffNote != ""},
+			SquadID:              squadID,
+			OriginatorUserID:     originatorUserID,
+			AccountableUserID:    attr.AccountableUserID,
+			RuleVersionID:        attr.RuleVersionID,
+			RerunOfTaskID:        rerunOfTaskID,
+			RuntimeMcpOverlay:    runtimeMCPOverlay.Overlay,
+			RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
+			OriginatorSource:     attrSource,
+			DelegatedFromTaskID:  attrDelegatedFrom,
+			TriggerEvidenceKind:  attrEvidenceKind,
+			TriggerEvidenceRefID: attrEvidenceRef,
+			TaskClass:            stamp.TaskClass,
+			Routing:              stamp.Routing,
+			// Stamp the reviewed head so dedup can distinguish this run's target
+			// from a later request against a new HEAD (TEN-356).
+			HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
+		})
 	})
 	if err != nil {
 		// A concurrent enqueue for the same (issue, agent) won the race and the
@@ -1488,11 +1672,16 @@ func (s *TaskService) EnqueueDeferredAssigneeFallback(ctx context.Context, issue
 		return db.AgentTaskQueue{}, err
 	}
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
+	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	deferredRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		deferredRuntimeID = stamp.RuntimeID
+	}
 	isLeader := squadID.Valid
 	task, err := s.Queries.CreateDeferredAgentTask(ctx, db.CreateDeferredAgentTaskParams{
 		ID:                   dbid.NewV7(),
 		AgentID:              agentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            deferredRuntimeID,
 		IssueID:              issue.ID,
 		Priority:             priorityToInt(issue.Priority),
 		TriggerCommentID:     triggerCommentID,
@@ -1507,6 +1696,8 @@ func (s *TaskService) EnqueueDeferredAssigneeFallback(ctx context.Context, issue
 		DelegatedFromTaskID:  attrDelegatedFrom,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 	})
 	if err != nil {
 		slog.Error("deferred fallback enqueue failed", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "error", err)
@@ -1655,11 +1846,18 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 	}
 	attrSource, _, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, requesterID, agent)
+	// Runtime routing (JEF-237): quick-create has no issue yet, so the prompt is
+	// the only description of the work the classifier can see.
+	stamp := s.StampRouting(ctx, agent, prompt, nil)
+	quickCreateRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		quickCreateRuntimeID = stamp.RuntimeID
+	}
 	taskID := dbid.NewV7()
 	createParams := db.CreateQuickCreateTaskParams{
 		ID:                   taskID,
 		AgentID:              agentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            quickCreateRuntimeID,
 		Priority:             priorityToInt("high"),
 		Context:              contextJSON,
 		OriginatorUserID:     requesterID,
@@ -1669,10 +1867,16 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 		OriginatorSource:     attrSource,
 		TriggerEvidenceKind:  attrEvidenceKind,
 		TriggerEvidenceRefID: attrEvidenceRef,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 	}
 	var task db.AgentTaskQueue
 	if capture == nil {
-		task, err = s.Queries.CreateQuickCreateTask(ctx, createParams)
+		task, err = s.createTaskWithBudget(ctx, BudgetScope{
+			WorkspaceID: workspaceID, ProjectID: projectID, AgentID: agentID,
+		}, taskID, func(q *db.Queries) (db.AgentTaskQueue, error) {
+			return q.CreateQuickCreateTask(ctx, createParams)
+		})
 	} else {
 		tx, beginErr := s.TxStarter.Begin(ctx)
 		if beginErr != nil {
@@ -1701,6 +1905,12 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 				err = ErrSourceContextChanged
 			}
 		}
+		budgetChanged := false
+		if err == nil && s.Budget != nil {
+			budgetChanged, err = s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+				WorkspaceID: workspaceID, ProjectID: projectID, AgentID: agentID,
+			}, taskID)
+		}
 		if err == nil {
 			task, err = qtx.CreateQuickCreateTask(ctx, createParams)
 		}
@@ -1709,6 +1919,9 @@ func (s *TaskService) enqueueQuickCreateTask(ctx context.Context, workspaceID, r
 		}
 		if err == nil {
 			err = tx.Commit(ctx)
+		}
+		if err == nil && budgetChanged {
+			s.Budget.NotifyBudgetChange(ctx, workspaceID)
 		}
 	}
 	if err != nil {
@@ -1768,6 +1981,9 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 		return nil, fmt.Errorf("preflight quick-create issue capacity: %w", err)
 	}
 	overlay := s.buildRuntimeMCPOverlay(ctx, requesterID, agent)
+	// Runtime routing (JEF-237): a manual rerun is a fresh human enqueue, so it
+	// is classified and routed again from the original prompt.
+	stamp := s.StampRouting(ctx, agent, quickCreate.Prompt, nil)
 
 	tx, err := s.TxStarter.Begin(ctx)
 	if err != nil {
@@ -1783,8 +1999,11 @@ func (s *TaskService) RetrySourceContextQuickCreate(ctx context.Context, workspa
 	}
 	child, err := qtx.CreateManualQuickCreateRetryTask(ctx, db.CreateManualQuickCreateRetryTaskParams{
 		ActorUserID:          requesterID,
+		RuntimeID:            stamp.RuntimeID,
 		RuntimeMcpOverlay:    overlay.Overlay,
 		RuntimeConnectedApps: overlay.ConnectedApps,
+		TaskClass:            stamp.TaskClass,
+		Routing:              stamp.Routing,
 		NewTaskID:            dbid.NewV7(),
 		SourceTaskID:         sourceTaskID,
 	})
@@ -2072,10 +2291,27 @@ func (s *TaskService) enqueueChatTaskTx(
 		mediaPendingUntil = pgtype.Timestamptz{}
 	}
 
+	taskID := dbid.NewV7()
+	if s.Budget != nil {
+		if _, err := s.Budget.ReserveTaskInTx(ctx, qtx, BudgetScope{
+			WorkspaceID: chatSession.WorkspaceID, AgentID: agent.ID,
+		}, taskID); err != nil {
+			return db.AgentTaskQueue{}, err
+		}
+	}
+	// Runtime routing (JEF-237). A chat turn has no issue, so the session title
+	// is the only description of the work available at enqueue. The router only
+	// runs read-only SELECTs on its own connection, so it is safe to call while
+	// this transaction holds the session/agent locks.
+	stamp := s.StampRouting(ctx, agent, chatSession.Title, nil)
+	chatRuntimeID := agent.RuntimeID
+	if stamp.RuntimeID.Valid {
+		chatRuntimeID = stamp.RuntimeID
+	}
 	task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
-		ID:                   dbid.NewV7(),
+		ID:                   taskID,
 		AgentID:              chatSession.AgentID,
-		RuntimeID:            agent.RuntimeID,
+		RuntimeID:            chatRuntimeID,
 		Priority:             2,
 		ChatSessionID:        chatSession.ID,
 		InitiatorUserID:      initiatorUserID,
@@ -2091,6 +2327,8 @@ func (s *TaskService) enqueueChatTaskTx(
 		ChannelContextRevision: pgtype.Int8{
 			Int64: contextRevision, Valid: contextRevision > 0,
 		},
+		TaskClass: stamp.TaskClass,
+		Routing:   stamp.Routing,
 	})
 	if err != nil {
 		return db.AgentTaskQueue{}, fmt.Errorf("create chat task: %w", err)
@@ -2143,6 +2381,13 @@ func (s *TaskService) enqueueChatTaskTx(
 
 // FinalizeChatTaskEnqueue performs only post-commit effects.
 func (s *TaskService) FinalizeChatTaskEnqueue(ctx context.Context, task db.AgentTaskQueue) {
+	if s.Budget != nil {
+		if workspaceID := s.ResolveTaskWorkspaceID(ctx, task); workspaceID != "" {
+			if parsed, err := util.ParseUUID(workspaceID); err == nil {
+				s.Budget.NotifyBudgetChange(ctx, parsed)
+			}
+		}
+	}
 	if task.Status == "deferred" {
 		slog.Info("chat task deferred for channel media",
 			"task_id", util.UUIDToString(task.ID),
@@ -2327,6 +2572,10 @@ func (s *TaskService) SendDirectChatMessage(
 	// EnqueueChatTask writes. Without this the direct-chat path was a bypass: it set
 	// originator_user_id but left accountable_user_id / source / evidence NULL,
 	// violating the one-way invariant and dropping the audit source (MUL-4302 §2).
+	// Runtime routing (JEF-237): classify and route from the message the member
+	// just sent. Built before the transaction for the same reason as the overlay.
+	stamp := s.StampRouting(ctx, agent, content, nil)
+
 	attr := attribution.DirectHumanRun(initiatorUserID, attribution.EvidenceChat, session.ID)
 	attr, err := s.applyAttributionFallback(ctx, attr, agent)
 	if err != nil {
@@ -2377,10 +2626,14 @@ func (s *TaskService) SendDirectChatMessage(
 		}
 		out.Queued = queued
 
+		directRuntimeID := carrier.RuntimeID
+		if stamp.RuntimeID.Valid {
+			directRuntimeID = stamp.RuntimeID
+		}
 		task, err := qtx.CreateChatTask(ctx, db.CreateChatTaskParams{
 			ID:                   dbid.NewV7(),
 			AgentID:              session.AgentID,
-			RuntimeID:            carrier.RuntimeID,
+			RuntimeID:            directRuntimeID,
 			Priority:             2, // medium priority for chat; matches EnqueueChatTask
 			ChatSessionID:        session.ID,
 			InitiatorUserID:      initiatorUserID,
@@ -2392,6 +2645,8 @@ func (s *TaskService) SendDirectChatMessage(
 			OriginatorSource:     attrSource,
 			TriggerEvidenceKind:  attrEvidenceKind,
 			TriggerEvidenceRefID: attrEvidenceRef,
+			TaskClass:            stamp.TaskClass,
+			Routing:              stamp.Routing,
 		})
 		if err != nil {
 			return fmt.Errorf("create direct chat task: %w", err)
@@ -3465,6 +3720,8 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 	var getAgentMs, countRunningMs, claimAgentMs, reanchorMs, updateStatusMs, dispatchMs int64
 	var claimed *db.AgentTaskQueue
 	var reclaimCheckAfter time.Time
+	var budgetChanged bool
+	var budgetWorkspaceID pgtype.UUID
 	defer func() {
 		s.maybeLogClaimSlow(agentID, outcome, start, getAgentMs, countRunningMs, claimAgentMs, reanchorMs, updateStatusMs, dispatchMs)
 	}()
@@ -3490,7 +3747,10 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		// before its state transition; the claim handler then rechecks the freshly
 		// loaded Agent before returning any payload. Runtime mutation teardown is
 		// responsible for serializing and settling the remaining queued rows.
-		if runtimeID.Valid && agent.RuntimeID != runtimeID {
+		// Auto-routed agents (JEF-237) are exempt: the router stamped their task
+		// with a CHOSEN runtime that legitimately differs from the bound fallback
+		// runtime, and ClaimAgentTask re-verifies the authorization fence in SQL.
+		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto {
 			outcome = "runtime_mismatch"
 			return nil
 		}
@@ -3505,6 +3765,17 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		if running >= int64(agent.MaxConcurrentTasks) {
 			slog.Debug("task claim: no capacity", "agent_id", util.UUIDToString(agentID), "running", running, "max", agent.MaxConcurrentTasks)
 			outcome = "no_capacity"
+			return nil
+		}
+		stop, changed, workspaceID, err := s.ensureBudgetAtClaim(ctx, qtx, agentID, claimRuntimeID)
+		if err != nil {
+			outcome = "error_budget"
+			return fmt.Errorf("check task budget: %w", err)
+		}
+		budgetChanged = changed
+		budgetWorkspaceID = workspaceID
+		if stop {
+			outcome = "budget_paused"
 			return nil
 		}
 
@@ -3559,7 +3830,13 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		return nil, err
 	}
 	if claimed == nil {
+		if budgetChanged {
+			s.Budget.NotifyBudgetChange(ctx, budgetWorkspaceID)
+		}
 		return nil, nil
+	}
+	if budgetChanged {
+		s.Budget.NotifyBudgetChange(ctx, budgetWorkspaceID)
 	}
 	s.trackTaskForReclaim(*claimed, reclaimCheckAfter)
 
@@ -3581,6 +3858,71 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 
 	outcome = "claimed"
 	return claimed, nil
+}
+
+func (s *TaskService) ensureBudgetAtClaim(
+	ctx context.Context,
+	q *db.Queries,
+	agentID, runtimeID pgtype.UUID,
+) (stop, changed bool, workspaceID pgtype.UUID, err error) {
+	if s.Budget == nil {
+		return false, false, pgtype.UUID{}, nil
+	}
+	if paused, pausedErr := q.GetOldestBudgetPausedTask(ctx, db.GetOldestBudgetPausedTaskParams{
+		AgentID: agentID, RuntimeID: runtimeID,
+	}); pausedErr == nil {
+		scope, scopeErr := q.GetTaskBudgetScope(ctx, paused.ID)
+		if scopeErr != nil {
+			return false, false, pgtype.UUID{}, scopeErr
+		}
+		workspaceID = scope.WorkspaceID
+		reserved, reserveErr := s.Budget.ReserveTaskInTx(ctx, q, BudgetScope{
+			WorkspaceID: scope.WorkspaceID, ProjectID: scope.ProjectID, AgentID: scope.AgentID,
+		}, paused.ID)
+		var exceeded *BudgetExceededError
+		if reserveErr == nil {
+			changed = changed || reserved
+			if err := q.SetTaskBudgetWaitReason(ctx, db.SetTaskBudgetWaitReasonParams{TaskID: paused.ID}); err != nil {
+				return false, changed, workspaceID, err
+			}
+		} else if !errors.As(reserveErr, &exceeded) {
+			return false, changed, workspaceID, reserveErr
+		}
+	} else if !errors.Is(pausedErr, pgx.ErrNoRows) {
+		return false, false, pgtype.UUID{}, pausedErr
+	}
+
+	candidate, candidateErr := q.GetNextQueuedTaskForBudget(ctx, db.GetNextQueuedTaskForBudgetParams{
+		AgentID: agentID, RuntimeID: runtimeID,
+	})
+	if errors.Is(candidateErr, pgx.ErrNoRows) {
+		return false, changed, workspaceID, nil
+	}
+	if candidateErr != nil {
+		return false, changed, workspaceID, candidateErr
+	}
+	scope, err := q.GetTaskBudgetScope(ctx, candidate.ID)
+	if err != nil {
+		return false, changed, workspaceID, err
+	}
+	workspaceID = scope.WorkspaceID
+	reserved, err := s.Budget.ReserveTaskInTx(ctx, q, BudgetScope{
+		WorkspaceID: scope.WorkspaceID, ProjectID: scope.ProjectID, AgentID: scope.AgentID,
+	}, candidate.ID)
+	if err == nil {
+		return false, changed || reserved, workspaceID, nil
+	}
+	var exceeded *BudgetExceededError
+	if !errors.As(err, &exceeded) {
+		return false, changed, workspaceID, err
+	}
+	if err := q.SetTaskBudgetWaitReason(ctx, db.SetTaskBudgetWaitReasonParams{
+		TaskID:     candidate.ID,
+		WaitReason: pgtype.Text{String: "budget_paused", Valid: true},
+	}); err != nil {
+		return false, changed, workspaceID, err
+	}
+	return true, changed, workspaceID, nil
 }
 
 // ClaimTaskForRuntime claims the next runnable task for a runtime while
@@ -4477,6 +4819,7 @@ func (s *TaskService) CompleteTask(ctx context.Context, taskID pgtype.UUID, resu
 		// client only shows the skeleton placeholder when generation is
 		// actually about to run.
 		suggest := s.chatQuickActionsEligible(ctx, task, chatAssistantMsg)
+		s.recordChatReplyEffect(ctx, task, chatAssistantMsg)
 		s.broadcastChatDone(ctx, task, chatAssistantMsg, suggest)
 		if suggest {
 			// Detached: the reply is already delivered and the user's next turn
@@ -4771,6 +5114,37 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			}
 		}
 	}
+	// Runtime pools (K28): an infrastructure failure moves the retry to the
+	// next online runtime of the pool, bypassing the generic attempt budget
+	// (each runtime is tried once). An exhausted pool fails distinctly.
+	var failover FailoverTarget
+	var checkpointAttempts pgtype.Int4
+	if parent, perr := s.Queries.GetAgentTask(ctx, taskID); perr == nil {
+		if target, exhausted := s.failoverForFailedTask(ctx, parent, failureReason); target.OK {
+			failover = target
+			wantRetry = true
+			retryFireAt = pgtype.Timestamptz{}
+			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
+				retryMaxAttempts = pgtype.Int4{Int32: parent.Attempt + 2, Valid: true}
+			}
+			if retryOverlay.Overlay == nil {
+				if agent, aerr := s.Queries.GetAgent(ctx, parent.AgentID); aerr == nil {
+					retryOverlay = s.buildRuntimeMCPOverlay(ctx, parent.OriginatorUserID, agent)
+				}
+			}
+		} else if exhausted {
+			failureReason = ReasonRuntimePoolExhausted
+			wantRetry = false
+		}
+		// Checkpoints (K20): an interruption resumes from the checkpoint a
+		// bounded number of times, then fails distinctly.
+		if attempts, exhausted := checkpointResume(parent, failureReason); exhausted {
+			failureReason = ReasonCheckpointResumeExhausted
+			wantRetry = false
+		} else if attempts.Valid && wantRetry {
+			checkpointAttempts = attempts
+		}
+	}
 
 	var task db.AgentTaskQueue
 	var retried *db.AgentTaskQueue
@@ -4903,9 +5277,15 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 				MaxAttempts:          retryMaxAttempts,
 				RuntimeMcpOverlay:    retryOverlay.Overlay,
 				RuntimeConnectedApps: retryOverlay.ConnectedApps,
+				RuntimeID:            failover.RuntimeID,
+				FailoverHistory:      failover.History,
+				CheckpointAttempts:   checkpointAttempts,
 			})
 			switch {
 			case cerr == nil:
+				if checkpointAttempts.Valid {
+					s.recordCheckpointResume(ctx, t, child, failureReason)
+				}
 				transferErr := transferPendingSourceContextToRetry(ctx, qtx, t, child)
 				if errors.Is(transferErr, pgx.ErrNoRows) {
 					deleted, deleteErr := qtx.DeleteUnstartedQuickCreateRetryTask(ctx, child.ID)
@@ -5299,7 +5679,24 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if parent.FailureReason.Valid {
 		reason = parent.FailureReason.String
 	}
-	if !retryableReasons[reason] {
+	// Runtime pools (K28): a pool target overrides the generic budget and
+	// reason gate; an exhausted pool marks the failure distinctly.
+	failover, exhausted := s.failoverForFailedTask(ctx, parent, reason)
+	if exhausted {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonRuntimePoolExhausted, Valid: true}}); err != nil {
+			slog.Warn("runtime pool: mark exhausted failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
+	// Checkpoints (K20): bounded resumes after an interruption.
+	checkpointAttempts, checkpointExhausted := checkpointResume(parent, reason)
+	if checkpointExhausted {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonCheckpointResumeExhausted, Valid: true}}); err != nil {
+			slog.Warn("checkpoint: mark exhausted failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
+	if !retryableReasons[reason] && !failover.OK {
 		return nil, nil
 	}
 	// Use the reason-aware ceiling, not the raw max_attempts column, so an
@@ -5307,7 +5704,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// allowed its deferred 3rd attempt (retryAttemptCeiling raises the ceiling
 	// to 3). Kept in sync with retryEligible below, which applies the same
 	// ceiling to the primary FailTask path.
-	if parent.Attempt >= retryAttemptCeiling(reason, parent.MaxAttempts) {
+	if !failover.OK && parent.Attempt >= retryAttemptCeiling(reason, parent.MaxAttempts) {
 		slog.Info("task auto-retry skipped: budget exhausted",
 			"task_id", util.UUIDToString(parent.ID),
 			"attempt", parent.Attempt,
@@ -5319,7 +5716,7 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// Autopilot has its own retry semantics (don't double-trigger) and a task
 	// with no issue/chat link has nowhere to report its retry — retryEligible
 	// covers both, keeping this sweeper path in sync with FailTask's in-tx retry.
-	if !retryEligible(reason, parent) {
+	if !failover.OK && !retryEligible(reason, parent) {
 		return nil, nil
 	}
 
@@ -5342,8 +5739,12 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	// NULL for an immediate child), and write the reason-aware ceiling into the
 	// child's max_attempts so the retry chain stays self-consistent.
 	var retryFireAt pgtype.Timestamptz
-	if delay := retryDelayForAttempt(reason, parent.Attempt); delay > 0 {
+	if delay := retryDelayForAttempt(reason, parent.Attempt); delay > 0 && !failover.OK {
 		retryFireAt = pgtype.Timestamptz{Time: time.Now().Add(delay), Valid: true}
+	}
+	retryCeiling := retryAttemptCeiling(reason, parent.MaxAttempts)
+	if failover.OK && retryCeiling < parent.Attempt+2 {
+		retryCeiling = parent.Attempt + 2
 	}
 	// Same advisory slot check as FailTask's path, for the same reason: skip the
 	// work when a successor is already visible. Losing the race is handled by
@@ -5372,9 +5773,12 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		NewTaskID:            dbid.NewV7(),
 		ID:                   parent.ID,
 		FireAt:               retryFireAt,
-		MaxAttempts:          pgtype.Int4{Int32: retryAttemptCeiling(reason, parent.MaxAttempts), Valid: true},
+		MaxAttempts:          pgtype.Int4{Int32: retryCeiling, Valid: true},
 		RuntimeMcpOverlay:    runtimeMCPOverlay.Overlay,
 		RuntimeConnectedApps: runtimeMCPOverlay.ConnectedApps,
+		RuntimeID:            failover.RuntimeID,
+		FailoverHistory:      failover.History,
+		CheckpointAttempts:   checkpointAttempts,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		// Workspace torn down, or the pending slot was taken between the check
@@ -5393,6 +5797,9 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 			"error", err,
 		)
 		return nil, err
+	}
+	if checkpointAttempts.Valid {
+		s.recordCheckpointResume(ctx, parent, child, reason)
 	}
 	if err := transferPendingSourceContextToRetry(ctx, qtx, parent, child); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -6602,6 +7009,109 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 	return s.skillsWithFiles(ctx, skills)
 }
 
+// AgentMemoryBriefCharBudget bounds how much memory text one run brief
+// carries. The per-agent cap is 200 facts of up to 500 characters, so an agent
+// at both ceilings would otherwise push 100 KB of context ahead of the actual
+// task. 40 KB keeps the whole set briefed in every realistic case and degrades
+// predictably past it.
+const AgentMemoryBriefCharBudget = 40000
+
+// AgentMemoryFact is the (content, source) pair the brief budget reasons
+// about, so the selection is shared by the claim path (db.AgentMemory rows)
+// and the list endpoint (db.ListAgentMemoriesRow rows) without either owning
+// the rule.
+type AgentMemoryFact struct {
+	Content string
+	Source  string
+}
+
+// SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
+// brief carries, still newest-first. Everything fits until the character
+// budget is spent; past it the remaining source='run' facts — the oldest ones,
+// which a later run can learn again — are dropped, while facts a human pinned
+// ("manual") or a postmortem wrote ("postmortem") are always kept.
+func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
+	kept := make([]AgentMemoryFact, 0, len(facts))
+	used := 0
+	for _, f := range facts {
+		if used >= AgentMemoryBriefCharBudget && f.Source == "run" {
+			continue
+		}
+		used += len(f.Content)
+		kept = append(kept, f)
+	}
+	return kept
+}
+
+// LoadAgentMemories returns the contents of an agent's memory facts (JEF-236),
+// in chronological order for the brief. SQL returns them newest-first, capped
+// at the same 200 the write path enforces; SelectBriefedAgentMemories then
+// applies the character budget and the reverse happens here so the prompt
+// reads oldest → newest, matching how the facts were learned.
+//
+// Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
+// context, not executable rules, so a missing section is plainly visible in
+// the brief and the claim continues without it (see buildClaimedTaskResponse).
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
+		AgentID:     agentID,
+		WorkspaceID: workspaceID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list agent memories: %w", err)
+	}
+	facts := make([]AgentMemoryFact, len(rows))
+	for i, row := range rows {
+		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source}
+	}
+	briefed := SelectBriefedAgentMemories(facts)
+	contents := make([]string, 0, len(briefed))
+	for i := len(briefed) - 1; i >= 0; i-- {
+		contents = append(contents, briefed[i].Content)
+	}
+	return contents, nil
+}
+
+// workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with
+// the pinned ones. Pinned notes are the workspace's explicit "always know
+// this" set and are never dropped here; the byte budget in execenv is the
+// backstop that keeps a large Brain from filling the workdir.
+const workspaceBriefNoteRecentLimit = 20
+
+// workspaceBriefNoteFetchLimit bounds the single query behind the split above.
+const workspaceBriefNoteFetchLimit = 200
+
+// LoadWorkspaceNotesForBrief returns the workspace Brain notes to inject into
+// one run: every pinned note, then the 20 most recently updated others.
+// Archived notes never reach a run.
+//
+// Like LoadAgentMemories this is NOT fail-closed: knowledge is briefing
+// context, not executable rules, so a failed read costs the run its Workspace
+// Knowledge section and nothing else.
+func (s *TaskService) LoadWorkspaceNotesForBrief(ctx context.Context, workspaceID pgtype.UUID) ([]db.WorkspaceNote, error) {
+	rows, err := s.Queries.ListPinnedAndRecentWorkspaceNotesForBrief(ctx, db.ListPinnedAndRecentWorkspaceNotesForBriefParams{
+		WorkspaceID: workspaceID,
+		NoteLimit:   workspaceBriefNoteFetchLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list workspace notes: %w", err)
+	}
+	// SQL orders pinned first, then newest. Keep every pinned note and cap the
+	// tail, which is exactly the split the product promises.
+	notes := make([]db.WorkspaceNote, 0, len(rows))
+	recent := 0
+	for _, row := range rows {
+		if !row.Pinned {
+			if recent >= workspaceBriefNoteRecentLimit {
+				break
+			}
+			recent++
+		}
+		notes = append(notes, row)
+	}
+	return notes, nil
+}
+
 // skillsWithFiles loads the files of every given skill in ONE round trip
 // instead of one query per skill, and assembles the result in the order the
 // skills were given. Shared by the claim-time full load and the resolve-time
@@ -7021,8 +7531,34 @@ func (s *TaskService) publishTaskEvent(eventType, workspaceID string, task db.Ag
 }
 
 func (s *TaskService) broadcastTaskEvent(ctx context.Context, eventType string, task db.AgentTaskQueue, extra ...map[string]any) {
+	s.settleBudgetAfterTerminal(ctx, eventType, task)
 	workspaceID := s.ResolveTaskWorkspaceID(ctx, task)
 	s.publishTaskEvent(eventType, workspaceID, task, extra...)
+}
+
+func (s *TaskService) settleBudgetAfterTerminal(ctx context.Context, eventType string, task db.AgentTaskQueue) {
+	if s.Budget == nil {
+		return
+	}
+	consume := false
+	switch eventType {
+	case protocol.EventTaskCompleted:
+		consume = true
+	case protocol.EventTaskCancelled, protocol.EventTaskFailed:
+	default:
+		return
+	}
+	changed, err := s.Budget.settleOne(ctx, task.ID, consume)
+	if err != nil {
+		slog.Warn("budget settlement deferred to reconciliation", "task_id", util.UUIDToString(task.ID), "error", err)
+		return
+	}
+	if !changed {
+		return
+	}
+	if scope, err := s.Queries.GetTaskBudgetScope(ctx, task.ID); err == nil {
+		s.Budget.NotifyBudgetChange(ctx, scope.WorkspaceID)
+	}
 }
 
 // taskFailedFields adds the terminal failure context required by channel
@@ -7046,6 +7582,7 @@ func (s *TaskService) publishTaskFailedEvent(workspaceID string, task db.AgentTa
 }
 
 func (s *TaskService) broadcastTaskFailedEvent(ctx context.Context, task db.AgentTaskQueue, errMsg, failureReason string, retryPending bool) {
+	s.settleBudgetAfterTerminal(ctx, protocol.EventTaskFailed, task)
 	workspaceID := s.ResolveTaskWorkspaceID(ctx, task)
 	s.publishTaskFailedEvent(workspaceID, task, errMsg, failureReason, retryPending)
 }
@@ -7191,6 +7728,17 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 	if err != nil {
 		return
 	}
+	// "Show me first" (K69): a preview-mode agent's own comment waits for
+	// approval like any other write; system notes about the run still post.
+	if commentType == "comment" && sourceTaskID.Valid && RunHoldsEffects(ctx, s.Queries, agentID, sourceTaskID) {
+		if _, err := RecordPendingAgentEffect(ctx, s.Queries, AgentEffectParams{
+			WorkspaceID: issue.WorkspaceID, TaskID: sourceTaskID, AgentID: agentID, IssueID: issueID,
+			Kind: EffectCommentCreate, TargetType: "issue", TargetID: issueID, After: map[string]any{"type": commentType, "excerpt": excerpt(content, 200)}, Reversible: true,
+		}, map[string]any{"content": content, "type": commentType, "parent_id": uuidPtrString(parentID)}); err != nil {
+			slog.Warn("agent effect: record pending comment failed", "task_id", util.UUIDToString(sourceTaskID), "error", err)
+		}
+		return
+	}
 	// Resolve the thread root for thread-level side effects without overwriting
 	// parentID. The stored parent_id must remain the exact comment being replied
 	// to; recursive thread reads recover the root when needed.
@@ -7218,6 +7766,9 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 		return
 	}
 	comment := created.Comment()
+	// Undo (K69): the run's own comment is journaled like one posted through the API.
+	RecordAgentEffect(ctx, s.Queries, AgentEffectParams{WorkspaceID: issue.WorkspaceID, TaskID: sourceTaskID, AgentID: agentID, IssueID: issueID,
+		Kind: EffectCommentCreate, TargetType: "comment", TargetID: comment.ID, After: map[string]any{"type": commentType}, Reversible: true})
 	s.CancelDeferredEscalationsForIssueAgent(ctx, issueID, agentID)
 	commentFields := commentEventFields(comment)
 	commentFields["revision"] = comment.Revision
@@ -7333,14 +7884,21 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		// — clients localize those from the key — and a CUSTOM one is filled in
 		// by IssueToMapResolved, which has the catalog. Emitted unconditionally
 		// so this rendering cannot lose a key the HTTP one carries. (MUL-6749)
-		"status_name":      "",
-		"priority":         issue.Priority,
-		"assignee_type":    util.TextToPtr(issue.AssigneeType),
-		"assignee_id":      util.UUIDToPtr(issue.AssigneeID),
-		"creator_type":     issue.CreatorType,
-		"creator_id":       util.UUIDToString(issue.CreatorID),
-		"parent_issue_id":  util.UUIDToPtr(issue.ParentIssueID),
-		"project_id":       util.UUIDToPtr(issue.ProjectID),
+		"status_name":     "",
+		"priority":        issue.Priority,
+		"assignee_type":   util.TextToPtr(issue.AssigneeType),
+		"assignee_id":     util.UUIDToPtr(issue.AssigneeID),
+		"creator_type":    issue.CreatorType,
+		"creator_id":      util.UUIDToString(issue.CreatorID),
+		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),
+		"project_id":      util.UUIDToPtr(issue.ProjectID),
+		"goal_id":         util.UUIDToPtr(issue.GoalID),
+		// Mirrors handler.IssueResponse.OriginType / OriginID: what produced
+		// the issue when it was not typed by hand. Emitted unconditionally
+		// here, like status_name, so this rendering cannot lose a key the
+		// HTTP one carries.
+		"origin_type":      util.TextToPtr(issue.OriginType),
+		"origin_id":        util.UUIDToPtr(issue.OriginID),
 		"position":         issue.Position,
 		"stage":            util.Int4ToPtr(issue.Stage),
 		"start_date":       util.DateToPtr(issue.StartDate),
@@ -7717,4 +8275,37 @@ func agentToMap(a db.Agent) map[string]any {
 		"archived_at":          util.TimestampToPtr(a.ArchivedAt),
 		"archived_by":          util.UUIDToPtr(a.ArchivedBy),
 	}
+}
+
+func excerpt(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
+func uuidPtrString(u pgtype.UUID) any {
+	if !u.Valid {
+		return nil
+	}
+	return util.UUIDToString(u)
+}
+
+// recordChatReplyEffect journals the run's chat reply (K69): a channel-bound
+// session delivered it to the provider, so a human can retract it with a
+// corrective message in the same thread.
+func (s *TaskService) recordChatReplyEffect(ctx context.Context, task db.AgentTaskQueue, msg *db.ChatMessage) {
+	if msg == nil || strings.TrimSpace(msg.Content) == "" || !task.AgentID.Valid {
+		return
+	}
+	wsID, err := util.ParseUUID(s.ResolveTaskWorkspaceID(ctx, task))
+	if err != nil {
+		return
+	}
+	RecordAgentEffect(ctx, s.Queries, AgentEffectParams{
+		WorkspaceID: wsID, TaskID: task.ID, AgentID: task.AgentID,
+		Kind: EffectChatMessage, TargetType: "chat_message", TargetID: msg.ID,
+		Before: map[string]any{}, After: map[string]any{"chat_session_id": util.UUIDToString(task.ChatSessionID), "excerpt": excerpt(msg.Content, 200)},
+		Reversible: true,
+	})
 }

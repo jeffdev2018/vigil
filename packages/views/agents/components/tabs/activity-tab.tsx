@@ -7,6 +7,7 @@ import {
   CircleHelp,
   Hash,
   MessageSquare,
+  Sparkles,
   Workflow,
   X,
 } from "lucide-react";
@@ -706,6 +707,18 @@ function TaskRow({
               />
             </>
           )}
+          {/* Smart routing (JEF-237): the router placed this run — mark it so
+              "why did this run on another machine" is answerable from the
+              row itself; the transcript carries the reason. */}
+          {task.routing?.mode === "auto" && (
+            <>
+              <Sep />
+              <span className="inline-flex items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-micro font-medium text-muted-foreground">
+                <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
+                {t(($) => $.tab_body.activity.routing_auto_badge)}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
@@ -811,6 +824,10 @@ function taskStatusLabel(status: AgentTask["status"], t: AgentsT): string {
       return t(($) => $.tab_body.activity.status.failed);
     case "cancelled":
       return t(($) => $.tab_body.activity.status.cancelled);
+    default:
+      // Server-driven enum: a status this build predates (deferred, or a
+      // future one) shows its wire name rather than an empty cell.
+      return status;
   }
 }
 

@@ -44,6 +44,8 @@ type ProjectResponse struct {
 	// payload to keep parent metadata and child collections separate; clients
 	// that need the list call ListProjectResources directly.
 	ResourceCount int64 `json:"resource_count"`
+	// GoalIDs (K74) are the goals the project serves; its issues inherit them.
+	GoalIDs []string `json:"goal_ids"`
 }
 
 func projectToResponse(p db.Project) ProjectResponse {
@@ -61,6 +63,7 @@ func projectToResponse(p db.Project) ProjectResponse {
 		DueDate:     dateToPtr(p.DueDate),
 		CreatedAt:   timestampToString(p.CreatedAt),
 		UpdatedAt:   timestampToString(p.UpdatedAt),
+		GoalIDs:     []string{},
 	}
 }
 
@@ -109,6 +112,8 @@ type CreateProjectRequest struct {
 	StartDate   *string                               `json:"start_date"`
 	DueDate     *string                               `json:"due_date"`
 	Resources   []CreateProjectResourceRequestPayload `json:"resources,omitempty"`
+	// OrgTemplate (K75) seeds a draft org structure for the project from one of the seven models.
+	OrgTemplate string `json:"org_template,omitempty"`
 }
 
 // CreateProjectResourceRequestPayload mirrors CreateProjectResourceRequest but
@@ -184,9 +189,13 @@ func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	goalLinks := h.projectGoalIDsByProject(r.Context(), wsUUID)
 	resp := make([]ProjectResponse, len(projects))
 	for i, p := range projects {
 		resp[i] = projectToResponse(p)
+		if g := goalLinks[resp[i].ID]; g != nil {
+			resp[i].GoalIDs = g
+		}
 		if s, ok := statsMap[resp[i].ID]; ok {
 			resp[i].IssueCount = s.TotalCount
 			resp[i].DoneCount = s.DoneCount
@@ -217,6 +226,7 @@ func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	resp := projectToResponse(project)
 	resp.IssueCount, resp.DoneCount = h.loadProjectIssueStats(r.Context(), wsUUID, project.ID)
 	resp.ResourceCount = h.loadProjectResourceCount(r.Context(), project.ID)
+	resp.GoalIDs = h.projectGoalIDs(r.Context(), wsUUID, project.ID)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -298,6 +308,10 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace_id")
 	if !ok {
+		return
+	}
+	// Business rules (K53): the workspace as it will be with this project.
+	if !h.projectCreateAllowed(w, r, wsUUID) {
 		return
 	}
 
@@ -388,6 +402,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp := projectToResponse(project)
+		if req.OrgTemplate != "" {
+			h.seedProjectOrg(r.Context(), wsUUID, project.ID, req.OrgTemplate, userID)
+		}
 		h.publish(protocol.EventProjectCreated, workspaceID, "member", userID, map[string]any{"project": resp})
 		writeJSON(w, http.StatusCreated, resp)
 		return
@@ -449,6 +466,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := projectToResponse(project)
 	resp.ResourceCount = int64(len(resourceResp))
+	if req.OrgTemplate != "" {
+		h.seedProjectOrg(r.Context(), wsUUID, project.ID, req.OrgTemplate, userID)
+	}
 	h.publish(protocol.EventProjectCreated, workspaceID, "member", userID, map[string]any{"project": resp})
 	for _, rr := range resourceResp {
 		h.publish(protocol.EventProjectResourceCreated, workspaceID, "member", userID, map[string]any{
@@ -653,6 +673,10 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		ScopeID:     project.ID,
 	}); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete project views")
+		return
+	}
+	if err := qtx.DeleteProjectGoalsByProject(r.Context(), db.DeleteProjectGoalsByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to detach project goals")
 		return
 	}
 	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{

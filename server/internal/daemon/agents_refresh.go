@@ -2,6 +2,8 @@ package daemon
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"time"
@@ -665,4 +667,60 @@ func (d *Daemon) convergeRuntimeRegistrations(ctx context.Context) {
 	if changed {
 		d.notifyRuntimeSetChanged()
 	}
+}
+
+// skippedAgentsFingerprint is a stable content hash of a skip set. Map
+// iteration order is random, so the keys are sorted before hashing; an empty
+// set hashes to "" so "nothing skipped" is distinguishable from "not computed".
+func skippedAgentsFingerprint(skipped map[string]string) string {
+	if len(skipped) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(skipped))
+	for name := range skipped {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	h := sha256.New()
+	for _, name := range names {
+		h.Write([]byte(name))
+		h.Write([]byte{0})
+		h.Write([]byte(skipped[name]))
+		h.Write([]byte{0})
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// pendingSkippedAgents reports the skip set a heartbeat for runtimeID should
+// carry, or nil when the server already holds this exact set. A set that
+// emptied since the last send returns a non-nil EMPTY map, so the server
+// clears the diagnostic instead of keeping the stale one.
+//
+// The fingerprint is returned rather than recorded here: only a heartbeat the
+// server actually accepted may mark the set as sent.
+func (d *Daemon) pendingSkippedAgents(runtimeID string) (map[string]string, string, bool) {
+	skipped := d.skippedAgentsSnapshot()
+	fingerprint := skippedAgentsFingerprint(skipped)
+
+	d.skippedAgentsSentMu.Lock()
+	sent, known := d.skippedAgentsSent[runtimeID]
+	d.skippedAgentsSentMu.Unlock()
+	if known && sent == fingerprint {
+		return nil, fingerprint, false
+	}
+	if skipped == nil {
+		skipped = map[string]string{}
+	}
+	return skipped, fingerprint, true
+}
+
+// markSkippedAgentsSent records that the server accepted this skip set for
+// runtimeID, so later heartbeats stay silent until it changes again.
+func (d *Daemon) markSkippedAgentsSent(runtimeID, fingerprint string) {
+	d.skippedAgentsSentMu.Lock()
+	defer d.skippedAgentsSentMu.Unlock()
+	if d.skippedAgentsSent == nil {
+		d.skippedAgentsSent = make(map[string]string)
+	}
+	d.skippedAgentsSent[runtimeID] = fingerprint
 }
