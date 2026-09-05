@@ -680,6 +680,9 @@ export const RuntimeSchema: z.ZodType<RuntimeDevice> = z.object({
   workspace_id: z.string().default(""),
   daemon_id: z.string().nullable().default(null),
   name: z.string().default(""),
+  // User-set alias (MUL-4217). Absent on an older backend — `runtimeDisplayName`
+  // treats null/blank as "use name".
+  custom_name: z.string().nullable().default(null),
   runtime_mode: z.string().catch("local") as unknown as z.ZodType<
     RuntimeDevice["runtime_mode"]
   >,

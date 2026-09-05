@@ -99,6 +99,7 @@ const NAV_ITEMS: NavItem[] = [
     badge: "postmortem",
   },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
+  { label: "Runtimes", icon: "desktopcomputer", path: "/more/runtimes" },
 ];
 
 export function MoreTabDropdownAnchor({

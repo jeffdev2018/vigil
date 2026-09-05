@@ -346,6 +346,16 @@ export default function WorkspaceLayout() {
           name="meeting/[id]"
           options={{ title: "Meeting", headerBackTitle: "Meetings" }}
         />
+        {/* Runtimes. Read-only: every runtime action targets the machine the
+            daemon runs on, not a phone. */}
+        <Stack.Screen
+          name="more/runtimes"
+          options={{ title: "Runtimes", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="runtime/[id]"
+          options={{ title: "Machine", headerBackTitle: "Runtimes" }}
+        />
         <Stack.Screen
           name="more/settings"
           options={{ title: "Settings", headerBackTitle: "Back" }}
