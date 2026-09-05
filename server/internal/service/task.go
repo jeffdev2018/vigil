@@ -103,6 +103,11 @@ type TaskService struct {
 	// with no MULTICA_LLM_* configuration. Wired in handler.New from the same
 	// *llm.Client that backs chat auto-titling and memory extraction.
 	Postmortem PostmortemLLM
+	// BrainCuration powers the daily workspace Brain curation pass. Optional:
+	// nil (or a disabled client) makes the pass a logged no-op, which is the
+	// expected state for a self-hosted deployment with no MULTICA_LLM_*
+	// configuration. Wired in handler.New from the same *llm.Client.
+	BrainCuration WorkspaceNoteCurationLLM
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built

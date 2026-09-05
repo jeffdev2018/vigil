@@ -793,6 +793,12 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.ExpireStaleTriageItems)); err != nil {
 		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
 	}
+	// Workspace Brain: a daily pass merges near-duplicate notes, retitles the
+	// vague ones, normalizes tags and archives what stopped being true. Inert
+	// without an assist-layer LLM.
+	if err := schedulerMgr.Register(scheduler.WorkspaceBrainCurationJob(pool, h.TaskService.CurateWorkspaceBrains)); err != nil {
+		slog.Warn("scheduler: failed to register workspace_brain_curation job", "error", err)
+	}
 	// Refactoring campaigns (K42): merge queues move without a board read.
 	if err := schedulerMgr.Register(scheduler.CampaignMergeQueueJob(pool, h.AdvanceCampaignMergeQueues)); err != nil {
 		slog.Warn("scheduler: failed to register campaign_merge_queue job", "error", err)
