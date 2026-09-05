@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/integrations/channel/engine"
 	"github.com/multica-ai/multica/server/internal/triage"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -100,4 +101,64 @@ func (h *Handler) onTriageParked(ctx context.Context, item db.TriageItem, source
 		return
 	}
 	h.ApplyTriageRules(ctx, item)
+}
+
+// AdmitChannelIssue implements engine.TriageGate: a `/issue` command typed in
+// Slack, Telegram, Lark, DingTalk or WeCom is inbound material like any other
+// delivery, so it answers to a triage source of its own — one per installed
+// channel, keyed on the installation. Default direct, so nothing changes for a
+// workspace that never configures the queue; the issue is still recorded as a
+// shadow item so the source shows up in the queue's stats with real volume.
+func (h *Handler) AdmitChannelIssue(ctx context.Context, in engine.ChannelIssueAdmission) engine.TriageDecision {
+	if !in.WorkspaceID.Valid || !in.InstallationID.Valid {
+		return engine.TriageAdmit
+	}
+	ref := triageSourceRef{
+		Kind:      triage.SourceChannel,
+		RefID:     in.InstallationID,
+		Name:      channelSourceName(in.ChannelType),
+		CreatedBy: in.CreatorUserID,
+	}
+	params := triage.CaptureParams{
+		WorkspaceID:     in.WorkspaceID,
+		SourceKind:      ref.Kind,
+		SourceRefID:     ref.RefID,
+		SourceName:      ref.Name,
+		SourceCreatedBy: ref.CreatedBy,
+		OriginType:      in.OriginType,
+		OriginID:        in.OriginID,
+		Title:           in.Title,
+		BodyMarkdown:    in.Description,
+		State:           triage.StatePending,
+	}
+
+	switch h.triageRouteFor(ctx, in.WorkspaceID, ref) {
+	case triage.RouteQueue:
+		if _, ok := h.captureTriageInbound(ctx, params); !ok {
+			// Holding must never cost the report: a capture that failed
+			// degrades to the ordinary create path.
+			return engine.TriageAdmit
+		}
+		return engine.TriageHeld
+	case triage.RouteDrop:
+		params.State = triage.StateDropped
+		params.DropReason = "source_blocked"
+		h.captureTriageInbound(ctx, params)
+		return engine.TriageRefused
+	}
+
+	// Direct: the issue is created by the caller. Record the shadow
+	// measurement so the source has volume in the queue's stats.
+	params.Shadow = true
+	h.captureTriageInbound(ctx, params)
+	return engine.TriageAdmit
+}
+
+// channelSourceName labels the source in the queue UI. The platform name is
+// all a human needs to recognize it; the installation id is already the ref.
+func channelSourceName(channelType string) string {
+	if channelType == "" {
+		return "Channel"
+	}
+	return "Channel: " + channelType
 }

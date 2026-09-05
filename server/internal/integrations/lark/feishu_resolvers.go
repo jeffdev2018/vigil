@@ -310,6 +310,7 @@ func dispatchResultFromEngine(res engine.Result) DispatchResult {
 		IssueTitle:         res.IssueTitle,
 		IssueDuplicate:     res.IssueDuplicate,
 		IssueUsageHadMedia: res.IssueUsageHadMedia,
+		IssueHeld:          res.IssueHeld,
 	}
 }
 
