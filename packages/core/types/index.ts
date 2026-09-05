@@ -146,6 +146,13 @@ export type {
   PostmortemStats,
   PostmortemsResponse,
 } from "./postmortem";
+export type {
+  WorkspaceNote,
+  WorkspaceNoteSource,
+  WorkspaceNotesResponse,
+  CreateWorkspaceNoteInput,
+  UpdateWorkspaceNoteInput,
+} from "./workspace-note";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";

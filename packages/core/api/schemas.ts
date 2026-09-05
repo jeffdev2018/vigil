@@ -57,6 +57,8 @@ import type {
   MeetingSegmentResponse,
   PostmortemStats,
   PostmortemsResponse,
+  WorkspaceNote,
+  WorkspaceNotesResponse,
   Label,
   AgentMemory,
   MemberWithUser,
@@ -1618,6 +1620,51 @@ export const EMPTY_POSTMORTEM_STATS: PostmortemStats = Object.freeze({
   approved: 0,
   discarded: 0,
 }) as PostmortemStats;
+
+// Workspace Brain. One shared knowledge note; `revision` is the
+// optimistic-concurrency token the PATCH must send back.
+export const WorkspaceNoteSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  title: z.string().default(""),
+  content: z.string().default(""),
+  tags: z.array(z.string()).default([]),
+  source: z.string().default("manual"),
+  source_task_id: z.string().nullable().optional(),
+  source_agent_id: z.string().nullable().optional(),
+  pinned: z.boolean().default(false),
+  archived_at: z.string().nullable().optional(),
+  merged_into: z.string().nullable().optional(),
+  created_by_type: z.string().default("member"),
+  created_by_id: z.string().nullable().optional(),
+  revision: z.number().default(0),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const WorkspaceNotesResponseSchema = z.object({
+  items: z.array(WorkspaceNoteSchema).default([]),
+  tags: z.array(z.string()).default([]),
+}).loose();
+
+export const EMPTY_WORKSPACE_NOTES_RESPONSE: WorkspaceNotesResponse = Object.freeze({
+  items: [],
+  tags: [],
+}) as WorkspaceNotesResponse;
+
+export const EMPTY_WORKSPACE_NOTE: WorkspaceNote = Object.freeze({
+  id: "",
+  workspace_id: "",
+  title: "",
+  content: "",
+  tags: [],
+  source: "manual",
+  pinned: false,
+  created_by_type: "member",
+  revision: 0,
+  created_at: "",
+  updated_at: "",
+}) as WorkspaceNote;
 
 export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
   items: [],

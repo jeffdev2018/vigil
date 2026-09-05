@@ -99,7 +99,10 @@ export type WSEventType =
   | "triage:new"
   | "triage:resolved"
   | "postmortem:created"
-  | "postmortem:resolved";
+  | "postmortem:resolved"
+  | "workspace_note:created"
+  | "workspace_note:updated"
+  | "workspace_note:deleted";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;

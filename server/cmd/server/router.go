@@ -2041,6 +2041,20 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
 			// Postmortems (k68). List/get/stats are member-readable; approve and
 			// discard are human-only — a postmortem's fate is a human decision.
+			// Workspace Brain: shared knowledge notes. Every member reads
+			// and writes; delete is narrower (see DeleteWorkspaceNote).
+			// Agent runs reach the same routes with a task token.
+			r.Route("/api/workspace/notes", func(r chi.Router) {
+				r.Get("/", h.ListWorkspaceNotes)
+				r.Post("/", h.CreateWorkspaceNote)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetWorkspaceNote)
+					r.Patch("/", h.UpdateWorkspaceNote)
+					r.Delete("/", h.DeleteWorkspaceNote)
+					r.Post("/archive", h.ArchiveWorkspaceNote)
+					r.Post("/unarchive", h.UnarchiveWorkspaceNote)
+				})
+			})
 			r.Route("/api/postmortems", func(r chi.Router) {
 				r.Get("/", h.GetPostmortems)
 				r.Get("/stats", h.GetPostmortemsStats)
