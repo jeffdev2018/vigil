@@ -77,6 +77,7 @@ import { LabelChip } from "../../labels/label-chip";
 import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { SubIssuesAgentWorkingChip } from "./sub-issues-agent-working-chip";
 import { ProjectPicker } from "../../projects/components/project-picker";
+import { GoalPicker } from "../../goals/components/goal-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { CommentCard } from "./comment-card";
 import { MeetingOriginLink } from "./meeting-origin-link";
@@ -2363,6 +2364,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               projectId={issue.project_id}
               onUpdate={handleUpdateField}
             />
+          </PropRow>
+          <PropRow label={t(($) => $.detail.prop_goal)}>
+            <div className="flex min-w-0 items-center gap-2">
+              <GoalPicker goalId={issue.goal_id ?? null} onUpdate={handleUpdateField} />
+              {!issue.goal_id && (breadcrumbProject?.goal_ids?.length ?? 0) > 0 && (
+                <span className="text-caption text-muted-foreground">{t(($) => $.detail.goal_inherited)}</span>
+              )}
+            </div>
           </PropRow>
 
           {/* Optional props — rendered only when set on the issue OR added

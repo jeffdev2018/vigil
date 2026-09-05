@@ -56,6 +56,8 @@ type MorningBriefingResponse struct {
 	Narrative string `json:"narrative,omitempty"`
 	// ChannelsDelivered (K64) lists where the day's briefing went ("inbox", "slack", …).
 	ChannelsDelivered []string `json:"channels_delivered,omitempty"`
+	// Goals (K74): the active goals with their progress, nearest due first.
+	Goals []BriefingGoal `json:"goals,omitempty"`
 	// TriagePending counts the queue's undecided items. A counter, not a
 	// section: the briefing is about issues, and the queue's own page is
 	// where anyone acts on it. Omitted when the queue is empty.
@@ -172,6 +174,7 @@ func (h *Handler) composeBriefing(ctx context.Context, wsID pgtype.UUID, now tim
 		}
 	}
 	out.TriagePending = h.countPendingTriage(ctx, wsID)
+	out.Goals = h.briefingGoals(ctx, wsID)
 	out.Merged, out.AwaitingReview, out.Blocked = cap25(out.Merged), cap25(out.AwaitingReview), cap25(out.Blocked)
 	out.Narrative = h.narrateBriefing(ctx, out)
 	return out, nil

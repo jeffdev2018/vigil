@@ -448,6 +448,10 @@ type AgentTaskResponse struct {
 	// servers; a daemon that predates it writes the brief it always did.
 	GoalAncestry        []GoalAncestryNode `json:"goal_ancestry,omitempty"`
 	GoalAncestryOmitted int                `json:"goal_ancestry_omitted,omitempty"`
+	// MissionChain (K74) is the goal chain the issue serves, mission first:
+	// the goal it names or inherits from its project, up to the root. Omitted
+	// when the issue serves no goal and by older servers.
+	MissionChain []MissionChainNode `json:"mission_chain,omitempty"`
 	// WorkspaceNotes are the workspace Brain notes this run gets: every pinned
 	// note plus the most recently updated others. The daemon writes them as
 	// files under .multica/knowledge. Workspace-scoped, so unlike the agent's

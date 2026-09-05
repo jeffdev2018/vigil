@@ -225,6 +225,7 @@ export function useIssueSurfaceController({
   const creatorFilters = useViewStore((s) => s.creatorFilters);
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
+  const goalFilters = useViewStore((s) => s.goalFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const agentRunningFilter = useViewStore((s) => s.agentRunningFilter);
@@ -406,6 +407,7 @@ export function useIssueSurfaceController({
     creatorFilters.length > 0 ||
     viewProjectFilters.length > 0 ||
     viewIncludeNoProject ||
+    goalFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.keys(effectivePropertyFilters).length > 0 ||
     dateFilter != null ||
@@ -741,6 +743,7 @@ export function useIssueSurfaceController({
     creatorFilters,
     projectFilters: viewProjectFilters,
     includeNoProject: viewIncludeNoProject,
+    goalFilters,
     labelFilters,
     propertyFilters: effectivePropertyFilters,
     workingIssueIDs,

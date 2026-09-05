@@ -2184,6 +2184,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/scan", h.ScanIssueWatchdogNow)
 			})
 			r.Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
+			// Goals with ancestry (K74).
+			r.Route("/api/goals", func(r chi.Router) {
+				r.Get("/", h.ListGoals)
+				r.Post("/", h.CreateGoal)
+				r.Get("/{id}", h.GetGoal)
+				r.Put("/{id}", h.UpdateGoal)
+				r.Delete("/{id}", h.DeleteGoal)
+			})
+			r.Post("/api/issues/{id}/goal-proposal", h.ProposeIssueGoal)
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
@@ -2358,6 +2367,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
 					r.Get("/decisions", h.ListProjectDecisions)
+					// Goals (K74): the goals a project serves.
+					r.Put("/goals", h.SetProjectGoals)
 					// Blast radius (K07): autonomy by path pattern.
 					r.Get("/blast-radius-rules", h.ListBlastRadiusRules)
 					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)

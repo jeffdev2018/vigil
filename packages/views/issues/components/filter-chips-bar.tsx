@@ -8,6 +8,7 @@ import {
   CalendarDays,
   CircleDot,
   FolderKanban,
+  Target,
   SignalHigh,
   Tag,
   User,
@@ -19,6 +20,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { memberListOptions, agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { goalListOptions } from "@multica/core/goals";
 import { labelListOptions } from "@multica/core/labels/queries";
 import { propertyListOptions } from "@multica/core/properties";
 import { isActorPropertyType, isScalarPropertyType, parseActorRef, propertyFilterValueKey, PROPERTY_FILTER_OP_SYMBOLS, type PropertyFilterValue } from "@multica/core/types";
@@ -191,6 +193,7 @@ function useFilterChips(
   const creatorFilters = useViewStore((s) => s.creatorFilters);
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
+  const goalFilters = useViewStore((s) => s.goalFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const store = useViewStoreApi();
@@ -203,6 +206,7 @@ function useFilterChips(
     creatorFilters.length > 0 ||
     projectFilters.length > 0 ||
     includeNoProject ||
+    goalFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.values(propertyFilters).some((selected) => selected.length > 0);
   const showDateChip = !!onDateFilterChange && !!dateFilter;
@@ -240,6 +244,10 @@ function useFilterChips(
   const { data: labels = [] } = useQuery({
     ...labelListOptions(wsId),
     enabled: enabled && labelFilters.length > 0,
+  });
+  const { data: goals = [] } = useQuery({
+    ...goalListOptions(wsId),
+    enabled: enabled && goalFilters.length > 0,
   });
   const actorName = useMemo(
     () => buildChipActorNames(members, agents, squads),
@@ -293,6 +301,10 @@ function useFilterChips(
         break;
       case "label":
         s.resetFiltersTo({ ...current, labelFilters: raw.labelFilters });
+        break;
+      case "goal":
+        // Saved views never fix a goal, so there is nothing to fall back to.
+        s.clearFilterDimension("goal");
         break;
       default: {
         const propertyId = dimension.slice("property:".length);
@@ -430,6 +442,16 @@ function useFilterChips(
         ) : undefined,
       value: summarize(names),
       onRemove: () => clearDimension("project"),
+    });
+  }
+  if (goalFilters.length > 0) {
+    const goalById = new Map(goals.map((g) => [g.id, g]));
+    chips.push({
+      key: "goal",
+      icon: <Target className={CHIP_ICON_CLASS} />,
+      label: t(($) => $.filters.section_goal),
+      value: summarize(goalFilters.map((id) => goalById.get(id)?.title)),
+      onRemove: () => clearDimension("goal"),
     });
   }
   if (deltaLabels.length > 0) {

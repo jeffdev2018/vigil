@@ -313,6 +313,10 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if h.applyWatchdogForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
 	}
+	// Goals (K74): an agent's attachment proposal lands or not, no resume.
+	if h.applyGoalForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
 		if interview != nil {

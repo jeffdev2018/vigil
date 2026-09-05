@@ -1326,6 +1326,8 @@ export const IssueSchema = z.object({
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
+  // Goals (K74) predate older backends; absent parses to null.
+  goal_id: z.string().nullable().optional().default(null),
   // Detail-only, and absent on an older backend. Absent means "not resolved
   // here", so consumers must not read it as "no origin".
   origin_type: z.string().nullish(),
@@ -1821,6 +1823,7 @@ const ProjectSchema = z.object({
   issue_count: z.number().default(0),
   done_count: z.number().default(0),
   resource_count: z.number().default(0),
+  goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
 const SearchProjectResultSchema = ProjectSchema.extend({
@@ -5243,4 +5246,34 @@ export const WorkProfileSchema = z.object({
   overturned: z.number().catch(0).default(0),
   review_load_seconds: z.number().catch(0).default(0),
   adaptation_surface: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Goals with ancestry (K74).
+const GoalStatusSchema = z.enum(["draft", "active", "done", "dropped"]).catch("draft");
+export const GoalSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  parent_goal_id: z.string().nullable().catch(null).default(null),
+  title: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  success_measure: z.string().catch("").default(""),
+  due_date: z.string().nullable().catch(null).default(null),
+  owner_id: z.string().nullable().catch(null).default(null),
+  status: GoalStatusSchema.default("draft"),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const ListGoalsResponseSchema = z.object({
+  goals: z.array(GoalSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+export const GoalDetailResponseSchema = z.object({
+  goal: GoalSchema,
+  issues: z.array(IssueSchema).catch([]).default([]),
+}).loose();
+export const ProjectGoalsResponseSchema = z.object({
+  goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();

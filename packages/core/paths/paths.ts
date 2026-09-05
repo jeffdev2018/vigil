@@ -33,6 +33,8 @@ function workspaceScoped(slug: string) {
     issueReview: (id: string) => `${ws}/issues/${encode(id)}/review`,
     projects: () => `${ws}/projects`,
     projectDetail: (id: string) => `${ws}/projects/${encode(id)}`,
+    // Goals with ancestry (K74): the tree every project and issue serves.
+    goals: () => `${ws}/goals`,
     autopilots: () => `${ws}/autopilots`,
     autopilotDetail: (id: string) => `${ws}/autopilots/${encode(id)}`,
     agents: () => `${ws}/agents`,

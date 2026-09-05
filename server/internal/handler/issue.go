@@ -70,6 +70,8 @@ type IssueResponse struct {
 	CreatorID     string  `json:"creator_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
 	ProjectID     *string `json:"project_id"`
+	// GoalID (K74) is the goal the issue names itself; absent means it inherits its project's.
+	GoalID *string `json:"goal_id"`
 	// OriginType / OriginID record what produced the issue when it was not
 	// typed by hand — today "meeting" (accepting an action item a recording
 	// extracted) and the other triage origins. Omitted, like status_category,
@@ -324,6 +326,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
@@ -363,6 +366,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -432,6 +436,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
+		GoalID:         uuidToPtr(i.GoalID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -870,7 +875,7 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position,
 		i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id,
-		i.revision,
+		i.revision, i.goal_id,
 		COUNT(*) OVER() AS total_count,
 		%s AS match_source,
 		%s AS matched_comment_content
@@ -970,6 +975,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 				&sr.issue.Number,
 				&sr.issue.ProjectID,
 				&sr.issue.Revision,
+				&sr.issue.GoalID,
 				&sr.totalCount,
 				&sr.matchSource,
 				&sr.matchedCommentContent,
@@ -1111,6 +1117,14 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		projectFilter = id
 	}
+	var goalFilter pgtype.UUID
+	if g := r.URL.Query().Get("goal_id"); g != "" {
+		id, ok := parseUUIDOrBadRequest(w, g, "goal_id")
+		if !ok {
+			return
+		}
+		goalFilter = id
+	}
 	// involves_user_id widens the assignee filter to surface issues where the
 	// user is the indirect assignee (their owned agent, or a squad they belong
 	// to / lead / have an agent inside). Direct member-assignment is excluded
@@ -1164,6 +1178,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			AssigneeIds:        assigneeIdsFilter,
 			CreatorID:          creatorFilter,
 			ProjectID:          projectFilter,
+			GoalID:             goalFilter,
 			InvolvesUserID:     involvesUserFilter,
 			MetadataFilter:     metadataFilter,
 			PropertiesFilter:   openPropertiesFilter,
@@ -1355,6 +1370,9 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	if projectFilter.Valid {
 		where = append(where, fmt.Sprintf("i.project_id = %s::uuid", addArg(projectFilter)))
 	}
+	if goalFilter.Valid {
+		where = append(where, goalFilterSQL(addArg(goalFilter)))
+	}
 
 	// Table facets must be part of the server window. Applying them after
 	// LIMIT/OFFSET hides matches that live on later pages and makes `total`
@@ -1512,7 +1530,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision
+	   i.revision, i.goal_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1553,6 +1571,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Stage,
 			&row.Properties,
 			&row.Revision,
+			&row.GoalID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -1872,6 +1891,13 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		where = append(where, fmt.Sprintf("i.project_id = %s::uuid", addArg(id)))
 	}
+	if raw := r.URL.Query().Get("goal_id"); raw != "" {
+		id, ok := parseUUIDOrBadRequest(w, raw, "goal_id")
+		if !ok {
+			return
+		}
+		where = append(where, goalFilterSQL(addArg(id)))
+	}
 	if filter, ok := parseMetadataFilterParam(w, r.URL.Query().Get("metadata")); !ok {
 		return
 	} else if filter != nil {
@@ -2103,7 +2129,7 @@ WITH ranked AS (
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
-		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision,
+		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -2116,7 +2142,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
-	number, project_id, metadata, stage, properties, revision, group_total
+	number, project_id, metadata, stage, properties, revision, goal_id, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -2165,6 +2191,7 @@ ORDER BY
 			&row.Stage,
 			&row.Properties,
 			&row.Revision,
+			&row.GoalID,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -2785,6 +2812,7 @@ type CreateIssueRequest struct {
 	AssigneeID    *string  `json:"assignee_id"`
 	ParentIssueID *string  `json:"parent_issue_id"`
 	ProjectID     *string  `json:"project_id"`
+	GoalID        *string  `json:"goal_id"`
 	Stage         *int32   `json:"stage,omitempty"`
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
@@ -2901,6 +2929,14 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectID = id
+	}
+	var goalUUID pgtype.UUID
+	if req.GoalID != nil {
+		id, ok := h.validateIssueGoal(w, r, wsUUID, *req.GoalID)
+		if !ok {
+			return
+		}
+		goalUUID = id
 	}
 	// Project existence and the final parent boundary check are enforced inside
 	// IssueService.Create atomically with the create. The handler preloads a
@@ -3126,6 +3162,14 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Goals (K74): the goal an issue names is set after the create transaction.
+	if goalUUID.Valid {
+		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
+			slog.Warn("create issue: set goal failed", "error", err, "issue_id", uuidToString(issue.ID))
+		} else {
+			issue.GoalID = goalUUID
+		}
+	}
 	// Undo (K69): a created issue is journaled but not reversible; deleting it would take its comments and runs with it.
 	h.recordEffect(r, issue.WorkspaceID, issue.ID, service.EffectIssueCreate, "issue", issue.ID, map[string]any{}, map[string]any{"title": issue.Title}, false)
 	// Module ownership (K33): tell the owner of a matching rule, never assign.
@@ -3164,6 +3208,7 @@ type UpdateIssueRequest struct {
 	DueDate         *string  `json:"due_date"`
 	ParentIssueID   *string  `json:"parent_issue_id"`
 	ProjectID       *string  `json:"project_id"`
+	GoalID          *string  `json:"goal_id"`
 	Stage           *int32   `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
@@ -3650,6 +3695,22 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine actor identity: agent (via X-Agent-ID header) or member.
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Goals (K74): members set the goal; an agent proposes it through a decision.
+	if _, touched := rawFields["goal_id"]; touched && actorType == "member" {
+		goalUUID := pgtype.UUID{}
+		if req.GoalID != nil {
+			id, ok := h.validateIssueGoal(w, r, prevIssue.WorkspaceID, *req.GoalID)
+			if !ok {
+				return
+			}
+			goalUUID = id
+		}
+		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to set goal")
+			return
+		}
+		issue.GoalID = goalUUID
+	}
 	// Undo (K69): every field a run changed is journaled with its previous value.
 	h.recordIssueEffects(r, prevIssue, issue)
 
@@ -4541,4 +4602,10 @@ func (h *Handler) BatchDeleteIssues(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("batch delete issues", append(logger.RequestAttrs(r), "count", deleted)...)
 	writeJSON(w, http.StatusOK, map[string]any{"deleted": deleted})
+}
+
+// goalFilterSQL matches issues that name the goal or inherit it from their
+// project (K74); argRef is the bound goal id placeholder.
+func goalFilterSQL(argRef string) string {
+	return fmt.Sprintf("(i.goal_id = %s::uuid OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = %s::uuid)))", argRef, argRef)
 }

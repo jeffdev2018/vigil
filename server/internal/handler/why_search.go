@@ -115,7 +115,7 @@ func (h *Handler) ReindexWhy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	counts := map[string]int{whySourceComment: 0, whySourceDecisionRecord: 0, whySourceTaskMessage: 0}
+	counts := map[string]int{whySourceComment: 0, whySourceDecisionRecord: 0, whySourceTaskMessage: 0, whySourceGoal: 0}
 	comments, err := h.Queries.ListWorkspaceCommentsForWhy(ctx, wsUUID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list comments")
@@ -142,6 +142,15 @@ func (h *Handler) ReindexWhy(w http.ResponseWriter, r *http.Request) {
 	for _, m := range messages {
 		h.indexWhy(ctx, wsUUID, whySourceTaskMessage, m.ID, m.IssueID, m.Content.String)
 		counts[whySourceTaskMessage]++
+	}
+	goals, err := h.Queries.ListGoals(ctx, wsUUID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list goals")
+		return
+	}
+	for _, g := range goals {
+		h.indexWhy(ctx, wsUUID, whySourceGoal, g.ID, pgtype.UUID{}, goalWhyContent(g))
+		counts[whySourceGoal]++
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"indexed": counts})
 }

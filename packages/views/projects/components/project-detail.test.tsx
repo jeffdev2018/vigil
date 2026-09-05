@@ -49,6 +49,15 @@ vi.mock("@multica/core/projects/mutations", () => ({
   useDeleteProject: () => ({ mutate: mocks.deleteProject }),
 }));
 
+// The goals section (K74) reads the goal list through its own module; the
+// react-query mock above has no `queryOptions`, so stub the module here.
+vi.mock("@multica/core/goals", () => ({
+  goalListOptions: () => ({ queryKey: ["goals"] }),
+  goalProgress: () => 0,
+  goalChildren: () => [],
+  useSetProjectGoals: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@multica/core/pins", () => ({
   pinListOptions: () => ({ queryKey: ["pins"] }),
   useCreatePin: () => ({ mutate: vi.fn() }),

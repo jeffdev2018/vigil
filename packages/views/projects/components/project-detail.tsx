@@ -26,6 +26,7 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
@@ -469,6 +470,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
           </p>
         </div>}
       </div>
+
+      {/* Goals (K74) */}
+      <ProjectGoalsSection projectId={projectId} />
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />

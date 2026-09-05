@@ -7284,6 +7284,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		ProjectResources:                 convertProjectResourcesForEnv(task.ProjectResources),
 		GoalAncestry:                     task.GoalAncestry,
 		GoalAncestryOmitted:              task.GoalAncestryOmitted,
+		MissionChain:                     task.MissionChain,
 		ChatSessionID:                    task.ChatSessionID,
 		ChatChannelType:                  task.ChatChannelType,
 		ChatChannelDeliversFiles:         task.ChatChannelDeliversFiles,

@@ -218,6 +218,7 @@ export type {
   ChatDraftRestoresResponse,
 } from "./chat";
 export type { StorageAdapter } from "./storage";
+export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
 export type {
   Project,
   ProjectStatus,

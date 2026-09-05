@@ -2640,6 +2640,13 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		} else {
 			ancestry.applyTo(&resp)
 		}
+		// Mission chain (K74): context too; a read failure drops the section.
+		if chain, err := h.resolveClaimMissionChain(r.Context(), issue); err != nil {
+			slog.Warn("issue claim: load mission chain failed; claim delivered without it",
+				"task_id", uuidToString(task.ID), "issue_id", uuidToString(issue.ID), "error", err)
+		} else {
+			resp.MissionChain = chain
+		}
 
 		// Load every planned input as one chronological, de-duplicated set.
 		// The trigger is included here so the delivery receipt can only contain
@@ -3249,6 +3256,9 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 									"task_id", uuidToString(task.ID), "parent_issue_id", qc.ParentIssueID, "error", aerr)
 							} else {
 								ancestry.applyTo(&resp)
+							}
+							if chain, cerr := h.resolveClaimMissionChain(r.Context(), parent); cerr == nil {
+								resp.MissionChain = chain
 							}
 						} else if qc.SourceContextID != "" && errors.Is(perr, pgx.ErrNoRows) {
 							// A contextual quick-create already owns an immutable
