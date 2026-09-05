@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
+import { Inbox, Check, X, Loader2, ExternalLink, Scale } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
@@ -16,6 +16,7 @@ import {
 } from "@multica/core/triage/mutations";
 import { TriageItemActions, TriageVerdictBadge, TriageVerdictNote } from "./triage-item-actions";
 import { isSnoozed } from "./snooze-presets";
+import { TriageRuleFromItem } from "./triage-rule-dialog";
 import { useShortcutAction } from "./use-shortcut-action";
 import { isEditableShortcutTarget, isPortalLayerShortcutTarget } from "@multica/core/shortcuts";
 import { useT, useTimeAgo } from "../../i18n";
@@ -90,6 +91,7 @@ export function TriagePage() {
   const wsId = useWorkspaceId();
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
+  const wsPaths = useWorkspacePaths();
 
   const statsQuery = useQuery(triageStatsOptions(wsId));
   const [filterTab, setFilterTab] = useState<TriageTab>("pending");
@@ -166,6 +168,15 @@ export function TriagePage() {
         title={t(($) => $.title)}
         count={stats?.pending}
         description={t(($) => $.subtitle)}
+        actions={
+          <AppLink
+            href={`${wsPaths.settings()}?tab=workspace`}
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-caption transition-colors hover:bg-accent/60"
+          >
+            <Scale aria-hidden="true" className="size-3.5" />
+            {t(($) => $.rule.manage)}
+          </AppLink>
+        }
       />
 
       <div className="flex shrink-0 items-center gap-1 border-b px-4 py-2">
@@ -555,6 +566,11 @@ function TriageDetailBody({
         {item.state === "pending" ? (
           <TriageItemActions item={item} wsId={wsId} onResolved={onResolved} />
         ) : null}
+        {/* A whole class of deliveries is usually recognized here, not in
+            Settings: draft the rule from the item that made the case. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <TriageRuleFromItem item={item} wsId={wsId} />
+        </div>
       </div>
 
       <TriageVerdictNote item={item} />

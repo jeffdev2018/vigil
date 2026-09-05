@@ -114,5 +114,13 @@
     "accept": "接受",
     "dismiss": "丢弃",
     "by": "来自 {{name}}"
+  },
+  "rule": {
+    "action": "创建规则",
+    "title": "根据这条创建规则",
+    "description": "规则在投递被捕获时执行，早于任何人查看。激活前先预览编译后的规则和试运行结果。",
+    "prefill": "来自 {{source}} 且标题包含“{{keyword}}”的投递",
+    "prefill_source": "来自 {{source}} 的投递",
+    "manage": "管理规则"
   }
 }

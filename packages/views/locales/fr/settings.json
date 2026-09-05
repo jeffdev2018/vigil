@@ -264,6 +264,34 @@
         "label": "Archiver la notification",
         "description": "Archiver la notification ouverte, ou la restaurer lors de la lecture des archives."
       },
+      "triageNextItem": {
+        "label": "Triage : élément suivant",
+        "description": "Passer à l'élément suivant de la file de triage."
+      },
+      "triagePrevItem": {
+        "label": "Triage : élément précédent",
+        "description": "Passer à l'élément précédent de la file de triage."
+      },
+      "triageAccept": {
+        "label": "Triage : accepter",
+        "description": "Accepter l'élément de triage ouvert et créer son issue."
+      },
+      "triageDismiss": {
+        "label": "Triage : rejeter",
+        "description": "Rejeter l'élément de triage ouvert."
+      },
+      "triageSnooze": {
+        "label": "Triage : reporter",
+        "description": "Ouvrir le menu de report de l'élément de triage ouvert."
+      },
+      "triageMerge": {
+        "label": "Triage : fusionner",
+        "description": "Fusionner l'élément de triage ouvert dans une issue existante."
+      },
+      "triageReopen": {
+        "label": "Triage : rouvrir",
+        "description": "Remettre en attente un élément de triage rejeté."
+      },
       "send": {
         "label": "Envoyer",
         "description": "Envoyer messages, commentaires, réponses, retours et prompts, et créer des issues."
@@ -841,8 +869,8 @@
     "rules_action_accept": "l'accepter comme une issue",
     "rules_action_priority": "Priorité",
     "rules_action_priority_keep": "conserver la priorité",
-    "rules_action_agent": "Assigner à l'agent",
-    "rules_action_no_agent": "aucun assigné",
+    "rules_action_assignee": "Assigné",
+    "rules_action_assignee_set": "Assigné défini",
     "triage_auto_section": "Auto-classification du triage",
     "triage_auto_enabled_label": "Laisser la file appliquer les suggestions fiables",
     "triage_auto_enabled_description": "Chaque acceptation ou rejet entraîne la file d'attente. Une fois activé, un élément dont les décisions passées similaires concordent au-delà du seuil est classé sans clic, de manière réversible et auditée.",

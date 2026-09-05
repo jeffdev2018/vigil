@@ -114,5 +114,13 @@
     "accept": "Accept",
     "dismiss": "Dismiss",
     "by": "by {{name}}"
+  },
+  "rule": {
+    "action": "Create a rule",
+    "title": "Create a rule from this item",
+    "description": "A rule runs when a delivery is captured, before anyone sees it. Preview the compiled rule and its dry-run before activating it.",
+    "prefill": "Deliveries from {{source}} whose title contains \"{{keyword}}\"",
+    "prefill_source": "Deliveries from {{source}}",
+    "manage": "Manage rules"
   }
 }

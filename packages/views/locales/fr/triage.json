@@ -72,5 +72,13 @@
     "not_ready": "Apprentissage : {{examples}} sur {{min}} décisions nécessaires avant l'application automatique.",
     "reopen": "Rouvrir",
     "reopen_failed": "Échec de la réouverture"
+  },
+  "rule": {
+    "action": "Créer une règle",
+    "title": "Créer une règle à partir de cet élément",
+    "description": "Une règle s'applique à la capture d'une livraison, avant que quiconque la voie. Prévisualisez la règle compilée et son essai à blanc avant de l'activer.",
+    "prefill": "Les livraisons de {{source}} dont le titre contient « {{keyword}} »",
+    "prefill_source": "Les livraisons de {{source}}",
+    "manage": "Gérer les règles"
   }
 }

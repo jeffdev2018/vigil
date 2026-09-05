@@ -38,9 +38,20 @@ vi.mock("../../modals/issue-picker-modal", () => ({
     </button>
   ),
 }));
+// "Create a rule from this item" reuses the settings form; the rule API has
+// its own suite (settings/components/business-rules-setting.test.tsx).
+vi.mock("@multica/core/workspace/business-rules", () => ({
+  businessRulesOptions: (wsId: string) => ({
+    queryKey: ["business-rules", wsId],
+    queryFn: async () => ({ rules: [], attach_points: ["webhook_received"] }),
+  }),
+  useCreateBusinessRule: () => ({ isPending: false, mutate: vi.fn() }),
+  useDryRunBusinessRule: () => ({ isPending: false, mutate: vi.fn() }),
+  useSetBusinessRuleStatus: () => ({ isPending: false, mutate: vi.fn() }),
+}));
 vi.mock("@multica/core/paths", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/paths")>()),
-  useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}` }),
+  useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}`, settings: () => "/acme/settings" }),
 }));
 
 const data = vi.hoisted(() => ({
@@ -525,6 +536,23 @@ describe("TriagePage", () => {
     fireEvent.keyDown(reason, { key: "x" });
     expect(mutations.accept).not.toHaveBeenCalled();
     expect(mutations.dismiss).not.toHaveBeenCalled();
+  });
+
+  // Rules (K62) are recognized in the queue, not in Settings: the item in front
+  // of the human prefills the rule, and the header links at the full editor.
+  it("drafts a rule prefilled from the open item, and links at the rule settings", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    expect(
+      screen.getByRole("link", { name: /manage rules/i }).getAttribute("href"),
+    ).toBe("/acme/settings?tab=workspace");
+
+    fireEvent.click(await screen.findByRole("button", { name: /^create a rule$/i }));
+
+    const rule = await screen.findByLabelText("Rule");
+    expect((rule as HTMLTextAreaElement).value).toBe(
+      'Deliveries from Sentry whose title contains "Payment"',
+    );
   });
 
   it("checking a row reveals the batch-accept bar", async () => {

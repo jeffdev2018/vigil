@@ -114,5 +114,13 @@
     "accept": "수락",
     "dismiss": "기각",
     "by": "제안: {{name}}"
+  },
+  "rule": {
+    "action": "규칙 만들기",
+    "title": "이 항목으로 규칙 만들기",
+    "description": "규칙은 전달이 캡처되는 시점, 누군가 보기 전에 실행됩니다. 활성화하기 전에 컴파일된 규칙과 드라이런을 확인하세요.",
+    "prefill": "{{source}}에서 온 전달 중 제목에 \"{{keyword}}\"이(가) 포함된 것",
+    "prefill_source": "{{source}}에서 온 전달",
+    "manage": "규칙 관리"
   }
 }
