@@ -165,6 +165,10 @@ func describePending(eff db.AgentEffect) string {
 		return "Note edit: " + truncate(str("content"), 120)
 	case service.EffectNoteArchive:
 		return "Archive note"
+	case service.EffectCommentDelete:
+		return "Delete comment"
+	case service.EffectNoteDelete:
+		return "Delete note"
 	case service.EffectTriageVerdict:
 		return "Triage verdict: " + str("verdict") + " (" + truncate(str("reason"), 120) + ")"
 	default:
@@ -200,6 +204,11 @@ func (h *Handler) applyPreviewForDecision(ctx context.Context, decision db.Issue
 	}
 	h.audit(ctx, decision.WorkspaceID, actorType, actorID, AuditEffectPreviewApplied, "issue", decision.IssueID,
 		map[string]any{"decision_id": uuidToString(decision.ID), "option": optionID, "applied": applied, "rejected": rejected}, nil)
+	// A human discarding a run's writes is a correction like an undo: it
+	// counts toward the breaker.
+	if optionID != previewApplyOptionID && rejected > 0 {
+		h.checkUndoBreaker(ctx, decision.WorkspaceID, effects[0].AgentID, actorID, h.undoSettings(ctx, decision.WorkspaceID))
+	}
 	return true
 }
 
@@ -396,6 +405,35 @@ func (h *Handler) applyPendingEffect(ctx context.Context, eff db.AgentEffect) er
 		}
 		h.publishTriageUpdated(eff.WorkspaceID, item.ID)
 		journal(service.EffectTriageVerdict, "triage_item", item.ID, map[string]any{}, map[string]any{"verdict": verdict, "reason": reason, "verdict_revision": item.VerdictRevision}, true)
+		return nil
+	case service.EffectCommentDelete:
+		comment, err := h.Queries.GetCommentInWorkspace(ctx, db.GetCommentInWorkspaceParams{ID: eff.TargetID, WorkspaceID: eff.WorkspaceID})
+		if err != nil {
+			return err
+		}
+		deleted, err := h.Queries.DeleteComment(ctx, db.DeleteCommentParams{ID: comment.ID, WorkspaceID: comment.WorkspaceID})
+		if err != nil {
+			return err
+		}
+		if !deleted.Changed {
+			return errors.New("comment already gone")
+		}
+		h.unindexWhy(ctx, whySourceComment, comment.ID)
+		h.publish(protocol.EventCommentDeleted, uuidToString(eff.WorkspaceID), "agent", uuidToString(eff.AgentID), map[string]any{
+			"comment_id": uuidToString(comment.ID), "issue_id": uuidToString(comment.IssueID),
+		})
+		journal(service.EffectCommentDelete, "comment", comment.ID, commentEffectSnapshot(comment), map[string]any{}, true)
+		return nil
+	case service.EffectNoteDelete:
+		note, err := h.Queries.GetWorkspaceNote(ctx, db.GetWorkspaceNoteParams{ID: eff.TargetID, WorkspaceID: eff.WorkspaceID})
+		if err != nil {
+			return err
+		}
+		if _, err := h.Queries.DeleteWorkspaceNote(ctx, db.DeleteWorkspaceNoteParams{ID: note.ID, WorkspaceID: note.WorkspaceID}); err != nil {
+			return err
+		}
+		h.publish(protocol.EventWorkspaceNoteDeleted, uuidToString(eff.WorkspaceID), "agent", uuidToString(eff.AgentID), map[string]any{"note": workspaceNoteToResponse(note)})
+		journal(service.EffectNoteDelete, "workspace_note", note.ID, noteEffectSnapshot(note), map[string]any{}, true)
 		return nil
 	default:
 		return errors.New("no replay for kind " + eff.Kind)

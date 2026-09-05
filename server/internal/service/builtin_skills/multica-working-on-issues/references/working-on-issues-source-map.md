@@ -148,6 +148,17 @@ never cancels tasks now. `CancelTasksForIssue` fires only from the issue-deletio
 paths (`DeleteIssue` / `BatchDeleteIssues`), where the owning issue row is going
 away, so no task is left orphaned.
 
+## Undo journal and "show me first" (K69)
+
+| Behavior | Source |
+| --- | --- |
+| Run-token writes journaled with their previous value (`agent_effect`) | `server/internal/handler/agent_effect.go` (`recordEffect`, `recordIssueEffects`), `server/internal/service/agent_effect.go` (`RecordAgentEffect`) |
+| Hooks: issue update/create, comment create/edit/delete, note create/edit/archive/delete, triage verdict, chat reply | `server/internal/handler/issue.go`, `comment.go`, `workspace_note.go`, `triage_verdict.go`, `server/internal/service/task.go` (`createAgentComment`, `recordChatReplyEffect`) |
+| Undo endpoints `POST /api/tasks/{id}/undo`, `POST /api/agent-effects/{id}/undo`, journal `GET /api/issues/{id}/agent-effects` | `server/cmd/server/router.go`, `server/internal/handler/agent_effect.go` (`undoEffects`, `reverseEffect`) |
+| Undo window and breaker threshold, `GET/PUT /api/undo-settings` | `server/internal/service/agent_effect.go` (`UndoSettings`), `server/internal/handler/agent_effect.go` (`checkUndoBreaker`) |
+| Preview mode `PUT /api/agents/{id}/effect-mode`; held writes answer `202` + `X-Pending-Effect` | `server/internal/handler/agent_effect_preview.go` (`previewRun`, `recordPending`, `writePending`) |
+| End of run files one decision; approval replays, discard rejects, failed run drops | `server/internal/handler/agent_effect_preview.go` (`settlePendingEffects`, `applyPreviewForDecision`), `server/internal/handler/daemon.go` (`CompleteTask`, `failTask`), `server/internal/handler/decision.go` (`answerDecisionCore`) |
+
 ## Ownership-only assignment and duplicate-run awareness
 
 | Behavior | Source |

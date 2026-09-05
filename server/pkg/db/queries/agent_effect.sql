@@ -58,6 +58,11 @@ UPDATE agent_effect SET reverse_error = $3
 WHERE id = $1 AND workspace_id = $2;
 
 -- name: CountAgentRunsReversedSince :one
--- Distinct runs, not rows: undoing one run of twelve effects counts once.
+-- Distinct runs, not rows: undoing one run of twelve effects counts once. A
+-- run whose held writes a human discarded (rejected without an error) counts
+-- like an undone one; a run rejected because it failed does not.
 SELECT COUNT(DISTINCT task_id)::bigint FROM agent_effect
-WHERE workspace_id = $1 AND agent_id = $2 AND reversed_at IS NOT NULL AND reversed_at >= sqlc.arg('since')::timestamptz;
+WHERE workspace_id = $1 AND agent_id = $2 AND (
+    (reversed_at IS NOT NULL AND reversed_at >= sqlc.arg('since')::timestamptz)
+    OR (status = 'rejected' AND reverse_error IS NULL AND created_at >= sqlc.arg('since')::timestamptz)
+);

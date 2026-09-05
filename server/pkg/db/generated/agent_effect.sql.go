@@ -13,7 +13,10 @@ import (
 
 const countAgentRunsReversedSince = `-- name: CountAgentRunsReversedSince :one
 SELECT COUNT(DISTINCT task_id)::bigint FROM agent_effect
-WHERE workspace_id = $1 AND agent_id = $2 AND reversed_at IS NOT NULL AND reversed_at >= $3::timestamptz
+WHERE workspace_id = $1 AND agent_id = $2 AND (
+    (reversed_at IS NOT NULL AND reversed_at >= $3::timestamptz)
+    OR (status = 'rejected' AND reverse_error IS NULL AND created_at >= $3::timestamptz)
+)
 `
 
 type CountAgentRunsReversedSinceParams struct {
@@ -22,7 +25,9 @@ type CountAgentRunsReversedSinceParams struct {
 	Since       pgtype.Timestamptz `json:"since"`
 }
 
-// Distinct runs, not rows: undoing one run of twelve effects counts once.
+// Distinct runs, not rows: undoing one run of twelve effects counts once. A
+// run whose held writes a human discarded (rejected without an error) counts
+// like an undone one; a run rejected because it failed does not.
 func (q *Queries) CountAgentRunsReversedSince(ctx context.Context, arg CountAgentRunsReversedSinceParams) (int64, error) {
 	row := q.db.QueryRow(ctx, countAgentRunsReversedSince, arg.WorkspaceID, arg.AgentID, arg.Since)
 	var column_1 int64

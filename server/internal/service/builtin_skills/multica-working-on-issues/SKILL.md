@@ -496,8 +496,8 @@ multica issue create --title "Step 3" --parent <issue-id> --assignee <agent> --s
 ## References
 
 `references/working-on-issues-source-map.md` — accurate `file:line` for every
-contract above: the `pull-requests` CLI and route, the PR response field list,
-`derivePRState`, the two-path link (`extractIdentifiers`) vs close-intent
-(`extractClosingIdentifiers`) proof, the backlog enqueue lines, child-done
-notify, the stage column / `stageBarrierClosed` barrier, the `--stage` /
-`issue children` and metadata CLI, and the triage verdict CLI / route / handler.
+contract above (PR CLI / route / response, `derivePRState`, link vs close-intent
+proof, backlog enqueue, child-done notify, `stageBarrierClosed`, `--stage` /
+`issue children` / metadata CLI, triage verdict CLI / route / handler).
+`references/undo-and-show-me-first.md` — the undo journal and the `202` "show
+me first" contract: queued for approval, not done, not an error.

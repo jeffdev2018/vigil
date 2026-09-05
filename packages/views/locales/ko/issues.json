@@ -1303,7 +1303,10 @@
       "note_archive": "노트 보관",
       "triage_verdict": "분류 판정: {{verdict}}",
       "issue_create": "이슈 생성: {{title}}",
-      "issue_update": "이슈 업데이트: {{fields}}"
+      "issue_update": "이슈 업데이트: {{fields}}",
+      "comment_delete": "댓글 삭제: “{{excerpt}}”",
+      "note_delete": "노트 “{{title}}” 삭제",
+      "chat_message": "채팅 답변: “{{excerpt}}” (되돌리면 같은 스레드에 정정 메시지를 게시합니다)"
     }
   },
   "ci_auto_fix": {

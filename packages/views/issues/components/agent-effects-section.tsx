@@ -120,6 +120,12 @@ function describeEffect(e: AgentEffect, t: Translate): string {
       return t(($) => $.agent_effects.kinds.issue_create, { title: String(e.after["title"] ?? "") });
     case "issue_update":
       return t(($) => $.agent_effects.kinds.issue_update, { fields: Object.keys(e.payload).join(", ") });
+    case "comment_delete":
+      return t(($) => $.agent_effects.kinds.comment_delete, { excerpt: String(e.before["excerpt"] ?? "") });
+    case "note_delete":
+      return t(($) => $.agent_effects.kinds.note_delete, { title: String(e.before["title"] ?? "") });
+    case "chat_message":
+      return t(($) => $.agent_effects.kinds.chat_message, { excerpt: String(e.after["excerpt"] ?? "") });
     default:
       return e.kind;
   }

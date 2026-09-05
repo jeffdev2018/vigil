@@ -4819,6 +4819,7 @@ func (s *TaskService) CompleteTask(ctx context.Context, taskID pgtype.UUID, resu
 		// client only shows the skeleton placeholder when generation is
 		// actually about to run.
 		suggest := s.chatQuickActionsEligible(ctx, task, chatAssistantMsg)
+		s.recordChatReplyEffect(ctx, task, chatAssistantMsg)
 		s.broadcastChatDone(ctx, task, chatAssistantMsg, suggest)
 		if suggest {
 			// Detached: the reply is already delivered and the user's next turn
@@ -8287,4 +8288,23 @@ func uuidPtrString(u pgtype.UUID) any {
 		return nil
 	}
 	return util.UUIDToString(u)
+}
+
+// recordChatReplyEffect journals the run's chat reply (K69): a channel-bound
+// session delivered it to the provider, so a human can retract it with a
+// corrective message in the same thread.
+func (s *TaskService) recordChatReplyEffect(ctx context.Context, task db.AgentTaskQueue, msg *db.ChatMessage) {
+	if msg == nil || strings.TrimSpace(msg.Content) == "" || !task.AgentID.Valid {
+		return
+	}
+	wsID, err := util.ParseUUID(s.ResolveTaskWorkspaceID(ctx, task))
+	if err != nil {
+		return
+	}
+	RecordAgentEffect(ctx, s.Queries, AgentEffectParams{
+		WorkspaceID: wsID, TaskID: task.ID, AgentID: task.AgentID,
+		Kind: EffectChatMessage, TargetType: "chat_message", TargetID: msg.ID,
+		Before: map[string]any{}, After: map[string]any{"chat_session_id": util.UUIDToString(task.ChatSessionID), "excerpt": excerpt(msg.Content, 200)},
+		Reversible: true,
+	})
 }

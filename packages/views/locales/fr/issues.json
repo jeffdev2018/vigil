@@ -1336,7 +1336,10 @@
       "note_archive": "Note archivée",
       "triage_verdict": "Verdict de triage : {{verdict}}",
       "issue_create": "Issue créée : {{title}}",
-      "issue_update": "Mise à jour de l'issue : {{fields}}"
+      "issue_update": "Mise à jour de l'issue : {{fields}}",
+      "comment_delete": "Commentaire supprimé : « {{excerpt}} »",
+      "note_delete": "Note « {{title}} » supprimée",
+      "chat_message": "Réponse dans le chat : « {{excerpt}} » (l'annulation publie un rectificatif dans le même fil)"
     }
   },
   "ci_auto_fix": {
