@@ -88,7 +88,7 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 		t.Fatalf("runs after partial answers = %d, want %d", n, runsBefore)
 	}
 
-	// The last answer restores the status and queues one run with every
+// The last answer restores the status and queues one run with every
 	// answer in order.
 	var last decisionEnvelope
 	respondDecision(t, issue, out.Decisions[1].ID, map[string]any{"option_id": "a"}).Want(http.StatusOK).JSON(&last)
@@ -138,5 +138,58 @@ func TestRequirementInterviewValidatesAndKeepsHumanIssuesParked(t *testing.T) {
 	}
 	if n := countTasksOnIssue(t, issue); n != 0 {
 		t.Fatalf("runs on a human issue = %d, want 0", n)
+	}
+}
+
+// TestInterviewAnswersMergeIntoPendingRun is the JEF-241 regression: when the
+// issue's agent already occupies its pending slot (the assignment enqueue),
+// the interview resume cannot create a second task (unique index) — the
+// answers must merge into the waiting run's handoff note instead of being
+// dropped with a logged warning.
+func TestInterviewAnswersMergeIntoPendingRun(t *testing.T) {
+	seedTestCatalog(t)
+	t.Cleanup(func() {
+		testPool.Exec(t.Context(), `DELETE FROM issue_status WHERE workspace_id = $1 AND key = $2`, testWorkspaceID, interviewStatusKey)
+	})
+	agentID := dbfx.Agent(t, "interview-merge agent", handlerTestRuntimeID(t), testutil.Cols{
+		"instructions": "",
+		"custom_env":   testutil.Raw("'{}'::jsonb"),
+		"custom_args":  testutil.Raw("'[]'::jsonb"),
+	})
+	issue := dbfx.Issue(t, "interview-merge issue", testutil.Cols{
+		"status":        "todo",
+		"assignee_type": "agent",
+		"assignee_id":   agentID,
+	})
+	pendingTask := dbfx.Task(t, agentID, testutil.Cols{
+		"runtime_id": handlerTestRuntimeID(t),
+		"issue_id":   issue,
+		"status":     "queued",
+	})
+	cleanupInterview(t, issue)
+
+	var out struct {
+		Decisions []IssueDecisionResponse `json:"decisions"`
+	}
+	askInterview(t, issue, []map[string]any{interviewQuestion("Which cache?")}).Want(http.StatusCreated).JSON(&out)
+
+	var last decisionEnvelope
+	respondDecision(t, issue, out.Decisions[0].ID, map[string]any{"option_id": "a"}).Want(http.StatusOK).JSON(&last)
+
+	// No second run: the pending slot is still held by the same task, and it
+	// is the one the decision links as the resume run.
+	if n := countTasksOnIssue(t, issue); n != 1 {
+		t.Fatalf("runs after the answer = %d, want the single merged task", n)
+	}
+	if last.Decision.ResumeTaskID != pendingTask {
+		t.Fatalf("resume task = %q, want the pending task %q", last.Decision.ResumeTaskID, pendingTask)
+	}
+	var note string
+	dbfx.QueryRow(t, `SELECT handoff_note FROM agent_task_queue WHERE id = $1`, pendingTask).Scan(&note)
+	if !strings.Contains(note, "Requirement interview answered:") || !strings.Contains(note, "Which cache?") {
+		t.Fatalf("merged handoff note = %q, want the interview answers", note)
+	}
+	if got := issueStatusOf(t, issue); got != "todo" {
+		t.Fatalf("status after the answer = %q, want todo restored", got)
 	}
 }
