@@ -156,7 +156,7 @@ describe("BrainPage", () => {
 
   it("tells the user to reload when the server reports a 409", async () => {
     const { ApiError } = await import("@multica/core/api");
-    mutations.update.mockRejectedValue(new ApiError("conflict", 409));
+    mutations.update.mockRejectedValue(new ApiError("conflict", 409, "Conflict"));
     renderPage();
     fireEvent.click(await screen.findByText("Deploys go through the release tag"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
