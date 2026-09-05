@@ -125,6 +125,18 @@ export interface AgentInvocationTargetInput {
 // the fallback.
 export type RuntimeVisibility = "private" | "public";
 
+/** Confinement a run gets (K10): none, an OS sandbox, or a Docker container. */
+export type SandboxMode = "none" | "sandbox" | "container";
+
+/** What the daemon reported its machine can do. */
+export interface SandboxCapabilities {
+  os?: string;
+  docker?: boolean;
+  docker_version?: string;
+  bwrap?: boolean;
+  modes?: SandboxMode[];
+}
+
 export interface RuntimeDevice {
   id: string;
   workspace_id: string;
@@ -154,6 +166,12 @@ export interface RuntimeDevice {
    * a missing value as `null` (built-in).
    */
   profile_id?: string | null;
+  /** Sandbox mode (K10); older backends omit these — treat missing as "none". */
+  sandbox_mode?: SandboxMode;
+  sandbox_image?: string;
+  sandbox_allowed_hosts?: string[];
+  sandbox_capabilities?: SandboxCapabilities;
+  sandbox_effective?: SandboxMode;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;

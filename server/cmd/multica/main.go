@@ -95,6 +95,7 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(sandboxRunCmd)
 
 	initHelp(rootCmd)
 }

@@ -3,11 +3,13 @@
 import { useMemo, useState } from "react";
 import {
   AlertTriangle,
+  Container,
   ExternalLink,
   Globe,
   Loader2,
   MoreHorizontal,
   Pencil,
+  Shield,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -66,6 +68,7 @@ import {
   pctChange,
 } from "../utils";
 import { runtimeRowLabel } from "./runtime-machines";
+import { requestedSandboxMode } from "./sandbox-editor";
 import {
   customRuntimeRegistrationFailure,
   isDisabledCustomRuntime,
@@ -215,6 +218,7 @@ function RuntimeNameCell({
         <RuntimeKindBadge runtime={runtime} />
         <PendingRuntimeBadge runtime={runtime} />
         <VisibilityBadge runtime={runtime} />
+        <SandboxBadge runtime={runtime} />
       </div>
     </ListGridCell>
   );
@@ -277,6 +281,27 @@ function VisibilityBadge({ runtime }: { runtime: AgentRuntime }) {
       <TooltipContent>
         {t(($) => $.detail.visibility_hint.public)}
       </TooltipContent>
+    </Tooltip>
+  );
+}
+
+// Only a confined mode is worth a badge — "none" is the default (K10).
+function SandboxBadge({ runtime }: { runtime: AgentRuntime }) {
+  const { t } = useT("runtimes");
+  const mode = requestedSandboxMode(runtime);
+  if (mode === "none") return null;
+  const Icon = mode === "container" ? Container : Shield;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 text-micro font-medium text-muted-foreground">
+            <Icon className="h-2.5 w-2.5" />
+            {t(($) => $.detail.sandbox.mode[mode])}
+          </span>
+        }
+      />
+      <TooltipContent>{t(($) => $.detail.sandbox.hint[mode])}</TooltipContent>
     </Tooltip>
   );
 }

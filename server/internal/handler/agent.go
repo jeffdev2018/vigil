@@ -368,6 +368,9 @@ type AgentTaskResponse struct {
 	// McpGateway (K77): the effective class of every catalogued tool of the
 	// agent's bound workspace servers, enforced by the daemon's local gateway.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// Sandbox (K10): the confinement the claiming runtime asks for; the
+	// daemon decides what the machine can honour and reports it at start.
+	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
 	// PluginHookTools are the workspace's agent-trigger plugin hooks, which the
 	// daemon renders as MCP tools for this task. Resolved at claim time so
 	// disabling or uninstalling a plugin takes effect on the next task rather
@@ -2864,4 +2867,11 @@ func (h *Handler) ListWorkspaceAgentTaskSnapshot(w http.ResponseWriter, r *http.
 	h.hydrateTaskAttributions(r.Context(), attributionsOf(resp))
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// SandboxSpec (K10) mirrors internal/daemon.SandboxSpec.
+type SandboxSpec struct {
+	Mode         string   `json:"mode"`
+	Image        string   `json:"image,omitempty"`
+	AllowedHosts []string `json:"allowed_hosts,omitempty"`
 }

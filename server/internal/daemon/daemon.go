@@ -27,6 +27,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/cli"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/daemon/repocache"
+	"github.com/multica-ai/multica/server/internal/daemon/sandboxrun"
 	"github.com/multica-ai/multica/server/internal/selfexec"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	"github.com/multica-ai/multica/server/pkg/redact"
@@ -431,6 +432,10 @@ type Daemon struct {
 	// skippedAgentsSentMu.
 	skippedAgentsSentMu sync.Mutex
 	skippedAgentsSent   map[string]string // runtime id -> fingerprint
+
+	// sandboxCapsState (K10): what this machine can confine a run with, the
+	// per-runtime fingerprint the server last accepted, and the egress proxy.
+	sandboxCapsState
 
 	// cliAuthStatus caches each provider's last observed CLI sign-in state so
 	// registration can report it without forking the CLI on every tick.
@@ -2061,6 +2066,10 @@ func (d *Daemon) Run(ctx context.Context) error {
 
 	// Deregister runtimes on shutdown (uses a fresh context since ctx will be cancelled).
 	defer d.deregisterRuntimes()
+
+	// Sandbox capabilities (K10): probe Docker/bwrap and start the egress
+	// proxy before the first heartbeat carries the capability set.
+	d.startSandboxSupport(ctx)
 
 	// Start workspace sync loop to discover newly created workspaces.
 	go d.workspaceSyncLoop(ctx)
@@ -4228,12 +4237,13 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 	// overrides the WS shortcut for exactly one tick — otherwise a daemon on a
 	// healthy WebSocket would never report that a CLI broke or got repaired.
 	skipped, skippedFingerprint, skippedChanged := d.pendingSkippedAgents(rid)
-	if !skippedChanged && d.wsHeartbeatRecentlyAcked(rid) {
+	sandboxCaps, sandboxFingerprint, sandboxChanged := d.pendingSandboxCapabilities(rid)
+	if !skippedChanged && !sandboxChanged && d.wsHeartbeatRecentlyAcked(rid) {
 		d.logger.Debug("heartbeat: skipping HTTP tick, WS recently acked", "runtime_id", rid)
 		return false
 	}
 	d.logger.Debug("heartbeat: HTTP tick", "runtime_id", rid)
-	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx), skipped)
+	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx), skipped, sandboxCaps)
 	if err != nil {
 		if ctx.Err() == nil {
 			if isRuntimeNotFoundError(err) {
@@ -4260,6 +4270,9 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 		// Only now: a set marked sent before the server accepted it would be
 		// dropped for the rest of this daemon's life.
 		d.markSkippedAgentsSent(rid, skippedFingerprint)
+	}
+	if sandboxChanged {
+		d.markSandboxCapabilitiesSent(rid, sandboxFingerprint)
 	}
 	d.handleHeartbeatActions(ctx, rid, resp)
 	return false
@@ -4389,7 +4402,7 @@ func (d *Daemon) handlePendingWorkHint(runtimeID, kind string) {
 		return
 	}
 	hbCtx, cancel := context.WithTimeout(ctx, pendingWorkHeartbeatTimeout)
-	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil, nil)
+	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil, nil, nil)
 	cancel()
 	if err != nil {
 		if isRuntimeNotFoundError(err) {
@@ -7370,11 +7383,25 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// requires Prepare-time managed-env provenance and a daemon-owned marker
 	// before allowing reuse, so a pre-fix leader session recorded against
 	// local_directory still fails closed.
+	// Confinement (K10): decide the effective mode once, before any per-run
+	// listener binds, because a containerised CLI reaches the daemon through
+	// the Docker host gateway rather than loopback. Degradation is reported
+	// on StartTask and never silent.
+	sandboxRequested := sandboxrun.ModeNone
+	if task.Sandbox != nil && task.Sandbox.Mode != "" {
+		sandboxRequested = task.Sandbox.Mode
+	}
+	sandboxMode, sandboxReason := resolveSandboxMode(task.Sandbox, d.sandboxCapabilities())
+	if sandboxReason != "" {
+		taskLog.Warn("sandbox mode degraded", "requested", sandboxRequested, "effective", sandboxMode, "reason", sandboxReason)
+	}
+	advertiseHost := sandboxAdvertiseHost(sandboxMode)
+
 	var agentMcpConfig json.RawMessage
 	var effectiveMcpConfig json.RawMessage
 	var cursorMcpAuthSource string
 	remoteMCPConfig, remoteMCPDiagnostics, remoteMCPBrokers, remoteMCPErr := startTaskRemoteMCPBrokers(
-		prepareCtx, ctx, task.ID, provider, task.RemoteMCPConnections,
+		prepareCtx, ctx, task.ID, provider, advertiseHost, task.RemoteMCPConnections,
 		func(resolveCtx context.Context, contributionID string) (http.Header, error) {
 			return d.client.ResolveRemoteMCPCredential(resolveCtx, task.RemoteMCPDaemonToken, task.ID, contributionID)
 		},
@@ -7398,7 +7425,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// on the issue, which is the same rule that makes a failing tool call a
 	// tool error rather than a task error.
 	pluginHookConfig, pluginHookServer, pluginHookErr := startTaskPluginHookMCP(
-		ctx, task.ID, task.PluginHookTools,
+		ctx, task.ID, advertiseHost, task.PluginHookTools,
 		func(callCtx context.Context, taskID, installationID, hookKey string, input json.RawMessage) (json.RawMessage, error) {
 			return d.client.InvokeAgentPluginHook(callCtx, task.RemoteMCPDaemonToken, taskID, installationID, hookKey, input)
 		},
@@ -7441,9 +7468,10 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		// tool call. A gateway failure keeps the run alive; servers whose
 		// policy holds a never/ask decision are dropped rather than passed
 		// through ungoverned.
+		gatewayDeps := d.mcpGatewayDepsFor(task, remoteMCPConfig, taskLog)
+		gatewayDeps.advertiseHost = advertiseHost
 		wrapped, gatewayDiagnostics, mcpGatewayServers, gatewayErr := startTaskMcpGateway(
-			prepareCtx, ctx, task, provider, effectiveMcpConfig,
-			d.mcpGatewayDepsFor(task, remoteMCPConfig, taskLog), taskLog,
+			prepareCtx, ctx, task, provider, effectiveMcpConfig, gatewayDeps, taskLog,
 		)
 		if gatewayErr != nil {
 			taskLog.Warn("MCP gateway unavailable; mcp_config passed through", "error", gatewayErr)
@@ -7911,7 +7939,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// taskfailure.Classify path records the failure with the same
 	// "start task failed: <…>" string and the same failure_reason
 	// taxonomy as before — see MUL-2946 for the classifier contract.
-	if err := d.client.StartTask(prepareCtx, task.ID); err != nil {
+	if err := d.client.StartTask(prepareCtx, task.ID, sandboxRequested, sandboxMode, sandboxReason); err != nil {
 		stopPrepareLease()
 		return TaskResult{}, fmt.Errorf("start task failed: %w", err)
 	}
@@ -8090,9 +8118,25 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	// families go through New. This is the single production boundary — the
 	// daemon never calls agent.New or agent.NewRuntime directly, so the two
 	// factories stay meaning exactly one thing each.
+	// Confined runs (K10) go through the shim; the spec lives in the task
+	// temp dir, which the shim mounts into the sandbox alongside the env root
+	// (the worktree's git metadata) and the shared bare-repo cache.
+	sandboxMounts := []string{env.RootDir, filepath.Join(d.cfg.WorkspacesRoot, ".repos")}
+	for _, dir := range []string{env.MulticaConfigRoot, env.CodexHome, env.HermesHome, env.CursorDataDir} {
+		if dir != "" {
+			sandboxMounts = append(sandboxMounts, dir)
+		}
+	}
+	sandboxLaunch, sandboxCleanup, err := d.prepareSandboxLaunch(task, provider, sandboxMode, taskTempDir, sandboxMounts, taskLog)
+	if err != nil {
+		return TaskResult{}, fmt.Errorf("prepare sandbox: %w", err)
+	}
+	defer sandboxCleanup()
+
 	backend, err := agent.ResolveBackend(provider, agent.Config{
 		ExecutablePath: entry.Path,
 		LaunchPrefix:   profileFixedArgs,
+		Sandbox:        sandboxLaunch,
 		CLIVersion:     resolvedVersion,
 		Env:            agentEnv,
 		Logger:         d.logger,

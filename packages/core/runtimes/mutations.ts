@@ -43,8 +43,9 @@ export function useUnbindAgentsAndDeleteRuntime(wsId: string) {
 }
 
 // useUpdateRuntime patches editable fields on a runtime (visibility, custom
-// name). Invalidates the runtime list so the picker disabled-state and
-// display names recompute.
+// name, sandbox mode). The patch shape is the API client's, so a new
+// editable field is declared once. Invalidates the runtime list so the
+// picker disabled-state and display names recompute.
 export function useUpdateRuntime(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -53,12 +54,7 @@ export function useUpdateRuntime(wsId: string) {
       patch,
     }: {
       runtimeId: string;
-      patch: {
-        visibility?: "private" | "public";
-        // Empty string clears the custom name; omit to leave unchanged.
-        custom_name?: string;
-        apply_to_machine?: boolean;
-      };
+      patch: Parameters<typeof api.updateRuntime>[1];
     }) => api.updateRuntime(runtimeId, patch),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });

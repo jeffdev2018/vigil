@@ -405,8 +405,21 @@ func (c *Client) ExtendTaskPrepareLease(ctx context.Context, runtimeID, taskID s
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/tasks/%s/prepare-lease", runtimeID, taskID), map[string]any{}, nil)
 }
 
-func (c *Client) StartTask(ctx context.Context, taskID string) error {
-	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/start", taskID), map[string]any{}, nil)
+// StartTask transitions the task to running and reports the confinement
+// decision (K10): the mode the claim requested, the mode actually in effect
+// and, when they differ, why the daemon degraded it.
+func (c *Client) StartTask(ctx context.Context, taskID, sandboxRequested, sandboxMode, sandboxReason string) error {
+	if sandboxRequested == "" {
+		sandboxRequested = "none"
+	}
+	if sandboxMode == "" {
+		sandboxMode = "none"
+	}
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/start", taskID), map[string]any{
+		"sandbox_requested": sandboxRequested,
+		"sandbox_mode":      sandboxMode,
+		"sandbox_reason":    sandboxReason,
+	}, nil)
 }
 
 // MarkTaskWaitingLocalDirectory parks a freshly-dispatched task in the
@@ -621,7 +634,10 @@ type (
 // discovered-but-not-registered diagnostic (MUL-5439), sent ONLY on the beats
 // where it changed since the server last accepted it — a nil map leaves the
 // stored set alone, an empty map clears it.
-func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string) (*HeartbeatResponse, error) {
+//
+// `sandboxCapabilities` (K10) is what this machine can confine a run with;
+// like skipped it is sent on the first beat and whenever it changes.
+func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string, sandboxCapabilities *SandboxCapabilities) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
 	body := map[string]any{
 		"runtime_id":            runtimeID,
@@ -634,10 +650,24 @@ func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []Di
 	if skipped != nil {
 		body["skipped_agents"] = skipped
 	}
+	if sandboxCapabilities != nil {
+		body["sandbox_capabilities"] = sandboxCapabilities
+	}
 	if err := c.postJSON(ctx, "/api/daemon/heartbeat", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// SandboxCapabilities (K10) describes the confinement modes this machine can
+// run. Modes always holds "none"; "container" needs a reachable Docker
+// daemon, "sandbox" needs bubblewrap on a Linux host.
+type SandboxCapabilities struct {
+	OS            string   `json:"os"`
+	Docker        bool     `json:"docker"`
+	DockerVersion string   `json:"docker_version,omitempty"`
+	Bwrap         bool     `json:"bwrap"`
+	Modes         []string `json:"modes"`
 }
 
 // ReportUpdateResult sends the CLI update result back to the server.

@@ -287,6 +287,9 @@ type Config struct {
 	// Command boundary applies it to every process the package spawns, task
 	// launches and CLI probes alike. Backends never read it directly.
 	LaunchPrefix []string
+	// Sandbox (K10) routes every runtime process of this run through the
+	// daemon's confinement shim. Nil runs the CLI directly on the host.
+	Sandbox *SandboxLaunch
 }
 
 // New creates a Backend for the given agent type.

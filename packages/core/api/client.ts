@@ -301,6 +301,7 @@ import type {
   McpServerToolCatalog,
   McpToolPolicy,
   McpToolRisk,
+  SandboxMode,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -3081,6 +3082,9 @@ export class ApiClient {
       custom_name?: string;
       /** Apply custom_name to every runtime on the same machine. */
       apply_to_machine?: boolean;
+      sandbox_mode?: SandboxMode;
+      sandbox_image?: string;
+      sandbox_allowed_hosts?: string[];
     },
   ): Promise<AgentRuntime> {
     return this.fetch(`/api/runtimes/${runtimeId}`, {
