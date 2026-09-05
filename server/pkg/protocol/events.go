@@ -46,6 +46,13 @@ const (
 	EventPostmortemCreated  = "postmortem:created"
 	EventPostmortemResolved = "postmortem:resolved"
 
+	// Workspace Brain events. workspace_note:created / :updated fire on every
+	// write (create, edit, archive, unarchive, curation rewrite);
+	// workspace_note:deleted fires on a permanent delete.
+	EventWorkspaceNoteCreated = "workspace_note:created"
+	EventWorkspaceNoteUpdated = "workspace_note:updated"
+	EventWorkspaceNoteDeleted = "workspace_note:deleted"
+
 	// Inbox events
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"

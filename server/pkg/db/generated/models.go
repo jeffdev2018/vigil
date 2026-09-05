@@ -2218,6 +2218,27 @@ type WorkspaceMcpServer struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type WorkspaceNote struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Title       string      `json:"title"`
+	Content     string      `json:"content"`
+	Tags        []string    `json:"tags"`
+	// Who produced this note: manual (a human), agent (a run via the CLI), curation (the daily pass).
+	Source        string             `json:"source"`
+	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
+	SourceAgentID pgtype.UUID        `json:"source_agent_id"`
+	Pinned        bool               `json:"pinned"`
+	ArchivedAt    pgtype.Timestamptz `json:"archived_at"`
+	// Set on the archived source note when the curation pass folded it into another note; keeps the merge history without a FK.
+	MergedInto    pgtype.UUID        `json:"merged_into"`
+	CreatedByType string             `json:"created_by_type"`
+	CreatedByID   pgtype.UUID        `json:"created_by_id"`
+	Revision      int64              `json:"revision"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
 type WorkspaceShareLink struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

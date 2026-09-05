@@ -1,0 +1,57 @@
+{
+  "title": "Brain",
+  "subtitle": "Shared knowledge every run receives: decisions, conventions, facts about the codebase.",
+  "search_placeholder": "Search notes",
+  "filter": {
+    "all_tags": "All tags",
+    "show_archived": "Show archived"
+  },
+  "source": {
+    "manual": "Manual",
+    "agent": "By agent",
+    "curation": "Curated",
+    "open_run": "Open the run"
+  },
+  "list": {
+    "loading": "Loading notes",
+    "load_error": "Notes could not be loaded",
+    "empty_title": "No notes yet",
+    "empty_description": "Write down a decision, a convention, or a fact about this workspace. Every run will receive it.",
+    "empty_search_title": "No note matches",
+    "empty_search_description": "Try fewer words, or clear the tag filter.",
+    "pinned": "Pinned",
+    "archived": "Archived"
+  },
+  "detail": {
+    "select_prompt": "Select a note to read it.",
+    "edit": "Edit",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "pin": "Pin",
+    "unpin": "Unpin",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "title_label": "Title",
+    "tags_label": "Tags",
+    "tags_hint": "Comma-separated",
+    "content_label": "Content",
+    "content_placeholder": "Markdown. One note, one idea.",
+    "empty_content": "This note has no content yet.",
+    "merged_into": "Merged into another note by the daily curation pass.",
+    "saved_toast": "Note saved",
+    "conflict_toast": "Someone edited this note first. Reload it and reapply your change.",
+    "error_toast": "The note could not be saved",
+    "archived_toast": "Note archived",
+    "unarchived_toast": "Note restored"
+  },
+  "create": {
+    "new": "New note",
+    "heading": "New note",
+    "title_placeholder": "State the fact, not the topic",
+    "submit": "Create",
+    "submitting": "Creating…",
+    "created_toast": "Note created",
+    "error_toast": "The note could not be created"
+  }
+}

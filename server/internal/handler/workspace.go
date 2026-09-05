@@ -1448,6 +1448,11 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspacePostmortems(ctx, requester.WorkspaceID) },
 		},
 		{
+			// workspace_note (Brain) carries no FK; sweep it with the workspace.
+			name: "delete workspace notes",
+			run:  func() error { return qtx.DeleteWorkspaceNotes(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete agents",
 			run:  func() error { return qtx.DeleteWorkspaceAgents(ctx, requester.WorkspaceID) },
 		},

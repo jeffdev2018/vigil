@@ -51,6 +51,7 @@ import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueD
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
+import { onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -890,6 +891,13 @@ export function useRealtimeSync(
       postmortem: () => {
         const wsId = getCurrentWsId();
         if (wsId) onPostmortemInvalidate(qc, wsId);
+      },
+      // workspace_note:created / :updated / :deleted all reshuffle the Brain
+      // ordering and its tag facets, both server-owned; refetch the whole
+      // (small) projection.
+      workspace_note: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) onWorkspaceNoteInvalidate(qc, wsId);
       },
       github_installation: () => {
         const wsId = getCurrentWsId();

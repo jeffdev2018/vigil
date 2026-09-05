@@ -33,6 +33,7 @@ import { TriagePage } from "@multica/views/triage";
 import { MeetingsPage } from "@multica/views/meetings";
 import { MeetingDetailPage } from "./pages/meeting-detail-page";
 import { PostmortemPage } from "@multica/views/postmortem";
+import { BrainPage } from "@multica/views/brain";
 import { ChatPage } from "@multica/views/chat";
 import { SettingsPage } from "@multica/views/settings";
 import { useT } from "@multica/views/i18n";
@@ -243,6 +244,7 @@ export const appRoutes: RouteObject[] = [
             handle: { title: "Meeting" },
           },
           { path: "postmortems", element: <PostmortemPage />, handle: { title: "Postmortems" } },
+          { path: "brain", element: <BrainPage />, handle: { title: "Brain" } },
           { path: "chat", element: <ChatPage />, handle: { title: "Chat" } },
           {
             path: "attachments/:id/preview",

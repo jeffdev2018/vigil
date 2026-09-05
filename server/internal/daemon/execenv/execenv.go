@@ -46,6 +46,19 @@ type GoalAncestryForEnv struct {
 	Depth              int      `json:"depth"`
 }
 
+// WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
+// is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
+// daemon decodes straight into it.
+type WorkspaceNoteForEnv struct {
+	ID      string   `json:"id"`
+	Title   string   `json:"title"`
+	Content string   `json:"content,omitempty"`
+	Tags    []string `json:"tags,omitempty"`
+	Pinned  bool     `json:"pinned,omitempty"`
+	Source  string   `json:"source,omitempty"`
+	Updated string   `json:"updated_at,omitempty"`
+}
+
 // PrepareParams holds all inputs needed to set up an execution environment.
 type PrepareParams struct {
 	WorkspacesRoot  string // base path for all envs (e.g., ~/multica_workspaces)
@@ -170,13 +183,19 @@ type TaskContextForEnv struct {
 	// change only between runs, never mid-run), so unlike per-turn values they
 	// belong in the brief rather than the per-turn prompt.
 	AgentMemories []string
-	AgentSkills                   []SkillContextForEnv
-	DisabledRuntimeSkills         []RuntimeSkillRefForEnv
-	Repos                         []RepoContextForEnv     // workspace repos available for checkout
-	ProjectID                     string                  // active project for this task, when present
-	ProjectTitle                  string                  // human-readable project title
-	ProjectDescription            string                  // durable project-level context, rendered into the brief's Project Context section
-	ProjectResources              []ProjectResourceForEnv // resources attached to the project
+	// WorkspaceNotes are the workspace Brain notes injected into this run:
+	// every pinned note plus the most recently updated ones. They are written
+	// as files under .multica/knowledge/ and announced by the brief's
+	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
+	// they are shared by every agent in the workspace.
+	WorkspaceNotes        []WorkspaceNoteForEnv
+	AgentSkills           []SkillContextForEnv
+	DisabledRuntimeSkills []RuntimeSkillRefForEnv
+	Repos                 []RepoContextForEnv     // workspace repos available for checkout
+	ProjectID             string                  // active project for this task, when present
+	ProjectTitle          string                  // human-readable project title
+	ProjectDescription    string                  // durable project-level context, rendered into the brief's Project Context section
+	ProjectResources      []ProjectResourceForEnv // resources attached to the project
 	// GoalAncestry is the claimed issue's parent chain, root first (F22),
 	// already capped and byte-bounded by the server. Like WorkspaceContext it
 	// is durable configuration, not per-turn state: editing a parent issue may

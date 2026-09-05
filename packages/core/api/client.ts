@@ -281,6 +281,10 @@ import type {
   PostmortemState,
   PostmortemStats,
   PostmortemsResponse,
+  WorkspaceNote,
+  WorkspaceNotesResponse,
+  CreateWorkspaceNoteInput,
+  UpdateWorkspaceNoteInput,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -466,6 +470,10 @@ import {
   PostmortemStatsSchema,
   EMPTY_POSTMORTEM_STATS,
   EMPTY_POSTMORTEMS_RESPONSE,
+  WorkspaceNoteSchema,
+  WorkspaceNotesResponseSchema,
+  EMPTY_WORKSPACE_NOTE,
+  EMPTY_WORKSPACE_NOTES_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -2041,6 +2049,82 @@ export class ApiClient {
     );
     return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
       endpoint: "POST /api/postmortems/:id/discard",
+    });
+  }
+
+  // Workspace Brain. Shared knowledge notes: every workspace member reads and
+  // writes; delete is narrower (workspace admin or the note's author).
+  async listWorkspaceNotes(
+    params?: { search?: string; tag?: string; archived?: boolean; limit?: number },
+    options?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNotesResponse> {
+    const search = new URLSearchParams();
+    if (params?.search) search.set("search", params.search);
+    if (params?.tag) search.set("tag", params.tag);
+    if (params?.archived === true) search.set("archived", "true");
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<WorkspaceNotesResponse>(
+      raw,
+      WorkspaceNotesResponseSchema,
+      EMPTY_WORKSPACE_NOTES_RESPONSE,
+      { endpoint: "GET /api/workspace/notes" },
+    );
+  }
+
+  async getWorkspaceNote(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "GET /api/workspace/notes/:id",
+    });
+  }
+
+  async createWorkspaceNote(input: CreateWorkspaceNoteInput): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>("/api/workspace/notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "POST /api/workspace/notes",
+    });
+  }
+
+  async updateWorkspaceNote(
+    id: string,
+    input: UpdateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "PATCH /api/workspace/notes/:id",
+    });
+  }
+
+  async deleteWorkspaceNote(id: string): Promise<void> {
+    await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  async setWorkspaceNoteArchived(id: string, archived: boolean): Promise<WorkspaceNote> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/${encodeURIComponent(id)}/${archived ? "archive" : "unarchive"}`,
+      { method: "POST" },
+    );
+    return parseWithFallback<WorkspaceNote>(raw, WorkspaceNoteSchema, EMPTY_WORKSPACE_NOTE, {
+      endpoint: "POST /api/workspace/notes/:id/archive",
     });
   }
 

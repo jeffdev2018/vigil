@@ -1,0 +1,57 @@
+{
+  "title": "Brain",
+  "subtitle": "すべての実行に渡される共有ナレッジ：意思決定、規約、コードベースの事実。",
+  "search_placeholder": "ノートを検索",
+  "filter": {
+    "all_tags": "すべてのタグ",
+    "show_archived": "アーカイブ済みを表示"
+  },
+  "source": {
+    "manual": "手動",
+    "agent": "エージェント作成",
+    "curation": "整理済み",
+    "open_run": "実行を開く"
+  },
+  "list": {
+    "loading": "ノートを読み込み中",
+    "load_error": "ノートを読み込めませんでした",
+    "empty_title": "ノートがまだありません",
+    "empty_description": "意思決定、規約、このワークスペースの事実を書き留めてください。すべての実行に渡されます。",
+    "empty_search_title": "一致するノートがありません",
+    "empty_search_description": "キーワードを減らすか、タグフィルターを解除してください。",
+    "pinned": "ピン留め",
+    "archived": "アーカイブ済み"
+  },
+  "detail": {
+    "select_prompt": "ノートを選択すると内容が表示されます。",
+    "edit": "編集",
+    "cancel": "キャンセル",
+    "save": "保存",
+    "saving": "保存中…",
+    "pin": "ピン留め",
+    "unpin": "ピン留め解除",
+    "archive": "アーカイブ",
+    "unarchive": "アーカイブ解除",
+    "title_label": "タイトル",
+    "tags_label": "タグ",
+    "tags_hint": "カンマ区切り",
+    "content_label": "内容",
+    "content_placeholder": "Markdown。1 つのノートに 1 つの内容。",
+    "empty_content": "このノートにはまだ内容がありません。",
+    "merged_into": "日次の整理で別のノートに統合されました。",
+    "saved_toast": "ノートを保存しました",
+    "conflict_toast": "先に他の人が編集しました。再読み込みして変更をやり直してください。",
+    "error_toast": "ノートを保存できませんでした",
+    "archived_toast": "ノートをアーカイブしました",
+    "unarchived_toast": "ノートを復元しました"
+  },
+  "create": {
+    "new": "新規ノート",
+    "heading": "新規ノート",
+    "title_placeholder": "トピックではなく事実を書く",
+    "submit": "作成",
+    "submitting": "作成中…",
+    "created_toast": "ノートを作成しました",
+    "error_toast": "ノートを作成できませんでした"
+  }
+}

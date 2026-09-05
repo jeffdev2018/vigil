@@ -505,6 +505,9 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// a disabled client simply turns the pass off (a skill is only worth
 	// storing when genuinely distilled).
 	taskSvc.SkillDistillation = llmClient
+	// Daily workspace Brain curation uses the same internal LLM layer; a
+	// disabled client turns the pass into a logged no-op.
+	taskSvc.BrainCuration = llmClient
 	h := &Handler{
 		Queries:                      queries,
 		ReadSelector:                 dbreader.NewPrimaryOnly(queries),

@@ -366,6 +366,9 @@ var concurrentIndexCleanups = map[string]string{
 	"581_postmortem_pkey_index":                                 "postmortem_pkey_uidx",
 	"583_postmortem_source_task_index":                          "uq_postmortem_source_task",
 	"584_postmortem_workspace_state_index":                      "idx_postmortem_workspace_state",
+	"626_workspace_note_pkey_index":                             "workspace_note_pkey_uidx",
+	"628_workspace_note_workspace_updated_index":                "idx_workspace_note_workspace_updated",
+	"629_workspace_note_search_index":                           "idx_workspace_note_search",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

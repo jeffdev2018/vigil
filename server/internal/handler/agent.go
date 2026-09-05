@@ -437,9 +437,15 @@ type AgentTaskResponse struct {
 	// servers; a daemon that predates it writes the brief it always did.
 	GoalAncestry        []GoalAncestryNode `json:"goal_ancestry,omitempty"`
 	GoalAncestryOmitted int                `json:"goal_ancestry_omitted,omitempty"`
-	CreatedAt           string             `json:"created_at"`
-	PriorSessionID      string             `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
-	PriorWorkDir        string             `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
+	// WorkspaceNotes are the workspace Brain notes this run gets: every pinned
+	// note plus the most recently updated others. The daemon writes them as
+	// files under .multica/knowledge. Workspace-scoped, so unlike the agent's
+	// memories they are shared by every agent in the workspace. Omitted when
+	// the Brain is empty and by older servers.
+	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
+	CreatedAt      string                 `json:"created_at"`
+	PriorSessionID string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
+	PriorWorkDir   string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
 	// PriorSessionResumeUnavailable is set when a more recent Codex session was
 	// withheld because its rollout was missing (MUL-5305); PriorSessionID (if
 	// any) is then an older fallback. The daemon surfaces the continuity gap in

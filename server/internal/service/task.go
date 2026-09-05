@@ -103,6 +103,11 @@ type TaskService struct {
 	// with no MULTICA_LLM_* configuration. Wired in handler.New from the same
 	// *llm.Client that backs chat auto-titling and memory extraction.
 	Postmortem PostmortemLLM
+	// BrainCuration powers the daily workspace Brain curation pass. Optional:
+	// nil (or a disabled client) makes the pass a logged no-op, which is the
+	// expected state for a self-hosted deployment with no MULTICA_LLM_*
+	// configuration. Wired in handler.New from the same *llm.Client.
+	BrainCuration WorkspaceNoteCurationLLM
 	// quickActionsInFlight (chat session id -> struct{}{}) and
 	// quickActionsRunning admit suggestion passes: one per session, and a
 	// process-wide ceiling. Both zero values are usable, so a TaskService built
@@ -7024,6 +7029,46 @@ func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceI
 		contents = append(contents, rows[i].Content)
 	}
 	return contents, nil
+}
+
+// workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with
+// the pinned ones. Pinned notes are the workspace's explicit "always know
+// this" set and are never dropped here; the byte budget in execenv is the
+// backstop that keeps a large Brain from filling the workdir.
+const workspaceBriefNoteRecentLimit = 20
+
+// workspaceBriefNoteFetchLimit bounds the single query behind the split above.
+const workspaceBriefNoteFetchLimit = 200
+
+// LoadWorkspaceNotesForBrief returns the workspace Brain notes to inject into
+// one run: every pinned note, then the 20 most recently updated others.
+// Archived notes never reach a run.
+//
+// Like LoadAgentMemories this is NOT fail-closed: knowledge is briefing
+// context, not executable rules, so a failed read costs the run its Workspace
+// Knowledge section and nothing else.
+func (s *TaskService) LoadWorkspaceNotesForBrief(ctx context.Context, workspaceID pgtype.UUID) ([]db.WorkspaceNote, error) {
+	rows, err := s.Queries.ListPinnedAndRecentWorkspaceNotesForBrief(ctx, db.ListPinnedAndRecentWorkspaceNotesForBriefParams{
+		WorkspaceID: workspaceID,
+		NoteLimit:   workspaceBriefNoteFetchLimit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list workspace notes: %w", err)
+	}
+	// SQL orders pinned first, then newest. Keep every pinned note and cap the
+	// tail, which is exactly the split the product promises.
+	notes := make([]db.WorkspaceNote, 0, len(rows))
+	recent := 0
+	for _, row := range rows {
+		if !row.Pinned {
+			if recent >= workspaceBriefNoteRecentLimit {
+				break
+			}
+			recent++
+		}
+		notes = append(notes, row)
+	}
+	return notes, nil
 }
 
 // skillsWithFiles loads the files of every given skill in ONE round trip

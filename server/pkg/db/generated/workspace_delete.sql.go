@@ -587,6 +587,16 @@ func (q *Queries) DeleteWorkspaceLeafData(ctx context.Context, workspaceID pgtyp
 	return err
 }
 
+const deleteWorkspaceNotes = `-- name: DeleteWorkspaceNotes :exec
+DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1
+`
+
+// workspace_note carries no FK by repo rule; sweep the Brain by workspace.
+func (q *Queries) DeleteWorkspaceNotes(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceNotes, workspaceID)
+	return err
+}
+
 const deleteWorkspacePlanVerifications = `-- name: DeleteWorkspacePlanVerifications :exec
 DELETE FROM plan_verification
 WHERE plan_verification.workspace_id = $1

@@ -2440,6 +2440,17 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	} else if len(memories) > 0 {
 		resp.Agent.Memories = memories
 	}
+	// Workspace Brain notes ride the same assembly point and the same
+	// non-blocking contract: the shared knowledge base is briefing context,
+	// so a failed read costs the run its Workspace Knowledge section, never
+	// its dispatch. Unlike memories these hang off the workspace, not the
+	// agent, so every agent in the workspace sees the same set.
+	if notes, err := h.TaskService.LoadWorkspaceNotesForBrief(r.Context(), agent.WorkspaceID); err != nil {
+		slog.Warn("daemon claim: load workspace notes failed; continuing without the Brain",
+			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(agent.WorkspaceID), "error", err)
+	} else if len(notes) > 0 {
+		resp.WorkspaceNotes = workspaceNotesToContext(notes)
+	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
 		if resp.Agent != nil {

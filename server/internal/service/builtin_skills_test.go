@@ -1,9 +1,11 @@
 package service
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/util"
 	"gopkg.in/yaml.v3"
 )
@@ -643,4 +645,42 @@ func splitFrontmatter(content string) (map[string]string, string, bool) {
 		fm[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(val), `"'`)
 	}
 	return fm, body, true
+}
+
+// TestWorkspaceBrainSkillMatchesTheInjectionContract couples the Brain skill
+// to the code that actually feeds a run. The skill tells agents how much of
+// the Brain they receive; if LoadWorkspaceNotesForBrief's cap moves and the
+// skill does not, agents act on a number the platform stopped honouring.
+func TestWorkspaceBrainSkillMatchesTheInjectionContract(t *testing.T) {
+	skill, ok := findSkill(t, "multica-workspace-brain")
+	if !ok {
+		return
+	}
+	fm, body, _ := splitFrontmatter(skill.Content)
+
+	if got := strings.TrimSpace(fm["user-invocable"]); got != "false" {
+		t.Errorf("user-invocable = %q, want false (the Brain triggers from context, not a slash command)", got)
+	}
+	if got := strings.TrimSpace(fm["allowed-tools"]); got != "Bash(multica *)" {
+		t.Errorf("allowed-tools = %q, want Bash(multica *)", got)
+	}
+
+	wantRecent := fmt.Sprintf("%d most recently updated", workspaceBriefNoteRecentLimit)
+	if !strings.Contains(body, wantRecent) {
+		t.Errorf("skill does not state the real injection cap %q; LoadWorkspaceNotesForBrief keeps every pinned note plus %d others", wantRecent, workspaceBriefNoteRecentLimit)
+	}
+	// The directory the skill tells agents to read is the one execenv writes.
+	if !strings.Contains(body, execenv.KnowledgeDirRelPath+"/README.md") {
+		t.Errorf("skill does not point at %s/README.md, the index execenv actually writes", execenv.KnowledgeDirRelPath)
+	}
+	for _, want := range []string{
+		"multica brain list",
+		"multica brain show",
+		"multica brain save",
+		"multica brain archive",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("skill does not teach %q", want)
+		}
+	}
 }

@@ -28,6 +28,7 @@
     "chat",
     "inbox",
     "meetings",
+    "brain",
     "---Runtime & execution---",
     "tasks",
     "daemon-runtimes",
