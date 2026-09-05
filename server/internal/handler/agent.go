@@ -811,6 +811,12 @@ type TaskAgentData struct {
 	// claim time and rendered by the daemon as the brief's Memory section.
 	// Omitted when the agent has none.
 	Memories []string `json:"memories,omitempty"`
+	// MemoryStates carries the governance state of each Memories entry by
+	// index ("draft" | "approved", JEF-269). Kept as a parallel array so the
+	// wire shape of Memories never changes: daemons and servers of any age
+	// decode claims in both skew directions. Absent entries (older server)
+	// are treated as approved by the daemon.
+	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded

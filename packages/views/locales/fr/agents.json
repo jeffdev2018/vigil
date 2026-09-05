@@ -764,6 +764,7 @@
       "source_run": "Depuis un run",
       "source_postmortem": "Issu d'un postmortem",
       "source_issue_link": "Voir l'issue",
+      "state_draft": "Brouillon",
       "dialog_create_title": "Ajouter un souvenir",
       "dialog_edit_title": "Modifier le souvenir",
       "dialog_description": "Un fait par souvenir. Restez court et spécifique.",
@@ -779,7 +780,9 @@
       "save_failed_toast": "Impossible d'enregistrer le souvenir. Réessayez.",
       "delete_failed_toast": "Impossible de supprimer le souvenir. Réessayez.",
       "cap_reached_toast": "Cet agent a déjà 200 souvenirs. Supprimez-en un pour libérer de l'espace.",
-      "extraction_disabled_note": "Aucun modèle de langage n'est configuré sur le serveur, les runs ne peuvent donc pas mémoriser ce qu'ils apprennent. Seuls les faits manuels sont conservés."
+      "extraction_disabled_note": "Aucun modèle de langage n'est configuré sur le serveur, les runs ne peuvent donc pas mémoriser ce qu'ils apprennent. Seuls les faits manuels sont conservés.",
+      "approve_action": "Approuver",
+      "approve_pending": "Approbation…"
     },
     "integrations": {
       "intro": "Connectez cet agent à des plateformes de chat externes pour que vos collaborateurs puissent travailler avec lui là où ils se trouvent.",

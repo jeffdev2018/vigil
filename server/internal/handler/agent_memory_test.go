@@ -207,9 +207,9 @@ func TestAgentMemoryRejectsForeignMemory(t *testing.T) {
 }
 
 // TestClaimTaskIncludesAgentMemories pins the single assembly point: a claimed
-// task's agent payload must carry the agent's memory facts (JEF-236), in
-// chronological order, so the daemon can render the Memory section without a
-// second round trip.
+// task's agent payload must carry the agent's memory facts (JEF-236) with
+// their governance state (JEF-269), in chronological order, so the daemon can
+// render the Memory section without a second round trip.
 func TestClaimTaskIncludesAgentMemories(t *testing.T) {
 	if testHandler == nil {
 		t.Skip("database not available")
@@ -223,12 +223,15 @@ func TestClaimTaskIncludesAgentMemories(t *testing.T) {
 		"workspace_id": testWorkspaceID,
 		"agent_id":     agentID,
 		"content":      "This repo uses pnpm, never npm.",
+		"state":        "approved",
 		"created_at":   testutil.Raw("now() - interval '1 hour'"),
 	})
 	dbfx.Insert(t, "agent_memory", testutil.Cols{
 		"workspace_id": testWorkspaceID,
 		"agent_id":     agentID,
 		"content":      "Run make test before pushing.",
+		"source":       "run",
+		"state":        "draft",
 	})
 	t.Cleanup(func() {
 		testPool.Exec(context.Background(), `DELETE FROM agent_memory WHERE agent_id = $1`, agentID)
@@ -245,7 +248,8 @@ func TestClaimTaskIncludesAgentMemories(t *testing.T) {
 	var resp struct {
 		Task *struct {
 			Agent *struct {
-				Memories []string `json:"memories"`
+				Memories     []string `json:"memories"`
+				MemoryStates []string `json:"memory_states"`
 			} `json:"agent"`
 		} `json:"task"`
 	}
@@ -253,14 +257,105 @@ func TestClaimTaskIncludesAgentMemories(t *testing.T) {
 	if resp.Task == nil || resp.Task.Agent == nil {
 		t.Fatalf("claim response missing task.agent: %s", w.Text())
 	}
-	want := []string{"This repo uses pnpm, never npm.", "Run make test before pushing."}
-	got := resp.Task.Agent.Memories
-	if len(got) != len(want) {
-		t.Fatalf("claim agent.memories = %v, want %v", got, want)
+	type wantFact struct{ content, state string }
+	want := []wantFact{
+		{"This repo uses pnpm, never npm.", "approved"},
+		{"Run make test before pushing.", "draft"},
+	}
+	gotContents := resp.Task.Agent.Memories
+	gotStates := resp.Task.Agent.MemoryStates
+	if len(gotContents) != len(want) || len(gotStates) != len(want) {
+		t.Fatalf("claim agent.memories = %v / states %v, want %v", gotContents, gotStates, want)
 	}
 	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("claim agent.memories[%d] = %q, want %q (chronological order)", i, got[i], want[i])
+		if gotContents[i] != want[i].content || gotStates[i] != want[i].state {
+			t.Fatalf("claim agent.memories[%d] = %q/%q, want %q/%q (chronological order)",
+				i, gotContents[i], gotStates[i], want[i].content, want[i].state)
+		}
+	}
+}
+
+// TestAgentMemoryStateGovernance pins the approval action (JEF-269): a manual
+// create lands approved, PUT accepts state to flip a draft to approved and
+// back, and an unknown state value is a clean 400.
+func TestAgentMemoryStateGovernance(t *testing.T) {
+	agentID := agentMemoryFixture(t, "memory-state-agent")
+
+	w := testutil.Call(t, testHandler.CreateAgentMemory,
+		agentMemoryRequest("POST", agentID, "", map[string]any{"content": "Humans write approved facts."}))
+	w.Want(http.StatusCreated)
+	var created AgentMemoryResponse
+	w.JSON(&created)
+	if created.State != "approved" {
+		t.Fatalf("manual create state = %q, want approved", created.State)
+	}
+
+	// A draft (as the extraction pass would write) is approved over PUT.
+	var draftID string
+	dbfx.QueryRow(t, `
+		INSERT INTO agent_memory (workspace_id, agent_id, content, source, state)
+		VALUES ($1, $2, 'Extraction hypothesis.', 'run', 'draft')
+		RETURNING id::text`, testWorkspaceID, agentID).Scan(&draftID)
+
+	w = testutil.Call(t, testHandler.UpdateAgentMemory,
+		agentMemoryRequest("PUT", agentID, draftID, map[string]any{"state": "approved"}))
+	w.Want(http.StatusOK)
+	var approved AgentMemoryResponse
+	w.JSON(&approved)
+	if approved.State != "approved" {
+		t.Fatalf("PUT state=approved returned state %q", approved.State)
+	}
+	if approved.Content != "Extraction hypothesis." {
+		t.Fatalf("state-only PUT rewrote content to %q", approved.Content)
+	}
+
+	// And back to draft.
+	w = testutil.Call(t, testHandler.UpdateAgentMemory,
+		agentMemoryRequest("PUT", agentID, draftID, map[string]any{"state": "draft"}))
+	w.Want(http.StatusOK)
+	var drafted AgentMemoryResponse
+	w.JSON(&drafted)
+	if drafted.State != "draft" {
+		t.Fatalf("PUT state=draft returned state %q", drafted.State)
+	}
+
+	// Content and state travel together.
+	w = testutil.Call(t, testHandler.UpdateAgentMemory,
+		agentMemoryRequest("PUT", agentID, draftID, map[string]any{
+			"content": "Reviewed and corrected hypothesis.",
+			"state":   "approved",
+		}))
+	w.Want(http.StatusOK)
+	var both AgentMemoryResponse
+	w.JSON(&both)
+	if both.Content != "Reviewed and corrected hypothesis." || both.State != "approved" {
+		t.Fatalf("PUT content+state = %q/%q, want corrected content + approved", both.Content, both.State)
+	}
+
+	// Invalid state and empty body are both 400.
+	w = testutil.Call(t, testHandler.UpdateAgentMemory,
+		agentMemoryRequest("PUT", agentID, draftID, map[string]any{"state": "bogus"}))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("PUT state=bogus: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+	w = testutil.Call(t, testHandler.UpdateAgentMemory,
+		agentMemoryRequest("PUT", agentID, draftID, map[string]any{}))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("PUT empty body: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// List carries the state on every row.
+	w = testutil.Call(t, testHandler.ListAgentMemories,
+		agentMemoryRequest("GET", agentID, "", nil))
+	w.Want(http.StatusOK)
+	var listed ListAgentMemoriesResponse
+	w.JSON(&listed)
+	if len(listed.Memories) != 2 {
+		t.Fatalf("ListAgentMemories = %#v, want 2 rows", listed)
+	}
+	for _, m := range listed.Memories {
+		if m.State == "" {
+			t.Fatalf("listed memory %s carries no state", m.ID)
 		}
 	}
 }

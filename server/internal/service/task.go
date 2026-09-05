@@ -7028,13 +7028,14 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 // predictably past it.
 const AgentMemoryBriefCharBudget = 40000
 
-// AgentMemoryFact is the (content, source) pair the brief budget reasons
-// about, so the selection is shared by the claim path (db.AgentMemory rows)
-// and the list endpoint (db.ListAgentMemoriesRow rows) without either owning
-// the rule.
+// AgentMemoryFact is one durable agent memory fact: the (content, source)
+// pair the brief budget reasons about, plus the governance state (JEF-269)
+// the daemon needs to render approved facts apart from unverified drafts.
+// The json tags are the claim-wire shape (TaskAgentData.Memories).
 type AgentMemoryFact struct {
-	Content string
-	Source  string
+	Content string `json:"content"`
+	Source  string `json:"source,omitempty"`
+	State   string `json:"state"`
 }
 
 // SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
@@ -7055,16 +7056,17 @@ func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
 	return kept
 }
 
-// LoadAgentMemories returns the contents of an agent's memory facts (JEF-236),
-// in chronological order for the brief. SQL returns them newest-first, capped
-// at the same 200 the write path enforces; SelectBriefedAgentMemories then
-// applies the character budget and the reverse happens here so the prompt
-// reads oldest → newest, matching how the facts were learned.
+// LoadAgentMemories returns an agent's memory facts (JEF-236) with their
+// governance state (JEF-269), in chronological order for the brief. SQL
+// returns them newest-first, capped at the same 200 the write path enforces;
+// SelectBriefedAgentMemories then applies the character budget and the
+// reverse happens here so the prompt reads oldest → newest, matching how the
+// facts were learned.
 //
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
 // the brief and the claim continues without it (see buildClaimedTaskResponse).
-func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]AgentMemoryFact, error) {
 	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
 		AgentID:     agentID,
 		WorkspaceID: workspaceID,
@@ -7074,14 +7076,14 @@ func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceI
 	}
 	facts := make([]AgentMemoryFact, len(rows))
 	for i, row := range rows {
-		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source}
+		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source, State: row.State}
 	}
 	briefed := SelectBriefedAgentMemories(facts)
-	contents := make([]string, 0, len(briefed))
+	ordered := make([]AgentMemoryFact, 0, len(briefed))
 	for i := len(briefed) - 1; i >= 0; i-- {
-		contents = append(contents, briefed[i].Content)
+		ordered = append(ordered, briefed[i])
 	}
-	return contents, nil
+	return ordered, nil
 }
 
 // workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with

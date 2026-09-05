@@ -59,6 +59,7 @@ import type {
   SkillSummary,
   AgentMemory,
   AgentMemoryList,
+  AgentMemoryState,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -3555,13 +3556,13 @@ export class ApiClient {
   async updateAgentMemory(
     agentId: string,
     memoryId: string,
-    content: string,
+    patch: { content?: string; state?: AgentMemoryState },
   ): Promise<AgentMemory> {
     const raw = await this.fetch<unknown>(
       `/api/agents/${agentId}/memories/${memoryId}`,
       {
         method: "PUT",
-        body: JSON.stringify({ content }),
+        body: JSON.stringify(patch),
       },
     );
     return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {

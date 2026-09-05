@@ -3920,6 +3920,9 @@ export const AgentMemorySchema = z.object({
   agent_id: z.string(),
   content: z.string().optional().default(""),
   source: z.string().optional().default("manual"),
+  // Governance state (JEF-269). Tolerant default: a pre-governance server
+  // omits the field, and every fact it stored was human-approved.
+  state: z.enum(["draft", "approved"]).optional().default("approved"),
   source_task_id: z.string().nullable().optional().default(null),
   source_issue_id: z.string().nullable().optional().default(null),
   created_at: z.string().optional().default(""),
@@ -3931,6 +3934,7 @@ export const EMPTY_AGENT_MEMORY: AgentMemory = {
   agent_id: "",
   content: "",
   source: "manual",
+  state: "approved",
   source_task_id: null,
   source_issue_id: null,
   created_at: "",

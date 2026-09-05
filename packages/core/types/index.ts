@@ -91,6 +91,7 @@ export type {
   AgentMemory,
   AgentMemoryList,
   AgentMemorySource,
+  AgentMemoryState,
   IssueUsageSummary,
   MikaBootstrapResponse,
   TaskStatus,

@@ -764,6 +764,7 @@
       "source_run": "From a run",
       "source_postmortem": "From a postmortem",
       "source_issue_link": "View issue",
+      "state_draft": "Draft",
       "dialog_create_title": "Add memory",
       "dialog_edit_title": "Edit memory",
       "dialog_description": "One fact per memory. Keep it short and specific.",
@@ -779,7 +780,9 @@
       "save_failed_toast": "Couldn't save the memory. Try again.",
       "delete_failed_toast": "Couldn't delete the memory. Try again.",
       "cap_reached_toast": "This agent already has 200 memories. Delete one to make room.",
-      "extraction_disabled_note": "No language model is configured on the server, so runs can't save what they learn. Only manual facts are kept."
+      "extraction_disabled_note": "No language model is configured on the server, so runs can't save what they learn. Only manual facts are kept.",
+      "approve_action": "Approve",
+      "approve_pending": "Approving…"
     },
     "integrations": {
       "intro": "Connect this agent to external chat platforms so people can work with it where they already are.",

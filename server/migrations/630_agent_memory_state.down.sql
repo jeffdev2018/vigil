@@ -1,0 +1,1 @@
+ALTER TABLE agent_memory DROP COLUMN IF EXISTS state;

@@ -1554,6 +1554,13 @@ export interface AgentVersionDiff {
 export type AgentMemorySource = "manual" | "run" | "postmortem";
 
 /**
+ * Governance state of a memory fact (JEF-269): "draft" facts were learned
+ * automatically and await human review; "approved" ones were written or
+ * vetted by a human.
+ */
+export type AgentMemoryState = "draft" | "approved";
+
+/**
  * One persistent memory fact an agent carries across runs. `source` tells
  * whether a human pinned it ("manual") or a run wrote it back ("run");
  * `source_task_id` links a run-sourced memory to the task that produced it.
@@ -1563,6 +1570,7 @@ export interface AgentMemory {
   agent_id: string;
   content: string;
   source: AgentMemorySource;
+  state: AgentMemoryState;
   source_task_id: string | null;
   /** Issue the source task worked on, so a run-sourced fact links back to it.
    *  Null for manual facts and for runs that carried no issue (chat, duel). */
