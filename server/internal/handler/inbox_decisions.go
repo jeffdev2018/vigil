@@ -72,6 +72,7 @@ func (h *Handler) ListInboxDecisions(w http.ResponseWriter, r *http.Request) {
 		base := db.ListInboxItemsRow(row)
 		score, _ := attentionScore(base, now)
 		item := InboxDecisionItem{InboxItemID: uuidToString(row.ID), IssueID: uuidToString(row.IssueID), IssueTitle: row.Title, RiskScore: score, Decision: issueDecisionToResponse(decision)}
+		item.Decision.Learned = h.decisionHint(r.Context(), wsUUID, userID, decision)
 		if issue, err := h.Queries.GetIssue(r.Context(), row.IssueID); err == nil {
 			item.IssueIdentifier = prefix + "-" + strconv.Itoa(int(issue.Number))
 			item.IssueTitle = issue.Title

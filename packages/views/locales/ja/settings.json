@@ -464,7 +464,8 @@
       "mcp": "MCP",
       "billing": "請求とプラン",
       "audit_log": "監査ログ",
-      "budgets": "予算"
+      "budgets": "予算",
+      "learning": "Vigil が知っていること"
     }
   },
   "plugins": {
@@ -1668,5 +1669,50 @@
     "verify_failed": "検証に失敗しました",
     "chain_ok": "チェーンは正常 · {{count}} 件 · 先頭 {{hash}}",
     "chain_broken": "エントリ #{{seq}} でチェーンが破損しています：行が変更または削除されました"
+  },
+  "learning": {
+    "title": "Vigil が私について知っていること",
+    "intro": "以下はすべて、このワークスペースでのあなた自身の判断から学習したものです。ここに表示されずに学習されることはなく、いつでも忘れさせられます。プロフィールが他の人に使われることはありません。",
+    "examples": "例として使われた判断",
+    "examples_description": "あなたが回答した判断はすべて、その種の依頼に対する好みを Vigil に教えます。",
+    "review_load": "レビュー負荷",
+    "review_load_description": "判断への回答に費やした推定時間（1 件 45 秒）。節約時間だけでなく、消費時間も数えます。",
+    "auto_decided": "代わりに判断",
+    "auto_decided_description": "ルールがあなたの代わりに回答した判断。{{overturned}} 件をあなたが覆しました。",
+    "surface": "学習できる範囲",
+    "surface_description": "ここに載っていないものは固定されています。",
+    "surfaces": {
+      "decision_rules": "判断ルール",
+      "decision_hours": "判断時間帯"
+    },
+    "rules": "学習済みルール",
+    "rules_description": "同じ種類の判断に 5 回回答するとルールが現れます。オンにすると単独で判断します。重要度の高い判断は決して行わず、30 日間で判断の 20% 超が覆されると提案に格下げされます。",
+    "loading": "読み込み中…",
+    "empty": "まだ学習していません。いくつか判断に回答すると、ここに好みが表示されます。",
+    "rule_label": "{{family}}: 通常は「{{label}}」",
+    "rule_description": "{{total}} 回中 {{count}} 回 · 修正 {{corrections}} 件 · 最終 {{when}}",
+    "states": {
+      "learned": "学習済み",
+      "proposed": "提案（再レビュー）"
+    },
+    "high_stakes": "重要度が高く、自動化されません",
+    "auto_label": "単独で判断",
+    "forget": "忘れる",
+    "forgotten": "忘れました",
+    "update_failed": "更新できませんでした",
+    "families": {
+      "gate": "ブロックされたアクション",
+      "second_approval": "二次承認",
+      "preview": "まず見せて",
+      "watchdog": "ウォッチドッグ",
+      "plan": "プラン承認",
+      "pipeline_gate": "パイプラインゲート",
+      "interview": "インタビュー",
+      "question": "質問"
+    },
+    "hours": "判断する時間帯",
+    "hours_description": "あなたが普段判断に回答する時間帯。ブリーフィングや催促がそれを待てるように。",
+    "hours_label": "主に {{hours}} 頃",
+    "hours_source": "{{count}} 件の回答 · 最終 {{when}}"
   }
 }

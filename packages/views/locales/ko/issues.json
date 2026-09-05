@@ -1089,7 +1089,8 @@
     "sla_due": "{{time}}까지 답변",
     "sla_overdue": "기한 초과, 에스컬레이션 대기",
     "sla_substitute": "기한 초과 · 대리인에게 에스컬레이션됨",
-    "sla_leads": "기한 초과 · 워크스페이스 리드에게 에스컬레이션됨"
+    "sla_leads": "기한 초과 · 워크스페이스 리드에게 에스컬레이션됨",
+    "learned": "이 유형의 요청에서 {{total}}번 중 {{count}}번 « {{label}} »을 선택했습니다."
   },
   "acceptance": {
     "section": "인수 기준",

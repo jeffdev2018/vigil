@@ -1401,6 +1401,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceCommunicationRoots(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete decision training examples",
+			run:  func() error { return qtx.DeleteWorkspaceDecisionTrainingExamples(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete work profile observations",
+			run:  func() error { return qtx.DeleteWorkspaceWorkProfileObservations(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete watchdog verdicts",
 			run:  func() error { return qtx.DeleteWorkspaceWatchdogVerdicts(ctx, requester.WorkspaceID) },
 		},

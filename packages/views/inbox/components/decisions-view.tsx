@@ -71,12 +71,17 @@ function DecisionCard({ item }: { item: InboxDecision }) {
         {d.sla_deadline_at && <span>{t(($) => $.decisions.due, { when: timeAgo(d.sla_deadline_at) })}</span>}
       </div>
       <p className="font-medium text-foreground">{d.question}</p>
+      {d.learned && !done && (
+        <p data-testid="decision-learned" className="text-muted-foreground">
+          {t(($) => $.decisions.learned, { label: d.learned.option_label, count: d.learned.count, total: d.learned.total })}
+        </p>
+      )}
       {done ? (
         <span className="text-success">{t(($) => $.decisions.answered)}</span>
       ) : other === null ? (
         <div className="flex flex-wrap gap-1">
           {d.options.map((o) => (
-            <Button key={o.id} type="button" size="sm" variant={o.id === d.recommended_option_id ? "default" : "outline"} disabled={respond.isPending} onClick={() => answer({ option_id: o.id })}>
+            <Button key={o.id} type="button" size="sm" variant={o.id === d.recommended_option_id || (d.learned?.option_id === o.id && !d.recommended_option_id) ? "default" : "outline"} disabled={respond.isPending} onClick={() => answer({ option_id: o.id })}>
               {o.label}{o.id === d.recommended_option_id ? ` · ${t(($) => $.decisions.recommended)}` : ""}
             </Button>
           ))}

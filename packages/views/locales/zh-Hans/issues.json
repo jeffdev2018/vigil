@@ -1089,7 +1089,8 @@
     "sla_due": "请在 {{time}} 前回答",
     "sla_overdue": "已逾期，等待升级",
     "sla_substitute": "已逾期 · 已升级给替补",
-    "sla_leads": "已逾期 · 已升级给工作区负责人"
+    "sla_leads": "已逾期 · 已升级给工作区负责人",
+    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。"
   },
   "acceptance": {
     "section": "验收标准",

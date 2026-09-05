@@ -372,4 +372,17 @@ export interface IssueDecision {
   escalation_level?: number;
   escalated_at?: string | null;
   created_at: string;
+  /** Vigil learns you (K71): what the reader's own history says about this decision. */
+  learned?: DecisionHint | null;
+}
+
+export interface DecisionHint {
+  signature: string;
+  option_id: string;
+  option_label: string;
+  count: number;
+  total: number;
+  rate: number;
+  auto: boolean;
+  stake: "normal" | "high" | (string & {});
 }

@@ -912,6 +912,22 @@ type DecisionSearchChunk struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DecisionTrainingExample struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	UserID       pgtype.UUID        `json:"user_id"`
+	DecisionID   pgtype.UUID        `json:"decision_id"`
+	Signature    string             `json:"signature"`
+	Question     string             `json:"question"`
+	Options      []byte             `json:"options"`
+	OptionID     string             `json:"option_id"`
+	ModifiedText string             `json:"modified_text"`
+	Stake        string             `json:"stake"`
+	Auto         bool               `json:"auto"`
+	Overturned   bool               `json:"overturned"`
+	AnsweredAt   pgtype.Timestamptz `json:"answered_at"`
+}
+
 type DingtalkBotIdentity struct {
 	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
 	InstallationID   pgtype.UUID        `json:"installation_id"`
@@ -2249,6 +2265,21 @@ type WeeklyRetro struct {
 	Narrative   string             `json:"narrative"`
 	GeneratedAt pgtype.Timestamptz `json:"generated_at"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkProfileObservation struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	UserID          pgtype.UUID        `json:"user_id"`
+	Key             string             `json:"key"`
+	Value           []byte             `json:"value"`
+	Source          string             `json:"source"`
+	Count           int32              `json:"count"`
+	Corrections     int32              `json:"corrections"`
+	Auto            bool               `json:"auto"`
+	State           string             `json:"state"`
+	FirstObservedAt pgtype.Timestamptz `json:"first_observed_at"`
+	LastObservedAt  pgtype.Timestamptz `json:"last_observed_at"`
 }
 
 type Workspace struct {

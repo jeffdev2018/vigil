@@ -68,6 +68,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   postmortem_ready: "Postmortem ready",
   triage_stale: "Triage is stalling",
   watchdog_escalation: "Watchdog escalation",
+  decision_auto_decided: "Decided for you",
 };
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).

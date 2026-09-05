@@ -125,9 +125,14 @@ export function DecisionCard({ decision, issueId, wsId }: { decision: IssueDecis
       )}
       {pending ? (
         <>
+          {decision.learned && (
+            <p data-testid="decision-learned" className="text-caption text-muted-foreground">
+              {t(($) => $.decisions.learned, { label: decision.learned.option_label, count: decision.learned.count, total: decision.learned.total })}
+            </p>
+          )}
           <div className="flex flex-col gap-1">
             {decision.options.map((o) => {
-              const recommended = o.id === decision.recommended_option_id;
+              const recommended = o.id === decision.recommended_option_id || (decision.learned?.option_id === o.id && !decision.recommended_option_id);
               return (
                 <Button
                   key={o.id}
