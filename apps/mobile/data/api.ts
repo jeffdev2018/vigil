@@ -61,6 +61,8 @@ import type {
   PostmortemState,
   PostmortemStats,
   PostmortemsResponse,
+  Meeting,
+  MeetingListResponse,
   UpdateIssueRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -90,6 +92,10 @@ import {
   PostmortemSchema,
   PostmortemStatsSchema,
   PostmortemsResponseSchema,
+  EMPTY_MEETING,
+  EMPTY_MEETING_LIST,
+  MeetingListResponseSchema,
+  MeetingSchema,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -748,6 +754,73 @@ class ApiClient {
       null,
       { method: "POST" },
       { endpoint: "POST /api/postmortems/:id/discard" },
+    );
+  }
+
+  // --- Meetings ---
+  // Read + manage only. Recording (POST /api/meetings, /segments, /finish) is
+  // deliberately absent: capturing audio is out of scope for the mobile app,
+  // which reads meetings recorded from web/desktop and turns their action
+  // items into triage work.
+  async listMeetings(
+    params?: { limit?: number; offset?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<MeetingListResponse> {
+    const search = new URLSearchParams();
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.offset !== undefined)
+      search.set("offset", String(params.offset));
+    const qs = search.toString();
+    return this.fetchValidated<MeetingListResponse>(
+      `/api/meetings${qs ? `?${qs}` : ""}`,
+      MeetingListResponseSchema,
+      EMPTY_MEETING_LIST,
+      { ...opts, endpoint: "GET /api/meetings" },
+    );
+  }
+
+  async getMeeting(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<Meeting> {
+    return this.fetchValidated<Meeting>(
+      `/api/meetings/${encodeURIComponent(id)}`,
+      MeetingSchema,
+      EMPTY_MEETING,
+      { ...opts, endpoint: "GET /api/meetings/:id" },
+    );
+  }
+
+  /** Renames a meeting. Title is the only mutable field. */
+  async updateMeeting(id: string, data: { title: string }): Promise<Meeting> {
+    return this.fetchValidatedWith<Meeting>(
+      `/api/meetings/${encodeURIComponent(id)}`,
+      MeetingSchema,
+      EMPTY_MEETING,
+      { method: "PATCH", body: JSON.stringify(data) },
+      { endpoint: "PATCH /api/meetings/:id" },
+    );
+  }
+
+  /** Removes a meeting and its transcript. 204, no body. */
+  async deleteMeeting(id: string): Promise<void> {
+    await this.fetch<void>(`/api/meetings/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /**
+   * Replays the summary + action-item extraction for a meeting that already
+   * stopped recording. 409 `meeting_recording` when it has not, and
+   * `meeting_summarizing` while a finish is still running.
+   */
+  async resummarizeMeeting(id: string): Promise<Meeting> {
+    return this.fetchValidatedWith<Meeting>(
+      `/api/meetings/${encodeURIComponent(id)}/resummarize`,
+      MeetingSchema,
+      EMPTY_MEETING,
+      { method: "POST" },
+      { endpoint: "POST /api/meetings/:id/resummarize" },
     );
   }
 

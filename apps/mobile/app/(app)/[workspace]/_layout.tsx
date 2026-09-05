@@ -333,6 +333,15 @@ export default function WorkspaceLayout() {
           name="postmortem/[id]"
           options={{ title: "Postmortem", headerBackTitle: "Back" }}
         />
+        {/* Meetings. Read + manage only — recording is web/desktop. */}
+        <Stack.Screen
+          name="more/meetings"
+          options={{ title: "Meetings", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="meeting/[id]"
+          options={{ title: "Meeting", headerBackTitle: "Meetings" }}
+        />
         <Stack.Screen
           name="more/settings"
           options={{ title: "Settings", headerBackTitle: "Back" }}

@@ -98,6 +98,7 @@ const NAV_ITEMS: NavItem[] = [
     path: "/more/postmortems",
     badge: "postmortem",
   },
+  { label: "Meetings", icon: "waveform", path: "/more/meetings" },
 ];
 
 export function MoreTabDropdownAnchor({
