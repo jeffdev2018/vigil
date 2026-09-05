@@ -117,6 +117,7 @@ import type {
   TaskFailedPayload,
   TaskCancelledPayload,
   TaskScoredPayload,
+  TaskEscalatedPayload,
   ChatDonePayload,
   ChatQuickActionsPayload,
   ChatQuickActionsPendingState,
@@ -1817,6 +1818,20 @@ export function useRealtimeSync(
       qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
     });
 
+    // task:escalated (JEF-272) fires when a below-threshold run is
+    // re-dispatched to a stronger runtime. The task prefix path above already
+    // refreshes every list-of-tasks query (the execution log that gains the
+    // new child task); the escalation can also move the issue (review state,
+    // assignee back to the router), so refresh that issue's detail row too,
+    // mirroring the task:scored handler.
+    const unsubTaskEscalated = ws.on("task:escalated", (p) => {
+      const payload = p as TaskEscalatedPayload;
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
     const unsubChatSessionRead = ws.on("chat:session_read", (p) => {
       const payload = p as { chat_session_id: string };
       chatWsLogger.info("chat:session_read (global)", payload);
@@ -1918,6 +1933,7 @@ export function useRealtimeSync(
       unsubTaskCompleted();
       unsubTaskFailed();
       unsubTaskScored();
+      unsubTaskEscalated();
       unsubChatSessionRead();
       unsubChatSessionCreated();
       unsubChatSessionDeleted();

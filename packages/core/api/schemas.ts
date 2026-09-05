@@ -2303,6 +2303,21 @@ const TaskConfidenceSchema = z.object({
   below_threshold: z.boolean().optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Run escalation (JEF-272). When a below-threshold run is re-dispatched to a
+// stronger runtime, the record rides on the NEW task the escalation created.
+// `from_task_id` is the one field that defines the record — without it there
+// is no origin to point at — so a row missing it degrades the whole record
+// to "absent", same rule as the confidence record above.
+// ---------------------------------------------------------------------------
+
+const TaskEscalationSchema = z.object({
+  from_task_id: z.string(),
+  reason: z.string().default(""),
+  attempt: z.number().int().default(1),
+  from_runtime_id: z.string().default(""),
+}).loose();
+
 export const RuntimeRoutingStatsSchema = z.object({
   runtime_id: z.string().default(""),
   runtime_name: z.string().default(""),
@@ -2373,6 +2388,11 @@ export const AgentTaskSchema = z.object({
   // `routing`: a malformed record costs the row its confidence display, not
   // the whole execution log. Absent until the scorer has scored the run.
   confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
+  // Escalation origin (JEF-272): present on the child task a confidence
+  // escalation created, absent on ordinary runs. Same independent-degradation
+  // rule as `confidence` — a malformed record costs the row its escalation
+  // display, not the whole execution log.
+  escalation: TaskEscalationSchema.nullable().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -5097,6 +5117,10 @@ export const CrossReviewSettingsSchema = z.object({
 export const ConfidenceReviewSettingsSchema = z.object({
   enabled: z.boolean().catch(true).default(true),
   threshold: z.number().catch(0.5).default(0.5),
+  // Cascade escalations (JEF-272): how many times a below-threshold run may
+  // be re-dispatched to a stronger runtime. Server-side contract is an
+  // integer in [0, 3]; anything else falls back to the product default.
+  max_escalations: z.number().int().min(0).max(3).catch(2).default(2),
 }).loose();
 
 export const CrossReviewListSchema = z.object({

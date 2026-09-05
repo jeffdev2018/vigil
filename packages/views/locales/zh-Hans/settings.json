@@ -1003,6 +1003,8 @@
     "confidence_review_enabled_description": "当运行的置信度得分低于阈值时，议题会进入评审状态，并创建一条 confidence_review 收件箱条目。",
     "confidence_review_threshold": "置信度阈值",
     "confidence_review_threshold_description": "得分低于此值的运行会被标记为需要人工评审。取值在 0 到 1 之间。",
+    "confidence_review_max_escalations": "最大升级次数",
+    "confidence_review_max_escalations_description": "得分低于阈值的运行最多会被重新派发到更强的运行时这么多次。取值在 0 到 3 之间；0 表示禁用升级。",
     "confidence_review_failed": "无法保存置信度评审设置",
     "ci_auto_fix_section": "CI 自动修复",
     "ci_auto_fix_enabled": "修复智能体 PR 上的红色 CI",

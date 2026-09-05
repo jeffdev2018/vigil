@@ -117,6 +117,35 @@ func (q *Queries) GetRoutingStats(ctx context.Context, arg GetRoutingStatsParams
 	return items, nil
 }
 
+const listDistinctTaskRuntimesForIssue = `-- name: ListDistinctTaskRuntimesForIssue :many
+SELECT DISTINCT runtime_id
+FROM agent_task_queue
+WHERE issue_id = $1
+  AND runtime_id IS NOT NULL
+`
+
+// Cascade escalation (JEF-272): every runtime already tried on this issue, so
+// the escalator never re-enqueues on a runtime that already had its chance.
+func (q *Queries) ListDistinctTaskRuntimesForIssue(ctx context.Context, issueID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listDistinctTaskRuntimesForIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var runtime_id pgtype.UUID
+		if err := rows.Scan(&runtime_id); err != nil {
+			return nil, err
+		}
+		items = append(items, runtime_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoutingCandidateRuntimes = `-- name: ListRoutingCandidateRuntimes :many
 SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name, sandbox_mode, sandbox_image, sandbox_allowed_hosts, sandbox_capabilities, sandbox_effective FROM agent_runtime
 WHERE workspace_id = $1

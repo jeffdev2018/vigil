@@ -1006,6 +1006,8 @@
     "confidence_review_enabled_description": "When a run's confidence score lands under the threshold, the issue moves to review and a confidence_review inbox item is raised.",
     "confidence_review_threshold": "Confidence threshold",
     "confidence_review_threshold_description": "Runs scoring below this are flagged for human review. Between 0 and 1.",
+    "confidence_review_max_escalations": "Max escalations",
+    "confidence_review_max_escalations_description": "A run scoring below the threshold is re-dispatched to a stronger runtime up to this many times. Between 0 and 3; 0 disables escalation.",
     "confidence_review_failed": "Failed to save the confidence review settings",
     "ci_auto_fix_section": "CI auto-fix",
     "ci_auto_fix_enabled": "Fix red CI on agents' pull requests",

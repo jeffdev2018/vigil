@@ -332,11 +332,15 @@ SELECT
     COALESCE(sqlc.narg('is_leader_task')::boolean, FALSE),
     sqlc.narg(handoff_note),
     sqlc.narg(squad_id),
-    CASE
-        WHEN COALESCE(sqlc.narg('head_sha')::text, '') <> ''
-        THEN jsonb_build_object('head_sha', sqlc.narg('head_sha')::text)
-        ELSE NULL
-    END,
+    -- Cascade escalation (JEF-272): a below-threshold run re-enqueues on a
+    -- stronger runtime and records {from_task_id, reason, attempt,
+    -- from_runtime_id} under context.escalation. strip_nulls drops both keys
+    -- when absent and NULLIF keeps the column NULL in that case, preserving
+    -- the pre-TEN-356 behavior for ordinary enqueues.
+    NULLIF(jsonb_strip_nulls(jsonb_build_object(
+        'head_sha', NULLIF(COALESCE(sqlc.narg('head_sha')::text, ''), ''),
+        'escalation', sqlc.narg('escalation')::jsonb
+    ))::text, '{}')::jsonb,
     sqlc.narg(originator_user_id),
     sqlc.narg(accountable_user_id),
     sqlc.narg(runtime_mcp_overlay),

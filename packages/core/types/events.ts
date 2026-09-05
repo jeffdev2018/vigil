@@ -34,6 +34,7 @@ export type WSEventType =
   | "task:message"
   | "task:cancelled"
   | "task:scored"
+  | "task:escalated"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -459,6 +460,21 @@ export interface TaskScoredPayload {
   below_threshold: boolean;
 }
 
+// task:escalated (JEF-272) fires when a below-threshold run is re-dispatched
+// to a stronger runtime: `task_id` is the NEW child task, `from_task_id` the
+// escalated run, `attempt` the 1-based count toward the workspace's
+// max_escalations cap. The child task appears in the issue's execution log,
+// so consumers refresh the issue detail alongside the task lists (the task:
+// prefix path already covers the latter).
+export interface TaskEscalatedPayload {
+  task_id: string;
+  from_task_id: string;
+  issue_id: string;
+  from_runtime_id: string;
+  to_runtime_id: string;
+  attempt: number;
+}
+
 export interface ReactionAddedPayload {
   reaction: Reaction;
   issue_id: string;
@@ -691,6 +707,7 @@ export interface WSEventPayloadMap {
   "task:message": TaskMessagePayload;
   "task:cancelled": TaskCancelledPayload;
   "task:scored": TaskScoredPayload;
+  "task:escalated": TaskEscalatedPayload;
   "task:progress": unknown;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;

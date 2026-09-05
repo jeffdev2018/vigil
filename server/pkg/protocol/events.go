@@ -44,6 +44,10 @@ const (
 	// has been persisted — it is not a status transition, it is the signal
 	// that the task's confidence column changed.
 	EventTaskScored = "task:scored"
+	// EventTaskEscalated (JEF-272) fires when a below-threshold run cascades:
+	// a fresh task for the same issue was enqueued on a stronger runtime. Not
+	// a status transition either — the signal that the cascade retried.
+	EventTaskEscalated = "task:escalated"
 
 	// Postmortem events (k68). postmortem:created fires when a failed run gets
 	// a drafted postmortem; postmortem:resolved fires on approve/discard.

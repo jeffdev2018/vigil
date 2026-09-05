@@ -1006,7 +1006,14 @@
     "details_confidence_model": "评分模型",
     "details_confidence_threshold": "评审阈值",
     "details_confidence_threshold_value": "{{threshold}}%",
-    "details_confidence_rationale": "评分理由"
+    "details_confidence_rationale": "评分理由",
+    "escalation_chip": "已从 {{name}} 升级 · 第 {{attempt}} 次尝试",
+    "escalation_chip_title": "本次运行是在一次低置信度运行之后被重新派发到更强运行时的",
+    "details_escalation_from": "升级来源",
+    "details_escalation_reason": "升级原因",
+    "details_escalation_reason_below_threshold": "置信度得分低于评审阈值",
+    "details_escalation_attempt": "升级尝试",
+    "details_escalation_attempt_value": "{{attempt}} / {{max}}"
   },
   "task_failure": {
     "cancelled_by_system": "系统已取消",

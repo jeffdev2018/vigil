@@ -1003,6 +1003,8 @@
     "confidence_review_enabled_description": "実行の信頼度スコアがしきい値を下回ると、課題がレビュー状態に移行し、confidence_review の受信トレイ項目が作成されます。",
     "confidence_review_threshold": "信頼度しきい値",
     "confidence_review_threshold_description": "この値を下回るスコアの実行は、人によるレビュー対象としてフラグされます。0 から 1 の間。",
+    "confidence_review_max_escalations": "最大エスカレーション数",
+    "confidence_review_max_escalations_description": "しきい値を下回った実行は、より強力なランタイムへ最大この回数まで再ディスパッチされます。0 から 3 の間。0 でエスカレーションを無効化します。",
     "confidence_review_failed": "信頼度レビュー設定を保存できませんでした",
     "ci_auto_fix_section": "CI 自動修正",
     "ci_auto_fix_enabled": "エージェントの PR で赤い CI を修正",

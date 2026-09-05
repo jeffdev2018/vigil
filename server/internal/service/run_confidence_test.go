@@ -171,6 +171,7 @@ func TestRunConfidenceBelowThresholdEscalatesToReview(t *testing.T) {
 	taskID := fx.seedTerminalTask(t, pool, "completed", "I think it works, not sure.")
 	bus := events.New()
 	updates := collectEvents(bus, protocol.EventIssueUpdated, protocol.EventInboxNew)
+	escalated := collectEvents(bus, protocol.EventTaskEscalated)
 	svc := runConfidenceService(pool, bus, stubMemoryLLM(t, `{"score":0.2,"rationale":"The run expresses doubt and shows no verification."}`))
 
 	if err := svc.ScoreRunConfidence(context.Background(), util.MustParseUUID(taskID)); err != nil {
@@ -198,6 +199,11 @@ func TestRunConfidenceBelowThresholdEscalatesToReview(t *testing.T) {
 	}
 	if !sawIssueUpdated || !sawInboxNew {
 		t.Errorf("events: issue:updated=%v inbox:new=%v", sawIssueUpdated, sawInboxNew)
+	}
+	// Cascade (JEF-272): the fixture's only runtime is the one that just
+	// failed, so there is no stronger candidate and review must come first.
+	if len(*escalated) != 0 {
+		t.Errorf("task:escalated events = %d, want 0 with no stronger runtime", len(*escalated))
 	}
 }
 

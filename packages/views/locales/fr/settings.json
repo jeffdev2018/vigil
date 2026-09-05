@@ -1006,6 +1006,8 @@
     "confidence_review_enabled_description": "Lorsque le score de confiance d'un run passe sous le seuil, l'issue passe en revue et un élément de boîte de réception confidence_review est créé.",
     "confidence_review_threshold": "Seuil de confiance",
     "confidence_review_threshold_description": "Les runs scorés en dessous de cette valeur sont signalés pour une revue humaine. Entre 0 et 1.",
+    "confidence_review_max_escalations": "Escalades maximales",
+    "confidence_review_max_escalations_description": "Un run scoré sous le seuil est redispatché vers un runtime plus puissant au plus ce nombre de fois. Entre 0 et 3 ; 0 désactive l'escalade.",
     "confidence_review_failed": "Échec de l'enregistrement des paramètres de revue de confiance",
     "ci_auto_fix_section": "Correction automatique de la CI",
     "ci_auto_fix_enabled": "Corriger la CI rouge sur les PR des agents",

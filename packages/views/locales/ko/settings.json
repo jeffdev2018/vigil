@@ -1003,6 +1003,8 @@
     "confidence_review_enabled_description": "실행의 신뢰도 점수가 임계값 아래로 떨어지면 이슈가 리뷰 상태로 전환되고 confidence_review 받은편지함 항목이 생성됩니다.",
     "confidence_review_threshold": "신뢰도 임계값",
     "confidence_review_threshold_description": "이 값 미만의 점수를 받은 실행은 사람 리뷰 대상으로 표시됩니다. 0과 1 사이.",
+    "confidence_review_max_escalations": "최대 에스컬레이션 수",
+    "confidence_review_max_escalations_description": "임계값 미만 점수의 실행은 더 강력한 런타임으로 최대 이 횟수만큼 재디스패치됩니다. 0과 3 사이. 0이면 에스컬레이션이 비활성화됩니다.",
     "confidence_review_failed": "신뢰도 리뷰 설정을 저장하지 못했습니다",
     "ci_auto_fix_section": "CI 자동 수정",
     "ci_auto_fix_enabled": "에이전트 PR의 실패한 CI 수정",

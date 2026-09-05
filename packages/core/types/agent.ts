@@ -64,6 +64,22 @@ export interface TaskConfidence {
 }
 
 /**
+ * The escalation record carried by the child task a confidence escalation
+ * created (JEF-272): when a run scores under the workspace review threshold,
+ * the backend re-dispatches the work to a stronger runtime and stamps the
+ * new task with its origin. Absent on ordinary runs and older backends —
+ * render conditionally. `reason` is the backend's escalation cause ("below_threshold"
+ * today); `attempt` is the 1-based escalation count toward the workspace's
+ * `max_escalations` cap.
+ */
+export interface TaskEscalation {
+  from_task_id: string;
+  reason: string;
+  attempt: number;
+  from_runtime_id: string;
+}
+
+/**
  * One (runtime, provider, model, task_class) row of the 90-day routing-stats
  * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
  * `avg_duration_secs` are null when the rollup has no priced / timed samples.
@@ -567,6 +583,12 @@ export interface AgentTask {
    * scored the run and on older backends — render conditionally.
    */
   confidence?: TaskConfidence | null;
+  /**
+   * The escalation origin of this run (JEF-272): set on the child task a
+   * confidence escalation created, `null`/absent on ordinary runs and older
+   * backends — render conditionally.
+   */
+  escalation?: TaskEscalation | null;
 }
 
 /**

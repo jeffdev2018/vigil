@@ -437,6 +437,10 @@ type AgentTaskResponse struct {
 	// non-completed status, review runs, rows that predate the feature), so
 	// the UI renders the block conditionally.
 	Confidence json.RawMessage `json:"confidence,omitempty"`
+	// Cascade escalation (JEF-272): the escalation record persisted under
+	// context.escalation when this task is a cascade retry — from_task_id,
+	// reason, attempt, from_runtime_id. Empty for first-attempt runs.
+	Escalation json.RawMessage `json:"escalation,omitempty"`
 	// Pause, steer, resume (K19).
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
@@ -871,6 +875,14 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	if t.HandoffNote.Valid {
 		handoffNote = t.HandoffNote.String
 	}
+	// Cascade escalation (JEF-272) lives in the context JSONB, not a column.
+	var escalation json.RawMessage
+	if len(t.Context) > 0 {
+		var ctxMap map[string]json.RawMessage
+		if err := json.Unmarshal(t.Context, &ctxMap); err == nil {
+			escalation = ctxMap["escalation"]
+		}
+	}
 	return AgentTaskResponse{
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),
@@ -892,6 +904,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
 		Confidence:             json.RawMessage(t.Confidence),
+		Escalation:             escalation,
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),

@@ -3911,7 +3911,7 @@ export class ApiClient {
   // Confidence review (JEF-240).
   async getConfidenceReviewSettings(): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/confidence-review-settings`);
-    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5 }, { endpoint: "GET /api/confidence-review-settings" });
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5, max_escalations: 2 }, { endpoint: "GET /api/confidence-review-settings" });
   }
 
   async putConfidenceReviewSettings(input: import("../issues/confidence-review").ConfidenceReviewSettings): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
