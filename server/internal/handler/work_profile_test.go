@@ -20,6 +20,9 @@ func TestWorkProfileLearning(t *testing.T) {
 	ctx := context.Background()
 	agent := dbfx.Agent(t, "learn agent "+uuid.NewString()[:8], handlerTestRuntimeID(t), testutil.Cols{"trust_mode": "autonomous"})
 	issue := dbfx.Issue(t, "learn issue "+uuid.NewString()[:8], testutil.Cols{"status": "in_progress", "assignee_type": "agent", "assignee_id": agent})
+	// Every human answer in the suite teaches this user something; start clean.
+	testPool.Exec(ctx, `DELETE FROM decision_training_example WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
+	testPool.Exec(ctx, `DELETE FROM work_profile_observation WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	t.Cleanup(func() {
 		testPool.Exec(ctx, `DELETE FROM decision_training_example WHERE workspace_id = $1`, testWorkspaceID)
 		testPool.Exec(ctx, `DELETE FROM work_profile_observation WHERE workspace_id = $1`, testWorkspaceID)
