@@ -559,7 +559,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	h.PRRefresh = ghsnapshot.NewManager(ghClient, queries, txStarter, h.broadcastPRSnapshotApplied)
 
 	// Triage rules (K62): rules run on parked deliveries.
-	h.AutopilotService.OnTriageParked = h.ApplyTriageRules
+	h.AutopilotService.OnTriageParked = h.onTriageParked
 	return h
 }
 

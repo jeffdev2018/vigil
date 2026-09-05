@@ -664,7 +664,7 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 			"owner":      strings.TrimSpace(a.Owner),
 			"evidence":   evidence,
 		})
-		item, err := triage.Capture(ctx, h.Queries, triage.CaptureParams{
+		item, source, err := triage.Capture(ctx, h.Queries, triage.CaptureParams{
 			WorkspaceID:     workspaceID,
 			SourceKind:      triage.SourceMeeting,
 			SourceRefID:     m.ID,
@@ -690,7 +690,7 @@ func (h *Handler) captureMeetingActions(ctx context.Context, m db.Meeting, works
 				"source_id": util.UUIDToString(item.SourceID),
 			},
 		})
-		h.ApplyTriageRules(ctx, item)
+		h.onTriageParked(ctx, item, source)
 		items = append(items, item)
 	}
 	return h.refreshTriageItems(ctx, workspaceID, items)

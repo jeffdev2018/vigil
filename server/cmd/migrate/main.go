@@ -363,6 +363,7 @@ var concurrentIndexCleanups = map[string]string{
 	"581_postmortem_pkey_index":                                 "postmortem_pkey_uidx",
 	"583_postmortem_source_task_index":                          "uq_postmortem_source_task",
 	"584_postmortem_workspace_state_index":                      "idx_postmortem_workspace_state",
+	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

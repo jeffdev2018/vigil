@@ -237,7 +237,7 @@ func (q *Queries) ExpirePendingTriageItems(ctx context.Context, pageLimit int32)
 }
 
 const getTriageSource = `-- name: GetTriageSource :one
-SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at FROM triage_source
+SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at, token_hash FROM triage_source
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -263,6 +263,7 @@ func (q *Queries) GetTriageSource(ctx context.Context, arg GetTriageSourceParams
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenHash,
 	)
 	return i, err
 }
@@ -348,7 +349,7 @@ func (q *Queries) ListTriageItems(ctx context.Context, arg ListTriageItemsParams
 }
 
 const listTriageSources = `-- name: ListTriageSources :many
-SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at FROM triage_source
+SELECT id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at, token_hash FROM triage_source
 WHERE workspace_id = $1
 ORDER BY created_at
 `
@@ -376,6 +377,7 @@ func (q *Queries) ListTriageSources(ctx context.Context, workspaceID pgtype.UUID
 			&i.CreatedByID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.TokenHash,
 		); err != nil {
 			return nil, err
 		}
@@ -520,7 +522,7 @@ const updateTriageSourceMode = `-- name: UpdateTriageSourceMode :one
 UPDATE triage_source
 SET mode = $3, updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at
+RETURNING id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at, token_hash
 `
 
 type UpdateTriageSourceModeParams struct {
@@ -546,6 +548,7 @@ func (q *Queries) UpdateTriageSourceMode(ctx context.Context, arg UpdateTriageSo
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenHash,
 	)
 	return i, err
 }
@@ -668,7 +671,7 @@ VALUES (
 )
 ON CONFLICT (workspace_id, kind, ref_id) DO UPDATE
 SET name = excluded.name, updated_at = now()
-RETURNING id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at
+RETURNING id, workspace_id, kind, ref_id, name, icon, mode, auto_accept, cap_per_hour, expiry_days, created_by_id, created_at, updated_at, token_hash
 `
 
 type UpsertTriageSourceParams struct {
@@ -704,6 +707,7 @@ func (q *Queries) UpsertTriageSource(ctx context.Context, arg UpsertTriageSource
 		&i.CreatedByID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.TokenHash,
 	)
 	return i, err
 }

@@ -17,7 +17,7 @@ import (
 
 func parkDelivery(t *testing.T, title, payload string) string {
 	t.Helper()
-	item, err := triage.Capture(context.Background(), testHandler.Queries, triage.CaptureParams{
+	item, _, err := triage.Capture(context.Background(), testHandler.Queries, triage.CaptureParams{
 		WorkspaceID: parseUUID(testWorkspaceID), SourceKind: triage.SourceAutopilotWebhook, SourceRefID: parseUUID(uuid.NewString()),
 		SourceName: "Sentry alerts", SourceCreatedBy: parseUUID(testUserID), OriginType: "autopilot", OriginID: parseUUID(uuid.NewString()),
 		Title: title, BodyMarkdown: "body", TriggerPayload: []byte(payload), State: triage.StatePending,

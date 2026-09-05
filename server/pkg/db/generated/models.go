@@ -2015,6 +2015,7 @@ type TriageSource struct {
 	CreatedByID pgtype.UUID        `json:"created_by_id"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	TokenHash   string             `json:"token_hash"`
 }
 
 type TrustModeChange struct {
