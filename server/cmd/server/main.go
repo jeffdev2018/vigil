@@ -790,7 +790,7 @@ func main() {
 	// Triage retention: pending items past expires_at leave the queue as
 	// expired, so a queue nobody reads stops growing without losing the
 	// resolved history the auto-classifier learns from.
-	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.ExpireStaleTriageItems)); err != nil {
+	if err := schedulerMgr.Register(scheduler.TriageRetentionSweepJob(h.SweepTriageQueue)); err != nil {
 		slog.Warn("scheduler: failed to register triage_retention_sweep job", "error", err)
 	}
 	// Refactoring campaigns (K42): merge queues move without a board read.

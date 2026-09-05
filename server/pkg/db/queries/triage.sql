@@ -65,7 +65,8 @@ GROUP BY source_id, state;
 -- name: OldestRealPendingTriageAgeSeconds :one
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bigint AS age_seconds
 FROM triage_item
-WHERE workspace_id = $1 AND state = 'pending' AND shadow = false;
+WHERE workspace_id = $1 AND state = 'pending' AND shadow = false
+  AND (snoozed_until IS NULL OR snoozed_until <= now());
 
 -- name: ExpirePendingTriageItems :execrows
 -- Retention sweep, all workspaces, one bounded batch. An item nobody resolved
@@ -92,6 +93,11 @@ SELECT * FROM triage_item
 WHERE workspace_id = $1
   AND shadow = false
   AND state = sqlc.arg('state')
+  AND (
+      sqlc.arg('include_snoozed')::boolean
+      OR snoozed_until IS NULL
+      OR snoozed_until <= now()
+  )
   AND (
       sqlc.narg('cursor_time')::timestamptz IS NULL
       OR (first_seen_at, id) < (sqlc.narg('cursor_time')::timestamptz, sqlc.narg('cursor_id')::uuid)
@@ -144,4 +150,52 @@ RETURNING *;
 UPDATE triage_source
 SET mode = $3, updated_at = now()
 WHERE id = $1 AND workspace_id = $2
+RETURNING *;
+
+-- name: SnoozePendingTriageItem :one
+-- Park a pending item until a chosen time. The state stays 'pending': a
+-- snooze hides an item, it never resolves one.
+UPDATE triage_item
+SET snoozed_until = sqlc.arg('snoozed_until')::timestamptz,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING *;
+
+-- name: CountSnoozedTriageItems :one
+-- Visible pending items still parked in the future — the "Snoozed" tab count.
+SELECT COUNT(*)::bigint AS n
+FROM triage_item
+WHERE workspace_id = $1
+  AND state = 'pending'
+  AND shadow = false
+  AND snoozed_until IS NOT NULL
+  AND snoozed_until > now();
+
+-- name: WakeDueSnoozedTriageItems :many
+-- Sweep, all workspaces, one bounded batch: a snooze whose time has come is
+-- cleared so the item is announced again. The listing already stopped hiding
+-- it at due time, so this only owns the re-announcement.
+UPDATE triage_item
+SET snoozed_until = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id IN (
+    SELECT id FROM triage_item
+    WHERE state = 'pending' AND snoozed_until IS NOT NULL AND snoozed_until <= now()
+    ORDER BY snoozed_until
+    LIMIT sqlc.arg('page_limit')::int
+)
+RETURNING id, workspace_id;
+
+-- name: SetTriageItemVerdict :one
+-- An agent's suggested verdict. It never changes state — humans decide — so
+-- it applies to a pending item only, and each write bumps verdict_revision.
+UPDATE triage_item
+SET verdict = sqlc.arg('verdict')::jsonb,
+    verdict_agent_id = sqlc.arg('verdict_agent_id')::uuid,
+    verdict_at = now(),
+    verdict_revision = verdict_revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
 RETURNING *;

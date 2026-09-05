@@ -60,6 +60,10 @@ const (
 	// merge so live queues converge across clients.
 	EventTriageNew      = "triage:new"
 	EventTriageResolved = "triage:resolved"
+	// triage:updated fires when an item changes without leaving the queue —
+	// an agent's suggested verdict, a snooze — so open queues converge
+	// without waiting for the next poll.
+	EventTriageUpdated = "triage:updated"
 
 	// Workspace events
 	EventWorkspaceUpdated = "workspace:updated"

@@ -263,7 +263,7 @@ func (q *Queries) ListMeetings(ctx context.Context, arg ListMeetingsParams) ([]L
 }
 
 const listTriageItemsByOrigin = `-- name: ListTriageItemsByOrigin :many
-SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until FROM triage_item
 WHERE workspace_id = $1::uuid
   AND origin_type = $2::text
   AND origin_id = $3::uuid
@@ -319,6 +319,7 @@ func (q *Queries) ListTriageItemsByOrigin(ctx context.Context, arg ListTriageIte
 			&i.ResolvedByID,
 			&i.Revision,
 			&i.UpdatedAt,
+			&i.SnoozedUntil,
 		); err != nil {
 			return nil, err
 		}

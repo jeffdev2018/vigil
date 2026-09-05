@@ -47,6 +47,7 @@ type TriageSourceStats struct {
 // and the shadow fields carry the measurement.
 type TriageStatsResponse struct {
 	Pending                 int64               `json:"pending"`
+	Snoozed                 int64               `json:"snoozed"`
 	ShadowPending           int64               `json:"shadow_pending"`
 	Dropped24h              int64               `json:"dropped_24h"`
 	OldestPendingAgeSeconds int64               `json:"oldest_pending_age_seconds"`
@@ -71,9 +72,16 @@ type TriageItemResponse struct {
 	ResolutionReason   string          `json:"resolution_reason,omitempty"`
 	IssueID            string          `json:"issue_id,omitempty"`
 	DuplicateOfIssueID string          `json:"duplicate_of_issue_id,omitempty"`
-	FirstSeenAt        time.Time       `json:"first_seen_at"`
-	ResolvedAt         *time.Time      `json:"resolved_at,omitempty"`
-	Revision           int64           `json:"revision"`
+	SnoozedUntil       *time.Time      `json:"snoozed_until,omitempty"`
+	// An agent's suggestion (K68 "agents may suggest verdicts, humans
+	// decide"). Advisory only: the item is still pending.
+	Verdict        string     `json:"verdict,omitempty"`
+	VerdictReason  string     `json:"verdict_reason,omitempty"`
+	VerdictAgentID string     `json:"verdict_agent_id,omitempty"`
+	VerdictAt      *time.Time `json:"verdict_at,omitempty"`
+	FirstSeenAt    time.Time  `json:"first_seen_at"`
+	ResolvedAt     *time.Time `json:"resolved_at,omitempty"`
+	Revision       int64      `json:"revision"`
 }
 
 // GetTriageStats returns queue volume for the workspace: real pending items,
@@ -127,6 +135,17 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	snoozed, err := h.Queries.CountSnoozedTriageItems(ctx, workspaceID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load triage stats")
+		return
+	}
+	// `pending` is what a human still has to look at, so the parked items are
+	// counted separately and taken out of it rather than double-counted.
+	if pending >= snoozed {
+		pending -= snoozed
+	}
+
 	age, err := h.Queries.OldestRealPendingTriageAgeSeconds(ctx, workspaceID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load triage stats")
@@ -140,6 +159,7 @@ func (h *Handler) GetTriageStats(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := TriageStatsResponse{
 		Pending:                 pending,
+		Snoozed:                 snoozed,
 		ShadowPending:           shadowPending,
 		Dropped24h:              dropped24h,
 		OldestPendingAgeSeconds: age,
@@ -198,6 +218,10 @@ func (h *Handler) ListTriageItems(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: workspaceID,
 		State:       state,
 		PageLimit:   int32(limit),
+		// A snoozed item is still pending, just parked: it stays out of the
+		// default listing until its time comes, and `?include_snoozed=true`
+		// is how the Snoozed tab asks for it back.
+		IncludeSnoozed: r.URL.Query().Get("include_snoozed") == "true",
 	}
 	if cursor := r.URL.Query().Get("cursor"); cursor != "" {
 		cursorTime, cursorID, err := decodeTriageCursor(cursor)
