@@ -1537,6 +1537,23 @@ export interface AgentMemory {
   content: string;
   source: AgentMemorySource;
   source_task_id: string | null;
+  /** Issue the source task worked on, so a run-sourced fact links back to it.
+   *  Null for manual facts and for runs that carried no issue (chat, duel). */
+  source_issue_id: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/**
+ * GET /api/agents/{id}/memories. The counters live beside the rows because
+ * neither is derivable client-side: the brief carries a character budget the
+ * server owns, and whether runs can write facts back depends on the
+ * deployment having an LLM configured.
+ */
+export interface AgentMemoryList {
+  memories: AgentMemory[];
+  /** How many of `memories` the next run brief would actually carry. */
+  briefed_count: number;
+  /** Whether the post-run extraction pass can run at all. */
+  extraction_enabled: boolean;
 }

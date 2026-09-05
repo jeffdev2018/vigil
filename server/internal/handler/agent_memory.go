@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -33,14 +34,33 @@ const (
 )
 
 type AgentMemoryResponse struct {
-	ID           string  `json:"id"`
-	WorkspaceID  string  `json:"workspace_id"`
-	AgentID      string  `json:"agent_id"`
-	Content      string  `json:"content"`
-	Source       string  `json:"source"`
-	SourceTaskID *string `json:"source_task_id"`
-	CreatedAt    string  `json:"created_at"`
-	UpdatedAt    string  `json:"updated_at"`
+	ID          string `json:"id"`
+	WorkspaceID string `json:"workspace_id"`
+	AgentID     string `json:"agent_id"`
+	Content     string `json:"content"`
+	Source      string `json:"source"`
+	// SourceTaskID is the run that wrote the fact; SourceIssueID is the issue
+	// that run worked on, resolved by the list query's join so the UI can link
+	// a run-sourced fact back to its origin. Both are null for manual facts,
+	// and SourceIssueID is null for a run that carried no issue (chat, duel).
+	SourceTaskID  *string `json:"source_task_id"`
+	SourceIssueID *string `json:"source_issue_id"`
+	CreatedAt     string  `json:"created_at"`
+	UpdatedAt     string  `json:"updated_at"`
+}
+
+// ListAgentMemoriesResponse wraps the list so the tab can tell the operator
+// two things the rows alone cannot: how many of the facts actually reach a run
+// brief (the brief has a character budget past the 200-fact cap), and whether
+// runs can write facts back at all (no LLM configured = no extraction pass).
+type ListAgentMemoriesResponse struct {
+	Memories []AgentMemoryResponse `json:"memories"`
+	// BriefedCount is how many of Memories the next run brief would carry.
+	// Equal to len(Memories) unless the character budget truncated the set.
+	BriefedCount int `json:"briefed_count"`
+	// ExtractionEnabled reports whether the deployment has an LLM configured
+	// for the post-run extraction pass. False means only manual facts appear.
+	ExtractionEnabled bool `json:"extraction_enabled"`
 }
 
 type CreateAgentMemoryRequest struct {
@@ -61,6 +81,20 @@ func agentMemoryToResponse(m db.AgentMemory) AgentMemoryResponse {
 		SourceTaskID: uuidToPtr(m.SourceTaskID),
 		CreatedAt:    timestampToString(m.CreatedAt),
 		UpdatedAt:    timestampToString(m.UpdatedAt),
+	}
+}
+
+func agentMemoryRowToResponse(m db.ListAgentMemoriesRow) AgentMemoryResponse {
+	return AgentMemoryResponse{
+		ID:            uuidToString(m.ID),
+		WorkspaceID:   uuidToString(m.WorkspaceID),
+		AgentID:       uuidToString(m.AgentID),
+		Content:       m.Content,
+		Source:        m.Source,
+		SourceTaskID:  uuidToPtr(m.SourceTaskID),
+		SourceIssueID: uuidToPtr(m.SourceIssueID),
+		CreatedAt:     timestampToString(m.CreatedAt),
+		UpdatedAt:     timestampToString(m.UpdatedAt),
 	}
 }
 
@@ -90,10 +124,20 @@ func (h *Handler) ListAgentMemories(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := make([]AgentMemoryResponse, len(memories))
-	for i, m := range memories {
-		resp[i] = agentMemoryToResponse(m)
+	resp := ListAgentMemoriesResponse{
+		Memories:          make([]AgentMemoryResponse, len(memories)),
+		ExtractionEnabled: h.TaskService != nil && h.TaskService.MemoryExtraction != nil && h.TaskService.MemoryExtraction.Enabled(),
 	}
+	// The rows arrive chronologically; the brief budget is spent newest-first,
+	// so feed the selection the reverse of the list order.
+	facts := make([]service.AgentMemoryFact, 0, len(memories))
+	for i, m := range memories {
+		resp.Memories[i] = agentMemoryRowToResponse(m)
+	}
+	for i := len(memories) - 1; i >= 0; i-- {
+		facts = append(facts, service.AgentMemoryFact{Content: memories[i].Content, Source: memories[i].Source})
+	}
+	resp.BriefedCount = len(service.SelectBriefedAgentMemories(facts))
 	writeJSON(w, http.StatusOK, resp)
 }
 

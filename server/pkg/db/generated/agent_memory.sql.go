@@ -148,9 +148,11 @@ func (q *Queries) GetAgentMemory(ctx context.Context, arg GetAgentMemoryParams) 
 
 const listAgentMemories = `-- name: ListAgentMemories :many
 
-SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at FROM agent_memory
-WHERE agent_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC, id ASC
+SELECT agent_memory.id, agent_memory.workspace_id, agent_memory.agent_id, agent_memory.content, agent_memory.source, agent_memory.source_task_id, agent_memory.created_at, agent_memory.updated_at, t.issue_id AS source_issue_id
+FROM agent_memory
+LEFT JOIN agent_task_queue t ON t.id = agent_memory.source_task_id
+WHERE agent_memory.agent_id = $1 AND agent_memory.workspace_id = $2
+ORDER BY agent_memory.created_at ASC, agent_memory.id ASC
 `
 
 type ListAgentMemoriesParams struct {
@@ -158,18 +160,32 @@ type ListAgentMemoriesParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
+type ListAgentMemoriesRow struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	Content       string             `json:"content"`
+	Source        string             `json:"source"`
+	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	SourceIssueID pgtype.UUID        `json:"source_issue_id"`
+}
+
 // Agent memory (JEF-236): durable per-agent facts injected into run briefs.
 // Full chronological listing for the REST endpoint. Every read carries the
-// workspace_id tenant guard.
-func (q *Queries) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesParams) ([]AgentMemory, error) {
+// workspace_id tenant guard. source_issue_id resolves the run-sourced fact to
+// the issue its task worked on, so the UI can link back to it; NULL for manual
+// facts and for tasks that carried no issue.
+func (q *Queries) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesParams) ([]ListAgentMemoriesRow, error) {
 	rows, err := q.db.Query(ctx, listAgentMemories, arg.AgentID, arg.WorkspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AgentMemory{}
+	items := []ListAgentMemoriesRow{}
 	for rows.Next() {
-		var i AgentMemory
+		var i ListAgentMemoriesRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.WorkspaceID,
@@ -179,6 +195,7 @@ func (q *Queries) ListAgentMemories(ctx context.Context, arg ListAgentMemoriesPa
 			&i.SourceTaskID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.SourceIssueID,
 		); err != nil {
 			return nil, err
 		}
@@ -194,7 +211,7 @@ const listRecentAgentMemories = `-- name: ListRecentAgentMemories :many
 SELECT id, workspace_id, agent_id, content, source, source_task_id, created_at, updated_at FROM agent_memory
 WHERE agent_id = $1 AND workspace_id = $2
 ORDER BY created_at DESC, id DESC
-LIMIT 50
+LIMIT 200
 `
 
 type ListRecentAgentMemoriesParams struct {
@@ -202,8 +219,9 @@ type ListRecentAgentMemoriesParams struct {
 	WorkspaceID pgtype.UUID `json:"workspace_id"`
 }
 
-// Claim-time brief injection: the 50 most recent facts, newest first. The
-// caller reverses into chronological order for the prompt.
+// Claim-time brief injection: the agent's facts, newest first, bounded by the
+// same per-agent cap the write path enforces. The caller applies the brief
+// character budget and reverses into chronological order for the prompt.
 func (q *Queries) ListRecentAgentMemories(ctx context.Context, arg ListRecentAgentMemoriesParams) ([]AgentMemory, error) {
 	rows, err := q.db.Query(ctx, listRecentAgentMemories, arg.AgentID, arg.WorkspaceID)
 	if err != nil {

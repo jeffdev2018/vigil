@@ -54,10 +54,13 @@ func TestAgentMemoryCRUD(t *testing.T) {
 	w = testutil.Call(t, testHandler.ListAgentMemories,
 		agentMemoryRequest("GET", agentID, "", nil))
 	w.Want(http.StatusOK)
-	var listed []AgentMemoryResponse
+	var listed ListAgentMemoriesResponse
 	w.JSON(&listed)
-	if len(listed) != 1 || listed[0].ID != created.ID {
-		t.Fatalf("ListAgentMemories = %#v, want the single created row", listed)
+	if len(listed.Memories) != 1 || listed.Memories[0].ID != created.ID {
+		t.Fatalf("ListAgentMemories = %#v, want the single created row", listed.Memories)
+	}
+	if listed.BriefedCount != 1 {
+		t.Fatalf("ListAgentMemories briefed_count = %d, want 1 (the row fits the brief budget)", listed.BriefedCount)
 	}
 
 	// Update
@@ -88,10 +91,10 @@ func TestAgentMemoryCRUD(t *testing.T) {
 	w = testutil.Call(t, testHandler.ListAgentMemories,
 		agentMemoryRequest("GET", agentID, "", nil))
 	w.Want(http.StatusOK)
-	listed = nil
+	listed = ListAgentMemoriesResponse{}
 	w.JSON(&listed)
-	if len(listed) != 0 {
-		t.Fatalf("ListAgentMemories after delete = %#v, want empty", listed)
+	if len(listed.Memories) != 0 {
+		t.Fatalf("ListAgentMemories after delete = %#v, want empty", listed.Memories)
 	}
 }
 
@@ -297,5 +300,53 @@ func TestAgentMemoryWorkspaceDeleteSweep(t *testing.T) {
 	dbfx.QueryRow(t, `SELECT COUNT(*) FROM agent_memory WHERE workspace_id = $1`, workspaceID).Scan(&count)
 	if count != 0 {
 		t.Fatalf("workspace delete left %d agent_memory rows behind", count)
+	}
+}
+
+// TestAgentMemoryListReportsSourceIssue pins the join the Memory tab links
+// through: a run-sourced fact resolves to the issue its task worked on, while
+// a manual fact resolves to neither task nor issue.
+func TestAgentMemoryListReportsSourceIssue(t *testing.T) {
+	agentID := agentMemoryFixture(t, "memory-source-issue-agent")
+	var runtimeID string
+	dbfx.QueryRow(t, `SELECT runtime_id::text FROM agent WHERE id = $1`, agentID).Scan(&runtimeID)
+	issueID := dbfx.Issue(t, "Memory source issue")
+	taskID := dbfx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	dbfx.Insert(t, "agent_memory", testutil.Cols{
+		"workspace_id":   testWorkspaceID,
+		"agent_id":       agentID,
+		"content":        "Manual fact",
+		"source":         "manual",
+		"source_task_id": nil,
+	})
+	dbfx.Insert(t, "agent_memory", testutil.Cols{
+		"workspace_id":   testWorkspaceID,
+		"agent_id":       agentID,
+		"content":        "Learned from a run",
+		"source":         "run",
+		"source_task_id": taskID,
+	})
+
+	w := testutil.Call(t, testHandler.ListAgentMemories,
+		agentMemoryRequest("GET", agentID, "", nil)).Want(http.StatusOK)
+	var listed ListAgentMemoriesResponse
+	w.JSON(&listed)
+	if len(listed.Memories) != 2 {
+		t.Fatalf("ListAgentMemories = %d rows, want 2: %s", len(listed.Memories), w.Text())
+	}
+	bySource := map[string]AgentMemoryResponse{}
+	for _, m := range listed.Memories {
+		bySource[m.Source] = m
+	}
+	if got := bySource["manual"].SourceIssueID; got != nil {
+		t.Fatalf("manual fact source_issue_id = %q, want null", *got)
+	}
+	run := bySource["run"]
+	if run.SourceIssueID == nil || *run.SourceIssueID != issueID {
+		t.Fatalf("run fact source_issue_id = %v, want %q", run.SourceIssueID, issueID)
+	}
+	if run.SourceTaskID == nil || *run.SourceTaskID != taskID {
+		t.Fatalf("run fact source_task_id = %v, want %q", run.SourceTaskID, taskID)
 	}
 }

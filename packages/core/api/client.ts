@@ -57,6 +57,7 @@ import type {
   Skill,
   SkillSummary,
   AgentMemory,
+  AgentMemoryList,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -3185,7 +3186,7 @@ export class ApiClient {
   // breaking the agent page; writes validate too so the caller never caches an
   // unparsed blob. POST returns 409 when the per-agent cap is reached — that
   // surfaces as an ApiError the tab toasts.
-  async listAgentMemories(agentId: string): Promise<AgentMemory[]> {
+  async listAgentMemories(agentId: string): Promise<AgentMemoryList> {
     const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
     return parseWithFallback(
       raw,

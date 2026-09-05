@@ -2305,6 +2305,25 @@ describe("AgentMemory schemas", () => {
     expect(parsed.source).toBe("imported");
   });
 
+  it("defaults the list counters when a backend omits them", () => {
+    const parsed = AgentMemoryListSchema.parse({
+      memories: [{ id: "mem-1", agent_id: "agent-1" }],
+    });
+    expect(parsed.briefed_count).toBe(0);
+    expect(parsed.extraction_enabled).toBe(false);
+    expect(parsed.memories[0]?.source_issue_id).toBeNull();
+  });
+
+  it("keeps the list counters a backend does send", () => {
+    const parsed = AgentMemoryListSchema.parse({
+      memories: [],
+      briefed_count: 12,
+      extraction_enabled: true,
+    });
+    expect(parsed.briefed_count).toBe(12);
+    expect(parsed.extraction_enabled).toBe(true);
+  });
+
   it("falls back to an empty list on a malformed list response", () => {
     const parsed = parseWithFallback(
       { memories: "not-an-array" },

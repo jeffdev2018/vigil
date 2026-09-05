@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -262,4 +263,58 @@ func TestAgentMemoryExtractionEventWiring(t *testing.T) {
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
+}
+
+// TestSelectBriefedAgentMemories pins the brief character budget: everything
+// fits until the budget is spent, then run-sourced facts (the oldest ones,
+// which a later run can learn again) drop out while human-pinned and
+// postmortem facts stay. Canonical matrix for the rule; the handler and the
+// claim path both read the count from here.
+func TestSelectBriefedAgentMemories(t *testing.T) {
+	long := strings.Repeat("a", 500)
+
+	t.Run("keeps everything under the budget", func(t *testing.T) {
+		facts := []AgentMemoryFact{
+			{Content: "one", Source: "run"},
+			{Content: "two", Source: "manual"},
+		}
+		if got := SelectBriefedAgentMemories(facts); len(got) != 2 {
+			t.Fatalf("kept %d facts, want 2", len(got))
+		}
+	})
+
+	t.Run("drops the oldest run facts past the budget", func(t *testing.T) {
+		facts := make([]AgentMemoryFact, 200)
+		for i := range facts {
+			facts[i] = AgentMemoryFact{Content: long, Source: "run"}
+		}
+		got := SelectBriefedAgentMemories(facts)
+		want := AgentMemoryBriefCharBudget / 500
+		if len(got) != want {
+			t.Fatalf("kept %d facts, want %d (%d-char budget at 500 chars each)",
+				len(got), want, AgentMemoryBriefCharBudget)
+		}
+	})
+
+	t.Run("never drops a manual or postmortem fact", func(t *testing.T) {
+		facts := make([]AgentMemoryFact, 0, 202)
+		for i := 0; i < 200; i++ {
+			facts = append(facts, AgentMemoryFact{Content: long, Source: "run"})
+		}
+		facts = append(facts,
+			AgentMemoryFact{Content: "pinned by a human", Source: "manual"},
+			AgentMemoryFact{Content: "written by a postmortem", Source: "postmortem"},
+		)
+		got := SelectBriefedAgentMemories(facts)
+		last := got[len(got)-2:]
+		if last[0].Source != "manual" || last[1].Source != "postmortem" {
+			t.Fatalf("budget dropped a non-run fact: tail = %#v", last)
+		}
+	})
+
+	t.Run("returns an empty slice for no facts", func(t *testing.T) {
+		if got := SelectBriefedAgentMemories(nil); len(got) != 0 {
+			t.Fatalf("kept %d facts from nil input", len(got))
+		}
+	})
 }
