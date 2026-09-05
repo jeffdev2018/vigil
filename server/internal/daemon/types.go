@@ -6,6 +6,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
 )
 
@@ -78,6 +79,10 @@ type Task struct {
 	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
 	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
+	// McpGateway (K77) is the per-tool policy the daemon enforces on every MCP
+	// server of the run. Nil on a server too old to send it: the daemon then
+	// classifies each tool itself and caps it with the agent's trust dial.
+	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
 	// RemoteMCPDaemonToken stays inside the daemon and authenticates the local
 	// broker's credential-resolution calls. It must never enter agent env/config.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`
@@ -227,8 +232,11 @@ type AgentData struct {
 	CustomArgs   []string          `json:"custom_args,omitempty"`
 	// PermissionProfile (K06) is resolved by the server at claim time; nil
 	// means the run has no profile and nothing below is applied.
-	PermissionProfile     *permissionprofile.Profile `json:"permission_profile,omitempty"`
-	McpConfig             json.RawMessage            `json:"mcp_config,omitempty"`
+	PermissionProfile *permissionprofile.Profile `json:"permission_profile,omitempty"`
+	McpConfig         json.RawMessage            `json:"mcp_config,omitempty"`
+	// TrustMode (K26) caps what an unlisted MCP tool may do when the claim
+	// carries no gateway policy; empty reads as "propose".
+	TrustMode             string                     `json:"trust_mode,omitempty"`
 	Model                 string                     `json:"model,omitempty"`
 	ThinkingLevel         string                     `json:"thinking_level,omitempty"`
 	ServiceTier           string                     `json:"service_tier,omitempty"`

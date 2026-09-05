@@ -50,6 +50,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     watchdog_escalation: t(($) => $.types.watchdog_escalation),
     contest_ready: t(($) => $.types.contest_ready),
     org_alert: t(($) => $.types.org_alert),
+    mcp_alert: t(($) => $.types.mcp_alert),
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
   };

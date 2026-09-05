@@ -3965,6 +3965,21 @@ export const EMPTY_AGENT_MEMORY_LIST: AgentMemoryList = {
  * `transport` stays a plain string (not an enum) so an unknown value from a
  * newer backend still parses — the UI has a default branch for it.
  */
+const McpToolRiskSchema = z.enum(["read", "internal_write", "external_effect", "sensitive_data", "unknown"]).catch("unknown");
+const McpToolClassSchema = z.enum(["act_alone", "ask", "never"]).catch("ask");
+export const McpCatalogToolSchema = z.object({
+  name: z.string(),
+  description: z.string().optional(),
+  schema_digest: z.string().optional(),
+  risk: McpToolRiskSchema,
+  risk_source: z.enum(["auto", "manual"]).catch("auto"),
+  class: McpToolClassSchema.optional(),
+  last_used_at: z.string().optional(),
+});
+export const McpToolPolicySchema = z.object({
+  default: z.enum(["by_risk", "ask", "never"]).optional().catch(undefined),
+  tools: z.record(z.string(), McpToolClassSchema).optional().catch(undefined),
+});
 export const WorkspaceMcpServerSchema = z.object({
   id: z.string().default(""),
   workspace_id: z.string().default(""),
@@ -3973,7 +3988,16 @@ export const WorkspaceMcpServerSchema = z.object({
   enabled: z.boolean().optional(),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
+  // K77: still strict — only the governed fields are let through, never the entry.
+  tool_count: z.number().catch(0).default(0),
+  tool_policy: McpToolPolicySchema.optional().catch(undefined),
+  tools: z.array(McpCatalogToolSchema).optional().catch(undefined),
 });
+export const McpServerToolCatalogSchema = z.object({
+  tools: z.array(McpCatalogToolSchema).catch([]).default([]),
+  discovered_at: z.string().nullable().catch(null).default(null),
+  risks: z.array(McpToolRiskSchema).catch([]).default([]),
+}).loose();
 
 export const WorkspaceMcpServerListSchema = z.array(WorkspaceMcpServerSchema);
 
@@ -3982,6 +4006,7 @@ export const EMPTY_WORKSPACE_MCP_SERVER: WorkspaceMcpServer = {
   workspace_id: "",
   name: "",
   transport: "unknown",
+  tool_count: 0,
   created_at: "",
   updated_at: "",
 };

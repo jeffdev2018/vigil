@@ -156,35 +156,42 @@ func (c *approvalGateClient) do(ctx context.Context, method, path string, body a
 
 // Ask opens a gate and waits for its outcome: approved, denied or expired.
 func (c *approvalGateClient) Ask(ctx context.Context, gateType, summary string, details map[string]any, timeout time.Duration) (string, error) {
+	status, _, err := c.AskWithID(ctx, gateType, summary, details, timeout)
+	return status, err
+}
+
+// AskWithID is Ask returning the gate id as well, so a caller can attribute
+// the outcome to the gate a human answered (K77 call reports).
+func (c *approvalGateClient) AskWithID(ctx context.Context, gateType, summary string, details map[string]any, timeout time.Duration) (status, gateID string, err error) {
 	created, code, err := c.do(ctx, http.MethodPost, "/api/tasks/"+c.taskID+"/gates", map[string]any{"gate_type": gateType, "summary": summary, "details": details})
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	if code != http.StatusCreated {
-		return "", fmt.Errorf("open gate: server answered %d", code)
+		return "", "", fmt.Errorf("open gate: server answered %d", code)
 	}
-	gateID, _ := created["id"].(string)
+	gateID, _ = created["id"].(string)
 	if gateID == "" {
-		return "", errors.New("open gate: no id in the answer")
+		return "", "", errors.New("open gate: no id in the answer")
 	}
 	deadline := time.Now().Add(timeout)
 	for {
 		if time.Now().After(deadline) {
-			return "expired", nil
+			return "expired", gateID, nil
 		}
 		got, code, err := c.do(ctx, http.MethodGet, "/api/tasks/"+c.taskID+"/gates/"+gateID+"?wait=25", nil)
 		if err != nil {
 			if ctx.Err() != nil {
-				return "", ctx.Err()
+				return "", gateID, ctx.Err()
 			}
 			time.Sleep(5 * time.Second)
 			continue
 		}
 		if code != http.StatusOK {
-			return "", fmt.Errorf("poll gate: server answered %d", code)
+			return "", gateID, fmt.Errorf("poll gate: server answered %d", code)
 		}
 		if status, _ := got["status"].(string); status != "" && status != "pending" {
-			return status, nil
+			return status, gateID, nil
 		}
 	}
 }

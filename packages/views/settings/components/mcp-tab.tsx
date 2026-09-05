@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Loader2, Pencil, Plus, Server, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Pencil, Plus, Server, Trash2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -28,6 +28,7 @@ import type { WorkspaceMcpServer } from "@multica/core/types";
 import { McpServerDialog } from "../../agents/components/tabs/mcp-server-dialog";
 import type { ManagedMcpServer } from "../../agents/components/tabs/mcp-config-model";
 import { useT } from "../../i18n";
+import { McpToolCatalog } from "./mcp-tool-catalog";
 import { SettingsCard, SettingsSection, SettingsTab } from "./settings-layout";
 
 /**
@@ -174,6 +175,7 @@ export function McpTab() {
                 <McpServerRow
                   key={server.name}
                   server={server}
+                  wsId={wsId}
                   canManage={canManage}
                   onEdit={() => {
                     setEditingServer(server);
@@ -238,48 +240,73 @@ export function McpTab() {
 
 function McpServerRow({
   server,
+  wsId,
   canManage,
   onEdit,
   onDelete,
 }: {
   server: WorkspaceMcpServer;
+  wsId: string;
   canManage: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { t } = useT("settings");
+  // The catalogue (K77) is mounted on demand: it is its own query per server
+  // and most rows are never opened.
+  const [toolsOpen, setToolsOpen] = useState(false);
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-body font-medium">{server.name}</span>
-          {server.enabled === false ? (
-            <Badge variant="secondary">{t(($) => $.mcp.disabled_badge)}</Badge>
-          ) : null}
+    <li>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-body font-medium">{server.name}</span>
+            {server.enabled === false ? (
+              <Badge variant="secondary">{t(($) => $.mcp.disabled_badge)}</Badge>
+            ) : null}
+            <Badge variant="outline">
+              {t(($) => $.mcp.tools.count, { count: server.tool_count ?? 0 })}
+            </Badge>
+          </div>
+          <p className="mt-0.5 text-caption text-muted-foreground">
+            {transportLabel(server.transport)}
+          </p>
         </div>
-        <p className="mt-0.5 text-caption text-muted-foreground">
-          {transportLabel(server.transport)}
-        </p>
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-expanded={toolsOpen}
+          onClick={() => setToolsOpen((open) => !open)}
+        >
+          {t(($) => $.mcp.tools.toggle)}
+          <ChevronDown
+            className={toolsOpen ? "h-4 w-4 rotate-180" : "h-4 w-4"}
+            aria-hidden="true"
+          />
+        </Button>
+        {canManage ? (
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onEdit}
+              aria-label={t(($) => $.mcp.edit_server)}
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onDelete}
+              aria-label={t(($) => $.mcp.remove_server)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : null}
       </div>
-      {canManage ? (
-        <div className="flex shrink-0 items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onEdit}
-            aria-label={t(($) => $.mcp.edit_server)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onDelete}
-            aria-label={t(($) => $.mcp.remove_server)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        </div>
+      {toolsOpen ? (
+        <McpToolCatalog wsId={wsId} serverId={server.id} canManage={canManage} />
       ) : null}
     </li>
   );

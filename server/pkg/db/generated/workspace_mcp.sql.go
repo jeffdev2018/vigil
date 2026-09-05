@@ -30,7 +30,7 @@ func (q *Queries) AddAgentMcpServer(ctx context.Context, arg AddAgentMcpServerPa
 const createWorkspaceMcpServer = `-- name: CreateWorkspaceMcpServer :one
 INSERT INTO workspace_mcp_server (workspace_id, name, config, created_by)
 VALUES ($1, $2, $3, $4)
-RETURNING id, workspace_id, name, config, created_by, created_at, updated_at
+RETURNING id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at
 `
 
 type CreateWorkspaceMcpServerParams struct {
@@ -56,6 +56,8 @@ func (q *Queries) CreateWorkspaceMcpServer(ctx context.Context, arg CreateWorksp
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tools,
+		&i.ToolsDiscoveredAt,
 	)
 	return i, err
 }
@@ -90,7 +92,7 @@ func (q *Queries) DeleteWorkspaceMcpServer(ctx context.Context, arg DeleteWorksp
 }
 
 const getWorkspaceMcpServer = `-- name: GetWorkspaceMcpServer :one
-SELECT id, workspace_id, name, config, created_by, created_at, updated_at FROM workspace_mcp_server
+SELECT id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at FROM workspace_mcp_server
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -110,12 +112,146 @@ func (q *Queries) GetWorkspaceMcpServer(ctx context.Context, arg GetWorkspaceMcp
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tools,
+		&i.ToolsDiscoveredAt,
 	)
 	return i, err
 }
 
+const getWorkspaceMcpServerByName = `-- name: GetWorkspaceMcpServerByName :one
+
+SELECT id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at FROM workspace_mcp_server
+WHERE workspace_id = $1 AND name = $2
+`
+
+type GetWorkspaceMcpServerByNameParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
+}
+
+// K77 · governed gateway: tool catalogue per server, tool policy per binding.
+func (q *Queries) GetWorkspaceMcpServerByName(ctx context.Context, arg GetWorkspaceMcpServerByNameParams) (WorkspaceMcpServer, error) {
+	row := q.db.QueryRow(ctx, getWorkspaceMcpServerByName, arg.WorkspaceID, arg.Name)
+	var i WorkspaceMcpServer
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Config,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Tools,
+		&i.ToolsDiscoveredAt,
+	)
+	return i, err
+}
+
+const listAgentMcpBindings = `-- name: ListAgentMcpBindings :many
+SELECT s.id AS server_id, s.name, s.tools, ams.enabled, ams.tool_policy, ams.tool_usage
+FROM workspace_mcp_server s
+JOIN agent_mcp_server ams ON ams.server_id = s.id
+WHERE ams.agent_id = $1
+ORDER BY s.name ASC
+`
+
+type ListAgentMcpBindingsRow struct {
+	ServerID   pgtype.UUID `json:"server_id"`
+	Name       string      `json:"name"`
+	Tools      []byte      `json:"tools"`
+	Enabled    bool        `json:"enabled"`
+	ToolPolicy []byte      `json:"tool_policy"`
+	ToolUsage  []byte      `json:"tool_usage"`
+}
+
+// Every binding of this agent with the server's catalogue and the binding's
+// policy: the unit the Rule of Two is checked over.
+func (q *Queries) ListAgentMcpBindings(ctx context.Context, agentID pgtype.UUID) ([]ListAgentMcpBindingsRow, error) {
+	rows, err := q.db.Query(ctx, listAgentMcpBindings, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentMcpBindingsRow{}
+	for rows.Next() {
+		var i ListAgentMcpBindingsRow
+		if err := rows.Scan(
+			&i.ServerID,
+			&i.Name,
+			&i.Tools,
+			&i.Enabled,
+			&i.ToolPolicy,
+			&i.ToolUsage,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentMcpBindingsForReview = `-- name: ListAgentMcpBindingsForReview :many
+SELECT ams.agent_id, ams.server_id, ams.tool_policy, ams.tool_usage, ams.created_at,
+       s.name AS server_name, s.tools, s.workspace_id, a.name AS agent_name, a.owner_id, a.trust_mode
+FROM agent_mcp_server ams
+JOIN workspace_mcp_server s ON s.id = ams.server_id
+JOIN agent a ON a.id = ams.agent_id
+WHERE ams.enabled = TRUE AND jsonb_array_length(s.tools) > 0 AND a.archived_at IS NULL
+`
+
+type ListAgentMcpBindingsForReviewRow struct {
+	AgentID     pgtype.UUID        `json:"agent_id"`
+	ServerID    pgtype.UUID        `json:"server_id"`
+	ToolPolicy  []byte             `json:"tool_policy"`
+	ToolUsage   []byte             `json:"tool_usage"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ServerName  string             `json:"server_name"`
+	Tools       []byte             `json:"tools"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	AgentName   string             `json:"agent_name"`
+	OwnerID     pgtype.UUID        `json:"owner_id"`
+	TrustMode   string             `json:"trust_mode"`
+}
+
+// Monthly review: every enabled binding with a catalogue, with the agent's
+// owner to propose the removal of tools nobody used.
+func (q *Queries) ListAgentMcpBindingsForReview(ctx context.Context) ([]ListAgentMcpBindingsForReviewRow, error) {
+	rows, err := q.db.Query(ctx, listAgentMcpBindingsForReview)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentMcpBindingsForReviewRow{}
+	for rows.Next() {
+		var i ListAgentMcpBindingsForReviewRow
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.ServerID,
+			&i.ToolPolicy,
+			&i.ToolUsage,
+			&i.CreatedAt,
+			&i.ServerName,
+			&i.Tools,
+			&i.WorkspaceID,
+			&i.AgentName,
+			&i.OwnerID,
+			&i.TrustMode,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAgentMcpServers = `-- name: ListAgentMcpServers :many
-SELECT s.id, s.workspace_id, s.name, s.config, s.created_at, s.updated_at, ams.enabled
+SELECT s.id, s.workspace_id, s.name, s.config, s.tools, s.created_at, s.updated_at, ams.enabled, ams.tool_policy, ams.tool_usage
 FROM workspace_mcp_server s
 JOIN agent_mcp_server ams ON ams.server_id = s.id
 WHERE ams.agent_id = $1
@@ -127,9 +263,12 @@ type ListAgentMcpServersRow struct {
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`
 	Name        string             `json:"name"`
 	Config      []byte             `json:"config"`
+	Tools       []byte             `json:"tools"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 	Enabled     bool               `json:"enabled"`
+	ToolPolicy  []byte             `json:"tool_policy"`
+	ToolUsage   []byte             `json:"tool_usage"`
 }
 
 // Every workspace server bound to this agent, enabled or not, for the agent
@@ -148,9 +287,12 @@ func (q *Queries) ListAgentMcpServers(ctx context.Context, agentID pgtype.UUID) 
 			&i.WorkspaceID,
 			&i.Name,
 			&i.Config,
+			&i.Tools,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Enabled,
+			&i.ToolPolicy,
+			&i.ToolUsage,
 		); err != nil {
 			return nil, err
 		}
@@ -163,7 +305,7 @@ func (q *Queries) ListAgentMcpServers(ctx context.Context, agentID pgtype.UUID) 
 }
 
 const listEnabledAgentMcpServers = `-- name: ListEnabledAgentMcpServers :many
-SELECT s.name, s.config
+SELECT s.id, s.name, s.config, s.tools, ams.tool_policy
 FROM workspace_mcp_server s
 JOIN agent_mcp_server ams ON ams.server_id = s.id
 WHERE ams.agent_id = $1 AND ams.enabled = TRUE
@@ -171,8 +313,11 @@ ORDER BY s.name ASC
 `
 
 type ListEnabledAgentMcpServersRow struct {
-	Name   string `json:"name"`
-	Config []byte `json:"config"`
+	ID         pgtype.UUID `json:"id"`
+	Name       string      `json:"name"`
+	Config     []byte      `json:"config"`
+	Tools      []byte      `json:"tools"`
+	ToolPolicy []byte      `json:"tool_policy"`
 }
 
 // Claim path: only bound AND enabled servers reach the runtime. An unbound
@@ -187,7 +332,13 @@ func (q *Queries) ListEnabledAgentMcpServers(ctx context.Context, agentID pgtype
 	items := []ListEnabledAgentMcpServersRow{}
 	for rows.Next() {
 		var i ListEnabledAgentMcpServersRow
-		if err := rows.Scan(&i.Name, &i.Config); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Config,
+			&i.Tools,
+			&i.ToolPolicy,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -199,7 +350,7 @@ func (q *Queries) ListEnabledAgentMcpServers(ctx context.Context, agentID pgtype
 }
 
 const listWorkspaceMcpServers = `-- name: ListWorkspaceMcpServers :many
-SELECT id, workspace_id, name, config, created_by, created_at, updated_at FROM workspace_mcp_server
+SELECT id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at FROM workspace_mcp_server
 WHERE workspace_id = $1
 ORDER BY name ASC
 `
@@ -224,6 +375,8 @@ func (q *Queries) ListWorkspaceMcpServers(ctx context.Context, workspaceID pgtyp
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tools,
+			&i.ToolsDiscoveredAt,
 		); err != nil {
 			return nil, err
 		}
@@ -316,13 +469,79 @@ func (q *Queries) SetAgentMcpServerEnabled(ctx context.Context, arg SetAgentMcpS
 	return result.RowsAffected(), nil
 }
 
+const setAgentMcpServerPolicy = `-- name: SetAgentMcpServerPolicy :execrows
+UPDATE agent_mcp_server
+SET tool_policy = $3
+WHERE agent_id = $1 AND server_id = $2
+`
+
+type SetAgentMcpServerPolicyParams struct {
+	AgentID    pgtype.UUID `json:"agent_id"`
+	ServerID   pgtype.UUID `json:"server_id"`
+	ToolPolicy []byte      `json:"tool_policy"`
+}
+
+func (q *Queries) SetAgentMcpServerPolicy(ctx context.Context, arg SetAgentMcpServerPolicyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAgentMcpServerPolicy, arg.AgentID, arg.ServerID, arg.ToolPolicy)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const setWorkspaceMcpServerTools = `-- name: SetWorkspaceMcpServerTools :exec
+UPDATE workspace_mcp_server
+SET tools = $3, tools_discovered_at = $4, updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+`
+
+type SetWorkspaceMcpServerToolsParams struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Tools             []byte             `json:"tools"`
+	ToolsDiscoveredAt pgtype.Timestamptz `json:"tools_discovered_at"`
+}
+
+func (q *Queries) SetWorkspaceMcpServerTools(ctx context.Context, arg SetWorkspaceMcpServerToolsParams) error {
+	_, err := q.db.Exec(ctx, setWorkspaceMcpServerTools,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Tools,
+		arg.ToolsDiscoveredAt,
+	)
+	return err
+}
+
+const touchAgentMcpToolUsage = `-- name: TouchAgentMcpToolUsage :exec
+UPDATE agent_mcp_server
+SET tool_usage = tool_usage || jsonb_build_object($3::text, to_jsonb($4::timestamptz))
+WHERE agent_id = $1 AND server_id = $2
+`
+
+type TouchAgentMcpToolUsageParams struct {
+	AgentID  pgtype.UUID        `json:"agent_id"`
+	ServerID pgtype.UUID        `json:"server_id"`
+	Tool     string             `json:"tool"`
+	UsedAt   pgtype.Timestamptz `json:"used_at"`
+}
+
+func (q *Queries) TouchAgentMcpToolUsage(ctx context.Context, arg TouchAgentMcpToolUsageParams) error {
+	_, err := q.db.Exec(ctx, touchAgentMcpToolUsage,
+		arg.AgentID,
+		arg.ServerID,
+		arg.Tool,
+		arg.UsedAt,
+	)
+	return err
+}
+
 const updateWorkspaceMcpServer = `-- name: UpdateWorkspaceMcpServer :one
 UPDATE workspace_mcp_server SET
     name = COALESCE($3, name),
     config = COALESCE($4, config),
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, name, config, created_by, created_at, updated_at
+RETURNING id, workspace_id, name, config, created_by, created_at, updated_at, tools, tools_discovered_at
 `
 
 type UpdateWorkspaceMcpServerParams struct {
@@ -351,6 +570,8 @@ func (q *Queries) UpdateWorkspaceMcpServer(ctx context.Context, arg UpdateWorksp
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tools,
+		&i.ToolsDiscoveredAt,
 	)
 	return i, err
 }

@@ -92,7 +92,16 @@ type ReplaySnapshot struct {
 	// OrgRevisionID / OrgRevision (K75): the structure in force when the run started.
 	OrgRevisionID string `json:"org_revision_id,omitempty"`
 	OrgRevision   int32  `json:"org_revision,omitempty"`
-	RecordedAt    string `json:"recorded_at"`
+	// McpBindings (K77): the MCP servers the run could reach and their tool
+	// policy default, as bound when the run started.
+	McpBindings []ReplayMcpBinding `json:"mcp_bindings,omitempty"`
+	RecordedAt  string             `json:"recorded_at"`
+}
+
+type ReplayMcpBinding struct {
+	Server  string `json:"server"`
+	Default string `json:"default"`
+	Tools   int    `json:"tools"`
 }
 
 type ReplayPlan struct {
@@ -629,6 +638,15 @@ func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue,
 			snap.PlanVersion = plan.Version
 		}
 		snap.OrgRevisionID, snap.OrgRevision = h.orgRevisionForIssue(ctx, wsID, task.IssueID)
+	}
+	if bound, err := h.Queries.ListEnabledAgentMcpServers(ctx, task.AgentID); err == nil {
+		for _, row := range bound {
+			def := mcpPolicy(row.ToolPolicy).Default
+			if def == "" {
+				def = "by_risk"
+			}
+			snap.McpBindings = append(snap.McpBindings, ReplayMcpBinding{Server: row.Name, Default: def, Tools: len(mcpCatalog(row.Tools))})
+		}
 	}
 	h.audit(ctx, wsID, "system", "", AuditRunStarted, "task", task.ID, snap, nil)
 }

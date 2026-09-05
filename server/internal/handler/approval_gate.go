@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/secretscan"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -140,6 +141,14 @@ func (h *Handler) openGate(ctx context.Context, task db.AgentTaskQueue, gateType
 	}
 	if details == nil {
 		details = map[string]any{}
+	}
+	// Tool arguments are shown to a human (K77): a secret in them is masked
+	// here as well as at the daemon, so neither side has to trust the other.
+	if params, ok := details["params"]; ok {
+		encoded, _ := json.Marshal(params)
+		var scrubbed any
+		_ = json.Unmarshal(secretscan.JSON(encoded), &scrubbed)
+		details["params"] = scrubbed
 	}
 	raw, _ := json.Marshal(details)
 	gate, err := h.Queries.CreateApprovalGateEvent(ctx, db.CreateApprovalGateEventParams{

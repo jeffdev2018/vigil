@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -29,6 +30,12 @@ type WorkspaceMcpServerResponse struct {
 	Enabled     *bool  `json:"enabled,omitempty"`
 	CreatedAt   string `json:"created_at"`
 	UpdatedAt   string `json:"updated_at"`
+	// ToolPolicy / Tools (K77): on the agent-scoped list, the binding's policy
+	// and the catalogue with the class in force for this agent. ToolCount is
+	// the catalogue size on the workspace listing.
+	ToolPolicy *mcpgov.Policy           `json:"tool_policy,omitempty"`
+	Tools      []McpCatalogToolResponse `json:"tools,omitempty"`
+	ToolCount  int                      `json:"tool_count"`
 }
 
 // mcpTransportOf classifies a server entry for display, and — because the
@@ -78,6 +85,7 @@ func workspaceMcpServerToResponse(server db.WorkspaceMcpServer) WorkspaceMcpServ
 		Transport:   mcpTransportOf(server.Config),
 		CreatedAt:   timestampToString(server.CreatedAt),
 		UpdatedAt:   timestampToString(server.UpdatedAt),
+		ToolCount:   len(mcpCatalog(server.Tools)),
 	}
 }
 
@@ -333,6 +341,7 @@ func (h *Handler) ListAgentMcpServers(w http.ResponseWriter, r *http.Request) {
 	resp := make([]WorkspaceMcpServerResponse, 0, len(rows))
 	for _, row := range rows {
 		enabled := row.Enabled
+		policy, tools := mcpBindingResponse(agent, row)
 		resp = append(resp, WorkspaceMcpServerResponse{
 			ID:          uuidToString(row.ID),
 			WorkspaceID: uuidToString(row.WorkspaceID),
@@ -341,6 +350,9 @@ func (h *Handler) ListAgentMcpServers(w http.ResponseWriter, r *http.Request) {
 			Enabled:     &enabled,
 			CreatedAt:   timestampToString(row.CreatedAt),
 			UpdatedAt:   timestampToString(row.UpdatedAt),
+			ToolPolicy:  &policy,
+			Tools:       tools,
+			ToolCount:   len(tools),
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)
@@ -417,6 +429,12 @@ func (h *Handler) AddAgentMcpServer(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "MCP server not found in this workspace")
 		return
 	}
+	// Rule of Two (K77): the new server's reachable tools join the set.
+	enabled := true
+	if err := h.validateAgentMcpBinding(r.Context(), agent, serverUUID, &mcpgov.Policy{}, &enabled); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := qtx.AddAgentMcpServer(r.Context(), db.AddAgentMcpServerParams{
 		AgentID:  agent.ID,
 		ServerID: serverUUID,
@@ -431,7 +449,7 @@ func (h *Handler) AddAgentMcpServer(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("agent mcp server added", append(logger.RequestAttrs(r),
 		"agent_id", uuidToString(agent.ID), "server_id", uuidToString(serverUUID))...)
-	h.writeAgentMcpServers(w, r, agent.ID)
+	h.writeAgentMcpServers(w, r, agent)
 }
 
 // SetAgentMcpServerEnabledRequest carries the per-agent toggle.
@@ -459,6 +477,11 @@ func (h *Handler) SetAgentMcpServerEnabled(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "enabled is required")
 		return
 	}
+	// Rule of Two (K77): enabling a server brings its tools back into the set.
+	if err := h.validateAgentMcpBinding(r.Context(), agent, serverUUID, nil, req.Enabled); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	rows, err := h.Queries.SetAgentMcpServerEnabled(r.Context(), db.SetAgentMcpServerEnabledParams{
 		AgentID:  agent.ID,
 		ServerID: serverUUID,
@@ -474,7 +497,7 @@ func (h *Handler) SetAgentMcpServerEnabled(w http.ResponseWriter, r *http.Reques
 	}
 	slog.Info("agent mcp server toggled", append(logger.RequestAttrs(r),
 		"agent_id", uuidToString(agent.ID), "server_id", uuidToString(serverUUID), "enabled", *req.Enabled)...)
-	h.writeAgentMcpServers(w, r, agent.ID)
+	h.writeAgentMcpServers(w, r, agent)
 }
 
 // RemoveAgentMcpServer takes a workspace server away from this agent. The
@@ -502,13 +525,13 @@ func (h *Handler) RemoveAgentMcpServer(w http.ResponseWriter, r *http.Request) {
 	}
 	slog.Info("agent mcp server removed", append(logger.RequestAttrs(r),
 		"agent_id", uuidToString(agent.ID), "server_id", uuidToString(serverUUID))...)
-	h.writeAgentMcpServers(w, r, agent.ID)
+	h.writeAgentMcpServers(w, r, agent)
 }
 
 // writeAgentMcpServers returns the agent's binding list after a mutation, so
 // the client never has to guess the resulting state.
-func (h *Handler) writeAgentMcpServers(w http.ResponseWriter, r *http.Request, agentID pgtype.UUID) {
-	rows, err := h.Queries.ListAgentMcpServers(r.Context(), agentID)
+func (h *Handler) writeAgentMcpServers(w http.ResponseWriter, r *http.Request, agent db.Agent) {
+	rows, err := h.Queries.ListAgentMcpServers(r.Context(), agent.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list the agent's MCP servers")
 		return
@@ -516,6 +539,7 @@ func (h *Handler) writeAgentMcpServers(w http.ResponseWriter, r *http.Request, a
 	resp := make([]WorkspaceMcpServerResponse, 0, len(rows))
 	for _, row := range rows {
 		enabled := row.Enabled
+		policy, tools := mcpBindingResponse(agent, row)
 		resp = append(resp, WorkspaceMcpServerResponse{
 			ID:          uuidToString(row.ID),
 			WorkspaceID: uuidToString(row.WorkspaceID),
@@ -524,6 +548,9 @@ func (h *Handler) writeAgentMcpServers(w http.ResponseWriter, r *http.Request, a
 			Enabled:     &enabled,
 			CreatedAt:   timestampToString(row.CreatedAt),
 			UpdatedAt:   timestampToString(row.UpdatedAt),
+			ToolPolicy:  &policy,
+			Tools:       tools,
+			ToolCount:   len(tools),
 		})
 	}
 	writeJSON(w, http.StatusOK, resp)

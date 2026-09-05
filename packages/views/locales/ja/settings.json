@@ -436,7 +436,31 @@
     "updated_toast": "共有 MCP サーバーを更新しました",
     "removed_toast": "共有 MCP サーバーを削除しました",
     "save_failed_toast": "共有 MCP サーバーを保存できませんでした",
-    "remove_failed_toast": "共有 MCP サーバーを削除できませんでした"
+    "remove_failed_toast": "共有 MCP サーバーを削除できませんでした",
+    "tools": {
+      "toggle": "ツール",
+      "count_other": "ツール {{count}} 件",
+      "loading": "ツールを読み込み中…",
+      "empty": "まだツールがカタログ化されていません。サーバーから検出するか、手動で追加してください。",
+      "help": "各ツールにはリスク分類があります。リスク別では、読み取りと内部書き込みのツールは単独で実行され、外部への影響、機密データ、不明なツールはまず人に確認します。HTTP サーバーは検出でカタログ化され、stdio サーバーは初回実行時に daemon がカタログ化します。",
+      "discover": "ツールを検出",
+      "risk_aria": "{{name}} のリスク",
+      "source_auto": "自動",
+      "source_manual": "手動",
+      "name_placeholder": "ツール名",
+      "description_placeholder": "説明（任意）",
+      "add": "ツールを追加",
+      "remove_aria": "{{name}} を削除",
+      "save": "ツールを保存",
+      "saved_toast": "ツールカタログを保存しました",
+      "discovered_toast": "ツールを検出しました",
+      "save_failed_toast": "ツールカタログを保存できませんでした",
+      "risk_read": "読み取り",
+      "risk_internal_write": "内部書き込み",
+      "risk_external_effect": "外部への影響",
+      "risk_sensitive_data": "機密データ",
+      "risk_unknown": "不明"
+    }
   },
   "page": {
     "title": "設定",

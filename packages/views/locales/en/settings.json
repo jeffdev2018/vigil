@@ -436,7 +436,32 @@
     "updated_toast": "Shared MCP server updated",
     "removed_toast": "Shared MCP server removed",
     "save_failed_toast": "Could not save the shared MCP server",
-    "remove_failed_toast": "Could not remove the shared MCP server"
+    "remove_failed_toast": "Could not remove the shared MCP server",
+    "tools": {
+      "toggle": "Tools",
+      "count_one": "{{count}} tool",
+      "count_other": "{{count}} tools",
+      "loading": "Loading tools…",
+      "empty": "No tools catalogued yet. Discover them from the server, or add them by hand.",
+      "help": "Each tool carries a risk class. By risk, read and internal-write tools run alone; external effects, sensitive data and unknown tools ask a human first. HTTP servers are catalogued by discovery; a stdio server is catalogued by the daemon at its first run.",
+      "discover": "Discover tools",
+      "risk_aria": "Risk of {{name}}",
+      "source_auto": "auto",
+      "source_manual": "manual",
+      "name_placeholder": "Tool name",
+      "description_placeholder": "Description (optional)",
+      "add": "Add tool",
+      "remove_aria": "Remove {{name}}",
+      "save": "Save tools",
+      "saved_toast": "Tool catalogue saved",
+      "discovered_toast": "Tools discovered",
+      "save_failed_toast": "Could not save the tool catalogue",
+      "risk_read": "Read",
+      "risk_internal_write": "Internal write",
+      "risk_external_effect": "External effect",
+      "risk_sensitive_data": "Sensitive data",
+      "risk_unknown": "Unknown"
+    }
   },
   "page": {
     "title": "Settings",
