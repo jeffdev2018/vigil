@@ -1265,5 +1265,13 @@
     "retry": "리뷰 다시 실행",
     "retry_failed": "재실행에 실패했습니다",
     "previous": "이전 시도 {{count}}회"
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI 수정 진행 중",
+    "fixed": "CI 자동 수정됨",
+    "failed": "CI 수정 실패({{count}})",
+    "exhausted": "{{count}}회 시도 후에도 CI 실패",
+    "retry": "다시 시도",
+    "retry_failed": "다시 시도를 시작하지 못했습니다"
   }
 }

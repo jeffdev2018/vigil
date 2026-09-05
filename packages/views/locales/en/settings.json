@@ -952,7 +952,15 @@
     "cross_review_enabled_description": "When a code run delivers a diff, an agent on a different provider reviews it before the human review. Needs at least two providers.",
     "cross_review_opt_out": "Projects without cross review",
     "cross_review_opt_out_description": "Runs on these projects are not reviewed.",
-    "cross_review_failed": "Failed to save the cross review settings"
+    "cross_review_failed": "Failed to save the cross review settings",
+    "ci_auto_fix_section": "CI auto-fix",
+    "ci_auto_fix_enabled": "Fix red CI on agents' pull requests",
+    "ci_auto_fix_enabled_description": "When the checks go red on a pull request whose branch belongs to an agent run, the agent gets one bounded correction run on that branch. Human branches are never touched.",
+    "ci_auto_fix_attempts": "Attempts per pull request",
+    "ci_auto_fix_attempts_description": "Past this many correction runs the managers get an inbox item instead; a human can still retry by hand.",
+    "ci_auto_fix_budget": "Budget per correction run (USD)",
+    "ci_auto_fix_budget_description": "A correction run that spends more than this is stopped. 0 means no dedicated budget.",
+    "ci_auto_fix_failed": "Failed to save the CI auto-fix settings"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

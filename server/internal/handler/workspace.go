@@ -1261,6 +1261,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceRefactorCampaigns(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge ci auto-fix runs",
+			run:  func() error { return qtx.PurgeWorkspaceCIAutoFixRuns(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge agent competency",
 			run:  func() error { return qtx.PurgeWorkspaceAgentDomainCompetency(ctx, requester.WorkspaceID) },
 		},

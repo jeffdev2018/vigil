@@ -2179,6 +2179,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Mobile push (K64): the app's Expo token.
 			r.Put("/api/me/push-token", h.RegisterPushToken)
 			r.Delete("/api/me/push-token", h.UnregisterPushToken)
+			// CI auto-fix (K49): correction runs on agents' red pull requests.
+			r.Get("/api/ci-auto-fix-settings", h.GetCIAutoFixSettings)
+			r.Put("/api/ci-auto-fix-settings", h.PutCIAutoFixSettings)
+			r.Get("/api/issues/{id}/ci-auto-fix", h.ListIssueCIAutoFix)
+			r.Post("/api/pull-requests/{id}/ci-auto-fix/retry", h.RetryCIAutoFix)
 			r.Get("/api/cross-review-settings", h.GetCrossReviewSettings)
 			r.Put("/api/cross-review-settings", h.PutCrossReviewSettings)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)

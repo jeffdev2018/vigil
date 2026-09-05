@@ -1298,5 +1298,13 @@
     "retry": "Retry the review",
     "retry_failed": "The retry failed",
     "previous": "{{count}} earlier attempt(s)"
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI fix in progress",
+    "fixed": "CI fixed automatically",
+    "failed": "CI fix failed ({{count}})",
+    "exhausted": "CI still red after {{count}} attempts",
+    "retry": "Retry",
+    "retry_failed": "The retry could not start"
   }
 }

@@ -4746,6 +4746,37 @@ export const CrossReviewSchema = z.object({
   completed_at: z.string().nullable().catch(null).default(null),
 }).loose();
 
+// CI auto-fix (K49).
+export const CIAutoFixRunSchema = z.object({
+  id: z.string().default(""),
+  provider: z.string().default(""),
+  pull_request_id: z.string().default(""),
+  head_sha: z.string().default(""),
+  issue_id: z.string().default(""),
+  task_id: z.string().nullable().catch(null).default(null),
+  task_status: z.string().catch("").default(""),
+  attempt: z.number().int().catch(0).default(0),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  manual: z.boolean().catch(false).default(false),
+  created_at: z.string().default(""),
+}).loose();
+
+export const IssueCIAutoFixSchema = z.object({
+  runs: z.array(CIAutoFixRunSchema).catch([]).default([]),
+  enabled: z.boolean().catch(false).default(false),
+  max_attempts: z.number().int().catch(3).default(3),
+}).loose();
+
+export const CIAutoFixRetryEnvelopeSchema = z.object({
+  run: CIAutoFixRunSchema.nullable().catch(null).default(null),
+}).loose();
+
+export const CIAutoFixSettingsSchema = z.object({
+  enabled: z.boolean().catch(false).default(false),
+  max_attempts: z.number().int().catch(3).default(3),
+  budget_usd_ticks: z.number().catch(0).default(0),
+}).loose();
+
 export const CrossReviewSettingsSchema = z.object({
   enabled: z.boolean().catch(true).default(true),
   opt_out_project_ids: z.array(z.string()).catch([]).default([]),

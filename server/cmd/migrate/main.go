@@ -349,6 +349,8 @@ var concurrentIndexCleanups = map[string]string{
 	"565_agent_domain_competency_index":                         "uq_agent_domain_competency",
 	"567_task_review_of_index":                                  "idx_agent_task_queue_review_of",
 	"586_mobile_push_token_index":                               "uq_mobile_push_token_user_token",
+	"590_ci_auto_fix_run_pr_head_index":                         "uq_ci_auto_fix_run_pr_head",
+	"591_ci_auto_fix_run_issue_index":                           "idx_ci_auto_fix_run_issue",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

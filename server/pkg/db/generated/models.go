@@ -756,6 +756,21 @@ type ChatSession struct {
 	ExplicitlyCreatedAt pgtype.Timestamptz `json:"explicitly_created_at"`
 }
 
+type CiAutoFixRun struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	Provider       string             `json:"provider"`
+	PullRequestID  pgtype.UUID        `json:"pull_request_id"`
+	HeadSha        string             `json:"head_sha"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	TaskID         pgtype.UUID        `json:"task_id"`
+	SourceTaskID   pgtype.UUID        `json:"source_task_id"`
+	Attempt        int32              `json:"attempt"`
+	BudgetUsdTicks int64              `json:"budget_usd_ticks"`
+	Manual         bool               `json:"manual"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ClientUsageDaily struct {
 	UserID          pgtype.UUID        `json:"user_id"`
 	ClientType      string             `json:"client_type"`

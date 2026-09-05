@@ -1265,5 +1265,13 @@
     "retry": "レビューを再実行",
     "retry_failed": "再実行に失敗しました",
     "previous": "以前の試行 {{count}} 件"
+  },
+  "ci_auto_fix": {
+    "in_progress": "CI 修正中",
+    "fixed": "CI を自動修正しました",
+    "failed": "CI 修正に失敗（{{count}}）",
+    "exhausted": "{{count}} 回試行後も CI が赤のまま",
+    "retry": "再試行",
+    "retry_failed": "再試行を開始できませんでした"
   }
 }
