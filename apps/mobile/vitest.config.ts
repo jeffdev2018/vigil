@@ -20,6 +20,9 @@ export default defineConfig({
     },
   },
   test: {
+    // Node >= 25 ships a global localStorage that has no methods unless
+    // --localstorage-file is set, and it shadows jsdom's Storage in tests.
+    execArgv: ["--no-experimental-webstorage"],
     environment: "node",
     globals: true,
     include: ["lib/**/*.test.ts", "data/**/*.test.ts"],
