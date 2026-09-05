@@ -57,6 +57,8 @@ import type {
   RealtimeVoiceSession,
   MeetingListResponse,
   MeetingSegmentResponse,
+  CalendarUpcoming,
+  CalendarFeed,
   PostmortemStats,
   PostmortemsResponse,
   WorkspaceNote,
@@ -813,6 +815,7 @@ export interface AppConfigResponse {
   /** Speech-to-text provider configured (MULTICA_STT_*); absent on older servers. */
   meeting_transcription_available?: boolean;
   meeting_realtime_available?: boolean;
+  tts_available?: boolean;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
   // publicly fetchable and must not be used as native media sources
@@ -1047,6 +1050,7 @@ export const AppConfigSchema = z.object({
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
   meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
   meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
+  tts_available: BooleanWithDefaultSchema(false).optional(),
   server_version: OptionalStringSchema,
   run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();
@@ -4606,6 +4610,37 @@ export const EMPTY_MEETING: Meeting = Object.freeze({
 export const EMPTY_MEETING_LIST: MeetingListResponse = Object.freeze({
   meetings: [],
 }) as MeetingListResponse;
+
+// Calendar subscription (ICS). Times stay strings: they are ISO instants the
+// UI formats, and a malformed one must not fail the whole parse.
+export const CalendarEventSchema = z.object({
+  summary: z.string().default(""),
+  url: z.string().optional(),
+  start: z.string().default(""),
+  end: z.string().default(""),
+  in_progress: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarUpcomingSchema = z.object({
+  events: z.array(CalendarEventSchema).catch([]).default([]),
+  configured: z.boolean().catch(false).default(false),
+}).loose();
+
+export const CalendarFeedSchema = z.object({
+  url: z.string().default(""),
+  last_fetched_at: z.string().optional(),
+  last_error: z.string().default(""),
+}).loose();
+
+export const EMPTY_CALENDAR_UPCOMING: CalendarUpcoming = Object.freeze({
+  events: [],
+  configured: false,
+}) as CalendarUpcoming;
+
+export const EMPTY_CALENDAR_FEED: CalendarFeed = Object.freeze({
+  url: "",
+  last_error: "",
+}) as CalendarFeed;
 
 export const EMPTY_MEETING_SEGMENT: MeetingSegmentResponse = Object.freeze({
   seq: "",

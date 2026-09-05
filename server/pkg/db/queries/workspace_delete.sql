@@ -713,6 +713,10 @@ deleted_notification_preferences AS (
     DELETE FROM notification_preference
     WHERE notification_preference.workspace_id = $1
 ),
+deleted_calendar_feeds AS (
+    DELETE FROM user_calendar_feed
+    WHERE user_calendar_feed.workspace_id = $1
+),
 deleted_pins AS (
     DELETE FROM pinned_item WHERE pinned_item.workspace_id = $1
 ),

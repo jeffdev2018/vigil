@@ -599,3 +599,71 @@ func TestMeetingPublishesRealtimeEvents(t *testing.T) {
 		}
 	}
 }
+
+// Editing one transcript paragraph after the meeting is done (JEF final A,
+// point 1). `seq` is the line index; the summary is deliberately untouched.
+func TestMeetingSegmentEdit(t *testing.T) {
+	stubSTT(t, "unused") // create requires a configured provider
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting, newRequest(http.MethodPost, "/api/meetings", map[string]string{"title": "Edit me"})).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+
+	for _, text := range []string{"Speaker 1: On livre vendredi.", "Speaker 2: Non, lundi."} {
+		testutil.Call(t, testHandler.AppendMeetingSegment,
+			testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/segments", map[string]string{"text": text}), "id", created.ID)).
+			Want(http.StatusOK)
+	}
+
+	editReq := func(seq string, body any, userID string) *http.Request {
+		req := testutil.WithURLParams(
+			newRequest(http.MethodPatch, "/api/meetings/"+created.ID+"/segments/"+seq, body),
+			"id", created.ID, "seq", seq)
+		if userID != "" {
+			req.Header.Set("X-User-ID", userID)
+		}
+		return req
+	}
+
+	// Still recording: refused, with a code the client can branch on.
+	conflict := testutil.Call(t, testHandler.UpdateMeetingSegment, editReq("0", map[string]string{"text": "x"}, "")).
+		Want(http.StatusConflict).Map()
+	if conflict["code"] != "meeting_not_done" {
+		t.Fatalf("code = %v, want meeting_not_done", conflict["code"])
+	}
+
+	testutil.Call(t, testHandler.FinishMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/finish", nil), "id", created.ID)).
+		Want(http.StatusOK)
+
+	var edited MeetingResponse
+	testutil.Call(t, testHandler.UpdateMeetingSegment,
+		editReq("1", map[string]string{"text": "  Speaker 2: Non,\nlundi matin.  "}, "")).
+		Want(http.StatusOK).JSON(&edited)
+	// The newline is collapsed: one segment is one line, or every following
+	// index would shift.
+	want := "Speaker 1: On livre vendredi.\nSpeaker 2: Non, lundi matin."
+	if edited.Transcript != want {
+		t.Fatalf("transcript = %q, want %q", edited.Transcript, want)
+	}
+
+	// Out of range, and empty text.
+	testutil.Call(t, testHandler.UpdateMeetingSegment, editReq("2", map[string]string{"text": "x"}, "")).
+		Want(http.StatusNotFound)
+	testutil.Call(t, testHandler.UpdateMeetingSegment, editReq("0", map[string]string{"text": "   "}, "")).
+		Want(http.StatusBadRequest)
+
+	// A plain member who did not record it may not edit the transcript.
+	otherUser := dbfx.User(t, "Other Editor", "other-editor@example.com")
+	dbfx.Member(t, testWorkspaceID, otherUser, "member")
+	testutil.Call(t, testHandler.UpdateMeetingSegment, editReq("0", map[string]string{"text": "x"}, otherUser)).
+		Want(http.StatusForbidden)
+
+	var fetched MeetingResponse
+	testutil.Call(t, testHandler.GetMeeting,
+		testutil.WithURLParams(newRequest(http.MethodGet, "/api/meetings/"+created.ID, nil), "id", created.ID)).
+		Want(http.StatusOK).JSON(&fetched)
+	if fetched.Transcript != want {
+		t.Fatalf("re-read transcript = %q", fetched.Transcript)
+	}
+}

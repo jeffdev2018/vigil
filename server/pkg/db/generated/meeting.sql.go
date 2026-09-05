@@ -410,6 +410,55 @@ func (q *Queries) RestartMeetingSummary(ctx context.Context, arg RestartMeetingS
 	return i, err
 }
 
+const setMeetingTranscript = `-- name: SetMeetingTranscript :one
+UPDATE meeting
+SET transcript = $1::text,
+    updated_at = now()
+WHERE id = $2::uuid
+  AND workspace_id = $3::uuid
+  AND status = 'done'
+  AND transcript = $4::text
+RETURNING id, workspace_id, created_by, title, app_name, status, transcript, summary_md, segment_count, started_at, ended_at, created_at, updated_at
+`
+
+type SetMeetingTranscriptParams struct {
+	Transcript  string      `json:"transcript"`
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Previous    string      `json:"previous"`
+}
+
+// Rewrites the transcript of a finished meeting, for a manual segment edit.
+// `previous` is a compare-and-set: two people editing different paragraphs of
+// the same transcript would otherwise silently overwrite each other, since the
+// transcript is one column. Zero rows means the meeting is no longer `done` or
+// someone else saved first; the handler asks the client to reload.
+func (q *Queries) SetMeetingTranscript(ctx context.Context, arg SetMeetingTranscriptParams) (Meeting, error) {
+	row := q.db.QueryRow(ctx, setMeetingTranscript,
+		arg.Transcript,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Previous,
+	)
+	var i Meeting
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.CreatedBy,
+		&i.Title,
+		&i.AppName,
+		&i.Status,
+		&i.Transcript,
+		&i.SummaryMd,
+		&i.SegmentCount,
+		&i.StartedAt,
+		&i.EndedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const startMeetingSummary = `-- name: StartMeetingSummary :one
 UPDATE meeting
 SET status = 'summarizing', ended_at = COALESCE(ended_at, now()), updated_at = now()

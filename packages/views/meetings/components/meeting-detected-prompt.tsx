@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { calendarUpcomingOptions } from "@multica/core/calendar/queries";
 import {
   openMeetingRecorder,
   useMeetingRecorderStore,
@@ -31,8 +34,20 @@ import { useT } from "../../i18n";
  */
 export function MeetingDetectedPrompt() {
   const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
   const phase = useMeetingRecorderStore((s) => s.phase);
   const [detected, setDetected] = useState<DetectedMeeting | null>(null);
+  // The calendar, when the user subscribed one: the app that took the
+  // microphone says "Zoom", the calendar says what the meeting is called.
+  // Only fetched while a prompt is up, so a workspace nobody records in never
+  // asks. A failure is silent — this is a nicety, not a requirement.
+  const { data: upcoming } = useQuery({
+    ...calendarUpcomingOptions(wsId),
+    enabled: wsId.length > 0 && detected !== null && phase === "idle",
+  });
+  const current = upcoming?.events.find(
+    (event) => event.in_progress === true && event.summary.trim() !== "",
+  );
 
   useEffect(() => subscribeMeetingDetected(setDetected), []);
 
@@ -67,6 +82,11 @@ export function MeetingDetectedPrompt() {
             {t(($) => $.detected.description, { appName })}
           </DialogDescription>
         </DialogHeader>
+        {current ? (
+          <p className="text-caption text-muted-foreground">
+            {t(($) => $.detected.looks_like, { summary: current.summary })}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button variant="ghost" onClick={() => setDetected(null)}>
             {t(($) => $.detected.dismiss)}
@@ -75,7 +95,10 @@ export function MeetingDetectedPrompt() {
             onClick={() => {
               setDetected(null);
               openMeetingRecorder({
-                title: t(($) => $.detected.meeting_title, { appName }),
+                // The calendar's name for it beats "Meeting on Zoom".
+                title:
+                  current?.summary ??
+                  t(($) => $.detected.meeting_title, { appName }),
                 appName,
               });
             }}

@@ -56,6 +56,10 @@ type MorningBriefingResponse struct {
 	Narrative string `json:"narrative,omitempty"`
 	// ChannelsDelivered (K64) lists where the day's briefing went ("inbox", "slack", …).
 	ChannelsDelivered []string `json:"channels_delivered,omitempty"`
+	// TriagePending counts the queue's undecided items. A counter, not a
+	// section: the briefing is about issues, and the queue's own page is
+	// where anyone acts on it. Omitted when the queue is empty.
+	TriagePending int `json:"triage_pending,omitempty"`
 }
 
 func briefingLocation(name string) *time.Location {
@@ -167,6 +171,7 @@ func (h *Handler) composeBriefing(ctx context.Context, wsID pgtype.UUID, now tim
 			addBlocked(i)
 		}
 	}
+	out.TriagePending = h.countPendingTriage(ctx, wsID)
 	out.Merged, out.AwaitingReview, out.Blocked = cap25(out.Merged), cap25(out.AwaitingReview), cap25(out.Blocked)
 	out.Narrative = h.narrateBriefing(ctx, out)
 	return out, nil
@@ -179,7 +184,7 @@ func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing M
 	if err := date.Scan(briefing.Date); err != nil {
 		return false, err
 	}
-	summary, _ := json.Marshal(map[string]int{"merged": len(briefing.Merged), "awaiting_review": len(briefing.AwaitingReview), "blocked": len(briefing.Blocked)})
+	summary, _ := json.Marshal(map[string]int{"merged": len(briefing.Merged), "awaiting_review": len(briefing.AwaitingReview), "blocked": len(briefing.Blocked), "triage_pending": briefing.TriagePending})
 	_, err := h.Queries.RecordMorningBriefingSent(ctx, db.RecordMorningBriefingSentParams{
 		WorkspaceID: wsID, SentForDate: date, ChannelsDelivered: []byte(`["inbox"]`), Summary: summary,
 	})
@@ -196,6 +201,9 @@ func (h *Handler) sendBriefing(ctx context.Context, wsID pgtype.UUID, briefing M
 	h.audit(ctx, wsID, actorType, actorID, AuditBriefingSent, "workspace", wsID, map[string]any{"date": briefing.Date, "merged": len(briefing.Merged), "awaiting_review": len(briefing.AwaitingReview), "blocked": len(briefing.Blocked)}, nil)
 	details, _ := json.Marshal(briefing)
 	title := fmt.Sprintf("This morning: %d done · %d awaiting review · %d blocked", len(briefing.Merged), len(briefing.AwaitingReview), len(briefing.Blocked))
+	if briefing.TriagePending > 0 {
+		title += fmt.Sprintf(" · %d triage items waiting", briefing.TriagePending)
+	}
 	for _, m := range members {
 		item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{
 			ID: dbid.NewV7(), WorkspaceID: wsID, RecipientType: "member", RecipientID: m.UserID,

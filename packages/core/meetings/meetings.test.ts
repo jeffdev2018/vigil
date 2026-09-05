@@ -143,6 +143,32 @@ describe("updateMeeting", () => {
   });
 });
 
+describe("updateMeetingSegment", () => {
+  it("PATCHes the line index and parses the meeting back", async () => {
+    stubFetchJson({ ...validMeeting, transcript: "corrected" });
+    const res = await client().updateMeetingSegment("meet-1", 2, "corrected");
+    expect(res.transcript).toBe("corrected");
+    const [url, init] = vi.mocked(fetch).mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/api/meetings/meet-1/segments/2");
+    expect(init.method).toBe("PATCH");
+  });
+
+  it("degrades a malformed body to the empty fallback instead of throwing", async () => {
+    stubFetchJson({ id: 42 });
+    expect((await client().updateMeetingSegment("meet-1", 0, "x")).id).toBe("");
+  });
+
+  it("keeps the 409 code the caller branches on", async () => {
+    stubFetchJson({ error: "not done", code: "meeting_not_done" }, 409);
+    await client()
+      .updateMeetingSegment("meet-1", 0, "x")
+      .then(
+        () => expect.unreachable("409 must reject"),
+        (err) => expect(errorCode(err)).toBe("meeting_not_done"),
+      );
+  });
+});
+
 describe("deleteMeeting", () => {
   it("resolves on 204 and keeps a 403 as an ApiError", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));

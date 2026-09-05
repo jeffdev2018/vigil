@@ -19,6 +19,16 @@ export interface TranscriptBlock {
   text: string;
 }
 
+/**
+ * One stored line, with the index it occupies in the transcript. That index is
+ * the `seq` the segment-edit endpoint addresses (PATCH
+ * /api/meetings/{id}/segments/{seq}), so it counts blank lines too even though
+ * nothing renders them.
+ */
+export interface TranscriptLine extends TranscriptBlock {
+  index: number;
+}
+
 /** Longest label we will believe. Real ones are "Speaker 3" or a first name. */
 const MAX_SPEAKER_LABEL = 40;
 
@@ -38,18 +48,43 @@ function splitLabel(line: string): { speaker: string; text: string } | null {
 }
 
 /**
+ * Every non-empty stored line, split into its speaker label and its text, with
+ * the line index kept. This is what the transcript editor addresses: editing
+ * merges nothing, because a saved edit rewrites exactly one line.
+ */
+export function parseTranscriptLines(transcript: string): TranscriptLine[] {
+  const lines: TranscriptLine[] = [];
+  transcript.split("\n").forEach((raw, index) => {
+    const line = raw.trim();
+    if (!line) return;
+    const labelled = splitLabel(line);
+    lines.push({
+      index,
+      speaker: labelled?.speaker ?? null,
+      text: labelled?.text ?? line,
+    });
+  });
+  return lines;
+}
+
+/**
+ * Rebuilds the stored line from an edited paragraph, so a diarized transcript
+ * keeps its "Speaker 1: " prefix. Exact inverse of splitLabel — the server
+ * stores whatever this returns and never re-parses labels itself.
+ */
+export function formatTranscriptLine(speaker: string | null, text: string): string {
+  const body = text.trim();
+  return speaker ? `${speaker}: ${body}` : body;
+}
+
+/**
  * Turns a stored transcript into blocks to render. Consecutive lines from the
  * same speaker are joined so one person talking for a minute reads as one
  * paragraph rather than a stack of fragments.
  */
 export function parseTranscriptBlocks(transcript: string): TranscriptBlock[] {
   const blocks: TranscriptBlock[] = [];
-  for (const raw of transcript.split("\n")) {
-    const line = raw.trim();
-    if (!line) continue;
-    const labelled = splitLabel(line);
-    const speaker = labelled?.speaker ?? null;
-    const text = labelled?.text ?? line;
+  for (const { speaker, text } of parseTranscriptLines(transcript)) {
     const last = blocks[blocks.length - 1];
     if (last && last.speaker === speaker) {
       last.text = `${last.text} ${text}`;

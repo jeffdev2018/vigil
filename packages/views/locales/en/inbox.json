@@ -91,7 +91,8 @@
     "budget_warning": "Budget warning",
     "budget_exceeded": "Budget limit reached",
     "postmortem_ready": "Postmortem ready",
-    "trust_promotion_suggested": "Trust promotion suggested"
+    "trust_promotion_suggested": "Trust promotion suggested",
+    "triage_stale": "Triage is stalling"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -105,7 +106,8 @@
     "reacted_to_comment": "Reacted {{emoji}} to your comment",
     "created_with_agent": "Created with agent: {{identifier}}",
     "failed_with_detail": "Failed: {{detail}}",
-    "autopilot_quota_blocked": "Run blocked because the limit was reached"
+    "autopilot_quota_blocked": "Run blocked because the limit was reached",
+    "triage_items_waiting": "{{count}} triage items waiting"
   },
   "toasts": {
     "source_context_retry_started": "Retry started with the original context",

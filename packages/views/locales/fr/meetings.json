@@ -46,6 +46,11 @@
     "transcript_empty": "Rien n'a encore été transcrit",
     "transcript_show": "Afficher la transcription",
     "transcript_hide": "Masquer la transcription",
+    "transcript_edit": "Modifier la transcription",
+    "transcript_edit_done": "Terminer",
+    "transcript_edit_label": "Modifier ce paragraphe",
+    "transcript_edit_error": "Impossible d'enregistrer la transcription.",
+    "transcript_edited_hint": "Transcription modifiée, régénérez le résumé.",
     "delete": "Supprimer",
     "title_placeholder": "Titre de la réunion",
     "rename_error": "Impossible de renommer la réunion.",
@@ -97,7 +102,8 @@
     "description": "{{appName}} utilise le microphone. Prendre des notes ?",
     "accept": "Prendre des notes",
     "dismiss": "Pas maintenant",
-    "meeting_title": "Réunion {{appName}}"
+    "meeting_title": "Réunion {{appName}}",
+    "looks_like": "On dirait : {{summary}}"
   },
   "delete_dialog": {
     "title": "Supprimer « {{title}} » ?",

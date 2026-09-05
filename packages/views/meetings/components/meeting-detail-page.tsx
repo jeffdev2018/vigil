@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   AudioLines,
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Pencil,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import {
 import { useMeetingRecorderStore } from "@multica/core/meetings/store";
 import {
   useDeleteMeeting,
+  useEditMeetingSegment,
   useFinishMeeting,
   useRenameMeeting,
   useResummarizeMeeting,
@@ -29,6 +31,7 @@ import type { Meeting, MeetingAction } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
+import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Spinner } from "@multica/ui/components/ui/spinner";
 import { cn } from "@multica/ui/lib/utils";
 import { AppLink } from "../../navigation";
@@ -40,7 +43,12 @@ import { useT, useTimeAgo } from "../../i18n";
 import { TitleEditor } from "../../editor";
 import { useNavigation } from "../../navigation";
 import { DeleteMeetingDialog } from "./delete-meeting-dialog";
-import { parseTranscriptBlocks } from "../transcript-speakers";
+import {
+  formatTranscriptLine,
+  parseTranscriptBlocks,
+  parseTranscriptLines,
+  type TranscriptLine,
+} from "../transcript-speakers";
 import { MeetingRecorderPanel } from "./meeting-recorder";
 import { meetingStatusDotClass } from "./meetings-page";
 
@@ -51,6 +59,12 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
   const { data, isLoading, isError } = useQuery(
     meetingDetailOptions(wsId, meetingId),
   );
+  // Editing the transcript deliberately does not re-run the summary: the model
+  // call is slow and costs money, and only the reader knows whether the
+  // correction changed anything the summary said. So we say so, and point at
+  // the button that already exists. Session-scoped on purpose — the reminder
+  // is about what THIS reader just changed.
+  const [transcriptEdited, setTranscriptEdited] = useState(false);
 
   if (isLoading) {
     return (
@@ -106,9 +120,12 @@ export function MeetingDetailPage({ meetingId }: { meetingId: string }) {
           {data.status === "recording" ? (
             <RecorderSlot meeting={data} />
           ) : null}
-          <SummarySection meeting={data} />
+          <SummarySection meeting={data} transcriptEdited={transcriptEdited} />
           <ActionsSection meeting={data} />
-          <TranscriptSection transcript={data.transcript} />
+          <TranscriptSection
+            meeting={data}
+            onEdited={() => setTranscriptEdited(true)}
+          />
         </div>
       </div>
     </div>
@@ -272,7 +289,13 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SummarySection({ meeting }: { meeting: Meeting }) {
+function SummarySection({
+  meeting,
+  transcriptEdited,
+}: {
+  meeting: Meeting;
+  transcriptEdited: boolean;
+}) {
   const { t } = useT("meetings");
   // A summary that is still running owns the section; one that stalled is the
   // main reason this button exists, so it appears there too.
@@ -286,6 +309,11 @@ function SummarySection({ meeting }: { meeting: Meeting }) {
         <SectionHeading>{t(($) => $.detail.summary_title)}</SectionHeading>
         {canRegenerate ? <ResummarizeButton meeting={meeting} /> : null}
       </div>
+      {transcriptEdited && canRegenerate ? (
+        <p role="status" className="text-caption text-muted-foreground">
+          {t(($) => $.detail.transcript_edited_hint)}
+        </p>
+      ) : null}
       {stalled ? (
         // The finish request that owned this summary is gone (a closed tab, a
         // restarted server): nothing will move the row on its own, so stop
@@ -441,33 +469,159 @@ function TranscriptBody({ transcript }: { transcript: string }) {
   );
 }
 
-function TranscriptSection({ transcript }: { transcript: string }) {
+/**
+ * The editable transcript: one paragraph per STORED line, not per speaker run.
+ * A saved edit rewrites exactly one line (PATCH .../segments/{seq}), so
+ * merging consecutive lines the way the read view does would make a paragraph
+ * unaddressable. Clicking one opens a textarea; Enter or blur saves it,
+ * Escape drops it.
+ */
+function TranscriptEditor({
+  meeting,
+  onEdited,
+}: {
+  meeting: Meeting;
+  onEdited: () => void;
+}) {
+  const { t } = useT("meetings");
+  const wsId = useWorkspaceId();
+  const editSegment = useEditMeetingSegment(wsId);
+  const lines = useMemo(
+    () => parseTranscriptLines(meeting.transcript),
+    [meeting.transcript],
+  );
+  const [editing, setEditing] = useState<number | null>(null);
+  // Escape and Enter both close the textarea, and closing it fires blur in
+  // some browsers. Without this the save would run twice.
+  const handled = useRef(false);
+
+  const save = (line: TranscriptLine, value: string) => {
+    handled.current = true;
+    setEditing(null);
+    const next = value.trim();
+    if (!next || next === line.text) return;
+    editSegment
+      .mutateAsync({
+        meetingId: meeting.id,
+        seq: line.index,
+        text: formatTranscriptLine(line.speaker, next),
+      })
+      .then(() => onEdited())
+      .catch(() => toast.error(t(($) => $.detail.transcript_edit_error)));
+  };
+
+  return (
+    <div className="max-h-96 overflow-auto rounded-lg border bg-muted/40 p-3">
+      <div className="flex flex-col gap-3">
+        {lines.map((line) => (
+          <div key={line.index} className="flex flex-col gap-1">
+            {line.speaker ? (
+              <span className="text-caption font-medium text-muted-foreground">
+                {line.speaker}
+              </span>
+            ) : null}
+            {editing === line.index ? (
+              <Textarea
+                autoFocus
+                defaultValue={line.text}
+                aria-label={t(($) => $.detail.transcript_edit_label)}
+                className="min-h-16 text-caption leading-relaxed"
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    handled.current = true;
+                    setEditing(null);
+                    return;
+                  }
+                  if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();
+                    save(line, event.currentTarget.value);
+                  }
+                }}
+                onBlur={(event) => {
+                  if (handled.current) {
+                    handled.current = false;
+                    return;
+                  }
+                  save(line, event.target.value);
+                }}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  handled.current = false;
+                  setEditing(line.index);
+                }}
+                className="rounded-sm px-1 py-0.5 text-left text-caption leading-relaxed whitespace-pre-wrap transition-colors hover:bg-background"
+              >
+                {line.text}
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function TranscriptSection({
+  meeting,
+  onEdited,
+}: {
+  meeting: Meeting;
+  onEdited: () => void;
+}) {
   const { t } = useT("meetings");
   // Collapsed by default: a transcript is long, and the summary above it is
   // what a reader came for.
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  // A recording is still being appended to and a summarizing one is being
+  // read by the model, so only a finished transcript is editable — the same
+  // rule the server enforces (`meeting_not_done`).
+  const canEdit = meeting.can_manage === true && meeting.status === "done";
 
   return (
     <section className="flex flex-col gap-2">
       <SectionHeading>{t(($) => $.detail.transcript_title)}</SectionHeading>
-      {transcript ? (
+      {meeting.transcript ? (
         <>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            aria-expanded={open}
-            className="flex w-fit items-center gap-1 text-caption text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {open ? (
-              <ChevronDown aria-hidden="true" className="size-3.5" />
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setOpen((v) => !v)}
+              aria-expanded={open}
+              className="flex w-fit items-center gap-1 text-caption text-muted-foreground transition-colors hover:text-foreground"
+            >
+              {open ? (
+                <ChevronDown aria-hidden="true" className="size-3.5" />
+              ) : (
+                <ChevronRight aria-hidden="true" className="size-3.5" />
+              )}
+              {open
+                ? t(($) => $.detail.transcript_hide)
+                : t(($) => $.detail.transcript_show)}
+            </button>
+            {open && canEdit ? (
+              <Button
+                size="sm"
+                variant={editing ? "secondary" : "ghost"}
+                onClick={() => setEditing((v) => !v)}
+              >
+                <Pencil aria-hidden="true" className="size-3.5" />
+                {editing
+                  ? t(($) => $.detail.transcript_edit_done)
+                  : t(($) => $.detail.transcript_edit)}
+              </Button>
+            ) : null}
+          </div>
+          {open ? (
+            editing && canEdit ? (
+              <TranscriptEditor meeting={meeting} onEdited={onEdited} />
             ) : (
-              <ChevronRight aria-hidden="true" className="size-3.5" />
-            )}
-            {open
-              ? t(($) => $.detail.transcript_hide)
-              : t(($) => $.detail.transcript_show)}
-          </button>
-          {open ? <TranscriptBody transcript={transcript} /> : null}
+              <TranscriptBody transcript={meeting.transcript} />
+            )
+          ) : null}
         </>
       ) : (
         <p className="text-caption text-muted-foreground">

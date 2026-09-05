@@ -200,6 +200,18 @@
     "meeting_detection": {
       "title": "Detect meetings automatically",
       "hint": "Multica watches which app is using your microphone and offers to take notes. It never starts recording on its own."
+    },
+    "calendar_title": "Calendar",
+    "calendar_feed": {
+      "title": "Calendar feed URL",
+      "hint": "Paste the read-only iCalendar (.ics) link your calendar publishes. Multica reads it to name a recording after the meeting you are actually in. https:// or webcal://, read-only, never written to.",
+      "placeholder": "https://calendar.example.com/…/basic.ics",
+      "save": "Save",
+      "check": "Check feed",
+      "remove": "Remove",
+      "check_ok": "{{count}} events in the next two weeks.",
+      "check_failed": "Could not read the calendar feed.",
+      "save_failed": "Could not save the calendar feed."
     }
   },
   "shortcuts": {

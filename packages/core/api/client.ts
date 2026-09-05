@@ -267,6 +267,8 @@ import type {
   Meeting,
   MeetingListResponse,
   MeetingSegmentResponse,
+  CalendarFeed,
+  CalendarUpcoming,
   VoiceTranscription,
   RealtimeVoiceSession,
   TriageSource,
@@ -462,6 +464,10 @@ import {
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
   EMPTY_MEETING_SEGMENT,
+  CalendarFeedSchema,
+  CalendarUpcomingSchema,
+  EMPTY_CALENDAR_FEED,
+  EMPTY_CALENDAR_UPCOMING,
   TriageBatchAcceptResponseSchema,
   AcceptTriageItemResponseSchema,
   DismissTriageItemResponseSchema,
@@ -1902,6 +1908,55 @@ export class ApiClient {
     });
   }
 
+  // Calendar subscription (ICS, no OAuth). Personal to the caller in the
+  // active workspace: there is no id in any of these paths.
+  async getCalendarFeed(options?: { signal?: AbortSignal }): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>(
+      "/api/calendar/feed",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "GET /api/calendar/feed",
+    });
+  }
+
+  /** Saves the feed URL. `https://` and `webcal://` only; 400 otherwise. */
+  async setCalendarFeed(url: string): Promise<CalendarFeed> {
+    const raw = await this.fetch<unknown>("/api/calendar/feed", {
+      method: "PUT",
+      body: JSON.stringify({ url }),
+    });
+    return parseWithFallback<CalendarFeed>(raw, CalendarFeedSchema, EMPTY_CALENDAR_FEED, {
+      endpoint: "PUT /api/calendar/feed",
+    });
+  }
+
+  async deleteCalendarFeed(): Promise<void> {
+    await this.fetch("/api/calendar/feed", { method: "DELETE" });
+  }
+
+  /**
+   * What is running now or starting within `within` (a Go duration such as
+   * "30m", capped server-side at two weeks). 502 `calendar_feed_failed` when
+   * the feed cannot be read — which is also how "Check feed" reports itself.
+   */
+  async calendarUpcoming(
+    within?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<CalendarUpcoming> {
+    const qs = within ? `?within=${encodeURIComponent(within)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/calendar/upcoming${qs}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<CalendarUpcoming>(
+      raw,
+      CalendarUpcomingSchema,
+      EMPTY_CALENDAR_UPCOMING,
+      { endpoint: "GET /api/calendar/upcoming" },
+    );
+  }
+
   /** Renames a meeting. Title is the only mutable field. */
   async updateMeeting(id: string, data: { title: string }): Promise<Meeting> {
     const raw = await this.fetch<unknown>(`/api/meetings/${encodeURIComponent(id)}`, {
@@ -1941,6 +1996,21 @@ export class ApiClient {
       EMPTY_VOICE_TRANSCRIPTION,
       { endpoint: "POST /api/voice/transcribe" },
     );
+  }
+
+  /**
+   * Read aloud: one block of text in, audio bytes out
+   * (POST /api/voice/speak). 409 `tts_not_configured` when the deployment has
+   * no provider — the caller falls back to the browser's speechSynthesis.
+   * At most 4000 characters per call; the caller splits by sentence.
+   */
+  async speak(text: string, language?: string): Promise<Blob> {
+    const res = await this.fetchRaw("/api/voice/speak", {
+      method: "POST",
+      extraHeaders: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language: language ?? "" }),
+    });
+    return res.blob();
   }
 
   /** Short-lived token for the provider's realtime transcription socket. */
@@ -1991,6 +2061,23 @@ export class ApiClient {
       EMPTY_MEETING_SEGMENT,
       { endpoint: "POST /api/meetings/:id/segments" },
     );
+  }
+
+  /**
+   * Rewrites one transcript paragraph of a finished meeting. `seq` is the
+   * 0-based line index in the stored transcript, and `text` the whole line
+   * (speaker label included when the line had one). 409 `meeting_not_done`
+   * while the meeting has not finished, `meeting_transcript_changed` when
+   * someone else saved first.
+   */
+  async updateMeetingSegment(id: string, seq: number, text: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/segments/${encodeURIComponent(String(seq))}`,
+      { method: "PATCH", body: JSON.stringify({ text }) },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id/segments/:seq",
+    });
   }
 
   async finishMeeting(id: string): Promise<Meeting> {

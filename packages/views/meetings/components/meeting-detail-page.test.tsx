@@ -56,6 +56,9 @@ const data = vi.hoisted(() => ({
   remove: vi.fn(async (_id: string) => undefined),
   finish: vi.fn(async (_id: string) => undefined),
   resummarize: vi.fn(async (_id: string) => undefined),
+  editSegment: vi.fn(
+    async (_v: { meetingId: string; seq: number; text: string }) => undefined,
+  ),
 }));
 
 vi.mock("@multica/core/meetings/queries", async (importOriginal) => ({
@@ -71,6 +74,7 @@ vi.mock("@multica/core/meetings/mutations", () => ({
   useDeleteMeeting: () => ({ mutateAsync: data.remove, isPending: false }),
   useFinishMeeting: () => ({ mutateAsync: data.finish, isPending: false }),
   useResummarizeMeeting: () => ({ mutateAsync: data.resummarize, isPending: false }),
+  useEditMeetingSegment: () => ({ mutateAsync: data.editSegment, isPending: false }),
 }));
 
 vi.mock("@multica/core/meetings/store", () => {
@@ -245,6 +249,55 @@ describe("MeetingDetailPage", () => {
     expect(screen.getByText("Speaker 1")).toBeTruthy();
     expect(screen.getByText("On livre vendredi.")).toBeTruthy();
     expect(screen.getByText("Speaker 2")).toBeTruthy();
+  });
+
+  // Transcript editing: the line-index/label rules are pinned in
+  // transcript-speakers.test.ts; this checks the wiring and the reminder.
+  it("edits one transcript paragraph and then asks for a fresh summary", async () => {
+    data.meeting = meeting({
+      transcript: "Speaker 1: On livre vendredi.\nSpeaker 2: Ok.",
+    });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /show transcript/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit transcript/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "On livre vendredi." }));
+    const box = screen.getByRole("textbox", { name: /edit this paragraph/i });
+    fireEvent.change(box, { target: { value: "On livre lundi." } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    // The speaker label is put back: the server stores the whole line.
+    expect(data.editSegment).toHaveBeenCalledWith({
+      meetingId: "meet-1",
+      seq: 0,
+      text: "Speaker 1: On livre lundi.",
+    });
+    expect(
+      await screen.findByText(/transcript edited, regenerate the summary/i),
+    ).toBeTruthy();
+  });
+
+  it("Escape drops the edit and an unchanged paragraph is not sent", async () => {
+    data.meeting = meeting({ transcript: "On livre vendredi." });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /show transcript/i }));
+    fireEvent.click(screen.getByRole("button", { name: /edit transcript/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: "On livre vendredi." }));
+    const box = screen.getByRole("textbox", { name: /edit this paragraph/i });
+    fireEvent.change(box, { target: { value: "Autre chose." } });
+    fireEvent.keyDown(box, { key: "Escape" });
+    expect(data.editSegment).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "On livre vendredi." }));
+    fireEvent.blur(screen.getByRole("textbox", { name: /edit this paragraph/i }));
+    expect(data.editSegment).not.toHaveBeenCalled();
+  });
+
+  it("offers no transcript editing on a meeting that is not finished", async () => {
+    data.meeting = meeting({ status: "recording", transcript: "On parle." });
+    renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: /show transcript/i }));
+    expect(screen.queryByRole("button", { name: /edit transcript/i })).toBeNull();
   });
 
   it("deleting confirms, awaits the server, then returns to the list", async () => {

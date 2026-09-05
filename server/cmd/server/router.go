@@ -444,6 +444,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		STTLanguage:              strings.TrimSpace(os.Getenv("MULTICA_STT_LANGUAGE")),
 		STTDiarize:               strings.EqualFold(strings.TrimSpace(os.Getenv("MULTICA_STT_DIARIZE")), "true"),
 		STTRealtimeModel:         strings.TrimSpace(os.Getenv("MULTICA_STT_REALTIME_MODEL")),
+		TTSBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_TTS_BASE_URL")),
+		TTSAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_TTS_API_KEY")),
+		TTSModel:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_MODEL")),
+		TTSVoice:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_VOICE")),
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
@@ -2041,14 +2045,33 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateMeeting)
 				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
+				// Correcting one transcribed paragraph after the fact. The
+				// summary is deliberately NOT re-run: the client offers the
+				// existing regenerate button instead.
+				r.With(handler.RequireHumanActor).Patch("/{id}/segments/{seq}", h.UpdateMeetingSegment)
 				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/resummarize", h.ResummarizeMeeting)
+			})
+			// Calendar subscription (ICS, no OAuth): the read-only feed URL the
+			// user's calendar already publishes. Personal to the caller in
+			// this workspace, so no path parameter and nothing to authorize
+			// beyond membership.
+			r.Route("/api/calendar", func(r chi.Router) {
+				r.Get("/feed", h.GetCalendarFeed)
+				r.With(handler.RequireHumanActor).Put("/feed", h.SetCalendarFeed)
+				r.With(handler.RequireHumanActor).Delete("/feed", h.DeleteCalendarFeed)
+				// Also the "Check feed" button in Settings: it answers 502
+				// with the reason when the feed cannot be read.
+				r.Get("/upcoming", h.UpcomingCalendar)
 			})
 			// Voice memo: one-shot transcription for the chat composer.
 			r.With(handler.RequireHumanActor).Post("/api/voice/transcribe", h.TranscribeVoice)
 			// Live transcript: a short-lived provider token the browser uses to open
 			// the realtime WebSocket itself. The API key never leaves the server.
 			r.With(handler.RequireHumanActor).Post("/api/voice/realtime-session", h.RealtimeVoiceSession)
+			// Read aloud: text in, audio bytes out. 409 when no TTS provider is
+			// configured, which is the client's cue to use speechSynthesis.
+			r.With(handler.RequireHumanActor).Post("/api/voice/speak", h.SpeakVoice)
 
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
 			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {

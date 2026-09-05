@@ -200,6 +200,18 @@
     "meeting_detection": {
       "title": "ミーティングを自動検出",
       "hint": "マイクを使用しているアプリを検出し、メモを取るか確認します。自動的に録音を開始することはありません。"
+    },
+    "calendar_title": "カレンダー",
+    "calendar_feed": {
+      "title": "カレンダーフィードのURL",
+      "hint": "カレンダーが公開している読み取り専用のiCalendar（.ics）リンクを貼り付けてください。Multicaはそれを読み取り、実際に参加している会議の名前を録音に付けます。https:// または webcal://、読み取り専用で、書き込みは行いません。",
+      "placeholder": "https://calendar.example.com/…/basic.ics",
+      "save": "保存",
+      "check": "フィードを確認",
+      "remove": "削除",
+      "check_ok": "今後2週間で{{count}}件の予定があります。",
+      "check_failed": "カレンダーフィードを読み取れませんでした。",
+      "save_failed": "カレンダーフィードを保存できませんでした。"
     }
   },
   "shortcuts": {

@@ -787,6 +787,12 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.MorningBriefingJob(pool, h.SendDueMorningBriefings)); err != nil {
 		slog.Warn("scheduler: failed to register morning_briefing job", "error", err)
 	}
+	// Triage digest: tell a workspace's admins when nobody has decided on the
+	// queue for two days. The queue reports its own age to whoever opens it,
+	// which is the person already looking; this reaches the one who stopped.
+	if err := schedulerMgr.Register(scheduler.TriageStaleDigestJob(pool, h.RunTriageStaleDigest)); err != nil {
+		slog.Warn("scheduler: failed to register triage_stale_digest job", "error", err)
+	}
 	// Triage retention: pending items past expires_at leave the queue as
 	// expired, so a queue nobody reads stops growing without losing the
 	// resolved history the auto-classifier learns from.

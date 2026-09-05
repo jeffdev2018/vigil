@@ -200,6 +200,18 @@
     "meeting_detection": {
       "title": "미팅 자동 감지",
       "hint": "마이크를 사용하는 앱을 감지해 메모할지 물어봅니다. 스스로 녹음을 시작하지는 않습니다."
+    },
+    "calendar_title": "캘린더",
+    "calendar_feed": {
+      "title": "캘린더 피드 URL",
+      "hint": "캘린더가 게시하는 읽기 전용 iCalendar(.ics) 링크를 붙여넣으세요. Multica가 이를 읽어 실제 참여 중인 회의 이름으로 녹음을 지정합니다. https:// 또는 webcal://, 읽기 전용이며 기록하지 않습니다.",
+      "placeholder": "https://calendar.example.com/…/basic.ics",
+      "save": "저장",
+      "check": "피드 확인",
+      "remove": "제거",
+      "check_ok": "앞으로 2주 동안 일정 {{count}}건.",
+      "check_failed": "캘린더 피드를 읽을 수 없습니다.",
+      "save_failed": "캘린더 피드를 저장할 수 없습니다."
     }
   },
   "shortcuts": {

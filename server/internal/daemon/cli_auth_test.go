@@ -15,12 +15,15 @@ import (
 	"time"
 )
 
-func TestCliAuthCommandSupportsClaudeAndCodex(t *testing.T) {
+func TestCliAuthCommandCoversEveryDocumentedProvider(t *testing.T) {
 	tests := map[string][]string{
-		"codex:login":   {"login", "--device-auth"},
-		"codex:logout":  {"logout"},
-		"claude:login":  {"auth", "login"},
-		"claude:logout": {"auth", "logout"},
+		"codex:login":         {"login", "--device-auth"},
+		"codex:logout":        {"logout"},
+		"claude:login":        {"auth", "login"},
+		"claude:logout":       {"auth", "logout"},
+		"cursor-agent:login":  {"login"},
+		"cursor-agent:logout": {"logout"},
+		"copilot:login":       {"login"},
 	}
 	for key, want := range tests {
 		provider, action, _ := strings.Cut(key, ":")
@@ -29,8 +32,13 @@ func TestCliAuthCommandSupportsClaudeAndCodex(t *testing.T) {
 			t.Fatalf("cliAuthCommand(%s) = %v, %v", key, got, err)
 		}
 	}
-	if _, err := cliAuthCommand("other", "login"); err == nil {
-		t.Fatal("unsupported provider should fail")
+	// An action a provider does not document must be an error, never an empty
+	// argument list: running the agent CLI with no arguments starts the agent.
+	for _, key := range []string{"copilot:logout", "opencode:login", "gemini:login", "other:login"} {
+		provider, action, _ := strings.Cut(key, ":")
+		if got, err := cliAuthCommand(provider, action); err == nil {
+			t.Fatalf("cliAuthCommand(%s) = %v, want an error", key, got)
+		}
 	}
 }
 
@@ -104,8 +112,57 @@ func TestCliAuthStatusCommandSupportsClaudeAndCodex(t *testing.T) {
 	if !ok || strings.Join(codex, " ") != "login status" {
 		t.Fatalf("codex status command = %v, %v", codex, ok)
 	}
-	if _, ok := cliAuthStatusCommand("gemini"); ok {
-		t.Fatal("a provider with no documented status command must stay unknown")
+	// Every other provider stays unknown, including ones we CAN sign in:
+	// `cursor-agent status` prints the account but documents no exit code, so
+	// trusting it would report every Cursor runtime as authenticated.
+	for _, provider := range []string{"cursor-agent", "copilot", "opencode", "gemini"} {
+		if _, ok := cliAuthStatusCommand(provider); ok {
+			t.Fatalf("%s must have no status probe: no documented exit-code contract", provider)
+		}
+	}
+}
+
+// A provider with a login but no status probe must still complete, and must
+// never be probed by running its executable with no arguments — that would
+// start the agent CLI instead of reading a credential store.
+func TestHandleCliAuthWithoutStatusProbeReportsTheAction(t *testing.T) {
+	bin := fakeCLI(t, "fake-copilot", `
+if [ "$#" -eq 0 ]; then
+  echo "INTERACTIVE AGENT STARTED" >&2
+  exit 3
+fi
+exit 0
+`)
+	var mu sync.Mutex
+	var reports []map[string]any
+	d, _ := localSkillReportDaemon(t, func(w http.ResponseWriter, r *http.Request) {
+		var report map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&report); err != nil {
+			t.Errorf("decode report: %v", err)
+		}
+		mu.Lock()
+		reports = append(reports, report)
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"status":"ok"}`))
+	})
+	d.cfg.Agents = map[string]AgentEntry{"copilot": {Path: bin}}
+
+	d.handleCliAuth(context.Background(), Runtime{ID: "rt-1", Provider: "copilot"}, PendingCliAuth{ID: "req-1", Action: "login"})
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(reports) == 0 {
+		t.Fatal("no report")
+	}
+	last := reports[len(reports)-1]
+	if last["status"] != "completed" || last["authenticated"] != true {
+		t.Fatalf("report = %v, want a completed login", last)
+	}
+	// The state is unknown, not asserted, so registration drops the record
+	// rather than claiming something no command verified.
+	if got := d.cliAuthStateForProvider(context.Background(), "copilot", bin); got != "" {
+		t.Fatalf("cached state = %q, want unknown", got)
 	}
 }
 

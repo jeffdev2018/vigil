@@ -200,6 +200,18 @@
     "meeting_detection": {
       "title": "Détecter les réunions automatiquement",
       "hint": "Multica surveille l'application qui utilise votre microphone et propose de prendre des notes. Elle ne commence jamais l'enregistrement d'elle-même."
+    },
+    "calendar_title": "Calendrier",
+    "calendar_feed": {
+      "title": "URL du flux de calendrier",
+      "hint": "Collez le lien iCalendar (.ics) en lecture seule publié par votre calendrier. Multica le lit pour nommer un enregistrement d'après la réunion en cours. https:// ou webcal://, en lecture seule, jamais modifié.",
+      "placeholder": "https://calendar.example.com/…/basic.ics",
+      "save": "Enregistrer",
+      "check": "Tester le flux",
+      "remove": "Retirer",
+      "check_ok": "{{count}} événements dans les deux prochaines semaines.",
+      "check_failed": "Impossible de lire le flux de calendrier.",
+      "save_failed": "Impossible d'enregistrer le flux de calendrier."
     }
   },
   "shortcuts": {

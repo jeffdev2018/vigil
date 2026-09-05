@@ -235,6 +235,15 @@ func (h *Handler) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	title := strings.TrimSpace(req.Title)
 	if title == "" {
+		// The calendar knows what this meeting is called. Only when the client
+		// sent no title: a recorder that named the meeting has already made
+		// the decision. A missing, slow or broken feed falls through to the
+		// timestamp — naming a recording is never worth failing to start one.
+		if event, ok := h.currentCalendarEvent(r.Context(), workspaceID, userID, time.Now()); ok {
+			title = event.Summary
+		}
+	}
+	if title == "" {
 		title = "Meeting " + time.Now().UTC().Format("2006-01-02 15:04")
 	}
 	if n := len([]rune(title)); n > meetingMaxTitleRunes {
@@ -853,4 +862,88 @@ func (h *Handler) DeleteMeeting(w http.ResponseWriter, r *http.Request) {
 	}
 	h.publishMeetingEvent(protocol.EventMeetingDeleted, workspaceID, m, userID)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type updateMeetingSegmentRequest struct {
+	Text string `json:"text"`
+}
+
+// UpdateMeetingSegment rewrites one transcript paragraph.
+// PATCH /api/meetings/{id}/segments/{seq}, {"text": "..."}.
+//
+// `seq` is the 0-based index of the line in the stored transcript — the same
+// lines AppendMeetingSegment joined with "\n", and the same ones the client
+// renders (see packages/views/meetings/transcript-speakers.ts). A diarized
+// line keeps its "Speaker N: " prefix because the client sends the whole line
+// back, so nothing here has to re-parse speaker labels.
+//
+// Only a `done` meeting: while it is recording the transcript is still being
+// appended to by the recorder, and a summary in flight is reading it.
+// Correcting the transcript does NOT re-run the summary — the client offers
+// the existing regenerate button instead, so the user decides.
+func (h *Handler) UpdateMeetingSegment(w http.ResponseWriter, r *http.Request) {
+	m, workspaceID, userID, ok := h.loadMeetingForUser(w, r, false)
+	if !ok {
+		return
+	}
+	if !h.requireMeetingManager(w, r, m, userID) {
+		return
+	}
+	if m.Status != "done" {
+		writeErrorCode(w, http.StatusConflict, "meeting_not_done", "only a finished meeting's transcript can be edited")
+		return
+	}
+	seq, err := strconv.Atoi(chi.URLParam(r, "seq"))
+	if err != nil || seq < 0 {
+		writeError(w, http.StatusBadRequest, "seq must be a non-negative integer")
+		return
+	}
+	var req updateMeetingSegmentRequest
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	// One segment is one line: a newline would silently split it into two and
+	// shift every following index.
+	text := strings.TrimSpace(strings.NewReplacer("\r\n", " ", "\n", " ", "\r", " ").Replace(req.Text))
+	if text == "" {
+		writeError(w, http.StatusBadRequest, "text cannot be empty")
+		return
+	}
+	if n := len([]rune(text)); n > meetingMaxSegmentTextRunes {
+		text = string([]rune(text)[:meetingMaxSegmentTextRunes])
+	}
+	lines := strings.Split(m.Transcript, "\n")
+	if seq >= len(lines) {
+		writeError(w, http.StatusNotFound, "segment not found")
+		return
+	}
+	lines[seq] = text
+	updated, err := h.Queries.SetMeetingTranscript(r.Context(), db.SetMeetingTranscriptParams{
+		Transcript:  strings.Join(lines, "\n"),
+		ID:          m.ID,
+		WorkspaceID: workspaceID,
+		Previous:    m.Transcript,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			writeErrorCode(w, http.StatusConflict, "meeting_transcript_changed", "the transcript changed since it was loaded")
+			return
+		}
+		slog.Error("update meeting segment failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to save the transcript")
+		return
+	}
+	actions, err := h.Queries.ListTriageItemsByOrigin(r.Context(), db.ListTriageItemsByOriginParams{
+		WorkspaceID: workspaceID, OriginType: meetingOriginType, OriginID: updated.ID,
+	})
+	if err != nil {
+		slog.Error("list meeting actions failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "failed to load meeting")
+		return
+	}
+	resp := meetingToResponse(updated, actions)
+	resp.SummaryUnavailable = meetingSummaryUnavailable(updated, actions)
+	resp.CanManage = true
+	writeJSON(w, http.StatusOK, resp)
 }

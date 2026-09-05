@@ -24,6 +24,7 @@ import { api } from "@multica/core/api";
 import { isMeetingDetectionSupported } from "../../platform/meeting-detection";
 import { browserTimezone, timezoneOptions } from "../../common/timezone-select";
 import { useT } from "../../i18n";
+import { CalendarFeedSection } from "./calendar-feed-section";
 import {
   SettingsCard,
   SettingsRow,
@@ -168,6 +169,8 @@ export function PreferencesTab() {
           <StickyCommentBarRow />
         </SettingsCard>
       </SettingsSection>
+
+      <CalendarFeedSection />
 
       <MeetingDetectionSection />
     </SettingsTab>

@@ -46,6 +46,11 @@
     "transcript_empty": "Nothing transcribed yet",
     "transcript_show": "Show transcript",
     "transcript_hide": "Hide transcript",
+    "transcript_edit": "Edit transcript",
+    "transcript_edit_done": "Done editing",
+    "transcript_edit_label": "Edit this paragraph",
+    "transcript_edit_error": "Could not save the transcript.",
+    "transcript_edited_hint": "Transcript edited, regenerate the summary.",
     "delete": "Delete",
     "title_placeholder": "Meeting title",
     "rename_error": "Could not rename the meeting.",
@@ -97,7 +102,8 @@
     "description": "{{appName}} is using the microphone. Take notes?",
     "accept": "Take notes",
     "dismiss": "Not now",
-    "meeting_title": "{{appName}} meeting"
+    "meeting_title": "{{appName}} meeting",
+    "looks_like": "Looks like: {{summary}}"
   },
   "delete_dialog": {
     "title": "Delete “{{title}}”?",

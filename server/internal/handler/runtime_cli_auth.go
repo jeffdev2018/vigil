@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
+	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/redact"
@@ -182,8 +183,10 @@ func (s *InMemoryCliAuthStore) Fail(_ context.Context, id, errMsg string) error 
 	})
 }
 
+// cliAuthProviderSupported reads the same table the daemon runs its commands
+// from (pkg/agent), so the API never offers a sign-in the daemon would refuse.
 func cliAuthProviderSupported(provider string) bool {
-	return provider == "claude" || provider == "codex"
+	return agent.CLIAuthSupported(provider)
 }
 
 func (h *Handler) InitiateCliAuth(w http.ResponseWriter, r *http.Request) {

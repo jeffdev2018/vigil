@@ -352,6 +352,7 @@ var concurrentIndexCleanups = map[string]string{
 	"590_ci_auto_fix_run_pr_head_index":                         "uq_ci_auto_fix_run_pr_head",
 	"591_ci_auto_fix_run_issue_index":                           "idx_ci_auto_fix_run_issue",
 	"616_triage_item_snoozed_index":                             "idx_triage_item_snoozed",
+	"641_user_calendar_feed_user_index":                         "uq_user_calendar_feed_user",
 	"513_triage_source_pkey_index":                              "triage_source_pkey_uidx",
 	"515_triage_source_workspace_kind_ref_index":                "uq_triage_source_workspace_kind_ref",
 	"517_triage_item_pkey_index":                                "triage_item_pkey_uidx",

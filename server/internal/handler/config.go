@@ -88,6 +88,11 @@ type AppConfig struct {
 	// MeetingRealtimeAvailable: the provider also offers live transcription
 	// (MULTICA_STT_REALTIME_MODEL), so the recorder can show words as spoken.
 	MeetingRealtimeAvailable bool `json:"meeting_realtime_available"`
+	// TTSAvailable tells clients a text-to-speech provider is configured
+	// (MULTICA_TTS_*), so "read aloud" goes through the server voice instead
+	// of the browser's own speechSynthesis. Absent reads as false: the
+	// browser fallback works everywhere.
+	TTSAvailable bool `json:"tts_available"`
 
 	// ServerVersion is the running API build version, so self-hosted
 	// operators can confirm what's deployed and include it in bug reports.
@@ -121,6 +126,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config.CdnSigned = h.CFSigner != nil
 	config.MeetingTranscriptionAvailable = h.STT != nil && h.STT.Enabled()
 	config.MeetingRealtimeAvailable = h.STT != nil && h.STT.RealtimeEnabled()
+	config.TTSAvailable = h.TTS != nil && h.TTS.Enabled()
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()
