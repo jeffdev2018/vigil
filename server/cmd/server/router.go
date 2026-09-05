@@ -2011,9 +2011,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// Triage auto-ML (K61): suggestions for visible items; reopen a dismissed one.
 				r.Get("/suggestions", h.GetTriageSuggestions)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
-				// The source mode is the queue's kill switch (gate / direct /
-				// blocked): a write, and human-only like every other triage write.
-				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSource)
+				// The source policy — mode (the queue's kill switch), auto-accept,
+				// the flood cap and retention: writes, and human-only like every
+				// other triage write.
+				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSourceSettings)
 			})
 
 			// Meetings: recorded conversations transcribed and summarized into
