@@ -1814,9 +1814,14 @@ export class ApiClient {
    * the structured ApiError path, which is what carries the 409 `code`.
    */
   /** Voice memo: one audio file in, its text out (POST /api/voice/transcribe). */
-  async transcribeVoice(audio: Blob): Promise<VoiceTranscription> {
+  // `language` is an ISO-639-1 code from the user's voice preference; "" (or
+  // omitted) leaves the server on its own MULTICA_STT_LANGUAGE default. The
+  // server validates the value, so an unknown one degrades to that default
+  // rather than reaching the provider.
+  async transcribeVoice(audio: Blob, language = ""): Promise<VoiceTranscription> {
     const formData = new FormData();
     formData.append("file", audio, "memo.webm");
+    if (language) formData.append("language", language);
     const res = await this.fetchRaw("/api/voice/transcribe", { method: "POST", body: formData });
     const raw = (await res.json()) as unknown;
     return parseWithFallback<VoiceTranscription>(

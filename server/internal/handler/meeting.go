@@ -133,34 +133,57 @@ func (h *Handler) requireSTT(w http.ResponseWriter) bool {
 	return true
 }
 
-// readAudioUpload reads the multipart `file` field, bounded by maxAudioSegmentSize.
-func readAudioUpload(w http.ResponseWriter, r *http.Request) (name, contentType string, data []byte, ok bool) {
+// voiceLanguages are the ISO-639-1 codes a client may pin transcription to —
+// the five the product ships a picker for. An allowlist rather than a
+// pass-through: the value is forwarded to the provider, and an unvalidated one
+// would be a request field the client controls end to end.
+var voiceLanguages = map[string]struct{}{
+	"en": {}, "fr": {}, "ja": {}, "ko": {}, "zh": {},
+}
+
+// normalizeVoiceLanguage returns the requested language, or "" for "use the
+// deployment default" — which is also what an unknown value degrades to,
+// because a bad guess is worse than the server's own configured answer.
+func normalizeVoiceLanguage(raw string) string {
+	code := strings.ToLower(strings.TrimSpace(raw))
+	if _, ok := voiceLanguages[code]; !ok {
+		return ""
+	}
+	return code
+}
+
+// readAudioUpload reads the multipart `file` field, bounded by
+// maxAudioSegmentSize. It also returns the optional `language` field, already
+// normalized: the form is torn down before this returns, so a caller cannot
+// read it afterwards.
+func readAudioUpload(w http.ResponseWriter, r *http.Request) (name, contentType string, data []byte, language string, ok bool) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxAudioSegmentSize)
 	if err := r.ParseMultipartForm(maxAudioSegmentSize); err != nil {
 		writeError(w, http.StatusBadRequest, "audio too large or invalid multipart form")
-		return "", "", nil, false
+		return "", "", nil, "", false
 	}
 	defer r.MultipartForm.RemoveAll()
+	language = normalizeVoiceLanguage(r.FormValue("language"))
 	file, header, err := r.FormFile("file")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "missing file field")
-		return "", "", nil, false
+		return "", "", nil, "", false
 	}
 	defer file.Close()
 	data, err = io.ReadAll(file)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "failed to read audio")
-		return "", "", nil, false
+		return "", "", nil, "", false
 	}
 	if len(data) == 0 {
 		writeError(w, http.StatusBadRequest, "audio is empty")
-		return "", "", nil, false
+		return "", "", nil, "", false
 	}
 	contentType = header.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	return header.Filename, contentType, data, true
+	return header.Filename, contentType, data, language, true
 }
 
 // TranscribeVoice transcribes one uploaded audio file (voice memo in the chat
@@ -172,11 +195,11 @@ func (h *Handler) TranscribeVoice(w http.ResponseWriter, r *http.Request) {
 	if !h.requireSTT(w) {
 		return
 	}
-	name, ct, data, ok := readAudioUpload(w, r)
+	name, ct, data, language, ok := readAudioUpload(w, r)
 	if !ok {
 		return
 	}
-	res, err := h.STT.TranscribePlain(r.Context(), name, ct, strings.NewReader(string(data)))
+	res, err := h.STT.TranscribePlainIn(r.Context(), name, ct, strings.NewReader(string(data)), language)
 	if err != nil {
 		slog.Warn("voice transcribe failed", "error", err)
 		writeError(w, http.StatusBadGateway, "transcription failed")
@@ -418,7 +441,7 @@ func (h *Handler) AppendMeetingSegment(w http.ResponseWriter, r *http.Request) {
 			text = string([]rune(text)[:meetingMaxSegmentTextRunes])
 		}
 	} else {
-		name, ct, data, ok := readAudioUpload(w, r)
+		name, ct, data, _, ok := readAudioUpload(w, r)
 		if !ok {
 			return
 		}

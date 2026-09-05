@@ -348,7 +348,17 @@
     "floating_hint": "在每个页面右下角显示悬浮聊天按钮。默认关闭——打开后可随处召唤聊天；关闭时，聊天只在此标签页中可用。",
     "voice_title": "语音",
     "read_aloud_label": "语音留言后朗读 Agent 的回复",
-    "read_aloud_hint": "当你口述消息时，系统会朗读对应的回复。每条回复上的“朗读”按钮不受此设置影响。"
+    "read_aloud_hint": "当你口述消息时，系统会朗读对应的回复。每条回复上的“朗读”按钮不受此设置影响。",
+    "voice_language_label": "语音语言",
+    "voice_language_hint": "语音备忘录的转写语言，以及朗读回复所用的语言。自动会跟随应用语言。",
+    "voice_languages": {
+      "auto": "自动",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ko": "한국어",
+      "zh": "中文"
+    }
   },
   "issue": {
     "description": "选择各创建方式的工具栏中常驻显示的字段。隐藏的字段仍可从 ⋯ 菜单使用，有值时会自动显示。",
