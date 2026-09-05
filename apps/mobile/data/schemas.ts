@@ -22,6 +22,7 @@ import type {
   InboxItem,
   IssueLabelsResponse,
   Label,
+  ListGoalsResponse,
   ListLabelsResponse,
   ListProjectResourcesResponse,
   ListProjectsResponse,
@@ -207,6 +208,40 @@ export const ListProjectsResponseSchema = z.object({
 
 export const EMPTY_LIST_PROJECTS_RESPONSE: ListProjectsResponse = {
   projects: [],
+  total: 0,
+};
+
+// Goals with ancestry (K74). Mirror of `GoalSchema` / `ListGoalsResponseSchema`
+// in packages/core/api/schemas.ts — same fields, same enum, same fallbacks.
+const GoalStatusSchema = z
+  .enum(["draft", "active", "done", "dropped"])
+  .catch("draft");
+
+export const GoalSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  parent_goal_id: z.string().nullable().catch(null).default(null),
+  title: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  success_measure: z.string().catch("").default(""),
+  due_date: z.string().nullable().catch(null).default(null),
+  owner_id: z.string().nullable().catch(null).default(null),
+  status: GoalStatusSchema.default("draft"),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  // Rolled up over sub-goals by the server; never re-summed client-side.
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const ListGoalsResponseSchema = z.object({
+  goals: z.array(GoalSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_LIST_GOALS_RESPONSE: ListGoalsResponse = {
+  goals: [],
   total: 0,
 };
 

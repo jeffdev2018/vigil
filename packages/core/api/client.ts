@@ -362,6 +362,10 @@ import {
   RunReplaySchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
+  GoalSchema,
+  ListGoalsResponseSchema,
+  GoalDetailResponseSchema,
+  ProjectGoalsResponseSchema,
   SkillDraftListSchema,
   WatchdogVerdictListSchema,
   WatchdogScanResultSchema,
@@ -1115,6 +1119,7 @@ export class ApiClient {
     if (params?.assignee_types?.length) search.set("assignee_types", params.assignee_types.join(","));
     if (params?.creator_id) search.set("creator_id", params.creator_id);
     if (params?.project_id) search.set("project_id", params.project_id);
+    if (params?.goal_id) search.set("goal_id", params.goal_id);
     if (params?.assignee_filters?.length) {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
@@ -5375,6 +5380,36 @@ export class ApiClient {
 
   async deleteProject(id: string): Promise<void> {
     await this.fetch(`/api/projects/${id}`, { method: "DELETE" });
+  }
+
+  // Goals with ancestry (K74)
+  async listGoals(): Promise<import("../types").ListGoalsResponse> {
+    const raw = await this.fetch<unknown>("/api/goals");
+    return parseWithFallback(raw, ListGoalsResponseSchema, { goals: [], total: 0 }, { endpoint: "GET /api/goals" });
+  }
+
+  async getGoal(id: string): Promise<{ goal: import("../types").Goal | null; issues: Issue[] }> {
+    const raw = await this.fetch<unknown>(`/api/goals/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, GoalDetailResponseSchema.extend({ goal: GoalSchema.nullable().catch(null) }), { goal: null, issues: [] }, { endpoint: "GET /api/goals/:id" });
+  }
+
+  async createGoal(data: import("../types").GoalWriteRequest): Promise<import("../types").Goal | null> {
+    const raw = await this.fetch<unknown>("/api/goals", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, GoalSchema.nullable(), null, { endpoint: "POST /api/goals" });
+  }
+
+  async updateGoal(id: string, data: import("../types").GoalWriteRequest): Promise<import("../types").Goal | null> {
+    const raw = await this.fetch<unknown>(`/api/goals/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, GoalSchema.nullable(), null, { endpoint: "PUT /api/goals/:id" });
+  }
+
+  async deleteGoal(id: string): Promise<void> {
+    await this.fetch(`/api/goals/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async setProjectGoals(projectId: string, goalIds: string[]): Promise<string[]> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/goals`, { method: "PUT", body: JSON.stringify({ goal_ids: goalIds }) });
+    return parseWithFallback(raw, ProjectGoalsResponseSchema, { goal_ids: [] }, { endpoint: "PUT /api/projects/:id/goals" }).goal_ids;
   }
 
   // Project resources

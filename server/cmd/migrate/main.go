@@ -373,9 +373,12 @@ var concurrentIndexCleanups = map[string]string{
 	"637_agent_effect_issue_index":                              "idx_agent_effect_workspace_issue",
 	"638_agent_effect_reversed_index":                           "idx_agent_effect_agent_reversed",
 	"643_agent_effect_pending_index":                            "idx_agent_effect_task_pending",
-	"646_watchdog_verdict_index":                              "idx_watchdog_verdict_watchdog",
-	"648_decision_training_example_index":                     "idx_decision_training_example_user_signature",
-	"650_agent_correction_signal_index":                      "idx_agent_correction_signal_agent",
+	"646_watchdog_verdict_index":                                "idx_watchdog_verdict_watchdog",
+	"648_decision_training_example_index":                       "idx_decision_training_example_user_signature",
+	"650_agent_correction_signal_index":                         "idx_agent_correction_signal_agent",
+	"652_goal_workspace_index":                                  "idx_goal_workspace_parent",
+	"653_issue_goal_index":                                      "idx_issue_goal",
+	"654_project_goal_goal_index":                               "idx_project_goal_goal",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 

@@ -668,6 +668,8 @@ function SwimLaneViewImpl({
     creatorFilters: activeFiltersProp?.creatorFilters ?? [],
     projectFilters: activeFiltersProp?.projectFilters ?? [],
     includeNoProject: activeFiltersProp?.includeNoProject ?? false,
+    goalFilters: activeFiltersProp?.goalFilters ?? [],
+    projectGoalIds: activeFiltersProp?.projectGoalIds,
     labelFilters: activeFiltersProp?.labelFilters ?? [],
     // Carry the "Show sub-issues" toggle through to the extra-children merge
     // path (see `filterIssues(extra, activeFilters)` below); otherwise batch /

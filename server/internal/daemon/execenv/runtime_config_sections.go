@@ -508,6 +508,38 @@ func writeGoalAncestry(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("\n")
 }
 
+// writeMissionChain renders the goal chain the issue serves (K74), mission
+// first, with each goal's success measure, then the project and the issue
+// the chain lands on. Absent when the issue serves no goal.
+func writeMissionChain(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.MissionChain) == 0 {
+		return
+	}
+	b.WriteString("## Mission and goals\n\n")
+	b.WriteString("What this task contributes to, from the workspace mission down to the goal it serves. Judge scope against these: work that serves none of them is off-topic, and each success measure is how the goal will be judged. You cannot create or edit a goal; to propose attaching an issue elsewhere, call `POST /api/issues/{id}/goal-proposal` with `goal_id` and `reason` and a human decides.\n\n")
+	for _, g := range ctx.MissionChain {
+		fmt.Fprintf(b, "- %s (%s", g.Title, g.Status)
+		if g.DueDate != "" {
+			fmt.Fprintf(b, ", due %s", g.DueDate)
+		}
+		b.WriteString(")\n")
+		if desc := strings.TrimSpace(g.Description); desc != "" {
+			for _, line := range strings.Split(desc, "\n") {
+				b.WriteString("  ")
+				b.WriteString(line)
+				b.WriteString("\n")
+			}
+		}
+		if m := strings.TrimSpace(g.SuccessMeasure); m != "" {
+			fmt.Fprintf(b, "  Success measure: %s\n", m)
+		}
+	}
+	if ctx.ProjectTitle != "" {
+		fmt.Fprintf(b, "- Project: %s\n", ctx.ProjectTitle)
+	}
+	b.WriteString("\n")
+}
+
 // writeIssueMetadata emits the Issue Metadata discipline section
 // (compressed). The dispatcher gates by kind.hasIssueContext(); this
 // helper does not re-check.
@@ -994,6 +1026,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 
 	writeProjectContext(&b, ctx)
 	writeGoalAncestry(&b, ctx)
+	writeMissionChain(&b, ctx)
 
 	if kind.hasIssueContext() {
 		writeIssueMetadata(&b)

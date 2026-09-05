@@ -494,7 +494,7 @@ func (q *Queries) SupersedeOtherIssuePlans(ctx context.Context, arg SupersedeOth
 const touchIssueRevision = `-- name: TouchIssueRevision :one
 UPDATE issue SET revision = revision + 1, updated_at = now()
 WHERE id = $1
-RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision
+RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id
 `
 
 // Plan and verification changes live in side tables; bumping the issue
@@ -535,6 +535,7 @@ func (q *Queries) TouchIssueRevision(ctx context.Context, id pgtype.UUID) (Issue
 		&i.CompletedAt,
 		&i.ContractRisk,
 		&i.ContractRevision,
+		&i.GoalID,
 	)
 	return i, err
 }

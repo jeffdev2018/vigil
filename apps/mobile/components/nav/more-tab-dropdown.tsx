@@ -86,6 +86,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: "Pinned", icon: "pin", path: "/more/pins" },
   { label: "Issues", icon: "list.bullet", path: "/more/issues" },
   { label: "Projects", icon: "square.stack", path: "/more/projects" },
+  { label: "Goals", icon: "target", path: "/more/goals" },
   {
     label: "Triage",
     icon: "tray.and.arrow.down",

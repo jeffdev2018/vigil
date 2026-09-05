@@ -34,6 +34,7 @@ import type {
   ListIssuesResponse,
   ListLabelsResponse,
   ListProjectResourcesResponse,
+  ListGoalsResponse,
   ListProjectsResponse,
   MemberWithUser,
   PinnedItem,
@@ -123,6 +124,7 @@ import {
   EMPTY_ISSUE_FALLBACK,
   EMPTY_LIST_LABELS_RESPONSE,
   EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
+  EMPTY_LIST_GOALS_RESPONSE,
   EMPTY_LIST_PROJECTS_RESPONSE,
   EMPTY_MEMBER_LIST,
   EMPTY_NOTIFICATION_PREFERENCES,
@@ -138,6 +140,7 @@ import {
   NotificationPreferenceResponseSchema,
   ListLabelsResponseSchema,
   ListProjectResourcesResponseSchema,
+  ListGoalsResponseSchema,
   ListProjectsResponseSchema,
   MemberListSchema,
   PinListSchema,
@@ -1247,6 +1250,16 @@ class ApiClient {
       ListProjectsResponseSchema,
       EMPTY_LIST_PROJECTS_RESPONSE,
       { endpoint: "GET /api/projects" },
+    );
+  }
+
+  // Goals with ancestry (K74). Read-only on mobile; mirrors core `listGoals`.
+  async listGoals(opts?: { signal?: AbortSignal }): Promise<ListGoalsResponse> {
+    return this.fetchValidated(
+      "/api/goals",
+      ListGoalsResponseSchema,
+      EMPTY_LIST_GOALS_RESPONSE,
+      opts,
     );
   }
 

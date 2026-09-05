@@ -627,3 +627,28 @@ describe("scalar operator filters", () => {
     expect(result.map((i) => i.id)).toEqual(["B"]);
   });
 });
+
+describe("goal filter (K74)", () => {
+  const withGoal = makeIssue({ id: "direct", goal_id: "g1" });
+  const inherits = makeIssue({ id: "inherit", goal_id: null, project_id: "p1" });
+  const other = makeIssue({ id: "other", goal_id: "g2", project_id: "p1" });
+  const orphan = makeIssue({ id: "orphan", goal_id: null, project_id: null });
+
+  it("matches an issue's own goal or the goals of its project when it has none", () => {
+    const out = filterIssues([withGoal, inherits, other, orphan], {
+      ...NO_FILTER,
+      goalFilters: ["g1"],
+      projectGoalIds: { p1: ["g1"] },
+    });
+    expect(out.map((i) => i.id)).toEqual(["direct", "inherit"]);
+  });
+
+  it("does not inherit through the project when the issue has its own goal", () => {
+    const out = filterIssues([other], { ...NO_FILTER, goalFilters: ["g1"], projectGoalIds: { p1: ["g1"] } });
+    expect(out).toEqual([]);
+  });
+
+  it("is a no-op when empty", () => {
+    expect(filterIssues([withGoal, orphan], { ...NO_FILTER, goalFilters: [] })).toHaveLength(2);
+  });
+});

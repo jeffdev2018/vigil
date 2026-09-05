@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "ゴール",
+    "new_goal": "新しいゴール",
+    "add_sub_goal": "サブゴールを追加",
+    "edit": "編集",
+    "delete": "削除",
+    "empty": "ゴールはまだありません",
+    "empty_description": "ゴールは作業の目的を示します。プロジェクトやタスクを紐づけると、進捗がツリーを上って集計されます。",
+    "expand": "タスクを表示",
+    "collapse": "タスクを隠す",
+    "no_issues": "このゴールに紐づくタスクはまだありません。",
+    "loading_issues": "タスクを読み込み中...",
+    "progress": "{{done}} / {{total}} 完了",
+    "no_owner": "オーナーなし",
+    "no_due_date": "期限なし"
+  },
+  "status": {
+    "draft": "下書き",
+    "active": "進行中",
+    "done": "達成",
+    "dropped": "中止"
+  },
+  "form": {
+    "create_title": "新しいゴール",
+    "edit_title": "ゴールを編集",
+    "title": "タイトル",
+    "title_placeholder": "何を達成したいですか？",
+    "description": "説明",
+    "success_measure": "達成の指標",
+    "success_measure_placeholder": "達成をどう判断しますか？",
+    "due_date": "期限",
+    "owner": "オーナー",
+    "owner_none": "オーナーなし",
+    "owner_hint": "進行中のゴールには人間のオーナーが必要です。",
+    "status": "ステータス",
+    "parent": "親ゴール",
+    "parent_none": "親なし（最上位のゴール）",
+    "cancel": "キャンセル",
+    "create": "ゴールを作成",
+    "save": "保存",
+    "error": "ゴールを保存できませんでした"
+  },
+  "delete_dialog": {
+    "title": "このゴールを削除しますか？",
+    "description": "紐づいたタスクとプロジェクトは切り離されます。サブゴールが残っているゴールは削除できません。",
+    "cancel": "キャンセル",
+    "confirm": "削除",
+    "error": "ゴールを削除できませんでした"
+  },
+  "picker": {
+    "no_goal": "ゴールなし（プロジェクトから継承）",
+    "search_placeholder": "ゴールを検索...",
+    "empty": "ゴールはまだありません"
+  },
+  "project_section": {
+    "header": "ゴール",
+    "empty": "このプロジェクトはまだどのゴールにも紐づいていません。",
+    "link": "ゴールを紐づける",
+    "no_goals": "まずゴールを作成してください。",
+    "error": "プロジェクトのゴールを更新できませんでした"
+  }
+}

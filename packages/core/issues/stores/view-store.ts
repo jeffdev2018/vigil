@@ -138,6 +138,7 @@ export type FilterDimension =
   | "assignee"
   | "creator"
   | "project"
+  | "goal"
   | "label"
   | `property:${string}`;
 
@@ -188,6 +189,8 @@ export interface IssueViewState {
   creatorFilters: ActorFilterValue[];
   projectFilters: string[];
   includeNoProject: boolean;
+  /** Goal ids (K74). An issue matches directly or through its project. */
+  goalFilters: string[];
   labelFilters: string[];
   /**
    * Custom-property filters: definition id → selected values (checkbox
@@ -255,6 +258,7 @@ export interface IssueViewState {
   toggleCreatorFilter: (value: ActorFilterValue) => void;
   toggleProjectFilter: (projectId: string) => void;
   toggleNoProject: () => void;
+  toggleGoalFilter: (goalId: string) => void;
   toggleLabelFilter: (labelId: string) => void;
   togglePropertyFilter: (propertyId: string, optionId: string) => void;
   /** Replace a property's full filter value set (used by scalar value inputs
@@ -303,6 +307,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
   creatorFilters: [],
   projectFilters: [],
   includeNoProject: false,
+  goalFilters: [],
   labelFilters: [],
   propertyFilters: {},
   dateFilter: null,
@@ -388,6 +393,12 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
     })),
   toggleNoProject: () =>
     set((state) => ({ includeNoProject: !state.includeNoProject })),
+  toggleGoalFilter: (goalId) =>
+    set((state) => ({
+      goalFilters: state.goalFilters.includes(goalId)
+        ? state.goalFilters.filter((id) => id !== goalId)
+        : [...state.goalFilters, goalId],
+    })),
   toggleLabelFilter: (labelId) =>
     set((state) => ({
       labelFilters: state.labelFilters.includes(labelId)
@@ -434,6 +445,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
       creatorFilters: [],
       projectFilters: [],
       includeNoProject: false,
+      goalFilters: [],
       labelFilters: [],
       propertyFilters: {},
       dateFilter: null,
@@ -456,6 +468,8 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
           return { creatorFilters: [] };
         case "project":
           return { projectFilters: [], includeNoProject: false };
+        case "goal":
+          return { goalFilters: [] };
         case "label":
           return { labelFilters: [] };
         default: {
@@ -573,6 +587,7 @@ export const viewStorePersistOptions = (name: string) => ({
     creatorFilters: state.creatorFilters,
     projectFilters: state.projectFilters,
     includeNoProject: state.includeNoProject,
+    goalFilters: state.goalFilters,
     labelFilters: state.labelFilters,
     propertyFilters: state.propertyFilters,
     sortBy: state.sortBy,

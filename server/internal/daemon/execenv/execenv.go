@@ -46,6 +46,18 @@ type GoalAncestryForEnv struct {
 	Depth              int      `json:"depth"`
 }
 
+// MissionChainForEnv is one goal of the chain the issue serves (K74), mission
+// first. Wire shape too (json tags mirror handler.MissionChainNode).
+type MissionChainForEnv struct {
+	ID             string `json:"id"`
+	Title          string `json:"title"`
+	Description    string `json:"description,omitempty"`
+	SuccessMeasure string `json:"success_measure,omitempty"`
+	Status         string `json:"status"`
+	DueDate        string `json:"due_date,omitempty"`
+	Depth          int    `json:"depth"`
+}
+
 // WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
 // is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
 // daemon decodes straight into it.
@@ -204,7 +216,10 @@ type TaskContextForEnv struct {
 	// brief byte-identical to before.
 	GoalAncestry        []GoalAncestryForEnv
 	GoalAncestryOmitted int
-	ChatSessionID       string // non-empty for chat tasks
+	// MissionChain (K74) is the goal chain the issue serves, mission first,
+	// already capped by the server. Empty renders the brief byte-identical.
+	MissionChain  []MissionChainForEnv
+	ChatSessionID string // non-empty for chat tasks
 	// ChatChannelType is the IM platform behind a chat session ("slack",
 	// "feishu", "wecom"); empty for a web/mobile chat. It names the surface in
 	// the brief's copy; what that surface can DELIVER is the separate field

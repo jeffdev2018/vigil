@@ -1,0 +1,63 @@
+{
+  "page": {
+    "title": "Goals",
+    "new_goal": "New goal",
+    "add_sub_goal": "Add sub-goal",
+    "edit": "Edit",
+    "delete": "Delete",
+    "empty": "No goals yet",
+    "empty_description": "A goal says what the work serves. Link projects and issues to it and progress rolls up the tree.",
+    "expand": "Show issues",
+    "collapse": "Hide issues",
+    "no_issues": "No issue serves this goal yet.",
+    "loading_issues": "Loading issues...",
+    "progress": "{{done}} / {{total}} done",
+    "no_owner": "No owner",
+    "no_due_date": "No due date"
+  },
+  "status": {
+    "draft": "Draft",
+    "active": "Active",
+    "done": "Done",
+    "dropped": "Dropped"
+  },
+  "form": {
+    "create_title": "New goal",
+    "edit_title": "Edit goal",
+    "title": "Title",
+    "title_placeholder": "What are we trying to achieve?",
+    "description": "Description",
+    "success_measure": "Success measure",
+    "success_measure_placeholder": "How will we know it is reached?",
+    "due_date": "Due date",
+    "owner": "Owner",
+    "owner_none": "No owner",
+    "owner_hint": "An active goal needs a human owner.",
+    "status": "Status",
+    "parent": "Parent goal",
+    "parent_none": "No parent (top-level goal)",
+    "cancel": "Cancel",
+    "create": "Create goal",
+    "save": "Save",
+    "error": "Could not save the goal"
+  },
+  "delete_dialog": {
+    "title": "Delete this goal?",
+    "description": "Linked issues and projects are detached. A goal that still has sub-goals cannot be deleted.",
+    "cancel": "Cancel",
+    "confirm": "Delete",
+    "error": "Could not delete the goal"
+  },
+  "picker": {
+    "no_goal": "No goal (inherit from project)",
+    "search_placeholder": "Search goals...",
+    "empty": "No goals yet"
+  },
+  "project_section": {
+    "header": "Goals",
+    "empty": "This project serves no goal yet.",
+    "link": "Link goals",
+    "no_goals": "Create a goal first.",
+    "error": "Could not update the project's goals"
+  }
+}

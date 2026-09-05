@@ -13,6 +13,8 @@ export interface CreateIssueRequest {
   assignee_id?: string;
   parent_issue_id?: string;
   project_id?: string;
+  /** Goal the issue names (K74); absent means it inherits its project's goals. */
+  goal_id?: string;
   /** Ordered stage (>= 1) grouping this sub-issue under its parent. */
   stage?: number;
   start_date?: string;
@@ -67,6 +69,8 @@ export interface UpdateIssueRequest {
   due_date?: string | null;
   parent_issue_id?: string | null;
   project_id?: string | null;
+  /** Goal the issue names (K74); null clears it (inherits the project's). */
+  goal_id?: string | null;
   /** Ordered stage (>= 1); null clears it (unstaged). */
   stage?: number | null;
   /** Attachment IDs to bind to this issue alongside the description update.
@@ -157,6 +161,8 @@ export interface ListIssuesParams {
   creator_filters?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
+  /** Issues serving a goal (K74): named directly or inherited from the project. */
+  goal_id?: string;
   label_ids?: string[];
   /** Restrict the window to root issues instead of filtering loaded pages. */
   top_level_only?: boolean;

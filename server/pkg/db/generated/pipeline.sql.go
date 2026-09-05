@@ -406,7 +406,7 @@ func (q *Queries) PurgeWorkspacePipelines(ctx context.Context, workspaceID pgtyp
 }
 
 const setIssueAssigneeForPipeline = `-- name: SetIssueAssigneeForPipeline :one
-UPDATE issue SET assignee_type = $2, assignee_id = $3, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision
+UPDATE issue SET assignee_type = $2, assignee_id = $3, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id
 `
 
 type SetIssueAssigneeForPipelineParams struct {
@@ -451,6 +451,7 @@ func (q *Queries) SetIssueAssigneeForPipeline(ctx context.Context, arg SetIssueA
 		&i.CompletedAt,
 		&i.ContractRisk,
 		&i.ContractRevision,
+		&i.GoalID,
 	)
 	return i, err
 }

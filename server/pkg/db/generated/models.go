@@ -1100,6 +1100,20 @@ type GithubPullRequestCheckSuite struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Goal struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	ParentGoalID   pgtype.UUID        `json:"parent_goal_id"`
+	Title          string             `json:"title"`
+	Description    string             `json:"description"`
+	SuccessMeasure string             `json:"success_measure"`
+	DueDate        pgtype.Date        `json:"due_date"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Status         string             `json:"status"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type HandoffPacket struct {
 	ID             pgtype.UUID        `json:"id"`
 	RunID          pgtype.UUID        `json:"run_id"`
@@ -1167,6 +1181,7 @@ type Issue struct {
 	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
 	ContractRisk     string             `json:"contract_risk"`
 	ContractRevision int32              `json:"contract_revision"`
+	GoalID           pgtype.UUID        `json:"goal_id"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
@@ -1745,6 +1760,13 @@ type ProjectBlastRadiusRule struct {
 	AutonomyLevel string             `json:"autonomy_level"`
 	CreatedBy     pgtype.UUID        `json:"created_by"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProjectGoal struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	GoalID      pgtype.UUID        `json:"goal_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type ProjectResource struct {

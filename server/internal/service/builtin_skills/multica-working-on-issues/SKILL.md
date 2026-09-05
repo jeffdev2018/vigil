@@ -303,18 +303,16 @@ to coordinate with.
 
 ## Goal ancestry rides the brief
 
-When the issue you were claimed for has a parent, the runtime brief carries a
-`## Goal Ancestry` section: the chain of parent issues from the top-level goal
-down to the direct parent, each with its identifier, title, description and
-acceptance criteria. Read it before `multica issue get` — it is why your issue
-exists, and your deliverable must stay consistent with those goals. The chain
-is capped at five levels and 8 KiB (farther ancestors lose their description
-first; a `(N higher level(s) not shown.)` line says when it was cut). A root
-issue gets no section. The section covers the issue's *ancestors* only: its
-own children still come from `multica issue children`.
+When the claimed issue has a parent, the brief carries `## Goal Ancestry`:
+the parent chain from the top-level goal down, each with identifier, title,
+description and acceptance criteria. Read it before `multica issue get` — it
+is why your issue exists; stay consistent with it. Capped at five levels and
+8 KiB (a `(N higher level(s) not shown.)` line says when cut); a root issue
+gets no section; children still come from `multica issue children`.
+Quick-create runs from "Add sub issue" get it for the parent. An issue serving
+a workspace goal also gets `## Mission and goals`; you never set a goal, you
+propose one via `POST /api/issues/{id}/goal-proposal` (`references/goals.md`).
 
-Quick-create runs opened from "Add sub issue" get the same section for the
-parent the new issue will be filed under, parent included as the nearest node.
 ## Before coding on a vague issue: the requirement interview
 
 When the issue does not say enough to start — which behavior, which surface,
