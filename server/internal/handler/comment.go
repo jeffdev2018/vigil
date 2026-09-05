@@ -1878,6 +1878,8 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	comment := created.Comment()
 	// Why search (K55): a comment is searchable as soon as it exists.
 	h.indexWhy(r.Context(), comment.WorkspaceID, whySourceComment, comment.ID, comment.IssueID, comment.Content)
+	// Undo (K69): a run's comment can be taken back.
+	h.recordEffect(r, comment.WorkspaceID, comment.IssueID, service.EffectCommentCreate, "comment", comment.ID, map[string]any{}, map[string]any{"type": comment.Type, "excerpt": truncate(comment.Content, 200)}, true)
 
 	// Link uploaded attachments to this comment.
 	if len(attachmentIDs) > 0 {
@@ -3486,6 +3488,10 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	resp := commentToResponse(comment, grouped[cid], groupedAtt[cid])
 	resp.IssueRevision = issueRevision
 	slog.Info("comment updated", append(logger.RequestAttrs(r), "comment_id", commentId)...)
+	if oldContent != req.Content {
+		// Undo (K69): the previous text comes back on reversal.
+		h.recordEffect(r, existing.WorkspaceID, existing.IssueID, service.EffectCommentUpdate, "comment", existing.ID, map[string]any{"content": oldContent}, map[string]any{"content": req.Content}, true)
+	}
 	eventPayload := map[string]any{"comment": resp}
 	if issueRevision > 0 {
 		eventPayload["issue_revision"] = issueRevision

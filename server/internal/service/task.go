@@ -7754,6 +7754,9 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 		return
 	}
 	comment := created.Comment()
+	// Undo (K69): the run's own comment is journaled like one posted through the API.
+	RecordAgentEffect(ctx, s.Queries, AgentEffectParams{WorkspaceID: issue.WorkspaceID, TaskID: sourceTaskID, AgentID: agentID, IssueID: issueID,
+		Kind: EffectCommentCreate, TargetType: "comment", TargetID: comment.ID, After: map[string]any{"type": commentType}, Reversible: true})
 	s.CancelDeferredEscalationsForIssueAgent(ctx, issueID, agentID)
 	commentFields := commentEventFields(comment)
 	commentFields["revision"] = comment.Revision

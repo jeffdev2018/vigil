@@ -1025,7 +1025,13 @@
     "ci_auto_fix_attempts_description": "이 횟수를 넘으면 관리자에게 인박스 항목이 전달됩니다. 사람은 수동으로 다시 시도할 수 있습니다.",
     "ci_auto_fix_budget": "수정 실행당 예산(USD)",
     "ci_auto_fix_budget_description": "이보다 많이 쓴 수정 실행은 중단됩니다. 0은 전용 예산 없음.",
-    "ci_auto_fix_failed": "CI 자동 수정 설정을 저장하지 못했습니다"
+    "ci_auto_fix_failed": "CI 자동 수정 설정을 저장하지 못했습니다",
+    "undo_section": "에이전트 작업 되돌리기",
+    "undo_window": "되돌리기 기간 (시간)",
+    "undo_window_description": "에이전트 실행이 만든 변경을 이슈 페이지에서 되돌릴 수 있는 기간입니다.",
+    "undo_breaker": "차단기 임계값 (하루 실행 수)",
+    "undo_breaker_description": "같은 에이전트의 실행이 24시간 내에 이 수만큼 되돌려지면 신뢰 모드가 한 단계 낮아지고 관리자에게 받은편지함 항목이 전달됩니다. 0이면 비활성화됩니다.",
+    "undo_failed": "되돌리기 설정을 저장하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

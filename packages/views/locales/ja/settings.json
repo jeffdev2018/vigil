@@ -1025,7 +1025,13 @@
     "ci_auto_fix_attempts_description": "この回数を超えるとマネージャーに受信トレイ項目が届きます。人は手動で再試行できます。",
     "ci_auto_fix_budget": "修正実行ごとの予算（USD）",
     "ci_auto_fix_budget_description": "これ以上費やした修正実行は停止されます。0 は専用予算なし。",
-    "ci_auto_fix_failed": "CI 自動修正の設定を保存できませんでした"
+    "ci_auto_fix_failed": "CI 自動修正の設定を保存できませんでした",
+    "undo_section": "エージェント操作の取り消し",
+    "undo_window": "取り消し可能期間（時間）",
+    "undo_window_description": "エージェントの実行による変更を Issue ページから取り消せる期間。",
+    "undo_breaker": "ブレーカーしきい値（1 日あたりの実行数）",
+    "undo_breaker_description": "同じエージェントの実行がこの数だけ 24 時間以内に取り消されると、信頼モードが 1 段階下がり、管理者に受信トレイ項目が届きます。0 で無効。",
+    "undo_failed": "取り消し設定を保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

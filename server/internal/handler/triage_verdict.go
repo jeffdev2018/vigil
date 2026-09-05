@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -81,6 +83,8 @@ func (h *Handler) SetTriageVerdict(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to record the verdict")
 		return
 	}
+	// Undo (K69): reversal clears the suggestion.
+	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectTriageVerdict, "triage_item", item.ID, map[string]any{}, map[string]any{"verdict": req.Verdict, "reason": req.Reason, "verdict_revision": item.VerdictRevision}, true)
 	h.publishTriageUpdated(workspaceID, item.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"item_id":          util.UUIDToString(item.ID),

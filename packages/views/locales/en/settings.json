@@ -1027,7 +1027,13 @@
     "ci_auto_fix_attempts_description": "Past this many correction runs the managers get an inbox item instead; a human can still retry by hand.",
     "ci_auto_fix_budget": "Budget per correction run (USD)",
     "ci_auto_fix_budget_description": "A correction run that spends more than this is stopped. 0 means no dedicated budget.",
-    "ci_auto_fix_failed": "Failed to save the CI auto-fix settings"
+    "ci_auto_fix_failed": "Failed to save the CI auto-fix settings",
+    "undo_section": "Undo agent actions",
+    "undo_window": "Undo window (hours)",
+    "undo_window_description": "How long a change made by an agent run stays reversible from the issue page.",
+    "undo_breaker": "Breaker threshold (runs per day)",
+    "undo_breaker_description": "When this many of one agent's runs are undone within 24 hours, its trust mode drops one notch and the managers get an inbox item. 0 disables the breaker.",
+    "undo_failed": "Failed to save the undo settings"
   },
   "delete_workspace_dialog": {
     "title": "Delete workspace",

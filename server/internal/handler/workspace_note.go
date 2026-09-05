@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -314,6 +315,8 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Undo (K69): a note a run wrote can be removed again.
+	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", note.ID, map[string]any{}, map[string]any{"title": note.Title}, true)
 	resp := workspaceNoteToResponse(note)
 	h.publish(protocol.EventWorkspaceNoteCreated, workspaceIDStr, actorType, uuidToString(actorID), map[string]any{"note": resp})
 	writeJSON(w, http.StatusCreated, resp)
@@ -388,6 +391,10 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note: "+err.Error())
 		return
 	}
+	// Undo (K69): title, content, tags and pin state as they were before the run's edit.
+	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID,
+		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned},
+		map[string]any{"title": updated.Title, "content": updated.Content, "tags": updated.Tags, "pinned": updated.Pinned}, true)
 
 	workspaceIDStr := uuidToString(note.WorkspaceID)
 	actorType, actorID, _ := h.noteActor(r, userID, workspaceIDStr)
@@ -428,6 +435,10 @@ func (h *Handler) setWorkspaceNoteArchived(w http.ResponseWriter, r *http.Reques
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note")
 		return
+	}
+	if archived {
+		// Undo (K69): unarchive on reversal.
+		h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteArchive, "workspace_note", note.ID, map[string]any{"archived": false}, map[string]any{"archived": true}, true)
 	}
 
 	workspaceIDStr := uuidToString(note.WorkspaceID)

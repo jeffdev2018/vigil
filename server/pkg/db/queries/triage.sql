@@ -214,3 +214,15 @@ SET verdict = sqlc.arg('verdict')::jsonb,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
 RETURNING *;
+
+-- name: ClearTriageItemVerdict :one
+-- Undo (K69) of an agent's suggested verdict: the item goes back to carrying
+-- no suggestion. Pending only, like the write it reverses.
+UPDATE triage_item
+SET verdict = NULL,
+    verdict_agent_id = NULL,
+    verdict_at = NULL,
+    verdict_revision = verdict_revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING *;

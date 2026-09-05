@@ -1299,6 +1299,41 @@
     "retry_failed": "The retry failed",
     "previous": "{{count}} earlier attempt(s)"
   },
+  "agent_effects": {
+    "section": "Agent changes",
+    "window": "reversible for {{hours}} h",
+    "run_by": "Run by {{name}}",
+    "undo_run": "Undo this run ({{count}})",
+    "undo_single": "Undo",
+    "undone": "{{count}} change(s) reversed",
+    "skipped": "{{count}} change(s) skipped: {{reason}}",
+    "breaker": "Breaker tripped: the agent now runs in {{mode}} mode",
+    "failed": "Undo failed",
+    "states": {
+      "reversed": "reversed",
+      "expired": "window expired",
+      "not_reversible": "not reversible",
+      "failed": "reversal failed"
+    },
+    "reasons": {
+      "already_reversed": "already reversed",
+      "not_reversible": "not reversible",
+      "window_expired": "window expired",
+      "reverse_failed": "reversal failed"
+    },
+    "kinds": {
+      "issue_status": "Status {{from}} → {{to}}",
+      "issue_assignee": "Assignee changed",
+      "issue_field": "{{field}}: {{from}} → {{to}}",
+      "comment_create": "Comment: {{excerpt}}",
+      "comment_update": "Comment edited",
+      "note_create": "Note created: {{title}}",
+      "note_update": "Note edited: {{title}}",
+      "note_archive": "Note archived",
+      "triage_verdict": "Triage verdict: {{verdict}}",
+      "issue_create": "Issue created: {{title}}"
+    }
+  },
   "ci_auto_fix": {
     "in_progress": "CI fix in progress",
     "fixed": "CI fixed automatically",

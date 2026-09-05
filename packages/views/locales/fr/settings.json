@@ -1027,7 +1027,13 @@
     "ci_auto_fix_attempts_description": "Au-delà de ce nombre de runs de correction, les managers reçoivent un item d'inbox ; un humain peut toujours relancer à la main.",
     "ci_auto_fix_budget": "Budget par run de correction (USD)",
     "ci_auto_fix_budget_description": "Un run de correction qui dépense plus est arrêté. 0 = pas de budget dédié.",
-    "ci_auto_fix_failed": "Impossible d'enregistrer les réglages de correction CI"
+    "ci_auto_fix_failed": "Impossible d'enregistrer les réglages de correction CI",
+    "undo_section": "Annuler les actions des agents",
+    "undo_window": "Fenêtre d'annulation (heures)",
+    "undo_window_description": "Durée pendant laquelle une modification faite par un run d'agent reste réversible depuis la page de l'issue.",
+    "undo_breaker": "Seuil du disjoncteur (runs par jour)",
+    "undo_breaker_description": "Quand ce nombre de runs d'un même agent est annulé en 24 h, son mode de confiance baisse d'un cran et les managers reçoivent un item d'inbox. 0 désactive le disjoncteur.",
+    "undo_failed": "Impossible d'enregistrer les réglages d'annulation"
   },
   "delete_workspace_dialog": {
     "title": "Supprimer le workspace",
