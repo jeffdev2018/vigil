@@ -491,3 +491,32 @@ func canDeleteWorkspaceNote(note db.WorkspaceNote, member db.Member, actorType s
 	}
 	return note.CreatedByID.Valid && actorID.Valid && note.CreatedByID == actorID
 }
+
+// WorkspaceNoteContext is one Brain note as the claim response ships it to the
+// daemon. Its json tags mirror execenv.WorkspaceNoteForEnv, which the daemon
+// decodes straight into.
+type WorkspaceNoteContext struct {
+	ID        string   `json:"id"`
+	Title     string   `json:"title"`
+	Content   string   `json:"content,omitempty"`
+	Tags      []string `json:"tags,omitempty"`
+	Pinned    bool     `json:"pinned,omitempty"`
+	Source    string   `json:"source,omitempty"`
+	UpdatedAt string   `json:"updated_at,omitempty"`
+}
+
+func workspaceNotesToContext(notes []db.WorkspaceNote) []WorkspaceNoteContext {
+	out := make([]WorkspaceNoteContext, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, WorkspaceNoteContext{
+			ID:        uuidToString(n.ID),
+			Title:     n.Title,
+			Content:   n.Content,
+			Tags:      n.Tags,
+			Pinned:    n.Pinned,
+			Source:    n.Source,
+			UpdatedAt: timestampToString(n.UpdatedAt),
+		})
+	}
+	return out
+}

@@ -144,6 +144,27 @@ func writeAgentMemory(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("\n")
 }
 
+// writeWorkspaceKnowledgeSection tells the run where the workspace Brain was
+// written and how to add to it. Only the pointer and the rules live in the
+// brief; the notes themselves are files under .multica/knowledge, so a large
+// Brain costs the prompt a fixed handful of lines. Emitted only when notes
+// were actually injected, so a workspace with an empty Brain gets a
+// byte-identical brief.
+func writeWorkspaceKnowledgeSection(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.WorkspaceNotes) == 0 {
+		return
+	}
+	b.WriteString("## Workspace Knowledge\n\n")
+	fmt.Fprintf(b, "This workspace keeps %d shared note(s) under `%s`. Read `%s/README.md` first: it indexes every note by title, tags and id, and each note is its own markdown file next to it.\n\n",
+		len(ctx.WorkspaceNotes), KnowledgeDirRelPath, KnowledgeDirRelPath)
+	b.WriteString("Trust these notes over your own assumptions about this workspace, but re-verify if the current state contradicts one.\n\n")
+	b.WriteString("When you learn something durable that the next run would need — a decision and why it was made, a convention, a hard fact about the codebase, who owns what — save it:\n\n")
+	b.WriteString("```bash\n")
+	b.WriteString("multica brain save --title \"Deploys go through the release tag\" --tags deploy,release --content \"...\"\n")
+	b.WriteString("```\n\n")
+	b.WriteString("Save durable knowledge, not run logs: nothing about what you did in this task, nothing that will be false next week. Before saving, check `multica brain list --search <keyword>` and update the existing note instead of adding a near-duplicate.\n\n")
+}
+
 // writeRequestingUser emits the Requesting User block when the runtime
 // owner's profile description is non-empty. Sanitisation rules match the
 // legacy implementation; see runtime_config.go for the rationale.
@@ -951,6 +972,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	writeBackgroundTaskSafetySlim(&b)
 	writeAgentIdentity(&b, ctx)
 	writeAgentMemory(&b, ctx)
+	writeWorkspaceKnowledgeSection(&b, ctx)
 	writeRequestingUser(&b, ctx)
 	writeWorkspaceContext(&b, ctx)
 
