@@ -1229,6 +1229,26 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			slog.Info("model keys (BYOK) enabled")
 		}
 	}
+	if ssoKey, err := secretbox.LoadKey("MULTICA_SSO_SECRET_KEY"); err == nil {
+		if box, err := secretbox.New(ssoKey); err != nil {
+			slog.Error("sso: secretbox.New failed; SSO disabled", "error", err)
+		} else {
+			h.SSOSecretBox = box
+			slog.Info("sso (OIDC) enabled")
+		}
+	}
+	// Session revocation (K60): SCIM deprovisioning refuses older JWTs at once.
+	middleware.Revocations = auth.NewSessionRevocations(rdb, func(ctx context.Context, userID string) (time.Time, bool, error) {
+		id, err := util.ParseUUID(userID)
+		if err != nil {
+			return time.Time{}, false, nil
+		}
+		at, err := queries.GetUserSessionsInvalidatedAt(ctx, id)
+		if err != nil {
+			return time.Time{}, false, err
+		}
+		return at.Time, at.Valid, nil
+	})
 	if vcsKey, err := secretbox.LoadKey("MULTICA_VCS_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(vcsKey)
 		if err != nil {
@@ -1455,6 +1475,23 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.With(authVerifyRL).Post("/auth/verify-code", h.VerifyCode)
 	r.With(authRL).Post("/auth/google", h.GoogleLogin)
 	r.Post("/auth/logout", h.Logout)
+	// SSO (K60): the browser starts an OIDC login for a workspace and trades the code.
+	r.With(authRL).Post("/auth/oidc/start", h.OIDCStart)
+	r.With(authRL).Post("/auth/oidc/callback", h.OIDCCallback)
+	// SCIM 2.0 (K60): provisioning with a dedicated token, outside the session auth.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.SCIMBearerOnly(queries))
+		r.Route("/scim/v2", func(r chi.Router) {
+			r.Get("/ServiceProviderConfig", h.ScimServiceProviderConfig)
+			r.Get("/ResourceTypes", h.ScimResourceTypes)
+			r.Get("/Users", h.ScimListUsers)
+			r.Post("/Users", h.ScimCreateUser)
+			r.Get("/Users/{id}", h.ScimGetUser)
+			r.Put("/Users/{id}", h.ScimReplaceUser)
+			r.Patch("/Users/{id}", h.ScimPatchUser)
+			r.Delete("/Users/{id}", h.ScimDeleteUser)
+		})
+	})
 
 	// Public API
 	r.Get("/api/config", h.GetConfig)
@@ -1670,6 +1707,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/mcp-servers", h.ListWorkspaceMcpServers)
 					r.Get("/mcp-servers/{serverId}/tools", h.ListWorkspaceMcpServerTools)
 					r.Get("/model-keys", h.ListModelKeys)
+					r.Get("/sso", h.GetSSOConnection)
+					r.Get("/scim-tokens", h.ListScimTokens)
 					// Installed Plugins are member-visible so a member can
 					// see what is mounted in their workspace and which scopes
 					// it holds; install / configure / remove stay admin-only.
@@ -1699,6 +1738,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/mcp-servers/{serverId}/tools/discover", h.DiscoverWorkspaceMcpServerTools)
 					// BYOK model keys (K48).
 					r.Post("/model-keys", h.CreateModelKey)
+					// SSO and SCIM (K60): owner-only writes are re-checked in the handlers.
+					r.Put("/sso", h.PutSSOConnection)
+					r.Put("/sso/enforce", h.SetSSOEnforced)
+					r.Delete("/sso", h.DeleteSSOConnection)
+					r.Post("/scim-tokens", h.CreateScimToken)
+					r.Delete("/scim-tokens/{tokenId}", h.DeleteScimToken)
 					r.Post("/model-keys/{keyId}/rotate", h.RotateModelKey)
 					r.Delete("/model-keys/{keyId}", h.DeactivateModelKey)
 					r.Put("/mcp-servers/{serverId}/tools", h.SetWorkspaceMcpServerTools)
@@ -2416,6 +2461,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetProject)
 					r.Put("/", h.UpdateProject)
+					// Project roles (K60).
+					r.Get("/members", h.ListProjectMembers)
+					r.Put("/members/{subjectType}/{subjectId}/role", h.SetProjectMemberRole)
+					r.Delete("/members/{subjectType}/{subjectId}/role", h.ClearProjectMemberRole)
 					r.Delete("/", h.DeleteProject)
 					r.Get("/resources", h.ListProjectResources)
 					r.Post("/resources", h.CreateProjectResource)

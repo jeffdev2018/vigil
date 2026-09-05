@@ -28,6 +28,7 @@ import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectOrgSection } from "./project-org-section";
+import { ProjectMembersSection } from "./project-members-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
@@ -477,6 +478,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Org structure in force (K75) */}
       <ProjectOrgSection projectId={projectId} />
+
+      {/* Members and project roles (K60) */}
+      <ProjectMembersSection projectId={projectId} />
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />

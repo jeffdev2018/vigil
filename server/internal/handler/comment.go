@@ -1690,6 +1690,10 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 
 	userID, ok := requireUserID(w, r)
 	if !ok {

@@ -492,6 +492,9 @@ func (h *Handler) CreateProjectResource(w http.ResponseWriter, r *http.Request) 
 	if !ok {
 		return
 	}
+	if !h.requireProjectWrite(w, r, project.ID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -576,6 +579,9 @@ func (h *Handler) CreateProjectResource(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) UpdateProjectResource(w http.ResponseWriter, r *http.Request) {
 	project, ok := h.loadProjectForResource(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, project.ID) {
 		return
 	}
 	resourceUUID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "resourceId"), "resource id")
@@ -804,6 +810,9 @@ func (h *Handler) findLocalDirectoryConflict(ctx context.Context, projectID pgty
 func (h *Handler) DeleteProjectResource(w http.ResponseWriter, r *http.Request) {
 	project, ok := h.loadProjectForResource(w, r, chi.URLParam(r, "id"))
 	if !ok {
+		return
+	}
+	if !h.requireProjectWrite(w, r, project.ID) {
 		return
 	}
 	resourceUUID, ok := parseUUIDOrBadRequest(w, chi.URLParam(r, "resourceId"), "resource id")

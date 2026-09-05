@@ -192,5 +192,22 @@
     "preview": "パスを試す",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "ルールを保存できませんでした"
+  },
+  "members": {
+    "section": "メンバーとロール",
+    "description": "ここでのロールは制限のみ行います。メンバーやエージェントがこのプロジェクトでワークスペースのロール以上の権限を得ることはありません。",
+    "empty": "メンバーはまだいません。",
+    "columns": {
+      "name": "名前",
+      "workspace_role": "ワークスペースのロール",
+      "role": "プロジェクトのロール"
+    },
+    "inherited": "継承",
+    "override": "上書き",
+    "inherit_option": "継承 ({{role}})",
+    "agent": "エージェント",
+    "updated": "ロールを更新しました",
+    "update_failed": "ロールの更新に失敗しました",
+    "read_only": "ロールを変更できるのはワークスペースのオーナー、管理者、プロジェクトの admin だけです。"
   }
 }

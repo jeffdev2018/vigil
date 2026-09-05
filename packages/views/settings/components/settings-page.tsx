@@ -6,6 +6,7 @@ import {
   SlidersHorizontal,
   Key,
   KeyRound,
+  ShieldCheck,
   Brain,
   Settings,
   Users,
@@ -57,6 +58,7 @@ import { PluginsTab } from "./plugins-tab";
 import { AuditLogTab } from "./audit-log-tab";
 import { McpTab } from "./mcp-tab";
 import { ModelKeysTab } from "./model-keys-tab";
+import { SecurityTab } from "./security-tab";
 import { BillingTab } from "./billing-tab";
 import { BudgetsTab } from "./budgets-tab";
 import { CollapsedNavTrigger } from "../../layout/page-header";
@@ -89,6 +91,7 @@ const WORKSPACE_TAB_KEYS = [
   "quick_actions",
   "mcp",
   "model_keys",
+  "security",
   "plugins",
   "audit_log",
 ] as const;
@@ -107,6 +110,7 @@ const WORKSPACE_TAB_VALUES = {
   quick_actions: "quick-actions",
   mcp: "mcp",
   model_keys: "model-keys",
+  security: "security",
   plugins: "plugins",
   audit_log: "audit-log",
 } as const;
@@ -125,6 +129,7 @@ const WORKSPACE_TAB_ICONS = {
   quick_actions: Zap,
   mcp: Server,
   model_keys: KeyRound,
+  security: ShieldCheck,
   plugins: Blocks,
   audit_log: ScrollText,
 } as const;
@@ -309,6 +314,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="quick-actions"><QuickActionsTab /></TabsContent>
           <TabsContent value="mcp"><McpTab /></TabsContent>
           <TabsContent value="model-keys"><ModelKeysTab /></TabsContent>
+          <TabsContent value="security"><SecurityTab /></TabsContent>
           {pluginsEnabled ? <TabsContent value="plugins"><PluginsTab /></TabsContent> : null}
           <TabsContent value="audit-log"><AuditLogTab /></TabsContent>
           {extraAccountTabs?.map((tab) => (

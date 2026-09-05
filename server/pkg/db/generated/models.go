@@ -1529,11 +1529,12 @@ type Meeting struct {
 }
 
 type Member struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	UserID      pgtype.UUID        `json:"user_id"`
-	Role        string             `json:"role"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	UserID         pgtype.UUID        `json:"user_id"`
+	Role           string             `json:"role"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ScimExternalID pgtype.Text        `json:"scim_external_id"`
 }
 
 type MobilePushToken struct {
@@ -1870,6 +1871,18 @@ type ProjectGoal struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type ProjectMemberRole struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	ProjectID   pgtype.UUID        `json:"project_id"`
+	SubjectType string             `json:"subject_type"`
+	SubjectID   pgtype.UUID        `json:"subject_id"`
+	Role        string             `json:"role"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ProjectResource struct {
 	ID           pgtype.UUID        `json:"id"`
 	ProjectID    pgtype.UUID        `json:"project_id"`
@@ -1978,6 +1991,17 @@ type RuntimeProfile struct {
 	Enabled        bool               `json:"enabled"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ScimToken struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	TokenHash   string             `json:"token_hash"`
+	TokenHint   string             `json:"token_hint"`
+	Active      bool               `json:"active"`
+	CreatedBy   pgtype.UUID        `json:"created_by"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	LastUsedAt  pgtype.Timestamptz `json:"last_used_at"`
 }
 
 type SeatCapacityOutbox struct {
@@ -2259,7 +2283,8 @@ type User struct {
 	Language                pgtype.Text        `json:"language"`
 	ProfileDescription      string             `json:"profile_description"`
 	// User-preferred IANA timezone for report rendering (Viewing tz). NULL means "use the browser-detected tz at render time". Affects dashboards, charts, and any "today" label shown to this user. Does not affect data materialisation — all rollups remain in UTC.
-	Timezone pgtype.Text `json:"timezone"`
+	Timezone              pgtype.Text        `json:"timezone"`
+	SessionsInvalidatedAt pgtype.Timestamptz `json:"sessions_invalidated_at"`
 }
 
 type UserCalendarFeed struct {
@@ -2513,6 +2538,21 @@ type WorkspaceShareLink struct {
 	UseCount    int32              `json:"use_count"`
 	IsActive    bool               `json:"is_active"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspaceSsoConnection struct {
+	ID                    pgtype.UUID        `json:"id"`
+	WorkspaceID           pgtype.UUID        `json:"workspace_id"`
+	Provider              string             `json:"provider"`
+	Issuer                string             `json:"issuer"`
+	ClientID              string             `json:"client_id"`
+	ClientSecretEncrypted string             `json:"client_secret_encrypted"`
+	AllowedDomains        []byte             `json:"allowed_domains"`
+	AutoProvision         bool               `json:"auto_provision"`
+	Enforced              bool               `json:"enforced"`
+	CreatedBy             pgtype.UUID        `json:"created_by"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 }
 
 type WorkspaceTransferRun struct {

@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { configStore } from "../config";
 import type {
   Issue,
@@ -332,6 +333,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import {
   AgentTaskListSchema,
   AttachmentResponseSchema,
@@ -6137,6 +6139,65 @@ export class ApiClient {
   }
 
   // Budgets
+  // SSO, SCIM and project roles (K60).
+  async getSSOConnection(workspaceId: string): Promise<SSOState> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/sso`);
+    return parseWithFallback(raw, SSOStateSchema, { connection: null, configured: false }, { endpoint: "GET /api/workspaces/{id}/sso" });
+  }
+
+  async putSSOConnection(workspaceId: string, data: SSOConnectionRequest): Promise<SSOState> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/sso`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, SSOStateSchema, { connection: null, configured: false }, { endpoint: "PUT /api/workspaces/{id}/sso" });
+  }
+
+  async setSSOEnforced(workspaceId: string, enforced: boolean): Promise<SSOState> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/sso/enforce`, { method: "PUT", body: JSON.stringify({ enforced }) });
+    return parseWithFallback(raw, SSOStateSchema, { connection: null, configured: false }, { endpoint: "PUT /api/workspaces/{id}/sso/enforce" });
+  }
+
+  async deleteSSOConnection(workspaceId: string): Promise<void> {
+    await this.fetch(`/api/workspaces/${workspaceId}/sso`, { method: "DELETE" });
+  }
+
+  async listScimTokens(workspaceId: string): Promise<{ tokens: ScimToken[] }> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/scim-tokens`);
+    return parseWithFallback(raw, ScimTokenListSchema, { tokens: [] }, { endpoint: "GET /api/workspaces/{id}/scim-tokens" });
+  }
+
+  async createScimToken(workspaceId: string): Promise<ScimToken> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/scim-tokens`, { method: "POST" });
+    return parseWithFallback(raw, ScimTokenSchema, { id: "", token_hint: "", active: false, created_at: "", last_used_at: null }, { endpoint: "POST /api/workspaces/{id}/scim-tokens" });
+  }
+
+  async deleteScimToken(workspaceId: string, tokenId: string): Promise<void> {
+    await this.fetch(`/api/workspaces/${workspaceId}/scim-tokens/${encodeURIComponent(tokenId)}`, { method: "DELETE" });
+  }
+
+  async listProjectMembers(projectId: string): Promise<ProjectMembers> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members`);
+    return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "GET /api/projects/{id}/members" });
+  }
+
+  async setProjectMemberRole(projectId: string, subjectType: "member" | "agent", subjectId: string, role: ProjectRole): Promise<ProjectMembers> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members/${subjectType}/${encodeURIComponent(subjectId)}/role`, { method: "PUT", body: JSON.stringify({ role }) });
+    return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "PUT /api/projects/{id}/members/{subjectType}/{subjectId}/role" });
+  }
+
+  async clearProjectMemberRole(projectId: string, subjectType: "member" | "agent", subjectId: string): Promise<ProjectMembers> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members/${subjectType}/${encodeURIComponent(subjectId)}/role`, { method: "DELETE" });
+    return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "DELETE /api/projects/{id}/members/{subjectType}/{subjectId}/role" });
+  }
+
+  /** SSO login (K60): unauthenticated; the browser follows the returned URL. */
+  async startOIDCLogin(workspaceSlug: string, redirectUri: string): Promise<{ authorization_url: string }> {
+    const raw = await this.fetch<unknown>("/auth/oidc/start", { method: "POST", body: JSON.stringify({ workspace_slug: workspaceSlug, redirect_uri: redirectUri }) });
+    return parseWithFallback(raw, z.object({ authorization_url: z.string().catch("") }).loose(), { authorization_url: "" }, { endpoint: "POST /auth/oidc/start" });
+  }
+
+  async completeOIDCLogin(code: string, state: string): Promise<{ token: string; user: User; workspace_slug: string }> {
+    return this.fetch("/auth/oidc/callback", { method: "POST", body: JSON.stringify({ code, state }) });
+  }
+
   // BYOK model keys (K48). Values are write-only: the server answers hints.
   async listModelKeys(workspaceId: string): Promise<ModelKeyList> {
     const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/model-keys`);

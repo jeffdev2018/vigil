@@ -192,5 +192,22 @@
     "preview": "경로 시험",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "규칙을 저장하지 못했습니다"
+  },
+  "members": {
+    "section": "멤버와 역할",
+    "description": "여기의 역할은 제한만 합니다. 멤버나 에이전트가 이 프로젝트에서 워크스페이스 역할이 허용하는 것보다 더 많은 권한을 얻지는 않습니다.",
+    "empty": "아직 멤버가 없습니다.",
+    "columns": {
+      "name": "이름",
+      "workspace_role": "워크스페이스 역할",
+      "role": "프로젝트 역할"
+    },
+    "inherited": "상속됨",
+    "override": "재정의",
+    "inherit_option": "상속 ({{role}})",
+    "agent": "에이전트",
+    "updated": "역할을 갱신했습니다",
+    "update_failed": "역할 갱신에 실패했습니다",
+    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다."
   }
 }

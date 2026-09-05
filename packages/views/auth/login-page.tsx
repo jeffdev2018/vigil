@@ -56,6 +56,9 @@ interface LoginPageProps {
   onTokenObtained?: () => void;
   /** Override Google login handler (e.g. desktop opens browser externally). When provided, renders the Google button even if `google` config is omitted. */
   onGoogleLogin?: () => void;
+  /** Redirect URI for the OIDC round-trip (K60), e.g. `${origin}/login/sso`.
+   *  Renders the "Sign in with SSO" path when provided; desktop omits it. */
+  ssoRedirectUri?: string;
   /** Slot rendered at the bottom of the sign-in card, below the
    *  Google button. The web shell uses it for a "Prefer the desktop
    *  app?" prompt; desktop omits it (a download prompt inside the app
@@ -93,6 +96,20 @@ export function validateCliCallback(cliCallback: string): boolean {
   }
 }
 
+/**
+ * The code login answers 403 `{ error: "sso_required", workspace_slug }` when
+ * the workspace enforces SSO (K60). Read the body structurally: the error
+ * class is not guaranteed across mocks and bundles.
+ */
+export function ssoRequiredSlug(err: unknown): string | null {
+  if (typeof err !== "object" || err === null) return null;
+  const body = (err as { body?: unknown }).body;
+  if (typeof body !== "object" || body === null) return null;
+  const { error, workspace_slug } = body as { error?: unknown; workspace_slug?: unknown };
+  if (error !== "sso_required") return null;
+  return typeof workspace_slug === "string" ? workspace_slug : "";
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -104,11 +121,15 @@ export function LoginPage({
   cliCallback,
   onTokenObtained,
   onGoogleLogin,
+  ssoRedirectUri,
   extra,
 }: LoginPageProps) {
   const { t } = useT("auth");
   const qc = useQueryClient();
-  const [step, setStep] = useState<"email" | "code" | "cli_confirm">("email");
+  const [step, setStep] = useState<"email" | "code" | "cli_confirm" | "sso">("email");
+  const [ssoSlug, setSsoSlug] = useState("");
+  // Set when the code login was refused because the workspace enforces SSO.
+  const [ssoRequired, setSsoRequired] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
@@ -215,11 +236,18 @@ export function LoginPage({
         onTokenObtained?.();
         onSuccess();
       } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : t(($) => $.errors.code_invalid),
-        );
+        const slug = ssoRequiredSlug(err);
+        if (slug !== null) {
+          setSsoSlug(slug);
+          setSsoRequired(true);
+          setError(t(($) => $.sso.required_hint));
+        } else {
+          setError(
+            err instanceof Error
+              ? err.message
+              : t(($) => $.errors.code_invalid),
+          );
+        }
         setCode("");
         setLoading(false);
       }
@@ -285,6 +313,87 @@ export function LoginPage({
     if (google.state) params.set("state", google.state);
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`;
   };
+
+  const handleSsoStart = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const slug = ssoSlug.trim();
+    if (!slug || !ssoRedirectUri) {
+      setError(t(($) => $.sso.workspace_required));
+      return;
+    }
+    setLoading(true);
+    setError("");
+    try {
+      const { authorization_url } = await api.startOIDCLogin(slug, ssoRedirectUri);
+      if (!authorization_url) throw new Error(t(($) => $.sso.start_failed));
+      window.location.href = authorization_url;
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : t(($) => $.sso.start_failed));
+      setLoading(false);
+    }
+  };
+
+  // -------------------------------------------------------------------------
+  // SSO step (K60)
+  // -------------------------------------------------------------------------
+
+  if (step === "sso") {
+    return (
+      <div className="flex min-h-svh items-center justify-center">
+        <Card className="w-full max-w-sm">
+          <CardHeader className="text-center">
+            {logo && <div className="mx-auto mb-4">{logo}</div>}
+            <CardTitle className="text-display-sm">
+              {t(($) => $.sso.title)}
+            </CardTitle>
+            <CardDescription>
+              {t(($) => $.sso.description)}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form id="sso-form" onSubmit={handleSsoStart} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="sso-workspace">{t(($) => $.sso.workspace)}</Label>
+                <Input
+                  id="sso-workspace"
+                  placeholder={t(($) => $.sso.workspace_placeholder)}
+                  value={ssoSlug}
+                  onChange={(e) => setSsoSlug(e.target.value)}
+                  autoFocus
+                  required
+                />
+              </div>
+              {error && (
+                <p className="text-body text-destructive">{error}</p>
+              )}
+            </form>
+          </CardContent>
+          <CardFooter className="flex flex-col gap-3">
+            <Button
+              type="submit"
+              form="sso-form"
+              className="w-full"
+              size="lg"
+              disabled={!ssoSlug.trim() || loading}
+            >
+              {loading ? t(($) => $.sso.starting) : t(($) => $.sso.continue)}
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={() => {
+                setStep("email");
+                setError("");
+              }}
+            >
+              {t(($) => $.common.back)}
+            </Button>
+          </CardFooter>
+        </Card>
+      </div>
+    );
+  }
 
   // -------------------------------------------------------------------------
   // CLI confirm step
@@ -369,6 +478,18 @@ export function LoginPage({
             </InputOTP>
             {error && (
               <p className="text-body text-destructive">{error}</p>
+            )}
+            {ssoRequired && ssoRedirectUri && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError("");
+                  setStep("sso");
+                }}
+                className="text-body text-primary underline-offset-4 hover:underline"
+              >
+                {t(($) => $.sso.required_link)}
+              </button>
             )}
             <div className="flex items-center gap-2 text-body text-muted-foreground">
               <button
@@ -477,6 +598,21 @@ export function LoginPage({
                 />
               </svg>
               {t(($) => $.signin.google)}
+            </Button>
+          )}
+          {ssoRedirectUri && (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              onClick={() => {
+                setError("");
+                setStep("sso");
+              }}
+              disabled={loading}
+            >
+              {t(($) => $.sso.button)}
             </Button>
           )}
           {extra && <div className="w-full pt-1 text-center">{extra}</div>}

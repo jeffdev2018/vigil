@@ -233,6 +233,7 @@ function LoginPageContent() {
           : undefined
       }
       onTokenObtained={setLoggedInCookie}
+      ssoRedirectUri={`${window.location.origin}/login/sso`}
       extra={
         <span className="text-caption text-muted-foreground">
           {t(($) => $.web.prefer_desktop)}{" "}

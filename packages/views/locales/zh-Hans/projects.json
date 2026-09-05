@@ -192,5 +192,22 @@
     "preview": "试一个路径",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "无法保存规则"
+  },
+  "members": {
+    "section": "成员与角色",
+    "description": "这里的角色只做限制：成员或智能体在此项目中获得的权限不会超过其工作区角色。",
+    "empty": "尚无成员。",
+    "columns": {
+      "name": "名称",
+      "workspace_role": "工作区角色",
+      "role": "项目角色"
+    },
+    "inherited": "继承",
+    "override": "覆盖",
+    "inherit_option": "继承（{{role}}）",
+    "agent": "智能体",
+    "updated": "角色已更新",
+    "update_failed": "更新角色失败",
+    "read_only": "只有工作区所有者、管理员和项目 admin 可以更改角色。"
   }
 }

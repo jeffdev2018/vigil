@@ -236,6 +236,7 @@ vi.mock("../../issues/components/priority-icon", () => ({
 }));
 
 vi.mock("./project-decisions-section", () => ({ ProjectDecisionsSection: () => null }));
+vi.mock("./project-members-section", () => ({ ProjectMembersSection: () => null }));
 vi.mock("./project-blast-radius-section", () => ({ ProjectBlastRadiusSection: () => null }));
 vi.mock("./project-resources-section", () => ({
   ProjectResourcesSection: () => null,

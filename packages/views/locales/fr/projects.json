@@ -194,5 +194,22 @@
     "preview": "Tester un chemin",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "La règle n'a pas pu être enregistrée"
+  },
+  "members": {
+    "section": "Membres et rôles",
+    "description": "Les rôles ici ne font que restreindre : un membre ou un agent n'obtient jamais plus dans ce projet que ce que son rôle d'espace de travail autorise.",
+    "empty": "Aucun membre pour l'instant.",
+    "columns": {
+      "name": "Nom",
+      "workspace_role": "Rôle d'espace de travail",
+      "role": "Rôle projet"
+    },
+    "inherited": "hérité",
+    "override": "surcharge",
+    "inherit_option": "Hériter ({{role}})",
+    "agent": "agent",
+    "updated": "Rôle mis à jour",
+    "update_failed": "Échec de la mise à jour du rôle",
+    "read_only": "Seuls les propriétaires, administrateurs de l'espace de travail et admins du projet peuvent changer les rôles."
   }
 }

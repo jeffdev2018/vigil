@@ -34,6 +34,7 @@ const mockApiVerifyCode = vi.hoisted(() => vi.fn());
 const mockApiSetToken = vi.hoisted(() => vi.fn());
 const mockApiGetMe = vi.hoisted(() => vi.fn());
 const mockApiIssueCliToken = vi.hoisted(() => vi.fn());
+const mockApiStartOIDCLogin = vi.hoisted(() => vi.fn());
 const mockSetQueryData = vi.hoisted(() => vi.fn());
 
 vi.mock("@tanstack/react-query", async () => {
@@ -66,6 +67,7 @@ vi.mock("@multica/core/api", () => ({
     setToken: mockApiSetToken,
     getMe: mockApiGetMe,
     issueCliToken: mockApiIssueCliToken,
+    startOIDCLogin: mockApiStartOIDCLogin,
   },
 }));
 
@@ -75,7 +77,7 @@ vi.mock("@multica/core/types", () => ({}));
 // Import after mocks
 // ---------------------------------------------------------------------------
 
-import { LoginPage, validateCliCallback } from "./login-page";
+import { LoginPage, validateCliCallback, ssoRequiredSlug } from "./login-page";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -681,6 +683,67 @@ describe("LoginPage", () => {
 // ---------------------------------------------------------------------------
 // validateCliCallback (exported helper)
 // ---------------------------------------------------------------------------
+
+describe("LoginPage SSO (K60)", () => {
+  const onSuccess = vi.fn();
+  const REDIRECT = "http://localhost:3000/login/sso";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockApiGetMe.mockRejectedValue(new Error("unauthorized"));
+    Object.defineProperty(window, "location", {
+      writable: true,
+      value: { href: "http://localhost:3000" },
+    });
+  });
+
+  it("hides the SSO button without a redirect URI (desktop)", () => {
+    renderWithI18n(<LoginPage onSuccess={onSuccess} />);
+    expect(screen.queryByRole("button", { name: "Sign in with SSO" })).toBeNull();
+  });
+
+  it("starts the OIDC flow for the typed workspace and follows the URL", async () => {
+    mockApiStartOIDCLogin.mockResolvedValue({ authorization_url: "https://idp.example.com/auth?x=1" });
+    renderWithI18n(<LoginPage onSuccess={onSuccess} ssoRedirectUri={REDIRECT} />);
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Sign in with SSO" }));
+    await user.type(screen.getByLabelText("Workspace"), "acme");
+    await user.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => expect(mockApiStartOIDCLogin).toHaveBeenCalledWith("acme", REDIRECT));
+    expect(window.location.href).toBe("https://idp.example.com/auth?x=1");
+  });
+
+  it("offers the SSO path with the slug prefilled when the code login answers sso_required", async () => {
+    mockSendCode.mockResolvedValue(undefined);
+    mockVerifyCode.mockRejectedValueOnce(
+      Object.assign(new Error("sso required"), { status: 403, body: { error: "sso_required", workspace_slug: "acme" } }),
+    );
+    renderWithI18n(<LoginPage onSuccess={onSuccess} ssoRedirectUri={REDIRECT} />);
+
+    const user = userEvent.setup();
+    await user.type(screen.getByLabelText(/email/i), "test@example.com");
+    await user.click(screen.getByRole("button", { name: /continue/i }));
+    await waitFor(() => expect(screen.getByText(/check your email/i)).toBeInTheDocument());
+    await user.type(getOTPInput(), "123456");
+
+    await waitFor(() => expect(screen.getByText("This workspace requires single sign-on.")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Sign in with SSO" }));
+    expect(screen.getByLabelText("Workspace")).toHaveValue("acme");
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+});
+
+describe("ssoRequiredSlug", () => {
+  it("reads the slug from an sso_required body only", () => {
+    expect(ssoRequiredSlug({ body: { error: "sso_required", workspace_slug: "acme" } })).toBe("acme");
+    expect(ssoRequiredSlug({ body: { error: "sso_required" } })).toBe("");
+    expect(ssoRequiredSlug({ body: { error: "other" } })).toBeNull();
+    expect(ssoRequiredSlug(new Error("x"))).toBeNull();
+    expect(ssoRequiredSlug(null)).toBeNull();
+  });
+});
 
 describe("validateCliCallback", () => {
   it("accepts http://localhost", () => {

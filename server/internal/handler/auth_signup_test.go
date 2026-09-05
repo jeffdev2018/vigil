@@ -95,6 +95,12 @@ func (m *mockDB) QueryRow(ctx context.Context, sql string, args ...interface{}) 
 	return &mockRow{err: m.getUserErr}
 }
 
+// Query answers "no rows" so the SSO enforcement lookup (K60) sees no
+// enforced workspace and the signup policy under test decides alone.
+func (m *mockDB) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+	return nil, pgx.ErrNoRows
+}
+
 func (m *mockDB) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
 	return pgconn.NewCommandTag("INSERT 1"), nil
 }
