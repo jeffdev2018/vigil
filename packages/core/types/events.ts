@@ -33,6 +33,7 @@ export type WSEventType =
   | "task:failed"
   | "task:message"
   | "task:cancelled"
+  | "task:scored"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -445,6 +446,19 @@ export interface TaskCancelledPayload {
   status: string;
 }
 
+// task:scored (JEF-240) fires once the run's confidence score is persisted —
+// after task:completed, never instead of it. `below_threshold` is the
+// backend's verdict against the workspace threshold; when true the issue has
+// also moved into review, so consumers refresh the issue row alongside the
+// task lists.
+export interface TaskScoredPayload {
+  task_id: string;
+  issue_id: string;
+  score: number;
+  threshold: number;
+  below_threshold: boolean;
+}
+
 export interface ReactionAddedPayload {
   reaction: Reaction;
   issue_id: string;
@@ -676,6 +690,7 @@ export interface WSEventPayloadMap {
   "task:failed": TaskFailedPayload;
   "task:message": TaskMessagePayload;
   "task:cancelled": TaskCancelledPayload;
+  "task:scored": TaskScoredPayload;
   "task:progress": unknown;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;

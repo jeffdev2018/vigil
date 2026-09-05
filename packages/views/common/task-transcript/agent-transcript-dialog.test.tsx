@@ -765,6 +765,67 @@ describe("AgentTranscriptDialog — smart routing", () => {
   });
 });
 
+describe("AgentTranscriptDialog — confidence score", () => {
+  const scoredTask: AgentTask = {
+    ...baseTask,
+    confidence: {
+      score: 0.85,
+      rationale: "Tests and diff look consistent",
+      model: "claude-sonnet-4-6",
+      threshold: 0.5,
+      below_threshold: false,
+    },
+  };
+
+  it("shows the score as a green chip at or above the threshold", async () => {
+    renderDialog(items, { task: scoredTask });
+
+    const chip = await screen.findByTestId("confidence-chip");
+    expect(chip).toHaveTextContent("85% confidence");
+    expect(chip.className).toContain("text-success");
+    expect(chip.className).not.toContain("text-warning");
+  });
+
+  it("shows the score as an amber chip under the threshold", async () => {
+    renderDialog(items, {
+      task: {
+        ...scoredTask,
+        confidence: {
+          score: 0.3,
+          rationale: "No tests were run",
+          threshold: 0.5,
+          below_threshold: true,
+        },
+      },
+    });
+
+    const chip = await screen.findByTestId("confidence-chip");
+    expect(chip).toHaveTextContent("30% confidence");
+    expect(chip.className).toContain("text-warning");
+  });
+
+  it("carries the rationale, model and threshold in the run details popover", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: scoredTask });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Confidence")).toBeInTheDocument();
+    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(screen.getByText("Scored by")).toBeInTheDocument();
+    expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
+    expect(screen.getByText("Review threshold")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("Rationale")).toBeInTheDocument();
+    expect(screen.getByText("Tests and diff look consistent")).toBeInTheDocument();
+  });
+
+  it("renders no chip for an unscored run", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("confidence-chip")).not.toBeInTheDocument();
+  });
+});
+
 describe("AgentTranscriptDialog — work directory handoff", () => {
   it("shows and copies the durable project directory after worktree cleanup", async () => {
     renderDialog(items, {

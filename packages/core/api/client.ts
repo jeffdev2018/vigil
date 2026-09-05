@@ -439,6 +439,7 @@ import {
   UndoSettingsSchema,
   CrossReviewSettingsSchema,
   ProjectReviewConfigSchema,
+  ConfidenceReviewSettingsSchema,
   IssueCIAutoFixSchema,
   CIAutoFixRetryEnvelopeSchema,
   CIAutoFixSettingsSchema,
@@ -3898,6 +3899,17 @@ export class ApiClient {
   async putCrossReviewSettings(input: import("../issues/cross-review").CrossReviewSettings): Promise<import("../issues/cross-review").CrossReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/cross-review-settings`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
+  }
+
+  // Confidence review (JEF-240).
+  async getConfidenceReviewSettings(): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/confidence-review-settings`);
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5 }, { endpoint: "GET /api/confidence-review-settings" });
+  }
+
+  async putConfidenceReviewSettings(input: import("../issues/confidence-review").ConfidenceReviewSettings): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
+    const raw = await this.fetch<unknown>(`/api/confidence-review-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, input, { endpoint: "PUT /api/confidence-review-settings" });
   }
 
   // Executable org chart (K75)

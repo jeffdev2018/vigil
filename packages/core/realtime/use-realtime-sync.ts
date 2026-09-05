@@ -116,6 +116,7 @@ import type {
   TaskCompletedPayload,
   TaskFailedPayload,
   TaskCancelledPayload,
+  TaskScoredPayload,
   ChatDonePayload,
   ChatQuickActionsPayload,
   ChatQuickActionsPendingState,
@@ -1797,6 +1798,21 @@ export function useRealtimeSync(
       invalidateSessionLists();
     });
 
+    // task:scored (JEF-240) fires once the scorer has persisted the run's
+    // confidence record — after completion, never instead of it. The task
+    // prefix path above already refreshes every list-of-tasks query (the
+    // execution log the transcript dialog reads); a below-threshold score
+    // additionally flips the issue into review, so refresh that issue's
+    // detail row too. The inbox item the backend raises on below-threshold
+    // runs arrives through its own inbox:new event.
+    const unsubTaskScored = ws.on("task:scored", (p) => {
+      const payload = p as TaskScoredPayload;
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
     const unsubChatSessionRead = ws.on("chat:session_read", (p) => {
       const payload = p as { chat_session_id: string };
       chatWsLogger.info("chat:session_read (global)", payload);
@@ -1897,6 +1913,7 @@ export function useRealtimeSync(
       unsubTaskCancelled();
       unsubTaskCompleted();
       unsubTaskFailed();
+      unsubTaskScored();
       unsubChatSessionRead();
       unsubChatSessionCreated();
       unsubChatSessionDeleted();

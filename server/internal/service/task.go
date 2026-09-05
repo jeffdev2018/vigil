@@ -94,6 +94,11 @@ type TaskService struct {
 	// postmortem scaffold, a skill is only worth storing when genuinely
 	// distilled, so an unconfigured deployment simply skips it.
 	SkillDistillation SkillDistillationLLM
+	// RunConfidence powers the post-success confidence scoring pass (JEF-240).
+	// Optional: nil (or a disabled client) turns the pass off — a score is only
+	// worth storing when genuinely assessed, so an unconfigured deployment
+	// simply skips it. Wired in handler.New from the same *llm.Client.
+	RunConfidence RunConfidenceLLM
 	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
 	// Optional: nil (or a disabled client) turns extraction off, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*
@@ -138,6 +143,12 @@ type TaskService struct {
 	// above.
 	skillDistillationInFlight sync.Map
 	skillDistillationRunning  atomic.Int64
+
+	// runConfidenceInFlight (task id -> struct{}{}) and runConfidenceRunning
+	// gate the post-success scoring pass: one per task, and a process-wide
+	// ceiling. Zero values are usable, like the gates above.
+	runConfidenceInFlight sync.Map
+	runConfidenceRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext

@@ -40,6 +40,10 @@ const (
 	EventTaskFailed                = "task:failed"    // running → failed
 	EventTaskMessage               = "task:message"
 	EventTaskCancelled             = "task:cancelled" // * → cancelled
+	// EventTaskScored (JEF-240) fires when a completed run's confidence score
+	// has been persisted — it is not a status transition, it is the signal
+	// that the task's confidence column changed.
+	EventTaskScored = "task:scored"
 
 	// Postmortem events (k68). postmortem:created fires when a failed run gets
 	// a drafted postmortem; postmortem:resolved fires on approve/discard.
