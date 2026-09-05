@@ -93,6 +93,7 @@
     "triage_stale": "トリアージが滞っています",
     "watchdog_escalation": "ウォッチドッグのエスカレーション",
     "contest_ready": "異議申し立ての判定待ち",
+    "org_alert": "組織アラート",
     "decision_auto_decided": "代わりに判断しました"
   },
   "labels": {

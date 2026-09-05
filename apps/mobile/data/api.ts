@@ -128,6 +128,7 @@ import {
   EMPTY_LIST_PROJECTS_RESPONSE,
   EMPTY_MEMBER_LIST,
   EMPTY_NOTIFICATION_PREFERENCES,
+  EMPTY_ORG_STRUCTURE_LIST,
   EMPTY_PIN_LIST,
   EMPTY_PROJECT,
   EMPTY_RUNTIME_LIST,
@@ -138,6 +139,8 @@ import {
   EMPTY_WORKSPACE_LIST,
   InboxListSchema,
   NotificationPreferenceResponseSchema,
+  OrgStructureListSchema,
+  type OrgStructureList,
   ListLabelsResponseSchema,
   ListProjectResourcesResponseSchema,
   ListGoalsResponseSchema,
@@ -1250,6 +1253,16 @@ class ApiClient {
       ListProjectsResponseSchema,
       EMPTY_LIST_PROJECTS_RESPONSE,
       { endpoint: "GET /api/projects" },
+    );
+  }
+
+  // Executable org chart (K75). Read-only on mobile; mirrors core `listOrgStructures`.
+  async listOrgStructures(opts?: { signal?: AbortSignal }): Promise<OrgStructureList> {
+    return this.fetchValidated(
+      "/api/org",
+      OrgStructureListSchema,
+      EMPTY_ORG_STRUCTURE_LIST,
+      opts,
     );
   }
 

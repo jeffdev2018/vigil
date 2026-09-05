@@ -89,7 +89,10 @@ type ReplaySnapshot struct {
 	RuntimeID           string `json:"runtime_id"`
 	SafeMode            bool   `json:"safe_mode"`
 	PlanVersion         int32  `json:"plan_version"`
-	RecordedAt          string `json:"recorded_at"`
+	// OrgRevisionID / OrgRevision (K75): the structure in force when the run started.
+	OrgRevisionID string `json:"org_revision_id,omitempty"`
+	OrgRevision   int32  `json:"org_revision,omitempty"`
+	RecordedAt    string `json:"recorded_at"`
 }
 
 type ReplayPlan struct {
@@ -625,6 +628,7 @@ func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue,
 		if plan, err := h.Queries.GetActiveIssuePlan(ctx, db.GetActiveIssuePlanParams{IssueID: task.IssueID, WorkspaceID: wsID}); err == nil {
 			snap.PlanVersion = plan.Version
 		}
+		snap.OrgRevisionID, snap.OrgRevision = h.orgRevisionForIssue(ctx, wsID, task.IssueID)
 	}
 	h.audit(ctx, wsID, "system", "", AuditRunStarted, "task", task.ID, snap, nil)
 }

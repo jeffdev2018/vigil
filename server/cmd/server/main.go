@@ -776,6 +776,9 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
 		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
 	}
+	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
+		slog.Warn("scheduler: failed to register org_tick job", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.DecisionSLAEscalationJob(pool, h.EscalateOverdueDecisions)); err != nil {
 		slog.Warn("scheduler: failed to register decision_sla_escalation job", "error", err)
 	}

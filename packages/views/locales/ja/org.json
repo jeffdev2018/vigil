@@ -1,0 +1,173 @@
+{
+  "page": {
+    "title": "組織",
+    "new_structure": "新しい構造",
+    "empty": "構造はまだありません",
+    "empty_description": "構造は誰が何を担当するかを決めます。タスクをユニットへルーティングし、エスカレーション、承認、予算消費を行います。7つのモデルから1つ選んで始めましょう。",
+    "workspace_default": "ワークスペース既定",
+    "unknown_project": "不明なプロジェクト",
+    "revision": "第{{n}}版",
+    "no_owner": "オーナーなし",
+    "paused_units_other": "{{count}}件のユニットが一時停止中",
+    "back": "すべての構造",
+    "loading": "読み込み中…",
+    "chart": "組織図",
+    "editor": "定義",
+    "units_summary": "ユニット",
+    "no_units": "この定義にはユニットがありません。",
+    "members_other": "{{count}}名のメンバー",
+    "revisions": "改訂履歴",
+    "no_revisions": "改訂はまだありません。",
+    "revision_row": "第{{n}}版 · {{status}} · {{model}}",
+    "read_only": "解散した構造は読み取り専用です。"
+  },
+  "status": {
+    "draft": "下書き",
+    "active": "有効",
+    "paused": "一時停止",
+    "dissolved": "解散"
+  },
+  "model": {
+    "hierarchy": "階層型",
+    "squads": "自律スクワッド",
+    "matrix": "スキル × プロジェクトのマトリクス",
+    "circles": "サークルとロール",
+    "owner_network": "オーナーネットワーク",
+    "taskforce": "臨時タスクフォース",
+    "market": "内部マーケット"
+  },
+  "autonomy": {
+    "read_only": "読み取り専用",
+    "draft": "下書き",
+    "approve_payload": "内容を承認",
+    "auto": "自動"
+  },
+  "new": {
+    "title": "新しい構造",
+    "description": "適用範囲を選び、次に従うモデルを選びます。定義は後から編集できます。",
+    "project": "適用先",
+    "workspace_default": "ワークスペース既定（独自の構造を持たないすべてのプロジェクト）",
+    "runs_per_issue_other": "タスクごとに{{count}}回の調整実行",
+    "loading": "テンプレートを読み込み中…",
+    "cancel": "キャンセル",
+    "error": "構造を作成できませんでした"
+  },
+  "form": {
+    "name": "名前",
+    "owner": "人間のオーナー",
+    "owner_none": "オーナーなし",
+    "dissolve_at": "解散日時",
+    "end_condition": "終了条件",
+    "end_none": "なし",
+    "end_all_issues_done": "すべてのタスクが完了",
+    "end_budget_spent": "予算を使い切った",
+    "budget": "予算（USD ticks）",
+    "definition": "定義（JSON）",
+    "invalid_json": "JSONが無効です: {{error}}",
+    "save": "保存",
+    "saved": "構造を保存しました",
+    "error": "構造を保存できませんでした"
+  },
+  "actions": {
+    "activate": "有効化",
+    "pause": "一時停止",
+    "resume": "再開",
+    "dissolve": "解散",
+    "delete": "削除",
+    "cancel": "キャンセル",
+    "reason": "理由",
+    "reason_placeholder": "なぜですか？",
+    "error": "操作に失敗しました"
+  },
+  "activate": {
+    "title": "構造を有効化",
+    "description": "有効化には人間のオーナーと、30ケースの評価セットが通過したことの証明が必要です。以下の数値はプリフライトの結果です。",
+    "attestation": "評価の証明",
+    "attestation_placeholder": "{{date}}に30ケースを実行: …",
+    "loading": "プリフライト中…",
+    "pattern": "パターン",
+    "runs": "タスクごとの調整実行数",
+    "cost": "タスクごとの調整コスト",
+    "review_seconds": "タスクごとの人間のレビュー時間",
+    "seconds": "{{count}}秒",
+    "units": "ユニット",
+    "units_without_owner": "オーナーのいないユニット",
+    "agents": "エージェント",
+    "requirements": "有効化の前に",
+    "submit": "有効化"
+  },
+  "pause": {
+    "title": "構造を一時停止",
+    "description": "再開するまでルーティングは停止します。割り当て済みのタスクは担当者を維持します。",
+    "submit": "一時停止"
+  },
+  "dissolve": {
+    "title": "構造を解散",
+    "description": "解散した構造は動作を停止し、読み取り専用になります。元に戻せません。",
+    "submit": "解散"
+  },
+  "delete": {
+    "title": "構造を削除",
+    "description": "削除できるのは下書きと解散済みの構造のみです。改訂履歴も一緒に削除されます。",
+    "submit": "削除"
+  },
+  "health": {
+    "title": "ヘルス",
+    "window": "直近{{count}}日",
+    "loading": "ヘルスを読み込み中…",
+    "routed": "ルーティング済み",
+    "unrouted": "未ルーティング",
+    "escalations": "エスカレーション",
+    "stacked": "重なったエスカレーション",
+    "reassigned_outside": "ユニット外へ再割り当て",
+    "market_short": "マーケットの入札不足",
+    "breakers": "ブレーカー",
+    "human_review": "人間のレビュー待ち",
+    "drift": "ドリフト率",
+    "units": "ユニット",
+    "unit": "ユニット",
+    "vacant_roles": "空席のロール",
+    "saturated": "飽和したエージェント",
+    "paused": "一時停止",
+    "spend": "消費 / 予算",
+    "none": "—",
+    "proposals": "提案",
+    "no_proposals": "今のところ提案はありません。",
+    "measure": "指標: {{measure}}"
+  },
+  "project_section": {
+    "header": "組織構造",
+    "inherited": "ワークスペース既定から継承",
+    "none": "このプロジェクトに適用される構造はありません。",
+    "choose": "モデルを選ぶ",
+    "open": "組織を開く",
+    "loading": "テンプレートを読み込み中…",
+    "error": "構造を作成できませんでした"
+  },
+  "issue_section": {
+    "offers": "マーケットの入札",
+    "agent": "エージェント",
+    "confidence": "確信度",
+    "cost": "コスト",
+    "eta": "所要時間",
+    "eta_hours": "{{hours}}時間",
+    "status": "ステータス",
+    "escalate": "エスカレーション",
+    "route_now": "今すぐルーティング",
+    "escalate_title": "このタスクをエスカレーション",
+    "escalate_description": "構造がエスカレーションのエッジに沿って上位へ渡します。理由を書いてください。",
+    "reason": "理由",
+    "reason_placeholder": "何が止まっていますか？",
+    "submit": "エスカレーション",
+    "cancel": "キャンセル",
+    "escalated": "タスクをエスカレーションしました",
+    "routed": "タスクをルーティングしました",
+    "error": "操作に失敗しました"
+  },
+  "offer_status": {
+    "pending": "保留中",
+    "won": "落札",
+    "lost": "不落札",
+    "over_cap": "上限超過"
+  }
+}

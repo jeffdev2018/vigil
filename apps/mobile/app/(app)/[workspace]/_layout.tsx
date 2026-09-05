@@ -321,6 +321,10 @@ export default function WorkspaceLayout() {
           options={{ title: "Goals", headerBackTitle: "Back" }}
         />
         <Stack.Screen
+          name="more/org"
+          options={{ title: "Organisation", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
           name="more/agents"
           options={{ title: "Agents", headerBackTitle: "Back" }}
         />

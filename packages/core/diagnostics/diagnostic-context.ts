@@ -61,6 +61,8 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   ["projects", ":id"],
   // Goals with ancestry (K74).
   ["goals"],
+  // Executable org chart (K75).
+  ["org"],
   ["autopilots"],
   ["autopilots", ":id"],
   ["agents"],

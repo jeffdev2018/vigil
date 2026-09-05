@@ -111,6 +111,8 @@ type Task struct {
 	GoalAncestryOmitted int                          `json:"goal_ancestry_omitted,omitempty"`
 	// Mirror of handler.AgentTaskResponse.MissionChain (K74).
 	MissionChain []execenv.MissionChainForEnv `json:"mission_chain,omitempty"`
+	// Mirror of handler.AgentTaskResponse.Org (K75).
+	Org *execenv.OrgContextForEnv `json:"org,omitempty"`
 	// WorkspaceNotes mirrors handler.AgentTaskResponse.WorkspaceNotes: the
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.

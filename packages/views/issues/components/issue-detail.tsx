@@ -101,6 +101,7 @@ import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { CrossReviewSection } from "./cross-review-section";
 import { ContestsSection } from "../../contests/components/contests-section";
+import { IssueOrgSection } from "../../org/components/issue-org-section";
 import { AgentEffectsSection } from "./agent-effects-section";
 import { WatchdogSection } from "./watchdog-section";
 import { RunLimitBadge } from "./run-limit-badge";
@@ -2644,6 +2645,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Contest (K72): rival-model objections on this issue's outputs, and the human verdict. */}
       <ContestsSection issueId={id} />
+
+      {/* Org chart (K75): market offers on this issue, escalate and route-now. */}
+      <IssueOrgSection issueId={id} issue={issue} />
 
       {/* Undo for agent actions (K69): what each run changed here, and the button to take it back. */}
       <AgentEffectsSection issueId={id} />

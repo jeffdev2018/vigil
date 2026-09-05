@@ -61,6 +61,7 @@
     "./issues/watchdog": "./issues/watchdog.ts",
     "./work-profile": "./work-profile/queries.ts",
     "./goals": "./goals/queries.ts",
+    "./org": "./org/queries.ts",
     "./skills/drafts": "./skills/drafts.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",

@@ -297,6 +297,11 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed issue statuses: "+err.Error())
 		return
 	}
+	// Org chart (K75): a new workspace starts as an owner network.
+	if err := h.seedDefaultOrg(r.Context(), qtx, ws.ID, parseUUID(userID)); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
+		return
+	}
 
 	// NOTE: CreateWorkspace deliberately does NOT mark the user as
 	// onboarded. The `onboarded_at` flag is owned by CompleteOnboarding
@@ -1298,6 +1303,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge contests",
 			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge org structures",
+			run:  func() error { return qtx.PurgeWorkspaceOrg(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge pipeline runs",

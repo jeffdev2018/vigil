@@ -362,6 +362,15 @@ import {
   RunReplaySchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
+  OrgStructureSchema,
+  OrgStructureListSchema,
+  OrgStructureDetailSchema,
+  OrgTemplateListSchema,
+  OrgHealthSchema,
+  OrgPreflightSchema,
+  OrgOfferListSchema,
+  OrgResolveSchema,
+  IssueEnvelopeSchema,
   ContestSchema,
   ContestListSchema,
   ContestPreflightSchema,
@@ -3852,6 +3861,73 @@ export class ApiClient {
   async putCrossReviewSettings(input: import("../issues/cross-review").CrossReviewSettings): Promise<import("../issues/cross-review").CrossReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/cross-review-settings`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, CrossReviewSettingsSchema, input, { endpoint: "PUT /api/cross-review-settings" });
+  }
+
+  // Executable org chart (K75)
+  async listOrgTemplates(): Promise<import("../types").OrgTemplate[]> {
+    const raw = await this.fetch<unknown>("/api/org/templates");
+    return parseWithFallback(raw, OrgTemplateListSchema, { templates: [] }, { endpoint: "GET /api/org/templates" }).templates as import("../types").OrgTemplate[];
+  }
+
+  async listOrgStructures(): Promise<import("../types").OrgStructure[]> {
+    const raw = await this.fetch<unknown>("/api/org");
+    return parseWithFallback(raw, OrgStructureListSchema, { structures: [] }, { endpoint: "GET /api/org" }).structures as import("../types").OrgStructure[];
+  }
+
+  async resolveOrgStructure(projectId?: string | null): Promise<import("../types").OrgStructure | null> {
+    const search = new URLSearchParams();
+    if (projectId) search.set("project_id", projectId);
+    const raw = await this.fetch<unknown>(`/api/org/resolve?${search}`);
+    return parseWithFallback(raw, OrgResolveSchema, { structure: null }, { endpoint: "GET /api/org/resolve" }).structure as import("../types").OrgStructure | null;
+  }
+
+  async getOrgStructure(id: string): Promise<{ structure: import("../types").OrgStructure; revisions: import("../types").OrgRevision[] } | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, OrgStructureDetailSchema.nullable(), null, { endpoint: "GET /api/org/:id" }) as { structure: import("../types").OrgStructure; revisions: import("../types").OrgRevision[] } | null;
+  }
+
+  async createOrgStructure(data: import("../types").OrgWriteRequest): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>("/api/org", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "POST /api/org" }) as import("../types").OrgStructure | null;
+  }
+
+  async updateOrgStructure(id: string, data: import("../types").OrgWriteRequest): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "PUT /api/org/:id" }) as import("../types").OrgStructure | null;
+  }
+
+  async setOrgStructureStatus(id: string, action: "activate" | "pause" | "resume" | "dissolve", body: { eval_attestation?: string; reason?: string } = {}): Promise<import("../types").OrgStructure | null> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/${action}`, { method: "POST", body: JSON.stringify(body) });
+    return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "POST /api/org/:id/:action" }) as import("../types").OrgStructure | null;
+  }
+
+  async deleteOrgStructure(id: string): Promise<void> {
+    await this.fetch(`/api/org/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async getOrgHealth(id: string): Promise<import("../types").OrgHealth> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/health`);
+    return parseWithFallback(raw, OrgHealthSchema, { structure_id: id, window_days: 7, routed: 0, unrouted: 0, escalations: 0, stacked_escalations: 0, reassigned_outside: 0, market_short: 0, breakers: 0, human_review_items: 0, drift_rate: 0, units: [], proposals: [] }, { endpoint: "GET /api/org/:id/health" }) as import("../types").OrgHealth;
+  }
+
+  async preflightOrgStructure(id: string): Promise<import("../types").OrgPreflight> {
+    const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/preflight`);
+    return parseWithFallback(raw, OrgPreflightSchema, { model: "", pattern: "", coordination_runs_per_issue: 0, coordination_cost_usd_ticks_per_issue: 0, human_review_items_per_issue: 0, human_review_seconds_per_issue: 0, units: 0, units_without_owner: 0, agents: 0, activation_requirements: [] }, { endpoint: "GET /api/org/:id/preflight" });
+  }
+
+  async listIssueOrgOffers(issueId: string): Promise<import("../types").OrgOffer[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/org-offers`);
+    return parseWithFallback(raw, OrgOfferListSchema, { offers: [] }, { endpoint: "GET /api/issues/:id/org-offers" }).offers;
+  }
+
+  async escalateIssue(issueId: string, reason: string): Promise<Issue | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/escalate`, { method: "POST", body: JSON.stringify({ reason }) });
+    return parseWithFallback(raw, IssueEnvelopeSchema, { issue: null }, { endpoint: "POST /api/issues/:id/escalate" }).issue as Issue | null;
+  }
+
+  async routeIssueNow(issueId: string): Promise<Issue | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/org-route`, { method: "POST" });
+    return parseWithFallback(raw, IssueEnvelopeSchema, { issue: null }, { endpoint: "POST /api/issues/:id/org-route" }).issue as Issue | null;
   }
 
   // Contest (K72)

@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_org_offer_issue;

@@ -7285,6 +7285,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		GoalAncestry:                     task.GoalAncestry,
 		GoalAncestryOmitted:              task.GoalAncestryOmitted,
 		MissionChain:                     task.MissionChain,
+		Org:                              task.Org,
 		ChatSessionID:                    task.ChatSessionID,
 		ChatChannelType:                  task.ChatChannelType,
 		ChatChannelDeliversFiles:         task.ChatChannelDeliversFiles,

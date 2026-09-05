@@ -112,6 +112,8 @@ type CreateProjectRequest struct {
 	StartDate   *string                               `json:"start_date"`
 	DueDate     *string                               `json:"due_date"`
 	Resources   []CreateProjectResourceRequestPayload `json:"resources,omitempty"`
+	// OrgTemplate (K75) seeds a draft org structure for the project from one of the seven models.
+	OrgTemplate string `json:"org_template,omitempty"`
 }
 
 // CreateProjectResourceRequestPayload mirrors CreateProjectResourceRequest but
@@ -400,6 +402,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		resp := projectToResponse(project)
+		if req.OrgTemplate != "" {
+			h.seedProjectOrg(r.Context(), wsUUID, project.ID, req.OrgTemplate, userID)
+		}
 		h.publish(protocol.EventProjectCreated, workspaceID, "member", userID, map[string]any{"project": resp})
 		writeJSON(w, http.StatusCreated, resp)
 		return
@@ -461,6 +466,9 @@ func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	}
 	resp := projectToResponse(project)
 	resp.ResourceCount = int64(len(resourceResp))
+	if req.OrgTemplate != "" {
+		h.seedProjectOrg(r.Context(), wsUUID, project.ID, req.OrgTemplate, userID)
+	}
 	h.publish(protocol.EventProjectCreated, workspaceID, "member", userID, map[string]any{"project": resp})
 	for _, rr := range resourceResp {
 		h.publish(protocol.EventProjectResourceCreated, workspaceID, "member", userID, map[string]any{

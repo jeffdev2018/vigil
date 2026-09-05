@@ -2647,6 +2647,8 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		} else {
 			resp.MissionChain = chain
 		}
+		// Org chart (K75): the structure and unit this run acts in.
+		resp.Org = h.resolveClaimOrgContext(r.Context(), issue, task.AgentID)
 
 		// Load every planned input as one chronological, de-duplicated set.
 		// The trigger is included here so the delivery receipt can only contain

@@ -5350,3 +5350,88 @@ export const ContestSettingsSchema = z.object({
   targets: z.record(z.string(), z.boolean()).catch({}).default({}),
   opt_out_project_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
+
+// Executable org chart (K75).
+const OrgMemberSchema = z.object({ type: z.enum(["member", "agent"]).catch("member"), id: z.string().catch(""), role: z.string().optional(), role_id: z.string().optional() }).loose();
+const OrgRoleSchema = z.object({ id: z.string().catch(""), name: z.string().catch(""), responsibilities: z.string().optional(), keywords: z.array(z.string()).optional() }).loose();
+const OrgUnitSchema = z.object({
+  id: z.string().catch(""),
+  name: z.string().catch(""),
+  kind: z.string().optional(),
+  owner_id: z.string().optional(),
+  squad_id: z.string().optional(),
+  mission_goal_id: z.string().optional(),
+  budget_usd_ticks: z.number().optional(),
+  excludes: z.array(z.enum(["untrusted_input", "sensitive_data", "external_effects"])).catch([]).default([]),
+  autonomy: z.enum(["read_only", "draft", "approve_payload", "auto"]).catch("draft"),
+  allow: z.array(z.string()).catch([]).default([]),
+  deny: z.array(z.string()).catch([]).default([]),
+  escalation_quota_per_day: z.number().catch(5).default(5),
+  human_approval: z.boolean().optional(),
+  approval_risk: z.string().optional(),
+  deciders: z.record(z.string(), z.string()).optional(),
+  members: z.array(OrgMemberSchema).catch([]).default([]),
+  roles: z.array(OrgRoleSchema).catch([]).default([]),
+}).loose();
+export const OrgDefinitionSchema = z.object({
+  units: z.array(OrgUnitSchema).catch([]).default([]),
+  edges: z.array(z.object({ from: z.string(), to: z.string(), kind: z.enum(["reports_to", "backs_up", "escalates_to", "consults"]).catch("reports_to"), human_approval: z.boolean().optional() }).loose()).catch([]).default([]),
+  rules: z.array(z.object({ id: z.string().catch(""), labels: z.array(z.string()).optional(), paths: z.array(z.string()).optional(), keywords: z.array(z.string()).optional(), target_unit: z.string().catch(""), priority: z.number().catch(0).default(0) }).loose()).catch([]).default([]),
+  committees: z.array(z.object({ decision_type: z.string(), unit_ids: z.array(z.string()).default([]), quorum: z.number().catch(1), max_rounds: z.number().catch(1) }).loose()).catch([]).default([]),
+  market: z.object({ price_cap_usd_ticks: z.number().catch(0).default(0), offers_per_agent_per_day: z.number().catch(5).default(5), min_offers: z.number().catch(2).default(2) }).loose().catch({ price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 }),
+}).loose();
+export const OrgStructureSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  model: z.enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"]).catch("owner_network"),
+  name: z.string().catch(""),
+  status: z.enum(["draft", "active", "paused", "dissolved"]).catch("draft"),
+  revision: z.number().catch(1).default(1),
+  revision_id: z.string().nullable().catch(null).default(null),
+  definition: OrgDefinitionSchema.catch({ units: [], edges: [], rules: [], committees: [], market: { price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 } }),
+  owner_id: z.string().nullable().catch(null).default(null),
+  dissolve_at: z.string().nullable().catch(null).default(null),
+  end_condition: z.string().catch("").default(""),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  eval_attestation: z.string().catch("").default(""),
+  paused_reason: z.string().catch("").default(""),
+  dissolved_at: z.string().nullable().catch(null).default(null),
+  paused_units: z.array(z.string()).catch([]).default([]),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const OrgStructureListSchema = z.object({ structures: z.array(OrgStructureSchema).catch([]).default([]) }).loose();
+export const OrgStructureDetailSchema = z.object({
+  structure: OrgStructureSchema,
+  revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgTemplateListSchema = z.object({
+  templates: z.array(z.object({ model: z.string(), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
+}).loose();
+export const OrgHealthSchema = z.object({
+  structure_id: z.string().catch(""),
+  window_days: z.number().catch(7),
+  routed: z.number().catch(0),
+  unrouted: z.number().catch(0),
+  escalations: z.number().catch(0),
+  stacked_escalations: z.number().catch(0),
+  reassigned_outside: z.number().catch(0),
+  market_short: z.number().catch(0),
+  breakers: z.number().catch(0),
+  human_review_items: z.number().catch(0),
+  drift_rate: z.number().catch(0),
+  units: z.array(z.object({ unit_id: z.string(), name: z.string().catch(""), routed: z.number().catch(0), escalations: z.number().catch(0), reassigned_outside: z.number().catch(0), vacant_roles: z.array(z.string()).catch([]), saturated_agents: z.array(z.string()).catch([]), paused: z.boolean().catch(false), spend_usd_ticks: z.number().catch(0), budget_usd_ticks: z.number().catch(0), human_review_items: z.number().catch(0) }).loose()).catch([]).default([]),
+  proposals: z.array(z.object({ key: z.string(), unit_id: z.string().optional(), title: z.string().catch(""), body: z.string().catch(""), measure: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgPreflightSchema = z.object({
+  model: z.string().catch(""), pattern: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), coordination_cost_usd_ticks_per_issue: z.number().catch(0),
+  human_review_items_per_issue: z.number().catch(0), human_review_seconds_per_issue: z.number().catch(0), units: z.number().catch(0), units_without_owner: z.number().catch(0), agents: z.number().catch(0),
+  activation_requirements: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const OrgOfferListSchema = z.object({
+  offers: z.array(z.object({ id: z.string(), agent_id: z.string().catch(""), agent_name: z.string().catch(""), confidence: z.number().catch(0), cost_usd_ticks: z.number().catch(0), eta_hours: z.number().catch(0), status: z.enum(["pending", "won", "lost", "over_cap"]).catch("pending"), created_at: z.string().catch("") }).loose()).catch([]).default([]),
+}).loose();
+export const OrgResolveSchema = z.object({ structure: OrgStructureSchema.nullable().catch(null) }).loose();
+export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();

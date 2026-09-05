@@ -93,6 +93,7 @@
     "triage_stale": "待分类队列已停滞",
     "watchdog_escalation": "看门狗升级",
     "contest_ready": "质询已就绪，等待你的裁定",
+    "org_alert": "组织提醒",
     "decision_auto_decided": "已代你决定"
   },
   "labels": {

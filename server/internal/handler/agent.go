@@ -452,6 +452,9 @@ type AgentTaskResponse struct {
 	// the goal it names or inherits from its project, up to the root. Omitted
 	// when the issue serves no goal and by older servers.
 	MissionChain []MissionChainNode `json:"mission_chain,omitempty"`
+	// Org (K75) names the structure and unit the run works in, with its
+	// autonomy tier, allow and deny lists and escalation path.
+	Org *OrgContext `json:"org,omitempty"`
 	// WorkspaceNotes are the workspace Brain notes this run gets: every pinned
 	// note plus the most recently updated others. The daemon writes them as
 	// files under .multica/knowledge. Workspace-scoped, so unlike the agent's

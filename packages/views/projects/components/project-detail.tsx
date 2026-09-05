@@ -27,6 +27,7 @@ import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor"
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectGoalsSection } from "./project-goals-section";
+import { ProjectOrgSection } from "./project-org-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
@@ -473,6 +474,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Goals (K74) */}
       <ProjectGoalsSection projectId={projectId} />
+
+      {/* Org structure in force (K75) */}
+      <ProjectOrgSection projectId={projectId} />
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
