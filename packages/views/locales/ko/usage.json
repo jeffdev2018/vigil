@@ -146,5 +146,10 @@
     "no_intervention": "개입 없음",
     "mean_cost": "평균 비용",
     "low_sample": "(실행 적음)"
+  },
+  "autopilot_quota": {
+    "title": "이번 기간 오토파일럿 실행: {{used}} / {{limit}}",
+    "near_limit": "한도에 근접했습니다. 한도에 도달하면 오토파일럿이 실행되지 않습니다.",
+    "reached": "한도에 도달했습니다. 기간이 초기화될 때까지 오토파일럿이 실행되지 않습니다."
   }
 }

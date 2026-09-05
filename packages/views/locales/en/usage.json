@@ -146,5 +146,10 @@
     "no_intervention": "No human",
     "mean_cost": "Mean cost",
     "low_sample": "(few runs)"
+  },
+  "autopilot_quota": {
+    "title": "Autopilot runs this period: {{used}} / {{limit}}",
+    "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
+    "reached": "Limit reached — autopilots will not fire until the period resets."
   }
 }

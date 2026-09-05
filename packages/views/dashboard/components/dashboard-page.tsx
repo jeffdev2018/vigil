@@ -32,6 +32,7 @@ import { CollectionPageHeader } from "../../layout/collection-page";
 import { KpiCard } from "../../runtimes/components/shared";
 import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
 import { AgentScorecardsCard } from "./agent-scorecards-card";
+import { AutopilotQuotaCard } from "./autopilot-quota-card";
 import { useNavigation } from "../../navigation";
 import {
   addDaysIso,
@@ -615,6 +616,11 @@ export function DashboardPage() {
 
                 {/* Scorecards (K25): which agent works, one row per agent. */}
                 <AgentScorecardsCard wsId={wsId} days={days} />
+
+                {/* Autopilot quota (K68): the only place outside workspace
+                    billing settings where the people who watch autopilots can
+                    see how much of the period's allowance is left. */}
+                <AutopilotQuotaCard wsId={wsId} />
 
                 <UsageTrendCard
                   allowedDims={allowedDims}

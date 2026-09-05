@@ -146,5 +146,10 @@
     "no_intervention": "无人工",
     "mean_cost": "平均成本",
     "low_sample": "（运行较少）"
+  },
+  "autopilot_quota": {
+    "title": "本期自动驾驶运行次数：{{used}} / {{limit}}",
+    "near_limit": "接近上限——达到上限后自动驾驶将不再触发。",
+    "reached": "已达上限——在本期重置前自动驾驶不会触发。"
   }
 }
