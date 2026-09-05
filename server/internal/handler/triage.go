@@ -296,6 +296,26 @@ func triageItemToResponse(row db.TriageItem, sourceByID map[string]db.TriageSour
 	if row.DuplicateOfIssueID.Valid {
 		resp.DuplicateOfIssueID = util.UUIDToString(row.DuplicateOfIssueID)
 	}
+	if len(row.Verdict) > 0 {
+		var v TriageVerdict
+		// A verdict this handler cannot read is not worth failing the whole
+		// listing over: the item still renders, just without the suggestion.
+		if err := json.Unmarshal(row.Verdict, &v); err == nil {
+			resp.Verdict = v.Verdict
+			resp.VerdictReason = v.Reason
+		}
+	}
+	if row.VerdictAgentID.Valid {
+		resp.VerdictAgentID = util.UUIDToString(row.VerdictAgentID)
+	}
+	if row.VerdictAt.Valid {
+		verdictAt := row.VerdictAt.Time
+		resp.VerdictAt = &verdictAt
+	}
+	if row.SnoozedUntil.Valid {
+		snoozedUntil := row.SnoozedUntil.Time
+		resp.SnoozedUntil = &snoozedUntil
+	}
 	if row.ResolvedAt.Valid {
 		resolvedAt := row.ResolvedAt.Time
 		resp.ResolvedAt = &resolvedAt
