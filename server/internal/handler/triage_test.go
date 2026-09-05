@@ -188,22 +188,30 @@ func TestExpireStaleTriageItems(t *testing.T) {
 }
 
 func TestGetTriageStatsCountsShadowAndDrops(t *testing.T) {
+	// Stats are workspace-wide, so the shared test workspace would count
+	// whatever other suites left pending; count in a workspace of our own.
+	workspaceID := dbfx.Workspace(t, "Triage stats", "triage-stats-"+uuid.NewString())
+	dbfx.Member(t, workspaceID, testUserID, "owner")
 	refID := uuid.NewString()
 
-	pendingItem, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
+	pendingParams := shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending)
+	pendingParams.WorkspaceID = parseUUID(workspaceID)
+	pendingItem, _, err := triage.Capture(context.Background(), testHandler.Queries, pendingParams)
 	if err != nil {
 		t.Fatalf("pending capture: %v", err)
 	}
 	cleanupTriageSource(t, util.UUIDToString(pendingItem.SourceID))
 
 	dropped := shadowWebhookParams(refID, "", triage.StateDropped)
+	dropped.WorkspaceID = parseUUID(workspaceID)
 	dropped.DropReason = "issue_limit_reached"
 	if _, _, err := triage.Capture(context.Background(), testHandler.Queries, dropped); err != nil {
 		t.Fatalf("drop capture: %v", err)
 	}
 
 	var out TriageStatsResponse
-	testutil.Call(t, testHandler.GetTriageStats, newRequest(http.MethodGet, "/api/triage/stats", nil)).
+	testutil.Call(t, testHandler.GetTriageStats,
+		testutil.WithHeaders(newRequest(http.MethodGet, "/api/triage/stats", nil), "X-Workspace-ID", workspaceID)).
 		Want(http.StatusOK).JSON(&out)
 
 	// M1 is shadow-only: nothing occupies the real queue yet.

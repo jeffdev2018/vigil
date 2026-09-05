@@ -26,11 +26,21 @@ func TestTriageWritesRejectMachineActors(t *testing.T) {
 	router := NewRouter(nil, realtime.NewHub(), events.New(), analytics.NoopClient{}, nil)
 
 	humanOnly := map[string]bool{
-		"POST /api/triage/items/batch-accept": true,
-		"POST /api/triage/items/{id}/accept":  true,
-		"POST /api/triage/items/{id}/dismiss": true,
-		"POST /api/triage/items/{id}/reopen":  true,
-		"PATCH /api/triage/sources/{id}":      true,
+		"POST /api/triage/items/batch-accept":  true,
+		"POST /api/triage/items/{id}/accept":   true,
+		"POST /api/triage/items/{id}/dismiss":  true,
+		"POST /api/triage/items/{id}/reopen":   true,
+		"PATCH /api/triage/sources/{id}":       true,
+		"POST /api/triage/sources/email":       true,
+		"POST /api/triage/items/batch-dismiss": true,
+		"POST /api/triage/items/{id}/merge":    true,
+		"POST /api/triage/items/{id}/snooze":   true,
+		// The email intake is a public endpoint authenticated by its token,
+		// not by a session; there is no actor to gate.
+		"POST /api/triage/inbound/email/{token}": false,
+		// Verdicts are the one agent-facing write: an agent suggests, the
+		// item's state is untouched, a human still resolves it.
+		"POST /api/triage/items/{id}/verdict": false,
 		// Reads stay member-readable.
 		"GET /api/triage/stats":       false,
 		"GET /api/triage/items":       false,

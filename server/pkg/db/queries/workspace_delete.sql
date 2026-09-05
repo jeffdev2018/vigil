@@ -637,6 +637,10 @@ DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
 -- postmortem carries no FK by repo rule; sweep it by workspace.
 DELETE FROM postmortem WHERE postmortem.workspace_id = $1;
 
+-- name: DeleteWorkspaceAgentEffects :exec
+-- agent_effect carries no FK by repo rule; sweep it by workspace.
+DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1;
+
 -- name: DeleteWorkspaceNotes :exec
 -- workspace_note carries no FK by repo rule; sweep the Brain by workspace.
 DELETE FROM workspace_note WHERE workspace_note.workspace_id = $1;
