@@ -14,7 +14,8 @@
     "empty_title_discarded": "Rien n'a encore été rejeté",
     "empty_description_discarded": "Les postmortems que vous rejetez sont déplacés ici.",
     "loading": "Chargement des postmortems",
-    "load_error": "Impossible de charger les postmortems"
+    "load_error": "Impossible de charger les postmortems",
+    "load_more": "Charger plus"
   },
   "detail": {
     "select_prompt": "Sélectionnez un postmortem pour le consulter",
@@ -35,6 +36,10 @@
     "conflict_toast": "Ce postmortem a déjà été résolu",
     "error_toast": "Une erreur est survenue",
     "resolved_note_approved": "Ce postmortem a été approuvé.",
-    "resolved_note_discarded": "Ce postmortem a été supprimé."
+    "resolved_note_discarded": "Ce postmortem a été supprimé.",
+    "open_issue": "Ouvrir l'issue",
+    "open_agent": "Ouvrir l'agent",
+    "rules_toast": "{{count}} règles ajoutées à la mémoire de l'agent",
+    "rules_hint": "L'approbation ajoute ces règles à la mémoire de l'agent."
   }
 }

@@ -28,6 +28,7 @@
     "active": "Actif",
     "paused": "En pause",
     "paused_runtime_required": "En pause — l'assigné a besoin d'un runtime",
+    "paused_failure_rate": "En pause — trop d'exécutions ont échoué",
     "archived": "Archivé"
   },
   "execution_mode": {
@@ -71,6 +72,7 @@
     "pause_aria": "Mettre en pause l'autopilot",
     "activate_aria": "Activer l'autopilot",
     "paused_runtime_required": "En pause car l'assigné a perdu son runtime. Associez un runtime, puis réactivez cet autopilot.",
+    "paused_failure_rate": "Mise en pause automatique car trop d'exécutions récentes ont échoué. Analysez les échecs, corrigez la cause racine, puis réactivez cet autopilot.",
     "bind_runtime": "Associer un runtime",
     "edit": "Modifier",
     "run_now": "Exécuter maintenant",
@@ -166,6 +168,8 @@
   },
   "trigger_row": {
     "disabled_badge": "Désactivé",
+    "enable_aria": "Activer le trigger",
+    "edit_trigger": "Modifier le trigger",
     "deprecated_badge": "Obsolète",
     "next_label": "Prochain : {{date}}",
     "webhook_url_label": "URL du webhook",
@@ -185,6 +189,9 @@
     "toast_rotate_failed": "Échec du renouvellement de l'URL",
     "toast_deleted": "Déclencheur supprimé",
     "toast_delete_failed": "Échec de la suppression du déclencheur",
+    "toast_enabled": "Trigger activé",
+    "toast_disabled": "Trigger désactivé",
+    "toast_toggle_failed": "Échec de la mise à jour du trigger",
     "delete_dialog": {
       "title": "Supprimer le déclencheur",
       "description": "Ce déclencheur sera supprimé et l'autopilote cessera de s'exécuter selon cette planification. Cette action est irréversible.",
@@ -207,6 +214,16 @@
       "ignored": "Ignoré",
       "failed": "Échoué"
     },
+    "reason": {
+      "trigger_disabled": "Trigger désactivé",
+      "autopilot_paused": "Autopilot en pause",
+      "autopilot_archived": "Autopilot archivé",
+      "event_filtered": "Événement filtré",
+      "criteria_not_matched": "Critères non correspondants",
+      "quota_exceeded": "Limite d'exécutions atteinte",
+      "invalid_signature": "Signature invalide",
+      "missing_signature": "Signature manquante"
+    },
     "signature": {
       "not_required": "Signature non requise",
       "valid": "Signature valide",
@@ -226,6 +243,7 @@
       "content_type": "Content-Type",
       "replayed_from": "Rejoué depuis",
       "error_label": "Erreur",
+      "reason_label": "Raison",
       "raw_body": "Corps brut",
       "selected_headers": "En-têtes",
       "response_body": "Corps de la réponse"
@@ -253,6 +271,13 @@
     "toast_added_schedule": "Déclencheur de planification ajouté",
     "toast_added_webhook": "Déclencheur webhook ajouté",
     "toast_add_failed": "Échec de l'ajout du déclencheur"
+  },
+  "edit_trigger_dialog": {
+    "title": "Modifier le trigger",
+    "submit": "Enregistrer le trigger",
+    "submitting": "Enregistrement...",
+    "toast_saved": "Trigger mis à jour",
+    "toast_save_failed": "Échec de la mise à jour du trigger"
   },
   "dialog": {
     "sr_create": "Nouvel Autopilot",

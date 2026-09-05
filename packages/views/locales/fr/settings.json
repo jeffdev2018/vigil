@@ -195,6 +195,11 @@
     "sticky_comment_bar": {
       "title": "Barre de commentaire fixe",
       "hint": "Garder la barre de commentaire épinglée en bas lors du défilement d'une page d'issue."
+    },
+    "meetings_title": "Réunions",
+    "meeting_detection": {
+      "title": "Détecter les réunions automatiquement",
+      "hint": "Multica surveille l'application qui utilise votre microphone et propose de prendre des notes. Elle ne commence jamais l'enregistrement d'elle-même."
     }
   },
   "shortcuts": {
@@ -275,6 +280,10 @@
         "label": "Aller à la boîte de réception",
         "description": "Ouvrir la boîte de réception du workspace."
       },
+      "goTriage": {
+        "label": "Aller au Triage",
+        "description": "Ouvrir la file de triage."
+      },
       "goChat": {
         "label": "Aller au Chat",
         "description": "Ouvrir le chat du workspace."
@@ -336,7 +345,10 @@
   "chat": {
     "floating_title": "Fenêtre flottante",
     "floating_label": "Fenêtre de chat flottante",
-    "floating_hint": "Afficher le bouton de chat flottant dans le coin de chaque page. Désactivé par défaut — activez-le pour appeler le chat n'importe où ; s'il est désactivé, le chat n'existe que dans cet onglet."
+    "floating_hint": "Afficher le bouton de chat flottant dans le coin de chaque page. Désactivé par défaut — activez-le pour appeler le chat n'importe où ; s'il est désactivé, le chat n'existe que dans cet onglet.",
+    "voice_title": "Voix",
+    "read_aloud_label": "Lire les réponses de l'agent à haute voix après un mémo vocal",
+    "read_aloud_hint": "Lorsque vous dictez un message, la réponse reçue est lue à haute voix. Le bouton Écouter de chaque réponse fonctionne dans les deux cas."
   },
   "issue": {
     "description": "Choisissez les champs que chaque boîte de dialogue de création conserve dans sa barre d'outils. Les champs masqués restent disponibles depuis le menu ⋯ et réapparaissent lorsqu'ils contiennent une valeur.",

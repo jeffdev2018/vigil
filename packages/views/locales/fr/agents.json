@@ -735,6 +735,7 @@
       "delete_action": "Supprimer",
       "source_manual": "Manuel",
       "source_run": "Depuis un run",
+      "source_postmortem": "Issu d'un postmortem",
       "dialog_create_title": "Ajouter un souvenir",
       "dialog_edit_title": "Modifier le souvenir",
       "dialog_description": "Un fait par souvenir. Restez court et spécifique.",

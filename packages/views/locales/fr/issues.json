@@ -461,7 +461,8 @@
     "pr_stack_title": "Stack de PR",
     "pr_stack_truncated": "Stack tronqué après {{depth}} niveaux",
     "pr_stack_cyclic": "Cycle de dépendances : certains niveaux sont masqués",
-    "blocker_adr_required": "Document de décision d'architecture requis ({{count}} fichiers modifiés)"
+    "blocker_adr_required": "Document de décision d'architecture requis ({{count}} fichiers modifiés)",
+    "from_meeting": "Depuis la réunion"
   },
   "timeline": {
     "loading": "Chargement..."

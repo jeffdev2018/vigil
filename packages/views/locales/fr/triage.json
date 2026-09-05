@@ -7,8 +7,13 @@
     "dropped_24h": "{{count}} rejetés en 24h",
     "none_pending": "File d'attente vide"
   },
+  "filter": {
+    "pending": "En attente",
+    "accepted": "Accepté",
+    "dismissed": "Ignoré",
+    "merged": "Fusionné"
+  },
   "sources": {
-    "label": "Sources",
     "empty": "Aucune source entrante pour le moment",
     "items_24h": "{{count}} en 24h",
     "mode": {
@@ -21,7 +26,9 @@
     "empty_title": "File d'attente vide",
     "empty_description": "Lorsqu'une source est configurée sur Gate, ses livraisons de webhooks attendent ici jusqu'à ce qu'un humain les accepte ou les rejette.",
     "loading": "Chargement de la file de triage",
-    "load_error": "Impossible de charger la file de triage"
+    "load_error": "Impossible de charger la file de triage",
+    "empty_history_title": "Rien pour le moment",
+    "load_more": "Charger plus"
   },
   "detail": {
     "select_prompt": "Sélectionnez un élément pour l'examiner",
@@ -40,12 +47,17 @@
     "dismissed_toast": "Ignoré",
     "merged_toast": "Déjà suivi sous {{identifier}} — fusionné",
     "limit_toast": "Limite d'issues atteinte — l'élément reste dans la file d'attente",
-    "error_toast": "Une erreur est survenue"
+    "error_toast": "Une erreur est survenue",
+    "resolution_reason": "Raison : {{reason}}",
+    "accepted_toast_identifier": "Accepté — {{identifier}} créé",
+    "open_issue": "Ouvrir l'issue",
+    "from_meeting": "Depuis la réunion"
   },
   "batch": {
     "accept": "Accepter {{count}}",
     "clear": "Effacer la sélection",
-    "stopped_toast": "Arrêté — le workspace a atteint sa limite d'issues"
+    "stopped_toast": "Arrêté — le workspace a atteint sa limite d'issues",
+    "summary_toast": "{{accepted}} acceptés, {{duplicates}} doublons, {{failed}} échecs"
   },
   "suggestion": {
     "title": "Suggestion",

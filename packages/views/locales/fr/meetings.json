@@ -9,7 +9,13 @@
     "empty_description": "Enregistrez une conversation et Multica la transcrit en temps réel, rédige un résumé et place chaque action dans Triage.",
     "segments": "{{count}} segments",
     "actions": "{{count}} actions",
-    "no_app": "Aucune application"
+    "no_app": "Aucune application",
+    "delete": "Supprimer la réunion",
+    "row_actions_aria": "Actions pour {{title}}",
+    "search_placeholder": "Rechercher des réunions",
+    "load_more": "Charger plus",
+    "search_empty_title": "Aucune réunion correspondante",
+    "search_empty_description": "Aucune réunion chargée ne contient ce titre. Chargez-en davantage pour rechercher plus loin."
   },
   "capability": {
     "title": "La transcription n'est pas configurée",
@@ -39,7 +45,13 @@
     "transcript_title": "Transcription",
     "transcript_empty": "Rien n'a encore été transcrit",
     "transcript_show": "Afficher la transcription",
-    "transcript_hide": "Masquer la transcription"
+    "transcript_hide": "Masquer la transcription",
+    "delete": "Supprimer",
+    "title_placeholder": "Titre de la réunion",
+    "rename_error": "Impossible de renommer la réunion.",
+    "resummarize": "Régénérer le résumé",
+    "resummarize_error": "Impossible de régénérer le résumé.",
+    "summary_stalled": "Le résumé prend plus de temps que prévu. L'exécution qui l'écrivait a été interrompue — régénérez-le pour réessayer."
   },
   "recorder": {
     "starting": "Démarrage de l'enregistreur…",
@@ -65,7 +77,8 @@
     "orphaned": "Cet enregistrement a été interrompu (la page a été fermée ou actualisée). Fermez la réunion pour résumer ce qui a été transcrit.",
     "finish_now": "Terminer la réunion",
     "live_title": "Transcription en direct",
-    "live_lost": "La transcription en direct a été interrompue. L'enregistrement continue et chaque segment est transcrit à la fin."
+    "live_lost": "La transcription en direct a été interrompue. L'enregistrement continue et chaque segment est transcrit à la fin.",
+    "finished_no_summary": "Réunion enregistrée. Aucun résumé n'a été rédigé — la transcription est conservée."
   },
   "action_state": {
     "pending": "En attente",
@@ -84,5 +97,12 @@
     "accept": "Prendre des notes",
     "dismiss": "Pas maintenant",
     "meeting_title": "Réunion {{appName}}"
+  },
+  "delete_dialog": {
+    "title": "Supprimer « {{title}} » ?",
+    "body": "L'enregistrement et sa transcription sont définitivement supprimés. Les éléments d'action déjà mis en file d'attente dans Triage sont conservés.",
+    "cancel": "Annuler",
+    "confirm": "Supprimer",
+    "error": "Impossible de supprimer la réunion."
   }
 }

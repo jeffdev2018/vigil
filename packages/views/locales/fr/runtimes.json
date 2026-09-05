@@ -59,6 +59,10 @@
     "select_runtime": "Les runtimes intégrés s'affichent automatiquement. Sélectionnez-en un pour les paramètres, ou ajoutez une commande personnalisée.",
     "no_runtimes_title": "Aucun runtime enregistré",
     "no_runtimes_hint": "Démarrez ou reconnectez le daemon de cette machine. Ses runtimes CLI installés s'afficheront ici automatiquement.",
+    "skipped_agents": {
+      "title": "Détectés mais non enregistrés",
+      "hint": "Ces CLI d'agent sont installées sur cette machine mais n'ont pas été enregistrées. Corrigez la cause ci-dessous et le runtime apparaîtra automatiquement."
+    },
     "not_found_title": "Machine non trouvée",
     "not_found_hint": "Elle est peut-être hors ligne, supprimée ou n'est plus disponible.",
     "metrics": {
@@ -259,6 +263,27 @@
     "validation": {
       "instance_type_required": "Le type d'instance est requis",
       "disk_size_invalid": "La taille du disque doit être un entier positif"
+    },
+    "power": {
+      "start": {
+        "label": "Démarrer",
+        "toast": "Démarrage du nœud.",
+        "failed": "Impossible de démarrer le nœud."
+      },
+      "stop": {
+        "label": "Arrêter",
+        "toast": "Arrêt du nœud.",
+        "failed": "Impossible d'arrêter le nœud."
+      },
+      "reboot": {
+        "label": "Redémarrer",
+        "confirm": "Redémarrer ce nœud ? Tout processus en cours sera interrompu.",
+        "toast": "Redémarrage du nœud.",
+        "failed": "Impossible de redémarrer le nœud."
+      },
+      "status": {
+        "label": "Actualiser le statut"
+      }
     }
   },
   "update": {
