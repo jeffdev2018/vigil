@@ -2218,12 +2218,20 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/{action}", h.SetOrgStructureStatus)
 				})
 			})
+			// Workspace export / import (K76).
+			r.Route("/api/workspace-transfer", func(r chi.Router) {
+				r.Post("/export", h.ExportWorkspace)
+				r.Post("/preview", h.PreviewWorkspaceImport)
+				r.Post("/import", h.ImportWorkspace)
+				r.Get("/runs", h.ListWorkspaceTransferRuns)
+			})
 			r.Post("/api/issues/{id}/escalate", h.EscalateIssue)
 			r.Post("/api/issues/{id}/org-route", h.RouteIssueNow)
 			r.Get("/api/issues/{id}/org-offers", h.ListIssueOrgOffers)
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
+			r.Get("/api/workspace-templates", h.ListWorkspaceTemplates)
 			r.Get("/api/work-profile", h.GetMyWorkProfile)
 			r.Patch("/api/work-profile/{id}", h.PatchWorkProfileObservation)
 			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)

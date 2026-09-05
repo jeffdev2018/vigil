@@ -197,7 +197,10 @@
     "creation_disabled_logout": "Log out",
     "creation_disabled_eyebrow_resume": "Your workspace",
     "creation_disabled_headline_resume": "Continue with {{name}}.",
-    "creation_disabled_lede_resume": "Workspace creation is disabled on this instance, so you'll continue into your existing workspace."
+    "creation_disabled_lede_resume": "Workspace creation is disabled on this instance, so you'll continue into your existing workspace.",
+    "template_label": "Start from",
+    "template_scratch": "Start from scratch",
+    "template_hint": "A template pre-fills agents, skills, projects and more from an exported workspace."
   },
   "step_runtime": {
     "scanning_headline": "Connecting this computer…",

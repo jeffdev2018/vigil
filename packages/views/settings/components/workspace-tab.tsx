@@ -50,6 +50,7 @@ import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
 import { ContestSetting } from "./contest-setting";
+import { ExportImportSetting } from "./export-import-setting";
 import { CIAutoFixSetting } from "./ci-auto-fix-setting";
 import { UndoSetting } from "./undo-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
@@ -510,6 +511,7 @@ export function WorkspaceTab() {
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
       {workspace && <ContestSetting canEdit={canManageWorkspace} />}
+      {workspace && <ExportImportSetting canEdit={canManageWorkspace} />}
       {workspace && <CIAutoFixSetting canEdit={canManageWorkspace} />}
       {workspace && <UndoSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}

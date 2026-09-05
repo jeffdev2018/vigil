@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
 import enOnboarding from "../../locales/en/onboarding.json";
@@ -46,13 +47,21 @@ vi.mock("@multica/core/api", () => ({
   api: { getBaseUrl: () => "http://127.0.0.1:8080" },
 }));
 
+const mockTemplates = vi.hoisted(() => ({ list: [] as { id: string; name: string; workspace_name: string }[] }));
+vi.mock("@multica/core/workspace/transfer", () => ({
+  workspaceTemplatesOptions: () => ({ queryKey: ["workspace-templates"], queryFn: async () => mockTemplates.list }),
+}));
+
 import { StepWorkspace } from "./step-workspace";
 
 function I18nWrapper({ children }: { children: ReactNode }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return (
-    <I18nProvider locale="en" resources={TEST_RESOURCES}>
-      {children}
-    </I18nProvider>
+    <QueryClientProvider client={qc}>
+      <I18nProvider locale="en" resources={TEST_RESOURCES}>
+        {children}
+      </I18nProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -326,5 +335,25 @@ describe("StepWorkspace — issue prefix", () => {
     expect(mockCreateMutate.mock.calls[0]![0]).toMatchObject({
       issue_prefix: "ACME",
     });
+  });
+
+  it("lists saved templates and sends the picked one as template_run_id", async () => {
+    mockCreateMutate.mockClear();
+    mockTemplates.list = [{ id: "run-1", name: "Agency starter", workspace_name: "Agency" }];
+    renderStep({ existing: null, disabled: false });
+
+    const picker = (await screen.findByLabelText("Start from")) as HTMLSelectElement;
+    expect(picker.value).toBe("");
+    fireEvent.change(picker, { target: { value: "run-1" } });
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate.mock.calls[0]![0]).toMatchObject({
+      slug: "acme-inc",
+      template_run_id: "run-1",
+    });
+    mockTemplates.list = [];
   });
 });

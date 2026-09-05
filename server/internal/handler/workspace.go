@@ -95,15 +95,18 @@ func normalizeIssuePrefix(raw string) (string, bool) {
 const issuePrefixFormatError = "issue prefix must be 1-10 uppercase letters or digits"
 
 type WorkspaceResponse struct {
-	ID          string  `json:"id"`
-	Name        string  `json:"name"`
-	Slug        string  `json:"slug"`
-	Description *string `json:"description"`
-	Context     *string `json:"context"`
-	Settings    any     `json:"settings"`
-	Repos       any     `json:"repos"`
-	IssuePrefix string  `json:"issue_prefix"`
-	AvatarURL   *string `json:"avatar_url"`
+	// Template / TemplateError (K76) report the template seed of a workspace just created from one.
+	Template      map[string]any `json:"template,omitempty"`
+	TemplateError string         `json:"template_error,omitempty"`
+	ID            string         `json:"id"`
+	Name          string         `json:"name"`
+	Slug          string         `json:"slug"`
+	Description   *string        `json:"description"`
+	Context       *string        `json:"context"`
+	Settings      any            `json:"settings"`
+	Repos         any            `json:"repos"`
+	IssuePrefix   string         `json:"issue_prefix"`
+	AvatarURL     *string        `json:"avatar_url"`
 	// PostmortemCostThresholdUsdTicks (k68) drafts a postmortem when a run
 	// that SUCCEEDED costs more than this many cost_usd_ticks (1e-10 USD).
 	// null disables the trigger, which is every workspace's default.
@@ -202,6 +205,8 @@ type CreateWorkspaceRequest struct {
 	Description *string `json:"description"`
 	Context     *string `json:"context"`
 	IssuePrefix *string `json:"issue_prefix"`
+	// TemplateRunID (K76) seeds the new workspace from a template export the creator can read.
+	TemplateRunID *string `json:"template_run_id"`
 }
 
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -326,7 +331,18 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	h.notifyDaemonWorkspacesChanged(userID)
 
 	slog.Info("workspace created", append(logger.RequestAttrs(r), "workspace_id", wsID, "name", ws.Name, "slug", ws.Slug)...)
-	writeJSON(w, http.StatusCreated, h.workspaceToResponse(ws))
+	resp := h.workspaceToResponse(ws)
+	// Workspace templates (K76): the configuration of a template export lands
+	// in the new workspace; a failure leaves the workspace, and says so.
+	if req.TemplateRunID != nil && *req.TemplateRunID != "" {
+		if result, err := h.applyWorkspaceTemplate(r.Context(), ws.ID, *req.TemplateRunID, userID); err != nil {
+			slog.Warn("workspace template failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "error", err)...)
+			resp.TemplateError = err.Error()
+		} else {
+			resp.Template = result
+		}
+	}
+	writeJSON(w, http.StatusCreated, resp)
 }
 
 type UpdateWorkspaceRequest struct {
@@ -1307,6 +1323,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge org structures",
 			run:  func() error { return qtx.PurgeWorkspaceOrg(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge transfer runs",
+			run:  func() error { return qtx.PurgeWorkspaceTransferRuns(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge pipeline runs",

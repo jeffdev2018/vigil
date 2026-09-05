@@ -290,6 +290,14 @@ import type {
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
+  TransferPreview,
+  TransferReport,
+  TransferImportResult,
+  TransferRun,
+  WorkspaceTemplate,
+  TransferExportOptions,
+  TransferStrategy,
+  TransferSecretValues,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -370,6 +378,10 @@ import {
   OrgPreflightSchema,
   OrgOfferListSchema,
   OrgResolveSchema,
+  TransferPreviewSchema,
+  TransferImportResultSchema,
+  TransferRunListSchema,
+  WorkspaceTemplateListSchema,
   IssueEnvelopeSchema,
   ContestSchema,
   ContestListSchema,
@@ -903,6 +915,13 @@ function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
   return encoded ? `?${encoded}` : "";
 }
 
+const EMPTY_TRANSFER_REPORT: TransferReport = { created: {}, merged: {}, skipped: [], secrets_pending: [], warnings: [] };
+const EMPTY_TRANSFER_PREVIEW: TransferPreview = {
+  manifest: { format_version: 0, exported_at: "", name: "", template: false, source: { Name: "", Slug: "" }, counts: {}, secrets: [] },
+  collisions: [],
+  secrets: [],
+  strategies: ["rename", "merge", "skip"],
+};
 const EMPTY_RETRO: WeeklyRetro = { week_start: "", week_end: "", runs_total: 0, runs_by_status: {}, median_minutes: 0, failed: [], agents: [], skill_proposals: [], narrative: "", generated_at: null };
 
 export class ApiClient {
@@ -4173,6 +4192,45 @@ export class ApiClient {
     return res.text();
   }
 
+  // Workspace export / import (K76). The export is a zip download; preview and
+  // import send the bundle as multipart, so they bypass `this.fetch` like
+  // uploadFile does.
+  async exportWorkspace(options: TransferExportOptions): Promise<{ blob: Blob; filename: string; runId: string }> {
+    const res = await this.fetchRaw("/api/workspace-transfer/export", { method: "POST", body: JSON.stringify(options) });
+    if (!res.ok) throw new Error(`export failed (${res.status})`);
+    const disposition = res.headers.get("Content-Disposition") ?? "";
+    const match = /filename="([^"]+)"/.exec(disposition);
+    return { blob: await res.blob(), filename: match?.[1] ?? "workspace.multica.zip", runId: res.headers.get("X-Transfer-Run-ID") ?? "" };
+  }
+
+  async previewWorkspaceImport(file: File | Blob): Promise<TransferPreview> {
+    const formData = new FormData();
+    formData.append("file", file, "bundle.zip");
+    const res = await this.fetchRaw("/api/workspace-transfer/preview", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<TransferPreview>(raw, TransferPreviewSchema, EMPTY_TRANSFER_PREVIEW, { endpoint: "POST /api/workspace-transfer/preview" });
+  }
+
+  async importWorkspace(file: File | Blob, strategy: TransferStrategy, secrets: TransferSecretValues = {}): Promise<TransferImportResult> {
+    const formData = new FormData();
+    formData.append("file", file, "bundle.zip");
+    formData.append("strategy", strategy);
+    formData.append("secrets", JSON.stringify(secrets));
+    const res = await this.fetchRaw("/api/workspace-transfer/import", { method: "POST", body: formData });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<TransferImportResult>(raw, TransferImportResultSchema, { run_id: "", report: EMPTY_TRANSFER_REPORT }, { endpoint: "POST /api/workspace-transfer/import" });
+  }
+
+  async listWorkspaceTransferRuns(): Promise<TransferRun[]> {
+    const raw = await this.fetch<unknown>("/api/workspace-transfer/runs");
+    return parseWithFallback(raw, TransferRunListSchema, { runs: [] }, { endpoint: "GET /api/workspace-transfer/runs" }).runs as TransferRun[];
+  }
+
+  async listWorkspaceTemplates(): Promise<WorkspaceTemplate[]> {
+    const raw = await this.fetch<unknown>("/api/workspace-templates");
+    return parseWithFallback(raw, WorkspaceTemplateListSchema, { templates: [] }, { endpoint: "GET /api/workspace-templates" }).templates as WorkspaceTemplate[];
+  }
+
   // Agent versions (K23).
   async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions`);
@@ -4471,7 +4529,7 @@ export class ApiClient {
     return this.fetch(`/api/workspaces/${id}`);
   }
 
-  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string }): Promise<Workspace> {
+  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string; template_run_id?: string }): Promise<Workspace> {
     return this.fetch("/api/workspaces", {
       method: "POST",
       body: JSON.stringify(data),

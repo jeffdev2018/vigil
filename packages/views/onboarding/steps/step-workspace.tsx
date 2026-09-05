@@ -3,6 +3,7 @@
 import { type ReactNode, useRef, useEffect, useState } from "react";
 import { Dices, Plus } from "lucide-react";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@multica/ui/components/ui/field";
 import { cn } from "@multica/ui/lib/utils";
 import { useCreateWorkspace } from "@multica/core/workspace/mutations";
+import { workspaceTemplatesOptions } from "@multica/core/workspace/transfer";
 import type { Workspace } from "@multica/core/types";
 import { isImeComposing } from "@multica/core/utils";
 import { matchLocale } from "@multica/core/i18n";
@@ -196,6 +198,11 @@ export function StepWorkspace({
   };
 
   const createWorkspace = useCreateWorkspace();
+  // Templates (K76): a saved export run the new workspace is seeded from.
+  // Empty string = start from scratch, which is also what a failed catalog
+  // fetch collapses to — the picker simply stays hidden.
+  const { data: templates = [] } = useQuery(workspaceTemplatesOptions());
+  const [templateRunId, setTemplateRunId] = useState("");
 
   const handleCreate = () => {
     if (!canCreate || createWorkspace.isPending) return;
@@ -208,6 +215,7 @@ export function StepWorkspace({
         // created workspace agree either way — but submitting it explicitly
         // is what makes an edited prefix stick.
         issue_prefix: effectivePrefix,
+        ...(templateRunId ? { template_run_id: templateRunId } : {}),
       },
       {
         onSuccess: onCreated,
@@ -385,6 +393,27 @@ export function StepWorkspace({
           )}
         </FieldDescription>
       </Field>
+      {templates.length > 0 && (
+        <Field>
+          <FieldLabel htmlFor="ws-template">
+            {t(($) => $.step_workspace.template_label)}
+          </FieldLabel>
+          <select
+            id="ws-template"
+            className="h-9 w-full rounded-md border bg-background px-2 text-body"
+            value={templateRunId}
+            onChange={(e) => setTemplateRunId(e.target.value)}
+          >
+            <option value="">{t(($) => $.step_workspace.template_scratch)}</option>
+            {templates.map((tpl) => (
+              <option key={tpl.id} value={tpl.id}>
+                {tpl.name || tpl.workspace_name}
+              </option>
+            ))}
+          </select>
+          <FieldDescription>{t(($) => $.step_workspace.template_hint)}</FieldDescription>
+        </Field>
+      )}
     </FieldGroup>
   );
 

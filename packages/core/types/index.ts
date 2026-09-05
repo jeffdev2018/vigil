@@ -413,3 +413,16 @@ export type {
 } from "./meeting";
 export type { VoiceTranscription, RealtimeVoiceSession } from "./voice";
 export type { CalendarEvent, CalendarUpcoming, CalendarFeed } from "./calendar";
+export type {
+  TransferSecret,
+  TransferManifest,
+  TransferCollision,
+  TransferStrategy,
+  TransferPreview,
+  TransferReport,
+  TransferImportResult,
+  TransferRun,
+  WorkspaceTemplate,
+  TransferExportOptions,
+  TransferSecretValues,
+} from "./transfer";

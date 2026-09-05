@@ -197,7 +197,10 @@
     "creation_disabled_logout": "ログアウト",
     "creation_disabled_eyebrow_resume": "あなたのワークスペース",
     "creation_disabled_headline_resume": "{{name}} で続けましょう。",
-    "creation_disabled_lede_resume": "このインスタンスではワークスペースの作成が無効になっているため、既存のワークスペースへ続けて移動します。"
+    "creation_disabled_lede_resume": "このインスタンスではワークスペースの作成が無効になっているため、既存のワークスペースへ続けて移動します。",
+    "template_label": "開始元",
+    "template_scratch": "最初から作成",
+    "template_hint": "テンプレートを使うと、エクスポート済みのワークスペースからエージェント、スキル、プロジェクトなどが事前に設定されます。"
   },
   "step_runtime": {
     "scanning_headline": "このコンピュータを接続中…",

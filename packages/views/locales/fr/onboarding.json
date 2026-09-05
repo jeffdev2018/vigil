@@ -197,7 +197,10 @@
     "creation_disabled_logout": "Se déconnecter",
     "creation_disabled_eyebrow_resume": "Votre workspace",
     "creation_disabled_headline_resume": "Continuer avec {{name}}.",
-    "creation_disabled_lede_resume": "La création de workspace est désactivée sur cette instance, vous allez donc rejoindre votre workspace existant."
+    "creation_disabled_lede_resume": "La création de workspace est désactivée sur cette instance, vous allez donc rejoindre votre workspace existant.",
+    "template_label": "Partir de",
+    "template_scratch": "Partir de zéro",
+    "template_hint": "Un modèle pré-remplit les agents, compétences, projets et plus à partir d'un workspace exporté."
   },
   "step_runtime": {
     "scanning_headline": "Connexion à cet ordinateur…",
