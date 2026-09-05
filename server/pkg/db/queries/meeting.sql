@@ -100,3 +100,18 @@ WHERE id = sqlc.arg('id')::uuid
         AND updated_at < now() - make_interval(secs => sqlc.arg('stale_after_seconds')::int))
   )
 RETURNING *;
+
+-- name: SetMeetingTranscript :one
+-- Rewrites the transcript of a finished meeting, for a manual segment edit.
+-- `previous` is a compare-and-set: two people editing different paragraphs of
+-- the same transcript would otherwise silently overwrite each other, since the
+-- transcript is one column. Zero rows means the meeting is no longer `done` or
+-- someone else saved first; the handler asks the client to reload.
+UPDATE meeting
+SET transcript = sqlc.arg('transcript')::text,
+    updated_at = now()
+WHERE id = sqlc.arg('id')::uuid
+  AND workspace_id = sqlc.arg('workspace_id')::uuid
+  AND status = 'done'
+  AND transcript = sqlc.arg('previous')::text
+RETURNING *;

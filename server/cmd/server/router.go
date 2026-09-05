@@ -2022,6 +2022,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Patch("/{id}", h.UpdateMeeting)
 				r.With(handler.RequireHumanActor).Delete("/{id}", h.DeleteMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/segments", h.AppendMeetingSegment)
+				// Correcting one transcribed paragraph after the fact. The
+				// summary is deliberately NOT re-run: the client offers the
+				// existing regenerate button instead.
+				r.With(handler.RequireHumanActor).Patch("/{id}/segments/{seq}", h.UpdateMeetingSegment)
 				r.With(handler.RequireHumanActor).Post("/{id}/finish", h.FinishMeeting)
 				r.With(handler.RequireHumanActor).Post("/{id}/resummarize", h.ResummarizeMeeting)
 			})

@@ -1879,6 +1879,23 @@ export class ApiClient {
     );
   }
 
+  /**
+   * Rewrites one transcript paragraph of a finished meeting. `seq` is the
+   * 0-based line index in the stored transcript, and `text` the whole line
+   * (speaker label included when the line had one). 409 `meeting_not_done`
+   * while the meeting has not finished, `meeting_transcript_changed` when
+   * someone else saved first.
+   */
+  async updateMeetingSegment(id: string, seq: number, text: string): Promise<Meeting> {
+    const raw = await this.fetch<unknown>(
+      `/api/meetings/${encodeURIComponent(id)}/segments/${encodeURIComponent(String(seq))}`,
+      { method: "PATCH", body: JSON.stringify({ text }) },
+    );
+    return parseWithFallback<Meeting>(raw, MeetingSchema, EMPTY_MEETING, {
+      endpoint: "PATCH /api/meetings/:id/segments/:seq",
+    });
+  }
+
   async finishMeeting(id: string): Promise<Meeting> {
     const raw = await this.fetch<unknown>(
       `/api/meetings/${encodeURIComponent(id)}/finish`,

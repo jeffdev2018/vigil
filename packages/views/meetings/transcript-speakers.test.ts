@@ -1,6 +1,11 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { hasSpeakers, parseTranscriptBlocks } from "./transcript-speakers";
+import {
+  formatTranscriptLine,
+  hasSpeakers,
+  parseTranscriptBlocks,
+  parseTranscriptLines,
+} from "./transcript-speakers";
 
 describe("parseTranscriptBlocks", () => {
   it("splits diarized lines into speaker blocks", () => {
@@ -63,5 +68,30 @@ describe("hasSpeakers", () => {
     expect(hasSpeakers(parseTranscriptBlocks("Speaker 1: a"))).toBe(true);
     expect(hasSpeakers(parseTranscriptBlocks("a\nb"))).toBe(false);
     expect(hasSpeakers([])).toBe(false);
+  });
+});
+
+describe("parseTranscriptLines", () => {
+  // The edit endpoint addresses a stored line by index, so blank lines have to
+  // count even though nothing renders them: dropping one would shift every
+  // following paragraph onto the wrong segment.
+  it("keeps the stored line index across blank lines", () => {
+    expect(parseTranscriptLines("A: un\n\nB: deux")).toEqual([
+      { index: 0, speaker: "A", text: "un" },
+      { index: 2, speaker: "B", text: "deux" },
+    ]);
+  });
+
+  it("never merges two lines from the same speaker", () => {
+    const transcript = "A: un\nA: deux";
+    expect(parseTranscriptLines(transcript)).toHaveLength(2);
+    expect(parseTranscriptBlocks(transcript)).toHaveLength(1);
+  });
+
+  it("round-trips a line through formatTranscriptLine", () => {
+    for (const line of ["Speaker 1: On livre vendredi.", "On livre vendredi."]) {
+      const [parsed] = parseTranscriptLines(line);
+      expect(formatTranscriptLine(parsed.speaker, `  ${parsed.text}  `)).toBe(line);
+    }
   });
 });

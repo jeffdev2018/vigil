@@ -56,6 +56,23 @@ export function useRenameMeeting(wsId: string) {
 }
 
 /**
+ * Corrects one transcript paragraph. Not optimistic: the server collapses
+ * newlines and truncates, and it answers with the whole meeting, so the
+ * response is what the cache should hold. The summary is NOT regenerated —
+ * the detail page tells the user to press the existing button.
+ */
+export function useEditMeetingSegment(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { meetingId: string; seq: number; text: string }) =>
+      api.updateMeetingSegment(v.meetingId, v.seq, v.text),
+    onSuccess: (meeting) => {
+      qc.setQueryData(meetingKeys.detail(wsId, meeting.id), meeting);
+    },
+  });
+}
+
+/**
  * Removes a meeting. The detail page navigates back to the list on success, so
  * the caller awaits the server and nothing is dropped from cache optimistically
  * (CLAUDE.md state rules).
