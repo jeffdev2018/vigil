@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
@@ -452,6 +453,12 @@ func (h *Handler) reverseEffect(ctx context.Context, eff db.AgentEffect) error {
 		}
 		h.publish(protocol.EventWorkspaceNoteUpdated, uuidToString(eff.WorkspaceID), "member", "", map[string]any{"note": workspaceNoteToResponse(updated)})
 		return nil
+	case service.EffectCommentDelete:
+		return h.restoreComment(ctx, eff, before)
+	case service.EffectNoteDelete:
+		return h.restoreNote(ctx, eff, before)
+	case service.EffectChatMessage:
+		return h.retractChatReply(ctx, eff)
 	case service.EffectNoteArchive:
 		updated, err := h.Queries.SetWorkspaceNoteArchived(ctx, db.SetWorkspaceNoteArchivedParams{ID: eff.TargetID, WorkspaceID: eff.WorkspaceID})
 		if err != nil {
@@ -638,4 +645,128 @@ func (h *Handler) PutUndoSettings(w http.ResponseWriter, r *http.Request) {
 	}
 	h.audit(r.Context(), wsUUID, "member", requestUserID(r), AuditUndoSettings, "workspace", wsUUID, map[string]any{"window_hours": req.WindowHours, "breaker_threshold": req.BreakerThreshold}, nil)
 	writeJSON(w, http.StatusOK, req)
+}
+
+// commentEffectSnapshot is what restoring a deleted comment needs.
+func commentEffectSnapshot(c db.Comment) map[string]any {
+	return map[string]any{
+		"content": c.Content, "type": c.Type, "parent_id": uuidToPtr(c.ParentID),
+		"author_type": c.AuthorType, "author_id": uuidToString(c.AuthorID), "source_task_id": uuidToPtr(c.SourceTaskID),
+		"excerpt": truncate(c.Content, 200),
+	}
+}
+
+// noteEffectSnapshot is what restoring a deleted note needs.
+func noteEffectSnapshot(n db.WorkspaceNote) map[string]any {
+	return map[string]any{
+		"title": n.Title, "content": n.Content, "tags": n.Tags, "pinned": n.Pinned, "source": n.Source,
+		"source_task_id": uuidToPtr(n.SourceTaskID), "source_agent_id": uuidToPtr(n.SourceAgentID),
+		"created_by_type": n.CreatedByType, "created_by_id": uuidToPtr(n.CreatedByID),
+	}
+}
+
+func snapshotString(m map[string]any, k string) string {
+	v, _ := m[k].(string)
+	return v
+}
+
+func snapshotUUID(m map[string]any, k string) pgtype.UUID {
+	if s, ok := m[k].(string); ok {
+		if u, err := util.ParseUUID(s); err == nil {
+			return u
+		}
+	}
+	return pgtype.UUID{}
+}
+
+// restoreComment re-creates a deleted comment under its old id (attachments
+// were purged with it and do not come back).
+func (h *Handler) restoreComment(ctx context.Context, eff db.AgentEffect, before map[string]any) error {
+	if snapshotString(before, "content") == "" && snapshotString(before, "author_type") == "" {
+		return errors.New("no comment snapshot recorded")
+	}
+	commentType := snapshotString(before, "type")
+	if commentType == "" {
+		commentType = "comment"
+	}
+	created, err := h.Queries.CreateComment(ctx, db.CreateCommentParams{
+		ID: eff.TargetID, IssueID: eff.IssueID, WorkspaceID: eff.WorkspaceID,
+		AuthorType: snapshotString(before, "author_type"), AuthorID: snapshotUUID(before, "author_id"),
+		Content: snapshotString(before, "content"), Type: commentType,
+		ParentID: snapshotUUID(before, "parent_id"), SourceTaskID: snapshotUUID(before, "source_task_id"),
+	})
+	if err != nil {
+		return err
+	}
+	comment := created.Comment()
+	h.indexWhy(ctx, comment.WorkspaceID, whySourceComment, comment.ID, comment.IssueID, comment.Content)
+	h.publish(protocol.EventCommentCreated, uuidToString(eff.WorkspaceID), "member", "", map[string]any{
+		"comment": commentToResponse(comment, nil, nil), "issue_revision": created.IssueRevision,
+	})
+	return nil
+}
+
+// restoreNote re-creates a deleted Brain note under its old id.
+func (h *Handler) restoreNote(ctx context.Context, eff db.AgentEffect, before map[string]any) error {
+	if snapshotString(before, "title") == "" && snapshotString(before, "content") == "" {
+		return errors.New("no note snapshot recorded")
+	}
+	tags := []string{}
+	if raw, ok := before["tags"].([]any); ok {
+		for _, t := range raw {
+			if s, ok := t.(string); ok {
+				tags = append(tags, s)
+			}
+		}
+	}
+	pinned, _ := before["pinned"].(bool)
+	source := snapshotString(before, "source")
+	if source == "" {
+		source = "agent"
+	}
+	createdByType := snapshotString(before, "created_by_type")
+	if createdByType == "" {
+		createdByType = "agent"
+	}
+	note, err := h.Queries.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{
+		ID: eff.TargetID, WorkspaceID: eff.WorkspaceID, Title: snapshotString(before, "title"), Content: snapshotString(before, "content"),
+		Tags: tags, Pinned: pinned, Source: source, SourceTaskID: snapshotUUID(before, "source_task_id"), SourceAgentID: snapshotUUID(before, "source_agent_id"),
+		CreatedByType: createdByType, CreatedByID: snapshotUUID(before, "created_by_id"),
+	})
+	if err != nil {
+		return err
+	}
+	h.publish(protocol.EventWorkspaceNoteCreated, uuidToString(eff.WorkspaceID), "member", "", map[string]any{"note": workspaceNoteToResponse(note)})
+	return nil
+}
+
+// retractChatReply cannot delete what a provider already showed; it posts a
+// corrective message in the same session, which the channel listeners
+// deliver to the same thread exactly like the reply they are correcting.
+func (h *Handler) retractChatReply(ctx context.Context, eff db.AgentEffect) error {
+	var after map[string]any
+	_ = json.Unmarshal(eff.After, &after)
+	sessionID := snapshotUUID(after, "chat_session_id")
+	if !sessionID.Valid {
+		return errors.New("no chat session recorded")
+	}
+	content := "⤺ Retracted: the previous reply from the agent was undone by a human and should be disregarded."
+	if excerpt := snapshotString(after, "excerpt"); excerpt != "" {
+		content += "\n> " + truncate(excerpt, 120)
+	}
+	msg, err := h.Queries.CreateChatMessage(ctx, db.CreateChatMessageParams{
+		ID: dbid.NewV7(), ChatSessionID: sessionID, Role: "assistant", Content: content, TaskID: eff.TaskID,
+	})
+	if err != nil {
+		return err
+	}
+	h.Bus.Publish(events.Event{
+		Type: protocol.EventChatDone, WorkspaceID: uuidToString(eff.WorkspaceID), ActorType: "system", ActorID: "",
+		ChatSessionID: uuidToString(sessionID),
+		Payload: protocol.ChatDonePayload{
+			ChatSessionID: uuidToString(sessionID), TaskID: uuidToString(eff.TaskID), MessageID: uuidToString(msg.ID),
+			Content: content, MessageKind: msg.MessageKind, CreatedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		},
+	})
+	return nil
 }

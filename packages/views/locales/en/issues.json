@@ -1336,7 +1336,10 @@
       "note_archive": "Note archived",
       "triage_verdict": "Triage verdict: {{verdict}}",
       "issue_create": "Issue created: {{title}}",
-      "issue_update": "Issue update: {{fields}}"
+      "issue_update": "Issue update: {{fields}}",
+      "comment_delete": "Deleted a comment: “{{excerpt}}”",
+      "note_delete": "Deleted the note “{{title}}”",
+      "chat_message": "Replied in chat: “{{excerpt}}” (undo posts a retraction in the same thread)"
     }
   },
   "ci_auto_fix": {

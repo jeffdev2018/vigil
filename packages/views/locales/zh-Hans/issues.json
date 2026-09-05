@@ -1303,7 +1303,10 @@
       "note_archive": "笔记已归档",
       "triage_verdict": "分诊判定：{{verdict}}",
       "issue_create": "已创建议题：{{title}}",
-      "issue_update": "议题更新：{{fields}}"
+      "issue_update": "议题更新：{{fields}}",
+      "comment_delete": "删除了评论：“{{excerpt}}”",
+      "note_delete": "删除了笔记“{{title}}”",
+      "chat_message": "在聊天中回复：“{{excerpt}}”（撤销会在同一会话中发布更正）"
     }
   },
   "ci_auto_fix": {

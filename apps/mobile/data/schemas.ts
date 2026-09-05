@@ -38,7 +38,33 @@ import type {
   User,
   Workspace,
 } from "@multica/core/types";
-import { IssueSchema } from "@multica/core/api/schemas";
+import {
+  AgentEffectListSchema,
+  AgentEffectSchema,
+  IssueSchema,
+  UndoReportSchema,
+} from "@multica/core/api/schemas";
+
+/**
+ * Undo for agent actions (K69). Types derive from the core zod schemas
+ * (on the mobile sharing whitelist) instead of `packages/core/issues/
+ * agent-effects.ts`, whose interfaces sit next to TanStack hooks that pull
+ * in web's api client. Fallbacks mirror `packages/core/api/client.ts`
+ * (`listIssueAgentEffects` / `undoTask` / `undoAgentEffect`).
+ */
+export type AgentEffect = z.infer<typeof AgentEffectSchema>;
+export type AgentEffectList = z.infer<typeof AgentEffectListSchema>;
+export type UndoReport = z.infer<typeof UndoReportSchema>;
+export const EMPTY_AGENT_EFFECT_LIST: AgentEffectList = {
+  effects: [],
+  window_hours: 24,
+};
+export const EMPTY_UNDO_REPORT: UndoReport = {
+  reversed: 0,
+  skipped: [],
+  breaker: { tripped: false, trust_mode: "" },
+  effects: [],
+};
 
 /** Upload response. Only fields mobile actually consumes — `url` to put
  *  into the markdown link, `filename` for the `[📎 name](url)` form, `id`

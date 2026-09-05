@@ -96,6 +96,8 @@ import {
   EMPTY_MEETING_LIST,
   MeetingListResponseSchema,
   MeetingSchema,
+  AgentEffectListSchema,
+  UndoReportSchema,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -155,6 +157,12 @@ import type { ZodType } from "zod";
 import { getCurrentSlug } from "./workspace-store";
 import { parseWithFallback } from "@/lib/parse-response";
 import { InboxDecisionsSchema, type InboxDecisions } from "./schemas";
+import {
+  EMPTY_AGENT_EFFECT_LIST,
+  EMPTY_UNDO_REPORT,
+  type AgentEffectList,
+  type UndoReport,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 
@@ -734,6 +742,42 @@ class ApiClient {
       PostmortemSchema,
       null,
       { ...opts, endpoint: "GET /api/postmortems/:id" },
+    );
+  }
+
+  // ── Undo for agent actions (K69) ────────────────────────────────────
+  // Mirrors packages/core/api/client.ts listIssueAgentEffects / undoTask /
+  // undoAgentEffect.
+
+  async listIssueAgentEffects(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<AgentEffectList> {
+    return this.fetchValidated<AgentEffectList>(
+      `/api/issues/${encodeURIComponent(issueId)}/agent-effects`,
+      AgentEffectListSchema,
+      EMPTY_AGENT_EFFECT_LIST,
+      { ...opts, endpoint: "GET /api/issues/:id/agent-effects" },
+    );
+  }
+
+  async undoTask(taskId: string): Promise<UndoReport> {
+    return this.fetchValidatedWith<UndoReport>(
+      `/api/tasks/${encodeURIComponent(taskId)}/undo`,
+      UndoReportSchema,
+      EMPTY_UNDO_REPORT,
+      { method: "POST" },
+      { endpoint: "POST /api/tasks/:id/undo" },
+    );
+  }
+
+  async undoAgentEffect(effectId: string): Promise<UndoReport> {
+    return this.fetchValidatedWith<UndoReport>(
+      `/api/agent-effects/${encodeURIComponent(effectId)}/undo`,
+      UndoReportSchema,
+      EMPTY_UNDO_REPORT,
+      { method: "POST" },
+      { endpoint: "POST /api/agent-effects/:id/undo" },
     );
   }
 

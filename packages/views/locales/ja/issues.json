@@ -1303,7 +1303,10 @@
       "note_archive": "ノートをアーカイブ",
       "triage_verdict": "トリアージ判定: {{verdict}}",
       "issue_create": "Issue 作成: {{title}}",
-      "issue_update": "Issue の更新: {{fields}}"
+      "issue_update": "Issue の更新: {{fields}}",
+      "comment_delete": "コメントを削除: 「{{excerpt}}」",
+      "note_delete": "ノート「{{title}}」を削除",
+      "chat_message": "チャットで返信: 「{{excerpt}}」（取り消すと同じスレッドに訂正を投稿します）"
     }
   },
   "ci_auto_fix": {

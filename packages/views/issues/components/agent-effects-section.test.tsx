@@ -70,6 +70,19 @@ describe("AgentEffectsSection", () => {
     expect(screen.queryByRole("button", { name: "Undo this run (0)" })).toBeNull();
   });
 
+  it("describes deletions and chat replies from the journal snapshots", async () => {
+    state.effects = [
+      effect({ id: "e1", kind: "comment_delete", before: { excerpt: "bye" } }),
+      effect({ id: "e2", kind: "note_delete", before: { title: "Roadmap" } }),
+      effect({ id: "e3", kind: "chat_message", after: { excerpt: "wrong answer" } }),
+    ];
+    render();
+    await screen.findByTestId("agent-effects");
+    expect(screen.getByText("Deleted a comment: “bye”")).toBeTruthy();
+    expect(screen.getByText("Deleted the note “Roadmap”")).toBeTruthy();
+    expect(screen.getByText(/Replied in chat: “wrong answer”/)).toBeTruthy();
+  });
+
   it("shows a preview-mode run's held write as awaiting approval, without an undo button", async () => {
     state.effects = [effect({ id: "e1", kind: "issue_update", status: "pending", payload: { status: "in_progress", priority: "high" } })];
     render();

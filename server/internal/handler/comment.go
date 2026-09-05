@@ -3568,6 +3568,15 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		slog.Info("comment parent issue no longer exists", "issue_id", uuidToString(comment.IssueID), "comment_id", commentId)
 	}
 
+	// "Show me first" (K69): a preview-mode run's deletion is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview && actorType == "agent" {
+		if eff, ok := h.recordPending(r, agentID, taskID, comment.WorkspaceID, comment.IssueID, service.EffectCommentDelete, "comment", comment.ID,
+			map[string]any{"excerpt": truncate(comment.Content, 200)}, map[string]any{}, true); ok {
+			writePending(w, eff, map[string]any{"comment_id": uuidToString(comment.ID), "pending_approval": true})
+			return
+		}
+	}
+
 	// Collect attachment URLs before CASCADE delete removes them.
 	attachmentURLs, _ := h.Queries.ListAttachmentURLsByCommentID(r.Context(), comment.ID)
 
@@ -3601,6 +3610,8 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	}
 	// Why search (K55): the chunk leaves with its comment.
 	h.unindexWhy(r.Context(), whySourceComment, comment.ID)
+	// Undo (K69): a run's deletion is reversible (attachments are not restored).
+	h.recordEffect(r, comment.WorkspaceID, comment.IssueID, service.EffectCommentDelete, "comment", comment.ID, commentEffectSnapshot(comment), map[string]any{}, true)
 
 	h.deleteS3Objects(r.Context(), attachmentURLs)
 	slog.Info("comment deleted", append(logger.RequestAttrs(r), "comment_id", commentId, "issue_id", uuidToString(comment.IssueID))...)

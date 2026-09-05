@@ -507,6 +507,15 @@ func (h *Handler) DeleteWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Show me first" (K69): a preview-mode run's deletion is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview && actorType == "agent" {
+		if eff, ok := h.recordPending(r, agentID, taskID, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteDelete, "workspace_note", note.ID,
+			map[string]any{"title": note.Title}, map[string]any{}, true); ok {
+			writePending(w, eff, map[string]any{"note_id": uuidToString(note.ID), "pending_approval": true})
+			return
+		}
+	}
+
 	rows, err := h.Queries.DeleteWorkspaceNote(r.Context(), db.DeleteWorkspaceNoteParams{
 		ID:          note.ID,
 		WorkspaceID: note.WorkspaceID,
@@ -519,6 +528,8 @@ func (h *Handler) DeleteWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workspace note not found")
 		return
 	}
+	// Undo (K69): a run's deletion is reversible.
+	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteDelete, "workspace_note", note.ID, noteEffectSnapshot(note), map[string]any{}, true)
 
 	h.publish(protocol.EventWorkspaceNoteDeleted, workspaceIDStr, actorType, uuidToString(actorID), map[string]any{
 		"note": workspaceNoteToResponse(note),

@@ -66,6 +66,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   budget_warning: "Budget warning",
   budget_exceeded: "Budget exceeded",
   postmortem_ready: "Postmortem ready",
+  triage_stale: "Triage is stalling",
 };
 
 // due_date is a calendar day — format timezone-safely (no offset day shift).

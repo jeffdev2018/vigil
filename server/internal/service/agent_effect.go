@@ -29,6 +29,13 @@ const (
 	// EffectIssueUpdate is the pending shape of an issue write: the request
 	// fields, replayed on approval and journaled as the kinds above.
 	EffectIssueUpdate = "issue_update"
+	// Deletions an agent asked for; the reverse re-creates the row under its old id.
+	EffectCommentDelete = "comment_delete"
+	EffectNoteDelete    = "note_delete"
+	// A chat reply the run produced; when the session is bound to a channel
+	// the reply reached the provider, and the reverse posts a corrective
+	// message in the same thread (no provider can delete).
+	EffectChatMessage = "chat_message"
 )
 
 // Effect statuses.
