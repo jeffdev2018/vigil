@@ -25,6 +25,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/remotemcp"
@@ -364,6 +365,9 @@ type AgentTaskResponse struct {
 	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
 	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
+	// McpGateway (K77): the effective class of every catalogued tool of the
+	// agent's bound workspace servers, enforced by the daemon's local gateway.
+	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
 	// PluginHookTools are the workspace's agent-trigger plugin hooks, which the
 	// daemon renders as MCP tools for this task. Resolved at claim time so
 	// disabling or uninstalling a plugin takes effect on the next task rather
@@ -776,18 +780,21 @@ type TaskUsageData struct {
 // TaskAgentData holds agent info included in claim responses so the daemon
 // can set up the execution environment (branch naming, skill files, instructions).
 type TaskAgentData struct {
-	ID                    string                      `json:"id"`
-	Name                  string                      `json:"name"`
-	Instructions          string                      `json:"instructions"`
-	Skills                []service.AgentSkillData    `json:"skills,omitempty"`
-	SkillRefs             []service.AgentSkillRefData `json:"skill_refs,omitempty"`
-	CustomEnv             map[string]string           `json:"custom_env,omitempty"`
-	CustomArgs            []string                    `json:"custom_args,omitempty"`
-	McpConfig             json.RawMessage             `json:"mcp_config,omitempty"`
-	Model                 string                      `json:"model,omitempty"`
-	ThinkingLevel         string                      `json:"thinking_level,omitempty"`
-	ServiceTier           string                      `json:"service_tier,omitempty"`
-	DisabledRuntimeSkills []DisabledRuntimeSkill      `json:"disabled_runtime_skills,omitempty"`
+	ID           string                      `json:"id"`
+	Name         string                      `json:"name"`
+	Instructions string                      `json:"instructions"`
+	Skills       []service.AgentSkillData    `json:"skills,omitempty"`
+	SkillRefs    []service.AgentSkillRefData `json:"skill_refs,omitempty"`
+	CustomEnv    map[string]string           `json:"custom_env,omitempty"`
+	CustomArgs   []string                    `json:"custom_args,omitempty"`
+	McpConfig    json.RawMessage             `json:"mcp_config,omitempty"`
+	// TrustMode (K26) lets the daemon's MCP gateway (K77) cap a tool the
+	// claim did not list.
+	TrustMode             string                 `json:"trust_mode,omitempty"`
+	Model                 string                 `json:"model,omitempty"`
+	ThinkingLevel         string                 `json:"thinking_level,omitempty"`
+	ServiceTier           string                 `json:"service_tier,omitempty"`
+	DisabledRuntimeSkills []DisabledRuntimeSkill `json:"disabled_runtime_skills,omitempty"`
 	// RuntimeConfig is the agent's saved runtime_config JSON as-is. The
 	// daemon decodes it per-provider — e.g. the openclaw backend reads
 	// `mode` + `gateway.*` to choose between embedded and gateway routing

@@ -21,6 +21,7 @@ export const workspaceKeys = {
   skills: (wsId: string) => ["workspaces", wsId, "skills"] as const,
   assigneeFrequency: (wsId: string) => ["workspaces", wsId, "assignee-frequency"] as const,
   mcpServers: (wsId: string) => ["workspaces", wsId, "mcp-servers"] as const,
+  mcpServerTools: (wsId: string, serverId: string) => ["workspaces", wsId, "mcp-servers", serverId, "tools"] as const,
 };
 
 export function workspaceListOptions() {
@@ -199,5 +200,14 @@ export function agentMcpServersOptions(agentId: string) {
     queryKey: ["agents", agentId, "mcp-servers"] as const,
     queryFn: () => api.listAgentMcpServers(agentId),
     enabled: agentId !== "",
+  });
+}
+
+/** Governed MCP gateway (K77): the tool catalogue of one workspace server. */
+export function workspaceMcpServerToolsOptions(wsId: string, serverId: string) {
+  return queryOptions({
+    queryKey: workspaceKeys.mcpServerTools(wsId, serverId),
+    queryFn: () => api.listWorkspaceMcpServerTools(wsId, serverId),
+    enabled: !!wsId && !!serverId,
   });
 }

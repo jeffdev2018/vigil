@@ -436,7 +436,31 @@
     "updated_toast": "已更新共享 MCP 服务",
     "removed_toast": "已移除共享 MCP 服务",
     "save_failed_toast": "共享 MCP 服务保存失败",
-    "remove_failed_toast": "共享 MCP 服务移除失败"
+    "remove_failed_toast": "共享 MCP 服务移除失败",
+    "tools": {
+      "toggle": "工具",
+      "count_other": "{{count}} 个工具",
+      "loading": "正在加载工具…",
+      "empty": "还没有编目的工具。从服务发现，或手动添加。",
+      "help": "每个工具都有一个风险等级。按风险时，读取和内部写入的工具可单独运行；外部影响、敏感数据和未知工具会先询问人。HTTP 服务通过发现来编目；stdio 服务由守护进程在首次运行时编目。",
+      "discover": "发现工具",
+      "risk_aria": "{{name}} 的风险",
+      "source_auto": "自动",
+      "source_manual": "手动",
+      "name_placeholder": "工具名称",
+      "description_placeholder": "描述（可选）",
+      "add": "添加工具",
+      "remove_aria": "移除 {{name}}",
+      "save": "保存工具",
+      "saved_toast": "已保存工具目录",
+      "discovered_toast": "已发现工具",
+      "save_failed_toast": "工具目录保存失败",
+      "risk_read": "读取",
+      "risk_internal_write": "内部写入",
+      "risk_external_effect": "外部影响",
+      "risk_sensitive_data": "敏感数据",
+      "risk_unknown": "未知"
+    }
   },
   "page": {
     "title": "设置",

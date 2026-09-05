@@ -149,10 +149,12 @@ type AgentInvocationTarget struct {
 }
 
 type AgentMcpServer struct {
-	AgentID   pgtype.UUID        `json:"agent_id"`
-	ServerID  pgtype.UUID        `json:"server_id"`
-	Enabled   bool               `json:"enabled"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	AgentID    pgtype.UUID        `json:"agent_id"`
+	ServerID   pgtype.UUID        `json:"server_id"`
+	Enabled    bool               `json:"enabled"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	ToolPolicy []byte             `json:"tool_policy"`
+	ToolUsage  []byte             `json:"tool_usage"`
 }
 
 type AgentMemory struct {
@@ -2443,13 +2445,15 @@ type WorkspaceInvitation struct {
 }
 
 type WorkspaceMcpServer struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Name        string             `json:"name"`
-	Config      []byte             `json:"config"`
-	CreatedBy   pgtype.UUID        `json:"created_by"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	Name              string             `json:"name"`
+	Config            []byte             `json:"config"`
+	CreatedBy         pgtype.UUID        `json:"created_by"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	Tools             []byte             `json:"tools"`
+	ToolsDiscoveredAt pgtype.Timestamptz `json:"tools_discovered_at"`
 }
 
 type WorkspaceNote struct {

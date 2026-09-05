@@ -96,7 +96,8 @@
     "watchdog_escalation": "Escalade du watchdog",
     "contest_ready": "Contestation prête pour votre verdict",
     "org_alert": "Alerte d'organisation",
-    "decision_auto_decided": "Décidé pour toi"
+    "decision_auto_decided": "Décidé pour toi",
+    "mcp_alert": "Alerte de la passerelle MCP"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

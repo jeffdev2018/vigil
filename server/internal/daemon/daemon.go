@@ -7436,6 +7436,26 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 			effectiveMcpConfig = merged
 		}
+		// Governed MCP gateway (K77): every remaining server goes through a
+		// daemon-owned endpoint that classifies, gates and attributes each
+		// tool call. A gateway failure keeps the run alive; servers whose
+		// policy holds a never/ask decision are dropped rather than passed
+		// through ungoverned.
+		wrapped, gatewayDiagnostics, mcpGatewayServers, gatewayErr := startTaskMcpGateway(
+			prepareCtx, ctx, task, provider, effectiveMcpConfig,
+			d.mcpGatewayDepsFor(task, remoteMCPConfig, taskLog), taskLog,
+		)
+		if gatewayErr != nil {
+			taskLog.Warn("MCP gateway unavailable; mcp_config passed through", "error", gatewayErr)
+		} else {
+			effectiveMcpConfig = wrapped
+		}
+		if mcpGatewayServers != nil {
+			defer mcpGatewayServers.Close()
+		}
+		for _, diagnostic := range gatewayDiagnostics {
+			taskLog.Warn("MCP gateway degraded", "reason", diagnostic)
+		}
 		if provider == "cursor" {
 			cursorMcpAuthSource = strings.TrimSpace(task.Agent.CustomEnv[execenv.CursorMcpAuthSourceEnv])
 		}

@@ -44,6 +44,37 @@ export interface WorkspaceMcpServer {
   enabled?: boolean;
   created_at: string;
   updated_at: string;
+  /** Catalogue size (K77); on an agent's list, the catalogue itself with the class in force. */
+  tool_count: number;
+  tool_policy?: McpToolPolicy;
+  tools?: McpCatalogTool[];
+}
+
+/** Governed MCP gateway (K77). */
+export type McpToolRisk = "read" | "internal_write" | "external_effect" | "sensitive_data" | "unknown";
+export type McpToolClass = "act_alone" | "ask" | "never";
+
+export interface McpCatalogTool {
+  name: string;
+  description?: string;
+  schema_digest?: string;
+  risk: McpToolRisk;
+  risk_source: "auto" | "manual";
+  /** Effective class for the agent, present on an agent's binding list only. */
+  class?: McpToolClass;
+  last_used_at?: string;
+}
+
+export interface McpToolPolicy {
+  /** by_risk (default), ask or never; never turns `tools` into a strict allowlist. */
+  default?: "by_risk" | "ask" | "never";
+  tools?: Record<string, McpToolClass>;
+}
+
+export interface McpServerToolCatalog {
+  tools: McpCatalogTool[];
+  discovered_at: string | null;
+  risks: McpToolRisk[];
 }
 
 export interface Member {

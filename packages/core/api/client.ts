@@ -298,6 +298,9 @@ import type {
   TransferExportOptions,
   TransferStrategy,
   TransferSecretValues,
+  McpServerToolCatalog,
+  McpToolPolicy,
+  McpToolRisk,
 } from "../types";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
@@ -688,6 +691,7 @@ import {
   PluginInstallationSchema,
   PluginPreviewSchema,
   WorkspaceMcpServerListSchema,
+  McpServerToolCatalogSchema,
   WorkspaceMcpServerSchema,
   ShareLinkSchema,
   ShareLinkListResponseSchema,
@@ -922,6 +926,7 @@ const EMPTY_TRANSFER_PREVIEW: TransferPreview = {
   secrets: [],
   strategies: ["rename", "merge", "skip"],
 };
+const EMPTY_MCP_CATALOG: McpServerToolCatalog = { tools: [], discovered_at: null, risks: [] };
 const EMPTY_RETRO: WeeklyRetro = { week_start: "", week_end: "", runs_total: 0, runs_by_status: {}, median_minutes: 0, failed: [], agents: [], skill_proposals: [], narrative: "", generated_at: null };
 
 export class ApiClient {
@@ -4649,6 +4654,28 @@ export class ApiClient {
     return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], {
       endpoint: "PUT /api/agents/{id}/mcp-servers/{serverId}/enabled",
     });
+  }
+
+  // Governed MCP gateway (K77): the catalogue of a workspace server and the
+  // per-tool policy of a binding.
+  async listWorkspaceMcpServerTools(workspaceId: string, serverId: string): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools`);
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "GET /api/workspaces/{id}/mcp-servers/{serverId}/tools" });
+  }
+
+  async discoverWorkspaceMcpServerTools(workspaceId: string, serverId: string): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools/discover`, { method: "POST" });
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "POST /api/workspaces/{id}/mcp-servers/{serverId}/tools/discover" });
+  }
+
+  async setWorkspaceMcpServerTools(workspaceId: string, serverId: string, tools: { name: string; description?: string; risk?: McpToolRisk }[]): Promise<McpServerToolCatalog> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/mcp-servers/${encodeURIComponent(serverId)}/tools`, { method: "PUT", body: JSON.stringify({ tools }) });
+    return parseWithFallback(raw, McpServerToolCatalogSchema, EMPTY_MCP_CATALOG, { endpoint: "PUT /api/workspaces/{id}/mcp-servers/{serverId}/tools" });
+  }
+
+  async setAgentMcpServerPolicy(agentId: string, serverId: string, policy: McpToolPolicy): Promise<WorkspaceMcpServer[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/mcp-servers/${encodeURIComponent(serverId)}/policy`, { method: "PUT", body: JSON.stringify(policy) });
+    return parseWithFallback(raw, WorkspaceMcpServerListSchema, [] as WorkspaceMcpServer[], { endpoint: "PUT /api/agents/{id}/mcp-servers/{serverId}/policy" });
   }
 
   async removeAgentMcpServer(agentId: string, serverId: string): Promise<WorkspaceMcpServer[]> {

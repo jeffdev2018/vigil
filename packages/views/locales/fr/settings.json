@@ -436,7 +436,32 @@
     "updated_toast": "Serveur MCP partagé mis à jour",
     "removed_toast": "Serveur MCP partagé supprimé",
     "save_failed_toast": "Impossible d'enregistrer le serveur MCP partagé",
-    "remove_failed_toast": "Impossible de supprimer le serveur MCP partagé"
+    "remove_failed_toast": "Impossible de supprimer le serveur MCP partagé",
+    "tools": {
+      "toggle": "Outils",
+      "count_one": "{{count}} outil",
+      "count_other": "{{count}} outils",
+      "loading": "Chargement des outils…",
+      "empty": "Aucun outil catalogué pour l'instant. Découvrez-les depuis le serveur, ou ajoutez-les à la main.",
+      "help": "Chaque outil porte une classe de risque. Par risque, les outils de lecture et d'écriture interne s'exécutent seuls ; les effets externes, les données sensibles et les outils inconnus demandent d'abord à un humain. Un serveur HTTP est catalogué par découverte ; un serveur stdio est catalogué par le daemon à sa première exécution.",
+      "discover": "Découvrir les outils",
+      "risk_aria": "Risque de {{name}}",
+      "source_auto": "auto",
+      "source_manual": "manuel",
+      "name_placeholder": "Nom de l'outil",
+      "description_placeholder": "Description (facultative)",
+      "add": "Ajouter un outil",
+      "remove_aria": "Supprimer {{name}}",
+      "save": "Enregistrer les outils",
+      "saved_toast": "Catalogue d'outils enregistré",
+      "discovered_toast": "Outils découverts",
+      "save_failed_toast": "Impossible d'enregistrer le catalogue d'outils",
+      "risk_read": "Lecture",
+      "risk_internal_write": "Écriture interne",
+      "risk_external_effect": "Effet externe",
+      "risk_sensitive_data": "Données sensibles",
+      "risk_unknown": "Inconnu"
+    }
   },
   "page": {
     "title": "Paramètres",

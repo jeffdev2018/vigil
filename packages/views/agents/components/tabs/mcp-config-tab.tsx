@@ -55,6 +55,7 @@ import {
   type ManagedMcpServer,
 } from "./mcp-config-model";
 import { McpServerDialog } from "./mcp-server-dialog";
+import { McpToolPolicy } from "./mcp-tool-policy";
 
 export function McpConfigTab({
   agent,
@@ -294,6 +295,7 @@ export function McpConfigTab({
             {assignedServers.map((server) => (
               <McpWorkspaceServerRow
                 key={server.id}
+                agentId={agent.id}
                 server={server}
                 overridden={managedNames.has(server.name)}
                 canEdit={canEdit}
@@ -448,6 +450,7 @@ type McpServerView = {
  * write-only and lives in workspace Settings.
  */
 function McpWorkspaceServerRow({
+  agentId,
   server,
   overridden,
   canEdit,
@@ -455,6 +458,7 @@ function McpWorkspaceServerRow({
   onToggle,
   onRemove,
 }: {
+  agentId: string;
   server: WorkspaceMcpServer;
   overridden: boolean;
   canEdit: boolean;
@@ -466,52 +470,56 @@ function McpWorkspaceServerRow({
   const enabled = server.enabled !== false;
   return (
     // Same row shape as the other two lists on this tab — icon chip, name,
-    // transport — so the three sources read as one inventory.
-    <li className="flex items-center gap-3 p-3">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        <Server className="h-4 w-4" aria-hidden="true" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-body font-medium">{server.name}</span>
-          {overridden && (
-            <Badge variant="secondary">
-              {t(($) => $.tab_body.mcp_config.workspace_overridden_badge)}
-            </Badge>
-          )}
+    // transport — so the three sources read as one inventory. The per-tool
+    // policy (K77) folds out under it.
+    <li>
+      <div className="flex items-center gap-3 p-3">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
+          <Server className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-body font-medium">{server.name}</span>
+            {overridden && (
+              <Badge variant="secondary">
+                {t(($) => $.tab_body.mcp_config.workspace_overridden_badge)}
+              </Badge>
+            )}
+          </div>
+          <p className="text-caption uppercase text-muted-foreground">
+            {server.transport || "unknown"}
+          </p>
         </div>
-        <p className="text-caption uppercase text-muted-foreground">
-          {server.transport || "unknown"}
-        </p>
+        {canEdit && (
+          <>
+            <Switch
+              checked={enabled}
+              disabled={busy}
+              onCheckedChange={onToggle}
+              aria-label={t(($) => $.tab_body.mcp_config.workspace_toggle_aria, {
+                name: server.name,
+              })}
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={busy}
+              onClick={onRemove}
+              aria-label={t(($) => $.tab_body.mcp_config.workspace_remove_aria, {
+                name: server.name,
+              })}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden="true" />
+            </Button>
+          </>
+        )}
+        {!canEdit && !enabled && (
+          <Badge variant="secondary">
+            {t(($) => $.tab_body.mcp_config.workspace_disabled_badge)}
+          </Badge>
+        )}
       </div>
-      {canEdit && (
-        <>
-          <Switch
-            checked={enabled}
-            disabled={busy}
-            onCheckedChange={onToggle}
-            aria-label={t(($) => $.tab_body.mcp_config.workspace_toggle_aria, {
-              name: server.name,
-            })}
-          />
-          <Button
-            variant="ghost"
-            size="icon"
-            disabled={busy}
-            onClick={onRemove}
-            aria-label={t(($) => $.tab_body.mcp_config.workspace_remove_aria, {
-              name: server.name,
-            })}
-          >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
-          </Button>
-        </>
-      )}
-      {!canEdit && !enabled && (
-        <Badge variant="secondary">
-          {t(($) => $.tab_body.mcp_config.workspace_disabled_badge)}
-        </Badge>
-      )}
+      <McpToolPolicy agentId={agentId} server={server} canEdit={canEdit} />
     </li>
   );
 }

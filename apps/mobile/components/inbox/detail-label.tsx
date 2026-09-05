@@ -70,6 +70,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   watchdog_escalation: "Watchdog escalation",
   contest_ready: "Contest ready for your verdict",
   org_alert: "Organisation alert",
+  mcp_alert: "MCP gateway alert",
   decision_auto_decided: "Decided for you",
 };
 

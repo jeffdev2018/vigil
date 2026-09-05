@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/secretscan"
 	"io"
 	"log/slog"
 	"net/http"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -51,13 +51,6 @@ const (
 )
 
 var transferStrategies = []string{transferStrategyRename, transferStrategyMerge, transferStrategySkip}
-
-// secretKeyRe names the JSON keys whose string values are replaced by the
-// gateway mask; secretValueRe catches well-known token shapes anywhere.
-var (
-	secretKeyRe   = regexp.MustCompile(`(?i)(token|secret|passw|api[_-]?key|apikey|authorization|bearer|credential|private[_-]?key|signing|cookie|session)`)
-	secretValueRe = regexp.MustCompile(`(?i)(sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9]{10,}|xox[abpr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----|Bearer\s+[A-Za-z0-9._-]{16,}|eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,})`)
-)
 
 type transferSecret struct {
 	Scope  string `json:"scope"`
@@ -238,53 +231,9 @@ type transferBundle struct {
 
 // scrubValue walks decoded JSON: a string under a secret-looking key, or a
 // string that looks like a token, becomes the mask.
-func scrubValue(v any, key string) any {
-	switch t := v.(type) {
-	case map[string]any:
-		out := make(map[string]any, len(t))
-		for k, val := range t {
-			out[k] = scrubValue(val, k)
-		}
-		return out
-	case []any:
-		out := make([]any, len(t))
-		for i, val := range t {
-			out[i] = scrubValue(val, key)
-		}
-		return out
-	case string:
-		if t == "" {
-			return t
-		}
-		if secretKeyRe.MatchString(key) || secretValueRe.MatchString(t) {
-			return runtimeConfigGatewayTokenMask
-		}
-		return t
-	}
-	return v
-}
+func scrubJSON(raw []byte) json.RawMessage { return secretscan.JSON(raw) }
 
-// scrubJSON returns the scrubbed document, or an empty object when the input
-// is not JSON (nothing unparseable leaves either).
-func scrubJSON(raw []byte) json.RawMessage {
-	if len(bytes.TrimSpace(raw)) == 0 {
-		return json.RawMessage("{}")
-	}
-	var v any
-	if err := json.Unmarshal(raw, &v); err != nil {
-		return json.RawMessage("{}")
-	}
-	out, err := json.Marshal(scrubValue(v, ""))
-	if err != nil {
-		return json.RawMessage("{}")
-	}
-	return out
-}
-
-// scrubText masks token shapes inside free text (instructions, notes).
-func scrubText(s string) string {
-	return secretValueRe.ReplaceAllString(s, runtimeConfigGatewayTokenMask)
-}
+func scrubText(s string) string { return secretscan.Text(s) }
 
 func envKeys(raw []byte) []string {
 	var m map[string]any

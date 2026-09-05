@@ -1660,6 +1660,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// The payload is names and transports only; the stored
 					// entries are write-only.
 					r.Get("/mcp-servers", h.ListWorkspaceMcpServers)
+					r.Get("/mcp-servers/{serverId}/tools", h.ListWorkspaceMcpServerTools)
 					// Installed Plugins are member-visible so a member can
 					// see what is mounted in their workspace and which scopes
 					// it holds; install / configure / remove stay admin-only.
@@ -1686,6 +1687,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/mcp-servers", h.CreateWorkspaceMcpServer)
 					r.Put("/mcp-servers/{serverId}", h.UpdateWorkspaceMcpServer)
 					r.Delete("/mcp-servers/{serverId}", h.DeleteWorkspaceMcpServer)
+					r.Post("/mcp-servers/{serverId}/tools/discover", h.DiscoverWorkspaceMcpServerTools)
+					r.Put("/mcp-servers/{serverId}/tools", h.SetWorkspaceMcpServerTools)
 					r.Post("/share-links", h.CreateShareLink)
 					r.Delete("/share-links/{linkId}", h.RevokeShareLink)
 					r.Get("/share-links", h.ListShareLinks)
@@ -2079,6 +2082,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateApprovalGate)
 				r.Get("/{gateId}", h.GetApprovalGate)
 			})
+			// Governed MCP gateway (K77): the daemon reports catalogues and calls.
+			r.Post("/api/tasks/{taskId}/mcp-catalog", h.ReportMcpCatalog)
+			r.Post("/api/tasks/{taskId}/mcp-calls", h.ReportMcpCall)
 			r.Post("/api/tasks/{taskId}/spend-token", h.IssueSpendToken)
 			r.Post("/api/tasks/{taskId}/spend-token/verify", h.VerifySpendToken)
 			// Postmortems (k68). List/get/stats are member-readable; approve and
@@ -2555,6 +2561,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/mcp-servers", h.ListAgentMcpServers)
 					r.Post("/mcp-servers", h.AddAgentMcpServer)
 					r.Put("/mcp-servers/{serverId}/enabled", h.SetAgentMcpServerEnabled)
+					r.Put("/mcp-servers/{serverId}/policy", h.SetAgentMcpServerPolicy)
 					r.Delete("/mcp-servers/{serverId}", h.RemoveAgentMcpServer)
 					// Dedicated env-management endpoint. Admits the agent
 					// owner or a workspace owner/admin; agent actors are
