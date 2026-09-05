@@ -2193,6 +2193,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Delete("/{id}", h.DeleteGoal)
 			})
 			r.Post("/api/issues/{id}/goal-proposal", h.ProposeIssueGoal)
+			// Contest (K72): a rival model challenges an agent output.
+			r.Route("/api/contests", func(r chi.Router) {
+				r.Get("/preflight", h.PreflightContest)
+				r.Get("/", h.ListContests)
+				r.Post("/", h.CreateContest)
+				r.Get("/{id}", h.GetContest)
+				r.Post("/{id}/verdict", h.ConfirmContest)
+			})
+			r.Get("/api/contest-settings", h.GetContestSettings)
+			r.Put("/api/contest-settings", h.PutContestSettings)
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)

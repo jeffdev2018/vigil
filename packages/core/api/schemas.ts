@@ -5277,3 +5277,76 @@ export const GoalDetailResponseSchema = z.object({
 export const ProjectGoalsResponseSchema = z.object({
   goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
+
+// Contest (K72): a rival model's objections, the author's answers, the human verdict.
+const ContestObjectionSchema = z.object({
+  n: z.number().catch(0).default(0),
+  severity: z.enum(["high", "medium", "low"]).catch("medium"),
+  kind: z.enum(["missing", "false", "risky"]).catch("risky"),
+  claim: z.string().catch("").default(""),
+  evidence: z.string().catch("").default(""),
+  expected_proof: z.string().catch("").default(""),
+}).loose();
+const ContestAnswerSchema = z.object({
+  n: z.number().catch(0).default(0),
+  verdict: z.enum(["accept", "refute", "fix"]).catch("accept"),
+  note: z.string().catch("").default(""),
+  proof: z.string().catch("").default(""),
+}).loose();
+export const ContestSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  issue_id: z.string().nullable().catch(null).default(null),
+  target_type: z.enum(["task_result", "plan", "triage_verdict", "meeting_summary"]).catch("task_result"),
+  target_id: z.string().catch(""),
+  target_excerpt: z.string().catch("").default(""),
+  author_agent_id: z.string().nullable().catch(null).default(null),
+  author_provider: z.string().catch("").default(""),
+  challenger_kind: z.enum(["agent", "llm"]).catch("agent"),
+  challenger_agent_id: z.string().nullable().catch(null).default(null),
+  challenger_provider: z.string().catch("").default(""),
+  same_vendor: z.boolean().catch(false).default(false),
+  challenger_task_id: z.string().nullable().catch(null).default(null),
+  answer_task_id: z.string().nullable().catch(null).default(null),
+  round: z.number().catch(1).default(1),
+  max_rounds: z.number().catch(1).default(1),
+  objections: z.array(ContestObjectionSchema).catch([]).default([]),
+  answers: z.array(ContestAnswerSchema).catch([]).default([]),
+  nothing_to_contest: z.string().catch("").default(""),
+  status: z.enum(["running", "objections_ready", "answering", "answered", "confirmed", "failed"]).catch("running"),
+  human_verdict: z.enum(["upheld", "dismissed", "mixed"]).nullable().catch(null).default(null),
+  verdict_note: z.string().catch("").default(""),
+  confirmed_by: z.string().nullable().catch(null).default(null),
+  confirmed_at: z.string().nullable().catch(null).default(null),
+  auto: z.boolean().catch(false).default(false),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const ContestListSchema = z.object({
+  contests: z.array(ContestSchema).catch([]).default([]),
+}).loose();
+export const ContestPreflightSchema = z.object({
+  target_type: z.string().catch(""),
+  target_id: z.string().catch(""),
+  issue_id: z.string().nullable().catch(null).default(null),
+  author_agent_id: z.string().nullable().catch(null).default(null),
+  author_provider: z.string().catch("").default(""),
+  challenger: z.object({
+    kind: z.enum(["agent", "llm"]).catch("agent"),
+    agent_id: z.string().catch("").default(""),
+    name: z.string().catch("").default(""),
+    provider: z.string().catch("").default(""),
+    same_vendor: z.boolean().catch(false).default(false),
+  }).loose(),
+  estimated_cost_usd_ticks: z.number().catch(0).default(0),
+  quota_used: z.number().catch(0).default(0),
+  quota_limit: z.number().catch(0).default(0),
+  max_rounds: z.number().catch(2).default(2),
+  existing: z.number().catch(0).default(0),
+}).loose();
+export const ContestSettingsSchema = z.object({
+  targets: z.record(z.string(), z.boolean()).catch({}).default({}),
+  opt_out_project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();

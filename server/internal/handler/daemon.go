@@ -4082,6 +4082,10 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.storeCrossReviewReport(r.Context(), *task, req.Output)
 	// Task watchdog (K73): a finished scan leaves its verdict and acts within its tier.
 	h.storeWatchdogVerdict(r.Context(), *task, req.Output)
+	// Contest (K72): a finished challenger or answer run moves its contest;
+	// a finished issue run may be contested by policy.
+	h.settleContestRun(r.Context(), *task, req.Output)
+	h.autoContestTaskResult(r.Context(), *task)
 	h.triggerCrossReview(r.Context(), *task, req.PRURL, req.BranchName)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a

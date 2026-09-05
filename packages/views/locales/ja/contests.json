@@ -1,0 +1,79 @@
+{
+  "button": "異議申し立て",
+  "dialog": {
+    "title": "この出力に異議を申し立てる",
+    "description": "ライバルモデルが出力を読み、番号付きの異議を列挙します。作成者が一つずつ回答し、あなたが判定します。",
+    "loading": "異議申し立てを準備中…",
+    "preflight_failed": "異議申し立てを準備できませんでした",
+    "challenger": "異議申し立て側",
+    "same_vendor": "同じベンダーの別モデル",
+    "service_model": "サービスモデル",
+    "cost": "推定コスト",
+    "quota": "1 日の上限",
+    "quota_value": "{{used}}/{{limit}}",
+    "quota_reached": "本日の異議申し立て上限に達しました。明日もう一度お試しください。",
+    "existing": "既存の異議申し立て",
+    "rounds": "ラウンド",
+    "round_1": "1 ラウンド",
+    "round_2": "2 ラウンド",
+    "launch": "開始",
+    "cancel": "キャンセル",
+    "launched": "異議申し立てを開始しました",
+    "launch_failed": "異議申し立てを開始できませんでした"
+  },
+  "target": {
+    "task_result": "実行結果",
+    "plan": "計画",
+    "triage_verdict": "トリアージ判定",
+    "meeting_summary": "会議の要約"
+  },
+  "status": {
+    "running": "異議作成中",
+    "objections_ready": "異議あり",
+    "answering": "作成者が回答中",
+    "answered": "回答済み",
+    "confirmed": "判定済み",
+    "failed": "失敗"
+  },
+  "severity": {
+    "high": "高",
+    "medium": "中",
+    "low": "低"
+  },
+  "kind": {
+    "missing": "欠落",
+    "false": "誤り",
+    "risky": "リスク"
+  },
+  "answer_verdict": {
+    "accept": "受け入れ",
+    "refute": "反論",
+    "fix": "修正"
+  },
+  "verdict": {
+    "upheld": "認める",
+    "dismissed": "却下",
+    "mixed": "一部認める"
+  },
+  "panel": {
+    "challenged_by": "{{provider}} が異議申し立て",
+    "round": "ラウンド {{round}}/{{max}}",
+    "objections": "異議",
+    "answers": "作成者の回答",
+    "nothing": "異議なし",
+    "evidence": "根拠",
+    "expected_proof": "求める証拠",
+    "proof": "証拠",
+    "waiting_author": "作成者の回答待ち",
+    "no_author": "回答する作成者がいません",
+    "no_answer": "回答なし",
+    "your_verdict": "あなたの判定",
+    "note_placeholder": "メモ（任意）",
+    "confirmed_on": "{{date}} に判定",
+    "confirm_failed": "判定を記録できませんでした"
+  },
+  "section": {
+    "title": "異議申し立て",
+    "count": "異議申し立て {{count}} 件"
+  }
+}

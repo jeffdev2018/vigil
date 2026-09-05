@@ -1,0 +1,79 @@
+{
+  "button": "이의 제기",
+  "dialog": {
+    "title": "이 결과에 이의 제기",
+    "description": "경쟁 모델이 결과를 읽고 번호가 매겨진 이의를 나열합니다. 작성자가 하나씩 답하고, 당신이 판정합니다.",
+    "loading": "이의 제기 준비 중…",
+    "preflight_failed": "이의 제기를 준비할 수 없습니다",
+    "challenger": "이의 제기자",
+    "same_vendor": "같은 벤더의 다른 모델",
+    "service_model": "서비스 모델",
+    "cost": "예상 비용",
+    "quota": "일일 한도",
+    "quota_value": "{{used}}/{{limit}}",
+    "quota_reached": "오늘의 이의 제기 한도에 도달했습니다. 내일 다시 시도하세요.",
+    "existing": "기존 이의 제기",
+    "rounds": "라운드",
+    "round_1": "1라운드",
+    "round_2": "2라운드",
+    "launch": "시작",
+    "cancel": "취소",
+    "launched": "이의 제기를 시작했습니다",
+    "launch_failed": "이의 제기를 시작할 수 없습니다"
+  },
+  "target": {
+    "task_result": "실행 결과",
+    "plan": "계획",
+    "triage_verdict": "트리아지 판정",
+    "meeting_summary": "회의 요약"
+  },
+  "status": {
+    "running": "이의 작성 중",
+    "objections_ready": "이의 준비됨",
+    "answering": "작성자 답변 중",
+    "answered": "답변 완료",
+    "confirmed": "판정 완료",
+    "failed": "실패"
+  },
+  "severity": {
+    "high": "높음",
+    "medium": "보통",
+    "low": "낮음"
+  },
+  "kind": {
+    "missing": "누락",
+    "false": "오류",
+    "risky": "위험"
+  },
+  "answer_verdict": {
+    "accept": "수용",
+    "refute": "반박",
+    "fix": "수정"
+  },
+  "verdict": {
+    "upheld": "인정",
+    "dismissed": "기각",
+    "mixed": "일부 인정"
+  },
+  "panel": {
+    "challenged_by": "{{provider}}의 이의 제기",
+    "round": "라운드 {{round}}/{{max}}",
+    "objections": "이의",
+    "answers": "작성자 답변",
+    "nothing": "이의 없음",
+    "evidence": "근거",
+    "expected_proof": "요구 증거",
+    "proof": "증거",
+    "waiting_author": "작성자 답변 대기 중",
+    "no_author": "답변할 작성자가 없습니다",
+    "no_answer": "답변 없음",
+    "your_verdict": "당신의 판정",
+    "note_placeholder": "메모(선택)",
+    "confirmed_on": "{{date}}에 판정",
+    "confirm_failed": "판정을 기록할 수 없습니다"
+  },
+  "section": {
+    "title": "이의 제기",
+    "count": "이의 제기 {{count}}건"
+  }
+}

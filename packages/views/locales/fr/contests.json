@@ -1,0 +1,79 @@
+{
+  "button": "Contester",
+  "dialog": {
+    "title": "Contester cette sortie",
+    "description": "Un modèle rival lit la sortie et liste des objections numérotées. L'auteur répond à chacune ; vous donnez le verdict.",
+    "loading": "Préparation de la contestation…",
+    "preflight_failed": "Impossible de préparer la contestation",
+    "challenger": "Contestataire",
+    "same_vendor": "même fournisseur, autre modèle",
+    "service_model": "modèle de service",
+    "cost": "Coût estimé",
+    "quota": "Quota journalier",
+    "quota_value": "{{used}}/{{limit}}",
+    "quota_reached": "Le quota journalier de contestations est atteint. Réessayez demain.",
+    "existing": "Contestations existantes",
+    "rounds": "Tours",
+    "round_1": "1 tour",
+    "round_2": "2 tours",
+    "launch": "Lancer",
+    "cancel": "Annuler",
+    "launched": "Contestation lancée",
+    "launch_failed": "Impossible de lancer la contestation"
+  },
+  "target": {
+    "task_result": "Résultat de run",
+    "plan": "Plan",
+    "triage_verdict": "Verdict de triage",
+    "meeting_summary": "Résumé de réunion"
+  },
+  "status": {
+    "running": "contestation en cours",
+    "objections_ready": "objections prêtes",
+    "answering": "réponse de l'auteur en cours",
+    "answered": "répondu",
+    "confirmed": "confirmé",
+    "failed": "échoué"
+  },
+  "severity": {
+    "high": "élevée",
+    "medium": "moyenne",
+    "low": "faible"
+  },
+  "kind": {
+    "missing": "manquant",
+    "false": "faux",
+    "risky": "risqué"
+  },
+  "answer_verdict": {
+    "accept": "accepte",
+    "refute": "réfute",
+    "fix": "corrige"
+  },
+  "verdict": {
+    "upheld": "Retenue",
+    "dismissed": "Rejetée",
+    "mixed": "Mitigée"
+  },
+  "panel": {
+    "challenged_by": "contesté par {{provider}}",
+    "round": "tour {{round}}/{{max}}",
+    "objections": "Objections",
+    "answers": "Réponses de l'auteur",
+    "nothing": "Rien à contester",
+    "evidence": "Preuve",
+    "expected_proof": "Preuve attendue",
+    "proof": "Preuve",
+    "waiting_author": "en attente de l'auteur",
+    "no_author": "aucun auteur pour répondre",
+    "no_answer": "pas de réponse",
+    "your_verdict": "Votre verdict",
+    "note_placeholder": "Note facultative",
+    "confirmed_on": "Verdict donné le {{date}}",
+    "confirm_failed": "Impossible d'enregistrer le verdict"
+  },
+  "section": {
+    "title": "Contestations",
+    "count": "{{count}} contestation(s)"
+  }
+}

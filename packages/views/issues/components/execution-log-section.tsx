@@ -24,6 +24,7 @@ import {
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
 import { ReplayButton, TranscriptButton } from "../../common/task-transcript";
+import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
 import {
@@ -407,6 +408,7 @@ export function ActiveTaskRow({
           />
         )}
         <ReplayButton task={task} />
+        {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
         <Tooltip>
           <TooltipTrigger
             render={

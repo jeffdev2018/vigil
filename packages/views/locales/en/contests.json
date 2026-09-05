@@ -1,0 +1,79 @@
+{
+  "button": "Contest",
+  "dialog": {
+    "title": "Contest this output",
+    "description": "A rival model reads the output and lists numbered objections. The author answers each one; you give the verdict.",
+    "loading": "Preparing the contest…",
+    "preflight_failed": "Could not prepare the contest",
+    "challenger": "Challenger",
+    "same_vendor": "same vendor, another model",
+    "service_model": "service model",
+    "cost": "Estimated cost",
+    "quota": "Daily quota",
+    "quota_value": "{{used}}/{{limit}}",
+    "quota_reached": "The daily contest quota is reached. Try again tomorrow.",
+    "existing": "Existing contests",
+    "rounds": "Rounds",
+    "round_1": "1 round",
+    "round_2": "2 rounds",
+    "launch": "Launch",
+    "cancel": "Cancel",
+    "launched": "Contest launched",
+    "launch_failed": "Could not launch the contest"
+  },
+  "target": {
+    "task_result": "Run result",
+    "plan": "Plan",
+    "triage_verdict": "Triage verdict",
+    "meeting_summary": "Meeting summary"
+  },
+  "status": {
+    "running": "challenging",
+    "objections_ready": "objections ready",
+    "answering": "author answering",
+    "answered": "answered",
+    "confirmed": "confirmed",
+    "failed": "failed"
+  },
+  "severity": {
+    "high": "high",
+    "medium": "medium",
+    "low": "low"
+  },
+  "kind": {
+    "missing": "missing",
+    "false": "false",
+    "risky": "risky"
+  },
+  "answer_verdict": {
+    "accept": "accept",
+    "refute": "refute",
+    "fix": "fix"
+  },
+  "verdict": {
+    "upheld": "Upheld",
+    "dismissed": "Dismissed",
+    "mixed": "Mixed"
+  },
+  "panel": {
+    "challenged_by": "challenged by {{provider}}",
+    "round": "round {{round}}/{{max}}",
+    "objections": "Objections",
+    "answers": "Author's answers",
+    "nothing": "Nothing to contest",
+    "evidence": "Evidence",
+    "expected_proof": "Expected proof",
+    "proof": "Proof",
+    "waiting_author": "waiting for the author",
+    "no_author": "no author to answer",
+    "no_answer": "no answer",
+    "your_verdict": "Your verdict",
+    "note_placeholder": "Optional note",
+    "confirmed_on": "Verdict given {{date}}",
+    "confirm_failed": "Could not record the verdict"
+  },
+  "section": {
+    "title": "Contests",
+    "count": "{{count}} contest(s)"
+  }
+}

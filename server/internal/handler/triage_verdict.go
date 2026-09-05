@@ -94,6 +94,8 @@ func (h *Handler) SetTriageVerdict(w http.ResponseWriter, r *http.Request) {
 	// Undo (K69): reversal clears the suggestion.
 	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectTriageVerdict, "triage_item", item.ID, map[string]any{}, map[string]any{"verdict": req.Verdict, "reason": req.Reason, "verdict_revision": item.VerdictRevision}, true)
 	h.publishTriageUpdated(workspaceID, item.ID)
+	// Contest (K72): a policy may have a rival model challenge the verdict.
+	h.autoContest(r.Context(), workspaceID, contestTargetTriageVerdict, item.ID)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"item_id":          util.UUIDToString(item.ID),
 		"verdict":          req.Verdict,

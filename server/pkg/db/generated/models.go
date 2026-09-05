@@ -876,6 +876,38 @@ type ContactSalesInquiry struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type Contest struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	ProjectID          pgtype.UUID        `json:"project_id"`
+	IssueID            pgtype.UUID        `json:"issue_id"`
+	TargetType         string             `json:"target_type"`
+	TargetID           pgtype.UUID        `json:"target_id"`
+	TargetExcerpt      string             `json:"target_excerpt"`
+	AuthorAgentID      pgtype.UUID        `json:"author_agent_id"`
+	AuthorProvider     string             `json:"author_provider"`
+	ChallengerKind     string             `json:"challenger_kind"`
+	ChallengerAgentID  pgtype.UUID        `json:"challenger_agent_id"`
+	ChallengerProvider string             `json:"challenger_provider"`
+	SameVendor         bool               `json:"same_vendor"`
+	ChallengerTaskID   pgtype.UUID        `json:"challenger_task_id"`
+	AnswerTaskID       pgtype.UUID        `json:"answer_task_id"`
+	Round              int32              `json:"round"`
+	MaxRounds          int32              `json:"max_rounds"`
+	Objections         []byte             `json:"objections"`
+	Answers            []byte             `json:"answers"`
+	NothingToContest   string             `json:"nothing_to_contest"`
+	Status             string             `json:"status"`
+	HumanVerdict       pgtype.Text        `json:"human_verdict"`
+	VerdictNote        string             `json:"verdict_note"`
+	ConfirmedBy        pgtype.UUID        `json:"confirmed_by"`
+	ConfirmedAt        pgtype.Timestamptz `json:"confirmed_at"`
+	Auto               bool               `json:"auto"`
+	CreatedBy          pgtype.UUID        `json:"created_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DaemonConnection struct {
 	ID              pgtype.UUID        `json:"id"`
 	AgentID         pgtype.UUID        `json:"agent_id"`

@@ -38,6 +38,8 @@ import { AppLink } from "../../navigation";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { CollectionPageState } from "../../layout/collection-page";
 import { PageHeader } from "../../layout/page-header";
+import { ContestButton } from "../../contests/components/contest-button";
+import { TargetContests } from "../../contests/components/target-contests";
 import { RichContent } from "../../rich-content";
 import { useT, useTimeAgo } from "../../i18n";
 import { TitleEditor } from "../../editor";
@@ -307,7 +309,10 @@ function SummarySection({
     <section className="flex flex-col gap-2">
       <div className="flex items-center justify-between gap-2">
         <SectionHeading>{t(($) => $.detail.summary_title)}</SectionHeading>
-        {canRegenerate ? <ResummarizeButton meeting={meeting} /> : null}
+        <div className="flex items-center gap-1">
+          {meeting.summary_markdown && meeting.status !== "summarizing" ? <ContestButton targetType="meeting_summary" targetId={meeting.id} size="xs" /> : null}
+          {canRegenerate ? <ResummarizeButton meeting={meeting} /> : null}
+        </div>
       </div>
       {transcriptEdited && canRegenerate ? (
         <p role="status" className="text-caption text-muted-foreground">
@@ -332,9 +337,12 @@ function SummarySection({
           <Skeleton className="h-4 w-2/3" />
         </div>
       ) : meeting.summary_markdown ? (
-        <div className="rounded-lg border p-3">
-          <RichContent content={meeting.summary_markdown} density="document" />
-        </div>
+        <>
+          <div className="rounded-lg border p-3">
+            <RichContent content={meeting.summary_markdown} density="document" />
+          </div>
+          <TargetContests targetType="meeting_summary" targetId={meeting.id} />
+        </>
       ) : (
         <p className="text-caption text-muted-foreground">
           {meeting.summary_unavailable

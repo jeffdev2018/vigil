@@ -668,6 +668,10 @@ func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request,
 		return
 	}
 	h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, done, userID)
+	// Contest (K72): a policy may have a rival model check the summary against the transcript.
+	if summarized {
+		h.autoContest(r.Context(), workspaceID, contestTargetMeetingSummary, done.ID)
+	}
 	// A re-summarize that produced nothing new still has to report the items the
 	// meeting already owns, so the client's list does not shrink to what this
 	// one call happened to capture.

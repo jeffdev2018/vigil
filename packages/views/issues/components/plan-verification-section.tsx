@@ -14,6 +14,7 @@ import type { IssuePlan, PlanFinding, PlanVerification } from "@multica/core/typ
 import { cn } from "@multica/ui/lib/utils";
 import { useT, useTimeAgo } from "../../i18n";
 import { PlanGateBlock } from "./plan-gate-block";
+import { ContestButton } from "../../contests/components/contest-button";
 
 /**
  * Plan verification (F17): the issue's plan (with its version history) and
@@ -53,6 +54,7 @@ export function PlanVerificationSection({ issueId }: { issueId: string }) {
           />
         </button>
         {latest && <VerificationBadge verification={latest} />}
+        <ContestButton targetType="plan" targetId={shown.id} variant="icon" />
       </div>
       {open && (
         <div className="flex flex-col gap-2 pl-2">

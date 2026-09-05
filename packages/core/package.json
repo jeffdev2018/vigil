@@ -54,6 +54,7 @@
     "./issues/duel": "./issues/duel.ts",
     "./issues/campaign": "./issues/campaign.ts",
     "./issues/cross-review": "./issues/cross-review.ts",
+    "./issues/contest": "./issues/contest.ts",
     "./issues/ci-auto-fix": "./issues/ci-auto-fix.ts",
     "./issues/agent-effects": "./issues/agent-effects.ts",
     "./issues/run-replay": "./issues/run-replay.ts",
