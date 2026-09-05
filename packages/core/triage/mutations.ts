@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { TriageSourceMode } from "../types";
+import type { AcceptTriageItemOverrides, TriageSourceMode } from "../types";
 import { issueKeys } from "../issues/queries";
 import { triageKeys } from "./queries";
 
@@ -13,7 +13,10 @@ import { triageKeys } from "./queries";
 export function useAcceptTriageItem(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (itemId: string) => api.acceptTriageItem(itemId),
+    mutationFn: (v: string | { itemId: string; overrides?: AcceptTriageItemOverrides }) =>
+      typeof v === "string"
+        ? api.acceptTriageItem(v)
+        : api.acceptTriageItem(v.itemId, v.overrides),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: triageKeys.all(wsId) });
       qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
@@ -61,6 +64,43 @@ export function useReopenTriageItem(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (itemId: string) => api.reopenTriageItem(itemId),
+    onSettled: () => qc.invalidateQueries({ queryKey: triageKeys.all(wsId) }),
+  });
+}
+
+/**
+ * Merge folds an item into an issue that already tracks the work: no second
+ * issue, and the target gets a system comment. The issue list can change
+ * (a comment lands on it), so both projections are invalidated.
+ */
+export function useMergeTriageItem(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { itemId: string; issueId: string }) =>
+      api.mergeTriageItem(v.itemId, v.issueId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: triageKeys.all(wsId) });
+      qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+    },
+  });
+}
+
+/** Snooze parks a pending item until `until` (ISO). Nothing is resolved. */
+export function useSnoozeTriageItem(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { itemId: string; until: string }) =>
+      api.snoozeTriageItem(v.itemId, v.until),
+    onSettled: () => qc.invalidateQueries({ queryKey: triageKeys.all(wsId) }),
+  });
+}
+
+/** Batch dismiss: one shared reason, per-item outcomes in the response. */
+export function useBatchDismissTriageItems(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { itemIds: string[]; reason?: string }) =>
+      api.batchDismissTriageItems(v.itemIds, v.reason),
     onSettled: () => qc.invalidateQueries({ queryKey: triageKeys.all(wsId) }),
   });
 }

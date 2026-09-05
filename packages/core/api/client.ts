@@ -272,6 +272,10 @@ import type {
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
+  MergeTriageItemResponse,
+  SnoozeTriageItemResponse,
+  AcceptTriageItemOverrides,
+  TriageBatchDismissResponse,
   TriageSuggestionsResponse,
   Postmortem,
   PostmortemState,
@@ -452,6 +456,9 @@ import {
   TriageBatchAcceptResponseSchema,
   AcceptTriageItemResponseSchema,
   DismissTriageItemResponseSchema,
+  MergeTriageItemResponseSchema,
+  SnoozeTriageItemResponseSchema,
+  TriageBatchDismissResponseSchema,
   EMPTY_TRIAGE_STATS,
   EMPTY_TRIAGE_ITEMS_RESPONSE,
   PostmortemSchema,
@@ -1671,13 +1678,20 @@ export class ApiClient {
   }
 
   async listTriageItems(
-    params?: { state?: TriageItemState; limit?: number; cursor?: string },
+    params?: {
+      state?: TriageItemState;
+      limit?: number;
+      cursor?: string;
+      /** Pending items parked by a snooze are hidden unless this is set. */
+      includeSnoozed?: boolean;
+    },
     options?: { signal?: AbortSignal },
   ): Promise<TriageItemsResponse> {
     const search = new URLSearchParams();
     if (params?.state) search.set("state", params.state);
     if (params?.limit !== undefined) search.set("limit", String(params.limit));
     if (params?.cursor) search.set("cursor", params.cursor);
+    if (params?.includeSnoozed) search.set("include_snoozed", "true");
     const qs = search.toString();
     const raw = await this.fetch<unknown>(
       `/api/triage/items${qs ? `?${qs}` : ""}`,
@@ -1701,10 +1715,17 @@ export class ApiClient {
     await this.fetch<unknown>(`/api/triage/items/${encodeURIComponent(itemId)}/reopen`, { method: "POST" });
   }
 
-  async acceptTriageItem(itemId: string): Promise<AcceptTriageItemResponse> {
+  /**
+   * `overrides` is the "Accept as…" choice. An empty body keeps the server's
+   * inheritance from the origin autopilot, which is what the batch does.
+   */
+  async acceptTriageItem(
+    itemId: string,
+    overrides?: AcceptTriageItemOverrides,
+  ): Promise<AcceptTriageItemResponse> {
     const raw = await this.fetch<unknown>(
       `/api/triage/items/${encodeURIComponent(itemId)}/accept`,
-      { method: "POST" },
+      { method: "POST", body: JSON.stringify(overrides ?? {}) },
     );
     return parseWithFallback<AcceptTriageItemResponse>(
       raw,
@@ -1727,6 +1748,49 @@ export class ApiClient {
       DismissTriageItemResponseSchema,
       { item_id: itemId, state: "dismissed" },
       { endpoint: "POST /api/triage/items/:id/dismiss" },
+    );
+  }
+
+  async mergeTriageItem(itemId: string, issueId: string): Promise<MergeTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/merge`,
+      { method: "POST", body: JSON.stringify({ issue_id: issueId }) },
+    );
+    return parseWithFallback<MergeTriageItemResponse>(
+      raw,
+      MergeTriageItemResponseSchema,
+      { item_id: itemId, state: "merged", duplicate_of_issue_id: issueId, duplicate_issue_identifier: "" },
+      { endpoint: "POST /api/triage/items/:id/merge" },
+    );
+  }
+
+  /** `until` is an ISO timestamp: in the future and at most 30 days out. */
+  async snoozeTriageItem(itemId: string, until: string): Promise<SnoozeTriageItemResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/snooze`,
+      { method: "POST", body: JSON.stringify({ until }) },
+    );
+    return parseWithFallback<SnoozeTriageItemResponse>(
+      raw,
+      SnoozeTriageItemResponseSchema,
+      { item_id: itemId, state: "pending", snoozed_until: until },
+      { endpoint: "POST /api/triage/items/:id/snooze" },
+    );
+  }
+
+  async batchDismissTriageItems(
+    itemIds: string[],
+    reason?: string,
+  ): Promise<TriageBatchDismissResponse> {
+    const raw = await this.fetch<unknown>("/api/triage/items/batch-dismiss", {
+      method: "POST",
+      body: JSON.stringify({ item_ids: itemIds, reason }),
+    });
+    return parseWithFallback<TriageBatchDismissResponse>(
+      raw,
+      TriageBatchDismissResponseSchema,
+      { items: [] },
+      { endpoint: "POST /api/triage/items/batch-dismiss" },
     );
   }
 

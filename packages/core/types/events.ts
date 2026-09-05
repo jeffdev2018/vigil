@@ -98,6 +98,7 @@ export type WSEventType =
   | "pull_request:unlinked"
   | "triage:new"
   | "triage:resolved"
+  | "triage:updated"
   | "postmortem:created"
   | "postmortem:resolved";
 
@@ -237,6 +238,14 @@ export interface TriageNewPayload {
 export interface TriageResolvedPayload {
   item_id: string;
   state?: string;
+}
+
+/**
+ * A triage item changed without leaving the queue: an agent suggested a
+ * verdict, or a human snoozed it.
+ */
+export interface TriageUpdatedPayload {
+  item_id: string;
 }
 
 /** A failed run got a drafted postmortem awaiting review. */
@@ -683,6 +692,7 @@ export interface WSEventPayloadMap {
   "pull_request:unlinked": unknown;
   "triage:new": TriageNewPayload;
   "triage:resolved": TriageResolvedPayload;
+  "triage:updated": TriageUpdatedPayload;
   "postmortem:created": PostmortemCreatedPayload;
   "postmortem:resolved": PostmortemResolvedPayload;
 }

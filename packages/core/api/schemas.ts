@@ -1518,6 +1518,13 @@ export const TriageItemSchema = z.object({
   resolution_reason: z.string().optional(),
   issue_id: z.string().optional(),
   duplicate_of_issue_id: z.string().optional(),
+  /** Set while the item is parked by a snooze; cleared once it comes due. */
+  snoozed_until: z.string().nullable().optional(),
+  /** An agent's suggestion. Advisory: the item is still pending. */
+  verdict: z.string().optional(),
+  verdict_reason: z.string().optional(),
+  verdict_agent_id: z.string().optional(),
+  verdict_at: z.string().nullable().optional(),
   first_seen_at: z.string(),
   resolved_at: z.string().nullable().optional(),
   revision: z.number().default(0),
@@ -1540,6 +1547,7 @@ export const TriageSourceSchema = z.object({
 
 export const TriageStatsSchema = z.object({
   pending: z.number().default(0),
+  snoozed: z.number().default(0),
   shadow_pending: z.number().default(0),
   dropped_24h: z.number().default(0),
   oldest_pending_age_seconds: z.number().default(0),
@@ -1548,6 +1556,7 @@ export const TriageStatsSchema = z.object({
 
 export const EMPTY_TRIAGE_STATS: TriageStats = Object.freeze({
   pending: 0,
+  snoozed: 0,
   shadow_pending: 0,
   dropped_24h: 0,
   oldest_pending_age_seconds: 0,
@@ -1580,6 +1589,28 @@ export const AcceptTriageItemResponseSchema = z.object({
 export const DismissTriageItemResponseSchema = z.object({
   item_id: z.string(),
   state: z.string().default("dismissed"),
+}).loose();
+
+export const MergeTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("merged"),
+  duplicate_of_issue_id: z.string().default(""),
+  duplicate_issue_identifier: z.string().default(""),
+}).loose();
+
+export const SnoozeTriageItemResponseSchema = z.object({
+  item_id: z.string(),
+  state: z.string().default("pending"),
+  snoozed_until: z.string().nullable().optional(),
+}).loose();
+
+export const TriageBatchDismissResultSchema = z.object({
+  id: z.string(),
+  outcome: z.string().default("error"),
+}).loose();
+
+export const TriageBatchDismissResponseSchema = z.object({
+  items: z.array(TriageBatchDismissResultSchema).default([]),
 }).loose();
 
 // Postmortem autogen (k68). A drafted postmortem for a failed run, reviewed

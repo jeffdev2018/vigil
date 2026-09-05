@@ -2014,6 +2014,8 @@ type TriageItem struct {
 	ResolvedByID   pgtype.UUID        `json:"resolved_by_id"`
 	Revision       int64              `json:"revision"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	// When set and still in the future, the item is hidden from the default pending listing. The triage sweep clears it at due time and re-announces the item with triage:new.
+	SnoozedUntil pgtype.Timestamptz `json:"snoozed_until"`
 }
 
 type TriageSource struct {

@@ -110,6 +110,15 @@ describe("triageKeys", () => {
       ...triageKeys.all("ws-1"),
       "items",
       "pending",
+      "due",
+    ]);
+    // The Snoozed tab lists the same server state with a wider filter, so it
+    // must not share a cache entry with the default pending queue.
+    expect(triageKeys.items("ws-1", "pending", true)).toEqual([
+      ...triageKeys.all("ws-1"),
+      "items",
+      "pending",
+      "snoozed",
     ]);
     expect(triageKeys.stats("ws-1")).toEqual([...triageKeys.all("ws-1"), "stats"]);
   });

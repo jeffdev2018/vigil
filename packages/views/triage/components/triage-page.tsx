@@ -6,16 +6,16 @@ import { toast } from "sonner";
 import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
-import { ApiError } from "@multica/core/api";
 import type { TriageItem, TriageItemState, TriageSource, TriageSourceMode, TriageSuggestion, TriageAutoSettings } from "@multica/core/types";
 import { triageStatsOptions, triageItemsInfiniteOptions, triageSuggestionsOptions } from "@multica/core/triage/queries";
 import { TriageSuggestionChip, TriageSuggestionPanel } from "./triage-suggestion";
 import {
-  useAcceptTriageItem,
-  useDismissTriageItem,
   useBatchAcceptTriageItems,
+  useBatchDismissTriageItems,
   useUpdateTriageSourceMode,
 } from "@multica/core/triage/mutations";
+import { TriageItemActions, TriageVerdictBadge, TriageVerdictNote } from "./triage-item-actions";
+import { isSnoozed } from "./snooze-presets";
 import { useT, useTimeAgo } from "../../i18n";
 import {
   CollectionPageHeader,
@@ -24,6 +24,12 @@ import {
 import { Button } from "@multica/ui/components/ui/button";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
+import { Input } from "@multica/ui/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@multica/ui/components/ui/popover";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import {
   Select,
@@ -38,9 +44,14 @@ import { RichContent } from "../../rich-content";
 
 const SOURCE_MODES: TriageSourceMode[] = ["gate", "direct", "blocked"];
 
-// The four states the list endpoint serves. `pending` is the queue; the other
-// three are history — the only place a dismissed item can be reopened from.
-const ITEM_STATES: TriageItemState[] = ["pending", "accepted", "dismissed", "merged"];
+/**
+ * Tabs above the queue. `snoozed` is not a server state: a snoozed item is
+ * still `pending`, just parked, so that tab lists pending with
+ * `include_snoozed` and keeps only the ones still in the future. The three
+ * history tabs are the only place a dismissed item can be reopened from.
+ */
+const TRIAGE_TABS = ["pending", "snoozed", "accepted", "dismissed", "merged"] as const;
+type TriageTab = (typeof TRIAGE_TABS)[number];
 
 /** Oldest pending age in seconds → an ISO timestamp `timeAgo` can render. */
 function ageSecondsToIso(seconds: number): string {
@@ -65,8 +76,11 @@ export function TriagePage() {
   const timeAgo = useTimeAgo();
 
   const statsQuery = useQuery(triageStatsOptions(wsId));
-  const [filterState, setFilterState] = useState<TriageItemState>("pending");
-  const itemsQuery = useInfiniteQuery(triageItemsInfiniteOptions(wsId, filterState));
+  const [filterTab, setFilterTab] = useState<TriageTab>("pending");
+  const listState: TriageItemState = filterTab === "snoozed" ? "pending" : filterTab;
+  const itemsQuery = useInfiniteQuery(
+    triageItemsInfiniteOptions(wsId, listState, filterTab === "snoozed"),
+  );
 
   // `?item=` deep link: a meeting action (paths.triage(itemId)) opens the queue
   // on the entry it produced. Read once — after that the selection is the
@@ -77,10 +91,12 @@ export function TriagePage() {
   );
   const [checkedIds, setCheckedIds] = useState<Set<string>>(() => new Set());
 
-  const items = useMemo(
-    () => itemsQuery.data?.pages.flatMap((page) => page.items) ?? [],
-    [itemsQuery.data],
-  );
+  const items = useMemo(() => {
+    const all = itemsQuery.data?.pages.flatMap((page) => page.items) ?? [];
+    // `include_snoozed` widens the pending listing rather than replacing it,
+    // so the Snoozed tab keeps only what is actually parked.
+    return filterTab === "snoozed" ? all.filter((item) => isSnoozed(item)) : all;
+  }, [itemsQuery.data, filterTab]);
 
   // Triage auto-ML (K61): one request for the visible page.
 
@@ -106,8 +122,8 @@ export function TriagePage() {
 
   const clearSelection = useCallback(() => setCheckedIds(new Set()), []);
 
-  const handleFilter = useCallback((state: TriageItemState) => {
-    setFilterState(state);
+  const handleFilter = useCallback((tab: TriageTab) => {
+    setFilterTab(tab);
     setSelectedId(null);
     setCheckedIds(new Set());
   }, []);
@@ -122,13 +138,15 @@ export function TriagePage() {
       />
 
       <div className="flex shrink-0 items-center gap-1 border-b px-4 py-2">
-        {ITEM_STATES.map((state) => {
-          const isActive = filterState === state;
+        {TRIAGE_TABS.map((tab) => {
+          const isActive = filterTab === tab;
+          const count =
+            tab === "pending" ? stats?.pending ?? 0 : tab === "snoozed" ? stats?.snoozed ?? 0 : 0;
           return (
             <button
-              key={state}
+              key={tab}
               type="button"
-              onClick={() => handleFilter(state)}
+              onClick={() => handleFilter(tab)}
               className={cn(
                 "rounded-md px-2.5 py-1 text-caption transition-colors",
                 isActive
@@ -136,9 +154,9 @@ export function TriagePage() {
                   : "text-muted-foreground hover:bg-accent/60",
               )}
             >
-              {t(($) => $.filter[state])}
-              {state === "pending" && (stats?.pending ?? 0) > 0 ? (
-                <span className="ml-1 font-mono text-micro tabular-nums">{stats?.pending}</span>
+              {t(($) => $.filter[tab])}
+              {count > 0 ? (
+                <span className="ml-1 font-mono text-micro tabular-nums">{count}</span>
               ) : null}
             </button>
           );
@@ -157,7 +175,7 @@ export function TriagePage() {
       <div className="flex min-h-0 flex-1">
         <TriageList
           items={items}
-          state={filterState}
+          state={listState}
           isLoading={itemsQuery.isLoading}
           isError={itemsQuery.isError}
           selectedId={selectedId}
@@ -396,6 +414,7 @@ function TriageList({
                   <span className="shrink-0">{timeAgo(item.first_seen_at)}</span>
                 </span>
               </div>
+              <TriageVerdictBadge item={item} />
               <TriageSuggestionChip suggestion={suggestions[item.id]} />
               {item.collapse_count > 1 ? (
                 <Badge variant="secondary" className="shrink-0 font-mono text-micro tabular-nums">
@@ -459,52 +478,13 @@ function TriageDetailBody({
 }) {
   const { t } = useT("triage");
   const timeAgo = useTimeAgo();
-  const navigation = useNavigation();
   const wsPaths = useWorkspacePaths();
-  const accept = useAcceptTriageItem(wsId);
-  const dismiss = useDismissTriageItem(wsId);
 
   const payloadJson = useMemo(() => formatPayload(item.payload), [item.payload]);
-  const busy = accept.isPending || dismiss.isPending;
-
-  // The accept response carries the created issue; naming it (and offering a
-  // way in) is the difference between "something happened" and knowing what.
-  const handleAccept = useCallback(async () => {
-    try {
-      const res = await accept.mutateAsync(item.id);
-      const issue = res.issue;
-      if (issue?.id && issue.identifier) {
-        toast.success(
-          t(($) => $.detail.accepted_toast_identifier, { identifier: issue.identifier }),
-          {
-            action: {
-              label: t(($) => $.detail.open_issue),
-              onClick: () => navigation.push(wsPaths.issueDetail(issue.id)),
-            },
-          },
-        );
-      } else {
-        toast.success(t(($) => $.detail.accepted_toast));
-      }
-      onResolved();
-    } catch (err) {
-      handleAcceptError(err, t);
-    }
-  }, [accept, item.id, navigation, onResolved, t, wsPaths]);
-
-  const handleDismiss = useCallback(async () => {
-    try {
-      await dismiss.mutateAsync({ itemId: item.id });
-      toast.success(t(($) => $.detail.dismissed_toast));
-      onResolved();
-    } catch {
-      toast.error(t(($) => $.detail.error_toast));
-    }
-  }, [dismiss, item.id, onResolved, t]);
 
   return (
     <aside className="flex min-w-0 flex-1 flex-col border-l">
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
+      <div className="flex shrink-0 flex-col gap-3 border-b px-4 py-3">
         <div className="min-w-0">
           <h2 className="truncate text-body font-medium">{item.title}</h2>
           <p className="truncate text-caption text-muted-foreground">
@@ -525,27 +505,12 @@ function TriageDetailBody({
             </AppLink>
           ) : null}
         </div>
-        {item.state !== "pending" ? null : (
-        <div className="flex shrink-0 items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleDismiss} disabled={busy}>
-            {dismiss.isPending ? (
-              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-            ) : (
-              <X aria-hidden="true" className="size-3.5" />
-            )}
-            {dismiss.isPending ? t(($) => $.detail.dismissing) : t(($) => $.detail.dismiss)}
-          </Button>
-          <Button size="sm" onClick={handleAccept} disabled={busy}>
-            {accept.isPending ? (
-              <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
-            ) : (
-              <Check aria-hidden="true" className="size-3.5" />
-            )}
-            {accept.isPending ? t(($) => $.detail.accepting) : t(($) => $.detail.accept)}
-          </Button>
-        </div>
-        )}
+        {item.state === "pending" ? (
+          <TriageItemActions item={item} wsId={wsId} onResolved={onResolved} />
+        ) : null}
       </div>
+
+      <TriageVerdictNote item={item} />
 
       {item.resolution_reason ? (
         <p
@@ -593,28 +558,6 @@ function TriageDetailBody({
   );
 }
 
-function handleAcceptError(
-  err: unknown,
-  t: ReturnType<typeof useT<"triage">>["t"],
-) {
-  if (err instanceof ApiError) {
-    const body = (err.body ?? {}) as { code?: string; duplicate_issue_identifier?: string };
-    if (err.status === 409 && body.code === "duplicate") {
-      toast.info(
-        t(($) => $.detail.merged_toast, {
-          identifier: body.duplicate_issue_identifier ?? "",
-        }),
-      );
-      return;
-    }
-    if (err.status === 402) {
-      toast.error(t(($) => $.detail.limit_toast));
-      return;
-    }
-  }
-  toast.error(t(($) => $.detail.error_toast));
-}
-
 function TriageBatchBar({
   wsId,
   ids,
@@ -626,6 +569,10 @@ function TriageBatchBar({
 }) {
   const { t } = useT("triage");
   const batchAccept = useBatchAcceptTriageItems(wsId);
+  const batchDismiss = useBatchDismissTriageItems(wsId);
+  const [reason, setReason] = useState("");
+  const [dismissOpen, setDismissOpen] = useState(false);
+  const busy = batchAccept.isPending || batchDismiss.isPending;
 
   // The server answers 200 with a per-item outcome even when some items were
   // duplicates or failed; before this the whole array was dropped and the user
@@ -649,11 +596,63 @@ function TriageBatchBar({
     }
   }, [batchAccept, ids, onDone, t]);
 
+  // A batch dismiss answers 200 with per-item outcomes too, so the summary
+  // has to name what did NOT get dismissed rather than claim a clean sweep.
+  const handleBatchDismiss = useCallback(async () => {
+    try {
+      const res = await batchDismiss.mutateAsync({
+        itemIds: ids,
+        reason: reason.trim() || undefined,
+      });
+      const results = res.items ?? [];
+      const dismissed = results.filter((r) => r.outcome === "dismissed").length;
+      toast.success(
+        t(($) => $.batch.dismiss_summary_toast, {
+          dismissed,
+          failed: results.length - dismissed,
+        }),
+      );
+      setDismissOpen(false);
+      onDone();
+    } catch {
+      toast.error(t(($) => $.detail.error_toast));
+    }
+  }, [batchDismiss, ids, onDone, reason, t]);
+
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4">
       <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-3 py-2 shadow-lg">
         <span className="text-caption text-muted-foreground">{ids.length}</span>
-        <Button size="sm" onClick={handleBatch} disabled={batchAccept.isPending}>
+        <Popover open={dismissOpen} onOpenChange={setDismissOpen}>
+          <PopoverTrigger
+            render={
+              <Button variant="outline" size="sm" disabled={busy}>
+                <X aria-hidden="true" className="size-3.5" />
+                {t(($) => $.batch.dismiss, { count: ids.length })}
+              </Button>
+            }
+          />
+          <PopoverContent align="center" className="w-72">
+            <div className="flex flex-col gap-2">
+              <p className="text-caption text-muted-foreground">
+                {t(($) => $.batch.dismiss_summary, { count: ids.length })}
+              </p>
+              <Input
+                aria-label={t(($) => $.dismiss_reason.label)}
+                value={reason}
+                placeholder={t(($) => $.dismiss_reason.placeholder)}
+                onChange={(e) => setReason(e.target.value)}
+              />
+              <Button size="sm" onClick={handleBatchDismiss} disabled={batchDismiss.isPending}>
+                {batchDismiss.isPending ? (
+                  <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
+                ) : null}
+                {t(($) => $.dismiss_reason.confirm)}
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+        <Button size="sm" onClick={handleBatch} disabled={busy}>
           {batchAccept.isPending ? (
             <Loader2 aria-hidden="true" className="size-3.5 animate-spin" />
           ) : (
@@ -661,7 +660,7 @@ function TriageBatchBar({
           )}
           {t(($) => $.batch.accept, { count: ids.length })}
         </Button>
-        <Button variant="ghost" size="sm" onClick={onDone} disabled={batchAccept.isPending}>
+        <Button variant="ghost" size="sm" onClick={onDone} disabled={busy}>
           {t(($) => $.batch.clear)}
         </Button>
       </div>

@@ -8,9 +8,10 @@ import (
 
 const JobNameTriageRetentionSweep = "triage_retention_sweep"
 
-// TriageRetentionSweepJob drains the triage queue's retention backlog:
-// pending items past their expires_at become `expired`. `sweep` is
-// handler.ExpireStaleTriageItems, which bounds each run to one batch — so the
+// TriageRetentionSweepJob drives the triage queue's periodic maintenance:
+// pending items past their expires_at become `expired`, and snoozes whose
+// time has come are cleared so the item is announced again. `sweep` is
+// handler.SweepTriageQueue, which bounds each run to one batch — so the
 // job runs hourly rather than daily and a large backlog drains over
 // consecutive runs instead of in one long transaction.
 func TriageRetentionSweepJob(sweep func(ctx context.Context) (int64, error)) JobSpec {

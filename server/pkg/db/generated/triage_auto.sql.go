@@ -16,7 +16,7 @@ UPDATE triage_item
 SET state = 'dismissed', resolution_reason = $3, resolved_at = now(), resolved_by_type = 'system', resolved_by_id = NULL,
     revision = revision + 1, updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type AutoDismissPendingTriageItemParams struct {
@@ -61,6 +61,7 @@ func (q *Queries) AutoDismissPendingTriageItem(ctx context.Context, arg AutoDism
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -77,7 +78,7 @@ func (q *Queries) CountTriageExamples(ctx context.Context, workspaceID pgtype.UU
 }
 
 const listTriageItemsByIDs = `-- name: ListTriageItemsByIDs :many
-SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item WHERE workspace_id = $1 AND id = ANY($2::uuid[])
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until FROM triage_item WHERE workspace_id = $1 AND id = ANY($2::uuid[])
 `
 
 type ListTriageItemsByIDsParams struct {
@@ -127,6 +128,7 @@ func (q *Queries) ListTriageItemsByIDs(ctx context.Context, arg ListTriageItemsB
 			&i.ResolvedByID,
 			&i.Revision,
 			&i.UpdatedAt,
+			&i.SnoozedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -195,7 +197,7 @@ UPDATE triage_item
 SET state = 'pending', resolution_reason = NULL, resolved_at = NULL, resolved_by_type = NULL, resolved_by_id = NULL,
     revision = revision + 1, updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'dismissed'
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type ReopenDismissedTriageItemParams struct {
@@ -239,6 +241,7 @@ func (q *Queries) ReopenDismissedTriageItem(ctx context.Context, arg ReopenDismi
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }

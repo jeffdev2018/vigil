@@ -11,7 +11,8 @@
     "pending": "保留",
     "accepted": "承認済み",
     "dismissed": "却下済み",
-    "merged": "統合済み"
+    "merged": "統合済み",
+    "snoozed": "スヌーズ中"
   },
   "sources": {
     "empty": "受信ソースはまだありません",
@@ -57,7 +58,10 @@
     "accept": "{{count}} 件を承認",
     "clear": "選択を解除",
     "stopped_toast": "停止しました — ワークスペースが課題の上限に達しました",
-    "summary_toast": "承認 {{accepted}} 件、重複 {{duplicates}} 件、失敗 {{failed}} 件"
+    "summary_toast": "承認 {{accepted}} 件、重複 {{duplicates}} 件、失敗 {{failed}} 件",
+    "dismiss": "{{count}} 件を却下",
+    "dismiss_summary": "共通の理由で {{count}} 件を却下します。",
+    "dismiss_summary_toast": "却下 {{dismissed}} 件、失敗 {{failed}} 件"
   },
   "suggestion": {
     "title": "提案",
@@ -72,5 +76,43 @@
     "not_ready": "学習中：自動適用には {{min}} 件の判断が必要です（現在 {{examples}} 件）。",
     "reopen": "再開",
     "reopen_failed": "再開できませんでした"
+  },
+  "accept_as": {
+    "label": "次として承認",
+    "assignee": "担当者",
+    "assignee_set": "担当者を設定済み",
+    "priority": "優先度",
+    "project": "プロジェクト",
+    "project_set": "プロジェクトを設定済み"
+  },
+  "merge": {
+    "action": "課題に統合…",
+    "title": "課題に統合",
+    "description": "この項目を、既に同じ作業を追跡している課題に統合します。",
+    "toast": "{{identifier}} に統合しました"
+  },
+  "snooze": {
+    "action": "スヌーズ",
+    "custom": "日時を指定",
+    "confirm": "スヌーズ",
+    "toast": "スヌーズしました",
+    "invalid": "未来かつ 30 日以内の日時を選択してください",
+    "preset": {
+      "hour": "1 時間後",
+      "evening": "今夜",
+      "tomorrow": "明日",
+      "next_monday": "次の月曜日"
+    }
+  },
+  "dismiss_reason": {
+    "label": "理由（任意）",
+    "placeholder": "なぜ作業ではないのか",
+    "confirm": "却下を確定"
+  },
+  "verdict": {
+    "badge": "エージェントの提案: {{verdict}}",
+    "accept": "承認",
+    "dismiss": "却下",
+    "by": "提案者: {{name}}"
   }
 }

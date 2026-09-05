@@ -247,6 +247,20 @@ about the issue — there is no assignee gate (MUL-6417).
 | API routes (`/api/properties`, PUT/DELETE `/api/issues/{id}/properties/{propertyId}`) | `server/cmd/server/router.go` |
 | A run leaves a structured handoff packet (`POST /api/issues/{issue}/handoff-packet`); packets are immutable, a completing run without one gets a system packet, and the latest packet rides the next claim into the per-turn prompt beside the legacy `handoff_note` | `server/internal/handler/handoff_packet.go` (`CreateHandoffPacket`, `ensureCompletionHandoffPacket`, `latestHandoffPacket`); `server/internal/daemon/prompt.go` (`renderHandoffPacket`) | new citation |
 
+## `multica triage list` / `multica triage verdict` — suggest, never decide
+
+| Behavior | File:line |
+|---|---|
+| CLI commands `triage list` / `triage verdict <item-id>` | `server/cmd/multica/cmd_triage.go` (`triageListCmd`, `triageVerdictCmd`) |
+| `--accept` / `--dismiss` are mutually exclusive and one is required | `server/cmd/multica/cmd_triage.go` (`triageVerdictFromFlags`) |
+| `--pending` / `--state` / `--include-snoozed` map onto the list query | `server/cmd/multica/cmd_triage.go` (`runTriageList`) |
+| Route `POST /api/triage/items/{id}/verdict` — the only triage write NOT behind `RequireHumanActor` | `server/cmd/server/router.go` (triage route group) |
+| Handler refuses a non-agent actor with 403 | `server/internal/handler/triage_actions.go` (`SetTriageVerdict`) |
+| Verdict is advisory: only a `pending` item takes one, state is untouched, `verdict_revision` increments | `server/pkg/db/queries/triage.sql` (`SetTriageItemVerdict`) |
+| Stored shape `{"verdict":…,"reason":…}` in `triage_item.verdict` (JSONB) | `server/internal/handler/triage_actions.go` (`TriageVerdict`) |
+| `verdict` / `verdict_reason` / `verdict_agent_id` / `verdict_at` on the listing | `server/internal/handler/triage.go` (`TriageItemResponse`, `triageItemToResponse`) |
+| Human-only counterparts (accept, dismiss, merge, snooze, batch) | `server/cmd/server/router.go` (`handler.RequireHumanActor`) |
+
 ## Verification command
 
 Re-derive any line above before depending on it:
@@ -260,4 +274,7 @@ grep -n 'extractIdentifiers(\|extractClosingIdentifiers(\|derivePRState(' intern
 grep -n 'qualifyingIdents\|reference_only\|ReferenceOnly' internal/handler/github.go pkg/db/queries/github.sql
 grep -n 'prevIssue.Status == "backlog"\|func (h \*Handler) shouldEnqueueAgentTask' internal/handler/issue.go
 grep -n 'func notifyParentOfChildDone'       internal/handler/issue_child_done.go
+grep -n 'triageVerdictFromFlags\|triageListCmd\|triageVerdictCmd' cmd/multica/cmd_triage.go
+grep -n 'func (h \*Handler) SetTriageVerdict' internal/handler/triage_actions.go
+grep -n 'SetTriageItemVerdict' pkg/db/queries/triage.sql
 ```

@@ -21,7 +21,7 @@ SET state = 'accepted',
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type AcceptPendingTriageItemParams struct {
@@ -72,6 +72,7 @@ func (q *Queries) AcceptPendingTriageItem(ctx context.Context, arg AcceptPending
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -107,6 +108,24 @@ func (q *Queries) CountRecentTriageItemsBySource(ctx context.Context, workspaceI
 		return nil, err
 	}
 	return items, nil
+}
+
+const countSnoozedTriageItems = `-- name: CountSnoozedTriageItems :one
+SELECT COUNT(*)::bigint AS n
+FROM triage_item
+WHERE workspace_id = $1
+  AND state = 'pending'
+  AND shadow = false
+  AND snoozed_until IS NOT NULL
+  AND snoozed_until > now()
+`
+
+// Visible pending items still parked in the future — the "Snoozed" tab count.
+func (q *Queries) CountSnoozedTriageItems(ctx context.Context, workspaceID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countSnoozedTriageItems, workspaceID)
+	var n int64
+	err := row.Scan(&n)
+	return n, err
 }
 
 const countTriageItemsByState = `-- name: CountTriageItemsByState :many
@@ -152,7 +171,7 @@ SET state = 'dismissed',
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type DismissPendingTriageItemParams struct {
@@ -203,6 +222,7 @@ func (q *Queries) DismissPendingTriageItem(ctx context.Context, arg DismissPendi
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -268,30 +288,37 @@ func (q *Queries) GetTriageSource(ctx context.Context, arg GetTriageSourceParams
 }
 
 const listTriageItems = `-- name: ListTriageItems :many
-SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until FROM triage_item
 WHERE workspace_id = $1
   AND shadow = false
   AND state = $2
   AND (
-      $3::timestamptz IS NULL
-      OR (first_seen_at, id) < ($3::timestamptz, $4::uuid)
+      $3::boolean
+      OR snoozed_until IS NULL
+      OR snoozed_until <= now()
+  )
+  AND (
+      $4::timestamptz IS NULL
+      OR (first_seen_at, id) < ($4::timestamptz, $5::uuid)
   )
 ORDER BY first_seen_at DESC, id DESC
-LIMIT $5::int
+LIMIT $6::int
 `
 
 type ListTriageItemsParams struct {
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	State       string             `json:"state"`
-	CursorTime  pgtype.Timestamptz `json:"cursor_time"`
-	CursorID    pgtype.UUID        `json:"cursor_id"`
-	PageLimit   int32              `json:"page_limit"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	State          string             `json:"state"`
+	IncludeSnoozed bool               `json:"include_snoozed"`
+	CursorTime     pgtype.Timestamptz `json:"cursor_time"`
+	CursorID       pgtype.UUID        `json:"cursor_id"`
+	PageLimit      int32              `json:"page_limit"`
 }
 
 func (q *Queries) ListTriageItems(ctx context.Context, arg ListTriageItemsParams) ([]TriageItem, error) {
 	rows, err := q.db.Query(ctx, listTriageItems,
 		arg.WorkspaceID,
 		arg.State,
+		arg.IncludeSnoozed,
 		arg.CursorTime,
 		arg.CursorID,
 		arg.PageLimit,
@@ -336,6 +363,7 @@ func (q *Queries) ListTriageItems(ctx context.Context, arg ListTriageItemsParams
 			&i.ResolvedByID,
 			&i.Revision,
 			&i.UpdatedAt,
+			&i.SnoozedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -388,7 +416,7 @@ func (q *Queries) ListTriageSources(ctx context.Context, workspaceID pgtype.UUID
 }
 
 const lockTriageItemForResolution = `-- name: LockTriageItemForResolution :one
-SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at FROM triage_item
+SELECT id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until FROM triage_item
 WHERE id = $1 AND workspace_id = $2
 FOR UPDATE
 `
@@ -434,6 +462,7 @@ func (q *Queries) LockTriageItemForResolution(ctx context.Context, arg LockTriag
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -448,7 +477,7 @@ SET state = 'merged',
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type MergePendingTriageItemParams struct {
@@ -499,6 +528,7 @@ func (q *Queries) MergePendingTriageItem(ctx context.Context, arg MergePendingTr
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -507,6 +537,7 @@ const oldestRealPendingTriageAgeSeconds = `-- name: OldestRealPendingTriageAgeSe
 SELECT COALESCE(EXTRACT(EPOCH FROM (now() - min(first_seen_at)))::bigint, 0)::bigint AS age_seconds
 FROM triage_item
 WHERE workspace_id = $1 AND state = 'pending' AND shadow = false
+  AND (snoozed_until IS NULL OR snoozed_until <= now())
 `
 
 func (q *Queries) OldestRealPendingTriageAgeSeconds(ctx context.Context, workspaceID pgtype.UUID) (int64, error) {
@@ -514,6 +545,130 @@ func (q *Queries) OldestRealPendingTriageAgeSeconds(ctx context.Context, workspa
 	var age_seconds int64
 	err := row.Scan(&age_seconds)
 	return age_seconds, err
+}
+
+const setTriageItemVerdict = `-- name: SetTriageItemVerdict :one
+UPDATE triage_item
+SET verdict = $3::jsonb,
+    verdict_agent_id = $4::uuid,
+    verdict_at = now(),
+    verdict_revision = verdict_revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
+`
+
+type SetTriageItemVerdictParams struct {
+	ID             pgtype.UUID `json:"id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	Verdict        []byte      `json:"verdict"`
+	VerdictAgentID pgtype.UUID `json:"verdict_agent_id"`
+}
+
+// An agent's suggested verdict. It never changes state — humans decide — so
+// it applies to a pending item only, and each write bumps verdict_revision.
+func (q *Queries) SetTriageItemVerdict(ctx context.Context, arg SetTriageItemVerdictParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, setTriageItemVerdict,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Verdict,
+		arg.VerdictAgentID,
+	)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.SnoozedUntil,
+	)
+	return i, err
+}
+
+const snoozePendingTriageItem = `-- name: SnoozePendingTriageItem :one
+UPDATE triage_item
+SET snoozed_until = $3::timestamptz,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
+`
+
+type SnoozePendingTriageItemParams struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	SnoozedUntil pgtype.Timestamptz `json:"snoozed_until"`
+}
+
+// Park a pending item until a chosen time. The state stays 'pending': a
+// snooze hides an item, it never resolves one.
+func (q *Queries) SnoozePendingTriageItem(ctx context.Context, arg SnoozePendingTriageItemParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, snoozePendingTriageItem, arg.ID, arg.WorkspaceID, arg.SnoozedUntil)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.SnoozedUntil,
+	)
+	return i, err
 }
 
 const updateTriageSourceMode = `-- name: UpdateTriageSourceMode :one
@@ -576,7 +731,7 @@ VALUES (
 )
 ON CONFLICT (workspace_id, source_id, normalized_title) WHERE state = 'pending'
 DO UPDATE SET collapse_count = triage_item.collapse_count + 1, updated_at = now()
-RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
 `
 
 type UpsertTriageItemParams struct {
@@ -655,6 +810,7 @@ func (q *Queries) UpsertTriageItem(ctx context.Context, arg UpsertTriageItemPara
 		&i.ResolvedByID,
 		&i.Revision,
 		&i.UpdatedAt,
+		&i.SnoozedUntil,
 	)
 	return i, err
 }
@@ -706,4 +862,46 @@ func (q *Queries) UpsertTriageSource(ctx context.Context, arg UpsertTriageSource
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const wakeDueSnoozedTriageItems = `-- name: WakeDueSnoozedTriageItems :many
+UPDATE triage_item
+SET snoozed_until = NULL,
+    revision = revision + 1,
+    updated_at = now()
+WHERE id IN (
+    SELECT id FROM triage_item
+    WHERE state = 'pending' AND snoozed_until IS NOT NULL AND snoozed_until <= now()
+    ORDER BY snoozed_until
+    LIMIT $1::int
+)
+RETURNING id, workspace_id
+`
+
+type WakeDueSnoozedTriageItemsRow struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Sweep, all workspaces, one bounded batch: a snooze whose time has come is
+// cleared so the item is announced again. The listing already stopped hiding
+// it at due time, so this only owns the re-announcement.
+func (q *Queries) WakeDueSnoozedTriageItems(ctx context.Context, pageLimit int32) ([]WakeDueSnoozedTriageItemsRow, error) {
+	rows, err := q.db.Query(ctx, wakeDueSnoozedTriageItems, pageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []WakeDueSnoozedTriageItemsRow{}
+	for rows.Next() {
+		var i WakeDueSnoozedTriageItemsRow
+		if err := rows.Scan(&i.ID, &i.WorkspaceID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

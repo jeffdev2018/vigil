@@ -878,8 +878,9 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: budgetKeys.all(wsId) });
       },
-      // triage:new / triage:resolved both move items across queue states; the
-      // server owns the split, so refetch the whole (small) triage projection.
+      // triage:new / triage:resolved / triage:updated all change what the queue
+      // shows — a state move, an agent verdict, a snooze — and the server owns
+      // the split, so refetch the whole (small) triage projection.
       triage: () => {
         const wsId = getCurrentWsId();
         if (wsId) onTriageInvalidate(qc, wsId);

@@ -459,6 +459,18 @@ Read each sub-issue's description before promoting and only promote items whose
 stated dependencies are met; if a description conflicts with the parent's
 breakdown, leave it `backlog` and comment to confirm first.
 
+## Triage verdicts
+
+Inbound work waits in the triage queue before it becomes an issue. Agents
+suggest; humans decide — a verdict never changes the item's state. Exactly one
+of `--accept` / `--dismiss`, on a `pending` item only (else 409); re-running
+overwrites. `--reason` carries the evidence. Agent-only; resolving is human-only.
+
+```bash
+multica triage list --pending
+multica triage verdict <id> --dismiss --reason "duplicate of the 14:02 alert storm"
+```
+
 ## Incorrect → correct
 
 PR title (link the issue):
@@ -488,6 +500,5 @@ multica issue create --title "Step 3" --parent <issue-id> --assignee <agent> --s
 contract above: the `pull-requests` CLI and route, the PR response field list,
 `derivePRState`, the two-path link (`extractIdentifiers`) vs close-intent
 (`extractClosingIdentifiers`) proof, the backlog enqueue lines, child-done
-notify, the stage column / `stageBarrierClosed` barrier and the `--stage` /
-`issue children` CLI, and the metadata CLI. Re-derive before depending on an
-exact line.
+notify, the stage column / `stageBarrierClosed` barrier, the `--stage` /
+`issue children` and metadata CLI, and the triage verdict CLI / route / handler.

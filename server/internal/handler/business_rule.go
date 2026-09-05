@@ -625,7 +625,7 @@ func (h *Handler) ApplyTriageRules(ctx context.Context, item db.TriageItem) {
 			}
 			h.publishTriageResolved(item.WorkspaceID, item.ID, "dismissed")
 		case "accept":
-			res := h.acceptTriageItemCore(ctx, item.WorkspaceID, uuidToString(rule.CreatedBy), item.ID)
+			res := h.acceptTriageItemCore(ctx, item.WorkspaceID, uuidToString(rule.CreatedBy), item.ID, triageAcceptOverrides{})
 			if res.outcome != "accepted" {
 				slog.Warn("triage rules: accept did not create an issue", "outcome", res.outcome, "item_id", uuidToString(item.ID))
 				return

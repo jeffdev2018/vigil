@@ -2005,6 +2005,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.With(handler.RequireHumanActor).Post("/items/batch-accept", h.BatchAcceptTriageItems)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/accept", h.AcceptTriageItem)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/dismiss", h.DismissTriageItem)
+				// Merge folds an item into an issue that already tracks the work.
+				r.With(handler.RequireHumanActor).Post("/items/{id}/merge", h.MergeTriageItem)
+				// Snooze parks a pending item until a chosen time.
+				r.With(handler.RequireHumanActor).Post("/items/{id}/snooze", h.SnoozeTriageItem)
+				// The one triage write agents may make: a suggested verdict.
+				// Humans still decide — this never changes the item's state.
+				r.Post("/items/{id}/verdict", h.SetTriageVerdict)
+				r.With(handler.RequireHumanActor).Post("/items/batch-dismiss", h.BatchDismissTriageItems)
 				// Triage auto-ML (K61): suggestions for visible items; reopen a dismissed one.
 				r.Get("/suggestions", h.GetTriageSuggestions)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
