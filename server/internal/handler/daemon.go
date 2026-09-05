@@ -4061,6 +4061,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.updateDuelBarrier(r.Context(), *task)
 	// "Show me first" (K69): the held writes become one decision.
 	h.settlePendingEffects(r.Context(), *task, true)
+	// Replay (K70): seal the run's event chain into the audit log.
+	h.sealRunReplay(r.Context(), *task)
 	// Refactoring campaigns (K42): a finished merge run moves the queue.
 	h.updateCampaignMergeRun(r.Context(), *task)
 	// Cross-provider self-review (K15): a finished review leaves its report;
@@ -4767,6 +4769,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	h.updateDuelBarrier(r.Context(), *task)
 	// "Show me first" (K69): a failed run drops its held writes.
 	h.settlePendingEffects(r.Context(), *task, false)
+	// Replay (K70): seal the run's event chain into the audit log.
+	h.sealRunReplay(r.Context(), *task)
 	// Refactoring campaigns (K42): a merge run that failed for good is a conflict.
 	h.updateCampaignMergeRun(r.Context(), *task)
 

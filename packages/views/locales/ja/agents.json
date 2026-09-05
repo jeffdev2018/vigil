@@ -1090,5 +1090,58 @@
     "sample": "{{count}} 件",
     "duels": "対決 {{wins}} 勝 / {{losses}} 敗",
     "low_sample": "データ不足（{{count}}/{{min}}）"
+  },
+  "replay": {
+    "button": "実行を再生",
+    "title": "再生 · {{agent}}",
+    "loading": "再生を読み込み中…",
+    "error": "再生を読み込めませんでした。",
+    "empty": "この実行にはイベントが記録されていません。",
+    "events_count": "{{n}} 件のイベント",
+    "seal": {
+      "verified": "封印済み・検証済み",
+      "broken": "封印が破られています: 実行終了後にトレースが変更されました",
+      "unsealed": "まだ封印されていません"
+    },
+    "links": "関連する実行:",
+    "prev": "前へ",
+    "next": "次へ",
+    "scrubber": "実行内の位置",
+    "position": "{{pos}} / {{total}}",
+    "hash": "チェーンハッシュ {{hash}}…",
+    "so_far": "ここまで: ツール呼び出し {{tools}} · 効果 {{effects}} · 判断 {{decisions}} · 指示 {{steers}} · 引き継ぎ {{handoffs}}",
+    "resume_title": "イベント {{pos}} から新しい指示で再開",
+    "resume_placeholder": "次の実行はここから何を変えるべきですか？",
+    "resume_button": "ここから新しい実行を開始",
+    "resumed": "イベント {{seq}} から新しい実行を開始しました",
+    "resume_failed": "実行を開始できませんでした",
+    "kinds": {
+      "text": "エージェントの発言",
+      "thinking": "思考",
+      "tool_use": "ツール呼び出し",
+      "tool_result": "ツール結果",
+      "steer": "指示",
+      "status": "ステータス",
+      "error": "エラー",
+      "checkpoint": "チェックポイント",
+      "effect": "効果",
+      "effect_reversed": "取り消し",
+      "decision_asked": "判断を依頼",
+      "decision_answered": "判断済み",
+      "handoff": "引き継ぎ",
+      "cost": "コスト",
+      "audit": "監査",
+      "unknown": "イベント"
+    },
+    "relations": {
+      "parent": "親の実行",
+      "delegated_from": "委任元",
+      "retry_of": "再試行元",
+      "rerun_of": "再実行元",
+      "resumed_by": "再開先",
+      "preempted_by": "先取り元",
+      "review_of": "レビュー対象",
+      "escalation_for": "エスカレーション対象"
+    }
   }
 }

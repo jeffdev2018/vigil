@@ -309,6 +309,55 @@ func (q *Queries) ListIssueDecisions(ctx context.Context, arg ListIssueDecisions
 	return items, nil
 }
 
+const listIssueDecisionsForTask = `-- name: ListIssueDecisionsForTask :many
+SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision WHERE task_id = $1 ORDER BY created_at ASC, id ASC
+`
+
+// Replay (K70): the decisions one run asked, oldest first.
+func (q *Queries) ListIssueDecisionsForTask(ctx context.Context, taskID pgtype.UUID) ([]IssueDecision, error) {
+	rows, err := q.db.Query(ctx, listIssueDecisionsForTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []IssueDecision{}
+	for rows.Next() {
+		var i IssueDecision
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.TaskID,
+			&i.AskedByType,
+			&i.AskedByID,
+			&i.Question,
+			&i.Options,
+			&i.RecommendedOptionID,
+			&i.Urgency,
+			&i.Response,
+			&i.RespondedByType,
+			&i.RespondedByID,
+			&i.RespondedAt,
+			&i.ResumeTaskID,
+			&i.CreatedAt,
+			&i.PlanVersion,
+			&i.InterviewGroupID,
+			&i.InterviewPosition,
+			&i.InterviewResumeStatus,
+			&i.SlaDeadlineAt,
+			&i.EscalationLevel,
+			&i.EscalatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listOverdueIssueDecisions = `-- name: ListOverdueIssueDecisions :many
 
 SELECT id, workspace_id, issue_id, task_id, asked_by_type, asked_by_id, question, options, recommended_option_id, urgency, response, responded_by_type, responded_by_id, responded_at, resume_task_id, created_at, plan_version, interview_group_id, interview_position, interview_resume_status, sla_deadline_at, escalation_level, escalated_at FROM issue_decision

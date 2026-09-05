@@ -52,3 +52,7 @@ UPDATE issue_decision
 SET escalation_level = $2, escalated_at = $3, sla_deadline_at = $4
 WHERE id = $1 AND response IS NULL AND escalation_level = $2 - 1
 RETURNING *;
+
+-- name: ListIssueDecisionsForTask :many
+-- Replay (K70): the decisions one run asked, oldest first.
+SELECT * FROM issue_decision WHERE task_id = $1 ORDER BY created_at ASC, id ASC;

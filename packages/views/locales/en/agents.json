@@ -1112,5 +1112,58 @@
     "sample": "{{count}} issues",
     "duels": "{{wins}} won / {{losses}} lost duels",
     "low_sample": "not enough data ({{count}}/{{min}})"
+  },
+  "replay": {
+    "button": "Replay the run",
+    "title": "Replay · {{agent}}",
+    "loading": "Loading the replay…",
+    "error": "Could not load the replay.",
+    "empty": "No event recorded for this run.",
+    "events_count": "{{n}} events",
+    "seal": {
+      "verified": "Sealed and verified",
+      "broken": "Seal broken: the trace changed after the run ended",
+      "unsealed": "Not sealed yet"
+    },
+    "links": "Related runs:",
+    "prev": "Previous",
+    "next": "Next",
+    "scrubber": "Position in the run",
+    "position": "{{pos}} / {{total}}",
+    "hash": "Chain hash {{hash}}…",
+    "so_far": "So far: {{tools}} tool calls · {{effects}} effects · {{decisions}} decisions · {{steers}} steers · {{handoffs}} handoffs",
+    "resume_title": "Resume from event {{pos}} with a new instruction",
+    "resume_placeholder": "What should the next run do differently from here?",
+    "resume_button": "Start a new run from here",
+    "resumed": "New run started from event {{seq}}",
+    "resume_failed": "Could not start the run",
+    "kinds": {
+      "text": "Agent says",
+      "thinking": "Thinking",
+      "tool_use": "Tool call",
+      "tool_result": "Tool result",
+      "steer": "Steer",
+      "status": "Status",
+      "error": "Error",
+      "checkpoint": "Checkpoint",
+      "effect": "Effect",
+      "effect_reversed": "Undone",
+      "decision_asked": "Decision asked",
+      "decision_answered": "Decision answered",
+      "handoff": "Handoff",
+      "cost": "Cost",
+      "audit": "Audit",
+      "unknown": "Event"
+    },
+    "relations": {
+      "parent": "Parent run",
+      "delegated_from": "Delegated from",
+      "retry_of": "Retry of",
+      "rerun_of": "Rerun of",
+      "resumed_by": "Resumed by",
+      "preempted_by": "Preempted by",
+      "review_of": "Review of",
+      "escalation_for": "Escalation for"
+    }
   }
 }

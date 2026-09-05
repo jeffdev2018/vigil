@@ -821,3 +821,80 @@ export const InboxDecisionsSchema = z.object({
 
 export type InboxDecision = z.infer<typeof InboxDecisionSchema>;
 export type InboxDecisions = z.infer<typeof InboxDecisionsSchema>;
+
+// ---------------------------------------------------------------------------
+// Run replay (GET /api/tasks/{taskId}/replay) — mobile-only until web's
+// scrubber promotes a schema to core. Mirrors `RunReplayResponse` in
+// server/internal/handler/task_replay.go. Event `kind` stays a free string so
+// a kind newer than this build still renders (Behavioral parity: never drop a
+// category).
+// ---------------------------------------------------------------------------
+
+export const RunReplayActorSchema = z.looseObject({
+  type: z.string().default(""),
+  id: z.string().default(""),
+  name: z.string().default(""),
+});
+
+export const RunReplayEventSchema = z.looseObject({
+  seq: z.number(),
+  at: z.string(),
+  kind: z.string(),
+  actor: RunReplayActorSchema.default({ type: "", id: "", name: "" }),
+  title: z.string().default(""),
+  text: z.string().default(""),
+  data: z.record(z.string(), z.unknown()).nullable().default(null),
+  source: z.string().default(""),
+  source_id: z.string().default(""),
+  prev_hash: z.string().default(""),
+  hash: z.string().default(""),
+});
+
+export const RunReplayLinkSchema = z.looseObject({
+  relation: z.string(),
+  task_id: z.string(),
+  agent_id: z.string().default(""),
+  agent_name: z.string().default(""),
+});
+
+export const RunReplaySchema = z.looseObject({
+  run: z.looseObject({
+    id: z.string(),
+    issue_id: z.string().default(""),
+    agent_id: z.string().default(""),
+    agent_name: z.string().default(""),
+    status: z.string().default(""),
+    trust_mode: z.string().default(""),
+    effect_mode: z.string().default(""),
+    model: z.string().default(""),
+    runtime_id: z.string().default(""),
+    created_at: z.string().nullable().default(null),
+    started_at: z.string().nullable().default(null),
+    completed_at: z.string().nullable().default(null),
+    links: z.array(RunReplayLinkSchema).nullable().default([]),
+  }),
+  events: z.array(RunReplayEventSchema).nullable().default([]),
+  total: z.number().default(0),
+  next_cursor: z.number().nullable().default(null),
+  head_hash: z.string().default(""),
+  cost: z
+    .looseObject({
+      input_tokens: z.number().default(0),
+      output_tokens: z.number().default(0),
+      cost_usd_ticks: z.number().nullable().default(null),
+    })
+    .default({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }),
+  sealed: z
+    .looseObject({
+      events: z.number().default(0),
+      head_hash: z.string().default(""),
+      sealed_at: z.string().default(""),
+      verified: z.boolean().default(false),
+    })
+    .nullable()
+    .default(null),
+});
+
+export type RunReplayEvent = z.infer<typeof RunReplayEventSchema>;
+export type RunReplayLink = z.infer<typeof RunReplayLinkSchema>;
+export type RunReplay = z.infer<typeof RunReplaySchema>;

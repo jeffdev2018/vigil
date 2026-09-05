@@ -1112,5 +1112,58 @@
     "sample": "{{count}} issues",
     "duels": "{{wins}} duels gagnés / {{losses}} perdus",
     "low_sample": "pas assez de données ({{count}}/{{min}})"
+  },
+  "replay": {
+    "button": "Rejouer le run",
+    "title": "Replay · {{agent}}",
+    "loading": "Chargement du replay…",
+    "error": "Impossible de charger le replay.",
+    "empty": "Aucun événement enregistré pour ce run.",
+    "events_count": "{{n}} événements",
+    "seal": {
+      "verified": "Scellé et vérifié",
+      "broken": "Sceau rompu : la trace a changé après la fin du run",
+      "unsealed": "Pas encore scellé"
+    },
+    "links": "Runs liés :",
+    "prev": "Précédent",
+    "next": "Suivant",
+    "scrubber": "Position dans le run",
+    "position": "{{pos}} / {{total}}",
+    "hash": "Hash de chaîne {{hash}}…",
+    "so_far": "Jusqu'ici : {{tools}} appels d'outil · {{effects}} effets · {{decisions}} décisions · {{steers}} consignes · {{handoffs}} passages de main",
+    "resume_title": "Repartir de l'événement {{pos}} avec une nouvelle consigne",
+    "resume_placeholder": "Que doit faire le prochain run différemment à partir d'ici ?",
+    "resume_button": "Lancer un nouveau run d'ici",
+    "resumed": "Nouveau run lancé depuis l'événement {{seq}}",
+    "resume_failed": "Impossible de lancer le run",
+    "kinds": {
+      "text": "L'agent dit",
+      "thinking": "Réflexion",
+      "tool_use": "Appel d'outil",
+      "tool_result": "Résultat d'outil",
+      "steer": "Consigne",
+      "status": "Statut",
+      "error": "Erreur",
+      "checkpoint": "Point de contrôle",
+      "effect": "Effet",
+      "effect_reversed": "Annulé",
+      "decision_asked": "Décision demandée",
+      "decision_answered": "Décision rendue",
+      "handoff": "Passage de main",
+      "cost": "Coût",
+      "audit": "Audit",
+      "unknown": "Événement"
+    },
+    "relations": {
+      "parent": "Run parent",
+      "delegated_from": "Délégué par",
+      "retry_of": "Nouvelle tentative de",
+      "rerun_of": "Relance de",
+      "resumed_by": "Repris par",
+      "preempted_by": "Préempté par",
+      "review_of": "Revue de",
+      "escalation_for": "Escalade pour"
+    }
   }
 }
