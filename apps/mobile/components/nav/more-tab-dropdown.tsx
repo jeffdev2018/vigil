@@ -100,6 +100,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
   { label: "Runtimes", icon: "desktopcomputer", path: "/more/runtimes" },
+  { label: "Agents", icon: "cpu", path: "/more/agents" },
 ];
 
 export function MoreTabDropdownAnchor({
