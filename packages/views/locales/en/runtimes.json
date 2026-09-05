@@ -147,6 +147,37 @@
     },
     "visibility_toast_updated": "Visibility set to {{visibility}}",
     "visibility_toast_failed": "Failed to update visibility",
+    "sandbox": {
+      "title": "Sandbox",
+      "mode": {
+        "none": "None",
+        "sandbox": "Sandbox",
+        "container": "Container"
+      },
+      "hint": {
+        "none": "Runs on the host, with full access to the machine.",
+        "sandbox": "Confines the filesystem to the working directory (Linux bubblewrap). The network stays shared.",
+        "container": "Runs the CLI in a Docker container with only the working directory mounted. No direct internet: an allowlisting proxy admits the model API, the package registry, GitHub, the Multica server and the extra hosts listed here."
+      },
+      "unavailable": {
+        "sandbox": "bubblewrap not detected (Linux only)",
+        "container": "Docker not detected on this machine"
+      },
+      "capabilities_unknown": "The daemon has not reported what this machine can run yet.",
+      "image_label": "Image",
+      "image_placeholder": "node:22-bookworm-slim",
+      "image_help": "Defaults to node:22-bookworm-slim, where the Claude and Codex CLIs install on first start. Other providers need a custom image with the CLI preinstalled.",
+      "hosts_label": "Extra allowed hosts",
+      "hosts_placeholder": "registry.example.com\napi.example.com",
+      "hosts_help": "One host per line. The model API, the package registry, GitHub and the Multica server are always allowed.",
+      "save": "Save",
+      "saving": "Saving...",
+      "toast_updated": "Sandbox mode set to {{mode}}",
+      "toast_failed": "Failed to update sandbox mode",
+      "last_run": "Last run: {{mode}}",
+      "last_run_none": "No run reported yet.",
+      "degraded": "{{requested}} was requested, but the last run was degraded to {{effective}} because this machine cannot run it. The run replay records this."
+    },
     "delete_dialog": {
       "self_heal_notice": "This runtime is managed by a running local daemon. Deleting it will succeed, but the daemon will re-register a fresh runtime within seconds — stop the daemon process first to remove it permanently.",
       "profile_backed_notice": "This runtime was registered from a custom runtime profile. Deleting it removes only the current runtime instance; a running daemon can register it again while the profile remains. Delete the custom runtime profile from Custom runtimes to remove it permanently.",

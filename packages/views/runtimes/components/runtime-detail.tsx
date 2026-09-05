@@ -44,6 +44,7 @@ import { availabilityConfig, workloadConfig } from "../../agents/presence";
 import { HealthBadge } from "./shared";
 import { ProviderLogo } from "./provider-logo";
 import { UsageSection } from "./usage-section";
+import { SandboxEditor } from "./sandbox-editor";
 import { DeleteRuntimeDialog } from "./delete-runtime-dialog";
 import { DeleteRuntimeProfileDialog } from "./delete-runtime-profile-dialog";
 import { runtimeRowLabel } from "./runtime-machines";
@@ -507,6 +508,14 @@ function DiagnosticsCard({
           ) : (
             <VisibilityReadout runtime={runtime} />
           )}
+        </div>
+        <div>
+          <div className="mb-1.5 text-micro uppercase tracking-wide text-muted-foreground">
+            {t(($) => $.detail.sandbox.title)}
+          </div>
+          {/* Same owner-only gate as visibility: confining runs is the
+              machine owner's call (K10). */}
+          <SandboxEditor runtime={runtime} canEdit={canEditVisibility} />
         </div>
         {canDelete && (
           // The button stays clickable even when the runtime is a live

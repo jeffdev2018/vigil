@@ -64,6 +64,9 @@ type mcpGatewayDeps struct {
 	reportCatalog func(server string, tools []mcpCatalogTool)
 	// skip names entries already brokered elsewhere (plugin connections).
 	skip map[string]bool
+	// advertiseHost (K10) is set for containerised runs: listen on all
+	// interfaces and hand the CLI this host instead of loopback.
+	advertiseHost string
 }
 
 type mcpGateway struct {
@@ -247,7 +250,7 @@ func (g *mcpGateway) serve(setupCtx, lifetimeCtx context.Context, taskID string,
 	if deps.reportCatalog != nil && (policy.serverID != "" || !policy.listed) {
 		deps.reportCatalog(policy.name, catalog)
 	}
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, advertised, err := listenForRun(deps.advertiseHost)
 	if err != nil {
 		upstream.close()
 		return fmt.Errorf("listen for MCP gateway: %w", err)
@@ -276,7 +279,7 @@ func (g *mcpGateway) serve(setupCtx, lifetimeCtx context.Context, taskID string,
 			logger.Warn("MCP gateway stopped unexpectedly", "task_id", taskID, "server", policy.name, "error", serveErr)
 		}
 	}()
-	servers[policy.name], _ = json.Marshal(map[string]string{"type": "http", "url": "http://" + listener.Addr().String() + proxy.path})
+	servers[policy.name], _ = json.Marshal(map[string]string{"type": "http", "url": "http://" + advertised + proxy.path})
 	return nil
 }
 

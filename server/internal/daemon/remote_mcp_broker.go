@@ -88,7 +88,7 @@ func (set *remoteMCPBrokerSet) Close() {
 	})
 }
 
-func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, resolveSecret runSecretResolver, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
+func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, provider, advertiseHost string, connections []remotemcp.Connection, resolveCredential remoteMCPCredentialResolver, gate remoteMCPToolGate, resolveSecret runSecretResolver, logger *slog.Logger) (json.RawMessage, []string, *remoteMCPBrokerSet, error) {
 	if len(connections) == 0 {
 		return nil, nil, nil, nil
 	}
@@ -145,7 +145,7 @@ func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, pr
 			set.Close()
 			return nil, diagnostics, nil, err
 		}
-		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		listener, advertised, err := listenForRun(advertiseHost)
 		if err != nil {
 			set.Close()
 			return nil, diagnostics, nil, fmt.Errorf("listen for Remote MCP broker: %w", err)
@@ -174,7 +174,7 @@ func startTaskRemoteMCPBrokers(setupCtx, lifetimeCtx context.Context, taskID, pr
 		name := remoteMCPServerName(connection)
 		servers[name] = map[string]any{
 			"type": "http",
-			"url":  "http://" + listener.Addr().String() + proxy.path,
+			"url":  "http://" + advertised + proxy.path,
 		}
 	}
 	if len(servers) == 0 {

@@ -142,6 +142,37 @@
     },
     "visibility_toast_updated": "可见性已设为\"{{visibility}}\"",
     "visibility_toast_failed": "更新可见性失败",
+    "sandbox": {
+      "title": "沙箱",
+      "mode": {
+        "none": "无",
+        "sandbox": "沙箱",
+        "container": "容器"
+      },
+      "hint": {
+        "none": "在主机上运行，拥有对机器的完整访问权限。",
+        "sandbox": "将文件系统限制在工作目录内（Linux bubblewrap），网络仍然共享。",
+        "container": "在仅挂载工作目录的 Docker 容器中运行 CLI。不直接联网：白名单代理仅放行模型 API、包注册表、GitHub、Multica 服务器以及此处列出的额外主机。"
+      },
+      "unavailable": {
+        "sandbox": "未检测到 bubblewrap（仅限 Linux）",
+        "container": "此机器上未检测到 Docker"
+      },
+      "capabilities_unknown": "守护进程尚未上报此机器可运行的模式。",
+      "image_label": "镜像",
+      "image_placeholder": "node:22-bookworm-slim",
+      "image_help": "默认为 node:22-bookworm-slim，首次启动时会安装 Claude 与 Codex CLI。其他提供商需要预装 CLI 的自定义镜像。",
+      "hosts_label": "额外允许的主机",
+      "hosts_placeholder": "registry.example.com\napi.example.com",
+      "hosts_help": "每行一个主机。模型 API、包注册表、GitHub 和 Multica 服务器始终允许。",
+      "save": "保存",
+      "saving": "保存中...",
+      "toast_updated": "沙箱模式已设为{{mode}}",
+      "toast_failed": "更新沙箱模式失败",
+      "last_run": "上次运行：{{mode}}",
+      "last_run_none": "尚未上报运行。",
+      "degraded": "请求了{{requested}}，但此机器无法运行，上次运行已降级为{{effective}}。运行回放已记录此事。"
+    },
     "delete_dialog": {
       "self_heal_notice": "该运行时由正在运行的本地守护进程托管。删除会成功，但守护进程会在数秒内重新注册一个新的运行时——若想彻底移除，请先停止守护进程。",
       "profile_backed_notice": "该运行时来自自定义运行时配置。删除它只会移除当前运行时实例；只要配置仍存在，运行中的守护进程就可以再次注册它。若要彻底移除，请在“自定义运行时”中删除对应配置。",

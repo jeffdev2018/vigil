@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -43,10 +45,17 @@ type AgentRuntimeResponse struct {
 	Visibility string `json:"visibility"`
 	// ProfileID is set when this runtime is an instance of a custom
 	// runtime_profile (MUL-3284); null for built-in runtimes.
-	ProfileID  *string `json:"profile_id"`
-	LastSeenAt *string `json:"last_seen_at"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
+	ProfileID *string `json:"profile_id"`
+	// Sandbox (K10): the confinement the user asked for, what the daemon
+	// reported the machine can do, and what the last run actually got.
+	SandboxMode         string          `json:"sandbox_mode"`
+	SandboxImage        string          `json:"sandbox_image"`
+	SandboxAllowedHosts []string        `json:"sandbox_allowed_hosts"`
+	SandboxCapabilities json.RawMessage `json:"sandbox_capabilities"`
+	SandboxEffective    string          `json:"sandbox_effective"`
+	LastSeenAt          *string         `json:"last_seen_at"`
+	CreatedAt           string          `json:"created_at"`
+	UpdatedAt           string          `json:"updated_at"`
 }
 
 func runtimeToResponse(rt db.AgentRuntime) AgentRuntimeResponse {
@@ -73,9 +82,11 @@ func runtimeToResponse(rt db.AgentRuntime) AgentRuntimeResponse {
 		OwnerID:      uuidToPtr(rt.OwnerID),
 		Visibility:   rt.Visibility,
 		ProfileID:    uuidToPtr(rt.ProfileID),
-		LastSeenAt:   timestampToPtr(rt.LastSeenAt),
-		CreatedAt:    timestampToString(rt.CreatedAt),
-		UpdatedAt:    timestampToString(rt.UpdatedAt),
+		SandboxMode:  nonEmptySandboxMode(rt.SandboxMode), SandboxImage: rt.SandboxImage, SandboxAllowedHosts: sandboxHosts(rt.SandboxAllowedHosts),
+		SandboxCapabilities: nonEmptyJSON(rt.SandboxCapabilities), SandboxEffective: nonEmptySandboxMode(rt.SandboxEffective),
+		LastSeenAt: timestampToPtr(rt.LastSeenAt),
+		CreatedAt:  timestampToString(rt.CreatedAt),
+		UpdatedAt:  timestampToString(rt.UpdatedAt),
 	}
 }
 
@@ -473,6 +484,11 @@ type UpdateAgentRuntimeRequest struct {
 	// runtime per provider) instead of just this one. Ignored when the
 	// runtime has no daemon_id.
 	ApplyToMachine bool `json:"apply_to_machine,omitempty"`
+	// Sandbox (K10): none | sandbox | container, the container image and the
+	// extra hosts the egress proxy lets through. Owner / workspace admin.
+	SandboxMode         *string   `json:"sandbox_mode,omitempty"`
+	SandboxImage        *string   `json:"sandbox_image,omitempty"`
+	SandboxAllowedHosts *[]string `json:"sandbox_allowed_hosts,omitempty"`
 }
 
 // maxRuntimeCustomNameLen caps a runtime's custom name. Default names are
@@ -548,6 +564,16 @@ func (h *Handler) UpdateAgentRuntime(w http.ResponseWriter, r *http.Request) {
 	}
 
 	changed := false
+
+	if req.SandboxMode != nil || req.SandboxImage != nil || req.SandboxAllowedHosts != nil {
+		updated, err := h.updateRuntimeSandbox(r.Context(), rt, req)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		rt = updated
+		changed = true
+	}
 
 	if needVisibility {
 		updated, err := h.Queries.UpdateAgentRuntimeVisibility(r.Context(), db.UpdateAgentRuntimeVisibilityParams{
@@ -1224,4 +1250,61 @@ func activeAgentSetMatches(current []db.Agent, expected map[string]struct{}) boo
 		}
 	}
 	return true
+}
+
+// Sandbox modes (K10).
+var sandboxModes = map[string]bool{"none": true, "sandbox": true, "container": true}
+
+func nonEmptySandboxMode(s string) string {
+	if s == "" {
+		return "none"
+	}
+	return s
+}
+
+func sandboxHosts(raw []byte) []string {
+	var hosts []string
+	_ = json.Unmarshal(raw, &hosts)
+	if hosts == nil {
+		hosts = []string{}
+	}
+	return hosts
+}
+
+var sandboxHostRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$`)
+
+// updateRuntimeSandbox validates and stores the sandbox request; the mode is
+// what the user asked for, the daemon reports what it could honour.
+func (h *Handler) updateRuntimeSandbox(ctx context.Context, rt db.AgentRuntime, req UpdateAgentRuntimeRequest) (db.AgentRuntime, error) {
+	mode, image, hosts := nonEmptySandboxMode(rt.SandboxMode), rt.SandboxImage, sandboxHosts(rt.SandboxAllowedHosts)
+	if req.SandboxMode != nil {
+		mode = strings.TrimSpace(*req.SandboxMode)
+		if !sandboxModes[mode] {
+			return rt, fmt.Errorf("sandbox_mode must be none, sandbox or container")
+		}
+	}
+	if req.SandboxImage != nil {
+		image = strings.TrimSpace(*req.SandboxImage)
+		if len(image) > 200 || strings.ContainsAny(image, " \t\n\"'") {
+			return rt, fmt.Errorf("sandbox_image must be an image reference")
+		}
+	}
+	if req.SandboxAllowedHosts != nil {
+		hosts = make([]string, 0, len(*req.SandboxAllowedHosts))
+		for _, raw := range *req.SandboxAllowedHosts {
+			host := strings.ToLower(strings.TrimSpace(raw))
+			if host == "" {
+				continue
+			}
+			if !sandboxHostRe.MatchString(host) {
+				return rt, fmt.Errorf("%q is not a host name", raw)
+			}
+			hosts = append(hosts, host)
+		}
+		if len(hosts) > 50 {
+			return rt, fmt.Errorf("at most 50 allowed hosts")
+		}
+	}
+	raw, _ := json.Marshal(hosts)
+	return h.Queries.UpdateAgentRuntimeSandbox(ctx, db.UpdateAgentRuntimeSandboxParams{ID: rt.ID, SandboxMode: mode, SandboxImage: image, SandboxAllowedHosts: raw})
 }

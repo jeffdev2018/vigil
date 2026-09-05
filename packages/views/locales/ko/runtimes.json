@@ -142,6 +142,37 @@
     },
     "visibility_toast_updated": "공개 범위를 {{visibility}}(으)로 설정했습니다",
     "visibility_toast_failed": "공개 범위를 업데이트하지 못했습니다",
+    "sandbox": {
+      "title": "샌드박스",
+      "mode": {
+        "none": "없음",
+        "sandbox": "샌드박스",
+        "container": "컨테이너"
+      },
+      "hint": {
+        "none": "호스트에서 머신에 대한 전체 접근 권한으로 실행됩니다.",
+        "sandbox": "파일 시스템을 작업 디렉터리로 제한합니다(Linux bubblewrap). 네트워크는 공유됩니다.",
+        "container": "작업 디렉터리만 마운트된 Docker 컨테이너에서 CLI를 실행합니다. 직접 인터넷 연결은 없으며, 허용 목록 프록시가 모델 API, 패키지 레지스트리, GitHub, Multica 서버 및 여기에 나열된 추가 호스트만 통과시킵니다."
+      },
+      "unavailable": {
+        "sandbox": "bubblewrap이 감지되지 않음(Linux 전용)",
+        "container": "이 머신에서 Docker가 감지되지 않음"
+      },
+      "capabilities_unknown": "데몬이 이 머신에서 실행 가능한 모드를 아직 보고하지 않았습니다.",
+      "image_label": "이미지",
+      "image_placeholder": "node:22-bookworm-slim",
+      "image_help": "기본값은 node:22-bookworm-slim이며 첫 시작 시 Claude 및 Codex CLI가 설치됩니다. 다른 제공자는 CLI가 사전 설치된 사용자 지정 이미지가 필요합니다.",
+      "hosts_label": "추가 허용 호스트",
+      "hosts_placeholder": "registry.example.com\napi.example.com",
+      "hosts_help": "한 줄에 하나의 호스트. 모델 API, 패키지 레지스트리, GitHub, Multica 서버는 항상 허용됩니다.",
+      "save": "저장",
+      "saving": "저장 중...",
+      "toast_updated": "샌드박스 모드를 {{mode}}(으)로 설정했습니다",
+      "toast_failed": "샌드박스 모드를 업데이트하지 못했습니다",
+      "last_run": "마지막 실행: {{mode}}",
+      "last_run_none": "아직 보고된 실행이 없습니다.",
+      "degraded": "{{requested}}이(가) 요청되었지만 이 머신에서 실행할 수 없어 마지막 실행은 {{effective}}(으)로 강등되었습니다. 실행 리플레이에 기록됩니다."
+    },
     "delete_dialog": {
       "self_heal_notice": "이 런타임은 실행 중인 로컬 데몬이 관리합니다. 삭제는 성공하지만, 데몬 프로세스를 멈추지 않으면 몇 초 안에 새 런타임이 다시 등록됩니다. 완전히 제거하려면 먼저 데몬을 중지하세요.",
       "profile_backed_notice": "이 런타임은 사용자 지정 런타임 프로필에서 등록되었습니다. 여기서 삭제하면 현재 런타임 인스턴스만 제거되며, 프로필이 남아 있는 동안 실행 중인 데몬이 다시 등록할 수 있습니다. 완전히 제거하려면 Custom runtimes에서 사용자 지정 런타임 프로필을 삭제하세요.",

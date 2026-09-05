@@ -118,7 +118,7 @@ func (q *Queries) GetRoutingStats(ctx context.Context, arg GetRoutingStatsParams
 }
 
 const listRoutingCandidateRuntimes = `-- name: ListRoutingCandidateRuntimes :many
-SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name FROM agent_runtime
+SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name, sandbox_mode, sandbox_image, sandbox_allowed_hosts, sandbox_capabilities, sandbox_effective FROM agent_runtime
 WHERE workspace_id = $1
   AND status = 'online'
   AND COALESCE(last_seen_at, updated_at) >=
@@ -177,6 +177,11 @@ func (q *Queries) ListRoutingCandidateRuntimes(ctx context.Context, arg ListRout
 			&i.Visibility,
 			&i.ProfileID,
 			&i.CustomName,
+			&i.SandboxMode,
+			&i.SandboxImage,
+			&i.SandboxAllowedHosts,
+			&i.SandboxCapabilities,
+			&i.SandboxEffective,
 		); err != nil {
 			return nil, err
 		}

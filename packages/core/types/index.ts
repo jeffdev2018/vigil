@@ -94,6 +94,8 @@ export type {
   IssueUsageSummary,
   MikaBootstrapResponse,
   TaskStatus,
+  SandboxMode,
+  SandboxCapabilities,
 } from "./agent";
 export { RUNTIME_PROFILE_PROTOCOL_FAMILIES } from "./agent";
 export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo, McpToolRisk, McpToolClass, McpCatalogTool, McpToolPolicy, McpServerToolCatalog } from "./workspace";

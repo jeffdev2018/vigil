@@ -68,6 +68,15 @@ type IssueStatusData struct {
 	Description string `json:"description,omitempty"`
 }
 
+// SandboxSpec is the claim payload's confinement request (K10). Mode is
+// "none" | "sandbox" | "container"; the daemon degrades it to what the
+// machine supports and reports the effective mode on StartTask.
+type SandboxSpec struct {
+	Mode         string   `json:"mode"`
+	Image        string   `json:"image,omitempty"`
+	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+}
+
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
@@ -83,6 +92,9 @@ type Task struct {
 	// server of the run. Nil on a server too old to send it: the daemon then
 	// classifies each tool itself and caps it with the agent's trust dial.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// Sandbox (K10) is the confinement the server requested for this run.
+	// Nil or mode "none" runs the CLI directly on the host, as before.
+	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
 	// RemoteMCPDaemonToken stays inside the daemon and authenticates the local
 	// broker's credential-resolution calls. It must never enter agent env/config.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`

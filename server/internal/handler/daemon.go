@@ -1074,6 +1074,9 @@ type DaemonHeartbeatRequest struct {
 	// the beats where it changed, so absent means "leave what is stored
 	// alone" and an empty object means "nothing is skipped any more".
 	SkippedAgents map[string]string `json:"skipped_agents,omitempty"`
+	// SandboxCapabilities (K10): what the machine can confine a run with,
+	// sent when it changes. Absent leaves the stored value alone.
+	SandboxCapabilities json.RawMessage `json:"sandbox_capabilities,omitempty"`
 }
 
 // heartbeatHasPendingTimeout bounds the cheap HasPending probe on the
@@ -1219,6 +1222,11 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 			if err := h.Queries.UpdateRuntimeSkippedAgents(r.Context(), db.UpdateRuntimeSkippedAgentsParams{ID: rt.ID, SkippedAgents: raw}); err != nil {
 				slog.Warn("heartbeat: store skipped agents failed", "runtime_id", req.RuntimeID, "error", err)
 			}
+		}
+	}
+	if len(req.SandboxCapabilities) > 0 && json.Valid(req.SandboxCapabilities) {
+		if err := h.Queries.UpdateAgentRuntimeSandboxCapabilities(r.Context(), db.UpdateAgentRuntimeSandboxCapabilitiesParams{ID: rt.ID, SandboxCapabilities: req.SandboxCapabilities}); err != nil {
+			slog.Warn("heartbeat: store sandbox capabilities failed", "runtime_id", req.RuntimeID, "error", err)
 		}
 	}
 	if err := h.recordHeartbeat(r.Context(), rt); err != nil {
@@ -2229,6 +2237,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// not — because its absence is what tells an upgraded daemon it is talking
 	// to a server too old to have answered the question (MUL-5811).
 	resp.LeaderRoleResolved = true
+	resp.Sandbox = claimSandboxSpec(runtime)
 	// Agent-trigger plugin hooks, as tools. A failure here degrades to no
 	// tools rather than failing the claim: a plugin that cannot be listed must
 	// not stop an agent from working on the issue.
@@ -3846,6 +3855,13 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Sandbox (K10): the daemon says what confinement the run got. Older
+	// daemons send an empty body.
+	var startReq StartTaskRequest
+	if r.Body != nil {
+		_ = json.NewDecoder(http.MaxBytesReader(w, r.Body, 16<<10)).Decode(&startReq)
+	}
+
 	task, err := h.TaskService.StartTask(r.Context(), parseUUID(taskID))
 	if err != nil {
 		slog.Warn("start task failed", "task_id", taskID, "error", err)
@@ -3855,7 +3871,8 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 
 	slog.Info("task started", "task_id", taskID, "agent_id", uuidToString(task.AgentID))
 	// Replay (K70): what the run started with, as it was at that instant.
-	h.recordRunSnapshot(r.Context(), *task, workspaceID)
+	h.recordRunSnapshot(r.Context(), *task, workspaceID, startReq.snapshot)
+	h.recordSandboxOutcome(r.Context(), *task, workspaceID, startReq)
 	writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 }
 
@@ -5708,4 +5725,45 @@ func (h *Handler) GetTaskGCCheck(w http.ResponseWriter, r *http.Request) {
 		"status":       task.Status,
 		"completed_at": task.CompletedAt.Time,
 	})
+}
+
+// StartTaskRequest (K10) carries the confinement a run got.
+type StartTaskRequest struct {
+	SandboxRequested string `json:"sandbox_requested"`
+	SandboxMode      string `json:"sandbox_mode"`
+	SandboxReason    string `json:"sandbox_reason"`
+}
+
+func (r StartTaskRequest) snapshot(snap *ReplaySnapshot) {
+	snap.SandboxRequested, snap.SandboxMode, snap.SandboxReason = nonEmptySandboxMode(r.SandboxRequested), nonEmptySandboxMode(r.SandboxMode), r.SandboxReason
+}
+
+// claimSandboxSpec is what the claiming runtime asks the daemon to confine
+// the run with; nil when nothing was asked.
+func claimSandboxSpec(rt db.AgentRuntime) *SandboxSpec {
+	mode := nonEmptySandboxMode(rt.SandboxMode)
+	if mode == "none" {
+		return nil
+	}
+	return &SandboxSpec{Mode: mode, Image: rt.SandboxImage, AllowedHosts: sandboxHosts(rt.SandboxAllowedHosts)}
+}
+
+// recordSandboxOutcome keeps the last effective mode on the runtime and
+// audits a degradation so a weaker confinement is never silent.
+func (h *Handler) recordSandboxOutcome(ctx context.Context, task db.AgentTaskQueue, wsIDStr string, req StartTaskRequest) {
+	if req.SandboxMode == "" && req.SandboxRequested == "" {
+		return
+	}
+	requested, effective := nonEmptySandboxMode(req.SandboxRequested), nonEmptySandboxMode(req.SandboxMode)
+	if task.RuntimeID.Valid {
+		_ = h.Queries.UpdateAgentRuntimeSandboxEffective(ctx, db.UpdateAgentRuntimeSandboxEffectiveParams{ID: task.RuntimeID, SandboxEffective: effective})
+	}
+	if requested == effective {
+		return
+	}
+	wsID, err := util.ParseUUID(wsIDStr)
+	if err != nil {
+		return
+	}
+	h.audit(ctx, wsID, "system", "", AuditRunSandboxDegraded, "task", task.ID, map[string]any{"requested": requested, "effective": effective, "reason": req.SandboxReason, "runtime_id": uuidToString(task.RuntimeID)}, nil)
 }
