@@ -1406,5 +1406,11 @@
       "ask_proof": "ask for a proof",
       "none": "no action"
     }
+  },
+  "eval_promote": {
+    "promote": "Promote to eval case",
+    "added": "Added to Eval Lab",
+    "open_eval_lab": "Open Eval Lab",
+    "failed": "Could not promote this issue"
   }
 }

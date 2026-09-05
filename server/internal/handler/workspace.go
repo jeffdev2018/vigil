@@ -1317,6 +1317,23 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceAgentDuels(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Eval Lab (K24): run cases hang off runs, so they go first.
+			name: "purge eval run cases",
+			run:  func() error { return qtx.PurgeWorkspaceEvalRunCases(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval runs",
+			run:  func() error { return qtx.PurgeWorkspaceEvalRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval suites",
+			run:  func() error { return qtx.PurgeWorkspaceEvalSuites(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval cases",
+			run:  func() error { return qtx.PurgeWorkspaceEvalCases(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge contests",
 			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
 		},

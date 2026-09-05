@@ -1406,5 +1406,11 @@
       "ask_proof": "demander une preuve",
       "none": "aucune action"
     }
+  },
+  "eval_promote": {
+    "promote": "Promouvoir en cas d'évaluation",
+    "added": "Ajouté au labo d'évaluation",
+    "open_eval_lab": "Ouvrir le labo d'évaluation",
+    "failed": "Impossible de promouvoir ce ticket"
   }
 }

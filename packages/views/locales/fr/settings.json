@@ -623,7 +623,8 @@
       "billing": "Facturation",
       "audit_log": "Journal d'audit",
       "budgets": "Budgets",
-      "learning": "Ce que Vigil sait"
+      "learning": "Ce que Vigil sait",
+      "eval_lab": "Labo d'évaluation"
     }
   },
   "plugins": {
@@ -1929,5 +1930,59 @@
     "status_completed": "Terminé",
     "status_failed": "Échoué",
     "template_badge": "Modèle"
+  },
+  "eval_lab": {
+    "title": "Labo d'évaluation",
+    "description": "Rejouez des tickets prouvés sur une version d'agent pour vérifier qu'elle passe toujours. Un ticket résolu dont tous les critères d'acceptation sont prouvés peut être promu en cas d'évaluation depuis le ticket lui-même.",
+    "suites_title": "Suites",
+    "suites_description": "Une suite regroupe des cas d'évaluation ; l'exécuter rejoue chaque cas sur une seule version d'agent.",
+    "suites_empty_title": "Aucune suite",
+    "suites_empty_hint": "Créez-en une ci-dessous à partir des cas que vous avez promus.",
+    "cases_empty_title": "Aucun cas d'évaluation",
+    "cases_empty_hint": "Promouvez un ticket résolu dont tous les critères d'acceptation sont prouvés pour créer le premier cas.",
+    "case_count": "{{n}} cas",
+    "case_meta": "Ticket #{{number}} · {{criteria}} critères",
+    "last_run": "dernière exécution par {{agent}} :",
+    "never_run": "jamais exécutée",
+    "run": "Exécuter",
+    "cancel": "Annuler",
+    "agent": "Agent",
+    "version": "Version",
+    "pick_agent": "Choisir un agent",
+    "pick_version": "Choisir une version",
+    "version_label": "v{{number}}",
+    "new_suite_title": "Nouvelle suite",
+    "new_suite_description": "Nommez la suite et choisissez les cas qu'elle rejoue.",
+    "name_label": "Nom",
+    "name_placeholder": "Régression",
+    "select_cases": "Cas",
+    "create": "Créer la suite",
+    "created_toast": "Suite créée",
+    "create_failed": "Impossible de créer la suite",
+    "run_failed": "Impossible de lancer l'exécution",
+    "history_title": "Historique des exécutions",
+    "history_description": "Chaque rejeu, du plus récent au plus ancien. Cliquez sur le nom d'une suite pour voir les verdicts par cas.",
+    "history_empty": "Aucune exécution",
+    "col_suite": "Suite",
+    "col_agent": "Agent",
+    "col_version": "Version",
+    "col_status": "Statut",
+    "col_score": "Score",
+    "col_started": "Démarrée",
+    "status": {
+      "running": "En cours",
+      "completed": "Terminée",
+      "failed": "Échouée"
+    },
+    "status_unknown": "Inconnu",
+    "case_status": {
+      "pending": "En attente",
+      "passed": "Réussi",
+      "failed": "Échoué",
+      "infra_failed": "Panne d'infrastructure"
+    },
+    "score_value": "{{score}}/100",
+    "no_score": "—",
+    "no_cases": "Aucun cas enregistré pour cette exécution"
   }
 }

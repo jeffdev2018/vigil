@@ -1707,6 +1707,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/mcp-servers", h.ListWorkspaceMcpServers)
 					r.Get("/mcp-servers/{serverId}/tools", h.ListWorkspaceMcpServerTools)
 					r.Get("/model-keys", h.ListModelKeys)
+					// Eval Lab (K24): reading cases, suites and runs is a
+					// member action; starting a run is gated on the suite's
+					// own workspace (see /api/eval-suites/{id}/run).
+					r.Get("/eval-cases", h.ListEvalCases)
+					r.Get("/eval-suites", h.ListEvalSuites)
+					r.Post("/eval-suites", h.CreateEvalSuite)
+					r.Get("/eval-runs", h.ListEvalRuns)
 					r.Get("/sso", h.GetSSOConnection)
 					r.Get("/scim-tokens", h.ListScimTokens)
 					// Installed Plugins are member-visible so a member can
@@ -2352,6 +2359,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/duel", h.GetIssueAgentDuel)
 			r.Get("/api/duels/{id}", h.GetAgentDuel)
 			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
+
+			// Eval Lab (K24).
+			r.Post("/api/issues/{id}/promote-to-eval-case", h.PromoteIssueToEvalCase)
+			r.Post("/api/eval-suites/{id}/run", h.RunEvalSuite)
+			r.Get("/api/eval-runs/{id}", h.GetEvalRun)
 			// Refactoring campaigns (K42): sharded fan-out plus a sequential merge queue.
 			r.Post("/api/refactor-campaigns", h.CreateRefactorCampaign)
 			r.Get("/api/refactor-campaigns/{id}", h.GetRefactorCampaign)

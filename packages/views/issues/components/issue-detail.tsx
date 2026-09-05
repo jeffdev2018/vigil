@@ -112,6 +112,7 @@ import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
 import { FanoutSection } from "./fanout-section";
 import { DuelSection } from "./duel-section";
+import { EvalPromoteSection } from "./eval-promote-section";
 import { CampaignBoard } from "./campaign-board";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
@@ -2676,6 +2677,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
       <DuelSection issueId={id} />
+
+      {/* Eval Lab (K24): freeze this proved issue as a reusable eval case. */}
+      <EvalPromoteSection issueId={id} />
 
       {/* Refactoring campaigns (K42): sharded fan-out with a sequential merge queue. */}
       <CampaignBoard issueId={id} />

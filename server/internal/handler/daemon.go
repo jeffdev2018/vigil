@@ -2238,6 +2238,13 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// to a server too old to have answered the question (MUL-5811).
 	resp.LeaderRoleResolved = true
 	resp.Sandbox = claimSandboxSpec(runtime)
+	// Eval Lab (K24): a replay writes throwaway work, so it is confined
+	// whatever the runtime asks for. Looked up once per claim and reused for
+	// the version pin below.
+	evalCase, isEval := h.evalRunCaseForTask(r.Context(), *task)
+	if isEval {
+		resp.Sandbox = &SandboxSpec{Mode: "container", Image: runtime.SandboxImage, AllowedHosts: sandboxHosts(runtime.SandboxAllowedHosts)}
+	}
 	// Agent-trigger plugin hooks, as tools. A failure here degrades to no
 	// tools rather than failing the claim: a plugin that cannot be listed must
 	// not stop an agent from working on the issue.
@@ -2416,6 +2423,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// configured fallback model.
 	if trace := parseTaskRoutingTrace(task); trace != nil && trace.ChosenModel != "" {
 		resp.Agent.Model = trace.ChosenModel
+	}
+	// Eval Lab (K24): the run measures ONE version, so it runs that version's
+	// instructions and model rather than the agent's current configuration.
+	if isEval {
+		h.applyEvalAgentVersion(r.Context(), evalCase, *task, &resp)
 	}
 	// System agents carry a product-owned instruction layer that ships with
 	// this binary instead of being copied into their row at creation. That
@@ -3877,6 +3889,11 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 	// Replay (K70): what the run started with, as it was at that instant.
 	h.recordRunSnapshot(r.Context(), *task, workspaceID, startReq.snapshot)
 	h.recordSandboxOutcome(r.Context(), *task, workspaceID, startReq)
+	// Eval Lab (K24): an unconfined replay is not measured, it is stopped.
+	if h.evalStartGate(r.Context(), *task, startReq) {
+		writeErrorCode(w, http.StatusConflict, "eval_sandbox_required", "eval runs require a container sandbox")
+		return
+	}
 	writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 }
 
@@ -4096,6 +4113,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a finished candidate run moves the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// Eval Lab (K24): a finished replay is scored on the criteria it proved.
+	h.settleEvalRunCase(r.Context(), *task)
 	// "Show me first" (K69): the held writes become one decision.
 	h.settlePendingEffects(r.Context(), *task, true)
 	// Replay (K70): seal the run's event chain into the audit log.
@@ -4811,6 +4830,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a candidate that failed for good ends the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// Eval Lab (K24): a replay that failed for good scores zero.
+	h.settleEvalRunCase(r.Context(), *task)
 	// "Show me first" (K69): a failed run drops its held writes.
 	h.settlePendingEffects(r.Context(), *task, false)
 	// Replay (K70): seal the run's event chain into the audit log.
