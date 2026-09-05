@@ -386,7 +386,8 @@ var concurrentIndexCleanups = map[string]string{
 	"662_org_structure_default_index":                           "uq_org_structure_default_live",
 	"663_org_flow_index":                                        "idx_org_flow_structure",
 	"664_org_offer_index":                                       "idx_org_offer_issue",
-	"667_workspace_transfer_run_index":                        "idx_workspace_transfer_run_workspace",
+	"667_workspace_transfer_run_index":                          "idx_workspace_transfer_run_workspace",
+	"669_issue_completed_at_index_after_column":                 "idx_issue_completed_at",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 
@@ -497,6 +498,11 @@ var upMigrationConditions = map[string]migrationCondition{
 	// else, rather than failing the run (and with it backend startup) on every
 	// database without the extension.
 	"446_issue_properties_bigm_index": whenOperatorClassAvailable(issuePropertiesBigramOperatorClass),
+	// issue.completed_at was introduced by a migration later renumbered to 572,
+	// so a fresh database reaches 474 before the column exists. Skip the index
+	// there; migration 669 builds it once the column is in place, and a
+	// database that already ran 474 records 669 as a no-op (IF NOT EXISTS).
+	"474_issue_completed_at_index": whenColumnExists("issue", "completed_at"),
 }
 
 func hooksForDirection(direction string) map[string]preMigrationHook {
@@ -567,6 +573,25 @@ func whenIndexNotUsable(requirement usableIndexRequirement) migrationCondition {
 //
 // Checking the extension alone would be weaker: an opclass in a schema outside
 // the search_path still fails the CREATE INDEX, which would abort the run.
+// whenColumnExists applies a migration only once the named column exists.
+func whenColumnExists(table, column string) migrationCondition {
+	return func(ctx context.Context, conn *pgxpool.Conn) (bool, string, error) {
+		var exists bool
+		if err := conn.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM information_schema.columns
+				WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2
+			)
+		`, table, column).Scan(&exists); err != nil {
+			return false, "", fmt.Errorf("inspect column %s.%s: %w", table, column, err)
+		}
+		if !exists {
+			return false, fmt.Sprintf("column %s.%s does not exist yet", table, column), nil
+		}
+		return true, "", nil
+	}
+}
+
 func whenOperatorClassAvailable(opclass extensionOperatorClass) migrationCondition {
 	return func(ctx context.Context, conn *pgxpool.Conn) (bool, string, error) {
 		var available bool
