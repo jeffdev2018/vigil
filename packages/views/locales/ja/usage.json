@@ -135,6 +135,19 @@
     "none": "この期間はなし",
     "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。"
   },
+  "agent_roi": {
+    "title": "エージェント別 ROI · {{days}}日",
+    "headline": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ（{{second}} は {{cost2}}）",
+    "headline_single": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ",
+    "empty": "過去 {{days}} 日間にエージェントの稼働はありません。",
+    "agent": "エージェント",
+    "issues": "クローズしたイシュー",
+    "prs": "マージした PR",
+    "cost": "コスト",
+    "cost_per_issue": "イシューあたりコスト",
+    "none": "クローズしたイシューなし",
+    "floor": "下限値"
+  },
   "scorecards": {
     "title": "エージェントのスコアカード · {{days}}日",
     "scope_note": "ワークスペース全体・全プロジェクト · UTC 日次",

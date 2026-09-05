@@ -135,6 +135,19 @@
     "none": "이 기간에는 없음",
     "empty": "지난 {{days}}일 동안 실행이 있는 완료 이슈나 병합된 PR이 없습니다."
   },
+  "agent_roi": {
+    "title": "에이전트별 ROI · {{days}}일",
+    "headline": "{{best}}이(가) 이슈 {{count}}건을 건당 {{cost}}에 완료 (vs {{second}} {{cost2}})",
+    "headline_single": "{{best}}이(가) 이슈 {{count}}건을 건당 {{cost}}에 완료",
+    "empty": "최근 {{days}}일 동안 에이전트 활동이 없습니다.",
+    "agent": "에이전트",
+    "issues": "완료한 이슈",
+    "prs": "머지된 PR",
+    "cost": "비용",
+    "cost_per_issue": "이슈당 비용",
+    "none": "완료한 이슈 없음",
+    "floor": "최소값"
+  },
   "scorecards": {
     "title": "에이전트 스코어카드 · {{days}}일",
     "scope_note": "워크스페이스 전체, 모든 프로젝트 · UTC 기준 일자",

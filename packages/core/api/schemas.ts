@@ -4161,6 +4161,27 @@ export const DashboardCostPerDeliverableSchema = z.object({
   pull_requests: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
 }).loose();
 
+// ROI per agent (JEF-252). Ratios stay nullable all the way through: an agent
+// that closed nothing has no cost per issue, and defaulting that to 0 would
+// rank it as the cheapest agent in the workspace.
+const AgentRoiRowSchema = z.object({
+  agent_id: z.string().catch(""),
+  agent_name: z.string().catch(""),
+  provider: z.string().catch(""),
+  issues_closed: z.number().catch(0),
+  prs_merged: z.number().catch(0),
+  cost_usd_ticks: z.number().catch(0),
+  uncosted_runs: z.number().catch(0),
+  cost_per_issue_usd_ticks: z.number().nullable().catch(null),
+  cost_per_pr_usd_ticks: z.number().nullable().catch(null),
+  prev_cost_per_issue_usd_ticks: z.number().nullable().catch(null),
+}).loose();
+
+export const DashboardAgentRoiSchema = z.object({
+  days: z.number().catch(30),
+  agents: z.array(AgentRoiRowSchema).catch([]).default([]),
+}).loose();
+
 // Module ownership (K33).
 export const ModuleOwnershipRuleSchema = z.object({
   id: z.string(),
