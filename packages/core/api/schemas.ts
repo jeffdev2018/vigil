@@ -806,6 +806,7 @@ export interface AppConfigResponse {
   /** Speech-to-text provider configured (MULTICA_STT_*); absent on older servers. */
   meeting_transcription_available?: boolean;
   meeting_realtime_available?: boolean;
+  tts_available?: boolean;
   // True when the CDN domain serves private content via time-bounded signed
   // URLs (CloudFront signing) — raw storage URLs on that domain are NOT
   // publicly fetchable and must not be used as native media sources
@@ -1040,6 +1041,7 @@ export const AppConfigSchema = z.object({
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
   meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
   meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
+  tts_available: BooleanWithDefaultSchema(false).optional(),
   server_version: OptionalStringSchema,
   run_unresponsive_after_seconds: z.number().positive().optional().catch(undefined),
 }).loose();

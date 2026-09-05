@@ -42,6 +42,10 @@ interface ConfigState {
   meetingTranscriptionAvailable: boolean;
   // Whether the provider also streams a live transcript (MULTICA_STT_REALTIME_MODEL).
   meetingRealtimeAvailable: boolean;
+  // Whether this server has a text-to-speech provider (MULTICA_TTS_*). Absent
+  // reads as false, and "read aloud" uses the browser's own speechSynthesis —
+  // which works everywhere, so nothing is hidden on a server without it.
+  ttsAvailable: boolean;
   // Seconds of silence after which an active run is shown as unresponsive
   // (F02). Server-driven so MULTICA_RUN_UNRESPONSIVE_AFTER applies everywhere;
   // the default matches the server's.
@@ -63,6 +67,7 @@ interface ConfigState {
   setAgentConversationStartersSupported: (supported?: boolean) => void;
   setMeetingTranscriptionAvailable: (available?: boolean) => void;
   setMeetingRealtimeAvailable: (available?: boolean) => void;
+  setTtsAvailable: (available?: boolean) => void;
   setRunUnresponsiveAfterSeconds: (seconds?: number) => void;
 }
 
@@ -82,6 +87,7 @@ export const configStore = createStore<ConfigState>((set) => ({
   agentConversationStartersSupported: false,
   meetingTranscriptionAvailable: false,
   meetingRealtimeAvailable: false,
+  ttsAvailable: false,
   runUnresponsiveAfterSeconds: DEFAULT_RUN_UNRESPONSIVE_AFTER_SECONDS,
   setCdnConfig: ({ cdnDomain, cdnSigned = false }) => set({ cdnDomain, cdnSigned }),
   setAuthConfig: ({
@@ -102,6 +108,7 @@ export const configStore = createStore<ConfigState>((set) => ({
     set({ meetingTranscriptionAvailable: available === true }),
   setMeetingRealtimeAvailable: (available = false) =>
     set({ meetingRealtimeAvailable: available === true }),
+  setTtsAvailable: (available = false) => set({ ttsAvailable: available === true }),
   setRunUnresponsiveAfterSeconds: (seconds) =>
     set({
       runUnresponsiveAfterSeconds:

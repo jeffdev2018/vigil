@@ -91,7 +91,8 @@ describe("parseTranscriptLines", () => {
   it("round-trips a line through formatTranscriptLine", () => {
     for (const line of ["Speaker 1: On livre vendredi.", "On livre vendredi."]) {
       const [parsed] = parseTranscriptLines(line);
-      expect(formatTranscriptLine(parsed.speaker, `  ${parsed.text}  `)).toBe(line);
+      expect(parsed).toBeDefined();
+      expect(formatTranscriptLine(parsed!.speaker, `  ${parsed!.text}  `)).toBe(line);
     }
   });
 });

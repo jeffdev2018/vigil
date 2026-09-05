@@ -1829,6 +1829,21 @@ export class ApiClient {
     );
   }
 
+  /**
+   * Read aloud: one block of text in, audio bytes out
+   * (POST /api/voice/speak). 409 `tts_not_configured` when the deployment has
+   * no provider — the caller falls back to the browser's speechSynthesis.
+   * At most 4000 characters per call; the caller splits by sentence.
+   */
+  async speak(text: string, language?: string): Promise<Blob> {
+    const res = await this.fetchRaw("/api/voice/speak", {
+      method: "POST",
+      extraHeaders: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text, language: language ?? "" }),
+    });
+    return res.blob();
+  }
+
   /** Short-lived token for the provider's realtime transcription socket. */
   async realtimeVoiceSession(): Promise<RealtimeVoiceSession> {
     const raw = await this.fetch<unknown>("/api/voice/realtime-session", { method: "POST" });

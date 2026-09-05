@@ -444,6 +444,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		STTLanguage:              strings.TrimSpace(os.Getenv("MULTICA_STT_LANGUAGE")),
 		STTDiarize:               strings.EqualFold(strings.TrimSpace(os.Getenv("MULTICA_STT_DIARIZE")), "true"),
 		STTRealtimeModel:         strings.TrimSpace(os.Getenv("MULTICA_STT_REALTIME_MODEL")),
+		TTSBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_TTS_BASE_URL")),
+		TTSAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_TTS_API_KEY")),
+		TTSModel:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_MODEL")),
+		TTSVoice:                 strings.TrimSpace(os.Getenv("MULTICA_TTS_VOICE")),
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
@@ -2034,6 +2038,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Live transcript: a short-lived provider token the browser uses to open
 			// the realtime WebSocket itself. The API key never leaves the server.
 			r.With(handler.RequireHumanActor).Post("/api/voice/realtime-session", h.RealtimeVoiceSession)
+			// Read aloud: text in, audio bytes out. 409 when no TTS provider is
+			// configured, which is the client's cue to use speechSynthesis.
+			r.With(handler.RequireHumanActor).Post("/api/voice/speak", h.SpeakVoice)
 
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
 			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {

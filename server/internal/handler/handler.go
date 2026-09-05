@@ -47,6 +47,7 @@ import (
 	"github.com/multica-ai/multica/server/pkg/featureflag"
 	"github.com/multica-ai/multica/server/pkg/llm"
 	"github.com/multica-ai/multica/server/pkg/stt"
+	"github.com/multica-ai/multica/server/pkg/tts"
 )
 
 // randomID returns a random 16-byte hex string used as a request ID for
@@ -144,6 +145,10 @@ type Config struct {
 	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
 	//   - LLMRoutingModel  -> MULTICA_LLM_ROUTING_MODEL (small fast model for webhook event routing; empty = default model)
 	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
+	//   - TTSBaseURL       -> MULTICA_TTS_BASE_URL (OpenAI-compatible /v1/audio/speech)
+	//   - TTSAPIKey        -> MULTICA_TTS_API_KEY
+	//   - TTSModel         -> MULTICA_TTS_MODEL
+	//   - TTSVoice         -> MULTICA_TTS_VOICE
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
@@ -163,6 +168,13 @@ type Config struct {
 	STTLanguage      string
 	STTDiarize       bool
 	STTRealtimeModel string
+
+	// TTS* configure the text-to-speech provider behind "read this aloud".
+	// Unset leaves the browser's own speechSynthesis as the only voice.
+	TTSBaseURL string
+	TTSAPIKey  string
+	TTSModel   string
+	TTSVoice   string
 	// ServerVersion is the build version of the running API binary (the same
 	// value main.go stamps via -X main.version and reports on /metrics).
 	// Surfaced through /api/config so self-hosted operators can confirm which
@@ -412,6 +424,10 @@ type Handler struct {
 	// STT transcribes audio for voice memos and meetings. Always non-nil;
 	// Enabled() is false when MULTICA_STT_* is unset.
 	STT *stt.Client
+	// TTS synthesizes speech for "read this aloud". Always non-nil;
+	// Enabled() is false when MULTICA_TTS_* is unset, and the client falls
+	// back to the browser's own speechSynthesis.
+	TTS *tts.Client
 	// VCSSecretBox encrypts/decrypts per-workspace Git provider access tokens and
 	// webhook secrets at rest (Forgejo / Gitea / GitLab). Nil when
 	// MULTICA_VCS_SECRET_KEY is unset; the connect/webhook handlers return 503
@@ -543,6 +559,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		}),
 		LLM: llmClient,
 		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
+		TTS: tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
 		cfg: cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)

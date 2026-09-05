@@ -100,6 +100,9 @@ export function AuthInitializer({
           .getState()
           .setMeetingTranscriptionAvailable(cfg.meeting_transcription_available === true);
         configStore.getState().setMeetingRealtimeAvailable(cfg.meeting_realtime_available === true);
+        // Absent on servers without a TTS provider: "read aloud" falls back
+        // to the browser voice rather than disappearing.
+        configStore.getState().setTtsAvailable(cfg.tts_available === true);
         if (cfg.posthog_key) {
           initAnalytics({
             key: cfg.posthog_key,
