@@ -10,6 +10,7 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
 import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { pinKeys } from "../pins/queries";
@@ -98,6 +99,8 @@ import type {
   CommentDeletedPayload,
   CommentResolvedPayload,
   CommentUnresolvedPayload,
+  CrossReviewReworkPayload,
+  CrossReviewEscalatedPayload,
   ActivityCreatedPayload,
   ReactionAddedPayload,
   ReactionRemovedPayload,
@@ -905,6 +908,12 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) onWorkspaceNoteInvalidate(qc, wsId);
       },
+      // cross_review:queued / cross_review:report refresh the issue's review
+      // list; rework / escalated carry a notice and are handled below.
+      cross_review: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["cross-reviews", wsId] });
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });
@@ -1036,6 +1045,11 @@ export function useRealtimeSync(
       "agent_memory:created",
       "agent_memory:updated",
       "agent_memory:deleted",
+      // cross_review:rework / escalated raise a notice signal in addition to
+      // the invalidation, so they skip the prefix path to avoid handling the
+      // same frame twice.
+      "cross_review:rework",
+      "cross_review:escalated",
       // task:completed / task:failed deliberately NOT here. They go through
       // both the task-prefix invalidate (refreshes the agent-task-snapshot
       // cache) AND the chat-specific ws.on() handlers below. The two
@@ -1182,6 +1196,33 @@ export function useRealtimeSync(
     const unsubMeetingCreated = ws.on("meeting:created", handleMeetingEvent);
     const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
     const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
+
+    // Review rework loop (JEF-238): a request_changes verdict sent the task
+    // back to the worker, or the cycle cap escalated to a human. Refresh the
+    // issue's review list and raise a client-only signal the cross-review
+    // section renders as a notice (same pattern as the quick-actions failure
+    // signal — the event is workspace fanout, so the list itself refetches
+    // rather than trusting the payload).
+    const unsubCrossReviewRework = ws.on("cross_review:rework", (p) => {
+      const payload = (p ?? {}) as CrossReviewReworkPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId || !payload.issue_id) return;
+      qc.setQueryData<CrossReviewSignal>(
+        crossReviewKeys.signal(wsId, payload.issue_id),
+        { kind: "rework", cycle: payload.cycle, at: Date.now() },
+      );
+      qc.invalidateQueries({ queryKey: crossReviewKeys.issue(wsId, payload.issue_id) });
+    });
+    const unsubCrossReviewEscalated = ws.on("cross_review:escalated", (p) => {
+      const payload = (p ?? {}) as CrossReviewEscalatedPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId || !payload.issue_id) return;
+      qc.setQueryData<CrossReviewSignal>(
+        crossReviewKeys.signal(wsId, payload.issue_id),
+        { kind: "escalated", cycles: payload.cycles, at: Date.now() },
+      );
+      qc.invalidateQueries({ queryKey: crossReviewKeys.issue(wsId, payload.issue_id) });
+    });
 
     // --- Timeline event handlers (global fallback) ---
     // These events are also handled granularly by useIssueTimeline when
@@ -1822,6 +1863,8 @@ export function useRealtimeSync(
       unsubMeetingCreated();
       unsubMeetingUpdated();
       unsubMeetingDeleted();
+      unsubCrossReviewRework();
+      unsubCrossReviewEscalated();
       unsubCommentCreated();
       unsubCommentUpdated();
       unsubCommentDeleted();

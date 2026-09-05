@@ -106,7 +106,11 @@ export type WSEventType =
   | "postmortem:resolved"
   | "workspace_note:created"
   | "workspace_note:updated"
-  | "workspace_note:deleted";
+  | "workspace_note:deleted"
+  | "cross_review:queued"
+  | "cross_review:report"
+  | "cross_review:rework"
+  | "cross_review:escalated";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -273,6 +277,26 @@ export interface MeetingEventPayload {
 /** A postmortem was approved or discarded. */
 export interface PostmortemResolvedPayload {
   postmortem: Postmortem;
+}
+
+/** Cross-provider review lifecycle (K15): a review was queued or reported. */
+export interface CrossReviewEventPayload {
+  issue_id: string;
+  review_task_id?: string;
+  verdict?: string;
+}
+
+/** A request_changes verdict sent the task back to the worker (JEF-238). */
+export interface CrossReviewReworkPayload {
+  issue_id: string;
+  task_id: string;
+  cycle: number;
+}
+
+/** The rework-cycle cap was reached; a human must decide (JEF-238). */
+export interface CrossReviewEscalatedPayload {
+  issue_id: string;
+  cycles: number;
 }
 
 export interface CommentCreatedPayload {
@@ -715,6 +739,10 @@ export interface WSEventPayloadMap {
   "triage:updated": TriageUpdatedPayload;
   "postmortem:created": PostmortemCreatedPayload;
   "postmortem:resolved": PostmortemResolvedPayload;
+  "cross_review:queued": CrossReviewEventPayload;
+  "cross_review:report": CrossReviewEventPayload;
+  "cross_review:rework": CrossReviewReworkPayload;
+  "cross_review:escalated": CrossReviewEscalatedPayload;
 }
 
 /**

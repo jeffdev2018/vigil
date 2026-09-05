@@ -209,5 +209,21 @@
     "updated": "角色已更新",
     "update_failed": "更新角色失败",
     "read_only": "只有工作区所有者、管理员和项目 admin 可以更改角色。"
+  },
+  "review": {
+    "section": "智能体评审",
+    "description": "智能体在此项目上交付工作后，由另一个智能体按下面的检查清单评审。",
+    "checklist": "检查清单",
+    "checklist_empty": "尚无检查项。",
+    "item_placeholder": "例如：迁移不得添加外键",
+    "add": "添加检查项",
+    "remove": "删除检查项",
+    "reviewer": "评审智能体",
+    "reviewer_auto": "自动",
+    "gate": "批准后才能完成",
+    "gate_description": "开启后，最近一次评审通过前，任务无法移动到 done。",
+    "max_cycles": "最大轮次",
+    "save": "保存评审设置",
+    "failed": "无法保存评审设置"
   }
 }

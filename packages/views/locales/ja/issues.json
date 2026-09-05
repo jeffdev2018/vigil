@@ -1268,7 +1268,10 @@
     "suggestions": "提案",
     "retry": "レビューを再実行",
     "retry_failed": "再実行に失敗しました",
-    "previous": "以前の試行 {{count}} 件"
+    "previous": "以前の試行 {{count}} 件",
+    "checklist": "チェックリスト",
+    "rework": "ワーカーに差し戻し · サイクル {{cycle}}",
+    "escalated": "{{cycles}} サイクルでエスカレーション — 人の対応が必要です"
   },
   "agent_effects": {
     "section": "エージェントの変更",

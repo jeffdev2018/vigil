@@ -290,7 +290,7 @@ func (h *Handler) pickChallenger(ctx context.Context, wsUUID pgtype.UUID, t cont
 			return contestChallenger{Kind: "agent", AgentID: uuidToString(agent.ID), Name: agent.Name, Provider: p, SameVendor: p == authorProvider}, nil
 		}
 		if authorProvider != "" {
-			if candidates, err := h.Queries.ListCrossReviewCandidates(ctx, db.ListCrossReviewCandidatesParams{WorkspaceID: wsUUID, AuthorProvider: authorProvider}); err == nil {
+			if candidates, err := h.Queries.ListContestChallengerCandidates(ctx, db.ListContestChallengerCandidatesParams{WorkspaceID: wsUUID, AuthorProvider: authorProvider}); err == nil {
 				for _, c := range candidates {
 					if c.ID != t.AuthorID {
 						return contestChallenger{Kind: "agent", AgentID: uuidToString(c.ID), Name: c.Name, Provider: c.Provider}, nil

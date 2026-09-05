@@ -58,6 +58,27 @@ export interface ListProjectsResponse {
   total: number;
 }
 
+// Per-project agent review configuration (JEF-238). GET returns these
+// defaults (empty checklist, automatic reviewer, gate off, 3 cycles) when the
+// project has no saved config.
+export interface ProjectReviewConfig {
+  project_id: string;
+  checklist: string[];
+  /** null = the server picks any reviewer different from the worker. */
+  reviewer_agent_id: string | null;
+  /** When true, the issue cannot move to done before the latest review approves. */
+  gate_enabled: boolean;
+  /** Rework cycles before the review escalates to a human. Server: 1..10. */
+  max_cycles: number;
+}
+
+export interface UpdateProjectReviewConfigRequest {
+  checklist: string[];
+  reviewer_agent_id: string | null;
+  gate_enabled: boolean;
+  max_cycles: number;
+}
+
 // ProjectResource is a typed pointer from a project to an external resource.
 // The resource_ref shape depends on resource_type. New types add a case in
 // validateAndNormalizeResourceRef on the server and a renderer in the UI.

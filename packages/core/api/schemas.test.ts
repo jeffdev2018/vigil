@@ -90,6 +90,10 @@ import {
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
+import {
+  CrossReviewReportSchema,
+  ProjectReviewConfigSchema,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -2557,5 +2561,87 @@ describe("TriageEmailSourceSchema", () => {
         }),
       ).toEqual(EMPTY_TRIAGE_EMAIL_SOURCE);
     }
+  });
+});
+
+// JEF-238: per-project review config and checklist verdicts on the report.
+describe("ProjectReviewConfigSchema", () => {
+  it("parses a full config and keeps unknown fields", () => {
+    const parsed = ProjectReviewConfigSchema.parse({
+      project_id: "p1",
+      checklist: ["no foreign keys in migrations", "tests added"],
+      reviewer_agent_id: "agent-9",
+      gate_enabled: true,
+      max_cycles: 5,
+      future_field: "x",
+    });
+    expect(parsed).toMatchObject({
+      project_id: "p1",
+      checklist: ["no foreign keys in migrations", "tests added"],
+      reviewer_agent_id: "agent-9",
+      gate_enabled: true,
+      max_cycles: 5,
+    });
+    expect((parsed as Record<string, unknown>).future_field).toBe("x");
+  });
+
+  it("applies the documented defaults when the project has no saved config", () => {
+    const parsed = ProjectReviewConfigSchema.parse({ project_id: "p1" });
+    expect(parsed).toMatchObject({
+      checklist: [],
+      reviewer_agent_id: null,
+      gate_enabled: false,
+      max_cycles: 3,
+    });
+  });
+
+  it("degrades malformed fields to the defaults instead of throwing", () => {
+    // project_id stays a plain .default (no .catch), matching the file
+    // convention for identity fields — a bad one fails over wholesale via
+    // parseWithFallback, exercised below.
+    const parsed = ProjectReviewConfigSchema.parse({
+      project_id: "p1",
+      checklist: "not-an-array",
+      reviewer_agent_id: 42,
+      gate_enabled: "yes",
+      max_cycles: "lots",
+    });
+    expect(parsed).toMatchObject({
+      project_id: "p1",
+      checklist: [],
+      reviewer_agent_id: null,
+      gate_enabled: false,
+      max_cycles: 3,
+    });
+    const fallback = { project_id: "p1", checklist: [], reviewer_agent_id: null, gate_enabled: false, max_cycles: 3 };
+    expect(
+      parseWithFallback("nope", ProjectReviewConfigSchema, fallback, { endpoint: "GET /api/projects/:id/review-config" }),
+    ).toEqual(fallback);
+  });
+});
+
+describe("CrossReviewReportSchema.checklist_results", () => {
+  it("parses a report with checklist results", () => {
+    const parsed = CrossReviewReportSchema.parse({
+      verdict: "request_changes",
+      summary: "",
+      checklist_results: [
+        { item: "no foreign keys in migrations", pass: false, note: "adds REFERENCES" },
+        { item: "tests added", pass: true, note: "" },
+      ],
+    });
+    expect(parsed.checklist_results).toHaveLength(2);
+    expect(parsed.checklist_results?.[0]).toMatchObject({ pass: false, note: "adds REFERENCES" });
+  });
+
+  it("leaves checklist_results undefined on reports from before the checklist", () => {
+    const parsed = CrossReviewReportSchema.parse({ verdict: "approve" });
+    expect(parsed.checklist_results).toBeUndefined();
+  });
+
+  it("drops a malformed checklist_results field instead of failing the report", () => {
+    const parsed = CrossReviewReportSchema.parse({ verdict: "approve", checklist_results: "nope" });
+    expect(parsed.checklist_results).toBeUndefined();
+    expect(parsed.verdict).toBe("approve");
   });
 });

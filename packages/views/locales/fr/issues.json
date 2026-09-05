@@ -1301,7 +1301,10 @@
     "suggestions": "Suggestions",
     "retry": "Relancer la revue",
     "retry_failed": "La relance a échoué",
-    "previous": "{{count}} tentative(s) précédente(s)"
+    "previous": "{{count}} tentative(s) précédente(s)",
+    "checklist": "Checklist",
+    "rework": "renvoyée au worker · cycle {{cycle}}",
+    "escalated": "escaladée après {{cycles}} cycles — intervention humaine requise"
   },
   "agent_effects": {
     "section": "Modifications de l'agent",

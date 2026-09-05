@@ -1268,7 +1268,10 @@
     "suggestions": "제안",
     "retry": "리뷰 다시 실행",
     "retry_failed": "재실행에 실패했습니다",
-    "previous": "이전 시도 {{count}}회"
+    "previous": "이전 시도 {{count}}회",
+    "checklist": "체크리스트",
+    "rework": "작업자에게 반환됨 · {{cycle}}사이클",
+    "escalated": "{{cycles}}사이클 후 에스컬레이션됨 — 사람의 확인이 필요합니다"
   },
   "agent_effects": {
     "section": "에이전트 변경 사항",

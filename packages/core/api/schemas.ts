@@ -5007,12 +5007,21 @@ export const AgentCompetencySchema = z.object({
 }).loose();
 
 // Cross-provider self-review (K15).
+export const CrossReviewChecklistResultSchema = z.object({
+  item: z.string().catch("").default(""),
+  pass: z.boolean().catch(false).default(false),
+  note: z.string().catch("").default(""),
+}).loose();
+
 export const CrossReviewReportSchema = z.object({
   verdict: z.enum(["approve", "request_changes", "comment"]).catch("comment").default("comment"),
   risks: z.array(z.string()).catch([]).default([]),
   questions: z.array(z.string()).catch([]).default([]),
   suggestions: z.array(z.string()).catch([]).default([]),
   summary: z.string().catch("").default(""),
+  // Per-item verdicts against the project's review checklist (JEF-238).
+  // Optional: absent on reports produced before the checklist existed.
+  checklist_results: z.array(CrossReviewChecklistResultSchema).optional().catch(undefined),
 }).loose();
 
 export const CrossReviewSchema = z.object({
@@ -5106,6 +5115,18 @@ export const UndoReportSchema = z.object({
 export const UndoSettingsSchema = z.object({
   window_hours: z.number().int().catch(24).default(24),
   breaker_threshold: z.number().int().catch(5).default(5),
+}).loose();
+
+// Per-project review configuration (JEF-238): the checklist a reviewer agent
+// checks each diff against, an optional fixed reviewer, the done-gate, and the
+// rework-cycle cap. GET always answers 200 with these defaults when the
+// project has no saved config.
+export const ProjectReviewConfigSchema = z.object({
+  project_id: z.string().default(""),
+  checklist: z.array(z.string()).catch([]).default([]),
+  reviewer_agent_id: z.string().nullable().catch(null).default(null),
+  gate_enabled: z.boolean().catch(false).default(false),
+  max_cycles: z.number().int().catch(3).default(3),
 }).loose();
 
 export const CompetencySettingsSchema = z.object({
