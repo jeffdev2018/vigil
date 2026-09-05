@@ -57,6 +57,10 @@ const (
 	// SourceMeeting: action items extracted from a recorded meeting
 	// (ref_id = meeting.id). Always queued, never dispatched directly.
 	SourceMeeting = "meeting"
+	// SourceEmail: messages forwarded to the workspace's inbound endpoint
+	// (ref_id = workspace.id — one inbox per workspace). The least
+	// authenticated material in the product, so it is created gated.
+	SourceEmail = "email"
 )
 
 // Item states. pending is the only state that occupies the queue; dropped is

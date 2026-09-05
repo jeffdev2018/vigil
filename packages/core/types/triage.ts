@@ -184,3 +184,18 @@ export interface TriageSuggestionsResponse {
   suggestions: Record<string, TriageSuggestion>;
   auto: TriageAutoSettings;
 }
+
+/**
+ * The workspace's email intake endpoint, returned when it is created or its
+ * token is rotated. `token` is present exactly once, in that response: the
+ * server stores only its digest, so a lost token is rotated, never recovered.
+ * `url` is empty when the deployment has no public URL configured; `path` is
+ * always usable behind whatever host the operator serves.
+ */
+export interface TriageEmailSource {
+  id: string;
+  mode: TriageSourceMode | (string & {});
+  path: string;
+  url?: string;
+  token: string;
+}

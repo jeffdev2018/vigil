@@ -71,6 +71,11 @@ type Result struct {
 	// message also carried downloadable media. Repliers use it to tell the
 	// sender to include that media again with the corrected command.
 	IssueUsageHadMedia bool
+	// IssueHeld marks an /issue command the triage queue parked instead of
+	// creating: there is no IssueID, and the sender is told a human will
+	// review it. A refusal (blocked source) sets neither field — that
+	// channel was deliberately silenced.
+	IssueHeld bool
 	// runScheduled reports whether this ingest scheduled a normal chat run.
 	// It is Router-internal state: repliers must continue to use Outcome.
 	runScheduled bool

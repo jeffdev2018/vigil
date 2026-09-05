@@ -135,6 +135,13 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 		// Only a /issue-created message warrants a confirmation; a plain
 		// chat message stays silent (the agent's own reply lands via
 		// EventChatDone / Channel.Send).
+		if res.IssueHeld {
+			if err := r.post(ctx, inst, msg, issueHeldText(res.IssueTitle)); err != nil {
+				r.logger.WarnContext(ctx, "wecom replier: triage hold notice failed",
+					"installation_id", util.UUIDToString(inst.ID), "error", err)
+			}
+			return
+		}
 		if res.IssueID.Valid {
 			// The engine reports a duplicate by carrying the OTHER issue's
 			// id, number and title with IssueDuplicate set. Answering both
@@ -266,6 +273,17 @@ func (r *OutboundReplier) post(ctx context.Context, inst engine.ResolvedInstalla
 // breakMemberLinks, the same entry point issueCreatedText runs its title
 // through: it breaks the inline "](" form and the link reference definition a
 // multi-line title can smuggle instead. See markdown.go.
+// issueHeldText answers an /issue command the triage queue parked. The title
+// goes through breakMemberLinks for the same reason the created confirmation
+// does: it is the reporter's own text echoed back into the room.
+func issueHeldText(rawTitle string) string {
+	title := breakMemberLinks(strings.TrimSpace(rawTitle))
+	if title == "" {
+		return "🗂 已进入待审队列，稍后由成员处理。"
+	}
+	return "🗂 已进入待审队列 — " + title
+}
+
 func issueDuplicateText(res engine.Result) string {
 	id := res.IssueIdentifier
 	if id == "" {

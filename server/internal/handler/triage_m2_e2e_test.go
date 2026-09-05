@@ -286,7 +286,7 @@ func TestTriageListAndBatchAccept(t *testing.T) {
 
 	// Shadow measurement rows never leak into the visible list: plant one on
 	// the same source and verify it stays invisible.
-	if _, err := triage.Capture(context.Background(), testHandler.Queries, triage.CaptureParams{
+	if _, _, err := triage.Capture(context.Background(), testHandler.Queries, triage.CaptureParams{
 		WorkspaceID: parseUUID(testWorkspaceID),
 		SourceKind:  triage.SourceAutopilotWebhook,
 		SourceRefID: parseUUID(apID),

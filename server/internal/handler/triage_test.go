@@ -39,7 +39,7 @@ func shadowWebhookParams(refID, title, state string) triage.CaptureParams {
 func TestTriageCaptureCollapsesSameTitle(t *testing.T) {
 	refID := uuid.NewString()
 
-	first, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
+	first, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
 	if err != nil {
 		t.Fatalf("first capture: %v", err)
 	}
@@ -47,7 +47,7 @@ func TestTriageCaptureCollapsesSameTitle(t *testing.T) {
 
 	// Same title with whitespace/case noise, second delivery: no new row,
 	// the existing pending item absorbs it.
-	second, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "  payment   GATEWAY\ttimeout ", triage.StatePending))
+	second, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "  payment   GATEWAY\ttimeout ", triage.StatePending))
 	if err != nil {
 		t.Fatalf("second capture: %v", err)
 	}
@@ -65,13 +65,13 @@ func TestTriageCaptureCollapsesSameTitle(t *testing.T) {
 func TestTriageCaptureDistinctTitlesStaySeparate(t *testing.T) {
 	refID := uuid.NewString()
 
-	first, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
+	first, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
 	if err != nil {
 		t.Fatalf("first capture: %v", err)
 	}
 	cleanupTriageSource(t, util.UUIDToString(first.SourceID))
 
-	second, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Refund webhook 500", triage.StatePending))
+	second, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Refund webhook 500", triage.StatePending))
 	if err != nil {
 		t.Fatalf("second capture: %v", err)
 	}
@@ -86,13 +86,13 @@ func TestTriageDropCaptureNeverCollapses(t *testing.T) {
 	params := shadowWebhookParams(refID, "", triage.StateDropped)
 	params.DropReason = "issue_limit_reached"
 
-	first, err := triage.Capture(context.Background(), testHandler.Queries, params)
+	first, _, err := triage.Capture(context.Background(), testHandler.Queries, params)
 	if err != nil {
 		t.Fatalf("first drop capture: %v", err)
 	}
 	cleanupTriageSource(t, util.UUIDToString(first.SourceID))
 
-	second, err := triage.Capture(context.Background(), testHandler.Queries, params)
+	second, _, err := triage.Capture(context.Background(), testHandler.Queries, params)
 	if err != nil {
 		t.Fatalf("second drop capture: %v", err)
 	}
@@ -107,7 +107,7 @@ func TestTriageDropCaptureNeverCollapses(t *testing.T) {
 func TestTriageSourceUpsertRefreshesName(t *testing.T) {
 	refID := uuid.NewString()
 
-	first, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "first", triage.StatePending))
+	first, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "first", triage.StatePending))
 	if err != nil {
 		t.Fatalf("first capture: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestTriageSourceUpsertRefreshesName(t *testing.T) {
 
 	renamed := shadowWebhookParams(refID, "second", triage.StatePending)
 	renamed.SourceName = "PagerDuty alerts"
-	if _, err := triage.Capture(context.Background(), testHandler.Queries, renamed); err != nil {
+	if _, _, err := triage.Capture(context.Background(), testHandler.Queries, renamed); err != nil {
 		t.Fatalf("second capture: %v", err)
 	}
 
@@ -190,7 +190,7 @@ func TestExpireStaleTriageItems(t *testing.T) {
 func TestGetTriageStatsCountsShadowAndDrops(t *testing.T) {
 	refID := uuid.NewString()
 
-	pendingItem, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
+	pendingItem, _, err := triage.Capture(context.Background(), testHandler.Queries, shadowWebhookParams(refID, "Payment gateway timeout", triage.StatePending))
 	if err != nil {
 		t.Fatalf("pending capture: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestGetTriageStatsCountsShadowAndDrops(t *testing.T) {
 
 	dropped := shadowWebhookParams(refID, "", triage.StateDropped)
 	dropped.DropReason = "issue_limit_reached"
-	if _, err := triage.Capture(context.Background(), testHandler.Queries, dropped); err != nil {
+	if _, _, err := triage.Capture(context.Background(), testHandler.Queries, dropped); err != nil {
 		t.Fatalf("drop capture: %v", err)
 	}
 

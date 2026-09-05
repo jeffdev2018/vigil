@@ -269,6 +269,7 @@ import type {
   VoiceTranscription,
   RealtimeVoiceSession,
   TriageSourceMode,
+  TriageEmailSource,
   TriageBatchAcceptResponse,
   AcceptTriageItemResponse,
   DismissTriageItemResponse,
@@ -463,6 +464,9 @@ import {
   MergeTriageItemResponseSchema,
   SnoozeTriageItemResponseSchema,
   TriageBatchDismissResponseSchema,
+
+  TriageEmailSourceSchema,
+  EMPTY_TRIAGE_EMAIL_SOURCE,
   EMPTY_TRIAGE_STATS,
   EMPTY_TRIAGE_ITEMS_RESPONSE,
   PostmortemSchema,
@@ -1822,6 +1826,19 @@ export class ApiClient {
     await this.fetch(`/api/triage/sources/${encodeURIComponent(sourceId)}`, {
       method: "PATCH",
       body: JSON.stringify({ mode }),
+    });
+  }
+
+  /**
+   * Mint the workspace's email intake endpoint, or rotate its token when one
+   * already exists. The token is in this response and nowhere else — the
+   * server keeps only its digest — so the caller must show it before it is
+   * discarded. Rotation revokes the previous token immediately.
+   */
+  async createTriageEmailSource(): Promise<TriageEmailSource> {
+    const raw = await this.fetch<unknown>("/api/triage/sources/email", { method: "POST" });
+    return parseWithFallback<TriageEmailSource>(raw, TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE, {
+      endpoint: "POST /api/triage/sources/email",
     });
   }
 

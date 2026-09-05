@@ -40,6 +40,7 @@ type Router struct {
 	tasks     TaskEnqueuer
 	reader    SessionReader
 	lifecycle ChannelChatLifecycle
+	triage    TriageGate
 
 	batcher *pendingBatcher
 
@@ -77,6 +78,9 @@ type RouterConfig struct {
 	MediaConcurrency int
 	Logger           *slog.Logger
 	Lifecycle        ChannelChatLifecycle
+	// Triage gates `/issue` commands against the channel's triage source.
+	// Nil admits every channel directly.
+	Triage TriageGate
 }
 
 // NewRouter builds a Router around the shared (platform-agnostic) services:
@@ -103,6 +107,7 @@ func NewRouter(issues IssueCreator, tasks TaskEnqueuer, reader SessionReader, cf
 		tasks:        tasks,
 		reader:       reader,
 		lifecycle:    cfg.Lifecycle,
+		triage:       cfg.Triage,
 		replyTimeout: cfg.ReplyTimeout,
 		mediaTimeout: cfg.MediaTimeout,
 		mediaCtx:     mediaCtx,
@@ -567,6 +572,22 @@ func (r *Router) processClaimed(ctx context.Context, set ResolverSet, msg channe
 			// after the media deadline for the bounded attachment finalizer so it
 			// cannot race an issue agent reading the newly-created issue.
 			assignedRunFireAt = localMediaDeadline.Add(mediaFinalizeTimeout)
+		}
+		// Triage: a gated channel parks the command in the queue instead of
+		// minting an issue. Direct (every source's default) is unchanged.
+		if decision := r.admitChannelIssue(ctx, inst, set.OriginType, msg.Source.ChannelType, identity.UserID, sessionID, *appendRes.IssueCommand); decision != TriageAdmit {
+			// A held command is answered ("waiting for review"); a refused one
+			// is not — an admin blocked this channel and silence is the
+			// configured behavior.
+			res.IssueHeld = decision == TriageHeld
+			res.IssueTitle = appendRes.IssueCommand.Title
+			// No issue exists to own the media, so finalize the durable chat
+			// message's media state without downloading anything — the same
+			// treatment a duplicate gets below.
+			if resolveMedia {
+				r.enqueueMediaFinalization(set, inst, identity, appendRes.MessageID, msg, sessionID, localMediaDeadline)
+			}
+			return res, postAppendFinalize, nil
 		}
 		issueRes, err := r.createIssue(ctx, inst, set.OriginType, identity.UserID, sessionID, *appendRes.IssueCommand, prefix, assignedRunFireAt)
 		if errors.Is(err, service.ErrActiveDuplicate) && issueRes.DuplicateIssue != nil {
@@ -1046,6 +1067,33 @@ func (r *Router) applyFinalize(ctx context.Context, set ResolverSet, instID pgty
 func (r *Router) drop(ctx context.Context, set ResolverSet, msg channel.InboundMessage, instID pgtype.UUID, reason DropReason) Result {
 	_ = set.Audit.RecordDrop(ctx, instID, msg, reason)
 	return Result{Outcome: OutcomeDropped, DropReason: reason, InstallationID: instID}
+}
+
+// admitChannelIssue asks the triage gate whether this `/issue` command may
+// become an issue now. No gate configured, or no workspace/installation to key
+// a source on, admits: the queue is an admission control, never a data-loss
+// path.
+func (r *Router) admitChannelIssue(ctx context.Context, inst ResolvedInstallation, originType string, channelType channel.Type, creatorUserID, sessionID pgtype.UUID, cmd IssueCommand) TriageDecision {
+	if r.triage == nil {
+		return TriageAdmit
+	}
+	decision := r.triage.AdmitChannelIssue(ctx, ChannelIssueAdmission{
+		WorkspaceID:    inst.WorkspaceID,
+		InstallationID: inst.ID,
+		ChannelType:    string(channelType),
+		OriginType:     originType,
+		OriginID:       sessionID,
+		CreatorUserID:  creatorUserID,
+		Title:          cmd.Title,
+		Description:    cmd.Description,
+	})
+	if decision != TriageAdmit {
+		r.logger.Info("channel engine: /issue not admitted",
+			"installation_id", util.UUIDToString(inst.ID),
+			"channel_type", string(channelType),
+			"decision", string(decision))
+	}
+	return decision
 }
 
 func (r *Router) createIssue(ctx context.Context, inst ResolvedInstallation, originType string, creatorUserID, sessionID pgtype.UUID, cmd IssueCommand, issuePrefix string, assignedRunFireAt time.Time) (service.IssueCreateResult, error) {

@@ -144,6 +144,13 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeIngested:
 		// Only an /issue product result warrants an immediate reply; a plain
 		// chat message stays silent (the agent's own reply lands via ChatDone).
+		if res.IssueHeld {
+			if err := r.postResult(ctx, inst, msg, res, issueHeldText(res.IssueTitle)); err != nil {
+				r.logger.WarnContext(ctx, "slack replier: triage hold notice failed",
+					"installation_id", util.UUIDToString(inst.ID), "error", err)
+			}
+			return
+		}
 		if res.IssueID.Valid {
 			text := issueCreatedText(res)
 			if res.IssueDuplicate {
@@ -229,6 +236,17 @@ func issueCreatedText(res engine.Result) string {
 		return "✅ Created " + id
 	}
 	return "✅ Created " + id + " — " + title
+}
+
+// issueHeldText answers an /issue command the triage queue parked. The title
+// is sanitized exactly like the created confirmation: it is the reporter's own
+// text coming back into a group chat with the bot's authority behind it.
+func issueHeldText(rawTitle string) string {
+	title := memberIssueTitle(strings.TrimSpace(rawTitle))
+	if title == "" {
+		return "🗂 Held for triage — a teammate will review it."
+	}
+	return "🗂 Held for triage — " + title
 }
 
 func issueDuplicateText(res engine.Result) string {

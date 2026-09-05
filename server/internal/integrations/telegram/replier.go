@@ -128,6 +128,13 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:
+		if res.IssueHeld {
+			if err := r.post(ctx, inst, msg, issueHeldText(res.IssueTitle)); err != nil {
+				r.logger.WarnContext(ctx, "telegram replier: triage hold notice failed",
+					"installation_id", util.UUIDToString(inst.ID), "error", err)
+			}
+			return
+		}
 		if res.IssueID.Valid {
 			text := issueCreatedText(res)
 			if res.IssueDuplicate {
@@ -219,6 +226,15 @@ func issueCreatedText(res engine.Result) string {
 		return "✅ Created " + id
 	}
 	return "✅ Created " + id + " — " + title
+}
+
+// issueHeldText answers an /issue command the triage queue parked.
+func issueHeldText(rawTitle string) string {
+	title := strings.TrimSpace(rawTitle)
+	if title == "" {
+		return "🗂 Held for triage — a teammate will review it."
+	}
+	return "🗂 Held for triage — " + title
 }
 
 func issueDuplicateText(res engine.Result) string {

@@ -87,6 +87,7 @@ import {
   EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 import { parseWithFallback } from "./schema";
+import { TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE } from "./schemas";
 
 const baseIssue = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -2457,5 +2458,38 @@ describe("trigger dry-run schemas", () => {
       SCHEDULE_ENDPOINT,
     );
     expect(broken).toBe(UNREADABLE_SCHEDULE_DRY_RUN);
+  });
+
+describe("TriageEmailSourceSchema", () => {
+  it("parses the mint/rotate response", () => {
+    expect(
+      TriageEmailSourceSchema.parse({
+        id: "src-1",
+        mode: "gate",
+        path: "/api/triage/inbound/email/mti_abc",
+        url: "https://multica.test/api/triage/inbound/email/mti_abc",
+        token: "mti_abc",
+      }),
+    ).toMatchObject({ id: "src-1", token: "mti_abc" });
+  });
+
+  it("keeps a deployment with no public URL usable", () => {
+    const parsed = TriageEmailSourceSchema.parse({
+      id: "src-1",
+      path: "/api/triage/inbound/email/mti_abc",
+      token: "mti_abc",
+    });
+    expect(parsed.url).toBeUndefined();
+    expect(parsed.mode).toBe("gate");
+  });
+
+  it("falls back on a malformed response", () => {
+    for (const malformed of [null, "mti_abc", 42, { id: 7 }, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE, {
+          endpoint: "POST /api/triage/sources/email",
+        }),
+      ).toEqual(EMPTY_TRIAGE_EMAIL_SOURCE);
+    }
   });
 });

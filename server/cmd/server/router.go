@@ -535,6 +535,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	channelRegistry := channel.NewRegistry()
 	channelRouter := engine.NewRouter(h.IssueService, h.TaskService, queries, engine.RouterConfig{
 		Logger: slog.Default(), Lifecycle: h,
+		// A `/issue` typed in a channel is inbound material: it answers to the
+		// channel's own triage source before it becomes an issue.
+		Triage: h,
 	})
 	// Debounce the per-session run trigger so a burst of messages collapses
 	// into one agent run instead of one per message (MUL-2968).
@@ -1452,6 +1455,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// purpose: the bearer token in the URL path IS the credential. Workspace
 	// context is derived from the trigger row, never from request headers.
 	r.Post("/api/webhooks/autopilots/{token}", h.HandleAutopilotWebhook)
+	// Email intake for the triage queue. Same contract as the webhook ingress:
+	// the token in the path is the credential, the workspace comes from the
+	// source row it resolves to, never from a request header.
+	r.Post("/api/triage/inbound/email/{token}", h.HandleInboundTriageEmail)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
@@ -2016,9 +2023,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// Triage auto-ML (K61): suggestions for visible items; reopen a dismissed one.
 				r.Get("/suggestions", h.GetTriageSuggestions)
 				r.With(handler.RequireHumanActor).Post("/items/{id}/reopen", h.ReopenTriageItem)
-				// The source mode is the queue's kill switch (gate / direct /
-				// blocked): a write, and human-only like every other triage write.
-				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSource)
+				// The source policy — mode (the queue's kill switch), auto-accept,
+				// the flood cap and retention: writes, and human-only like every
+				// other triage write.
+				r.With(handler.RequireHumanActor).Patch("/sources/{id}", h.UpdateTriageSourceSettings)
+				// Mint or rotate the workspace's email intake endpoint. The
+				// token is in the response and nowhere else.
+				r.With(handler.RequireHumanActor).Post("/sources/email", h.CreateTriageEmailSource)
 			})
 
 			// Meetings: recorded conversations transcribed and summarized into

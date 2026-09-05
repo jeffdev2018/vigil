@@ -106,4 +106,7 @@ type DispatchResult struct {
 	// IssueUsageHadMedia asks the usage reply to tell the sender to include the
 	// current message's media again with the corrected command.
 	IssueUsageHadMedia bool
+	// IssueHeld marks an /issue command the triage queue parked instead of
+	// creating. There is no IssueID; the sender is told a human will review it.
+	IssueHeld bool
 }

@@ -369,6 +369,7 @@ var concurrentIndexCleanups = map[string]string{
 	"626_workspace_note_pkey_index":                             "workspace_note_pkey_uidx",
 	"628_workspace_note_workspace_updated_index":                "idx_workspace_note_workspace_updated",
 	"629_workspace_note_search_index":                           "idx_workspace_note_search",
+	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
