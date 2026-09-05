@@ -52,6 +52,7 @@ import { CrossReviewSetting } from "./cross-review-setting";
 import { CIAutoFixSetting } from "./ci-auto-fix-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
+import { PostmortemCostSetting } from "./postmortem-cost-setting";
 import { PipelinesSetting } from "./pipelines-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
 import { MorningBriefingSetting } from "./morning-briefing-setting";
@@ -509,6 +510,7 @@ export function WorkspaceTab() {
       {workspace && <CIAutoFixSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
+      {workspace && <PostmortemCostSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PipelinesSetting canManage={canManageWorkspace} />}
 
       {membersFetched && (

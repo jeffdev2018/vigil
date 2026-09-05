@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiClient } from "../api/client";
-import { useVoiceStore } from "./store";
+import {
+  resolveVoiceLocale,
+  useVoiceStore,
+  voiceTranscriptionLanguage,
+} from "./store";
 
 function stubFetchJson(body: unknown, status = 200) {
   vi.stubGlobal(
@@ -30,6 +34,18 @@ describe("transcribeVoice", () => {
     expect(call[1].body).toBeInstanceOf(FormData);
   });
 
+  it("sends the chosen language and omits it when there is none", async () => {
+    for (const [language, expected] of [["fr", "fr"], ["", null]] as const) {
+      stubFetchJson({ text: "ok" });
+      const api = new ApiClient("https://api.example.test");
+      await api.transcribeVoice(new Blob(["x"]), language);
+      const call = (fetch as unknown as ReturnType<typeof vi.fn>).mock
+        .calls[0] as [string, RequestInit];
+      expect((call[1].body as FormData).get("language")).toBe(expected);
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("degrades a malformed body to an empty transcription instead of throwing", async () => {
     stubFetchJson({ text: 42 });
     const api = new ApiClient("https://api.example.test");
@@ -41,6 +57,13 @@ describe("useVoiceStore", () => {
   beforeEach(() => {
     useVoiceStore.getState().resetSpeech();
     useVoiceStore.getState().setReadRepliesAloud(true);
+    useVoiceStore.getState().setVoiceLanguage("auto");
+  });
+
+  it("defaults the voice language to auto and remembers a choice", () => {
+    expect(useVoiceStore.getState().voiceLanguage).toBe("auto");
+    useVoiceStore.getState().setVoiceLanguage("fr");
+    expect(useVoiceStore.getState().voiceLanguage).toBe("fr");
   });
 
   it("remembers that the next reply should be spoken until consumed", () => {
@@ -91,5 +114,37 @@ describe("useVoiceStore", () => {
       speakNextReply: false,
       dictating: false,
     });
+  });
+});
+
+describe("voiceTranscriptionLanguage", () => {
+  it("sends nothing for auto, so the server default decides", () => {
+    // Reading the app in English is not a claim about what you speak.
+    expect(voiceTranscriptionLanguage("auto")).toBe("");
+  });
+
+  it("sends the bare code for an explicit choice", () => {
+    expect(voiceTranscriptionLanguage("fr")).toBe("fr");
+    expect(voiceTranscriptionLanguage("zh")).toBe("zh");
+  });
+});
+
+describe("resolveVoiceLocale", () => {
+  it("follows the app locale on auto", () => {
+    expect(resolveVoiceLocale("auto", "fr")).toBe("fr-FR");
+    expect(resolveVoiceLocale("auto", "zh-Hans")).toBe("zh-CN");
+    expect(resolveVoiceLocale("auto", "ja")).toBe("ja-JP");
+    expect(resolveVoiceLocale("auto", "ko")).toBe("ko-KR");
+    expect(resolveVoiceLocale("auto", "en")).toBe("en-US");
+  });
+
+  it("overrides the app locale with an explicit choice", () => {
+    expect(resolveVoiceLocale("fr", "en")).toBe("fr-FR");
+    expect(resolveVoiceLocale("zh", "en")).toBe("zh-CN");
+  });
+
+  it("keeps a regioned locale it does not know, and never returns a bare code", () => {
+    expect(resolveVoiceLocale("auto", "pt-BR")).toBe("pt-BR");
+    expect(resolveVoiceLocale("auto", "sv")).toBe("en-US");
   });
 });

@@ -57,6 +57,7 @@ import type {
   Skill,
   SkillSummary,
   AgentMemory,
+  AgentMemoryList,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -1912,9 +1913,14 @@ export class ApiClient {
    * the structured ApiError path, which is what carries the 409 `code`.
    */
   /** Voice memo: one audio file in, its text out (POST /api/voice/transcribe). */
-  async transcribeVoice(audio: Blob): Promise<VoiceTranscription> {
+  // `language` is an ISO-639-1 code from the user's voice preference; "" (or
+  // omitted) leaves the server on its own MULTICA_STT_LANGUAGE default. The
+  // server validates the value, so an unknown one degrades to that default
+  // rather than reaching the provider.
+  async transcribeVoice(audio: Blob, language = ""): Promise<VoiceTranscription> {
     const formData = new FormData();
     formData.append("file", audio, "memo.webm");
+    if (language) formData.append("language", language);
     const res = await this.fetchRaw("/api/voice/transcribe", { method: "POST", body: formData });
     const raw = (await res.json()) as unknown;
     return parseWithFallback<VoiceTranscription>(
@@ -3360,7 +3366,7 @@ export class ApiClient {
   // breaking the agent page; writes validate too so the caller never caches an
   // unparsed blob. POST returns 409 when the per-agent cap is reached — that
   // surfaces as an ApiError the tab toasts.
-  async listAgentMemories(agentId: string): Promise<AgentMemory[]> {
+  async listAgentMemories(agentId: string): Promise<AgentMemoryList> {
     const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
     return parseWithFallback(
       raw,
@@ -4123,7 +4129,10 @@ export class ApiClient {
     });
   }
 
-  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string }): Promise<Workspace> {
+  // postmortem_cost_threshold_usd_ticks: 0 turns the costly-run postmortem
+  // trigger off (the server stores NULL), a positive value arms it. Omitting
+  // the field leaves the stored threshold alone, like every other field here.
+  async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string; postmortem_cost_threshold_usd_ticks?: number }): Promise<Workspace> {
     return this.fetch(`/api/workspaces/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),

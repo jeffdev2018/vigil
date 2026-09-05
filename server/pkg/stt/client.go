@@ -204,16 +204,24 @@ const maxErrorBody = 300
 // Transcribe uploads audio and returns its text, with speaker labels when
 // diarization is configured. contentType may be empty.
 func (c *Client) Transcribe(ctx context.Context, filename, contentType string, audio io.Reader) (Result, error) {
-	return c.transcribe(ctx, filename, contentType, audio, c.cfg.Diarize)
+	return c.transcribe(ctx, filename, contentType, audio, c.cfg.Diarize, "")
 }
 
 // TranscribePlain is Transcribe without speaker labels: a dictated memo has
 // one speaker and the "Speaker 1:" prefix would only be noise in a composer.
 func (c *Client) TranscribePlain(ctx context.Context, filename, contentType string, audio io.Reader) (Result, error) {
-	return c.transcribe(ctx, filename, contentType, audio, false)
+	return c.transcribe(ctx, filename, contentType, audio, false, "")
 }
 
-func (c *Client) transcribe(ctx context.Context, filename, contentType string, audio io.Reader, diarize bool) (Result, error) {
+// TranscribePlainIn is TranscribePlain in a caller-chosen language, which
+// overrides MULTICA_STT_LANGUAGE for this one request. An empty language keeps
+// the deployment default — that is what "the user has no preference" means,
+// not "let the provider guess".
+func (c *Client) TranscribePlainIn(ctx context.Context, filename, contentType string, audio io.Reader, language string) (Result, error) {
+	return c.transcribe(ctx, filename, contentType, audio, false, language)
+}
+
+func (c *Client) transcribe(ctx context.Context, filename, contentType string, audio io.Reader, diarize bool, language string) (Result, error) {
 	if !c.Enabled() {
 		return Result{}, ErrNotConfigured
 	}
@@ -233,8 +241,11 @@ func (c *Client) transcribe(ctx context.Context, filename, contentType string, a
 	if err := mw.WriteField("model", c.cfg.Model); err != nil {
 		return Result{}, fmt.Errorf("stt: build form: %w", err)
 	}
-	if c.cfg.Language != "" {
-		if err := mw.WriteField("language", c.cfg.Language); err != nil {
+	if language == "" {
+		language = c.cfg.Language
+	}
+	if language != "" {
+		if err := mw.WriteField("language", language); err != nil {
 			return Result{}, fmt.Errorf("stt: build form: %w", err)
 		}
 	}

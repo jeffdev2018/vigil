@@ -5,6 +5,7 @@ import type { AgentRuntime } from "@multica/core/types";
 import {
   buildRuntimeMachines,
   filterRuntimeMachines,
+  machineCliSignInNeeded,
   runtimeMachineCounts,
   runtimeRowLabel,
   sharedCustomName,
@@ -459,5 +460,58 @@ describe("runtimeRowLabel", () => {
         "Dev Box",
       ),
     ).toBe("just this one");
+  });
+});
+
+describe("machineCliSignInNeeded", () => {
+  function machineOf(runtimes: AgentRuntime[]) {
+    return buildRuntimeMachines(runtimes, { now: NOW })[0]!;
+  }
+
+  it("names every provider whose CLI reported itself signed out", () => {
+    const machine = machineOf([
+      makeRuntime({
+        id: "r1",
+        provider: "claude",
+        metadata: { cli_auth: { authenticated: false } },
+      }),
+      makeRuntime({
+        id: "r2",
+        provider: "codex",
+        metadata: { cli_auth: { authenticated: false } },
+      }),
+    ]);
+
+    expect(machineCliSignInNeeded(machine)).toEqual(["claude", "codex"]);
+  });
+
+  it("dedupes a provider that has several runtimes on the machine", () => {
+    const machine = machineOf([
+      makeRuntime({
+        id: "r1",
+        provider: "claude",
+        metadata: { cli_auth: { authenticated: false } },
+      }),
+      makeRuntime({
+        id: "r2",
+        provider: "claude",
+        metadata: { cli_auth: { authenticated: false } },
+      }),
+    ]);
+
+    expect(machineCliSignInNeeded(machine)).toEqual(["claude"]);
+  });
+
+  it("stays silent for signed-in runtimes and for daemons that never reported", () => {
+    const machine = machineOf([
+      makeRuntime({
+        id: "r1",
+        provider: "claude",
+        metadata: { cli_auth: { authenticated: true } },
+      }),
+      makeRuntime({ id: "r2", provider: "codex", metadata: {} }),
+    ]);
+
+    expect(machineCliSignInNeeded(machine)).toEqual([]);
   });
 });

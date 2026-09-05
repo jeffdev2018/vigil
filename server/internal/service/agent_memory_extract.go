@@ -308,7 +308,7 @@ No prose, no markdown, no code fences.`
 // existing facts so the model can avoid restating them. Server-side dedup
 // still runs on the answer; the list exists to save the spend, not to
 // guarantee uniqueness.
-func renderAgentMemoryExtractionPrompt(issueTitle, output string, existing []db.AgentMemory) string {
+func renderAgentMemoryExtractionPrompt(issueTitle, output string, existing []db.ListAgentMemoriesRow) string {
 	var b strings.Builder
 	if strings.TrimSpace(issueTitle) != "" {
 		fmt.Fprintf(&b, "The run worked on the issue titled: %s\n\n", issueTitle)

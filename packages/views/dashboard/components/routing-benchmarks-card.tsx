@@ -37,6 +37,31 @@ export function RoutingBenchmarksCard({
 }) {
   const { t } = useT("usage");
 
+  // The API returns the router's raw class token (service/task_classify.go).
+  // A switch, not a lookup table, because the selector form of `t` needs a
+  // literal path; the default branch keeps an unknown class from a newer
+  // backend readable instead of blank.
+  const classLabel = (taskClass: string): string => {
+    switch (taskClass) {
+      case "general":
+        return t(($) => $.routing_benchmarks.class.general);
+      case "bugfix":
+        return t(($) => $.routing_benchmarks.class.bugfix);
+      case "feature":
+        return t(($) => $.routing_benchmarks.class.feature);
+      case "refactor":
+        return t(($) => $.routing_benchmarks.class.refactor);
+      case "docs":
+        return t(($) => $.routing_benchmarks.class.docs);
+      case "tests":
+        return t(($) => $.routing_benchmarks.class.tests);
+      case "chore":
+        return t(($) => $.routing_benchmarks.class.chore);
+      default:
+        return taskClass || "—";
+    }
+  };
+
   // Most-measured first: a high success rate on 2 samples must not outrank a
   // battle-tested row.
   const sortedRows = useMemo(
@@ -106,7 +131,7 @@ export function RoutingBenchmarksCard({
                   {row.provider}/{row.model}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {row.task_class || "—"}
+                  {classLabel(row.task_class)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {row.samples}

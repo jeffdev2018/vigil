@@ -707,6 +707,7 @@ describe("AgentTranscriptDialog — smart routing", () => {
           model: "claude-sonnet-4-6",
           samples: 42,
           success_rate: 0.93,
+          wilson_lower: 0.82,
           avg_cost_usd: 0.12,
           avg_duration_secs: 45,
           score: 0.81,
@@ -746,7 +747,13 @@ describe("AgentTranscriptDialog — smart routing", () => {
     await user.click(await screen.findByRole("button", { name: "Run details" }));
     expect(screen.getByText("Routing reason")).toBeInTheDocument();
     expect(screen.getByText("Routing candidates")).toBeInTheDocument();
-    expect(screen.getByText(/42 runs · 93% success · \$0\.12/)).toBeInTheDocument();
+    // The score and the Wilson lower bound are the two numbers the router
+    // actually ranked on, so they lead the per-candidate line.
+    expect(
+      screen.getByText(
+        /42 runs · 93% success · score 0\.81 · 82% confidence · \$0\.12/,
+      ),
+    ).toBeInTheDocument();
     // The excluded candidate keeps its reason; unresolved runtime ids render raw.
     expect(screen.getByText(/runtime-2/)).toBeInTheDocument();
     expect(screen.getByText("Excluded: too few samples")).toBeInTheDocument();

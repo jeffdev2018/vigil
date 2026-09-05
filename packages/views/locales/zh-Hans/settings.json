@@ -348,7 +348,17 @@
     "floating_hint": "在每个页面右下角显示悬浮聊天按钮。默认关闭——打开后可随处召唤聊天；关闭时，聊天只在此标签页中可用。",
     "voice_title": "语音",
     "read_aloud_label": "语音留言后朗读 Agent 的回复",
-    "read_aloud_hint": "当你口述消息时，系统会朗读对应的回复。每条回复上的“朗读”按钮不受此设置影响。"
+    "read_aloud_hint": "当你口述消息时，系统会朗读对应的回复。每条回复上的“朗读”按钮不受此设置影响。",
+    "voice_language_label": "语音语言",
+    "voice_language_hint": "语音备忘录的转写语言，以及朗读回复所用的语言。自动会跟随应用语言。",
+    "voice_languages": {
+      "auto": "自动",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ko": "한국어",
+      "zh": "中文"
+    }
   },
   "issue": {
     "description": "选择各创建方式的工具栏中常驻显示的字段。隐藏的字段仍可从 ⋯ 菜单使用，有值时会自动显示。",
@@ -924,6 +934,12 @@
     "drift_reread": "文件重读阈值",
     "drift_reread_description": "停止运行前允许的、中间无写入的同一文件读取次数。",
     "drift_failed": "保存偏离策略失败",
+    "postmortem_cost_section": "高成本运行复盘",
+    "postmortem_cost_enabled": "为高成本运行生成复盘",
+    "postmortem_cost_intro": "运行失败时始终会生成复盘。开启后，运行成功但成本超出预期时也会生成复盘。",
+    "postmortem_cost_threshold": "成本阈值（$）",
+    "postmortem_cost_threshold_description": "运行成本超过该金额时生成复盘。",
+    "postmortem_cost_failed": "保存成本阈值失败，请重试。",
     "pipelines_section": "流水线",
     "pipelines_intro": "议题依次经过的有序阶段链——每个阶段路由到一个智能体或小队，其前可设可选的人工关卡。执行者的运行完成后议题前进；带关卡的阶段等待 Decision Card。",
     "pipelines_new": "新建流水线",

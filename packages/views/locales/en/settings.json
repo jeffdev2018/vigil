@@ -348,7 +348,17 @@
     "floating_hint": "Show the floating chat button in the corner of every page. Off by default — turn it on to summon chat anywhere; when off, Chat lives only in this tab.",
     "voice_title": "Voice",
     "read_aloud_label": "Read agent replies aloud after a voice memo",
-    "read_aloud_hint": "When you dictate a message, the reply it gets is spoken back. The Listen button on each reply works either way."
+    "read_aloud_hint": "When you dictate a message, the reply it gets is spoken back. The Listen button on each reply works either way.",
+    "voice_language_label": "Voice language",
+    "voice_language_hint": "The language voice memos are transcribed in and replies are read in. Auto follows the app language.",
+    "voice_languages": {
+      "auto": "Auto",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ko": "한국어",
+      "zh": "中文"
+    }
   },
   "issue": {
     "description": "Choose which fields each create dialog keeps on its toolbar. Hidden fields stay available from the ⋯ menu and reappear while they hold a value.",
@@ -926,6 +936,12 @@
     "drift_reread": "File re-read threshold",
     "drift_reread_description": "Reads of the same file without a write in between before the run is stopped.",
     "drift_failed": "Failed to save the drift policy",
+    "postmortem_cost_section": "Costly-run postmortems",
+    "postmortem_cost_enabled": "Draft a postmortem for expensive runs",
+    "postmortem_cost_intro": "A postmortem is always drafted when a run fails. Turn this on to also get one when a run succeeds but costs more than you want to spend on one.",
+    "postmortem_cost_threshold": "Cost threshold ($)",
+    "postmortem_cost_threshold_description": "Draft a postmortem when a run costs more than this.",
+    "postmortem_cost_failed": "Couldn't save the cost threshold. Try again.",
     "pipelines_section": "Pipelines",
     "pipelines_intro": "An ordered chain of stages an issue moves through — each routed to an agent or a squad, with an optional human gate before it. The executor's completed run advances the issue; a gated stage waits on a Decision Card.",
     "pipelines_new": "New pipeline",

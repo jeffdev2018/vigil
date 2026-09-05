@@ -62,6 +62,14 @@ const (
 	EventInboxBatchRead     = "inbox:batch-read"
 	EventInboxBatchArchived = "inbox:batch-archived"
 
+	// Meeting events (K52). The detail view polls a `summarizing` meeting
+	// every 3s as a fallback; these push the transitions so a second client —
+	// or the tab that started the recording — sees the summary appear, and a
+	// rename or delete land, without waiting for a poll.
+	EventMeetingCreated = "meeting:created"
+	EventMeetingUpdated = "meeting:updated"
+	EventMeetingDeleted = "meeting:deleted"
+
 	// Triage queue events. triage:new fires when a gated webhook delivery is
 	// parked as a pending item; triage:resolved fires on accept, dismiss, or
 	// merge so live queues converge across clients.

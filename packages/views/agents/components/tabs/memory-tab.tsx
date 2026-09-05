@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Brain, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { Brain, Info, MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Agent, AgentMemory } from "@multica/core/types";
 import { ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useWorkspacePaths } from "@multica/core/paths";
 import {
   agentMemoryOptions,
   useCreateAgentMemory,
@@ -41,6 +42,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@multica/ui/components/ui/dropdown-menu";
+import { AppLink } from "../../../navigation";
 import { useT, useTimeAgo } from "../../../i18n";
 
 // Server-side per-agent cap (409 on POST beyond it) — mirrored here only to
@@ -58,9 +60,14 @@ export function MemoryTab({
   const { t } = useT("agents");
   const timeAgo = useTimeAgo();
   const wsId = useWorkspaceId();
-  const { data: memories = [], isLoading } = useQuery(
-    agentMemoryOptions(wsId, agent.id),
-  );
+  const wsPaths = useWorkspacePaths();
+  const { data, isLoading } = useQuery(agentMemoryOptions(wsId, agent.id));
+  const memories = data?.memories ?? [];
+  // The server owns the brief character budget, so trust its count rather
+  // than re-deriving one here; only flag it when it actually truncated.
+  const briefedCount = data?.briefed_count ?? memories.length;
+  const truncated = briefedCount < memories.length;
+  const extractionDisabled = data?.extraction_enabled === false;
 
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<AgentMemory | null>(null);
@@ -86,6 +93,14 @@ export function MemoryTab({
                 max: MEMORY_LIMIT,
               })}
             </p>
+            {truncated && (
+              <p className="mt-1 text-caption leading-5 text-muted-foreground">
+                {t(($) => $.tab_body.memory.briefed_note, {
+                  count: briefedCount,
+                  total: memories.length,
+                })}
+              </p>
+            )}
           </div>
           {canEdit && (
             <Button
@@ -135,6 +150,14 @@ export function MemoryTab({
                           : t(($) => $.tab_body.memory.source_manual)}
                     </Badge>
                     {memory.updated_at && <span>{timeAgo(memory.updated_at)}</span>}
+                    {memory.source_issue_id && (
+                      <AppLink
+                        href={wsPaths.issueDetail(memory.source_issue_id)}
+                        className="text-brand hover:underline"
+                      >
+                        {t(($) => $.tab_body.memory.source_issue_link)}
+                      </AppLink>
+                    )}
                   </span>
                 </span>
                 {canEdit && (
@@ -170,6 +193,13 @@ export function MemoryTab({
           </ul>
         )}
       </section>
+
+      {extractionDisabled && (
+        <p className="flex items-start gap-2 text-caption leading-5 text-muted-foreground">
+          <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+          <span>{t(($) => $.tab_body.memory.extraction_disabled_note)}</span>
+        </p>
+      )}
 
       <MemoryEditorDialog
         agentId={agent.id}

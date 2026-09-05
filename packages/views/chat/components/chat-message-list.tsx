@@ -8,6 +8,7 @@ import { cn } from "@multica/ui/lib/utils";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { Button } from "@multica/ui/components/ui/button";
 import { useVoiceStore } from "@multica/core/voice/store";
+import { resolveVoiceLocale } from "@multica/core/voice";
 import { isSpeechSupported, speakMarkdown, stopSpeaking, useIsSpeaking } from "../../voice";
 import { useLocale } from "../../i18n";
 import {
@@ -898,6 +899,10 @@ function MessageListenButton({
   // Read again here, not only where the flag is armed: the user may have turned
   // it off while the reply was still being generated.
   const readRepliesAloud = useVoiceStore((s) => s.readRepliesAloud);
+  // The voice preference wins over the app locale: reading the app in English
+  // does not mean wanting replies read in it.
+  const voiceLanguage = useVoiceStore((s) => s.voiceLanguage);
+  const spokenLocale = resolveVoiceLocale(voiceLanguage, locale);
   const supported = isSpeechSupported();
   const text = extractCopyText(message, timeline);
 
@@ -905,7 +910,7 @@ function MessageListenButton({
     if (!supported || !speakNextReply || !text.trim()) return;
     useVoiceStore.getState().setSpeakNextReply(false);
     if (!readRepliesAloud) return;
-    speakMarkdown(message.id, text, speechLang(locale));
+    speakMarkdown(message.id, text, spokenLocale);
     // Only the reply that lands right after a dictated message triggers this.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.id]);
@@ -923,7 +928,7 @@ function MessageListenButton({
               "text-faint-foreground hover:text-foreground",
               speaking && "text-foreground",
             )}
-            onClick={() => (speaking ? stopSpeaking() : speakMarkdown(message.id, text, speechLang(locale)))}
+            onClick={() => (speaking ? stopSpeaking() : speakMarkdown(message.id, text, spokenLocale))}
             aria-label={label}
             aria-pressed={speaking}
           />
@@ -934,22 +939,6 @@ function MessageListenButton({
       <TooltipContent side="top">{label}</TooltipContent>
     </Tooltip>
   );
-}
-
-/** BCP 47 tag for SpeechSynthesis from the app locale ("fr" -> "fr-FR"). */
-function speechLang(locale: string): string {
-  switch (locale) {
-    case "fr":
-      return "fr-FR";
-    case "ja":
-      return "ja-JP";
-    case "ko":
-      return "ko-KR";
-    case "zh-Hans":
-      return "zh-CN";
-    default:
-      return locale.includes("-") ? locale : "en-US";
-  }
 }
 
 function MessageCopyButton({

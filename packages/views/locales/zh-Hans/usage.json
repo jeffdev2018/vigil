@@ -108,6 +108,15 @@
     "col_runtime": "运行时",
     "col_model": "模型",
     "col_class": "任务类别",
+    "class": {
+      "general": "通用",
+      "bugfix": "缺陷修复",
+      "feature": "功能",
+      "refactor": "重构",
+      "docs": "文档",
+      "tests": "测试",
+      "chore": "杂务"
+    },
     "col_samples": "样本数",
     "col_success": "成功率",
     "col_avg_cost": "平均成本",
@@ -128,6 +137,7 @@
   },
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",
+    "scope_note": "覆盖整个工作区的所有项目 · 按 UTC 日期统计",
     "agent": "智能体",
     "runs": "运行",
     "accepted": "已接受",
@@ -136,5 +146,10 @@
     "no_intervention": "无人工",
     "mean_cost": "平均成本",
     "low_sample": "（运行较少）"
+  },
+  "autopilot_quota": {
+    "title": "本期自动化运行次数：{{used}} / {{limit}}",
+    "near_limit": "接近上限——达到上限后自动化将不再触发。",
+    "reached": "已达上限——在本期重置前自动化不会触发。"
   }
 }

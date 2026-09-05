@@ -606,6 +606,7 @@
       "intro": "このエージェントが実行をまたいで記憶する事実です。メモリは手動で追加でき、実行中に学んだ内容も保存されます。",
       "list_title": "記憶された事実",
       "count": "{{count}} / {{max}}",
+      "briefed_note": "{{total}} 件のうち {{count}} 件が実行のブリーフに渡されます。",
       "loading": "メモリを読み込んでいます…",
       "empty_title": "メモリはまだありません",
       "empty_hint": "毎回の実行でエージェントに覚えていてほしい事実(好み、規約、プロジェクトの背景)をピン留めしましょう。",
@@ -616,6 +617,7 @@
       "source_manual": "手動",
       "source_run": "実行から",
       "source_postmortem": "ポストモーテムから",
+      "source_issue_link": "課題を開く",
       "dialog_create_title": "メモリを追加",
       "dialog_edit_title": "メモリを編集",
       "dialog_description": "1つのメモリにつき1つの事実。短く具体的に書きましょう。",
@@ -630,7 +632,8 @@
       "delete_dialog_confirm": "削除",
       "save_failed_toast": "メモリを保存できませんでした。もう一度お試しください。",
       "delete_failed_toast": "メモリを削除できませんでした。もう一度お試しください。",
-      "cap_reached_toast": "このエージェントにはすでに200件のメモリがあります。1件削除して空きを作ってください。"
+      "cap_reached_toast": "このエージェントにはすでに200件のメモリがあります。1件削除して空きを作ってください。",
+      "extraction_disabled_note": "サーバーに言語モデルが設定されていないため、実行が学んだ内容は保存されません。手動で追加した事実のみが保持されます。"
     },
     "integrations": {
       "intro": "このエージェントを外部のチャットプラットフォームに接続し、普段使っているツールから直接やり取りできるようにします。",
@@ -793,6 +796,8 @@
     "details_routing_reason": "ルーティング理由",
     "routing_candidates_title": "ルーティング候補",
     "routing_candidate_stats": "{{samples}} 件の実行 · 成功率 {{rate}}%",
+    "routing_candidate_score": "スコア {{score}}",
+    "routing_candidate_confidence": "信頼度 {{wilson}}%",
     "routing_candidate_excluded": "除外: {{reason}}",
     "details_workdir": "作業ディレクトリ",
     "details_project_directory": "プロジェクトディレクトリ",

@@ -1594,6 +1594,28 @@ func (q *Queries) UpdateRuntimeCliAuthState(ctx context.Context, arg UpdateRunti
 	return err
 }
 
+const updateRuntimeSkippedAgents = `-- name: UpdateRuntimeSkippedAgents :exec
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('skipped_agents', $2::jsonb),
+    updated_at = now()
+WHERE id = $1
+`
+
+type UpdateRuntimeSkippedAgentsParams struct {
+	ID            pgtype.UUID `json:"id"`
+	SkippedAgents []byte      `json:"skipped_agents"`
+}
+
+// Machine-level diagnostic (MUL-5439): providers found on this host that the
+// daemon refused to register, and why. Registration writes it with the rest of
+// metadata; the heartbeat re-merges it on the beats where the set changed, so a
+// CLI that broke — or got repaired — between registrations shows up without
+// waiting for the next register.
+func (q *Queries) UpdateRuntimeSkippedAgents(ctx context.Context, arg UpdateRuntimeSkippedAgentsParams) error {
+	_, err := q.db.Exec(ctx, updateRuntimeSkippedAgents, arg.ID, arg.SkippedAgents)
+	return err
+}
+
 const upsertAgentRuntime = `-- name: UpsertAgentRuntime :one
 INSERT INTO agent_runtime (
     workspace_id,

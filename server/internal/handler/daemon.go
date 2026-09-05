@@ -1069,6 +1069,11 @@ type DaemonHeartbeatRequest struct {
 	// DirtyCheckouts (K18): files a human changed in the daemon's local
 	// checkouts. Optional; daemons that do not send it change nothing.
 	DirtyCheckouts []service.DirtyCheckout `json:"dirty_checkouts,omitempty"`
+	// SkippedAgents (MUL-5439) is the machine's discovered-but-not-registered
+	// diagnostic, the same map registration carries. Daemons send it only on
+	// the beats where it changed, so absent means "leave what is stored
+	// alone" and an empty object means "nothing is skipped any more".
+	SkippedAgents map[string]string `json:"skipped_agents,omitempty"`
 }
 
 // heartbeatHasPendingTimeout bounds the cheap HasPending probe on the
@@ -1204,6 +1209,15 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 		if raw, err := json.Marshal(req.DirtyCheckouts); err == nil {
 			if err := h.Queries.UpdateAgentRuntimeDirtyCheckouts(r.Context(), db.UpdateAgentRuntimeDirtyCheckoutsParams{ID: rt.ID, Dirty: raw}); err != nil {
 				slog.Warn("traffic: store dirty checkouts failed", "runtime_id", req.RuntimeID, "error", err)
+			}
+		}
+	}
+	if req.SkippedAgents != nil {
+		// Same normalization and same metadata key registration writes, so the
+		// two paths cannot disagree on the shape the UI reads.
+		if raw, err := json.Marshal(normalizeSkippedAgents(req.SkippedAgents)); err == nil {
+			if err := h.Queries.UpdateRuntimeSkippedAgents(r.Context(), db.UpdateRuntimeSkippedAgentsParams{ID: rt.ID, SkippedAgents: raw}); err != nil {
+				slog.Warn("heartbeat: store skipped agents failed", "runtime_id", req.RuntimeID, "error", err)
 			}
 		}
 	}

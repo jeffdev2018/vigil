@@ -66,6 +66,7 @@
     "open": "ミーティングを開く",
     "error_unsupported": "このブラウザーでは音声を録音できません。",
     "error_microphone": "マイクへのアクセスが拒否されたため、録音を開始できません。",
+    "open_system_settings": "システム設定を開く",
     "error_create": "ミーティングを開始できませんでした。",
     "error_segment": "セグメントを文字起こしできませんでした。",
     "error_not_recording": "このミーティングはすでに録音を終了しています。",

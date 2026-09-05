@@ -614,6 +614,7 @@
       "intro": "이 에이전트가 실행 사이에서 기억하는 사실입니다. 메모리를 직접 추가하고, 실행 중에 배운 내용도 저장할 수 있습니다.",
       "list_title": "기억된 사실",
       "count": "{{count}} / {{max}}",
+      "briefed_note": "{{total}}개 중 {{count}}개가 실행 브리핑에 전달됩니다.",
       "loading": "메모리를 불러오는 중…",
       "empty_title": "아직 메모리가 없습니다",
       "empty_hint": "에이전트가 매 실행마다 기억해야 할 사실(선호도, 규칙, 프로젝트 맥락)을 고정해 두세요.",
@@ -624,6 +625,7 @@
       "source_manual": "수동",
       "source_run": "실행에서 생성됨",
       "source_postmortem": "포스트모템에서",
+      "source_issue_link": "이슈 열기",
       "dialog_create_title": "메모리 추가",
       "dialog_edit_title": "메모리 편집",
       "dialog_description": "메모리 하나당 사실 하나씩, 짧고 구체적으로 작성하세요.",
@@ -638,7 +640,8 @@
       "delete_dialog_confirm": "삭제",
       "save_failed_toast": "메모리를 저장하지 못했습니다. 다시 시도하세요.",
       "delete_failed_toast": "메모리를 삭제하지 못했습니다. 다시 시도하세요.",
-      "cap_reached_toast": "이 에이전트에는 이미 200개의 메모리가 있습니다. 하나를 삭제해 공간을 확보하세요."
+      "cap_reached_toast": "이 에이전트에는 이미 200개의 메모리가 있습니다. 하나를 삭제해 공간을 확보하세요.",
+      "extraction_disabled_note": "서버에 언어 모델이 설정되어 있지 않아 실행이 배운 내용을 저장할 수 없습니다. 직접 추가한 사실만 유지됩니다."
     },
     "integrations": {
       "intro": "이 에이전트를 외부 채팅 플랫폼에 연결해 팀원이 평소 사용하는 도구에서 바로 함께 작업할 수 있도록 합니다.",
@@ -801,6 +804,8 @@
     "details_routing_reason": "라우팅 이유",
     "routing_candidates_title": "라우팅 후보",
     "routing_candidate_stats": "실행 {{samples}}회 · 성공률 {{rate}}%",
+    "routing_candidate_score": "점수 {{score}}",
+    "routing_candidate_confidence": "신뢰도 {{wilson}}%",
     "routing_candidate_excluded": "제외됨: {{reason}}",
     "details_workdir": "작업 디렉터리",
     "details_project_directory": "프로젝트 디렉터리",

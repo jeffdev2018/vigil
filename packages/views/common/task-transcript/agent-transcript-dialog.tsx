@@ -1001,6 +1001,18 @@ export function AgentTranscriptDialog({
                           <ul className="space-y-1.5">
                             {routing.candidates.map((candidate) => {
                               const extras = [
+                                // The score is what the router actually ranked
+                                // on, so it leads the extras.
+                                candidate.score != null
+                                  ? t(($) => $.transcript.routing_candidate_score, {
+                                      score: candidate.score.toFixed(2),
+                                    })
+                                  : null,
+                                candidate.wilson_lower != null
+                                  ? t(($) => $.transcript.routing_candidate_confidence, {
+                                      wilson: Math.round(candidate.wilson_lower * 100),
+                                    })
+                                  : null,
                                 candidate.avg_cost_usd != null
                                   ? formatUsd(candidate.avg_cost_usd)
                                   : null,

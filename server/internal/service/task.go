@@ -7008,10 +7008,45 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 	return s.skillsWithFiles(ctx, skills)
 }
 
-// LoadAgentMemories returns the contents of an agent's 50 most recent memory
-// facts (JEF-236), in chronological order for the brief. SQL returns them
-// newest-first (the cap keeps the read bounded); the reverse happens here so
-// the prompt reads oldest → newest, matching how the facts were learned.
+// AgentMemoryBriefCharBudget bounds how much memory text one run brief
+// carries. The per-agent cap is 200 facts of up to 500 characters, so an agent
+// at both ceilings would otherwise push 100 KB of context ahead of the actual
+// task. 40 KB keeps the whole set briefed in every realistic case and degrades
+// predictably past it.
+const AgentMemoryBriefCharBudget = 40000
+
+// AgentMemoryFact is the (content, source) pair the brief budget reasons
+// about, so the selection is shared by the claim path (db.AgentMemory rows)
+// and the list endpoint (db.ListAgentMemoriesRow rows) without either owning
+// the rule.
+type AgentMemoryFact struct {
+	Content string
+	Source  string
+}
+
+// SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
+// brief carries, still newest-first. Everything fits until the character
+// budget is spent; past it the remaining source='run' facts — the oldest ones,
+// which a later run can learn again — are dropped, while facts a human pinned
+// ("manual") or a postmortem wrote ("postmortem") are always kept.
+func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
+	kept := make([]AgentMemoryFact, 0, len(facts))
+	used := 0
+	for _, f := range facts {
+		if used >= AgentMemoryBriefCharBudget && f.Source == "run" {
+			continue
+		}
+		used += len(f.Content)
+		kept = append(kept, f)
+	}
+	return kept
+}
+
+// LoadAgentMemories returns the contents of an agent's memory facts (JEF-236),
+// in chronological order for the brief. SQL returns them newest-first, capped
+// at the same 200 the write path enforces; SelectBriefedAgentMemories then
+// applies the character budget and the reverse happens here so the prompt
+// reads oldest → newest, matching how the facts were learned.
 //
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
@@ -7024,9 +7059,14 @@ func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceI
 	if err != nil {
 		return nil, fmt.Errorf("list agent memories: %w", err)
 	}
-	contents := make([]string, 0, len(rows))
-	for i := len(rows) - 1; i >= 0; i-- {
-		contents = append(contents, rows[i].Content)
+	facts := make([]AgentMemoryFact, len(rows))
+	for i, row := range rows {
+		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source}
+	}
+	briefed := SelectBriefedAgentMemories(facts)
+	contents := make([]string, 0, len(briefed))
+	for i := len(briefed) - 1; i >= 0; i-- {
+		contents = append(contents, briefed[i].Content)
 	}
 	return contents, nil
 }

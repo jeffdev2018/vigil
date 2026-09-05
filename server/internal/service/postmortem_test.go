@@ -266,3 +266,106 @@ func TestPostmortemSkipsRetryPendingEvent(t *testing.T) {
 		t.Fatal("postmortem was generated for a retry_pending failure, want none")
 	}
 }
+
+// seedTaskUsage prices a run so the costly trigger has something to compare
+// against the workspace threshold.
+func seedTaskUsage(t *testing.T, pool *pgxpool.Pool, taskID string, costTicks int64) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cost_usd_ticks)
+		VALUES ($1, 'claude', 'claude-sonnet-4-6', 1000, 500, $2)`, taskID, costTicks); err != nil {
+		t.Fatalf("seed task usage: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM task_usage WHERE task_id = $1`, taskID)
+	})
+}
+
+func setPostmortemCostThreshold(t *testing.T, pool *pgxpool.Pool, workspaceID string, ticks *int64) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(),
+		`UPDATE workspace SET postmortem_cost_threshold_usd_ticks = $2 WHERE id = $1`,
+		workspaceID, ticks); err != nil {
+		t.Fatalf("set cost threshold: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(context.Background(),
+			`UPDATE workspace SET postmortem_cost_threshold_usd_ticks = NULL WHERE id = $1`, workspaceID)
+	})
+}
+
+// TestCostlyPostmortemDraftsOverThreshold pins the second trigger (k68): a run
+// that SUCCEEDED but cost more than the workspace's threshold gets a
+// postmortem of its own, marked trigger='costly' and carrying no failure
+// reason — there is no failure to classify.
+func TestCostlyPostmortemDraftsOverThreshold(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "Shipped the migration.")
+	t.Cleanup(func() {
+		pool.Exec(context.Background(), `DELETE FROM postmortem WHERE source_task_id = $1`, taskID)
+	})
+	seedTaskUsage(t, pool, taskID, 60_000_000_000) // $6.00
+	threshold := int64(50_000_000_000)             // $5.00
+	setPostmortemCostThreshold(t, pool, fx.workspaceID, &threshold)
+
+	svc := postmortemService(pool, events.New(), nil)
+	if err := svc.GenerateCostlyPostmortemForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+
+	pm, ok := loadPostmortemByTask(t, pool, taskID)
+	if !ok {
+		t.Fatal("no postmortem was drafted for a run over the cost threshold")
+	}
+	if pm.Trigger != "costly" {
+		t.Errorf("trigger = %q, want costly", pm.Trigger)
+	}
+	if pm.FailureReason != "" {
+		t.Errorf("failure_reason = %q, want empty: the run succeeded", pm.FailureReason)
+	}
+	if !strings.Contains(pm.Summary, "$6.0000") {
+		t.Errorf("summary does not state what the run cost: %q", pm.Summary)
+	}
+	if pm.LlmGenerated {
+		t.Error("llm_generated = true with no LLM configured")
+	}
+}
+
+// Everything that must NOT draft a costly postmortem, in one table: the
+// threshold is the whole gate, and a workspace that never set it must not pay
+// for this feature at all.
+func TestCostlyPostmortemSkips(t *testing.T) {
+	cases := []struct {
+		name      string
+		status    string
+		costTicks int64
+		threshold *int64
+	}{
+		{"no threshold configured", "completed", 60_000_000_000, nil},
+		{"cost under the threshold", "completed", 10_000_000_000, ptrInt64(50_000_000_000)},
+		{"cost exactly on the threshold", "completed", 50_000_000_000, ptrInt64(50_000_000_000)},
+		{"threshold of zero is disabled", "completed", 60_000_000_000, ptrInt64(0)},
+		{"the run did not complete", "failed", 60_000_000_000, ptrInt64(50_000_000_000)},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			fx, pool := seedAgentMemoryExtractionFixture(t)
+			taskID := fx.seedTerminalTask(t, pool, tc.status, "done")
+			t.Cleanup(func() {
+				pool.Exec(context.Background(), `DELETE FROM postmortem WHERE source_task_id = $1`, taskID)
+			})
+			seedTaskUsage(t, pool, taskID, tc.costTicks)
+			setPostmortemCostThreshold(t, pool, fx.workspaceID, tc.threshold)
+
+			svc := postmortemService(pool, events.New(), nil)
+			if err := svc.GenerateCostlyPostmortemForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+				t.Fatalf("generate: %v", err)
+			}
+			if _, ok := loadPostmortemByTask(t, pool, taskID); ok {
+				t.Fatalf("a postmortem was drafted for %q", tc.name)
+			}
+		})
+	}
+}
+
+func ptrInt64(v int64) *int64 { return &v }

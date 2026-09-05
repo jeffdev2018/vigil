@@ -47,6 +47,7 @@
     "section_remote": "远程",
     "section_cloud": "云端",
     "this_machine": "本机",
+    "cli_sign_in_needed": "需要登录",
     "local_badge": "本地 · 这台机器",
     "pending_custom_runtimes": "待注册自定义运行时",
     "runtime_count_other": "{{count}} 个运行时",

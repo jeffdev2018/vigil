@@ -348,7 +348,17 @@
     "floating_hint": "모든 페이지 모서리에 플로팅 채팅 버튼을 표시합니다. 기본값은 꺼짐 — 켜면 어디서나 채팅을 불러올 수 있고, 꺼면 채팅은 이 탭에서만 사용할 수 있습니다.",
     "voice_title": "음성",
     "read_aloud_label": "음성 메모 후 에이전트 답변 읽어주기",
-    "read_aloud_hint": "메시지를 음성으로 입력하면 그에 대한 답변을 읽어줍니다. 각 답변의 듣기 버튼은 이 설정과 무관하게 동작합니다."
+    "read_aloud_hint": "메시지를 음성으로 입력하면 그에 대한 답변을 읽어줍니다. 각 답변의 듣기 버튼은 이 설정과 무관하게 동작합니다.",
+    "voice_language_label": "음성 언어",
+    "voice_language_hint": "음성 메모를 받아쓰고 답변을 읽어 줄 언어입니다. 자동은 앱 언어를 따릅니다.",
+    "voice_languages": {
+      "auto": "자동",
+      "en": "English",
+      "fr": "Français",
+      "ja": "日本語",
+      "ko": "한국어",
+      "zh": "中文"
+    }
   },
   "issue": {
     "description": "각 생성 방식의 툴바에 항상 표시할 필드를 선택합니다. 숨긴 필드는 ⋯ 메뉴에서 계속 사용할 수 있으며, 값이 있는 동안에는 자동으로 표시됩니다.",
@@ -924,6 +934,12 @@
     "drift_reread": "파일 재읽기 임계값",
     "drift_reread_description": "실행을 중단하기 전까지 허용하는, 쓰기 없이 같은 파일을 읽는 횟수.",
     "drift_failed": "이탈 정책을 저장하지 못했습니다",
+    "postmortem_cost_section": "고비용 실행 포스트모템",
+    "postmortem_cost_enabled": "비용이 큰 실행에 포스트모템 작성",
+    "postmortem_cost_intro": "실행이 실패하면 항상 포스트모템이 작성됩니다. 이 옵션을 켜면 실행이 성공했더라도 예상보다 비용이 크면 포스트모템이 작성됩니다.",
+    "postmortem_cost_threshold": "비용 기준($)",
+    "postmortem_cost_threshold_description": "실행 비용이 이 금액을 넘으면 포스트모템을 작성합니다.",
+    "postmortem_cost_failed": "비용 기준을 저장하지 못했습니다. 다시 시도하세요.",
     "pipelines_section": "파이프라인",
     "pipelines_intro": "이슈가 거치는 순서 있는 단계 체인 — 각 단계는 에이전트나 스쿼드에 배정되며 그 앞에 선택적으로 사람 게이트를 둘 수 있습니다. 실행자의 실행이 완료되면 이슈가 넘어가고, 게이트가 있는 단계는 Decision Card를 기다립니다.",
     "pipelines_new": "새 파이프라인",

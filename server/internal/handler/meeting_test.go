@@ -7,9 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/testutil"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/stt"
 )
 
@@ -524,5 +527,75 @@ func TestIssueDetailCarriesMeetingOrigin(t *testing.T) {
 		Want(http.StatusOK).Map()
 	if _, ok := body["origin_type"]; ok {
 		t.Fatalf("origin_type present on an issue with no origin: %v", body["origin_type"])
+	}
+}
+
+// TestMeetingPublishesRealtimeEvents pins the push that lets a second client
+// (and the tab that started the recording) see a meeting appear, finish
+// summarizing, get renamed, and disappear — without waiting for the detail
+// view's 3s poll, which only runs while a meeting is `summarizing` and never
+// covers the list at all.
+func TestMeetingPublishesRealtimeEvents(t *testing.T) {
+	stubSTT(t, "Paul livre le connecteur Stripe vendredi.")
+	withStubLLM(t, stubLLMCompletion(t, http.StatusOK,
+		`{"summary_markdown":"- Livraison Stripe vendredi","actions":[]}`))
+
+	var mu sync.Mutex
+	var seen []string
+	record := func(e events.Event) {
+		mu.Lock()
+		defer mu.Unlock()
+		payload, _ := e.Payload.(map[string]any)
+		status, _ := payload["status"].(string)
+		seen = append(seen, e.Type+":"+status)
+	}
+	for _, event := range []string{
+		protocol.EventMeetingCreated,
+		protocol.EventMeetingUpdated,
+		protocol.EventMeetingDeleted,
+	} {
+		testHandler.Bus.Subscribe(event, record)
+	}
+	recorded := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+		return append([]string(nil), seen...)
+	}
+	var created MeetingResponse
+	testutil.Call(t, testHandler.CreateMeeting,
+		newRequest(http.MethodPost, "/api/meetings", map[string]string{"title": "Realtime"})).
+		Want(http.StatusCreated).JSON(&created)
+	cleanupMeeting(t, created.ID)
+
+	testutil.Call(t, testHandler.FinishMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPost, "/api/meetings/"+created.ID+"/finish", nil), "id", created.ID)).
+		Want(http.StatusOK)
+
+	testutil.Call(t, testHandler.UpdateMeeting,
+		testutil.WithURLParams(newRequest(http.MethodPatch, "/api/meetings/"+created.ID, map[string]string{"title": "Renamed"}), "id", created.ID)).
+		Want(http.StatusOK)
+
+	testutil.Call(t, testHandler.DeleteMeeting,
+		testutil.WithURLParams(newRequest(http.MethodDelete, "/api/meetings/"+created.ID, nil), "id", created.ID)).
+		Want(http.StatusNoContent)
+
+	want := []string{
+		"meeting:created:recording",
+		// Finish announces the entry into `summarizing` BEFORE the summary
+		// runs: the clients still painting "recording" are the ones that most
+		// need to stop.
+		"meeting:updated:summarizing",
+		"meeting:updated:done",
+		"meeting:updated:done", // rename
+		"meeting:deleted:done",
+	}
+	got := recorded()
+	if len(got) != len(want) {
+		t.Fatalf("events = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("event %d = %q, want %q (full sequence %v)", i, got[i], want[i], got)
+		}
 	}
 }

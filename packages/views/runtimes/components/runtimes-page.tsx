@@ -53,7 +53,11 @@ import { CloudRuntimeDialog } from "./cloud-runtime-dialog";
 import { ProviderLogo } from "./provider-logo";
 import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
-import { buildRuntimeMachines, type RuntimeMachine } from "./runtime-machines";
+import {
+  buildRuntimeMachines,
+  machineCliSignInNeeded,
+  type RuntimeMachine,
+} from "./runtime-machines";
 import { HealthDot, HealthIcon, useHealthLabel } from "./shared";
 import { useT, useTimeAgo } from "../../i18n";
 import { daemonRuntimesDocsHref } from "./runtime-docs";
@@ -459,6 +463,7 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
   const Icon = machine.section === "cloud" ? Cloud : Monitor;
   const locator = machine.id;
   const busyCount = machine.runningCount + machine.queuedCount;
+  const signInNeeded = machineCliSignInNeeded(machine);
   const body = (
     <>
       <span className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border bg-background">
@@ -482,6 +487,17 @@ function MachineRow({ machine }: { machine: RuntimeMachine }) {
           {machine.isCurrent && (
             <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground">
               {t(($) => $.machine.this_machine)}
+            </span>
+          )}
+          {/* The whole row already links to the machine detail, where
+              CliAuthSection holds the actual sign-in control — so this is the
+              entry point, not a second one. */}
+          {signInNeeded.length > 0 && (
+            <span
+              className="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-micro font-medium text-warning"
+              title={signInNeeded.join(", ")}
+            >
+              {t(($) => $.machine.cli_sign_in_needed)}
             </span>
           )}
         </span>

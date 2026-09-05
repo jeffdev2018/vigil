@@ -1513,3 +1513,64 @@ func TestUpdateWorkspace_RejectsInvalidIssuePrefix(t *testing.T) {
 		t.Fatalf("issue_prefix changed on a rejected update: %q → %q", before, after)
 	}
 }
+
+// TestUpdateWorkspace_PostmortemCostThreshold covers the costly-run postmortem
+// setting (k68). It cannot ride on UpdateWorkspace's COALESCE-partial UPDATE —
+// there, null means "leave alone" — so the handler writes it separately and
+// uses 0 as the explicit "off" sentinel.
+func TestUpdateWorkspace_PostmortemCostThreshold(t *testing.T) {
+	ctx := context.Background()
+
+	const slug = "handler-tests-postmortem-cost"
+	_, _ = testPool.Exec(ctx, `DELETE FROM workspace WHERE slug = $1`, slug)
+
+	wsID := dbfx.Insert(t, "workspace", testutil.Cols{
+		"name":        "Handler Test Postmortem Cost",
+		"slug":        slug,
+		"description": "UpdateWorkspace postmortem cost threshold test",
+	})
+	dbfx.Exec(t, `INSERT INTO member (workspace_id, user_id, role) VALUES ($1, $2, 'owner')`, wsID, testUserID)
+
+	patch := func(body map[string]any) WorkspaceResponse {
+		t.Helper()
+		req := withURLParam(newRequest("PATCH", "/api/workspaces/"+wsID, body), "id", wsID)
+		var resp WorkspaceResponse
+		testutil.Call(t, testHandler.UpdateWorkspace, req).Want(http.StatusOK).JSON(&resp)
+		return resp
+	}
+	stored := func() *int64 {
+		t.Helper()
+		var v *int64
+		dbfx.QueryRow(t, `SELECT postmortem_cost_threshold_usd_ticks FROM workspace WHERE id = $1`, wsID).Scan(&v)
+		return v
+	}
+
+	// Every workspace starts with the trigger off.
+	if got := stored(); got != nil {
+		t.Fatalf("a new workspace already has a threshold: %v", *got)
+	}
+
+	const fiveDollars = int64(50_000_000_000)
+	resp := patch(map[string]any{"postmortem_cost_threshold_usd_ticks": fiveDollars})
+	if resp.PostmortemCostThresholdUsdTicks == nil || *resp.PostmortemCostThresholdUsdTicks != fiveDollars {
+		t.Fatalf("response threshold = %v, want %d", resp.PostmortemCostThresholdUsdTicks, fiveDollars)
+	}
+	if got := stored(); got == nil || *got != fiveDollars {
+		t.Fatalf("persisted threshold = %v, want %d", got, fiveDollars)
+	}
+
+	// An unrelated PATCH must leave the threshold alone.
+	resp = patch(map[string]any{"description": "unrelated edit"})
+	if resp.PostmortemCostThresholdUsdTicks == nil || *resp.PostmortemCostThresholdUsdTicks != fiveDollars {
+		t.Fatalf("an unrelated edit dropped the threshold: %v", resp.PostmortemCostThresholdUsdTicks)
+	}
+
+	// 0 turns it off, stored as NULL so the service's Valid check is the gate.
+	resp = patch(map[string]any{"postmortem_cost_threshold_usd_ticks": 0})
+	if resp.PostmortemCostThresholdUsdTicks != nil {
+		t.Fatalf("response threshold = %v after switching off, want null", *resp.PostmortemCostThresholdUsdTicks)
+	}
+	if got := stored(); got != nil {
+		t.Fatalf("persisted threshold = %v after switching off, want NULL", *got)
+	}
+}

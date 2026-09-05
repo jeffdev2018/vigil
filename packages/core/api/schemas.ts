@@ -62,6 +62,7 @@ import type {
   WorkspaceNotesResponse,
   Label,
   AgentMemory,
+  AgentMemoryList,
   MemberWithUser,
   IssueProperty,
   ListPropertiesResponse,
@@ -2234,6 +2235,7 @@ const RoutingCandidateSchema = z.object({
   model: z.string().default(""),
   samples: z.number().default(0),
   success_rate: z.number().default(0),
+  wilson_lower: z.number().optional(),
   avg_cost_usd: z.number().nullable().optional(),
   avg_duration_secs: z.number().nullable().optional(),
   score: z.number().optional(),
@@ -3856,6 +3858,7 @@ export const AgentMemorySchema = z.object({
   content: z.string().optional().default(""),
   source: z.string().optional().default("manual"),
   source_task_id: z.string().nullable().optional().default(null),
+  source_issue_id: z.string().nullable().optional().default(null),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
 }).loose();
@@ -3866,15 +3869,25 @@ export const EMPTY_AGENT_MEMORY: AgentMemory = {
   content: "",
   source: "manual",
   source_task_id: null,
+  source_issue_id: null,
   created_at: "",
   updated_at: "",
 };
 
-// The list endpoint returns a bare array (repo convention for list APIs, cf.
-// GET /api/skills), so the schema is the array itself.
-export const AgentMemoryListSchema = z.array(AgentMemorySchema);
+// The list endpoint wraps the rows so it can report how many of them a run
+// brief actually carries and whether the extraction pass is configured —
+// neither is derivable from the rows.
+export const AgentMemoryListSchema = z.object({
+  memories: z.array(AgentMemorySchema).optional().default([]),
+  briefed_count: z.number().optional().default(0),
+  extraction_enabled: z.boolean().optional().default(false),
+}).loose();
 
-export const EMPTY_AGENT_MEMORY_LIST: AgentMemory[] = [];
+export const EMPTY_AGENT_MEMORY_LIST: AgentMemoryList = {
+  memories: [],
+  briefed_count: 0,
+  extraction_enabled: false,
+};
 
 /**
  * Read shape of one workspace MCP server.

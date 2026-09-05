@@ -2,18 +2,23 @@
 
 -- name: ListAgentMemories :many
 -- Full chronological listing for the REST endpoint. Every read carries the
--- workspace_id tenant guard.
-SELECT * FROM agent_memory
-WHERE agent_id = $1 AND workspace_id = $2
-ORDER BY created_at ASC, id ASC;
+-- workspace_id tenant guard. source_issue_id resolves the run-sourced fact to
+-- the issue its task worked on, so the UI can link back to it; NULL for manual
+-- facts and for tasks that carried no issue.
+SELECT agent_memory.*, t.issue_id AS source_issue_id
+FROM agent_memory
+LEFT JOIN agent_task_queue t ON t.id = agent_memory.source_task_id
+WHERE agent_memory.agent_id = $1 AND agent_memory.workspace_id = $2
+ORDER BY agent_memory.created_at ASC, agent_memory.id ASC;
 
 -- name: ListRecentAgentMemories :many
--- Claim-time brief injection: the 50 most recent facts, newest first. The
--- caller reverses into chronological order for the prompt.
+-- Claim-time brief injection: the agent's facts, newest first, bounded by the
+-- same per-agent cap the write path enforces. The caller applies the brief
+-- character budget and reverses into chronological order for the prompt.
 SELECT * FROM agent_memory
 WHERE agent_id = $1 AND workspace_id = $2
 ORDER BY created_at DESC, id DESC
-LIMIT 50;
+LIMIT 200;
 
 -- name: GetAgentMemory :one
 SELECT * FROM agent_memory

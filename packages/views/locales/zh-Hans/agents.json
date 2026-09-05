@@ -713,6 +713,7 @@
       "intro": "该智能体在多次运行之间记住的事实。可以手动添加记忆,运行过程中学到的内容也会保存下来。",
       "list_title": "已记住的事实",
       "count": "{{count}} / {{max}}",
+      "briefed_note": "{{total}} 条事实中有 {{count}} 条会写入运行简报。",
       "loading": "正在加载记忆…",
       "empty_title": "还没有记忆",
       "empty_hint": "固定希望智能体在每次运行时都记住的事实——偏好、约定或项目背景。",
@@ -723,6 +724,7 @@
       "source_manual": "手动",
       "source_run": "来自运行",
       "source_postmortem": "来自复盘",
+      "source_issue_link": "查看事项",
       "dialog_create_title": "添加记忆",
       "dialog_edit_title": "编辑记忆",
       "dialog_description": "每条记忆只记录一个事实,保持简短具体。",
@@ -737,7 +739,8 @@
       "delete_dialog_confirm": "删除",
       "save_failed_toast": "保存记忆失败,请重试。",
       "delete_failed_toast": "删除记忆失败,请重试。",
-      "cap_reached_toast": "该智能体已有 200 条记忆。请先删除一条再添加。"
+      "cap_reached_toast": "该智能体已有 200 条记忆。请先删除一条再添加。",
+      "extraction_disabled_note": "服务器未配置语言模型,运行学到的内容无法保存。只保留手动添加的事实。"
     },
     "integrations": {
       "intro": "把这个智能体连接到外部聊天平台，让大家在自己熟悉的工具里直接与它协作。",
@@ -900,6 +903,8 @@
     "details_routing_reason": "路由原因",
     "routing_candidates_title": "路由候选",
     "routing_candidate_stats": "{{samples}} 次运行 · 成功率 {{rate}}%",
+    "routing_candidate_score": "得分 {{score}}",
+    "routing_candidate_confidence": "置信度 {{wilson}}%",
     "routing_candidate_excluded": "已排除：{{reason}}",
     "details_workdir": "工作目录",
     "details_project_directory": "项目目录",

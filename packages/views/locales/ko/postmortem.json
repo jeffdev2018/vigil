@@ -39,6 +39,7 @@
     "resolved_note_discarded": "이 포스트모템은 폐기되었습니다.",
     "open_issue": "이슈 열기",
     "open_agent": "에이전트 열기",
+    "open_run": "실행 열기",
     "rules_toast": "규칙 {{count}}개를 에이전트 메모리에 추가했습니다",
     "rules_hint": "승인하면 이 규칙이 에이전트 메모리에 추가됩니다."
   }

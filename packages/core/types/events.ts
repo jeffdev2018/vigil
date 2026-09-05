@@ -96,6 +96,9 @@ export type WSEventType =
   | "pull_request:linked"
   | "pull_request:updated"
   | "pull_request:unlinked"
+  | "meeting:created"
+  | "meeting:updated"
+  | "meeting:deleted"
   | "triage:new"
   | "triage:resolved"
   | "triage:updated"
@@ -254,6 +257,17 @@ export interface TriageUpdatedPayload {
 /** A failed run got a drafted postmortem awaiting review. */
 export interface PostmortemCreatedPayload {
   postmortem: Postmortem;
+}
+
+/**
+ * A meeting was created, changed status (recording → summarizing → done /
+ * failed), was renamed, or was deleted (K52). A change hint, not a row: the
+ * transcript never rides the socket, so listeners invalidate the meeting
+ * queries rather than merging this.
+ */
+export interface MeetingEventPayload {
+  meeting_id: string;
+  status?: string;
 }
 
 /** A postmortem was approved or discarded. */
@@ -693,6 +707,9 @@ export interface WSEventPayloadMap {
   "pull_request:linked": unknown;
   "pull_request:updated": unknown;
   "pull_request:unlinked": unknown;
+  "meeting:created": MeetingEventPayload;
+  "meeting:updated": MeetingEventPayload;
+  "meeting:deleted": MeetingEventPayload;
   "triage:new": TriageNewPayload;
   "triage:resolved": TriageResolvedPayload;
   "triage:updated": TriageUpdatedPayload;

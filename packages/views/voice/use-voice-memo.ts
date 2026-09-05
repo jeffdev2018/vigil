@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { errorCode, getApi } from "@multica/core/api";
+import { useVoiceStore, voiceTranscriptionLanguage } from "@multica/core/voice";
 
 export type VoiceMemoPhase = "idle" | "recording" | "transcribing";
 
@@ -75,7 +76,12 @@ export function useVoiceMemo(options: {
       }
       setPhase("transcribing");
       try {
-        const { text } = await getApi().transcribeVoice(blob);
+        // Read at stop, not at mount: the preference may have changed while
+        // the recorder was running, and it is one store read either way.
+        const { text } = await getApi().transcribeVoice(
+          blob,
+          voiceTranscriptionLanguage(useVoiceStore.getState().voiceLanguage),
+        );
         if (text.trim()) onTextRef.current(text.trim());
       } catch (err) {
         const code = errorCode(err);

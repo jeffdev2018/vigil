@@ -423,6 +423,14 @@ type Daemon struct {
 	// (MUL-5439). Guarded by skippedAgentsMu.
 	skippedAgentsMu sync.RWMutex
 	skippedAgents   map[string]string // provider -> human-readable reason
+	// skippedAgentsSent remembers, per runtime, the fingerprint of the skip
+	// set the server last accepted. Register carries the set, but a CLI that
+	// breaks (or gets repaired) between registrations would otherwise leave a
+	// stale diagnostic on the machine for as long as the daemon stays up — so
+	// the heartbeat re-sends it, and only when it actually changed. Guarded by
+	// skippedAgentsSentMu.
+	skippedAgentsSentMu sync.Mutex
+	skippedAgentsSent   map[string]string // runtime id -> fingerprint
 
 	// cliAuthStatus caches each provider's last observed CLI sign-in state so
 	// registration can report it without forking the CLI on every tick.
@@ -667,6 +675,7 @@ func New(cfg Config, logger *slog.Logger) *Daemon {
 		runtimeSet:                newRuntimeSetWatcher(),
 		agentVersions:             make(map[string]string),
 		skippedAgents:             make(map[string]string),
+		skippedAgentsSent:         make(map[string]string),
 		cliAuthStatus:             make(map[string]cliAuthSnapshot),
 		resolvedPaths:             make(map[string]healedAgent),
 		wsHBLastAck:               make(map[string]time.Time),
@@ -4215,12 +4224,16 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 	// heartbeat goes silent the freshness window expires and HTTP resumes
 	// automatically on the next tick — that is the fallback the WS path
 	// relies on.
-	if d.wsHeartbeatRecentlyAcked(rid) {
+	// A changed skip set is only carried by the HTTP body, so it also
+	// overrides the WS shortcut for exactly one tick — otherwise a daemon on a
+	// healthy WebSocket would never report that a CLI broke or got repaired.
+	skipped, skippedFingerprint, skippedChanged := d.pendingSkippedAgents(rid)
+	if !skippedChanged && d.wsHeartbeatRecentlyAcked(rid) {
 		d.logger.Debug("heartbeat: skipping HTTP tick, WS recently acked", "runtime_id", rid)
 		return false
 	}
 	d.logger.Debug("heartbeat: HTTP tick", "runtime_id", rid)
-	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx))
+	resp, err := d.client.SendHeartbeat(ctx, rid, d.collectDirtyCheckouts(ctx), skipped)
 	if err != nil {
 		if ctx.Err() == nil {
 			if isRuntimeNotFoundError(err) {
@@ -4242,6 +4255,11 @@ func (d *Daemon) runHeartbeatTick(ctx context.Context, rid string) bool {
 		// surfacing this signal too.
 		go d.handleRuntimeGone(rid)
 		return false
+	}
+	if skippedChanged {
+		// Only now: a set marked sent before the server accepted it would be
+		// dropped for the rest of this daemon's life.
+		d.markSkippedAgentsSent(rid, skippedFingerprint)
 	}
 	d.handleHeartbeatActions(ctx, rid, resp)
 	return false
@@ -4371,7 +4389,7 @@ func (d *Daemon) handlePendingWorkHint(runtimeID, kind string) {
 		return
 	}
 	hbCtx, cancel := context.WithTimeout(ctx, pendingWorkHeartbeatTimeout)
-	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil)
+	resp, err := d.client.SendHeartbeat(hbCtx, runtimeID, nil, nil)
 	cancel()
 	if err != nil {
 		if isRuntimeNotFoundError(err) {
