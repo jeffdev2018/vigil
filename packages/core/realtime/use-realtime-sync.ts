@@ -27,6 +27,7 @@ import {
   agentTasksKeys,
 } from "../agents/queries";
 import { agentMemoryKeys } from "../agents/memory";
+import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
@@ -124,6 +125,7 @@ import type {
   ChatSessionCreatedPayload,
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
+  MeetingEventPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -665,6 +667,10 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     qc.invalidateQueries({ queryKey: agentRunCountsKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: chatKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: agentMemoryKeys.all(wsId) });
+    // A meeting that finished summarizing during the gap: the detail view only
+    // polls while it believes the meeting is still summarizing, and the list
+    // never polls at all.
+    qc.invalidateQueries({ queryKey: meetingKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: labelKeys.all(wsId) });
     qc.invalidateQueries({ queryKey: propertyKeys.all(wsId) });
     // A catalog edit missed while disconnected would otherwise sit behind the
@@ -1146,6 +1152,27 @@ export function useRealtimeSync(
     const unsubAgentMemoryCreated = ws.on("agent_memory:created", handleAgentMemoryEvent);
     const unsubAgentMemoryUpdated = ws.on("agent_memory:updated", handleAgentMemoryEvent);
     const unsubAgentMemoryDeleted = ws.on("agent_memory:deleted", handleAgentMemoryEvent);
+
+    // Meetings (K52). Invalidate only — the payload is a change hint and the
+    // transcript is not on the wire. The detail view's 3s poll of a
+    // `summarizing` meeting stays as the fallback for a dropped socket; this
+    // is what makes the transition land immediately in every other client.
+    const handleMeetingEvent = (p: unknown) => {
+      const payload = (p ?? {}) as MeetingEventPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      // The list carries each meeting's status, so it is stale on every one of
+      // these events; the detail only when the event names a meeting.
+      qc.invalidateQueries({ queryKey: meetingKeys.list(wsId) });
+      if (payload.meeting_id) {
+        qc.invalidateQueries({
+          queryKey: meetingKeys.detail(wsId, payload.meeting_id),
+        });
+      }
+    };
+    const unsubMeetingCreated = ws.on("meeting:created", handleMeetingEvent);
+    const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
+    const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
 
     // --- Timeline event handlers (global fallback) ---
     // These events are also handled granularly by useIssueTimeline when
@@ -1783,6 +1810,9 @@ export function useRealtimeSync(
       unsubAgentMemoryCreated();
       unsubAgentMemoryUpdated();
       unsubAgentMemoryDeleted();
+      unsubMeetingCreated();
+      unsubMeetingUpdated();
+      unsubMeetingDeleted();
       unsubCommentCreated();
       unsubCommentUpdated();
       unsubCommentDeleted();

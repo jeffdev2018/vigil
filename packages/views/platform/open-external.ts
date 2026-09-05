@@ -13,6 +13,19 @@
  *
  * SSR-safe: no-op if `window` is not defined.
  */
+/**
+ * macOS Privacy & Security panes the product deep-links to. macOS asks for
+ * microphone access exactly once, so a denied recorder can only be repaired
+ * from System Settings — a toast that just says "check your settings" leaves
+ * the user hunting.
+ *
+ * Mirrored in apps/desktop/src/main/external-url.ts, whose exact-string
+ * allowlist is what lets these past the http/https-only guard. Adding one here
+ * without adding it there is a silent no-op on desktop.
+ */
+export const MACOS_MICROPHONE_SETTINGS_URL =
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone";
+
 export function openExternal(
   url: string,
   options?: { webTarget?: "new-tab" | "same-tab" },

@@ -66,6 +66,7 @@
     "open": "Open meeting",
     "error_unsupported": "This browser cannot record audio.",
     "error_microphone": "Microphone access was refused, so recording cannot start.",
+    "open_system_settings": "Open System Settings",
     "error_create": "Could not start the meeting.",
     "error_segment": "A segment could not be transcribed.",
     "error_not_recording": "This meeting is no longer recording.",

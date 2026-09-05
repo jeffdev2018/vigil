@@ -7,12 +7,25 @@ export function isSafeExternalHttpUrl(url: string): boolean {
   return getHttpProtocol(url) !== null;
 }
 
+// The ONLY non-http(s) URLs the renderer may hand to the OS shell: exact
+// strings, not a scheme allowlist, so `x-apple.systempreferences:` stays
+// closed to everything except the two panes we deliberately deep-link to.
+// A recorder whose microphone was denied cannot re-prompt — macOS only asks
+// once — so the toast has to send the user to the pane that can undo it.
+//
+// Mirrored in packages/views/platform/open-external.ts, which is what the
+// renderer actually calls with them.
+const ALLOWED_SYSTEM_SETTINGS_URLS = new Set([
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone",
+  "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture",
+]);
+
 // Canonical wrapper around shell.openExternal. All renderer-controlled URLs
 // that eventually reach the OS shell MUST flow through here; direct calls
 // to `shell.openExternal` elsewhere in the main process are banned by the
 // no-restricted-syntax rule in apps/desktop/eslint.config.mjs.
 export function openExternalSafely(url: string): Promise<void> | void {
-  if (getHttpProtocol(url) === null) {
+  if (getHttpProtocol(url) === null && !ALLOWED_SYSTEM_SETTINGS_URLS.has(url)) {
     console.warn(`[security] blocked openExternal: ${describeScheme(url)}`);
     return;
   }

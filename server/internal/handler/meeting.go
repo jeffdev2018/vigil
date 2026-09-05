@@ -80,6 +80,18 @@ type MeetingListResponse struct {
 	Meetings []MeetingResponse `json:"meetings"`
 }
 
+// publishMeetingEvent announces a meeting transition (K52). The payload is a
+// change hint, not a row: clients invalidate the meeting queries from it, so a
+// transcript never rides the bus and no client mirrors server state into a
+// store. Status is carried only so a listener can tell a finish from a rename
+// without a round trip.
+func (h *Handler) publishMeetingEvent(eventType string, workspaceID pgtype.UUID, m db.Meeting, userID string) {
+	h.publish(eventType, util.UUIDToString(workspaceID), "member", userID, map[string]any{
+		"meeting_id": util.UUIDToString(m.ID),
+		"status":     m.Status,
+	})
+}
+
 func meetingToResponse(m db.Meeting, actions []db.TriageItem) MeetingResponse {
 	resp := MeetingResponse{
 		ID:              util.UUIDToString(m.ID),
@@ -220,6 +232,7 @@ func (h *Handler) CreateMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create meeting")
 		return
 	}
+	h.publishMeetingEvent(protocol.EventMeetingCreated, workspaceID, m, userID)
 	writeJSON(w, http.StatusCreated, meetingToResponse(m, nil))
 }
 
@@ -548,6 +561,9 @@ func (h *Handler) FinishMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	// recording → summarizing, announced before the summary runs: the other
+	// clients showing "recording" are the ones that most need to stop.
+	h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, m, userID)
 	h.writeSummarizedMeeting(w, r, m, workspaceID, userID)
 }
 
@@ -588,6 +604,7 @@ func (h *Handler) ResummarizeMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to summarize meeting")
 		return
 	}
+	h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, started, userID)
 	h.writeSummarizedMeeting(w, r, started, workspaceID, userID)
 }
 
@@ -611,9 +628,14 @@ func (h *Handler) writeSummarizedMeeting(w http.ResponseWriter, r *http.Request,
 	if err != nil {
 		slog.Error("complete meeting failed", "error", err)
 		_ = h.Queries.FailMeeting(context.Background(), db.FailMeetingParams{ID: m.ID, WorkspaceID: workspaceID})
+		// A meeting stuck in `summarizing` is exactly what the poll fallback
+		// waits out, so the failure has to be announced too.
+		m.Status = "failed"
+		h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, m, userID)
 		writeError(w, http.StatusInternalServerError, "failed to finish meeting")
 		return
 	}
+	h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, done, userID)
 	// A re-summarize that produced nothing new still has to report the items the
 	// meeting already owns, so the client's list does not shrink to what this
 	// one call happened to capture.
@@ -780,6 +802,7 @@ func (h *Handler) UpdateMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load meeting")
 		return
 	}
+	h.publishMeetingEvent(protocol.EventMeetingUpdated, workspaceID, updated, userID)
 	resp := meetingToResponse(updated, actions)
 	resp.CanManage = true
 	writeJSON(w, http.StatusOK, resp)
@@ -805,5 +828,6 @@ func (h *Handler) DeleteMeeting(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "meeting not found")
 		return
 	}
+	h.publishMeetingEvent(protocol.EventMeetingDeleted, workspaceID, m, userID)
 	w.WriteHeader(http.StatusNoContent)
 }

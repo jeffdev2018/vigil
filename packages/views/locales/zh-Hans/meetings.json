@@ -66,6 +66,7 @@
     "open": "打开会议",
     "error_unsupported": "当前浏览器无法录制音频。",
     "error_microphone": "麦克风权限被拒绝，无法开始录制。",
+    "open_system_settings": "打开系统设置",
     "error_create": "无法开始会议。",
     "error_segment": "有一个片段转录失败。",
     "error_not_recording": "该会议已不在录制中。",

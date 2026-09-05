@@ -18,6 +18,11 @@ import {
 } from "@multica/core/meetings/mutations";
 import { startRealtimeTranscriber, type RealtimeTranscriber } from "./realtime-transcriber";
 import { useNavigation } from "../navigation";
+import {
+  isDesktopShell,
+  openExternal,
+  MACOS_MICROPHONE_SETTINGS_URL,
+} from "../platform";
 import { useT } from "../i18n";
 
 /**
@@ -36,6 +41,26 @@ import { useT } from "../i18n";
  * recorder. The parsing and error-code branches this hook depends on are
  * covered in `packages/core/meetings/meetings.test.ts`.
  */
+
+/**
+ * The toast action that opens macOS Privacy & Security → Microphone, or
+ * `undefined` where that link would do nothing.
+ *
+ * Desktop-only and macOS-only on purpose: the URL scheme is a macOS deep link
+ * that only the Electron shell is allowed to hand to the OS (see
+ * apps/desktop/src/main/external-url.ts), and a browser tab's microphone
+ * permission is repaired in the browser, not in System Settings.
+ */
+function macOSMicrophoneSettingsAction(
+  label: () => string,
+): { label: string; onClick: () => void } | undefined {
+  if (typeof navigator === "undefined" || !isDesktopShell()) return undefined;
+  if (!/Mac/i.test(navigator.userAgent)) return undefined;
+  return {
+    label: label(),
+    onClick: () => openExternal(MACOS_MICROPHONE_SETTINGS_URL),
+  };
+}
 
 /** One upload per 30s of audio: short enough to show transcript as it runs. */
 const TIMESLICE_MS = 30_000;
@@ -175,7 +200,14 @@ export function useMeetingRecorder() {
       try {
         mic = await navigator.mediaDevices.getUserMedia({ audio: true });
       } catch {
-        toast.error(t(($) => $.recorder.error_microphone));
+        // macOS asks for microphone access once. After a refusal the prompt
+        // never comes back, so the only repair is System Settings — offer the
+        // pane directly rather than leaving the user to find it.
+        toast.error(t(($) => $.recorder.error_microphone), {
+          action: macOSMicrophoneSettingsAction(() =>
+            t(($) => $.recorder.open_system_settings),
+          ),
+        });
         store.setPhase("idle");
         return;
       }
