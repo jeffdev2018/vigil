@@ -128,6 +128,7 @@
   },
   "scorecards": {
     "title": "Agent scorecards · {{days}}D",
+    "scope_note": "Workspace-wide, all projects · UTC days",
     "agent": "Agent",
     "runs": "Runs",
     "accepted": "Accepted",

@@ -128,6 +128,7 @@
   },
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",
+    "scope_note": "覆盖整个工作区的所有项目 · 按 UTC 日期统计",
     "agent": "智能体",
     "runs": "运行",
     "accepted": "已接受",

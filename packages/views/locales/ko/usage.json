@@ -128,6 +128,7 @@
   },
   "scorecards": {
     "title": "에이전트 스코어카드 · {{days}}일",
+    "scope_note": "워크스페이스 전체, 모든 프로젝트 · UTC 기준 일자",
     "agent": "에이전트",
     "runs": "실행",
     "accepted": "수락",
