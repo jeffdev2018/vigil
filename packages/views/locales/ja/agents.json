@@ -796,6 +796,8 @@
     "details_routing_reason": "ルーティング理由",
     "routing_candidates_title": "ルーティング候補",
     "routing_candidate_stats": "{{samples}} 件の実行 · 成功率 {{rate}}%",
+    "routing_candidate_score": "スコア {{score}}",
+    "routing_candidate_confidence": "信頼度 {{wilson}}%",
     "routing_candidate_excluded": "除外: {{reason}}",
     "details_workdir": "作業ディレクトリ",
     "details_project_directory": "プロジェクトディレクトリ",

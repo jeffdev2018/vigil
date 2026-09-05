@@ -918,6 +918,8 @@
     "details_routing_reason": "Routing reason",
     "routing_candidates_title": "Routing candidates",
     "routing_candidate_stats": "{{samples}} runs · {{rate}}% success",
+    "routing_candidate_score": "score {{score}}",
+    "routing_candidate_confidence": "{{wilson}}% confidence",
     "routing_candidate_excluded": "Excluded: {{reason}}",
     "details_workdir": "Workdir",
     "details_project_directory": "Project directory",

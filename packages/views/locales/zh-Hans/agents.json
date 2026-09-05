@@ -903,6 +903,8 @@
     "details_routing_reason": "路由原因",
     "routing_candidates_title": "路由候选",
     "routing_candidate_stats": "{{samples}} 次运行 · 成功率 {{rate}}%",
+    "routing_candidate_score": "得分 {{score}}",
+    "routing_candidate_confidence": "置信度 {{wilson}}%",
     "routing_candidate_excluded": "已排除：{{reason}}",
     "details_workdir": "工作目录",
     "details_project_directory": "项目目录",

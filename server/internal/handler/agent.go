@@ -407,6 +407,14 @@ type AgentTaskResponse struct {
 	Degraded        bool            `json:"degraded"`
 	// Issue router (K27): risk level, pool and escalation behind this run.
 	RoutingDecision json.RawMessage `json:"routing_decision,omitempty"`
+	// Runtime router (JEF-237): the class the router segmented this task on,
+	// and the full decision trace it persisted — candidates with their Wilson
+	// lower bound and score, the exclusions, and the reason it settled on the
+	// chosen runtime. Distinct from RoutingDecision above, which is the ISSUE
+	// router's risk/pool trace. Empty for fixed-mode runs and for rows that
+	// predate the router, so the UI renders the block conditionally.
+	TaskClass string          `json:"task_class,omitempty"`
+	Routing   json.RawMessage `json:"routing,omitempty"`
 	// Pause, steer, resume (K19).
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
@@ -828,6 +836,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		FailoverHistory:        json.RawMessage(t.FailoverHistory),
 		Degraded:               service.TaskDegraded(t.FailoverHistory),
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
+		TaskClass:              t.TaskClass,
+		Routing:                json.RawMessage(t.Routing),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),

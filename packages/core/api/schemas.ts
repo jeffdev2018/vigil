@@ -2137,6 +2137,7 @@ const RoutingCandidateSchema = z.object({
   model: z.string().default(""),
   samples: z.number().default(0),
   success_rate: z.number().default(0),
+  wilson_lower: z.number().optional(),
   avg_cost_usd: z.number().nullable().optional(),
   avg_duration_secs: z.number().nullable().optional(),
   score: z.number().optional(),

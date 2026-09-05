@@ -26,6 +26,9 @@ export interface RuntimeRoutingCandidate {
   model: string;
   samples: number;
   success_rate: number;
+  /** Conservative success estimate (Wilson lower bound) the router ranks on:
+   *  a perfect record over one run never outranks a strong record over many. */
+  wilson_lower?: number;
   avg_cost_usd?: number | null;
   avg_duration_secs?: number | null;
   score?: number;

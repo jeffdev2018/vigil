@@ -804,6 +804,8 @@
     "details_routing_reason": "라우팅 이유",
     "routing_candidates_title": "라우팅 후보",
     "routing_candidate_stats": "실행 {{samples}}회 · 성공률 {{rate}}%",
+    "routing_candidate_score": "점수 {{score}}",
+    "routing_candidate_confidence": "신뢰도 {{wilson}}%",
     "routing_candidate_excluded": "제외됨: {{reason}}",
     "details_workdir": "작업 디렉터리",
     "details_project_directory": "프로젝트 디렉터리",
