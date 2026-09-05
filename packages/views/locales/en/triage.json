@@ -61,7 +61,8 @@
     "resolution_reason": "Reason: {{reason}}",
     "accepted_toast_identifier": "Accepted — {{identifier}} created",
     "open_issue": "Open",
-    "from_meeting": "From meeting"
+    "from_meeting": "From meeting",
+    "auto_accepted": "Auto-accepted by the queue"
   },
   "batch": {
     "accept": "Accept {{count}}",

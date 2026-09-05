@@ -677,6 +677,15 @@ function TriageDetailBody({
 
       <TriageVerdictNote item={item} />
 
+      {item.state === "accepted" && item.resolved_by_type === "system" ? (
+        <p
+          data-testid="triage-auto-accepted"
+          className="shrink-0 border-b px-4 py-2 text-caption font-medium"
+        >
+          {t(($) => $.detail.auto_accepted)}
+        </p>
+      ) : null}
+
       {item.resolution_reason ? (
         <p
           data-testid="triage-resolution-reason"

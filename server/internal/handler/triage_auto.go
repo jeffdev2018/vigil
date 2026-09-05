@@ -206,21 +206,23 @@ func (h *Handler) autoTriage(ctx context.Context, item db.TriageItem) {
 		}
 		h.publishTriageResolved(item.WorkspaceID, item.ID, "dismissed")
 	case "accept":
-		leads, err := service.ListWorkspaceManagerNotificationRecipients(ctx, h.Queries, item.WorkspaceID)
-		if err != nil || len(leads) == 0 {
+		// The classifier is not a person, so the decision is recorded as
+		// 'system'. Creating the issue still needs a member creator, and that
+		// is the source's creator — the identity the source's own auto_accept
+		// already uses (onTriageParked). It used to be whichever manager the
+		// notification-recipient query happened to list first, which put a
+		// machine decision under the name of a human who never made it, and
+		// made the attribution depend on the workspace's member ordering.
+		source, err := h.Queries.GetTriageSource(ctx, db.GetTriageSourceParams{
+			ID: item.SourceID, WorkspaceID: item.WorkspaceID,
+		})
+		// A source nobody created cannot auto-accept, and its items wait for a
+		// human — the safe direction, same as auto_accept.
+		if err != nil || !source.CreatedByID.Valid {
 			return
 		}
-		actor := ""
-		for _, l := range leads {
-			if l.Type == "member" {
-				actor = uuidToString(l.ID)
-				break
-			}
-		}
-		if actor == "" {
-			return
-		}
-		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, actor, item.ID, triageAcceptOverrides{})
+		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, uuidToString(source.CreatedByID), item.ID,
+			triageAcceptOverrides{SystemReason: reason})
 		if res.outcome != "accepted" {
 			return
 		}

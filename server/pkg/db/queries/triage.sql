@@ -121,12 +121,17 @@ WHERE id = $1 AND workspace_id = $2
 FOR UPDATE;
 
 -- name: AcceptPendingTriageItem :one
+-- The acceptor is not always a human: an auto-accept resolves the item as
+-- 'system' with no resolver id (the issue still needs a creator, which is a
+-- separate identity), and records why it was accepted the way the auto-dismiss
+-- path already does.
 UPDATE triage_item
 SET state = 'accepted',
     issue_id = sqlc.arg('issue_id')::uuid,
+    resolution_reason = sqlc.narg('resolution_reason'),
     resolved_at = now(),
-    resolved_by_type = 'member',
-    resolved_by_id = sqlc.arg('resolved_by')::uuid,
+    resolved_by_type = sqlc.arg('resolved_by_type'),
+    resolved_by_id = sqlc.narg('resolved_by')::uuid,
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'

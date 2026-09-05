@@ -15,9 +15,10 @@ const acceptPendingTriageItem = `-- name: AcceptPendingTriageItem :one
 UPDATE triage_item
 SET state = 'accepted',
     issue_id = $3::uuid,
+    resolution_reason = $4,
     resolved_at = now(),
-    resolved_by_type = 'member',
-    resolved_by_id = $4::uuid,
+    resolved_by_type = $5,
+    resolved_by_id = $6::uuid,
     revision = revision + 1,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
@@ -25,17 +26,25 @@ RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor
 `
 
 type AcceptPendingTriageItemParams struct {
-	ID          pgtype.UUID `json:"id"`
-	WorkspaceID pgtype.UUID `json:"workspace_id"`
-	IssueID     pgtype.UUID `json:"issue_id"`
-	ResolvedBy  pgtype.UUID `json:"resolved_by"`
+	ID               pgtype.UUID `json:"id"`
+	WorkspaceID      pgtype.UUID `json:"workspace_id"`
+	IssueID          pgtype.UUID `json:"issue_id"`
+	ResolutionReason pgtype.Text `json:"resolution_reason"`
+	ResolvedByType   pgtype.Text `json:"resolved_by_type"`
+	ResolvedBy       pgtype.UUID `json:"resolved_by"`
 }
 
+// The acceptor is not always a human: an auto-accept resolves the item as
+// 'system' with no resolver id (the issue still needs a creator, which is a
+// separate identity), and records why it was accepted the way the auto-dismiss
+// path already does.
 func (q *Queries) AcceptPendingTriageItem(ctx context.Context, arg AcceptPendingTriageItemParams) (TriageItem, error) {
 	row := q.db.QueryRow(ctx, acceptPendingTriageItem,
 		arg.ID,
 		arg.WorkspaceID,
 		arg.IssueID,
+		arg.ResolutionReason,
+		arg.ResolvedByType,
 		arg.ResolvedBy,
 	)
 	var i TriageItem

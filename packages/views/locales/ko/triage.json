@@ -61,7 +61,8 @@
     "resolution_reason": "사유: {{reason}}",
     "accepted_toast_identifier": "수락됨 — {{identifier}} 생성됨",
     "open_issue": "열기",
-    "from_meeting": "회의에서"
+    "from_meeting": "회의에서",
+    "auto_accepted": "대기열이 자동 승인"
   },
   "batch": {
     "accept": "{{count}}건 수락",

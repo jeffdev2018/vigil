@@ -88,6 +88,31 @@ func TestTriageAutoSuggestsAppliesAndReopens(t *testing.T) {
 		res := testHandler.acceptTriageItemCore(context.Background(), parseUUID(testWorkspaceID), testUserID, parseUUID(crash), triageAcceptOverrides{})
 		t.Fatalf("crash state = %s, want accepted (direct accept outcome now: %s)", state, res.outcome)
 	}
+	// The classifier is not a person: the item is resolved by the system with
+	// no resolver id and the reason that justified it. It used to be filed
+	// under whichever manager the notification query listed first.
+	var acceptedBy string
+	var acceptedByID *string
+	var acceptReason string
+	dbfx.QueryRow(t,
+		`SELECT COALESCE(resolved_by_type, ''), resolved_by_id::text, COALESCE(resolution_reason, '') FROM triage_item WHERE id = $1`,
+		crash,
+	).Scan(&acceptedBy, &acceptedByID, &acceptReason)
+	if acceptedBy != "system" || acceptedByID != nil {
+		t.Fatalf("auto-accept resolved by %q/%v, want system with no resolver id", acceptedBy, acceptedByID)
+	}
+	if len(acceptReason) < 5 || acceptReason[:5] != "auto:" {
+		t.Fatalf("auto-accept reason = %q, want the confidence that justified it", acceptReason)
+	}
+	// The issue still needs a member creator, and it is the source's creator.
+	var creatorType, creatorID string
+	dbfx.QueryRow(t,
+		`SELECT creator_type, creator_id::text FROM issue WHERE id = (SELECT issue_id FROM triage_item WHERE id = $1)`,
+		crash,
+	).Scan(&creatorType, &creatorID)
+	if creatorType != "member" || creatorID != testUserID {
+		t.Fatalf("issue creator = %s/%s, want the source's creator %s", creatorType, creatorID, testUserID)
+	}
 	// Reopen the auto-dismissed item; a pending one cannot be reopened.
 	reopen := func(id string) *testutil.Response {
 		return testutil.Call(t, inboxWorkspaceHandler(testHandler.ReopenTriageItem),

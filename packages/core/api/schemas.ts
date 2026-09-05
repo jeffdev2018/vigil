@@ -1520,6 +1520,8 @@ export const TriageItemSchema = z.object({
   collapse_count: z.number().default(1),
   drop_reason: z.string().optional(),
   resolution_reason: z.string().optional(),
+  /** "member" when a human decided, "system" for an automatic resolution. */
+  resolved_by_type: z.string().optional(),
   issue_id: z.string().optional(),
   duplicate_of_issue_id: z.string().optional(),
   /** Set while the item is parked by a snooze; cleared once it comes due. */

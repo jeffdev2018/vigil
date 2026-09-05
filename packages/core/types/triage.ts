@@ -43,6 +43,8 @@ export interface TriageItem {
   drop_reason?: string;
   /** Why the item left the queue: a human's reason, "rule: <title>", or "auto: N% confidence…". */
   resolution_reason?: string;
+  /** "member" for a human decision, "system" for an automatic one. */
+  resolved_by_type?: string;
   issue_id?: string;
   duplicate_of_issue_id?: string;
   /** Set while the item is parked by a snooze; cleared once it comes due. */

@@ -60,7 +60,8 @@
     "resolution_reason": "Raison : {{reason}}",
     "accepted_toast_identifier": "Accepté — {{identifier}} créé",
     "open_issue": "Ouvrir l'issue",
-    "from_meeting": "Depuis la réunion"
+    "from_meeting": "Depuis la réunion",
+    "auto_accepted": "Accepté automatiquement par la file"
   },
   "batch": {
     "accept": "Accepter {{count}}",
