@@ -386,6 +386,7 @@ var concurrentIndexCleanups = map[string]string{
 	"662_org_structure_default_index":                           "uq_org_structure_default_live",
 	"663_org_flow_index":                                        "idx_org_flow_structure",
 	"664_org_offer_index":                                       "idx_org_offer_issue",
+	"667_workspace_transfer_run_index":                        "idx_workspace_transfer_run_workspace",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 

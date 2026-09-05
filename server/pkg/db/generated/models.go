@@ -2485,3 +2485,20 @@ type WorkspaceShareLink struct {
 	IsActive    bool               `json:"is_active"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
+
+type WorkspaceTransferRun struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	Direction    string             `json:"direction"`
+	Status       string             `json:"status"`
+	Name         string             `json:"name"`
+	Template     bool               `json:"template"`
+	Strategy     string             `json:"strategy"`
+	SourceName   string             `json:"source_name"`
+	BundleSha256 string             `json:"bundle_sha256"`
+	Bundle       []byte             `json:"bundle"`
+	Report       []byte             `json:"report"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
+}

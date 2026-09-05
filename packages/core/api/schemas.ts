@@ -5435,3 +5435,57 @@ export const OrgOfferListSchema = z.object({
 }).loose();
 export const OrgResolveSchema = z.object({ structure: OrgStructureSchema.nullable().catch(null) }).loose();
 export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();
+
+// Workspace export / import (K76).
+const TransferSecretSchema = z.object({ scope: z.string().catch(""), name: z.string().catch(""), key: z.string().catch(""), scoped: z.boolean().catch(false) }).loose();
+const TransferCollisionSchema = z.object({ kind: z.string().catch(""), name: z.string().catch(""), existing_id: z.string().catch("") }).loose();
+const TransferCountsSchema = z.record(z.string(), z.number()).catch({}).default({});
+export const TransferManifestSchema = z.object({
+  format_version: z.number().catch(0),
+  exported_at: z.string().catch(""),
+  name: z.string().catch(""),
+  template: z.boolean().catch(false),
+  source: z.object({ Name: z.string().catch(""), Slug: z.string().catch("") }).loose().catch({ Name: "", Slug: "" }),
+  counts: TransferCountsSchema,
+  secrets: z.array(TransferSecretSchema).catch([]).default([]),
+}).loose();
+export const TransferPreviewSchema = z.object({
+  manifest: TransferManifestSchema,
+  collisions: z.array(TransferCollisionSchema).catch([]).default([]),
+  secrets: z.array(TransferSecretSchema).catch([]).default([]),
+  strategies: z.array(z.enum(["rename", "merge", "skip"])).catch(["rename", "merge", "skip"]).default(["rename", "merge", "skip"]),
+}).loose();
+export const TransferReportSchema = z.object({
+  created: TransferCountsSchema,
+  merged: TransferCountsSchema,
+  skipped: z.array(TransferCollisionSchema).catch([]).default([]),
+  secrets_pending: z.array(TransferSecretSchema).catch([]).default([]),
+  warnings: z.array(z.string()).catch([]).default([]),
+}).loose();
+export const TransferImportResultSchema = z.object({ run_id: z.string().catch(""), report: TransferReportSchema }).loose();
+export const TransferRunListSchema = z.object({
+  runs: z.array(z.object({
+    id: z.string(),
+    direction: z.enum(["export", "import"]).catch("export"),
+    status: z.enum(["running", "completed", "failed"]).catch("failed"),
+    name: z.string().catch(""),
+    template: z.boolean().catch(false),
+    strategy: z.string().catch(""),
+    source_name: z.string().catch(""),
+    bundle_sha256: z.string().catch(""),
+    report: z.record(z.string(), z.unknown()).catch({}).default({}),
+    created_by: z.string().nullable().catch(null),
+    created_at: z.string().catch(""),
+    completed_at: z.string().nullable().catch(null),
+  }).loose()).catch([]).default([]),
+}).loose();
+export const WorkspaceTemplateListSchema = z.object({
+  templates: z.array(z.object({
+    id: z.string(),
+    name: z.string().catch(""),
+    source_name: z.string().catch(""),
+    workspace_name: z.string().catch(""),
+    report: z.record(z.string(), z.unknown()).catch({}).default({}),
+    created_at: z.string().catch(""),
+  }).loose()).catch([]).default([]),
+}).loose();

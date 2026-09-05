@@ -197,7 +197,10 @@
     "creation_disabled_logout": "退出登录",
     "creation_disabled_eyebrow_resume": "你的工作区",
     "creation_disabled_headline_resume": "继续使用 {{name}}。",
-    "creation_disabled_lede_resume": "该实例已禁用创建工作区，继续进入你已有的工作区即可。"
+    "creation_disabled_lede_resume": "该实例已禁用创建工作区，继续进入你已有的工作区即可。",
+    "template_label": "从哪里开始",
+    "template_scratch": "从零开始",
+    "template_hint": "模板会根据已导出的工作区预先填好 Agent、技能、项目等内容。"
   },
   "step_runtime": {
     "scanning_headline": "正在连接这台电脑...",

@@ -74,6 +74,7 @@
     "./agents/trust": "./agents/trust.ts",
     "./agents/permission-profiles": "./agents/permission-profiles.ts",
     "./workspace/audit": "./workspace/audit.ts",
+    "./workspace/transfer": "./workspace/transfer.ts",
     "./calendar": "./calendar/index.ts",
     "./calendar/queries": "./calendar/queries.ts",
     "./meetings": "./meetings/index.ts",
