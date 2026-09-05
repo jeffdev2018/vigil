@@ -2667,6 +2667,10 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectUUID = pid
+		// Project roles (K60): creating in a project needs a contributor.
+		if !h.requireProjectWrite(w, r, projectUUID) {
+			return
+		}
 	}
 
 	// Optional parent_issue_id — validate same-workspace membership just like
@@ -2929,6 +2933,10 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectID = id
+		// Project roles (K60): creating in a project needs a contributor.
+		if !h.requireProjectWrite(w, r, projectID) {
+			return
+		}
 	}
 	var goalUUID pgtype.UUID
 	if req.GoalID != nil {
@@ -3417,6 +3425,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	prevIssue, ok := h.loadIssueForUser(w, r, id)
 	if !ok {
+		return
+	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, prevIssue.ProjectID) {
 		return
 	}
 	userID := requestUserID(r)
@@ -4032,6 +4044,10 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	issue, ok := h.loadIssueForUser(w, r, id)
 	if !ok {
+		return
+	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 

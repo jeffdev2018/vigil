@@ -506,6 +506,10 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}
+	// Project roles (K60): editing a project needs a contributor.
+	if !h.requireProjectWrite(w, r, prevProject.ID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return

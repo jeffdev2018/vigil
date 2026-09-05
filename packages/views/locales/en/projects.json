@@ -194,5 +194,22 @@
     "preview": "Try a path",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "The rule could not be saved"
+  },
+  "members": {
+    "section": "Members and roles",
+    "description": "Roles here only restrict: a member or agent never gets more in this project than its workspace role allows.",
+    "empty": "No members yet.",
+    "columns": {
+      "name": "Name",
+      "workspace_role": "Workspace role",
+      "role": "Project role"
+    },
+    "inherited": "inherited",
+    "override": "override",
+    "inherit_option": "Inherit ({{role}})",
+    "agent": "agent",
+    "updated": "Role updated",
+    "update_failed": "Failed to update the role",
+    "read_only": "Only workspace owners, admins and project admins can change roles."
   }
 }

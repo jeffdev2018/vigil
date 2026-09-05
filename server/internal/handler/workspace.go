@@ -1333,6 +1333,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceModelKeys(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge sso, scim and project roles",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceSSOConnections(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				if err := qtx.PurgeWorkspaceScimTokens(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceProjectMemberRoles(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			name: "purge pipeline runs",
 			run:  func() error { return qtx.PurgeWorkspacePipelineRuns(ctx, requester.WorkspaceID) },
 		},

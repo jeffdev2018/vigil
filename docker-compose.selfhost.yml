@@ -183,6 +183,8 @@ services:
       MULTICA_VCS_SECRET_KEY: ${MULTICA_VCS_SECRET_KEY:-}
       # BYOK model keys (K48) at-rest encryption key
       MULTICA_MODEL_KEY_SECRET_KEY: ${MULTICA_MODEL_KEY_SECRET_KEY:-}
+      # SSO (K60) at-rest encryption key for OIDC client secrets
+      MULTICA_SSO_SECRET_KEY: ${MULTICA_SSO_SECRET_KEY:-}
       # WeCom smart-bot integration. MULTICA_WECOM_SECRET_KEY is the
       # opt-in: unset = integration disabled. It encrypts each installation's
       # smart-bot secret at rest. The server needs it to unseal a bot's

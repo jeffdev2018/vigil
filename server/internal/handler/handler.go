@@ -438,6 +438,8 @@ type Handler struct {
 	// ModelKeySecretBox (K48) encrypts BYOK model keys at rest; nil disables
 	// the feature (reads work, writes answer 409).
 	ModelKeySecretBox *secretbox.Box
+	// SSOSecretBox (K60) encrypts OIDC client secrets at rest; nil disables SSO.
+	SSOSecretBox *secretbox.Box
 	// PluginSurfaceTokens seal short-lived launch claims. Nil disables surface
 	// launches; wired from a domain-separated MULTICA_PLUGIN_SECRET_KEY at boot.
 	PluginSurfaceTokens *secretbox.Box

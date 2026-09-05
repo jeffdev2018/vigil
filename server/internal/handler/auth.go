@@ -410,6 +410,18 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains.
+	{
+		var uid pgtype.UUID
+		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
+			uid = existing.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
+	}
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
@@ -646,6 +658,18 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains.
+	{
+		var uid pgtype.UUID
+		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
+			uid = existing.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
+	}
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if writeGoogleLoginActionableError(w, err) {

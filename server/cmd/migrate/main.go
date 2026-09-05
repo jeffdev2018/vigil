@@ -389,6 +389,8 @@ var concurrentIndexCleanups = map[string]string{
 	"667_workspace_transfer_run_index":                          "idx_workspace_transfer_run_workspace",
 	"669_issue_completed_at_index_after_column":                 "idx_issue_completed_at",
 	"672_workspace_model_key_index":                             "idx_workspace_model_key_lookup",
+	"674_scim_token_index":                                      "idx_scim_token_hash",
+	"675_project_member_role_index":                             "idx_project_member_role_project",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 
