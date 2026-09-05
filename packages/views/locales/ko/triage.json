@@ -11,7 +11,8 @@
     "pending": "대기",
     "accepted": "수락됨",
     "dismissed": "기각됨",
-    "merged": "병합됨"
+    "merged": "병합됨",
+    "snoozed": "미룸"
   },
   "sources": {
     "empty": "아직 수신 소스가 없습니다",
@@ -57,7 +58,10 @@
     "accept": "{{count}}건 수락",
     "clear": "선택 해제",
     "stopped_toast": "중지됨 — 워크스페이스가 이슈 한도에 도달했습니다",
-    "summary_toast": "수락 {{accepted}}건, 중복 {{duplicates}}건, 실패 {{failed}}건"
+    "summary_toast": "수락 {{accepted}}건, 중복 {{duplicates}}건, 실패 {{failed}}건",
+    "dismiss": "{{count}}건 기각",
+    "dismiss_summary": "공통 사유로 {{count}}건을 기각합니다.",
+    "dismiss_summary_toast": "기각 {{dismissed}}건, 실패 {{failed}}건"
   },
   "suggestion": {
     "title": "제안",
@@ -72,5 +76,43 @@
     "not_ready": "학습 중: 자동 적용에는 결정 {{min}}건이 필요합니다(현재 {{examples}}건).",
     "reopen": "다시 열기",
     "reopen_failed": "다시 열지 못했습니다"
+  },
+  "accept_as": {
+    "label": "다음으로 수락",
+    "assignee": "담당자",
+    "assignee_set": "담당자 지정됨",
+    "priority": "우선순위",
+    "project": "프로젝트",
+    "project_set": "프로젝트 지정됨"
+  },
+  "merge": {
+    "action": "이슈에 병합…",
+    "title": "이슈에 병합",
+    "description": "이미 같은 작업을 추적 중인 이슈에 이 항목을 병합합니다.",
+    "toast": "{{identifier}}에 병합했습니다"
+  },
+  "snooze": {
+    "action": "미루기",
+    "custom": "직접 지정",
+    "confirm": "미루기",
+    "toast": "미뤘습니다",
+    "invalid": "미래이면서 30일 이내의 시각을 선택하세요",
+    "preset": {
+      "hour": "1시간 뒤",
+      "evening": "오늘 저녁",
+      "tomorrow": "내일",
+      "next_monday": "다음 주 월요일"
+    }
+  },
+  "dismiss_reason": {
+    "label": "사유(선택)",
+    "placeholder": "왜 작업이 아닌가요?",
+    "confirm": "기각 확인"
+  },
+  "verdict": {
+    "badge": "에이전트 제안: {{verdict}}",
+    "accept": "수락",
+    "dismiss": "기각",
+    "by": "제안: {{name}}"
   }
 }

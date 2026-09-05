@@ -11,7 +11,8 @@
     "pending": "待审核",
     "accepted": "已接受",
     "dismissed": "已丢弃",
-    "merged": "已合并"
+    "merged": "已合并",
+    "snoozed": "已延后"
   },
   "sources": {
     "empty": "暂无入站来源",
@@ -57,7 +58,10 @@
     "accept": "接受 {{count}} 项",
     "clear": "清除选择",
     "stopped_toast": "已停止，工作区已达任务上限",
-    "summary_toast": "接受 {{accepted}} 项，重复 {{duplicates}} 项，失败 {{failed}} 项"
+    "summary_toast": "接受 {{accepted}} 项，重复 {{duplicates}} 项，失败 {{failed}} 项",
+    "dismiss": "丢弃 {{count}} 项",
+    "dismiss_summary": "用同一个原因丢弃 {{count}} 项。",
+    "dismiss_summary_toast": "丢弃 {{dismissed}} 项，失败 {{failed}} 项"
   },
   "suggestion": {
     "title": "建议",
@@ -72,5 +76,43 @@
     "not_ready": "学习中：自动应用需要 {{min}} 条决定（当前 {{examples}} 条）。",
     "reopen": "重新打开",
     "reopen_failed": "重新打开失败"
+  },
+  "accept_as": {
+    "label": "接受为",
+    "assignee": "负责人",
+    "assignee_set": "已设负责人",
+    "priority": "优先级",
+    "project": "项目",
+    "project_set": "已设项目"
+  },
+  "merge": {
+    "action": "合并到任务…",
+    "title": "合并到任务",
+    "description": "把这一项合并到已经在跟踪同一工作的任务里。",
+    "toast": "已合并到 {{identifier}}"
+  },
+  "snooze": {
+    "action": "延后",
+    "custom": "自定义时间",
+    "confirm": "延后",
+    "toast": "已延后",
+    "invalid": "请选择未来且不超过 30 天的时间",
+    "preset": {
+      "hour": "1 小时后",
+      "evening": "今晚",
+      "tomorrow": "明天",
+      "next_monday": "下周一"
+    }
+  },
+  "dismiss_reason": {
+    "label": "原因（可选）",
+    "placeholder": "为什么这不是要做的事？",
+    "confirm": "确认丢弃"
+  },
+  "verdict": {
+    "badge": "智能体建议：{{verdict}}",
+    "accept": "接受",
+    "dismiss": "丢弃",
+    "by": "来自 {{name}}"
   }
 }

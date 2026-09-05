@@ -21,6 +21,23 @@ vi.mock("sonner", () => ({
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+// The "Accept as…" project picker and the verdict attribution both subscribe
+// to workspace lists; the queue page is not the place to exercise those.
+vi.mock("@multica/core/projects/queries", () => ({
+  projectListOptions: () => ({ queryKey: ["projects", "ws-1"], queryFn: async () => [] }),
+}));
+vi.mock("@multica/core/workspace/hooks", () => ({
+  useActorName: () => ({ getAgentName: (id: string) => `Agent ${id}` }),
+}));
+// The issue picker has its own suite; here the seam under test is what the
+// queue does with the issue that comes back out of it.
+vi.mock("../../modals/issue-picker-modal", () => ({
+  IssuePickerModal: ({ onSelect }: { onSelect: (issue: { id: string; identifier: string }) => void }) => (
+    <button type="button" onClick={() => onSelect({ id: "issue-9", identifier: "ACM-9" })}>
+      pick ACM-9
+    </button>
+  ),
+}));
 vi.mock("@multica/core/paths", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/paths")>()),
   useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}`, meetingDetail: (id: string) => `/acme/meetings/${id}` }),
@@ -31,6 +48,7 @@ const data = vi.hoisted(() => ({
     pending: 1,
     shadow_pending: 0,
     dropped_24h: 0,
+    snoozed: 2,
     oldest_pending_age_seconds: 3600,
     sources: [
       {
@@ -82,6 +100,40 @@ const data = vi.hoisted(() => ({
     ],
     next_cursor: undefined,
   } as TriageItemsResponse,
+  snoozed: {
+    items: [
+      {
+        id: "item-7",
+        source_id: "src-1",
+        source_name: "Sentry",
+        source_kind: "autopilot_webhook",
+        origin_type: "autopilot",
+        title: "Parked until Monday",
+        body_markdown: "",
+        payload: {},
+        state: "pending",
+        collapse_count: 1,
+        snoozed_until: "2099-01-01T00:00:00Z",
+        first_seen_at: "2026-01-01T00:00:00Z",
+        revision: 1,
+      },
+      {
+        id: "item-8",
+        source_id: "src-1",
+        source_name: "Sentry",
+        source_kind: "autopilot_webhook",
+        origin_type: "autopilot",
+        title: "Already due again",
+        body_markdown: "",
+        payload: {},
+        state: "pending",
+        collapse_count: 1,
+        first_seen_at: "2026-01-01T00:00:00Z",
+        revision: 1,
+      },
+    ],
+    next_cursor: undefined,
+  } as TriageItemsResponse,
   dismissed: {
     items: [
       {
@@ -109,11 +161,13 @@ vi.mock("@multica/core/triage/queries", () => ({
     queryKey: ["triage", "ws-1", "stats"],
     queryFn: async () => data.stats,
   }),
-  triageItemsInfiniteOptions: (_wsId: string, state: string) => ({
-    queryKey: ["triage", "ws-1", "items", state],
+  triageItemsInfiniteOptions: (_wsId: string, state: string, includeSnoozed = false) => ({
+    queryKey: ["triage", "ws-1", "items", state, includeSnoozed],
     queryFn: async ({ pageParam }: { pageParam: string }) => {
+      listCalls.push({ state, includeSnoozed });
       if (state === "dismissed") return data.dismissed;
       if (state !== "pending") return { items: [] };
+      if (includeSnoozed) return data.snoozed;
       return pageParam ? data.itemsPage2 : data.items;
     },
     initialPageParam: "",
@@ -127,9 +181,13 @@ vi.mock("@multica/core/triage/queries", () => ({
 }));
 
 const push = vi.hoisted(() => vi.fn());
+const listCalls = vi.hoisted(() => [] as { state: string; includeSnoozed: boolean }[]);
 
 const mutations = vi.hoisted(() => ({
   reopen: vi.fn(),
+  merge: vi.fn().mockResolvedValue({ item_id: "item-1", state: "merged" }),
+  snooze: vi.fn().mockResolvedValue({ item_id: "item-1", state: "pending" }),
+  batchDismiss: vi.fn().mockResolvedValue({ items: [] }),
   accept: vi.fn().mockResolvedValue({
     item_id: "item-1",
     state: "accepted",
@@ -142,6 +200,9 @@ const mutations = vi.hoisted(() => ({
 
 vi.mock("@multica/core/triage/mutations", () => ({
   useReopenTriageItem: () => ({ mutate: mutations.reopen, isPending: false }),
+  useMergeTriageItem: () => ({ mutateAsync: mutations.merge, isPending: false }),
+  useSnoozeTriageItem: () => ({ mutateAsync: mutations.snooze, isPending: false }),
+  useBatchDismissTriageItems: () => ({ mutateAsync: mutations.batchDismiss, isPending: false }),
   useAcceptTriageItem: () => ({ mutateAsync: mutations.accept, isPending: false }),
   useDismissTriageItem: () => ({ mutateAsync: mutations.dismiss, isPending: false }),
   useBatchAcceptTriageItems: () => ({ mutateAsync: mutations.batch, isPending: false }),
@@ -173,6 +234,7 @@ function renderPage(search = "") {
 describe("TriagePage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    listCalls.length = 0;
     data.items.next_cursor = undefined;
     data.items.items = [
       {
@@ -223,7 +285,9 @@ describe("TriagePage", () => {
     fireEvent.click(row);
     const acceptButton = await screen.findByRole("button", { name: /^accept$/i });
     fireEvent.click(acceptButton);
-    await waitFor(() => expect(mutations.accept).toHaveBeenCalledWith("item-1"));
+    await waitFor(() =>
+      expect(mutations.accept).toHaveBeenCalledWith({ itemId: "item-1", overrides: {} }),
+    );
 
     // The accept response carries the issue; a bare "done" toast threw it away.
     const [message, options] = vi.mocked(toast.success).mock.calls.at(-1) as [
@@ -271,6 +335,7 @@ describe("TriagePage", () => {
     ).toContain("auto: 92% confidence from 10 similar deliveries");
     // A resolved item cannot be accepted or dismissed again.
     expect(screen.queryByRole("button", { name: /^accept$/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /merge into/i })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /reopen/i }));
     expect(mutations.reopen).toHaveBeenCalledWith("item-9", expect.anything());
@@ -303,6 +368,108 @@ describe("TriagePage", () => {
     expect(await screen.findByTestId("rich-content")).toBeTruthy();
     const link = screen.getByRole("link", { name: /from meeting/i });
     expect(link.getAttribute("href")).toBe("/acme/meetings/meet-1");
+  });
+
+  // Snooze: an item parked in the future is still `pending`, so the tab has to
+  // ask for it explicitly and then keep only what is actually parked — the
+  // widened listing also carries the due ones.
+  it("the Snoozed tab asks for snoozed items and lists only the parked ones", async () => {
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+
+    fireEvent.click(screen.getByRole("button", { name: /^snoozed/i }));
+    expect(await screen.findByText("Parked until Monday")).toBeTruthy();
+    expect(screen.queryByText("Already due again")).toBeNull();
+    expect(listCalls).toContainEqual({ state: "pending", includeSnoozed: true });
+  });
+
+  it("shows an agent verdict on the row and names the agent in the detail", async () => {
+    data.items.items[0] = {
+      ...data.items.items[0]!,
+      verdict: "dismiss",
+      verdict_reason: "duplicate alert noise",
+      verdict_agent_id: "agent-1",
+      verdict_at: "2026-01-01T00:05:00Z",
+    };
+    renderPage();
+    expect(await screen.findByTestId("triage-verdict-badge")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Payment gateway timeout"));
+    const note = await screen.findByTestId("triage-verdict-note");
+    expect(note.textContent).toContain("duplicate alert noise");
+    expect(note.textContent).toContain("Agent agent-1");
+  });
+
+  it("dismissing sends the optional reason typed in the popover", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    fireEvent.click(screen.getByRole("button", { name: /^dismiss$/i }));
+
+    const reason = await screen.findByLabelText(/reason/i);
+    fireEvent.change(reason, { target: { value: "alert storm" } });
+    fireEvent.click(screen.getByRole("button", { name: /confirm dismiss/i }));
+
+    await waitFor(() =>
+      expect(mutations.dismiss).toHaveBeenCalledWith({
+        itemId: "item-1",
+        reason: "alert storm",
+      }),
+    );
+  });
+
+  it("snoozing an item sends a future timestamp", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    fireEvent.click(screen.getByRole("button", { name: /^snooze$/i }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /in an hour/i }));
+
+    await waitFor(() => expect(mutations.snooze).toHaveBeenCalled());
+    const arg = mutations.snooze.mock.calls.at(-1)?.[0] as { itemId: string; until: string };
+    expect(arg.itemId).toBe("item-1");
+    expect(new Date(arg.until).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("batch dismiss reports what the server actually dismissed", async () => {
+    mutations.batchDismiss.mockResolvedValueOnce({
+      items: [
+        { id: "a", outcome: "dismissed" },
+        { id: "b", outcome: "not_pending" },
+      ],
+    });
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    fireEvent.click(screen.getByRole("checkbox"));
+    fireEvent.click(await screen.findByRole("button", { name: /^dismiss 1$/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /confirm dismiss/i }));
+
+    await waitFor(() =>
+      expect(vi.mocked(toast.success).mock.calls.at(-1)?.[0]).toBe("1 dismissed, 1 failed"),
+    );
+  });
+
+  // "Accept as…": the queue can set the issue's assignee, project and priority
+  // instead of inheriting whatever the origin autopilot would have given it.
+  it("offers the Accept as controls on a pending item", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    expect(await screen.findByText("Accept as")).toBeTruthy();
+    expect(screen.getByText("Assignee")).toBeTruthy();
+    expect(screen.getByText("Priority")).toBeTruthy();
+    expect(screen.getByText("Project")).toBeTruthy();
+  });
+
+  it("merging folds the item into the picked issue", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    fireEvent.click(screen.getByRole("button", { name: /merge into/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /pick acm-9/i }));
+
+    await waitFor(() =>
+      expect(mutations.merge).toHaveBeenCalledWith({ itemId: "item-1", issueId: "issue-9" }),
+    );
+    await waitFor(() =>
+      expect(vi.mocked(toast.success).mock.calls.at(-1)?.[0]).toContain("ACM-9"),
+    );
   });
 
   it("checking a row reveals the batch-accept bar", async () => {

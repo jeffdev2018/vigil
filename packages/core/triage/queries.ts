@@ -5,8 +5,8 @@ import type { TriageItemState } from "../types";
 export const triageKeys = {
   all: (wsId: string) => ["triage", wsId] as const,
   stats: (wsId: string) => [...triageKeys.all(wsId), "stats"] as const,
-  items: (wsId: string, state: TriageItemState) =>
-    [...triageKeys.all(wsId), "items", state] as const,
+  items: (wsId: string, state: TriageItemState, includeSnoozed = false) =>
+    [...triageKeys.all(wsId), "items", state, includeSnoozed ? "snoozed" : "due"] as const,
   suggestions: (wsId: string, ids: string[]) =>
     [...triageKeys.all(wsId), "suggestions", ids.join(",")] as const,
 };
@@ -28,11 +28,16 @@ export function triageStatsOptions(wsId: string) {
  * it with a Load more button instead of silently stopping at the first 50.
  * Shadow measurement rows never appear here — the server filters them.
  */
-export function triageItemsInfiniteOptions(wsId: string, state: TriageItemState) {
+export function triageItemsInfiniteOptions(
+  wsId: string,
+  state: TriageItemState,
+  /** The Snoozed tab: pending items parked in the future, hidden by default. */
+  includeSnoozed = false,
+) {
   return infiniteQueryOptions({
-    queryKey: triageKeys.items(wsId, state),
+    queryKey: triageKeys.items(wsId, state, includeSnoozed),
     queryFn: ({ pageParam, signal }) =>
-      api.listTriageItems({ state, cursor: pageParam || undefined }, { signal }),
+      api.listTriageItems({ state, cursor: pageParam || undefined, includeSnoozed }, { signal }),
     initialPageParam: "",
     getNextPageParam: (last) => last.next_cursor || undefined,
   });

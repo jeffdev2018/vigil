@@ -45,10 +45,20 @@ export interface TriageItem {
   resolution_reason?: string;
   issue_id?: string;
   duplicate_of_issue_id?: string;
+  /** Set while the item is parked by a snooze; cleared once it comes due. */
+  snoozed_until?: string | null;
+  /** An agent's suggestion (agents suggest, humans decide). Advisory only. */
+  verdict?: TriageVerdict | (string & {});
+  verdict_reason?: string;
+  verdict_agent_id?: string;
+  verdict_at?: string | null;
   first_seen_at: string;
   resolved_at?: string | null;
   revision: number;
 }
+
+/** What an agent may suggest on a pending item. Humans still decide. */
+export type TriageVerdict = "accept" | "dismiss";
 
 /** One inbound source and its 24h activity. */
 export interface TriageSource {
@@ -65,6 +75,8 @@ export interface TriageSource {
 /** Queue volume summary for a workspace. */
 export interface TriageStats {
   pending: number;
+  /** Pending items parked by a snooze — excluded from `pending`. */
+  snoozed: number;
   shadow_pending: number;
   dropped_24h: number;
   oldest_pending_age_seconds: number;
@@ -110,6 +122,38 @@ export interface AcceptTriageItemResponse {
 export interface DismissTriageItemResponse {
   item_id: string;
   state: string;
+}
+
+export interface MergeTriageItemResponse {
+  item_id: string;
+  state: string;
+  duplicate_of_issue_id: string;
+  duplicate_issue_identifier: string;
+}
+
+export interface SnoozeTriageItemResponse {
+  item_id: string;
+  state: string;
+  snoozed_until?: string | null;
+}
+
+/** What the human picked in "Accept as…" instead of inheriting the origin. */
+export interface AcceptTriageItemOverrides {
+  assignee_type?: "member" | "agent";
+  assignee_id?: string;
+  project_id?: string;
+  priority?: string;
+  labels?: string[];
+}
+
+export interface TriageBatchDismissResult {
+  id: string;
+  /** Loose on purpose: an outcome added server-side must not fail the parse. */
+  outcome: "dismissed" | "not_found" | "not_pending" | "error" | (string & {});
+}
+
+export interface TriageBatchDismissResponse {
+  items: TriageBatchDismissResult[];
 }
 
 // Triage auto-ML (K61).

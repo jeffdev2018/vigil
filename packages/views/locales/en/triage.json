@@ -11,7 +11,8 @@
     "pending": "Pending",
     "accepted": "Accepted",
     "dismissed": "Dismissed",
-    "merged": "Merged"
+    "merged": "Merged",
+    "snoozed": "Snoozed"
   },
   "sources": {
     "empty": "No inbound sources yet",
@@ -57,7 +58,10 @@
     "accept": "Accept {{count}}",
     "clear": "Clear selection",
     "stopped_toast": "Stopped — the workspace reached its issue limit",
-    "summary_toast": "{{accepted}} accepted, {{duplicates}} duplicates, {{failed}} failed"
+    "summary_toast": "{{accepted}} accepted, {{duplicates}} duplicates, {{failed}} failed",
+    "dismiss": "Dismiss {{count}}",
+    "dismiss_summary": "Dismiss {{count}} items with one shared reason.",
+    "dismiss_summary_toast": "{{dismissed}} dismissed, {{failed}} failed"
   },
   "suggestion": {
     "title": "Suggestion",
@@ -72,5 +76,43 @@
     "not_ready": "Learning: {{examples}} of {{min}} decisions needed before auto-apply.",
     "reopen": "Reopen",
     "reopen_failed": "Failed to reopen"
+  },
+  "accept_as": {
+    "label": "Accept as",
+    "assignee": "Assignee",
+    "assignee_set": "Assignee set",
+    "priority": "Priority",
+    "project": "Project",
+    "project_set": "Project set"
+  },
+  "merge": {
+    "action": "Merge into…",
+    "title": "Merge into issue",
+    "description": "Fold this item into an issue that already tracks the work.",
+    "toast": "Merged into {{identifier}}"
+  },
+  "snooze": {
+    "action": "Snooze",
+    "custom": "Custom date",
+    "confirm": "Snooze",
+    "toast": "Snoozed",
+    "invalid": "Pick a time in the future, at most 30 days away",
+    "preset": {
+      "hour": "In an hour",
+      "evening": "This evening",
+      "tomorrow": "Tomorrow",
+      "next_monday": "Next Monday"
+    }
+  },
+  "dismiss_reason": {
+    "label": "Reason (optional)",
+    "placeholder": "Why is this not work?",
+    "confirm": "Confirm dismiss"
+  },
+  "verdict": {
+    "badge": "Agent suggests: {{verdict}}",
+    "accept": "Accept",
+    "dismiss": "Dismiss",
+    "by": "by {{name}}"
   }
 }
