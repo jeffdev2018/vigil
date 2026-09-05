@@ -113,7 +113,7 @@ func (h *Handler) captureTriageInbound(ctx context.Context, p triage.CapturePara
 // its items wait for a human, which is the safe direction.
 func (h *Handler) onTriageParked(ctx context.Context, item db.TriageItem, source db.TriageSource) {
 	if triage.AutoAcceptEnabled(source.AutoAccept) && source.CreatedByID.Valid {
-		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, util.UUIDToString(source.CreatedByID), item.ID)
+		res := h.acceptTriageItemCore(ctx, item.WorkspaceID, util.UUIDToString(source.CreatedByID), item.ID, triageAcceptOverrides{})
 		if res.outcome == "accepted" || res.outcome == "duplicate" {
 			return
 		}

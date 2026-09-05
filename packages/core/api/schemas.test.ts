@@ -20,6 +20,8 @@ import {
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
   WebhookTriggerDryRunSchema,
+  TriageEmailSourceSchema,
+  EMPTY_TRIAGE_EMAIL_SOURCE,
   ScheduleTriggerDryRunSchema,
   UNREADABLE_WEBHOOK_DRY_RUN,
   UNREADABLE_SCHEDULE_DRY_RUN,
@@ -87,7 +89,6 @@ import {
   EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
 import { parseWithFallback } from "./schema";
-import { TriageEmailSourceSchema, EMPTY_TRIAGE_EMAIL_SOURCE } from "./schemas";
 
 const baseIssue = {
   id: "11111111-1111-1111-1111-111111111111",
@@ -2459,6 +2460,7 @@ describe("trigger dry-run schemas", () => {
     );
     expect(broken).toBe(UNREADABLE_SCHEDULE_DRY_RUN);
   });
+});
 
 describe("TriageEmailSourceSchema", () => {
   it("parses the mint/rotate response", () => {
