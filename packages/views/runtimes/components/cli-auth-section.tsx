@@ -4,14 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, Loader2, LogIn, LogOut } from "lucide-react";
 import type { AgentRuntime, RuntimeCliAuthRequest } from "@multica/core/types";
 import {
+  cliAuthLogoutSupported,
   cliAuthRouteUnavailable,
+  cliAuthSupported,
   readRuntimeCliAuthState,
   useRuntimeCliAuth,
 } from "@multica/core/runtimes/cli-auth";
 import { Button } from "@multica/ui/components/ui/button";
 import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
 import { useT } from "../../i18n";
-import { cliAuthDocsHref } from "./runtime-docs";
+import { cliAuthProviderDocsHref } from "./runtime-docs";
 
 function offlineReason(runtime: AgentRuntime): string | null {
   const value = runtime.metadata?.offline_reason;
@@ -29,12 +31,16 @@ export function CliAuthSection({ runtime }: { runtime: AgentRuntime }) {
   const [open, setOpen] = useState(false);
   const [routeUnavailable, setRouteUnavailable] = useState(false);
   const [now, setNow] = useState(Date.now());
-  const supported = runtime.provider === "claude" || runtime.provider === "codex";
+  const supported = cliAuthSupported(runtime.provider);
   const authenticated =
     request?.status === "completed" && typeof request.authenticated === "boolean"
       ? request.authenticated
       : durableState?.authenticated;
   const active = request?.status === "pending" || request?.status === "running";
+  // Copilot signs out from an in-session slash command, so the button stays on
+  // "connect" there rather than offering a logout the server would refuse.
+  const showDisconnect =
+    authenticated === true && cliAuthLogoutSupported(runtime.provider);
 
   useEffect(() => {
     if (!open || !active) return;
@@ -104,17 +110,17 @@ export function CliAuthSection({ runtime }: { runtime: AgentRuntime }) {
           size="xs"
           disabled={runtime.status !== "online" || auth.isPending}
           title={runtime.status !== "online" ? offlineReason(runtime) ?? t(($) => $.cli_auth.offline) : undefined}
-          onClick={() => run(authenticated === true ? "logout" : "login")}
+          onClick={() => run(showDisconnect ? "logout" : "login")}
         >
-          {authenticated === true ? <LogOut aria-hidden="true" className="h-3 w-3" /> : <LogIn aria-hidden="true" className="h-3 w-3" />}
-          {authenticated === true
+          {showDisconnect ? <LogOut aria-hidden="true" className="h-3 w-3" /> : <LogIn aria-hidden="true" className="h-3 w-3" />}
+          {showDisconnect
             ? t(($) => $.cli_auth.disconnect)
             : t(($) => $.cli_auth.connect)}
         </Button>
       ) : (
         <a
           className="text-info hover:underline"
-          href={cliAuthDocsHref(i18n.language)}
+          href={cliAuthProviderDocsHref(runtime.provider, i18n.language)}
           target="_blank"
           rel="noreferrer"
         >

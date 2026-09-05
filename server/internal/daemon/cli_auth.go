@@ -62,30 +62,22 @@ func (d *Daemon) resolveRuntimeCommand(ctx context.Context, rt Runtime) (string,
 }
 
 // cliAuthStatusCommand returns the provider's NON-INTERACTIVE sign-in status
-// command. Both supported CLIs document the same contract — exit 0 when signed
-// in, non-zero when not — so the exit code alone answers the question and the
-// output (which carries the account identity) is discarded:
+// command, from the shared table in pkg/agent (which the API reads too, so the
+// two sides can never disagree about what a provider supports). A provider
+// with no such command returns false and stays unknown.
 //
-//	claude auth status  https://code.claude.com/docs/en/cli-reference
-//	codex login status  https://developers.openai.com/codex/local-config
-//
-// A provider with no such command returns false and stays unknown. We
-// deliberately do NOT fall back to looking for a credentials file: Claude Code
-// stores its tokens in the macOS Keychain and in ~/.claude/.credentials.json on
-// Linux, so "no file" would report a signed-in Mac as signed out.
+// The commands there all document the same contract — exit 0 when signed in,
+// non-zero when not — so the exit code alone answers the question and the
+// output (which carries the account identity) is discarded. We deliberately do
+// NOT fall back to looking for a credentials file: Claude Code stores its
+// tokens in the macOS Keychain and in ~/.claude/.credentials.json on Linux, so
+// "no file" would report a signed-in Mac as signed out.
 //
 // The exit code is only trusted because the runtime is already version-gated
 // (pkg/agent MinVersions): an older CLI that does not know the subcommand would
 // also exit non-zero, and would be read as signed out.
 func cliAuthStatusCommand(provider string) ([]string, bool) {
-	switch provider {
-	case "claude":
-		return []string{"auth", "status"}, true
-	case "codex":
-		return []string{"login", "status"}, true
-	default:
-		return nil, false
-	}
+	return agent.CLIAuthStatus(provider)
 }
 
 // runCliAuthStatus executes one status probe and maps its exit code to a state.
@@ -144,19 +136,16 @@ func (d *Daemon) setCliAuthState(provider, state string) {
 	d.cliAuthStatus[provider] = cliAuthSnapshot{state: state, at: time.Now()}
 }
 
+// cliAuthCommand returns the arguments for one sign-in action, from the same
+// shared table. An action a provider does not document is an error rather than
+// an empty argument list: running the agent CLI with no arguments would start
+// the agent itself.
 func cliAuthCommand(provider, action string) ([]string, error) {
-	switch provider + ":" + action {
-	case "codex:login":
-		return []string{"login", "--device-auth"}, nil
-	case "codex:logout":
-		return []string{"logout"}, nil
-	case "claude:login":
-		return []string{"auth", "login"}, nil
-	case "claude:logout":
-		return []string{"auth", "logout"}, nil
-	default:
-		return nil, fmt.Errorf("CLI authentication is not supported for provider %q", provider)
+	args, ok := agent.CLIAuthAction(provider, action)
+	if !ok {
+		return nil, fmt.Errorf("CLI %s is not supported for provider %q", action, provider)
 	}
+	return args, nil
 }
 
 type cliAuthOutputWriter struct {
@@ -202,7 +191,7 @@ func (d *Daemon) handleCliAuth(ctx context.Context, rt Runtime, pending PendingC
 		d.reportCliAuthFailure(ctx, rt, pending.ID, err)
 		return
 	}
-	statusArgs, _ := cliAuthStatusCommand(rt.Provider)
+	statusArgs, hasStatus := cliAuthStatusCommand(rt.Provider)
 
 	authCtx, cancel := context.WithTimeout(ctx, cliAuthProcessTimeout)
 	defer cancel()
@@ -227,13 +216,19 @@ func (d *Daemon) handleCliAuth(ctx context.Context, rt Runtime, pending PendingC
 	// A zero exit only means the CLI did not error out; it is not proof the
 	// account is usable. Ask the provider what it now thinks, and fall back to
 	// the intent of the action when it cannot say.
+	//
+	// A provider with no documented status command is never probed: running
+	// its executable with no arguments would start the agent CLI, not read a
+	// credential store.
 	authenticated := pending.Action == "login"
-	if state := probeCliAuthStatus(context.WithoutCancel(ctx), execPath, statusArgs); state != "" {
-		authenticated = state == cliAuthStateAuthenticated
-		d.setCliAuthState(rt.Provider, state)
-	} else {
-		d.setCliAuthState(rt.Provider, "")
+	state := ""
+	if hasStatus {
+		state = probeCliAuthStatus(context.WithoutCancel(ctx), execPath, statusArgs)
 	}
+	if state != "" {
+		authenticated = state == cliAuthStateAuthenticated
+	}
+	d.setCliAuthState(rt.Provider, state)
 	d.reportCliAuthResult(context.WithoutCancel(ctx), rt, pending.ID, map[string]any{
 		"status":        "completed",
 		"authenticated": authenticated,

@@ -157,9 +157,20 @@ Editing a profile only affects runs claimed afterwards. Before deleting a profil
 
 ## CLI authentication
 
-For Claude Code and Codex runtimes, the runtime page can start the provider's sign-in flow on the daemon machine. Open the verification URL, enter the one-time code, and keep the dialog open until the CLI confirms completion. The provider token is written only to that CLI's local configuration; Multica stores only the non-secret authenticated status and timestamp.
+For some runtimes, the runtime page can start the provider's sign-in flow on the daemon machine. Open the verification URL, enter the one-time code, and keep the dialog open until the CLI confirms completion. The provider token is written only to that CLI's local configuration; Multica stores only the non-secret authenticated status and timestamp.
 
-Authentication is machine-wide. If one daemon serves several workspaces, connecting or disconnecting a provider affects every workspace that uses that CLI on the machine. Other providers must still be authenticated from the host terminal.
+| Provider | Sign in | Sign out | Reported status |
+| --- | --- | --- | --- |
+| Claude Code (`claude`) | Yes | Yes | Yes |
+| Codex (`codex`) | Yes | Yes | Yes |
+| Cursor (`cursor-agent`) | Yes | Yes | No |
+| GitHub Copilot (`copilot`) | Yes | No | No |
+
+A runtime only shows the sign-in button for a provider whose CLI documents a command that works without a terminal. Every other detected CLI shows a link to its own authentication documentation instead: `opencode auth login` and its peers prompt for a provider to pick, so run by the daemon they would wait for input nobody can give, and most of the remaining CLIs read an API key from the environment and have no sign-in flow at all.
+
+The status column is the same distinction, one step further: it is only "yes" where the CLI documents a status command that exits 0 when signed in and non-zero when not. `cursor-agent status` prints the account but promises no exit code, so trusting it would report every Cursor runtime as signed in. Where it says no, the runtime reports its sign-in state as unknown and the page says so.
+
+Authentication is machine-wide. If one daemon serves several workspaces, connecting or disconnecting a provider affects every workspace that uses that CLI on the machine.
 
 ## Smart routing
 
