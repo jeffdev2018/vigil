@@ -113,7 +113,10 @@
       "cancel": "취소",
       "confirm": "삭제",
       "deleting": "삭제하는 중..."
-    }
+    },
+    "load_more": "더 보기",
+    "loading_more": "불러오는 중...",
+    "showing_count": "{{total}}개 중 {{shown}}개"
   },
   "access": {
     "title": "접근 권한 관리",
@@ -257,6 +260,48 @@
       "disabled_rejected": "거부된 전달은 재실행할 수 없습니다",
       "disabled_queued": "아직 대기 중입니다. 처리된 후 재실행하세요"
     }
+  },
+  "dry_run": {
+    "open": "샘플 이벤트로 테스트",
+    "title": "샘플 이벤트로 테스트",
+    "description": "이 페이로드를 전체 전달 판정(필터, 라우팅 기준, 일시중지 상태, 실행 한도)에 그대로 통과시킵니다. 전달도 실행도 기록되지 않습니다.",
+    "sample_label": "샘플",
+    "payload_label": "이벤트 페이로드 (JSON)",
+    "run": "드라이런 실행",
+    "running": "실행 중...",
+    "replay_action": "드라이런으로 재생",
+    "invalid_json": "잘못된 JSON: {{message}}",
+    "invalid_shape": "페이로드는 JSON 객체 또는 배열이어야 합니다.",
+    "verdict_would_run": "이 이벤트는 오토파일럿을 실행합니다",
+    "verdict_blocked": "이 이벤트는 오토파일럿을 실행하지 않습니다",
+    "verdict_unreadable": "판정 결과를 읽을 수 없습니다",
+    "matched_filters": "일치한 필터:",
+    "toast_failed": "드라이런에 실패했습니다"
+  },
+  "next_runs": {
+    "label": "다음 실행",
+    "loading": "불러오는 중...",
+    "unavailable": "다음 실행을 가져올 수 없습니다",
+    "never": "이 일정은 다시 실행되지 않습니다.",
+    "blocked": "실행되지 않음: {{reason}}",
+    "blocked_unknown": "차단됨",
+    "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
+  },
+  "signing_secret": {
+    "label": "서명 시크릿",
+    "hint": "설정하면 모든 전달에 X-Hub-Signature-256: sha256=<이 시크릿을 키로 한 원본 본문의 HMAC-SHA256 16진값>이 필요합니다. 서명이 없거나 잘못된 전달은 401로 거부됩니다.",
+    "not_configured": "서명 시크릿 없음 — 웹훅 URL만으로 인증합니다.",
+    "configured": "설정됨(끝 {{hint}}).",
+    "shown_once": "지금 복사하세요. 한 번만 표시됩니다.",
+    "generate": "서명 시크릿 생성",
+    "rotate": "서명 시크릿 교체",
+    "clear": "삭제",
+    "copy": "시크릿 복사",
+    "copied": "서명 시크릿을 복사했습니다",
+    "copy_failed": "복사하지 못했습니다",
+    "toast_rotated": "서명 시크릿을 갱신했습니다 — 발신 측을 다시 설정해야 합니다",
+    "toast_cleared": "서명 시크릿을 삭제했습니다",
+    "toast_failed": "서명 시크릿 갱신에 실패했습니다"
   },
   "add_trigger_dialog": {
     "title": "트리거 추가",

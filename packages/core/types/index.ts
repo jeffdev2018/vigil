@@ -316,6 +316,9 @@ export type {
   WebhookDeliveryStatus,
   WebhookSignatureStatus,
   ListWebhookDeliveriesResponse,
+  WebhookTriggerDryRunRequest,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
 } from "./autopilot";
 export type {
   Squad,

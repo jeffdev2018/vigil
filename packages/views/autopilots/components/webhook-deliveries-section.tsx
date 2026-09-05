@@ -12,8 +12,9 @@ import {
   Copy,
   Check,
   Webhook,
+  FlaskConical,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   autopilotDeliveriesOptions,
   autopilotDeliveryOptions,
@@ -32,6 +33,12 @@ import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { toast } from "sonner";
 import { useLocale, useT } from "../../i18n";
+import { reasonExplanation, useDeliveryReasonLabel } from "./delivery-reason";
+import { WebhookDryRunDialog } from "./webhook-dry-run-dialog";
+
+// Re-exported: the reason helpers moved into their own module (the dry-run
+// speaks the same enum) but this is where callers and tests already look.
+export { reasonExplanation, useDeliveryReasonLabel };
 import type {
   WebhookDelivery,
   WebhookDeliveryStatus,
@@ -68,42 +75,6 @@ const UNKNOWN_VISUAL: StatusVisual = {
 
 function visualForStatus(status: string): StatusVisual {
   return (STATUS_VISUAL as Record<string, StatusVisual>)[status] ?? UNKNOWN_VISUAL;
-}
-
-// --- Reason codes ---------------------------------------------------------
-
-// Every reason the server persists on a non-dispatched delivery. "Ignored"
-// alone says a payload arrived and produced nothing; the reason says which of
-// eight quite different causes it was — a paused autopilot and an LLM routing
-// verdict need different fixes. Unknown codes render verbatim rather than
-// disappearing, so a newer backend is never silently unexplained.
-const DELIVERY_REASON_CODES = [
-  "trigger_disabled",
-  "autopilot_paused",
-  "autopilot_archived",
-  "event_filtered",
-  "criteria_not_matched",
-  "quota_exceeded",
-  "invalid_signature",
-  "missing_signature",
-] as const;
-
-type DeliveryReasonCode = (typeof DELIVERY_REASON_CODES)[number];
-
-function isKnownReasonCode(code: string): code is DeliveryReasonCode {
-  return (DELIVERY_REASON_CODES as readonly string[]).includes(code);
-}
-
-/** The classifier's own words, without the code the server prefixes them with.
- *  `criteria_not_matched: no production impact` reads as one sentence beside
- *  its label; the prefix repeated next to the badge does not. */
-export function reasonExplanation(reasonCode: string | null, error: string | null): string | null {
-  if (!error) return null;
-  const trimmed = reasonCode !== null && error.startsWith(`${reasonCode}: `)
-    ? error.slice(reasonCode.length + 2)
-    : error;
-  // An error that is only the code again explains nothing.
-  return trimmed === reasonCode || trimmed.trim() === "" ? null : trimmed;
 }
 
 // --- Helpers --------------------------------------------------------------
@@ -143,11 +114,14 @@ export function WebhookDeliveriesSection({
   const { t } = useT("autopilots");
   const wsId = useWorkspaceId();
 
-  const { data: deliveries = [], isLoading } = useQuery(
+  const deliveriesQuery = useInfiniteQuery(
     autopilotDeliveriesOptions(wsId, autopilotId, {
       enabled: hasWebhookTrigger,
     }),
   );
+  const deliveries = deliveriesQuery.data?.items ?? [];
+  const total = deliveriesQuery.data?.total ?? 0;
+  const isLoading = deliveriesQuery.isLoading;
 
   // No webhook trigger configured → the entire section is irrelevant. We hide
   // it rather than render an empty card to keep the detail page short for
@@ -156,9 +130,18 @@ export function WebhookDeliveriesSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
-        {t(($) => $.deliveries.section_title)}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
+          {t(($) => $.deliveries.section_title)}
+        </h2>
+        {/* Server-side COUNT: the delivery log is the only place an operator
+            can see how much traffic a webhook actually took. */}
+        {total > 0 && (
+          <span className="text-caption text-muted-foreground tabular-nums">
+            {t(($) => $.detail.showing_count, { shown: deliveries.length, total })}
+          </span>
+        )}
+      </div>
       {isLoading ? (
         <div className="space-y-1">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -170,28 +153,34 @@ export function WebhookDeliveriesSection({
           {t(($) => $.deliveries.empty)}
         </div>
       ) : (
-        <div className="rounded-md border overflow-hidden">
-          {deliveries.map((delivery) => (
-            <DeliveryRow
-              key={delivery.id}
-              delivery={delivery}
-              autopilotId={autopilotId}
-            />
-          ))}
-        </div>
+        <>
+          <div className="rounded-md border overflow-hidden">
+            {deliveries.map((delivery) => (
+              <DeliveryRow
+                key={delivery.id}
+                delivery={delivery}
+                autopilotId={autopilotId}
+              />
+            ))}
+          </div>
+          {deliveriesQuery.hasNextPage && (
+            <div className="flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => deliveriesQuery.fetchNextPage()}
+                disabled={deliveriesQuery.isFetchingNextPage}
+              >
+                {deliveriesQuery.isFetchingNextPage
+                  ? t(($) => $.detail.loading_more)
+                  : t(($) => $.detail.load_more)}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );
-}
-
-/** The localized name of a persisted reason code, the raw code when the server
- *  sends one this build does not know, and null when there is none. */
-function useDeliveryReasonLabel(reasonCode: string | null): string | null {
-  const { t } = useT("autopilots");
-  if (!reasonCode) return null;
-  return isKnownReasonCode(reasonCode)
-    ? t(($) => $.deliveries.reason[reasonCode])
-    : reasonCode;
 }
 
 // --- Row ------------------------------------------------------------------
@@ -417,13 +406,16 @@ function DeliveryDetailDialog({
           <DetailSections detail={detail} isLoading={isLoading} />
 
           {/* Replay button */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-between gap-2 pt-2">
             <ReplayHint delivery={full} />
-            <ReplayButton
-              autopilotId={autopilotId}
-              delivery={full}
-              onSuccess={() => onOpenChange(false)}
-            />
+            <div className="flex shrink-0 items-center gap-2">
+              <DryRunReplayButton autopilotId={autopilotId} delivery={full} />
+              <ReplayButton
+                autopilotId={autopilotId}
+                delivery={full}
+                onSuccess={() => onOpenChange(false)}
+              />
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -566,6 +558,77 @@ function CodeBlock({ label, value }: { label: string; value: string }) {
       </pre>
     </div>
   );
+}
+
+// Re-judging a stored payload against the trigger's CURRENT configuration is
+// the question an operator has after changing a filter — and unlike Replay it
+// costs no run. Needs the raw body, which only the detail response carries.
+function DryRunReplayButton({
+  autopilotId,
+  delivery,
+}: {
+  autopilotId: string;
+  delivery: WebhookDelivery;
+}) {
+  const { t } = useT("autopilots");
+  const [open, setOpen] = useState(false);
+  const rawBody = delivery.raw_body;
+  if (!rawBody) return null;
+
+  return (
+    <>
+      <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+        <FlaskConical className="h-3.5 w-3.5 mr-1" />
+        {t(($) => $.dry_run.replay_action)}
+      </Button>
+      {open && (
+        <WebhookDryRunDialog
+          open
+          onOpenChange={setOpen}
+          autopilotId={autopilotId}
+          trigger={{
+            id: delivery.trigger_id,
+            provider: delivery.provider,
+            // The stored delivery does not carry the trigger's filter list;
+            // the payload is supplied verbatim, so no sample is needed.
+            event_filters: [],
+          }}
+          initialPayload={prettyJSON(rawBody)}
+          initialHeaders={inferenceHeaders(delivery.selected_headers)}
+        />
+      )}
+    </>
+  );
+}
+
+/** Pretty-print for the editor when the stored body is minified; a body that
+ *  no longer parses is handed over untouched so the user can see and fix it. */
+function prettyJSON(raw: string): string {
+  try {
+    return JSON.stringify(JSON.parse(raw), null, 2);
+  } catch {
+    return raw;
+  }
+}
+
+// Only the headers the server's event inference reads. The persisted subset
+// also holds User-Agent and a signature-present flag, neither of which changes
+// a routing decision.
+const INFERENCE_HEADERS: Record<string, string> = {
+  "x-github-event": "X-GitHub-Event",
+  "x-gitlab-event": "X-Gitlab-Event",
+  "x-event-type": "X-Event-Type",
+};
+
+function inferenceHeaders(
+  selected: Record<string, unknown> | null | undefined,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, canonical] of Object.entries(INFERENCE_HEADERS)) {
+    const value = selected?.[key];
+    if (typeof value === "string" && value !== "") out[canonical] = value;
+  }
+  return out;
 }
 
 function ReplayHint({ delivery }: { delivery: WebhookDelivery }) {

@@ -109,6 +109,35 @@ The token in the webhook URL is the calling credential. Don't put the full URL i
 
 Only the autopilot's creator, workspace owners/admins, and collaborators granted access can view the full URL. The UI hides the token in the URL by default, and copying doesn't require revealing it; click the URL or the eye icon to view the full address.
 
+### Sign the deliveries
+
+The URL token proves the caller knows a secret; a signing secret proves the *body* was not changed on the way. Open the trigger's **Edit trigger** dialog and click **Generate signing secret**. Multica shows the value once — copy it then, because only the last four characters are kept visible afterwards — and every later delivery must carry:
+
+```
+X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the exact raw body, keyed with the secret>
+```
+
+This is the GitHub webhook scheme, so pasting the same secret into a GitHub webhook's *Secret* field is all the configuration GitHub needs. Signing yourself:
+
+```bash
+BODY='{"event":"build.completed","eventPayload":{"status":"success"}}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$MULTICA_SIGNING_SECRET" -r | cut -d' ' -f1)
+curl -X POST "$MULTICA_WEBHOOK_URL" \
+  -H "Content-Type: application/json" \
+  -H "X-Hub-Signature-256: sha256=$SIG" \
+  -d "$BODY"
+```
+
+While a secret is configured, a delivery with no signature or a wrong one is rejected with 401 and recorded as `rejected` — it never reaches the autopilot and cannot be replayed. **Rotate signing secret** replaces the value immediately, so update the sender in the same sitting; **Remove** clears it and reverts the trigger to URL-only authentication.
+
+### Test a trigger before it fires
+
+**Test with a sample event** on a webhook trigger replays a payload you paste through the whole delivery decision — event filters, the **Only run when…** description (the model really is asked), the pause state and the run limit — and tells you whether it *would* run and, if not, which of those said no. Nothing is recorded: no delivery, no run, no quota charged.
+
+The editor opens on a sample built from the trigger's own event filters, so the starting payload is one the trigger accepts. From a past delivery's detail view, **Replay as dry-run** re-judges that exact body against the trigger's *current* configuration — the question worth asking right after changing a filter, and unlike **Replay** it costs nothing.
+
+Schedule triggers get the same treatment from **Next runs** on the trigger row: the next five instants the scheduler itself would pick, band offset included, plus a note when a paused autopilot, a disabled trigger or an exhausted run limit would suppress the dispatch anyway.
+
 ### Webhook response reference
 
 When debugging a sender, use this table to interpret Multica's responses:
@@ -169,7 +198,12 @@ multica autopilot get <autopilot-id> --output json
 multica autopilot trigger <autopilot-id>
 multica autopilot runs <autopilot-id>
 multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
+multica autopilot trigger-add <autopilot-id> --kind webhook --event-match-criteria "only production incidents"
+multica autopilot trigger-update <autopilot-id> <trigger-id> --window-minutes 120
+multica autopilot trigger-dry-run <autopilot-id> <trigger-id> --payload-file event.json
 ```
+
+`trigger-dry-run` takes `--payload-file` for a webhook trigger and nothing at all for a schedule one, which previews its next runs instead.
 
 `autopilot get` sets `webhook_token`, `webhook_path`, and `webhook_url` to `null` by default, and returns `has_webhook_token` plus `webhook_token_hint` instead. Add `--show-secrets` only when you intentionally need the live credential; the CLI prints a warning to stderr so piped JSON stays valid.
 

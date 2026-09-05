@@ -1,23 +1,42 @@
 import { describe, it, expect, vi } from "vitest";
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { WebhookDelivery } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
-const deliveries = vi.hoisted(() => ({ rows: [] as WebhookDelivery[] }));
+const deliveries = vi.hoisted(() => ({ rows: [] as WebhookDelivery[], total: 0, pageSize: 20 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-test" }));
 
 vi.mock("@multica/core/autopilots", () => ({
+  // Mirrors the real infiniteQueryOptions shape: an offset pager over a slim
+  // page plus the server-side total.
   autopilotDeliveriesOptions: (wsId: string, autopilotId: string) => ({
     queryKey: ["deliveries", wsId, autopilotId],
-    queryFn: async () => deliveries.rows,
+    queryFn: async ({ pageParam }: { pageParam: number }) => ({
+      deliveries: deliveries.rows.slice(pageParam, pageParam + deliveries.pageSize),
+      total: deliveries.total,
+    }),
+    initialPageParam: 0,
+    getNextPageParam: (
+      lastPage: { total: number },
+      allPages: { deliveries: WebhookDelivery[] }[],
+    ) => {
+      const loaded = allPages.reduce((n, p) => n + p.deliveries.length, 0);
+      return loaded >= lastPage.total ? undefined : loaded;
+    },
+    select: (data: { pages: { deliveries: WebhookDelivery[]; total: number }[] }) => ({
+      items: data.pages.flatMap((page) => page.deliveries),
+      total: data.pages[data.pages.length - 1]?.total ?? 0,
+    }),
   }),
   autopilotDeliveryOptions: (wsId: string, autopilotId: string, id: string) => ({
     queryKey: ["delivery", wsId, autopilotId, id],
     queryFn: async () => deliveries.rows.find((d) => d.id === id) ?? null,
   }),
   useReplayAutopilotDelivery: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDryRunAutopilotWebhookTrigger: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -53,8 +72,10 @@ function delivery(overrides: Partial<WebhookDelivery> = {}): WebhookDelivery {
   };
 }
 
-function renderSection(rows: WebhookDelivery[]) {
+function renderSection(rows: WebhookDelivery[], pageSize = 20) {
   deliveries.rows = rows;
+  deliveries.total = rows.length;
+  deliveries.pageSize = pageSize;
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return renderWithI18n(
     <QueryClientProvider client={qc}>
@@ -107,5 +128,30 @@ describe("WebhookDeliveriesSection reason codes", () => {
 
     expect(await screen.findByText("Dispatched")).toBeInTheDocument();
     expect(screen.queryByText("Criteria not matched")).not.toBeInTheDocument();
+  });
+});
+
+describe("WebhookDeliveriesSection paging", () => {
+  it("reports the server's total, not the page it got, and pages to the rest", async () => {
+    const user = userEvent.setup();
+    const rows = Array.from({ length: 3 }, (_, i) =>
+      delivery({ id: `del-${i}`, event: `event-${i}` }),
+    );
+    renderSection(rows, 2);
+
+    expect(await screen.findByText("2 of 3")).toBeInTheDocument();
+    expect(screen.queryByText("event-2")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Load more" }));
+
+    expect(await screen.findByText("event-2")).toBeInTheDocument();
+    expect(screen.getByText("3 of 3")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
+  });
+
+  it("offers no Load more when the first page is everything", async () => {
+    renderSection([delivery()], 20);
+    expect(await screen.findByText("1 of 1")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Load more" })).not.toBeInTheDocument();
   });
 });

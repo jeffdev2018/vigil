@@ -2,15 +2,17 @@
 
 import { useState } from "react";
 import {
-  Zap, Clock, Trash2, Webhook, RotateCw, Pencil,
+  Zap, Clock, Trash2, Webhook, RotateCw, Pencil, FlaskConical,
+  ChevronDown, ChevronRight, Ban,
 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import {
   useCreateAutopilotTrigger,
   useDeleteAutopilotTrigger,
   useRotateAutopilotTriggerWebhookToken,
   useUpdateAutopilotTrigger,
 } from "@multica/core/autopilots/mutations";
-import { buildAutopilotWebhookUrl } from "@multica/core/autopilots";
+import { buildAutopilotWebhookUrl, scheduleTriggerDryRunOptions } from "@multica/core/autopilots";
 import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { Button } from "@multica/ui/components/ui/button";
@@ -43,6 +45,9 @@ import { SegmentedToggle } from "../../common/segmented-toggle";
 import { useScheduleSubmitGate } from "./schedule-editor/validate";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { WebhookEventFilterSection } from "./webhook-event-filter-section";
+import { WebhookDryRunDialog } from "./webhook-dry-run-dialog";
+import { SigningSecretSection } from "./signing-secret-section";
+import { useDeliveryReasonLabel } from "./delivery-reason";
 import { effectiveWindowMinutes } from "./schedule-editor/model";
 import type {
   AutopilotTrigger,
@@ -60,6 +65,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [rotateOpen, setRotateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [dryRunOpen, setDryRunOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // Disabling a trigger is the reversible half of deleting one: an autopilot
@@ -159,6 +165,20 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
     </Button>
   ) : null;
 
+  // The classifier runs for real on a dry-run, so this is a write-gated
+  // action even though it records nothing.
+  const dryRunButton = canWrite && isWebhook ? (
+    <Button
+      size="icon"
+      variant="ghost"
+      className="h-7 w-7 shrink-0"
+      onClick={() => setDryRunOpen(true)}
+      title={t(($) => $.dry_run.open)}
+    >
+      <FlaskConical className="h-3.5 w-3.5 text-muted-foreground" />
+    </Button>
+  ) : null;
+
   const deleteButton = canWrite ? (
     <Button
       size="icon"
@@ -220,6 +240,9 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
             })}
           </div>
         )}
+        {trigger.kind === "schedule" && (
+          <ScheduleNextRuns autopilotId={autopilotId} triggerId={trigger.id} />
+        )}
         {showWebhookUrlRow && (
           <div className="mt-1.5">
             <WebhookUrlField
@@ -238,6 +261,7 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
                       <RotateCw className={cn("h-3.5 w-3.5 text-muted-foreground", rotateToken.isPending && "animate-spin")} />
                     </Button>
                   )}
+                  {dryRunButton}
                   {editButton}
                   {deleteButton}
                 </>
@@ -261,6 +285,14 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
       {/* Mounted only while open: the schedule submit gate's state lives with
           the dialog, and a closed one kept mounted would carry a stale
           rejection into its next opening. */}
+      {dryRunOpen && (
+        <WebhookDryRunDialog
+          open
+          onOpenChange={setDryRunOpen}
+          autopilotId={autopilotId}
+          trigger={trigger}
+        />
+      )}
       {editOpen && (
         <EditTriggerDialog
           open
@@ -313,6 +345,82 @@ export function TriggerRow({ trigger, autopilotId, canWrite }: { trigger: Autopi
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+// A saved schedule's next instants come from the server: with a firing band
+// the minute is derived from the trigger id, so the client cannot reproduce
+// it and a locally-computed "next run" would name a minute that never fires.
+// Collapsed by default — a detail page with six schedule triggers should not
+// fire six requests nobody asked for.
+function ScheduleNextRuns({
+  autopilotId,
+  triggerId,
+}: {
+  autopilotId: string;
+  triggerId: string;
+}) {
+  const { t, i18n } = useT("autopilots");
+  const wsId = useWorkspaceId();
+  const [open, setOpen] = useState(false);
+  const { data, isLoading, isError } = useQuery(
+    scheduleTriggerDryRunOptions(wsId, autopilotId, triggerId, { enabled: open }),
+  );
+  const ToggleIcon = open ? ChevronDown : ChevronRight;
+  const blockedLabel = useDeliveryReasonLabel(data?.reason_code ?? null);
+
+  return (
+    <div className="mt-1">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex items-center gap-1 rounded text-caption text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ToggleIcon className="h-3.5 w-3.5" />
+        {t(($) => $.next_runs.label)}
+      </button>
+      {open && (
+        <div className="mt-1 pl-4.5 space-y-0.5">
+          {isLoading ? (
+            <div className="text-caption text-muted-foreground">
+              {t(($) => $.next_runs.loading)}
+            </div>
+          ) : isError || !data ? (
+            <div className="text-caption text-destructive">
+              {t(($) => $.next_runs.unavailable)}
+            </div>
+          ) : (
+            <>
+              {data.would_run === false && (
+                <div className="flex items-center gap-1.5 text-caption text-muted-foreground">
+                  <Ban className="h-3.5 w-3.5 shrink-0" />
+                  {t(($) => $.next_runs.blocked, {
+                    reason: blockedLabel ?? t(($) => $.next_runs.blocked_unknown),
+                  })}
+                </div>
+              )}
+              {data.next_runs.length === 0 ? (
+                <div className="text-caption text-muted-foreground">
+                  {t(($) => $.next_runs.never)}
+                </div>
+              ) : (
+                data.next_runs.map((at) => (
+                  <div key={at} className="text-caption text-muted-foreground tabular-nums">
+                    {formatInTimeZone(at, undefined, i18n.language)}
+                  </div>
+                ))
+              )}
+              {data.window_minutes > 0 && (
+                <div className="text-micro text-muted-foreground">
+                  {t(($) => $.next_runs.window_hint, { minutes: data.window_minutes })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -573,6 +681,7 @@ export function EditTriggerDialog({
           {isWebhook && (
             <>
               <WebhookEventFilterSection filters={eventFilters} onChange={setEventFilters} />
+              <SigningSecretSection autopilotId={autopilotId} trigger={trigger} />
               <div className="space-y-1.5">
                 <label
                   htmlFor="edit-trigger-event-criteria"

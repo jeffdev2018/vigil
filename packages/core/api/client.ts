@@ -161,6 +161,9 @@ import type {
   UpdateAutopilotTriggerRequest,
   ListAutopilotsResponse,
   CronPreviewResponse,
+  WebhookTriggerDryRunRequest,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
   GetAutopilotResponse,
   AutopilotCollaboratorsResponse,
   ListAutopilotRunsResponse,
@@ -477,6 +480,10 @@ import {
   TimelineEntriesSchema,
   UserSchema,
   WebhookDeliveryResponseSchema,
+  WebhookTriggerDryRunSchema,
+  ScheduleTriggerDryRunSchema,
+  UNREADABLE_WEBHOOK_DRY_RUN,
+  UNREADABLE_SCHEDULE_DRY_RUN,
   BillingBalanceSchema,
   BillingTransactionsPageSchema,
   BillingBatchesPageSchema,
@@ -5666,6 +5673,50 @@ export class ApiClient {
     return this.fetch(
       `/api/autopilots/${autopilotId}/triggers/${triggerId}/rotate-webhook-token`,
       { method: "POST" },
+    );
+  }
+
+  // Dry-runs replay a real decision without side effects. The webhook one
+  // POSTs a sample payload (and the classifier runs for real, so it costs an
+  // upstream call and needs write access); the schedule one is a GET preview
+  // of the next firing instants. Both parse through a schema: an unreadable
+  // verdict degrades to the `unreadable` sentinel, never to a fake "blocked".
+  async dryRunAutopilotWebhookTrigger(
+    autopilotId: string,
+    triggerId: string,
+    body: WebhookTriggerDryRunRequest,
+  ): Promise<WebhookTriggerDryRunResult> {
+    const raw = await this.fetch<unknown>(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/dry-run`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return parseWithFallback(raw, WebhookTriggerDryRunSchema, UNREADABLE_WEBHOOK_DRY_RUN, {
+      endpoint: "POST /api/autopilots/:id/triggers/:triggerId/dry-run",
+    });
+  }
+
+  async dryRunAutopilotScheduleTrigger(
+    autopilotId: string,
+    triggerId: string,
+  ): Promise<ScheduleTriggerDryRunResult> {
+    const raw = await this.fetch<unknown>(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/dry-run`,
+    );
+    return parseWithFallback(raw, ScheduleTriggerDryRunSchema, UNREADABLE_SCHEDULE_DRY_RUN, {
+      endpoint: "GET /api/autopilots/:id/triggers/:triggerId/dry-run",
+    });
+  }
+
+  // Write-only: the new secret is never echoed back. The response is the
+  // trigger with has_signing_secret / signing_secret_hint refreshed.
+  async setAutopilotTriggerSigningSecret(
+    autopilotId: string,
+    triggerId: string,
+    signingSecret: string,
+  ): Promise<AutopilotTrigger> {
+    return this.fetch(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/signing-secret`,
+      { method: "PUT", body: JSON.stringify({ signing_secret: signingSecret }) },
     );
   }
 

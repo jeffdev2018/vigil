@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -95,6 +96,23 @@ var autopilotTriggerDeleteCmd = &cobra.Command{
 	RunE:  runAutopilotTriggerDelete,
 }
 
+var autopilotTriggerDryRunCmd = &cobra.Command{
+	Use:   "trigger-dry-run <autopilot-id> <trigger-id>",
+	Short: "Preview what a trigger would do, without firing it",
+	Long: `Replay a decision without any side effect.
+
+With --payload-file the sample event is run through a webhook trigger's whole
+delivery decision — event filters, the natural-language routing rule (the
+classifier really is called), pause state and run quota — and the verdict is
+printed. Nothing is recorded: no delivery, no run.
+
+Without it, a schedule trigger is previewed instead: the next five firing
+instants the scheduler itself would pick, plus whatever would suppress the
+dispatch.`,
+	Args: exactArgs(2),
+	RunE: runAutopilotTriggerDryRun,
+}
+
 var autopilotTriggerRotateURLCmd = &cobra.Command{
 	Use:   "trigger-rotate-url <autopilot-id> <trigger-id>",
 	Short: "Rotate the webhook URL of a webhook trigger",
@@ -115,6 +133,7 @@ func init() {
 	autopilotCmd.AddCommand(autopilotTriggerUpdateCmd)
 	autopilotCmd.AddCommand(autopilotTriggerDeleteCmd)
 	autopilotCmd.AddCommand(autopilotTriggerRotateURLCmd)
+	autopilotCmd.AddCommand(autopilotTriggerDryRunCmd)
 
 	// list
 	autopilotListCmd.Flags().String("status", "", "Filter by status (active, paused)")
@@ -163,6 +182,8 @@ func init() {
 	autopilotTriggerAddCmd.Flags().String("cron", "", "Cron expression (required for --kind schedule)")
 	autopilotTriggerAddCmd.Flags().String("timezone", "", "IANA timezone (default UTC; schedule only)")
 	autopilotTriggerAddCmd.Flags().String("label", "", "Optional human-readable label")
+	autopilotTriggerAddCmd.Flags().Int("window-minutes", 0, "Fire at a random minute within this many minutes after the cron time (0-1439; schedule only)")
+	autopilotTriggerAddCmd.Flags().String("event-match-criteria", "", "Plain-words rule for which events should run this autopilot, judged per delivery by a model (webhook only)")
 	autopilotTriggerAddCmd.Flags().String("output", "json", "Output format: table or json")
 
 	// trigger-list
@@ -178,7 +199,14 @@ func init() {
 	autopilotTriggerUpdateCmd.Flags().String("cron", "", "New cron expression")
 	autopilotTriggerUpdateCmd.Flags().String("timezone", "", "New IANA timezone")
 	autopilotTriggerUpdateCmd.Flags().String("label", "", "New label")
+	autopilotTriggerUpdateCmd.Flags().Int("window-minutes", 0, "New firing band in minutes (0 fires exactly on the cron time; schedule only)")
+	autopilotTriggerUpdateCmd.Flags().String("event-match-criteria", "", "New plain-words routing rule; pass an empty string to clear it (webhook only)")
 	autopilotTriggerUpdateCmd.Flags().String("output", "json", "Output format: table or json")
+
+	// trigger-dry-run
+	autopilotTriggerDryRunCmd.Flags().String("payload-file", "", "JSON file holding the sample event body (webhook triggers; omit for a schedule preview)")
+	autopilotTriggerDryRunCmd.Flags().StringArray("header", nil, "Request header the event normalizer should see, as Name=Value (repeatable; webhook only)")
+	autopilotTriggerDryRunCmd.Flags().String("output", "json", "Output format: table or json")
 }
 
 // ---------------------------------------------------------------------------
@@ -727,6 +755,12 @@ func runAutopilotTriggerAdd(cmd *cobra.Command, args []string) error {
 		if cron != "" {
 			return fmt.Errorf("--cron is only valid with --kind schedule")
 		}
+		if cmd.Flags().Changed("window-minutes") {
+			return fmt.Errorf("--window-minutes is only valid with --kind schedule")
+		}
+	}
+	if kind == "schedule" && cmd.Flags().Changed("event-match-criteria") {
+		return fmt.Errorf("--event-match-criteria is only valid with --kind webhook")
 	}
 
 	body := map[string]any{"kind": kind}
@@ -735,6 +769,16 @@ func runAutopilotTriggerAdd(cmd *cobra.Command, args []string) error {
 		if v, _ := cmd.Flags().GetString("timezone"); v != "" {
 			body["timezone"] = v
 		}
+		// Sent only when asked for: the server owns the default, and a
+		// hard-coded 0 here would silently overwrite it.
+		if cmd.Flags().Changed("window-minutes") {
+			v, _ := cmd.Flags().GetInt("window-minutes")
+			body["window_minutes"] = v
+		}
+	}
+	if kind == "webhook" && cmd.Flags().Changed("event-match-criteria") {
+		v, _ := cmd.Flags().GetString("event-match-criteria")
+		body["event_match_criteria"] = v
 	}
 	if v, _ := cmd.Flags().GetString("label"); v != "" {
 		body["label"] = v
@@ -850,8 +894,18 @@ func runAutopilotTriggerUpdate(cmd *cobra.Command, args []string) error {
 		v, _ := cmd.Flags().GetString("label")
 		body["label"] = v
 	}
+	if cmd.Flags().Changed("window-minutes") {
+		v, _ := cmd.Flags().GetInt("window-minutes")
+		body["window_minutes"] = v
+	}
+	// An empty --event-match-criteria clears the rule, so presence — not
+	// emptiness — is what decides whether the field is sent.
+	if cmd.Flags().Changed("event-match-criteria") {
+		v, _ := cmd.Flags().GetString("event-match-criteria")
+		body["event_match_criteria"] = v
+	}
 	if len(body) == 0 {
-		return fmt.Errorf("no fields to update; use --enabled, --cron, --timezone, or --label")
+		return fmt.Errorf("no fields to update; use --enabled, --cron, --timezone, --label, --window-minutes, or --event-match-criteria")
 	}
 
 	ctx, cancel := cli.APIContext(context.Background())
@@ -877,6 +931,117 @@ func runAutopilotTriggerUpdate(cmd *cobra.Command, args []string) error {
 		return cli.PrintJSON(os.Stdout, result)
 	}
 	fmt.Printf("Trigger updated: %s\n", strVal(result, "id"))
+	return nil
+}
+
+func runAutopilotTriggerDryRun(cmd *cobra.Command, args []string) error {
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	payloadFile, _ := cmd.Flags().GetString("payload-file")
+	headerArgs, _ := cmd.Flags().GetStringArray("header")
+	if payloadFile == "" && len(headerArgs) > 0 {
+		return fmt.Errorf("--header is only meaningful with --payload-file")
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	autopilotRef, err := resolveAutopilotID(ctx, client, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve autopilot: %w", err)
+	}
+	triggerRef, err := resolveAutopilotTriggerID(ctx, client, autopilotRef.ID, args[1])
+	if err != nil {
+		return fmt.Errorf("resolve trigger: %w", err)
+	}
+	path := "/api/autopilots/" + autopilotRef.ID + "/triggers/" + triggerRef.ID + "/dry-run"
+
+	var result map[string]any
+	if payloadFile == "" {
+		// No sample event to send: this is the schedule preview.
+		if err := client.GetJSON(ctx, path, &result); err != nil {
+			return fmt.Errorf("dry-run trigger: %w", err)
+		}
+		return printScheduleDryRun(cmd, result)
+	}
+
+	raw, err := os.ReadFile(payloadFile)
+	if err != nil {
+		return fmt.Errorf("read payload file: %w", err)
+	}
+	// Validate locally so a typo in the file is reported against the file,
+	// not as a 400 from a server the user then has to correlate back.
+	var payload any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return fmt.Errorf("%s is not valid JSON: %w", payloadFile, err)
+	}
+	headers := map[string]string{}
+	for _, h := range headerArgs {
+		name, value, ok := strings.Cut(h, "=")
+		if !ok || strings.TrimSpace(name) == "" {
+			return fmt.Errorf("--header %q must be Name=Value", h)
+		}
+		headers[strings.TrimSpace(name)] = value
+	}
+	body := map[string]any{"payload": payload}
+	if len(headers) > 0 {
+		body["headers"] = headers
+	}
+	if err := client.PostJSON(ctx, path, body, &result); err != nil {
+		return fmt.Errorf("dry-run trigger: %w", err)
+	}
+	return printWebhookDryRun(cmd, result)
+}
+
+func printWebhookDryRun(cmd *cobra.Command, result map[string]any) error {
+	if output, _ := cmd.Flags().GetString("output"); output == "json" {
+		return cli.PrintJSON(os.Stdout, result)
+	}
+	verdict := "would NOT run"
+	if b, ok := result["would_run"].(bool); ok && b {
+		verdict = "would run"
+	}
+	fmt.Printf("%s (event=%s)\n", verdict, strVal(result, "event"))
+	if reason := strVal(result, "reason_code"); reason != "" {
+		fmt.Printf("Reason: %s\n", reason)
+	}
+	if explanation := strVal(result, "explanation"); explanation != "" {
+		fmt.Printf("Explanation: %s\n", explanation)
+	}
+	if filters, ok := result["matched_filters"].([]any); ok && len(filters) > 0 {
+		names := make([]string, 0, len(filters))
+		for _, raw := range filters {
+			if f, ok := raw.(map[string]any); ok {
+				names = append(names, strVal(f, "event"))
+			}
+		}
+		fmt.Printf("Matched filters: %s\n", strings.Join(names, ", "))
+	}
+	return nil
+}
+
+func printScheduleDryRun(cmd *cobra.Command, result map[string]any) error {
+	if output, _ := cmd.Flags().GetString("output"); output == "json" {
+		return cli.PrintJSON(os.Stdout, result)
+	}
+	if b, ok := result["would_run"].(bool); ok && !b {
+		fmt.Printf("Would NOT run: %s\n", strVal(result, "reason_code"))
+	}
+	runs, _ := result["next_runs"].([]any)
+	if len(runs) == 0 {
+		fmt.Println("This schedule never fires again.")
+		return nil
+	}
+	headers := []string{"NEXT_RUN", "IN"}
+	rows := make([][]string, 0, len(runs))
+	for _, raw := range runs {
+		at, _ := raw.(string)
+		rows = append(rows, []string{at, relativeTimestamp(at)})
+	}
+	cli.PrintTable(os.Stdout, headers, rows)
 	return nil
 }
 

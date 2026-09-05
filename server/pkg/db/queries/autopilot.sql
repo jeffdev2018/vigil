@@ -425,6 +425,12 @@ WHERE autopilot_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: CountAutopilotRuns :one
+-- Total for the paged list above. The page length is NOT the total: a page of
+-- 20 out of 300 runs reported "total: 20", which is what the UI showed.
+SELECT count(*) FROM autopilot_run
+WHERE autopilot_id = $1;
+
 -- name: UpdateAutopilotRunIssueCreated :one
 UPDATE autopilot_run
 SET status = 'issue_created', issue_id = $2

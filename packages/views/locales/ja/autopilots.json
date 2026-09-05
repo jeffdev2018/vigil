@@ -113,7 +113,10 @@
       "cancel": "キャンセル",
       "confirm": "削除",
       "deleting": "削除中..."
-    }
+    },
+    "load_more": "さらに読み込む",
+    "loading_more": "読み込み中...",
+    "showing_count": "{{total}} 件中 {{shown}} 件"
   },
   "access": {
     "title": "アクセス管理",
@@ -257,6 +260,48 @@
       "disabled_rejected": "拒否された配信は再実行できません",
       "disabled_queued": "まだキュー待ちです。処理が落ち着いてから再実行してください"
     }
+  },
+  "dry_run": {
+    "open": "サンプルイベントでテスト",
+    "title": "サンプルイベントでテスト",
+    "description": "このペイロードを配信判定の全工程（フィルター、ルーティング条件、一時停止状態、実行上限）に通して再生します。配信も実行も記録されません。",
+    "sample_label": "サンプル",
+    "payload_label": "イベントペイロード (JSON)",
+    "run": "ドライランを実行",
+    "running": "実行中...",
+    "replay_action": "ドライランとして再生",
+    "invalid_json": "JSON が不正です: {{message}}",
+    "invalid_shape": "ペイロードは JSON のオブジェクトまたは配列である必要があります。",
+    "verdict_would_run": "このイベントはオートパイロットを実行します",
+    "verdict_blocked": "このイベントはオートパイロットを実行しません",
+    "verdict_unreadable": "判定結果を読み取れませんでした",
+    "matched_filters": "一致したフィルター:",
+    "toast_failed": "ドライランに失敗しました"
+  },
+  "next_runs": {
+    "label": "次回の実行",
+    "loading": "読み込み中...",
+    "unavailable": "次回の実行を取得できません",
+    "never": "このスケジュールは今後実行されません。",
+    "blocked": "実行されません: {{reason}}",
+    "blocked_unknown": "ブロック中",
+    "window_hint": "予定時刻から {{minutes}} 分以内のランダムな時刻に実行されます。"
+  },
+  "signing_secret": {
+    "label": "署名シークレット",
+    "hint": "設定すると、すべての配信に X-Hub-Signature-256: sha256=<このシークレットを鍵とした生ボディの HMAC-SHA256 の16進値> が必要になります。署名なし・不正な署名の配信は 401 で拒否されます。",
+    "not_configured": "署名シークレットなし — Webhook URL のみで認証されます。",
+    "configured": "設定済み（末尾 {{hint}}）。",
+    "shown_once": "今すぐコピーしてください。表示は一度きりです。",
+    "generate": "署名シークレットを生成",
+    "rotate": "署名シークレットをローテーション",
+    "clear": "削除",
+    "copy": "シークレットをコピー",
+    "copied": "署名シークレットをコピーしました",
+    "copy_failed": "コピーに失敗しました",
+    "toast_rotated": "署名シークレットを更新しました — 送信側の再設定が必要です",
+    "toast_cleared": "署名シークレットを削除しました",
+    "toast_failed": "署名シークレットの更新に失敗しました"
   },
   "add_trigger_dialog": {
     "title": "トリガーを追加",

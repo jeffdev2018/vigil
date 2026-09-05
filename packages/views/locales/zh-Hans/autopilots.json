@@ -113,7 +113,10 @@
       "cancel": "取消",
       "confirm": "删除",
       "deleting": "删除中..."
-    }
+    },
+    "load_more": "加载更多",
+    "loading_more": "加载中…",
+    "showing_count": "{{total}} 条中的 {{shown}} 条"
   },
   "access": {
     "title": "管理访问",
@@ -257,6 +260,48 @@
       "disabled_rejected": "无法重放已拒绝的投递",
       "disabled_queued": "投递仍在排队，处理完成后再重放"
     }
+  },
+  "dry_run": {
+    "open": "用示例事件测试",
+    "title": "用示例事件测试",
+    "description": "把这个负载完整走一遍投递判定：事件过滤、路由条件、暂停状态和运行额度。不会留下任何记录，既不产生投递也不产生运行。",
+    "sample_label": "示例",
+    "payload_label": "事件负载（JSON）",
+    "run": "运行试跑",
+    "running": "运行中…",
+    "replay_action": "以试跑方式重放",
+    "invalid_json": "JSON 无效：{{message}}",
+    "invalid_shape": "负载必须是 JSON 对象或数组。",
+    "verdict_would_run": "这个事件会触发自动驾驶",
+    "verdict_blocked": "这个事件不会触发自动驾驶",
+    "verdict_unreadable": "无法读取判定结果",
+    "matched_filters": "命中的过滤条件：",
+    "toast_failed": "试跑失败"
+  },
+  "next_runs": {
+    "label": "接下来的运行",
+    "loading": "加载中…",
+    "unavailable": "无法获取接下来的运行",
+    "never": "这个计划不会再触发。",
+    "blocked": "不会运行：{{reason}}",
+    "blocked_unknown": "已被拦截",
+    "window_hint": "在计划时间之后的 {{minutes}} 分钟内随机某一分钟触发。"
+  },
+  "signing_secret": {
+    "label": "签名密钥",
+    "hint": "设置后，每次投递都必须带上 X-Hub-Signature-256: sha256=<用该密钥对原始报文做 HMAC-SHA256 的十六进制值>。没有签名或签名不符的投递会被拒绝并返回 401。",
+    "not_configured": "未设置签名密钥 —— 仅凭 Webhook URL 认证调用方。",
+    "configured": "已设置（结尾为 {{hint}}）。",
+    "shown_once": "请立即复制，密钥只显示这一次。",
+    "generate": "生成签名密钥",
+    "rotate": "轮换签名密钥",
+    "clear": "移除",
+    "copy": "复制密钥",
+    "copied": "已复制签名密钥",
+    "copy_failed": "复制失败",
+    "toast_rotated": "签名密钥已更新 —— 需要重新配置发送方",
+    "toast_cleared": "已移除签名密钥",
+    "toast_failed": "更新签名密钥失败"
   },
   "add_trigger_dialog": {
     "title": "添加触发器",

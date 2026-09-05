@@ -19,6 +19,10 @@ import {
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
+  WebhookTriggerDryRunSchema,
+  ScheduleTriggerDryRunSchema,
+  UNREADABLE_WEBHOOK_DRY_RUN,
+  UNREADABLE_SCHEDULE_DRY_RUN,
   CommentTriggerPreviewSchema,
   DashboardAgentRunTimeListSchema,
   DashboardRunTimeDailyListSchema,
@@ -2358,5 +2362,100 @@ describe("CloudRuntimeNodeActionSchema", () => {
         ),
       ).toEqual(EMPTY_CLOUD_RUNTIME_NODE_ACTION);
     }
+  });
+});
+
+describe("trigger dry-run schemas", () => {
+  const WEBHOOK_ENDPOINT = { endpoint: "POST /api/autopilots/:id/triggers/:triggerId/dry-run" };
+  const SCHEDULE_ENDPOINT = { endpoint: "GET /api/autopilots/:id/triggers/:triggerId/dry-run" };
+
+  it("keeps a blocked verdict with its reason and the classifier's sentence", () => {
+    const parsed = parseWithFallback(
+      {
+        would_run: false,
+        reason_code: "criteria_not_matched",
+        explanation: "staging, and it succeeded",
+        matched_filters: [{ event: "deploy", actions: ["finished"] }],
+        event: "deploy.finished",
+      },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.would_run).toBe(false);
+    expect(parsed.reason_code).toBe("criteria_not_matched");
+    expect(parsed.matched_filters).toEqual([{ event: "deploy", actions: ["finished"] }]);
+  });
+
+  it("passes an unknown reason code through for the UI to render verbatim", () => {
+    const parsed = parseWithFallback(
+      { would_run: false, reason_code: "some_future_gate", explanation: "", matched_filters: [], event: "x" },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.reason_code).toBe("some_future_gate");
+  });
+
+  it("tolerates an older server omitting matched_filters and explanation", () => {
+    const parsed = parseWithFallback(
+      { would_run: true, reason_code: null },
+      WebhookTriggerDryRunSchema,
+      UNREADABLE_WEBHOOK_DRY_RUN,
+      WEBHOOK_ENDPOINT,
+    );
+    expect(parsed.would_run).toBe(true);
+    expect(parsed.matched_filters).toEqual([]);
+    expect(parsed.explanation).toBe("");
+  });
+
+  it("degrades a malformed verdict to the unreadable sentinel, never to a decision", () => {
+    for (const malformed of ["nope", null, {}, { would_run: "yes" }]) {
+      const parsed = parseWithFallback(
+        malformed,
+        WebhookTriggerDryRunSchema,
+        UNREADABLE_WEBHOOK_DRY_RUN,
+        WEBHOOK_ENDPOINT,
+      );
+      // The sentinel is neither "would run" nor a named gate — the dialog
+      // says the preview could not be read instead of inventing a verdict.
+      expect(parsed).toBe(UNREADABLE_WEBHOOK_DRY_RUN);
+      expect(parsed.reason_code).toBe("unreadable");
+    }
+  });
+
+  it("reads a schedule preview and its blocking reason", () => {
+    const parsed = parseWithFallback(
+      {
+        next_runs: ["2126-07-14T08:30:00Z"],
+        would_run: false,
+        reason_code: "autopilot_paused",
+        window_minutes: 120,
+      },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(parsed.next_runs).toEqual(["2126-07-14T08:30:00Z"]);
+    expect(parsed.reason_code).toBe("autopilot_paused");
+    expect(parsed.window_minutes).toBe(120);
+  });
+
+  it("keeps an empty next_runs distinct from an unreadable preview", () => {
+    const never = parseWithFallback(
+      { next_runs: [], would_run: true, reason_code: null, window_minutes: 0 },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(never.reason_code).toBeNull();
+
+    const broken = parseWithFallback(
+      { would_run: true },
+      ScheduleTriggerDryRunSchema,
+      UNREADABLE_SCHEDULE_DRY_RUN,
+      SCHEDULE_ENDPOINT,
+    );
+    expect(broken).toBe(UNREADABLE_SCHEDULE_DRY_RUN);
   });
 });
