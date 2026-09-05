@@ -2704,6 +2704,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/failures/by-agent", h.GetDashboardFailuresByAgent)
 				// Cost per deliverable (K04).
 				r.Get("/cost-per-deliverable", h.GetDashboardCostPerDeliverable)
+				// ROI per agent (JEF-252).
+				r.Get("/roi-by-agent", h.GetDashboardAgentRoi)
 			})
 
 			// Runtimes

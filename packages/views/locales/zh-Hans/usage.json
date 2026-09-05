@@ -135,6 +135,19 @@
     "none": "此期间没有",
     "empty": "过去 {{days}} 天内没有带运行的已关闭议题或已合并 PR。"
   },
+  "agent_roi": {
+    "title": "各智能体 ROI · {{days}} 天",
+    "headline": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}；{{second}} 为 {{cost2}}",
+    "headline_single": "{{best}} 关闭 {{count}} 个议题，每个 {{cost}}",
+    "empty": "最近 {{days}} 天内没有智能体活动。",
+    "agent": "智能体",
+    "issues": "已关闭议题",
+    "prs": "已合并 PR",
+    "cost": "成本",
+    "cost_per_issue": "每议题成本",
+    "none": "没有关闭议题",
+    "floor": "下限"
+  },
   "scorecards": {
     "title": "智能体记分卡 · {{days}}天",
     "scope_note": "覆盖整个工作区的所有项目 · 按 UTC 日期统计",

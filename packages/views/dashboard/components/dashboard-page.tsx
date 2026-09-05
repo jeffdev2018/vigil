@@ -30,6 +30,7 @@ import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
 import { KpiCard } from "../../runtimes/components/shared";
+import { AgentRoiCard } from "./agent-roi-card";
 import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
 import { AgentScorecardsCard } from "./agent-scorecards-card";
 import { AutopilotQuotaCard } from "./autopilot-quota-card";
@@ -613,6 +614,10 @@ export function DashboardPage() {
                 {/* Cost per deliverable (K04): what a closed issue and a
                     merged PR cost, against the previous period. */}
                 <CostPerDeliverableCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
+
+                {/* ROI per agent (JEF-252): the same money, split per agent,
+                    so the buy/keep decision is one line. */}
+                <AgentRoiCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
 
                 {/* Scorecards (K25): which agent works, one row per agent. */}
                 <AgentScorecardsCard wsId={wsId} days={days} />

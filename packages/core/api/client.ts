@@ -75,6 +75,7 @@ import type {
   RuntimeRoutingStatsResponse,
   DashboardUsageDaily,
   DashboardUsageByAgent,
+  DashboardAgentRoi,
   DashboardCostPerDeliverable,
   AgentScorecard,
   WorkspaceScorecardRow,
@@ -369,6 +370,7 @@ import {
   DashboardFailureDailyListSchema,
   DashboardFailureByAgentListSchema,
   DashboardUsageByAgentListSchema,
+  DashboardAgentRoiSchema,
   DashboardCostPerDeliverableSchema,
   AgentScorecardSchema,
   WorkspaceScorecardsSchema,
@@ -3267,6 +3269,20 @@ export class ApiClient {
     const empty = { count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null };
     return parseWithFallback(raw, DashboardCostPerDeliverableSchema, { days: params.days ?? 30, issues: empty, pull_requests: empty }, {
       endpoint: "GET /api/dashboard/cost-per-deliverable",
+    });
+  }
+
+  // ROI per agent (JEF-252).
+  async getDashboardAgentRoi(
+    params: { days?: number; project_id?: string | null; tz?: string },
+  ): Promise<DashboardAgentRoi> {
+    const search = new URLSearchParams();
+    if (params.days) search.set("days", String(params.days));
+    if (params.project_id) search.set("project_id", params.project_id);
+    if (params.tz) search.set("tz", params.tz);
+    const raw = await this.fetch<unknown>(`/api/dashboard/roi-by-agent?${search}`);
+    return parseWithFallback(raw, DashboardAgentRoiSchema, { days: params.days ?? 30, agents: [] }, {
+      endpoint: "GET /api/dashboard/roi-by-agent",
     });
   }
 

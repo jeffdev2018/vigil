@@ -1525,6 +1525,26 @@ export interface DashboardCostPerDeliverable {
   pull_requests: DeliverableCostStats;
 }
 
+// ROI per agent (JEF-252).
+export interface AgentRoiRow {
+  agent_id: string;
+  agent_name: string;
+  provider: string;
+  issues_closed: number;
+  prs_merged: number;
+  cost_usd_ticks: number;
+  uncosted_runs: number;
+  /** null when the agent closed nothing to divide by — not zero. */
+  cost_per_issue_usd_ticks: number | null;
+  cost_per_pr_usd_ticks: number | null;
+  prev_cost_per_issue_usd_ticks: number | null;
+}
+
+export interface DashboardAgentRoi {
+  days: number;
+  agents: AgentRoiRow[];
+}
+
 // Scorecards (K25).
 export interface ScorecardTotals {
   runs_total: number;

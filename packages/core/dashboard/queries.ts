@@ -114,6 +114,35 @@ export function dashboardCostPerDeliverableOptions(
   });
 }
 
+// ROI per agent (JEF-252).
+export function dashboardAgentRoiOptions(
+  wsId: string,
+  days: number,
+  projectId: string | null,
+  tz: string,
+) {
+  return queryOptions({
+    queryKey: [...dashboardKeys.all(wsId), "roi-by-agent", days, projectId, tz] as const,
+    queryFn: () =>
+      api.getDashboardAgentRoi({
+        days,
+        project_id: projectId ?? undefined,
+        tz,
+      }),
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Percentage change of a cost ratio against the previous period, negative when
+ * the agent got cheaper. null when either side is missing or the previous
+ * period was zero — there is no percentage change from nothing.
+ */
+export function roiTrendPct(current: number | null, previous: number | null): number | null {
+  if (current === null || previous === null || previous === 0) return null;
+  return ((current - previous) / previous) * 100;
+}
+
 export function dashboardUsageByAgentOptions(
   wsId: string,
   days: number,

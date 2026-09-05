@@ -135,6 +135,19 @@
     "none": "Aucune sur cette période",
     "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours."
   },
+  "agent_roi": {
+    "title": "ROI par agent · {{days}} j",
+    "headline": "{{best}} a fermé {{count}} issues à {{cost}}/issue contre {{cost2}} pour {{second}}",
+    "headline_single": "{{best}} a fermé {{count}} issues à {{cost}}/issue",
+    "empty": "Aucune activité d'agent sur les {{days}} derniers jours.",
+    "agent": "Agent",
+    "issues": "Issues fermées",
+    "prs": "PR fusionnées",
+    "cost": "Coût",
+    "cost_per_issue": "Coût / issue",
+    "none": "aucune issue fermée",
+    "floor": "plancher"
+  },
   "scorecards": {
     "title": "Bilans des agents · {{days}}J",
     "scope_note": "Tout le workspace, tous les projets · jours UTC",
