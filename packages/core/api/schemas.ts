@@ -5058,3 +5058,64 @@ export const AssigneeSuggestionSchema = z.object({
   candidates: z.array(CompetencyRowSchema).catch([]).default([]),
   ownership: OwnershipSuggestionSchema.nullable().catch(null).default(null),
 }).loose();
+
+// Run replay (K70): one hash-chained event stream per run.
+export const ReplayEventSchema = z.object({
+  seq: z.number().catch(0).default(0),
+  at: z.string().catch("").default(""),
+  kind: z.string().catch("unknown").default("unknown"),
+  actor: z.object({
+    type: z.string().catch("").default(""),
+    id: z.string().catch("").default(""),
+    name: z.string().catch("").default(""),
+  }).loose().catch({ type: "", id: "", name: "" }).default({ type: "", id: "", name: "" }),
+  title: z.string().catch("").default(""),
+  text: z.string().catch("").default(""),
+  data: z.record(z.string(), z.unknown()).catch({}).default({}),
+  source: z.string().catch("").default(""),
+  source_id: z.string().catch("").default(""),
+  prev_hash: z.string().catch("").default(""),
+  hash: z.string().catch("").default(""),
+}).loose();
+
+export const RunReplaySchema = z.object({
+  run: z.object({
+    id: z.string().default(""),
+    issue_id: z.string().catch("").default(""),
+    agent_id: z.string().catch("").default(""),
+    agent_name: z.string().catch("").default(""),
+    status: z.string().catch("").default(""),
+    trust_mode: z.string().catch("").default(""),
+    effect_mode: z.string().catch("").default(""),
+    model: z.string().catch("").default(""),
+    created_at: z.string().nullable().catch(null).default(null),
+    started_at: z.string().nullable().catch(null).default(null),
+    completed_at: z.string().nullable().catch(null).default(null),
+    links: z.array(z.object({
+      relation: z.string().default(""),
+      task_id: z.string().default(""),
+      agent_id: z.string().catch("").default(""),
+      agent_name: z.string().catch("").default(""),
+    }).loose()).catch([]).default([]),
+  }).loose(),
+  events: z.array(ReplayEventSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+  next_cursor: z.number().nullable().catch(null).default(null),
+  head_hash: z.string().catch("").default(""),
+  cost: z.object({
+    input_tokens: z.number().catch(0).default(0),
+    output_tokens: z.number().catch(0).default(0),
+    cost_usd_ticks: z.number().nullable().catch(null).default(null),
+  }).loose().catch({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }).default({ input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }),
+  sealed: z.object({
+    events: z.number().catch(0).default(0),
+    head_hash: z.string().catch("").default(""),
+    sealed_at: z.string().catch("").default(""),
+    verified: z.boolean().catch(false).default(false),
+  }).loose().nullable().catch(null).default(null),
+}).loose();
+
+export const ReplayResumeResultSchema = z.object({
+  task_id: z.string().default(""),
+  from_seq: z.number().catch(0).default(0),
+}).loose();

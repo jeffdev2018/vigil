@@ -231,6 +231,13 @@ export default function WorkspaceLayout() {
           options={SHEET_OPTIONS}
         />
         <Stack.Screen name="issue/[id]/runs" options={SHEET_OPTIONS} />
+        {/* Run replay (k70). A modal, not a formSheet: it is a content view
+            whose link chips push another replay on top, so it needs a back
+            stack. Pushed from RunRow inside the runs formSheet. */}
+        <Stack.Screen
+          name="issue/[id]/replay/[taskId]"
+          options={{ presentation: "modal", title: "Run replay" }}
+        />
         {/* Full emoji picker for a comment reaction. Pushed from the "+"
             button inside the comment long-press tapback row — see
             components/issue/comment-context-menu.tsx. */}

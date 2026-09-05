@@ -157,6 +157,7 @@ import type { ZodType } from "zod";
 import { getCurrentSlug } from "./workspace-store";
 import { parseWithFallback } from "@/lib/parse-response";
 import { InboxDecisionsSchema, type InboxDecisions } from "./schemas";
+import { RunReplaySchema, type RunReplay } from "./schemas";
 import {
   EMPTY_AGENT_EFFECT_LIST,
   EMPTY_UNDO_REPORT,
@@ -629,6 +630,27 @@ class ApiClient {
     return parseWithFallback(raw, AgentTaskListSchema, EMPTY_AGENT_TASK_LIST, {
       endpoint: "listAgentTaskSnapshot",
     });
+  }
+
+  // --- Run replay (k70) ---
+  // GET /api/tasks/{taskId}/replay?cursor=N&limit=N — one page of the
+  // hash-chained event log. Read-only on mobile; the resume endpoint is
+  // web/desktop only. A null return covers both 404 and an untrusted shape.
+  async getTaskReplay(
+    taskId: string,
+    params: { cursor?: number; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<RunReplay | null> {
+    const search = new URLSearchParams();
+    if (params.cursor !== undefined) search.set("cursor", String(params.cursor));
+    if (params.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    return this.fetchValidated<RunReplay | null>(
+      `/api/tasks/${encodeURIComponent(taskId)}/replay${qs ? `?${qs}` : ""}`,
+      RunReplaySchema,
+      null,
+      { ...opts, endpoint: "GET /api/tasks/:id/replay" },
+    );
   }
 
   async listSquads(opts?: { signal?: AbortSignal }): Promise<Squad[]> {

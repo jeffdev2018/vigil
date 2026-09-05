@@ -1090,5 +1090,58 @@
     "sample": "{{count}} 个 issue",
     "duels": "对决 {{wins}} 胜 / {{losses}} 负",
     "low_sample": "数据不足（{{count}}/{{min}}）"
+  },
+  "replay": {
+    "button": "回放运行",
+    "title": "回放 · {{agent}}",
+    "loading": "正在加载回放…",
+    "error": "无法加载回放。",
+    "empty": "此次运行没有记录任何事件。",
+    "events_count": "{{n}} 个事件",
+    "seal": {
+      "verified": "已封存并验证",
+      "broken": "封存已破坏：运行结束后轨迹被修改",
+      "unsealed": "尚未封存"
+    },
+    "links": "相关运行：",
+    "prev": "上一个",
+    "next": "下一个",
+    "scrubber": "运行中的位置",
+    "position": "{{pos}} / {{total}}",
+    "hash": "链哈希 {{hash}}…",
+    "so_far": "至此：工具调用 {{tools}} · 效果 {{effects}} · 决策 {{decisions}} · 指令 {{steers}} · 交接 {{handoffs}}",
+    "resume_title": "从事件 {{pos}} 以新指令继续",
+    "resume_placeholder": "下一次运行从这里开始应该有什么不同？",
+    "resume_button": "从这里开始新运行",
+    "resumed": "已从事件 {{seq}} 开始新运行",
+    "resume_failed": "无法启动运行",
+    "kinds": {
+      "text": "智能体发言",
+      "thinking": "思考",
+      "tool_use": "工具调用",
+      "tool_result": "工具结果",
+      "steer": "指令",
+      "status": "状态",
+      "error": "错误",
+      "checkpoint": "检查点",
+      "effect": "效果",
+      "effect_reversed": "已撤销",
+      "decision_asked": "请求决策",
+      "decision_answered": "已决策",
+      "handoff": "交接",
+      "cost": "成本",
+      "audit": "审计",
+      "unknown": "事件"
+    },
+    "relations": {
+      "parent": "父运行",
+      "delegated_from": "委托自",
+      "retry_of": "重试自",
+      "rerun_of": "重跑自",
+      "resumed_by": "由其继续",
+      "preempted_by": "被其抢占",
+      "review_of": "评审对象",
+      "escalation_for": "升级对象"
+    }
   }
 }

@@ -137,6 +137,43 @@ func (q *Queries) ListHandoffPackets(ctx context.Context, issueID pgtype.UUID) (
 	return items, nil
 }
 
+const listHandoffPacketsForRun = `-- name: ListHandoffPacketsForRun :many
+SELECT id, run_id, workspace_id, issue_id, objective, decisions, evidence, failed_attempts, next_action, created_by_type, created_by_id, created_at FROM handoff_packet WHERE run_id = $1 ORDER BY created_at ASC, id ASC
+`
+
+func (q *Queries) ListHandoffPacketsForRun(ctx context.Context, runID pgtype.UUID) ([]HandoffPacket, error) {
+	rows, err := q.db.Query(ctx, listHandoffPacketsForRun, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []HandoffPacket{}
+	for rows.Next() {
+		var i HandoffPacket
+		if err := rows.Scan(
+			&i.ID,
+			&i.RunID,
+			&i.WorkspaceID,
+			&i.IssueID,
+			&i.Objective,
+			&i.Decisions,
+			&i.Evidence,
+			&i.FailedAttempts,
+			&i.NextAction,
+			&i.CreatedByType,
+			&i.CreatedByID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const purgeWorkspaceHandoffPackets = `-- name: PurgeWorkspaceHandoffPackets :exec
 DELETE FROM handoff_packet WHERE workspace_id = $1
 `

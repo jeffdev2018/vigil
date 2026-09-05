@@ -1090,5 +1090,58 @@
     "sample": "{{count}}건",
     "duels": "대결 {{wins}}승 / {{losses}}패",
     "low_sample": "데이터 부족 ({{count}}/{{min}})"
+  },
+  "replay": {
+    "button": "실행 재생",
+    "title": "재생 · {{agent}}",
+    "loading": "재생을 불러오는 중…",
+    "error": "재생을 불러올 수 없습니다.",
+    "empty": "이 실행에 기록된 이벤트가 없습니다.",
+    "events_count": "이벤트 {{n}}개",
+    "seal": {
+      "verified": "봉인 및 검증됨",
+      "broken": "봉인 깨짐: 실행 종료 후 추적이 변경됨",
+      "unsealed": "아직 봉인되지 않음"
+    },
+    "links": "관련 실행:",
+    "prev": "이전",
+    "next": "다음",
+    "scrubber": "실행 내 위치",
+    "position": "{{pos}} / {{total}}",
+    "hash": "체인 해시 {{hash}}…",
+    "so_far": "지금까지: 도구 호출 {{tools}} · 효과 {{effects}} · 결정 {{decisions}} · 지시 {{steers}} · 인계 {{handoffs}}",
+    "resume_title": "이벤트 {{pos}}부터 새 지시로 재개",
+    "resume_placeholder": "다음 실행은 여기서부터 무엇을 다르게 해야 하나요?",
+    "resume_button": "여기서 새 실행 시작",
+    "resumed": "이벤트 {{seq}}부터 새 실행을 시작했습니다",
+    "resume_failed": "실행을 시작할 수 없습니다",
+    "kinds": {
+      "text": "에이전트 발언",
+      "thinking": "생각",
+      "tool_use": "도구 호출",
+      "tool_result": "도구 결과",
+      "steer": "지시",
+      "status": "상태",
+      "error": "오류",
+      "checkpoint": "체크포인트",
+      "effect": "효과",
+      "effect_reversed": "되돌림",
+      "decision_asked": "결정 요청",
+      "decision_answered": "결정 완료",
+      "handoff": "인계",
+      "cost": "비용",
+      "audit": "감사",
+      "unknown": "이벤트"
+    },
+    "relations": {
+      "parent": "상위 실행",
+      "delegated_from": "위임 출처",
+      "retry_of": "재시도 대상",
+      "rerun_of": "재실행 대상",
+      "resumed_by": "재개 실행",
+      "preempted_by": "선점 실행",
+      "review_of": "검토 대상",
+      "escalation_for": "에스컬레이션 대상"
+    }
   }
 }
