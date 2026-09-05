@@ -1313,13 +1313,17 @@
       "reversed": "reversed",
       "expired": "window expired",
       "not_reversible": "not reversible",
-      "failed": "reversal failed"
+      "failed": "reversal failed",
+      "held": "awaiting approval",
+      "approved": "approved",
+      "rejected": "discarded"
     },
     "reasons": {
       "already_reversed": "already reversed",
       "not_reversible": "not reversible",
       "window_expired": "window expired",
-      "reverse_failed": "reversal failed"
+      "reverse_failed": "reversal failed",
+      "not_applied": "held write, nothing to reverse"
     },
     "kinds": {
       "issue_status": "Status {{from}} → {{to}}",
@@ -1331,7 +1335,8 @@
       "note_update": "Note edited: {{title}}",
       "note_archive": "Note archived",
       "triage_verdict": "Triage verdict: {{verdict}}",
-      "issue_create": "Issue created: {{title}}"
+      "issue_create": "Issue created: {{title}}",
+      "issue_update": "Issue update: {{fields}}"
     }
   },
   "ci_auto_fix": {

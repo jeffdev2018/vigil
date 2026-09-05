@@ -7727,6 +7727,17 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 	if err != nil {
 		return
 	}
+	// "Show me first" (K69): a preview-mode agent's own comment waits for
+	// approval like any other write; system notes about the run still post.
+	if commentType == "comment" && sourceTaskID.Valid && AgentPreviewsEffects(ctx, s.Queries, agentID) {
+		if _, err := RecordPendingAgentEffect(ctx, s.Queries, AgentEffectParams{
+			WorkspaceID: issue.WorkspaceID, TaskID: sourceTaskID, AgentID: agentID, IssueID: issueID,
+			Kind: EffectCommentCreate, TargetType: "issue", TargetID: issueID, After: map[string]any{"type": commentType, "excerpt": excerpt(content, 200)}, Reversible: true,
+		}, map[string]any{"content": content, "type": commentType, "parent_id": uuidPtrString(parentID)}); err != nil {
+			slog.Warn("agent effect: record pending comment failed", "task_id", util.UUIDToString(sourceTaskID), "error", err)
+		}
+		return
+	}
 	// Resolve the thread root for thread-level side effects without overwriting
 	// parentID. The stored parent_id must remain the exact comment being replied
 	// to; recursive thread reads recover the root when needed.
@@ -8262,4 +8273,18 @@ func agentToMap(a db.Agent) map[string]any {
 		"archived_at":          util.TimestampToPtr(a.ArchivedAt),
 		"archived_by":          util.UUIDToPtr(a.ArchivedBy),
 	}
+}
+
+func excerpt(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
+func uuidPtrString(u pgtype.UUID) any {
+	if !u.Valid {
+		return nil
+	}
+	return util.UUIDToString(u)
 }

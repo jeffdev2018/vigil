@@ -58,6 +58,7 @@ type Agent struct {
 	ScopedEnvKeys         []byte      `json:"scoped_env_keys"`
 	RuntimePoolID         pgtype.UUID `json:"runtime_pool_id"`
 	RuntimeRouting        string      `json:"runtime_routing"`
+	EffectMode            string      `json:"effect_mode"`
 }
 
 type AgentBuilderDraft struct {
@@ -119,6 +120,10 @@ type AgentEffect struct {
 	ReversedByID   pgtype.UUID        `json:"reversed_by_id"`
 	ReverseError   pgtype.Text        `json:"reverse_error"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Status         string             `json:"status"`
+	// The write a pending effect will replay on approval (request fields), empty for an applied effect.
+	Payload    []byte      `json:"payload"`
+	DecisionID pgtype.UUID `json:"decision_id"`
 }
 
 // Allow-list of who may invoke a public_to agent (MUL-3963). One row per (agent, target_type, target); targets stack and canInvokeAgent OR-matches. workspace rows store the agent workspace_id in target_id; member rows store the user id; team rows are reserved and inert in V1. Rows only matter when agent.permission_mode = public_to. No DB foreign keys: agent_id / created_by / member target_id relationships are maintained in the application layer (see migration comment).

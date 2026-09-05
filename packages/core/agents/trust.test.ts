@@ -23,6 +23,10 @@ describe("trust dial client", () => {
     stubFetch({ changes: [{ id: "c1", from_mode: "approval", to_mode: "observer", demotion: true }] });
     expect((await new ApiClient("https://api.example.test").listAgentTrustHistory("a"))[0]?.demotion).toBe(true);
     expect(pct(0.834)).toBe("83%");
+    stubFetch({ agent_id: "a", mode: "preview" });
+    expect((await new ApiClient("https://api.example.test").getAgentEffectMode("a")).mode).toBe("preview");
+    stubFetch({ agent_id: "a", mode: "sideways" });
+    expect((await new ApiClient("https://api.example.test").setAgentEffectMode("a", "preview")).mode).toBe("apply");
     expect(trustKeys.history("w", "a")).toEqual(["agents", "w", "a", "trust", "history"]);
   });
 });

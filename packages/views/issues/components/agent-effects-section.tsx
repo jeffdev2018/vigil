@@ -80,7 +80,7 @@ function EffectRow({ effect, canManage, busy, onUndo }: { effect: AgentEffect; c
   const state = effectState(effect);
   return (
     <li data-testid="agent-effect" data-kind={effect.kind} data-state={state} className={cn("flex items-center gap-2", state !== "pending" && "text-muted-foreground")}>
-      <span className={cn(state === "reversed" && "line-through")}>{describeEffect(effect, t)}</span>
+      <span className={cn((state === "reversed" || state === "rejected") && "line-through")}>{describeEffect(effect, t)}</span>
       {state !== "pending" && <span className="rounded bg-muted px-1">{t(($) => $.agent_effects.states[state])}</span>}
       {state === "pending" && canManage && (
         <Button type="button" size="sm" variant="ghost" className="ml-auto h-5 px-1.5" disabled={busy} onClick={onUndo}>
@@ -118,13 +118,15 @@ function describeEffect(e: AgentEffect, t: Translate): string {
       return t(($) => $.agent_effects.kinds.triage_verdict, { verdict: String(e.after["verdict"] ?? "") });
     case "issue_create":
       return t(($) => $.agent_effects.kinds.issue_create, { title: String(e.after["title"] ?? "") });
+    case "issue_update":
+      return t(($) => $.agent_effects.kinds.issue_update, { fields: Object.keys(e.payload).join(", ") });
     default:
       return e.kind;
   }
 }
 
-function reasonKey(reason: string): "already_reversed" | "not_reversible" | "window_expired" | "reverse_failed" {
+function reasonKey(reason: string): "already_reversed" | "not_reversible" | "window_expired" | "reverse_failed" | "not_applied" {
   if (reason.startsWith("reverse_failed")) return "reverse_failed";
-  if (reason === "already_reversed" || reason === "not_reversible" || reason === "window_expired") return reason;
+  if (reason === "already_reversed" || reason === "not_reversible" || reason === "window_expired" || reason === "not_applied") return reason;
   return "reverse_failed";
 }

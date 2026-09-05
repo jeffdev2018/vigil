@@ -1098,7 +1098,12 @@
     "history_empty": "Aucun changement pour le moment.",
     "demotion": "rétrogradation",
     "by_member": "par un membre",
-    "by_system": "suggéré par le système"
+    "by_system": "suggéré par le système",
+    "preview_title": "Montre-moi d'abord",
+    "preview_description": "Les écritures de l'agent sur les issues, commentaires, notes et triage sont retenues jusqu'à la fin du run ; vous les approuvez ou les rejetez ensuite en une décision. Les écritures approuvées restent annulables pendant la fenêtre d'annulation.",
+    "preview_on": "Montre-moi d'abord activé : les prochains runs attendent votre approbation",
+    "preview_off": "Montre-moi d'abord désactivé : les écritures s'appliquent au fil de l'eau",
+    "preview_failed": "Impossible de changer le mode d'effet"
   },
   "competency": {
     "title": "Compétences par domaine",

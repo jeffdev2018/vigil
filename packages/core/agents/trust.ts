@@ -36,7 +36,15 @@ export interface TrustModeChange {
   demotion: boolean;
 }
 
+// "Show me first" (K69): hold the agent's writes for approval at the end of the run.
+export type EffectMode = "apply" | "preview";
+export interface EffectModeEnvelope {
+  agent_id: string;
+  mode: EffectMode;
+}
+
 export const trustKeys = {
+  effectMode: (wsId: string, agentId: string) => ["agents", wsId, agentId, "effect-mode"] as const,
   mode: (wsId: string, agentId: string) => ["agents", wsId, agentId, "trust"] as const,
   suggestion: (wsId: string, agentId: string) => ["agents", wsId, agentId, "trust", "suggestion"] as const,
   history: (wsId: string, agentId: string) => ["agents", wsId, agentId, "trust", "history"] as const,
@@ -68,4 +76,19 @@ export function useSetAgentTrustMode(wsId: string, agentId: string) {
 /** Percent for display, from a 0..1 rate. */
 export function pct(rate: number): string {
   return `${Math.round(rate * 100)}%`;
+}
+
+export function agentEffectModeOptions(wsId: string, agentId: string) {
+  return queryOptions({ queryKey: trustKeys.effectMode(wsId, agentId), queryFn: () => api.getAgentEffectMode(agentId) });
+}
+
+export function useSetAgentEffectMode(wsId: string, agentId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (mode: EffectMode) => api.setAgentEffectMode(agentId, mode),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: trustKeys.effectMode(wsId, agentId) });
+      qc.invalidateQueries({ queryKey: workspaceKeys.agent(wsId, agentId) });
+    },
+  });
 }

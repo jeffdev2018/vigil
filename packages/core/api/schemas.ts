@@ -4358,6 +4358,12 @@ export const TrustModeEnvelopeSchema = z.object({
   modes: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+// "Show me first" (K69).
+export const EffectModeEnvelopeSchema = z.object({
+  agent_id: z.string().default(""),
+  mode: z.enum(["apply", "preview"]).catch("apply").default("apply"),
+}).loose();
+
 export const TrustSuggestionSchema = z.object({
   eligible: z.boolean().default(false),
   current_mode: z.string().default("propose"),
@@ -5014,6 +5020,9 @@ export const AgentEffectSchema = z.object({
   before: z.record(z.string(), z.unknown()).catch({}).default({}),
   after: z.record(z.string(), z.unknown()).catch({}).default({}),
   reversible: z.boolean().catch(false).default(false),
+  status: z.string().catch("applied").default("applied"),
+  decision_id: z.string().nullable().catch(null).default(null),
+  payload: z.record(z.string(), z.unknown()).catch({}).default({}),
   reversed_at: z.string().nullable().catch(null).default(null),
   reversed_by_type: z.string().nullable().catch(null).default(null),
   reverse_error: z.string().nullable().catch(null).default(null),

@@ -405,7 +405,7 @@ func (q *Queries) PurgeWorkspaceRuntimePools(ctx context.Context, workspaceID pg
 }
 
 const setAgentRuntimePool = `-- name: SetAgentRuntimePool :one
-UPDATE agent SET runtime_pool_id = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id, runtime_routing
+UPDATE agent SET runtime_pool_id = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id, runtime_routing, effect_mode
 `
 
 type SetAgentRuntimePoolParams struct {
@@ -451,6 +451,7 @@ func (q *Queries) SetAgentRuntimePool(ctx context.Context, arg SetAgentRuntimePo
 		&i.ScopedEnvKeys,
 		&i.RuntimePoolID,
 		&i.RuntimeRouting,
+		&i.EffectMode,
 	)
 	return i, err
 }

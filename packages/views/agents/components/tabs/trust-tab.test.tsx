@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
   suggestion: null as TrustSuggestion | null,
   history: [] as TrustModeChange[],
   set: vi.fn(),
+  effectMode: "apply",
+  setEffect: vi.fn(),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -23,6 +25,8 @@ vi.mock("@multica/core/agents/trust", async (importOriginal) => ({
   agentTrustSuggestionOptions: () => ({ queryKey: ["sugg"], queryFn: async () => state.suggestion }),
   agentTrustHistoryOptions: () => ({ queryKey: ["hist"], queryFn: async () => state.history }),
   useSetAgentTrustMode: () => ({ mutate: state.set, isPending: false }),
+  agentEffectModeOptions: () => ({ queryKey: ["effect-mode"], queryFn: async () => ({ agent_id: "a1", mode: state.effectMode }) }),
+  useSetAgentEffectMode: () => ({ mutate: state.setEffect, isPending: false }),
 }));
 
 import { TrustTab } from "./trust-tab";
@@ -86,5 +90,13 @@ describe("TrustTab", () => {
     expect((await screen.findByTestId("trust-not-yet")).textContent).toContain("10 needed");
     expect(screen.queryByTestId("trust-suggestion")).toBeNull();
     expect((screen.getByRole("radio", { name: /Autonomous/ }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("toggles \"show me first\" on the effect mode endpoint", async () => {
+    render();
+    const toggle = (await screen.findByRole("switch", { name: "Show me first" })) as HTMLButtonElement;
+    expect((await screen.findByTestId("effect-mode")).getAttribute("data-mode")).toBe("apply");
+    fireEvent.click(toggle);
+    expect(state.setEffect).toHaveBeenCalledWith("preview", expect.anything());
   });
 });

@@ -309,6 +309,14 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 	}
 	params.Source = source
 
+	// "Show me first" (K69): a preview-mode run's note is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview {
+		if eff, ok := h.recordPending(r, agentID, taskID, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", params.ID,
+			map[string]any{"title": title}, map[string]any{"title": title, "content": content, "tags": tags, "pinned": req.Pinned}, true); ok {
+			writePending(w, eff, map[string]any{"id": uuidToString(eff.ID), "title": title, "pending_approval": true})
+			return
+		}
+	}
 	note, err := h.Queries.CreateWorkspaceNote(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create workspace note: "+err.Error())
@@ -380,6 +388,26 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		params.Pinned = pgtype.Bool{Bool: *req.Pinned, Valid: true}
 	}
 
+	// "Show me first" (K69): a preview-mode run's edit is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview {
+		payload := map[string]any{}
+		if req.Title != nil {
+			payload["title"] = params.Title.String
+		}
+		if req.Content != nil {
+			payload["content"] = params.Content.String
+		}
+		if req.Tags != nil {
+			payload["tags"] = params.Tags
+		}
+		if req.Pinned != nil {
+			payload["pinned"] = *req.Pinned
+		}
+		if eff, ok := h.recordPending(r, agentID, taskID, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID, map[string]any{"title": note.Title}, payload, true); ok {
+			writePending(w, eff, workspaceNoteToResponse(note))
+			return
+		}
+	}
 	updated, err := h.Queries.UpdateWorkspaceNote(r.Context(), params)
 	if errors.Is(err, pgx.ErrNoRows) {
 		// The note exists (loadWorkspaceNote just read it), so the only way
@@ -431,6 +459,13 @@ func (h *Handler) setWorkspaceNoteArchived(w http.ResponseWriter, r *http.Reques
 		params.MergedInto = note.MergedInto
 	}
 
+	if agentID, taskID, preview := h.previewRun(r); preview && archived {
+		// "Show me first" (K69): held for approval.
+		if eff, ok := h.recordPending(r, agentID, taskID, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteArchive, "workspace_note", note.ID, map[string]any{"archived": true}, map[string]any{"archived": true}, true); ok {
+			writePending(w, eff, workspaceNoteToResponse(note))
+			return
+		}
+	}
 	updated, err := h.Queries.SetWorkspaceNoteArchived(r.Context(), params)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note")

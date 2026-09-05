@@ -1076,7 +1076,12 @@
     "history_empty": "尚无变更。",
     "demotion": "降级",
     "by_member": "由成员",
-    "by_system": "系统建议"
+    "by_system": "系统建议",
+    "preview_title": "先给我看看",
+    "preview_description": "智能体对议题、评论、笔记和分诊的写入会保留到运行结束，然后由你在一个决策中批准或丢弃。已批准的写入在撤销窗口内仍可撤销。",
+    "preview_on": "已开启「先给我看看」：接下来的运行会等待你的批准",
+    "preview_off": "已关闭「先给我看看」：写入会即时应用",
+    "preview_failed": "无法更改效果模式"
   },
   "competency": {
     "title": "按领域的能力",

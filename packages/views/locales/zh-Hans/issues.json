@@ -1280,13 +1280,17 @@
       "reversed": "已撤销",
       "expired": "已过期",
       "not_reversible": "不可撤销",
-      "failed": "撤销失败"
+      "failed": "撤销失败",
+      "held": "等待批准",
+      "approved": "已批准",
+      "rejected": "已丢弃"
     },
     "reasons": {
       "already_reversed": "已撤销",
       "not_reversible": "不可撤销",
       "window_expired": "已过期",
-      "reverse_failed": "撤销失败"
+      "reverse_failed": "撤销失败",
+      "not_applied": "保留的写入，无需撤销"
     },
     "kinds": {
       "issue_status": "状态 {{from}} → {{to}}",
@@ -1298,7 +1302,8 @@
       "note_update": "已编辑笔记：{{title}}",
       "note_archive": "笔记已归档",
       "triage_verdict": "分诊判定：{{verdict}}",
-      "issue_create": "已创建议题：{{title}}"
+      "issue_create": "已创建议题：{{title}}",
+      "issue_update": "议题更新：{{fields}}"
     }
   },
   "ci_auto_fix": {

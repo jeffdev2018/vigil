@@ -33,12 +33,13 @@ func (q *Queries) CountAgentRunsReversedSince(ctx context.Context, arg CountAgen
 const createAgentEffect = `-- name: CreateAgentEffect :one
 INSERT INTO agent_effect (
     id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id,
-    before, after, reversible
+    before, after, reversible, status, payload
 ) VALUES (
     $1, $2, $3, $4, $9::uuid, $5, $6, $7,
-    $10::jsonb, $11::jsonb, $8
+    $10::jsonb, $11::jsonb, $8,
+    $12, $13::jsonb
 )
-RETURNING id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at
+RETURNING id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id
 `
 
 type CreateAgentEffectParams struct {
@@ -53,6 +54,8 @@ type CreateAgentEffectParams struct {
 	IssueID     pgtype.UUID `json:"issue_id"`
 	Before      []byte      `json:"before"`
 	After       []byte      `json:"after"`
+	Status      string      `json:"status"`
+	Payload     []byte      `json:"payload"`
 }
 
 func (q *Queries) CreateAgentEffect(ctx context.Context, arg CreateAgentEffectParams) (AgentEffect, error) {
@@ -68,6 +71,8 @@ func (q *Queries) CreateAgentEffect(ctx context.Context, arg CreateAgentEffectPa
 		arg.IssueID,
 		arg.Before,
 		arg.After,
+		arg.Status,
+		arg.Payload,
 	)
 	var i AgentEffect
 	err := row.Scan(
@@ -87,12 +92,15 @@ func (q *Queries) CreateAgentEffect(ctx context.Context, arg CreateAgentEffectPa
 		&i.ReversedByID,
 		&i.ReverseError,
 		&i.CreatedAt,
+		&i.Status,
+		&i.Payload,
+		&i.DecisionID,
 	)
 	return i, err
 }
 
 const getAgentEffect = `-- name: GetAgentEffect :one
-SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at FROM agent_effect WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect WHERE id = $1 AND workspace_id = $2
 `
 
 type GetAgentEffectParams struct {
@@ -120,12 +128,61 @@ func (q *Queries) GetAgentEffect(ctx context.Context, arg GetAgentEffectParams) 
 		&i.ReversedByID,
 		&i.ReverseError,
 		&i.CreatedAt,
+		&i.Status,
+		&i.Payload,
+		&i.DecisionID,
 	)
 	return i, err
 }
 
+const listAgentEffectsForDecision = `-- name: ListAgentEffectsForDecision :many
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
+WHERE decision_id = $1
+ORDER BY created_at ASC, id ASC
+`
+
+func (q *Queries) ListAgentEffectsForDecision(ctx context.Context, decisionID pgtype.UUID) ([]AgentEffect, error) {
+	rows, err := q.db.Query(ctx, listAgentEffectsForDecision, decisionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentEffect{}
+	for rows.Next() {
+		var i AgentEffect
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TaskID,
+			&i.AgentID,
+			&i.IssueID,
+			&i.Kind,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Before,
+			&i.After,
+			&i.Reversible,
+			&i.ReversedAt,
+			&i.ReversedByType,
+			&i.ReversedByID,
+			&i.ReverseError,
+			&i.CreatedAt,
+			&i.Status,
+			&i.Payload,
+			&i.DecisionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAgentEffectsForIssue = `-- name: ListAgentEffectsForIssue :many
-SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at FROM agent_effect
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
 WHERE workspace_id = $1 AND issue_id = $2
 ORDER BY created_at DESC, id DESC
 LIMIT 200
@@ -162,6 +219,9 @@ func (q *Queries) ListAgentEffectsForIssue(ctx context.Context, arg ListAgentEff
 			&i.ReversedByID,
 			&i.ReverseError,
 			&i.CreatedAt,
+			&i.Status,
+			&i.Payload,
+			&i.DecisionID,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +234,7 @@ func (q *Queries) ListAgentEffectsForIssue(ctx context.Context, arg ListAgentEff
 }
 
 const listAgentEffectsForTask = `-- name: ListAgentEffectsForTask :many
-SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at FROM agent_effect
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
 WHERE workspace_id = $1 AND task_id = $2
 ORDER BY created_at DESC, id DESC
 `
@@ -211,6 +271,56 @@ func (q *Queries) ListAgentEffectsForTask(ctx context.Context, arg ListAgentEffe
 			&i.ReversedByID,
 			&i.ReverseError,
 			&i.CreatedAt,
+			&i.Status,
+			&i.Payload,
+			&i.DecisionID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPendingAgentEffectsForTask = `-- name: ListPendingAgentEffectsForTask :many
+SELECT id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id FROM agent_effect
+WHERE task_id = $1 AND status = 'pending'
+ORDER BY created_at ASC, id ASC
+`
+
+// Oldest first: approval replays the run in the order it happened.
+func (q *Queries) ListPendingAgentEffectsForTask(ctx context.Context, taskID pgtype.UUID) ([]AgentEffect, error) {
+	rows, err := q.db.Query(ctx, listPendingAgentEffectsForTask, taskID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AgentEffect{}
+	for rows.Next() {
+		var i AgentEffect
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.TaskID,
+			&i.AgentID,
+			&i.IssueID,
+			&i.Kind,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Before,
+			&i.After,
+			&i.Reversible,
+			&i.ReversedAt,
+			&i.ReversedByType,
+			&i.ReversedByID,
+			&i.ReverseError,
+			&i.CreatedAt,
+			&i.Status,
+			&i.Payload,
+			&i.DecisionID,
 		); err != nil {
 			return nil, err
 		}
@@ -226,7 +336,7 @@ const markAgentEffectReversed = `-- name: MarkAgentEffectReversed :one
 UPDATE agent_effect
 SET reversed_at = now(), reversed_by_type = $3, reversed_by_id = $4, reverse_error = NULL
 WHERE id = $1 AND workspace_id = $2 AND reversed_at IS NULL
-RETURNING id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at
+RETURNING id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id
 `
 
 type MarkAgentEffectReversedParams struct {
@@ -261,6 +371,61 @@ func (q *Queries) MarkAgentEffectReversed(ctx context.Context, arg MarkAgentEffe
 		&i.ReversedByID,
 		&i.ReverseError,
 		&i.CreatedAt,
+		&i.Status,
+		&i.Payload,
+		&i.DecisionID,
+	)
+	return i, err
+}
+
+const setAgentEffectMode = `-- name: SetAgentEffectMode :one
+UPDATE agent SET effect_mode = $2, updated_at = now() WHERE id = $1 RETURNING id, workspace_id, name, avatar_url, runtime_mode, runtime_config, visibility, status, max_concurrent_tasks, owner_id, created_at, updated_at, description, runtime_id, instructions, archived_at, archived_by, custom_env, custom_args, mcp_config, model, thinking_level, composio_toolkit_allowlist, permission_mode, kind, system_key, disabled_runtime_skills, service_tier, conversation_starters, trust_mode, permission_profile_id, scoped_env_keys, runtime_pool_id, runtime_routing, effect_mode
+`
+
+type SetAgentEffectModeParams struct {
+	ID         pgtype.UUID `json:"id"`
+	EffectMode string      `json:"effect_mode"`
+}
+
+func (q *Queries) SetAgentEffectMode(ctx context.Context, arg SetAgentEffectModeParams) (Agent, error) {
+	row := q.db.QueryRow(ctx, setAgentEffectMode, arg.ID, arg.EffectMode)
+	var i Agent
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.AvatarUrl,
+		&i.RuntimeMode,
+		&i.RuntimeConfig,
+		&i.Visibility,
+		&i.Status,
+		&i.MaxConcurrentTasks,
+		&i.OwnerID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Description,
+		&i.RuntimeID,
+		&i.Instructions,
+		&i.ArchivedAt,
+		&i.ArchivedBy,
+		&i.CustomEnv,
+		&i.CustomArgs,
+		&i.McpConfig,
+		&i.Model,
+		&i.ThinkingLevel,
+		&i.ComposioToolkitAllowlist,
+		&i.PermissionMode,
+		&i.Kind,
+		&i.SystemKey,
+		&i.DisabledRuntimeSkills,
+		&i.ServiceTier,
+		&i.ConversationStarters,
+		&i.TrustMode,
+		&i.PermissionProfileID,
+		&i.ScopedEnvKeys,
+		&i.RuntimePoolID,
+		&i.RuntimeRouting,
+		&i.EffectMode,
 	)
 	return i, err
 }
@@ -279,4 +444,67 @@ type SetAgentEffectReverseErrorParams struct {
 func (q *Queries) SetAgentEffectReverseError(ctx context.Context, arg SetAgentEffectReverseErrorParams) error {
 	_, err := q.db.Exec(ctx, setAgentEffectReverseError, arg.ID, arg.WorkspaceID, arg.ReverseError)
 	return err
+}
+
+const setAgentEffectStatus = `-- name: SetAgentEffectStatus :one
+UPDATE agent_effect SET status = $3, reverse_error = $4
+WHERE id = $1 AND workspace_id = $2
+RETURNING id, workspace_id, task_id, agent_id, issue_id, kind, target_type, target_id, before, after, reversible, reversed_at, reversed_by_type, reversed_by_id, reverse_error, created_at, status, payload, decision_id
+`
+
+type SetAgentEffectStatusParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Status      string      `json:"status"`
+	Error       pgtype.Text `json:"error"`
+}
+
+func (q *Queries) SetAgentEffectStatus(ctx context.Context, arg SetAgentEffectStatusParams) (AgentEffect, error) {
+	row := q.db.QueryRow(ctx, setAgentEffectStatus,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.Status,
+		arg.Error,
+	)
+	var i AgentEffect
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.TaskID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Kind,
+		&i.TargetType,
+		&i.TargetID,
+		&i.Before,
+		&i.After,
+		&i.Reversible,
+		&i.ReversedAt,
+		&i.ReversedByType,
+		&i.ReversedByID,
+		&i.ReverseError,
+		&i.CreatedAt,
+		&i.Status,
+		&i.Payload,
+		&i.DecisionID,
+	)
+	return i, err
+}
+
+const setAgentEffectsDecision = `-- name: SetAgentEffectsDecision :execrows
+UPDATE agent_effect SET decision_id = $2
+WHERE task_id = $1 AND status = 'pending' AND decision_id IS NULL
+`
+
+type SetAgentEffectsDecisionParams struct {
+	TaskID     pgtype.UUID `json:"task_id"`
+	DecisionID pgtype.UUID `json:"decision_id"`
+}
+
+func (q *Queries) SetAgentEffectsDecision(ctx context.Context, arg SetAgentEffectsDecisionParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setAgentEffectsDecision, arg.TaskID, arg.DecisionID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

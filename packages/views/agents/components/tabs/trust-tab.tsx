@@ -4,9 +4,10 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { TRUST_MODES, agentTrustHistoryOptions, agentTrustModeOptions, agentTrustSuggestionOptions, pct, useSetAgentTrustMode, type TrustMode } from "@multica/core/agents/trust";
+import { TRUST_MODES, agentEffectModeOptions, agentTrustHistoryOptions, agentTrustModeOptions, agentTrustSuggestionOptions, pct, useSetAgentEffectMode, useSetAgentTrustMode, type TrustMode } from "@multica/core/agents/trust";
 import type { Agent } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
+import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { useT, useTimeAgo } from "../../../i18n";
@@ -25,6 +26,9 @@ export function TrustTab({ agent, canEdit }: { agent: Agent; canEdit: boolean })
   const { data: suggestion } = useQuery(agentTrustSuggestionOptions(wsId, agent.id));
   const { data: history = [] } = useQuery(agentTrustHistoryOptions(wsId, agent.id));
   const setMode = useSetAgentTrustMode(wsId, agent.id);
+  const { data: effectMode } = useQuery(agentEffectModeOptions(wsId, agent.id));
+  const setEffectMode = useSetAgentEffectMode(wsId, agent.id);
+  const preview = (effectMode?.mode ?? agent.effect_mode ?? "apply") === "preview";
   const [pending, setPending] = useState<TrustMode | null>(null);
   const [reason, setReason] = useState("");
   const current = modeData?.mode ?? agent.trust_mode ?? "propose";
@@ -99,6 +103,25 @@ export function TrustTab({ agent, canEdit }: { agent: Agent; canEdit: boolean })
           </div>
         </div>
       )}
+
+      {/* "Show me first" (K69): the run's writes wait for one approval at the end. */}
+      <div data-testid="effect-mode" data-mode={preview ? "preview" : "apply"} className="flex items-center gap-3 rounded-md border p-3">
+        <div className="flex flex-1 flex-col gap-0.5">
+          <span className="font-medium">{t(($) => $.trust.preview_title)}</span>
+          <span className="text-muted-foreground">{t(($) => $.trust.preview_description)}</span>
+        </div>
+        <Switch
+          aria-label={t(($) => $.trust.preview_title)}
+          checked={preview}
+          disabled={!canEdit || setEffectMode.isPending}
+          onCheckedChange={(on) =>
+            setEffectMode.mutate(on ? "preview" : "apply", {
+              onSuccess: () => toast.success(t(($) => (on ? $.trust.preview_on : $.trust.preview_off))),
+              onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.trust.preview_failed)),
+            })
+          }
+        />
+      </div>
 
       {suggestion && !suggestion.eligible && suggestion.reasons.length > 0 && current !== "autonomous" && (
         <p data-testid="trust-not-yet" className="text-muted-foreground">{t(($) => $.trust.not_yet, { reasons: suggestion.reasons.join(" · ") })}</p>

@@ -1098,7 +1098,12 @@
     "history_empty": "No change yet.",
     "demotion": "demotion",
     "by_member": "by a member",
-    "by_system": "suggested by the system"
+    "by_system": "suggested by the system",
+    "preview_title": "Show me first",
+    "preview_description": "The agent's writes on issues, comments, notes and triage are held until the run ends; you then approve or discard them in one decision. Approved writes stay undoable for the undo window.",
+    "preview_on": "Show me first is on: the next runs wait for your approval",
+    "preview_off": "Show me first is off: writes apply as they come",
+    "preview_failed": "Failed to change the effect mode"
   },
   "competency": {
     "title": "Competency by domain",

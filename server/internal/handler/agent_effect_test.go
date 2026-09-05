@@ -181,7 +181,7 @@ func TestUndoAgentEffects(t *testing.T) {
 	if settings.WindowHours != 48 || settings.BreakerThreshold != 1 {
 		t.Fatalf("settings = %+v", settings)
 	}
-		dbfx.Exec(t, `UPDATE agent_effect SET reversed_at = NULL WHERE agent_id = $1`, agent) // only the next undo counts
+	dbfx.Exec(t, `UPDATE agent_effect SET reversed_at = NULL WHERE agent_id = $1`, agent) // only the next undo counts
 	task4 := dbfx.Task(t, agent, testutil.Cols{"runtime_id": handlerTestRuntimeID(t), "issue_id": issue, "status": "running"})
 	testutil.Call(t, testHandler.UpdateIssue, testutil.WithURLParams(
 		runRequest(agent, task4, http.MethodPut, "/api/issues/"+issue, map[string]any{"status": "in_progress"}), "id", issue)).Want(http.StatusOK)

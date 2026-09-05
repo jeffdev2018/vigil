@@ -1280,13 +1280,17 @@
       "reversed": "取り消し済み",
       "expired": "期限切れ",
       "not_reversible": "取り消し不可",
-      "failed": "取り消し失敗"
+      "failed": "取り消し失敗",
+      "held": "承認待ち",
+      "approved": "承認済み",
+      "rejected": "破棄"
     },
     "reasons": {
       "already_reversed": "取り消し済み",
       "not_reversible": "取り消し不可",
       "window_expired": "期限切れ",
-      "reverse_failed": "取り消し失敗"
+      "reverse_failed": "取り消し失敗",
+      "not_applied": "保留中の書き込み、取り消す対象なし"
     },
     "kinds": {
       "issue_status": "ステータス {{from}} → {{to}}",
@@ -1298,7 +1302,8 @@
       "note_update": "ノート編集: {{title}}",
       "note_archive": "ノートをアーカイブ",
       "triage_verdict": "トリアージ判定: {{verdict}}",
-      "issue_create": "Issue 作成: {{title}}"
+      "issue_create": "Issue 作成: {{title}}",
+      "issue_update": "Issue の更新: {{fields}}"
     }
   },
   "ci_auto_fix": {

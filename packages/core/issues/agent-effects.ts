@@ -30,6 +30,10 @@ export interface AgentEffect {
   before: Record<string, unknown>;
   after: Record<string, unknown>;
   reversible: boolean;
+  /** applied | pending | approved | rejected (held writes of a preview-mode run) */
+  status: string;
+  decision_id: string | null;
+  payload: Record<string, unknown>;
   reversed_at: string | null;
   reversed_by_type: string | null;
   reverse_error: string | null;
@@ -125,8 +129,13 @@ export function groupEffectsByRun(effects: AgentEffect[]): AgentEffectRun[] {
   return runs;
 }
 
-/** pending = can be reversed now; reversed / expired / not_reversible / failed otherwise. */
-export function effectState(e: AgentEffect): "pending" | "reversed" | "expired" | "not_reversible" | "failed" {
+export type AgentEffectState = "pending" | "reversed" | "expired" | "not_reversible" | "failed" | "held" | "approved" | "rejected";
+
+/** pending = can be reversed now; held / approved / rejected for a preview-mode write; reversed / expired / not_reversible / failed otherwise. */
+export function effectState(e: AgentEffect): AgentEffectState {
+  if (e.status === "pending") return "held";
+  if (e.status === "approved") return "approved";
+  if (e.status === "rejected") return "rejected";
   if (e.reversed_at) return "reversed";
   if (!e.reversible) return "not_reversible";
   if (e.reverse_error) return "failed";

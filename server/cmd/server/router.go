@@ -2170,6 +2170,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/suggestions", h.GetAgentTrustSuggestion)
 				r.Get("/history", h.ListAgentTrustHistory)
 			})
+			// "Show me first" (K69): hold the agent's writes for approval.
+			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
+			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
 			// Permission profiles (K06): what an agent may touch when it runs.
 			r.Route("/api/permission-profiles", func(r chi.Router) {
 				r.Get("/", h.ListPermissionProfiles)

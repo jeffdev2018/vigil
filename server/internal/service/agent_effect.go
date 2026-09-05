@@ -26,6 +26,23 @@ const (
 	EffectNoteArchive   = "note_archive"
 	EffectTriageVerdict = "triage_verdict"
 	EffectIssueCreate   = "issue_create"
+	// EffectIssueUpdate is the pending shape of an issue write: the request
+	// fields, replayed on approval and journaled as the kinds above.
+	EffectIssueUpdate = "issue_update"
+)
+
+// Effect statuses.
+const (
+	EffectApplied  = "applied"
+	EffectPending  = "pending"
+	EffectApproved = "approved"
+	EffectRejected = "rejected"
+)
+
+// Agent effect modes: apply writes as they come, or hold them for approval.
+const (
+	EffectModeApply   = "apply"
+	EffectModePreview = "preview"
 )
 
 type AgentEffectParams struct {
@@ -58,9 +75,31 @@ func RecordAgentEffect(ctx context.Context, q *db.Queries, p AgentEffectParams) 
 	if _, err := q.CreateAgentEffect(ctx, db.CreateAgentEffectParams{
 		ID: dbid.NewV7(), WorkspaceID: p.WorkspaceID, TaskID: p.TaskID, AgentID: p.AgentID, IssueID: p.IssueID,
 		Kind: p.Kind, TargetType: p.TargetType, TargetID: p.TargetID, Before: before, After: after, Reversible: p.Reversible,
+		Status: EffectApplied, Payload: []byte("{}"),
 	}); err != nil {
 		slog.Warn("agent effect: record failed", "kind", p.Kind, "task_id", p.TaskID, "error", err)
 	}
+}
+
+// RecordPendingAgentEffect journals a write an agent in preview mode asked
+// for but that was not applied: payload is what approval will replay.
+func RecordPendingAgentEffect(ctx context.Context, q *db.Queries, p AgentEffectParams, payload map[string]any) (db.AgentEffect, error) {
+	raw, err := json.Marshal(orEmpty(payload))
+	if err != nil {
+		return db.AgentEffect{}, err
+	}
+	after, _ := json.Marshal(orEmpty(p.After))
+	return q.CreateAgentEffect(ctx, db.CreateAgentEffectParams{
+		ID: dbid.NewV7(), WorkspaceID: p.WorkspaceID, TaskID: p.TaskID, AgentID: p.AgentID, IssueID: p.IssueID,
+		Kind: p.Kind, TargetType: p.TargetType, TargetID: p.TargetID, Before: []byte("{}"), After: after, Reversible: p.Reversible,
+		Status: EffectPending, Payload: raw,
+	})
+}
+
+// AgentPreviewsEffects reports whether the agent holds its writes for approval.
+func AgentPreviewsEffects(ctx context.Context, q *db.Queries, agentID pgtype.UUID) bool {
+	agent, err := q.GetAgent(ctx, agentID)
+	return err == nil && agent.EffectMode == EffectModePreview
 }
 
 func orEmpty(m map[string]any) map[string]any {

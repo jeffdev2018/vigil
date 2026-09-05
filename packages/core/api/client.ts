@@ -358,6 +358,7 @@ import {
   AuditChainStatusSchema,
   TriageSuggestionsResponseSchema,
   TrustModeEnvelopeSchema,
+  EffectModeEnvelopeSchema,
   PermissionProfileSchema,
   PermissionProfilesEnvelopeSchema,
   AgentPermissionAssignmentSchema,
@@ -3765,6 +3766,17 @@ export class ApiClient {
   async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
     return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  // "Show me first" (K69).
+  async getAgentEffectMode(agentId: string): Promise<import("../agents/trust").EffectModeEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/effect-mode`);
+    return parseWithFallback(raw, EffectModeEnvelopeSchema, { agent_id: agentId, mode: "apply" }, { endpoint: "GET /api/agents/:id/effect-mode" });
+  }
+
+  async setAgentEffectMode(agentId: string, mode: import("../agents/trust").EffectMode): Promise<import("../agents/trust").EffectModeEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/effect-mode`, { method: "PUT", body: JSON.stringify({ mode }) });
+    return parseWithFallback(raw, EffectModeEnvelopeSchema, { agent_id: agentId, mode }, { endpoint: "PUT /api/agents/:id/effect-mode" });
   }
 
   // Undo for agent actions (K69).
