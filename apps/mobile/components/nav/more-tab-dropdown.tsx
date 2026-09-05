@@ -53,6 +53,7 @@ import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { triageStatsOptions } from "@/data/queries/triage";
+import { postmortemStatsOptions } from "@/data/queries/postmortem";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -75,10 +76,10 @@ interface NavItem {
   /**
    * Which pending-work counter to render on the right of the row, if any.
    * Mirrors web's sidebar badges (packages/views/layout/app-sidebar.tsx):
-   * triage counts the pending queue, exactly like the inbox count next to
-   * it — work waiting on a human.
+   * triage counts the pending queue and postmortems count the drafts,
+   * exactly like the inbox count next to them — work waiting on a human.
    */
-  badge?: "triage";
+  badge?: "triage" | "postmortem";
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -90,6 +91,12 @@ const NAV_ITEMS: NavItem[] = [
     icon: "tray.and.arrow.down",
     path: "/more/triage",
     badge: "triage",
+  },
+  {
+    label: "Postmortems",
+    icon: "doc.text.magnifyingglass",
+    path: "/more/postmortems",
+    badge: "postmortem",
   },
 ];
 
@@ -195,13 +202,22 @@ export function MoreTabDropdownAnchor({
  * cleared queue costs no visual noise. Truncated at 99+ like the tab-bar
  * badges in `lib/unread-counts.ts`.
  */
-function NavBadge({ kind }: { kind: "triage" }) {
+function NavBadge({ kind }: { kind: "triage" | "postmortem" }) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  const { data } = useQuery({
+  // Both queries are declared unconditionally (hooks cannot be conditional)
+  // and gated by `enabled` on the branch that is not this row's kind, so a
+  // Triage row never fetches postmortem stats and vice versa.
+  const triage = useQuery({
     ...triageStatsOptions(wsId),
+    enabled: !!wsId && kind === "triage",
     select: (stats) => stats.pending,
   });
-  const count = kind === "triage" ? data ?? 0 : 0;
+  const postmortem = useQuery({
+    ...postmortemStatsOptions(wsId),
+    enabled: !!wsId && kind === "postmortem",
+    select: (stats) => stats.draft,
+  });
+  const count = (kind === "triage" ? triage.data : postmortem.data) ?? 0;
   if (count <= 0) return null;
   return (
     <View className="rounded-full bg-secondary px-1.5 py-0.5">

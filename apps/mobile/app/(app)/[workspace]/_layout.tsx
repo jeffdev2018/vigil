@@ -323,6 +323,16 @@ export default function WorkspaceLayout() {
           name="triage/[id]"
           options={{ title: "Triage item", headerBackTitle: "Triage" }}
         />
+        {/* Postmortems (k68). Detail has a real GET endpoint, so it survives
+            a cold entry from a `postmortem_ready` inbox notification. */}
+        <Stack.Screen
+          name="more/postmortems"
+          options={{ title: "Postmortems", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="postmortem/[id]"
+          options={{ title: "Postmortem", headerBackTitle: "Back" }}
+        />
         <Stack.Screen
           name="more/settings"
           options={{ title: "Settings", headerBackTitle: "Back" }}

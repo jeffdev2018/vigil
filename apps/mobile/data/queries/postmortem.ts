@@ -1,26 +1,30 @@
 /**
  * Postmortem cache key factory + query options.
  *
- * Key shape mirrors web `packages/core/postmortem/queries.ts` —
- * `["postmortems", wsId, "list", state]` / `["postmortems", wsId, "stats"]` /
- * `["postmortems", wsId, "detail", id]`.
+ * Key shape mirrors web `packages/core/postmortem/queries.ts` verbatim —
+ * `["postmortem", wsId]` / `…, "stats"]` / `…, "items", state]`. The prefix
+ * is singular there and stays singular here so a reader switching between
+ * clients finds the same key.
  *
- * Unlike triage, postmortems DO have a detail endpoint
- * (`GET /api/postmortems/{id}`), so the detail screen owns a real query and
- * survives a cold deep link from an inbox `postmortem_ready` notification.
+ * `detail` is mobile-only and has no web counterpart: web reads the selected
+ * postmortem out of the already-fetched infinite pages because its detail is
+ * a pane next to the list. Mobile pushes a route, which can be entered cold
+ * (a `postmortem_ready` inbox notification, a process restart), so it needs
+ * the real `GET /api/postmortems/{id}` endpoint behind it.
  */
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import type { Postmortem, PostmortemState } from "@multica/core/types";
 import { api } from "@/data/api";
 
+/** Matches the server default page size (`postmortemDefaultPageSize`). */
 const PAGE_SIZE = 50;
 
 export const postmortemKeys = {
-  all: (wsId: string | null) => ["postmortems", wsId] as const,
+  all: (wsId: string | null) => ["postmortem", wsId] as const,
   stats: (wsId: string | null) =>
     [...postmortemKeys.all(wsId), "stats"] as const,
-  list: (wsId: string | null, state: PostmortemState) =>
-    [...postmortemKeys.all(wsId), "list", state] as const,
+  items: (wsId: string | null, state: PostmortemState) =>
+    [...postmortemKeys.all(wsId), "items", state] as const,
   detail: (wsId: string | null, id: string) =>
     [...postmortemKeys.all(wsId), "detail", id] as const,
 };
@@ -32,12 +36,12 @@ export const postmortemStatsOptions = (wsId: string | null) =>
     enabled: !!wsId,
   });
 
-export const postmortemListOptions = (
+export const postmortemItemsOptions = (
   wsId: string | null,
   state: PostmortemState,
 ) =>
   infiniteQueryOptions({
-    queryKey: postmortemKeys.list(wsId, state),
+    queryKey: postmortemKeys.items(wsId, state),
     queryFn: ({ pageParam, signal }) =>
       api.listPostmortems(
         { state, limit: PAGE_SIZE, cursor: pageParam ?? undefined },
