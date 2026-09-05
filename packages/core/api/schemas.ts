@@ -96,6 +96,8 @@ import type {
   TimelineEntry,
   User,
   WebhookDelivery,
+  WebhookTriggerDryRunResult,
+  ScheduleTriggerDryRunResult,
   WorkspaceMcpServer,
   MergeReadiness,
   PRStack,
@@ -2746,6 +2748,51 @@ export const CronPreviewResponseSchema = z.object({
 
 export const UNREADABLE_CRON_PREVIEW_RESPONSE: CronPreviewResponse = {
   next_runs: null,
+};
+
+// ---------------------------------------------------------------------------
+// Trigger dry-runs. `reason_code` stays `z.string()` (the reason enum is
+// server-canonical and the UI renders unknown codes verbatim), and
+// `matched_filters` defaults to [] so an older server that omits it degrades
+// to "no filter named" instead of collapsing the whole verdict.
+//
+// `would_run` has NO default: a verdict we cannot read must not masquerade as
+// "this event would be dropped" — the fallbacks below say so explicitly.
+// ---------------------------------------------------------------------------
+
+export const WebhookTriggerDryRunSchema = z.object({
+  would_run: z.boolean(),
+  reason_code: z.string().nullable().default(null),
+  explanation: z.string().default(""),
+  matched_filters: z
+    .array(z.object({ event: z.string(), actions: z.array(z.string()).optional() }).loose())
+    .default([]),
+  event: z.string().default(""),
+}).loose();
+
+export const ScheduleTriggerDryRunSchema = z.object({
+  next_runs: z.array(z.string()),
+  would_run: z.boolean(),
+  reason_code: z.string().nullable().default(null),
+  window_minutes: z.number().default(0),
+}).loose();
+
+// `unreadable` is the sentinel both dry-run surfaces branch on: it is neither
+// "would run" nor a named blocking reason, so the UI says the preview could
+// not be read rather than inventing a verdict.
+export const UNREADABLE_WEBHOOK_DRY_RUN: WebhookTriggerDryRunResult = {
+  would_run: false,
+  reason_code: "unreadable",
+  explanation: "",
+  matched_filters: [],
+  event: "",
+};
+
+export const UNREADABLE_SCHEDULE_DRY_RUN: ScheduleTriggerDryRunResult = {
+  next_runs: [],
+  would_run: false,
+  reason_code: "unreadable",
+  window_minutes: 0,
 };
 
 export const EMPTY_WEBHOOK_DELIVERY: WebhookDelivery = {

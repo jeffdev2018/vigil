@@ -113,6 +113,8 @@ export interface AutopilotTrigger {
   event_filters?: WebhookEventFilter[] | null;
   /** Natural-language routing rule for webhook triggers; empty means none. */
   event_match_criteria?: string;
+  /** Signing/dedupe convention: "generic" or "github". Webhook triggers only. */
+  provider?: string | null;
   last_fired_at: string | null;
   created_at: string;
   updated_at: string;
@@ -286,4 +288,37 @@ export interface WebhookDelivery {
 export interface ListWebhookDeliveriesResponse {
   deliveries: WebhookDelivery[];
   total: number;
+}
+
+// ---------------------------------------------------------------------------
+// Trigger dry-runs. Both replay a real decision without any side effect: no
+// delivery row, no run, no last_fired_at. `reason_code` is the SAME enum the
+// delivery rows carry, so one localization table serves both surfaces.
+// ---------------------------------------------------------------------------
+
+export interface WebhookTriggerDryRunRequest {
+  /** The event body exactly as a provider would POST it. */
+  payload: unknown;
+  /** Headers the normalizer reads for event inference (X-GitHub-Event, …). */
+  headers?: Record<string, string>;
+}
+
+export interface WebhookTriggerDryRunResult {
+  would_run: boolean;
+  /** Null when the event would run. Unknown codes must render verbatim. */
+  reason_code: string | null;
+  /** The classifier's own sentence; "" when no routing rule was consulted. */
+  explanation: string;
+  /** The event_filters rows that admitted the event; empty when none declared. */
+  matched_filters: WebhookEventFilter[];
+  /** The normalized event name the decision actually judged. */
+  event: string;
+}
+
+export interface ScheduleTriggerDryRunResult {
+  /** Next windowed occurrences, RFC3339 UTC, ascending. Empty = never fires. */
+  next_runs: string[];
+  would_run: boolean;
+  reason_code: string | null;
+  window_minutes: number;
 }

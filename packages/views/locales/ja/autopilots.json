@@ -258,6 +258,32 @@
       "disabled_queued": "まだキュー待ちです。処理が落ち着いてから再実行してください"
     }
   },
+  "dry_run": {
+    "open": "サンプルイベントでテスト",
+    "title": "サンプルイベントでテスト",
+    "description": "このペイロードを配信判定の全工程（フィルター、ルーティング条件、一時停止状態、実行上限）に通して再生します。配信も実行も記録されません。",
+    "sample_label": "サンプル",
+    "payload_label": "イベントペイロード (JSON)",
+    "run": "ドライランを実行",
+    "running": "実行中...",
+    "replay_action": "ドライランとして再生",
+    "invalid_json": "JSON が不正です: {{message}}",
+    "invalid_shape": "ペイロードは JSON のオブジェクトまたは配列である必要があります。",
+    "verdict_would_run": "このイベントはオートパイロットを実行します",
+    "verdict_blocked": "このイベントはオートパイロットを実行しません",
+    "verdict_unreadable": "判定結果を読み取れませんでした",
+    "matched_filters": "一致したフィルター:",
+    "toast_failed": "ドライランに失敗しました"
+  },
+  "next_runs": {
+    "label": "次回の実行",
+    "loading": "読み込み中...",
+    "unavailable": "次回の実行を取得できません",
+    "never": "このスケジュールは今後実行されません。",
+    "blocked": "実行されません: {{reason}}",
+    "blocked_unknown": "ブロック中",
+    "window_hint": "予定時刻から {{minutes}} 分以内のランダムな時刻に実行されます。"
+  },
   "add_trigger_dialog": {
     "title": "トリガーを追加",
     "type_label": "種類",

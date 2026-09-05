@@ -258,6 +258,32 @@
       "disabled_queued": "Still queued — replay once it settles"
     }
   },
+  "dry_run": {
+    "open": "Test with a sample event",
+    "title": "Test with a sample event",
+    "description": "Replays this payload through the whole delivery decision — filters, routing criteria, pause state and run limit. Nothing is recorded: no delivery, no run.",
+    "sample_label": "Sample",
+    "payload_label": "Event payload (JSON)",
+    "run": "Run dry-run",
+    "running": "Running...",
+    "replay_action": "Replay as dry-run",
+    "invalid_json": "Invalid JSON: {{message}}",
+    "invalid_shape": "The payload must be a JSON object or array.",
+    "verdict_would_run": "This event would run the autopilot",
+    "verdict_blocked": "This event would not run the autopilot",
+    "verdict_unreadable": "The verdict could not be read",
+    "matched_filters": "Matched filters:",
+    "toast_failed": "Dry-run failed"
+  },
+  "next_runs": {
+    "label": "Next runs",
+    "loading": "Loading...",
+    "unavailable": "Next runs unavailable",
+    "never": "This schedule never fires again.",
+    "blocked": "Would not run: {{reason}}",
+    "blocked_unknown": "blocked",
+    "window_hint": "Fires at a random minute within {{minutes}} minutes of the scheduled time."
+  },
   "add_trigger_dialog": {
     "title": "Add Trigger",
     "type_label": "Type",

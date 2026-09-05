@@ -17,6 +17,8 @@ export const autopilotKeys = {
     [...autopilotKeys.all(wsId), "deliveries", autopilotId, deliveryId] as const,
   cronPreview: (wsId: string, expr: string, tz: string, windowMinutes: number) =>
     [...autopilotKeys.all(wsId), "cron-preview", expr, tz, windowMinutes] as const,
+  scheduleDryRun: (wsId: string, autopilotId: string, triggerId: string) =>
+    [...autopilotKeys.all(wsId), "dry-run", autopilotId, triggerId] as const,
 };
 
 export function autopilotQuotaUsageOptions(wsId: string) {
@@ -120,6 +122,27 @@ export function cronPreviewOptions(
     staleTime: 30_000,
     // A 400 (invalid expression/timezone) is a stable answer for this input,
     // not a transient failure — retrying would only delay the inline error.
+    retry: false,
+  });
+}
+
+// scheduleTriggerDryRunOptions previews a saved schedule trigger: the next
+// firing instants the scheduler itself would pick, plus whatever would
+// suppress the dispatch. Server-computed — the band offset is derived from the
+// trigger id and the client cannot reproduce it.
+export function scheduleTriggerDryRunOptions(
+  wsId: string,
+  autopilotId: string,
+  triggerId: string,
+  options?: { enabled?: boolean },
+) {
+  return queryOptions({
+    queryKey: autopilotKeys.scheduleDryRun(wsId, autopilotId, triggerId),
+    queryFn: () => api.dryRunAutopilotScheduleTrigger(autopilotId, triggerId),
+    enabled: options?.enabled ?? true,
+    staleTime: 30_000,
+    // A 400 (the stored cron no longer parses) is a stable answer for this
+    // trigger, not a transient failure — retrying only delays the message.
     retry: false,
   });
 }

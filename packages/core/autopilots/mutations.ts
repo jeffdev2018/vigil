@@ -3,6 +3,7 @@ import { api } from "../api";
 import { autopilotKeys } from "./queries";
 import { useWorkspaceId } from "../hooks";
 import type {
+  WebhookTriggerDryRunRequest,
   CreateAutopilotRequest,
   UpdateAutopilotRequest,
   ListAutopilotsResponse,
@@ -192,3 +193,19 @@ export function useReplayAutopilotDelivery() {
     },
   });
 }
+
+// A webhook dry-run writes nothing, so it invalidates nothing. It is a
+// mutation rather than a query because the caller decides when to spend the
+// classifier call — a query keyed on the payload would re-fire on every
+// keystroke in the editor.
+export function useDryRunAutopilotWebhookTrigger() {
+  return useMutation({
+    mutationFn: ({
+      autopilotId,
+      triggerId,
+      ...body
+    }: { autopilotId: string; triggerId: string } & WebhookTriggerDryRunRequest) =>
+      api.dryRunAutopilotWebhookTrigger(autopilotId, triggerId, body),
+  });
+}
+

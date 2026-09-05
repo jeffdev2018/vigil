@@ -9,6 +9,7 @@ const mockCreateTrigger = vi.hoisted(() => vi.fn());
 const mockUpdateTrigger = vi.hoisted(() => vi.fn());
 const mockDeleteTrigger = vi.hoisted(() => vi.fn());
 const mockRotateToken = vi.hoisted(() => vi.fn());
+const mockDryRun = vi.hoisted(() => vi.fn());
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-test" }));
 
@@ -23,6 +24,22 @@ vi.mock("@multica/core/autopilots/queries", () => ({
     queryFn: async () => ({ next_runs: ["2126-07-14T01:00:00Z"] }),
     retry: false,
   }),
+  scheduleTriggerDryRunOptions: (
+    wsId: string,
+    autopilotId: string,
+    triggerId: string,
+    options?: { enabled?: boolean },
+  ) => ({
+    queryKey: ["schedule-dry-run", wsId, autopilotId, triggerId],
+    queryFn: async () => ({
+      next_runs: ["2126-07-14T08:30:00Z"],
+      would_run: true,
+      reason_code: null,
+      window_minutes: 120,
+    }),
+    enabled: options?.enabled ?? true,
+    retry: false,
+  }),
 }));
 
 vi.mock("@multica/core/autopilots/mutations", () => ({
@@ -31,6 +48,10 @@ vi.mock("@multica/core/autopilots/mutations", () => ({
   useDeleteAutopilotTrigger: () => ({ mutateAsync: mockDeleteTrigger }),
   useRotateAutopilotTriggerWebhookToken: () => ({
     mutateAsync: mockRotateToken,
+    isPending: false,
+  }),
+  useDryRunAutopilotWebhookTrigger: () => ({
+    mutateAsync: mockDryRun,
     isPending: false,
   }),
 }));
@@ -73,6 +94,13 @@ beforeEach(() => {
   mockUpdateTrigger.mockReset().mockResolvedValue({ id: "trg-1" });
   mockDeleteTrigger.mockReset().mockResolvedValue(undefined);
   mockRotateToken.mockReset().mockResolvedValue({ id: "trg-1" });
+  mockDryRun.mockReset().mockResolvedValue({
+    would_run: true,
+    reason_code: null,
+    explanation: "",
+    matched_filters: [],
+    event: "github.push",
+  });
 });
 
 describe("AddTriggerDialog", () => {
@@ -207,5 +235,67 @@ describe("TriggerRow edit dialog", () => {
     });
     expect(patch.cron_expression).toBeUndefined();
     expect(patch.window_minutes).toBeUndefined();
+  });
+});
+
+describe("TriggerRow schedule preview", () => {
+  it("asks the server for the next runs only once expanded", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    // Collapsed: a detail page with several schedules must not fan out into
+    // one request per row nobody asked for.
+    expect(screen.queryByText(/Fires at a random minute/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Next runs" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Fires at a random minute within 120 minutes of the scheduled time."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("offers no dry-run on a schedule trigger", () => {
+    renderWithQuery(
+      <TriggerRow trigger={trigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Test with a sample event" }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("TriggerRow webhook dry-run", () => {
+  const webhookTrigger = () =>
+    trigger({
+      kind: "webhook",
+      cron_expression: null,
+      timezone: null,
+      webhook_token: "awt_token",
+      webhook_path: "/api/webhooks/autopilots/awt_token",
+      provider: "generic",
+    });
+
+  it("opens the dry-run dialog from the row", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow trigger={webhookTrigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Test with a sample event" }));
+
+    expect(screen.getByLabelText("Event payload (JSON)")).toBeInTheDocument();
+  });
+
+  it("hides the dry-run from read-only viewers — the classifier call is billable", () => {
+    renderWithQuery(
+      <TriggerRow trigger={webhookTrigger()} autopilotId={AUTOPILOT_ID} canWrite={false} />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Test with a sample event" }),
+    ).not.toBeInTheDocument();
   });
 });

@@ -258,6 +258,32 @@
       "disabled_queued": "아직 대기 중입니다. 처리된 후 재실행하세요"
     }
   },
+  "dry_run": {
+    "open": "샘플 이벤트로 테스트",
+    "title": "샘플 이벤트로 테스트",
+    "description": "이 페이로드를 전체 전달 판정(필터, 라우팅 기준, 일시중지 상태, 실행 한도)에 그대로 통과시킵니다. 전달도 실행도 기록되지 않습니다.",
+    "sample_label": "샘플",
+    "payload_label": "이벤트 페이로드 (JSON)",
+    "run": "드라이런 실행",
+    "running": "실행 중...",
+    "replay_action": "드라이런으로 재생",
+    "invalid_json": "잘못된 JSON: {{message}}",
+    "invalid_shape": "페이로드는 JSON 객체 또는 배열이어야 합니다.",
+    "verdict_would_run": "이 이벤트는 오토파일럿을 실행합니다",
+    "verdict_blocked": "이 이벤트는 오토파일럿을 실행하지 않습니다",
+    "verdict_unreadable": "판정 결과를 읽을 수 없습니다",
+    "matched_filters": "일치한 필터:",
+    "toast_failed": "드라이런에 실패했습니다"
+  },
+  "next_runs": {
+    "label": "다음 실행",
+    "loading": "불러오는 중...",
+    "unavailable": "다음 실행을 가져올 수 없습니다",
+    "never": "이 일정은 다시 실행되지 않습니다.",
+    "blocked": "실행되지 않음: {{reason}}",
+    "blocked_unknown": "차단됨",
+    "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
+  },
   "add_trigger_dialog": {
     "title": "트리거 추가",
     "type_label": "유형",

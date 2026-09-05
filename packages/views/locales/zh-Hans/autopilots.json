@@ -258,6 +258,32 @@
       "disabled_queued": "投递仍在排队，处理完成后再重放"
     }
   },
+  "dry_run": {
+    "open": "用示例事件测试",
+    "title": "用示例事件测试",
+    "description": "把这个负载完整走一遍投递判定：事件过滤、路由条件、暂停状态和运行额度。不会留下任何记录，既不产生投递也不产生运行。",
+    "sample_label": "示例",
+    "payload_label": "事件负载（JSON）",
+    "run": "运行试跑",
+    "running": "运行中…",
+    "replay_action": "以试跑方式重放",
+    "invalid_json": "JSON 无效：{{message}}",
+    "invalid_shape": "负载必须是 JSON 对象或数组。",
+    "verdict_would_run": "这个事件会触发自动驾驶",
+    "verdict_blocked": "这个事件不会触发自动驾驶",
+    "verdict_unreadable": "无法读取判定结果",
+    "matched_filters": "命中的过滤条件：",
+    "toast_failed": "试跑失败"
+  },
+  "next_runs": {
+    "label": "接下来的运行",
+    "loading": "加载中…",
+    "unavailable": "无法获取接下来的运行",
+    "never": "这个计划不会再触发。",
+    "blocked": "不会运行：{{reason}}",
+    "blocked_unknown": "已被拦截",
+    "window_hint": "在计划时间之后的 {{minutes}} 分钟内随机某一分钟触发。"
+  },
   "add_trigger_dialog": {
     "title": "添加触发器",
     "type_label": "类型",
