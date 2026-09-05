@@ -1,0 +1,10 @@
+{
+  "remove_label": "Supprimer l'étiquette {{name}}",
+  "resource_picker": {
+    "empty": "Aucune étiquette",
+    "add": "Ajouter des étiquettes",
+    "search": "Rechercher des étiquettes...",
+    "no_labels": "Créez des étiquettes dans les Réglages au préalable",
+    "no_results": "Aucune étiquette correspondante"
+  }
+}

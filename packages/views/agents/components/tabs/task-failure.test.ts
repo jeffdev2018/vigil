@@ -7,6 +7,7 @@ import enAgents from "../../../locales/en/agents.json";
 import jaAgents from "../../../locales/ja/agents.json";
 import koAgents from "../../../locales/ko/agents.json";
 import zhHansAgents from "../../../locales/zh-Hans/agents.json";
+import frAgents from "../../../locales/fr/agents.json";
 
 import {
   FAILURE_REASON_I18N_KEYS,
@@ -17,6 +18,7 @@ import {
 const AGENT_RESOURCES = {
   en: enAgents,
   "zh-Hans": zhHansAgents,
+  fr: frAgents,
   ja: jaAgents,
   ko: koAgents,
 } as const;
@@ -77,6 +79,7 @@ describe("cancelReasonLabel", () => {
       "zh-Hans": "系统已取消",
       ja: "システムによってキャンセルされました",
       ko: "시스템에서 취소함",
+      fr: "Annulé par le système",
     };
 
     for (const locale of Object.keys(expected) as SupportedLocale[]) {

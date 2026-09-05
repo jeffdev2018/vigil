@@ -1,0 +1,54 @@
+{
+  "header": {
+    "back": "Retour",
+    "log_out": "Déconnexion"
+  },
+  "not_found": {
+    "title": "Invitation non trouvée",
+    "description": "Cette invitation a peut-être expiré, été révoquée ou n'appartient pas à votre compte.",
+    "go_to_dashboard": "Aller au tableau de bord"
+  },
+  "accepted": {
+    "title": "Vous avez rejoint {{workspace_name}}",
+    "redirecting": "Redirection vers le workspace..."
+  },
+  "declined": {
+    "title": "Invitation refusée",
+    "description": "Vous ne serez pas ajouté à ce workspace.",
+    "go_to_dashboard": "Aller au tableau de bord"
+  },
+  "main": {
+    "join_title": "Rejoindre {{workspace_name}}",
+    "fallback_workspace_name": "workspace",
+    "invited_role_admin": "vous a invité à rejoindre en tant qu'administrateur.",
+    "invited_role_member": "vous a invité à rejoindre en tant que membre.",
+    "already_handled_accepted": "Cette invitation a déjà été acceptée.",
+    "already_handled_declined": "Cette invitation a déjà été refusée.",
+    "expired": "Cette invitation a expiré.",
+    "decline": "Refuser",
+    "declining": "Refus en cours...",
+    "accept": "Accepter et rejoindre",
+    "joining": "Rejoindre en cours..."
+  },
+  "errors": {
+    "accept_failed": "Échec de l'acceptation de l'invitation",
+    "decline_failed": "Échec du refus de l'invitation"
+  },
+  "batch": {
+    "log_out": "Déconnexion",
+    "empty_title": "Aucune invitation en attente",
+    "empty_hint": "Continuez la configuration de votre propre workspace.",
+    "empty_continue": "Continuer la configuration",
+    "title": "Vous avez été invité",
+    "subtitle": "Sélectionnez les workspaces que vous souhaitez rejoindre. Vous pourrez gérer le reste plus tard via la barre latérale.",
+    "submit_skip": "Passer et configurer mon propre workspace",
+    "submit_join_one": "Rejoindre 1 workspace",
+    "submit_join_other": "Rejoindre {{count}} workspaces",
+    "joining": "Rejoindre...",
+    "error_generic": "Échec du traitement des invitations. Veuillez réessayer.",
+    "row_workspace_fallback": "Workspace",
+    "row_inviter_fallback": "Quelqu'un",
+    "row_invited_admin": "{{inviter}} vous a invité en tant qu'administrateur",
+    "row_invited_member": "{{inviter}} vous a invité en tant que membre"
+  }
+}

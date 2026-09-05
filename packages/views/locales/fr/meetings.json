@@ -1,0 +1,88 @@
+{
+  "list": {
+    "title": "Réunions",
+    "subtitle": "Conversations enregistrées, transcrites et transformées en actions",
+    "record": "Enregistrer une réunion",
+    "loading": "Chargement des réunions",
+    "load_error": "Impossible de charger les réunions",
+    "empty_title": "Aucune réunion pour le moment",
+    "empty_description": "Enregistrez une conversation et Multica la transcrit en temps réel, rédige un résumé et place chaque action dans Triage.",
+    "segments": "{{count}} segments",
+    "actions": "{{count}} actions",
+    "no_app": "Aucune application"
+  },
+  "capability": {
+    "title": "La transcription n'est pas configurée",
+    "description": "Ce serveur ne dispose d'aucun fournisseur de transcription vocale, les réunions ne peuvent donc pas encore être enregistrées."
+  },
+  "status": {
+    "recording": "Enregistrement",
+    "summarizing": "Résumé en cours",
+    "done": "Terminé",
+    "failed": "Échec",
+    "unknown": "Inconnu"
+  },
+  "detail": {
+    "loading": "Chargement de la réunion",
+    "load_error": "Impossible de charger cette réunion",
+    "back": "Réunions",
+    "started": "Débuté le {{time}}",
+    "ended": "Terminé le {{time}}",
+    "summary_title": "Résumé",
+    "summary_pending": "Rédaction du résumé…",
+    "summary_empty": "Aucun résumé pour le moment",
+    "summary_unavailable": "Aucun résumé n'a été rédigé : la transcription a été conservée, mais aucun modèle de langue n'était disponible.",
+    "actions_title": "Actions",
+    "actions_empty": "Aucune action n'a été extraite",
+    "actions_open_triage": "Examiner dans Triage",
+    "actions_open_issue": "Ouvrir une issue",
+    "transcript_title": "Transcription",
+    "transcript_empty": "Rien n'a encore été transcrit",
+    "transcript_show": "Afficher la transcription",
+    "transcript_hide": "Masquer la transcription"
+  },
+  "recorder": {
+    "starting": "Démarrage de l'enregistreur…",
+    "title": "Enregistrement",
+    "elapsed": "Temps écoulé {{time}}",
+    "stop": "Arrêter",
+    "stopping": "Finalisation…",
+    "consent": "Informez les participants que cette réunion est transcrite.",
+    "mic_only": "L'audio du système n'a pas été partagé, seul le microphone est enregistré.",
+    "last_transcript": "Dernière transcription",
+    "waiting": "En attente de la première transcription…",
+    "open": "Ouvrir la réunion",
+    "error_unsupported": "Ce navigateur ne peut pas enregistrer l'audio.",
+    "error_microphone": "L'accès au microphone a été refusé, l'enregistrement ne peut pas démarrer.",
+    "error_create": "Impossible de démarrer la réunion.",
+    "error_segment": "Un segment n'a pas pu être transcrit.",
+    "error_not_recording": "Cette réunion n'est plus enregistrée.",
+    "error_too_long": "La réunion a atteint sa durée maximale et a été arrêtée.",
+    "error_finish": "Impossible de terminer la réunion.",
+    "error_stt": "La transcription n'est pas configurée sur ce serveur.",
+    "finished": "Réunion résumée",
+    "elsewhere": "Cette réunion est enregistrée depuis un autre appareil ou onglet.",
+    "orphaned": "Cet enregistrement a été interrompu (la page a été fermée ou actualisée). Fermez la réunion pour résumer ce qui a été transcrit.",
+    "finish_now": "Terminer la réunion",
+    "live_title": "Transcription en direct",
+    "live_lost": "La transcription en direct a été interrompue. L'enregistrement continue et chaque segment est transcrit à la fin."
+  },
+  "action_state": {
+    "pending": "En attente",
+    "accepted": "Accepté",
+    "dismissed": "Ignoré",
+    "merged": "Fusionné",
+    "superseded": "Remplacé",
+    "expired": "Expiré",
+    "dropped": "Abandonné"
+  },
+  "detected": {
+    "title_meeting": "Réunion détectée",
+    "title_huddle": "Huddle détecté",
+    "title_call": "Appel détecté",
+    "description": "{{appName}} utilise le microphone. Prendre des notes ?",
+    "accept": "Prendre des notes",
+    "dismiss": "Pas maintenant",
+    "meeting_title": "Réunion {{appName}}"
+  }
+}
