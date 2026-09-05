@@ -313,6 +313,16 @@ export default function WorkspaceLayout() {
           name="more/pins"
           options={{ title: "Pinned", headerBackTitle: "Back" }}
         />
+        {/* Triage queue (M2). List lives under more/, detail is a pushed
+            screen because the body is markdown of arbitrary length. */}
+        <Stack.Screen
+          name="more/triage"
+          options={{ title: "Triage", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="triage/[id]"
+          options={{ title: "Triage item", headerBackTitle: "Triage" }}
+        />
         <Stack.Screen
           name="more/settings"
           options={{ title: "Settings", headerBackTitle: "Back" }}

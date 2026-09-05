@@ -52,6 +52,15 @@ import type {
   NotificationPreferences,
   TaskMessagePayload,
   TimelineEntry,
+  AcceptTriageItemResponse,
+  DismissTriageItemResponse,
+  TriageItemState,
+  TriageItemsResponse,
+  TriageStats,
+  Postmortem,
+  PostmortemState,
+  PostmortemStats,
+  PostmortemsResponse,
   UpdateIssueRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -70,6 +79,17 @@ import {
   ListIssueStatusesResponseSchema,
   TimelineEntriesSchema,
   WorkspaceSubscriptionSummarySchema,
+  AcceptTriageItemResponseSchema,
+  DismissTriageItemResponseSchema,
+  EMPTY_TRIAGE_ITEMS_RESPONSE,
+  EMPTY_TRIAGE_STATS,
+  TriageItemsResponseSchema,
+  TriageStatsSchema,
+  EMPTY_POSTMORTEMS_RESPONSE,
+  EMPTY_POSTMORTEM_STATS,
+  PostmortemSchema,
+  PostmortemStatsSchema,
+  PostmortemsResponseSchema,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -604,6 +624,131 @@ class ApiClient {
     return parseWithFallback(raw, SquadListSchema, EMPTY_SQUAD_LIST, {
       endpoint: "listSquads",
     });
+  }
+
+  // --- Triage queue (M2) ---
+  // Same wire contract as web `packages/core/api/client.ts` (getTriageStats /
+  // listTriageItems / acceptTriageItem / dismissTriageItem /
+  // reopenTriageItem). Schemas + fallbacks come from
+  // @multica/core/api/schemas — pure zod, on the mobile sharing whitelist —
+  // so a backend field drift degrades identically on both platforms.
+  async getTriageStats(opts?: { signal?: AbortSignal }): Promise<TriageStats> {
+    return this.fetchValidated<TriageStats>(
+      "/api/triage/stats",
+      TriageStatsSchema,
+      EMPTY_TRIAGE_STATS,
+      { ...opts, endpoint: "GET /api/triage/stats" },
+    );
+  }
+
+  async listTriageItems(
+    params?: { state?: TriageItemState; limit?: number; cursor?: string },
+    opts?: { signal?: AbortSignal },
+  ): Promise<TriageItemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    return this.fetchValidated<TriageItemsResponse>(
+      `/api/triage/items${qs ? `?${qs}` : ""}`,
+      TriageItemsResponseSchema,
+      EMPTY_TRIAGE_ITEMS_RESPONSE,
+      { ...opts, endpoint: "GET /api/triage/items" },
+    );
+  }
+
+  async acceptTriageItem(itemId: string): Promise<AcceptTriageItemResponse> {
+    return this.fetchValidatedWith<AcceptTriageItemResponse>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/accept`,
+      AcceptTriageItemResponseSchema,
+      { item_id: itemId, state: "accepted" },
+      { method: "POST" },
+      { endpoint: "POST /api/triage/items/:id/accept" },
+    );
+  }
+
+  async dismissTriageItem(itemId: string): Promise<DismissTriageItemResponse> {
+    return this.fetchValidatedWith<DismissTriageItemResponse>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/dismiss`,
+      DismissTriageItemResponseSchema,
+      { item_id: itemId, state: "dismissed" },
+      { method: "POST" },
+      { endpoint: "POST /api/triage/items/:id/dismiss" },
+    );
+  }
+
+  /** Sends a dismissed item back to `pending`. Response body is unused. */
+  async reopenTriageItem(itemId: string): Promise<void> {
+    await this.fetch<unknown>(
+      `/api/triage/items/${encodeURIComponent(itemId)}/reopen`,
+      { method: "POST" },
+    );
+  }
+
+  // --- Postmortems (k68) ---
+  // Same wire contract as web `packages/core/api/client.ts`. Approve/discard
+  // return the updated postmortem (approve also carries `applied_rules`, the
+  // number of preventive rules copied into the agent's memory), so both are
+  // parsed rather than fire-and-forget.
+  async getPostmortemStats(opts?: {
+    signal?: AbortSignal;
+  }): Promise<PostmortemStats> {
+    return this.fetchValidated<PostmortemStats>(
+      "/api/postmortems/stats",
+      PostmortemStatsSchema,
+      EMPTY_POSTMORTEM_STATS,
+      { ...opts, endpoint: "GET /api/postmortems/stats" },
+    );
+  }
+
+  async listPostmortems(
+    params?: { state?: PostmortemState; limit?: number; cursor?: string },
+    opts?: { signal?: AbortSignal },
+  ): Promise<PostmortemsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    if (params?.cursor) search.set("cursor", params.cursor);
+    const qs = search.toString();
+    return this.fetchValidated<PostmortemsResponse>(
+      `/api/postmortems${qs ? `?${qs}` : ""}`,
+      PostmortemsResponseSchema,
+      EMPTY_POSTMORTEMS_RESPONSE,
+      { ...opts, endpoint: "GET /api/postmortems" },
+    );
+  }
+
+  async getPostmortem(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<Postmortem | null> {
+    return this.fetchValidated<Postmortem | null>(
+      `/api/postmortems/${encodeURIComponent(id)}`,
+      PostmortemSchema,
+      null,
+      { ...opts, endpoint: "GET /api/postmortems/:id" },
+    );
+  }
+
+  async approvePostmortem(id: string): Promise<Postmortem | null> {
+    return this.fetchValidatedWith<Postmortem | null>(
+      `/api/postmortems/${encodeURIComponent(id)}/approve`,
+      PostmortemSchema,
+      null,
+      { method: "POST" },
+      { endpoint: "POST /api/postmortems/:id/approve" },
+    );
+  }
+
+  async discardPostmortem(id: string): Promise<Postmortem | null> {
+    return this.fetchValidatedWith<Postmortem | null>(
+      `/api/postmortems/${encodeURIComponent(id)}/discard`,
+      PostmortemSchema,
+      null,
+      { method: "POST" },
+      { endpoint: "POST /api/postmortems/:id/discard" },
+    );
   }
 
   // --- Issues ---

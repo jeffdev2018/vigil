@@ -52,6 +52,7 @@ import {
 import { Text } from "@/components/ui/text";
 import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { workspaceListOptions } from "@/data/queries/workspaces";
+import { triageStatsOptions } from "@/data/queries/triage";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -71,12 +72,25 @@ interface NavItem {
   icon: string;
   /** Path under /:slug/ — final href is `/${slug}${path}`. */
   path: string;
+  /**
+   * Which pending-work counter to render on the right of the row, if any.
+   * Mirrors web's sidebar badges (packages/views/layout/app-sidebar.tsx):
+   * triage counts the pending queue, exactly like the inbox count next to
+   * it — work waiting on a human.
+   */
+  badge?: "triage";
 }
 
 const NAV_ITEMS: NavItem[] = [
   { label: "Pinned", icon: "pin", path: "/more/pins" },
   { label: "Issues", icon: "list.bullet", path: "/more/issues" },
   { label: "Projects", icon: "square.stack", path: "/more/projects" },
+  {
+    label: "Triage",
+    icon: "tray.and.arrow.down",
+    path: "/more/triage",
+    badge: "triage",
+  },
 ];
 
 export function MoreTabDropdownAnchor({
@@ -163,11 +177,37 @@ export function MoreTabDropdownAnchor({
                 tintColor={t.foreground}
                 style={{ width: 18, height: 18 }}
               />
-              <Text className="text-sm text-foreground">{item.label}</Text>
+              <Text className="flex-1 text-sm text-foreground">
+                {item.label}
+              </Text>
+              {item.badge ? <NavBadge kind={item.badge} /> : null}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
+    </View>
+  );
+}
+
+/**
+ * Pending-work counter on a nav row. Mirrors the web sidebar badge
+ * (packages/views/layout/app-sidebar.tsx): rendered only when > 0, so a
+ * cleared queue costs no visual noise. Truncated at 99+ like the tab-bar
+ * badges in `lib/unread-counts.ts`.
+ */
+function NavBadge({ kind }: { kind: "triage" }) {
+  const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const { data } = useQuery({
+    ...triageStatsOptions(wsId),
+    select: (stats) => stats.pending,
+  });
+  const count = kind === "triage" ? data ?? 0 : 0;
+  if (count <= 0) return null;
+  return (
+    <View className="rounded-full bg-secondary px-1.5 py-0.5">
+      <Text className="text-xs text-muted-foreground">
+        {count > 99 ? "99+" : count}
+      </Text>
     </View>
   );
 }
