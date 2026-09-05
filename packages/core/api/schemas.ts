@@ -5072,6 +5072,8 @@ export const ReplayEventSchema = z.object({
   title: z.string().catch("").default(""),
   text: z.string().catch("").default(""),
   data: z.record(z.string(), z.unknown()).catch({}).default({}),
+  data_class: z.string().catch("internal").default("internal"),
+  in_plan: z.boolean().nullable().catch(null).default(null),
   source: z.string().catch("").default(""),
   source_id: z.string().catch("").default(""),
   prev_hash: z.string().catch("").default(""),
@@ -5081,6 +5083,20 @@ export const ReplayEventSchema = z.object({
 export const RunReplaySchema = z.object({
   run: z.object({
     id: z.string().default(""),
+    safe_mode: z.boolean().catch(false).default(false),
+    snapshot: z.object({
+      trust_mode: z.string().catch("").default(""),
+      effect_mode: z.string().catch("").default(""),
+      model: z.string().catch("").default(""),
+      thinking_level: z.string().catch("").default(""),
+      permission_profile_id: z.string().catch("").default(""),
+      runtime_id: z.string().catch("").default(""),
+      safe_mode: z.boolean().catch(false).default(false),
+      plan_version: z.number().catch(0).default(0),
+      recorded_at: z.string().catch("").default(""),
+    }).loose().nullable().catch(null).default(null),
+    plan: z.object({ version: z.number().catch(0).default(0), steps: z.number().catch(0).default(0) }).loose().nullable().catch(null).default(null),
+    drift: z.number().catch(0).default(0),
     issue_id: z.string().catch("").default(""),
     agent_id: z.string().catch("").default(""),
     agent_name: z.string().catch("").default(""),
@@ -5118,4 +5134,9 @@ export const RunReplaySchema = z.object({
 export const ReplayResumeResultSchema = z.object({
   task_id: z.string().default(""),
   from_seq: z.number().catch(0).default(0),
+}).loose();
+
+export const ReplaySimulateResultSchema = z.object({
+  task_id: z.string().default(""),
+  safe_mode: z.boolean().catch(true).default(true),
 }).loose();

@@ -1164,6 +1164,17 @@
       "preempted_by": "Préempté par",
       "review_of": "Revue de",
       "escalation_for": "Escalade pour"
-    }
+    },
+    "snapshot": "Au départ : confiance {{trust}} · effets {{effect}} · modèle {{model}} · plan v{{plan}}",
+    "snapshot_missing": "Pas d'instantané au départ (run antérieur au replay)",
+    "safe_run": "rejeu sûr",
+    "drift": "Hors plan",
+    "in_plan": "Dans le plan",
+    "drift_total": "{{n}} appels hors plan",
+    "redacted": "Caviardé",
+    "safe_button": "Rejouer en mode sûr",
+    "safe_hint": "Le mode sûr retient chaque écriture Multica pour ton approbation et demande à l'agent de décrire les actions externes au lieu de les faire ; les payloads retenus sont la preuve.",
+    "safe_started": "Rejeu sûr lancé",
+    "safe_failed": "Impossible de lancer le rejeu sûr"
   }
 }

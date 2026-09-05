@@ -3840,6 +3840,8 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	slog.Info("task started", "task_id", taskID, "agent_id", uuidToString(task.AgentID))
+	// Replay (K70): what the run started with, as it was at that instant.
+	h.recordRunSnapshot(r.Context(), *task, workspaceID)
 	writeJSON(w, http.StatusOK, taskToResponse(*task, workspaceID))
 }
 

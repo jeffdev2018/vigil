@@ -1142,6 +1142,17 @@
       "preempted_by": "先取り元",
       "review_of": "レビュー対象",
       "escalation_for": "エスカレーション対象"
-    }
+    },
+    "snapshot": "開始時: 信頼 {{trust}} · 効果 {{effect}} · モデル {{model}} · プラン v{{plan}}",
+    "snapshot_missing": "開始時のスナップショットなし（再生機能より前の実行）",
+    "safe_run": "セーフ再生",
+    "drift": "プラン外",
+    "in_plan": "プラン内",
+    "drift_total": "プラン外の呼び出し {{n}} 件",
+    "redacted": "秘匿済み",
+    "safe_button": "セーフモードで再生",
+    "safe_hint": "セーフモードでは Multica への書き込みをすべて承認待ちにし、外部アクションは実行せず説明するようエージェントに求めます。保留された payload が証拠になります。",
+    "safe_started": "セーフ再生を開始しました",
+    "safe_failed": "セーフ再生を開始できませんでした"
   }
 }

@@ -118,7 +118,7 @@ func (q *Queries) GetRuntimePool(ctx context.Context, id pgtype.UUID) (RuntimePo
 }
 
 const listIssueTaskFailovers = `-- name: ListIssueTaskFailovers :many
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing FROM agent_task_queue WHERE issue_id = $1 AND failover_history IS NOT NULL ORDER BY created_at DESC LIMIT 50
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode FROM agent_task_queue WHERE issue_id = $1 AND failover_history IS NOT NULL ORDER BY created_at DESC LIMIT 50
 `
 
 func (q *Queries) ListIssueTaskFailovers(ctx context.Context, issueID pgtype.UUID) ([]AgentTaskQueue, error) {
@@ -201,6 +201,7 @@ func (q *Queries) ListIssueTaskFailovers(ctx context.Context, issueID pgtype.UUI
 			&i.ReviewOfTaskID,
 			&i.TaskClass,
 			&i.Routing,
+			&i.SafeMode,
 		); err != nil {
 			return nil, err
 		}
@@ -286,7 +287,7 @@ func (q *Queries) ListRuntimePools(ctx context.Context, workspaceID pgtype.UUID)
 }
 
 const listWaitingTasksOnOfflineRuntimesWithPool = `-- name: ListWaitingTasksOnOfflineRuntimesWithPool :many
-SELECT task.id, task.agent_id, task.issue_id, task.status, task.priority, task.dispatched_at, task.started_at, task.completed_at, task.result, task.error, task.created_at, task.context, task.runtime_id, task.session_id, task.work_dir, task.trigger_comment_id, task.chat_session_id, task.autopilot_run_id, task.attempt, task.max_attempts, task.parent_task_id, task.failure_reason, task.trigger_summary, task.force_fresh_session, task.is_leader_task, task.wait_reason, task.initiator_user_id, task.handoff_note, task.prepare_lease_expires_at, task.squad_id, task.runtime_mcp_overlay, task.escalation_for_task_id, task.fire_at, task.originator_user_id, task.runtime_connected_apps, task.coalesced_comment_ids, task.delivered_comment_ids, task.chat_input_task_id, task.chat_finalize_deferred_at, task.originator_source, task.delegated_from_task_id, task.retry_of_task_id, task.rerun_of_task_id, task.rule_version_id, task.trigger_evidence_kind, task.trigger_evidence_ref_id, task.accountable_user_id, task.session_rollout_missing, task.retired_session_id, task.quick_actions_disabled, task.regenerate_quick_actions_for, task.branch_name, task.durable_work_dir, task.channel_context_revision, task.last_activity_at, task.permission_profile_id, task.failover_history, task.routing_decision, task.pause_requested_at, task.resumed_by_task_id, task.last_checkpoint_seq, task.checkpoint_attempts, task.checkpointed_at, task.touched_paths, task.drift_reason, task.preempted_at, task.preempted_by_task_id, task.review_of_task_id, task.task_class, task.routing FROM agent_task_queue task
+SELECT task.id, task.agent_id, task.issue_id, task.status, task.priority, task.dispatched_at, task.started_at, task.completed_at, task.result, task.error, task.created_at, task.context, task.runtime_id, task.session_id, task.work_dir, task.trigger_comment_id, task.chat_session_id, task.autopilot_run_id, task.attempt, task.max_attempts, task.parent_task_id, task.failure_reason, task.trigger_summary, task.force_fresh_session, task.is_leader_task, task.wait_reason, task.initiator_user_id, task.handoff_note, task.prepare_lease_expires_at, task.squad_id, task.runtime_mcp_overlay, task.escalation_for_task_id, task.fire_at, task.originator_user_id, task.runtime_connected_apps, task.coalesced_comment_ids, task.delivered_comment_ids, task.chat_input_task_id, task.chat_finalize_deferred_at, task.originator_source, task.delegated_from_task_id, task.retry_of_task_id, task.rerun_of_task_id, task.rule_version_id, task.trigger_evidence_kind, task.trigger_evidence_ref_id, task.accountable_user_id, task.session_rollout_missing, task.retired_session_id, task.quick_actions_disabled, task.regenerate_quick_actions_for, task.branch_name, task.durable_work_dir, task.channel_context_revision, task.last_activity_at, task.permission_profile_id, task.failover_history, task.routing_decision, task.pause_requested_at, task.resumed_by_task_id, task.last_checkpoint_seq, task.checkpoint_attempts, task.checkpointed_at, task.touched_paths, task.drift_reason, task.preempted_at, task.preempted_by_task_id, task.review_of_task_id, task.task_class, task.routing, task.safe_mode FROM agent_task_queue task
 JOIN agent_runtime runtime ON runtime.id = task.runtime_id
 JOIN agent ON agent.id = task.agent_id
 WHERE task.status IN ('queued', 'deferred')
@@ -384,6 +385,7 @@ func (q *Queries) ListWaitingTasksOnOfflineRuntimesWithPool(ctx context.Context,
 			&i.ReviewOfTaskID,
 			&i.TaskClass,
 			&i.Routing,
+			&i.SafeMode,
 		); err != nil {
 			return nil, err
 		}
@@ -457,7 +459,7 @@ func (q *Queries) SetAgentRuntimePool(ctx context.Context, arg SetAgentRuntimePo
 }
 
 const setTaskFailover = `-- name: SetTaskFailover :one
-UPDATE agent_task_queue SET runtime_id = $2, failover_history = $3 WHERE id = $1 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing
+UPDATE agent_task_queue SET runtime_id = $2, failover_history = $3 WHERE id = $1 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode
 `
 
 type SetTaskFailoverParams struct {
@@ -540,6 +542,7 @@ func (q *Queries) SetTaskFailover(ctx context.Context, arg SetTaskFailoverParams
 		&i.ReviewOfTaskID,
 		&i.TaskClass,
 		&i.Routing,
+		&i.SafeMode,
 	)
 	return i, err
 }
@@ -560,7 +563,7 @@ func (q *Queries) SetTaskFailureReason(ctx context.Context, arg SetTaskFailureRe
 
 const setTaskRoutingDecision = `-- name: SetTaskRoutingDecision :one
 
-UPDATE agent_task_queue SET routing_decision = $2 WHERE id = $1 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing
+UPDATE agent_task_queue SET routing_decision = $2 WHERE id = $1 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode
 `
 
 type SetTaskRoutingDecisionParams struct {
@@ -643,6 +646,7 @@ func (q *Queries) SetTaskRoutingDecision(ctx context.Context, arg SetTaskRouting
 		&i.ReviewOfTaskID,
 		&i.TaskClass,
 		&i.Routing,
+		&i.SafeMode,
 	)
 	return i, err
 }

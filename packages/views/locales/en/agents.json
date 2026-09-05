@@ -1164,6 +1164,17 @@
       "preempted_by": "Preempted by",
       "review_of": "Review of",
       "escalation_for": "Escalation for"
-    }
+    },
+    "snapshot": "At start: trust {{trust}} · effects {{effect}} · model {{model}} · plan v{{plan}}",
+    "snapshot_missing": "No snapshot at start (run older than the replay)",
+    "safe_run": "safe replay",
+    "drift": "Outside the plan",
+    "in_plan": "In the plan",
+    "drift_total": "{{n}} calls outside the plan",
+    "redacted": "Redacted",
+    "safe_button": "Replay in safe mode",
+    "safe_hint": "Safe mode holds every Multica write for your approval and asks the agent to describe external actions instead of doing them; the held payloads are the proof.",
+    "safe_started": "Safe replay started",
+    "safe_failed": "Could not start the safe replay"
   }
 }

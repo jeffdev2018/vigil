@@ -513,3 +513,12 @@ func (q *Queries) SetAgentEffectsDecision(ctx context.Context, arg SetAgentEffec
 	}
 	return result.RowsAffected(), nil
 }
+
+const setTaskSafeMode = `-- name: SetTaskSafeMode :exec
+UPDATE agent_task_queue SET safe_mode = true WHERE id = $1
+`
+
+func (q *Queries) SetTaskSafeMode(ctx context.Context, id pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, setTaskSafeMode, id)
+	return err
+}

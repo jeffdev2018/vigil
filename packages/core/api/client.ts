@@ -361,6 +361,7 @@ import {
   EffectModeEnvelopeSchema,
   RunReplaySchema,
   ReplayResumeResultSchema,
+  ReplaySimulateResultSchema,
   PermissionProfileSchema,
   PermissionProfilesEnvelopeSchema,
   AgentPermissionAssignmentSchema,
@@ -4102,9 +4103,14 @@ export class ApiClient {
   async getTaskReplay(taskId: string, cursor = 0, limit = 200): Promise<import("../issues/run-replay").RunReplay> {
     const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay?cursor=${cursor}&limit=${limit}`);
     return parseWithFallback(raw, RunReplaySchema, {
-      run: { id: taskId, issue_id: "", agent_id: "", agent_name: "", status: "", trust_mode: "", effect_mode: "", model: "", created_at: null, started_at: null, completed_at: null, links: [] },
+      run: { id: taskId, safe_mode: false, snapshot: null, plan: null, drift: 0, issue_id: "", agent_id: "", agent_name: "", status: "", trust_mode: "", effect_mode: "", model: "", created_at: null, started_at: null, completed_at: null, links: [] },
       events: [], total: 0, next_cursor: null, head_hash: "", cost: { input_tokens: 0, output_tokens: 0, cost_usd_ticks: null }, sealed: null,
     }, { endpoint: "GET /api/tasks/:id/replay" });
+  }
+
+  async simulateTaskReplay(taskId: string): Promise<import("../issues/run-replay").ReplaySimulateResult> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay/simulate`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, ReplaySimulateResultSchema, { task_id: "", safe_mode: true }, { endpoint: "POST /api/tasks/:id/replay/simulate" });
   }
 
   async resumeTaskReplay(taskId: string, seq: number, instruction: string): Promise<import("../issues/run-replay").ReplayResumeResult> {

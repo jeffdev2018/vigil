@@ -7730,7 +7730,7 @@ func (s *TaskService) createAgentComment(ctx context.Context, issueID, agentID p
 	}
 	// "Show me first" (K69): a preview-mode agent's own comment waits for
 	// approval like any other write; system notes about the run still post.
-	if commentType == "comment" && sourceTaskID.Valid && AgentPreviewsEffects(ctx, s.Queries, agentID) {
+	if commentType == "comment" && sourceTaskID.Valid && RunHoldsEffects(ctx, s.Queries, agentID, sourceTaskID) {
 		if _, err := RecordPendingAgentEffect(ctx, s.Queries, AgentEffectParams{
 			WorkspaceID: issue.WorkspaceID, TaskID: sourceTaskID, AgentID: agentID, IssueID: issueID,
 			Kind: EffectCommentCreate, TargetType: "issue", TargetID: issueID, After: map[string]any{"type": commentType, "excerpt": excerpt(content, 200)}, Reversible: true,
