@@ -39,7 +39,10 @@ export type InboxItemType =
   | "budget_warning"
   | "budget_exceeded"
   // A postmortem was drafted after a failed run and waits for review.
-  | "postmortem_ready";
+  | "postmortem_ready"
+  // The triage queue has items nobody has decided on for two days. Filed for
+  // the workspace's admins/owners, at most once a day per workspace.
+  | "triage_stale";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

@@ -47,6 +47,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     budget_warning: t(($) => $.types.budget_warning),
     budget_exceeded: t(($) => $.types.budget_exceeded),
     postmortem_ready: t(($) => $.types.postmortem_ready),
+    triage_stale: t(($) => $.types.triage_stale),
   };
 }
 
@@ -141,6 +142,13 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
       // so the detail is shown as-is with no "Failed:" framing.
       const detail = getQuickCreateOutcomeDetail(item);
       if (detail) return <span>{detail}</span>;
+      return <span>{typeLabels[item.type]}</span>;
+    }
+    case "triage_stale": {
+      const count = Number(details.count);
+      if (Number.isFinite(count) && count > 0) {
+        return <span>{t(($) => $.labels.triage_items_waiting, { count })}</span>;
+      }
       return <span>{typeLabels[item.type]}</span>;
     }
     case "autopilot_quota_exceeded":

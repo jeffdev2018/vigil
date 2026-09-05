@@ -91,7 +91,8 @@
     "budget_warning": "Alerte de budget",
     "budget_exceeded": "Limite de budget atteinte",
     "postmortem_ready": "Postmortem prêt",
-    "trust_promotion_suggested": "Promotion de confiance suggérée"
+    "trust_promotion_suggested": "Promotion de confiance suggérée",
+    "triage_stale": "La file de triage stagne"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",
@@ -105,7 +106,8 @@
     "reacted_to_comment": "A réagi {{emoji}} à votre commentaire",
     "created_with_agent": "Créé avec l'agent : {{identifier}}",
     "failed_with_detail": "Échec : {{detail}}",
-    "autopilot_quota_blocked": "Exécution bloquée car la limite a été atteinte"
+    "autopilot_quota_blocked": "Exécution bloquée car la limite a été atteinte",
+    "triage_items_waiting": "{{count}} éléments en attente de triage"
   },
   "toasts": {
     "source_context_retry_started": "Nouvelle tentative lancée avec le contexte d'origine",
