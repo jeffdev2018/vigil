@@ -87,6 +87,10 @@ func TestApprovePostmortemStoresRulesAsAgentMemory(t *testing.T) {
 	if memories[0].Source != "postmortem" || memories[0].Content != "Run the test suite before pushing" {
 		t.Fatalf("memory = %q/%q, want postmortem/rule text", memories[0].Source, memories[0].Content)
 	}
+	// The postmortem was human-approved, so its rules land approved (JEF-269).
+	if memories[0].State != "approved" {
+		t.Fatalf("postmortem rule memory state = %q, want approved", memories[0].State)
+	}
 
 	// Discard must not touch memory.
 	pm2 := seedPostmortem(t, workspaceID, "draft", testutil.Cols{

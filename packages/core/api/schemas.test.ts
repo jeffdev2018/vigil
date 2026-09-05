@@ -2332,6 +2332,27 @@ describe("AgentMemory schemas", () => {
     expect(parsed.extraction_enabled).toBe(true);
   });
 
+  it("parses the governance state when present", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Hypothesis from a run",
+      source: "run",
+      state: "draft",
+    });
+    expect(parsed.state).toBe("draft");
+  });
+
+  it("defaults a missing state to approved (pre-governance rows)", () => {
+    const parsed = AgentMemorySchema.parse({
+      id: "mem-1",
+      agent_id: "agent-1",
+      content: "Fact written before states existed",
+      source: "manual",
+    });
+    expect(parsed.state).toBe("approved");
+  });
+
   it("falls back to an empty list on a malformed list response", () => {
     const parsed = parseWithFallback(
       { memories: "not-an-array" },

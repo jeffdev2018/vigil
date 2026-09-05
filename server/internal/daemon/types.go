@@ -238,6 +238,12 @@ type AgentData struct {
 	// into the brief's Memory section by execenv. Absent on older servers
 	// and when the agent has none.
 	Memories []string `json:"memories,omitempty"`
+	// MemoryStates carries the governance state of each Memories entry by
+	// index ("draft" | "approved", JEF-269): drafts render apart, under an
+	// "unverified" heading. Parallel array so the Memories wire shape never
+	// changes; absent or short on older servers, and every missing entry is
+	// treated as approved.
+	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
 // DisabledRuntimeSkillData is the task-wire identity of one runtime-local

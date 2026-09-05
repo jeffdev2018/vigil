@@ -59,6 +59,15 @@ type WorkspaceNoteForEnv struct {
 	Updated string   `json:"updated_at,omitempty"`
 }
 
+// AgentMemoryForEnv is one durable agent memory fact as the brief renders it:
+// the fact text plus its governance state (JEF-269). State values are "draft"
+// and "approved"; an empty state (a pre-governance daemon or caller) is
+// treated as approved by writeAgentMemory.
+type AgentMemoryForEnv struct {
+	Content string
+	State   string
+}
+
 // PrepareParams holds all inputs needed to set up an execution environment.
 type PrepareParams struct {
 	WorkspacesRoot  string // base path for all envs (e.g., ~/multica_workspaces)
@@ -181,8 +190,10 @@ type TaskContextForEnv struct {
 	// AgentMemories are the agent's durable learned facts (JEF-236), rendered
 	// as the brief's Memory section. They are per-agent stable state (they
 	// change only between runs, never mid-run), so unlike per-turn values they
-	// belong in the brief rather than the per-turn prompt.
-	AgentMemories []string
+	// belong in the brief rather than the per-turn prompt. Each fact carries
+	// its governance state (JEF-269): approved facts list under the Memory
+	// heading, drafts apart under an "unverified" sub-heading.
+	AgentMemories []AgentMemoryForEnv
 	// WorkspaceNotes are the workspace Brain notes injected into this run:
 	// every pinned note plus the most recently updated ones. They are written
 	// as files under .multica/knowledge/ and announced by the brief's

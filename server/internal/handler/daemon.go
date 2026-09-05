@@ -2452,7 +2452,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		slog.Warn("daemon claim: load agent memories failed; continuing without memory",
 			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
 	} else if len(memories) > 0 {
-		resp.Agent.Memories = memories
+		contents := make([]string, len(memories))
+		states := make([]string, len(memories))
+		for i, m := range memories {
+			contents[i] = m.Content
+			states[i] = m.State
+		}
+		resp.Agent.Memories = contents
+		resp.Agent.MemoryStates = states
 	}
 	// Workspace Brain notes ride the same assembly point and the same
 	// non-blocking contract: the shared knowledge base is briefing context,

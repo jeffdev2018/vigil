@@ -242,6 +242,9 @@ func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pg
 			Content:      util.SanitizeTextForPostgres(fact),
 			Source:       "run",
 			SourceTaskID: task.ID,
+			// Auto-extracted facts are unverified hypotheses (JEF-269): they
+			// land as drafts until a human approves them over REST.
+			State: "draft",
 		})
 		if err != nil {
 			return fmt.Errorf("insert extracted agent memory: %w", err)
@@ -278,6 +281,7 @@ func (s *TaskService) publishAgentMemoryEvent(eventType string, agent db.Agent, 
 			"agent_id":       util.UUIDToString(memory.AgentID),
 			"content":        memory.Content,
 			"source":         memory.Source,
+			"state":          memory.State,
 			"source_task_id": util.UUIDToString(memory.SourceTaskID),
 			"created_at":     memory.CreatedAt.Time.Format(time.RFC3339Nano),
 			"updated_at":     memory.UpdatedAt.Time.Format(time.RFC3339Nano),

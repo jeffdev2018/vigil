@@ -152,6 +152,7 @@ type AgentMemory struct {
 	SourceTaskID pgtype.UUID        `json:"source_task_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	State        string             `json:"state"`
 }
 
 type AgentPermissionProfile struct {
