@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/llm"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -219,7 +220,14 @@ type extractedDecision struct {
 // Idempotent per run: a run that already has records is left alone. Returns
 // how many records were created; zero without an LLM, a run, or text.
 func (h *Handler) extractDecisions(ctx context.Context, issue db.Issue) (int, error) {
-	if h.LLM == nil || !h.LLM.Enabled() {
+	return h.extractDecisionsWith(ctx, h.LLM, issue)
+}
+
+// extractDecisionsWith takes the model as a parameter so the asynchronous
+// path reads h.LLM once, on the request goroutine, instead of racing a test
+// or a reconfiguration that swaps it later.
+func (h *Handler) extractDecisionsWith(ctx context.Context, model *llm.Client, issue db.Issue) (int, error) {
+	if model == nil || !model.Enabled() {
 		return 0, nil
 	}
 	run, err := h.Queries.GetLatestCompletedTaskForIssue(ctx, issue.ID)
@@ -242,7 +250,7 @@ func (h *Handler) extractDecisions(ctx context.Context, issue db.Issue) (int, er
 	if transcript == "" {
 		return 0, nil
 	}
-	raw, err := h.LLM.GenerateJSON(ctx, "", decisionExtractSystemPrompt, transcript, 0.1, 2048)
+	raw, err := model.GenerateJSON(ctx, "", decisionExtractSystemPrompt, transcript, 0.1, 2048)
 	if err != nil {
 		return 0, fmt.Errorf("llm: %w", err)
 	}
@@ -296,10 +304,11 @@ func (h *Handler) issueAccepted(ctx context.Context, issue db.Issue) bool {
 // extractDecisionsAsync runs the extraction off the request: the status
 // change must not wait for a model call.
 func (h *Handler) extractDecisionsAsync(issue db.Issue) {
+	model := h.LLM
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 		defer cancel()
-		if _, err := h.extractDecisions(ctx, issue); err != nil {
+		if _, err := h.extractDecisionsWith(ctx, model, issue); err != nil {
 			slog.Warn("decision extraction failed", "error", err, "issue_id", uuidToString(issue.ID))
 		}
 	}()
