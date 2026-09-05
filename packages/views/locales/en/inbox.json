@@ -93,7 +93,8 @@
     "postmortem_ready": "Postmortem ready",
     "trust_promotion_suggested": "Trust promotion suggested",
     "triage_stale": "Triage is stalling",
-    "watchdog_escalation": "Watchdog escalation"
+    "watchdog_escalation": "Watchdog escalation",
+    "decision_auto_decided": "Decided for you"
   },
   "labels": {
     "set_status_to": "Set status to",
@@ -186,6 +187,7 @@
     "send": "Send",
     "cancel": "Cancel",
     "answered": "Answered",
-    "respond_failed": "The answer could not be sent"
+    "respond_failed": "The answer could not be sent",
+    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request."
   }
 }

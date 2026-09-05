@@ -1462,6 +1462,16 @@ export const IssueDecisionSchema = z.object({
   escalation_level: z.number().int().optional().catch(0),
   escalated_at: z.string().nullable().optional().catch(null),
   created_at: z.string().default(""),
+  learned: z.object({
+    signature: z.string().catch("").default(""),
+    option_id: z.string().catch("").default(""),
+    option_label: z.string().catch("").default(""),
+    count: z.number().catch(0).default(0),
+    total: z.number().catch(0).default(0),
+    rate: z.number().catch(0).default(0),
+    auto: z.boolean().catch(false).default(false),
+    stake: z.string().catch("normal").default("normal"),
+  }).loose().nullable().optional().catch(null),
 }).loose();
 
 export const IssueDecisionsResponseSchema = z.object({
@@ -5187,3 +5197,28 @@ export const WatchdogVerdictListSchema = z.object({ verdicts: z.array(WatchdogVe
 
 export const WatchdogScanResultSchema = z.object({ task_id: z.string().default("") }).loose();
 export const WatchdogVerdictEnvelopeSchema = z.object({ verdict: WatchdogVerdictSchema }).loose();
+
+// Vigil learns you (K71).
+export const WorkProfileObservationSchema = z.object({
+  id: z.string().default(""),
+  key: z.string().catch("").default(""),
+  kind: z.string().catch("").default(""),
+  value: z.record(z.string(), z.unknown()).catch({}).default({}),
+  source: z.string().catch("").default(""),
+  count: z.number().catch(0).default(0),
+  corrections: z.number().catch(0).default(0),
+  auto: z.boolean().catch(false).default(false),
+  state: z.enum(["learned", "proposed"]).catch("learned").default("learned"),
+  stake: z.string().catch("normal").default("normal"),
+  first_observed_at: z.string().catch("").default(""),
+  last_observed_at: z.string().catch("").default(""),
+}).loose();
+
+export const WorkProfileSchema = z.object({
+  observations: z.array(WorkProfileObservationSchema).catch([]).default([]),
+  examples: z.number().catch(0).default(0),
+  auto_decided: z.number().catch(0).default(0),
+  overturned: z.number().catch(0).default(0),
+  review_load_seconds: z.number().catch(0).default(0),
+  adaptation_surface: z.array(z.string()).catch([]).default([]),
+}).loose();

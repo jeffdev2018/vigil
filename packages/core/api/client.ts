@@ -361,6 +361,7 @@ import {
   EffectModeEnvelopeSchema,
   RunReplaySchema,
   WatchdogEnvelopeSchema,
+  WorkProfileSchema,
   WatchdogVerdictListSchema,
   WatchdogScanResultSchema,
   WatchdogVerdictEnvelopeSchema,
@@ -4101,6 +4102,26 @@ export class ApiClient {
 
   async listTaskMessages(taskId: string): Promise<TaskMessagePayload[]> {
     return this.fetch(`/api/tasks/${taskId}/messages`);
+  }
+
+  // Vigil learns you (K71).
+  async getWorkProfile(): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>("/api/work-profile");
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "GET /api/work-profile" });
+  }
+
+  async patchWorkProfileObservation(id: string, auto: boolean): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>(`/api/work-profile/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify({ auto }) });
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "PATCH /api/work-profile/:id" });
+  }
+
+  async deleteWorkProfileObservation(id: string): Promise<void> {
+    await this.fetch<unknown>(`/api/work-profile/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async overturnDecisionExample(id: string): Promise<import("../work-profile/queries").WorkProfile> {
+    const raw = await this.fetch<unknown>(`/api/decision-examples/${encodeURIComponent(id)}/overturn`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, WorkProfileSchema, { observations: [], examples: 0, auto_decided: 0, overturned: 0, review_load_seconds: 0, adaptation_surface: [] }, { endpoint: "POST /api/decision-examples/:id/overturn" });
   }
 
   // Task watchdog (K73).

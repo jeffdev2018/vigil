@@ -464,7 +464,8 @@
       "mcp": "MCP",
       "billing": "Billing",
       "audit_log": "Audit log",
-      "budgets": "Budgets"
+      "budgets": "Budgets",
+      "learning": "What Vigil knows"
     }
   },
   "plugins": {
@@ -1675,5 +1676,50 @@
     "verify_failed": "Verification failed",
     "chain_ok": "Chain intact · {{count}} entries · head {{hash}}",
     "chain_broken": "Chain broken at entry #{{seq}}: a row was altered or removed"
+  },
+  "learning": {
+    "title": "What Vigil knows about me",
+    "intro": "Everything below was learned from your own decisions in this workspace. Nothing is learned without appearing here, and you can forget any of it. Your profile is never used for anyone else.",
+    "examples": "Decisions used as examples",
+    "examples_description": "Every decision you answer teaches Vigil your preference for that kind of request.",
+    "review_load": "Review load",
+    "review_load_description": "Estimated time you spent answering decisions, at 45 s each. Counted, not only the time saved.",
+    "auto_decided": "Decided for you",
+    "auto_decided_description": "Decisions a rule answered on your behalf; {{overturned}} overturned by you.",
+    "surface": "What may learn",
+    "surface_description": "Anything not listed here is frozen.",
+    "surfaces": {
+      "decision_rules": "decision rules",
+      "decision_hours": "decision hours"
+    },
+    "rules": "Learned rules",
+    "rules_description": "A rule appears after 5 answers to the same kind of decision. Switch it on to let it decide alone; it will never decide a high-stakes one, and it is demoted to a proposal when more than 20 % of its decisions get overturned in 30 days.",
+    "loading": "Loading…",
+    "empty": "Nothing learned yet. Answer a few decisions and your preferences will show up here.",
+    "rule_label": "{{family}}: usually « {{label}} »",
+    "rule_description": "{{count}} of {{total}} times · {{corrections}} correction(s) · last {{when}}",
+    "states": {
+      "learned": "learned",
+      "proposed": "proposal (re-review)"
+    },
+    "high_stakes": "high stakes, never automated",
+    "auto_label": "Decide alone",
+    "forget": "Forget",
+    "forgotten": "Forgotten",
+    "update_failed": "Could not update",
+    "families": {
+      "gate": "Blocked action",
+      "second_approval": "Second approval",
+      "preview": "Show me first",
+      "watchdog": "Watchdog",
+      "plan": "Plan approval",
+      "pipeline_gate": "Pipeline gate",
+      "interview": "Interview",
+      "question": "Question"
+    },
+    "hours": "When you decide",
+    "hours_description": "The hours you usually answer decisions, so briefings and nudges can wait for them.",
+    "hours_label": "Mostly around {{hours}}",
+    "hours_source": "{{count}} answers · last {{when}}"
   }
 }

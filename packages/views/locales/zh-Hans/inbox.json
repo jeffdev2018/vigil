@@ -91,7 +91,8 @@
     "postmortem_ready": "复盘已生成",
     "trust_promotion_suggested": "建议提升信任模式",
     "triage_stale": "待分类队列已停滞",
-    "watchdog_escalation": "看门狗升级"
+    "watchdog_escalation": "看门狗升级",
+    "decision_auto_decided": "已代你决定"
   },
   "labels": {
     "set_status_to": "状态设为",
@@ -184,6 +185,7 @@
     "send": "发送",
     "cancel": "取消",
     "answered": "已回答",
-    "respond_failed": "无法发送回答"
+    "respond_failed": "无法发送回答",
+    "learned": "对于此类请求，你在 {{total}} 次中有 {{count}} 次选择了「{{label}}」。"
   }
 }

@@ -5,6 +5,7 @@ import {
   User,
   SlidersHorizontal,
   Key,
+  Brain,
   Settings,
   Users,
   FolderGit2,
@@ -38,6 +39,7 @@ import { PreferencesTab } from "./preferences-tab";
 import { ChatTab } from "./chat-tab";
 import { IssueTab } from "./issue-tab";
 import { TokensTab } from "./tokens-tab";
+import { LearningTab } from "./learning-tab";
 import { WorkspaceTab } from "./workspace-tab";
 import { MembersTab } from "./members-tab";
 import { RepositoriesTab } from "./repositories-tab";
@@ -58,7 +60,7 @@ import { BudgetsTab } from "./budgets-tab";
 import { CollapsedNavTrigger } from "../../layout/page-header";
 import { useT } from "../../i18n";
 
-const ACCOUNT_TAB_KEYS = ["profile", "preferences", "shortcuts", "issue", "chat", "notifications", "tokens"] as const;
+const ACCOUNT_TAB_KEYS = ["profile", "preferences", "shortcuts", "issue", "chat", "notifications", "tokens", "learning"] as const;
 const ACCOUNT_TAB_ICONS = {
   profile: User,
   preferences: SlidersHorizontal,
@@ -67,6 +69,7 @@ const ACCOUNT_TAB_ICONS = {
   chat: MessageCircle,
   notifications: Bell,
   tokens: Key,
+  learning: Brain,
 } as const;
 
 const WORKSPACE_TAB_KEYS = [
@@ -284,6 +287,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="chat"><ChatTab /></TabsContent>
           <TabsContent value="notifications"><NotificationsTab /></TabsContent>
           <TabsContent value="tokens"><TokensTab /></TabsContent>
+          <TabsContent value="learning"><LearningTab /></TabsContent>
           <TabsContent value="workspace"><WorkspaceTab /></TabsContent>
           <TabsContent value="repositories"><RepositoriesTab /></TabsContent>
           <TabsContent value="github"><GitHubTab /></TabsContent>

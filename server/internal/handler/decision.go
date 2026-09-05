@@ -67,6 +67,8 @@ type IssueDecisionResponse struct {
 	EscalationLevel int32   `json:"escalation_level"`
 	EscalatedAt     *string `json:"escalated_at"`
 	CreatedAt       string  `json:"created_at"`
+	// Learned (K71): what the reader's own history says about this decision.
+	Learned *DecisionHint `json:"learned,omitempty"`
 }
 
 func issueDecisionToResponse(d db.IssueDecision) IssueDecisionResponse {
@@ -118,9 +120,12 @@ func (h *Handler) ListIssueDecisions(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load decisions")
 		return
 	}
+	userID := requestUserID(r)
 	out := make([]IssueDecisionResponse, 0, len(rows))
 	for _, d := range rows {
-		out = append(out, issueDecisionToResponse(d))
+		resp := issueDecisionToResponse(d)
+		resp.Learned = h.decisionHint(r.Context(), issue.WorkspaceID, userID, d)
+		out = append(out, resp)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"decisions": out})
 }
@@ -331,6 +336,10 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 		} else if err := h.Queries.SetIssueDecisionResumeTask(ctx, db.SetIssueDecisionResumeTaskParams{ID: decision.ID, ResumeTaskID: task.ID}); err == nil {
 			updated.ResumeTaskID = task.ID
 		}
+	}
+	// Vigil learns you (K71): a human answer is a training example.
+	if actorType == "member" {
+		h.learnFromDecision(ctx, issue.WorkspaceID, userID, decision, req, false)
 	}
 	h.audit(ctx, issue.WorkspaceID, actorType, actorID, AuditDecisionAnswered, "issue_decision", decision.ID, map[string]any{"issue_id": uuidToString(issue.ID), "question": decision.Question, "answer": req, "resume_task_id": uuidToString(updated.ResumeTaskID)}, &auditOpts{ApproverType: actorType, ApproverID: actorID})
 	return updated, "", nil

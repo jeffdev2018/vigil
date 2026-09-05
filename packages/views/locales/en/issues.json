@@ -1122,7 +1122,8 @@
     "sla_due": "Answer by {{time}}",
     "sla_overdue": "Overdue, escalation pending",
     "sla_substitute": "Overdue · escalated to the substitute",
-    "sla_leads": "Overdue · escalated to the workspace leads"
+    "sla_leads": "Overdue · escalated to the workspace leads",
+    "learned": "You chose « {{label}} » {{count}} times out of {{total}} for this kind of request."
   },
   "acceptance": {
     "section": "Acceptance criteria",

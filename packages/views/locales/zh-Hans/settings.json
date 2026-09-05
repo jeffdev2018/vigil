@@ -464,7 +464,8 @@
       "mcp": "MCP",
       "billing": "账单与套餐",
       "audit_log": "审计日志",
-      "budgets": "预算"
+      "budgets": "预算",
+      "learning": "Vigil 了解的"
     }
   },
   "plugins": {
@@ -1668,5 +1669,50 @@
     "verify_failed": "校验失败",
     "chain_ok": "链完整 · {{count}} 条 · 头 {{hash}}",
     "chain_broken": "链在第 #{{seq}} 条处断裂：有行被修改或删除"
+  },
+  "learning": {
+    "title": "Vigil 对我的了解",
+    "intro": "以下内容全部来自你在此工作区的决策。没有任何学习是不显示在这里的，你可以随时忘记。你的档案绝不会用于他人。",
+    "examples": "用作示例的决策",
+    "examples_description": "你回答的每个决策都会让 Vigil 学到你对该类请求的偏好。",
+    "review_load": "审阅负担",
+    "review_load_description": "回答决策所花的估计时间（每个 45 秒）。计入消耗的时间，而不只是节省的时间。",
+    "auto_decided": "代你决定",
+    "auto_decided_description": "由规则代你回答的决策；其中 {{overturned}} 个被你推翻。",
+    "surface": "可学习范围",
+    "surface_description": "未在此列出的内容均被冻结。",
+    "surfaces": {
+      "decision_rules": "决策规则",
+      "decision_hours": "决策时段"
+    },
+    "rules": "已学习的规则",
+    "rules_description": "对同类决策回答 5 次后规则出现。开启后它会独自决定；它绝不会处理高风险决策，并且当 30 天内超过 20% 的决策被推翻时会降级为建议。",
+    "loading": "加载中…",
+    "empty": "尚未学到任何内容。回答几个决策后，你的偏好会显示在这里。",
+    "rule_label": "{{family}}：通常选「{{label}}」",
+    "rule_description": "{{total}} 次中的 {{count}} 次 · {{corrections}} 次纠正 · 最近 {{when}}",
+    "states": {
+      "learned": "已学习",
+      "proposed": "建议（待重新审核）"
+    },
+    "high_stakes": "高风险，从不自动化",
+    "auto_label": "独自决定",
+    "forget": "忘记",
+    "forgotten": "已忘记",
+    "update_failed": "无法更新",
+    "families": {
+      "gate": "被阻止的操作",
+      "second_approval": "二次批准",
+      "preview": "先给我看看",
+      "watchdog": "看门狗",
+      "plan": "计划批准",
+      "pipeline_gate": "流水线关卡",
+      "interview": "访谈",
+      "question": "问题"
+    },
+    "hours": "你做决定的时间",
+    "hours_description": "你通常回答决策的时段，让简报和提醒等到那时。",
+    "hours_label": "主要在 {{hours}} 左右",
+    "hours_source": "{{count}} 次回答 · 最近 {{when}}"
   }
 }

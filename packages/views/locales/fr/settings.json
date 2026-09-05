@@ -464,7 +464,8 @@
       "mcp": "MCP",
       "billing": "Facturation",
       "audit_log": "Journal d'audit",
-      "budgets": "Budgets"
+      "budgets": "Budgets",
+      "learning": "Ce que Vigil sait"
     }
   },
   "plugins": {
@@ -1675,5 +1676,50 @@
     "verify_failed": "Échec de la vérification",
     "chain_ok": "Chaîne intacte · {{count}} entrées · head {{hash}}",
     "chain_broken": "Chaîne interrompue à l'entrée #{{seq}} : une ligne a été modifiée ou supprimée"
+  },
+  "learning": {
+    "title": "Ce que Vigil sait de moi",
+    "intro": "Tout ce qui suit a été appris de tes propres décisions dans ce workspace. Rien n'est appris sans apparaître ici, et tu peux tout oublier. Ton profil n'est jamais utilisé pour quelqu'un d'autre.",
+    "examples": "Décisions servant d'exemples",
+    "examples_description": "Chaque décision que tu tranches apprend à Vigil ta préférence pour ce type de demande.",
+    "review_load": "Charge de relecture",
+    "review_load_description": "Temps estimé passé à répondre aux décisions, à 45 s chacune. Compté, pas seulement le temps gagné.",
+    "auto_decided": "Décidé pour toi",
+    "auto_decided_description": "Décisions tranchées par une règle en ton nom ; {{overturned}} infirmée(s) par toi.",
+    "surface": "Ce qui peut apprendre",
+    "surface_description": "Tout ce qui n'est pas listé ici est gelé.",
+    "surfaces": {
+      "decision_rules": "règles de décision",
+      "decision_hours": "heures de décision"
+    },
+    "rules": "Règles apprises",
+    "rules_description": "Une règle apparaît après 5 réponses au même type de décision. Active-la pour la laisser décider seule ; elle ne tranchera jamais une décision à enjeu, et elle est rétrogradée en proposition quand plus de 20 % de ses décisions sont infirmées en 30 jours.",
+    "loading": "Chargement…",
+    "empty": "Rien d'appris pour l'instant. Tranche quelques décisions et tes préférences apparaîtront ici.",
+    "rule_label": "{{family}} : en général « {{label}} »",
+    "rule_description": "{{count}} fois sur {{total}} · {{corrections}} correction(s) · dernière {{when}}",
+    "states": {
+      "learned": "apprise",
+      "proposed": "proposition (re-revue)"
+    },
+    "high_stakes": "à enjeu, jamais automatisée",
+    "auto_label": "Décider seule",
+    "forget": "Oublier",
+    "forgotten": "Oublié",
+    "update_failed": "Mise à jour impossible",
+    "families": {
+      "gate": "Action bloquée",
+      "second_approval": "Seconde approbation",
+      "preview": "Montre-moi d'abord",
+      "watchdog": "Watchdog",
+      "plan": "Approbation de plan",
+      "pipeline_gate": "Porte de pipeline",
+      "interview": "Entretien",
+      "question": "Question"
+    },
+    "hours": "Quand tu décides",
+    "hours_description": "Les heures où tu réponds d'habitude aux décisions, pour que briefings et relances les attendent.",
+    "hours_label": "Surtout vers {{hours}}",
+    "hours_source": "{{count}} réponses · dernière {{when}}"
   }
 }

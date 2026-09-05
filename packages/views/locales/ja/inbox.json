@@ -91,7 +91,8 @@
     "postmortem_ready": "ポストモーテム作成済み",
     "trust_promotion_suggested": "信頼モードの昇格提案",
     "triage_stale": "トリアージが滞っています",
-    "watchdog_escalation": "ウォッチドッグのエスカレーション"
+    "watchdog_escalation": "ウォッチドッグのエスカレーション",
+    "decision_auto_decided": "代わりに判断しました"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
@@ -184,6 +185,7 @@
     "send": "送信",
     "cancel": "キャンセル",
     "answered": "回答済み",
-    "respond_failed": "回答を送信できませんでした"
+    "respond_failed": "回答を送信できませんでした",
+    "learned": "この種の依頼では {{total}} 回中 {{count}} 回「{{label}}」を選んでいます。"
   }
 }

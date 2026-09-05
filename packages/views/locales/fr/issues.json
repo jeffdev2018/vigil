@@ -1122,7 +1122,8 @@
     "sla_due": "Répondre d'ici {{time}}",
     "sla_overdue": "En retard, escalade en cours",
     "sla_substitute": "En retard · escaladé vers le remplaçant",
-    "sla_leads": "En retard · escaladé vers les leads du workspace"
+    "sla_leads": "En retard · escaladé vers les leads du workspace",
+    "learned": "Tu as choisi « {{label}} » {{count}} fois sur {{total}} pour ce type de demande."
   },
   "acceptance": {
     "section": "Critères d'acceptation",
