@@ -419,6 +419,12 @@ multica issue status <child-id> todo   # promote when the previous step is truly
 
 Creating every serial step as `todo` enqueues the whole chain at once.
 
+Issues you create may be held for human triage: a workspace can gate the
+`agent_create` source, and the API then answers `202` with
+`{"code":"triage_held"}` and a queue entry id instead of `201` and an issue.
+Nothing was lost — a human accepts it — but there is no issue id to work
+against yet, so do not retry the create and do not treat the item id as one.
+
 ### Stages: order sub-issues into barrier groups
 
 `--stage <N>` (N ≥ 1) groups sub-issues under the same parent into ordered

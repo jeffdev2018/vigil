@@ -261,3 +261,18 @@ grep -n 'qualifyingIdents\|reference_only\|ReferenceOnly' internal/handler/githu
 grep -n 'prevIssue.Status == "backlog"\|func (h \*Handler) shouldEnqueueAgentTask' internal/handler/issue.go
 grep -n 'func notifyParentOfChildDone'       internal/handler/issue_child_done.go
 ```
+
+## Triage may hold an agent-created issue
+
+| Behavior | File:line |
+|---|---|
+| Source kind for an agent-authored create (`agent_create`) | `server/internal/handler/triage_capture.go` — `triageIssueCreateRef` |
+| Gate runs before `IssueService.Create` | `server/internal/handler/issue.go` — `admitIssueCreate` call in `CreateIssue` |
+| Held response: `202` + `{"code":"triage_held","item_id":...}` | `server/internal/handler/triage_capture.go` — `admitIssueCreate` |
+| Blocked response: `403` | `server/internal/handler/triage_capture.go` — `admitIssueCreate` |
+| Mode → route mapping (`gate`/`direct`/`blocked`) | `server/internal/triage/policy.go` — `Decide` |
+| Pinned by | `server/internal/handler/triage_issue_create_test.go` |
+
+Citations here are by symbol rather than line: this section documents a control
+flow that moves with every edit to `CreateIssue`, and a stale line number is
+worse than a name the reader can grep.
