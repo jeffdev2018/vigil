@@ -316,6 +316,7 @@ type AgentTaskQueue struct {
 	Routing             []byte             `json:"routing"`
 	SafeMode            bool               `json:"safe_mode"`
 	ModelKeyID          pgtype.UUID        `json:"model_key_id"`
+	Confidence          []byte             `json:"confidence"`
 }
 
 type AgentToLabel struct {

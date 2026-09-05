@@ -45,6 +45,7 @@ export type {
   RuntimeRoutingDecision,
   RuntimeRoutingStats,
   RuntimeRoutingStatsResponse,
+  TaskConfidence,
   AgentEnvResponse,
   UpdateAgentEnvRequest,
   Skill,

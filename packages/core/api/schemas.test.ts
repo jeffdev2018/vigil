@@ -16,6 +16,7 @@ import {
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
   AgentTaskListSchema,
+  ConfidenceReviewSettingsSchema,
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
   FALLBACK_AUTOPILOT_RUN,
@@ -783,6 +784,72 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.routing).toBeUndefined();
     // An explicit null stays null — the router ran in fixed mode.
     expect(parsed[1]?.routing).toBeNull();
+  });
+
+  it("parses the confidence record of a scored run", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        confidence: {
+          score: 0.85,
+          rationale: "Tests and diff look consistent",
+          model: "claude-sonnet-4-6",
+          threshold: 0.5,
+          below_threshold: false,
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.confidence?.score).toBe(0.85);
+    expect(parsed[0]?.confidence?.rationale).toBe(
+      "Tests and diff look consistent",
+    );
+    expect(parsed[0]?.confidence?.model).toBe("claude-sonnet-4-6");
+    expect(parsed[0]?.confidence?.threshold).toBe(0.5);
+    expect(parsed[0]?.confidence?.below_threshold).toBe(false);
+  });
+
+  it("accepts task payloads from backends that have not scored the run yet", () => {
+    const parsed = AgentTaskListSchema.parse([
+      task,
+      { ...task, id: "task-2", confidence: null },
+    ]);
+
+    expect(parsed[0]?.confidence).toBeUndefined();
+    // An explicit null stays null — the run is known to be unscored.
+    expect(parsed[1]?.confidence).toBeNull();
+  });
+
+  it("degrades a malformed confidence record without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, confidence: { score: "high", rationale: 42 } },
+      { ...task, id: "task-2", confidence: "not-an-object" },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.confidence).toBeUndefined();
+    expect(parsed[1]?.confidence).toBeUndefined();
+  });
+});
+
+describe("ConfidenceReviewSettingsSchema", () => {
+  it("defaults a bare payload to enabled with the product threshold", () => {
+    expect(ConfidenceReviewSettingsSchema.parse({})).toEqual({
+      enabled: true,
+      threshold: 0.5,
+    });
+  });
+
+  it("round-trips an explicit payload", () => {
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ enabled: false, threshold: 0.7 }),
+    ).toEqual({ enabled: false, threshold: 0.7 });
+  });
+
+  it("catches malformed fields back to the defaults", () => {
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ enabled: "yes", threshold: "a lot" }),
+    ).toEqual({ enabled: true, threshold: 0.5 });
   });
 });
 

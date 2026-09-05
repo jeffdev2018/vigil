@@ -2293,6 +2293,20 @@ const RuntimeRoutingDecisionSchema = z.object({
   candidates: z.array(RoutingCandidateSchema).optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Run confidence scoring (JEF-240). The scorer's record rides on the task
+// payload; `score` is the one field that defines the record, so a row without
+// it degrades the whole record to "absent" rather than inventing a number.
+// ---------------------------------------------------------------------------
+
+const TaskConfidenceSchema = z.object({
+  score: z.number(),
+  rationale: z.string().default(""),
+  model: z.string().optional(),
+  threshold: z.number().optional(),
+  below_threshold: z.boolean().optional(),
+}).loose();
+
 export const RuntimeRoutingStatsSchema = z.object({
   runtime_id: z.string().default(""),
   runtime_name: z.string().default(""),
@@ -2359,6 +2373,10 @@ export const AgentTaskSchema = z.object({
   // not the whole execution log.
   task_class: z.string().optional().catch(undefined),
   routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
+  // Per-run confidence score (JEF-240). Same independent-degradation rule as
+  // `routing`: a malformed record costs the row its confidence display, not
+  // the whole execution log. Absent until the scorer has scored the run.
+  confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -5074,6 +5092,15 @@ export const CIAutoFixSettingsSchema = z.object({
 export const CrossReviewSettingsSchema = z.object({
   enabled: z.boolean().catch(true).default(true),
   opt_out_project_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+// Confidence review (JEF-240): the workspace gate that routes low-confidence
+// runs to human review. The 0 < threshold ≤ 1 bound is enforced server-side;
+// a malformed payload falls back to the product defaults rather than
+// breaking the settings screen.
+export const ConfidenceReviewSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  threshold: z.number().catch(0.5).default(0.5),
 }).loose();
 
 export const CrossReviewListSchema = z.object({

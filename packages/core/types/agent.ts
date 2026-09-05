@@ -50,6 +50,20 @@ export interface RuntimeRoutingDecision {
 }
 
 /**
+ * The scorer's confidence record for a task run (JEF-240). Absent until the
+ * run has been scored; `below_threshold` is the backend's verdict against
+ * the workspace threshold — when omitted, derive it from `score` and
+ * `threshold`. `rationale` is the scorer's ≤280-char explanation.
+ */
+export interface TaskConfidence {
+  score: number;
+  rationale: string;
+  model?: string;
+  threshold?: number;
+  below_threshold?: boolean;
+}
+
+/**
  * One (runtime, provider, model, task_class) row of the 90-day routing-stats
  * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
  * `avg_duration_secs` are null when the rollup has no priced / timed samples.
@@ -548,6 +562,11 @@ export interface AgentTask {
    * conditionally.
    */
   routing?: RuntimeRoutingDecision | null;
+  /**
+   * This run's confidence score (JEF-240). `null`/absent until the scorer has
+   * scored the run and on older backends — render conditionally.
+   */
+  confidence?: TaskConfidence | null;
 }
 
 /**
