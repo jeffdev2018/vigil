@@ -1251,7 +1251,10 @@
     "row": "{{name}}: {{rate}} ({{count}}건)",
     "duels": "대결 {{wins}}승 / {{losses}}패",
     "low_sample": "데이터 부족 ({{count}}/{{min}})",
-    "empty": "이 유형의 작업 이력이 있는 에이전트가 아직 없습니다."
+    "empty": "이 유형의 작업 이력이 있는 에이전트가 아직 없습니다.",
+    "estimate_range": "{{duration}} · {{cost}}",
+    "estimate_empty": "추정할 이력이 부족합니다",
+    "estimate_over_budget": "예산 초과"
   },
   "cross_review": {
     "section": "교차 프로바이더 리뷰",

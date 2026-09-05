@@ -101,6 +101,76 @@ func (q *Queries) ListAgentDomainCompetency(ctx context.Context, arg ListAgentDo
 	return items, nil
 }
 
+const listComparableRunStats = `-- name: ListComparableRunStats :many
+WITH comparable AS (
+    SELECT DISTINCT ON (a.details->>'issue_id')
+           (a.details->>'issue_id')::uuid AS issue_id,
+           a.occurred_at
+    FROM audit_log_entry a
+    WHERE a.workspace_id = $1
+      AND a.action = 'competency'
+      AND a.entity_type = 'agent'
+      AND a.entity_id = $2
+      AND a.details->>'domain_key' = $3::text
+      AND a.details->>'issue_id' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    ORDER BY a.details->>'issue_id', a.occurred_at DESC
+), recent AS (
+    SELECT issue_id FROM comparable ORDER BY occurred_at DESC LIMIT $4
+)
+SELECT t.id,
+       EXTRACT(EPOCH FROM (t.completed_at - t.started_at))::bigint AS duration_seconds,
+       COALESCE((SELECT SUM(u.cost_usd_ticks) FROM task_usage u WHERE u.task_id = t.id), 0)::bigint AS cost_ticks
+FROM agent_task_queue t
+JOIN recent r ON r.issue_id = t.issue_id
+WHERE t.agent_id = $2
+  AND t.status = 'completed'
+  AND t.started_at IS NOT NULL
+  AND t.completed_at IS NOT NULL
+ORDER BY t.completed_at DESC
+`
+
+type ListComparableRunStatsParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
+	DomainKey   string      `json:"domain_key"`
+	RowLimit    int32       `json:"row_limit"`
+}
+
+type ListComparableRunStatsRow struct {
+	ID              pgtype.UUID `json:"id"`
+	DurationSeconds int64       `json:"duration_seconds"`
+	CostTicks       int64       `json:"cost_ticks"`
+}
+
+// What-if estimate (K44). The competency audit trail is the only per-issue
+// record of (agent, domain), so it defines the comparable set: the most
+// recent issues this agent worked in this domain, then that agent's own
+// completed runs on them with their duration and settled cost.
+func (q *Queries) ListComparableRunStats(ctx context.Context, arg ListComparableRunStatsParams) ([]ListComparableRunStatsRow, error) {
+	rows, err := q.db.Query(ctx, listComparableRunStats,
+		arg.WorkspaceID,
+		arg.AgentID,
+		arg.DomainKey,
+		arg.RowLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListComparableRunStatsRow{}
+	for rows.Next() {
+		var i ListComparableRunStatsRow
+		if err := rows.Scan(&i.ID, &i.DurationSeconds, &i.CostTicks); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDomainCompetency = `-- name: ListDomainCompetency :many
 SELECT c.id, c.workspace_id, c.agent_id, c.domain_key, c.success_count, c.total_count, c.duel_wins, c.duel_losses, c.updated_at, a.name AS agent_name FROM agent_domain_competency c
 JOIN agent a ON a.id = c.agent_id

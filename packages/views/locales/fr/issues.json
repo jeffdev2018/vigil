@@ -1284,7 +1284,10 @@
     "row": "{{name}} : {{rate}} ({{count}} issues)",
     "duels": "{{wins}} duels gagnés / {{losses}} perdus",
     "low_sample": "pas assez de données pour le moment ({{count}}/{{min}})",
-    "empty": "Aucun agent n'a encore d'historique pour ce type de tâche."
+    "empty": "Aucun agent n'a encore d'historique pour ce type de tâche.",
+    "estimate_range": "{{duration}} · {{cost}}",
+    "estimate_empty": "pas assez d'historique pour estimer",
+    "estimate_over_budget": "hors budget"
   },
   "cross_review": {
     "section": "Revue cross-provider",

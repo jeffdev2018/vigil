@@ -1251,7 +1251,10 @@
     "row": "{{name}}：{{rate}}（{{count}} 个 issue）",
     "duels": "对决 {{wins}} 胜 / {{losses}} 负",
     "low_sample": "数据不足（{{count}}/{{min}}）",
-    "empty": "尚无智能体在此类任务上有历史记录。"
+    "empty": "尚无智能体在此类任务上有历史记录。",
+    "estimate_range": "{{duration}} · {{cost}}",
+    "estimate_empty": "历史记录不足，无法估算",
+    "estimate_over_budget": "超出预算"
   },
   "cross_review": {
     "section": "跨供应商评审",
