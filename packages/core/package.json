@@ -154,6 +154,7 @@
     "./projects/config": "./projects/config.ts",
     "./projects/decisions": "./projects/decisions.ts",
     "./projects/blast-radius": "./projects/blast-radius.ts",
+    "./projects/review-config": "./projects/review-config.ts",
     "./plugins": "./plugins/index.ts",
     "./plugins/queries": "./plugins/queries.ts",
     "./plugins/mutations": "./plugins/mutations.ts",

@@ -209,5 +209,21 @@
     "updated": "역할을 갱신했습니다",
     "update_failed": "역할 갱신에 실패했습니다",
     "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다."
+  },
+  "review": {
+    "section": "에이전트 리뷰",
+    "description": "이 프로젝트에서 에이전트가 작업을 전달하면 다른 에이전트가 아래 체크리스트에 따라 리뷰합니다.",
+    "checklist": "체크리스트",
+    "checklist_empty": "아직 체크리스트 항목이 없습니다.",
+    "item_placeholder": "예: 마이그레이션에 외래 키 추가 금지",
+    "add": "항목 추가",
+    "remove": "항목 삭제",
+    "reviewer": "리뷰어 에이전트",
+    "reviewer_auto": "자동",
+    "gate": "승인 필수",
+    "gate_description": "켜져 있으면 최신 리뷰가 작업을 승인하기 전까지 태스크를 done으로 옮길 수 없습니다.",
+    "max_cycles": "최대 사이클",
+    "save": "리뷰 설정 저장",
+    "failed": "리뷰 설정을 저장하지 못했습니다"
   }
 }

@@ -2490,6 +2490,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/blast-radius-rules", h.CreateBlastRadiusRule)
 					r.Delete("/blast-radius-rules/{ruleId}", h.DeleteBlastRadiusRule)
 					r.Get("/blast-radius-preview", h.PreviewBlastRadius)
+					// Agent review by agent (JEF-238): per-project checklist, pinned reviewer, done gate.
+					r.Get("/review-config", h.GetProjectReviewConfig)
+					r.Put("/review-config", h.PutProjectReviewConfig)
 				})
 			})
 

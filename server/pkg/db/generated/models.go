@@ -1941,6 +1941,17 @@ type ProjectResource struct {
 	CreatedBy    pgtype.UUID        `json:"created_by"`
 }
 
+type ProjectReviewConfig struct {
+	ProjectID       pgtype.UUID        `json:"project_id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Checklist       []byte             `json:"checklist"`
+	ReviewerAgentID pgtype.UUID        `json:"reviewer_agent_id"`
+	GateEnabled     bool               `json:"gate_enabled"`
+	MaxCycles       int32              `json:"max_cycles"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type QuickAction struct {
 	ID            pgtype.UUID        `json:"id"`
 	WorkspaceID   pgtype.UUID        `json:"workspace_id"`

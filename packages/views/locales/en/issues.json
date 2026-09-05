@@ -1301,7 +1301,10 @@
     "suggestions": "Suggestions",
     "retry": "Retry the review",
     "retry_failed": "The retry failed",
-    "previous": "{{count}} earlier attempt(s)"
+    "previous": "{{count}} earlier attempt(s)",
+    "checklist": "Checklist",
+    "rework": "sent back to the worker · cycle {{cycle}}",
+    "escalated": "escalated after {{cycles}} cycles — needs a human"
   },
   "agent_effects": {
     "section": "Agent changes",

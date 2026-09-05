@@ -167,6 +167,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"plugin_package_file":            workspaceDelete,
 	"postmortem":                     workspaceDelete,
 	"project":                        workspaceDelete,
+	"project_review_config":          workspaceDelete,
 	"project_goal":                   workspaceDelete,
 	"goal":                           workspaceDelete,
 	"project_resource":               workspaceDelete,

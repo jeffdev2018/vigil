@@ -12,26 +12,47 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 // Cross-provider self-review (K15). When a code run completes with a diff
-// (a PR, a branch or touched files), a second run on a different provider
-// reviews that diff — only the diff, never the author's conversation — and
-// ends with a structured report stored as a `review_report` task message.
-// The reviewer is the least recently used agent of another provider. One
-// provider only: nothing happens. The review is a signal beside the human
-// review, never a gate.
+// (a PR, a branch or touched files), a second run reviews that diff — only
+// the diff, never the author's conversation — and ends with a structured
+// report stored as a `review_report` task message. The reviewer is the least
+// recently used agent that is neither the author nor the author's
+// (runtime, model) twin, another provider preferred (JEF-238); a project may
+// also pin its reviewer. Alone in the workspace: nothing happens. By default
+// the review is a signal beside the human review; a project that enables its
+// review gate (JEF-238) makes an approve verdict a precondition of done.
 
 const (
 	AuditCrossReview                = "cross_review"
 	crossReviewMessageType          = "review_report"
 	crossReviewBrief                = "Cross-provider review. An agent running on %s just delivered a change on this issue. Review ONLY that diff, as an independent reader: do not read, resume or continue the author's conversation, and do not modify any code.\nDiff to review: %s\n%sEnd your run with a fenced block starting with ```review_report that contains one JSON object: {\"verdict\":\"approve\"|\"request_changes\"|\"comment\",\"risks\":[\"…\"],\"questions\":[\"…\"],\"suggestions\":[\"…\"]}."
+	crossReviewBriefWithChecklist   = "Cross-provider review. An agent running on %s just delivered a change on this issue. Review ONLY that diff, as an independent reader: do not read, resume or continue the author's conversation, and do not modify any code.\nDiff to review: %s\n%s%sEnd your run with a fenced block starting with ```review_report that contains one JSON object: {\"verdict\":\"approve\"|\"request_changes\"|\"comment\",\"risks\":[\"…\"],\"questions\":[\"…\"],\"suggestions\":[\"…\"],\"checklist_results\":[{\"item\":\"…\",\"pass\":true|false,\"note\":\"…\"}]} — one checklist_results entry per Review checklist item, and verdict \"request_changes\" whenever a checklist item fails."
 	crossReviewDiffCap              = 60_000
 	AuditCrossReviewSettingsChanged = "cross_review.settings_changed"
 )
+
+// buildCrossReviewBrief is the review run's whole brief. A project checklist
+// (JEF-238) adds a Review checklist section and switches the report contract
+// to per-item results with a request_changes verdict on any failure.
+func buildCrossReviewBrief(provider, ref, diff string, checklist []string) string {
+	if len(checklist) == 0 {
+		return fmt.Sprintf(crossReviewBrief, provider, ref, diff)
+	}
+	var b strings.Builder
+	b.WriteString("Review checklist — verify every item against the diff:\n")
+	for _, item := range checklist {
+		b.WriteString("- ")
+		b.WriteString(item)
+		b.WriteString("\n")
+	}
+	return fmt.Sprintf(crossReviewBriefWithChecklist, provider, ref, diff, b.String())
+}
 
 // PullRequestDiffFetcher returns the unified diff of the pull request the
 // review is about; the built-in one reads GitHub through the App and
@@ -42,12 +63,21 @@ type PullRequestDiffFetcher interface {
 
 var crossReviewFence = regexp.MustCompile("(?s)```review_report\\s*(\\{.*?\\})\\s*```")
 
+// ChecklistResult is the reviewer's per-item verdict on the project review
+// checklist (JEF-238); Note explains a failure.
+type ChecklistResult struct {
+	Item string `json:"item"`
+	Pass bool   `json:"pass"`
+	Note string `json:"note,omitempty"`
+}
+
 type CrossReviewReport struct {
-	Verdict     string   `json:"verdict"`
-	Risks       []string `json:"risks"`
-	Questions   []string `json:"questions"`
-	Suggestions []string `json:"suggestions"`
-	Summary     string   `json:"summary,omitempty"`
+	Verdict          string            `json:"verdict"`
+	Risks            []string          `json:"risks"`
+	Questions        []string          `json:"questions"`
+	Suggestions      []string          `json:"suggestions"`
+	Summary          string            `json:"summary,omitempty"`
+	ChecklistResults []ChecklistResult `json:"checklist_results,omitempty"`
 }
 
 type CrossReviewResponse struct {
@@ -74,6 +104,9 @@ func parseCrossReviewReport(text string) CrossReviewReport {
 			}
 			report.Risks, report.Questions, report.Suggestions = nonNil(parsed.Risks), nonNil(parsed.Questions), nonNil(parsed.Suggestions)
 			report.Summary = strings.TrimSpace(parsed.Summary)
+			// checklist_results is optional: a review run without a project
+			// checklist never emits it, and a reviewer may drop it anyway.
+			report.ChecklistResults = parsed.ChecklistResults
 			return report
 		}
 	}
@@ -156,6 +189,63 @@ func (h *Handler) diffBlock(ctx context.Context, issue db.Issue, prURL string) s
 	return "The diff:\n```diff\n" + diff + "\n```\n"
 }
 
+// projectReviewConfigFor loads the JEF-238 policy of the issue's project;
+// no project or no row means the zero value: no checklist, no pinned
+// reviewer, no gate.
+func (h *Handler) projectReviewConfigFor(ctx context.Context, issue db.Issue) db.ProjectReviewConfig {
+	if !issue.ProjectID.Valid {
+		return db.ProjectReviewConfig{}
+	}
+	cfg, err := h.Queries.GetProjectReviewConfig(ctx, issue.ProjectID)
+	if err != nil {
+		return db.ProjectReviewConfig{}
+	}
+	return cfg
+}
+
+// projectChecklist decodes the configured checklist; a malformed row behaves
+// like no checklist rather than failing the review.
+func projectChecklist(cfg db.ProjectReviewConfig) []string {
+	var items []string
+	if json.Unmarshal(cfg.Checklist, &items) != nil {
+		return nil
+	}
+	return items
+}
+
+// pickCrossReviewer chooses the reviewing agent (JEF-238): the project's
+// pinned reviewer when one is configured and still live; otherwise the least
+// recently used workspace agent that is neither the author nor the author's
+// (runtime, model) pair, another provider first.
+func (h *Handler) pickCrossReviewer(ctx context.Context, issue db.Issue, task db.AgentTaskQueue, cfg db.ProjectReviewConfig) (db.ListCrossReviewCandidatesRow, error) {
+	if cfg.ReviewerAgentID.Valid && cfg.ReviewerAgentID != task.AgentID {
+		if pinned, err := h.Queries.GetAgentInWorkspace(ctx, db.GetAgentInWorkspaceParams{ID: cfg.ReviewerAgentID, WorkspaceID: issue.WorkspaceID}); err == nil && !pinned.ArchivedAt.Valid {
+			provider := ""
+			if rt, err := h.Queries.GetAgentRuntime(ctx, pinned.RuntimeID); err == nil {
+				provider = rt.Provider
+			}
+			return db.ListCrossReviewCandidatesRow{ID: pinned.ID, Name: pinned.Name, Provider: provider}, nil
+		}
+		slog.Info("cross review: pinned reviewer unavailable, falling back to automatic choice", "issue_id", uuidToString(issue.ID), "reviewer_agent_id", uuidToString(cfg.ReviewerAgentID))
+	}
+	provider := h.runProvider(ctx, task)
+	author, err := h.Queries.GetAgent(ctx, task.AgentID)
+	if err != nil {
+		return db.ListCrossReviewCandidatesRow{}, err
+	}
+	candidates, err := h.Queries.ListCrossReviewCandidates(ctx, db.ListCrossReviewCandidatesParams{
+		WorkspaceID:     issue.WorkspaceID,
+		AuthorAgentID:   task.AgentID,
+		AuthorRuntimeID: author.RuntimeID,
+		AuthorModel:     author.Model.String,
+		AuthorProvider:  provider,
+	})
+	if err != nil || len(candidates) == 0 {
+		return db.ListCrossReviewCandidatesRow{}, errors.New("no reviewer available")
+	}
+	return candidates[0], nil
+}
+
 func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, ref, prURL string) (db.AgentTaskQueue, error) {
 	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
 	if err != nil {
@@ -164,16 +254,16 @@ func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, 
 	if ws, err := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); err == nil && !service.CrossReviewSettings(ws.Settings).Allows(uuidToString(issue.ProjectID)) {
 		return db.AgentTaskQueue{}, errors.New("cross review is switched off for this project")
 	}
+	cfg := h.projectReviewConfigFor(ctx, issue)
 	provider := h.runProvider(ctx, task)
-	candidates, err := h.Queries.ListCrossReviewCandidates(ctx, db.ListCrossReviewCandidatesParams{WorkspaceID: issue.WorkspaceID, AuthorProvider: provider})
-	if err != nil || len(candidates) == 0 {
-		return db.AgentTaskQueue{}, errors.New("no reviewer on another provider")
+	reviewer, err := h.pickCrossReviewer(ctx, issue, task, cfg)
+	if err != nil {
+		return db.AgentTaskQueue{}, err
 	}
-	reviewer := candidates[0]
 	if provider == "" {
 		provider = "another provider"
 	}
-	review, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, reviewer.ID, fmt.Sprintf(crossReviewBrief, provider, ref, h.diffBlock(ctx, issue, prURL)), task.OriginatorUserID)
+	review, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, reviewer.ID, buildCrossReviewBrief(provider, ref, h.diffBlock(ctx, issue, prURL), projectChecklist(cfg)), task.OriginatorUserID)
 	if err != nil {
 		slog.Warn("cross review: enqueue failed", "task_id", uuidToString(task.ID), "error", err)
 		return db.AgentTaskQueue{}, err
@@ -217,9 +307,89 @@ func (h *Handler) storeCrossReviewReport(ctx context.Context, task db.AgentTaskQ
 		slog.Warn("cross review: store report failed", "task_id", uuidToString(task.ID), "error", err)
 		return
 	}
-	if issue, err := h.Queries.GetIssue(ctx, task.IssueID); err == nil {
-		h.publish("cross_review:report", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "review_task_id": uuidToString(task.ID), "verdict": report.Verdict})
+	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
+	if err != nil {
+		return
 	}
+	h.publish("cross_review:report", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "review_task_id": uuidToString(task.ID), "verdict": report.Verdict})
+	h.maybeReworkAfterReview(ctx, issue, task, report)
+}
+
+// maybeReworkAfterReview closes the JEF-238 loop: when the project gates done
+// on the review, a request_changes verdict sends the worker back with the
+// report as its brief — up to max_cycles reviews, then it escalates to the
+// humans instead of looping forever. Without the gate nothing changes: the
+// report stays the non-blocking signal it always was.
+func (h *Handler) maybeReworkAfterReview(ctx context.Context, issue db.Issue, reviewTask db.AgentTaskQueue, report CrossReviewReport) {
+	if report.Verdict != "request_changes" {
+		return
+	}
+	category := issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, issue.Status)
+	if category == issuestatus.Done || category == issuestatus.Cancelled {
+		return
+	}
+	cfg := h.projectReviewConfigFor(ctx, issue)
+	if !cfg.GateEnabled {
+		return
+	}
+	cycles, err := h.Queries.CountCrossReviewsForIssue(ctx, issue.ID)
+	if err != nil {
+		slog.Warn("cross review: count reviews failed", "issue_id", uuidToString(issue.ID), "error", err)
+		return
+	}
+	if int(cycles) >= int(cfg.MaxCycles) {
+		slog.Warn("cross review: request_changes past max cycles, escalating", "issue_id", uuidToString(issue.ID), "cycles", cycles, "max_cycles", cfg.MaxCycles)
+		h.publish("cross_review:escalated", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "cycles": cycles})
+		return
+	}
+	rework, err := h.TaskService.EnqueueTaskForIssueWithHandoff(ctx, issue, reviewReworkNote(report, int(cycles)), reviewTask.OriginatorUserID)
+	if err != nil {
+		slog.Warn("cross review: rework enqueue failed", "issue_id", uuidToString(issue.ID), "error", err)
+		return
+	}
+	h.publish("cross_review:rework", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "task_id": uuidToString(rework.ID), "cycle": cycles})
+}
+
+// reviewReworkNote is the worker's brief for the rework run: every signal the
+// reviewer produced, with the failed checklist items called out.
+func reviewReworkNote(report CrossReviewReport, cycle int) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "The cross-provider review of your last delivery requested changes (review cycle %d). Address every point below, then deliver again.", cycle)
+	if len(report.Risks) > 0 {
+		b.WriteString("\n\n## Risks\n")
+		for _, r := range report.Risks {
+			b.WriteString("- " + r + "\n")
+		}
+	}
+	if len(report.Questions) > 0 {
+		b.WriteString("\n## Questions\n")
+		for _, q := range report.Questions {
+			b.WriteString("- " + q + "\n")
+		}
+	}
+	if len(report.Suggestions) > 0 {
+		b.WriteString("\n## Suggestions\n")
+		for _, s := range report.Suggestions {
+			b.WriteString("- " + s + "\n")
+		}
+	}
+	var failed []ChecklistResult
+	for _, c := range report.ChecklistResults {
+		if !c.Pass {
+			failed = append(failed, c)
+		}
+	}
+	if len(failed) > 0 {
+		b.WriteString("\n## Checklist failures\n")
+		for _, c := range failed {
+			b.WriteString("- " + c.Item)
+			if strings.TrimSpace(c.Note) != "" {
+				b.WriteString(" — " + c.Note)
+			}
+			b.WriteString("\n")
+		}
+	}
+	return b.String()
 }
 
 func (h *Handler) crossReviewsToResponse(ctx context.Context, rows []db.ListCrossReviewsForIssueRow) []CrossReviewResponse {

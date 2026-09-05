@@ -232,6 +232,8 @@ export type {
   CreateProjectRequest,
   UpdateProjectRequest,
   ListProjectsResponse,
+  ProjectReviewConfig,
+  UpdateProjectReviewConfigRequest,
   ProjectResource,
   ProjectResourceType,
   ProjectResourceRef,

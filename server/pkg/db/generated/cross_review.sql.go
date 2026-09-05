@@ -11,6 +11,108 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countCrossReviewsForIssue = `-- name: CountCrossReviewsForIssue :one
+SELECT COUNT(*) FROM agent_task_queue WHERE issue_id = $1 AND review_of_task_id IS NOT NULL
+`
+
+// Review runs of the issue; review tasks live on the same issue as the run
+// they review, so their review_of_task_id always points at a task of $1.
+func (q *Queries) CountCrossReviewsForIssue(ctx context.Context, issueID pgtype.UUID) (int64, error) {
+	row := q.db.QueryRow(ctx, countCrossReviewsForIssue, issueID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getLatestCompletedWorkerTaskForIssue = `-- name: GetLatestCompletedWorkerTaskForIssue :one
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id FROM agent_task_queue
+WHERE issue_id = $1 AND review_of_task_id IS NULL AND status = 'completed'
+ORDER BY completed_at DESC NULLS LAST, created_at DESC
+LIMIT 1
+`
+
+// The most recent completed run that is not itself a review: the run whose
+// review verdict the done gate (JEF-238) consults.
+func (q *Queries) GetLatestCompletedWorkerTaskForIssue(ctx context.Context, issueID pgtype.UUID) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, getLatestCompletedWorkerTaskForIssue, issueID)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.LastActivityAt,
+		&i.PermissionProfileID,
+		&i.FailoverHistory,
+		&i.RoutingDecision,
+		&i.PauseRequestedAt,
+		&i.ResumedByTaskID,
+		&i.LastCheckpointSeq,
+		&i.CheckpointAttempts,
+		&i.CheckpointedAt,
+		&i.TouchedPaths,
+		&i.DriftReason,
+		&i.PreemptedAt,
+		&i.PreemptedByTaskID,
+		&i.ReviewOfTaskID,
+		&i.TaskClass,
+		&i.Routing,
+		&i.SafeMode,
+		&i.ModelKeyID,
+	)
+	return i, err
+}
+
 const getLatestCrossReviewForTask = `-- name: GetLatestCrossReviewForTask :one
 SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id FROM agent_task_queue WHERE review_of_task_id = $1 ORDER BY created_at DESC LIMIT 1
 `
@@ -121,13 +223,22 @@ SELECT a.id, a.name, r.provider,
        (SELECT MAX(t.created_at) FROM agent_task_queue t WHERE t.agent_id = a.id AND t.review_of_task_id IS NOT NULL) AS last_review_at
 FROM agent a
 JOIN agent_runtime r ON r.id = a.runtime_id
-WHERE a.workspace_id = $1 AND a.kind = 'user' AND a.archived_at IS NULL AND r.provider <> '' AND r.provider <> $2::text
-ORDER BY last_review_at NULLS FIRST, a.created_at
+WHERE a.workspace_id = $1 AND a.kind = 'user' AND a.archived_at IS NULL AND r.provider <> ''
+  AND a.id <> $2::uuid
+  AND (
+    $3::uuid IS NULL
+    OR a.runtime_id IS DISTINCT FROM $3::uuid
+    OR COALESCE(a.model, '') <> COALESCE($4::text, '')
+  )
+ORDER BY (r.provider <> $5::text) DESC, last_review_at NULLS FIRST, a.created_at
 `
 
 type ListCrossReviewCandidatesParams struct {
-	WorkspaceID    pgtype.UUID `json:"workspace_id"`
-	AuthorProvider string      `json:"author_provider"`
+	WorkspaceID     pgtype.UUID `json:"workspace_id"`
+	AuthorAgentID   pgtype.UUID `json:"author_agent_id"`
+	AuthorRuntimeID pgtype.UUID `json:"author_runtime_id"`
+	AuthorModel     string      `json:"author_model"`
+	AuthorProvider  string      `json:"author_provider"`
 }
 
 type ListCrossReviewCandidatesRow struct {
@@ -137,10 +248,19 @@ type ListCrossReviewCandidatesRow struct {
 	LastReviewAt interface{} `json:"last_review_at"`
 }
 
-// Agents on a provider other than the author's, least recently used as a
-// reviewer first, so the load spreads without configuration.
+// Agents of the workspace that are not the author and do not run the same
+// (runtime, model) pair as the author — the same pair would be the same
+// reviewer wearing another name (JEF-238). A different provider is preferred;
+// least recently used as a reviewer first, so the load spreads without
+// configuration.
 func (q *Queries) ListCrossReviewCandidates(ctx context.Context, arg ListCrossReviewCandidatesParams) ([]ListCrossReviewCandidatesRow, error) {
-	rows, err := q.db.Query(ctx, listCrossReviewCandidates, arg.WorkspaceID, arg.AuthorProvider)
+	rows, err := q.db.Query(ctx, listCrossReviewCandidates,
+		arg.WorkspaceID,
+		arg.AuthorAgentID,
+		arg.AuthorRuntimeID,
+		arg.AuthorModel,
+		arg.AuthorProvider,
+	)
 	if err != nil {
 		return nil, err
 	}
