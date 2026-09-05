@@ -264,6 +264,34 @@
         "label": "归档通知",
         "description": "归档当前打开的收件箱通知；在归档列表中则取消归档。"
       },
+      "triageNextItem": {
+        "label": "分诊：下一条",
+        "description": "移动到分诊队列中的下一条。"
+      },
+      "triagePrevItem": {
+        "label": "分诊：上一条",
+        "description": "移动到分诊队列中的上一条。"
+      },
+      "triageAccept": {
+        "label": "分诊：接受",
+        "description": "接受当前打开的分诊条目并创建议题。"
+      },
+      "triageDismiss": {
+        "label": "分诊：忽略",
+        "description": "忽略当前打开的分诊条目。"
+      },
+      "triageSnooze": {
+        "label": "分诊：稍后处理",
+        "description": "为当前打开的分诊条目打开稍后处理菜单。"
+      },
+      "triageMerge": {
+        "label": "分诊：合并",
+        "description": "把当前打开的分诊条目合并到已有议题。"
+      },
+      "triageReopen": {
+        "label": "分诊：重新打开",
+        "description": "把已忽略的分诊条目退回待处理。"
+      },
       "send": {
         "label": "发送",
         "description": "发送聊天消息、评论、回复、反馈和提示词，并在创建弹窗中创建任务。"

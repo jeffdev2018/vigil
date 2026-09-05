@@ -472,6 +472,61 @@ describe("TriagePage", () => {
     );
   });
 
+  // Keyboard: the focused row is the cursor, so J/K (and Up/Down) only move
+  // focus and the row's own Enter opens the detail. Chord parsing itself is
+  // covered by packages/core/shortcuts/definitions.test.ts.
+  it("J/K move through the rows and Enter opens the focused item", async () => {
+    data.items.items = [
+      data.items.items[0]!,
+      { ...data.items.items[0]!, id: "item-2", title: "Second delivery" },
+    ];
+    renderPage();
+    await screen.findByText("Payment gateway timeout");
+    const rows = document.querySelectorAll<HTMLElement>("[data-triage-row]");
+    expect(rows).toHaveLength(2);
+
+    fireEvent.keyDown(document, { key: "j" });
+    expect(document.activeElement).toBe(rows[0]);
+    fireEvent.keyDown(document, { key: "j" });
+    expect(document.activeElement).toBe(rows[1]);
+    // Up/Down are list navigation, not a rebindable action: they only work
+    // from a focused row.
+    fireEvent.keyDown(rows[1]!, { key: "ArrowUp" });
+    expect(document.activeElement).toBe(rows[0]);
+    fireEvent.keyDown(document, { key: "k" });
+    expect(document.activeElement).toBe(rows[0]);
+
+    fireEvent.keyDown(rows[0]!, { key: "Enter" });
+    expect(await screen.findByTestId("rich-content")).toBeTruthy();
+
+    // Escape closes the detail again.
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("rich-content")).toBeNull());
+  });
+
+  it("A accepts the open item", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    await screen.findByRole("button", { name: /^accept$/i });
+
+    fireEvent.keyDown(document, { key: "a" });
+    await waitFor(() =>
+      expect(mutations.accept).toHaveBeenCalledWith({ itemId: "item-1", overrides: {} }),
+    );
+  });
+
+  it("does not fire a binding while the keyboard belongs to a field", async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText("Payment gateway timeout"));
+    fireEvent.click(await screen.findByRole("button", { name: /^dismiss$/i }));
+
+    const reason = await screen.findByLabelText(/reason/i);
+    fireEvent.keyDown(reason, { key: "a" });
+    fireEvent.keyDown(reason, { key: "x" });
+    expect(mutations.accept).not.toHaveBeenCalled();
+    expect(mutations.dismiss).not.toHaveBeenCalled();
+  });
+
   it("checking a row reveals the batch-accept bar", async () => {
     renderPage();
     await screen.findByText("Payment gateway timeout");

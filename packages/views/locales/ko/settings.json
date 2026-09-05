@@ -264,6 +264,34 @@
         "label": "알림 보관",
         "description": "열린 인박스 알림을 보관합니다. 보관함을 보는 중에는 보관을 해제합니다."
       },
+      "triageNextItem": {
+        "label": "트리아지: 다음 항목",
+        "description": "트리아지 대기열의 다음 항목으로 이동합니다."
+      },
+      "triagePrevItem": {
+        "label": "트리아지: 이전 항목",
+        "description": "트리아지 대기열의 이전 항목으로 이동합니다."
+      },
+      "triageAccept": {
+        "label": "트리아지: 승인",
+        "description": "열려 있는 트리아지 항목을 승인하고 이슈를 만듭니다."
+      },
+      "triageDismiss": {
+        "label": "트리아지: 반려",
+        "description": "열려 있는 트리아지 항목을 반려합니다."
+      },
+      "triageSnooze": {
+        "label": "트리아지: 스누즈",
+        "description": "열려 있는 트리아지 항목의 스누즈 메뉴를 엽니다."
+      },
+      "triageMerge": {
+        "label": "트리아지: 병합",
+        "description": "열려 있는 트리아지 항목을 기존 이슈에 병합합니다."
+      },
+      "triageReopen": {
+        "label": "트리아지: 다시 열기",
+        "description": "반려한 트리아지 항목을 대기 중으로 되돌립니다."
+      },
       "send": {
         "label": "보내기",
         "description": "채팅, 댓글, 답글, 피드백 및 프롬프트를 보내고, 생성 대화상자에서 태스크를 만듭니다."

@@ -7,6 +7,7 @@ import type { TriageAutoSettings, TriageItem, TriageSuggestion } from "@multica/
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { useT } from "../../i18n";
+import { useShortcutAction } from "./use-shortcut-action";
 
 /**
  * Triage auto-ML (K61): what the queue learned from past accept / dismiss
@@ -30,6 +31,13 @@ export function TriageSuggestionPanel({ item, suggestion, auto, wsId }: { item: 
   const { t } = useT("triage");
   const reopen = useReopenTriageItem(wsId);
   const dismissedByAuto = item.state === "dismissed";
+  const handleReopen = () =>
+    reopen.mutate(item.id, {
+      onError: (e) =>
+        toast.error(e instanceof Error && e.message ? e.message : t(($) => $.suggestion.reopen_failed)),
+    });
+  // Only a dismissed item can be reopened, so the binding exists only there.
+  useShortcutAction("triageReopen", dismissedByAuto && !reopen.isPending ? handleReopen : null);
   return (
     <section data-testid="triage-suggestion-panel" className="flex flex-col gap-1.5">
       <h3 className="text-caption font-medium text-muted-foreground">{t(($) => $.suggestion.title)}</h3>
@@ -66,7 +74,7 @@ export function TriageSuggestionPanel({ item, suggestion, auto, wsId }: { item: 
           variant="outline"
           className="self-start"
           disabled={reopen.isPending}
-          onClick={() => reopen.mutate(item.id, { onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.suggestion.reopen_failed)) })}
+          onClick={handleReopen}
         >
           {t(($) => $.suggestion.reopen)}
         </Button>

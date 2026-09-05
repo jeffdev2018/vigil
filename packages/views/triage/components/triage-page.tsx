@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Inbox, Check, X, Loader2, ExternalLink } from "lucide-react";
@@ -16,6 +16,8 @@ import {
 } from "@multica/core/triage/mutations";
 import { TriageItemActions, TriageVerdictBadge, TriageVerdictNote } from "./triage-item-actions";
 import { isSnoozed } from "./snooze-presets";
+import { useShortcutAction } from "./use-shortcut-action";
+import { isEditableShortcutTarget, isPortalLayerShortcutTarget } from "@multica/core/shortcuts";
 import { useT, useTimeAgo } from "../../i18n";
 import {
   CollectionPageHeader,
@@ -56,6 +58,20 @@ type TriageTab = (typeof TRIAGE_TABS)[number];
 /** Oldest pending age in seconds → an ISO timestamp `timeAgo` can render. */
 function ageSecondsToIso(seconds: number): string {
   return new Date(Date.now() - seconds * 1000).toISOString();
+}
+
+/**
+ * Keyboard cursor for the queue: the focused row IS the cursor, so J/K and the
+ * arrow keys only move DOM focus and the row's own Enter/Space handler opens
+ * the detail. Nothing new to keep in state, and Tab lands on the same rows.
+ */
+function moveRowFocus(list: HTMLElement | null, delta: number): void {
+  if (!list) return;
+  const rows = [...list.querySelectorAll<HTMLElement>("[data-triage-row]")];
+  if (rows.length === 0) return;
+  const current = rows.findIndex((row) => row === document.activeElement);
+  const next = current < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, current + delta));
+  rows[next]?.focus();
 }
 
 function formatPayload(payload: TriageItem["payload"]): string | null {
@@ -121,6 +137,21 @@ export function TriagePage() {
   }, []);
 
   const clearSelection = useCallback(() => setCheckedIds(new Set()), []);
+
+  // Escape clears the open detail. It cannot be a rebindable action (Escape is
+  // reserved for dismissing popups), so it is bound here directly and yields to
+  // any open menu or dialog through the same guards as the other bindings.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (event.defaultPrevented || event.repeat) return;
+      if (isEditableShortcutTarget(event.target)) return;
+      if (isPortalLayerShortcutTarget(event.target)) return;
+      setSelectedId(null);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const handleFilter = useCallback((tab: TriageTab) => {
     setFilterTab(tab);
@@ -325,6 +356,12 @@ function TriageList({
   onLoadMore: () => void;
 }) {
   const { t } = useT("triage");
+  const listRef = useRef<HTMLUListElement>(null);
+
+  // J/K walk the queue from anywhere on the page; Up/Down do the same while a
+  // row already has focus (see the list's own onKeyDown).
+  useShortcutAction("triageNextItem", () => moveRowFocus(listRef.current, 1));
+  useShortcutAction("triagePrevItem", () => moveRowFocus(listRef.current, -1));
 
   if (isLoading) {
     return (
@@ -369,7 +406,15 @@ function TriageList({
   }
 
   return (
-    <ul className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-y-auto p-2">
+    <ul
+      ref={listRef}
+      onKeyDown={(e) => {
+        if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+        e.preventDefault();
+        moveRowFocus(listRef.current, e.key === "ArrowDown" ? 1 : -1);
+      }}
+      className="flex w-full min-w-0 flex-1 flex-col gap-1 overflow-y-auto p-2"
+    >
       {items.map((item) => {
         const isActive = item.id === selectedId;
         const isChecked = checkedIds.has(item.id);
@@ -378,6 +423,7 @@ function TriageList({
             <div
               role="button"
               tabIndex={0}
+              data-triage-row=""
               onClick={() => onSelect(item.id)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
@@ -387,6 +433,7 @@ function TriageList({
               }}
               className={cn(
                 "group flex w-full cursor-pointer items-center gap-2 rounded-lg border px-2 py-2 text-left transition-colors",
+                "outline-none focus-visible:ring-2 focus-visible:ring-ring",
                 isActive
                   ? "border-primary/40 bg-accent"
                   : "border-transparent hover:bg-accent/60",

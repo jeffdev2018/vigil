@@ -264,6 +264,34 @@
         "label": "通知をアーカイブ",
         "description": "開いているインボックス通知をアーカイブします。アーカイブ表示中はアーカイブを解除します。"
       },
+      "triageNextItem": {
+        "label": "トリアージ: 次の項目",
+        "description": "トリアージキューの次の項目に移動します。"
+      },
+      "triagePrevItem": {
+        "label": "トリアージ: 前の項目",
+        "description": "トリアージキューの前の項目に移動します。"
+      },
+      "triageAccept": {
+        "label": "トリアージ: 受理",
+        "description": "開いているトリアージ項目を受理し、Issue を作成します。"
+      },
+      "triageDismiss": {
+        "label": "トリアージ: 却下",
+        "description": "開いているトリアージ項目を却下します。"
+      },
+      "triageSnooze": {
+        "label": "トリアージ: スヌーズ",
+        "description": "開いているトリアージ項目のスヌーズメニューを開きます。"
+      },
+      "triageMerge": {
+        "label": "トリアージ: マージ",
+        "description": "開いているトリアージ項目を既存の Issue にマージします。"
+      },
+      "triageReopen": {
+        "label": "トリアージ: 再開",
+        "description": "却下したトリアージ項目を保留中に戻します。"
+      },
       "send": {
         "label": "送信",
         "description": "チャット、コメント、返信、フィードバック、プロンプトを送信し、作成ダイアログでタスクを作成します。"
