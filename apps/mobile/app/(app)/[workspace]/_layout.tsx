@@ -11,6 +11,7 @@ import { useMyIssuesRealtime } from "@/data/realtime/use-my-issues-realtime";
 import { useChatSessionsRealtime } from "@/data/realtime/use-chat-sessions-realtime";
 import { useProjectsRealtime } from "@/data/realtime/use-projects-realtime";
 import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
+import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -79,6 +80,9 @@ function RealtimeSubscriptions() {
   useChatSessionsRealtime();
   useProjectsRealtime();
   usePinsRealtime();
+  // Triage + postmortem: both feed an always-mounted badge in the More
+  // popover, so they stay subscribed for the whole workspace session.
+  useTriageRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
