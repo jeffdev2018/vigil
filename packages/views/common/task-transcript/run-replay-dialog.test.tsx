@@ -10,6 +10,7 @@ import { renderWithI18n } from "../../test/i18n";
 const state = vi.hoisted(() => ({
   replay: null as RunReplay | null,
   resume: vi.fn(),
+  simulate: vi.fn(),
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -18,17 +19,18 @@ vi.mock("@multica/core/issues/run-replay", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/issues/run-replay")>()),
   taskReplayOptions: (_ws: string, taskId: string) => ({ queryKey: ["replay", taskId], queryFn: async () => state.replay }),
   useResumeTaskReplay: () => ({ mutate: state.resume, isPending: false }),
+  useSimulateTaskReplay: () => ({ mutate: state.simulate, isPending: false }),
 }));
 
 import { RunReplayDialog } from "./run-replay-dialog";
 
 const ev = (seq: number, kind: string, over: Partial<ReplayEvent> = {}): ReplayEvent => ({
-  seq, at: "2026-09-05T10:00:00Z", kind, actor: { type: "agent", id: "a1", name: "Builder" }, title: kind, text: "", data: {}, source: "task_message", source_id: String(seq), prev_hash: "", hash: "hash" + seq + "0000000000", ...over,
+  seq, at: "2026-09-05T10:00:00Z", kind, actor: { type: "agent", id: "a1", name: "Builder" }, title: kind, text: "", data: {}, data_class: "internal", in_plan: null, source: "task_message", source_id: String(seq), prev_hash: "", hash: "hash" + seq + "0000000000", ...over,
 });
 
 const replay = (over: Partial<RunReplay> = {}): RunReplay => ({
-  run: { id: "t1", issue_id: "i1", agent_id: "a1", agent_name: "Builder", status: "completed", trust_mode: "propose", effect_mode: "apply", model: "", created_at: null, started_at: null, completed_at: null, links: [{ relation: "retry_of", task_id: "t0", agent_id: "a1", agent_name: "Builder" }] },
-  events: [ev(0, "text", { title: "Agent says", text: "Starting" }), ev(1, "tool_use", { title: "Tool call: read_file", data: { tool: "read_file" } }), ev(2, "effect", { title: "Effect: issue_status" })],
+  run: { id: "t1", safe_mode: false, snapshot: { trust_mode: "autonomous", effect_mode: "apply", model: "claude", thinking_level: "", permission_profile_id: "", runtime_id: "", safe_mode: false, plan_version: 2, recorded_at: "" }, plan: { version: 2, steps: 3 }, drift: 1, issue_id: "i1", agent_id: "a1", agent_name: "Builder", status: "completed", trust_mode: "propose", effect_mode: "apply", model: "", created_at: null, started_at: null, completed_at: null, links: [{ relation: "retry_of", task_id: "t0", agent_id: "a1", agent_name: "Builder" }] },
+  events: [ev(0, "text", { title: "Agent says", text: "Starting" }), ev(1, "tool_use", { title: "Tool call: read_file", data: { tool: "read_file" }, in_plan: false, data_class: "confidential" }), ev(2, "effect", { title: "Effect: issue_status" })],
   total: 3, next_cursor: null, head_hash: "hash20000000000", cost: { input_tokens: 1200, output_tokens: 300, cost_usd_ticks: 25_000_000_000 },
   sealed: { events: 3, head_hash: "hash20000000000", sealed_at: "2026-09-05T10:05:00Z", verified: true }, ...over,
 });
@@ -79,5 +81,17 @@ describe("RunReplayDialog", () => {
     await screen.findByTestId("replay-event");
     expect(screen.getByTestId("replay-seal").getAttribute("data-state")).toBe("broken");
     expect(screen.queryByTestId("replay-resume")).toBeNull();
+  });
+
+  it("shows the snapshot, flags a call outside the plan and a redacted event, and starts a safe replay", async () => {
+    render();
+    await screen.findByTestId("replay-event");
+    expect(screen.getByTestId("replay-snapshot").textContent).toContain("autonomous");
+    expect(screen.getByTestId("replay-snapshot").textContent).toContain("plan v2");
+    fireEvent.change(screen.getByRole("slider"), { target: { value: "1" } });
+    expect(screen.getByTestId("replay-drift")).toBeTruthy();
+    expect(screen.getByTestId("replay-redacted")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("replay-safe"));
+    expect(state.simulate).toHaveBeenCalled();
   });
 });

@@ -2174,6 +2174,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Replay (K70): the run as one hash-chained event stream, and a resume point.
 			r.Get("/api/tasks/{taskId}/replay", h.GetTaskReplay)
 			r.Post("/api/tasks/{taskId}/replay/resume", h.ResumeTaskReplay)
+			r.Post("/api/tasks/{taskId}/replay/simulate", h.SimulateTaskReplay)
 			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
 			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
 			// Permission profiles (K06): what an agent may touch when it runs.

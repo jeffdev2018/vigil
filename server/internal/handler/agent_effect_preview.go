@@ -43,7 +43,7 @@ func (h *Handler) previewRun(r *http.Request) (agentID, taskID pgtype.UUID, ok b
 	if !ok {
 		return pgtype.UUID{}, pgtype.UUID{}, false
 	}
-	if !service.AgentPreviewsEffects(r.Context(), h.Queries, agentID) {
+	if !service.RunHoldsEffects(r.Context(), h.Queries, agentID, taskID) {
 		return pgtype.UUID{}, pgtype.UUID{}, false
 	}
 	return agentID, taskID, true

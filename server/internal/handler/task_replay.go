@@ -14,7 +14,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/redact"
 )
 
 // Run replay (K70): one ordered event stream per run, merged at read time
@@ -32,7 +34,16 @@ import (
 const (
 	AuditRunSealed            = "run.sealed"
 	AuditRunResumedFromReplay = "run.resumed_from_replay"
+	AuditRunStarted           = "run.started"
+	AuditRunReplayedSafe      = "run.replayed_safe"
 	replayPageMax             = 500
+)
+
+// Data classes a replay event can carry. Confidential means the server
+// redacted a secret out of it; the clear value stays only in the sources.
+const (
+	replayClassInternal     = "internal"
+	replayClassConfidential = "confidential"
 )
 
 type ReplayActor struct {
@@ -44,17 +55,21 @@ type ReplayActor struct {
 // ReplayEvent is one instant of the run. Data is the machine channel, Text
 // the human one (dual channel); both are hashed.
 type ReplayEvent struct {
-	Seq      int            `json:"seq"`
-	At       time.Time      `json:"at"`
-	Kind     string         `json:"kind"`
-	Actor    ReplayActor    `json:"actor"`
-	Title    string         `json:"title"`
-	Text     string         `json:"text,omitempty"`
-	Data     map[string]any `json:"data"`
-	Source   string         `json:"source"`
-	SourceID string         `json:"source_id"`
-	PrevHash string         `json:"prev_hash"`
-	Hash     string         `json:"hash"`
+	Seq   int            `json:"seq"`
+	At    time.Time      `json:"at"`
+	Kind  string         `json:"kind"`
+	Actor ReplayActor    `json:"actor"`
+	Title string         `json:"title"`
+	Text  string         `json:"text,omitempty"`
+	Data  map[string]any `json:"data"`
+	// DataClass is internal, or confidential when a secret was redacted.
+	DataClass string `json:"data_class"`
+	// InPlan is set on tool calls when the run had a plan: false = drift.
+	InPlan   *bool  `json:"in_plan,omitempty"`
+	Source   string `json:"source"`
+	SourceID string `json:"source_id"`
+	PrevHash string `json:"prev_hash"`
+	Hash     string `json:"hash"`
 }
 
 type ReplayLink struct {
@@ -64,8 +79,32 @@ type ReplayLink struct {
 	AgentName string `json:"agent_name,omitempty"`
 }
 
+// ReplaySnapshot is what the run started with, recorded at StartTask.
+type ReplaySnapshot struct {
+	TrustMode           string `json:"trust_mode"`
+	EffectMode          string `json:"effect_mode"`
+	Model               string `json:"model"`
+	ThinkingLevel       string `json:"thinking_level"`
+	PermissionProfileID string `json:"permission_profile_id"`
+	RuntimeID           string `json:"runtime_id"`
+	SafeMode            bool   `json:"safe_mode"`
+	PlanVersion         int32  `json:"plan_version"`
+	RecordedAt          string `json:"recorded_at"`
+}
+
+type ReplayPlan struct {
+	Version int32 `json:"version"`
+	Steps   int   `json:"steps"`
+}
+
 type ReplayRun struct {
-	ID          string       `json:"id"`
+	ID       string `json:"id"`
+	SafeMode bool   `json:"safe_mode"`
+	// Snapshot is nil for runs that started before snapshots existed.
+	Snapshot *ReplaySnapshot `json:"snapshot"`
+	// Plan is the plan the tool calls are compared against; nil = no plan, no drift flags.
+	Plan        *ReplayPlan  `json:"plan"`
+	Drift       int          `json:"drift"`
 	IssueID     string       `json:"issue_id"`
 	AgentID     string       `json:"agent_id"`
 	AgentName   string       `json:"agent_name"`
@@ -250,16 +289,18 @@ func (h *Handler) sealRunReplay(ctx context.Context, task db.AgentTaskQueue) {
 // --- build ---------------------------------------------------------------
 
 type replayCandidate struct {
-	at     time.Time
-	order  int // tie-break inside one instant: source rank, then native seq
-	seq    int
-	kind   string
-	actor  ReplayActor
-	title  string
-	text   string
-	data   map[string]any
-	source string
-	srcID  string
+	at       time.Time
+	order    int // tie-break inside one instant: source rank, then native seq
+	seq      int
+	kind     string
+	actor    ReplayActor
+	title    string
+	text     string
+	data     map[string]any
+	source   string
+	srcID    string
+	redacted bool
+	inPlan   *bool
 }
 
 func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, wsID pgtype.UUID) (RunReplayResponse, error) {
@@ -295,8 +336,30 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 		run.Links = append(run.Links, link)
 	}
 
+	run.SafeMode = task.SafeMode
 	var cands []replayCandidate
 	add := func(c replayCandidate) { cands = append(cands, c) }
+
+	// The plan the calls are compared against: the version the run started
+	// with when known, else the issue's active plan.
+	planText := ""
+	snapshot := h.replaySnapshot(ctx, wsID, task.ID)
+	run.Snapshot = snapshot
+	if task.IssueID.Valid {
+		var plan db.IssuePlan
+		var perr error
+		if snapshot != nil && snapshot.PlanVersion > 0 {
+			plan, perr = h.Queries.GetIssuePlanVersion(ctx, db.GetIssuePlanVersionParams{IssueID: task.IssueID, WorkspaceID: wsID, Version: snapshot.PlanVersion})
+		} else {
+			plan, perr = h.Queries.GetActiveIssuePlan(ctx, db.GetActiveIssuePlanParams{IssueID: task.IssueID, WorkspaceID: wsID})
+		}
+		if perr == nil {
+			var steps []any
+			_ = json.Unmarshal(plan.Steps, &steps)
+			run.Plan = &ReplayPlan{Version: plan.Version, Steps: len(steps)}
+			planText = plan.Content + " " + string(plan.Steps)
+		}
+	}
 
 	// 1. Task messages: the transcript, steers included.
 	messages, err := h.Queries.ListTaskMessages(ctx, task.ID)
@@ -319,11 +382,32 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 			data["output"] = truncate(m.Output.String, 4000)
 		}
 		text := ""
+		redacted := false
 		if m.Content.Valid {
-			text = m.Content.String
+			text, redacted = replayRedact(m.Content.String)
+		}
+		if in, ok := data["input"].(map[string]any); ok {
+			clean := redact.InputMap(in)
+			if fmt.Sprint(clean) != fmt.Sprint(in) {
+				redacted = true
+			}
+			data["input"] = clean
+		}
+		if out, ok := data["output"].(string); ok {
+			clean, changed := replayRedact(out)
+			data["output"] = clean
+			redacted = redacted || changed
 		}
 		title := replayMessageTitle(kind, m)
-		add(replayCandidate{at: m.CreatedAt.Time, order: 0, seq: int(m.Seq), kind: kind, actor: actor, title: title, text: text, data: data, source: "task_message", srcID: uuidToString(m.ID)})
+		var inPlan *bool
+		if kind == "tool_use" && planText != "" {
+			v := planMentions(planText, m.Tool.String)
+			inPlan = &v
+			if !v {
+				run.Drift++
+			}
+		}
+		add(replayCandidate{at: m.CreatedAt.Time, order: 0, seq: int(m.Seq), kind: kind, actor: actor, title: title, text: text, data: data, redacted: redacted, inPlan: inPlan, source: "task_message", srcID: uuidToString(m.ID)})
 	}
 	// Checkpoint marker (K20): the last message the daemon confirmed durable.
 	if task.CheckpointedAt.Valid && task.LastCheckpointSeq.Valid {
@@ -441,7 +525,11 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 		if c.data == nil {
 			c.data = map[string]any{}
 		}
-		e := ReplayEvent{Seq: i, At: c.at.UTC(), Kind: c.kind, Actor: c.actor, Title: c.title, Text: c.text, Data: c.data, Source: c.source, SourceID: c.srcID, PrevHash: prev}
+		class := replayClassInternal
+		if c.redacted {
+			class = replayClassConfidential
+		}
+		e := ReplayEvent{Seq: i, At: c.at.UTC(), Kind: c.kind, Actor: c.actor, Title: c.title, Text: c.text, Data: c.data, DataClass: class, InPlan: c.inPlan, Source: c.source, SourceID: c.srcID, PrevHash: prev}
 		e.Hash = replayEventHash(prev, e)
 		prev = e.Hash
 		events = append(events, e)
@@ -510,4 +598,126 @@ func tsPtr(ts pgtype.Timestamptz) *time.Time {
 	}
 	t := ts.Time.UTC()
 	return &t
+}
+
+// recordRunSnapshot audits what the run starts with (K70): trust mode,
+// effect mode, model, permission profile, runtime, safe mode, plan version.
+func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue, wsIDStr string) {
+	wsID, err := util.ParseUUID(wsIDStr)
+	if err != nil {
+		return
+	}
+	snap := ReplaySnapshot{RuntimeID: uuidToString(task.RuntimeID), SafeMode: task.SafeMode, RecordedAt: time.Now().UTC().Format(time.RFC3339Nano)}
+	if agent, err := h.Queries.GetAgent(ctx, task.AgentID); err == nil {
+		snap.TrustMode, snap.EffectMode, snap.Model, snap.ThinkingLevel = agent.TrustMode, agent.EffectMode, agent.Model.String, agent.ThinkingLevel.String
+		snap.PermissionProfileID = uuidToString(agent.PermissionProfileID)
+	}
+	if task.IssueID.Valid {
+		if plan, err := h.Queries.GetActiveIssuePlan(ctx, db.GetActiveIssuePlanParams{IssueID: task.IssueID, WorkspaceID: wsID}); err == nil {
+			snap.PlanVersion = plan.Version
+		}
+	}
+	h.audit(ctx, wsID, "system", "", AuditRunStarted, "task", task.ID, snap, nil)
+}
+
+// SimulateTaskReplay: POST /api/tasks/{taskId}/replay/simulate — a new run
+// of the issue in safe mode: every Multica write is held for approval and
+// the handoff tells the agent to describe external actions instead of
+// performing them. The held payloads are the proof of what it would do.
+func (h *Handler) SimulateTaskReplay(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+	task, wsID, ok := h.runReplayTask(w, r)
+	if !ok {
+		return
+	}
+	if !task.IssueID.Valid {
+		writeError(w, http.StatusBadRequest, "this run has no issue to replay on")
+		return
+	}
+	issue, err := h.Queries.GetIssueInWorkspace(r.Context(), db.GetIssueInWorkspaceParams{ID: task.IssueID, WorkspaceID: wsID})
+	if err != nil {
+		writeError(w, http.StatusNotFound, "issue not found")
+		return
+	}
+	replay, err := h.buildRunReplay(r.Context(), task, wsID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to build the replay: "+err.Error())
+		return
+	}
+	note := safeReplayNote(replay)
+	next, err := h.TaskService.EnqueueTaskForIssueWithHandoff(r.Context(), issue, note, parseUUID(userID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start the safe replay: "+err.Error())
+		return
+	}
+	if err := h.Queries.SetTaskSafeMode(r.Context(), next.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to flag the safe replay")
+		return
+	}
+	h.audit(r.Context(), wsID, "member", userID, AuditRunReplayedSafe, "task", task.ID, map[string]any{"new_task_id": uuidToString(next.ID), "events": replay.Total}, nil)
+	writeJSON(w, http.StatusCreated, map[string]any{"task_id": uuidToString(next.ID), "safe_mode": true})
+}
+
+func safeReplayNote(replay RunReplayResponse) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "SAFE REPLAY of run %s (%d events). This is a dry run: do NOT perform external side effects (no messages sent outside Multica, no payments, no emails, no deploys); describe each intended external action and its exact payload instead. Every write you make in Multica is held for human approval and shown as a preview.\n", replay.Run.ID, replay.Total)
+	b.WriteString("Original tool calls, in order:\n")
+	n := 0
+	for _, e := range replay.Events {
+		if e.Kind != "tool_use" {
+			continue
+		}
+		n++
+		if n > 40 {
+			b.WriteString("- …\n")
+			break
+		}
+		fmt.Fprintf(&b, "- #%d %s\n", e.Seq+1, e.Title)
+	}
+	return b.String()
+}
+
+// replayRedact returns the redacted text and whether anything was removed.
+func replayRedact(s string) (string, bool) {
+	out := redact.Text(s)
+	return out, out != s
+}
+
+// planMentions reports whether the plan names the tool (drift check).
+func planMentions(plan string, tool string) bool {
+	tool = strings.ToLower(strings.TrimSpace(tool))
+	if tool == "" {
+		return true
+	}
+	plan = strings.ToLower(plan)
+	if strings.Contains(plan, tool) {
+		return true
+	}
+	// "read_file" is mentioned as "read file" or "read the file" just as well.
+	words := strings.FieldsFunc(tool, func(r rune) bool { return r == '_' || r == '-' || r == '.' })
+	if len(words) < 2 {
+		return false
+	}
+	for _, w := range words {
+		if len(w) >= 3 && !strings.Contains(plan, w) {
+			return false
+		}
+	}
+	return true
+}
+
+// replaySnapshot reads the run.started audit entry, if the run has one.
+func (h *Handler) replaySnapshot(ctx context.Context, wsID, taskID pgtype.UUID) *ReplaySnapshot {
+	entries, err := h.Queries.ListAuditLogEntries(ctx, db.ListAuditLogEntriesParams{WorkspaceID: wsID, EntityID: taskID, Action: pgtype.Text{String: AuditRunStarted, Valid: true}, PageSize: 1})
+	if err != nil || len(entries) == 0 {
+		return nil
+	}
+	var snap ReplaySnapshot
+	if json.Unmarshal(entries[0].Details, &snap) != nil {
+		return nil
+	}
+	return &snap
 }

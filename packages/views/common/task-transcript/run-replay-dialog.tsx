@@ -11,6 +11,7 @@ import {
   sealState,
   taskReplayOptions,
   useResumeTaskReplay,
+  useSimulateTaskReplay,
   type ReplayEvent,
   type RunReplay,
 } from "@multica/core/issues/run-replay";
@@ -87,6 +88,7 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
     if (events.length > 0) setPos(events.length - 1);
   }, [events.length, taskId]);
   const resume = useResumeTaskReplay(wsId, taskId);
+  const simulate = useSimulateTaskReplay(wsId, taskId);
   const [instruction, setInstruction] = useState("");
   const current: ReplayEvent | undefined = events[pos];
   const counts = useMemo(() => replayCountsUpTo(events, pos), [events, pos]);
@@ -133,6 +135,14 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
               </span>
             </div>
 
+            <p data-testid="replay-snapshot" className="text-muted-foreground">
+              {data.run.snapshot
+                ? t(($) => $.replay.snapshot, { trust: data.run.snapshot.trust_mode || "?", effect: data.run.snapshot.effect_mode || "?", model: data.run.snapshot.model || "?", plan: data.run.plan ? String(data.run.plan.version) : "–" })
+                : t(($) => $.replay.snapshot_missing)}
+              {data.run.safe_mode && <> · {t(($) => $.replay.safe_run)}</>}
+              {data.run.plan && data.run.drift > 0 && <> · <span className="text-warning">{t(($) => $.replay.drift_total, { n: data.run.drift })}</span></>}
+            </p>
+
             {data.run.links.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-muted-foreground">{t(($) => $.replay.links)}</span>
@@ -177,6 +187,9 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
               <div className="flex flex-wrap items-center gap-2">
                 <span className={cn("rounded px-1.5 font-medium", KIND_TONE[current.kind] ?? "bg-muted")}>{kindLabel(current.kind)}</span>
                 <span className="font-medium">{current.title}</span>
+                {current.in_plan === false && <span data-testid="replay-drift" className="rounded bg-warning/15 px-1.5 text-warning">{t(($) => $.replay.drift)}</span>}
+                {current.in_plan === true && <span className="rounded bg-muted px-1.5 text-muted-foreground">{t(($) => $.replay.in_plan)}</span>}
+                {current.data_class === "confidential" && <span data-testid="replay-redacted" className="rounded bg-muted px-1.5 text-muted-foreground">{t(($) => $.replay.redacted)}</span>}
                 <span className="text-muted-foreground">
                   {current.actor.name || current.actor.type}
                   {" · "}
@@ -194,15 +207,37 @@ export function RunReplayDialog({ taskId: initialTaskId, open, onOpenChange }: {
 
             <p data-testid="replay-so-far" className="text-muted-foreground">
               {t(($) => $.replay.so_far, { tools: counts.tool_calls, effects: counts.effects, decisions: counts.decisions, steers: counts.steers, handoffs: counts.handoffs })}
+              {data.run.plan && <> · {t(($) => $.replay.drift_total, { n: counts.drift })}</>}
             </p>
 
             {replayResumable(data.run.status) && data.run.issue_id && (
               <div data-testid="replay-resume" className="flex flex-col gap-2 rounded-md border p-3">
                 <span className="font-medium">{t(($) => $.replay.resume_title, { pos: pos + 1 })}</span>
                 <Textarea rows={2} aria-label={t(($) => $.replay.resume_title, { pos: pos + 1 })} placeholder={t(($) => $.replay.resume_placeholder)} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
-                <Button type="button" size="sm" className="self-start" disabled={resume.isPending || !instruction.trim()} onClick={submitResume}>
-                  {t(($) => $.replay.resume_button)}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" size="sm" disabled={resume.isPending || !instruction.trim()} onClick={submitResume}>
+                    {t(($) => $.replay.resume_button)}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    data-testid="replay-safe"
+                    disabled={simulate.isPending}
+                    onClick={() =>
+                      simulate.mutate(undefined, {
+                        onSuccess: () => {
+                          toast.success(t(($) => $.replay.safe_started));
+                          onOpenChange(false);
+                        },
+                        onError: (e) => toast.error(e instanceof Error && e.message ? e.message : t(($) => $.replay.safe_failed)),
+                      })
+                    }
+                  >
+                    {t(($) => $.replay.safe_button)}
+                  </Button>
+                </div>
+                <span className="text-muted-foreground">{t(($) => $.replay.safe_hint)}</span>
               </div>
             )}
           </>

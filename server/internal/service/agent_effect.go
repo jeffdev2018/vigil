@@ -103,8 +103,14 @@ func RecordPendingAgentEffect(ctx context.Context, q *db.Queries, p AgentEffectP
 	})
 }
 
-// AgentPreviewsEffects reports whether the agent holds its writes for approval.
-func AgentPreviewsEffects(ctx context.Context, q *db.Queries, agentID pgtype.UUID) bool {
+// RunHoldsEffects reports whether the run's writes wait for approval: the
+// agent is in preview mode, or the run itself is a safe replay (K70).
+func RunHoldsEffects(ctx context.Context, q *db.Queries, agentID, taskID pgtype.UUID) bool {
+	if taskID.Valid {
+		if task, err := q.GetAgentTask(ctx, taskID); err == nil && task.SafeMode {
+			return true
+		}
+	}
 	agent, err := q.GetAgent(ctx, agentID)
 	return err == nil && agent.EffectMode == EffectModePreview
 }

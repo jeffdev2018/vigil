@@ -1142,6 +1142,17 @@
       "preempted_by": "被其抢占",
       "review_of": "评审对象",
       "escalation_for": "升级对象"
-    }
+    },
+    "snapshot": "开始时：信任 {{trust}} · 效果 {{effect}} · 模型 {{model}} · 计划 v{{plan}}",
+    "snapshot_missing": "开始时无快照（运行早于回放功能）",
+    "safe_run": "安全回放",
+    "drift": "计划外",
+    "in_plan": "计划内",
+    "drift_total": "{{n}} 次计划外调用",
+    "redacted": "已脱敏",
+    "safe_button": "以安全模式回放",
+    "safe_hint": "安全模式会保留所有 Multica 写入等待你批准，并要求智能体描述外部操作而不是执行；保留的负载就是证据。",
+    "safe_started": "安全回放已启动",
+    "safe_failed": "无法启动安全回放"
   }
 }

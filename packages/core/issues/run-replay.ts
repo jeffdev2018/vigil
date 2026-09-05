@@ -19,6 +19,10 @@ export interface ReplayEvent {
   title: string;
   text: string;
   data: Record<string, unknown>;
+  /** internal, or confidential when the server redacted a secret out of it */
+  data_class: string;
+  /** on tool calls when the run had a plan: false = the call is not in the plan (drift) */
+  in_plan: boolean | null;
   source: string;
   source_id: string;
   prev_hash: string;
@@ -32,9 +36,25 @@ export interface ReplayLink {
   agent_name: string;
 }
 
+export interface ReplaySnapshot {
+  trust_mode: string;
+  effect_mode: string;
+  model: string;
+  thinking_level: string;
+  permission_profile_id: string;
+  runtime_id: string;
+  safe_mode: boolean;
+  plan_version: number;
+  recorded_at: string;
+}
+
 export interface RunReplay {
   run: {
     id: string;
+    safe_mode: boolean;
+    snapshot: ReplaySnapshot | null;
+    plan: { version: number; steps: number } | null;
+    drift: number;
     issue_id: string;
     agent_id: string;
     agent_name: string;
@@ -58,6 +78,11 @@ export interface RunReplay {
 export interface ReplayResumeResult {
   task_id: string;
   from_seq: number;
+}
+
+export interface ReplaySimulateResult {
+  task_id: string;
+  safe_mode: boolean;
 }
 
 export const replayKeys = {
@@ -97,6 +122,16 @@ export function useResumeTaskReplay(wsId: string, taskId: string) {
   });
 }
 
+export function useSimulateTaskReplay(wsId: string, taskId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.simulateTaskReplay(taskId),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+    },
+  });
+}
+
 export interface ReplayCounts {
   tool_calls: number;
   effects: number;
@@ -104,12 +139,16 @@ export interface ReplayCounts {
   steers: number;
   errors: number;
   handoffs: number;
+  drift: number;
+  redacted: number;
 }
 
 /** What happened up to and including position `seq` (inclusive index into events). */
 export function replayCountsUpTo(events: ReplayEvent[], seq: number): ReplayCounts {
-  const c: ReplayCounts = { tool_calls: 0, effects: 0, decisions: 0, steers: 0, errors: 0, handoffs: 0 };
+  const c: ReplayCounts = { tool_calls: 0, effects: 0, decisions: 0, steers: 0, errors: 0, handoffs: 0, drift: 0, redacted: 0 };
   for (const e of events.slice(0, Math.max(0, seq + 1))) {
+    if (e.data_class === "confidential") c.redacted += 1;
+    if (e.in_plan === false) c.drift += 1;
     if (e.kind === "tool_use") c.tool_calls += 1;
     else if (e.kind === "effect") c.effects += 1;
     else if (e.kind === "decision_asked") c.decisions += 1;

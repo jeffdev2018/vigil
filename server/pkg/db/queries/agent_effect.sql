@@ -66,3 +66,6 @@ WHERE workspace_id = $1 AND agent_id = $2 AND (
     (reversed_at IS NOT NULL AND reversed_at >= sqlc.arg('since')::timestamptz)
     OR (status = 'rejected' AND reverse_error IS NULL AND created_at >= sqlc.arg('since')::timestamptz)
 );
+
+-- name: SetTaskSafeMode :exec
+UPDATE agent_task_queue SET safe_mode = true WHERE id = $1;

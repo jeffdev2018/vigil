@@ -294,6 +294,7 @@ type AgentTaskQueue struct {
 	ReviewOfTaskID      pgtype.UUID        `json:"review_of_task_id"`
 	TaskClass           string             `json:"task_class"`
 	Routing             []byte             `json:"routing"`
+	SafeMode            bool               `json:"safe_mode"`
 }
 
 type AgentToLabel struct {

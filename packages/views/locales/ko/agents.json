@@ -1142,6 +1142,17 @@
       "preempted_by": "선점 실행",
       "review_of": "검토 대상",
       "escalation_for": "에스컬레이션 대상"
-    }
+    },
+    "snapshot": "시작 시: 신뢰 {{trust}} · 효과 {{effect}} · 모델 {{model}} · 계획 v{{plan}}",
+    "snapshot_missing": "시작 시 스냅샷 없음(재생 기능 이전의 실행)",
+    "safe_run": "안전 재생",
+    "drift": "계획 외",
+    "in_plan": "계획 내",
+    "drift_total": "계획 외 호출 {{n}}건",
+    "redacted": "가려짐",
+    "safe_button": "안전 모드로 재생",
+    "safe_hint": "안전 모드는 모든 Multica 쓰기를 승인 대기로 보류하고, 외부 작업은 실행 대신 설명하도록 에이전트에 요청합니다. 보류된 payload가 증거입니다.",
+    "safe_started": "안전 재생을 시작했습니다",
+    "safe_failed": "안전 재생을 시작할 수 없습니다"
   }
 }
