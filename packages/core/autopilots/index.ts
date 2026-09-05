@@ -21,5 +21,6 @@ export {
   useRotateAutopilotTriggerWebhookToken,
   useReplayAutopilotDelivery,
   useDryRunAutopilotWebhookTrigger,
+  useSetAutopilotTriggerSigningSecret,
 } from "./mutations";
 export { buildAutopilotWebhookUrl, maskAutopilotWebhookUrl } from "./webhook";

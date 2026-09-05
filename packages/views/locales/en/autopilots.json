@@ -287,6 +287,22 @@
     "blocked_unknown": "blocked",
     "window_hint": "Fires at a random minute within {{minutes}} minutes of the scheduled time."
   },
+  "signing_secret": {
+    "label": "Signing secret",
+    "hint": "When set, every delivery must carry X-Hub-Signature-256: sha256=<hex HMAC-SHA256 of the raw body, keyed with this secret>. Unsigned or wrongly signed deliveries are rejected with 401.",
+    "not_configured": "No signing secret — the webhook URL alone authenticates callers.",
+    "configured": "Configured (ends in {{hint}}).",
+    "shown_once": "Copy it now — it is shown only once.",
+    "generate": "Generate signing secret",
+    "rotate": "Rotate signing secret",
+    "clear": "Remove",
+    "copy": "Copy secret",
+    "copied": "Signing secret copied",
+    "copy_failed": "Failed to copy",
+    "toast_rotated": "Signing secret updated — senders must be reconfigured",
+    "toast_cleared": "Signing secret removed",
+    "toast_failed": "Failed to update signing secret"
+  },
   "add_trigger_dialog": {
     "title": "Add Trigger",
     "type_label": "Type",

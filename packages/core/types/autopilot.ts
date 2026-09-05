@@ -115,6 +115,12 @@ export interface AutopilotTrigger {
   event_match_criteria?: string;
   /** Signing/dedupe convention: "generic" or "github". Webhook triggers only. */
   provider?: string | null;
+  /** Whether an HMAC signing secret is configured. The secret itself is never
+   *  returned — it is written through a dedicated endpoint and shown once. */
+  has_signing_secret?: boolean;
+  /** Last 4 characters of the configured secret, so two secrets are tellable
+   *  apart in the UI. Null when none is configured. */
+  signing_secret_hint?: string | null;
   last_fired_at: string | null;
   created_at: string;
   updated_at: string;

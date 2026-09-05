@@ -287,6 +287,22 @@
     "blocked_unknown": "차단됨",
     "window_hint": "예정 시각으로부터 {{minutes}}분 이내의 임의 시각에 실행됩니다."
   },
+  "signing_secret": {
+    "label": "서명 시크릿",
+    "hint": "설정하면 모든 전달에 X-Hub-Signature-256: sha256=<이 시크릿을 키로 한 원본 본문의 HMAC-SHA256 16진값>이 필요합니다. 서명이 없거나 잘못된 전달은 401로 거부됩니다.",
+    "not_configured": "서명 시크릿 없음 — 웹훅 URL만으로 인증합니다.",
+    "configured": "설정됨(끝 {{hint}}).",
+    "shown_once": "지금 복사하세요. 한 번만 표시됩니다.",
+    "generate": "서명 시크릿 생성",
+    "rotate": "서명 시크릿 교체",
+    "clear": "삭제",
+    "copy": "시크릿 복사",
+    "copied": "서명 시크릿을 복사했습니다",
+    "copy_failed": "복사하지 못했습니다",
+    "toast_rotated": "서명 시크릿을 갱신했습니다 — 발신 측을 다시 설정해야 합니다",
+    "toast_cleared": "서명 시크릿을 삭제했습니다",
+    "toast_failed": "서명 시크릿 갱신에 실패했습니다"
+  },
   "add_trigger_dialog": {
     "title": "트리거 추가",
     "type_label": "유형",

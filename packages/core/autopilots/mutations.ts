@@ -209,3 +209,20 @@ export function useDryRunAutopilotWebhookTrigger() {
   });
 }
 
+// Rotating (or clearing) the HMAC secret changes has_signing_secret and the
+// hint on the trigger row, both of which live in the autopilot detail payload.
+export function useSetAutopilotTriggerSigningSecret() {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceId();
+  return useMutation({
+    mutationFn: ({
+      autopilotId,
+      triggerId,
+      signingSecret,
+    }: { autopilotId: string; triggerId: string; signingSecret: string }) =>
+      api.setAutopilotTriggerSigningSecret(autopilotId, triggerId, signingSecret),
+    onSettled: (_data, _err, vars) => {
+      qc.invalidateQueries({ queryKey: autopilotKeys.detail(wsId, vars.autopilotId) });
+    },
+  });
+}

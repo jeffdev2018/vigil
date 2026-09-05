@@ -9,6 +9,7 @@ const mockCreateTrigger = vi.hoisted(() => vi.fn());
 const mockUpdateTrigger = vi.hoisted(() => vi.fn());
 const mockDeleteTrigger = vi.hoisted(() => vi.fn());
 const mockRotateToken = vi.hoisted(() => vi.fn());
+const mockSetSigningSecret = vi.hoisted(() => vi.fn());
 const mockDryRun = vi.hoisted(() => vi.fn());
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-test" }));
@@ -48,6 +49,10 @@ vi.mock("@multica/core/autopilots/mutations", () => ({
   useDeleteAutopilotTrigger: () => ({ mutateAsync: mockDeleteTrigger }),
   useRotateAutopilotTriggerWebhookToken: () => ({
     mutateAsync: mockRotateToken,
+    isPending: false,
+  }),
+  useSetAutopilotTriggerSigningSecret: () => ({
+    mutateAsync: mockSetSigningSecret,
     isPending: false,
   }),
   useDryRunAutopilotWebhookTrigger: () => ({
@@ -94,6 +99,7 @@ beforeEach(() => {
   mockUpdateTrigger.mockReset().mockResolvedValue({ id: "trg-1" });
   mockDeleteTrigger.mockReset().mockResolvedValue(undefined);
   mockRotateToken.mockReset().mockResolvedValue({ id: "trg-1" });
+  mockSetSigningSecret.mockReset().mockResolvedValue({ id: "trg-1" });
   mockDryRun.mockReset().mockResolvedValue({
     would_run: true,
     reason_code: null,
@@ -297,5 +303,60 @@ describe("TriggerRow webhook dry-run", () => {
     expect(
       screen.queryByRole("button", { name: "Test with a sample event" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("TriggerRow signing secret", () => {
+  const webhookTrigger = (overrides: Partial<AutopilotTrigger> = {}) =>
+    trigger({
+      kind: "webhook",
+      cron_expression: null,
+      timezone: null,
+      webhook_token: "awt_token",
+      webhook_path: "/api/webhooks/autopilots/awt_token",
+      ...overrides,
+    });
+
+  it("mints a secret, writes it, and shows it exactly once", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow trigger={webhookTrigger()} autopilotId={AUTOPILOT_ID} canWrite />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit trigger" }));
+    expect(
+      screen.getByText("No signing secret — the webhook URL alone authenticates callers."),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Generate signing secret" }));
+
+    await waitFor(() => expect(mockSetSigningSecret).toHaveBeenCalledTimes(1));
+    const sent = mockSetSigningSecret.mock.calls[0]?.[0];
+    expect(sent).toMatchObject({ autopilotId: AUTOPILOT_ID, triggerId: "trg-1" });
+    // 32 random bytes as hex — well past the server's 16-character floor.
+    expect(sent.signingSecret).toMatch(/^[0-9a-f]{64}$/);
+    // The plaintext exists in exactly one place the user can copy from.
+    expect(screen.getByText("Copy it now — it is shown only once.")).toBeInTheDocument();
+    expect(screen.getByText(sent.signingSecret)).toBeInTheDocument();
+  });
+
+  it("names the configured secret by its hint and offers to remove it", async () => {
+    const user = userEvent.setup();
+    renderWithQuery(
+      <TriggerRow
+        trigger={webhookTrigger({ has_signing_secret: true, signing_secret_hint: "9f2c" })}
+        autopilotId={AUTOPILOT_ID}
+        canWrite
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Edit trigger" }));
+    expect(screen.getByText("Configured (ends in 9f2c).")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => expect(mockSetSigningSecret).toHaveBeenCalledTimes(1));
+    // "" is how the API clears a secret; there is no separate delete route.
+    expect(mockSetSigningSecret.mock.calls[0]?.[0].signingSecret).toBe("");
   });
 });

@@ -287,6 +287,22 @@
     "blocked_unknown": "已被拦截",
     "window_hint": "在计划时间之后的 {{minutes}} 分钟内随机某一分钟触发。"
   },
+  "signing_secret": {
+    "label": "签名密钥",
+    "hint": "设置后，每次投递都必须带上 X-Hub-Signature-256: sha256=<用该密钥对原始报文做 HMAC-SHA256 的十六进制值>。没有签名或签名不符的投递会被拒绝并返回 401。",
+    "not_configured": "未设置签名密钥 —— 仅凭 Webhook URL 认证调用方。",
+    "configured": "已设置（结尾为 {{hint}}）。",
+    "shown_once": "请立即复制，密钥只显示这一次。",
+    "generate": "生成签名密钥",
+    "rotate": "轮换签名密钥",
+    "clear": "移除",
+    "copy": "复制密钥",
+    "copied": "已复制签名密钥",
+    "copy_failed": "复制失败",
+    "toast_rotated": "签名密钥已更新 —— 需要重新配置发送方",
+    "toast_cleared": "已移除签名密钥",
+    "toast_failed": "更新签名密钥失败"
+  },
   "add_trigger_dialog": {
     "title": "添加触发器",
     "type_label": "类型",

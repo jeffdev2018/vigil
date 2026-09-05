@@ -287,6 +287,22 @@
     "blocked_unknown": "ブロック中",
     "window_hint": "予定時刻から {{minutes}} 分以内のランダムな時刻に実行されます。"
   },
+  "signing_secret": {
+    "label": "署名シークレット",
+    "hint": "設定すると、すべての配信に X-Hub-Signature-256: sha256=<このシークレットを鍵とした生ボディの HMAC-SHA256 の16進値> が必要になります。署名なし・不正な署名の配信は 401 で拒否されます。",
+    "not_configured": "署名シークレットなし — Webhook URL のみで認証されます。",
+    "configured": "設定済み（末尾 {{hint}}）。",
+    "shown_once": "今すぐコピーしてください。表示は一度きりです。",
+    "generate": "署名シークレットを生成",
+    "rotate": "署名シークレットをローテーション",
+    "clear": "削除",
+    "copy": "シークレットをコピー",
+    "copied": "署名シークレットをコピーしました",
+    "copy_failed": "コピーに失敗しました",
+    "toast_rotated": "署名シークレットを更新しました — 送信側の再設定が必要です",
+    "toast_cleared": "署名シークレットを削除しました",
+    "toast_failed": "署名シークレットの更新に失敗しました"
+  },
   "add_trigger_dialog": {
     "title": "トリガーを追加",
     "type_label": "種類",

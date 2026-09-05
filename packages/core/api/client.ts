@@ -5683,6 +5683,19 @@ export class ApiClient {
     });
   }
 
+  // Write-only: the new secret is never echoed back. The response is the
+  // trigger with has_signing_secret / signing_secret_hint refreshed.
+  async setAutopilotTriggerSigningSecret(
+    autopilotId: string,
+    triggerId: string,
+    signingSecret: string,
+  ): Promise<AutopilotTrigger> {
+    return this.fetch(
+      `/api/autopilots/${autopilotId}/triggers/${triggerId}/signing-secret`,
+      { method: "PUT", body: JSON.stringify({ signing_secret: signingSecret }) },
+    );
+  }
+
   // Webhook deliveries — list is slim (no raw_body / selected_headers /
   // response_body); detail returns the full row. Both responses are parsed
   // through a lenient schema so an unknown server-side `status` /

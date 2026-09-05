@@ -46,6 +46,7 @@ import { useScheduleSubmitGate } from "./schedule-editor/validate";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { WebhookEventFilterSection } from "./webhook-event-filter-section";
 import { WebhookDryRunDialog } from "./webhook-dry-run-dialog";
+import { SigningSecretSection } from "./signing-secret-section";
 import { useDeliveryReasonLabel } from "./delivery-reason";
 import { effectiveWindowMinutes } from "./schedule-editor/model";
 import type {
@@ -680,6 +681,7 @@ export function EditTriggerDialog({
           {isWebhook && (
             <>
               <WebhookEventFilterSection filters={eventFilters} onChange={setEventFilters} />
+              <SigningSecretSection autopilotId={autopilotId} trigger={trigger} />
               <div className="space-y-1.5">
                 <label
                   htmlFor="edit-trigger-event-criteria"
