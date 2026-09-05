@@ -68,6 +68,18 @@ type AgentBuilderDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentCorrectionSignal struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	IssueID             pgtype.UUID        `json:"issue_id"`
+	AgentID             pgtype.UUID        `json:"agent_id"`
+	AgentCommentID      pgtype.UUID        `json:"agent_comment_id"`
+	CorrectionCommentID pgtype.UUID        `json:"correction_comment_id"`
+	StatusRegressed     bool               `json:"status_regressed"`
+	MinedSkillID        pgtype.UUID        `json:"mined_skill_id"`
+	DetectedAt          pgtype.Timestamptz `json:"detected_at"`
+}
+
 type AgentDomainCompetency struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
@@ -1876,6 +1888,7 @@ type Skill struct {
 	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
 	PluginInstallationID pgtype.UUID        `json:"plugin_installation_id"`
+	Status               string             `json:"status"`
 }
 
 type SkillFile struct {

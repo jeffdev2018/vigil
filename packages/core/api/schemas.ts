@@ -3842,7 +3842,29 @@ export const SkillSchema = z.object({
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
   files: z.array(SkillFileSchema).optional().default([]),
+  status: z.string().catch("published").default("published"),
 }).loose();
+
+// Skill Miner (K58).
+export const SkillDraftSchema = z.object({
+  id: z.string().default(""),
+  workspace_id: z.string().catch("").default(""),
+  name: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch("").default(""),
+  updated_at: z.string().catch("").default(""),
+  status: z.string().catch("draft").default("draft"),
+  sources: z.array(z.object({
+    issue_id: z.string().catch("").default(""),
+    issue_number: z.number().catch(0).default(0),
+    issue_title: z.string().catch("").default(""),
+    comment_id: z.string().catch("").default(""),
+    status_regressed: z.boolean().catch(false).default(false),
+  }).loose()).catch([]).default([]),
+}).loose();
+export const SkillDraftListSchema = z.object({ drafts: z.array(SkillDraftSchema).catch([]).default([]) }).loose();
 
 export const EMPTY_SKILL: Skill = {
   id: "",

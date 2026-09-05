@@ -77,6 +77,7 @@ import {
   type SkillActionsContext,
 } from "./skill-list-actions";
 import { useT, useTimeAgo } from "../../i18n";
+import { SkillDraftsSection } from "./skill-drafts-section";
 
 // Column template — single source of truth for header, rows, and skeletons.
 // Tracks: [edge 0.75rem] [checkbox 1rem] [name, only fr track]
@@ -351,6 +352,8 @@ function SourceCell({
   } else if (origin.type === "github") {
     icon = <Download className="h-3 w-3 shrink-0" />;
     label = t(($) => $.table.source_github);
+  } else if (origin.type === "skill_miner") {
+    label = t(($) => $.table.source_mined);
   } else if (origin.type === "distilled") {
     icon = <Sparkles className="h-3 w-3 shrink-0" />;
     label = t(($) => $.table.source_distilled);
@@ -850,6 +853,7 @@ export default function SkillsPage() {
         </div>
       ) : (
         <>
+          <SkillDraftsSection />
           <SkillListToolbar
             search={search}
             onSearchChange={setSearch}

@@ -68,17 +68,19 @@ func TestSkillDistillationCreatesAndAttachesSkill(t *testing.T) {
 		t.Errorf("skill config missing source_task_id provenance: %s", config)
 	}
 
-	// The skill is attached to the agent so the next run picks it up.
+	// K58: the distilled skill is a draft proposal — never attached to the
+	// agent until a human publishes it.
 	var attached int
+	var status string
 	if err := pool.QueryRow(context.Background(), `
-		SELECT COUNT(*) FROM agent_skill ask
-		JOIN skill s ON s.id = ask.skill_id
-		WHERE ask.agent_id = $1 AND s.name = $2`,
-		fx.agentID, "rebase-with-conflict-checks").Scan(&attached); err != nil {
+		SELECT COUNT(ask.skill_id), MIN(s.status) FROM skill s
+		LEFT JOIN agent_skill ask ON ask.skill_id = s.id AND ask.agent_id = $1
+		WHERE s.workspace_id = $3 AND s.name = $2`,
+		fx.agentID, "rebase-with-conflict-checks", fx.workspaceID).Scan(&attached, &status); err != nil {
 		t.Fatalf("count attached: %v", err)
 	}
-	if attached != 1 {
-		t.Errorf("skill attached %d times, want 1", attached)
+	if attached != 0 || status != "draft" {
+		t.Errorf("distilled skill attached %d times with status %q, want a draft attached to nobody", attached, status)
 	}
 }
 

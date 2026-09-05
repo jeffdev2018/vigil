@@ -362,6 +362,7 @@ import {
   RunReplaySchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
+  SkillDraftListSchema,
   WatchdogVerdictListSchema,
   WatchdogScanResultSchema,
   WatchdogVerdictEnvelopeSchema,
@@ -4102,6 +4103,12 @@ export class ApiClient {
 
   async listTaskMessages(taskId: string): Promise<TaskMessagePayload[]> {
     return this.fetch(`/api/tasks/${taskId}/messages`);
+  }
+
+  // Skill Miner (K58).
+  async listSkillDrafts(): Promise<import("../skills/drafts").SkillDraft[]> {
+    const raw = await this.fetch<unknown>("/api/skill-miner/drafts");
+    return parseWithFallback(raw, SkillDraftListSchema, { drafts: [] }, { endpoint: "GET /api/skill-miner/drafts" }).drafts;
   }
 
   // Vigil learns you (K71).

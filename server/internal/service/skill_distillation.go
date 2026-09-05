@@ -244,10 +244,8 @@ func (s *TaskService) createDistilledSkill(ctx context.Context, agent db.Agent, 
 		WorkspaceID: agent.WorkspaceID,
 		Name:        name,
 	}); err == nil && existing.ID.Valid {
-		// Still make sure the agent has it attached (cheap, ON CONFLICT NOTHING).
-		if aerr := s.Queries.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agent.ID, SkillID: existing.ID}); aerr != nil {
-			slog.Warn("attach existing distilled skill failed", "skill", name, "error", aerr)
-		}
+		// Already proposed or human-created: leave it as it is (K58: a
+		// distilled skill is a proposal, never attached without a human).
 		return nil
 	}
 
@@ -299,8 +297,10 @@ func (s *TaskService) createDistilledSkill(ctx context.Context, agent db.Agent, 
 		}
 	}
 
-	if err := s.Queries.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: agent.ID, SkillID: skill.ID}); err != nil {
-		return fmt.Errorf("attach distilled skill: %w", err)
+	// K58: the distilled skill is proposed as a draft; a human publishes and
+	// attaches it in one click, it is never active on its own.
+	if _, err := s.Queries.SetSkillStatus(ctx, db.SetSkillStatusParams{ID: skill.ID, WorkspaceID: agent.WorkspaceID, Status: "draft"}); err != nil {
+		return fmt.Errorf("mark distilled skill draft: %w", err)
 	}
 
 	s.publishDistilledSkillEvents(ctx, agent)
