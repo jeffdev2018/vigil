@@ -1,0 +1,44 @@
+{
+  "title": "Recherche",
+  "description": "Rechercher des pages, issues, projets et membres",
+  "placeholder": "Saisissez une commande ou recherchez...",
+  "groups": {
+    "pages": "Pages",
+    "commands": "Commandes",
+    "members": "Membres",
+    "projects": "Projets",
+    "issues": "Issues",
+    "cancelled": "Annulés",
+    "recent": "Récents",
+    "why": "Pourquoi"
+  },
+  "commands": {
+    "current_theme_aria": "Thème actuel",
+    "new_issue": "Nouvelle issue",
+    "new_project": "Nouveau projet",
+    "copy_issue_link": "Copier le lien de l'issue",
+    "copy_identifier": "Copier l'identifiant ({{identifier}})",
+    "fold_all_comments": "Réduire tous les commentaires",
+    "unfold_all_comments": "Développer tous les commentaires",
+    "switch_to_light": "Passer au thème clair",
+    "switch_to_dark": "Passer au thème sombre",
+    "use_system_theme": "Utiliser le thème système"
+  },
+  "toast": {
+    "link_copied": "Lien copié",
+    "copied_identifier": "{{identifier}} copié"
+  },
+  "empty": {
+    "no_results": "Aucun résultat trouvé.",
+    "type_to_search": "Saisissez du texte pour rechercher des issues et des projets"
+  },
+  "trigger": {
+    "label": "Rechercher..."
+  },
+  "why": {
+    "comment": "Commentaire",
+    "task_message": "Message d'exécution",
+    "decision_record": "Registre de décision",
+    "empty": "Aucune source pertinente. Essayez de reformuler la question."
+  }
+}

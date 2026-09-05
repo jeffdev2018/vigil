@@ -1,0 +1,140 @@
+{
+  "title": "Analyses",
+  "tab_usage": "Usage",
+  "header": {
+    "timezone_and_updated": "{{tz}} · mis à jour {{time}}",
+    "refresh": "Actualiser"
+  },
+  "filter": {
+    "project_label": "Projet",
+    "all_projects": "Tous les projets",
+    "period_label": "Période"
+  },
+  "kpi": {
+    "cost_label": "Coût · {{days}}j",
+    "tokens_label": "Tokens · {{days}}j",
+    "tokens_hint": "Entrée {{input}} · Sortie {{output}}",
+    "run_time_label": "Temps d'exécution · {{days}}j",
+    "run_time_hint": "Sur {{tasks}} exécutions",
+    "tasks_label": "Exécutions · {{days}}j",
+    "tasks_hint": "{{failed}} échecs"
+  },
+  "dim": {
+    "label": "Dimension",
+    "daily": "Quotidien",
+    "weekly": "Hebdomadaire"
+  },
+  "daily": {
+    "title_cost": "Coût quotidien",
+    "title_tokens": "Tokens quotidiens",
+    "title_time": "Temps d'exécution quotidien",
+    "title_tasks": "Exécutions quotidiennes",
+    "title_errors": "Erreurs quotidiennes",
+    "metric_cost": "Coût",
+    "metric_tokens": "Tokens",
+    "metric_time": "Temps",
+    "metric_tasks": "Exécutions",
+    "no_data": "Aucune utilisation sur cette période.",
+    "metric_label": "Métrique"
+  },
+  "weekly": {
+    "title_cost": "Coût hebdomadaire",
+    "title_tokens": "Tokens hebdomadaires",
+    "title_time": "Temps d'exécution hebdomadaire",
+    "title_tasks": "Exécutions hebdomadaires",
+    "title_errors": "Erreurs hebdomadaires",
+    "partial_label": "{{range}} (partiel · {{covered}} / 7 jours)"
+  },
+  "errors": {
+    "kpi_failed_label": "Exécutions échouées · {{days}}j",
+    "kpi_failed_hint": "Sur {{total}} exécutions",
+    "kpi_rate_label": "Taux d'échec · {{days}}j",
+    "kpi_agents_label": "Agents affectés · {{days}}j",
+    "kpi_agents_hint": "Pire {{name}} · {{count}}",
+    "tooltip_rate": "Taux d'erreur",
+    "class": {
+      "auth": "Auth",
+      "rate_limit": "Rate limit",
+      "timeout": "Timeout",
+      "provider": "Fournisseur",
+      "runtime": "Runtime",
+      "agent": "Agent",
+      "other": "Autre"
+    },
+    "title": "Erreurs",
+    "summary": "{{failed}} exécutions échouées sur {{total}} · {{rate}}",
+    "mix_title": "Répartition des échecs · {{failed}}",
+    "mix_label": "Mix d'échecs",
+    "codes_label": "Codes d'erreur",
+    "by_agent": "Principaux responsables",
+    "sort_label": "Classer les responsables par",
+    "sort_failed": "Échecs",
+    "sort_rate": "Taux",
+    "header_agent": "Agent",
+    "header_failed": "Échecs",
+    "header_runs": "Exécutions",
+    "header_rate": "Taux",
+    "other_agents": "Autres agents",
+    "low_sample": "Moins de {{count}} exécutions dans cet intervalle — ce taux n'est pas significatif.",
+    "no_data": "Aucune exécution en échec dans cet intervalle.",
+    "show_reasons": "Afficher les codes d'erreur",
+    "hide_reasons": "Masquer les codes d'erreur",
+    "show_all": "Tout afficher ({{count}})",
+    "show_less": "Afficher les {{count}} premiers"
+  },
+  "leaderboard": {
+    "title": "Classement",
+    "caption": "{{count}} agents",
+    "caption_with_deleted": "{{count}} agents · {{deleted}} supprimés",
+    "sort_label": "Classer les agents par",
+    "deleted_agents": "Agents supprimés",
+    "other_agents": "Autres agents",
+    "header_agent": "Agent",
+    "header_tokens": "Tokens",
+    "header_cost": "Coût",
+    "header_time": "Temps",
+    "header_tasks": "Exécutions",
+    "show_all": "Tout afficher",
+    "show_less": "Afficher le top {{count}}",
+    "no_data": "Aucune activité d'agent dans cet intervalle."
+  },
+  "empty": {
+    "title": "Aucune utilisation pour le moment",
+    "body": "Une fois que les agents commenceront à travailler ici, leur consommation de tokens et leur temps d'exécution apparaîtront dans cette vue."
+  },
+  "routing_benchmarks": {
+    "title": "Benchmarks du routage intelligent",
+    "subtitle": "90 derniers jours · par runtime, modèle et classe de tâche",
+    "col_runtime": "Runtime",
+    "col_model": "Modèle",
+    "col_class": "Classe de tâche",
+    "col_samples": "Échantillons",
+    "col_success": "Succès",
+    "col_avg_cost": "Coût moyen",
+    "col_avg_duration": "Durée moyenne",
+    "empty_title": "Aucune donnée de routage pour le moment",
+    "empty_body": "Une fois que les agents fonctionneront en mode Auto routing, leurs performances sur 90 jours par runtime et modèle s'afficheront ici."
+  },
+  "duration": {
+    "less_than_minute": "<1m"
+  },
+  "deliverable": {
+    "issue_label": "Coût par issue fermée · {{days}}j",
+    "pr_label": "Coût par PR fusionnée · {{days}}j",
+    "hint": "{{count}} fermées · moyenne ${{mean}}",
+    "floor": "certaines utilisations non tarifées",
+    "none": "Aucune sur cette période",
+    "empty": "Aucune issue fermée ou PR fusionnée avec une exécution au cours des {{days}} derniers jours."
+  },
+  "scorecards": {
+    "title": "Bilans des agents · {{days}}J",
+    "agent": "Agent",
+    "runs": "Exécutions",
+    "accepted": "Acceptés",
+    "failed": "Échoués",
+    "reopened": "Réouverts",
+    "no_intervention": "Sans intervention",
+    "mean_cost": "Coût moyen",
+    "low_sample": "(peu d'exécutions)"
+  }
+}
