@@ -2251,6 +2251,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/tasks/{taskId}/replay", h.GetTaskReplay)
 			r.Post("/api/tasks/{taskId}/replay/resume", h.ResumeTaskReplay)
 			r.Post("/api/tasks/{taskId}/replay/simulate", h.SimulateTaskReplay)
+			// Per-leg accounting (JEF-274): the whole workflow this run belongs
+			// to, from any of its legs, with the totals every leg contributed.
+			r.Get("/api/tasks/{taskId}/legs", h.GetTaskLegs)
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
 				r.Get("/", h.GetIssueWatchdog)

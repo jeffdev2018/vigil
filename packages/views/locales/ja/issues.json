@@ -640,6 +640,28 @@
     "unresponsive": "応答なし",
     "unresponsive_tooltip": "{{duration}} 活動がありません"
   },
+  "legs": {
+    "workflow": "ワークフロー",
+    "count_other": "実行 {{count}} 件",
+    "total": "合計 {{cost}}",
+    "role": {
+      "draft": "初回",
+      "retry": "再試行",
+      "fallback": "フォールバック",
+      "rerun": "再実行",
+      "review": "レビュー",
+      "critique": "指摘",
+      "answer": "回答",
+      "revision": "修正",
+      "watchdog": "監視",
+      "duel": "対決",
+      "fanout": "分散",
+      "shard": "シャード",
+      "eval": "評価",
+      "escalation": "エスカレーション",
+      "other": "工程"
+    }
+  },
   "usage_detail": {
     "title": "使用量の内訳",
     "subtitle_other": "{{identifier}} · {{count}} 回の実行",

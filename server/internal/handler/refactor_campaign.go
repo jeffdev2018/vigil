@@ -359,6 +359,11 @@ func (h *Handler) advanceMergeQueue(ctx context.Context, c db.RefactorCampaign) 
 		slog.Warn("campaign: merge run enqueue failed", "shard_id", uuidToString(shard.ID), "error", err)
 		return c
 	}
+	// Per-leg accounting (JEF-274): the shard's merge run belongs to the
+	// campaign, not to another run, so it is its own root.
+	if _, serr := h.TaskService.StampLeg(ctx, task, service.LegRoleShard, db.AgentTaskQueue{}); serr != nil {
+		slog.Warn("campaign: stamp leg failed", "task_id", uuidToString(task.ID), "error", serr)
+	}
 	if _, err := h.Queries.SetCampaignShardMergeStatus(ctx, db.SetCampaignShardMergeStatusParams{ID: shard.ID, MergeStatus: "rebasing", MergeTaskID: task.ID, Blockers: []byte("[]")}); err != nil {
 		return c
 	}

@@ -5360,6 +5360,13 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			})
 			switch {
 			case cerr == nil:
+				// Per-leg accounting (JEF-274): stamp inside this transaction
+				// so the leg commits with the parent's failed status.
+				stamped, serr := stampLeg(ctx, qtx, child, RetryLegRole(failover.History), t)
+				if serr != nil {
+					return fmt.Errorf("stamp retry leg: %w", serr)
+				}
+				child = stamped
 				if checkpointAttempts.Valid {
 					s.recordCheckpointResume(ctx, t, child, failureReason)
 				}
@@ -5875,6 +5882,12 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		)
 		return nil, err
 	}
+	// Per-leg accounting (JEF-274), inside the same transaction as the child.
+	stamped, serr := stampLeg(ctx, qtx, child, RetryLegRole(failover.History), parent)
+	if serr != nil {
+		return nil, fmt.Errorf("task auto-retry: stamp leg: %w", serr)
+	}
+	child = stamped
 	if checkpointAttempts.Valid {
 		s.recordCheckpointResume(ctx, parent, child, reason)
 	}
@@ -6212,11 +6225,30 @@ func (s *TaskService) promoteNewestSurvivingComment(ctx context.Context, ids []p
 // (rerun_of_task_id) to reuse its workdir and, when the failure did not poison
 // the conversation, resume its session (MUL-4869).
 func (s *TaskService) enqueueRerunTask(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
+	var task db.AgentTaskQueue
+	var err error
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid &&
 		util.UUIDToString(issue.AssigneeID) == util.UUIDToString(agentID) {
-		return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{})
+		task, err = s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{})
+	} else {
+		task, err = s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID)
 	}
-	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID)
+	if err != nil {
+		return task, err
+	}
+	// Per-leg accounting (JEF-274): the rerun joins the workflow of the run it
+	// re-ran. Best-effort — losing the leg stamp must not lose the rerun.
+	source, serr := s.Queries.GetAgentTask(ctx, rerunOfTaskID)
+	if serr != nil {
+		slog.Warn("rerun leg: source task not found", "task_id", util.UUIDToString(task.ID), "rerun_of_task_id", util.UUIDToString(rerunOfTaskID), "error", serr)
+		return task, nil
+	}
+	stamped, serr := s.StampLeg(ctx, task, LegRoleRerun, source)
+	if serr != nil {
+		slog.Warn("rerun leg: stamp failed", "task_id", util.UUIDToString(task.ID), "error", serr)
+		return task, nil
+	}
+	return stamped, nil
 }
 
 // The bulk terminal writes below are the sweeper, archive and daemon-recovery

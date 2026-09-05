@@ -664,6 +664,29 @@
     "unresponsive": "Not responding",
     "unresponsive_tooltip": "No activity for {{duration}}"
   },
+  "legs": {
+    "workflow": "Workflow",
+    "count_one": "{{count}} run",
+    "count_other": "{{count}} runs",
+    "total": "{{cost}} total",
+    "role": {
+      "draft": "Draft",
+      "retry": "Retry",
+      "fallback": "Fallback",
+      "rerun": "Rerun",
+      "review": "Review",
+      "critique": "Critique",
+      "answer": "Answer",
+      "revision": "Revision",
+      "watchdog": "Watchdog",
+      "duel": "Duel",
+      "fanout": "Fan-out",
+      "shard": "Shard",
+      "eval": "Eval",
+      "escalation": "Escalation",
+      "other": "Leg"
+    }
+  },
   "usage_detail": {
     "title": "Usage breakdown",
     "subtitle_one": "{{identifier}} · {{count}} run",

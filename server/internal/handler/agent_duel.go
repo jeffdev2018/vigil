@@ -177,6 +177,11 @@ func (h *Handler) StartAgentDuel(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusInternalServerError, "failed to queue the candidate run: "+err.Error())
 			return
 		}
+		// Per-leg accounting (JEF-274): the two candidates are peers, not a
+		// derivation of one another, so each duel run is its own root.
+		if _, serr := h.TaskService.StampLeg(r.Context(), task, service.LegRoleDuel, db.AgentTaskQueue{}); serr != nil {
+			slog.Warn("duel: stamp leg failed", "task_id", uuidToString(task.ID), "error", serr)
+		}
 		tasks = append(tasks, task)
 	}
 	duel, err := h.Queries.CreateAgentDuel(r.Context(), db.CreateAgentDuelParams{ID: dbid.NewV7(), WorkspaceID: issue.WorkspaceID, IssueID: issue.ID, AgentAID: agents[0].ID, AgentBID: agents[1].ID, TaskAID: tasks[0].ID, TaskBID: tasks[1].ID, StartedBy: userID})

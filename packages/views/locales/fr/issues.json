@@ -664,6 +664,29 @@
     "unresponsive": "Ne répond pas",
     "unresponsive_tooltip": "Aucune activité depuis {{duration}}"
   },
+  "legs": {
+    "workflow": "Workflow",
+    "count_one": "{{count}} exécution",
+    "count_other": "{{count}} exécutions",
+    "total": "{{cost}} au total",
+    "role": {
+      "draft": "Initiale",
+      "retry": "Nouvel essai",
+      "fallback": "Repli",
+      "rerun": "Relance",
+      "review": "Revue",
+      "critique": "Critique",
+      "answer": "Réponse",
+      "revision": "Révision",
+      "watchdog": "Surveillance",
+      "duel": "Duel",
+      "fanout": "Répartition",
+      "shard": "Fragment",
+      "eval": "Évaluation",
+      "escalation": "Escalade",
+      "other": "Étape"
+    }
+  },
   "usage_detail": {
     "title": "Détail de l'utilisation",
     "subtitle_one": "{{identifier}} · {{count}} exécution",

@@ -489,6 +489,12 @@ func (h *Handler) startEvalCase(r *http.Request, run db.EvalRun, c db.EvalCase, 
 	if !res.AssignedTaskID.Valid {
 		return res.Issue.ID, pgtype.UUID{}, "no run enqueued"
 	}
+	// Per-leg accounting (JEF-274): an eval replay is a graded exam on a
+	// throwaway issue, so it is its own root and is never a sample of a
+	// worker's task class.
+	if _, err := h.Queries.SetTaskLeg(r.Context(), db.SetTaskLegParams{ID: res.AssignedTaskID, LegRole: service.LegRoleEval}); err != nil {
+		slog.Warn("eval: stamp leg failed", "task_id", uuidToString(res.AssignedTaskID), "error", err)
+	}
 	return res.Issue.ID, res.AssignedTaskID, ""
 }
 

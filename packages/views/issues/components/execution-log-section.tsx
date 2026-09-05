@@ -6,6 +6,8 @@ import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
 import { issueKeys } from "@multica/core/issues/queries";
+import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
+import { useWorkspaceId } from "@multica/core/hooks";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask, TaskStatus } from "@multica/core/types";
 import { useConfigStore } from "@multica/core/config";
@@ -199,6 +201,7 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
               )}
             </>
           )}
+          <WorkflowSummary tasks={tasks} />
         </div>
       )}
       <IssueUsageDialog
@@ -599,7 +602,75 @@ function RowShell({
       ) : (
         <span className="inline-block h-5 w-5 shrink-0 rounded-full bg-muted" />
       )}
+      <LegBadge task={task} />
       {children}
+    </div>
+  );
+}
+
+// Per-leg accounting (JEF-274): what this run is inside its workflow. The
+// primary leg carries no role and gets no badge — a list where every row is
+// labelled "draft" says nothing. An unknown role (a newer backend added a
+// producer) reads as a generic "leg" rather than a raw server token.
+function LegBadge({ task }: { task: AgentTask }) {
+  const { t } = useT("issues");
+  if (!task.leg_role) return null;
+  return (
+    <span className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground">
+      {t(($) => $.legs.role[legRoleLabelKey(task.leg_role ?? "") as "other"])}
+    </span>
+  );
+}
+
+// Reuses the run-duration formatter by expressing N seconds as a span from the
+// epoch, so "how long" reads the same here as it does on a single run.
+function formatSeconds(seconds: number): string {
+  return formatDuration(new Date(0).toISOString(), Math.max(0, seconds) * 1000);
+}
+
+// What the whole workflow cost — every leg counted. A review, a revision and a
+// retry are spend the primary run's own usage never shows, which is the point
+// of the aggregate.
+//
+// Only rendered when a run on this issue actually carries a leg role, so an
+// issue with plain single-leg runs is unchanged and the query never fires.
+// Lazy on top of that: it is inside the `open` branch, so a collapsed section
+// costs nothing.
+function WorkflowSummary({ tasks }: { tasks: AgentTask[] }) {
+  // The issue's most recent workflow. An issue can carry several over its
+  // life (a first delivery reviewed and revised, then a second one), and the
+  // one being worked on now is the one worth totalling — picking by recency
+  // also keeps the choice stable across refetches, which the list's own order
+  // does not guarantee.
+  const root = useMemo(() => {
+    let newest: AgentTask | undefined;
+    for (const task of tasks) {
+      if (!workflowRootOf(task)) continue;
+      if (!newest || new Date(task.created_at).getTime() > new Date(newest.created_at).getTime()) {
+        newest = task;
+      }
+    }
+    return newest ? workflowRootOf(newest) : "";
+  }, [tasks]);
+  if (!root) return null;
+  return <WorkflowSummaryLine rootTaskId={root} />;
+}
+
+function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const { data } = useQuery(taskLegsOptions(wsId, rootTaskId));
+  const totals = data?.totals;
+  if (!totals || totals.legs < 2) return null;
+  const parts = [
+    t(($) => $.legs.count, { count: totals.legs }),
+    t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
+    formatSeconds(totals.duration_seconds),
+  ].filter(Boolean);
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 px-1 text-caption text-muted-foreground">
+      <span className="font-medium text-foreground">{t(($) => $.legs.workflow)}</span>
+      <span className="truncate tabular-nums">{parts.join(" \u00b7 ")}</span>
     </div>
   );
 }

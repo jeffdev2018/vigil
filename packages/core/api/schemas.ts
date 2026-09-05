@@ -2373,6 +2373,11 @@ export const AgentTaskSchema = z.object({
   // `routing`: a malformed record costs the row its confidence display, not
   // the whole execution log. Absent until the scorer has scored the run.
   confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
+  // Per-leg accounting (JEF-274). Both default to "" rather than undefined:
+  // an empty role is the primary leg and an empty root means the run is its
+  // own root, which is exactly what an older backend omitting them describes.
+  leg_role: z.string().catch("").default(""),
+  workflow_root_task_id: z.string().catch("").default(""),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
@@ -5272,6 +5277,41 @@ export const ReplayResumeResultSchema = z.object({
 export const ReplaySimulateResultSchema = z.object({
   task_id: z.string().default(""),
   safe_mode: z.boolean().catch(true).default(true),
+}).loose();
+
+// Per-leg accounting (JEF-274). Every field is defaulted: a leg with a
+// malformed figure still belongs to the workflow, and a workflow that lost one
+// leg's cost is better than a panel that renders nothing. `legs: []` collapses
+// a malformed array so the caller sees "no legs" and hides the summary.
+export const WorkflowLegSchema = z.object({
+  task_id: z.string().catch("").default(""),
+  leg_role: z.string().catch("").default(""),
+  status: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  runtime_id: z.string().catch("").default(""),
+  runtime_name: z.string().catch("").default(""),
+  provider: z.string().catch("").default(""),
+  model: z.string().catch("").default(""),
+  input_tokens: z.number().catch(0).default(0),
+  output_tokens: z.number().catch(0).default(0),
+  cost_usd_ticks: z.number().catch(0).default(0),
+  duration_seconds: z.number().catch(0).default(0),
+  created_at: z.string().nullable().catch(null).default(null),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const WorkflowLegsSchema = z.object({
+  root_task_id: z.string().catch("").default(""),
+  legs: z.array(WorkflowLegSchema).catch([]).default([]),
+  totals: z.object({
+    legs: z.number().catch(0).default(0),
+    cost_usd_ticks: z.number().catch(0).default(0),
+    input_tokens: z.number().catch(0).default(0),
+    output_tokens: z.number().catch(0).default(0),
+    duration_seconds: z.number().catch(0).default(0),
+  }).loose().catch({ legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 })
+    .default({ legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 }),
 }).loose();
 
 // Task watchdog (K73).

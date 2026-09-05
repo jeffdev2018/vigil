@@ -379,6 +379,7 @@ import {
   TrustModeEnvelopeSchema,
   EffectModeEnvelopeSchema,
   RunReplaySchema,
+  WorkflowLegsSchema,
   WatchdogEnvelopeSchema,
   WorkProfileSchema,
   OrgStructureSchema,
@@ -4410,6 +4411,18 @@ export class ApiClient {
   async resumeTaskReplay(taskId: string, seq: number, instruction: string): Promise<import("../issues/run-replay").ReplayResumeResult> {
     const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/replay/resume`, { method: "POST", body: JSON.stringify({ seq, instruction }) });
     return parseWithFallback(raw, ReplayResumeResultSchema, { task_id: "", from_seq: seq }, { endpoint: "POST /api/tasks/:id/replay/resume" });
+  }
+
+  // Per-leg accounting (JEF-274). The id may be any leg of the workflow; the
+  // server resolves the root. The fallback is an empty workflow, which the UI
+  // renders as "no summary" rather than a wrong total.
+  async getTaskLegs(taskId: string): Promise<import("../issues/legs").WorkflowLegs> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/legs`);
+    return parseWithFallback(raw, WorkflowLegsSchema, {
+      root_task_id: taskId,
+      legs: [],
+      totals: { legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 },
+    }, { endpoint: "GET /api/tasks/:id/legs" });
   }
 
   async listTasksByIssue(issueId: string): Promise<AgentTask[]> {
