@@ -338,3 +338,44 @@ func TestRuntimeRoutingStatsNullAverages(t *testing.T) {
 		t.Errorf("body = %s, want a null avg_cost_usd on the wire", resp.Text())
 	}
 }
+
+// TestRuntimeRoutingStatsMultiModelRunCountsOnce pins the attribution rule: a
+// run that consumed two models is one sample, credited to the dominant
+// (most expensive) model with the run's total cost, not one sample per model.
+func TestRuntimeRoutingStatsMultiModelRunCountsOnce(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	runtimeID := handlerTestRuntimeID(t)
+	agentID := createHandlerTestAgent(t, "routing-stats-multimodel-agent", nil)
+	const major = "routing-stats-multimodel-major"
+	const minor = "routing-stats-multimodel-minor"
+
+	taskID := seedRoutingRun(t, agentID, runtimeID, major, "general",
+		testutil.Cols{}, testutil.Cols{"cost_usd_ticks": 3_000_000_000})
+	dbfx.Insert(t, "task_usage", testutil.Cols{
+		"task_id":        taskID,
+		"provider":       "openai",
+		"model":          minor,
+		"cost_usd_ticks": 1_000_000_000,
+	})
+
+	var body RuntimeRoutingStatsResponse
+	testutil.Call(t, testHandler.GetRuntimeRoutingStats,
+		newRequest(http.MethodGet, "/api/runtimes/routing-stats", nil)).Want(http.StatusOK).JSON(&body)
+
+	if row := findRoutingStatsRow(body, minor, "general"); row != nil {
+		t.Errorf("the minor model got its own row %+v; the run must be attributed once", *row)
+	}
+	row := findRoutingStatsRow(body, major, "general")
+	if row == nil {
+		t.Fatalf("the dominant model row is missing: %+v", body.Rows)
+	}
+	if row.Samples != 1 {
+		t.Errorf("samples = %d, want 1 for one two-model run", row.Samples)
+	}
+	if row.AvgCostUSD == nil || *row.AvgCostUSD != 0.4 {
+		t.Errorf("avg_cost_usd = %v, want 0.4 (the run's total across both models)", row.AvgCostUSD)
+	}
+}

@@ -35,7 +35,10 @@ ORDER BY created_at ASC;
 -- sum + sample-count pairs (not AVG) so the Go layer can tell "no priced /
 -- no started runs" (count = 0) apart from a genuine zero average without
 -- fighting sqlc's non-nullable AVG inference. Provider is LOWER()-normalized
--- like the dashboard rollups so mixed-case historical rows merge.
+-- like the dashboard rollups so mixed-case historical rows merge. Each run
+-- is attributed to exactly one provider/model (its dominant usage row) so a
+-- multi-model run is one sample, and the runtime join is bounded by the
+-- agent's workspace so a cross-workspace runtime row cannot leak its name.
 SELECT
     atq.runtime_id,
     r.name AS runtime_name,
@@ -53,8 +56,21 @@ SELECT
     ), 0)::float8 AS total_duration_secs
 FROM agent_task_queue atq
 JOIN agent a ON a.id = atq.agent_id
-JOIN agent_runtime r ON r.id = atq.runtime_id
-JOIN task_usage tu ON tu.task_id = atq.id
+JOIN agent_runtime r ON r.id = atq.runtime_id AND r.workspace_id = a.workspace_id
+JOIN LATERAL (
+    -- One attribution per run: a task that consumed several models would
+    -- otherwise count one sample per model and SUM(samples) would exceed
+    -- the number of runs. The dominant usage row (highest cost, then
+    -- tokens) names the provider/model; the cost is the run's total.
+    SELECT
+        ((array_agg(u.provider ORDER BY u.cost_usd_ticks DESC NULLS LAST,
+            (u.input_tokens + u.output_tokens) DESC, u.id))[1])::text AS provider,
+        ((array_agg(u.model ORDER BY u.cost_usd_ticks DESC NULLS LAST,
+            (u.input_tokens + u.output_tokens) DESC, u.id))[1])::text AS model,
+        SUM(u.cost_usd_ticks)::bigint AS cost_usd_ticks
+    FROM task_usage u
+    WHERE u.task_id = atq.id
+) tu ON tu.model IS NOT NULL
 WHERE a.workspace_id = @workspace_id
   AND atq.status IN ('completed', 'failed')
   AND atq.completed_at IS NOT NULL
