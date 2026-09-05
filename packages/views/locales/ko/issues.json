@@ -1316,5 +1316,58 @@
     "exhausted": "{{count}}회 시도 후에도 CI 실패",
     "retry": "다시 시도",
     "retry_failed": "다시 시도를 시작하지 못했습니다"
+  },
+  "watchdog": {
+    "section": "워치독",
+    "intro": "담당자와 다른 선택적 에이전트가 이 이슈와 하위 이슈가 멈춘 뒤 검사하여 중단이 정당한지 판단합니다. 작업을 직접 하지 않으며, 신뢰를 얻기 전까지 재오픈은 당신의 승인을 거칩니다.",
+    "by": "{{name}} · 휴지 {{rest}}분 후",
+    "agent": "워치독 에이전트",
+    "pick_agent": "에이전트 선택",
+    "owner": "담당 사람",
+    "owner_me": "나",
+    "rest": "휴지(분)",
+    "instructions": "지시",
+    "instructions_placeholder": "엄격히 볼 점, 증거로 인정할 것…",
+    "save": "워치독 저장",
+    "cancel": "취소",
+    "edit": "편집",
+    "remove": "제거",
+    "enabled": "워치독 활성",
+    "saved": "워치독을 저장했습니다",
+    "save_failed": "워치독을 저장할 수 없습니다",
+    "removed": "워치독을 제거했습니다",
+    "scan_now": "지금 스캔",
+    "scan_started": "스캔을 시작했습니다",
+    "scan_failed": "스캔을 시작할 수 없습니다",
+    "last_scan": "마지막 스캔 {{when}}",
+    "streak": "연속 {{n}}회 재개",
+    "confirm": "확인",
+    "overturn": "번복",
+    "review_failed": "판정을 검토할 수 없습니다",
+    "missing": "누락된 기준: {{criterion}}",
+    "dropped": "트리 밖의 지적 {{n}}건을 무시했습니다",
+    "verdicts": {
+      "legitimate": "정당한 중단",
+      "motion": "다시 진행",
+      "escalate": "에스컬레이션"
+    },
+    "outcomes": {
+      "reopened": "이슈 재오픈",
+      "asked_proof": "증거 요청",
+      "escalated": "담당자에게 전달",
+      "awaiting_decision": "당신의 결정 대기",
+      "dismissed": "기각",
+      "noted": "기록됨",
+      "pending": "대기 중"
+    },
+    "reviews": {
+      "confirmed": "사람이 확인",
+      "overturned": "사람이 번복"
+    },
+    "actions": {
+      "reopen": "재오픈",
+      "ask_proof": "증거 요청",
+      "none": "조치 없음"
+    }
   }
 }

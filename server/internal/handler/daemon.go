@@ -4070,6 +4070,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// Cross-provider self-review (K15): a finished review leaves its report;
 	// a finished code run gets reviewed by another provider.
 	h.storeCrossReviewReport(r.Context(), *task, req.Output)
+	// Task watchdog (K73): a finished scan leaves its verdict and acts within its tier.
+	h.storeWatchdogVerdict(r.Context(), *task, req.Output)
 	h.triggerCrossReview(r.Context(), *task, req.PRURL, req.BranchName)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a

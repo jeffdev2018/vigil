@@ -1349,5 +1349,58 @@
     "exhausted": "CI toujours rouge après {{count}} tentatives",
     "retry": "Relancer",
     "retry_failed": "La relance n'a pas pu démarrer"
+  },
+  "watchdog": {
+    "section": "Watchdog",
+    "intro": "Un agent optionnel, différent de l'assigné, inspecte cette issue et ses sous-issues une fois au repos et dit si l'arrêt est légitime. Il ne fait jamais le travail, et ses réouvertures passent par toi tant qu'il n'a pas gagné la confiance.",
+    "by": "{{name}} · après {{rest}} min de repos",
+    "agent": "Agent watchdog",
+    "pick_agent": "Choisir un agent",
+    "owner": "Propriétaire humain",
+    "owner_me": "Moi",
+    "rest": "Repos (minutes)",
+    "instructions": "Consignes",
+    "instructions_placeholder": "Sur quoi être strict, ce qui compte comme preuve…",
+    "save": "Enregistrer le watchdog",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "remove": "Retirer",
+    "enabled": "Watchdog actif",
+    "saved": "Watchdog enregistré",
+    "save_failed": "Impossible d'enregistrer le watchdog",
+    "removed": "Watchdog retiré",
+    "scan_now": "Scanner maintenant",
+    "scan_started": "Scan lancé",
+    "scan_failed": "Impossible de lancer le scan",
+    "last_scan": "Dernier scan {{when}}",
+    "streak": "{{n}} relance(s) d'affilée",
+    "confirm": "Confirmer",
+    "overturn": "Infirmer",
+    "review_failed": "Impossible de réviser le verdict",
+    "missing": "critère manquant : {{criterion}}",
+    "dropped": "{{n}} constat(s) hors de l'arbre ignoré(s)",
+    "verdicts": {
+      "legitimate": "Arrêt légitime",
+      "motion": "Remis en mouvement",
+      "escalate": "Escaladé"
+    },
+    "outcomes": {
+      "reopened": "issues rouvertes",
+      "asked_proof": "preuves demandées",
+      "escalated": "transmis au propriétaire",
+      "awaiting_decision": "en attente de ta décision",
+      "dismissed": "écarté",
+      "noted": "noté",
+      "pending": "en attente"
+    },
+    "reviews": {
+      "confirmed": "confirmé par un humain",
+      "overturned": "infirmé par un humain"
+    },
+    "actions": {
+      "reopen": "rouvrir",
+      "ask_proof": "demander une preuve",
+      "none": "aucune action"
+    }
   }
 }

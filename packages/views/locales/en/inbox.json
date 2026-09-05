@@ -92,7 +92,8 @@
     "budget_exceeded": "Budget limit reached",
     "postmortem_ready": "Postmortem ready",
     "trust_promotion_suggested": "Trust promotion suggested",
-    "triage_stale": "Triage is stalling"
+    "triage_stale": "Triage is stalling",
+    "watchdog_escalation": "Watchdog escalation"
   },
   "labels": {
     "set_status_to": "Set status to",

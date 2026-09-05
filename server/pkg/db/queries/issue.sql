@@ -636,7 +636,34 @@ ORDER BY depth ASC;
 -- Outcome Contract (K12): the criteria list with its proofs, owned by the
 -- issue. Not part of the revisioned edit surface, so no revision bump.
 -- name: UpdateIssueAcceptanceCriteria :one
+-- Every criteria write is a new contract revision (K73 cites it).
 UPDATE issue
-SET acceptance_criteria = $2, updated_at = now()
+SET acceptance_criteria = $2, contract_revision = contract_revision + 1, updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: SetIssueContractRisk :one
+UPDATE issue SET contract_risk = $3, updated_at = now() WHERE id = $1 AND workspace_id = $2 RETURNING *;
+
+-- name: ListIssueDescendants :many
+-- Descendants of @issue_id (depth 1 = children), workspace-scoped and
+-- hard-capped by @max_depth like ListIssueAncestors (a parent_issue_id cycle
+-- is not prevented by the schema).
+WITH RECURSIVE tree AS (
+    SELECT c.id, c.parent_issue_id, 1 AS depth
+    FROM issue c
+    WHERE c.parent_issue_id = @issue_id AND c.workspace_id = @workspace_id
+  UNION ALL
+    SELECT c.id, c.parent_issue_id, t.depth + 1
+    FROM issue c
+    JOIN tree t ON c.parent_issue_id = t.id
+    WHERE c.workspace_id = @workspace_id AND t.depth < @max_depth::int
+)
+SELECT i.*, t.depth::int AS depth
+FROM tree t JOIN issue i ON i.id = t.id
+ORDER BY t.depth ASC, i.number ASC;
+
+-- name: CountActiveTasksForIssues :one
+SELECT COUNT(*)::bigint FROM agent_task_queue
+WHERE issue_id = ANY(@issue_ids::uuid[])
+  AND status IN ('queued', 'dispatched', 'running', 'waiting_local_directory');

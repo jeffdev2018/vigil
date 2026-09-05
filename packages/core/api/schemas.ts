@@ -5140,3 +5140,50 @@ export const ReplaySimulateResultSchema = z.object({
   task_id: z.string().default(""),
   safe_mode: z.boolean().catch(true).default(true),
 }).loose();
+
+// Task watchdog (K73).
+export const WatchdogSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  owner_id: z.string().catch("").default(""),
+  instructions: z.string().catch("").default(""),
+  rest_minutes: z.number().catch(30).default(30),
+  enabled: z.boolean().catch(true).default(true),
+  last_scan_task_id: z.string().nullable().catch(null).default(null),
+  last_scanned_at: z.string().nullable().catch(null).default(null),
+  motion_streak: z.number().catch(0).default(0),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogEnvelopeSchema = z.object({ watchdog: WatchdogSchema.nullable().catch(null).default(null) }).loose();
+
+export const WatchdogFindingSchema = z.object({
+  issue: z.string().catch("").default(""),
+  issue_id: z.string().catch("").default(""),
+  action: z.string().catch("none").default("none"),
+  reason: z.string().catch("").default(""),
+  missing_criterion: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogVerdictSchema = z.object({
+  id: z.string().default(""),
+  watchdog_id: z.string().catch("").default(""),
+  issue_id: z.string().catch("").default(""),
+  task_id: z.string().catch("").default(""),
+  verdict: z.enum(["legitimate", "motion", "escalate"]).catch("escalate").default("escalate"),
+  summary: z.string().catch("").default(""),
+  findings: z.array(WatchdogFindingSchema).catch([]).default([]),
+  dropped: z.array(WatchdogFindingSchema).catch([]).default([]),
+  applied: z.record(z.string(), z.unknown()).catch({}).default({}),
+  decision_id: z.string().nullable().catch(null).default(null),
+  human_review: z.enum(["pending", "confirmed", "overturned"]).catch("pending").default("pending"),
+  contract_revision: z.number().catch(0).default(0),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const WatchdogVerdictListSchema = z.object({ verdicts: z.array(WatchdogVerdictSchema).catch([]).default([]) }).loose();
+
+export const WatchdogScanResultSchema = z.object({ task_id: z.string().default("") }).loose();
+export const WatchdogVerdictEnvelopeSchema = z.object({ verdict: WatchdogVerdictSchema }).loose();

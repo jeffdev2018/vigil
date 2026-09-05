@@ -1316,5 +1316,58 @@
     "exhausted": "{{count}} 次尝试后 CI 仍为红色",
     "retry": "重试",
     "retry_failed": "无法开始重试"
+  },
+  "watchdog": {
+    "section": "看门狗",
+    "intro": "一个可选的、不同于负责人的智能体会在此议题及其子议题停止后进行检查，判断停止是否合理。它从不亲自执行工作，在赢得信任之前，其重新打开操作需经你批准。",
+    "by": "{{name}} · 静止 {{rest}} 分钟后",
+    "agent": "看门狗智能体",
+    "pick_agent": "选择智能体",
+    "owner": "人类负责人",
+    "owner_me": "我",
+    "rest": "静止（分钟）",
+    "instructions": "指示",
+    "instructions_placeholder": "需要严格的方面，什么算作证据…",
+    "save": "保存看门狗",
+    "cancel": "取消",
+    "edit": "编辑",
+    "remove": "移除",
+    "enabled": "看门狗已启用",
+    "saved": "看门狗已保存",
+    "save_failed": "无法保存看门狗",
+    "removed": "看门狗已移除",
+    "scan_now": "立即扫描",
+    "scan_started": "扫描已开始",
+    "scan_failed": "无法开始扫描",
+    "last_scan": "上次扫描 {{when}}",
+    "streak": "连续 {{n}} 次重启",
+    "confirm": "确认",
+    "overturn": "推翻",
+    "review_failed": "无法审核判定",
+    "missing": "缺少的标准：{{criterion}}",
+    "dropped": "已忽略树外的 {{n}} 条发现",
+    "verdicts": {
+      "legitimate": "合理停止",
+      "motion": "重新推进",
+      "escalate": "已升级"
+    },
+    "outcomes": {
+      "reopened": "议题已重新打开",
+      "asked_proof": "已要求证据",
+      "escalated": "已交给负责人",
+      "awaiting_decision": "等待你的决定",
+      "dismissed": "已驳回",
+      "noted": "已记录",
+      "pending": "待处理"
+    },
+    "reviews": {
+      "confirmed": "已由人类确认",
+      "overturned": "已由人类推翻"
+    },
+    "actions": {
+      "reopen": "重新打开",
+      "ask_proof": "要求证据",
+      "none": "无操作"
+    }
   }
 }

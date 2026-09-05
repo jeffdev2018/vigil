@@ -1136,7 +1136,9 @@ type Issue struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 	ReopenCount        int32              `json:"reopen_count"`
 	// When the issue last entered a done-category status; NULL while it is not done.
-	CompletedAt pgtype.Timestamptz `json:"completed_at"`
+	CompletedAt      pgtype.Timestamptz `json:"completed_at"`
+	ContractRisk     string             `json:"contract_risk"`
+	ContractRevision int32              `json:"contract_revision"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
@@ -1328,6 +1330,23 @@ type IssueViewPreference struct {
 	ScopeID     pgtype.UUID        `json:"scope_id"`
 	Prefs       []byte             `json:"prefs"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IssueWatchdog struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	AgentID        pgtype.UUID        `json:"agent_id"`
+	OwnerID        pgtype.UUID        `json:"owner_id"`
+	Instructions   string             `json:"instructions"`
+	RestMinutes    int32              `json:"rest_minutes"`
+	Enabled        bool               `json:"enabled"`
+	LastScanTaskID pgtype.UUID        `json:"last_scan_task_id"`
+	LastScannedAt  pgtype.Timestamptz `json:"last_scanned_at"`
+	MotionStreak   int32              `json:"motion_streak"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type LarkBindingToken struct {
@@ -2172,6 +2191,23 @@ type VerificationCode struct {
 	Used      bool               `json:"used"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	Attempts  int32              `json:"attempts"`
+}
+
+type WatchdogVerdict struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	WatchdogID       pgtype.UUID        `json:"watchdog_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	TaskID           pgtype.UUID        `json:"task_id"`
+	Verdict          string             `json:"verdict"`
+	Summary          string             `json:"summary"`
+	Findings         []byte             `json:"findings"`
+	Dropped          []byte             `json:"dropped"`
+	Applied          []byte             `json:"applied"`
+	DecisionID       pgtype.UUID        `json:"decision_id"`
+	HumanReview      string             `json:"human_review"`
+	ContractRevision int32              `json:"contract_revision"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type WebhookDelivery struct {

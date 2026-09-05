@@ -1316,5 +1316,58 @@
     "exhausted": "{{count}} 回試行後も CI が赤のまま",
     "retry": "再試行",
     "retry_failed": "再試行を開始できませんでした"
+  },
+  "watchdog": {
+    "section": "ウォッチドッグ",
+    "intro": "担当者とは別のオプションのエージェントが、この Issue とサブ Issue が停止した後に検査し、停止が正当かどうかを判断します。作業自体は行わず、信頼を得るまで再オープンはあなたの承認を経ます。",
+    "by": "{{name}} · 停止 {{rest}} 分後",
+    "agent": "ウォッチドッグのエージェント",
+    "pick_agent": "エージェントを選択",
+    "owner": "人間のオーナー",
+    "owner_me": "自分",
+    "rest": "停止時間（分）",
+    "instructions": "指示",
+    "instructions_placeholder": "厳しく見る点、証拠として認めるもの…",
+    "save": "ウォッチドッグを保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "remove": "削除",
+    "enabled": "ウォッチドッグ有効",
+    "saved": "ウォッチドッグを保存しました",
+    "save_failed": "ウォッチドッグを保存できませんでした",
+    "removed": "ウォッチドッグを削除しました",
+    "scan_now": "今すぐスキャン",
+    "scan_started": "スキャンを開始しました",
+    "scan_failed": "スキャンを開始できませんでした",
+    "last_scan": "最終スキャン {{when}}",
+    "streak": "{{n}} 回連続の再開",
+    "confirm": "確認",
+    "overturn": "却下",
+    "review_failed": "判定をレビューできませんでした",
+    "missing": "不足している基準: {{criterion}}",
+    "dropped": "ツリー外の指摘 {{n}} 件を無視しました",
+    "verdicts": {
+      "legitimate": "正当な停止",
+      "motion": "再開",
+      "escalate": "エスカレーション"
+    },
+    "outcomes": {
+      "reopened": "Issue を再オープン",
+      "asked_proof": "証拠を要求",
+      "escalated": "オーナーに送付",
+      "awaiting_decision": "あなたの判断待ち",
+      "dismissed": "却下",
+      "noted": "記録済み",
+      "pending": "保留中"
+    },
+    "reviews": {
+      "confirmed": "人間が確認",
+      "overturned": "人間が却下"
+    },
+    "actions": {
+      "reopen": "再オープン",
+      "ask_proof": "証拠を要求",
+      "none": "アクションなし"
+    }
   }
 }

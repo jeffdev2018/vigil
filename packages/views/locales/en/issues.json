@@ -1349,5 +1349,58 @@
     "exhausted": "CI still red after {{count}} attempts",
     "retry": "Retry",
     "retry_failed": "The retry could not start"
+  },
+  "watchdog": {
+    "section": "Watchdog",
+    "intro": "An optional agent, different from the assignee, inspects this issue and its sub-issues once they are at rest and says whether the stop is legitimate. It never does the work, and its reopenings go through you until it has earned trust.",
+    "by": "{{name}} · after {{rest}} min at rest",
+    "agent": "Watchdog agent",
+    "pick_agent": "Pick an agent",
+    "owner": "Human owner",
+    "owner_me": "Me",
+    "rest": "Rest (minutes)",
+    "instructions": "Instructions",
+    "instructions_placeholder": "What to be strict about, what counts as proof…",
+    "save": "Save watchdog",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "remove": "Remove",
+    "enabled": "Watchdog enabled",
+    "saved": "Watchdog saved",
+    "save_failed": "Could not save the watchdog",
+    "removed": "Watchdog removed",
+    "scan_now": "Scan now",
+    "scan_started": "Scan started",
+    "scan_failed": "Could not start the scan",
+    "last_scan": "Last scan {{when}}",
+    "streak": "{{n}} relaunch(es) in a row",
+    "confirm": "Confirm",
+    "overturn": "Overturn",
+    "review_failed": "Could not review the verdict",
+    "missing": "missing criterion: {{criterion}}",
+    "dropped": "{{n}} finding(s) outside the tree were ignored",
+    "verdicts": {
+      "legitimate": "Legitimate stop",
+      "motion": "Put back in motion",
+      "escalate": "Escalated"
+    },
+    "outcomes": {
+      "reopened": "issues reopened",
+      "asked_proof": "proofs requested",
+      "escalated": "sent to the owner",
+      "awaiting_decision": "waiting for your decision",
+      "dismissed": "dismissed",
+      "noted": "noted",
+      "pending": "pending"
+    },
+    "reviews": {
+      "confirmed": "confirmed by a human",
+      "overturned": "overturned by a human"
+    },
+    "actions": {
+      "reopen": "reopen",
+      "ask_proof": "ask for a proof",
+      "none": "no action"
+    }
   }
 }

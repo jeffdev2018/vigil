@@ -304,6 +304,10 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if h.applyPreviewForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
 	}
+	// Task watchdog (K73): apply or dismiss the verdict's actions, no resume.
+	if h.applyWatchdogForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
 		if interview != nil {

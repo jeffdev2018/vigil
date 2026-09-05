@@ -2175,6 +2175,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/tasks/{taskId}/replay", h.GetTaskReplay)
 			r.Post("/api/tasks/{taskId}/replay/resume", h.ResumeTaskReplay)
 			r.Post("/api/tasks/{taskId}/replay/simulate", h.SimulateTaskReplay)
+			// Task watchdog (K73).
+			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
+				r.Get("/", h.GetIssueWatchdog)
+				r.Put("/", h.SetIssueWatchdog)
+				r.Delete("/", h.DeleteIssueWatchdog)
+				r.Get("/verdicts", h.ListIssueWatchdogVerdicts)
+				r.Post("/scan", h.ScanIssueWatchdogNow)
+			})
+			r.Post("/api/watchdog-verdicts/{id}/review", h.ReviewWatchdogVerdict)
+			r.Put("/api/issues/{id}/contract-risk", h.SetIssueContractRisk)
 			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
 			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
 			// Permission profiles (K06): what an agent may touch when it runs.
