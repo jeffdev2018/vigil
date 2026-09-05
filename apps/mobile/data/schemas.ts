@@ -27,6 +27,7 @@ import type {
   ListProjectResourcesResponse,
   ListProjectsResponse,
   MemberWithUser,
+  OrgStructure,
   PinnedItem,
   Project,
   ProjectResource,
@@ -244,6 +245,110 @@ export const EMPTY_LIST_GOALS_RESPONSE: ListGoalsResponse = {
   goals: [],
   total: 0,
 };
+
+// Executable org chart (K75). Mirror of `OrgStructureSchema` /
+// `OrgStructureListSchema` in packages/core/api/schemas.ts — same fields,
+// same enums, same fallbacks. Mobile renders units only, so edges / rules /
+// committees / market stay loose passthrough.
+const OrgMemberSchema = z.object({
+  type: z.enum(["member", "agent"]).catch("member"),
+  id: z.string().catch(""),
+  role: z.string().optional(),
+  role_id: z.string().optional(),
+}).loose();
+
+export const OrgUnitSchema = z.object({
+  id: z.string().catch(""),
+  name: z.string().catch(""),
+  kind: z.string().optional(),
+  owner_id: z.string().optional(),
+  excludes: z
+    .array(z.enum(["untrusted_input", "sensitive_data", "external_effects"]))
+    .catch([])
+    .default([]),
+  autonomy: z
+    .enum(["read_only", "draft", "approve_payload", "auto"])
+    .catch("draft"),
+  allow: z.array(z.string()).catch([]).default([]),
+  deny: z.array(z.string()).catch([]).default([]),
+  escalation_quota_per_day: z.number().catch(5).default(5),
+  members: z.array(OrgMemberSchema).catch([]).default([]),
+  roles: z
+    .array(
+      z.object({
+        id: z.string().catch(""),
+        name: z.string().catch(""),
+        responsibilities: z.string().optional(),
+        keywords: z.array(z.string()).optional(),
+      }).loose(),
+    )
+    .catch([])
+    .default([]),
+}).loose();
+
+const EMPTY_ORG_MARKET = {
+  price_cap_usd_ticks: 0,
+  offers_per_agent_per_day: 5,
+  min_offers: 2,
+};
+
+export const OrgDefinitionSchema = z.object({
+  units: z.array(OrgUnitSchema).catch([]).default([]),
+  edges: z.array(z.looseObject({})).catch([]).default([]),
+  rules: z.array(z.looseObject({})).catch([]).default([]),
+  committees: z.array(z.looseObject({})).catch([]).default([]),
+  market: z
+    .object({
+      price_cap_usd_ticks: z.number().catch(0).default(0),
+      offers_per_agent_per_day: z.number().catch(5).default(5),
+      min_offers: z.number().catch(2).default(2),
+    })
+    .loose()
+    .catch(EMPTY_ORG_MARKET),
+}).loose();
+
+const EMPTY_ORG_DEFINITION = {
+  units: [],
+  edges: [],
+  rules: [],
+  committees: [],
+  market: EMPTY_ORG_MARKET,
+};
+
+export const OrgStructureSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().nullable().catch(null).default(null),
+  model: z
+    .enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"])
+    .catch("owner_network"),
+  name: z.string().catch(""),
+  status: z.enum(["draft", "active", "paused", "dissolved"]).catch("draft"),
+  revision: z.number().catch(1).default(1),
+  revision_id: z.string().nullable().catch(null).default(null),
+  definition: OrgDefinitionSchema.catch(EMPTY_ORG_DEFINITION),
+  owner_id: z.string().nullable().catch(null).default(null),
+  dissolve_at: z.string().nullable().catch(null).default(null),
+  end_condition: z.string().catch("").default(""),
+  budget_usd_ticks: z.number().catch(0).default(0),
+  eval_attestation: z.string().catch("").default(""),
+  paused_reason: z.string().catch("").default(""),
+  dissolved_at: z.string().nullable().catch(null).default(null),
+  paused_units: z.array(z.string()).catch([]).default([]),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const OrgStructureListSchema = z.object({
+  structures: z.array(OrgStructureSchema).catch([]).default([]),
+}).loose();
+
+export interface OrgStructureList {
+  structures: OrgStructure[];
+}
+
+export const EMPTY_ORG_STRUCTURE_LIST: OrgStructureList = { structures: [] };
 
 // Fallback for `GET /api/projects/{id}` when the response shape drifts.
 // `id` defaults to empty — caller can detect "not found / drift" by checking

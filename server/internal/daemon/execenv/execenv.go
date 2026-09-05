@@ -58,6 +58,22 @@ type MissionChainForEnv struct {
 	Depth          int    `json:"depth"`
 }
 
+// OrgContextForEnv (K75) is the structure and unit a run acts in. Wire shape
+// too (json tags mirror handler.OrgContext).
+type OrgContextForEnv struct {
+	StructureID    string   `json:"structure_id"`
+	StructureName  string   `json:"structure_name"`
+	Model          string   `json:"model"`
+	Revision       int32    `json:"revision"`
+	RevisionID     string   `json:"revision_id"`
+	UnitID         string   `json:"unit_id,omitempty"`
+	UnitName       string   `json:"unit_name,omitempty"`
+	Autonomy       string   `json:"autonomy,omitempty"`
+	Allow          []string `json:"allow,omitempty"`
+	Deny           []string `json:"deny,omitempty"`
+	EscalationPath []string `json:"escalation_path,omitempty"`
+}
+
 // WorkspaceNoteForEnv is one workspace Brain note as the run receives it. It
 // is the wire shape too (json tags mirror handler.WorkspaceNoteForEnv), so the
 // daemon decodes straight into it.
@@ -218,7 +234,9 @@ type TaskContextForEnv struct {
 	GoalAncestryOmitted int
 	// MissionChain (K74) is the goal chain the issue serves, mission first,
 	// already capped by the server. Empty renders the brief byte-identical.
-	MissionChain  []MissionChainForEnv
+	MissionChain []MissionChainForEnv
+	// Org (K75): the structure and unit the run acts in; nil renders nothing.
+	Org           *OrgContextForEnv
 	ChatSessionID string // non-empty for chat tasks
 	// ChatChannelType is the IM platform behind a chat session ("slack",
 	// "feishu", "wecom"); empty for a web/mobile chat. It names the surface in

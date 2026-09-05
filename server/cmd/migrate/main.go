@@ -382,6 +382,10 @@ var concurrentIndexCleanups = map[string]string{
 	"657_contest_target_index":                                  "idx_contest_target",
 	"658_contest_task_index":                                    "idx_contest_challenger_task",
 	"659_contest_answer_task_index":                             "idx_contest_answer_task",
+	"661_org_structure_project_index":                           "uq_org_structure_project_live",
+	"662_org_structure_default_index":                           "uq_org_structure_default_live",
+	"663_org_flow_index":                                        "idx_org_flow_structure",
+	"664_org_offer_index":                                       "idx_org_offer_issue",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 

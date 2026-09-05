@@ -93,6 +93,7 @@
     "triage_stale": "분류가 지연되고 있습니다",
     "watchdog_escalation": "워치독 에스컬레이션",
     "contest_ready": "이의 제기 판정 대기",
+    "org_alert": "조직 알림",
     "decision_auto_decided": "대신 결정함"
   },
   "labels": {

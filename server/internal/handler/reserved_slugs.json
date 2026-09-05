@@ -74,6 +74,7 @@
         "autopilots",
         "agents",
         "squads",
+        "org",
         "inbox",
         "triage",
         "postmortems",

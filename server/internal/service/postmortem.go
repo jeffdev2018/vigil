@@ -235,6 +235,16 @@ func (s *TaskService) GenerateCostlyPostmortemForTask(ctx context.Context, taskI
 // storePostmortem is the shared drafting-and-insert body of both triggers.
 // Everything above it decides WHETHER this run deserves a postmortem; this
 // decides what it says.
+// DraftPostmortemForRun drafts a postmortem for any run with a named trigger
+// (K75: a dissolved task force). Idempotent per run.
+func (s *TaskService) DraftPostmortemForRun(ctx context.Context, task db.AgentTaskQueue, trigger, reason string) error {
+	agent, err := s.Queries.GetAgent(ctx, task.AgentID)
+	if err != nil {
+		return fmt.Errorf("load agent: %w", err)
+	}
+	return s.storePostmortem(ctx, task, agent, trigger, reason)
+}
+
 func (s *TaskService) storePostmortem(ctx context.Context, task db.AgentTaskQueue, agent db.Agent, trigger, failureReason string) error {
 	// Idempotent: a postmortem already exists for this run (redelivered event
 	// or a rerun of the pass). CreatePostmortem also guards this via the unique

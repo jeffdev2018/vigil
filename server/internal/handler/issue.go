@@ -3174,6 +3174,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	h.recordEffect(r, issue.WorkspaceID, issue.ID, service.EffectIssueCreate, "issue", issue.ID, map[string]any{}, map[string]any{"title": issue.Title}, false)
 	// Module ownership (K33): tell the owner of a matching rule, never assign.
 	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
+	// Org chart (K75): the structure in force routes the new issue.
+	issue = h.orgRouteIssue(r.Context(), issue, creatorType, actualCreatorID)
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
@@ -3814,6 +3816,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	// fails best-effort.
 	if statusChanged {
 		h.notifyParentOfChildDone(r.Context(), prevIssue, issue)
+	}
+	// Org chart (K75): a human moving the issue out of its unit is a drift signal.
+	if assigneeChanged {
+		h.orgObserveReassignment(r.Context(), issue, actorType, actorID)
 	}
 
 	writeJSON(w, http.StatusOK, resp)

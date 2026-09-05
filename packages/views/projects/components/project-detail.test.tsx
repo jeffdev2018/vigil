@@ -58,6 +58,13 @@ vi.mock("@multica/core/goals", () => ({
   useSetProjectGoals: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
+// The org section (K75) has the same constraint: stub its query factories.
+vi.mock("@multica/core/org", () => ({
+  orgResolveOptions: () => ({ queryKey: ["org-resolve"] }),
+  orgTemplatesOptions: () => ({ queryKey: ["org-templates"] }),
+  useCreateOrgStructure: () => ({ isPending: false, mutate: vi.fn() }),
+}));
+
 vi.mock("@multica/core/pins", () => ({
   pinListOptions: () => ({ queryKey: ["pins"] }),
   useCreatePin: () => ({ mutate: vi.fn() }),
@@ -87,6 +94,7 @@ vi.mock("@multica/core/chat", () => ({
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({
     projects: () => "/test-workspace/projects",
+    org: () => "/test-workspace/org",
   }),
 }));
 

@@ -2203,6 +2203,24 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			})
 			r.Get("/api/contest-settings", h.GetContestSettings)
 			r.Put("/api/contest-settings", h.PutContestSettings)
+			// Executable org chart (K75).
+			r.Route("/api/org", func(r chi.Router) {
+				r.Get("/templates", h.ListOrgTemplates)
+				r.Get("/resolve", h.ResolveOrgStructure)
+				r.Get("/", h.ListOrgStructures)
+				r.Post("/", h.CreateOrgStructure)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetOrgStructure)
+					r.Put("/", h.UpdateOrgStructure)
+					r.Delete("/", h.DeleteOrgStructure)
+					r.Get("/preflight", h.PreflightOrgStructure)
+					r.Get("/health", h.GetOrgHealth)
+					r.Post("/{action}", h.SetOrgStructureStatus)
+				})
+			})
+			r.Post("/api/issues/{id}/escalate", h.EscalateIssue)
+			r.Post("/api/issues/{id}/org-route", h.RouteIssueNow)
+			r.Get("/api/issues/{id}/org-offers", h.ListIssueOrgOffers)
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)

@@ -21,6 +21,7 @@ import enProjects from "./en/projects.json";
 import enAutopilots from "./en/autopilots.json";
 import enSkills from "./en/skills.json";
 import enGoals from "./en/goals.json";
+import enOrg from "./en/org.json";
 import enContests from "./en/contests.json";
 import enChat from "./en/chat.json";
 import enModals from "./en/modals.json";
@@ -52,6 +53,7 @@ import zhHansProjects from "./zh-Hans/projects.json";
 import zhHansAutopilots from "./zh-Hans/autopilots.json";
 import zhHansSkills from "./zh-Hans/skills.json";
 import zhHansGoals from "./zh-Hans/goals.json";
+import zhHansOrg from "./zh-Hans/org.json";
 import zhHansContests from "./zh-Hans/contests.json";
 import zhHansChat from "./zh-Hans/chat.json";
 import zhHansModals from "./zh-Hans/modals.json";
@@ -83,6 +85,7 @@ import koProjects from "./ko/projects.json";
 import koAutopilots from "./ko/autopilots.json";
 import koSkills from "./ko/skills.json";
 import koGoals from "./ko/goals.json";
+import koOrg from "./ko/org.json";
 import koContests from "./ko/contests.json";
 import koChat from "./ko/chat.json";
 import koModals from "./ko/modals.json";
@@ -114,6 +117,7 @@ import jaProjects from "./ja/projects.json";
 import jaAutopilots from "./ja/autopilots.json";
 import jaSkills from "./ja/skills.json";
 import jaGoals from "./ja/goals.json";
+import jaOrg from "./ja/org.json";
 import jaContests from "./ja/contests.json";
 import jaChat from "./ja/chat.json";
 import jaModals from "./ja/modals.json";
@@ -144,6 +148,7 @@ import frProjects from "./fr/projects.json";
 import frAutopilots from "./fr/autopilots.json";
 import frSkills from "./fr/skills.json";
 import frGoals from "./fr/goals.json";
+import frOrg from "./fr/org.json";
 import frContests from "./fr/contests.json";
 import frChat from "./fr/chat.json";
 import frModals from "./fr/modals.json";
@@ -181,6 +186,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     autopilots: frAutopilots,
     skills: frSkills,
     goals: frGoals,
+    org: frOrg,
     contests: frContests,
     chat: frChat,
     modals: frModals,
@@ -215,6 +221,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     autopilots: enAutopilots,
     skills: enSkills,
     goals: enGoals,
+    org: enOrg,
     contests: enContests,
     chat: enChat,
     modals: enModals,
@@ -248,6 +255,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     autopilots: zhHansAutopilots,
     skills: zhHansSkills,
     goals: zhHansGoals,
+    org: zhHansOrg,
     contests: zhHansContests,
     chat: zhHansChat,
     modals: zhHansModals,
@@ -281,6 +289,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     autopilots: koAutopilots,
     skills: koSkills,
     goals: koGoals,
+    org: koOrg,
     contests: koContests,
     chat: koChat,
     modals: koModals,
@@ -314,6 +323,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     autopilots: jaAutopilots,
     skills: jaSkills,
     goals: jaGoals,
+    org: jaOrg,
     contests: jaContests,
     chat: jaChat,
     modals: jaModals,

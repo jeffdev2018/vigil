@@ -1565,6 +1565,67 @@ type NotificationPreference struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type OrgFlow struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	StructureID pgtype.UUID        `json:"structure_id"`
+	UnitID      string             `json:"unit_id"`
+	Kind        string             `json:"kind"`
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	ActorType   string             `json:"actor_type"`
+	ActorID     pgtype.UUID        `json:"actor_id"`
+	Details     []byte             `json:"details"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type OrgOffer struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	StructureID  pgtype.UUID        `json:"structure_id"`
+	IssueID      pgtype.UUID        `json:"issue_id"`
+	AgentID      pgtype.UUID        `json:"agent_id"`
+	Confidence   float64            `json:"confidence"`
+	CostUsdTicks int64              `json:"cost_usd_ticks"`
+	EtaHours     float64            `json:"eta_hours"`
+	Status       string             `json:"status"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+}
+
+type OrgRevision struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	StructureID pgtype.UUID        `json:"structure_id"`
+	Revision    int32              `json:"revision"`
+	Model       string             `json:"model"`
+	Status      string             `json:"status"`
+	Definition  []byte             `json:"definition"`
+	ChangedBy   pgtype.UUID        `json:"changed_by"`
+	Note        string             `json:"note"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type OrgStructure struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	ProjectID       pgtype.UUID        `json:"project_id"`
+	Model           string             `json:"model"`
+	Name            string             `json:"name"`
+	Status          string             `json:"status"`
+	Revision        int32              `json:"revision"`
+	RevisionID      pgtype.UUID        `json:"revision_id"`
+	Definition      []byte             `json:"definition"`
+	OwnerID         pgtype.UUID        `json:"owner_id"`
+	DissolveAt      pgtype.Timestamptz `json:"dissolve_at"`
+	EndCondition    string             `json:"end_condition"`
+	BudgetUsdTicks  int64              `json:"budget_usd_ticks"`
+	EvalAttestation string             `json:"eval_attestation"`
+	PausedReason    string             `json:"paused_reason"`
+	DissolvedAt     pgtype.Timestamptz `json:"dissolved_at"`
+	CreatedBy       pgtype.UUID        `json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PersonalAccessToken struct {
 	ID          pgtype.UUID        `json:"id"`
 	UserID      pgtype.UUID        `json:"user_id"`

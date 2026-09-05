@@ -1,0 +1,173 @@
+{
+  "page": {
+    "title": "组织",
+    "new_structure": "新建结构",
+    "empty": "还没有组织结构",
+    "empty_description": "组织结构决定谁做什么：把任务路由到单元、升级、审批和花费预算。从七种模型中选一个开始。",
+    "workspace_default": "工作区默认",
+    "unknown_project": "未知项目",
+    "revision": "第 {{n}} 版",
+    "no_owner": "无负责人",
+    "paused_units_other": "{{count}} 个单元已暂停",
+    "back": "全部结构",
+    "loading": "加载中…",
+    "chart": "组织图",
+    "editor": "定义",
+    "units_summary": "单元",
+    "no_units": "此定义中没有单元。",
+    "members_other": "{{count}} 名成员",
+    "revisions": "版本记录",
+    "no_revisions": "还没有版本。",
+    "revision_row": "第 {{n}} 版 · {{status}} · {{model}}",
+    "read_only": "已解散的结构为只读。"
+  },
+  "status": {
+    "draft": "草稿",
+    "active": "生效中",
+    "paused": "已暂停",
+    "dissolved": "已解散"
+  },
+  "model": {
+    "hierarchy": "层级制",
+    "squads": "自治小队",
+    "matrix": "能力 × 项目矩阵",
+    "circles": "圈子与角色",
+    "owner_network": "负责人网络",
+    "taskforce": "临时专项组",
+    "market": "内部市场"
+  },
+  "autonomy": {
+    "read_only": "只读",
+    "draft": "起草",
+    "approve_payload": "审批后执行",
+    "auto": "自动"
+  },
+  "new": {
+    "title": "新建结构",
+    "description": "先选适用范围，再选它遵循的模型。之后可以继续编辑定义。",
+    "project": "适用于",
+    "workspace_default": "工作区默认（所有没有自己结构的项目）",
+    "runs_per_issue_other": "每个任务 {{count}} 次协调运行",
+    "loading": "加载模板中…",
+    "cancel": "取消",
+    "error": "无法创建结构"
+  },
+  "form": {
+    "name": "名称",
+    "owner": "人类负责人",
+    "owner_none": "无负责人",
+    "dissolve_at": "解散时间",
+    "end_condition": "结束条件",
+    "end_none": "无",
+    "end_all_issues_done": "所有任务完成",
+    "end_budget_spent": "预算用尽",
+    "budget": "预算（USD ticks）",
+    "definition": "定义（JSON）",
+    "invalid_json": "JSON 无效：{{error}}",
+    "save": "保存",
+    "saved": "结构已保存",
+    "error": "无法保存结构"
+  },
+  "actions": {
+    "activate": "启用",
+    "pause": "暂停",
+    "resume": "恢复",
+    "dissolve": "解散",
+    "delete": "删除",
+    "cancel": "取消",
+    "reason": "原因",
+    "reason_placeholder": "为什么？",
+    "error": "操作失败"
+  },
+  "activate": {
+    "title": "启用结构",
+    "description": "启用需要一位人类负责人，以及你对 30 个用例评估集已通过的声明。下面的数字来自预检。",
+    "attestation": "评估声明",
+    "attestation_placeholder": "已于 {{date}} 跑完 30 个用例：…",
+    "loading": "预检中…",
+    "pattern": "模式",
+    "runs": "每个任务的协调运行次数",
+    "cost": "每个任务的协调成本",
+    "review_seconds": "每个任务的人工审核时长",
+    "seconds": "{{count}} 秒",
+    "units": "单元",
+    "units_without_owner": "无负责人的单元",
+    "agents": "智能体",
+    "requirements": "启用前需要",
+    "submit": "启用"
+  },
+  "pause": {
+    "title": "暂停结构",
+    "description": "路由会停止，直到你恢复。已分配的任务保留原负责人。",
+    "submit": "暂停"
+  },
+  "dissolve": {
+    "title": "解散结构",
+    "description": "解散后结构停止运作并变为只读。此操作不可撤销。",
+    "submit": "解散"
+  },
+  "delete": {
+    "title": "删除结构",
+    "description": "只能删除草稿或已解散的结构，版本记录会一并删除。",
+    "submit": "删除"
+  },
+  "health": {
+    "title": "健康度",
+    "window": "最近 {{count}} 天",
+    "loading": "加载健康度…",
+    "routed": "已路由",
+    "unrouted": "未路由",
+    "escalations": "升级",
+    "stacked": "叠加升级",
+    "reassigned_outside": "改派到单元之外",
+    "market_short": "市场报价不足",
+    "breakers": "熔断",
+    "human_review": "待人工审核",
+    "drift": "偏离率",
+    "units": "单元",
+    "unit": "单元",
+    "vacant_roles": "空缺角色",
+    "saturated": "饱和的智能体",
+    "paused": "已暂停",
+    "spend": "花费 / 预算",
+    "none": "—",
+    "proposals": "建议",
+    "no_proposals": "目前没有建议。",
+    "measure": "衡量：{{measure}}"
+  },
+  "project_section": {
+    "header": "组织结构",
+    "inherited": "继承自工作区默认",
+    "none": "没有结构适用于此项目。",
+    "choose": "选择模型",
+    "open": "打开组织",
+    "loading": "加载模板中…",
+    "error": "无法创建结构"
+  },
+  "issue_section": {
+    "offers": "市场报价",
+    "agent": "智能体",
+    "confidence": "置信度",
+    "cost": "成本",
+    "eta": "预计耗时",
+    "eta_hours": "{{hours}} 小时",
+    "status": "状态",
+    "escalate": "升级",
+    "route_now": "立即路由",
+    "escalate_title": "升级此任务",
+    "escalate_description": "结构会沿升级边把它上报。说明原因。",
+    "reason": "原因",
+    "reason_placeholder": "卡在哪里？",
+    "submit": "升级",
+    "cancel": "取消",
+    "escalated": "任务已升级",
+    "routed": "任务已路由",
+    "error": "操作失败"
+  },
+  "offer_status": {
+    "pending": "待定",
+    "won": "中标",
+    "lost": "落选",
+    "over_cap": "超出上限"
+  }
+}

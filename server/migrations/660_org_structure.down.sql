@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS org_flow;
+DROP TABLE IF EXISTS org_offer;
+DROP TABLE IF EXISTS org_revision;
+DROP TABLE IF EXISTS org_structure;

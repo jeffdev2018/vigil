@@ -531,6 +531,8 @@ func (h *Handler) acceptTriageItemCore(ctx context.Context, workspaceID pgtype.U
 		return acceptResult{outcome: "error"}
 	}
 	h.publishTriageResolved(workspaceID, item.ID, triage.StateAccepted)
+	// Org chart (K75): an accepted item is a new issue the structure routes.
+	result.Issue = h.orgRouteIssue(ctx, result.Issue, "member", userID)
 	return acceptResult{outcome: "accepted", issue: result.Issue, prefix: prefix}
 }
 
