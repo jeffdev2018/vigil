@@ -2316,6 +2316,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 						r.Delete("/", h.DeleteAutopilotTrigger)
 						r.Post("/rotate-webhook-token", h.RotateAutopilotTriggerWebhookToken)
 						r.Put("/signing-secret", h.SetAutopilotTriggerSigningSecret)
+						// Dry-run: same path, one verb per trigger kind.
+						// POST replays a sample webhook payload through the
+						// delivery decision; GET previews a schedule's next
+						// firing instants. Neither writes anything.
+						r.Post("/dry-run", h.DryRunAutopilotWebhookTrigger)
+						r.Get("/dry-run", h.DryRunAutopilotScheduleTrigger)
 					})
 					r.Post("/collaborators", h.AddAutopilotCollaborator)
 					r.Delete("/collaborators/{userId}", h.RemoveAutopilotCollaborator)
