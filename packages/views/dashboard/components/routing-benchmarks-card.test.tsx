@@ -65,6 +65,21 @@ describe("RoutingBenchmarksCard", () => {
     expect(screen.getByText("1m 35s")).toBeInTheDocument();
   });
 
+  it("labels the task class instead of showing the router's raw token", () => {
+    renderCard();
+
+    expect(screen.getByText("Bug fix")).toBeInTheDocument();
+    expect(screen.queryByText("bugfix")).not.toBeInTheDocument();
+  });
+
+  it("falls back to the raw value for a class it does not know", () => {
+    // "review" is not one of the seven classes task_classify.go stamps, so a
+    // newer backend's class must stay readable rather than render blank.
+    renderCard();
+
+    expect(screen.getByText("review")).toBeInTheDocument();
+  });
+
   it("renders em dashes for null averages, never zeroes", () => {
     renderCard();
 

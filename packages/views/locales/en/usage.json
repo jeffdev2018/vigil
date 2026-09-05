@@ -108,6 +108,15 @@
     "col_runtime": "Runtime",
     "col_model": "Model",
     "col_class": "Task class",
+    "class": {
+      "general": "General",
+      "bugfix": "Bug fix",
+      "feature": "Feature",
+      "refactor": "Refactor",
+      "docs": "Docs",
+      "tests": "Tests",
+      "chore": "Chore"
+    },
     "col_samples": "Samples",
     "col_success": "Success",
     "col_avg_cost": "Avg cost",

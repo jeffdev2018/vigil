@@ -108,6 +108,15 @@
     "col_runtime": "运行时",
     "col_model": "模型",
     "col_class": "任务类别",
+    "class": {
+      "general": "通用",
+      "bugfix": "缺陷修复",
+      "feature": "功能",
+      "refactor": "重构",
+      "docs": "文档",
+      "tests": "测试",
+      "chore": "杂务"
+    },
     "col_samples": "样本数",
     "col_success": "成功率",
     "col_avg_cost": "平均成本",
