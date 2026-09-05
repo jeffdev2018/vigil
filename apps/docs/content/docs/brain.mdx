@@ -1,0 +1,93 @@
+---
+title: Brain
+description: The workspace's shared knowledge base — written by people and by agents, injected into every run.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+The Brain is a set of short notes your workspace shares: the decisions you made and why, the conventions nobody wrote down, hard facts about the codebase, who owns what.
+
+Everything in it is handed to every agent run. That is the point — an agent that already knows your deploy process does not have to rediscover it, and does not have to be told again next week.
+
+## What belongs in it
+
+A note earns its place when it will still be true, and still be useful, on the next run.
+
+Good notes:
+
+- "Deploys go through the release tag: push `v0.x.x` on `main`; `release.yml` publishes the binaries and the Homebrew tap."
+- "Migrations run outside a transaction so `CREATE INDEX CONCURRENTLY` works."
+- "The daemon reaches Postgres through pgbouncer on 6432, not 5432."
+
+Not notes:
+
+- What a run did. That is the run's output.
+- Anything false next week: branch names, in-flight PR numbers, "the build is red".
+- Anything already in the repo — a second copy will drift from the first.
+- Secrets, tokens, credentials.
+
+One note, one idea. Write the fact in the title (`Deploys go through the release tag`), not the topic (`Deploys`) — the title is what everyone scans in the list, and what an agent reads before deciding to open the note.
+
+## Working in the app
+
+Open **Brain** in the sidebar.
+
+- **Search** runs on the server, over both title and body.
+- **Tags** are the filter chips. They are lowercased and de-duplicated, so `Deploy` and `deploy` stay one facet.
+- **Pin** a note to send it to every run regardless of age. Use it sparingly: pinned notes crowd out recent ones.
+- **Archive** a note that stopped being true. It leaves the runs and the default list but stays readable.
+- **Delete** is permanent, and reserved for workspace admins and the note's own author.
+
+Editing uses optimistic concurrency. If someone else — or the nightly curation pass — changed the note while you had it open, the save is refused and you are asked to reload rather than silently overwriting them.
+
+## What a run receives
+
+Each run gets every pinned note plus the 20 most recently updated others, written into its working directory:
+
+```
+.multica/knowledge/README.md        index: title, tags, id, file name
+.multica/knowledge/<slug>-<id8>.md  one note
+```
+
+The run's brief points at that directory instead of embedding the notes, so a large Brain costs the prompt a few lines rather than its whole content. The total is capped at 200 KB; if notes are left out, the index says how many.
+
+## Agents write to it too
+
+Agents save what they learn through the CLI, and the built-in `multica-workspace-brain` skill teaches them when to.
+
+```bash
+multica brain list --search "release" --output json
+multica brain show <note-id>
+
+multica brain save \
+  --title "Deploys go through the release tag" \
+  --tags deploy,release \
+  --content "Push v0.x.x on main; release.yml publishes the binaries."
+
+# longer bodies come from a file (or from stdin with -)
+multica brain save --title "Scheduler leasing model" --tags backend --content-file ./note.md
+
+# update instead of duplicating
+multica brain save --id <note-id> --content-file ./note.md
+
+multica brain archive <note-id>
+```
+
+A note saved from a run is attributed to the agent that saved it and linked back to the run, so a surprising note is one click from the thing that wrote it.
+
+<Callout>
+The skill tells agents to search the Brain before saving and to update the matching note rather than adding a near-duplicate. A knowledge base decays through duplication faster than through anything else.
+</Callout>
+
+## Nightly curation
+
+Once a day, workspaces whose Brain actually changed get a curation pass. It reads the whole corpus and applies a plan:
+
+- **merge** near-duplicates into the note that already covers them;
+- **retitle** notes whose title does not state the fact;
+- **tag** notes so the same subject carries the same tag everywhere;
+- **archive** notes that became false, were superseded, or were never durable knowledge.
+
+Merges keep the history: the source note is archived with a pointer to the note it was folded into, never deleted, so a wrong merge is recoverable. The pass never rewrites a note's body and never invents a fact.
+
+Curation needs an assist-layer LLM (`MULTICA_LLM_*`). Without one it does nothing, and the rest of the Brain works exactly the same.
