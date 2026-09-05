@@ -5,7 +5,7 @@ import {
   Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
   Ban, ChevronDown, ChevronRight, Server, AlertTriangle,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { autopilotDetailOptions, autopilotRunsOptions, autopilotRunOptions } from "@multica/core/autopilots/queries";
 import { projectDetailOptions } from "@multica/core/projects/queries";
 import {
@@ -293,7 +293,10 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
   const { getActorName } = useActorName();
 
   const { data, isLoading } = useQuery(autopilotDetailOptions(wsId, autopilotId));
-  const { data: runs = [], isLoading: runsLoading } = useQuery(autopilotRunsOptions(wsId, autopilotId));
+  const runsQuery = useInfiniteQuery(autopilotRunsOptions(wsId, autopilotId));
+  const runs = runsQuery.data?.items ?? [];
+  const runsTotal = runsQuery.data?.total ?? 0;
+  const runsLoading = runsQuery.isLoading;
   const updateAutopilot = useUpdateAutopilot();
   const deleteAutopilot = useDeleteAutopilot();
   const triggerAutopilot = useTriggerAutopilot();
@@ -630,9 +633,21 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
 
           {/* Run History */}
           <section className="space-y-3">
-            <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
-              {t(($) => $.detail.section_run_history)}
-            </h2>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
+                {t(($) => $.detail.section_run_history)}
+              </h2>
+              {/* The total is a COUNT, not the page length: an autopilot with
+                  300 runs must not look like it has 20. */}
+              {runsTotal > 0 && (
+                <span className="text-caption text-muted-foreground tabular-nums">
+                  {t(($) => $.detail.showing_count, {
+                    shown: runs.length,
+                    total: runsTotal,
+                  })}
+                </span>
+              )}
+            </div>
             {runsLoading ? (
               <div className="space-y-1">
                 {Array.from({ length: 3 }).map((_, i) => (
@@ -644,11 +659,27 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
                 {t(($) => $.detail.no_runs)}
               </div>
             ) : (
-              <RunHistoryList
-                runs={runs}
-                agentId={autopilot.assignee_id}
-                agentName={getActorName(autopilot.assignee_type, autopilot.assignee_id)}
-              />
+              <>
+                <RunHistoryList
+                  runs={runs}
+                  agentId={autopilot.assignee_id}
+                  agentName={getActorName(autopilot.assignee_type, autopilot.assignee_id)}
+                />
+                {runsQuery.hasNextPage && (
+                  <div className="flex justify-center">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => runsQuery.fetchNextPage()}
+                      disabled={runsQuery.isFetchingNextPage}
+                    >
+                      {runsQuery.isFetchingNextPage
+                        ? t(($) => $.detail.loading_more)
+                        : t(($) => $.detail.load_more)}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </section>
 

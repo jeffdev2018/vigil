@@ -14,7 +14,7 @@ import {
   Webhook,
   FlaskConical,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   autopilotDeliveriesOptions,
   autopilotDeliveryOptions,
@@ -114,11 +114,14 @@ export function WebhookDeliveriesSection({
   const { t } = useT("autopilots");
   const wsId = useWorkspaceId();
 
-  const { data: deliveries = [], isLoading } = useQuery(
+  const deliveriesQuery = useInfiniteQuery(
     autopilotDeliveriesOptions(wsId, autopilotId, {
       enabled: hasWebhookTrigger,
     }),
   );
+  const deliveries = deliveriesQuery.data?.items ?? [];
+  const total = deliveriesQuery.data?.total ?? 0;
+  const isLoading = deliveriesQuery.isLoading;
 
   // No webhook trigger configured → the entire section is irrelevant. We hide
   // it rather than render an empty card to keep the detail page short for
@@ -127,9 +130,18 @@ export function WebhookDeliveriesSection({
 
   return (
     <section className="space-y-3">
-      <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
-        {t(($) => $.deliveries.section_title)}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-body font-medium text-muted-foreground uppercase tracking-wider">
+          {t(($) => $.deliveries.section_title)}
+        </h2>
+        {/* Server-side COUNT: the delivery log is the only place an operator
+            can see how much traffic a webhook actually took. */}
+        {total > 0 && (
+          <span className="text-caption text-muted-foreground tabular-nums">
+            {t(($) => $.detail.showing_count, { shown: deliveries.length, total })}
+          </span>
+        )}
+      </div>
       {isLoading ? (
         <div className="space-y-1">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -141,15 +153,31 @@ export function WebhookDeliveriesSection({
           {t(($) => $.deliveries.empty)}
         </div>
       ) : (
-        <div className="rounded-md border overflow-hidden">
-          {deliveries.map((delivery) => (
-            <DeliveryRow
-              key={delivery.id}
-              delivery={delivery}
-              autopilotId={autopilotId}
-            />
-          ))}
-        </div>
+        <>
+          <div className="rounded-md border overflow-hidden">
+            {deliveries.map((delivery) => (
+              <DeliveryRow
+                key={delivery.id}
+                delivery={delivery}
+                autopilotId={autopilotId}
+              />
+            ))}
+          </div>
+          {deliveriesQuery.hasNextPage && (
+            <div className="flex justify-center">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => deliveriesQuery.fetchNextPage()}
+                disabled={deliveriesQuery.isFetchingNextPage}
+              >
+                {deliveriesQuery.isFetchingNextPage
+                  ? t(($) => $.detail.loading_more)
+                  : t(($) => $.detail.load_more)}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

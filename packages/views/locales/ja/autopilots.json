@@ -113,7 +113,10 @@
       "cancel": "キャンセル",
       "confirm": "削除",
       "deleting": "削除中..."
-    }
+    },
+    "load_more": "さらに読み込む",
+    "loading_more": "読み込み中...",
+    "showing_count": "{{total}} 件中 {{shown}} 件"
   },
   "access": {
     "title": "アクセス管理",

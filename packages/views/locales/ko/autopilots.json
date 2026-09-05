@@ -113,7 +113,10 @@
       "cancel": "취소",
       "confirm": "삭제",
       "deleting": "삭제하는 중..."
-    }
+    },
+    "load_more": "더 보기",
+    "loading_more": "불러오는 중...",
+    "showing_count": "{{total}}개 중 {{shown}}개"
   },
   "access": {
     "title": "접근 권한 관리",

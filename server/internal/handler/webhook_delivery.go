@@ -195,11 +195,24 @@ func (h *Handler) ListAutopilotDeliveries(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// The page length is not the total. Reporting it as one made a 20-row
+	// first page claim to be every delivery there had ever been, which is
+	// exactly the number an operator reads to decide whether to page.
+	total, err := h.Queries.CountWebhookDeliveriesByAutopilot(r.Context(), db.CountWebhookDeliveriesByAutopilotParams{
+		AutopilotID: autopilot.ID,
+		WorkspaceID: autopilot.WorkspaceID,
+	})
+	if err != nil {
+		slog.Error("count deliveries failed", "error", err, "autopilot_id", autopilotID)
+		writeError(w, http.StatusInternalServerError, "failed to list deliveries")
+		return
+	}
+
 	resp := make([]WebhookDeliveryResponse, len(rows))
 	for i, row := range rows {
 		resp[i] = slimDeliveryToResponse(row)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"deliveries": resp, "total": len(resp)})
+	writeJSON(w, http.StatusOK, map[string]any{"deliveries": resp, "total": total})
 }
 
 // GetAutopilotDelivery returns one delivery in full, including the raw body

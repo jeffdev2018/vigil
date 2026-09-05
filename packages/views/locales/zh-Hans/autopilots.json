@@ -113,7 +113,10 @@
       "cancel": "取消",
       "confirm": "删除",
       "deleting": "删除中..."
-    }
+    },
+    "load_more": "加载更多",
+    "loading_more": "加载中…",
+    "showing_count": "{{total}} 条中的 {{shown}} 条"
   },
   "access": {
     "title": "管理访问",

@@ -1,4 +1,4 @@
-import { queryOptions } from "@tanstack/react-query";
+import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
 
 export const autopilotKeys = {
@@ -46,11 +46,32 @@ export function autopilotDetailOptions(wsId: string, id: string) {
   });
 }
 
+// Runs and deliveries are both unbounded histories, and both used to load one
+// server-default page (20) with no way to reach the 21st row. Paged by
+// offset — the server orders by created_at DESC with no cursor — and the
+// authoritative `total` comes from a COUNT, so "N of total" is true and
+// `getNextPageParam` stops on the real end rather than on a short page.
+export const AUTOPILOT_PAGE_SIZE = 20;
+
+function offsetPager<T>(pages: readonly T[], count: (page: T) => number, total: number) {
+  const loaded = pages.reduce((n, page) => n + count(page), 0);
+  // A page shorter than requested still means "no more" even if a concurrent
+  // delete made `total` stale, so guard on both.
+  return loaded >= total || count(pages[pages.length - 1] as T) === 0 ? undefined : loaded;
+}
+
 export function autopilotRunsOptions(wsId: string, id: string) {
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: autopilotKeys.runs(wsId, id),
-    queryFn: () => api.listAutopilotRuns(id),
-    select: (data) => data.runs,
+    queryFn: ({ pageParam }) =>
+      api.listAutopilotRuns(id, { limit: AUTOPILOT_PAGE_SIZE, offset: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      offsetPager(allPages, (p) => p.runs.length, lastPage.total),
+    select: (data) => ({
+      items: data.pages.flatMap((page) => page.runs),
+      total: data.pages[data.pages.length - 1]?.total ?? 0,
+    }),
   });
 }
 
@@ -80,10 +101,20 @@ export function autopilotDeliveriesOptions(
   autopilotId: string,
   options?: { enabled?: boolean },
 ) {
-  return queryOptions({
+  return infiniteQueryOptions({
     queryKey: autopilotKeys.deliveries(wsId, autopilotId),
-    queryFn: () => api.listAutopilotDeliveries(autopilotId),
-    select: (data) => data.deliveries,
+    queryFn: ({ pageParam }) =>
+      api.listAutopilotDeliveries(autopilotId, {
+        limit: AUTOPILOT_PAGE_SIZE,
+        offset: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage, allPages) =>
+      offsetPager(allPages, (p) => p.deliveries.length, lastPage.total),
+    select: (data) => ({
+      items: data.pages.flatMap((page) => page.deliveries),
+      total: data.pages[data.pages.length - 1]?.total ?? 0,
+    }),
     enabled: options?.enabled ?? true,
   });
 }

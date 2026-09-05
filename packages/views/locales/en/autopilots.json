@@ -113,7 +113,10 @@
       "cancel": "Cancel",
       "confirm": "Delete",
       "deleting": "Deleting..."
-    }
+    },
+    "load_more": "Load more",
+    "loading_more": "Loading...",
+    "showing_count": "{{shown}} of {{total}}"
   },
   "access": {
     "title": "Manage access",

@@ -240,6 +240,29 @@ func (q *Queries) CompleteClaimedWebhookDelivery(ctx context.Context, arg Comple
 	return i, err
 }
 
+const countWebhookDeliveriesByAutopilot = `-- name: CountWebhookDeliveriesByAutopilot :one
+SELECT count(*)
+FROM webhook_delivery d
+JOIN autopilot a ON a.id = d.autopilot_id
+WHERE d.autopilot_id = $1
+  AND a.workspace_id = $2
+`
+
+type CountWebhookDeliveriesByAutopilotParams struct {
+	AutopilotID pgtype.UUID `json:"autopilot_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Same workspace scoping as the list. Separate from it because the page rows
+// and the total answer different questions: "total: len(page)" made the
+// Deliveries section claim a 20-row page was everything there was.
+func (q *Queries) CountWebhookDeliveriesByAutopilot(ctx context.Context, arg CountWebhookDeliveriesByAutopilotParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countWebhookDeliveriesByAutopilot, arg.AutopilotID, arg.WorkspaceID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createWebhookDelivery = `-- name: CreateWebhookDelivery :one
 
 INSERT INTO webhook_delivery (
