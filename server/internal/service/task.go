@@ -46,6 +46,9 @@ type TaskService struct {
 	Analytics analytics.Client
 	Metrics   *obsmetrics.BusinessMetrics
 	Wakeup    TaskWakeupNotifier
+	// ModelKeyFailover (K48) retires the key a run failed on and says whether
+	// another key can take the retry. Nil keeps runs without BYOK unchanged.
+	ModelKeyFailover func(ctx context.Context, task db.AgentTaskQueue, reason string) bool
 	// Budget applies workspace-owned spend policies. Nil preserves the legacy
 	// path for tests and deployments that construct TaskService directly.
 	Budget *BudgetService
@@ -5135,6 +5138,15 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 		} else if exhausted {
 			failureReason = ReasonRuntimePoolExhausted
 			wantRetry = false
+		}
+		// BYOK (K48): a vendor authentication or quota failure retires the
+		// key and retries once on the next one, bypassing the reason gate.
+		if !wantRetry && s.ModelKeyFailover != nil && s.ModelKeyFailover(ctx, parent, failureReason) {
+			wantRetry = true
+			retryFireAt = pgtype.Timestamptz{}
+			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
+				retryMaxAttempts = pgtype.Int4{Int32: parent.Attempt + 2, Valid: true}
+			}
 		}
 		// Checkpoints (K20): an interruption resumes from the checkpoint a
 		// bounded number of times, then fails distinctly.

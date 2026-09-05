@@ -1221,6 +1221,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// webhook secrets for token-based providers (Forgejo / Gitea / GitLab).
 	// Without it, connect/webhook handlers return 503 (so a misconfigured
 	// self-host never stores plaintext secrets).
+	if modelKey, err := secretbox.LoadKey("MULTICA_MODEL_KEY_SECRET_KEY"); err == nil {
+		if box, err := secretbox.New(modelKey); err != nil {
+			slog.Error("model keys: secretbox.New failed; BYOK disabled", "error", err)
+		} else {
+			h.ModelKeySecretBox = box
+			slog.Info("model keys (BYOK) enabled")
+		}
+	}
 	if vcsKey, err := secretbox.LoadKey("MULTICA_VCS_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(vcsKey)
 		if err != nil {
@@ -1661,6 +1669,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// entries are write-only.
 					r.Get("/mcp-servers", h.ListWorkspaceMcpServers)
 					r.Get("/mcp-servers/{serverId}/tools", h.ListWorkspaceMcpServerTools)
+					r.Get("/model-keys", h.ListModelKeys)
 					// Installed Plugins are member-visible so a member can
 					// see what is mounted in their workspace and which scopes
 					// it holds; install / configure / remove stay admin-only.
@@ -1688,6 +1697,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/mcp-servers/{serverId}", h.UpdateWorkspaceMcpServer)
 					r.Delete("/mcp-servers/{serverId}", h.DeleteWorkspaceMcpServer)
 					r.Post("/mcp-servers/{serverId}/tools/discover", h.DiscoverWorkspaceMcpServerTools)
+					// BYOK model keys (K48).
+					r.Post("/model-keys", h.CreateModelKey)
+					r.Post("/model-keys/{keyId}/rotate", h.RotateModelKey)
+					r.Delete("/model-keys/{keyId}", h.DeactivateModelKey)
 					r.Put("/mcp-servers/{serverId}/tools", h.SetWorkspaceMcpServerTools)
 					r.Post("/share-links", h.CreateShareLink)
 					r.Delete("/share-links/{linkId}", h.RevokeShareLink)

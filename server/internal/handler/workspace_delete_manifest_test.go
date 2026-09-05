@@ -35,6 +35,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"org_offer":                          workspaceDelete,
 	"org_flow":                           workspaceDelete,
 	"workspace_transfer_run":             workspaceDelete,
+	"workspace_model_key":                workspaceDelete,
 	"decision_training_example":          workspaceDelete,
 	"agent_runtime":                      workspaceDelete,
 	"agent_skill":                        workspaceDelete,

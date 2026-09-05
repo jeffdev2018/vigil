@@ -97,7 +97,8 @@
     "contest_ready": "Contest ready for your verdict",
     "org_alert": "Organisation alert",
     "decision_auto_decided": "Decided for you",
-    "mcp_alert": "MCP gateway alert"
+    "mcp_alert": "MCP gateway alert",
+    "model_key_alert": "Model key retired"
   },
   "labels": {
     "set_status_to": "Set status to",

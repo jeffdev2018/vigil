@@ -2436,6 +2436,10 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	}
 	// Run-scoped secrets (K09): scoped keys leave as tokens, never as values.
 	resp.Agent.CustomEnv = h.issueRunSecrets(r.Context(), *task, agent, resp.Agent.PermissionProfile, resp.Agent.CustomEnv)
+	// BYOK (K48): the workspace's or project's key for the vendor this
+	// runtime spends, unless the agent brings its own. Injected after the
+	// profile filter: the key is workspace policy, not an agent secret.
+	resp.Agent.CustomEnv = h.resolveModelKeyForClaim(r.Context(), *task, runtime.Provider, runtime.WorkspaceID, resp.Agent.CustomEnv)
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID)
 		if err != nil {
@@ -4685,6 +4689,7 @@ func (h *Handler) ReportTaskUsage(w http.ResponseWriter, r *http.Request) {
 			CacheReadTokens:  u.CacheReadTokens,
 			CacheWriteTokens: u.CacheWriteTokens,
 			CostUsdTicks:     authoritativeCostTicks(u.CostUSDTicks),
+			ModelKeyID:       task.ModelKeyID,
 		}); err != nil {
 			slog.Warn("upsert task usage failed", "task_id", taskID, "model", u.Model, "error", err)
 			continue

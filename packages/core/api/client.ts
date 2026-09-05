@@ -331,6 +331,7 @@ import {
   type CreateBudgetPolicyRequest,
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
+import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
 import {
   AgentTaskListSchema,
   AttachmentResponseSchema,
@@ -928,6 +929,7 @@ const EMPTY_TRANSFER_PREVIEW: TransferPreview = {
   strategies: ["rename", "merge", "skip"],
 };
 const EMPTY_MCP_CATALOG: McpServerToolCatalog = { tools: [], discovered_at: null, risks: [] };
+const EMPTY_MODEL_KEY: ModelKey = { id: "", workspace_id: "", scope: "workspace", scope_id: null, provider: "", label: "", key_hint: "***", active: false, priority: 0, deactivated_reason: "", deactivated_at: null, created_by: null, created_at: "", updated_at: "" };
 const EMPTY_RETRO: WeeklyRetro = { week_start: "", week_end: "", runs_total: 0, runs_by_status: {}, median_minutes: 0, failed: [], agents: [], skill_proposals: [], narrative: "", generated_at: null };
 
 export class ApiClient {
@@ -6135,6 +6137,26 @@ export class ApiClient {
   }
 
   // Budgets
+  // BYOK model keys (K48). Values are write-only: the server answers hints.
+  async listModelKeys(workspaceId: string): Promise<ModelKeyList> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/model-keys`);
+    return parseWithFallback(raw, ModelKeyListSchema, EMPTY_MODEL_KEY_LIST, { endpoint: "GET /api/workspaces/{id}/model-keys" });
+  }
+
+  async createModelKey(workspaceId: string, data: CreateModelKeyRequest): Promise<ModelKey> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/model-keys`, { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, ModelKeySchema, { ...EMPTY_MODEL_KEY }, { endpoint: "POST /api/workspaces/{id}/model-keys" });
+  }
+
+  async rotateModelKey(workspaceId: string, keyId: string, key: string, label?: string): Promise<ModelKey> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/model-keys/${encodeURIComponent(keyId)}/rotate`, { method: "POST", body: JSON.stringify({ key, label }) });
+    return parseWithFallback(raw, ModelKeySchema, { ...EMPTY_MODEL_KEY }, { endpoint: "POST /api/workspaces/{id}/model-keys/{keyId}/rotate" });
+  }
+
+  async retireModelKey(workspaceId: string, keyId: string): Promise<{ retired: boolean }> {
+    return this.fetch(`/api/workspaces/${workspaceId}/model-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+  }
+
   async listBudgetPolicies(): Promise<BudgetPolicy[]> {
     const raw = await this.fetch<unknown>("/api/budgets");
     return parseWithFallback(raw, BudgetPolicyListSchema, [], { endpoint: "GET /api/budgets" });

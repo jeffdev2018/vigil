@@ -95,7 +95,8 @@
     "contest_ready": "质询已就绪，等待你的裁定",
     "org_alert": "组织提醒",
     "decision_auto_decided": "已代你决定",
-    "mcp_alert": "MCP 网关提醒"
+    "mcp_alert": "MCP 网关提醒",
+    "model_key_alert": "模型密钥已停用"
   },
   "labels": {
     "set_status_to": "状态设为",

@@ -45,6 +45,8 @@ export type InboxItemType =
   | "org_alert"
   // The MCP gateway (K77): a high-risk tool ran, or a monthly review proposes unused tools for removal.
   | "mcp_alert"
+  // BYOK (K48): a model key was retired after a vendor auth or quota failure.
+  | "model_key_alert"
   | "decision_auto_decided"
   // The triage queue has items nobody has decided on for two days. Filed for
   // the workspace's admins/owners, at most once a day per workspace.
