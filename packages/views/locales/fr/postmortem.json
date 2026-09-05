@@ -39,6 +39,7 @@
     "resolved_note_discarded": "Ce postmortem a été supprimé.",
     "open_issue": "Ouvrir l'issue",
     "open_agent": "Ouvrir l'agent",
+    "open_run": "Ouvrir l'exécution",
     "rules_toast": "{{count}} règles ajoutées à la mémoire de l'agent",
     "rules_hint": "L'approbation ajoute ces règles à la mémoire de l'agent."
   }

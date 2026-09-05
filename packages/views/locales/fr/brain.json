@@ -1,0 +1,57 @@
+{
+  "title": "Cerveau",
+  "subtitle": "Connaissances partagées reçues par chaque run : décisions, conventions, faits sur la codebase.",
+  "search_placeholder": "Rechercher des notes",
+  "filter": {
+    "all_tags": "Tous les tags",
+    "show_archived": "Afficher les archivées"
+  },
+  "source": {
+    "manual": "Manuel",
+    "agent": "Par agent",
+    "curation": "Curé",
+    "open_run": "Ouvrir le run"
+  },
+  "list": {
+    "loading": "Chargement des notes",
+    "load_error": "Impossible de charger les notes",
+    "empty_title": "Aucune note pour le moment",
+    "empty_description": "Notez une décision, une convention ou un fait sur ce workspace. Chaque run le recevra.",
+    "empty_search_title": "Aucune note correspondante",
+    "empty_search_description": "Essayez avec moins de mots ou effacez le filtre de tag.",
+    "pinned": "Épinglées",
+    "archived": "Archivées"
+  },
+  "detail": {
+    "select_prompt": "Sélectionnez une note pour la lire.",
+    "edit": "Modifier",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "pin": "Épingler",
+    "unpin": "Désépingler",
+    "archive": "Archiver",
+    "unarchive": "Désarchiver",
+    "title_label": "Titre",
+    "tags_label": "Tags",
+    "tags_hint": "Séparés par des virgules",
+    "content_label": "Contenu",
+    "content_placeholder": "Markdown. Une note, une idée.",
+    "empty_content": "Cette note n'a pas encore de contenu.",
+    "merged_into": "Fusionnée dans une autre note lors du nettoyage quotidien.",
+    "saved_toast": "Note enregistrée",
+    "conflict_toast": "Quelqu'un a modifié cette note. Rechargez-la et réappliquez vos modifications.",
+    "error_toast": "La note n'a pas pu être enregistrée",
+    "archived_toast": "Note archivée",
+    "unarchived_toast": "Note restaurée"
+  },
+  "create": {
+    "new": "Nouvelle note",
+    "heading": "Nouvelle note",
+    "title_placeholder": "Énoncez le fait, pas le sujet",
+    "submit": "Créer",
+    "submitting": "Création…",
+    "created_toast": "Note créée",
+    "error_toast": "La note n'a pas pu être créée"
+  }
+}

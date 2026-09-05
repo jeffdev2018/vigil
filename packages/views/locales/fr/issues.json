@@ -1299,6 +1299,41 @@
     "retry_failed": "La relance a échoué",
     "previous": "{{count}} tentative(s) précédente(s)"
   },
+  "agent_effects": {
+    "section": "Modifications de l'agent",
+    "window": "réversibles pendant {{hours}} h",
+    "run_by": "Run de {{name}}",
+    "undo_run": "Annuler ce run ({{count}})",
+    "undo_single": "Annuler",
+    "undone": "{{count}} modification(s) annulée(s)",
+    "skipped": "{{count}} modification(s) ignorée(s) : {{reason}}",
+    "breaker": "Disjoncteur déclenché : l'agent passe en mode {{mode}}",
+    "failed": "Échec de l'annulation",
+    "states": {
+      "reversed": "annulée",
+      "expired": "fenêtre expirée",
+      "not_reversible": "non réversible",
+      "failed": "annulation échouée"
+    },
+    "reasons": {
+      "already_reversed": "déjà annulée",
+      "not_reversible": "non réversible",
+      "window_expired": "fenêtre expirée",
+      "reverse_failed": "annulation échouée"
+    },
+    "kinds": {
+      "issue_status": "Statut {{from}} → {{to}}",
+      "issue_assignee": "Assigné modifié",
+      "issue_field": "{{field}} : {{from}} → {{to}}",
+      "comment_create": "Commentaire : {{excerpt}}",
+      "comment_update": "Commentaire modifié",
+      "note_create": "Note créée : {{title}}",
+      "note_update": "Note modifiée : {{title}}",
+      "note_archive": "Note archivée",
+      "triage_verdict": "Verdict de triage : {{verdict}}",
+      "issue_create": "Issue créée : {{title}}"
+    }
+  },
   "ci_auto_fix": {
     "in_progress": "Correction CI en cours",
     "fixed": "CI corrigée automatiquement",

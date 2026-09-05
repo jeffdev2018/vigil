@@ -66,6 +66,7 @@
     "open": "Ouvrir la réunion",
     "error_unsupported": "Ce navigateur ne peut pas enregistrer l'audio.",
     "error_microphone": "L'accès au microphone a été refusé, l'enregistrement ne peut pas démarrer.",
+    "open_system_settings": "Ouvrir les paramètres système",
     "error_create": "Impossible de démarrer la réunion.",
     "error_segment": "Un segment n'a pas pu être transcrit.",
     "error_not_recording": "Cette réunion n'est plus enregistrée.",

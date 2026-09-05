@@ -140,6 +140,7 @@ import frModals from "./fr/modals.json";
 import frRuntimes from "./fr/runtimes.json";
 import frLayout from "./fr/layout.json";
 import frUsage from "./fr/usage.json";
+import frBrain from "./fr/brain.json";
 import frUi from "./fr/ui.json";
 import frSquads from "./fr/squads.json";
 import frBilling from "./fr/billing.json";
@@ -174,6 +175,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     runtimes: frRuntimes,
     layout: frLayout,
     usage: frUsage,
+    brain: frBrain,
     ui: frUi,
     squads: frSquads,
     billing: frBilling,

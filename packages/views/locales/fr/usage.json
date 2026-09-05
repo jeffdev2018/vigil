@@ -108,6 +108,15 @@
     "col_runtime": "Runtime",
     "col_model": "Modèle",
     "col_class": "Classe de tâche",
+    "class": {
+      "general": "Général",
+      "bugfix": "Correction de bug",
+      "feature": "Fonctionnalité",
+      "refactor": "Refactorisation",
+      "docs": "Documentation",
+      "tests": "Tests",
+      "chore": "Maintenance"
+    },
     "col_samples": "Échantillons",
     "col_success": "Succès",
     "col_avg_cost": "Coût moyen",
@@ -128,6 +137,7 @@
   },
   "scorecards": {
     "title": "Bilans des agents · {{days}}J",
+    "scope_note": "À l'échelle du workspace, tous les projets · jours UTC",
     "agent": "Agent",
     "runs": "Exécutions",
     "accepted": "Acceptés",
@@ -136,5 +146,10 @@
     "no_intervention": "Sans intervention",
     "mean_cost": "Coût moyen",
     "low_sample": "(peu d'exécutions)"
+  },
+  "autopilot_quota": {
+    "title": "Exécutions Autopilot pour cette période : {{used}} / {{limit}}",
+    "near_limit": "Proche de la limite — les autopilots s'arrêteront une fois celle-ci atteinte.",
+    "reached": "Limite atteinte — les autopilots ne s'exécuteront pas avant la réinitialisation de la période."
   }
 }

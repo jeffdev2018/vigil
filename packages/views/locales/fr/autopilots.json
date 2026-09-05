@@ -113,7 +113,10 @@
       "cancel": "Annuler",
       "confirm": "Supprimer",
       "deleting": "Suppression..."
-    }
+    },
+    "load_more": "Charger plus",
+    "loading_more": "Chargement...",
+    "showing_count": "{{shown}} sur {{total}}"
   },
   "access": {
     "title": "Gérer l'accès",
@@ -257,6 +260,48 @@
       "disabled_rejected": "Impossible de rejouer un delivery rejeté",
       "disabled_queued": "En file d'attente — rejouez une fois stabilisé"
     }
+  },
+  "dry_run": {
+    "open": "Tester avec un événement d'exemple",
+    "title": "Tester avec un événement d'exemple",
+    "description": "Relance ce payload à travers tout le processus de décision de livraison — filtres, critères de routage, état de pause et limite d'exécution. Rien n'est enregistré : ni livraison, ni exécution.",
+    "sample_label": "Exemple",
+    "payload_label": "Payload de l'événement (JSON)",
+    "run": "Lancer le dry-run",
+    "running": "Exécution...",
+    "replay_action": "Relancer en dry-run",
+    "invalid_json": "JSON invalide : {{message}}",
+    "invalid_shape": "Le payload doit être un objet ou un tableau JSON.",
+    "verdict_would_run": "Cet événement lancerait l'autopilot",
+    "verdict_blocked": "Cet événement ne lancerait pas l'autopilot",
+    "verdict_unreadable": "Le verdict n'a pas pu être lu",
+    "matched_filters": "Filtres correspondants :",
+    "toast_failed": "Échec du dry-run"
+  },
+  "next_runs": {
+    "label": "Prochaines exécutions",
+    "loading": "Chargement...",
+    "unavailable": "Prochaines exécutions indisponibles",
+    "never": "Ce planning ne s'exécutera plus.",
+    "blocked": "Ne s'exécuterait pas : {{reason}}",
+    "blocked_unknown": "bloqué",
+    "window_hint": "S'exécute à une minute aléatoire dans les {{minutes}} minutes suivant l'heure prévue."
+  },
+  "signing_secret": {
+    "label": "Secret de signature",
+    "hint": "Lorsqu'il est défini, chaque livraison doit comporter X-Hub-Signature-256: sha256=<hex HMAC-SHA256 du corps brut, avec ce secret comme clé>. Les livraisons non signées ou mal signées sont rejetées avec une erreur 401.",
+    "not_configured": "Aucun secret de signature — l'URL du webhook seule authentifie les appelants.",
+    "configured": "Configuré (se termine par {{hint}}).",
+    "shown_once": "Copiez-le maintenant — il n'est affiché qu'une seule fois.",
+    "generate": "Générer le secret de signature",
+    "rotate": "Renouveler le secret de signature",
+    "clear": "Supprimer",
+    "copy": "Copier le secret",
+    "copied": "Secret de signature copié",
+    "copy_failed": "Échec de la copie",
+    "toast_rotated": "Secret de signature mis à jour — les expéditeurs doivent être reconfigurés",
+    "toast_cleared": "Secret de signature supprimé",
+    "toast_failed": "Échec de la mise à jour du secret de signature"
   },
   "add_trigger_dialog": {
     "title": "Ajouter un déclencheur",
