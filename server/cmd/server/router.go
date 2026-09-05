@@ -2377,6 +2377,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Learned competency (K43): success history per agent and domain.
 			r.Get("/api/agents/{id}/competency", h.GetAgentCompetency)
 			r.Get("/api/issues/{id}/assignee-suggestion", h.GetAssigneeSuggestion)
+			// What-if estimate (K44): cost/duration per candidate before assigning.
+			r.Get("/api/issues/{id}/estimate", h.GetIssueEstimate)
 			r.Get("/api/competency-settings", h.GetCompetencySettings)
 			r.Put("/api/competency-settings", h.PutCompetencySettings)
 			// Cross-provider self-review (K15): reports and manual retry.

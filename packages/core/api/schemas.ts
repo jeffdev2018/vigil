@@ -5167,6 +5167,31 @@ export const AssigneeSuggestionSchema = z.object({
   ownership: OwnershipSuggestionSchema.nullable().catch(null).default(null),
 }).loose();
 
+// What-if estimate (K44). Every measurement is nullable: the server sends
+// null rather than a guess below min_sample, and a drifted backend that
+// sends something else must degrade to "no estimate", never to a number.
+const EstimateNumberSchema = z.number().nullable().catch(null).default(null);
+
+export const IssueEstimateCandidateSchema = z.object({
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  sample_size: z.number().catch(0).default(0),
+  insufficient_history: z.boolean().catch(true).default(true),
+  median_cost_usd_ticks: EstimateNumberSchema,
+  cost_range_low_usd_ticks: EstimateNumberSchema,
+  cost_range_high_usd_ticks: EstimateNumberSchema,
+  median_duration_seconds: EstimateNumberSchema,
+  duration_range_low_seconds: EstimateNumberSchema,
+  duration_range_high_seconds: EstimateNumberSchema,
+  exceeds_budget: z.boolean().catch(false).default(false),
+}).loose();
+
+export const IssueEstimateSchema = z.object({
+  domain_key: z.string().catch("").default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  candidates: z.array(IssueEstimateCandidateSchema).catch([]).default([]),
+}).loose();
+
 // Run replay (K70): one hash-chained event stream per run.
 export const ReplayEventSchema = z.object({
   seq: z.number().catch(0).default(0),

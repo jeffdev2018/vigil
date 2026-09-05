@@ -432,6 +432,7 @@ import {
   RefactorCampaignEnvelopeSchema,
   AgentCompetencySchema,
   AssigneeSuggestionSchema,
+  IssueEstimateSchema,
   CompetencySettingsSchema,
   CrossReviewListSchema,
   AgentEffectListSchema,
@@ -3825,6 +3826,12 @@ export class ApiClient {
   async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/assignee-suggestion`);
     return parseWithFallback(raw, AssigneeSuggestionSchema, { domain_key: "", min_sample: 5, candidates: [], ownership: null }, { endpoint: "GET /api/issues/:id/assignee-suggestion" });
+  }
+
+  async getIssueEstimate(issueId: string, candidateIds: string[]): Promise<import("../agents/competency").IssueEstimate> {
+    const query = candidateIds.length > 0 ? `?candidates=${encodeURIComponent(candidateIds.join(","))}` : "";
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/estimate${query}`);
+    return parseWithFallback(raw, IssueEstimateSchema, { domain_key: "", min_sample: 5, candidates: [] }, { endpoint: "GET /api/issues/:id/estimate" });
   }
 
   // Cross-provider self-review (K15).
