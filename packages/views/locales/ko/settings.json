@@ -950,7 +950,15 @@
     "cross_review_enabled_description": "코드 실행이 diff를 전달하면 다른 프로바이더의 에이전트가 사람 리뷰 전에 검토합니다. 프로바이더가 둘 이상 필요합니다.",
     "cross_review_opt_out": "교차 리뷰 제외 프로젝트",
     "cross_review_opt_out_description": "이 프로젝트의 실행은 리뷰되지 않습니다.",
-    "cross_review_failed": "교차 리뷰 설정을 저장하지 못했습니다"
+    "cross_review_failed": "교차 리뷰 설정을 저장하지 못했습니다",
+    "ci_auto_fix_section": "CI 자동 수정",
+    "ci_auto_fix_enabled": "에이전트 PR의 실패한 CI 수정",
+    "ci_auto_fix_enabled_description": "에이전트 실행에 속한 브랜치의 PR에서 체크가 실패하면 그 브랜치에서 제한된 수정 실행을 한 번 수행합니다. 사람의 브랜치는 건드리지 않습니다.",
+    "ci_auto_fix_attempts": "PR당 시도 횟수",
+    "ci_auto_fix_attempts_description": "이 횟수를 넘으면 관리자에게 인박스 항목이 전달됩니다. 사람은 수동으로 다시 시도할 수 있습니다.",
+    "ci_auto_fix_budget": "수정 실행당 예산(USD)",
+    "ci_auto_fix_budget_description": "이보다 많이 쓴 수정 실행은 중단됩니다. 0은 전용 예산 없음.",
+    "ci_auto_fix_failed": "CI 자동 수정 설정을 저장하지 못했습니다"
   },
   "delete_workspace_dialog": {
     "title": "워크스페이스 삭제",

@@ -84,6 +84,7 @@ vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => nul
 vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
 vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
 vi.mock("./cross-review-setting", () => ({ CrossReviewSetting: () => null }));
+vi.mock("./ci-auto-fix-setting", () => ({ CIAutoFixSetting: () => null }));
 vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
 vi.mock("./business-rules-setting", () => ({ BusinessRulesSetting: () => null }));
 vi.mock("./standup-setting", () => ({ StandupSetting: () => null }));

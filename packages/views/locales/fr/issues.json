@@ -1298,5 +1298,13 @@
     "retry": "Relancer la revue",
     "retry_failed": "La relance a échoué",
     "previous": "{{count}} tentative(s) précédente(s)"
+  },
+  "ci_auto_fix": {
+    "in_progress": "Correction CI en cours",
+    "fixed": "CI corrigée automatiquement",
+    "failed": "Correction CI en échec ({{count}})",
+    "exhausted": "CI toujours rouge après {{count}} tentatives",
+    "retry": "Relancer",
+    "retry_failed": "La relance n'a pas pu démarrer"
   }
 }

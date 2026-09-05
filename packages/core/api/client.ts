@@ -369,6 +369,9 @@ import {
   CompetencySettingsSchema,
   CrossReviewListSchema,
   CrossReviewSettingsSchema,
+  IssueCIAutoFixSchema,
+  CIAutoFixRetryEnvelopeSchema,
+  CIAutoFixSettingsSchema,
   TrafficConflictsEnvelopeSchema,
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
@@ -3482,6 +3485,27 @@ export class ApiClient {
   async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
     return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  // CI auto-fix (K49).
+  async getIssueCIAutoFix(issueId: string): Promise<import("../issues/ci-auto-fix").IssueCIAutoFix> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/ci-auto-fix`);
+    return parseWithFallback(raw, IssueCIAutoFixSchema, { runs: [], enabled: false, max_attempts: 3 }, { endpoint: "GET /api/issues/:id/ci-auto-fix" });
+  }
+
+  async retryCIAutoFix(pullRequestId: string): Promise<import("../issues/ci-auto-fix").CIAutoFixRun | null> {
+    const raw = await this.fetch<unknown>(`/api/pull-requests/${encodeURIComponent(pullRequestId)}/ci-auto-fix/retry`, { method: "POST" });
+    return parseWithFallback(raw, CIAutoFixRetryEnvelopeSchema, { run: null }, { endpoint: "POST /api/pull-requests/:id/ci-auto-fix/retry" }).run;
+  }
+
+  async getCIAutoFixSettings(): Promise<import("../issues/ci-auto-fix").CIAutoFixSettings> {
+    const raw = await this.fetch<unknown>(`/api/ci-auto-fix-settings`);
+    return parseWithFallback(raw, CIAutoFixSettingsSchema, { enabled: false, max_attempts: 3, budget_usd_ticks: 0 }, { endpoint: "GET /api/ci-auto-fix-settings" });
+  }
+
+  async putCIAutoFixSettings(input: import("../issues/ci-auto-fix").CIAutoFixSettings): Promise<import("../issues/ci-auto-fix").CIAutoFixSettings> {
+    const raw = await this.fetch<unknown>(`/api/ci-auto-fix-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CIAutoFixSettingsSchema, input, { endpoint: "PUT /api/ci-auto-fix-settings" });
   }
 
   async getCrossReviewSettings(): Promise<import("../issues/cross-review").CrossReviewSettings> {

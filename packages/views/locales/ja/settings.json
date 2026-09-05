@@ -950,7 +950,15 @@
     "cross_review_enabled_description": "コード実行が差分を納品すると、別プロバイダーのエージェントが人によるレビューの前にレビューします。2 つ以上のプロバイダーが必要です。",
     "cross_review_opt_out": "レビュー対象外のプロジェクト",
     "cross_review_opt_out_description": "これらのプロジェクトの実行はレビューされません。",
-    "cross_review_failed": "レビュー設定を保存できませんでした"
+    "cross_review_failed": "レビュー設定を保存できませんでした",
+    "ci_auto_fix_section": "CI 自動修正",
+    "ci_auto_fix_enabled": "エージェントの PR で赤い CI を修正",
+    "ci_auto_fix_enabled_description": "エージェントの実行に属するブランチの PR でチェックが赤になると、そのブランチで制限付きの修正実行を 1 回行います。人のブランチには触れません。",
+    "ci_auto_fix_attempts": "PR ごとの試行回数",
+    "ci_auto_fix_attempts_description": "この回数を超えるとマネージャーに受信トレイ項目が届きます。人は手動で再試行できます。",
+    "ci_auto_fix_budget": "修正実行ごとの予算（USD）",
+    "ci_auto_fix_budget_description": "これ以上費やした修正実行は停止されます。0 は専用予算なし。",
+    "ci_auto_fix_failed": "CI 自動修正の設定を保存できませんでした"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",

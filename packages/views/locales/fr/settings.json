@@ -952,7 +952,15 @@
     "cross_review_enabled_description": "Lorsqu'un run de code produit un diff, un agent d'un autre fournisseur le révise avant la revue humaine. Nécessite au moins deux fournisseurs.",
     "cross_review_opt_out": "Projets sans cross review",
     "cross_review_opt_out_description": "Les runs sur ces projets ne sont pas révisés.",
-    "cross_review_failed": "Échec de l'enregistrement des paramètres de cross review"
+    "cross_review_failed": "Échec de l'enregistrement des paramètres de cross review",
+    "ci_auto_fix_section": "Correction automatique de la CI",
+    "ci_auto_fix_enabled": "Corriger la CI rouge sur les PR des agents",
+    "ci_auto_fix_enabled_description": "Quand les checks passent au rouge sur une PR dont la branche appartient à un run d'agent, l'agent reçoit un run de correction borné sur cette branche. Les branches humaines ne sont jamais touchées.",
+    "ci_auto_fix_attempts": "Tentatives par PR",
+    "ci_auto_fix_attempts_description": "Au-delà de ce nombre de runs de correction, les managers reçoivent un item d'inbox ; un humain peut toujours relancer à la main.",
+    "ci_auto_fix_budget": "Budget par run de correction (USD)",
+    "ci_auto_fix_budget_description": "Un run de correction qui dépense plus est arrêté. 0 = pas de budget dédié.",
+    "ci_auto_fix_failed": "Impossible d'enregistrer les réglages de correction CI"
   },
   "delete_workspace_dialog": {
     "title": "Supprimer le workspace",

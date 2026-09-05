@@ -950,7 +950,15 @@
     "cross_review_enabled_description": "代码运行交付 diff 后，另一供应商上的智能体会在人工评审前先评审。至少需要两个供应商。",
     "cross_review_opt_out": "不做跨评审的项目",
     "cross_review_opt_out_description": "这些项目上的运行不会被评审。",
-    "cross_review_failed": "无法保存跨评审设置"
+    "cross_review_failed": "无法保存跨评审设置",
+    "ci_auto_fix_section": "CI 自动修复",
+    "ci_auto_fix_enabled": "修复智能体 PR 上的红色 CI",
+    "ci_auto_fix_enabled_description": "当属于智能体运行的分支的 PR 检查变红时，该智能体在该分支上获得一次受限的修复运行。永不触碰人类分支。",
+    "ci_auto_fix_attempts": "每个 PR 的尝试次数",
+    "ci_auto_fix_attempts_description": "超过该次数后，管理者会收到收件箱条目；人仍可手动重试。",
+    "ci_auto_fix_budget": "每次修复运行预算（USD）",
+    "ci_auto_fix_budget_description": "花费超过该额度的修复运行会被停止。0 表示无专用预算。",
+    "ci_auto_fix_failed": "无法保存 CI 自动修复设置"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",
