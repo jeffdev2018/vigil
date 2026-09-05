@@ -69,6 +69,14 @@ func (h *Handler) SetTriageVerdict(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Show me first" (K69): a preview-mode run's verdict is held for approval.
+	if _, taskID, preview := h.previewRun(r); preview {
+		if eff, ok := h.recordPending(r, agentID, taskID, workspaceID, pgtype.UUID{}, service.EffectTriageVerdict, "triage_item", itemID,
+			map[string]any{"verdict": req.Verdict, "reason": req.Reason}, map[string]any{"verdict": req.Verdict, "reason": req.Reason}, true); ok {
+			writePending(w, eff, map[string]any{"item_id": util.UUIDToString(itemID), "verdict": req.Verdict, "verdict_reason": req.Reason, "pending_approval": true})
+			return
+		}
+	}
 	item, err := h.Queries.SetTriageItemVerdict(r.Context(), db.SetTriageItemVerdictParams{
 		ID:             itemID,
 		WorkspaceID:    workspaceID,

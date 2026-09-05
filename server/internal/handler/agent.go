@@ -50,7 +50,9 @@ type AgentConversationStarter struct {
 type AgentResponse struct {
 	ID string `json:"id"`
 	// TrustMode (K26): observer | propose | approval | autonomous.
-	TrustMode           string  `json:"trust_mode"`
+	TrustMode string `json:"trust_mode"`
+	// EffectMode (K69): apply | preview ("show me first").
+	EffectMode          string  `json:"effect_mode"`
 	PermissionProfileID *string `json:"permission_profile_id"`
 	RuntimePoolID       *string `json:"runtime_pool_id"`
 	WorkspaceID         string  `json:"workspace_id"`
@@ -232,6 +234,7 @@ func (h *Handler) agentToResponse(a db.Agent) AgentResponse {
 		Status:                   a.Status,
 		MaxConcurrentTasks:       a.MaxConcurrentTasks,
 		TrustMode:                a.TrustMode,
+		EffectMode:               a.EffectMode,
 		PermissionProfileID:      uuidToPtr(a.PermissionProfileID),
 		RuntimePoolID:            uuidToPtr(a.RuntimePoolID),
 		Model:                    a.Model.String,

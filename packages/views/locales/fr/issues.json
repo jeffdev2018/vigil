@@ -1313,13 +1313,17 @@
       "reversed": "annulée",
       "expired": "fenêtre expirée",
       "not_reversible": "non réversible",
-      "failed": "annulation échouée"
+      "failed": "annulation échouée",
+      "held": "en attente d'approbation",
+      "approved": "approuvée",
+      "rejected": "rejetée"
     },
     "reasons": {
       "already_reversed": "déjà annulée",
       "not_reversible": "non réversible",
       "window_expired": "fenêtre expirée",
-      "reverse_failed": "annulation échouée"
+      "reverse_failed": "annulation échouée",
+      "not_applied": "écriture retenue, rien à annuler"
     },
     "kinds": {
       "issue_status": "Statut {{from}} → {{to}}",
@@ -1331,7 +1335,8 @@
       "note_update": "Note modifiée : {{title}}",
       "note_archive": "Note archivée",
       "triage_verdict": "Verdict de triage : {{verdict}}",
-      "issue_create": "Issue créée : {{title}}"
+      "issue_create": "Issue créée : {{title}}",
+      "issue_update": "Mise à jour de l'issue : {{fields}}"
     }
   },
   "ci_auto_fix": {

@@ -23,6 +23,7 @@ import { AgentEffectsSection } from "./agent-effects-section";
 const effect = (over: Partial<AgentEffect> = {}): AgentEffect => ({
   id: "e1", task_id: "t1", agent_id: "a1", agent_name: "Scout", issue_id: "i1", kind: "issue_status", target_type: "issue", target_id: "i1",
   before: { field: "status", value: "todo" }, after: { field: "status", value: "in_progress" }, reversible: true, reversed_at: null,
+  status: "applied", decision_id: null, payload: {},
   reversed_by_type: null, reverse_error: null, within_window: true, expires_at: "2026-09-06T00:00:00Z", created_at: "2026-09-05T00:00:00Z", ...over,
 });
 
@@ -67,6 +68,15 @@ describe("AgentEffectsSection", () => {
     expect(state.undoEffect).toHaveBeenCalledWith("e2", expect.anything());
     // The older run is fully reversed: no run button for it.
     expect(screen.queryByRole("button", { name: "Undo this run (0)" })).toBeNull();
+  });
+
+  it("shows a preview-mode run's held write as awaiting approval, without an undo button", async () => {
+    state.effects = [effect({ id: "e1", kind: "issue_update", status: "pending", payload: { status: "in_progress", priority: "high" } })];
+    render();
+    await screen.findByTestId("agent-effects");
+    expect(screen.getByText("Issue update: status, priority")).toBeTruthy();
+    expect(screen.getByText("awaiting approval")).toBeTruthy();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 
   it("marks expired and non-reversible effects and hides the buttons for viewers", async () => {

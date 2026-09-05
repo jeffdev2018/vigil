@@ -4059,6 +4059,8 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a finished candidate run moves the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// "Show me first" (K69): the held writes become one decision.
+	h.settlePendingEffects(r.Context(), *task, true)
 	// Refactoring campaigns (K42): a finished merge run moves the queue.
 	h.updateCampaignMergeRun(r.Context(), *task)
 	// Cross-provider self-review (K15): a finished review leaves its report;
@@ -4763,6 +4765,8 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	h.updateFanoutBarrier(r.Context(), *task)
 	// Agent duel (K39): a candidate that failed for good ends the duel.
 	h.updateDuelBarrier(r.Context(), *task)
+	// "Show me first" (K69): a failed run drops its held writes.
+	h.settlePendingEffects(r.Context(), *task, false)
 	// Refactoring campaigns (K42): a merge run that failed for good is a conflict.
 	h.updateCampaignMergeRun(r.Context(), *task)
 

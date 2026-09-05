@@ -672,6 +672,8 @@ export interface Agent {
   max_concurrent_tasks: number;
   /** Trust Dial (K26): observer | propose | approval | autonomous. Absent on older backends. */
   trust_mode?: string;
+  /** "Show me first" (K69): apply | preview. */
+  effect_mode?: string;
   /** Permission profile (K06) the agent runs under; null or absent means full access. */
   permission_profile_id?: string | null;
   /** Runtime pool (K28) the agent fails over through; null or absent means its runtime only. */

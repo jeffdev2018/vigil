@@ -1859,6 +1859,15 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// "Show me first" (K69): a preview-mode run's comment is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview && authorType == "agent" {
+		payload := map[string]any{"content": req.Content, "type": req.Type, "parent_id": uuidToPtr(parentID)}
+		if eff, ok := h.recordPending(r, agentID, taskID, issue.WorkspaceID, issue.ID, service.EffectCommentCreate, "issue", issue.ID,
+			map[string]any{"type": req.Type, "excerpt": truncate(req.Content, 200)}, payload, true); ok {
+			writePending(w, eff, map[string]any{"id": uuidToString(eff.ID), "issue_id": uuidToString(issue.ID), "content": req.Content, "type": req.Type, "pending_approval": true})
+			return
+		}
+	}
 	created, err := h.Queries.CreateComment(r.Context(), db.CreateCommentParams{
 		ID:           dbid.NewV7(),
 		IssueID:      issue.ID,

@@ -15,10 +15,10 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
 	"github.com/multica-ai/multica/server/internal/service"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 	"github.com/multica-ai/multica/server/pkg/protocol"
-	"github.com/multica-ai/multica/server/internal/util"
 )
 
 // Undo for agent actions (K69).
@@ -67,20 +67,31 @@ func (h *Handler) recordEffect(r *http.Request, wsID, issueID pgtype.UUID, kind,
 
 // recordIssueEffects journals every field a run changed on an issue.
 func (h *Handler) recordIssueEffects(r *http.Request, prev, next db.Issue) {
-	if _, _, ok := effectActor(r); !ok {
+	agentID, taskID, ok := effectActor(r)
+	if !ok {
 		return
 	}
+	h.recordIssueEffectsFor(r.Context(), taskID, agentID, prev, next)
+}
+
+// recordIssueEffectsFor is recordIssueEffects for a known run (replay of a held write).
+func (h *Handler) recordIssueEffectsFor(ctx context.Context, taskID, agentID pgtype.UUID, prev, next db.Issue) {
+	record := func(kind string, before, after map[string]any) {
+		service.RecordAgentEffect(ctx, h.Queries, service.AgentEffectParams{
+			WorkspaceID: next.WorkspaceID, TaskID: taskID, AgentID: agentID, IssueID: next.ID,
+			Kind: kind, TargetType: "issue", TargetID: next.ID, Before: before, After: after, Reversible: true,
+		})
+	}
 	rec := func(kind, field string, before, after any) {
-		h.recordEffect(r, next.WorkspaceID, next.ID, kind, "issue", next.ID,
-			map[string]any{"field": field, "value": before}, map[string]any{"field": field, "value": after}, true)
+		record(kind, map[string]any{"field": field, "value": before}, map[string]any{"field": field, "value": after})
 	}
 	if prev.Status != next.Status {
 		rec(service.EffectIssueStatus, "status", prev.Status, next.Status)
 	}
 	if prev.AssigneeType.String != next.AssigneeType.String || uuidToString(prev.AssigneeID) != uuidToString(next.AssigneeID) {
-		h.recordEffect(r, next.WorkspaceID, next.ID, service.EffectIssueField, "issue", next.ID,
+		record(service.EffectIssueField,
 			map[string]any{"field": "assignee", "assignee_type": textToPtr(prev.AssigneeType), "assignee_id": uuidToPtr(prev.AssigneeID)},
-			map[string]any{"field": "assignee", "assignee_type": textToPtr(next.AssigneeType), "assignee_id": uuidToPtr(next.AssigneeID)}, true)
+			map[string]any{"field": "assignee", "assignee_type": textToPtr(next.AssigneeType), "assignee_id": uuidToPtr(next.AssigneeID)})
 	}
 	if prev.Priority != next.Priority {
 		rec(service.EffectIssueField, "priority", prev.Priority, next.Priority)
@@ -124,6 +135,9 @@ type AgentEffectResponse struct {
 	Before         json.RawMessage `json:"before"`
 	After          json.RawMessage `json:"after"`
 	Reversible     bool            `json:"reversible"`
+	Status         string          `json:"status"`
+	DecisionID     *string         `json:"decision_id"`
+	Payload        json.RawMessage `json:"payload"`
 	ReversedAt     *time.Time      `json:"reversed_at"`
 	ReversedByType *string         `json:"reversed_by_type"`
 	ReverseError   *string         `json:"reverse_error"`
@@ -149,7 +163,11 @@ func (h *Handler) effectsToResponse(ctx context.Context, rows []db.AgentEffect, 
 			ID: uuidToString(e.ID), TaskID: uuidToString(e.TaskID), AgentID: agentKey, AgentName: names[agentKey],
 			IssueID: uuidToPtr(e.IssueID), Kind: e.Kind, TargetType: e.TargetType, TargetID: uuidToString(e.TargetID),
 			Before: json.RawMessage(e.Before), After: json.RawMessage(e.After), Reversible: e.Reversible,
+			Status: e.Status, DecisionID: uuidToPtr(e.DecisionID), Payload: json.RawMessage(e.Payload),
 			WithinWindow: now.Before(expires), ExpiresAt: expires, CreatedAt: e.CreatedAt.Time,
+		}
+		if len(resp.Payload) == 0 {
+			resp.Payload = json.RawMessage("{}")
 		}
 		if len(resp.Before) == 0 {
 			resp.Before = json.RawMessage("{}")
@@ -289,6 +307,11 @@ func (h *Handler) undoEffects(r *http.Request, wsID pgtype.UUID, userID string, 
 			report.Skipped = append(report.Skipped, undoSkip{ID: uuidToString(eff.ID), Kind: eff.Kind, Reason: reason})
 		}
 		switch {
+		case eff.Status != service.EffectApplied:
+			// A held write (pending, approved, rejected) is not itself a
+			// change: its replay is journaled as applied rows of its own.
+			skip("not_applied")
+			continue
 		case eff.ReversedAt.Valid:
 			skip("already_reversed")
 			continue

@@ -372,6 +372,7 @@ var concurrentIndexCleanups = map[string]string{
 	"629_workspace_note_search_index":                           "idx_workspace_note_search",
 	"637_agent_effect_issue_index":                              "idx_agent_effect_workspace_issue",
 	"638_agent_effect_reversed_index":                           "idx_agent_effect_agent_reversed",
+	"643_agent_effect_pending_index":                            "idx_agent_effect_task_pending",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 }
 

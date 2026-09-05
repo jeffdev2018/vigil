@@ -1280,13 +1280,17 @@
       "reversed": "되돌림",
       "expired": "기간 만료",
       "not_reversible": "되돌릴 수 없음",
-      "failed": "되돌리기 실패"
+      "failed": "되돌리기 실패",
+      "held": "승인 대기",
+      "approved": "승인됨",
+      "rejected": "폐기됨"
     },
     "reasons": {
       "already_reversed": "이미 되돌림",
       "not_reversible": "되돌릴 수 없음",
       "window_expired": "기간 만료",
-      "reverse_failed": "되돌리기 실패"
+      "reverse_failed": "되돌리기 실패",
+      "not_applied": "보류된 쓰기, 되돌릴 것 없음"
     },
     "kinds": {
       "issue_status": "상태 {{from}} → {{to}}",
@@ -1298,7 +1302,8 @@
       "note_update": "노트 수정: {{title}}",
       "note_archive": "노트 보관",
       "triage_verdict": "분류 판정: {{verdict}}",
-      "issue_create": "이슈 생성: {{title}}"
+      "issue_create": "이슈 생성: {{title}}",
+      "issue_update": "이슈 업데이트: {{fields}}"
     }
   },
   "ci_auto_fix": {

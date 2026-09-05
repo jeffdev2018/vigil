@@ -11,6 +11,7 @@ afterEach(() => vi.unstubAllGlobals());
 const effect = (over: Partial<AgentEffect> = {}): AgentEffect => ({
   id: "e1", task_id: "t1", agent_id: "a1", agent_name: "Scout", issue_id: "i1", kind: "issue_status", target_type: "issue", target_id: "i1",
   before: { field: "status", value: "todo" }, after: { field: "status", value: "in_progress" }, reversible: true, reversed_at: null,
+  status: "applied", decision_id: null, payload: {},
   reversed_by_type: null, reverse_error: null, within_window: true, expires_at: "2026-09-06T00:00:00Z", created_at: "2026-09-05T00:00:00Z", ...over,
 });
 
@@ -39,6 +40,10 @@ describe("agent effects client (K69)", () => {
     expect(effectState(effect({ reversible: false }))).toBe("not_reversible");
     expect(effectState(effect({ reverse_error: "boom" }))).toBe("failed");
     expect(effectState(effect({ within_window: false }))).toBe("expired");
+    expect(effectState(effect({ status: "pending" }))).toBe("held");
+    expect(effectState(effect({ status: "approved" }))).toBe("approved");
+    expect(effectState(effect({ status: "rejected", reverse_error: "run failed" }))).toBe("rejected");
+    expect(out.effects[0]?.status).toBe("applied");
     const runs = groupEffectsByRun([effect({ id: "e3", task_id: "t2" }), effect({ id: "e2", reversed_at: "x" }), effect({ id: "e1" })]);
     expect(runs.map((r) => r.task_id)).toEqual(["t2", "t1"]);
     expect(runs[1]?.effects.length).toBe(2);

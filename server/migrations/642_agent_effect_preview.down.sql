@@ -1,0 +1,2 @@
+ALTER TABLE agent_effect DROP COLUMN IF EXISTS decision_id, DROP COLUMN IF EXISTS payload, DROP COLUMN IF EXISTS status;
+ALTER TABLE agent DROP COLUMN IF EXISTS effect_mode;

@@ -300,6 +300,10 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if h.resolveGateForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil
 	}
+	// "Show me first" (K69): apply or discard the run's held writes, no resume.
+	if h.applyPreviewForDecision(ctx, decision, req.OptionID, actorType, actorID) {
+		return updated, "", nil
+	}
 	// Requirement Interview (K13): the group resumes as one, not per answer.
 	if decision.InterviewGroupID.Valid {
 		if interview != nil {

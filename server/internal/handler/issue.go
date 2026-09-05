@@ -3601,6 +3601,16 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// "Show me first" (K69): a preview-mode run's write is held for approval.
+	if agentID, taskID, preview := h.previewRun(r); preview {
+		payload := rawFieldsToMap(rawFields)
+		if eff, ok := h.recordPending(r, agentID, taskID, prevIssue.WorkspaceID, prevIssue.ID, service.EffectIssueUpdate, "issue", prevIssue.ID, payload, payload, true); ok {
+			resp := issueToResponse(prevIssue, h.getIssuePrefix(r.Context(), prevIssue.WorkspaceID))
+			h.fillStatusCategory(r.Context(), prevIssue.WorkspaceID, &resp)
+			writePending(w, eff, resp)
+			return
+		}
+	}
 	var issue db.Issue
 	attachmentsChanged := false
 	if req.Description != nil || req.TitleBase != nil || req.DescriptionBase != nil || len(attachmentIDs) > 0 {
