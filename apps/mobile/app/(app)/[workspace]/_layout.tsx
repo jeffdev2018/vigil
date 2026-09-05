@@ -11,6 +11,7 @@ import { useMyIssuesRealtime } from "@/data/realtime/use-my-issues-realtime";
 import { useChatSessionsRealtime } from "@/data/realtime/use-chat-sessions-realtime";
 import { useProjectsRealtime } from "@/data/realtime/use-projects-realtime";
 import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
+import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -79,6 +80,9 @@ function RealtimeSubscriptions() {
   useChatSessionsRealtime();
   useProjectsRealtime();
   usePinsRealtime();
+  // Triage + postmortem: both feed an always-mounted badge in the More
+  // popover, so they stay subscribed for the whole workspace session.
+  useTriageRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -312,6 +316,45 @@ export default function WorkspaceLayout() {
         <Stack.Screen
           name="more/pins"
           options={{ title: "Pinned", headerBackTitle: "Back" }}
+        />
+        {/* Triage queue (M2). List lives under more/, detail is a pushed
+            screen because the body is markdown of arbitrary length. */}
+        <Stack.Screen
+          name="more/triage"
+          options={{ title: "Triage", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="triage/[id]"
+          options={{ title: "Triage item", headerBackTitle: "Triage" }}
+        />
+        {/* Postmortems (k68). Detail has a real GET endpoint, so it survives
+            a cold entry from a `postmortem_ready` inbox notification. */}
+        <Stack.Screen
+          name="more/postmortems"
+          options={{ title: "Postmortems", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="postmortem/[id]"
+          options={{ title: "Postmortem", headerBackTitle: "Back" }}
+        />
+        {/* Meetings. Read + manage only — recording is web/desktop. */}
+        <Stack.Screen
+          name="more/meetings"
+          options={{ title: "Meetings", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="meeting/[id]"
+          options={{ title: "Meeting", headerBackTitle: "Meetings" }}
+        />
+        {/* Runtimes. Read-only: every runtime action targets the machine the
+            daemon runs on, not a phone. */}
+        <Stack.Screen
+          name="more/runtimes"
+          options={{ title: "Runtimes", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="runtime/[id]"
+          options={{ title: "Machine", headerBackTitle: "Runtimes" }}
         />
         <Stack.Screen
           name="more/settings"

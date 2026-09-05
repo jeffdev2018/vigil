@@ -623,6 +623,13 @@ export const AgentSchema: z.ZodType<Agent> = z.object({
   workspace_id: z.string().default(""),
   runtime_id: z.string().default(""),
   runtime_bound: z.boolean().optional(),
+  // Smart runtime routing (JEF-237). "fixed" pins the agent to runtime_id;
+  // "auto" lets the router pick per task, keeping runtime_id as the preferred
+  // fallback. Older backends omit it — consumers must read undefined as
+  // "fixed", which is why this stays optional rather than defaulting.
+  runtime_routing: z
+    .enum(["fixed", "auto"])
+    .optional() as unknown as z.ZodType<Agent["runtime_routing"]>,
   name: z.string().default(""),
   description: z.string().default(""),
   instructions: z.string().default(""),
@@ -680,6 +687,9 @@ export const RuntimeSchema: z.ZodType<RuntimeDevice> = z.object({
   workspace_id: z.string().default(""),
   daemon_id: z.string().nullable().default(null),
   name: z.string().default(""),
+  // User-set alias (MUL-4217). Absent on an older backend — `runtimeDisplayName`
+  // treats null/blank as "use name".
+  custom_name: z.string().nullable().default(null),
   runtime_mode: z.string().catch("local") as unknown as z.ZodType<
     RuntimeDevice["runtime_mode"]
   >,
