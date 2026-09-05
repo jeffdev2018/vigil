@@ -4942,6 +4942,44 @@ export const CrossReviewListSchema = z.object({
   reviews: z.array(CrossReviewSchema).catch([]).default([]),
 }).loose();
 
+// Undo for agent actions (K69).
+export const AgentEffectSchema = z.object({
+  id: z.string(),
+  task_id: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  issue_id: z.string().nullable().catch(null).default(null),
+  kind: z.string().catch("").default(""),
+  target_type: z.string().catch("").default(""),
+  target_id: z.string().catch("").default(""),
+  before: z.record(z.string(), z.unknown()).catch({}).default({}),
+  after: z.record(z.string(), z.unknown()).catch({}).default({}),
+  reversible: z.boolean().catch(false).default(false),
+  reversed_at: z.string().nullable().catch(null).default(null),
+  reversed_by_type: z.string().nullable().catch(null).default(null),
+  reverse_error: z.string().nullable().catch(null).default(null),
+  within_window: z.boolean().catch(false).default(false),
+  expires_at: z.string().catch("").default(""),
+  created_at: z.string().catch("").default(""),
+}).loose();
+
+export const AgentEffectListSchema = z.object({
+  effects: z.array(AgentEffectSchema).catch([]).default([]),
+  window_hours: z.number().int().catch(24).default(24),
+}).loose();
+
+export const UndoReportSchema = z.object({
+  reversed: z.number().int().catch(0).default(0),
+  skipped: z.array(z.object({ id: z.string().catch("").default(""), kind: z.string().catch("").default(""), reason: z.string().catch("").default("") }).loose()).catch([]).default([]),
+  breaker: z.object({ tripped: z.boolean().catch(false).default(false), trust_mode: z.string().catch("").default("") }).loose().catch({ tripped: false, trust_mode: "" }).default({ tripped: false, trust_mode: "" }),
+  effects: z.array(AgentEffectSchema).catch([]).default([]),
+}).loose();
+
+export const UndoSettingsSchema = z.object({
+  window_hours: z.number().int().catch(24).default(24),
+  breaker_threshold: z.number().int().catch(5).default(5),
+}).loose();
+
 export const CompetencySettingsSchema = z.object({
   min_sample: z.number().int().catch(5).default(5),
 }).loose();

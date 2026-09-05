@@ -50,6 +50,7 @@ import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
 import { CIAutoFixSetting } from "./ci-auto-fix-setting";
+import { UndoSetting } from "./undo-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
 import { PostmortemCostSetting } from "./postmortem-cost-setting";
@@ -508,6 +509,7 @@ export function WorkspaceTab() {
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
       {workspace && <CIAutoFixSetting canEdit={canManageWorkspace} />}
+      {workspace && <UndoSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
       {workspace && <PostmortemCostSetting workspace={workspace} canEdit={canManageWorkspace} />}

@@ -985,7 +985,13 @@
     "ci_auto_fix_attempts_description": "超过该次数后，管理者会收到收件箱条目；人仍可手动重试。",
     "ci_auto_fix_budget": "每次修复运行预算（USD）",
     "ci_auto_fix_budget_description": "花费超过该额度的修复运行会被停止。0 表示无专用预算。",
-    "ci_auto_fix_failed": "无法保存 CI 自动修复设置"
+    "ci_auto_fix_failed": "无法保存 CI 自动修复设置",
+    "undo_section": "撤销智能体操作",
+    "undo_window": "撤销窗口（小时）",
+    "undo_window_description": "智能体运行所做的改动在议题页面上可撤销的时长。",
+    "undo_breaker": "断路器阈值（每日运行数）",
+    "undo_breaker_description": "同一智能体在 24 小时内被撤销的运行达到此数量时，其信任模式下降一级，管理员会收到收件箱通知。0 表示停用。",
+    "undo_failed": "无法保存撤销设置"
   },
   "delete_workspace_dialog": {
     "title": "删除工作区",

@@ -1266,6 +1266,41 @@
     "retry_failed": "重试失败",
     "previous": "{{count}} 次早先尝试"
   },
+  "agent_effects": {
+    "section": "智能体的改动",
+    "window": "{{hours}} 小时内可撤销",
+    "run_by": "{{name}} 的运行",
+    "undo_run": "撤销此运行（{{count}}）",
+    "undo_single": "撤销",
+    "undone": "已撤销 {{count}} 项改动",
+    "skipped": "已跳过 {{count}} 项：{{reason}}",
+    "breaker": "断路器触发：智能体已切换到 {{mode}} 模式",
+    "failed": "撤销失败",
+    "states": {
+      "reversed": "已撤销",
+      "expired": "已过期",
+      "not_reversible": "不可撤销",
+      "failed": "撤销失败"
+    },
+    "reasons": {
+      "already_reversed": "已撤销",
+      "not_reversible": "不可撤销",
+      "window_expired": "已过期",
+      "reverse_failed": "撤销失败"
+    },
+    "kinds": {
+      "issue_status": "状态 {{from}} → {{to}}",
+      "issue_assignee": "负责人已更改",
+      "issue_field": "{{field}}：{{from}} → {{to}}",
+      "comment_create": "评论：{{excerpt}}",
+      "comment_update": "评论已编辑",
+      "note_create": "已创建笔记：{{title}}",
+      "note_update": "已编辑笔记：{{title}}",
+      "note_archive": "笔记已归档",
+      "triage_verdict": "分诊判定：{{verdict}}",
+      "issue_create": "已创建议题：{{title}}"
+    }
+  },
   "ci_auto_fix": {
     "in_progress": "正在修复 CI",
     "fixed": "CI 已自动修复",

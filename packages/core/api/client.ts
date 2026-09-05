@@ -381,6 +381,9 @@ import {
   AssigneeSuggestionSchema,
   CompetencySettingsSchema,
   CrossReviewListSchema,
+  AgentEffectListSchema,
+  UndoReportSchema,
+  UndoSettingsSchema,
   CrossReviewSettingsSchema,
   IssueCIAutoFixSchema,
   CIAutoFixRetryEnvelopeSchema,
@@ -3663,6 +3666,32 @@ export class ApiClient {
   async listCrossReviews(issueId: string): Promise<import("../issues/cross-review").CrossReview[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/cross-reviews`);
     return parseWithFallback(raw, CrossReviewListSchema, { reviews: [] }, { endpoint: "GET /api/issues/:id/cross-reviews" }).reviews;
+  }
+
+  // Undo for agent actions (K69).
+  async listIssueAgentEffects(issueId: string): Promise<import("../issues/agent-effects").AgentEffectList> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/agent-effects`);
+    return parseWithFallback(raw, AgentEffectListSchema, { effects: [], window_hours: 24 }, { endpoint: "GET /api/issues/:id/agent-effects" });
+  }
+
+  async undoTask(taskId: string): Promise<import("../issues/agent-effects").UndoReport> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/undo`, { method: "POST" });
+    return parseWithFallback(raw, UndoReportSchema, { reversed: 0, skipped: [], breaker: { tripped: false, trust_mode: "" }, effects: [] }, { endpoint: "POST /api/tasks/:id/undo" });
+  }
+
+  async undoAgentEffect(effectId: string): Promise<import("../issues/agent-effects").UndoReport> {
+    const raw = await this.fetch<unknown>(`/api/agent-effects/${encodeURIComponent(effectId)}/undo`, { method: "POST" });
+    return parseWithFallback(raw, UndoReportSchema, { reversed: 0, skipped: [], breaker: { tripped: false, trust_mode: "" }, effects: [] }, { endpoint: "POST /api/agent-effects/:id/undo" });
+  }
+
+  async getUndoSettings(): Promise<import("../issues/agent-effects").UndoSettings> {
+    const raw = await this.fetch<unknown>(`/api/undo-settings`);
+    return parseWithFallback(raw, UndoSettingsSchema, { window_hours: 24, breaker_threshold: 5 }, { endpoint: "GET /api/undo-settings" });
+  }
+
+  async putUndoSettings(input: import("../issues/agent-effects").UndoSettings): Promise<import("../issues/agent-effects").UndoSettings> {
+    const raw = await this.fetch<unknown>(`/api/undo-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, UndoSettingsSchema, input, { endpoint: "PUT /api/undo-settings" });
   }
 
   // CI auto-fix (K49).

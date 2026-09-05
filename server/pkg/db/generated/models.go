@@ -102,6 +102,25 @@ type AgentDuel struct {
 	SettledAt    pgtype.Timestamptz `json:"settled_at"`
 }
 
+type AgentEffect struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	TaskID         pgtype.UUID        `json:"task_id"`
+	AgentID        pgtype.UUID        `json:"agent_id"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	Kind           string             `json:"kind"`
+	TargetType     string             `json:"target_type"`
+	TargetID       pgtype.UUID        `json:"target_id"`
+	Before         []byte             `json:"before"`
+	After          []byte             `json:"after"`
+	Reversible     bool               `json:"reversible"`
+	ReversedAt     pgtype.Timestamptz `json:"reversed_at"`
+	ReversedByType pgtype.Text        `json:"reversed_by_type"`
+	ReversedByID   pgtype.UUID        `json:"reversed_by_id"`
+	ReverseError   pgtype.Text        `json:"reverse_error"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 // Allow-list of who may invoke a public_to agent (MUL-3963). One row per (agent, target_type, target); targets stack and canInvokeAgent OR-matches. workspace rows store the agent workspace_id in target_id; member rows store the user id; team rows are reserved and inert in V1. Rows only matter when agent.permission_mode = public_to. No DB foreign keys: agent_id / created_by / member target_id relationships are maintained in the application layer (see migration comment).
 type AgentInvocationTarget struct {
 	ID         pgtype.UUID        `json:"id"`

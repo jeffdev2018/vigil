@@ -99,6 +99,7 @@ import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { CrossReviewSection } from "./cross-review-section";
+import { AgentEffectsSection } from "./agent-effects-section";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { TrafficConflictBanner } from "./traffic-conflict-banner";
@@ -2629,6 +2630,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Cross-provider self-review (K15): another provider's report on the last diff, before the human review. */}
       <CrossReviewSection issueId={id} />
+
+      {/* Undo for agent actions (K69): what each run changed here, and the button to take it back. */}
+      <AgentEffectsSection issueId={id} />
 
       {/* Run limits (K03): the latest run's warning or stop, with the numbers. */}
       <RunLimitBadge issueId={id} />

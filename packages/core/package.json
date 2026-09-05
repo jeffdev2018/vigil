@@ -55,6 +55,7 @@
     "./issues/campaign": "./issues/campaign.ts",
     "./issues/cross-review": "./issues/cross-review.ts",
     "./issues/ci-auto-fix": "./issues/ci-auto-fix.ts",
+    "./issues/agent-effects": "./issues/agent-effects.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
     "./issues/acceptance": "./issues/acceptance.ts",

@@ -77,6 +77,65 @@ func (q *Queries) AcceptPendingTriageItem(ctx context.Context, arg AcceptPending
 	return i, err
 }
 
+const clearTriageItemVerdict = `-- name: ClearTriageItemVerdict :one
+UPDATE triage_item
+SET verdict = NULL,
+    verdict_agent_id = NULL,
+    verdict_at = NULL,
+    verdict_revision = verdict_revision + 1,
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2 AND state = 'pending'
+RETURNING id, workspace_id, source_id, origin_type, origin_id, actor_type, actor_id, dedupe_key, content_digest, title, normalized_title, body_markdown, payload, state, drop_reason, resolution_reason, collapse_count, verdict, verdict_agent_id, verdict_at, verdict_revision, issue_id, duplicate_of_issue_id, replaced_by_item_id, shadow, first_seen_at, expires_at, resolved_at, resolved_by_type, resolved_by_id, revision, updated_at, snoozed_until
+`
+
+type ClearTriageItemVerdictParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+}
+
+// Undo (K69) of an agent's suggested verdict: the item goes back to carrying
+// no suggestion. Pending only, like the write it reverses.
+func (q *Queries) ClearTriageItemVerdict(ctx context.Context, arg ClearTriageItemVerdictParams) (TriageItem, error) {
+	row := q.db.QueryRow(ctx, clearTriageItemVerdict, arg.ID, arg.WorkspaceID)
+	var i TriageItem
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SourceID,
+		&i.OriginType,
+		&i.OriginID,
+		&i.ActorType,
+		&i.ActorID,
+		&i.DedupeKey,
+		&i.ContentDigest,
+		&i.Title,
+		&i.NormalizedTitle,
+		&i.BodyMarkdown,
+		&i.Payload,
+		&i.State,
+		&i.DropReason,
+		&i.ResolutionReason,
+		&i.CollapseCount,
+		&i.Verdict,
+		&i.VerdictAgentID,
+		&i.VerdictAt,
+		&i.VerdictRevision,
+		&i.IssueID,
+		&i.DuplicateOfIssueID,
+		&i.ReplacedByItemID,
+		&i.Shadow,
+		&i.FirstSeenAt,
+		&i.ExpiresAt,
+		&i.ResolvedAt,
+		&i.ResolvedByType,
+		&i.ResolvedByID,
+		&i.Revision,
+		&i.UpdatedAt,
+		&i.SnoozedUntil,
+	)
+	return i, err
+}
+
 const countRecentTriageItemsBySource = `-- name: CountRecentTriageItemsBySource :many
 SELECT source_id, state, COUNT(*)::bigint AS n
 FROM triage_item

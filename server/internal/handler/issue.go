@@ -3126,6 +3126,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Undo (K69): a created issue is journaled but not reversible; deleting it would take its comments and runs with it.
+	h.recordEffect(r, issue.WorkspaceID, issue.ID, service.EffectIssueCreate, "issue", issue.ID, map[string]any{}, map[string]any{"title": issue.Title}, false)
 	// Module ownership (K33): tell the owner of a matching rule, never assign.
 	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
 
@@ -3638,6 +3640,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine actor identity: agent (via X-Agent-ID header) or member.
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Undo (K69): every field a run changed is journaled with its previous value.
+	h.recordIssueEffects(r, prevIssue, issue)
 
 	prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 	resp := issueToResponse(issue, prefix)

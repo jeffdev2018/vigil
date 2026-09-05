@@ -2209,6 +2209,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Cross-provider self-review (K15): reports and manual retry.
 			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
 			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)
+			// Undo for agent actions (K69).
+			r.Get("/api/issues/{id}/agent-effects", h.ListIssueAgentEffects)
+			r.Post("/api/tasks/{id}/undo", h.UndoTaskEffects)
+			r.Post("/api/agent-effects/{id}/undo", h.UndoAgentEffect)
+			r.Get("/api/undo-settings", h.GetUndoSettings)
+			r.Put("/api/undo-settings", h.PutUndoSettings)
 			// Mobile push (K64): the app's Expo token.
 			r.Put("/api/me/push-token", h.RegisterPushToken)
 			r.Delete("/api/me/push-token", h.UnregisterPushToken)
