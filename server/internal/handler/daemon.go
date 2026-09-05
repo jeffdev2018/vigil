@@ -4644,6 +4644,8 @@ func (h *Handler) ReportTaskUsage(w http.ResponseWriter, r *http.Request) {
 
 	// Run limits (K03): fresh usage may cross a cap.
 	h.TaskService.EvaluateRunLimits(r.Context(), task)
+	// CI auto-fix (K49): a correction run has its own budget.
+	h.enforceCIAutoFixBudget(r.Context(), task)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -4926,6 +4928,8 @@ func (h *Handler) ReportTaskMessages(w http.ResponseWriter, r *http.Request) {
 
 	// Run limits (K03): turns and tool calls are counted from messages.
 	h.TaskService.EvaluateRunLimits(r.Context(), task)
+	// CI auto-fix (K49): a correction run has its own budget.
+	h.enforceCIAutoFixBudget(r.Context(), task)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

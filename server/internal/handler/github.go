@@ -1012,6 +1012,10 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	if err != nil {
 		return
 	}
+	// CI auto-fix (K49): the snapshot says the checks are red.
+	if pr.ChecksRollupState.String == "failure" {
+		h.autoFixGitHubPR(ctx, pr)
+	}
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
 		return

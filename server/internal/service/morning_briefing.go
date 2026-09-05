@@ -98,3 +98,37 @@ func (c CrossReview) Allows(projectID string) bool {
 	}
 	return true
 }
+
+// CIAutoFix (K49) is the workspace policy in workspace.settings:
+//
+//	"ci_auto_fix": {"enabled": true, "max_attempts": 3, "budget_usd_ticks": 5000000000}
+//
+// Off by default: a correction run spends money.
+type CIAutoFix struct {
+	Enabled        bool  `json:"enabled"`
+	MaxAttempts    int   `json:"max_attempts"`
+	BudgetUsdTicks int64 `json:"budget_usd_ticks"`
+}
+
+var DefaultCIAutoFix = CIAutoFix{Enabled: false, MaxAttempts: 3, BudgetUsdTicks: 5_000_000_000}
+
+func CIAutoFixSettings(settings []byte) CIAutoFix {
+	out := DefaultCIAutoFix
+	if len(settings) == 0 {
+		return out
+	}
+	var s struct {
+		CIAutoFix *CIAutoFix `json:"ci_auto_fix"`
+	}
+	if err := json.Unmarshal(settings, &s); err != nil || s.CIAutoFix == nil {
+		return out
+	}
+	out.Enabled = s.CIAutoFix.Enabled
+	if s.CIAutoFix.MaxAttempts > 0 {
+		out.MaxAttempts = s.CIAutoFix.MaxAttempts
+	}
+	if s.CIAutoFix.BudgetUsdTicks >= 0 {
+		out.BudgetUsdTicks = s.CIAutoFix.BudgetUsdTicks
+	}
+	return out
+}
