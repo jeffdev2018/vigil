@@ -21,6 +21,7 @@ vi.mock("../../common/task-transcript", () => ({
   TranscriptButton: ({ title }: { title?: string }) => (
     <button type="button">{title ?? "Transcript"}</button>
   ),
+  ReplayButton: () => null,
 }));
 
 vi.mock("./run-controls", () => ({ RunControls: () => null }));

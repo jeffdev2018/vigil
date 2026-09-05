@@ -464,6 +464,15 @@ func (h *Handler) buildRunReplay(ctx context.Context, task db.AgentTaskQueue, ws
 			data:   map[string]any{"packet_id": uuidToString(p.ID), "objective": p.Objective, "decisions": decisionsJ, "evidence": evidence, "failed_attempts": failed, "next_action": p.NextAction.String},
 			source: "handoff_packet", srcID: uuidToString(p.ID)})
 	}
+	// 4b. Watchdog verdicts (K73) this scan run produced.
+	if verdicts, err := h.Queries.ListWatchdogVerdictsForTask(ctx, task.ID); err == nil {
+		for _, v := range verdicts {
+			var findings any
+			_ = json.Unmarshal(v.Findings, &findings)
+			add(replayCandidate{at: v.CreatedAt.Time, order: 4, kind: "watchdog_verdict", actor: agentActor, title: "Watchdog verdict: " + v.Verdict, text: v.Summary,
+				data: map[string]any{"verdict_id": uuidToString(v.ID), "verdict": v.Verdict, "findings": findings, "contract_revision": v.ContractRevision}, source: "watchdog_verdict", srcID: uuidToString(v.ID)})
+		}
+	}
 	// 5. Usage: the cost, stamped when the daemon reported it.
 	var cost ReplayCost
 	usage, err := h.Queries.GetTaskUsage(ctx, task.ID)

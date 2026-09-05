@@ -360,6 +360,10 @@ import {
   TrustModeEnvelopeSchema,
   EffectModeEnvelopeSchema,
   RunReplaySchema,
+  WatchdogEnvelopeSchema,
+  WatchdogVerdictListSchema,
+  WatchdogScanResultSchema,
+  WatchdogVerdictEnvelopeSchema,
   ReplayResumeResultSchema,
   ReplaySimulateResultSchema,
   PermissionProfileSchema,
@@ -4097,6 +4101,37 @@ export class ApiClient {
 
   async listTaskMessages(taskId: string): Promise<TaskMessagePayload[]> {
     return this.fetch(`/api/tasks/${taskId}/messages`);
+  }
+
+  // Task watchdog (K73).
+  async getIssueWatchdog(issueId: string): Promise<import("../issues/watchdog").Watchdog | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`);
+    return parseWithFallback(raw, WatchdogEnvelopeSchema, { watchdog: null }, { endpoint: "GET /api/issues/:id/watchdog" }).watchdog;
+  }
+
+  async setIssueWatchdog(issueId: string, body: import("../issues/watchdog").WatchdogInput): Promise<import("../issues/watchdog").Watchdog | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`, { method: "PUT", body: JSON.stringify(body) });
+    return parseWithFallback(raw, WatchdogEnvelopeSchema, { watchdog: null }, { endpoint: "PUT /api/issues/:id/watchdog" }).watchdog;
+  }
+
+  async deleteIssueWatchdog(issueId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog`, { method: "DELETE" });
+  }
+
+  async listIssueWatchdogVerdicts(issueId: string): Promise<import("../issues/watchdog").WatchdogVerdict[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog/verdicts`);
+    return parseWithFallback(raw, WatchdogVerdictListSchema, { verdicts: [] }, { endpoint: "GET /api/issues/:id/watchdog/verdicts" }).verdicts;
+  }
+
+  async scanIssueWatchdogNow(issueId: string): Promise<{ task_id: string }> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/watchdog/scan`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, WatchdogScanResultSchema, { task_id: "" }, { endpoint: "POST /api/issues/:id/watchdog/scan" });
+  }
+
+  async reviewWatchdogVerdict(verdictId: string, confirmed: boolean): Promise<import("../issues/watchdog").WatchdogVerdict> {
+    const raw = await this.fetch<unknown>(`/api/watchdog-verdicts/${encodeURIComponent(verdictId)}/review`, { method: "POST", body: JSON.stringify({ confirmed }) });
+    const fallback: import("../issues/watchdog").WatchdogVerdict = { id: verdictId, watchdog_id: "", issue_id: "", task_id: "", verdict: "escalate", summary: "", findings: [], dropped: [], applied: {}, decision_id: null, human_review: confirmed ? "confirmed" : "overturned", contract_revision: 0, created_at: "" };
+    return parseWithFallback(raw, WatchdogVerdictEnvelopeSchema, { verdict: fallback }, { endpoint: "POST /api/watchdog-verdicts/:id/review" }).verdict;
   }
 
   // Run replay (K70).

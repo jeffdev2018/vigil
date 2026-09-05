@@ -90,7 +90,8 @@
     "budget_exceeded": "予算上限に達しました",
     "postmortem_ready": "ポストモーテム作成済み",
     "trust_promotion_suggested": "信頼モードの昇格提案",
-    "triage_stale": "トリアージが滞っています"
+    "triage_stale": "トリアージが滞っています",
+    "watchdog_escalation": "ウォッチドッグのエスカレーション"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",
