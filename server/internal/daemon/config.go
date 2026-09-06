@@ -67,16 +67,25 @@ const (
 	DefaultWorkspaceSyncMaxBackoff        = 30 * time.Minute
 	DefaultHealthPort                     = 19514
 	DefaultMaxConcurrentTasks             = 20
-	DefaultGCInterval                     = 2 * time.Hour
-	DefaultGCTTL                          = 24 * time.Hour      // 1 day — AI-coding issues rarely stay open long
-	DefaultGCCompletedTaskTTLCloud        = 14 * 24 * time.Hour // 14 days — Multica Cloud bounds completed issue-task env retention by default; see defaultGCCompletedTaskTTL
-	DefaultGCCompletedTaskTTLSelfHost     = 0                   // disabled — self-host keeps every completed env until its issue goes terminal, unless an operator opts in
-	DefaultGCOrphanTTL                    = 72 * time.Hour      // 3 days — orphans with no meta (crashes, pre-GC leftovers)
-	DefaultGCArtifactTTL                  = 12 * time.Hour      // 12h — drop regenerable artifacts once a task has been completed this long
-	DefaultGCCodexSessionTTL              = 14 * 24 * time.Hour // 14 days — reclaim per-issue Codex session stores untouched this long
-	DefaultGCHermesMemoryTTL              = 90 * 24 * time.Hour // 90 days — reclaim per-agent Hermes memory stores untouched this long (long: reclaiming these is visible amnesia, and they are a few markdown files)
-	DefaultGCHermesSessionTTL             = 14 * 24 * time.Hour // 14 days — reclaim per-conversation Hermes session stores untouched this long (matches Codex: these hold transcripts, and losing an idle one restarts the thread rather than the agent's notes)
-	DefaultGCRepoTTL                      = 30 * 24 * time.Hour // 30 days — evict a bare repo cache no task has checked out this long
+	// DefaultTaskPortBase / DefaultTaskPortCount give every concurrent run a
+	// disjoint block of TCP ports (F09), exported as MULTICA_PORT_BASE and
+	// MULTICA_PORT_COUNT. A worktree is an environment, and two runs bringing
+	// up the same dev server on the same hardcoded 3000 is the first thing that
+	// breaks when they overlap. 21000 sits above the usual dev range (3000,
+	// 5173, 8080) and below the ephemeral range most systems start at 32768,
+	// so the blocks collide with neither by default.
+	DefaultTaskPortBase               = 21000
+	DefaultTaskPortCount              = 10
+	DefaultGCInterval                 = 2 * time.Hour
+	DefaultGCTTL                      = 24 * time.Hour      // 1 day — AI-coding issues rarely stay open long
+	DefaultGCCompletedTaskTTLCloud    = 14 * 24 * time.Hour // 14 days — Multica Cloud bounds completed issue-task env retention by default; see defaultGCCompletedTaskTTL
+	DefaultGCCompletedTaskTTLSelfHost = 0                   // disabled — self-host keeps every completed env until its issue goes terminal, unless an operator opts in
+	DefaultGCOrphanTTL                = 72 * time.Hour      // 3 days — orphans with no meta (crashes, pre-GC leftovers)
+	DefaultGCArtifactTTL              = 12 * time.Hour      // 12h — drop regenerable artifacts once a task has been completed this long
+	DefaultGCCodexSessionTTL          = 14 * 24 * time.Hour // 14 days — reclaim per-issue Codex session stores untouched this long
+	DefaultGCHermesMemoryTTL          = 90 * 24 * time.Hour // 90 days — reclaim per-agent Hermes memory stores untouched this long (long: reclaiming these is visible amnesia, and they are a few markdown files)
+	DefaultGCHermesSessionTTL         = 14 * 24 * time.Hour // 14 days — reclaim per-conversation Hermes session stores untouched this long (matches Codex: these hold transcripts, and losing an idle one restarts the thread rather than the agent's notes)
+	DefaultGCRepoTTL                  = 30 * 24 * time.Hour // 30 days — evict a bare repo cache no task has checked out this long
 	// DefaultGCTaskTempLegacyTTL is 0 — disabled. Per-task temp dirs left by a
 	// daemon predating the temp dir execution lock carry no liveness signal at
 	// all, and age cannot supply one: a task may legitimately run for weeks
@@ -112,6 +121,8 @@ type Config struct {
 	KeepEnvAfterTask               bool                  // preserve env after task for debugging
 	HealthPort                     int                   // local HTTP port for health checks (default: 19514)
 	MaxConcurrentTasks             int                   // max tasks running in parallel (default: 20)
+	TaskPortBase                   int                   // first port of the per-run port block exported as MULTICA_PORT_BASE (default: 21000)
+	TaskPortCount                  int                   // how many ports each run's block holds, exported as MULTICA_PORT_COUNT (default: 10)
 	GCEnabled                      bool                  // enable periodic workspace garbage collection (default: true)
 	GCInterval                     time.Duration         // how often the GC loop runs (default: 2h)
 	GCTTL                          time.Duration         // clean dirs whose issue is done/cancelled and updated_at < now()-TTL (default: 24h)
@@ -456,6 +467,21 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		maxConcurrentTasks = overrides.MaxConcurrentTasks
 	}
 
+	taskPortBase, err := intFromEnv("MULTICA_DAEMON_TASK_PORT_BASE", DefaultTaskPortBase)
+	if err != nil {
+		return Config{}, err
+	}
+	taskPortCount, err := intFromEnv("MULTICA_DAEMON_TASK_PORT_COUNT", DefaultTaskPortCount)
+	if err != nil {
+		return Config{}, err
+	}
+	if taskPortBase <= 0 || taskPortBase > 65535 {
+		return Config{}, fmt.Errorf("MULTICA_DAEMON_TASK_PORT_BASE must be a port number, got %d", taskPortBase)
+	}
+	if taskPortCount <= 0 {
+		return Config{}, fmt.Errorf("MULTICA_DAEMON_TASK_PORT_COUNT must be positive, got %d", taskPortCount)
+	}
+
 	// Profile
 	profile := overrides.Profile
 
@@ -627,6 +653,8 @@ func LoadConfig(overrides Overrides) (Config, error) {
 		AutoReloadEnabled:               autoReloadEnabled,
 		HealthPort:                      healthPort,
 		MaxConcurrentTasks:              maxConcurrentTasks,
+		TaskPortBase:                    taskPortBase,
+		TaskPortCount:                   taskPortCount,
 		PollInterval:                    pollInterval,
 		WSClaimPollInterval:             wsClaimPollInterval,
 		HeartbeatInterval:               heartbeatInterval,

@@ -24,8 +24,10 @@ import { useCurrentWorkspace } from "@multica/core/paths";
 import type {
   GithubRepoResourceRef,
   LocalDirectoryExecutionMode,
+  LocalDirectoryLifecycle,
   LocalDirectoryResourceRef,
   ProjectResource,
+  ProjectResourceRef,
 } from "@multica/core/types";
 import {
   runtimeAdvertisesLocalWorktree,
@@ -83,6 +85,40 @@ function isLocalDirectoryRef(r: ProjectResource): r is ProjectResource & {
  * written by a newer client must not render as anything other than the
  * conservative default here.
  */
+/**
+ * The lifecycle scripts on a ref, or undefined when it carries none (F09).
+ *
+ * Defensive by shape rather than by cast: `resource_ref` is server JSON, so an
+ * older or newer server may carry anything here, and a malformed value must
+ * cost the fields their prefill, not break the dialog.
+ */
+function lifecycleOf(ref: ProjectResourceRef | undefined): LocalDirectoryLifecycle | undefined {
+  if (!ref || typeof ref !== "object") return undefined;
+  const raw = (ref as { lifecycle?: unknown }).lifecycle;
+  if (!raw || typeof raw !== "object") return undefined;
+  const pick = (key: "setup" | "run" | "archive"): string[] | undefined => {
+    const value = (raw as Record<string, unknown>)[key];
+    return Array.isArray(value) && value.every((v) => typeof v === "string")
+      ? (value as string[])
+      : undefined;
+  };
+  return { setup: pick("setup"), run: pick("run"), archive: pick("archive") };
+}
+
+function lifecycleChanged(
+  ref: ProjectResourceRef,
+  next: LocalDirectoryLifecycle,
+): boolean {
+  const current = lifecycleOf(ref);
+  const same = (a: string[] | undefined, b: string[] | undefined) =>
+    (a ?? []).join("\u0000") === (b ?? []).join("\u0000");
+  return (
+    !same(current?.setup, next.setup) ||
+    !same(current?.run, next.run) ||
+    !same(current?.archive, next.archive)
+  );
+}
+
 function executionModeOf(
   ref: LocalDirectoryResourceRef,
 ): LocalDirectoryExecutionMode {
@@ -263,14 +299,17 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
     }
   };
 
-  const handleConfirmMode = async (mode: LocalDirectoryExecutionMode) => {
+  const handleConfirmMode = async (
+    mode: LocalDirectoryExecutionMode,
+    lifecycle: LocalDirectoryLifecycle,
+  ) => {
     if (!modeDialog || modeSaving) return;
     setModeSaving(true);
     setModeError(null);
     try {
       if (modeDialog.resource) {
         const ref = modeDialog.resource.resource_ref;
-        if (executionModeOf(ref) === mode) {
+        if (executionModeOf(ref) === mode && !lifecycleChanged(ref, lifecycle)) {
           setModeDialog(null);
           return;
         }
@@ -279,7 +318,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
           data: {
             // Spread first so every other ref field survives the edit — the
             // server replaces the whole ref, it does not deep-merge.
-            resource_ref: { ...ref, execution_mode: mode },
+            resource_ref: { ...ref, execution_mode: mode, lifecycle },
           },
         });
         toast.success(t(($) => $.resources.toast_local_mode_updated));
@@ -292,6 +331,7 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
             daemon_id: localDaemonId,
             label: modeDialog.label ?? modeDialog.path,
             execution_mode: mode,
+            lifecycle,
           },
         });
         toast.success(t(($) => $.resources.toast_local_attached));
@@ -545,7 +585,13 @@ export function ProjectResourcesSection({ projectId }: { projectId: string }) {
               ? t(($) => $.resources.mode_save)
               : t(($) => $.resources.mode_add)
           }
-          onConfirm={(mode) => void handleConfirmMode(mode)}
+          lifecycle={lifecycleOf(modeDialog.resource?.resource_ref)}
+          lifecycleSupported={advertisesWorktree(
+            (modeDialog.resource && isLocalDirectoryRef(modeDialog.resource)
+              ? modeDialog.resource.resource_ref.daemon_id
+              : localDaemonId) ?? null,
+          )}
+          onConfirm={(mode, lifecycle) => void handleConfirmMode(mode, lifecycle)}
         />
       )}
     </div>

@@ -356,6 +356,8 @@ import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSch
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
 import {
   AgentTaskListSchema,
+  WorktreeRevertRequestSchema,
+  type WorktreeRevertRequestResponse,
   AttachmentResponseSchema,
   CancelTaskResponseSchema,
   ChatDraftRestoresResponseSchema,
@@ -4767,6 +4769,42 @@ export class ApiClient {
     return parseWithFallback<AgentTask[]>(raw, AgentTaskListSchema, [], {
       endpoint: "GET /api/issues/:id/task-runs",
     });
+  }
+
+  /**
+   * Revert an issue's worktree branch to the turn a given run delivered (F09).
+   *
+   * Returns 202 with a request the caller polls: the branch lives on the user's
+   * own machine, so only that machine's daemon can move it. 409 when a revert
+   * is already in flight for the conversation — two of them racing on one
+   * branch is exactly the case that loses work.
+   */
+  async requestRunRevert(issueId: string, taskId: string): Promise<WorktreeRevertRequestResponse> {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/runs/${taskId}/revert`, {
+      method: "POST",
+    });
+    return parseWithFallback<WorktreeRevertRequestResponse>(
+      raw,
+      WorktreeRevertRequestSchema,
+      { request_id: "", status: "failed" },
+      { endpoint: "POST /api/issues/:id/runs/:taskId/revert" },
+    );
+  }
+
+  async getRunRevertRequest(
+    issueId: string,
+    taskId: string,
+    requestId: string,
+  ): Promise<WorktreeRevertRequestResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${issueId}/runs/${taskId}/revert/${requestId}`,
+    );
+    return parseWithFallback<WorktreeRevertRequestResponse>(
+      raw,
+      WorktreeRevertRequestSchema,
+      { request_id: requestId, status: "failed" },
+      { endpoint: "GET /api/issues/:id/runs/:taskId/revert/:requestId" },
+    );
   }
 
   async getIssueUsage(issueId: string): Promise<IssueUsageSummary> {

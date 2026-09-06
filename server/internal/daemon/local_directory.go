@@ -36,6 +36,38 @@ type localDirectoryRef struct {
 	DaemonID      string `json:"daemon_id"`
 	Label         string `json:"label,omitempty"`
 	ExecutionMode string `json:"execution_mode,omitempty"`
+	// Lifecycle (F09) is the resource's setup / run / archive argvs. Mirrors
+	// handler.localDirectoryLifecycle — keep in sync, the server round-trips
+	// this ref through its own struct and would drop a field this one adds
+	// alone.
+	Lifecycle *localDirectoryLifecycle `json:"lifecycle,omitempty"`
+}
+
+// localDirectoryLifecycle is the resource's script set. Each entry is an argv,
+// never a shell string: the daemon execs argv[0] directly, so nothing here is
+// interpreted by a shell.
+type localDirectoryLifecycle struct {
+	Setup   []string `json:"setup,omitempty"`
+	Run     []string `json:"run,omitempty"`
+	Archive []string `json:"archive,omitempty"`
+}
+
+// SetupScript / ArchiveScript are the argvs a worktree run executes around the
+// agent. Empty for every other mode: an in-place run is the user's own
+// directory, and running setup in it would be a side effect on files the user
+// did not hand over.
+func (a *localDirectoryAssignment) SetupScript() []string {
+	if !a.UsesWorktree() || a.Ref.Lifecycle == nil {
+		return nil
+	}
+	return a.Ref.Lifecycle.Setup
+}
+
+func (a *localDirectoryAssignment) ArchiveScript() []string {
+	if !a.UsesWorktree() || a.Ref.Lifecycle == nil {
+		return nil
+	}
+	return a.Ref.Lifecycle.Archive
 }
 
 // localDirectoryAssignment is the resolved view of a task's local_directory

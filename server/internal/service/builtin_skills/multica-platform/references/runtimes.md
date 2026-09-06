@@ -131,8 +131,23 @@ Workspace repos and project resources are not the same thing:
   future tasks; optional `resource_ref.ref` pins the default checkout ref for
   tasks in that project;
 - `local_directory` resources point at a path owned by a daemon and carry
-  local-machine assumptions.
+  local-machine assumptions. In `worktree` mode the run works in a disposable
+  checkout and delivers a branch; its `resource_ref.lifecycle` may carry
+  `setup` / `run` / `archive` argvs the daemon executes directly (no shell).
 
 Do not add a project resource just because `repo checkout` failed. First
 determine whether the user asked for durable project context or just a task
 checkout.
+
+## Ports inside a worktree run
+
+A worktree run is given its own block of TCP ports so two runs on one machine
+never fight over the same one. Bind inside it rather than at a fixed port:
+
+- `MULTICA_PORT_BASE` — first port of this run's block.
+- `MULTICA_PORT_COUNT` — how many consecutive ports it holds.
+
+Both are absent outside worktree mode and on daemons that predate them. Treat
+absence as "no reservation was made" and fall back to the project's usual port;
+do not synthesise a base, and do not bind outside the block when one is given —
+the range beyond it belongs to another run.

@@ -667,7 +667,19 @@
     "unresponsive": "Not responding",
     "unresponsive_tooltip": "No activity for {{duration}}",
     "off_peak": "Off-peak",
-    "off_peak_hint": "Queued in the off-peak lane: served after every urgent run, so it starts later than it was scheduled."
+    "off_peak_hint": "Queued in the off-peak lane: served after every urgent run, so it starts later than it was scheduled.",
+    "revert_tooltip": "Revert to this turn",
+    "revert_aria": "Revert the branch to this run",
+    "revert_dialog_title": "Revert to this turn?",
+    "revert_dialog_body_one": "The branch goes back to where this run left it. {{count}} later run and its messages are removed.",
+    "revert_dialog_body_other": "The branch goes back to where this run left it. {{count}} later runs and their messages are removed.",
+    "revert_dialog_body_none": "The branch goes back to where this run left it. No later runs are removed.",
+    "revert_dialog_note": "Your working copy, index and stash are not touched.",
+    "revert_dialog_keep": "Keep as is",
+    "revert_dialog_confirm": "Revert branch",
+    "revert_pending": "Reverting…",
+    "revert_done": "Reverted to this turn",
+    "revert_failed": "The revert did not complete"
   },
   "legs": {
     "workflow": "Workflow",

@@ -43,6 +43,11 @@ const (
 	AuditWorkspaceSettings    = "workspace.settings_updated"
 	AuditDecisionRecorded     = "decision_record.created"
 	AuditBusinessRuleViolated = "business_rule.violated"
+	// AuditWorktreeReverted (F09) records who asked for a conversation branch
+	// to be put back to an earlier turn. Written at request time, not at
+	// completion: the entry has to exist even when the daemon later refuses,
+	// because "someone tried to roll this back" is the fact being audited.
+	AuditWorktreeReverted = "worktree.reverted"
 )
 
 type auditOpts struct {

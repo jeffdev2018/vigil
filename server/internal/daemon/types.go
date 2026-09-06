@@ -370,8 +370,12 @@ type TaskResult struct {
 	// abandoned as unresumable (GH #6066). Forwarded on every terminal path,
 	// including the completed one: a fresh-session retry that SUCCEEDS is
 	// precisely when the abandoned id would otherwise stay selectable.
-	RetiredSessionID string           `json:"-"`
-	Usage            []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
+	RetiredSessionID string `json:"-"`
+	// CheckpointSHA is the turn record a worktree run delivered (F09). Reported
+	// on the completed AND the failed path: a run that died partway is exactly
+	// the one a user wants to roll back, and Finalize records it either way.
+	CheckpointSHA string           `json:"-"`
+	Usage         []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
 }
 
 // PluginHookTool is one agent-trigger plugin hook, as the agent will see it.

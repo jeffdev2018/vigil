@@ -667,7 +667,19 @@
     "unresponsive": "Ne répond pas",
     "unresponsive_tooltip": "Aucune activité depuis {{duration}}",
     "off_peak": "Heures creuses",
-    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes, elle démarre donc plus tard que prévu."
+    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes, elle démarre donc plus tard que prévu.",
+    "revert_tooltip": "Revenir à ce tour",
+    "revert_aria": "Ramener la branche à cette exécution",
+    "revert_dialog_title": "Revenir à ce tour ?",
+    "revert_dialog_body_one": "La branche revient là où cette exécution l'a laissée. {{count}} exécution ultérieure et ses messages seront supprimés.",
+    "revert_dialog_body_other": "La branche revient là où cette exécution l'a laissée. {{count}} exécutions ultérieures et leurs messages seront supprimés.",
+    "revert_dialog_body_none": "La branche revient là où cette exécution l'a laissée. Aucune exécution ultérieure ne sera supprimée.",
+    "revert_dialog_note": "Votre copie de travail, votre index et votre remise ne sont pas touchés.",
+    "revert_dialog_keep": "Laisser tel quel",
+    "revert_dialog_confirm": "Revenir en arrière",
+    "revert_pending": "Retour en cours…",
+    "revert_done": "Revenu à ce tour",
+    "revert_failed": "Le retour en arrière n'a pas abouti"
   },
   "legs": {
     "workflow": "Workflow",

@@ -143,6 +143,90 @@ type localDirectoryRef struct {
 	DaemonID      string `json:"daemon_id"`
 	Label         string `json:"label,omitempty"`
 	ExecutionMode string `json:"execution_mode,omitempty"`
+	// Lifecycle (F09) turns the worktree into an environment rather than just
+	// a checkout: what to run once it exists, and what to run before it is
+	// delivered. Kept on the ref rather than in a table because it is part of
+	// what "this directory" means to a run, and it is edited in the same
+	// dialog.
+	Lifecycle *localDirectoryLifecycle `json:"lifecycle,omitempty"`
+}
+
+// localDirectoryLifecycle is the per-resource script set.
+//
+// Each entry is an ARGV, never a shell string. That is the whole security
+// posture of this feature: the daemon execs argv[0] directly, so nothing the
+// user types here is interpreted by a shell, and a value containing `; rm -rf`
+// is one literal argument to a program rather than a second command. It also
+// makes the field honest — a user who needs a pipeline writes a script file and
+// names it here.
+type localDirectoryLifecycle struct {
+	// Setup runs once the worktree exists and before the agent starts. A
+	// failure fails the run: an environment that did not come up is not one an
+	// agent should be asked to work in.
+	Setup []string `json:"setup,omitempty"`
+	// Run is accepted and stored, but nothing starts it yet — exposing a
+	// long-lived server on the network is F12's problem, and accepting the
+	// config now keeps the user's saved settings from being erased by the
+	// validator's round trip when that lands.
+	Run []string `json:"run,omitempty"`
+	// Archive runs before the worktree is finalized. A failure is logged and
+	// does NOT block delivery: the work is already committed by then, and
+	// refusing to deliver it because a teardown step failed would lose the run
+	// over its least important step.
+	Archive []string `json:"archive,omitempty"`
+}
+
+const (
+	// lifecycleMaxArgs and lifecycleMaxBytes bound one argv. Not a security
+	// boundary — the ref is JSONB and the daemon execs argv directly — but a
+	// bound on what a single field can put into every claim payload for the
+	// project, and on what a typo (a pasted file) can cost.
+	lifecycleMaxArgs  = 32
+	lifecycleMaxBytes = 4 << 10
+)
+
+// validateLifecycleArgv rejects an argv that could not be executed, or that is
+// too large to belong in a resource ref.
+func validateLifecycleArgv(name string, argv []string) error {
+	if len(argv) == 0 {
+		return nil
+	}
+	if strings.TrimSpace(argv[0]) == "" {
+		return fmt.Errorf("local_directory: lifecycle.%s needs an executable as its first entry", name)
+	}
+	if len(argv) > lifecycleMaxArgs {
+		return fmt.Errorf("local_directory: lifecycle.%s has %d arguments, the maximum is %d",
+			name, len(argv), lifecycleMaxArgs)
+	}
+	total := 0
+	for _, arg := range argv {
+		total += len(arg)
+	}
+	if total > lifecycleMaxBytes {
+		return fmt.Errorf("local_directory: lifecycle.%s is %d bytes, the maximum is %d",
+			name, total, lifecycleMaxBytes)
+	}
+	return nil
+}
+
+// normalizeLifecycle validates every argv and drops the empty ones, so a
+// cleared field leaves no `"setup": []` behind to be re-read as configured.
+func normalizeLifecycle(lc *localDirectoryLifecycle) (*localDirectoryLifecycle, error) {
+	if lc == nil {
+		return nil, nil
+	}
+	for _, pair := range []struct {
+		name string
+		argv []string
+	}{{"setup", lc.Setup}, {"run", lc.Run}, {"archive", lc.Archive}} {
+		if err := validateLifecycleArgv(pair.name, pair.argv); err != nil {
+			return nil, err
+		}
+	}
+	if len(lc.Setup) == 0 && len(lc.Run) == 0 && len(lc.Archive) == 0 {
+		return nil, nil
+	}
+	return lc, nil
 }
 
 // requireWorktreeCapableDaemon rejects saving a local_directory ref that asks
@@ -292,6 +376,11 @@ func validateLocalDirectoryRef(ref json.RawMessage) (json.RawMessage, error) {
 		return nil, fmt.Errorf("local_directory: execution_mode must be %q or %q, got %q",
 			localDirectoryModeInPlace, localDirectoryModeWorktree, payload.ExecutionMode)
 	}
+	lifecycle, err := normalizeLifecycle(payload.Lifecycle)
+	if err != nil {
+		return nil, err
+	}
+	payload.Lifecycle = lifecycle
 	out, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err

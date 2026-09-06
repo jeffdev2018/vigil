@@ -25,6 +25,17 @@ const (
 	// from immutable historical source context.
 	DaemonCapabilitySourceContextQuickCreateV1 = "source_context_quick_create_v1"
 
+	// DaemonCapabilityWorktreeRevertV1 advertises that the daemon can put a
+	// conversation branch back to an earlier turn's checkpoint (F09).
+	//
+	// A capability rather than a version check, for the same reason as
+	// local-worktree-v1 and with a worse failure mode: a daemon that does not
+	// implement it json-skips pending_worktree_revert and never reports, so the
+	// request sits claimed until the stale sweeper releases it and the user
+	// watches a spinner that can never finish. The server does not enqueue at
+	// all without this string, and the UI leaves the action out.
+	DaemonCapabilityWorktreeRevertV1 = "worktree-revert-v1"
+
 	// DaemonCapabilityRPCV1 advertises that the daemon can carry
 	// request/response RPCs over the WebSocket control connection (MUL-4257).
 	// Gated so only daemons+servers that both support it route claim over WS;
@@ -139,6 +150,7 @@ const (
 	PendingWorkKindCliAuth          = "cli_auth"
 	PendingWorkKindLocalSkills      = "local_skills"
 	PendingWorkKindLocalSkillImport = "local_skill_import"
+	PendingWorkKindWorktreeRevert   = "worktree_revert"
 )
 
 // PendingWorkPayload is sent from server to daemon as a wakeup hint when a
@@ -431,6 +443,11 @@ type DaemonHeartbeatAckPayload struct {
 	// that don't know this field silently ignore it (standard JSON behavior)
 	// and fall back to the singular PendingLocalSkillImport above.
 	PendingLocalSkillImports []DaemonHeartbeatPendingLocalSkillImport `json:"pending_local_skill_imports,omitempty"`
+	// PendingWorktreeRevert carries a claimed revert request (F09). Only ever
+	// set for a daemon advertising DaemonCapabilityWorktreeRevertV1: the claim
+	// is destructive and a daemon that silently ignores the field would strand
+	// the request in 'claimed'.
+	PendingWorktreeRevert *DaemonHeartbeatPendingWorktreeRevert `json:"pending_worktree_revert,omitempty"`
 }
 
 // HeartbeatStatusRuntimeGone is the ack Status used when the runtime row no
@@ -469,4 +486,20 @@ type DaemonHeartbeatPendingLocalSkills struct {
 type DaemonHeartbeatPendingLocalSkillImport struct {
 	ID       string `json:"id"`
 	SkillKey string `json:"skill_key"`
+}
+
+// DaemonHeartbeatPendingWorktreeRevert describes a request to put a
+// conversation branch back to the turn Checkpoint recorded (F09).
+//
+// Everything the daemon needs is here, so the work never depends on a second
+// round trip that could see a different state: the repository (LocalPath), the
+// branch, the target turn's record, and the runs whose turn refs go with it.
+type DaemonHeartbeatPendingWorktreeRevert struct {
+	ID         string `json:"id"`
+	LocalPath  string `json:"local_path"`
+	Branch     string `json:"branch"`
+	Checkpoint string `json:"checkpoint"`
+	// LaterTaskIDs are the runs after the target turn, whose turn refs the
+	// daemon drops once the branch is back.
+	LaterTaskIDs []string `json:"later_task_ids,omitempty"`
 }

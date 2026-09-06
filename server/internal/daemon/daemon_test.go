@@ -547,7 +547,7 @@ func TestTaskMulticaEnvironmentIncludesPrivateConfigRoot(t *testing.T) {
 		AgentID:     "agent-test",
 		WorkspaceID: "workspace-test",
 	}
-	env := taskMulticaEnvironment(task, "agent-name", fakeToken, taskRoot, workspacesRoot, "https://task.example", 19514, 3, "/task/tmp")
+	env := taskMulticaEnvironment(task, "agent-name", fakeToken, taskRoot, workspacesRoot, "https://task.example", 19514, 3, "/task/tmp", 0, 0)
 
 	want := map[string]string{
 		"MULTICA_TOKEN":                fakeToken,
@@ -576,7 +576,7 @@ func TestTaskMulticaEnvironmentIncludesPrivateConfigRoot(t *testing.T) {
 	}
 	for _, lane := range []string{"sync", "batch"} {
 		task.DispatchLane = lane
-		laneEnv := taskMulticaEnvironment(task, "agent-name", fakeToken, taskRoot, workspacesRoot, "https://task.example", 19514, 3, "/task/tmp")
+		laneEnv := taskMulticaEnvironment(task, "agent-name", fakeToken, taskRoot, workspacesRoot, "https://task.example", 19514, 3, "/task/tmp", 0, 0)
 		if laneEnv["MULTICA_DISPATCH_LANE"] != lane {
 			t.Fatalf("MULTICA_DISPATCH_LANE = %q, want %q", laneEnv["MULTICA_DISPATCH_LANE"], lane)
 		}

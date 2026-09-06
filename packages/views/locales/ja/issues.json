@@ -643,7 +643,18 @@
     "unresponsive": "応答なし",
     "unresponsive_tooltip": "{{duration}} 活動がありません",
     "off_peak": "オフピーク",
-    "off_peak_hint": "オフピークのレーンに入っています。緊急の実行がすべて終わってから処理されるため、予定より遅く開始します。"
+    "off_peak_hint": "オフピークのレーンに入っています。緊急の実行がすべて終わってから処理されるため、予定より遅く開始します。",
+    "revert_tooltip": "このターンに戻す",
+    "revert_aria": "ブランチをこの実行の時点に戻す",
+    "revert_dialog_title": "このターンに戻しますか？",
+    "revert_dialog_body_other": "ブランチはこの実行が残した時点に戻ります。以降の実行 {{count}} 件とそのメッセージが削除されます。",
+    "revert_dialog_body_none": "ブランチはこの実行が残した時点に戻ります。削除される以降の実行はありません。",
+    "revert_dialog_note": "作業ツリー、インデックス、スタッシュには手を加えません。",
+    "revert_dialog_keep": "このままにする",
+    "revert_dialog_confirm": "ブランチを戻す",
+    "revert_pending": "戻しています…",
+    "revert_done": "このターンに戻しました",
+    "revert_failed": "戻す処理が完了しませんでした"
   },
   "legs": {
     "workflow": "ワークフロー",

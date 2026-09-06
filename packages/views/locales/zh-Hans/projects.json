@@ -135,7 +135,14 @@
     "mode_badge_worktree_tooltip": "运行在各自的 git worktree 中并行执行，并以分支形式交付结果。你的工作区不会被改动。",
     "toast_local_mode_updated": "已更新执行方式",
     "toast_local_mode_update_failed": "无法更新执行方式",
-    "mode_badge_in_place": "原地"
+    "mode_badge_in_place": "原地",
+    "lifecycle_description": "这个工作树的可选命令。它们不经过 shell 直接执行，所以第一个词是程序，其余是参数。",
+    "lifecycle_setup_label": "准备",
+    "lifecycle_setup_hint": "pnpm install",
+    "lifecycle_run_label": "运行（已保存，尚未启动）",
+    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_archive_label": "归档",
+    "lifecycle_archive_hint": "./scripts/teardown.sh"
   },
   "delete_dialog": {
     "title": "删除项目",

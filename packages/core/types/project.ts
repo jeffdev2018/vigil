@@ -115,11 +115,27 @@ export interface GithubRepoResourceRef {
  */
 export type LocalDirectoryExecutionMode = "in_place" | "worktree";
 
+/**
+ * Lifecycle scripts (F09): what to run once the worktree exists, and what to
+ * run before it is delivered. Each entry is an ARGV — executable first, then
+ * its arguments — never a shell string: the daemon execs argv[0] directly, so
+ * nothing typed here is interpreted by a shell.
+ *
+ * `run` is stored but nothing starts it yet (F12 owns exposing a long-lived
+ * server); it is accepted now so a saved value is not erased when that lands.
+ */
+export interface LocalDirectoryLifecycle {
+  setup?: string[];
+  run?: string[];
+  archive?: string[];
+}
+
 export interface LocalDirectoryResourceRef {
   local_path: string;
   daemon_id: string;
   label?: string;
   execution_mode?: LocalDirectoryExecutionMode;
+  lifecycle?: LocalDirectoryLifecycle;
 }
 
 export type ProjectResourceRef =

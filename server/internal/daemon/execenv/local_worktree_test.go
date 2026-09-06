@@ -2092,3 +2092,251 @@ func TestIsolatedPrepareKeepsTheReadOnlyBranchDrop(t *testing.T) {
 		t.Error("a turn that changed nothing left its branch behind")
 	}
 }
+
+// turnRefSHA reads the commit a task's turn ref points at, or "" when there is
+// none.
+func turnRefSHA(t *testing.T, repo, taskID string) string {
+	t.Helper()
+	out, err := gitTry(t, repo, "rev-parse", "--verify", "--quiet", TurnRefForTask(taskID))
+	if err != nil {
+		return ""
+	}
+	return out
+}
+
+// The record under refs/multica/local-state/<branch> only ever describes the
+// LATEST turn, so nothing pinned the earlier ones and `git gc` was free to
+// reclaim them. A revert has to reach a specific past turn months later, which
+// is what the per-turn ref exists for.
+func TestFinalizeWritesTheTurnCheckpoint(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "agent.txt"), "turn one\n")
+	outcome := finalizeOK(t, wt)
+
+	if outcome.CheckpointSHA == "" {
+		t.Fatal("Finalize reported no checkpoint for a turn that delivered work")
+	}
+	if got := turnRefSHA(t, repo, turnOneTask); got != outcome.CheckpointSHA {
+		t.Fatalf("%s = %q, want the reported checkpoint %q", TurnRefForTask(turnOneTask), got, outcome.CheckpointSHA)
+	}
+	// The record's second parent is the commit the turn delivered: that single
+	// value is what a revert resets the branch to.
+	tip := gitRun(t, repo, "rev-parse", "--verify", "refs/heads/"+outcome.Branch)
+	if delivered := gitRun(t, repo, "rev-parse", "--verify", outcome.CheckpointSHA+"^2"); delivered != tip {
+		t.Fatalf("checkpoint^2 = %q, want the delivered branch tip %q", delivered, tip)
+	}
+}
+
+// A run that dies mid-edit is exactly the one a user wants to roll back, so the
+// checkpoint has to be written on that path too. Finalize auto-commits what the
+// agent left behind; the turn record must cover that commit.
+func TestFinalizeWritesTheTurnCheckpointForARunThatDidNotFinish(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	// No commit by the agent: it left uncommitted edits behind, as a killed run
+	// does.
+	writeFile(t, filepath.Join(wt.Path, "half-written.txt"), "partial\n")
+	outcome := finalizeOK(t, wt)
+
+	if !outcome.AutoCommitted {
+		t.Fatal("expected Finalize to commit the leftovers of an unfinished run")
+	}
+	if outcome.CheckpointSHA == "" {
+		t.Fatal("an unfinished run left no turn checkpoint, so it could never be reverted")
+	}
+	if got := turnRefSHA(t, repo, turnOneTask); got != outcome.CheckpointSHA {
+		t.Fatalf("turn ref = %q, want %q", got, outcome.CheckpointSHA)
+	}
+}
+
+// Every turn gets its own ref, so a three-turn conversation is three revert
+// targets rather than one.
+func TestEachTurnGetsItsOwnCheckpoint(t *testing.T) {
+	repo := newTestRepo(t)
+
+	first := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(first.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, first)
+
+	second := prepareTurn(t, repo, "MUL-26", turnTwoTask)
+	writeFile(t, filepath.Join(second.Path, "two.txt"), "2\n")
+	two := finalizeOK(t, second)
+
+	if one.CheckpointSHA == "" || two.CheckpointSHA == "" {
+		t.Fatalf("missing checkpoints: %q / %q", one.CheckpointSHA, two.CheckpointSHA)
+	}
+	if one.CheckpointSHA == two.CheckpointSHA {
+		t.Fatal("both turns reported the same checkpoint")
+	}
+	if got := turnRefSHA(t, repo, turnOneTask); got != one.CheckpointSHA {
+		t.Fatalf("the first turn's ref was overwritten: %q, want %q", got, one.CheckpointSHA)
+	}
+}
+
+// The core of the feature: turn two disappears from the branch, and the user's
+// own working copy, index and stash are left exactly as they were.
+func TestRevertToTurnResetsTheBranchWithoutTouchingTheUserTree(t *testing.T) {
+	repo := newTestRepo(t)
+
+	first := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(first.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, first)
+
+	second := prepareTurn(t, repo, "MUL-26", turnTwoTask)
+	writeFile(t, filepath.Join(second.Path, "two.txt"), "2\n")
+	two := finalizeOK(t, second)
+
+	branch := two.Branch
+	turnOneTip := gitRun(t, repo, "rev-parse", "--verify", one.CheckpointSHA+"^2")
+
+	// The user's own state at the moment of the revert.
+	writeFile(t, filepath.Join(repo, "tracked.txt"), "user edit\n")
+	writeFile(t, filepath.Join(repo, "scratch.txt"), "untracked\n")
+	statusBefore := gitRun(t, repo, "status", "--porcelain")
+	headBefore := gitRun(t, repo, "rev-parse", "HEAD")
+
+	if err := RevertToTurn(RevertParams{
+		LocalPath:        repo,
+		Branch:           branch,
+		Checkpoint:       one.CheckpointSHA,
+		LaterTurnTaskIDs: []string{turnTwoTask},
+	}, worktreeTestLogger()); err != nil {
+		t.Fatalf("RevertToTurn: %v", err)
+	}
+
+	if tip := gitRun(t, repo, "rev-parse", "--verify", "refs/heads/"+branch); tip != turnOneTip {
+		t.Fatalf("branch tip = %q, want turn one's checkpoint %q", tip, turnOneTip)
+	}
+	if state := gitRun(t, repo, "rev-parse", "--verify", userStateRef(branch)); state != one.CheckpointSHA {
+		t.Fatalf("recorded state = %q, want turn one's record %q", state, one.CheckpointSHA)
+	}
+	if got := turnRefSHA(t, repo, turnTwoTask); got != "" {
+		t.Fatalf("turn two's checkpoint survived the revert: %q", got)
+	}
+	if got := turnRefSHA(t, repo, turnOneTask); got != one.CheckpointSHA {
+		t.Fatalf("turn one's checkpoint was dropped: %q", got)
+	}
+
+	if got := gitRun(t, repo, "status", "--porcelain"); got != statusBefore {
+		t.Fatalf("the revert changed the user's working copy:\nbefore %q\nafter  %q", statusBefore, got)
+	}
+	if got := readFile(t, filepath.Join(repo, "tracked.txt")); got != "user edit\n" {
+		t.Fatalf("the user's uncommitted edit was overwritten: %q", got)
+	}
+	if got := gitRun(t, repo, "rev-parse", "HEAD"); got != headBefore {
+		t.Fatalf("the revert moved the user's HEAD: %q, want %q", got, headBefore)
+	}
+	if stash, _ := gitTry(t, repo, "stash", "list"); stash != "" {
+		t.Fatalf("the revert left something in the stash: %q", stash)
+	}
+}
+
+// Reverting past someone else's work is the one outcome that loses data, so a
+// branch that moved off the checkpoint is refused by name rather than reset.
+func TestRevertToTurnRefusesWhenTheBranchMovedOffTheCheckpoint(t *testing.T) {
+	repo := newTestRepo(t)
+
+	first := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(first.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, first)
+
+	second := prepareTurn(t, repo, "MUL-26", turnTwoTask)
+	writeFile(t, filepath.Join(second.Path, "two.txt"), "2\n")
+	two := finalizeOK(t, second)
+
+	// The user rewrites the branch onto unrelated history.
+	base := gitRun(t, repo, "rev-parse", "HEAD")
+	gitRun(t, repo, "update-ref", "refs/heads/"+two.Branch, base)
+	tipBefore := gitRun(t, repo, "rev-parse", "--verify", "refs/heads/"+two.Branch)
+
+	err := RevertToTurn(RevertParams{
+		LocalPath:  repo,
+		Branch:     two.Branch,
+		Checkpoint: one.CheckpointSHA,
+	}, worktreeTestLogger())
+	if err == nil {
+		t.Fatal("expected the revert to be refused after the branch was force-moved")
+	}
+	if !errors.Is(err, ErrRevertRefused) {
+		t.Fatalf("error is not a refusal: %v", err)
+	}
+	if !strings.Contains(err.Error(), "moved off") {
+		t.Fatalf("the refusal does not name its cause: %v", err)
+	}
+	if tip := gitRun(t, repo, "rev-parse", "--verify", "refs/heads/"+two.Branch); tip != tipBefore {
+		t.Fatalf("a refused revert moved the branch anyway: %q, want %q", tip, tipBefore)
+	}
+}
+
+func TestRevertToTurnRefusesAMissingCheckpoint(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, wt)
+
+	err := RevertToTurn(RevertParams{
+		LocalPath:  repo,
+		Branch:     one.Branch,
+		Checkpoint: "0000000000000000000000000000000000000000",
+	}, worktreeTestLogger())
+	if err == nil || !errors.Is(err, ErrRevertRefused) {
+		t.Fatalf("expected a refusal for an unknown checkpoint, got %v", err)
+	}
+}
+
+func TestRevertToTurnRefusesAMissingBranch(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, wt)
+	gitRun(t, repo, "update-ref", "-d", "refs/heads/"+one.Branch)
+
+	err := RevertToTurn(RevertParams{
+		LocalPath:  repo,
+		Branch:     one.Branch,
+		Checkpoint: one.CheckpointSHA,
+	}, worktreeTestLogger())
+	if err == nil || !errors.Is(err, ErrRevertRefused) {
+		t.Fatalf("expected a refusal for a deleted branch, got %v", err)
+	}
+}
+
+// A turn record pins the whole user directory as of that turn. Left behind for
+// a branch nobody has any more, it holds those objects against `git gc`
+// forever.
+func TestPruneDropsTurnCheckpointsOfDeletedBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, wt)
+	if turnRefSHA(t, repo, turnOneTask) == "" {
+		t.Fatal("no turn checkpoint to prune")
+	}
+
+	gitRun(t, repo, "update-ref", "-d", "refs/heads/"+one.Branch)
+	pruneOrphanedStateRefs(repo, worktreeTestLogger())
+
+	if got := turnRefSHA(t, repo, turnOneTask); got != "" {
+		t.Fatalf("turn checkpoint of a deleted branch survived the prune: %q", got)
+	}
+}
+
+func TestPruneKeepsTurnCheckpointsOfLiveBranches(t *testing.T) {
+	repo := newTestRepo(t)
+
+	wt := prepareTurn(t, repo, "MUL-26", turnOneTask)
+	writeFile(t, filepath.Join(wt.Path, "one.txt"), "1\n")
+	one := finalizeOK(t, wt)
+
+	pruneOrphanedStateRefs(repo, worktreeTestLogger())
+
+	if got := turnRefSHA(t, repo, turnOneTask); got != one.CheckpointSHA {
+		t.Fatalf("prune dropped a live branch's turn checkpoint: %q, want %q", got, one.CheckpointSHA)
+	}
+}

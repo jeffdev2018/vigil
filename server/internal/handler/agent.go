@@ -540,7 +540,16 @@ type AgentTaskResponse struct {
 	// verbatim: it is a ref inside the user's own repo, not a filesystem path.
 	// Populated on both terminal paths — a failed run can still have committed
 	// partial work, and that is when the pointer matters most.
-	BranchName            string                 `json:"branch_name,omitempty"`
+	BranchName string `json:"branch_name,omitempty"`
+	// Turn checkpoints (F09). CheckpointSHA is the git commit recording what
+	// this worktree run delivered; TurnSeq is its position among the
+	// conversation's checkpointed turns. Revertable is the derived affordance:
+	// absent means the UI leaves the action out entirely rather than showing a
+	// disabled one, so a server that never sets these looks the same as a run
+	// that cannot be reverted.
+	CheckpointSHA         string                 `json:"checkpoint_sha,omitempty"`
+	TurnSeq               *int32                 `json:"turn_seq,omitempty"`
+	Revertable            bool                   `json:"revertable,omitempty"`
 	TriggerCommentID      *string                `json:"trigger_comment_id,omitempty"`      // comment that triggered this task
 	CoalescedCommentIDs   []string               `json:"coalesced_comment_ids,omitempty"`   // MUL-4195: earlier comments folded into this run when it had not yet started, so a single run still covers every deliberate comment; trigger_comment_id is the newest. Surfaced so the UI can show which comments a run covered. omitempty so old clients ignore it
 	CoalescedComments     []CoalescedCommentData `json:"coalesced_comments,omitempty"`      // MUL-4195: full detail (thread_id/author/created_at/content) of the folded comments, so the daemon prompt can address each without assuming they share the triggering thread. omitempty so old clients ignore it
@@ -949,6 +958,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		PreemptedAt:            timestampToPtr(t.PreemptedAt),
 		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
+		CheckpointSHA:          t.CheckpointSha.String,
+		TurnSeq:                int4ToPtr(t.TurnSeq),
+		Revertable:             taskRevertable(t),
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
 		ParentTaskID:           uuidToPtr(t.ParentTaskID),

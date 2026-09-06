@@ -20,6 +20,7 @@ import {
   EMPTY_LIST_TELEGRAM_INSTALLATIONS_RESPONSE,
   EMPTY_REDEEM_TELEGRAM_BINDING_TOKEN_RESPONSE,
   AgentTaskListSchema,
+  WorktreeRevertRequestSchema,
   ConfidenceReviewSettingsSchema,
   AutopilotQuotaUsageSchema,
   AutopilotRunSchema,
@@ -646,6 +647,37 @@ describe("TimelineEntriesSchema", () => {
   });
 });
 
+// F09: the revert request the UI polls. A malformed response must never read
+// as "done" — that would tell the user their branch moved when it did not.
+describe("WorktreeRevertRequestSchema", () => {
+  it("parses a queued request", () => {
+    const parsed = WorktreeRevertRequestSchema.parse({ request_id: "req-1", status: "pending" });
+    expect(parsed.request_id).toBe("req-1");
+    expect(parsed.status).toBe("pending");
+    expect(parsed.error).toBeUndefined();
+  });
+
+  it("carries the daemon's named cause on a refusal", () => {
+    const parsed = WorktreeRevertRequestSchema.parse({
+      request_id: "req-1",
+      status: "failed",
+      error: "revert refused: branch agent/j/x has moved off that run's checkpoint",
+    });
+    expect(parsed.error).toContain("moved off");
+  });
+
+  it("falls back to failed for a malformed response", () => {
+    const parsed = parseWithFallback(
+      { request_id: 42, status: { nope: true } },
+      WorktreeRevertRequestSchema,
+      { request_id: "", status: "failed" },
+      { endpoint: "POST /api/issues/:id/runs/:taskId/revert" },
+    );
+    // Never "done": a garbled answer must not be read as a completed revert.
+    expect(parsed.status).toBe("failed");
+  });
+});
+
 describe("AgentTaskListSchema", () => {
   const task = {
     id: "task-1",
@@ -672,6 +704,32 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.last_activity_at).toBe("2026-07-10T00:01:00Z");
     // Older servers omit the field; the run must still parse.
     expect(parsed[1]?.last_activity_at).toBeUndefined();
+  });
+
+  // F09: the revert affordance fails closed. Anything that is not literally
+  // `true` — absent, a string, a newer enum — must read as "not revertible",
+  // because the UI hides the action rather than disabling it and a wrong `true`
+  // offers a destructive button that can only fail.
+  it("keeps a turn checkpoint and degrades a malformed one to no affordance", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, checkpoint_sha: "abc123", turn_seq: 2, revertable: true },
+      { ...task, id: "task-2", checkpoint_sha: 42, turn_seq: "two", revertable: "yes" },
+      { ...task, id: "task-3" },
+    ]);
+
+    expect(parsed[0]?.checkpoint_sha).toBe("abc123");
+    expect(parsed[0]?.turn_seq).toBe(2);
+    expect(parsed[0]?.revertable).toBe(true);
+
+    // One malformed field costs that field, not the whole execution log.
+    expect(parsed).toHaveLength(3);
+    expect(parsed[1]?.checkpoint_sha).toBeUndefined();
+    expect(parsed[1]?.turn_seq).toBeUndefined();
+    expect(parsed[1]?.revertable).toBeUndefined();
+    expect(parsed[1]?.id).toBe("task-2");
+
+    // A server predating the feature omits all three.
+    expect(parsed[2]?.revertable).toBeUndefined();
   });
 
   it("preserves planned and delivered comment IDs for a task run", () => {

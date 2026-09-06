@@ -161,7 +161,7 @@ func taskScopedAuthToken(task Task) (string, error) {
 	return token, nil
 }
 
-func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL string, healthPort, slot int, tempDir string) map[string]string {
+func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL string, healthPort, slot int, tempDir string, portBase, portCount int) map[string]string {
 	env := map[string]string{
 		"MULTICA_TOKEN":        token,
 		cli.TaskConfigRootEnv:  configRoot,
@@ -176,6 +176,16 @@ func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesR
 		"TMPDIR":               tempDir,
 		"TMP":                  tempDir,
 		"TEMP":                 tempDir,
+	}
+	// Port block (F09). A worktree is an environment, and two concurrent runs
+	// both starting a dev server on the same hardcoded port is the first thing
+	// that breaks when they overlap. Every run gets a disjoint block derived
+	// from its slot, probed so a block already in use on this machine — another
+	// daemon, another profile, an unrelated process — shifts the whole run
+	// rather than colliding.
+	if portCount > 0 && portBase > 0 {
+		env["MULTICA_PORT_BASE"] = strconv.Itoa(resolveTaskPortBase(portBase, portCount, slot))
+		env["MULTICA_PORT_COUNT"] = strconv.Itoa(portCount)
 	}
 	// Off-peak batch lane (K45). Set only when the server actually named a
 	// lane: an absent variable is what every server predating the field
@@ -240,6 +250,9 @@ type terminalTaskReport struct {
 	// run on the issue or chat can select it again, however many clean rows
 	// still reference it.
 	retiredSessionID string
+	// checkpointSHA is the turn record a worktree run delivered (F09), the
+	// handle a later revert of this conversation resets the branch to.
+	checkpointSHA string
 }
 
 type executionEnvironmentCommand func() ([]string, error)
@@ -4343,6 +4356,46 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 			go d.handleLocalSkillImport(ctx, *rt, *resp.PendingLocalSkillImport)
 		}
 	}
+	if resp.PendingWorktreeRevert != nil {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			// WithoutCancel, like cli auth: the work moves refs in the user's
+			// repository and then has to report what it did. A revert
+			// interrupted between the two would leave the server believing the
+			// branch never moved.
+			go d.handleWorktreeRevert(context.WithoutCancel(ctx), *rt, *resp.PendingWorktreeRevert)
+		}
+	}
+}
+
+// handleWorktreeRevert puts a conversation branch back to an earlier turn and
+// reports the outcome (F09).
+//
+// A refusal is reported as failed with its cause verbatim: "the branch moved
+// off that run's checkpoint" is the answer the user needs, and turning it into
+// a generic error would leave them re-clicking a button that can never work.
+func (d *Daemon) handleWorktreeRevert(ctx context.Context, rt Runtime, pending PendingWorktreeRevert) {
+	err := execenv.RevertToTurn(execenv.RevertParams{
+		LocalPath:        pending.LocalPath,
+		Branch:           pending.Branch,
+		Checkpoint:       pending.Checkpoint,
+		LaterTurnTaskIDs: pending.LaterTaskIDs,
+	}, d.logger)
+	if err != nil {
+		d.logger.Warn("worktree revert did not complete",
+			"runtime_id", rt.ID, "request_id", pending.ID, "branch", pending.Branch, "error", err)
+		d.reportWorktreeRevertResult(ctx, rt, pending.ID, map[string]any{
+			"status": "failed",
+			"error":  err.Error(),
+		})
+		return
+	}
+	d.reportWorktreeRevertResult(ctx, rt, pending.ID, map[string]any{"status": "completed"})
+}
+
+func (d *Daemon) reportWorktreeRevertResult(ctx context.Context, rt Runtime, requestID string, payload map[string]any) {
+	d.reportRuntimeResultWithRetry(ctx, "worktree_revert", rt.ID, requestID, func(ctx context.Context) error {
+		return d.client.ReportWorktreeRevertResult(ctx, rt.ID, requestID, payload)
+	})
 }
 
 // handlePendingWorkHint reacts to a server-pushed daemon:pending_work frame by
@@ -6020,6 +6073,7 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			durableWorkDir:        result.DurableWorkDir,
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
+			checkpointSHA:         result.CheckpointSHA,
 		})
 		if err == nil {
 			return
@@ -6063,6 +6117,7 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			failureReason:         taskfailure.Classify(fallbackErrMsg).String(),
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
+			checkpointSHA:         result.CheckpointSHA,
 		}); failErr != nil {
 			taskLog.Error("fail task fallback also failed", "error", failErr)
 		}
@@ -6101,6 +6156,7 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			failureReason:         failureReason,
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
+			checkpointSHA:         result.CheckpointSHA,
 		}); err != nil {
 			taskLog.Error("report failed task failed", "error", err)
 		}
@@ -6118,9 +6174,9 @@ func (d *Daemon) reportTerminalTask(parentCtx context.Context, report terminalTa
 
 	switch report.kind {
 	case terminalTaskReportComplete:
-		return d.client.CompleteTask(ctx, report.taskID, report.output, report.branchName, report.sessionID, report.workDir, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir)
+		return d.client.CompleteTask(ctx, report.taskID, report.output, report.branchName, report.sessionID, report.workDir, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA)
 	case terminalTaskReportFail:
-		return d.client.FailTask(ctx, report.taskID, report.errorMessage, report.sessionID, report.workDir, report.branchName, report.failureReason, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir)
+		return d.client.FailTask(ctx, report.taskID, report.errorMessage, report.sessionID, report.workDir, report.branchName, report.failureReason, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA)
 	default:
 		return fmt.Errorf("unsupported terminal task report kind %d", report.kind)
 	}
@@ -7837,6 +7893,23 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			if err != nil {
 				return TaskResult{}, asEnvironmentSetupFailure(fmt.Errorf("prepare execution environment: %w", err))
 			}
+			// The setup script (F09). Runs once the worktree exists and before
+			// anything else touches it, so an agent is never asked to work in
+			// an environment that did not come up. Its failure IS the run's
+			// failure reason, output and all: "npm ci failed" is the answer,
+			// and a generic environment error would hide it.
+			if setup := localAssignment.SetupScript(); len(setup) > 0 {
+				if setupErr := runLifecycleScript(prepareCtx, "setup", setup, env.WorkDir, env.RootDir, nil, taskLog); setupErr != nil {
+					// Discard rather than Finalize: nothing has run in the
+					// worktree, so there is no work to preserve, and delivering
+					// a branch here would name an environment that never came
+					// up as a result.
+					if env.LocalWorktree != nil {
+						env.LocalWorktree.Discard(taskLog)
+					}
+					return TaskResult{}, asEnvironmentSetupFailure(setupErr)
+				}
+			}
 		} else {
 			if localAssignment != nil {
 				prepParams.LocalWorkDir = localAssignment.AbsPath
@@ -7875,6 +7948,9 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			if outcome.Branch != "" {
 				taskResult.BranchName = outcome.Branch
 			}
+			if outcome.CheckpointSHA != "" {
+				taskResult.CheckpointSHA = outcome.CheckpointSHA
+			}
 			if finalizeErr == nil {
 				// The configured local_directory becomes authoritative only after
 				// Finalize confirms the disposable task worktree is actually gone.
@@ -7905,6 +7981,22 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 				returnErr = errors.Join(returnErr, wrapped)
 			}
 		}()
+		// The archive script (F09), registered AFTER the Finalize defer so LIFO
+		// runs it FIRST — the same ordering trick the sidecar cleanup below
+		// relies on. It sees the worktree as the agent left it, and whatever it
+		// writes is part of what Finalize commits.
+		//
+		// A failure is logged and nothing more. By this point the run has
+		// produced its work; refusing to deliver it because a teardown step
+		// exited non-zero would lose the run over its least important step.
+		if archive := localAssignment.ArchiveScript(); len(archive) > 0 {
+			defer func() {
+				if err := runLifecycleScript(context.WithoutCancel(ctx), "archive", archive,
+					env.WorkDir, env.RootDir, nil, taskLog); err != nil {
+					taskLog.Warn("local_directory: archive script failed (delivery continues)", "error", err)
+				}
+			}()
+		}
 	}
 	// Workdir is preserved for reuse by future tasks on the same (agent,
 	// issue) pair in cloud mode; the work_dir path is stored in DB on task
@@ -8058,7 +8150,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		taskLog.Error("task auth token invalid; refusing to start agent", "error", err)
 		return TaskResult{}, err
 	}
-	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir)
+	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir, d.cfg.TaskPortBase, d.cfg.TaskPortCount)
 	// Approval gates (K05): every git push from this run goes through the
 	// daemon's pre-push hook, which asks the server.
 	if hooksDir, err := ensureGateHooksDir(env.MulticaConfigRoot); err != nil {

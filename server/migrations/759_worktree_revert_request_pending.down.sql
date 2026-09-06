@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_worktree_revert_request_pending;

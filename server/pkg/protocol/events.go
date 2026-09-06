@@ -52,6 +52,12 @@ const (
 	// the selector stamped on the task (single / cascade / critique) and the
 	// reason of the decision.
 	EventTaskWorkflowSelected = "task:workflow-selected"
+	// EventTaskReverted (F09) fires when a conversation branch was put back to
+	// an earlier turn and the runs after it were removed. Not a status
+	// transition — the rows are gone. Under the `task:` prefix on purpose: the
+	// client already invalidates every run list on that prefix, which is
+	// exactly the refresh this needs.
+	EventTaskReverted = "task:reverted"
 
 	// Postmortem events (k68). postmortem:created fires when a failed run gets
 	// a drafted postmortem; postmortem:resolved fires on approve/discard.

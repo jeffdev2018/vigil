@@ -39,6 +39,7 @@ import { TerminateTaskConfirmDialog } from "./terminate-task-confirm-dialog";
 import { RunControls } from "./run-controls";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
+import { RunRevertAction } from "./run-revert-action";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
 
 // Right-panel section that lists every agent run for this issue. Active
@@ -121,6 +122,22 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
     });
   }, [tasks]);
 
+  // How many checkpointed turns come after each one (F09). Computed here from
+  // the list already loaded rather than fetched per row: the revert
+  // confirmation has to name what disappears, and the count is a property of
+  // the conversation, not of the row.
+  const laterTurnCounts = useMemo(() => {
+    const seqs = tasks
+      .map((t) => t.turn_seq)
+      .filter((seq): seq is number => typeof seq === "number");
+    const counts: Record<string, number> = {};
+    for (const task of tasks) {
+      if (typeof task.turn_seq !== "number") continue;
+      counts[task.id] = seqs.filter((seq) => seq > task.turn_seq!).length;
+    }
+    return counts;
+  }, [tasks]);
+
   if (activeTasks.length === 0 && pastTasks.length === 0) return null;
 
   return (
@@ -195,7 +212,12 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
               {showPast && (
                 <div className="mt-0.5 space-y-0.5">
                   {pastTasks.map((task) => (
-                    <PastRow key={task.id} task={task} issueId={issueId} />
+                    <PastRow
+                      key={task.id}
+                      task={task}
+                      issueId={issueId}
+                      laterRunCount={laterTurnCounts[task.id] ?? 0}
+                    />
                   ))}
                 </div>
               )}
@@ -481,7 +503,16 @@ function RunPlanBlock({ task }: { task: AgentTask }) {
 
 // ─── Past row ──────────────────────────────────────────────────────────────
 
-function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
+function PastRow({
+  task,
+  issueId,
+  laterRunCount,
+}: {
+  task: AgentTask;
+  issueId: string;
+  /** Checkpointed turns after this one — what a revert to it removes (F09). */
+  laterRunCount: number;
+}) {
   const { t } = useT("issues");
   const { t: tAgents } = useT("agents");
   const timeAgo = useTimeAgo();
@@ -579,6 +610,7 @@ function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
         <RowActions>
           <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
           <ReplayButton task={task} />
+          <RunRevertAction task={task} issueId={issueId} laterRunCount={laterRunCount} />
           {canRetry && (
             <Tooltip>
               <TooltipTrigger

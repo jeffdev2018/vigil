@@ -601,6 +601,21 @@ export interface AgentTask {
    */
   branch_name?: string;
   /**
+   * Turn checkpoint (F09): the git commit recording what this worktree run
+   * delivered, and this run's position among its conversation's checkpointed
+   * turns. Absent on every run that is not a worktree run on a conversation,
+   * and on servers that predate the feature.
+   */
+  checkpoint_sha?: string;
+  turn_seq?: number;
+  /**
+   * Whether this run may be reverted to (F09). Server-derived: it needs a
+   * checkpoint AND a terminal status, and a server that never sets it looks
+   * exactly like a run that cannot be reverted. The UI leaves the action out
+   * rather than disabling it, so absence and `false` mean the same thing.
+   */
+  revertable?: boolean;
+  /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
    * user-facing task surfaces; older backends omit it — render conditionally.

@@ -70,6 +70,14 @@ const (
 	// `git branch`, and a ref rather than a loose object so `git gc` in their
 	// repo cannot reclaim a snapshot between two turns.
 	localStateRefPrefix = "refs/multica/local-state/"
+
+	// turnRefPrefix namespaces the per-TURN record. localStateRefPrefix keeps
+	// exactly one record per branch — the latest — because that is all a
+	// continuation needs. Reverting needs the others: it has to reach the
+	// record a specific earlier turn delivered, months of `git gc` later. One
+	// ref per turn, named by the task that wrote it, is what keeps those
+	// commits reachable and enumerable.
+	turnRefPrefix = "refs/multica/turn/"
 )
 
 // LocalWorktreeParams describes the worktree Prepare should build for a
@@ -142,6 +150,9 @@ func localWorktreeConversation(params PrepareParams) (key, id string) {
 type LocalWorktree struct {
 	// GitRoot is the user's repository root — the repo that owns the branch.
 	GitRoot string
+	// TaskID is the task this worktree was prepared for. It names the turn ref
+	// Finalize writes, which is how a later revert finds this turn's record.
+	TaskID string
 	// Path is the worktree root inside the env root.
 	Path string
 	// WorkDir is the agent's cwd: Path, plus the offset of LocalPath inside
@@ -278,6 +289,16 @@ type LocalWorktreeOutcome struct {
 	// changes. The worktree at this path was intentionally left on disk because
 	// it is the only remaining copy of that work.
 	PreservedPath string
+	// CheckpointSHA is the turn record this run delivered — the commit
+	// refs/multica/turn/<taskKey> now points at. Empty when the run recorded
+	// nothing (a read-only turn, a task-scoped branch, or a finalize that
+	// refused to deliver).
+	//
+	// It is the RECORD commit, not the branch tip: the record carries both, its
+	// tree being the user's directory as the branch then carried it and its
+	// second parent the delivered tip. One value therefore restores a turn
+	// completely, which is what revert needs — see revertToTurn.
+	CheckpointSHA string
 }
 
 // PrepareLocalWorktree creates the task's worktree and replays the user's
@@ -386,6 +407,7 @@ func PrepareLocalWorktree(params LocalWorktreeParams, logger *slog.Logger) (*Loc
 
 	wt := &LocalWorktree{
 		GitRoot:       gitRoot,
+		TaskID:        params.TaskID,
 		Path:          worktreePath,
 		WorkDir:       filepath.Join(worktreePath, rel),
 		Branch:        actualBranch,
@@ -475,7 +497,7 @@ func PrepareLocalWorktree(params LocalWorktreeParams, logger *slog.Logger) (*Loc
 		// owner, which is what lets the next task prove this branch is its own
 		// before continuing it. Recorded here as well as at Finalize so a turn
 		// that never reaches Finalize still leaves the branch identifiable.
-		if err := wt.recordState(wt.BaseCommit, logger); err != nil && logger != nil {
+		if _, err := wt.recordState(wt.BaseCommit, logger); err != nil && logger != nil {
 			logger.Warn("execenv: could not record the task branch before the run (non-fatal; Finalize records the delivered tip)",
 				"branch", wt.Branch, "error", err)
 		}
@@ -666,7 +688,8 @@ func (w *LocalWorktree) Finalize(logger *slog.Logger) (LocalWorktreeOutcome, err
 					"recover the work from there, and let the run keep the commit the worktree started from instead of resetting past it",
 				w.Branch, verifyErr, w.Path, w.GitRoot)
 		}
-		if recErr := w.recordState(tip, logger); recErr != nil {
+		record, recErr := w.recordState(tip, logger)
+		if recErr != nil {
 			outcome.PreservedPath = w.Path
 			if logger != nil {
 				logger.Error("execenv: could not record the delivered task branch; keeping the worktree",
@@ -677,6 +700,23 @@ func (w *LocalWorktree) Finalize(logger *slog.Logger) (LocalWorktreeOutcome, err
 					"task worktree is preserved at %s (listed by `git worktree list` in %s) — a follow-up run will start "+
 					"a new branch instead of continuing this one",
 				w.Branch, recErr, w.Path, w.GitRoot)
+		}
+		// Pin this turn's record under its own ref, still under the lock that
+		// wrote it. localStateRefPrefix has already been moved on to this turn,
+		// so without this the previous turn's record is unreachable and `git gc`
+		// may reclaim it — and a revert to that turn would have nothing to
+		// restore. Best-effort: the branch and its state ref are the delivery
+		// contract, and failing the run over a missing revert affordance would
+		// throw away work that was in fact delivered.
+		if record != "" {
+			if out, refErr := runGit(w.GitRoot, "update-ref", w.turnRef(), record); refErr != nil {
+				if logger != nil {
+					logger.Warn("execenv: could not record the turn checkpoint (non-fatal; this run will not be revertible)",
+						"branch", w.Branch, "ref", w.turnRef(), "output", strings.TrimSpace(out), "error", refErr)
+				}
+			} else {
+				outcome.CheckpointSHA = record
+			}
 		}
 	}
 
@@ -1490,6 +1530,17 @@ func userStateRef(branch string) string {
 	return localStateRefPrefix + branch
 }
 
+// TurnRefForTask names the ref holding the record a given task delivered.
+// Keyed by task rather than by branch: a revert is asked for by run, and the
+// server hands the daemon the exact task ids whose turns must disappear.
+func TurnRefForTask(taskID string) string {
+	return turnRefPrefix + taskKey(taskID)
+}
+
+func (w *LocalWorktree) turnRef() string {
+	return TurnRefForTask(w.TaskID)
+}
+
 // readUserStateRef returns the recorded snapshot, or "" when the branch has
 // none.
 func readUserStateRef(gitRoot, branch string) (string, error) {
@@ -1508,18 +1559,19 @@ func readUserStateRef(gitRoot, branch string) (string, error) {
 // append onto their unrelated work. Prepare therefore records only once the
 // branch carries a commit of ours, and Finalize records the tip it actually
 // delivered.
-func (w *LocalWorktree) recordState(checkpoint string, logger *slog.Logger) error {
+func (w *LocalWorktree) recordState(checkpoint string, logger *slog.Logger) (string, error) {
 	if w == nil || !w.tracksState || w.Branch == "" || w.userState == "" {
-		return nil
+		return "", nil
 	}
-	if _, err := writeBranchRecord(w.GitRoot, w.Branch, w.userState, checkpoint, w.owner); err != nil {
-		return err
+	record, err := writeBranchRecord(w.GitRoot, w.Branch, w.userState, checkpoint, w.owner)
+	if err != nil {
+		return "", err
 	}
 	if logger != nil {
 		logger.Debug("execenv: recorded the local-directory snapshot for the task branch",
 			"branch", w.Branch, "checkpoint", checkpoint)
 	}
-	return nil
+	return record, nil
 }
 
 // dropBranch deletes a task branch that carries nothing worth keeping, together
@@ -1572,6 +1624,52 @@ func pruneOrphanedStateRefs(gitRoot string, logger *slog.Logger) {
 		if logger != nil {
 			logger.Info("execenv: dropped the local-directory snapshot of a branch that no longer exists",
 				"git_root", gitRoot, "branch", branch)
+		}
+	}
+	pruneOrphanedTurnRefs(gitRoot, logger)
+}
+
+// pruneOrphanedTurnRefs drops the turn records of branches that are gone.
+//
+// A turn ref is named by its task, not by its branch, so "is the branch still
+// there" is asked of the commit instead: the record's second parent is the tip
+// that turn delivered, and no branch containing it means no branch is carrying
+// that turn's work any more. Deliberately generous — a turn merged into another
+// branch is kept, because reverting to it is still meaningful — and, like the
+// snapshot prune, best-effort housekeeping in the user's repository.
+func pruneOrphanedTurnRefs(gitRoot string, logger *slog.Logger) {
+	out, err := runGitTrimmed(gitRoot, "for-each-ref", "--format=%(refname)", turnRefPrefix)
+	if err != nil {
+		if logger != nil {
+			logger.Debug("execenv: could not list turn checkpoints", "git_root", gitRoot, "error", err)
+		}
+		return
+	}
+	for _, ref := range strings.Split(out, "\n") {
+		ref = strings.TrimSpace(ref)
+		if ref == "" || !strings.HasPrefix(ref, turnRefPrefix) {
+			continue
+		}
+		// A ref whose record or checkpoint cannot be read at all is already
+		// broken; drop it rather than leaving an unusable revert target.
+		checkpoint, cpErr := runGitTrimmed(gitRoot, "rev-parse", "--verify", "--quiet", ref+"^2")
+		if cpErr == nil && checkpoint != "" {
+			carriers, listErr := runGitTrimmed(gitRoot, "for-each-ref", "--count=1",
+				"--contains="+checkpoint, "--format=%(refname)", "refs/heads/")
+			if listErr != nil || strings.TrimSpace(carriers) != "" {
+				continue
+			}
+		}
+		if out, delErr := runGit(gitRoot, "update-ref", "-d", ref); delErr != nil {
+			if logger != nil {
+				logger.Warn("execenv: could not drop an orphaned turn checkpoint (non-fatal)",
+					"ref", ref, "output", strings.TrimSpace(out), "error", delErr)
+			}
+			continue
+		}
+		if logger != nil {
+			logger.Info("execenv: dropped the turn checkpoint of a branch that no longer exists",
+				"git_root", gitRoot, "ref", ref)
 		}
 	}
 }
