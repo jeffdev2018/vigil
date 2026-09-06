@@ -345,3 +345,46 @@ func TestConfidenceReviewSettingsMaxEscalationsParsing(t *testing.T) {
 		t.Errorf("out-of-range max_escalations = %d, want default 2", got.MaxEscalations)
 	}
 }
+
+// Data residency (K46): the cascade may not escalate out of policy.
+//
+// The failed runtime is COMPLIANT here, so the enqueue-time gate has nothing
+// to refuse — it is the escalation's own candidate pick that must exclude the
+// stronger-but-non-compliant runtime. That matters because a forced runtime
+// (task.go, JEF-272) overrides every routing filter downstream: whatever
+// pickEscalationRuntime returns is where the retry runs.
+func TestRunConfidenceCascadeResidencyBlocksEscalationToHumanReview(t *testing.T) {
+	fx, dbfx, issueID := cascadeFixture(t)
+	// Runtime B has the strong record that would normally win the hop, and no
+	// declaration; runtime A — the one that just failed — is declared in the
+	// only allowed region, so the run itself is never in doubt.
+	seedRoutingRuns(t, dbfx, fx.agentID, fx.runtimeB, TaskClassGeneral, "openai", "m-b", 20, 19)
+	dbfx.Exec(t, `INSERT INTO runtime_compliance_profile (runtime_id, region, on_prem) VALUES ($1, 'eu-west-1', false)`, fx.runtimeA)
+	t.Cleanup(func() {
+		dbfx.Exec(t, `DELETE FROM runtime_compliance_profile WHERE runtime_id = $1`, fx.runtimeA)
+	})
+	setResidencyPolicy(t, dbfx, fx.workspace, `{"region_allowlist":["eu-west-1"],"banned_providers":[],"require_on_prem":false}`)
+	taskID := seedCascadeTask(t, fx.pool, fx.agentID, fx.runtimeA, issueID, fx.user, TaskClassGeneral, nil)
+
+	bus := events.New()
+	escalated := collectEvents(bus, protocol.EventTaskEscalated)
+	svc := runConfidenceService(fx.pool, bus, stubMemoryLLM(t, `{"score":0.2,"rationale":"The run expresses doubt."}`))
+
+	if err := svc.ScoreRunConfidence(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatalf("score: %v", err)
+	}
+
+	if newTaskID, runtimeID, _, _, _ := escalatedTaskForIssue(t, fx.pool, issueID, taskID); newTaskID != "" {
+		t.Errorf("escalation task %s enqueued on undeclared runtime %s despite the data residency policy", newTaskID, runtimeID)
+	}
+	if len(*escalated) != 0 {
+		t.Errorf("task:escalated events = %d, want 0 when no compliant runtime exists", len(*escalated))
+	}
+	// The run is not lost: with nowhere compliant to hop, a human takes it.
+	if status := cascadeIssueStatus(t, fx.pool, issueID); status != "in_review" {
+		t.Errorf("issue status = %q, want in_review when the policy blocks every hop", status)
+	}
+	if n := cascadeInboxCount(t, fx.pool, issueID); n == 0 {
+		t.Error("no confidence_review inbox item when the policy blocks every hop")
+	}
+}

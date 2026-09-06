@@ -163,6 +163,16 @@ func (s *TaskService) pickEscalationRuntime(ctx context.Context, agent db.Agent,
 	if len(runtimes) == 0 {
 		return pgtype.UUID{}, false
 	}
+	// Data residency (K46): the same filter RouteTask applies, for the same
+	// reason — a stronger runtime in the wrong place is still the wrong place.
+	// With nothing compliant left the cascade reports no candidate, so the
+	// caller falls back to human review rather than escalating out of policy.
+	runtimes, _ = partitionCompliantRuntimes(runtimes, s.compliantRuntimeFilter(ctx, agent.WorkspaceID))
+	if len(runtimes) == 0 {
+		slog.Info("run confidence cascade: every stronger runtime is rejected by the data residency policy",
+			"task_id", util.UUIDToString(task.ID))
+		return pgtype.UUID{}, false
+	}
 	stats, err := s.Queries.GetRoutingStats(ctx, db.GetRoutingStatsParams{
 		WorkspaceID: agent.WorkspaceID,
 		Since:       pgtype.Timestamptz{Time: time.Now().Add(-routingStatsWindow), Valid: true},
