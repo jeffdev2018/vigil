@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -82,6 +83,9 @@ func prWalkthroughToResponse(row db.PrWalkthrough) PrWalkthroughResponse {
 		if err := json.Unmarshal(row.Groups, &groups); err != nil {
 			groups = []service.PrWalkthroughGroup{}
 		}
+		// Re-applying the fixed order on read costs nothing and keeps the
+		// contract even for rows written by an older build or by hand.
+		groups = service.NormalizePrWalkthroughGroups(groups)
 	}
 	out := PrWalkthroughResponse{
 		State:        row.State,
@@ -282,6 +286,10 @@ func (h *Handler) RefreshIssuePrWalkthrough(w http.ResponseWriter, r *http.Reque
 	}
 	task, err := h.enqueuePrWalkthrough(r.Context(), issue, cfg, pr, parseUUIDOrZero(requestUserID(r)))
 	if err != nil {
+		if errors.Is(err, errPrWalkthroughDiffUnavailable) {
+			writeErrorCode(w, http.StatusBadGateway, "diff_unavailable", "could not read the pull request diff: "+strings.TrimPrefix(err.Error(), errPrWalkthroughDiffUnavailable.Error()+": "))
+			return
+		}
 		if errors.Is(err, errPrWalkthroughAlreadyRunning) {
 			writeError(w, http.StatusConflict, "a walkthrough for this revision is already being generated")
 			return
@@ -300,6 +308,12 @@ func (h *Handler) RefreshIssuePrWalkthrough(w http.ResponseWriter, r *http.Reque
 // for one head, surfaced so the manual endpoint can answer 409 instead of
 // pretending it enqueued something.
 var errPrWalkthroughAlreadyRunning = errors.New("a walkthrough run for this head is already in flight")
+
+// errPrWalkthroughDiffUnavailable wraps a diff fetch failure so the refresh
+// endpoint can answer 502 with the provider's reason instead of a bare 500:
+// the row is already settled failed with that reason, and the reviewer can
+// retry once the provider (or the app installation) is back.
+var errPrWalkthroughDiffUnavailable = errors.New("diff unavailable")
 
 // enqueuePrWalkthrough claims the head, fetches and caps the diff, and queues
 // the read-only run.
@@ -328,7 +342,7 @@ func (h *Handler) enqueuePrWalkthrough(ctx context.Context, issue db.Issue, cfg 
 	diff, err := h.fetchWalkthroughDiff(ctx, issue, pr)
 	if err != nil {
 		h.failPrWalkthrough(ctx, row, "could not read the pull request diff: "+err.Error())
-		return db.AgentTaskQueue{}, err
+		return db.AgentTaskQueue{}, fmt.Errorf("%w: %v", errPrWalkthroughDiffUnavailable, err)
 	}
 	if diff.Truncated {
 		// Recorded now, not at completion: the cap is a property of what the
