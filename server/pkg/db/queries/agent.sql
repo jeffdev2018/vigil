@@ -337,9 +337,15 @@ SELECT
     -- from_runtime_id} under context.escalation. strip_nulls drops both keys
     -- when absent and NULLIF keeps the column NULL in that case, preserving
     -- the pre-TEN-356 behavior for ordinary enqueues.
+    -- Workflow selector (JEF-273): every issue task carries its workflow in
+    -- the context stamp ('single' when the caller passes nothing, so the
+    -- historical derivation never has to guess), and a critique workflow adds
+    -- force_review for the cross-review trigger.
     NULLIF(jsonb_strip_nulls(jsonb_build_object(
         'head_sha', NULLIF(COALESCE(sqlc.narg('head_sha')::text, ''), ''),
-        'escalation', sqlc.narg('escalation')::jsonb
+        'escalation', sqlc.narg('escalation')::jsonb,
+        'workflow', COALESCE(NULLIF(sqlc.narg('workflow')::text, ''), 'single'),
+        'force_review', CASE WHEN sqlc.narg('force_review')::boolean IS TRUE THEN TRUE ELSE NULL END
     ))::text, '{}')::jsonb,
     sqlc.narg(originator_user_id),
     sqlc.narg(accountable_user_id),
@@ -384,6 +390,8 @@ SELECT
     sqlc.narg(squad_id),
     jsonb_strip_nulls(jsonb_build_object(
         'head_sha', NULLIF(COALESCE(sqlc.narg('head_sha')::text, ''), ''),
+        'workflow', COALESCE(NULLIF(sqlc.narg('workflow')::text, ''), 'single'),
+        'force_review', CASE WHEN sqlc.narg('force_review')::boolean IS TRUE THEN TRUE ELSE NULL END,
         'channel_issue_media_pending', TRUE
     )),
     sqlc.narg(originator_user_id),

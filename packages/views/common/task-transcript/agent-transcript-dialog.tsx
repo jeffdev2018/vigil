@@ -26,6 +26,9 @@ import {
   Info,
   Coins,
   GitBranch,
+  Zap,
+  Layers,
+  Scale,
 } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
@@ -52,6 +55,7 @@ import {
 } from "@multica/core/agents/stores";
 import type { AgentTask, Agent, AgentRuntime } from "@multica/core/types/agent";
 import { resolveWorkdirCopyTarget } from "@multica/core/issues";
+import { workflowSelectionReason } from "@multica/core/issues/workflow-policy";
 import { runtimeDisplayName, providerDisplayName } from "@multica/core/runtimes";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { redactSecrets } from "./redact";
@@ -856,6 +860,30 @@ export function AgentTranscriptDialog({
   // run was re-dispatched as. The header chip names the runtime it escalated
   // from; the ⓘ popover carries the reason and the attempt count.
   const escalation = task.escalation ?? null;
+  // Workflow selector (JEF-273): which strategy this run executed under. The
+  // header chip names it; the ⓘ popover adds the selection reason when this
+  // session saw the task:workflow-selected event (the reason rides only that
+  // event, not the task payload).
+  const workflow = task.workflow ?? null;
+  const workflowLabel =
+    workflow === "single"
+      ? t(($) => $.transcript.workflow_single)
+      : workflow === "cascade"
+        ? t(($) => $.transcript.workflow_cascade)
+        : workflow === "critique"
+          ? t(($) => $.transcript.workflow_critique)
+          : null;
+  const WorkflowIcon =
+    workflow === "cascade" ? Layers : workflow === "critique" ? Scale : Zap;
+  const workflowReason = workflow ? workflowSelectionReason(task.id) : undefined;
+  const workflowReasonLabel =
+    workflowReason === "policy:auto"
+      ? t(($) => $.transcript.workflow_reason_policy_auto)
+      : workflowReason === "policy:off-default"
+        ? t(($) => $.transcript.workflow_reason_policy_off_default)
+        : workflowReason === "auto:insufficient-data"
+          ? t(($) => $.transcript.workflow_reason_insufficient_data)
+          : (workflowReason ?? null);
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -886,6 +914,7 @@ export function AgentTranscriptDialog({
     !!routing ||
     !!confidence ||
     !!escalation ||
+    !!workflow ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
     !!reasonLabel ||
@@ -1003,6 +1032,23 @@ export function AgentTranscriptDialog({
                       name: routingRuntimeName(escalation.from_runtime_id),
                       attempt: escalation.attempt,
                     })}
+                  </span>
+                </>
+              )}
+              {workflow && workflowLabel && (
+                <>
+                  <FactDot />
+                  {/* Which execution strategy the selector picked for this run
+                      (JEF-273). The icon is the at-a-glance distinction, the
+                      word the accessible one; the reason lives in the ⓘ
+                      popover. */}
+                  <span
+                    data-testid="workflow-chip"
+                    title={t(($) => $.transcript.workflow_chip_title)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-info/30 bg-info/10 px-1.5 py-px text-micro font-medium text-info"
+                  >
+                    <WorkflowIcon aria-hidden="true" className="h-3 w-3" />
+                    {workflowLabel}
                   </span>
                 </>
               )}
@@ -1179,6 +1225,20 @@ export function AgentTranscriptDialog({
                                 : String(escalation.attempt)
                             }
                           />
+                        </>
+                      )}
+                      {workflow && workflowLabel && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_workflow)}
+                            value={workflowLabel}
+                          />
+                          {workflowReasonLabel && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_workflow_reason)}
+                              value={workflowReasonLabel}
+                            />
+                          )}
                         </>
                       )}
                       {workdirCopyTarget?.relativePath && (

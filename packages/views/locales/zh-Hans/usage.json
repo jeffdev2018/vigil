@@ -165,5 +165,22 @@
     "title": "本期自动化运行次数：{{used}} / {{limit}}",
     "near_limit": "接近上限——达到上限后自动化将不再触发。",
     "reached": "已达上限——在本期重置前自动化不会触发。"
+  },
+  "workflow_outcomes": {
+    "title": "工作流结果",
+    "subtitle": "最近 90 天 · 按任务类别和工作流",
+    "col_class": "任务类别",
+    "col_workflow": "工作流",
+    "col_samples": "样本数",
+    "col_success": "成功率",
+    "col_avg_cost": "平均成本",
+    "col_avg_duration": "平均时长",
+    "workflow": {
+      "single": "单步",
+      "cascade": "级联",
+      "critique": "评审"
+    },
+    "empty_title": "暂无工作流数据",
+    "empty_body": "工作流会随着运行的积累不断学习 — 选择器积累足够历史后,结果会显示在这里。"
   }
 }

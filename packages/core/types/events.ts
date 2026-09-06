@@ -35,6 +35,7 @@ export type WSEventType =
   | "task:cancelled"
   | "task:scored"
   | "task:escalated"
+  | "task:workflow-selected"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -478,6 +479,17 @@ export interface TaskEscalatedPayload {
   attempt: number;
 }
 
+// task:workflow-selected (JEF-273) fires once the selector has persisted the
+// task's execution strategy — before dispatch, never instead of it. `reason`
+// is one of "policy:auto" | "policy:off-default" | "auto:insufficient-data"
+// today but stays an open string so an installed client survives new reasons.
+export interface TaskWorkflowSelectedPayload {
+  task_id: string;
+  issue_id: string;
+  workflow: string;
+  reason: string;
+}
+
 export interface ReactionAddedPayload {
   reaction: Reaction;
   issue_id: string;
@@ -730,6 +742,7 @@ export interface WSEventPayloadMap {
   "task:cancelled": TaskCancelledPayload;
   "task:scored": TaskScoredPayload;
   "task:escalated": TaskEscalatedPayload;
+  "task:workflow-selected": TaskWorkflowSelectedPayload;
   "task:progress": unknown;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;

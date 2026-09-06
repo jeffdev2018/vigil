@@ -65,6 +65,9 @@ import {
   RuntimeUsageListSchema,
   RuntimeRoutingStatsResponseSchema,
   EMPTY_ROUTING_STATS_RESPONSE,
+  WorkflowPolicySettingsSchema,
+  WorkflowStatsResponseSchema,
+  EMPTY_WORKFLOW_STATS_RESPONSE,
   SendChatMessageResponseSchema,
   SquadListSchema,
   SquadSchema,
@@ -871,6 +874,32 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.escalation).toBeUndefined();
     expect(parsed[1]?.escalation).toBeUndefined();
   });
+
+  it("parses the workflow the selector picked for the run (JEF-273)", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, workflow: "cascade" },
+      { ...task, id: "task-2", workflow: "critique" },
+    ]);
+
+    expect(parsed[0]?.workflow).toBe("cascade");
+    expect(parsed[1]?.workflow).toBe("critique");
+  });
+
+  it("degrades an unknown workflow token without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, workflow: "debate" },
+      { ...task, id: "task-2", workflow: 7 },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.workflow).toBeUndefined();
+    expect(parsed[1]?.workflow).toBeUndefined();
+  });
+
+  it("omits the workflow for tasks that predate the selector", () => {
+    const parsed = AgentTaskListSchema.parse([task]);
+    expect(parsed[0]?.workflow).toBeUndefined();
+  });
 });
 
 describe("ConfidenceReviewSettingsSchema", () => {
@@ -910,6 +939,97 @@ describe("ConfidenceReviewSettingsSchema", () => {
     expect(
       ConfidenceReviewSettingsSchema.parse({ max_escalations: 0 }).max_escalations,
     ).toBe(0);
+  });
+});
+
+describe("WorkflowPolicySettingsSchema", () => {
+  it("defaults a bare payload to off", () => {
+    expect(WorkflowPolicySettingsSchema.parse({})).toEqual({ mode: "off" });
+  });
+
+  it("round-trips an explicit payload", () => {
+    expect(WorkflowPolicySettingsSchema.parse({ mode: "auto" })).toEqual({
+      mode: "auto",
+    });
+  });
+
+  it("catches an unknown mode back to the safe default", () => {
+    expect(WorkflowPolicySettingsSchema.parse({ mode: "aggressive" })).toEqual({
+      mode: "off",
+    });
+  });
+});
+
+describe("WorkflowStatsResponseSchema", () => {
+  it("parses a full 90-day stats envelope, keeping null averages", () => {
+    const parsed = WorkflowStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          task_class: "bugfix",
+          workflow: "single",
+          samples: 12,
+          success_rate: 0.75,
+          avg_cost_usd: 0.05,
+          avg_duration_secs: 180,
+        },
+        {
+          task_class: "bugfix",
+          workflow: "cascade",
+          samples: 4,
+          success_rate: 0.5,
+          avg_cost_usd: null,
+          avg_duration_secs: null,
+        },
+      ],
+    });
+
+    expect(parsed.window_days).toBe(90);
+    expect(parsed.rows[0]?.avg_cost_usd).toBe(0.05);
+    expect(parsed.rows[1]?.avg_cost_usd).toBeNull();
+    expect(parsed.rows[1]?.avg_duration_secs).toBeNull();
+  });
+
+  it("defaults thin rows instead of rejecting them", () => {
+    const parsed = WorkflowStatsResponseSchema.parse({
+      rows: [{ task_class: "feature" }],
+    });
+
+    expect(parsed.window_days).toBe(90);
+    expect(parsed.rows[0]).toMatchObject({
+      task_class: "feature",
+      workflow: "",
+      samples: 0,
+      success_rate: 0,
+      avg_cost_usd: null,
+      avg_duration_secs: null,
+    });
+  });
+
+  it("keeps an unknown workflow token and falls back on a malformed envelope", () => {
+    // A newer backend's strategy must stay readable, not collapse the row.
+    const parsed = WorkflowStatsResponseSchema.parse({
+      window_days: 90,
+      rows: [
+        {
+          task_class: "docs",
+          workflow: "debate",
+          samples: 2,
+          success_rate: 1,
+          avg_cost_usd: 0.02,
+          avg_duration_secs: 60,
+        },
+      ],
+    });
+    expect(parsed.rows[0]?.workflow).toBe("debate");
+
+    const fallback = parseWithFallback(
+      { rows: [{ task_class: "bugfix", samples: "many" }] },
+      WorkflowStatsResponseSchema,
+      EMPTY_WORKFLOW_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/workflow-stats" },
+    );
+    expect(fallback).toEqual(EMPTY_WORKFLOW_STATS_RESPONSE);
   });
 });
 

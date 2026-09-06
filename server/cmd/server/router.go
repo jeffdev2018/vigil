@@ -2527,6 +2527,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Run confidence scoring (JEF-240): the workspace auto-review threshold.
 			r.Get("/api/confidence-review-settings", h.GetConfidenceReviewSettings)
 			r.Put("/api/confidence-review-settings", h.PutConfidenceReviewSettings)
+			// Workflow selector (JEF-273): the workspace single/cascade/critique policy.
+			r.Get("/api/workflow-policy-settings", h.GetWorkflowPolicySettings)
+			r.Put("/api/workflow-policy-settings", h.PutWorkflowPolicySettings)
 			r.Post("/api/issues/{id}/pipeline-run", h.StartPipelineRun)
 			r.Get("/api/issues/{id}/pipeline-run", h.GetIssuePipelineRun)
 			r.Post("/api/pipeline-runs/{id}/advance", h.AdvancePipelineRun)
@@ -2842,6 +2845,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// Literal segment registered before {runtimeId} so chi never
 				// binds "routing-stats" as a runtime id.
 				r.Get("/routing-stats", h.GetRuntimeRoutingStats)
+				// Workflow selector (JEF-273): same literal-segment rule.
+				r.Get("/workflow-stats", h.GetWorkflowStats)
 				r.Route("/{runtimeId}", func(r chi.Router) {
 					r.Patch("/", h.UpdateAgentRuntime)
 					// Data residency (K46): what this runtime declares about

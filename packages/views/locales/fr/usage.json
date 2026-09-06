@@ -165,5 +165,22 @@
     "title": "Runs d'autopilote cette période : {{used}} / {{limit}}",
     "near_limit": "Proche de la limite : les autopilotes cessent de se déclencher une fois atteinte.",
     "reached": "Limite atteinte : les autopilotes ne se déclencheront plus avant la remise à zéro de la période."
+  },
+  "workflow_outcomes": {
+    "title": "Résultats par workflow",
+    "subtitle": "90 derniers jours · par classe de tâche et workflow",
+    "col_class": "Classe de tâche",
+    "col_workflow": "Workflow",
+    "col_samples": "Échantillons",
+    "col_success": "Réussite",
+    "col_avg_cost": "Coût moyen",
+    "col_avg_duration": "Durée moyenne",
+    "workflow": {
+      "single": "Simple",
+      "cascade": "Cascade",
+      "critique": "Critique"
+    },
+    "empty_title": "Pas encore de données de workflow",
+    "empty_body": "Les workflows s'apprennent au fil des runs — les résultats apparaîtront ici une fois que le sélecteur aura de l'historique."
   }
 }

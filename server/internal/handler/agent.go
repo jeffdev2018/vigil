@@ -437,6 +437,10 @@ type AgentTaskResponse struct {
 	// non-completed status, review runs, rows that predate the feature), so
 	// the UI renders the block conditionally.
 	Confidence json.RawMessage `json:"confidence,omitempty"`
+	// Workflow selector (JEF-273): the workflow stamped on the task's context
+	// at enqueue — "single", "cascade" or "critique". Empty on rows that
+	// predate the selector, so the UI renders the badge conditionally.
+	Workflow string `json:"workflow,omitempty"`
 	// Per-leg accounting (JEF-274): what this run is inside its workflow, and
 	// the primary run every leg of that workflow points at. LegRole is empty
 	// on the primary (draft/single) leg; WorkflowRootTaskID is empty on the
@@ -922,6 +926,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),
 		Escalation:             escalation,
+		Workflow:               service.TaskWorkflow(t.Context),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),

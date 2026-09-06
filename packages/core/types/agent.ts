@@ -108,6 +108,35 @@ export interface RuntimeRoutingStatsResponse {
   rows: RuntimeRoutingStats[];
 }
 
+/**
+ * The execution strategy the workflow selector (JEF-273) picked for a task:
+ * `single` (one agent run), `cascade` (sequential legs) or `critique`
+ * (draft then review legs).
+ */
+export type TaskWorkflow = "single" | "cascade" | "critique";
+
+/**
+ * One (task_class, workflow) row of the 90-day workflow-stats rollup behind
+ * `GET /api/runtimes/workflow-stats`. `avg_cost_usd` / `avg_duration_secs`
+ * are null when the rollup has no priced / timed samples. `workflow` is an
+ * open string so an installed client survives a newer backend's strategies.
+ */
+export interface WorkflowStats {
+  task_class: string;
+  workflow: TaskWorkflow | (string & {});
+  samples: number;
+  success_rate: number;
+  avg_cost_usd: number | null;
+  avg_duration_secs: number | null;
+}
+
+// Envelope of GET /api/runtimes/workflow-stats: the window is stated
+// explicitly so the UI displays the exact range the numbers cover.
+export interface WorkflowStatsResponse {
+  window_days: number;
+  rows: WorkflowStats[];
+}
+
 export type AgentVisibility = "workspace" | "private";
 
 // ---------------------------------------------------------------------------
@@ -604,6 +633,13 @@ export interface AgentTask {
    * scored the run and on older backends — render conditionally.
    */
   confidence?: TaskConfidence | null;
+  /**
+   * The execution strategy the workflow selector (JEF-273) picked for this
+   * run. Absent on tasks that predate the selector and on older backends —
+   * render conditionally. The selection reason rides only the
+   * `task:workflow-selected` event, not this payload.
+   */
+  workflow?: TaskWorkflow;
   /**
    * Per-leg accounting (JEF-274). What this run is inside its workflow —
    * `review`, `revision`, `retry`, `fallback`, … — and the primary run every

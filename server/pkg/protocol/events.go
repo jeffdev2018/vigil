@@ -48,6 +48,10 @@ const (
 	// a fresh task for the same issue was enqueued on a stronger runtime. Not
 	// a status transition either — the signal that the cascade retried.
 	EventTaskEscalated = "task:escalated"
+	// EventTaskWorkflowSelected (JEF-273) fires at enqueue with the workflow
+	// the selector stamped on the task (single / cascade / critique) and the
+	// reason of the decision.
+	EventTaskWorkflowSelected = "task:workflow-selected"
 
 	// Postmortem events (k68). postmortem:created fires when a failed run gets
 	// a drafted postmortem; postmortem:resolved fires on approve/discard.

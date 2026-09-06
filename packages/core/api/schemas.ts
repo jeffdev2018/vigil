@@ -101,6 +101,7 @@ import type {
   SkillImportResult,
   Squad,
   RuntimeRoutingStatsResponse,
+  WorkflowStatsResponse,
   TimelineEntry,
   User,
   WebhookDelivery,
@@ -2345,6 +2346,42 @@ export const EMPTY_ROUTING_STATS_RESPONSE: RuntimeRoutingStatsResponse = {
   rows: [],
 };
 
+// ---------------------------------------------------------------------------
+// Workflow selector (JEF-273). The backend picks an execution strategy per
+// task (single / cascade / critique), learned from the 90-day run history.
+// ---------------------------------------------------------------------------
+
+export const TaskWorkflowSchema = z.enum(["single", "cascade", "critique"]);
+
+// Workflow policy (GET/PUT /api/workflow-policy-settings): "auto" learns the
+// workflow from history, "off" always runs single. A malformed payload falls
+// back to the safe default rather than breaking the settings screen.
+export const WorkflowPolicySettingsSchema = z.object({
+  mode: z.enum(["off", "auto"]).catch("off").default("off"),
+}).loose();
+
+// One (task_class, workflow) row of the workflow-stats rollup. `workflow`
+// stays an open string so an installed client survives a newer backend's
+// strategies; `avg_*` are null when the rollup has no priced / timed samples.
+export const WorkflowStatsSchema = z.object({
+  task_class: z.string().default(""),
+  workflow: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  avg_cost_usd: z.number().nullable().default(null),
+  avg_duration_secs: z.number().nullable().default(null),
+}).loose();
+
+export const WorkflowStatsResponseSchema = z.object({
+  window_days: z.number().default(90),
+  rows: z.array(WorkflowStatsSchema).default([]),
+}).loose();
+
+export const EMPTY_WORKFLOW_STATS_RESPONSE: WorkflowStatsResponse = {
+  window_days: 90,
+  rows: [],
+};
+
 export const AgentTaskSchema = z.object({
   id: z.string(),
   agent_id: z.string().default(""),
@@ -2393,6 +2430,10 @@ export const AgentTaskSchema = z.object({
   // `routing`: a malformed record costs the row its confidence display, not
   // the whole execution log. Absent until the scorer has scored the run.
   confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
+  // Workflow selector (JEF-273). Same independent-degradation rule: an
+  // unknown strategy token costs the row its workflow display, not the whole
+  // execution log. Absent on tasks that predate the selector.
+  workflow: TaskWorkflowSchema.optional().catch(undefined),
   // Per-leg accounting (JEF-274). Both default to "" rather than undefined:
   // an empty role is the primary leg and an empty root means the run is its
   // own root, which is exactly what an older backend omitting them describes.

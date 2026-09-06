@@ -1503,9 +1503,23 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	if stamp.RuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
 	}
+	// Workflow selection (JEF-273): above the runtime router, pick the task's
+	// workflow from the workspace policy and the per-(class, workflow) run
+	// history. A cascade start overrides the runtime with the cheapest proven
+	// candidate (the router already had its say; the workflow's whole point is
+	// to start cheap and let low-confidence escalation climb); critique flags
+	// the context for a forced cross-review. Any degradation stays single and
+	// nothing above changes.
+	workflow, workflowReason := s.selectWorkflow(ctx, agent, issue, stamp.TaskClass.String)
+	if workflow == WorkflowCascade {
+		if cheap, ok := s.cheapCascadeCandidate(ctx, agent, stamp.TaskClass.String); ok {
+			enqueueRuntimeID, failoverHistory = cheap, nil
+		}
+	}
 	// Cascade escalation (JEF-272): a forced runtime wins over everything
-	// above, the JEF-237 router included — the escalation policy already ran
-	// the candidate scoring itself and its choice is the point of the retry.
+	// above, the JEF-237 router and the workflow selector's cheap-cascade
+	// candidate included — the escalation policy already ran the candidate
+	// scoring itself and its choice is the point of the retry.
 	if forcedRuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = forcedRuntimeID, nil
 	}
@@ -1535,6 +1549,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		Routing:              stamp.Routing,
 		// Cascade escalation (JEF-272): lands under context.escalation.
 		Escalation: escalationJSON,
+		Workflow:             pgtype.Text{String: workflow, Valid: true},
+		ForceReview:          pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1571,6 +1587,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			TriggerEvidenceRefID: createParams.TriggerEvidenceRefID,
 			TaskClass:            createParams.TaskClass,
 			Routing:              createParams.Routing,
+			Workflow:             createParams.Workflow,
+			ForceReview:          createParams.ForceReview,
 			FireAt:               fireAt,
 		})
 	})
@@ -1578,6 +1596,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", err)
 		return db.AgentTaskQueue{}, fmt.Errorf("create task: %w", err)
 	}
+	// JEF-273: broadcast the stamped workflow (with the selector's reason) so
+	// live clients can show why this run is single / cascade / critique.
+	s.publishWorkflowSelected(issue, task, workflow, workflowReason)
 	if failoverHistory != nil {
 		if moved, merr := s.Queries.SetTaskFailover(ctx, db.SetTaskFailoverParams{ID: task.ID, RuntimeID: task.RuntimeID, FailoverHistory: failoverHistory}); merr != nil {
 			slog.Warn("runtime pool: record enqueue failover failed", "task_id", util.UUIDToString(task.ID), "error", merr)

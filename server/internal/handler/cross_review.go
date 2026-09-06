@@ -251,7 +251,12 @@ func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, 
 	if err != nil {
 		return db.AgentTaskQueue{}, err
 	}
-	if ws, err := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); err == nil && !service.CrossReviewSettings(ws.Settings).Allows(uuidToString(issue.ProjectID)) {
+	// Workflow selector (JEF-273): a critique-workflow run carries
+	// force_review in its context stamp — an explicit per-task demand that
+	// overrides the workspace/project review policy for the TRIGGER only. The
+	// done gate stays conditioned on the project review config either way.
+	forced := service.TaskForceReview(task.Context)
+	if ws, err := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); err == nil && !forced && !service.CrossReviewSettings(ws.Settings).Allows(uuidToString(issue.ProjectID)) {
 		return db.AgentTaskQueue{}, errors.New("cross review is switched off for this project")
 	}
 	// Bounded workflows (JEF-275): the review grows the reviewed run's

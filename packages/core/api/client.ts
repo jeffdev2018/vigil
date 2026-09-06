@@ -73,6 +73,7 @@ import type {
   RuntimeUsageByAgent,
   RuntimeUsageByHour,
   RuntimeRoutingStatsResponse,
+  WorkflowStatsResponse,
   DashboardUsageDaily,
   DashboardUsageByAgent,
   DashboardAgentRoi,
@@ -571,6 +572,9 @@ import {
   RuntimeUsageListSchema,
   RuntimeRoutingStatsResponseSchema,
   EMPTY_ROUTING_STATS_RESPONSE,
+  WorkflowPolicySettingsSchema,
+  WorkflowStatsResponseSchema,
+  EMPTY_WORKFLOW_STATS_RESPONSE,
   SearchIssuesResponseSchema,
   SearchProjectsResponseSchema,
   SquadSchema,
@@ -3414,6 +3418,21 @@ export class ApiClient {
     );
   }
 
+  /**
+   * 90-day workflow outcomes per (task class, workflow) behind the workflow
+   * selector (JEF-273) — the evidence the selector learns from. Same
+   * envelope convention as `listRoutingStats`.
+   */
+  async listWorkflowStats(): Promise<WorkflowStatsResponse> {
+    const raw = await this.fetch<unknown>("/api/runtimes/workflow-stats");
+    return parseWithFallback<WorkflowStatsResponse>(
+      raw,
+      WorkflowStatsResponseSchema,
+      EMPTY_WORKFLOW_STATS_RESPONSE,
+      { endpoint: "GET /api/runtimes/workflow-stats" },
+    );
+  }
+
   async initiateUpdate(
     runtimeId: string,
     targetVersion: string,
@@ -4078,6 +4097,17 @@ export class ApiClient {
   async putConfidenceReviewSettings(input: import("../issues/confidence-review").ConfidenceReviewSettings): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/confidence-review-settings`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, ConfidenceReviewSettingsSchema, input, { endpoint: "PUT /api/confidence-review-settings" });
+  }
+
+  // Workflow selector policy (JEF-273).
+  async getWorkflowPolicySettings(): Promise<import("../issues/workflow-policy").WorkflowPolicySettings> {
+    const raw = await this.fetch<unknown>(`/api/workflow-policy-settings`);
+    return parseWithFallback(raw, WorkflowPolicySettingsSchema, { mode: "off" }, { endpoint: "GET /api/workflow-policy-settings" });
+  }
+
+  async putWorkflowPolicySettings(input: import("../issues/workflow-policy").WorkflowPolicySettings): Promise<import("../issues/workflow-policy").WorkflowPolicySettings> {
+    const raw = await this.fetch<unknown>(`/api/workflow-policy-settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, WorkflowPolicySettingsSchema, input, { endpoint: "PUT /api/workflow-policy-settings" });
   }
 
   // Executable org chart (K75)
