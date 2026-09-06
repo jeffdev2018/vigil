@@ -103,7 +103,7 @@ func (h *Handler) EscalateIssue(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusTooManyRequests, fmt.Sprintf("unit %q reached its daily escalation quota (%d); its owner was told", unit.Name, unit.EscalationQuotaPerDay))
 		return
 	}
-	targetType, targetID := h.orgTargetForUnit(r.Context(), s, target, issue)
+	targetType, targetID := h.orgTargetForUnit(r.Context(), orgEffectiveModel(&def, target.ID, s.Model), target, issue)
 	if targetType == "" {
 		writeError(w, http.StatusConflict, fmt.Sprintf("unit %q has nobody to take the issue", target.Name))
 		return
@@ -492,6 +492,7 @@ type OrgContext struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
 	Deny           []string `json:"deny,omitempty"`
@@ -516,6 +517,7 @@ func (h *Handler) resolveClaimOrgContext(ctx context.Context, issue db.Issue, ag
 	}
 	if unit != nil {
 		out.UnitID, out.UnitName, out.Autonomy, out.Allow, out.Deny = unit.ID, unit.Name, unit.Autonomy, unit.Allow, unit.Deny
+		out.UnitModel = orgEffectiveModel(&def, unit.ID, s.Model)
 		seen := map[string]bool{unit.ID: true}
 		for cur := unit; cur != nil; {
 			var next *OrgUnit

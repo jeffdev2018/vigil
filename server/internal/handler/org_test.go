@@ -81,8 +81,8 @@ func TestOrgChart(t *testing.T) {
 	}
 	var templates struct{ Templates []OrgTemplate }
 	testutil.Call(t, testHandler.ListOrgTemplates, newRequest(http.MethodGet, "/api/org/templates", nil)).Want(http.StatusOK).JSON(&templates)
-	if len(templates.Templates) != 7 {
-		t.Fatalf("seven models, got %d", len(templates.Templates))
+	if len(templates.Templates) != 8 {
+		t.Fatalf("seven models plus the composed hierarchy, got %d", len(templates.Templates))
 	}
 	var listed struct{ Structures []OrgStructureResponse }
 	testutil.Call(t, testHandler.ListOrgStructures, newRequest(http.MethodGet, "/api/org", nil)).Want(http.StatusOK).JSON(&listed)

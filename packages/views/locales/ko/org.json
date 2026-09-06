@@ -51,7 +51,8 @@
     "loading": "템플릿 불러오는 중…",
     "cancel": "취소",
     "error": "구조를 만들 수 없습니다",
-    "replaces_existing": "템플릿을 선택하면 현재 구조 “{{name}}”이(가) 새 리비전으로 대체됩니다."
+    "replaces_existing": "템플릿을 선택하면 현재 구조 “{{name}}”이(가) 새 리비전으로 대체됩니다.",
+    "composite_title": "팀 계층 구조"
   },
   "form": {
     "name": "이름",
