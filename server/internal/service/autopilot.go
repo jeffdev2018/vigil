@@ -839,6 +839,7 @@ func (s *AutopilotService) dispatchCreateIssueDirect(ctx context.Context, ap db.
 	// webhook dispatch has no actor and takes the plain entry points, where the
 	// autopilot-origin issue resolves to the trigger's creator (MUL-6951). The
 	// *ByActor variants are the actor-carrying enqueue methods.
+	var enqueued db.AgentTaskQueue
 	if ap.AssigneeType == "squad" {
 		// Fail-closed invocation gate: verify the admission principal (manual
 		// clicker, else creator — see autopilotAdmitInvoke) may still invoke the
@@ -848,19 +849,20 @@ func (s *AutopilotService) dispatchCreateIssueDirect(ctx context.Context, ap db.
 			return fmt.Errorf("not allowed to invoke private squad leader")
 		}
 		if actorUserID.Valid {
-			if _, err := s.TaskSvc.EnqueueTaskForSquadLeaderByActor(ctx, issue, leader.ID, ap.AssigneeID, actorUserID); err != nil {
+			if enqueued, err = s.TaskSvc.EnqueueTaskForSquadLeaderByActor(ctx, issue, leader.ID, ap.AssigneeID, actorUserID); err != nil {
 				return fmt.Errorf("enqueue squad leader task: %w", err)
 			}
-		} else if _, err := s.TaskSvc.EnqueueTaskForSquadLeader(ctx, issue, leader.ID, ap.AssigneeID, pgtype.UUID{}); err != nil {
+		} else if enqueued, err = s.TaskSvc.EnqueueTaskForSquadLeader(ctx, issue, leader.ID, ap.AssigneeID, pgtype.UUID{}); err != nil {
 			return fmt.Errorf("enqueue squad leader task: %w", err)
 		}
 	} else if actorUserID.Valid {
-		if _, err := s.TaskSvc.EnqueueTaskForIssueByActor(ctx, issue, actorUserID); err != nil {
+		if enqueued, err = s.TaskSvc.EnqueueTaskForIssueByActor(ctx, issue, actorUserID); err != nil {
 			return fmt.Errorf("enqueue task for issue: %w", err)
 		}
-	} else if _, err := s.TaskSvc.EnqueueTaskForIssue(ctx, issue); err != nil {
+	} else if enqueued, err = s.TaskSvc.EnqueueTaskForIssue(ctx, issue); err != nil {
 		return fmt.Errorf("enqueue task for issue: %w", err)
 	}
+	s.stampDispatchLane(ctx, ap, *run, enqueued.ID)
 
 	slog.Info("autopilot dispatched (create_issue)",
 		"autopilot_id", util.UUIDToString(ap.ID),
@@ -1081,6 +1083,10 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		*run = updatedRun
 	}
 
+	// Stamp the lane before the wakeup below, so a runtime that claims on the
+	// notification already sees the final lane (K45).
+	s.stampDispatchLane(ctx, ap, *run, task.ID)
+
 	// Drop the empty-claim cache and wake the daemon. dispatchRunOnly
 	// inserts the task row directly via Queries.CreateAutopilotTask
 	// (bypassing TaskService.Enqueue*), so without this the runtime
@@ -1094,6 +1100,48 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		"run_id", util.UUIDToString(run.ID),
 	)
 	return nil
+}
+
+// stampDispatchLane moves a freshly enqueued autopilot task to the off-peak
+// batch lane (K45).
+//
+// Three conditions, all required. The autopilot must have declared its work
+// non-urgent (batch_eligible). The run must have come from a SCHEDULE — a
+// human clicking "run now", a webhook delivery and an API call are all
+// requests for work now, and deferring one would be a bug the user cannot
+// explain. And "now" must fall inside the workspace's off-peak window.
+//
+// Best effort by construction: the task is already queued and correct in the
+// sync lane, so a settings read or an UPDATE that fails leaves an ordinary
+// run rather than a broken one. The query's own `status = 'queued'` guard
+// closes the enqueue/claim race the same way — a task a runtime already took
+// keeps the lane it was claimed under, because its lane is now history.
+func (s *AutopilotService) stampDispatchLane(ctx context.Context, ap db.Autopilot, run db.AutopilotRun, taskID pgtype.UUID) {
+	if !ap.BatchEligible || run.Source != "schedule" || !taskID.Valid {
+		return
+	}
+	ws, err := s.Queries.GetWorkspace(ctx, ap.WorkspaceID)
+	if err != nil {
+		slog.Warn("batch lane: workspace settings unreadable, task stays in the sync lane",
+			"error", err, "autopilot_id", util.UUIDToString(ap.ID), "task_id", util.UUIDToString(taskID))
+		return
+	}
+	if !InBatchWindow(BatchWindowFromSettings(ws.Settings), time.Now()) {
+		return
+	}
+	if err := s.Queries.StampTaskDispatchLane(ctx, db.StampTaskDispatchLaneParams{
+		TaskID:       taskID,
+		DispatchLane: DispatchLaneBatch,
+	}); err != nil {
+		slog.Warn("batch lane: stamp failed, task stays in the sync lane",
+			"error", err, "autopilot_id", util.UUIDToString(ap.ID), "task_id", util.UUIDToString(taskID))
+		return
+	}
+	slog.Info("autopilot task moved to the off-peak batch lane",
+		"autopilot_id", util.UUIDToString(ap.ID),
+		"run_id", util.UUIDToString(run.ID),
+		"task_id", util.UUIDToString(taskID),
+	)
 }
 
 // SyncRunFromIssue updates the autopilot run when its linked issue reaches a terminal status.

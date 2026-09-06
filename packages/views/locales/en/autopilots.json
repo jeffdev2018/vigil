@@ -151,7 +151,9 @@
     "skipped_group": {
       "label": "Skipped",
       "summary": "{{count}} skipped runs"
-    }
+    },
+    "off_peak": "Off-peak",
+    "off_peak_hint": "Queued in the off-peak lane: served after every urgent run."
   },
   "webhook_payload": {
     "label": "Webhook event:",
@@ -401,7 +403,11 @@
     },
     "event_criteria_label": "Only run when…",
     "event_criteria_placeholder": "e.g. production deployment failures, or pull requests that touch billing",
-    "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone."
+    "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone.",
+    "section_off_peak": "Off-peak",
+    "off_peak_label": "Can wait for off-peak hours",
+    "off_peak_hint": "Scheduled runs that fire inside the workspace's off-peak window queue behind everything urgent: cheaper, but the start time varies. Running it now is never delayed.",
+    "off_peak_unavailable": "This workspace has no off-peak window yet. An admin sets one in Settings → Workspace."
   },
   "schedule_editor": {
     "time_label": "Time",

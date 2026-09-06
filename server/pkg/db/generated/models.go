@@ -319,6 +319,7 @@ type AgentTaskQueue struct {
 	Confidence          []byte             `json:"confidence"`
 	LegRole             string             `json:"leg_role"`
 	WorkflowRootTaskID  pgtype.UUID        `json:"workflow_root_task_id"`
+	DispatchLane        string             `json:"dispatch_lane"`
 }
 
 type AgentToLabel struct {
@@ -411,6 +412,7 @@ type Autopilot struct {
 	AssigneeType       string             `json:"assignee_type"`
 	ProjectID          pgtype.UUID        `json:"project_id"`
 	PauseReason        pgtype.Text        `json:"pause_reason"`
+	BatchEligible      bool               `json:"batch_eligible"`
 }
 
 type AutopilotCollaborator struct {

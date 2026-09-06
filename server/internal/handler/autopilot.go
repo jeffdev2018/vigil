@@ -41,11 +41,15 @@ type AutopilotResponse struct {
 	// AssigneeType is "agent" or "squad". Path A from MUL-2429: when set
 	// to "squad", AssigneeID points at squad(id) rather than agent(id) and
 	// dispatch resolves to squad.leader_id at run time.
-	AssigneeType       string  `json:"assignee_type"`
-	AssigneeID         string  `json:"assignee_id"`
-	Status             string  `json:"status"`
-	PauseReason        *string `json:"pause_reason"`
-	ExecutionMode      string  `json:"execution_mode"`
+	AssigneeType  string  `json:"assignee_type"`
+	AssigneeID    string  `json:"assignee_id"`
+	Status        string  `json:"status"`
+	PauseReason   *string `json:"pause_reason"`
+	ExecutionMode string  `json:"execution_mode"`
+	// BatchEligible (K45): this autopilot's scheduled work may wait for the
+	// workspace's off-peak window. Absent on older servers, where clients must
+	// read the absence as false.
+	BatchEligible      bool    `json:"batch_eligible"`
 	IssueTitleTemplate *string `json:"issue_title_template"`
 	CreatedByType      string  `json:"created_by_type"`
 	CreatedByID        string  `json:"created_by_id"`
@@ -180,10 +184,14 @@ type AutopilotRunResponse struct {
 	// non-success run (skipped/failed), persisted at the decision source. The UI
 	// localizes it instead of echoing the raw English reason (which may name a
 	// private assignee agent). Additive: nil for legacy/success-path runs.
-	ReasonCode     *string `json:"reason_code,omitempty"`
-	TriggerPayload any     `json:"trigger_payload"`
-	Result         any     `json:"result"`
-	CreatedAt      string  `json:"created_at"`
+	ReasonCode *string `json:"reason_code,omitempty"`
+	// DispatchLane (K45) is the lane of the run's linked task: "batch" when the
+	// run was deferred to the workspace's off-peak window, "sync" otherwise.
+	// Empty when the run has no task yet, and on older servers.
+	DispatchLane   string `json:"dispatch_lane,omitempty"`
+	TriggerPayload any    `json:"trigger_payload"`
+	Result         any    `json:"result"`
+	CreatedAt      string `json:"created_at"`
 }
 
 // ── Converters ──────────────────────────────────────────────────────────────
@@ -215,6 +223,7 @@ func autopilotToResponse(a db.Autopilot, subscribers []db.AutopilotSubscriber) A
 		Status:             a.Status,
 		PauseReason:        textToPtr(a.PauseReason),
 		ExecutionMode:      a.ExecutionMode,
+		BatchEligible:      a.BatchEligible,
 		IssueTitleTemplate: textToPtr(a.IssueTitleTemplate),
 		CreatedByType:      a.CreatedByType,
 		CreatedByID:        uuidToString(a.CreatedByID),
@@ -291,7 +300,10 @@ func webhookPathForToken(token string) string {
 	return "/api/webhooks/autopilots/" + token
 }
 
-func runToResponse(r db.AutopilotRun) AutopilotRunResponse {
+// runToResponse maps a run row to its wire shape. lane is the dispatch lane of
+// the run's linked task, empty when the run has none or the lookup failed —
+// the lane decorates the row, it is not what the row is for.
+func runToResponse(r db.AutopilotRun, lane string) AutopilotRunResponse {
 	var payload any
 	if r.TriggerPayload != nil {
 		json.Unmarshal(r.TriggerPayload, &payload)
@@ -312,6 +324,7 @@ func runToResponse(r db.AutopilotRun) AutopilotRunResponse {
 		CompletedAt:    timestampToPtr(r.CompletedAt),
 		FailureReason:  textToPtr(r.FailureReason),
 		ReasonCode:     textToPtr(r.ReasonCode),
+		DispatchLane:   lane,
 		TriggerPayload: payload,
 		Result:         result,
 		CreatedAt:      timestampToString(r.CreatedAt),
@@ -323,8 +336,8 @@ func runToResponse(r db.AutopilotRun) AutopilotRunResponse {
 // 256 KiB × N rows) would dominate response size. Clients fetch the full
 // payload via GET /api/autopilots/{id}/runs/{runId} when the user opens
 // the run detail dialog.
-func runToResponseSlim(r db.AutopilotRun) AutopilotRunResponse {
-	resp := runToResponse(r)
+func runToResponseSlim(r db.AutopilotRun, lane string) AutopilotRunResponse {
+	resp := runToResponse(r, lane)
 	resp.TriggerPayload = nil
 	return resp
 }
@@ -340,6 +353,7 @@ type CreateAutopilotRequest struct {
 	AssigneeType       *string           `json:"assignee_type"`
 	AssigneeID         string            `json:"assignee_id"`
 	ExecutionMode      string            `json:"execution_mode"`
+	BatchEligible      bool              `json:"batch_eligible"`
 	IssueTitleTemplate *string           `json:"issue_title_template"`
 	Subscribers        []SubscriberInput `json:"subscribers"`
 }
@@ -352,6 +366,7 @@ type UpdateAutopilotRequest struct {
 	AssigneeID         *string `json:"assignee_id"`
 	Status             *string `json:"status"`
 	ExecutionMode      *string `json:"execution_mode"`
+	BatchEligible      *bool   `json:"batch_eligible"`
 	IssueTitleTemplate *string `json:"issue_title_template"`
 	// Wholesale replacement when present; omit to leave subscribers untouched.
 	Subscribers []SubscriberInput `json:"subscribers"`
@@ -754,6 +769,7 @@ func (h *Handler) CreateAutopilot(w http.ResponseWriter, r *http.Request) {
 		AssigneeID:         assigneeUUID,
 		Status:             "active",
 		ExecutionMode:      req.ExecutionMode,
+		BatchEligible:      req.BatchEligible,
 		CreatedByType:      "member",
 		CreatedByID:        parseUUID(userID),
 		Description:        ptrToText(req.Description),
@@ -929,6 +945,9 @@ func (h *Handler) UpdateAutopilot(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.ExecutionMode != nil {
 		params.ExecutionMode = pgtype.Text{String: *req.ExecutionMode, Valid: true}
+	}
+	if req.BatchEligible != nil {
+		params.BatchEligible = pgtype.Bool{Bool: *req.BatchEligible, Valid: true}
 	}
 	if _, ok := rawFields["description"]; ok {
 		params.Description = ptrToText(req.Description)
@@ -2208,13 +2227,14 @@ func (h *Handler) ListAutopilotRuns(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lanes := h.taskDispatchLanes(r.Context(), runTaskIDs(runs))
 	resp := make([]AutopilotRunResponse, len(runs))
 	for i, run := range runs {
 		// Omit trigger_payload in the list response — a webhook envelope
 		// can be up to 256 KiB and `limit` defaults to 20, so the full
 		// list would be a ~5 MB worst case. Detail dialog fetches the
 		// full payload from GetAutopilotRun.
-		resp[i] = runToResponseSlim(run)
+		resp[i] = runToResponseSlim(run, lanes[uuidToString(run.TaskID)])
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"runs": resp, "total": total})
 }
@@ -2251,7 +2271,40 @@ func (h *Handler) GetAutopilotRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, http.StatusOK, runToResponse(run))
+	lanes := h.taskDispatchLanes(r.Context(), runTaskIDs([]db.AutopilotRun{run}))
+	writeJSON(w, http.StatusOK, runToResponse(run, lanes[uuidToString(run.TaskID)]))
+}
+
+// runTaskIDs collects the linked task ids of a page of runs. Runs without a
+// task (create_issue mode before the listener enqueues, skipped runs) simply
+// contribute nothing.
+func runTaskIDs(runs []db.AutopilotRun) []pgtype.UUID {
+	ids := make([]pgtype.UUID, 0, len(runs))
+	for _, run := range runs {
+		if run.TaskID.Valid {
+			ids = append(ids, run.TaskID)
+		}
+	}
+	return ids
+}
+
+// taskDispatchLanes reads the dispatch lane of a page of tasks in one query,
+// keyed by task id string. A read failure degrades to "no lane known" rather
+// than failing the list: the lane is a label on the row, not the row.
+func (h *Handler) taskDispatchLanes(ctx context.Context, ids []pgtype.UUID) map[string]string {
+	out := map[string]string{}
+	if len(ids) == 0 {
+		return out
+	}
+	rows, err := h.Queries.GetTaskDispatchLanes(ctx, ids)
+	if err != nil {
+		slog.Warn("GetTaskDispatchLanes failed", "error", err)
+		return out
+	}
+	for _, row := range rows {
+		out[uuidToString(row.ID)] = row.DispatchLane
+	}
+	return out
 }
 
 // ── Manual trigger ──────────────────────────────────────────────────────────
@@ -2332,7 +2385,9 @@ func (h *Handler) TriggerAutopilot(w http.ResponseWriter, r *http.Request) {
 	// Carry the typed admission reason (decided at its source, MUL-4525) straight
 	// into the response — no reverse-engineering from failure_reason text. The
 	// UI branches on run status + this code for the "run now" toast.
-	resp := runToResponse(*run)
+	// A manual trigger is never batch-eligible (service.stampDispatchLane gates
+	// on source == "schedule"), so the lane is the default and needs no lookup.
+	resp := runToResponse(*run, "")
 	if reasonCode != "" {
 		c := string(reasonCode)
 		resp.ReasonCode = &c

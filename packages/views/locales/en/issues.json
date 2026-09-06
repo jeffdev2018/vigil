@@ -662,7 +662,9 @@
     "status_deferred": "Deferred",
     "status_paused": "Paused",
     "unresponsive": "Not responding",
-    "unresponsive_tooltip": "No activity for {{duration}}"
+    "unresponsive_tooltip": "No activity for {{duration}}",
+    "off_peak": "Off-peak",
+    "off_peak_hint": "Queued in the off-peak lane: served after every urgent run, so it starts later than it was scheduled."
   },
   "legs": {
     "workflow": "Workflow",

@@ -603,6 +603,7 @@ function RowShell({
         <span className="inline-block h-5 w-5 shrink-0 rounded-full bg-muted" />
       )}
       <LegBadge task={task} />
+      <OffPeakBadge task={task} />
       {children}
     </div>
   );
@@ -618,6 +619,23 @@ function LegBadge({ task }: { task: AgentTask }) {
   return (
     <span className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground">
       {t(($) => $.legs.role[legRoleLabelKey(task.leg_role ?? "") as "other"])}
+    </span>
+  );
+}
+
+// Off-peak batch lane (K45): this run was queued behind everything synchronous,
+// so a start time later than the schedule is the lane working rather than a
+// stall. Explicit === "batch": every other value, including the absence an
+// older backend sends, is the ordinary lane and carries no badge.
+function OffPeakBadge({ task }: { task: AgentTask }) {
+  const { t } = useT("issues");
+  if (task.dispatch_lane !== "batch") return null;
+  return (
+    <span
+      className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground"
+      title={t(($) => $.execution_log.off_peak_hint)}
+    >
+      {t(($) => $.execution_log.off_peak)}
     </span>
   );
 }

@@ -2426,6 +2426,10 @@ export const AgentTaskSchema = z.object({
   // not the whole execution log.
   task_class: z.string().optional().catch(undefined),
   routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
+  // Off-peak batch lane (K45). Absent on older backends and on rows written
+  // before the column, which read as the sync lane — so a missing value must
+  // never render the off-peak badge.
+  dispatch_lane: z.string().optional().catch(undefined),
   // Per-run confidence score (JEF-240). Same independent-degradation rule as
   // `routing`: a malformed record costs the row its confidence display, not
   // the whole execution log. Absent until the scorer has scored the run.
@@ -2885,6 +2889,9 @@ const AutopilotListItemSchema = z.object({
   assignee_id: z.string(),
   status: z.string(),
   execution_mode: z.string(),
+  // Off-peak batch lane (K45). Absent on older servers; false is the safe read
+  // — an autopilot nobody opted in is never deferred.
+  batch_eligible: z.boolean().catch(false).optional(),
   issue_title_template: z.string().nullable().optional(),
   created_by_type: z.string(),
   created_by_id: z.string(),
@@ -2928,6 +2935,9 @@ export const AutopilotRunSchema = z.object({
   completed_at: z.string().nullable().default(null),
   failure_reason: z.string().nullable().default(null),
   reason_code: z.string().optional(),
+  // Off-peak batch lane (K45): the lane of the run's linked task. Absent on
+  // older servers and on runs with no task; the badge simply does not render.
+  dispatch_lane: z.string().optional(),
   trigger_payload: z.unknown().default(null),
   result: z.unknown().default(null),
   created_at: z.string().default(""),

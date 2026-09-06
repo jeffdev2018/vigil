@@ -65,6 +65,8 @@ import { AutopilotAccessManager } from "./autopilot-access-manager";
 import { ScheduleEditor } from "./schedule-editor/schedule-editor";
 import { effectiveWindowMinutes, getDefaultScheduleConfig, type ScheduleConfig } from "./schedule-editor/model";
 import { browserTimezone } from "../../common/timezone-select";
+import { batchWindowOptions, hasUsableBatchWindow } from "@multica/core/batch-window";
+import { Switch } from "@multica/ui/components/ui/switch";
 import { parseCron, toCron } from "./schedule-editor/cron-mapping";
 import { useScheduleSubmitGate } from "./schedule-editor/validate";
 import { WebhookEventFilterSection } from "./webhook-event-filter-section";
@@ -85,6 +87,8 @@ export interface AutopilotInitial {
   assignee_type: AutopilotAssigneeType;
   assignee_id: string;
   execution_mode: AutopilotExecutionMode;
+  /** Off-peak batch lane (K45). Absent on older servers — read as false. */
+  batch_eligible?: boolean;
   subscriber_user_ids?: string[];
 }
 
@@ -164,6 +168,13 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
   const [subscriberUserIds, setSubscriberUserIds] = useState<string[]>(
     initial.subscriber_user_ids ?? [],
   );
+  const [batchEligible, setBatchEligible] = useState(initial.batch_eligible === true);
+
+  // The workspace's off-peak window (K45). The toggle is only an offer the
+  // scheduler can keep when a window exists, so the answer gates the control
+  // rather than just decorating it.
+  const { data: batchWindow } = useQuery(batchWindowOptions(wsId));
+  const offPeakAvailable = hasUsableBatchWindow(batchWindow);
 
   // The schedule panel speaks for the autopilot's SCHEDULE trigger, not for
   // `triggers[0]` — on a webhook- or api-triggered autopilot that row is one no
@@ -329,6 +340,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
           assignee_type: assigneeType,
           assignee_id: assigneeId,
           execution_mode: executionMode,
+          batch_eligible: batchEligible,
           subscribers: subscriberUserIds.map((user_id) => ({
             user_type: "member" as const,
             user_id,
@@ -384,6 +396,7 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
           assignee_type: assigneeType,
           assignee_id: assigneeId,
           execution_mode: executionMode,
+          batch_eligible: batchEligible,
           subscribers: subscriberUserIds.map((user_id) => ({
             user_type: "member" as const,
             user_id,
@@ -636,6 +649,12 @@ export function AutopilotDialog(props: AutopilotDialogProps) {
 
             <OutputModeSection mode={executionMode} onChange={setExecutionMode} />
 
+            <OffPeakSection
+              checked={batchEligible}
+              onChange={setBatchEligible}
+              available={offPeakAvailable}
+            />
+
             {/* Shown for BOTH output modes (MUL-6681). The project is not only
                 issue routing: for a run_only autopilot it is the ONLY source of
                 project context the daemon has (there is no issue to inherit it
@@ -851,6 +870,50 @@ function AgentSection({
           {t(($) => $.dialog.error_assignee_required)}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Off-peak batch lane (K45). One switch: may this autopilot's SCHEDULED runs
+ * wait for the workspace's cheap hours?
+ *
+ * Disabled when the workspace declared no window, because there is nothing to
+ * wait for — and the hint says which setting to change rather than leaving the
+ * user to guess why the control is dead. A manual "run now" is never affected;
+ * the helper text says that too, since "it can wait" is otherwise easy to read
+ * as "everything about it is now slow".
+ */
+function OffPeakSection({
+  checked,
+  onChange,
+  available,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  available: boolean;
+}) {
+  const { t } = useT("autopilots");
+  return (
+    <div>
+      <SectionLabel>{t(($) => $.dialog.section_off_peak)}</SectionLabel>
+      <div className="flex items-start gap-3 rounded-md border border-border bg-background px-3 py-2.5">
+        <Switch
+          aria-label={t(($) => $.dialog.off_peak_label)}
+          checked={checked && available}
+          disabled={!available}
+          onCheckedChange={onChange}
+          className="mt-0.5"
+        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-body font-medium">{t(($) => $.dialog.off_peak_label)}</span>
+          <span className="block text-caption text-muted-foreground">
+            {available
+              ? t(($) => $.dialog.off_peak_hint)
+              : t(($) => $.dialog.off_peak_unavailable)}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }

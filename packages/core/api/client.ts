@@ -344,6 +344,7 @@ import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSetti
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
+import { BATCH_WINDOW_DEFAULTS, BatchWindowSchema } from "../batch-window/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
@@ -3913,6 +3914,21 @@ export class ApiClient {
   ): Promise<import("../residency/schemas").DataResidencySettings> {
     const raw = await this.fetch<unknown>(`/api/data-residency`, { method: "PUT", body: JSON.stringify(policy) });
     return parseWithFallback(raw, DataResidencyPolicySchema, { ...DATA_RESIDENCY_DEFAULTS, ...policy }, { endpoint: "PUT /api/data-residency" });
+  }
+
+  // Off-peak batch lane (K45). A drifted or unreachable window degrades to the
+  // disabled default: never to an enabled one, which would tell the UI that
+  // autopilots are being deferred when nothing is.
+  async getBatchWindow(): Promise<import("../batch-window/schemas").BatchWindow> {
+    const raw = await this.fetch<unknown>(`/api/batch-window`);
+    return parseWithFallback(raw, BatchWindowSchema, BATCH_WINDOW_DEFAULTS, { endpoint: "GET /api/batch-window" });
+  }
+
+  async putBatchWindow(
+    window: import("../batch-window/schemas").BatchWindow,
+  ): Promise<import("../batch-window/schemas").BatchWindow> {
+    const raw = await this.fetch<unknown>(`/api/batch-window`, { method: "PUT", body: JSON.stringify(window) });
+    return parseWithFallback(raw, BatchWindowSchema, { ...BATCH_WINDOW_DEFAULTS, ...window }, { endpoint: "PUT /api/batch-window" });
   }
 
   async putRuntimeCompliance(

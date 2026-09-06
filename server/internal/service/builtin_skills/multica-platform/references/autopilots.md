@@ -23,6 +23,21 @@ Execution modes:
 `issue-title-template` only supports `{{date}}`. Do not invent `{{trigger_id}}`,
 `{{branch}}`, or other variables.
 
+## Off-peak dispatch
+
+An autopilot with `batch_eligible` true declares its work non-urgent. When a
+SCHEDULE trigger of such an autopilot fires inside the workspace's off-peak
+window (`GET/PUT /api/batch-window`: `enabled`, `start_local_time`,
+`end_local_time`, `timezone` — admin-only to write), the task it enqueues is
+stamped `dispatch_lane: "batch"` and is claimed only after every `sync` task of
+the same agent and runtime. It is a delay, not a cap: once nothing synchronous
+is waiting, the batch task runs normally.
+
+Only schedule-fired runs are affected. A manual `trigger`, a webhook delivery
+and an API dispatch are requests for work now and always take the sync lane. So
+"my nightly autopilot started at 00:40 instead of 22:00" is the lane working,
+not a fault — check `dispatch_lane` on the run before hunting for a stall.
+
 ## CLI
 
 ```bash

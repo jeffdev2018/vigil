@@ -151,7 +151,9 @@
     "skipped_group": {
       "label": "Ignoré",
       "summary": "{{count}} exécutions ignorées"
-    }
+    },
+    "off_peak": "Heures creuses",
+    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes."
   },
   "webhook_payload": {
     "label": "Événement webhook :",
@@ -401,7 +403,11 @@
     },
     "event_criteria_label": "S'exécuter uniquement quand…",
     "event_criteria_placeholder": "ex. échecs de déploiement en production, ou PR touchant à la facturation",
-    "event_criteria_hint": "Décrivez avec vos propres mots les événements devant déclencher cet autopilot. Chaque livraison est évaluée selon ce critère, de manière souple : en cas de doute, l'autopilot s'exécute. Laissez vide pour vous appuyer uniquement sur les filtres d'événements."
+    "event_criteria_hint": "Décrivez avec vos propres mots les événements devant déclencher cet autopilot. Chaque livraison est évaluée selon ce critère, de manière souple : en cas de doute, l'autopilot s'exécute. Laissez vide pour vous appuyer uniquement sur les filtres d'événements.",
+    "section_off_peak": "Heures creuses",
+    "off_peak_label": "Peut attendre les heures creuses",
+    "off_peak_hint": "Les exécutions planifiées qui se déclenchent pendant la plage creuse de l'espace passent après tout ce qui est urgent : moins cher, mais l'heure de départ varie. Un lancement manuel n'est jamais retardé.",
+    "off_peak_unavailable": "Cet espace n'a pas encore de plage creuse. Un administrateur la définit dans Paramètres → Espace de travail."
   },
   "schedule_editor": {
     "time_label": "Heure",

@@ -36,6 +36,9 @@ export interface Autopilot {
   // pauses and older servers.
   pause_reason?: string | null;
   execution_mode: AutopilotExecutionMode;
+  // Off-peak batch lane (K45): this autopilot's SCHEDULED runs may wait for the
+  // workspace's off-peak window. Absent on older servers — read as false.
+  batch_eligible?: boolean;
   issue_title_template: string | null;
   created_by_type: string;
   created_by_id: string;
@@ -142,6 +145,10 @@ export interface AutopilotRun {
   // "run now" UI localizes this instead of echoing the raw English reason.
   // Older servers omit it.
   reason_code?: string;
+  // Off-peak batch lane (K45): the lane of this run's linked task. "batch" when
+  // the run was deferred to the workspace's off-peak window. Absent when the run
+  // has no task yet, and on older servers.
+  dispatch_lane?: string;
   trigger_payload: unknown;
   result: unknown;
   created_at: string;
@@ -174,6 +181,7 @@ export interface CreateAutopilotRequest {
   assignee_type?: AutopilotAssigneeType;
   assignee_id: string;
   execution_mode: AutopilotExecutionMode;
+  batch_eligible?: boolean;
   issue_title_template?: string;
   subscribers?: AutopilotSubscriberInput[];
 }
@@ -188,6 +196,8 @@ export interface UpdateAutopilotRequest {
   assignee_id?: string;
   status?: AutopilotStatus;
   execution_mode?: AutopilotExecutionMode;
+  // Omit to leave the opt-in untouched; the server patches only what it is sent.
+  batch_eligible?: boolean;
   issue_title_template?: string | null;
   // When present, fully replaces the autopilot's subscriber template;
   // omit to leave it untouched.
