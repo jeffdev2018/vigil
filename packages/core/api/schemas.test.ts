@@ -830,6 +830,47 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.confidence).toBeUndefined();
     expect(parsed[1]?.confidence).toBeUndefined();
   });
+
+  it("parses the escalation record of an escalated child run (JEF-272)", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        escalation: {
+          from_task_id: "task-0",
+          reason: "below_threshold",
+          attempt: 1,
+          from_runtime_id: "runtime-1",
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.escalation?.from_task_id).toBe("task-0");
+    expect(parsed[0]?.escalation?.reason).toBe("below_threshold");
+    expect(parsed[0]?.escalation?.attempt).toBe(1);
+    expect(parsed[0]?.escalation?.from_runtime_id).toBe("runtime-1");
+  });
+
+  it("accepts task payloads from backends that predate escalation", () => {
+    const parsed = AgentTaskListSchema.parse([
+      task,
+      { ...task, id: "task-2", escalation: null },
+    ]);
+
+    expect(parsed[0]?.escalation).toBeUndefined();
+    // An explicit null stays null — the run is known not to be an escalation.
+    expect(parsed[1]?.escalation).toBeNull();
+  });
+
+  it("degrades a malformed escalation record without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, escalation: { reason: "below_threshold", attempt: "one" } },
+      { ...task, id: "task-2", escalation: "not-an-object" },
+    ]);
+
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0]?.escalation).toBeUndefined();
+    expect(parsed[1]?.escalation).toBeUndefined();
+  });
 });
 
 describe("ConfidenceReviewSettingsSchema", () => {
@@ -837,19 +878,38 @@ describe("ConfidenceReviewSettingsSchema", () => {
     expect(ConfidenceReviewSettingsSchema.parse({})).toEqual({
       enabled: true,
       threshold: 0.5,
+      max_escalations: 2,
     });
   });
 
   it("round-trips an explicit payload", () => {
     expect(
-      ConfidenceReviewSettingsSchema.parse({ enabled: false, threshold: 0.7 }),
-    ).toEqual({ enabled: false, threshold: 0.7 });
+      ConfidenceReviewSettingsSchema.parse({ enabled: false, threshold: 0.7, max_escalations: 3 }),
+    ).toEqual({ enabled: false, threshold: 0.7, max_escalations: 3 });
   });
 
   it("catches malformed fields back to the defaults", () => {
     expect(
-      ConfidenceReviewSettingsSchema.parse({ enabled: "yes", threshold: "a lot" }),
-    ).toEqual({ enabled: true, threshold: 0.5 });
+      ConfidenceReviewSettingsSchema.parse({ enabled: "yes", threshold: "a lot", max_escalations: "many" }),
+    ).toEqual({ enabled: true, threshold: 0.5, max_escalations: 2 });
+  });
+
+  it("clamps an out-of-contract max_escalations back to the default (JEF-272)", () => {
+    // The server contract is an integer in [0, 3]; fractions and
+    // out-of-range values fall back rather than breaking the settings screen.
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ max_escalations: 5 }).max_escalations,
+    ).toBe(2);
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ max_escalations: -1 }).max_escalations,
+    ).toBe(2);
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ max_escalations: 1.5 }).max_escalations,
+    ).toBe(2);
+    // The bounds themselves are legal values.
+    expect(
+      ConfidenceReviewSettingsSchema.parse({ max_escalations: 0 }).max_escalations,
+    ).toBe(0);
   });
 });
 

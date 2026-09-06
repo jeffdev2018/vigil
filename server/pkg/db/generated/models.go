@@ -2107,6 +2107,15 @@ type RunScopedSecret struct {
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
+type RuntimeComplianceProfile struct {
+	RuntimeID  pgtype.UUID        `json:"runtime_id"`
+	Region     string             `json:"region"`
+	OnPrem     bool               `json:"on_prem"`
+	DeclaredBy pgtype.UUID        `json:"declared_by"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RuntimePool struct {
 	ID                pgtype.UUID        `json:"id"`
 	WorkspaceID       pgtype.UUID        `json:"workspace_id"`

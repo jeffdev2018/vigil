@@ -181,7 +181,11 @@ type routingCandidate struct {
 // agent. It never fails: any degradation (no candidates, query error, cold
 // start with no scored history) falls back to the agent's bound runtime and
 // model, still recording the full trace so the decision stays auditable.
-func (s *TaskService) RouteTask(ctx context.Context, agent db.Agent, issueTitle string, labels []string) RuntimeRoutingDecision {
+// filter is the data residency gate (K46), nil when the workspace declares no
+// policy. It runs BEFORE scoring: a runtime the policy rejects is never a
+// candidate, however good its statistics are, and appears in the trace with
+// the reason it was dropped.
+func (s *TaskService) RouteTask(ctx context.Context, agent db.Agent, issueTitle string, labels []string, filter runtimeComplianceFilter) RuntimeRoutingDecision {
 	taskClass := ClassifyTask(issueTitle, labels)
 	decision := RuntimeRoutingDecision{
 		Mode:            RoutingModeAuto,
@@ -203,7 +207,13 @@ func (s *TaskService) RouteTask(ctx context.Context, agent db.Agent, issueTitle 
 		decision.Reason = routingReasonQueryFailed
 		return decision
 	}
+	runtimes, residencyExcluded := partitionCompliantRuntimes(runtimes, filter)
+	decision.Candidates = append(decision.Candidates, residencyExcluded...)
 	if len(runtimes) == 0 {
+		// Every candidate was rejected by the residency policy. The decision
+		// falls back to the agent's bound runtime, which ValidateRouting has
+		// already proven compliant — an incompliant bound runtime with no
+		// compliant alternative refuses the enqueue before reaching here.
 		return decision
 	}
 
@@ -220,7 +230,6 @@ func (s *TaskService) RouteTask(ctx context.Context, agent db.Agent, issueTitle 
 
 	candidates := buildRoutingCandidates(agent, runtimes, stats, taskClass)
 	pool := scoreRoutingCandidates(candidates)
-	decision.Candidates = make([]RoutingCandidateTrace, 0, len(candidates))
 	for _, c := range candidates {
 		decision.Candidates = append(decision.Candidates, c.trace)
 	}
@@ -241,6 +250,31 @@ func (s *TaskService) RouteTask(ctx context.Context, agent db.Agent, issueTitle 
 		decision.Reason = routingReasonExploreLeastSample
 	}
 	return decision
+}
+
+// partitionCompliantRuntimes splits the hard candidate set into the runtimes
+// the residency policy allows and a trace entry per runtime it rejects. The
+// rejected ones never reach buildRoutingCandidates, so they can be neither
+// scored nor drawn by the exploration branch — the trace records only that
+// they were considered and why they were dropped.
+func partitionCompliantRuntimes(runtimes []db.AgentRuntime, filter runtimeComplianceFilter) ([]db.AgentRuntime, []RoutingCandidateTrace) {
+	if filter == nil {
+		return runtimes, nil
+	}
+	kept := make([]db.AgentRuntime, 0, len(runtimes))
+	excluded := []RoutingCandidateTrace{}
+	for _, rt := range runtimes {
+		if ok, reason := filter(rt); ok {
+			kept = append(kept, rt)
+		} else {
+			excluded = append(excluded, RoutingCandidateTrace{
+				RuntimeID:      util.UUIDToString(rt.ID),
+				Provider:       rt.Provider,
+				ExcludedReason: reason,
+			})
+		}
+	}
+	return kept, excluded
 }
 
 // buildRoutingCandidates expands the runtime candidate set into
@@ -458,11 +492,23 @@ type RoutingStamp struct {
 // It never fails: RouteTask degrades to the agent's bound runtime and the
 // classifier's worst case is the "general" bucket.
 func (s *TaskService) StampRouting(ctx context.Context, agent db.Agent, title string, labels []string) RoutingStamp {
+	if agent.RuntimeRouting != RoutingModeAuto {
+		// No router runs, so no residency filter is needed either — the
+		// dispatch target is decided by the caller's own path.
+		return RoutingStamp{TaskClass: pgtype.Text{String: ClassifyTask(title, labels), Valid: true}}
+	}
+	return s.StampRoutingWithFilter(ctx, agent, title, labels, s.compliantRuntimeFilter(ctx, agent.WorkspaceID))
+}
+
+// StampRoutingWithFilter is StampRouting for a caller that already built the
+// enqueue's residency filter (K46), so the policy and the runtime declarations
+// are read once per enqueue rather than once per routing stage.
+func (s *TaskService) StampRoutingWithFilter(ctx context.Context, agent db.Agent, title string, labels []string, filter runtimeComplianceFilter) RoutingStamp {
 	stamp := RoutingStamp{TaskClass: pgtype.Text{String: ClassifyTask(title, labels), Valid: true}}
 	if agent.RuntimeRouting != RoutingModeAuto {
 		return stamp
 	}
-	decision := s.RouteTask(ctx, agent, title, labels)
+	decision := s.RouteTask(ctx, agent, title, labels, filter)
 	stamp.Routing = decision.Marshal()
 	stamp.RuntimeID = decision.ChosenRuntime()
 	return stamp

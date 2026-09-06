@@ -2483,6 +2483,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Put("/api/workflow-limits", h.PutWorkflowLimits)
 			r.Get("/api/repo-index/settings", h.GetRepoIndexSettings)
 			r.Put("/api/repo-index/settings", h.PutRepoIndexSettings)
+			// Data residency (K46): where this workspace's work may run.
+			r.Get("/api/data-residency", h.GetDataResidencyPolicy)
+			r.Put("/api/data-residency", h.PutDataResidencyPolicy)
 			// Code health autopilot (K22): admin writes, members read.
 			r.Get("/api/code-health/settings", h.GetCodeHealthSettings)
 			r.Put("/api/code-health/settings", h.PutCodeHealthSettings)
@@ -2823,6 +2826,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/routing-stats", h.GetRuntimeRoutingStats)
 				r.Route("/{runtimeId}", func(r chi.Router) {
 					r.Patch("/", h.UpdateAgentRuntime)
+					// Data residency (K46): what this runtime declares about
+					// where it runs. Admin-only; see handler/data_residency.go.
+					r.Put("/compliance", h.PutRuntimeCompliance)
+					r.Delete("/compliance", h.DeleteRuntimeCompliance)
 					r.Get("/usage", h.GetRuntimeUsage)
 					r.Get("/usage/by-agent", h.GetRuntimeUsageByAgent)
 					r.Get("/usage/by-hour", h.GetRuntimeUsageByHour)

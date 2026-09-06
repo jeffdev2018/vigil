@@ -406,6 +406,7 @@ var concurrentIndexCleanups = map[string]string{
 	"712_repo_index_chunk_path_index":                           "idx_repo_index_chunk_path",
 	"713_repo_index_chunk_tsv_index":                            "idx_repo_index_chunk_tsv",
 	"714_repo_index_chunk_embedding_index":                      "idx_repo_index_chunk_embedding",
+	"702_runtime_compliance_profile_index":                      "idx_runtime_compliance_profile_runtime",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

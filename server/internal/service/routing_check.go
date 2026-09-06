@@ -39,6 +39,10 @@ type RoutingProblem struct {
 	// Fatal marks a problem no amount of waiting resolves. A trigger carrying
 	// one must be refused, not queued.
 	Fatal bool `json:"fatal"`
+	// Details carries whatever the refusal record needs beyond the message —
+	// the data residency policy and the runtimes it rejected (K46). Optional:
+	// most problems say everything in Code and Message.
+	Details map[string]any `json:"details,omitempty"`
 }
 
 // FatalRoutingProblem returns the first fatal problem, or nil.
@@ -102,11 +106,19 @@ func (s *TaskService) ValidateRouting(ctx context.Context, agent db.Agent, wsID 
 		}}
 	}
 
+	// Data residency (K46): the same filter the enqueue path then routes
+	// through, so the check and the dispatch cannot disagree. Nil — the common
+	// case — when the workspace declares no policy.
+	filter := s.compliantRuntimeFilter(ctx, wsID)
+	if problem := s.residencyProblem(ctx, agent, rt, filter); problem != nil {
+		return []RoutingProblem{*problem}
+	}
+
 	problems := make([]RoutingProblem, 0, 2)
 	if rt.Status != "online" {
 		// K28: an offline runtime with an online pool member is not a problem
 		// at all — the enqueue path moves the task there.
-		if target, _ := s.poolFailoverTarget(ctx, agent, db.AgentTaskQueue{RuntimeID: agent.RuntimeID}, "routing_check"); !target.OK {
+		if target, _ := s.poolFailoverTarget(ctx, agent, db.AgentTaskQueue{RuntimeID: agent.RuntimeID}, "routing_check", filter); !target.OK {
 			problems = append(problems, RoutingProblem{
 				Code:    RoutingProblemRuntimeOfflineOnly,
 				Message: fmt.Sprintf("%s's runtime is %s and no pool member is online: the run waits until it comes back.", agentLabel(agent), rt.Status),

@@ -2292,6 +2292,24 @@ func benchmarkTaskPinsRuntime(task *db.AgentTaskQueue) bool {
 // means the task must not be dispatched; the builder has already cancelled it
 // where the failure semantics require it.
 func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQueue, runtime db.AgentRuntime, runtimeID, runtimeWorkspaceID string) (resp AgentTaskResponse, deliveredCommentIDs []pgtype.UUID, agentSkillCount, builtinSkillCount int, failure *claimBuildFailure) {
+	// Data residency (K46): the enqueue-time filter is the control point, but
+	// a policy tightened AFTER the enqueue would otherwise still dispatch
+	// everything already queued. The task stays queued and waits for a
+	// compliant runtime or a relaxed policy — it is not failed, because
+	// nothing about the run itself is wrong.
+	if allowed, reason := h.TaskService.RuntimeAllowedForClaim(r.Context(), parseUUID(runtimeWorkspaceID), runtime); !allowed {
+		slog.Warn("daemon claim: refused, the data residency policy rejects this runtime",
+			"task_id", uuidToString(task.ID), "runtime_id", runtimeID, "reason", reason)
+		if _, requeueErr := h.TaskService.RequeueTaskAfterClaimFailure(r.Context(), *task); requeueErr != nil {
+			slog.Error("daemon claim: requeue after a residency refusal failed; stale reclaim will recover it",
+				"task_id", uuidToString(task.ID), "error", requeueErr)
+		}
+		return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount, &claimBuildFailure{
+			outcome: "error_data_residency",
+			status:  http.StatusConflict,
+			message: "this runtime does not satisfy the workspace's data residency policy",
+		}
+	}
 	// Build response with fresh agent data (name + skills + custom_env + custom_args).
 	resp = taskToResponse(*task, runtimeWorkspaceID)
 	// Handoff packet (K17): the resuming agent reads what the last hand left.

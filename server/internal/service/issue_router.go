@@ -159,7 +159,11 @@ func consecutiveFailures(rows []db.ListRecentIssueTaskOutcomesRow) int {
 // routeIssueTask (K27) decides pool and runtime for a new run of an issue.
 // It returns the runtime to enqueue on and the decision to store; ok is
 // false when routing is off or nothing applies, so K28's own choice stands.
-func (s *TaskService) routeIssueTask(ctx context.Context, issue db.Issue, agent db.Agent) (runtimeID pgtype.UUID, decision *RoutingDecision, ok bool) {
+// filter is the data residency gate (K46), nil when the workspace declares no
+// policy. A pool member the policy rejects is not a routing target, so the
+// risk-based pool falls through to the next member exactly as if it were
+// offline.
+func (s *TaskService) routeIssueTask(ctx context.Context, issue db.Issue, agent db.Agent, filter runtimeComplianceFilter) (runtimeID pgtype.UUID, decision *RoutingDecision, ok bool) {
 	ws, err := s.Queries.GetWorkspace(ctx, issue.WorkspaceID)
 	if err != nil {
 		return pgtype.UUID{}, nil, false
@@ -219,6 +223,11 @@ func (s *TaskService) routeIssueTask(ctx context.Context, issue db.Issue, agent 
 		}
 		rt, err := s.Queries.GetAgentRuntimeForWorkspace(ctx, db.GetAgentRuntimeForWorkspaceParams{ID: rtID, WorkspaceID: issue.WorkspaceID})
 		if err != nil || rt.Status != "online" {
+			continue
+		}
+		if allowed, denyReason := residencyAllows(filter, rt); !allowed {
+			slog.Info("issue router: skipping a runtime the residency policy rejects",
+				"runtime_id", id, "reason", denyReason, "risk", d.RiskLevel)
 			continue
 		}
 		d.RuntimeID = id

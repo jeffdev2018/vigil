@@ -8,6 +8,8 @@ export interface ConfidenceReviewSettings {
   enabled: boolean;
   /** 0 < threshold ≤ 1, enforced server-side. */
   threshold: number;
+  /** Cascade escalations (JEF-272): integer in [0, 3], enforced server-side. */
+  max_escalations: number;
 }
 
 export const confidenceReviewKeys = {

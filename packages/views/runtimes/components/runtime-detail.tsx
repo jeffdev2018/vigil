@@ -45,6 +45,7 @@ import { HealthBadge } from "./shared";
 import { ProviderLogo } from "./provider-logo";
 import { UsageSection } from "./usage-section";
 import { SandboxEditor } from "./sandbox-editor";
+import { ComplianceEditor } from "./compliance-editor";
 import { DeleteRuntimeDialog } from "./delete-runtime-dialog";
 import { DeleteRuntimeProfileDialog } from "./delete-runtime-profile-dialog";
 import { runtimeRowLabel } from "./runtime-machines";
@@ -209,6 +210,7 @@ export function RuntimeDetail({
             <DiagnosticsCard
               runtime={runtime}
               canEditVisibility={!!isRuntimeOwner}
+              canDeclareCompliance={!!isAdmin}
               canDelete={!!canDelete}
               onDelete={() => setDeleteOpen(true)}
             />
@@ -478,6 +480,7 @@ function ServingAgentsCard({
 function DiagnosticsCard({
   runtime,
   canEditVisibility,
+  canDeclareCompliance,
   canDelete,
   onDelete,
 }: {
@@ -489,6 +492,8 @@ function DiagnosticsCard({
    * may still rename or delete the runtime.
    */
   canEditVisibility: boolean;
+  /** Workspace owner/admin only: residency is declared for the workspace (K46). */
+  canDeclareCompliance: boolean;
   canDelete: boolean;
   onDelete: () => void;
 }) {
@@ -516,6 +521,15 @@ function DiagnosticsCard({
           {/* Same owner-only gate as visibility: confining runs is the
               machine owner's call (K10). */}
           <SandboxEditor runtime={runtime} canEdit={canEditVisibility} />
+        </div>
+        <div>
+          <div className="mb-1.5 text-micro uppercase tracking-wide text-muted-foreground">
+            {t(($) => $.detail.compliance.title)}
+          </div>
+          {/* Admin-only, unlike the sandbox above it (K46): a residency
+              declaration is a compliance statement for the workspace, not a
+              preference about one's own machine. */}
+          <ComplianceEditor runtime={runtime} canEdit={canDeclareCompliance} />
         </div>
         {canDelete && (
           // The button stays clickable even when the runtime is a live

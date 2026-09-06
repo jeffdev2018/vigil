@@ -340,6 +340,7 @@ import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKey
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
+import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import {
@@ -442,6 +443,7 @@ import {
   CompetencySettingsSchema,
   RoutingCheckSchema,
   WorkflowLimitsSchema,
+  DataResidencyPolicySchema,
   CrossReviewListSchema,
   AgentEffectListSchema,
   UndoReportSchema,
@@ -926,6 +928,20 @@ function workspaceHeader(
   slug?: string,
 ): Record<string, string> | undefined {
   return slug ? { "X-Workspace-Slug": slug } : undefined;
+}
+
+/**
+ * Data residency (K46). The compliance endpoints echo the whole runtime, which
+ * the runtime endpoints have never parsed; the one field this call actually
+ * asserts something about is normalized here, so a drifted declaration reads
+ * as "not declared" rather than as a region the policy might match.
+ */
+function withParsedCompliance(runtime: AgentRuntime, endpoint: string): AgentRuntime {
+  if (runtime?.compliance == null) return runtime;
+  return {
+    ...runtime,
+    compliance: parseWithFallback(runtime.compliance, RuntimeComplianceSchema, null, { endpoint }),
+  };
 }
 
 function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
@@ -3861,6 +3877,36 @@ export class ApiClient {
     return parseWithFallback(raw, WorkflowLimitsSchema, { ...input, min_legs: 1, max_legs_allowed: 50 }, { endpoint: "PUT /api/workflow-limits" });
   }
 
+  // Data residency (K46): where this workspace's work may run, and what each
+  // runtime declares about itself.
+  async getDataResidencyPolicy(): Promise<import("../residency/schemas").DataResidencySettings> {
+    const raw = await this.fetch<unknown>(`/api/data-residency`);
+    return parseWithFallback(raw, DataResidencyPolicySchema, DATA_RESIDENCY_DEFAULTS, { endpoint: "GET /api/data-residency" });
+  }
+
+  async putDataResidencyPolicy(
+    policy: import("../residency/schemas").DataResidencyPolicy,
+  ): Promise<import("../residency/schemas").DataResidencySettings> {
+    const raw = await this.fetch<unknown>(`/api/data-residency`, { method: "PUT", body: JSON.stringify(policy) });
+    return parseWithFallback(raw, DataResidencyPolicySchema, { ...DATA_RESIDENCY_DEFAULTS, ...policy }, { endpoint: "PUT /api/data-residency" });
+  }
+
+  async putRuntimeCompliance(
+    runtimeId: string,
+    declaration: import("../residency/schemas").RuntimeCompliance,
+  ): Promise<AgentRuntime> {
+    const raw = await this.fetch<AgentRuntime>(`/api/runtimes/${runtimeId}/compliance`, {
+      method: "PUT",
+      body: JSON.stringify(declaration),
+    });
+    return withParsedCompliance(raw, "PUT /api/runtimes/:id/compliance");
+  }
+
+  async deleteRuntimeCompliance(runtimeId: string): Promise<AgentRuntime> {
+    const raw = await this.fetch<AgentRuntime>(`/api/runtimes/${runtimeId}/compliance`, { method: "DELETE" });
+    return withParsedCompliance(raw, "DELETE /api/runtimes/:id/compliance");
+  }
+
   // Code health autopilot (K22): the scheduled read-only maintenance scan.
   async getCodeHealthSettings(): Promise<CodeHealthSettings> {
     const raw = await this.fetch<unknown>(`/api/code-health/settings`);
@@ -3989,7 +4035,7 @@ export class ApiClient {
   // Confidence review (JEF-240).
   async getConfidenceReviewSettings(): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {
     const raw = await this.fetch<unknown>(`/api/confidence-review-settings`);
-    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5 }, { endpoint: "GET /api/confidence-review-settings" });
+    return parseWithFallback(raw, ConfidenceReviewSettingsSchema, { enabled: true, threshold: 0.5, max_escalations: 2 }, { endpoint: "GET /api/confidence-review-settings" });
   }
 
   async putConfidenceReviewSettings(input: import("../issues/confidence-review").ConfidenceReviewSettings): Promise<import("../issues/confidence-review").ConfidenceReviewSettings> {

@@ -49,6 +49,7 @@ import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
 import { WorkflowLimitsSetting } from "./workflow-limits-setting";
+import { DataResidencySetting } from "./data-residency-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
 import { ContestSetting } from "./contest-setting";
 import { ExportImportSetting } from "./export-import-setting";
@@ -512,6 +513,7 @@ export function WorkspaceTab() {
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
       {workspace && <WorkflowLimitsSetting canEdit={canManageWorkspace} />}
+      {workspace && <DataResidencySetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
       {workspace && <ContestSetting canEdit={canManageWorkspace} />}
       {workspace && <ExportImportSetting canEdit={canManageWorkspace} />}

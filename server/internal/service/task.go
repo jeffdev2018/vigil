@@ -1359,6 +1359,24 @@ func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.
 	return merged, nil
 }
 
+// EnqueueTaskForIssueEscalation re-enqueues the issue's assignee on a forced
+// runtime after a below-threshold run (cascade, JEF-272). The forced runtime
+// is applied after the JEF-237 routing stamp, so the escalation wins over the
+// router; escalationJSON is persisted under context.escalation of the new
+// task so the next scoring pass knows which attempt this is.
+//
+// Coalescing (JEF-241) applies like EnqueueTaskForIssueWithHandoff: when the
+// pending slot is already taken, the note merges into the waiting task and
+// the forced runtime / escalation context are dropped — the merged task keeps
+// its own plan, exactly like the other handoff merges.
+func (s *TaskService) EnqueueTaskForIssueEscalation(ctx context.Context, issue db.Issue, handoffNote string, actorUserID pgtype.UUID, forcedRuntimeID pgtype.UUID, escalationJSON []byte) (db.AgentTaskQueue, error) {
+	task, err := s.enqueueIssueTaskWithCommentPlan(ctx, issue, pgtype.UUID{}, nil, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{}, forcedRuntimeID, escalationJSON)
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return task, err
+	}
+	return s.mergeHandoffIntoPendingTask(ctx, issue, handoffNote)
+}
+
 // enqueueIssueTask is the shared implementation behind EnqueueTaskForIssue
 // and the manual rerun path. forceFreshSession=true marks the task so the
 // daemon claim handler skips the (agent_id, issue_id) resume lookup — the
@@ -1405,10 +1423,10 @@ func (s *TaskService) ResolveIssueReviewSHAParam(ctx context.Context, issueID pg
 }
 
 func (s *TaskService) enqueueIssueTask(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, nil, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, fireAt)
+	return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, nil, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, fireAt, pgtype.UUID{}, nil)
 }
 
-func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz) (db.AgentTaskQueue, error) {
+func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz, forcedRuntimeID pgtype.UUID, escalationJSON []byte) (db.AgentTaskQueue, error) {
 	if !issue.AssigneeID.Valid {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", "issue has no assignee")
 		return db.AgentTaskQueue{}, fmt.Errorf("issue has no assignee")
@@ -1457,12 +1475,17 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	taskID := dbid.NewV7()
+	// Data residency (K46): the workspace's policy and its runtime
+	// declarations, read once for this enqueue and handed to every routing
+	// stage below, so a non-compliant runtime is excluded before it can be
+	// scored, failed over to, or picked by risk. Nil when no policy is set.
+	residency := s.compliantRuntimeFilter(ctx, issue.WorkspaceID)
 	// Runtime pools (K28): an offline runtime at enqueue sends the task to
 	// the first online runtime of the pool, recorded on the task.
-	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
+	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent, residency)
 	// Issue router (K27): risk and past failures may pick another pool first.
 	var routingDecision *RoutingDecision
-	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent); ok {
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent, residency); ok {
 		routingDecision = decision
 		if routed.Valid {
 			enqueueRuntimeID, failoverHistory = routed, nil
@@ -1476,9 +1499,15 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	// auto is an explicit per-agent opt-in, so its choice wins. The decision
 	// trace lands in the routing JSONB column; any degradation falls back to
 	// whatever runtime was selected so far.
-	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	stamp := s.StampRoutingWithFilter(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue), residency)
 	if stamp.RuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
+	}
+	// Cascade escalation (JEF-272): a forced runtime wins over everything
+	// above, the JEF-237 router included — the escalation policy already ran
+	// the candidate scoring itself and its choice is the point of the retry.
+	if forcedRuntimeID.Valid {
+		enqueueRuntimeID, failoverHistory = forcedRuntimeID, nil
 	}
 	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	createParams := db.CreateAgentTaskParams{
@@ -1504,6 +1533,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		TriggerEvidenceRefID: attrEvidenceRef,
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
+		// Cascade escalation (JEF-272): lands under context.escalation.
+		Escalation: escalationJSON,
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -6297,7 +6328,7 @@ func (s *TaskService) enqueueRerunTask(ctx context.Context, issue db.Issue, agen
 	var err error
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid &&
 		util.UUIDToString(issue.AssigneeID) == util.UUIDToString(agentID) {
-		task, err = s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{})
+		task, err = s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{}, pgtype.UUID{}, nil)
 	} else {
 		task, err = s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID)
 	}

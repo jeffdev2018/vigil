@@ -29,10 +29,11 @@ var _ RunConfidenceLLM = (*llm.Client)(nil)
 // Run confidence scoring (JEF-240): after a run completes successfully, the
 // assist-layer LLM self-assesses how confident it is that the delivery is
 // correct and complete. The score is stored on the task (agent_task_queue.
-// confidence) and broadcast; under the workspace threshold, the linked issue
-// goes to human review automatically. Like skill distillation, a score is
-// only worth storing when genuinely assessed, so a disabled LLM simply turns
-// this pass off.
+// confidence) and broadcast; under the workspace threshold, the system first
+// cascades to a stronger runtime (JEF-272, run_escalation.go) and only sends
+// the linked issue to human review when the cascade cannot fire. Like skill
+// distillation, a score is only worth storing when genuinely assessed, so a
+// disabled LLM simply turns this pass off.
 
 const (
 	runConfidenceTimeout = 45 * time.Second
@@ -240,7 +241,15 @@ func (s *TaskService) ScoreRunConfidence(ctx context.Context, taskID pgtype.UUID
 	s.publishTaskScored(agent.WorkspaceID, updated, conf)
 
 	if conf.BelowThreshold && cfg.Enabled {
-		s.escalateRunToHumanReview(ctx, issue, updated, conf)
+		// Terminal issues stay untouched on either path.
+		effective := issuestatus.Effective(ctx, s.Queries, issue.WorkspaceID, issue.Status)
+		if effective != issuestatus.Done && effective != issuestatus.Cancelled {
+			// Cascade (JEF-272): try a stronger runtime first; human review is
+			// the fallback when the cascade cannot or may not fire.
+			if !s.escalateRunToStrongerRuntime(ctx, issue, agent, updated, conf, cfg) {
+				s.escalateRunToHumanReview(ctx, issue, updated, conf)
+			}
+		}
 	}
 	return nil
 }
