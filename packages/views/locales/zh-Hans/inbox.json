@@ -100,7 +100,8 @@
     "routing_alert": "无法路由该 Agent",
     "residency_policy_blocked": "被数据驻留策略拦截",
     "linear_alert": "Linear 已断开连接",
-    "code_health_report": "代码健康报告"
+    "code_health_report": "代码健康报告",
+    "doc_drift_report": "智能体上下文漂移"
   },
   "labels": {
     "set_status_to": "状态设为",

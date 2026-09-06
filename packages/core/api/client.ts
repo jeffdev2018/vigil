@@ -339,6 +339,7 @@ import {
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
+import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
@@ -3941,6 +3942,38 @@ export class ApiClient {
       last_indexed_commit: "",
       last_indexed_at: "",
     }, { endpoint: "PUT /api/repo-index/settings" }) as RepoIndexRepo;
+  }
+
+  // Agent context document drift detection (K56): the proposal a human
+  // reviews as a draft pull request, never a direct commit.
+  async getDocDriftSettings(): Promise<DocDriftSettings> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/settings`);
+    return parseWithFallback(raw, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, { endpoint: "GET /api/doc-drift/settings" }) as DocDriftSettings;
+  }
+
+  async putDocDriftSettings(input: DocDriftSettingsInput): Promise<DocDriftSettings> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, DocDriftSettingsSchema, { ...DOC_DRIFT_DEFAULT_SETTINGS, ...input }, { endpoint: "PUT /api/doc-drift/settings" }) as DocDriftSettings;
+  }
+
+  async listDocDriftProposals(): Promise<DocDriftProposal[]> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/proposals`);
+    return parseWithFallback(raw, DocDriftProposalListSchema, { proposals: [] }, { endpoint: "GET /api/doc-drift/proposals" }).proposals as DocDriftProposal[];
+  }
+
+  async checkDocDrift(repoIdentifier: string): Promise<{ repo_identifier: string; task_id: string }> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/check`, { method: "POST", body: JSON.stringify({ repo_identifier: repoIdentifier }) });
+    return parseWithFallback(raw, DocDriftCheckSchema, { repo_identifier: repoIdentifier, task_id: "" }, { endpoint: "POST /api/doc-drift/check" });
+  }
+
+  async dismissDocDriftProposal(id: string): Promise<DocDriftProposal | null> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/proposals/${encodeURIComponent(id)}/dismiss`, { method: "POST" });
+    return parseWithFallback(raw, DocDriftProposalEnvelopeSchema, { proposal: null }, { endpoint: "POST /api/doc-drift/proposals/:id/dismiss" }).proposal as DocDriftProposal | null;
+  }
+
+  async openDocDriftProposalPR(id: string): Promise<DocDriftProposal | null> {
+    const raw = await this.fetch<unknown>(`/api/doc-drift/proposals/${encodeURIComponent(id)}/open-pr`, { method: "POST" });
+    return parseWithFallback(raw, DocDriftProposalEnvelopeSchema, { proposal: null }, { endpoint: "POST /api/doc-drift/proposals/:id/open-pr" }).proposal as DocDriftProposal | null;
   }
 
   async triggerCodeHealthScan(): Promise<CodeHealthScan | null> {

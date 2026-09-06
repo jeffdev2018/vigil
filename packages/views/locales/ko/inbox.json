@@ -100,7 +100,8 @@
     "routing_alert": "에이전트를 라우팅할 수 없음",
     "residency_policy_blocked": "데이터 레지던시 정책으로 차단됨",
     "linear_alert": "Linear 연결이 끊어졌습니다",
-    "code_health_report": "코드 건강 보고서"
+    "code_health_report": "코드 건강 보고서",
+    "doc_drift_report": "에이전트 컨텍스트 드리프트"
   },
   "labels": {
     "set_status_to": "상태 변경:",

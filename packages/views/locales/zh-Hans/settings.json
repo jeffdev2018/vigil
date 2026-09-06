@@ -436,7 +436,8 @@
       "budgets": "预算",
       "learning": "Vigil 了解的",
       "eval_lab": "评测实验室",
-      "code_health": "代码健康"
+      "code_health": "代码健康",
+      "doc_drift": "智能体上下文漂移"
     }
   },
   "plugins": {
@@ -2151,6 +2152,57 @@
       "cap": "超过每次扫描上限",
       "budget": "被预算拒绝",
       "error": "无法创建"
+    }
+  },
+  "doc_drift": {
+    "title": "智能体上下文漂移",
+    "description": "智能体上下文文档是每次运行动手之前都会读的文件，也是最容易悄悄失真的文件。默认分支变动之后，一次只读运行会把它和仓库真正声明的内容对照，并提出让它重新成立的最小改动——始终以草稿 Pull Request 的形式，绝不直接提交。",
+    "onboarding_title": "选定智能体之前不会运行任何东西",
+    "onboarding_body": "扫描是只读的：读取文档和仓库，报告哪里已经失真。另一次运行只把这份补丁应用到自己的分支，并开出草稿 Pull Request 供你审阅。",
+    "config_title": "配置",
+    "config_description": "由谁检查、检查哪些文档，以及提案是否自动变成草稿 Pull Request。",
+    "loading": "正在加载设置…",
+    "enabled_label": "默认分支变动后自动检查",
+    "enabled_hint": "默认关闭。关闭时仍可手动检查某个仓库。",
+    "agent_label": "智能体",
+    "pick_agent": "选择智能体",
+    "docs_label": "文档",
+    "docs_hint": "每行一个仓库相对路径。仓库中不存在的文档会被跳过。",
+    "open_pr_label": "开出草稿 Pull Request",
+    "open_pr_hint": "关闭后，提案会留在这里，直到你点击按钮。",
+    "save": "保存",
+    "saved_toast": "智能体上下文漂移设置已保存",
+    "save_failed": "无法保存设置",
+    "repos_title": "仓库",
+    "repos_description": "只检查开启了共享索引的仓库：它的提交就是判断默认分支是否变动的依据。",
+    "repos_empty": "还没有已索引的仓库。请在「仓库」中为某个仓库开启共享仓库索引。",
+    "check_now": "立即检查",
+    "check_started_toast": "漂移检查已开始",
+    "check_failed": "无法开始检查",
+    "repo_due": "自上次检查以来分支已变动",
+    "repo_scanning": "检查中…",
+    "repo_up_to_date": "已在该提交上检查过",
+    "repo_never_indexed": "从未索引",
+    "proposals_title": "提案",
+    "proposals_description": "每个文档一份提案。后续检查会补充到已打开的提案上，而不是再开一份。",
+    "proposals_empty": "未检测到漂移，文档是最新的",
+    "col_document": "文档",
+    "col_repository": "仓库",
+    "col_drift": "漂移内容",
+    "col_status": "状态",
+    "view_pr": "草稿 Pull Request",
+    "dismiss": "忽略",
+    "dismissed_toast": "提案已忽略",
+    "dismiss_failed": "无法忽略该提案",
+    "open_pr": "开出草稿 PR",
+    "open_pr_started_toast": "Pull Request 运行已排队",
+    "open_pr_failed": "无法排队 Pull Request 运行",
+    "status_unknown": "未知",
+    "status": {
+      "draft": "草稿",
+      "opened_pr": "审阅中",
+      "dismissed": "已忽略",
+      "merged": "已合并"
     }
   }
 }

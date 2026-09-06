@@ -786,6 +786,10 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
 		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
 	}
+
+	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
+		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
 		slog.Warn("scheduler: failed to register org_tick job", "error", err)
 	}
