@@ -86,6 +86,7 @@ vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
 vi.mock("./workflow-limits-setting", () => ({ WorkflowLimitsSetting: () => null }));
 vi.mock("./data-residency-setting", () => ({ DataResidencySetting: () => null }));
 vi.mock("./batch-window-setting", () => ({ BatchWindowSetting: () => null }));
+vi.mock("./workflow-policy-setting", () => ({ WorkflowPolicySetting: () => null }));
 vi.mock("./cross-review-setting", () => ({ CrossReviewSetting: () => null }));
 vi.mock("./contest-setting", () => ({ ContestSetting: () => null }));
 vi.mock("./export-import-setting", () => ({ ExportImportSetting: () => null }));
