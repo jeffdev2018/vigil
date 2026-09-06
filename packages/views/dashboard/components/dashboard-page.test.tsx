@@ -321,18 +321,20 @@ describe("DashboardPage — viewing timezone drives the query key", () => {
 
   // The `tz` segment is the last element of every dashboard key
   // (see dashboardKeys in @multica/core/dashboard/queries). The
-  // routing-stats query (JEF-237) is excluded: its window is a fixed
-  // server-side 90 days, so its key carries no tz by design.
+  // routing-stats (JEF-237) and workflow-stats (JEF-273) queries are
+  // excluded: their window is a fixed server-side 90 days, so their keys
+  // carry no tz by design.
+  const TZ_FREE_KEYS = new Set(["routing-stats", "workflow-stats"]);
+  function isTzScoped(k: unknown[]): boolean {
+    return k[0] === "dashboard" && !TZ_FREE_KEYS.has(k[2] as string);
+  }
+
   function tzSegments(): unknown[] {
-    return queryKeys
-      .filter((k) => k[0] === "dashboard" && k[2] !== "routing-stats")
-      .map((k) => k[k.length - 1]);
+    return queryKeys.filter(isTzScoped).map((k) => k[k.length - 1]);
   }
 
   function tzScopedKeys(): unknown[][] {
-    return queryKeys.filter(
-      (k) => k[0] === "dashboard" && k[2] !== "routing-stats",
-    );
+    return queryKeys.filter(isTzScoped);
   }
 
   it("uses the stored timezone in every dashboard query key", () => {
