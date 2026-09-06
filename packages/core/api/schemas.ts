@@ -922,7 +922,7 @@ export const ChatMessageSchema = z.object({
   quick_actions: z.array(ChatQuickActionSchema).catch([]).optional().default([]),
   // Multiplayer attribution (K31): the human who sent a user message. Null on
   // assistant rows and on messages written before the column existed.
-  author_user_id: z.string().nullable().optional().default(null),
+  author_user_id: z.string().nullable().optional(),
 }).loose();
 
 export const ChatMessageListSchema = z.array(ChatMessageSchema).default([]);
