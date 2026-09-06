@@ -1407,5 +1407,13 @@
     "added": "已加入评测实验室",
     "open_eval_lab": "打开评测实验室",
     "failed": "无法提升该问题"
+  },
+  "mirrors": {
+    "generated_from": "由 {{identifier}}（{{project}}）生成",
+    "open_source": "打开源问题",
+    "mirror_in": "{{project}} 中的镜像",
+    "types_synced": "类型已同步",
+    "sync_failed": "更新此镜像失败",
+    "unknown_project": "已删除的项目"
   }
 }

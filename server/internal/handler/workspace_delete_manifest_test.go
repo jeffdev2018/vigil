@@ -25,6 +25,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"agent_invocation_target":            workspaceDelete,
 	"agent_memory":                       workspaceDelete,
 	"repo_index_chunk":                   workspaceDelete,
+	"project_mirror_link":                workspaceDelete,
+	"issue_mirror":                       workspaceDelete,
 	"agent_effect":                       workspaceDelete,
 	"issue_watchdog":                     workspaceDelete,
 	"watchdog_verdict":                   workspaceDelete,

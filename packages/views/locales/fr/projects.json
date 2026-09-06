@@ -227,5 +227,21 @@
     "max_cycles": "Cycles max",
     "save": "Enregistrer les paramètres de revue",
     "failed": "Les paramètres de revue n'ont pas pu être enregistrés"
+  },
+  "mirrors": {
+    "section": "Miroirs inter-projets",
+    "description": "Une issue de ce projet portant le label déclencheur est copiée dans le projet cible, et la copie la bloque jusqu'à sa clôture.",
+    "empty": "Aucun lien miroir pour l'instant.",
+    "target": "Projet cible",
+    "target_placeholder": "Choisir un projet cible",
+    "trigger_label": "Label déclencheur",
+    "trigger_placeholder": "Nom du label",
+    "add": "Ajouter un lien",
+    "added": "Lien miroir ajouté",
+    "add_failed": "Échec de l'ajout du lien miroir",
+    "remove": "Supprimer ce lien",
+    "removed": "Lien miroir supprimé. Les miroirs existants sont conservés.",
+    "remove_failed": "Échec de la suppression du lien miroir",
+    "unknown_project": "Projet supprimé"
   }
 }

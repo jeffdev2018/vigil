@@ -1441,5 +1441,13 @@
     "added": "Ajouté au labo d'évaluation",
     "open_eval_lab": "Ouvrir le labo d'évaluation",
     "failed": "Impossible de promouvoir ce ticket"
+  },
+  "mirrors": {
+    "generated_from": "Généré depuis {{identifier}} ({{project}})",
+    "open_source": "Ouvrir l'issue source",
+    "mirror_in": "Miroir dans {{project}}",
+    "types_synced": "types synchronisés",
+    "sync_failed": "Échec de la mise à jour de ce miroir",
+    "unknown_project": "Projet supprimé"
   }
 }

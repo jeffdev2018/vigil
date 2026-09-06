@@ -1365,6 +1365,17 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceRepoIndexChunks(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Cross-repo mirrors (K54). The mirror records go before the issues
+			// they point at; the links are pure configuration.
+			name: "purge issue mirrors",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceIssueMirrors(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceProjectMirrorLinks(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			// Data residency (K46): the declarations hang off this
 			// workspace's runtimes, so they go before agent_runtime does.
 			name: "purge runtime compliance profiles",

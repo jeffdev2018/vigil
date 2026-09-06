@@ -1407,5 +1407,13 @@
     "added": "評価ラボに追加しました",
     "open_eval_lab": "評価ラボを開く",
     "failed": "この課題を昇格できませんでした"
+  },
+  "mirrors": {
+    "generated_from": "{{identifier}}（{{project}}）から生成",
+    "open_source": "元のイシューを開く",
+    "mirror_in": "{{project}} のミラー",
+    "types_synced": "タイプ同期済み",
+    "sync_failed": "このミラーの更新に失敗しました",
+    "unknown_project": "削除されたプロジェクト"
   }
 }

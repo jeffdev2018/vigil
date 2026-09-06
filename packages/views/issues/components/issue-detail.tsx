@@ -114,6 +114,7 @@ import { FanoutSection } from "./fanout-section";
 import { DuelSection } from "./duel-section";
 import { LinearLinkBadge } from "./linear-link-badge";
 import { EvalPromoteSection } from "./eval-promote-section";
+import { IssueMirrorsSection } from "./issue-mirrors-section";
 import { CampaignBoard } from "./campaign-board";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
@@ -2681,6 +2682,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Linear Bridge (K21): this issue mirrors a Linear issue — identifier, link out, sync state. */}
       <LinearLinkBadge issueId={id} />
+
+      {/* Cross-repo mirrors (K54): the mirrors this issue generated, or the source it came from. */}
+      <IssueMirrorsSection issueId={id} />
 
       {/* Eval Lab (K24): freeze this proved issue as a reusable eval case. */}
       <EvalPromoteSection issueId={id} />

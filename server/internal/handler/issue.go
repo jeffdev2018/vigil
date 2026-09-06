@@ -3174,6 +3174,9 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
 	// Org chart (K75): the structure in force routes the new issue.
 	issue = h.orgRouteIssue(r.Context(), issue, creatorType, actualCreatorID)
+	// Cross-repo mirrors (K54): a create that already carries a trigger label
+	// mirrors immediately, exactly like a later attach.
+	h.mirrorIssueForLabels(r.Context(), issue, res.Labels)
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
@@ -3494,6 +3497,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
 	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Cross-repo mirrors (K54): an open mirror keeps its source out of done.
+	if statusKeyForGuard != "" && !h.mirrorsAllowStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
 	// Business rules (K53): entering review must satisfy the active rules.
@@ -4327,6 +4334,10 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			// Cross-repo mirrors (K54): one source with an open mirror refuses the batch.
+			if !h.mirrorsAllowStatus(w, r, prevIssue, batchStatusKey) {
 				return
 			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}

@@ -482,6 +482,8 @@ func (h *Handler) AttachLabel(w http.ResponseWriter, r *http.Request) {
 	if attached.Changed {
 		// Module ownership (K33): a new label can match a rule.
 		h.suggestOwnership(r.Context(), issue, "member", userID)
+		// Cross-repo mirrors (K54): the label may be a mirror link's trigger.
+		h.mirrorIssueForLabels(r.Context(), issue, []db.IssueLabel{label})
 		h.publish(protocol.EventIssueLabelsChanged, uuidToString(issue.WorkspaceID), "member", userID, map[string]any{
 			"issue_id":       uuidToString(issue.ID),
 			"labels":         resp,
