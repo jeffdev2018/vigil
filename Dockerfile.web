@@ -45,6 +45,10 @@ RUN pnpm install --frozen-lockfile --offline
 ARG NEXT_PUBLIC_APP_VERSION=dev
 ENV NEXT_PUBLIC_APP_VERSION=$NEXT_PUBLIC_APP_VERSION
 ENV STANDALONE=true
+# The Next.js build of this monorepo needs more heap than Node's default;
+# without it the builder dies with "Reached heap limit" on a 4 GB container.
+ARG NODE_OPTIONS=--max-old-space-size=6144
+ENV NODE_OPTIONS=$NODE_OPTIONS
 
 # Build the web app (standalone output for minimal runtime)
 RUN pnpm --filter @multica/web build
