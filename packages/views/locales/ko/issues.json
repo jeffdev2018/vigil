@@ -1417,5 +1417,21 @@
     "types_synced": "타입 동기화됨",
     "sync_failed": "이 미러를 업데이트하지 못했습니다",
     "unknown_project": "삭제된 프로젝트"
+  },
+  "walkthrough": {
+    "section": "워크스루",
+    "refresh": "다시 생성",
+    "pending": "워크스루를 작성하는 중…",
+    "failed": "워크스루를 생성하지 못했습니다.",
+    "empty": "이 리비전의 워크스루가 아직 없습니다.",
+    "truncated_other": "파일 {{count}}개 생략됨 — 이 풀 리퀘스트가 워크스루 한도를 초과합니다.",
+    "hunk_count_other": "헝크 {{count}}개",
+    "moved_from": "{{path}}에서 이동",
+    "kind": {
+      "core": "핵심",
+      "test": "테스트",
+      "generated": "생성됨",
+      "noise": "노이즈"
+    }
   }
 }

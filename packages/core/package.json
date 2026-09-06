@@ -193,6 +193,7 @@
     "./model-keys": "./model-keys/index.ts",
     "./code-health": "./code-health/index.ts",
     "./doc-drift": "./doc-drift/index.ts",
+    "./pr-walkthrough": "./pr-walkthrough/index.ts",
     "./repo-index": "./repo-index/index.ts",
     "./batch-window": "./batch-window/index.ts",
     "./residency": "./residency/index.ts",

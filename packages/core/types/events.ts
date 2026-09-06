@@ -102,6 +102,7 @@ export type WSEventType =
   | "pull_request:linked"
   | "pull_request:updated"
   | "pull_request:unlinked"
+  | "pr_walkthrough:updated"
   | "meeting:created"
   | "meeting:updated"
   | "meeting:deleted"
@@ -841,6 +842,7 @@ export interface WSEventPayloadMap {
   "pull_request:linked": unknown;
   "pull_request:updated": unknown;
   "pull_request:unlinked": unknown;
+  "pr_walkthrough:updated": unknown;
   "meeting:created": MeetingEventPayload;
   "meeting:updated": MeetingEventPayload;
   "meeting:deleted": MeetingEventPayload;

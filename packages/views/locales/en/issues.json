@@ -1451,5 +1451,23 @@
     "types_synced": "types synced",
     "sync_failed": "Failed to update this mirror",
     "unknown_project": "Deleted project"
+  },
+  "walkthrough": {
+    "section": "Walkthrough",
+    "refresh": "Regenerate",
+    "pending": "Writing the walkthrough…",
+    "failed": "The walkthrough could not be generated.",
+    "empty": "No walkthrough for this revision yet.",
+    "truncated_one": "{{count}} file omitted — this pull request is larger than the walkthrough cap.",
+    "truncated_other": "{{count}} files omitted — this pull request is larger than the walkthrough cap.",
+    "hunk_count_one": "{{count}} hunk",
+    "hunk_count_other": "{{count}} hunks",
+    "moved_from": "Moved from {{path}}",
+    "kind": {
+      "core": "Core",
+      "test": "Tests",
+      "generated": "Generated",
+      "noise": "Noise"
+    }
   }
 }

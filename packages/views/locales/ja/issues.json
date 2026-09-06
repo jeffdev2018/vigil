@@ -1417,5 +1417,21 @@
     "types_synced": "タイプ同期済み",
     "sync_failed": "このミラーの更新に失敗しました",
     "unknown_project": "削除されたプロジェクト"
+  },
+  "walkthrough": {
+    "section": "ウォークスルー",
+    "refresh": "再生成",
+    "pending": "ウォークスルーを作成中…",
+    "failed": "ウォークスルーを生成できませんでした。",
+    "empty": "このリビジョンのウォークスルーはまだありません。",
+    "truncated_other": "{{count}} 件のファイルを省略しました — このプルリクエストはウォークスルーの上限を超えています。",
+    "hunk_count_other": "{{count}} 個のハンク",
+    "moved_from": "{{path}} から移動",
+    "kind": {
+      "core": "コア",
+      "test": "テスト",
+      "generated": "自動生成",
+      "noise": "ノイズ"
+    }
   }
 }

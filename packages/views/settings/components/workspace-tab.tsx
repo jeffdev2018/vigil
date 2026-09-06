@@ -60,6 +60,7 @@ import { CIAutoFixSetting } from "./ci-auto-fix-setting";
 import { UndoSetting } from "./undo-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
+import { PrWalkthroughSetting } from "./pr-walkthrough-setting";
 import { PostmortemCostSetting } from "./postmortem-cost-setting";
 import { PipelinesSetting } from "./pipelines-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
@@ -526,6 +527,7 @@ export function WorkspaceTab() {
       {workspace && <UndoSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
+      {workspace && <PrWalkthroughSetting canEdit={canManageWorkspace} />}
       {workspace && <PostmortemCostSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PipelinesSetting canManage={canManageWorkspace} />}
 

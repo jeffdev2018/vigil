@@ -31,6 +31,7 @@ import {
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
+import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
@@ -985,6 +986,12 @@ export function useRealtimeSync(
       telegram_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: telegramKeys.installations(wsId) });
+      },
+      // Narrative PR walkthrough (F05). Keyed by (issue, pr), so invalidate the
+      // whole prefix and let the open panel refetch the one it is showing.
+      pr_walkthrough: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: prWalkthroughKeys.all(wsId) });
       },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all

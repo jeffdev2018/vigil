@@ -1417,5 +1417,21 @@
     "types_synced": "类型已同步",
     "sync_failed": "更新此镜像失败",
     "unknown_project": "已删除的项目"
+  },
+  "walkthrough": {
+    "section": "导读",
+    "refresh": "重新生成",
+    "pending": "正在生成导读…",
+    "failed": "无法生成导读。",
+    "empty": "此版本还没有导读。",
+    "truncated_other": "已省略 {{count}} 个文件 — 该合并请求超出导读上限。",
+    "hunk_count_other": "{{count}} 处改动",
+    "moved_from": "移动自 {{path}}",
+    "kind": {
+      "core": "核心",
+      "test": "测试",
+      "generated": "生成",
+      "noise": "杂项"
+    }
   }
 }

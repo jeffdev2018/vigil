@@ -124,6 +124,7 @@ import { CompetencySuggestion } from "./competency-suggestion";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
+import { PrWalkthroughSection } from "./pr-walkthrough-section";
 import { MergeReadinessPanel } from "./merge-readiness-panel";
 import { PRStackList } from "./pr-stack-list";
 import { useGitHubSettings } from "@multica/core/github";
@@ -2615,6 +2616,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             <MergeReadinessPanel issueId={id} />
             <PRStackList issueId={id} />
             <PullRequestList issueId={id} />
+            <PrWalkthroughSection issueId={id} />
           </div>}
         </div>
       )}

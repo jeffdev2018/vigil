@@ -61,7 +61,7 @@ WHERE a.workspace_id = $1
   -- the same exam, pinned to one (runtime, model) candidate so its outcome is
   -- evidence about that pair. Excluding it would throw away the only runs
   -- deliberately produced to measure a policy.
-  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class
 `
@@ -156,7 +156,7 @@ WHERE a.workspace_id = $1
   AND atq.status IN ('completed', 'failed')
   AND atq.completed_at IS NOT NULL
   AND atq.completed_at >= $2::timestamptz
-  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough')
 GROUP BY atq.task_class, COALESCE(atq.context->>'workflow', 'single')
 ORDER BY atq.task_class, workflow
 `

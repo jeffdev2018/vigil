@@ -1364,6 +1364,11 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceDocDriftProposals(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Narrative PR walkthrough (F05).
+			name: "purge pr walkthroughs",
+			run:  func() error { return qtx.PurgeWorkspacePrWalkthroughs(ctx, requester.WorkspaceID) },
+		},
+		{
 			// Shared semantic repo index (K47). Stores repository source text,
 			// so teardown must remove it with the rest of the workspace.
 			name: "purge repo index chunks",

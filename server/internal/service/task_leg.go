@@ -13,7 +13,8 @@ import (
 //
 // The split that matters beyond display is in GetRoutingStats: a review-like
 // leg (review, critique, answer, watchdog, eval) judges someone else's work,
-// so it is not a sample of the worker's task class. A retry, fallback,
+// so it is not a sample of the worker's task class — a pr_walkthrough leg is
+// review-like for the same reason. A retry, fallback,
 // revision or escalation leg is — each is a real attempt at the same class.
 // A benchmark leg (JEF-276) is a real attempt too: it is the same exam an
 // eval replay runs, but pinned to one (runtime, model) candidate precisely so
@@ -33,6 +34,9 @@ const (
 	LegRoleEval       = "eval"
 	LegRoleBenchmark  = "benchmark"
 	LegRoleEscalation = "escalation"
+	// LegRolePrWalkthrough (F05) narrates someone else's diff, so it is
+	// review-like: it must not count as a sample of the worker's task class.
+	LegRolePrWalkthrough = "pr_walkthrough"
 )
 
 // WorkflowRoot is the run every leg of parent's workflow points at: parent's
