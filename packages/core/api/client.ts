@@ -345,6 +345,7 @@ import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelope
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
+import { ReviewFlagSchema, ReviewFlagListSchema, EMPTY_REVIEW_FLAG_LIST, type ReviewFlag, type ReviewFlagFilter, type ReviewFlagList, type ReviewFlagState } from "../review-flags/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BATCH_WINDOW_DEFAULTS, BatchWindowSchema } from "../batch-window/schemas";
@@ -4026,6 +4027,30 @@ export class ApiClient {
     return parseWithFallback(raw, PrWalkthroughSettingsSchema, input, {
       endpoint: "PUT /api/pr-walkthrough/settings",
     }) as PrWalkthroughSettings;
+  }
+
+  // Review flags by severity (F06). The fallback is an empty list with zero
+  // counts — the same shape an issue with nothing flagged returns — so a
+  // malformed response hides the section instead of breaking the issue page.
+  async listReviewFlags(issueId: string, state: ReviewFlagFilter = "open"): Promise<ReviewFlagList> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/review-flags?state=${encodeURIComponent(state)}`,
+    );
+    return parseWithFallback(raw, ReviewFlagListSchema, EMPTY_REVIEW_FLAG_LIST, {
+      endpoint: "GET /api/issues/:id/review-flags",
+    }) as ReviewFlagList;
+  }
+
+  async setReviewFlagState(issueId: string, flagId: string, state: ReviewFlagState): Promise<ReviewFlag | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/review-flags/${encodeURIComponent(flagId)}`,
+      { method: "PATCH", body: JSON.stringify({ state }) },
+    );
+    // The caller invalidates the list rather than reading this row, so a
+    // response this build cannot parse is not worth a thrown error.
+    return parseWithFallback(raw, ReviewFlagSchema, null, {
+      endpoint: "PATCH /api/issues/:id/review-flags/:flagId",
+    }) as ReviewFlag | null;
   }
 
   async getDocDriftSettings(): Promise<DocDriftSettings> {

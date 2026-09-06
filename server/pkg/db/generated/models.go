@@ -2130,6 +2130,33 @@ type RepoIndexChunk struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ReviewFlag struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	IssueID        pgtype.UUID        `json:"issue_id"`
+	PrSource       string             `json:"pr_source"`
+	PrID           pgtype.UUID        `json:"pr_id"`
+	HeadSha        string             `json:"head_sha"`
+	FilePath       string             `json:"file_path"`
+	LineStart      int32              `json:"line_start"`
+	LineEnd        int32              `json:"line_end"`
+	Side           string             `json:"side"`
+	Severity       string             `json:"severity"`
+	Confidence     pgtype.Int2        `json:"confidence"`
+	Title          string             `json:"title"`
+	Body           string             `json:"body"`
+	AuthorAgentID  pgtype.UUID        `json:"author_agent_id"`
+	AuthorUserID   pgtype.UUID        `json:"author_user_id"`
+	TaskID         pgtype.UUID        `json:"task_id"`
+	CommentID      pgtype.UUID        `json:"comment_id"`
+	State          string             `json:"state"`
+	ResolvedByType string             `json:"resolved_by_type"`
+	ResolvedByID   pgtype.UUID        `json:"resolved_by_id"`
+	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RunLimitEvent struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

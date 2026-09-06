@@ -2151,6 +2151,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// revision of a linked pull request's diff.
 					r.Get("/pull-requests/{prId}/walkthrough", h.GetIssuePrWalkthrough)
 					r.Post("/pull-requests/{prId}/walkthrough/refresh", h.RefreshIssuePrWalkthrough)
+					// Review flags by severity (F06): structured findings
+					// on a line range of a linked pull request. Any actor
+					// records one; RequireHumanActor is not used on the PATCH
+					// because the handler also needs the loader's 404 for a
+					// flag of another issue, and keeps its own fail-closed
+					// check rather than splitting the answer across two layers.
+					r.Get("/review-flags", h.ListIssueReviewFlags)
+					r.Post("/review-flags", h.CreateIssueReviewFlag)
+					r.Patch("/review-flags/{flagId}", h.SetIssueReviewFlagState)
 					r.Get("/dependencies", h.ListIssueDependencies)
 					r.Post("/dependencies", h.CreateIssueDependency)
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)

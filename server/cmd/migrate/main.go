@@ -414,6 +414,9 @@ var concurrentIndexCleanups = map[string]string{
 	"736_chat_session_participant_unique":                       "uq_chat_session_participant",
 	"744_pr_walkthrough_head_unique":                            "uq_pr_walkthrough_head",
 	"745_pr_walkthrough_workspace":                              "idx_pr_walkthrough_workspace",
+	"747_review_flag_issue_state":                               "idx_review_flag_issue_state",
+	"748_review_flag_pr_head":                                   "idx_review_flag_pr_head",
+	"749_review_flag_workspace":                                 "idx_review_flag_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

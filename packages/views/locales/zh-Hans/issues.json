@@ -1433,5 +1433,26 @@
       "generated": "生成",
       "noise": "杂项"
     }
+  },
+  "review_flags": {
+    "section": "评审标记",
+    "empty": "此拉取请求没有标记。",
+    "error": "无法加载评审标记。",
+    "retry": "重试",
+    "actions": "标记操作",
+    "resolve": "解决",
+    "dismiss": "忽略",
+    "reopen": "重新打开",
+    "stale": "代码已变更",
+    "confidence": "把握 {{value}}%",
+    "filter": {
+      "open": "未解决",
+      "all": "全部"
+    },
+    "severity": {
+      "bug": "缺陷",
+      "warning": "警告",
+      "info": "提示"
+    }
   }
 }

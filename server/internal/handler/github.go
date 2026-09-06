@@ -1021,6 +1021,10 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	// started. Idempotent per head — the unique index refuses a second claim,
 	// so a re-applied snapshot for an unchanged head enqueues nothing.
 	h.maybeEnqueuePrWalkthrough(ctx, pr.WorkspaceID, prWalkthroughSourceGitHub, pr.ID, pr.HeadSha)
+	// Review flags (F06): the same signal in the other direction — flags
+	// written against a head this PR has moved past stop claiming to describe
+	// the current code.
+	h.staleReviewFlagsForHead(ctx, pr.WorkspaceID, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
 		return

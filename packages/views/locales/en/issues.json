@@ -1469,5 +1469,26 @@
       "generated": "Generated",
       "noise": "Noise"
     }
+  },
+  "review_flags": {
+    "section": "Review flags",
+    "empty": "Nothing flagged on this pull request.",
+    "error": "The review flags could not be loaded.",
+    "retry": "Retry",
+    "actions": "Flag actions",
+    "resolve": "Resolve",
+    "dismiss": "Dismiss",
+    "reopen": "Reopen",
+    "stale": "code changed",
+    "confidence": "{{value}}% sure",
+    "filter": {
+      "open": "Open",
+      "all": "All"
+    },
+    "severity": {
+      "bug": "Bug",
+      "warning": "Warning",
+      "info": "Info"
+    }
   }
 }

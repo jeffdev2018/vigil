@@ -1433,5 +1433,26 @@
       "generated": "생성됨",
       "noise": "노이즈"
     }
+  },
+  "review_flags": {
+    "section": "리뷰 지적",
+    "empty": "이 풀 리퀘스트에 지적된 내용이 없습니다.",
+    "error": "리뷰 지적을 불러오지 못했습니다.",
+    "retry": "다시 시도",
+    "actions": "지적 작업",
+    "resolve": "해결",
+    "dismiss": "무시",
+    "reopen": "다시 열기",
+    "stale": "코드 변경됨",
+    "confidence": "확신도 {{value}}%",
+    "filter": {
+      "open": "미해결",
+      "all": "전체"
+    },
+    "severity": {
+      "bug": "버그",
+      "warning": "경고",
+      "info": "정보"
+    }
   }
 }

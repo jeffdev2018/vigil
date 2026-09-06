@@ -125,6 +125,7 @@ import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
 import { PrWalkthroughSection } from "./pr-walkthrough-section";
+import { ReviewFlagsSection } from "./review-flags-section";
 import { MergeReadinessPanel } from "./merge-readiness-panel";
 import { PRStackList } from "./pr-stack-list";
 import { useGitHubSettings } from "@multica/core/github";
@@ -2617,6 +2618,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             <PRStackList issueId={id} />
             <PullRequestList issueId={id} />
             <PrWalkthroughSection issueId={id} />
+            <ReviewFlagsSection issueId={id} />
           </div>}
         </div>
       )}

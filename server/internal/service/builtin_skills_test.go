@@ -357,6 +357,7 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		"references/triage-verdicts.md":        "triage",
 		"references/undo-and-show-me-first.md": "undo",
 		"references/pr-walkthrough.md":         "walkthrough",
+		"references/review-flags.md":           "review flag",
 	}
 
 	skill, ok := findSkill(t, PlatformSkillName)

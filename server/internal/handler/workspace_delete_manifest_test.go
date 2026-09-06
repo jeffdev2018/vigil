@@ -27,6 +27,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"repo_index_chunk":                   workspaceDelete,
 	"doc_drift_proposal":                 workspaceDelete,
 	"pr_walkthrough":                     workspaceDelete,
+	"review_flag":                        workspaceDelete,
 	"project_mirror_link":                workspaceDelete,
 	"issue_mirror":                       workspaceDelete,
 	"agent_effect":                       workspaceDelete,
