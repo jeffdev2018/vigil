@@ -220,6 +220,8 @@ export type {
   CancelTaskResponse,
   ChatDraftRestore,
   ChatDraftRestoresResponse,
+  ChatParticipant,
+  ChatParticipantList,
 } from "./chat";
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";

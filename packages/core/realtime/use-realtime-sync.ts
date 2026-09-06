@@ -73,6 +73,7 @@ import {
   QUICK_ACTIONS_PENDING_TIMEOUT_MS,
 } from "../chat/queries";
 import { useChatStore } from "../chat";
+import { applyChatParticipantEvent } from "../chat/participants";
 import { upsertChatMessageToCaches } from "../chat/message-cache";
 import {
   promotePendingChatTask,
@@ -129,6 +130,7 @@ import type {
   ChatMessagesPage,
   ChatSession,
   ChatSessionCreatedPayload,
+  ChatParticipantEventPayload,
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
   MeetingEventPayload,
@@ -1040,6 +1042,8 @@ export function useRealtimeSync(
       // Chat events are handled explicitly below; do not double-invalidate.
       "chat:message", "chat:done", "chat:quick_actions", "chat:cancel_finalized", "chat:session_read",
       "chat:session_created", "chat:session_deleted", "chat:session_updated",
+      // Multiplayer roster + typing (K31) have dedicated handlers below.
+      "chat:participant_added", "chat:participant_removed", "chat:typing",
       // task:message stays out of the prefix path because it fires per
       // streamed message during a long run — invalidating the snapshot on
       // every message would flood the network. Specific chat handlers below
@@ -1857,6 +1861,31 @@ export function useRealtimeSync(
       applyChatSessionUpdatedToCache(qc, id, payload);
     });
 
+    // Multiplayer roster changes (K31 / JEF-181). Broadcast to the whole
+    // workspace, so this fires for members who are not in the session either;
+    // applyChatParticipantEvent only touches caches keyed by the session it
+    // names, and acts on the session list only when the event is about this
+    // viewer. A removal must also drop the active-session pointer, or the
+    // window keeps rendering a conversation every read now 403s on.
+    const onParticipantEvent = (kind: "added" | "removed") => (p: unknown) => {
+      const payload = p as ChatParticipantEventPayload;
+      chatWsLogger.info(`chat:participant_${kind} (global)`, payload);
+      const id = getCurrentWsId();
+      if (!id || !payload?.session_id) return;
+      const selfId = authStore.getState().user?.id ?? "";
+      const lostAccess = applyChatParticipantEvent(qc, id, selfId, payload, kind);
+      if (!lostAccess) return;
+      const chatState = useChatStore.getState?.();
+      if (chatState && chatState.activeSessionId === payload.session_id) {
+        chatState.setActiveSession(null);
+      }
+    };
+    const unsubChatParticipantAdded = ws.on("chat:participant_added", onParticipantEvent("added"));
+    const unsubChatParticipantRemoved = ws.on(
+      "chat:participant_removed",
+      onParticipantEvent("removed"),
+    );
+
     // chat:session_deleted fires after a hard delete. The originating tab has
     // already optimistically dropped the row via useDeleteChatSession; this
     // handler keeps OTHER tabs/devices in sync and also clears the active
@@ -1938,6 +1967,8 @@ export function useRealtimeSync(
       unsubChatSessionCreated();
       unsubChatSessionDeleted();
       unsubChatSessionUpdated();
+      unsubChatParticipantAdded();
+      unsubChatParticipantRemoved();
       if (taskMessageFlushTimer) clearTimeout(taskMessageFlushTimer);
       if (aggregateRefreshTimer) clearTimeout(aggregateRefreshTimer);
       timers.forEach(clearTimeout);

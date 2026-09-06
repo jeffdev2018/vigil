@@ -107,6 +107,7 @@ import type {
   TaskMessagePayload,
   Attachment,
   ChatSession,
+  ChatParticipantList,
   ChatPinnedAgent,
   ChatMessage,
   ChatMessagesPage,
@@ -354,6 +355,7 @@ import {
   ChatMessagesPageSchema,
   ChatPendingTaskSchema,
   ChatSessionListSchema,
+  ChatParticipantListSchema,
   ChatSessionSchema,
   PrioritizeQueuedChatTaskResponseSchema,
   SendChatMessageResponseSchema,
@@ -484,6 +486,7 @@ import {
   EMPTY_CHAT_PENDING_TASK,
   EMPTY_CHAT_SESSION,
   EMPTY_CHAT_SESSION_LIST,
+  EMPTY_CHAT_PARTICIPANT_LIST,
   EMPTY_PRIORITIZE_QUEUED_CHAT_TASK_RESPONSE,
   EMPTY_CLOUD_RUNTIME_NODE,
   EMPTY_CLOUD_RUNTIME_NODE_ACTION,
@@ -5658,6 +5661,37 @@ export class ApiClient {
     await this.fetch(`/api/chat/sessions/${sessionId}/draft-restores/${restoreId}`, {
       method: "DELETE",
     });
+  }
+
+  // --- Multiplayer chat participants (K31 / JEF-181) -----------------------
+
+  async listChatParticipants(sessionId: string): Promise<ChatParticipantList> {
+    const raw: unknown = await this.fetch<unknown>(
+      `/api/chat/sessions/${sessionId}/participants`,
+    );
+    return parseWithFallback(raw, ChatParticipantListSchema, EMPTY_CHAT_PARTICIPANT_LIST, {
+      endpoint: "GET /api/chat/sessions/{id}/participants",
+    });
+  }
+
+  /** Creator only. Idempotent — adding an existing participant is a 200. */
+  async addChatParticipant(sessionId: string, userId: string): Promise<void> {
+    await this.fetch(`/api/chat/sessions/${sessionId}/participants`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId }),
+    });
+  }
+
+  /** Creator removing anyone, or a participant removing themselves. */
+  async removeChatParticipant(sessionId: string, userId: string): Promise<void> {
+    await this.fetch(`/api/chat/sessions/${sessionId}/participants/${userId}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Ephemeral typing ping. Nothing is persisted; failures are not worth a retry. */
+  async sendChatTyping(sessionId: string): Promise<void> {
+    await this.fetch(`/api/chat/sessions/${sessionId}/typing`, { method: "POST" });
   }
 
   async listPendingChatTasks(): Promise<PendingChatTasksResponse> {

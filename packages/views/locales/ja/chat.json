@@ -255,5 +255,15 @@
     "error_failed": "録音を文字起こしできませんでした。",
     "listen": "読み上げ",
     "stop_listening": "読み上げを停止"
+  },
+  "participants": {
+    "add": "メンバーを追加",
+    "remove": "{{name}} を削除",
+    "leave": "このチャットから退出",
+    "online": "オンライン",
+    "nobody_to_add": "全員がすでに参加しています",
+    "typing_name": "{{name}} が入力中…",
+    "typing_count": "{{count}} 人が入力中…",
+    "author_badge": "{{name}} が送信"
   }
 }

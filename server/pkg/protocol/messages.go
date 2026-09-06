@@ -220,6 +220,9 @@ type ChatMessagePayload struct {
 	Content       string `json:"content"`
 	TaskID        string `json:"task_id,omitempty"`
 	CreatedAt     string `json:"created_at"`
+	// AuthorUserID is the human who sent a user message in a multiplayer
+	// session (K31). Empty on assistant turns and on non-web ingress.
+	AuthorUserID string `json:"author_user_id,omitempty"`
 }
 
 // Chat message kinds (chat_message.message_kind). Additive: unknown values
@@ -337,6 +340,23 @@ type ChatSessionChannelSource struct {
 // pointer if it referenced the deleted session.
 type ChatSessionDeletedPayload struct {
 	ChatSessionID string `json:"chat_session_id"`
+}
+
+// ChatParticipantPayload is broadcast when a member is added to or removed
+// from a multiplayer chat session (K31 / JEF-181). Carries identity only —
+// receivers refetch the roster, which is the only thing that also knows the
+// joined_at ordering and online state.
+type ChatParticipantPayload struct {
+	ChatSessionID string `json:"session_id"`
+	UserID        string `json:"user_id"`
+}
+
+// ChatTypingPayload is an ephemeral "X is typing" ping. Nothing persists it;
+// receivers show the indicator and expire it locally after a few seconds.
+type ChatTypingPayload struct {
+	ChatSessionID string `json:"session_id"`
+	UserID        string `json:"user_id"`
+	At            string `json:"at"`
 }
 
 // ChatSessionUpdatedPayload is broadcast when a user-editable field on a

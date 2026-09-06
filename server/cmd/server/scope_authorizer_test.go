@@ -17,6 +17,9 @@ type fakeScopeQuerier struct {
 	tasks    map[[16]byte]db.AgentTaskQueue
 	issues   map[[16]byte]db.Issue
 	sessions map[[16]byte]db.ChatSession
+	// participants holds (chat_session_id, user_id) pairs a member was added
+	// to — the multiplayer roster the authorizer widens to (K31).
+	participants map[[32]byte]bool
 }
 
 func (f *fakeScopeQuerier) GetAgentTask(_ context.Context, id pgtype.UUID) (db.AgentTaskQueue, error) {
@@ -36,6 +39,65 @@ func (f *fakeScopeQuerier) GetChatSession(_ context.Context, id pgtype.UUID) (db
 		return s, nil
 	}
 	return db.ChatSession{}, pgx.ErrNoRows
+}
+
+func (f *fakeScopeQuerier) IsChatSessionParticipant(_ context.Context, arg db.IsChatSessionParticipantParams) (bool, error) {
+	var key [32]byte
+	copy(key[:16], arg.ChatSessionID.Bytes[:])
+	copy(key[16:], arg.UserID.Bytes[:])
+	return f.participants[key], nil
+}
+
+// TestScopeAuthorizer_ChatAdmitsParticipant pins the multiplayer widening
+// (K31 / JEF-181): the realtime scope and handler.chatSessionAccess must
+// answer the same question. A member added to a session may subscribe to its
+// chat scope and to its chat tasks; one who was not added still may not.
+func TestScopeAuthorizer_ChatAdmitsParticipant(t *testing.T) {
+	wsStr, wsUUID := mustUUID(t)
+	creatorStr, creatorUUID := mustUUID(t)
+	peerStr, peerUUID := mustUUID(t)
+	strangerStr, _ := mustUUID(t)
+	sessStr, sessUUID := mustUUID(t)
+	taskStr, taskUUID := mustUUID(t)
+
+	var key [32]byte
+	copy(key[:16], sessUUID.Bytes[:])
+	copy(key[16:], peerUUID.Bytes[:])
+
+	q := &fakeScopeQuerier{
+		sessions: map[[16]byte]db.ChatSession{
+			sessUUID.Bytes: {ID: sessUUID, WorkspaceID: wsUUID, CreatorID: creatorUUID},
+		},
+		tasks: map[[16]byte]db.AgentTaskQueue{
+			taskUUID.Bytes: {ID: taskUUID, ChatSessionID: sessUUID},
+		},
+		participants: map[[32]byte]bool{key: true},
+	}
+	a := newScopeAuthorizer(q)
+
+	for _, tc := range []struct {
+		name      string
+		userID    string
+		scopeType string
+		scopeID   string
+		want      bool
+	}{
+		{"creator on chat scope", creatorStr, realtime.ScopeChat, sessStr, true},
+		{"participant on chat scope", peerStr, realtime.ScopeChat, sessStr, true},
+		{"stranger on chat scope", strangerStr, realtime.ScopeChat, sessStr, false},
+		{"participant on chat task", peerStr, realtime.ScopeTask, taskStr, true},
+		{"stranger on chat task", strangerStr, realtime.ScopeTask, taskStr, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ok, err := a.AuthorizeScope(context.Background(), tc.userID, wsStr, tc.scopeType, tc.scopeID)
+			if err != nil {
+				t.Fatalf("AuthorizeScope: %v", err)
+			}
+			if ok != tc.want {
+				t.Fatalf("AuthorizeScope(%s, %s) = %v, want %v", tc.scopeType, tc.name, ok, tc.want)
+			}
+		})
+	}
 }
 
 func mustUUID(t *testing.T) (string, pgtype.UUID) {
@@ -201,6 +263,9 @@ func (failingScopeQuerier) GetIssue(context.Context, pgtype.UUID) (db.Issue, err
 func (failingScopeQuerier) GetChatSession(context.Context, pgtype.UUID) (db.ChatSession, error) {
 	return db.ChatSession{}, errors.New("connection reset by peer")
 }
+func (failingScopeQuerier) IsChatSessionParticipant(context.Context, db.IsChatSessionParticipantParams) (bool, error) {
+	return false, errors.New("connection reset by peer")
+}
 
 // errOnInnerQuerier succeeds for GetAgentTask (so the task path reaches its
 // inner lookups) but fails GetIssue / GetChatSession with a non-ErrNoRows
@@ -217,6 +282,9 @@ func (*errOnInnerQuerier) GetIssue(context.Context, pgtype.UUID) (db.Issue, erro
 }
 func (*errOnInnerQuerier) GetChatSession(context.Context, pgtype.UUID) (db.ChatSession, error) {
 	return db.ChatSession{}, errors.New("connection reset by peer")
+}
+func (*errOnInnerQuerier) IsChatSessionParticipant(context.Context, db.IsChatSessionParticipantParams) (bool, error) {
+	return false, errors.New("connection reset by peer")
 }
 
 // TestScopeAuthorizer_DoesNotSwallowQueryErrors pins #6037: a real database

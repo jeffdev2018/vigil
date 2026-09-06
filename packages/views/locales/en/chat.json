@@ -259,5 +259,15 @@
     "error_failed": "The recording could not be transcribed.",
     "listen": "Listen",
     "stop_listening": "Stop listening"
+  },
+  "participants": {
+    "add": "Add member",
+    "remove": "Remove {{name}}",
+    "leave": "Leave this chat",
+    "online": "Online",
+    "nobody_to_add": "Everyone is already here",
+    "typing_name": "{{name}} is typing…",
+    "typing_count": "{{count}} people are typing…",
+    "author_badge": "Sent by {{name}}"
   }
 }

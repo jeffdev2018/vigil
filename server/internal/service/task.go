@@ -2836,6 +2836,9 @@ func (s *TaskService) SendDirectChatMessage(
 			Content:       content,
 			TaskID:        task.ID,
 			MessageKind:   pgtype.Text{String: protocol.ChatMessageKindMessage, Valid: true},
+			// Multiplayer attribution (K31): in a shared session the sender is
+			// not necessarily the creator, so the bubble needs its own author.
+			AuthorUserID: initiatorUserID,
 		})
 		if err != nil {
 			return fmt.Errorf("create user chat message: %w", err)

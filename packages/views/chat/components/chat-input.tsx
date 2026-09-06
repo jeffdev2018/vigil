@@ -31,6 +31,7 @@ import type { MentionItem } from "../../editor/extensions/mention-suggestion";
 import type { Attachment, Project } from "@multica/core/types";
 import { ProjectPicker } from "../../projects/components/project-picker";
 import { ClearablePillButton } from "../../common/pill-button";
+import { useThrottledChatTyping } from "./participant-bar";
 import { useT } from "../../i18n";
 
 const logger = createLogger("chat.ui");
@@ -182,6 +183,7 @@ export function ChatInput({
   const editorRef = useRef<ContentEditorRef>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const activeSessionId = useChatStore((s) => s.activeSessionId);
+  const pingTyping = useThrottledChatTyping(activeSessionId);
   // Two keys with deliberately different concerns:
   //
   // `draftKey` — zustand storage key. Scopes the in-progress draft per session
@@ -719,6 +721,9 @@ export function ChatInput({
               // document this fires for the source draft's body — including the
               // upload's own completion dispatch.
               commitDraft(editorDraftKeyRef.current, md);
+              // After the draft commit, never before: the ping is cosmetic and
+              // must not sit between a keystroke and its persistence.
+              if (md.trim()) pingTyping();
             }}
             onSubmit={submit}
             onUploadFile={uploadEnabled ? handleUpload : undefined}

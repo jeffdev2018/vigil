@@ -332,6 +332,12 @@ deleted_draft_restores AS (
     DELETE FROM chat_draft_restore
     WHERE chat_session_id IN (SELECT id FROM ws_sessions)
 ),
+-- Multiplayer chat participants (K31). No FK to chat_session, so teardown
+-- removes them here while ws_sessions is still readable.
+deleted_chat_participants AS (
+    DELETE FROM chat_session_participant
+    WHERE chat_session_id IN (SELECT id FROM ws_sessions)
+),
 -- Same no-FK chore as chat_draft_restore above. Matched on workspace_id rather
 -- than the session set because that column exists precisely so this statement
 -- does not have to join through chat_session, which it deletes in this same CTE.

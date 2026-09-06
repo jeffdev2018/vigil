@@ -255,5 +255,15 @@
     "error_failed": "녹음을 전사할 수 없습니다.",
     "listen": "듣기",
     "stop_listening": "듣기 중지"
+  },
+  "participants": {
+    "add": "멤버 추가",
+    "remove": "{{name}} 제거",
+    "leave": "이 채팅 나가기",
+    "online": "온라인",
+    "nobody_to_add": "이미 모두 참여 중입니다",
+    "typing_name": "{{name}} 님이 입력 중…",
+    "typing_count": "{{count}}명이 입력 중…",
+    "author_badge": "{{name}} 님이 보냄"
   }
 }

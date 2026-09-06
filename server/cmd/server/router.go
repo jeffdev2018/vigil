@@ -2935,6 +2935,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// creator-only fetch + idempotent consume.
 					r.Get("/draft-restores", h.ListChatDraftRestores)
 					r.Delete("/draft-restores/{restoreId}", h.ConsumeChatDraftRestore)
+					// Multiplayer roster (K31 / JEF-181). Reads are open to
+					// every participant; adding is creator-only and removing
+					// is creator-or-self.
+					r.Get("/participants", h.ListChatParticipants)
+					r.Post("/participants", h.AddChatParticipant)
+					r.Delete("/participants/{userId}", h.RemoveChatParticipant)
+					// Ephemeral "X is typing" ping — broadcast, never stored.
+					r.Post("/typing", h.SendChatTyping)
 				})
 			})
 			r.Get("/api/chat/pending-tasks", h.ListPendingChatTasks)

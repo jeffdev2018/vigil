@@ -411,6 +411,7 @@ var concurrentIndexCleanups = map[string]string{
 	"723_issue_mirror_pair_unique":                              "uq_issue_mirror_pair",
 	"724_issue_mirror_mirror_issue_index":                       "idx_issue_mirror_mirror_issue",
 	"732_doc_drift_proposal_open_unique":                        "uq_doc_drift_proposal_open",
+	"736_chat_session_participant_unique":                       "uq_chat_session_participant",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

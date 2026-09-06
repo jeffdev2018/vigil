@@ -32,6 +32,7 @@ import {
   RotateCw, Volume2, VolumeX } from "lucide-react";
 import { useScrollFade } from "@multica/ui/hooks/use-scroll-fade";
 import { isTaskMessageTaskId, taskMessagesOptions } from "@multica/core/chat/queries";
+
 import { RichContent } from "../../rich-content";
 import { RichContentScrollRootProvider } from "../../rich-content/scroll-root";
 import { copyText } from "@multica/ui/lib/clipboard";
@@ -91,6 +92,13 @@ interface ChatMessageListProps {
    * that reply until chat:quick_actions resolves it.
    */
   quickActionsPendingMessageId?: string | null;
+  /**
+   * Multiplayer authorship (K31 / JEF-181): name to badge a human bubble
+   * with, or null to badge nothing. Resolved by the caller (which owns the
+   * workspace context) so a long transcript opens one roster subscription
+   * instead of one per message. Omitted entirely in a solo chat.
+   */
+  resolveAuthorName?: (message: ChatMessage) => string | null;
 }
 
 // ─── Virtuoso chrome ─────────────────────────────────────────────────────
@@ -187,6 +195,7 @@ export function ChatMessageList({
   quickActionsDisabled = false,
   onRegenerateQuickActions,
   quickActionsPendingMessageId = null,
+  resolveAuthorName,
 }: ChatMessageListProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [scrollContainerEl, setScrollContainerEl] = useState<HTMLDivElement | null>(null);
@@ -386,6 +395,7 @@ export function ChatMessageList({
               latestAssistantMessageId={latestAssistantMessageId}
               quickActionsPendingMessageId={quickActionsPendingMessageId}
               starterCardsMessageId={starterCardsMessageId}
+              resolveAuthorName={resolveAuthorName}
             />
           </div>
         )}
@@ -451,6 +461,7 @@ const MessageBubble = memo(function MessageBubble({
   latestAssistantMessageId,
   quickActionsPendingMessageId,
   starterCardsMessageId,
+  resolveAuthorName,
 }: {
   item: ChatRenderItem;
   isPending: boolean;
@@ -461,6 +472,12 @@ const MessageBubble = memo(function MessageBubble({
   latestAssistantMessageId: string | null;
   quickActionsPendingMessageId: string | null;
   starterCardsMessageId: string | null;
+  /**
+   * Name to badge a human bubble with, or null to badge nothing. Resolved
+   * once by the list rather than per row so a long transcript does not open
+   * one roster subscription per message (K31).
+   */
+  resolveAuthorName?: (message: ChatMessage) => string | null;
 }) {
   // The live row and the persisted assistant row both land here under one key,
   // and both render <AssistantMessage> — same component type, same position —
@@ -480,8 +497,14 @@ const MessageBubble = memo(function MessageBubble({
   const { message } = item;
 
   if (message.role === "user") {
+    // Multiplayer only (K31): resolveAuthorName returns null for a solo
+    // session, so a one-person chat renders exactly as it always did.
+    const authorName = resolveAuthorName?.(message) ?? null;
     return (
-      <div className="flex justify-end">
+      <div className="flex flex-col items-end">
+        {authorName && (
+          <span className="mb-0.5 pr-1 text-caption text-muted-foreground">{authorName}</span>
+        )}
         <div className="rounded-2xl bg-muted px-3.5 py-2 text-body max-w-[80%] break-words">
           {/* User messages are authored as markdown in ContentEditor, so they
            * render through the SAME RichContent as assistant replies and as
