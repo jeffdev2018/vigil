@@ -662,7 +662,9 @@
     "status_deferred": "Différé",
     "status_paused": "En pause",
     "unresponsive": "Ne répond pas",
-    "unresponsive_tooltip": "Aucune activité depuis {{duration}}"
+    "unresponsive_tooltip": "Aucune activité depuis {{duration}}",
+    "off_peak": "Heures creuses",
+    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes, elle démarre donc plus tard que prévu."
   },
   "legs": {
     "workflow": "Workflow",

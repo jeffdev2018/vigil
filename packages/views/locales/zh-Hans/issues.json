@@ -638,7 +638,9 @@
     "status_deferred": "已延期",
     "status_paused": "已暂停",
     "unresponsive": "无响应",
-    "unresponsive_tooltip": "已 {{duration}} 无活动"
+    "unresponsive_tooltip": "已 {{duration}} 无活动",
+    "off_peak": "闲时",
+    "off_peak_hint": "已进入闲时队列：所有紧急运行之后才会被处理，因此开始时间晚于计划。"
   },
   "legs": {
     "workflow": "工作流",

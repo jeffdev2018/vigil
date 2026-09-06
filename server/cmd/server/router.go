@@ -2493,6 +2493,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Data residency (K46): where this workspace's work may run.
 			r.Get("/api/data-residency", h.GetDataResidencyPolicy)
 			r.Put("/api/data-residency", h.PutDataResidencyPolicy)
+
+			// Off-peak batch lane (K45): the workspace's off-peak window.
+			r.Get("/api/batch-window", h.GetBatchWindow)
+			r.Put("/api/batch-window", h.PutBatchWindow)
 			// Code health autopilot (K22): admin writes, members read.
 			r.Get("/api/code-health/settings", h.GetCodeHealthSettings)
 			r.Put("/api/code-health/settings", h.PutCodeHealthSettings)

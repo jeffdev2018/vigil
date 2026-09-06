@@ -162,7 +162,7 @@ func taskScopedAuthToken(task Task) (string, error) {
 }
 
 func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL string, healthPort, slot int, tempDir string) map[string]string {
-	return map[string]string{
+	env := map[string]string{
 		"MULTICA_TOKEN":        token,
 		cli.TaskConfigRootEnv:  configRoot,
 		TaskWorkspacesRootEnv:  workspacesRoot,
@@ -177,6 +177,15 @@ func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesR
 		"TMP":                  tempDir,
 		"TEMP":                 tempDir,
 	}
+	// Off-peak batch lane (K45). Set only when the server actually named a
+	// lane: an absent variable is what every server predating the field
+	// produces, and its meaning is the same as "sync", so exporting a
+	// synthesised default would tell a wrapper the server had decided
+	// something it never did.
+	if task.DispatchLane != "" {
+		env["MULTICA_DISPATCH_LANE"] = task.DispatchLane
+	}
+	return env
 }
 
 // taskRunner executes a single agent task and returns the result.

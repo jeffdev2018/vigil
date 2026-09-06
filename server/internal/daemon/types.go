@@ -95,6 +95,13 @@ type Task struct {
 	// Sandbox (K10) is the confinement the server requested for this run.
 	// Nil or mode "none" runs the CLI directly on the host, as before.
 	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
+	// DispatchLane (K45) mirrors handler.AgentTaskResponse.DispatchLane: "batch"
+	// when the server deferred this run to the workspace's off-peak window,
+	// "sync" otherwise. Exported to the agent process as MULTICA_DISPATCH_LANE
+	// so a runtime or CLI wrapper with a cheaper off-peak path can honour it;
+	// the daemon itself runs a batch task exactly like a sync one. Empty on a
+	// server predating the field, which reads as "sync".
+	DispatchLane string `json:"dispatch_lane,omitempty"`
 	// RemoteMCPDaemonToken stays inside the daemon and authenticates the local
 	// broker's credential-resolution calls. It must never enter agent env/config.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`

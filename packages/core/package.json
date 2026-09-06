@@ -193,6 +193,7 @@
     "./code-health": "./code-health/index.ts",
     "./doc-drift": "./doc-drift/index.ts",
     "./repo-index": "./repo-index/index.ts",
+    "./batch-window": "./batch-window/index.ts",
     "./residency": "./residency/index.ts",
     "./eval": "./eval/index.ts",
     "./linear": "./linear/index.ts",

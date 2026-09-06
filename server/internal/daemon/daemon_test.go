@@ -568,6 +568,21 @@ func TestTaskMulticaEnvironmentIncludesPrivateConfigRoot(t *testing.T) {
 		t.Fatalf("taskMulticaEnvironment() = %#v, want %#v", env, want)
 	}
 
+	// Off-peak batch lane (K45). A server that named no lane must produce no
+	// variable — the absence IS the "sync" reading, and a synthesised default
+	// would look to a wrapper like a decision the server made.
+	if _, ok := env["MULTICA_DISPATCH_LANE"]; ok {
+		t.Fatalf("MULTICA_DISPATCH_LANE set for a task with no lane: %q", env["MULTICA_DISPATCH_LANE"])
+	}
+	for _, lane := range []string{"sync", "batch"} {
+		task.DispatchLane = lane
+		laneEnv := taskMulticaEnvironment(task, "agent-name", fakeToken, taskRoot, workspacesRoot, "https://task.example", 19514, 3, "/task/tmp")
+		if laneEnv["MULTICA_DISPATCH_LANE"] != lane {
+			t.Fatalf("MULTICA_DISPATCH_LANE = %q, want %q", laneEnv["MULTICA_DISPATCH_LANE"], lane)
+		}
+	}
+	task.DispatchLane = ""
+
 	layerCustomEnvAndHermesHome(env, map[string]string{
 		"MULTICA_TASK_CONFIG_ROOT":     "/owner/config",
 		"MULTICA_TASK_WORKSPACES_ROOT": "/owner/multica_workspaces",

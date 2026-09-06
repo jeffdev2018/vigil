@@ -863,7 +863,10 @@ WHERE id = (
               )
             )
       )
-    ORDER BY atq.priority DESC, atq.created_at ASC, atq.id ASC
+    -- Off-peak batch lane (K45): a task the scheduler stamped 'batch' is
+    -- non-urgent autopilot work, so it is only served after every 'sync' task
+    -- this runtime could claim — ahead of priority, which orders WITHIN a lane.
+    ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC, atq.id ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
@@ -2284,7 +2287,9 @@ WHERE atq.runtime_id = $1
             )
         )
   )
-ORDER BY atq.priority DESC, atq.created_at ASC;
+-- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
+-- runtime walks matches the order the claim itself will honour.
+ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC;
 
 -- name: CancelSupersededDeferredRetriesForRuntimes :many
 -- Cancels deferred auto-retry rows that a newer active task has already
@@ -2417,7 +2422,9 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
             )
         )
   )
-ORDER BY atq.priority DESC, atq.created_at ASC;
+-- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
+-- runtime walks matches the order the claim itself will honour.
+ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC;
 
 -- name: NextDeferredTaskFireAtForRuntimes :one
 -- Returns the next future deferred task for a daemon's authorized runtime set,
@@ -2871,3 +2878,19 @@ SET handoff_note = CASE
   END
 WHERE id = $1
 RETURNING *;
+
+-- name: StampTaskDispatchLane :exec
+-- Off-peak batch lane (K45). Moves a freshly enqueued task to the batch lane.
+-- Applied after enqueue rather than threaded through every Enqueue* entry
+-- point: the lane is an autopilot-scheduler decision, and only a task nobody
+-- has claimed yet may still change lanes — a running task's lane is history.
+UPDATE agent_task_queue
+SET dispatch_lane = @dispatch_lane
+WHERE id = @task_id
+  AND status = 'queued';
+
+-- name: GetTaskDispatchLanes :many
+-- Lanes for a page of tasks, so an autopilot run list can label its rows
+-- without one query per run.
+SELECT id, dispatch_lane FROM agent_task_queue
+WHERE id = ANY(@task_ids::uuid[]);

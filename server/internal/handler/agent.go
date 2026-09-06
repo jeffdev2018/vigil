@@ -431,6 +431,10 @@ type AgentTaskResponse struct {
 	// predate the router, so the UI renders the block conditionally.
 	TaskClass string          `json:"task_class,omitempty"`
 	Routing   json.RawMessage `json:"routing,omitempty"`
+	// DispatchLane (K45) is "sync" for ordinary work and "batch" for off-peak
+	// autopilot work the claim ordering serves last. Empty on rows written by a
+	// server predating the column, which clients read as "sync".
+	DispatchLane string `json:"dispatch_lane,omitempty"`
 	// Run confidence (JEF-240): the self-assessed score persisted after a
 	// successful run — score, rationale, model, the threshold that applied and
 	// whether the run landed below it. Empty for unscored runs (disabled LLM,
@@ -918,6 +922,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
+		DispatchLane:           t.DispatchLane,
 		LegRole:                t.LegRole,
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),

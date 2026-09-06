@@ -600,6 +600,14 @@ export interface AgentTask {
    */
   routing?: RuntimeRoutingDecision | null;
   /**
+   * The dispatch lane this run was queued in (K45). `"batch"` means the
+   * scheduler deferred it to the workspace's off-peak window, where the claim
+   * order serves it only after every synchronous task of the same agent and
+   * runtime. Absent on older backends and on rows that predate the column —
+   * read as `"sync"` and render the badge conditionally.
+   */
+  dispatch_lane?: string;
+  /**
    * This run's confidence score (JEF-240). `null`/absent until the scorer has
    * scored the run and on older backends — render conditionally.
    */

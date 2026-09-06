@@ -638,7 +638,9 @@
     "status_deferred": "延期中",
     "status_paused": "一時停止",
     "unresponsive": "応答なし",
-    "unresponsive_tooltip": "{{duration}} 活動がありません"
+    "unresponsive_tooltip": "{{duration}} 活動がありません",
+    "off_peak": "オフピーク",
+    "off_peak_hint": "オフピークのレーンに入っています。緊急の実行がすべて終わってから処理されるため、予定より遅く開始します。"
   },
   "legs": {
     "workflow": "ワークフロー",

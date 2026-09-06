@@ -20,7 +20,7 @@ func TestRunToResponseDoesNotReverseEngineerReasonCode(t *testing.T) {
 			Valid:  true,
 		},
 	}
-	resp := runToResponse(run)
+	resp := runToResponse(run, "")
 	if resp.ReasonCode != nil {
 		t.Fatalf("runToResponse should not synthesize a reason_code from failure_reason, got %q", *resp.ReasonCode)
 	}
