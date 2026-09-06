@@ -135,6 +135,16 @@ export function RoutingBenchmarksCard({
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {row.samples}
+                  {/* Where the evidence comes from: a pair measured by a
+                      deliberate benchmark (JEF-276) is not the same claim as
+                      one that accumulated from ordinary work. */}
+                  {row.benchmark_samples > 0 ? (
+                    <span className="block text-caption text-muted-foreground">
+                      {t(($) => $.routing_benchmarks.from_benchmarks, {
+                        n: row.benchmark_samples,
+                      })}
+                    </span>
+                  ) : null}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {Math.round(row.success_rate * 100)}%

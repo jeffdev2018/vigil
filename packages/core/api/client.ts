@@ -337,7 +337,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
-import { EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunEvalSuiteRequest } from "../eval/schemas";
+import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import {
   AgentTaskListSchema,
@@ -6318,6 +6318,29 @@ export class ApiClient {
   async listEvalRuns(workspaceId: string): Promise<EvalRun[]> {
     const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/eval-runs`);
     return parseWithFallback(raw, EvalRunListSchema, { runs: [] }, { endpoint: "GET /api/workspaces/:id/eval-runs" }).runs as EvalRun[];
+  }
+
+  // Internal benchmark harness (JEF-276). Replays one suite against several
+  // (runtime, model) candidates so the only difference between the scores is
+  // the policy under test.
+  async runBenchmark(suiteId: string, input: RunBenchmarkRequest): Promise<BenchmarkRun[]> {
+    const raw = await this.fetch<unknown>(`/api/eval-suites/${encodeURIComponent(suiteId)}/benchmark`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, BenchmarkRunListSchema, { runs: [] }, { endpoint: "POST /api/eval-suites/:id/benchmark" }).runs as BenchmarkRun[];
+  }
+
+  async listBenchmarks(workspaceId: string): Promise<BenchmarkRun[]> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/benchmarks`);
+    return parseWithFallback(raw, BenchmarkRunListSchema, { runs: [] }, { endpoint: "GET /api/workspaces/:id/benchmarks" }).runs as BenchmarkRun[];
+  }
+
+  async getEvalSuiteCorpus(suiteId: string): Promise<BenchmarkCorpus | null> {
+    const raw = await this.fetch<unknown>(`/api/eval-suites/${encodeURIComponent(suiteId)}/corpus`);
+    return parseWithFallback<BenchmarkCorpus | null>(raw, BenchmarkCorpusSchema, null, { endpoint: "GET /api/eval-suites/:id/corpus" });
+  }
+
+  async benchmarkPolicySearch(workspaceId: string, input: BenchmarkPolicySearchRequest): Promise<BenchmarkPolicySearch | null> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/benchmarks/policy-search`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback<BenchmarkPolicySearch | null>(raw, BenchmarkPolicySearchSchema, null, { endpoint: "POST /api/workspaces/:id/benchmarks/policy-search" });
   }
 
   async listBudgetPolicies(): Promise<BudgetPolicy[]> {

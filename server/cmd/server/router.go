@@ -1719,6 +1719,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/eval-suites", h.ListEvalSuites)
 					r.Post("/eval-suites", h.CreateEvalSuite)
 					r.Get("/eval-runs", h.ListEvalRuns)
+					// Benchmark harness (JEF-276): the same suite replayed
+					// against several (runtime, model) candidates.
+					r.Get("/benchmarks", h.ListBenchmarks)
+					r.Post("/benchmarks/policy-search", h.BenchmarkPolicySearch)
 					r.Get("/sso", h.GetSSOConnection)
 					r.Get("/scim-tokens", h.ListScimTokens)
 					// Installed Plugins are member-visible so a member can
@@ -2371,6 +2375,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Eval Lab (K24).
 			r.Post("/api/issues/{id}/promote-to-eval-case", h.PromoteIssueToEvalCase)
 			r.Post("/api/eval-suites/{id}/run", h.RunEvalSuite)
+			r.Post("/api/eval-suites/{id}/benchmark", h.RunBenchmark)
+			r.Get("/api/eval-suites/{id}/corpus", h.GetEvalSuiteCorpus)
 			r.Get("/api/eval-runs/{id}", h.GetEvalRun)
 			// Refactoring campaigns (K42): sharded fan-out plus a sequential merge queue.
 			r.Post("/api/refactor-campaigns", h.CreateRefactorCampaign)

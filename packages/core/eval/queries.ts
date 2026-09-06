@@ -1,6 +1,6 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "../api";
-import type { EvalRun } from "./schemas";
+import type { BenchmarkRun, EvalRun } from "./schemas";
 
 // Eval Lab (K24). Cases and suites are static enough to fetch once; runs
 // poll while one is in flight (same 10s cadence as the K39 duel) so the
@@ -13,6 +13,8 @@ export const evalKeys = {
   suites: (wsId: string) => ["eval-suites", wsId] as const,
   runs: (wsId: string) => ["eval-runs", wsId] as const,
   run: (wsId: string, runId: string) => ["eval-run", wsId, runId] as const,
+  benchmarks: (wsId: string) => ["eval-benchmarks", wsId] as const,
+  corpus: (suiteId: string) => ["eval-suite-corpus", suiteId] as const,
 };
 
 export function evalCasesOptions(wsId: string) {
@@ -40,5 +42,28 @@ export function evalRunOptions(wsId: string, runId: string) {
     enabled: !!runId,
     refetchInterval: (query) =>
       (query.state.data as EvalRun | null | undefined)?.status === "running" ? RUN_POLL_MS : false,
+  });
+}
+
+/**
+ * Internal benchmark harness (JEF-276). Same cadence as `evalRunsOptions`:
+ * a benchmark is a set of eval runs, so it settles the same way.
+ */
+export function benchmarksOptions(wsId: string) {
+  return queryOptions({
+    queryKey: evalKeys.benchmarks(wsId),
+    queryFn: () => api.listBenchmarks(wsId),
+    enabled: !!wsId,
+    refetchInterval: (query) =>
+      (query.state.data as BenchmarkRun[] | undefined)?.some((run) => run.status === "running") ? RUN_POLL_MS : false,
+  });
+}
+
+/** A suite's class mix. Static: it only moves when the suite itself is edited. */
+export function evalSuiteCorpusOptions(suiteId: string) {
+  return queryOptions({
+    queryKey: evalKeys.corpus(suiteId),
+    queryFn: () => api.getEvalSuiteCorpus(suiteId),
+    enabled: !!suiteId,
   });
 }

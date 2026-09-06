@@ -118,6 +118,7 @@
       "chore": "잡무"
     },
     "col_samples": "샘플",
+    "from_benchmarks": "그중 {{n}}건은 벤치마크",
     "col_success": "성공률",
     "col_avg_cost": "평균 비용",
     "col_avg_duration": "평균 소요 시간",

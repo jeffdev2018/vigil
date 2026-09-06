@@ -47,6 +47,10 @@ SELECT
     atq.task_class,
     COUNT(*)::int AS samples,
     COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    -- How much of this bucket came from a deliberate benchmark (JEF-276)
+    -- rather than from ordinary work, so the dashboard can say where the
+    -- evidence for a pair comes from.
+    COUNT(*) FILTER (WHERE atq.leg_role = 'benchmark')::int AS benchmark_samples,
     COUNT(tu.cost_usd_ticks)::int AS cost_samples,
     COALESCE(SUM(tu.cost_usd_ticks) FILTER (WHERE tu.cost_usd_ticks IS NOT NULL), 0)::float8
         AS total_cost_usd_ticks,
@@ -80,6 +84,10 @@ WHERE a.workspace_id = @workspace_id
   -- wrong job — a reviewer's cost, duration and success rate say nothing
   -- about how a runtime performs on a bugfix. Retry, fallback, revision and
   -- escalation legs DO count: they are real attempts at the class.
+  -- A benchmark leg (JEF-276) is deliberately absent from that list: it is
+  -- the same exam, pinned to one (runtime, model) candidate so its outcome is
+  -- evidence about that pair. Excluding it would throw away the only runs
+  -- deliberately produced to measure a policy.
   AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class;

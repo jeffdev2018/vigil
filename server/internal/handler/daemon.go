@@ -2273,6 +2273,16 @@ func routedTaskMatchesClaimedRuntime(agent db.Agent, task *db.AgentTaskQueue) bo
 		trace.ChosenRuntimeID == uuidToString(task.RuntimeID)
 }
 
+// benchmarkTaskPinsRuntime reports whether a task stamped with a runtime other
+// than the agent's bound one is a benchmark replay (JEF-276). A benchmark
+// exists to measure one (runtime, model) candidate, so the stamped runtime IS
+// the experiment and the agent's binding is not authority over it — the same
+// exemption an auto-routed task gets, for the same reason. The claim's
+// visibility and ownership fences still apply: only the binding is relaxed.
+func benchmarkTaskPinsRuntime(task *db.AgentTaskQueue) bool {
+	return task.LegRole == service.LegRoleBenchmark
+}
+
 // buildClaimedTaskResponse assembles the full daemon claim payload for a
 // single already-claimed task and computes the exact comment ids embedded in
 // it (deliveredCommentIDs). Shared by the per-runtime handler
@@ -2370,7 +2380,9 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// AND the task's routing trace confirms the runtime the router chose is
 	// exactly the one stamped on the row — an agent flipped back to fixed
 	// mode, or a task whose runtime no longer matches its trace, fails closed.
-	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) {
+	// A benchmark replay (JEF-276) is exempt too: its runtime is the candidate
+	// under measurement, pinned at enqueue.
+	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) && !benchmarkTaskPinsRuntime(task) {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),

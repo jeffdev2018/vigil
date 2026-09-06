@@ -3774,7 +3774,7 @@ func (s *TaskService) broadcastChatCancelFinalized(ctx context.Context, task db.
 // ClaimTask atomically claims the next queued task for an agent on its current
 // runtime, respecting max_concurrent_tasks.
 func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.AgentTaskQueue, error) {
-	return s.claimTask(ctx, agentID, pgtype.UUID{})
+	return s.claimTask(ctx, agentID, pgtype.UUID{}, false)
 }
 
 // claimTask is the runtime-scoped claim primitive used by daemon poll paths.
@@ -3782,7 +3782,13 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 // agent's currently bound runtime. Scoping the SQL claim itself prevents an
 // offline candidate on runtime A from causing the same agent's task on runtime
 // B to be dispatched and then dropped by the caller's runtime guard.
-func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.UUID) (*db.AgentTaskQueue, error) {
+//
+// runtimePinned says the candidate that led here carries a runtime the agent
+// is not bound to BY DESIGN (a benchmark leg, JEF-276), which relaxes only the
+// cheap pre-filter below. ClaimAgentTask re-verifies the fence per row and the
+// claim handler rechecks the freshly loaded agent, so a wrong value here can
+// never dispatch a task the SQL would refuse.
+func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.UUID, runtimePinned bool) (*db.AgentTaskQueue, error) {
 	start := time.Now()
 	outcome := "unknown"
 	var getAgentMs, countRunningMs, claimAgentMs, reanchorMs, updateStatusMs, dispatchMs int64
@@ -3818,7 +3824,9 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		// Auto-routed agents (JEF-237) are exempt: the router stamped their task
 		// with a CHOSEN runtime that legitimately differs from the bound fallback
 		// runtime, and ClaimAgentTask re-verifies the authorization fence in SQL.
-		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto {
+		// A benchmark replay (JEF-276) is exempt for the same reason: its runtime
+		// is the candidate under measurement, pinned at enqueue.
+		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto && !runtimePinned {
 			outcome = "runtime_mismatch"
 			return nil
 		}
@@ -4112,7 +4120,7 @@ func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.
 		triedAgents[agentKey] = struct{}{}
 		tried++
 
-		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID)
+		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID, candidate.LegRole == LegRoleBenchmark)
 		if err != nil {
 			loopMs = time.Since(loopStart).Milliseconds()
 			outcome = "error_claim"
@@ -4397,7 +4405,7 @@ func (s *TaskService) ClaimTasksForRuntimes(ctx context.Context, runtimeIDs []pg
 		}
 		triedAgents[agentKey] = struct{}{}
 
-		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID)
+		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID, candidates[i].LegRole == LegRoleBenchmark)
 		if err != nil {
 			// Each scoped claim commits in its own transaction, so earlier
 			// iterations (and step-2 reclaims) are already dispatched
@@ -7509,6 +7517,16 @@ func priorityToInt(p string) int32 {
 func (s *TaskService) NotifyTaskEnqueued(ctx context.Context, task db.AgentTaskQueue) {
 	s.captureTaskQueued(ctx, task)
 	s.notifyTaskAvailable(task)
+}
+
+// NotifyRuntimeMayHaveWork invalidates a runtime's empty-claim verdict and
+// wakes it. It is the shim for callers that re-point an ALREADY enqueued task
+// at another runtime (the benchmark pin, JEF-276): the enqueue woke the
+// runtime the task was created on, and without this the runtime that must
+// actually run it would sit on a cached "nothing queued" verdict for up to
+// EmptyClaimCacheTTL.
+func (s *TaskService) NotifyRuntimeMayHaveWork(runtimeID pgtype.UUID) {
+	s.notifyRuntimeMayHaveWork(runtimeID, "")
 }
 
 // NotifyTaskFinished invalidates a runtime's empty-claim verdict and emits a

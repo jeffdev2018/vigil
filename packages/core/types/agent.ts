@@ -75,6 +75,11 @@ export interface RuntimeRoutingStats {
   model: string;
   task_class: string;
   samples: number;
+  /**
+   * How many of `samples` came from a deliberate benchmark replay (JEF-276)
+   * rather than from ordinary work. 0 on a backend that predates the field.
+   */
+  benchmark_samples: number;
   success_rate: number;
   avg_cost_usd: number | null;
   avg_duration_secs: number | null;
