@@ -100,6 +100,7 @@
     "mcp_alert": "MCP gateway alert",
     "model_key_alert": "Model key retired",
     "routing_alert": "Agent cannot be routed",
+    "residency_policy_blocked": "Blocked by data residency",
     "linear_alert": "Linear is disconnected",
     "code_health_report": "Code health report"
   },

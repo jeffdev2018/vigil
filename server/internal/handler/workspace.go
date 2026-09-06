@@ -1359,6 +1359,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceCodeHealthScans(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Data residency (K46): the declarations hang off this
+			// workspace's runtimes, so they go before agent_runtime does.
+			name: "purge runtime compliance profiles",
+			run: func() error {
+				return qtx.PurgeWorkspaceRuntimeComplianceProfiles(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			name: "purge contests",
 			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
 		},

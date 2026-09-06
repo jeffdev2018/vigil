@@ -53,9 +53,36 @@ type AgentRuntimeResponse struct {
 	SandboxAllowedHosts []string        `json:"sandbox_allowed_hosts"`
 	SandboxCapabilities json.RawMessage `json:"sandbox_capabilities"`
 	SandboxEffective    string          `json:"sandbox_effective"`
-	LastSeenAt          *string         `json:"last_seen_at"`
-	CreatedAt           string          `json:"created_at"`
-	UpdatedAt           string          `json:"updated_at"`
+	// Compliance (K46) is what this runtime declares about where it runs, or
+	// null when nobody declared anything. Under a restrictive data residency
+	// policy an undeclared runtime takes no work.
+	Compliance *RuntimeComplianceResponse `json:"compliance"`
+	LastSeenAt *string                    `json:"last_seen_at"`
+	CreatedAt  string                     `json:"created_at"`
+	UpdatedAt  string                     `json:"updated_at"`
+}
+
+// RuntimeComplianceResponse is one runtime's data residency declaration (K46).
+type RuntimeComplianceResponse struct {
+	Region string `json:"region"`
+	OnPrem bool   `json:"on_prem"`
+}
+
+func complianceToResponse(profile *db.RuntimeComplianceProfile) *RuntimeComplianceResponse {
+	if profile == nil {
+		return nil
+	}
+	return &RuntimeComplianceResponse{Region: profile.Region, OnPrem: profile.OnPrem}
+}
+
+// runtimeToResponseWithCompliance is runtimeToResponse for a caller that has
+// already loaded the runtime's declaration. Callers that have not (the daemon
+// registration echo) use runtimeToResponse and send `compliance: null`, which
+// clients read as "not declared" either way.
+func runtimeToResponseWithCompliance(rt db.AgentRuntime, profile *db.RuntimeComplianceProfile) AgentRuntimeResponse {
+	out := runtimeToResponse(rt)
+	out.Compliance = complianceToResponse(profile)
+	return out
 }
 
 func runtimeToResponse(rt db.AgentRuntime) AgentRuntimeResponse {
@@ -647,7 +674,7 @@ func (h *Handler) UpdateAgentRuntime(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	writeJSON(w, http.StatusOK, runtimeToResponse(rt))
+	writeJSON(w, http.StatusOK, h.runtimeResponse(r.Context(), rt))
 }
 
 func canEditRuntime(member db.Member, rt db.AgentRuntime) bool {
@@ -797,9 +824,10 @@ func (h *Handler) ListAgentRuntimes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	profiles := h.runtimeComplianceProfiles(r.Context(), runtimes)
 	resp := make([]AgentRuntimeResponse, len(runtimes))
 	for i, rt := range runtimes {
-		resp[i] = runtimeToResponse(rt)
+		resp[i] = runtimeToResponseWithCompliance(rt, profiles[uuidToString(rt.ID)])
 	}
 
 	writeJSON(w, http.StatusOK, resp)
@@ -972,6 +1000,13 @@ func (h *Handler) DeleteAgentRuntime(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Data residency (K46): the declaration is meaningless without its
+	// runtime, and the table carries no foreign key to remove it for us.
+	if err := qtx.DeleteRuntimeComplianceProfile(r.Context(), rt.ID); err != nil {
+		slog.Error("DeleteRuntimeComplianceProfile failed", "error", err, "runtime_id", uuidToString(rt.ID))
+		writeError(w, http.StatusInternalServerError, "failed to delete runtime")
+		return
+	}
 	if err := qtx.DeleteAgentRuntime(r.Context(), rt.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete runtime")
 		return
@@ -1185,6 +1220,13 @@ func (h *Handler) UnbindAgentsAndDeleteRuntime(w http.ResponseWriter, r *http.Re
 	}
 
 	// Finally delete the runtime row itself.
+	// Data residency (K46): the declaration is meaningless without its
+	// runtime, and the table carries no foreign key to remove it for us.
+	if err := qtx.DeleteRuntimeComplianceProfile(r.Context(), rt.ID); err != nil {
+		slog.Error("DeleteRuntimeComplianceProfile failed", "error", err, "runtime_id", uuidToString(rt.ID))
+		writeError(w, http.StatusInternalServerError, "failed to delete runtime")
+		return
+	}
 	if err := qtx.DeleteAgentRuntime(r.Context(), rt.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete runtime")
 		return

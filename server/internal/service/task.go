@@ -1457,12 +1457,17 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	taskID := dbid.NewV7()
+	// Data residency (K46): the workspace's policy and its runtime
+	// declarations, read once for this enqueue and handed to every routing
+	// stage below, so a non-compliant runtime is excluded before it can be
+	// scored, failed over to, or picked by risk. Nil when no policy is set.
+	residency := s.compliantRuntimeFilter(ctx, issue.WorkspaceID)
 	// Runtime pools (K28): an offline runtime at enqueue sends the task to
 	// the first online runtime of the pool, recorded on the task.
-	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
+	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent, residency)
 	// Issue router (K27): risk and past failures may pick another pool first.
 	var routingDecision *RoutingDecision
-	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent); ok {
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent, residency); ok {
 		routingDecision = decision
 		if routed.Valid {
 			enqueueRuntimeID, failoverHistory = routed, nil
@@ -1476,7 +1481,7 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	// auto is an explicit per-agent opt-in, so its choice wins. The decision
 	// trace lands in the routing JSONB column; any degradation falls back to
 	// whatever runtime was selected so far.
-	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	stamp := s.StampRoutingWithFilter(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue), residency)
 	if stamp.RuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
 	}

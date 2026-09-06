@@ -65,9 +65,22 @@ func (h *Handler) onRoutingBlocked(ctx context.Context, agent db.Agent, issue db
 	if !wsID.Valid {
 		wsID = agent.WorkspaceID
 	}
-	h.audit(ctx, wsID, "system", "", AuditRoutingBlocked, "agent", agent.ID, map[string]any{
+	// Data residency (K46) files its own audit action and its own inbox type:
+	// the reader's next step is to declare a runtime or relax the policy, not
+	// to rebind the agent, and a shared type would bury that distinction.
+	action, inboxType, title := AuditRoutingBlocked, InboxTypeRoutingAlert,
+		"A trigger was not queued: "+agentDisplayName(agent)+" cannot be routed"
+	if problem.Code == service.RoutingProblemResidencyNoCompliantRuntime {
+		action, inboxType, title = AuditResidencyDispatchBlocked, InboxTypeResidencyBlocked,
+			"A run was blocked by the data residency policy: "+agentDisplayName(agent)
+	}
+	auditDetails := map[string]any{
 		"code": problem.Code, "issue_id": uuidToString(issue.ID), "agent_id": uuidToString(agent.ID),
-	}, nil)
+	}
+	for k, v := range problem.Details {
+		auditDetails[k] = v
+	}
+	h.audit(ctx, wsID, "system", "", action, "agent", agent.ID, auditDetails, nil)
 
 	seen := map[string]bool{}
 	targets := make([]pgtype.UUID, 0, 4)
@@ -99,10 +112,9 @@ func (h *Handler) onRoutingBlocked(ctx context.Context, agent db.Agent, issue db
 		"code": problem.Code, "agent_id": uuidToString(agent.ID), "issue_id": uuidToString(issue.ID),
 		"failure_reason": service.RoutingInvalidReason, "day": day,
 	})
-	title := "A trigger was not queued: " + agentDisplayName(agent) + " cannot be routed"
 	for _, userID := range targets {
 		already, err := h.Queries.CountInboxItemsForDay(ctx, db.CountInboxItemsForDayParams{
-			WorkspaceID: wsID, RecipientID: userID, Type: InboxTypeRoutingAlert, Day: day,
+			WorkspaceID: wsID, RecipientID: userID, Type: inboxType, Day: day,
 		})
 		if err != nil {
 			slog.Warn("routing alert: dedup check failed", "error", err)
@@ -112,7 +124,7 @@ func (h *Handler) onRoutingBlocked(ctx context.Context, agent db.Agent, issue db
 		}
 		item, err := h.Queries.CreateInboxItem(ctx, db.CreateInboxItemParams{
 			ID: dbid.NewV7(), WorkspaceID: wsID, RecipientType: "member", RecipientID: userID,
-			Type: InboxTypeRoutingAlert, Severity: "action_required", IssueID: issue.ID,
+			Type: inboxType, Severity: "action_required", IssueID: issue.ID,
 			Title: truncate(title, 120), Body: pgtype.Text{String: truncate(problem.Message, 1000), Valid: true}, Details: details,
 		})
 		if err != nil {

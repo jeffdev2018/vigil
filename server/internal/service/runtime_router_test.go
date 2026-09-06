@@ -300,7 +300,7 @@ func TestRouteTaskColdStartFallsBackWithTrace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
-	decision := svc.RouteTask(ctx, agent, "Improve onboarding flow", nil)
+	decision := svc.RouteTask(ctx, agent, "Improve onboarding flow", nil, nil)
 
 	// Cold start: no history anywhere → total fallback onto the bound pair,
 	// but the decision is still traced.
@@ -341,7 +341,7 @@ func TestRouteTaskPicksStatisticallyBestRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get agent: %v", err)
 	}
-	decision := svc.RouteTask(ctx, agent, "Improve onboarding flow", nil)
+	decision := svc.RouteTask(ctx, agent, "Improve onboarding flow", nil, nil)
 	if decision.Reason != routingReasonBestScore {
 		t.Fatalf("reason = %q, want best_score (trace: %+v)", decision.Reason, decision)
 	}
@@ -383,7 +383,7 @@ func TestRouteTaskSegmentsByTaskClass(t *testing.T) {
 		t.Fatalf("get agent: %v", err)
 	}
 
-	bugfix := svc.RouteTask(ctx, agent, "Fix the login crash", nil)
+	bugfix := svc.RouteTask(ctx, agent, "Fix the login crash", nil, nil)
 	if bugfix.TaskClass != TaskClassBugfix {
 		t.Fatalf("task class = %q, want bugfix", bugfix.TaskClass)
 	}
@@ -391,7 +391,7 @@ func TestRouteTaskSegmentsByTaskClass(t *testing.T) {
 		t.Errorf("bugfix routed to (%s, %q), want (runtime B, m-b)", bugfix.ChosenRuntimeID, bugfix.ChosenModel)
 	}
 
-	docs := svc.RouteTask(ctx, agent, "Update the README", nil)
+	docs := svc.RouteTask(ctx, agent, "Update the README", nil, nil)
 	if docs.TaskClass != TaskClassDocs {
 		t.Fatalf("task class = %q, want docs", docs.TaskClass)
 	}

@@ -54,6 +54,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     mcp_alert: t(($) => $.types.mcp_alert),
     model_key_alert: t(($) => $.types.model_key_alert),
     routing_alert: t(($) => $.types.routing_alert),
+    residency_policy_blocked: t(($) => $.types.residency_policy_blocked),
     linear_alert: t(($) => $.types.linear_alert),
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
