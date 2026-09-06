@@ -99,6 +99,8 @@ import {
   MeetingSchema,
   AgentEffectListSchema,
   UndoReportSchema,
+  TaskActivityResponseSchema,
+  EMPTY_TASK_ACTIVITY,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -154,8 +156,6 @@ import {
   SearchProjectsResponseSchema,
   SendChatMessageResponseSchema,
   SquadListSchema,
-  TaskMessageListSchema,
-  EMPTY_TASK_MESSAGE_LIST,
   UserSchema,
   WorkspaceListSchema,
 } from "./schemas";
@@ -1524,12 +1524,19 @@ class ApiClient {
     taskId: string,
     opts?: { signal?: AbortSignal },
   ): Promise<TaskMessagePayload[]> {
-    return this.fetchValidated(
+    // The endpoint now answers `{ messages, actions }`; a server that predates
+    // that still answers the bare array. The shared schema accepts both, so an
+    // installed app renders its trace against either — parsing only the old
+    // shape would blank the timeline the moment the backend upgraded. Mobile
+    // has no run-action lane yet, so the actions half is read and dropped;
+    // taking it is a UI decision, not a data one.
+    const activity = await this.fetchValidated(
       `/api/tasks/${taskId}/messages`,
-      TaskMessageListSchema,
-      EMPTY_TASK_MESSAGE_LIST,
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
       { ...opts, endpoint: "GET /api/tasks/:id/messages" },
     );
+    return activity.messages;
   }
 
   // --- Pins ---

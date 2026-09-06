@@ -5640,12 +5640,125 @@ func (h *Handler) ListTaskMessagesByUser(w http.ResponseWriter, r *http.Request)
 
 	issueID := uuidToString(task.IssueID)
 
-	resp := make([]protocol.TaskMessagePayload, len(messages))
+	msgs := make([]protocol.TaskMessagePayload, len(messages))
 	for i, m := range messages {
-		resp[i] = taskMessageToPayload(m, taskID, issueID)
+		msgs[i] = taskMessageToPayload(m, taskID, issueID)
 	}
 
-	writeJSON(w, http.StatusOK, resp)
+	writeJSON(w, http.StatusOK, TaskActivityResponse{
+		Messages: msgs,
+		Actions:  h.runActionsForTask(r.Context(), task),
+	})
+}
+
+// RunAction is one issue change made by a run, projected out of activity_log
+// for the run's action lane. There is deliberately no `action` task_message
+// type and no second activity table: the rows already exist, written by the
+// activity listeners, and are joined here on details.task_id rather than
+// duplicated into the message stream where the two copies would drift.
+//
+// Before/After are the two sides of the change as plain text. Writers that
+// record no such pair (created, description_updated, task_completed,
+// task_failed) leave them empty; the client renders the missing side as a dash
+// rather than hiding the entry, because the fact that the run made the change
+// is the point.
+type RunAction struct {
+	// Kind is the constant "action" so a client can merge this list into a
+	// typed transcript without tracking which endpoint each entry came from.
+	Kind   string `json:"kind"`
+	Action string `json:"action"`
+	Before string `json:"before"`
+	After  string `json:"after"`
+	At     string `json:"at"`
+}
+
+// TaskActivityResponse is a run's transcript: the agent's own messages plus the
+// issue changes it made.
+//
+// Clients built before this field existed parsed the bare messages array, so
+// they must keep working against a newer server — hence the array-or-object
+// tolerance in packages/core/api/schemas.ts. The daemon-auth ListTaskMessages
+// endpoint deliberately keeps returning the bare array: it feeds reconnect
+// catch-up, which has no use for issue activity.
+type TaskActivityResponse struct {
+	Messages []protocol.TaskMessagePayload `json:"messages"`
+	Actions  []RunAction                   `json:"actions"`
+}
+
+// runActionsForTask returns the activity rows this run caused, oldest first.
+// Never nil: an empty list is a run that changed nothing, and a client must be
+// able to tell that apart from a field it failed to parse.
+func (h *Handler) runActionsForTask(ctx context.Context, task db.AgentTaskQueue) []RunAction {
+	out := []RunAction{}
+	if !task.IssueID.Valid {
+		// Chat and autopilot runs have no issue, so there is no activity log to
+		// join against.
+		return out
+	}
+	activities, err := h.Queries.ListActivitiesForIssue(ctx, db.ListActivitiesForIssueParams{
+		IssueID: task.IssueID,
+		Limit:   timelineHardCap,
+	})
+	if err != nil {
+		// The transcript is the primary payload; a failed auxiliary read must
+		// not take it down with it.
+		slog.Warn("failed to list activities for run action lane",
+			"task_id", uuidToString(task.ID), "error", err)
+		return out
+	}
+	wantTaskID := uuidToString(task.ID)
+	for _, a := range activities {
+		details := map[string]any{}
+		if len(a.Details) > 0 {
+			// Details that are not a JSON object cannot carry a task id, so the
+			// row is simply not this run's.
+			_ = json.Unmarshal(a.Details, &details)
+		}
+		if detailString(details, "task_id") != wantTaskID {
+			continue
+		}
+		before, after := runActionBeforeAfter(details)
+		out = append(out, RunAction{
+			Kind:   "action",
+			Action: a.Action,
+			Before: before,
+			After:  after,
+			At:     timestampToString(a.CreatedAt),
+		})
+	}
+	return out
+}
+
+// runActionBeforeAfter maps an activity's details onto the pair the run
+// timeline renders. The activity listeners write two shapes: {"from","to"} for
+// scalar field changes (status, priority, title, start/due date) and
+// {"from_type","from_id","to_type","to_id"} for the polymorphic assignee.
+// Anything else yields two empty strings.
+func runActionBeforeAfter(details map[string]any) (string, string) {
+	_, hasFrom := details["from"]
+	_, hasTo := details["to"]
+	if hasFrom || hasTo {
+		return detailString(details, "from"), detailString(details, "to")
+	}
+	before := joinAssigneeRef(detailString(details, "from_type"), detailString(details, "from_id"))
+	after := joinAssigneeRef(detailString(details, "to_type"), detailString(details, "to_id"))
+	return before, after
+}
+
+// joinAssigneeRef renders a polymorphic assignee as "type:id", the same key
+// shape GetAssigneeFrequency builds, so a client can resolve it to a name.
+func joinAssigneeRef(kind, id string) string {
+	if kind == "" || id == "" {
+		return ""
+	}
+	return kind + ":" + id
+}
+
+// detailString reads a details key as a string. details is free-form JSONB, so
+// a value of any other type is reported as absent rather than coerced.
+func detailString(details map[string]any, key string) string {
+	v, _ := details[key].(string)
+	return v
 }
 
 // GetIssueUsage returns aggregated token usage for all tasks belonging to an issue.

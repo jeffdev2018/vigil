@@ -279,7 +279,22 @@ export const CHAT_DEFAULT_H = 600;
  */
 export interface ChatTimelineItem {
   seq: number;
-  type: "tool_use" | "tool_result" | "thinking" | "text" | "error";
+  /**
+   * Open, mirroring TaskMessagePayload.type: chat renders the same message
+   * stream a run's transcript does, so it meets the same server-added types
+   * (response, elicitation, …) and the same unknown ones an installed build
+   * predates.
+   */
+  type:
+    | "tool_use"
+    | "tool_result"
+    | "thinking"
+    | "text"
+    | "error"
+    | "response"
+    | "action"
+    | "elicitation"
+    | (string & {});
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;

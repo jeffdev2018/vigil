@@ -75,6 +75,23 @@ From here you can:
 Changing an issue's assignee or status does not stop a run that has already started. To interrupt one, stop the corresponding run in the execution log. Active runs are cancelled along with an issue only when the issue is deleted.
 </Callout>
 
+## Run activity types
+
+Each entry in a transcript carries a type, which decides its lane and how it reads:
+
+| Type | What it is |
+| --- | --- |
+| `thinking` | The model's reasoning between actions. |
+| `text` | Narration the agent produced while working. |
+| `tool_use` | A tool call, with its arguments. |
+| `tool_result` | What that call returned. |
+| `response` | The run's final answer, separated from the narration that led to it. Emitted by Claude Code and Codex; other backends report their final text as `text`. A failed run has no response. |
+| `action` | An issue change the run made — status, assignee, priority, title, dates — shown as `before → after`. These are joined from the issue's activity, so a change you made by hand never appears in a run's transcript. |
+| `error` | Something went wrong. When the cause is recognised, the entry names the failure reason and offers the matching fix. |
+| `elicitation` | A question back to the user. Accepted and rendered, but nothing produces one yet. |
+
+The type filter in the transcript toolbar lists only the types the run actually produced, so an absent type never leaves an empty lane. A type your build predates renders as a plain note labelled with its own name rather than being hidden.
+
 ## Failures and automatic retries
 
 Transient faults — a runtime going briefly offline, a daemon restart, an execution timeout, or a network interruption in the AI coding tool — can trigger an automatic retry. A regular run executes at most twice by default; tool network interruptions get up to three attempts.

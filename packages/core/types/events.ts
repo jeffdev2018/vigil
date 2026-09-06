@@ -376,12 +376,52 @@ export interface TaskMessagePayload {
   issue_id: string;
   chat_session_id?: string;
   seq: number;
-  type: "text" | "thinking" | "tool_use" | "tool_result" | "error";
+  /**
+   * Open on the wire, never validated against an allow-list by the server, so
+   * an installed build will meet types it predates. The named values keep
+   * autocomplete useful; `string & {}` admits the rest without collapsing the
+   * hints. Every consumer must have a neutral branch for an unrecognised value.
+   *
+   * `action` is never a stored message — the server synthesizes it from the
+   * issue activity a run caused. `elicitation` is accepted and rendered but has
+   * NO producer: nothing in this repository writes one yet.
+   */
+  type:
+    | "text"
+    | "thinking"
+    | "tool_use"
+    | "tool_result"
+    | "error"
+    | "response"
+    | "action"
+    | "elicitation"
+    | (string & {});
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;
   output?: string;
   created_at?: string;
+}
+
+/**
+ * One issue change a run made, projected out of activity_log by
+ * `GET /api/tasks/:id/messages`. Before/After are plain text and either may be
+ * empty: the writers that record no such pair (issue created, description
+ * updated, run finished) still produce an entry, because the fact that the run
+ * made the change is the point.
+ */
+export interface RunAction {
+  kind: "action";
+  action: string;
+  before: string;
+  after: string;
+  at: string;
+}
+
+/** A run's transcript: its own messages plus the issue changes it made. */
+export interface TaskActivityResponse {
+  messages: TaskMessagePayload[];
+  actions: RunAction[];
 }
 
 export interface TaskQueuedPayload {

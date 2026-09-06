@@ -33,12 +33,42 @@ export interface TraceCallStep {
   durationMs?: number;
 }
 
-/** Agent prose, model thinking, or an error: one message, nothing to pair. */
+/**
+ * One message with nothing to pair: agent prose, model thinking, the run's
+ * final response, an issue change it made, an elicitation, or an error.
+ *
+ * `note` is the closed union's escape hatch. Message types are open on the
+ * wire, so an installed build meets values it predates; mapping them all to one
+ * neutral kind keeps this union closed (every consumer stays exhaustive) while
+ * still rendering the evidence. The item keeps its raw `type`, which is what
+ * the presenter shows as the label.
+ */
 export interface TraceMessageStep {
-  kind: "text" | "thinking" | "error";
+  kind: "text" | "thinking" | "error" | "response" | "action" | "elicitation" | "note";
   seq: number;
   item: TimelineItem;
   startedAt?: string;
+}
+
+/**
+ * Message types that get their own step kind. Anything else becomes a `note`.
+ *
+ * `tool_use` / `tool_result` are absent on purpose: buildSteps folds those into
+ * call steps before reaching here.
+ */
+const MESSAGE_STEP_KINDS = new Set<TraceMessageStep["kind"]>([
+  "text",
+  "thinking",
+  "error",
+  "response",
+  "action",
+  "elicitation",
+]);
+
+function messageStepKind(type: string): TraceMessageStep["kind"] {
+  return MESSAGE_STEP_KINDS.has(type as TraceMessageStep["kind"])
+    ? (type as TraceMessageStep["kind"])
+    : "note";
 }
 
 export type TraceStep = TraceCallStep | TraceMessageStep;
@@ -139,7 +169,7 @@ export function buildSteps(items: TimelineItem[]): TraceStep[] {
     }
 
     steps.push({
-      kind: item.type,
+      kind: messageStepKind(item.type),
       seq: item.seq,
       item,
       startedAt: item.created_at,
@@ -192,9 +222,11 @@ export function groupSteps(steps: TraceStep[]): TraceRow[] {
   return rows;
 }
 
-// `TraceMessageStep` carries three kinds on one interface, so a `kind` check
-// alone narrows the property without dropping the constituent. These predicates
-// are what let callers switch on a row and get a usable type back.
+// `TraceMessageStep` carries every non-call kind on one interface, so a `kind`
+// check alone narrows the property without dropping the constituent. These
+// predicates are what let callers switch on a row and get a usable type back.
+// isMessageStep is written as "not a call and not a group" rather than an
+// allow-list so a new message kind cannot be silently excluded from rendering.
 export function isGroupRow(row: TraceRow): row is TraceGroupRow {
   return row.kind === "group";
 }
@@ -204,7 +236,7 @@ export function isCallStep(row: TraceRow): row is TraceCallStep {
 }
 
 export function isMessageStep(row: TraceRow): row is TraceMessageStep {
-  return row.kind === "text" || row.kind === "thinking" || row.kind === "error";
+  return row.kind !== "call" && row.kind !== "group";
 }
 
 /** Every call inside a row, so a group and a lone call read the same way. */
@@ -333,7 +365,7 @@ function kindForGap(steps: TraceStep[], from: number, to: number): LaneSegmentKi
     const at = timeMs(step.startedAt);
     if (at === undefined || at < from || at > to) continue;
     if (step.kind === "error") return "error";
-    if (step.kind === "text") kind = "report";
+    if (step.kind === "text" || step.kind === "response") kind = "report";
   }
   return kind;
 }

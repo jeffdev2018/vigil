@@ -3127,7 +3127,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			// issue_labels:changed broadcast is gone.
 			labelResponses := labelsToResponse(labels)
 			payload.Labels = &labelResponses
-			return map[string]any{"issue": payload}
+			// See UpdateIssue: run lineage for the action lane (F03).
+			return map[string]any{"issue": payload, "acting_task_id": uuidToString(h.actingTaskID(r))}
 		},
 	})
 
@@ -3773,7 +3774,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		(prevDueDate != nil && resp.DueDate != nil && *prevDueDate != *resp.DueDate)
 
 	h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
-		"issue":               resp,
+		"issue": resp,
+		// Run lineage for the activity listeners: an update made under an
+		// agent run stamps details.task_id so the change joins that run's
+		// action lane. Empty for a human edit, which keeps it out (F03).
+		"acting_task_id":      uuidToString(h.actingTaskID(r)),
 		"assignee_changed":    assigneeChanged,
 		"status_changed":      statusChanged,
 		"priority_changed":    priorityChanged,
@@ -4512,7 +4517,9 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		projectChanged := req.Updates.ProjectID != nil && uuidToString(prevIssue.ProjectID) != uuidToString(issue.ProjectID)
 
 		h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
-			"issue":            resp,
+			"issue": resp,
+			// See UpdateIssue: run lineage for the action lane (F03).
+			"acting_task_id":   uuidToString(h.actingTaskID(r)),
 			"assignee_changed": assigneeChanged,
 			"status_changed":   statusChanged,
 			"priority_changed": priorityChanged,

@@ -1335,6 +1335,11 @@ export function useRealtimeSync(
     const unsubActivityCreated = ws.on("activity:created", (p) => {
       const { issue_id } = p as ActivityCreatedPayload;
       if (issue_id) invalidateTimeline(issue_id);
+      // An activity may be an issue change a run made, which belongs in that
+      // run's action lane (F03). The payload names only the issue, so the whole
+      // prefix is invalidated rather than one task's key — the query is only
+      // mounted while a transcript is open, so at most a handful exist.
+      qc.invalidateQueries({ queryKey: chatKeys.taskActionsAll() });
     });
 
     const unsubReactionAdded = ws.on("reaction:added", (p) => {

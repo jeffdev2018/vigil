@@ -65,6 +65,16 @@ export const chatKeys = {
   /** Per-task execution messages — shared with issue agent cards. */
   taskMessagesAll: () => ["task-messages"] as const,
   taskMessages: (taskId: string) => [...chatKeys.taskMessagesAll(), taskId] as const,
+  /**
+   * Per-task issue changes (F03). A separate cache from taskMessages on
+   * purpose: that one is written by three producers who all agree it is a bare
+   * seq-ordered array, and folding a second collection into it would turn every
+   * merge into a special case. Actions arrive over `activity:created`, which
+   * carries only an issue id, so the whole prefix is invalidated at once — the
+   * query only exists while a transcript is open.
+   */
+  taskActionsAll: () => ["task-actions"] as const,
+  taskActions: (taskId: string) => [...chatKeys.taskActionsAll(), taskId] as const,
 };
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -210,6 +220,21 @@ export function taskMessagesOptions(taskId: string) {
         prev as TaskMessagePayload[] | undefined,
         next as TaskMessagePayload[],
       ),
+  });
+}
+
+/**
+ * The issue changes a run made, for the transcript's action lane. Unlike
+ * messages this is not streamed: `activity:created` invalidates the key and
+ * this refetches, which is cheap because the query is only mounted while a
+ * transcript is open.
+ */
+export function taskActionsOptions(taskId: string) {
+  return queryOptions({
+    queryKey: chatKeys.taskActions(taskId),
+    queryFn: () => api.listTaskActions(taskId),
+    enabled: isTaskMessageTaskId(taskId),
+    staleTime: Infinity,
   });
 }
 

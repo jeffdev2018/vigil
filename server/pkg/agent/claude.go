@@ -336,6 +336,12 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 			anthropicBaseURLConfigured: strings.TrimSpace(b.cfg.Env["ANTHROPIC_BASE_URL"]) != "",
 		})
 
+		// The deliverable answer, typed apart from the narration turns already
+		// streamed as MessageText. Only on success: a failed run has no
+		// deliverable (finalizeStreamResult returns an empty output for one),
+		// and a transcript must not present an error string as an answer.
+		emitFinalResponse(msgCh, finalStatus, finalOutput)
+
 		b.cfg.Logger.Info("claude finished", "pid", cmd.Process.Pid, "status", finalStatus, "duration", duration.Round(time.Millisecond).String())
 
 		// The account-binding 400 arrives in the result event (finalError);

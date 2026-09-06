@@ -31,6 +31,9 @@ export type TraceEventKind =
   | "tool_use"
   | "tool_result"
   | "error"
+  | "response"
+  | "action"
+  | "elicitation"
   | "generic";
 
 export function traceEventKind(event: TraceEvent): TraceEventKind {
@@ -45,6 +48,12 @@ export function traceEventKind(event: TraceEvent): TraceEventKind {
       return "tool_result";
     case "error":
       return "error";
+    case "response":
+      return "response";
+    case "action":
+      return "action";
+    case "elicitation":
+      return "elicitation";
     default:
       return "generic";
   }
@@ -67,6 +76,15 @@ export function traceEventLabel(event: TraceEvent): string {
       return event.tool && event.tool.length > 0 ? event.tool : "Result";
     case "error":
       return "Error";
+    case "response":
+      return "Response";
+    case "action":
+      // The activity's own action name (status_changed, assignee_changed …).
+      // Verbatim, like a tool name: renaming it here would hide which writer
+      // produced the row.
+      return event.content && event.content.length > 0 ? event.content : "Action";
+    case "elicitation":
+      return "Elicitation";
     default:
       return event.type && event.type.length > 0 ? event.type : "Event";
   }
@@ -156,11 +174,29 @@ function collapseWhitespace(value: string | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
 }
 
+/**
+ * Render an action's before/after pair.
+ *
+ * A missing side becomes an em dash rather than being hidden: "— → in_progress"
+ * says the run set a value that had none, which is different from an unchanged
+ * field. When neither side is recorded (issue created, description updated, run
+ * finished) the pair is empty and the caller falls back to the action name
+ * alone — an arrow between two dashes is noise.
+ */
+export function traceActionSummary(input: Record<string, unknown> | undefined): string {
+  const before = typeof input?.before === "string" ? input.before : "";
+  const after = typeof input?.after === "string" ? input.after : "";
+  if (before === "" && after === "") return "";
+  return `${before || "—"} → ${after || "—"}`;
+}
+
 /** One-line summary for the collapsed row — never contains a newline. */
 export function traceEventSummary(event: TraceEvent, labels?: TraceSummaryLabels): string {
   switch (traceEventKind(event)) {
     case "thinking":
       return clip(firstLine(event.content), 200);
+    case "action":
+      return clip(traceActionSummary(event.input), 200);
     case "tool_use":
       return traceToolArgSummary(event.input, labels);
     case "tool_result":

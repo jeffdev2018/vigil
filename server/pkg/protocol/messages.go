@@ -187,10 +187,27 @@ type ChatQuickActionsPayload struct {
 
 // TaskMessagePayload represents a single agent execution message (tool call, text, etc.)
 type TaskMessagePayload struct {
-	TaskID    string         `json:"task_id"`
-	IssueID   string         `json:"issue_id,omitempty"`
-	Seq       int            `json:"seq"`
-	Type      string         `json:"type"`              // "text", "tool_use", "tool_result", "error"
+	TaskID  string `json:"task_id"`
+	IssueID string `json:"issue_id,omitempty"`
+	Seq     int    `json:"seq"`
+	// Type is open on the wire, never validated against an allow-list on
+	// ingest. Eight values are produced or accepted today:
+	//
+	//	thinking, text, tool_use, tool_result, error  — written by the daemon
+	//	response                                      — the run's final answer
+	//	action                                        — issue changes, never
+	//	                                                written as a message;
+	//	                                                joined from activity_log
+	//	                                                by ListTaskMessagesByUser
+	//	elicitation                                   — accepted and rendered,
+	//	                                                but NO producer exists
+	//	                                                yet: nothing in this
+	//	                                                repository writes it.
+	//
+	// A client must treat an unrecognised value as a neutral note rather than
+	// dropping it — a newer daemon may report a type an installed build
+	// predates.
+	Type      string         `json:"type"`
 	Tool      string         `json:"tool,omitempty"`    // tool name for tool_use/tool_result
 	Content   string         `json:"content,omitempty"` // text content
 	Input     map[string]any `json:"input,omitempty"`   // tool input (tool_use only)
