@@ -437,7 +437,8 @@
       "budgets": "Budgets",
       "learning": "What Vigil knows",
       "eval_lab": "Eval Lab",
-      "code_health": "Code health"
+      "code_health": "Code health",
+      "doc_drift": "Agent context drift"
     }
   },
   "plugins": {
@@ -2159,6 +2160,57 @@
       "cap": "over the per-scan cap",
       "budget": "refused by the budget",
       "error": "could not be opened"
+    }
+  },
+  "doc_drift": {
+    "title": "Agent context drift",
+    "description": "The agent context document is what every run reads before it acts, and it is the file that quietly stops being true. After the default branch moves, a read-only run compares it against what the repository actually declares and proposes the smallest edit that makes it true again — as a draft pull request, never a direct commit.",
+    "onboarding_title": "Nothing runs until you pick an agent",
+    "onboarding_body": "The scan is read-only: it reads the document and the repository, and reports what drifted. A separate run applies exactly that patch on its own branch and opens a DRAFT pull request for you to review.",
+    "config_title": "Configuration",
+    "config_description": "Who checks, which documents, and whether the proposal becomes a draft pull request on its own.",
+    "loading": "Loading the settings…",
+    "enabled_label": "Check after the default branch moves",
+    "enabled_hint": "Off by default. You can still check a repository manually while this is off.",
+    "agent_label": "Agent",
+    "pick_agent": "Pick an agent",
+    "docs_label": "Documents",
+    "docs_hint": "One repo-relative path per line. A document this repository does not have is skipped.",
+    "open_pr_label": "Open a draft pull request",
+    "open_pr_hint": "Off keeps the proposal here until you press the button.",
+    "save": "Save",
+    "saved_toast": "Agent context drift settings saved",
+    "save_failed": "Could not save the settings",
+    "repos_title": "Repositories",
+    "repos_description": "Only repositories with the shared index on are checked: its commit is how this feature knows the default branch moved.",
+    "repos_empty": "No indexed repository yet. Turn the shared repo index on for a repository in Repositories.",
+    "check_now": "Check now",
+    "check_started_toast": "Drift check started",
+    "check_failed": "Could not start the check",
+    "repo_due": "The branch moved since the last check",
+    "repo_scanning": "Checking…",
+    "repo_up_to_date": "Checked at this commit",
+    "repo_never_indexed": "Never indexed",
+    "proposals_title": "Proposals",
+    "proposals_description": "One proposal per document. A later check adds to the proposal already open rather than filing a second one.",
+    "proposals_empty": "No drift detected, the document is up to date",
+    "col_document": "Document",
+    "col_repository": "Repository",
+    "col_drift": "What drifted",
+    "col_status": "Status",
+    "view_pr": "Draft pull request",
+    "dismiss": "Dismiss",
+    "dismissed_toast": "Proposal dismissed",
+    "dismiss_failed": "Could not dismiss the proposal",
+    "open_pr": "Open draft PR",
+    "open_pr_started_toast": "Draft pull request run queued",
+    "open_pr_failed": "Could not queue the pull request run",
+    "status_unknown": "Unknown",
+    "status": {
+      "draft": "Draft",
+      "opened_pr": "In review",
+      "dismissed": "Dismissed",
+      "merged": "Merged"
     }
   }
 }

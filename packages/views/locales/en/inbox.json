@@ -102,7 +102,8 @@
     "routing_alert": "Agent cannot be routed",
     "residency_policy_blocked": "Blocked by data residency",
     "linear_alert": "Linear is disconnected",
-    "code_health_report": "Code health report"
+    "code_health_report": "Code health report",
+    "doc_drift_report": "Agent context drift"
   },
   "labels": {
     "set_status_to": "Set status to",

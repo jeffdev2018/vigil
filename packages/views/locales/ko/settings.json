@@ -436,7 +436,8 @@
       "budgets": "예산",
       "learning": "Vigil이 아는 것",
       "eval_lab": "평가 랩",
-      "code_health": "코드 건강"
+      "code_health": "코드 건강",
+      "doc_drift": "에이전트 컨텍스트 드리프트"
     }
   },
   "plugins": {
@@ -2151,6 +2152,57 @@
       "cap": "스캔당 상한 초과",
       "budget": "예산에서 거부됨",
       "error": "생성하지 못함"
+    }
+  },
+  "doc_drift": {
+    "title": "에이전트 컨텍스트 드리프트",
+    "description": "에이전트 컨텍스트 문서는 모든 실행이 행동하기 전에 읽는 파일이며, 조용히 사실이 아니게 되는 파일이기도 합니다. 기본 브랜치가 움직인 뒤 읽기 전용 실행이 저장소가 실제로 선언하는 내용과 대조해, 다시 사실로 만드는 가장 작은 수정을 제안합니다. 직접 커밋이 아니라 항상 초안 풀 리퀘스트로만 제안합니다.",
+    "onboarding_title": "에이전트를 고르기 전에는 아무것도 실행되지 않습니다",
+    "onboarding_body": "스캔은 읽기 전용입니다. 문서와 저장소를 읽고 무엇이 어긋났는지 보고합니다. 별도의 실행이 그 패치만 자체 브랜치에 적용하고 검토용 초안 풀 리퀘스트를 엽니다.",
+    "config_title": "설정",
+    "config_description": "누가 확인하는지, 어떤 문서인지, 제안을 자동으로 초안 풀 리퀘스트로 만들지.",
+    "loading": "설정을 불러오는 중…",
+    "enabled_label": "기본 브랜치가 움직이면 확인",
+    "enabled_hint": "기본값은 꺼짐입니다. 꺼져 있어도 저장소를 수동으로 확인할 수 있습니다.",
+    "agent_label": "에이전트",
+    "pick_agent": "에이전트 선택",
+    "docs_label": "문서",
+    "docs_hint": "저장소 기준 상대 경로를 한 줄에 하나씩. 저장소에 없는 문서는 건너뜁니다.",
+    "open_pr_label": "초안 풀 리퀘스트 열기",
+    "open_pr_hint": "끄면 버튼을 누를 때까지 제안이 여기 남습니다.",
+    "save": "저장",
+    "saved_toast": "에이전트 컨텍스트 드리프트 설정을 저장했습니다",
+    "save_failed": "설정을 저장할 수 없습니다",
+    "repos_title": "저장소",
+    "repos_description": "공유 인덱스를 켠 저장소만 확인합니다. 그 커밋이 기본 브랜치가 움직였음을 알려 줍니다.",
+    "repos_empty": "아직 인덱싱된 저장소가 없습니다. 저장소 탭에서 공유 저장소 인덱스를 켜세요.",
+    "check_now": "지금 확인",
+    "check_started_toast": "드리프트 확인을 시작했습니다",
+    "check_failed": "확인을 시작할 수 없습니다",
+    "repo_due": "마지막 확인 이후 브랜치가 움직였습니다",
+    "repo_scanning": "확인 중…",
+    "repo_up_to_date": "이 커밋에서 확인함",
+    "repo_never_indexed": "인덱싱된 적 없음",
+    "proposals_title": "제안",
+    "proposals_description": "문서당 하나의 제안입니다. 이후 확인은 두 번째를 만들지 않고 이미 열린 제안에 덧붙입니다.",
+    "proposals_empty": "드리프트가 감지되지 않았습니다. 문서는 최신입니다",
+    "col_document": "문서",
+    "col_repository": "저장소",
+    "col_drift": "어긋난 내용",
+    "col_status": "상태",
+    "view_pr": "초안 풀 리퀘스트",
+    "dismiss": "보류",
+    "dismissed_toast": "제안을 보류했습니다",
+    "dismiss_failed": "제안을 보류할 수 없습니다",
+    "open_pr": "초안 PR 열기",
+    "open_pr_started_toast": "풀 리퀘스트 실행을 대기열에 넣었습니다",
+    "open_pr_failed": "풀 리퀘스트 실행을 시작할 수 없습니다",
+    "status_unknown": "알 수 없음",
+    "status": {
+      "draft": "초안",
+      "opened_pr": "검토 중",
+      "dismissed": "보류됨",
+      "merged": "병합됨"
     }
   }
 }

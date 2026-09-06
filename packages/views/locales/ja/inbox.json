@@ -100,7 +100,8 @@
     "routing_alert": "エージェントをルーティングできません",
     "residency_policy_blocked": "データ所在地ポリシーによりブロック",
     "linear_alert": "Linear が切断されています",
-    "code_health_report": "コードヘルスレポート"
+    "code_health_report": "コードヘルスレポート",
+    "doc_drift_report": "エージェントコンテキストのずれ"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

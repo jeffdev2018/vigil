@@ -2495,6 +2495,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Put("/api/code-health/settings", h.PutCodeHealthSettings)
 			r.Get("/api/code-health/scans", h.ListCodeHealthScans)
 			r.Post("/api/code-health/scans/trigger", h.TriggerCodeHealthScan)
+			// Agent context document drift detection (K56).
+			r.Get("/api/doc-drift/settings", h.GetDocDriftSettings)
+			r.Put("/api/doc-drift/settings", h.PutDocDriftSettings)
+			r.Post("/api/doc-drift/check", h.CheckDocDrift)
+			r.Get("/api/doc-drift/proposals", h.ListDocDriftProposals)
+			r.Post("/api/doc-drift/proposals/{id}/dismiss", h.DismissDocDriftProposal)
+			r.Post("/api/doc-drift/proposals/{id}/open-pr", h.OpenDocDriftProposalPR)
 			// Cross-provider self-review (K15): reports and manual retry.
 			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
 			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)

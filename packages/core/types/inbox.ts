@@ -44,6 +44,7 @@ export type InboxItemType =
   // Code health autopilot (K22): a scheduled maintenance scan opened issues,
   // or failed.
   | "code_health_report"
+  | "doc_drift_report"
   | "contest_ready"
   | "org_alert"
   // The MCP gateway (K77): a high-risk tool ran, or a monthly review proposes unused tools for removal.

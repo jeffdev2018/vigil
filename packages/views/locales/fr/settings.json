@@ -437,7 +437,8 @@
       "budgets": "Budgets",
       "learning": "Ce que Vigil sait",
       "eval_lab": "Labo d'évaluation",
-      "code_health": "Santé du code"
+      "code_health": "Santé du code",
+      "doc_drift": "Dérive du contexte agent"
     }
   },
   "plugins": {
@@ -2159,6 +2160,57 @@
       "cap": "au-delà du plafond par scan",
       "budget": "refusé par le budget",
       "error": "n'a pas pu être ouvert"
+    }
+  },
+  "doc_drift": {
+    "title": "Dérive du contexte agent",
+    "description": "Le document de contexte agent est ce que chaque run lit avant d'agir, et c'est le fichier qui cesse silencieusement d'être vrai. Après un déplacement de la branche par défaut, un run en lecture seule le compare à ce que le dépôt déclare vraiment et propose la plus petite modification qui le remet d'aplomb — sous forme de pull request en brouillon, jamais de commit direct.",
+    "onboarding_title": "Rien ne démarre tant qu'aucun agent n'est choisi",
+    "onboarding_body": "Le scan est en lecture seule : il lit le document et le dépôt, et rapporte ce qui a dérivé. Un run distinct applique exactement ce patch sur sa propre branche et ouvre une pull request en BROUILLON que vous relisez.",
+    "config_title": "Configuration",
+    "config_description": "Qui vérifie, quels documents, et si la proposition devient une pull request en brouillon toute seule.",
+    "loading": "Chargement des paramètres…",
+    "enabled_label": "Vérifier après un déplacement de la branche par défaut",
+    "enabled_hint": "Désactivé par défaut. Vous pouvez quand même vérifier un dépôt manuellement.",
+    "agent_label": "Agent",
+    "pick_agent": "Choisir un agent",
+    "docs_label": "Documents",
+    "docs_hint": "Un chemin relatif au dépôt par ligne. Un document absent du dépôt est ignoré.",
+    "open_pr_label": "Ouvrir une pull request en brouillon",
+    "open_pr_hint": "Désactivé, la proposition reste ici jusqu'à ce que vous appuyiez sur le bouton.",
+    "save": "Enregistrer",
+    "saved_toast": "Paramètres de dérive du contexte agent enregistrés",
+    "save_failed": "Impossible d'enregistrer les paramètres",
+    "repos_title": "Dépôts",
+    "repos_description": "Seuls les dépôts dont l'index partagé est activé sont vérifiés : son commit est ce qui indique que la branche par défaut a bougé.",
+    "repos_empty": "Aucun dépôt indexé pour l'instant. Activez l'index de dépôt partagé dans Dépôts.",
+    "check_now": "Vérifier maintenant",
+    "check_started_toast": "Vérification de dérive démarrée",
+    "check_failed": "Impossible de démarrer la vérification",
+    "repo_due": "La branche a bougé depuis la dernière vérification",
+    "repo_scanning": "Vérification…",
+    "repo_up_to_date": "Vérifié à ce commit",
+    "repo_never_indexed": "Jamais indexé",
+    "proposals_title": "Propositions",
+    "proposals_description": "Une proposition par document. Une vérification ultérieure enrichit la proposition déjà ouverte plutôt que d'en créer une seconde.",
+    "proposals_empty": "Aucune dérive détectée, le document est à jour",
+    "col_document": "Document",
+    "col_repository": "Dépôt",
+    "col_drift": "Ce qui a dérivé",
+    "col_status": "Statut",
+    "view_pr": "Pull request en brouillon",
+    "dismiss": "Écarter",
+    "dismissed_toast": "Proposition écartée",
+    "dismiss_failed": "Impossible d'écarter la proposition",
+    "open_pr": "Ouvrir la PR brouillon",
+    "open_pr_started_toast": "Run de pull request en file",
+    "open_pr_failed": "Impossible de lancer le run de pull request",
+    "status_unknown": "Inconnu",
+    "status": {
+      "draft": "Brouillon",
+      "opened_pr": "En relecture",
+      "dismissed": "Écartée",
+      "merged": "Fusionnée"
     }
   }
 }

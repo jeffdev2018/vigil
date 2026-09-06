@@ -1033,6 +1033,22 @@ type DingtalkGroupRoute struct {
 	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
 }
 
+type DocDriftProposal struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	RepoIdentifier   string             `json:"repo_identifier"`
+	DocPath          string             `json:"doc_path"`
+	DetectedDrift    string             `json:"detected_drift"`
+	ProposedPatch    string             `json:"proposed_patch"`
+	DetectedAtCommit string             `json:"detected_at_commit"`
+	Status           string             `json:"status"`
+	PullRequestUrl   string             `json:"pull_request_url"`
+	ScanTaskID       pgtype.UUID        `json:"scan_task_id"`
+	PrTaskID         pgtype.UUID        `json:"pr_task_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type EvalCase struct {
 	ID                pgtype.UUID        `json:"id"`
 	WorkspaceID       pgtype.UUID        `json:"workspace_id"`

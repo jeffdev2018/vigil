@@ -4250,6 +4250,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// Code health autopilot (K22): a finished scan leaves its findings and
 	// opens the maintenance issues they justify.
 	h.storeCodeHealthFindings(r.Context(), *task, req.Output)
+	// Agent context drift (K56): a finished scan leaves its proposals; a
+	// finished pull-request run leaves the draft PR it opened.
+	h.settleDocDriftRun(r.Context(), *task, req.Output, req.PRURL)
 	// Contest (K72): a finished challenger or answer run moves its contest;
 	// a finished issue run may be contested by policy.
 	h.settleContestRun(r.Context(), *task, req.Output)
@@ -4956,6 +4959,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// Code health autopilot (K22): a crashed scan is settled here, so the next
 	// scheduled scan is not blocked by a row stuck in `running`.
 	h.failCodeHealthScan(r.Context(), *task, req.Error)
+	// Agent context drift (K56): a crashed scan releases its repository so the
+	// next moved commit is not blocked behind it.
+	h.failDocDriftRun(r.Context(), *task, req.Error)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-
