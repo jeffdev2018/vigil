@@ -2844,12 +2844,16 @@ SELECT
     -- from_runtime_id} under context.escalation. strip_nulls drops both keys
     -- when absent and NULLIF keeps the column NULL in that case, preserving
     -- the pre-TEN-356 behavior for ordinary enqueues.
+    -- Workflow selector (JEF-273): every issue task carries its workflow in
+    -- the context stamp ('single' when the caller passes nothing, so the
+    -- historical derivation never has to guess), and a critique workflow adds
+    -- force_review for the cross-review trigger.
     NULLIF(jsonb_strip_nulls(jsonb_build_object(
         'head_sha', NULLIF(COALESCE($12::text, ''), ''),
-        'escalation', $13::jsonb
+        'escalation', $13::jsonb,
+        'workflow', COALESCE(NULLIF($14::text, ''), 'single'),
+        'force_review', CASE WHEN $15::boolean IS TRUE THEN TRUE ELSE NULL END
     ))::text, '{}')::jsonb,
-    $14,
-    $15,
     $16,
     $17,
     $18,
@@ -2858,9 +2862,11 @@ SELECT
     $21,
     $22,
     $23,
-    COALESCE($24::text, 'general'),
-    $25::jsonb,
-    COALESCE($26::uuid, gen_random_uuid())
+    $24,
+    $25,
+    COALESCE($26::text, 'general'),
+    $27::jsonb,
+    COALESCE($28::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id
 `
@@ -2879,6 +2885,8 @@ type CreateAgentTaskParams struct {
 	SquadID              pgtype.UUID   `json:"squad_id"`
 	HeadSha              pgtype.Text   `json:"head_sha"`
 	Escalation           []byte        `json:"escalation"`
+	Workflow             pgtype.Text   `json:"workflow"`
+	ForceReview          pgtype.Bool   `json:"force_review"`
 	OriginatorUserID     pgtype.UUID   `json:"originator_user_id"`
 	AccountableUserID    pgtype.UUID   `json:"accountable_user_id"`
 	RuntimeMcpOverlay    []byte        `json:"runtime_mcp_overlay"`
@@ -2927,6 +2935,8 @@ func (q *Queries) CreateAgentTask(ctx context.Context, arg CreateAgentTaskParams
 		arg.SquadID,
 		arg.HeadSha,
 		arg.Escalation,
+		arg.Workflow,
+		arg.ForceReview,
 		arg.OriginatorUserID,
 		arg.AccountableUserID,
 		arg.RuntimeMcpOverlay,
@@ -3214,10 +3224,10 @@ SELECT
     $11,
     jsonb_strip_nulls(jsonb_build_object(
         'head_sha', NULLIF(COALESCE($12::text, ''), ''),
+        'workflow', COALESCE(NULLIF($13::text, ''), 'single'),
+        'force_review', CASE WHEN $14::boolean IS TRUE THEN TRUE ELSE NULL END,
         'channel_issue_media_pending', TRUE
     )),
-    $13,
-    $14,
     $15,
     $16,
     $17,
@@ -3227,9 +3237,11 @@ SELECT
     $21,
     $22,
     $23,
-    COALESCE($24::text, 'general'),
-    $25::jsonb,
-    COALESCE($26::uuid, gen_random_uuid())
+    $24,
+    $25,
+    COALESCE($26::text, 'general'),
+    $27::jsonb,
+    COALESCE($28::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id
 `
@@ -3247,6 +3259,8 @@ type CreateDeferredChannelIssueTaskParams struct {
 	HandoffNote          pgtype.Text        `json:"handoff_note"`
 	SquadID              pgtype.UUID        `json:"squad_id"`
 	HeadSha              pgtype.Text        `json:"head_sha"`
+	Workflow             pgtype.Text        `json:"workflow"`
+	ForceReview          pgtype.Bool        `json:"force_review"`
 	OriginatorUserID     pgtype.UUID        `json:"originator_user_id"`
 	AccountableUserID    pgtype.UUID        `json:"accountable_user_id"`
 	RuntimeMcpOverlay    []byte             `json:"runtime_mcp_overlay"`
@@ -3284,6 +3298,8 @@ func (q *Queries) CreateDeferredChannelIssueTask(ctx context.Context, arg Create
 		arg.HandoffNote,
 		arg.SquadID,
 		arg.HeadSha,
+		arg.Workflow,
+		arg.ForceReview,
 		arg.OriginatorUserID,
 		arg.AccountableUserID,
 		arg.RuntimeMcpOverlay,

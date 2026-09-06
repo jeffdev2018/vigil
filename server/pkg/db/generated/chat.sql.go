@@ -1594,7 +1594,7 @@ type ListAgentBuilderSessionsByCreatorRow struct {
 
 // The caller's unfinished agent-creation conversations.
 //
-// These never appear in ListChatSessionsForUser: that list is filtered
+// These never appear in ListChatSessionsByCreator: that list is filtered
 // against ListAllAgents, which is `kind = 'user'` only, so a builder session —
 // whose agent is the hidden `kind = 'system'` carrier — is invisible to every
 // chat surface by construction. This statement is the only way back to one,
@@ -2402,7 +2402,7 @@ type ListPendingChatTasksByCreatorRow struct {
 //
 // Returns cs.agent_id so the handler can filter tasks belonging to private
 // agents the caller has lost access to using the already-loaded `allowed`
-// set — no second ListAllChatSessionsForUser scan on the hot path.
+// set — no second ListAllChatSessionsByCreator scan on the hot path.
 //
 // atq.chat_session_id IS NOT NULL is redundant given the JOIN, but stated
 // explicitly so the planner can prove the query predicate is a subset of the

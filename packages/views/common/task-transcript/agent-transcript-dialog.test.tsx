@@ -148,6 +148,15 @@ vi.mock("../../rich-content", () => ({
   ),
 }));
 
+// The workflow selection reason lives in an in-memory map fed by the WS
+// handler; stub the read so tests seed it directly.
+const workflowReasonMock = vi.hoisted(() =>
+  vi.fn<(taskId: string) => string | undefined>().mockReturnValue(undefined),
+);
+vi.mock("@multica/core/issues/workflow-policy", () => ({
+  workflowSelectionReason: workflowReasonMock,
+}));
+
 const baseTask: AgentTask = {
   id: "task-1",
   agent_id: "",
@@ -233,6 +242,7 @@ function renderDialog(
 beforeEach(() => {
   cleanup();
   copyTextMock.mockClear();
+  workflowReasonMock.mockReset().mockReturnValue(undefined);
   vi.mocked(api.listRuntimes).mockResolvedValue([]);
   useTranscriptViewStore.setState({
     sortDirection: "chronological",
@@ -873,6 +883,68 @@ describe("AgentTranscriptDialog — escalation", () => {
   it("renders no chip for a run that was not escalated", () => {
     renderDialog(items, { task: baseTask });
     expect(screen.queryByTestId("escalation-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — workflow selection", () => {
+  it("shows a distinct chip label per workflow strategy", async () => {
+    renderDialog(items, { task: { ...baseTask, workflow: "cascade" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Cascade",
+    );
+    cleanup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "critique" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Critique",
+    );
+    cleanup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Single",
+    );
+  });
+
+  it("carries the workflow and its selection reason in the run details popover", async () => {
+    const user = userEvent.setup();
+    workflowReasonMock.mockReturnValue("policy:auto");
+
+    renderDialog(items, { task: { ...baseTask, workflow: "critique" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    // The chip and the popover row both carry the strategy name.
+    expect(screen.getAllByText("Critique").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Selection reason")).toBeInTheDocument();
+    expect(
+      screen.getByText("Picked automatically from run history"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a newer backend's reason token readable in the popover", async () => {
+    const user = userEvent.setup();
+    workflowReasonMock.mockReturnValue("auto:budget-cap");
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("auto:budget-cap")).toBeInTheDocument();
+  });
+
+  it("omits the reason row when this session never saw the event", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    expect(screen.queryByText("Selection reason")).not.toBeInTheDocument();
+  });
+
+  it("renders no chip for a run that predates the selector", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("workflow-chip")).not.toBeInTheDocument();
   });
 });
 

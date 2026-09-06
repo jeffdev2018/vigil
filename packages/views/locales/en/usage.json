@@ -165,5 +165,22 @@
     "title": "Autopilot runs this period: {{used}} / {{limit}}",
     "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
     "reached": "Limit reached — autopilots will not fire until the period resets."
+  },
+  "workflow_outcomes": {
+    "title": "Workflow outcomes",
+    "subtitle": "Last 90 days · per task class and workflow",
+    "col_class": "Task class",
+    "col_workflow": "Workflow",
+    "col_samples": "Samples",
+    "col_success": "Success",
+    "col_avg_cost": "Avg cost",
+    "col_avg_duration": "Avg duration",
+    "workflow": {
+      "single": "Single",
+      "cascade": "Cascade",
+      "critique": "Critique"
+    },
+    "empty_title": "No workflow data yet",
+    "empty_body": "Workflows are learned as runs complete — outcomes show up here once the selector has history to work with."
   }
 }

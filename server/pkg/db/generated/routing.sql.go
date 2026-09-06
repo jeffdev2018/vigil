@@ -133,6 +133,90 @@ func (q *Queries) GetRoutingStats(ctx context.Context, arg GetRoutingStatsParams
 	return items, nil
 }
 
+const getWorkflowStats = `-- name: GetWorkflowStats :many
+SELECT
+    atq.task_class,
+    COALESCE(atq.context->>'workflow', 'single')::text AS workflow,
+    COUNT(*)::int AS samples,
+    COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    COUNT(tu.cost_usd_ticks)::int AS cost_samples,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::float8 AS total_cost_usd_ticks,
+    COUNT(atq.started_at)::int AS duration_samples,
+    COALESCE(SUM(EXTRACT(EPOCH FROM (atq.completed_at - atq.started_at))) FILTER (
+        WHERE atq.started_at IS NOT NULL
+    ), 0)::float8 AS total_duration_secs
+FROM agent_task_queue atq
+JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN LATERAL (
+    SELECT SUM(u.cost_usd_ticks)::float8 AS cost_usd_ticks
+    FROM task_usage u
+    WHERE u.task_id = atq.id
+) tu ON TRUE
+WHERE a.workspace_id = $1
+  AND atq.status IN ('completed', 'failed')
+  AND atq.completed_at IS NOT NULL
+  AND atq.completed_at >= $2::timestamptz
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
+GROUP BY atq.task_class, COALESCE(atq.context->>'workflow', 'single')
+ORDER BY atq.task_class, workflow
+`
+
+type GetWorkflowStatsParams struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Since       pgtype.Timestamptz `json:"since"`
+}
+
+type GetWorkflowStatsRow struct {
+	TaskClass         string  `json:"task_class"`
+	Workflow          string  `json:"workflow"`
+	Samples           int32   `json:"samples"`
+	SuccessCount      int32   `json:"success_count"`
+	CostSamples       int32   `json:"cost_samples"`
+	TotalCostUsdTicks float64 `json:"total_cost_usd_ticks"`
+	DurationSamples   int32   `json:"duration_samples"`
+	TotalDurationSecs float64 `json:"total_duration_secs"`
+}
+
+// Per-(task_class, workflow) run statistics over the trailing window (90 days
+// at the call site), feeding the workflow selector (JEF-273) and the
+// /api/runtimes/workflow-stats endpoint. The workflow is derived from the
+// task's context stamp (context->>'workflow'), defaulting to 'single' for
+// rows that predate the selector — those runs WERE the single workflow.
+// Only terminal runs count; success_count counts 'completed', samples both.
+// Unlike GetRoutingStats no provider/model attribution is needed, so a run
+// without any task_usage row still counts as a sample; its cost simply does
+// not contribute (cost_samples = 0 distinguishes "no priced run" from a
+// genuine zero average). The leg filter mirrors GetRoutingStats: review-like
+// legs judge someone else's work and are not samples of their task class.
+func (q *Queries) GetWorkflowStats(ctx context.Context, arg GetWorkflowStatsParams) ([]GetWorkflowStatsRow, error) {
+	rows, err := q.db.Query(ctx, getWorkflowStats, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetWorkflowStatsRow{}
+	for rows.Next() {
+		var i GetWorkflowStatsRow
+		if err := rows.Scan(
+			&i.TaskClass,
+			&i.Workflow,
+			&i.Samples,
+			&i.SuccessCount,
+			&i.CostSamples,
+			&i.TotalCostUsdTicks,
+			&i.DurationSamples,
+			&i.TotalDurationSecs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listDistinctTaskRuntimesForIssue = `-- name: ListDistinctTaskRuntimesForIssue :many
 SELECT DISTINCT runtime_id
 FROM agent_task_queue

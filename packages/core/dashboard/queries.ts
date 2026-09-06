@@ -42,6 +42,8 @@ export const dashboardKeys = {
     [...dashboardKeys.all(wsId), "failures-by-agent", days, projectId, tz] as const,
   routingStats: (wsId: string) =>
     [...dashboardKeys.all(wsId), "routing-stats"] as const,
+  workflowStats: (wsId: string) =>
+    [...dashboardKeys.all(wsId), "workflow-stats"] as const,
 };
 
 // The server materializes these rollups on a 5-minute cadence, so a mounted
@@ -277,6 +279,21 @@ export function routingStatsOptions(wsId: string) {
   return queryOptions({
     queryKey: dashboardKeys.routingStats(wsId),
     queryFn: () => api.listRoutingStats(),
+    enabled: !!wsId,
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
+/**
+ * Workflow-selector outcomes (JEF-273): the 90-day per-(task class, workflow)
+ * rollup the selector learns from. The window is fixed server-side, so the
+ * key carries no days/project/tz — same convention as `routingStatsOptions`.
+ */
+export function workflowStatsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: dashboardKeys.workflowStats(wsId),
+    queryFn: () => api.listWorkflowStats(),
     enabled: !!wsId,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,

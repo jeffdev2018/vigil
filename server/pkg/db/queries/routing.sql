@@ -99,3 +99,41 @@ WHERE a.workspace_id = @workspace_id
   AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class;
+
+-- name: GetWorkflowStats :many
+-- Per-(task_class, workflow) run statistics over the trailing window (90 days
+-- at the call site), feeding the workflow selector (JEF-273) and the
+-- /api/runtimes/workflow-stats endpoint. The workflow is derived from the
+-- task's context stamp (context->>'workflow'), defaulting to 'single' for
+-- rows that predate the selector — those runs WERE the single workflow.
+-- Only terminal runs count; success_count counts 'completed', samples both.
+-- Unlike GetRoutingStats no provider/model attribution is needed, so a run
+-- without any task_usage row still counts as a sample; its cost simply does
+-- not contribute (cost_samples = 0 distinguishes "no priced run" from a
+-- genuine zero average). The leg filter mirrors GetRoutingStats: review-like
+-- legs judge someone else's work and are not samples of their task class.
+SELECT
+    atq.task_class,
+    COALESCE(atq.context->>'workflow', 'single')::text AS workflow,
+    COUNT(*)::int AS samples,
+    COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    COUNT(tu.cost_usd_ticks)::int AS cost_samples,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::float8 AS total_cost_usd_ticks,
+    COUNT(atq.started_at)::int AS duration_samples,
+    COALESCE(SUM(EXTRACT(EPOCH FROM (atq.completed_at - atq.started_at))) FILTER (
+        WHERE atq.started_at IS NOT NULL
+    ), 0)::float8 AS total_duration_secs
+FROM agent_task_queue atq
+JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN LATERAL (
+    SELECT SUM(u.cost_usd_ticks)::float8 AS cost_usd_ticks
+    FROM task_usage u
+    WHERE u.task_id = atq.id
+) tu ON TRUE
+WHERE a.workspace_id = @workspace_id
+  AND atq.status IN ('completed', 'failed')
+  AND atq.completed_at IS NOT NULL
+  AND atq.completed_at >= @since::timestamptz
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval')
+GROUP BY atq.task_class, COALESCE(atq.context->>'workflow', 'single')
+ORDER BY atq.task_class, workflow;

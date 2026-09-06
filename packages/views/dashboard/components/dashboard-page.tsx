@@ -24,6 +24,7 @@ import {
   dashboardFailuresDailyOptions,
   dashboardFailuresByAgentOptions,
   routingStatsOptions,
+  workflowStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
@@ -72,6 +73,7 @@ import { ProjectFilter, TimeRangeFilter } from "./dashboard-filters";
 import { UsageTrendCard } from "./usage-trend-card";
 import { Leaderboard } from "./leaderboard";
 import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
+import { WorkflowOutcomesCard } from "./workflow-outcomes-card";
 import { ErrorsTab } from "./errors-tab";
 import { cn } from "@multica/ui/lib/utils";
 import { BudgetNotice } from "./budget-notice";
@@ -87,6 +89,8 @@ const EMPTY_FAILURE_DAILY: import("@multica/core/types").DashboardFailureDaily[]
 const EMPTY_FAILURE_BY_AGENT: import("@multica/core/types").DashboardFailureByAgent[] =
   [];
 const EMPTY_ROUTING_STATS_ROWS: import("@multica/core/types").RuntimeRoutingStats[] =
+  [];
+const EMPTY_WORKFLOW_STATS_ROWS: import("@multica/core/types").WorkflowStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
@@ -242,6 +246,9 @@ export function DashboardPage() {
   // Smart-router benchmarks (JEF-237): fixed 90-day server-side window, so
   // this query deliberately ignores the page's days/project/tz scope.
   const routingStatsQuery = useQuery(routingStatsOptions(wsId));
+  // Workflow-selector outcomes (JEF-273): same fixed 90-day server-side
+  // window, same deliberate independence from the page scope.
+  const workflowStatsQuery = useQuery(workflowStatsOptions(wsId));
 
   const dailyUsage = dailyQuery.data ?? EMPTY_DAILY;
   const byAgentUsage = byAgentQuery.data ?? EMPTY_BY_AGENT;
@@ -250,6 +257,7 @@ export function DashboardPage() {
   const failureDailyRows = failuresDailyQuery.data ?? EMPTY_FAILURE_DAILY;
   const failureByAgentRows = failuresByAgentQuery.data ?? EMPTY_FAILURE_BY_AGENT;
   const routingStats = routingStatsQuery.data?.rows ?? EMPTY_ROUTING_STATS_ROWS;
+  const workflowStats = workflowStatsQuery.data?.rows ?? EMPTY_WORKFLOW_STATS_ROWS;
 
   const queryClient = useQueryClient();
   // "Refreshing" covers any of the six rollups being in flight, whichever
@@ -654,6 +662,13 @@ export function DashboardPage() {
             <RoutingBenchmarksCard
               rows={routingStats}
               loading={routingStatsQuery.isLoading}
+              lessThanMinuteLabel={lessThanMinuteLabel}
+            />
+            {/* Same placement rationale as the benchmarks card: the card
+                carries its own loading and empty states. */}
+            <WorkflowOutcomesCard
+              rows={workflowStats}
+              loading={workflowStatsQuery.isLoading}
               lessThanMinuteLabel={lessThanMinuteLabel}
             />
           </TabsContent>

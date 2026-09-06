@@ -165,5 +165,22 @@
     "title": "이번 기간 오토파일럿 실행: {{used}} / {{limit}}",
     "near_limit": "한도에 근접했습니다. 한도에 도달하면 오토파일럿이 실행되지 않습니다.",
     "reached": "한도에 도달했습니다. 기간이 초기화될 때까지 오토파일럿이 실행되지 않습니다."
+  },
+  "workflow_outcomes": {
+    "title": "워크플로별 결과",
+    "subtitle": "최근 90일 · 태스크 클래스 및 워크플로별",
+    "col_class": "태스크 클래스",
+    "col_workflow": "워크플로",
+    "col_samples": "샘플",
+    "col_success": "성공률",
+    "col_avg_cost": "평균 비용",
+    "col_avg_duration": "평균 소요 시간",
+    "workflow": {
+      "single": "싱글",
+      "cascade": "캐스케이드",
+      "critique": "크리티크"
+    },
+    "empty_title": "아직 워크플로 데이터가 없습니다",
+    "empty_body": "워크플로는 실행이 쌓이면서 학습됩니다 — 셀렉터에 기록이 쌓이면 여기에 결과가 표시됩니다."
   }
 }

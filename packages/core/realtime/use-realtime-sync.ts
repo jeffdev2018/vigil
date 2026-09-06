@@ -11,6 +11,7 @@ import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
 import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
+import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { pinKeys } from "../pins/queries";
@@ -119,6 +120,7 @@ import type {
   TaskCancelledPayload,
   TaskScoredPayload,
   TaskEscalatedPayload,
+  TaskWorkflowSelectedPayload,
   ChatDonePayload,
   ChatQuickActionsPayload,
   ChatQuickActionsPendingState,
@@ -1836,6 +1838,20 @@ export function useRealtimeSync(
       qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
     });
 
+    // task:workflow-selected (JEF-273) fires once the selector has persisted
+    // the task's execution strategy. The task prefix path already refreshes
+    // every list-of-tasks query; the issue detail carries the workflow on its
+    // execution-log rows, so refresh it too. The reason rides only this
+    // event — remember it for the run-info popover before the refetch lands.
+    const unsubTaskWorkflowSelected = ws.on("task:workflow-selected", (p) => {
+      const payload = p as TaskWorkflowSelectedPayload;
+      rememberWorkflowSelection(payload.task_id, payload.reason);
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
     const unsubChatSessionRead = ws.on("chat:session_read", (p) => {
       const payload = p as { chat_session_id: string };
       chatWsLogger.info("chat:session_read (global)", payload);
@@ -1963,6 +1979,7 @@ export function useRealtimeSync(
       unsubTaskFailed();
       unsubTaskScored();
       unsubTaskEscalated();
+      unsubTaskWorkflowSelected();
       unsubChatSessionRead();
       unsubChatSessionCreated();
       unsubChatSessionDeleted();

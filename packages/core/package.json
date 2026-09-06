@@ -56,6 +56,7 @@
     "./issues/cross-review": "./issues/cross-review.ts",
     "./issues/contest": "./issues/contest.ts",
     "./issues/confidence-review": "./issues/confidence-review.ts",
+    "./issues/workflow-policy": "./issues/workflow-policy.ts",
     "./issues/ci-auto-fix": "./issues/ci-auto-fix.ts",
     "./issues/agent-effects": "./issues/agent-effects.ts",
     "./issues/run-replay": "./issues/run-replay.ts",
