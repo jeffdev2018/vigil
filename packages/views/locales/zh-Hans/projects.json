@@ -225,5 +225,21 @@
     "max_cycles": "最大轮次",
     "save": "保存评审设置",
     "failed": "无法保存评审设置"
+  },
+  "mirrors": {
+    "section": "跨仓库镜像",
+    "description": "本项目中带有触发标签的问题会被复制到目标项目，副本完成前会阻塞原问题。",
+    "empty": "暂无镜像链接。",
+    "target": "目标项目",
+    "target_placeholder": "选择目标项目",
+    "trigger_label": "触发标签",
+    "trigger_placeholder": "标签名称",
+    "add": "添加链接",
+    "added": "已添加镜像链接",
+    "add_failed": "添加镜像链接失败",
+    "remove": "删除此链接",
+    "removed": "已删除镜像链接，已生成的镜像会保留。",
+    "remove_failed": "删除镜像链接失败",
+    "unknown_project": "已删除的项目"
   }
 }

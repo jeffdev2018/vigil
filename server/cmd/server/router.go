@@ -2460,6 +2460,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/duels/{id}", h.GetAgentDuel)
 			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
 
+			// Cross-repo mirror issues (K54).
+			r.Get("/api/issues/{id}/mirrors", h.GetIssueMirrors)
+			r.Put("/api/issues/{id}/mirrors/{mirrorId}/type-synced", h.SetIssueMirrorTypeSynced)
+
 			// Eval Lab (K24).
 			r.Post("/api/issues/{id}/promote-to-eval-case", h.PromoteIssueToEvalCase)
 			r.Post("/api/eval-suites/{id}/run", h.RunEvalSuite)
@@ -2613,6 +2617,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// Agent review by agent (JEF-238): per-project checklist, pinned reviewer, done gate.
 					r.Get("/review-config", h.GetProjectReviewConfig)
 					r.Put("/review-config", h.PutProjectReviewConfig)
+					// Cross-repo mirror issues (K54): trigger label -> mirror in a target project.
+					r.Get("/mirror-links", h.ListProjectMirrorLinks)
+					r.Post("/mirror-links", h.CreateProjectMirrorLink)
+					r.Delete("/mirror-links/{linkId}", h.DeleteProjectMirrorLink)
 				})
 			})
 

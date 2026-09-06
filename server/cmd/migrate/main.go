@@ -407,6 +407,9 @@ var concurrentIndexCleanups = map[string]string{
 	"713_repo_index_chunk_tsv_index":                            "idx_repo_index_chunk_tsv",
 	"714_repo_index_chunk_embedding_index":                      "idx_repo_index_chunk_embedding",
 	"702_runtime_compliance_profile_index":                      "idx_runtime_compliance_profile_runtime",
+	"722_project_mirror_link_source_index":                      "idx_project_mirror_link_source",
+	"723_issue_mirror_pair_unique":                              "uq_issue_mirror_pair",
+	"724_issue_mirror_mirror_issue_index":                       "idx_issue_mirror_mirror_issue",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

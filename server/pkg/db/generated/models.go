@@ -1340,6 +1340,16 @@ type IssueLabel struct {
 	Description  string             `json:"description"`
 }
 
+type IssueMirror struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	SourceIssueID pgtype.UUID        `json:"source_issue_id"`
+	MirrorIssueID pgtype.UUID        `json:"mirror_issue_id"`
+	LinkID        pgtype.UUID        `json:"link_id"`
+	TypeSynced    bool               `json:"type_synced"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 // Versioned plan artifact per issue (F17). The active plan is the row with superseded_at IS NULL; older versions stay readable. No FK by house rule.
 type IssuePlan struct {
 	ID           pgtype.UUID        `json:"id"`
@@ -1994,6 +2004,16 @@ type ProjectMemberRole struct {
 	CreatedBy   pgtype.UUID        `json:"created_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProjectMirrorLink struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	SourceProjectID pgtype.UUID        `json:"source_project_id"`
+	TargetProjectID pgtype.UUID        `json:"target_project_id"`
+	TriggerLabel    string             `json:"trigger_label"`
+	CreatedBy       pgtype.UUID        `json:"created_by"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type ProjectResource struct {

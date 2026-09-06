@@ -227,5 +227,21 @@
     "max_cycles": "Max cycles",
     "save": "Save review settings",
     "failed": "The review settings could not be saved"
+  },
+  "mirrors": {
+    "section": "Cross-repo mirrors",
+    "description": "An issue of this project carrying the trigger label is copied into the target project, and the copy blocks it until it is closed.",
+    "empty": "No mirror links yet.",
+    "target": "Target project",
+    "target_placeholder": "Choose a target project",
+    "trigger_label": "Trigger label",
+    "trigger_placeholder": "Label name",
+    "add": "Add link",
+    "added": "Mirror link added",
+    "add_failed": "Failed to add the mirror link",
+    "remove": "Remove this link",
+    "removed": "Mirror link removed. Existing mirrors are kept.",
+    "remove_failed": "Failed to remove the mirror link",
+    "unknown_project": "Deleted project"
   }
 }

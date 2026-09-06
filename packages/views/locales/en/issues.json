@@ -1441,5 +1441,13 @@
     "added": "Added to Eval Lab",
     "open_eval_lab": "Open Eval Lab",
     "failed": "Could not promote this issue"
+  },
+  "mirrors": {
+    "generated_from": "Generated from {{identifier}} ({{project}})",
+    "open_source": "Open the source issue",
+    "mirror_in": "Mirror in {{project}}",
+    "types_synced": "types synced",
+    "sync_failed": "Failed to update this mirror",
+    "unknown_project": "Deleted project"
   }
 }

@@ -225,5 +225,21 @@
     "max_cycles": "최대 사이클",
     "save": "리뷰 설정 저장",
     "failed": "리뷰 설정을 저장하지 못했습니다"
+  },
+  "mirrors": {
+    "section": "저장소 간 미러",
+    "description": "이 프로젝트의 이슈에 트리거 레이블이 붙으면 대상 프로젝트에 사본이 생성되며, 사본이 완료될 때까지 원본을 차단합니다.",
+    "empty": "아직 미러 링크가 없습니다.",
+    "target": "대상 프로젝트",
+    "target_placeholder": "대상 프로젝트 선택",
+    "trigger_label": "트리거 레이블",
+    "trigger_placeholder": "레이블 이름",
+    "add": "링크 추가",
+    "added": "미러 링크를 추가했습니다",
+    "add_failed": "미러 링크 추가에 실패했습니다",
+    "remove": "이 링크 삭제",
+    "removed": "미러 링크를 삭제했습니다. 기존 미러는 유지됩니다.",
+    "remove_failed": "미러 링크 삭제에 실패했습니다",
+    "unknown_project": "삭제된 프로젝트"
   }
 }

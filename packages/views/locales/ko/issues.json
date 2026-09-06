@@ -1407,5 +1407,13 @@
     "added": "평가 랩에 추가됨",
     "open_eval_lab": "평가 랩 열기",
     "failed": "이 이슈를 승격하지 못했습니다"
+  },
+  "mirrors": {
+    "generated_from": "{{identifier}}({{project}})에서 생성됨",
+    "open_source": "원본 이슈 열기",
+    "mirror_in": "{{project}}의 미러",
+    "types_synced": "타입 동기화됨",
+    "sync_failed": "이 미러를 업데이트하지 못했습니다",
+    "unknown_project": "삭제된 프로젝트"
   }
 }

@@ -195,6 +195,7 @@
     "./eval": "./eval/index.ts",
     "./linear": "./linear/index.ts",
     "./access": "./access/index.ts",
+    "./mirrors": "./mirrors/index.ts",
     "./budgets/queries": "./budgets/queries.ts",
     "./budgets/mutations": "./budgets/mutations.ts",
     "./github": "./github/index.ts",

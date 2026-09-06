@@ -343,6 +343,7 @@ import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
+import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
 import {
   AgentTaskListSchema,
   AttachmentResponseSchema,
@@ -6358,6 +6359,41 @@ export class ApiClient {
   async clearProjectMemberRole(projectId: string, subjectType: "member" | "agent", subjectId: string): Promise<ProjectMembers> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members/${subjectType}/${encodeURIComponent(subjectId)}/role`, { method: "DELETE" });
     return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "DELETE /api/projects/{id}/members/{subjectType}/{subjectId}/role" });
+  }
+
+  // Cross-repo mirror issues (K54).
+
+  async listMirrorLinks(projectId: string): Promise<MirrorLinkList> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/mirror-links`);
+    return parseWithFallback(raw, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, { endpoint: "GET /api/projects/{id}/mirror-links" });
+  }
+
+  async createMirrorLink(projectId: string, targetProjectId: string, triggerLabel: string): Promise<MirrorLink> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/mirror-links`, {
+      method: "POST",
+      body: JSON.stringify({ target_project_id: targetProjectId, trigger_label: triggerLabel }),
+    });
+    return parseWithFallback(raw, MirrorLinkSchema, { id: "", source_project_id: projectId, target_project_id: targetProjectId, target_project_title: "", trigger_label: triggerLabel, created_at: "" }, { endpoint: "POST /api/projects/{id}/mirror-links" });
+  }
+
+  async deleteMirrorLink(projectId: string, linkId: string): Promise<void> {
+    await this.fetch(`/api/projects/${encodeURIComponent(projectId)}/mirror-links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
+  }
+
+  async getIssueMirrors(issueId: string): Promise<IssueMirrors> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/mirrors`);
+    return parseWithFallback(raw, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, { endpoint: "GET /api/issues/{id}/mirrors" });
+  }
+
+  async setMirrorTypeSynced(issueId: string, mirrorId: string, value: boolean): Promise<{ id: string; type_synced: boolean }> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/mirrors/${encodeURIComponent(mirrorId)}/type-synced`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    });
+    // Strict on purpose: a body that does not actually carry the new value
+    // must fall back to what was requested, not report type_synced=false and
+    // make the checkbox flicker back. The list query is invalidated anyway.
+    return parseWithFallback(raw, z.object({ id: z.string(), type_synced: z.boolean() }).loose(), { id: mirrorId, type_synced: value }, { endpoint: "PUT /api/issues/{id}/mirrors/{mirrorId}/type-synced" });
   }
 
   /** SSO login (K60): unauthenticated; the browser follows the returned URL. */
