@@ -402,6 +402,26 @@ func TestPrWalkthroughRefreshIsRefusedWhenDisabled(t *testing.T) {
 	}
 }
 
+// An unreadable diff is the provider's problem, not a server crash: the refresh
+// says so with a 502 and the row is settled failed with the reason, so the
+// reviewer can retry once the provider is back.
+func TestPrWalkthroughRefreshAnswers502WhenTheDiffCannotBeRead(t *testing.T) {
+	prWalkthroughCleanup(t)
+	enablePrWalkthrough(t)
+	issueID, prID := walkthroughVCSPR(t, "head-502")
+	prev := testHandler.DiffFetcher
+	testHandler.DiffFetcher = fakeDiffFetcher{}
+	t.Cleanup(func() { testHandler.DiffFetcher = prev })
+
+	resp := refreshWalkthrough(t, issueID, prID).Want(http.StatusBadGateway)
+	if body := resp.Body.String(); !strings.Contains(body, "diff_unavailable") {
+		t.Fatalf("502 body = %q, want the diff_unavailable code", body)
+	}
+	if got := getWalkthrough(t, issueID, prID); got.State != "failed" || !strings.Contains(got.Error, "no diff") {
+		t.Fatalf("row after unreadable diff: %+v", got)
+	}
+}
+
 // Both endpoints answer only from the issue's OWN link list, so a pull request
 // that exists but is not linked here is indistinguishable from one that does
 // not exist. That is the authorization these handlers own; workspace
