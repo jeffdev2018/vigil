@@ -115,7 +115,7 @@ describe("OrgPage", () => {
   });
 
   it("revises the existing structure of the scope instead of creating a second one", async () => {
-    state.structures = [structure({ id: "s-default", name: "Owner network", project_id: null, status: "live" })];
+    state.structures = [structure({ id: "s-default", name: "Owner network", project_id: null, status: "active" })];
     state.templates = [template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
     renderWithI18n(<OrgPage />);
     fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
