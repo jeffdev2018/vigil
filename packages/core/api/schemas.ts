@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   AgentBuilderRuntimeSwitch,
+  AnchoredThreads,
   AgentBuilderSession,
   AgentBuilderSessionSummary,
   Attachment,
@@ -992,6 +993,28 @@ export const EMPTY_ATTACHMENT: Attachment = {
 // wasn't updated in lock-step. `.loose()` removes that synchronisation
 // hazard — the schema validates the shape it knows about and leaves the
 // rest alone.
+/**
+ * Diff anchor of a comment thread (F07 / JEF-21).
+ *
+ * `kind` is deliberately an open string: a newer server may add one. A thread
+ * whose kind this build does not recognise renders WITHOUT its anchor rather
+ * than disappearing — losing a discussion is far worse than losing a chip.
+ *
+ * `.catch()` on every field means a partially malformed anchor still yields a
+ * usable object; the UI checks `file_path` before drawing anything.
+ */
+export const CommentAnchorSchema = z.object({
+  kind: z.string().catch(""),
+  pr_source: z.string().catch(""),
+  pr_id: z.string().catch(""),
+  head_sha: z.string().catch(""),
+  file_path: z.string().catch(""),
+  line_start: z.number().catch(0).default(0),
+  line_end: z.number().catch(0).default(0),
+  side: z.string().catch("new"),
+  review_flag_id: z.string().nullish().catch(null),
+}).loose();
+
 const TimelineEntrySchema = z.object({
   type: z.string(),
   id: z.string(),
@@ -1011,6 +1034,10 @@ const TimelineEntrySchema = z.object({
   attachments: z.array(AttachmentSchema).optional(),
   source_task_id: z.string().nullable().optional(),
   coalesced_count: z.number().optional(),
+  // Diff anchor of the thread (F07). Absent on activity rows, on unanchored
+  // comments, and on a backend that predates the feature.
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
 }).loose();
 
 // /timeline returns a flat array of TimelineEntry, oldest first. The
@@ -1116,9 +1143,31 @@ export const CommentSchema = z.object({
   source_task_id: z.string().nullable().optional(),
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
+  // Diff anchor (F07). `nullish` rather than required: a backend that predates
+  // the feature omits it entirely, and the thread must still render.
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
 }).loose();
 
 export const CommentsListSchema = z.array(CommentSchema);
+
+/**
+ * One anchored discussion as the walkthrough reads it: the root, its replies,
+ * and the anchor resolved once for the whole thread.
+ */
+export const AnchoredThreadSchema = z.object({
+  root: CommentSchema,
+  replies: z.array(CommentSchema).catch([]).default([]),
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
+}).loose();
+
+export const AnchoredThreadsSchema = z.object({
+  threads: z.array(AnchoredThreadSchema).catch([]).default([]),
+}).loose();
+
+/** A response this build cannot read hides the threads, never the diff. */
+export const EMPTY_ANCHORED_THREADS: AnchoredThreads = { threads: [] };
 
 // Degraded placeholder for a comment response that failed schema validation.
 // The empty id is the caller's signal that nothing usable came back — the run
@@ -5656,6 +5705,7 @@ const OrgUnitSchema = z.object({
   id: z.string().catch(""),
   name: z.string().catch(""),
   kind: z.string().optional(),
+  model: z.enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"]).optional().catch(undefined),
   owner_id: z.string().optional(),
   squad_id: z.string().optional(),
   mission_goal_id: z.string().optional(),
@@ -5706,7 +5756,7 @@ export const OrgStructureDetailSchema = z.object({
   revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgTemplateListSchema = z.object({
-  templates: z.array(z.object({ model: z.string(), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
+  templates: z.array(z.object({ model: z.string(), composite: z.boolean().optional().catch(undefined), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
 }).loose();
 export const OrgHealthSchema = z.object({
   structure_id: z.string().catch(""),

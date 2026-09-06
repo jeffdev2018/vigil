@@ -1463,5 +1463,20 @@
       "warning": "警告",
       "info": "情報"
     }
+  },
+  "anchor": {
+    "section": "アンカー付きの議論",
+    "ask_line": "この行について質問",
+    "ask_flag": "この指摘について質問",
+    "ask_placeholder": "{{location}} について質問…",
+    "cancel": "キャンセル",
+    "stale": "その後コードが変更されました",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_other": "以前の返信 {{count}} 件を表示",
+    "hide_replies": "以前の返信を隠す",
+    "reply_placeholder": "このスレッドに返信…",
+    "empty": "このハンクに紐づく議論はまだありません。",
+    "go_to_hunk": "ウォークスルーのこの行へ移動"
   }
 }

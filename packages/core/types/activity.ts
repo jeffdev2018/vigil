@@ -35,4 +35,11 @@ export interface TimelineEntry {
   source_task_id?: string | null;
   /** Set by frontend coalescing when consecutive identical activities are merged. */
   coalesced_count?: number;
+  /**
+   * Diff anchor of the thread this comment belongs to (F07). Present on the
+   * root AND on every reply. Absent on activity rows and on unanchored
+   * comments, so the timeline chip is drawn only when there is one.
+   */
+  anchor?: import("./comment").CommentAnchor | null;
+  anchor_stale?: boolean;
 }

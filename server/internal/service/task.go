@@ -360,6 +360,12 @@ func (s *TaskService) buildCommentTriggerSummary(ctx context.Context, workspaceI
 	if summary == "" {
 		return pgtype.Text{}
 	}
+	// An anchored thread (F07) names the place the question is about. Appended
+	// AFTER the truncation so a long comment can never push the anchor out of
+	// the summary — the place is what the run cannot reconstruct on its own.
+	if suffix := s.anchorSummarySuffix(ctx, workspaceID, comment); suffix != "" {
+		summary += "\n" + suffix
+	}
 	return pgtype.Text{String: summary, Valid: true}
 }
 

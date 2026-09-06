@@ -1463,5 +1463,20 @@
       "warning": "警告",
       "info": "提示"
     }
+  },
+  "anchor": {
+    "section": "定位讨论",
+    "ask_line": "就这一行提问",
+    "ask_flag": "就这条标记提问",
+    "ask_placeholder": "就 {{location}} 提问…",
+    "cancel": "取消",
+    "stale": "代码此后已变更",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_other": "显示之前的 {{count}} 条回复",
+    "hide_replies": "隐藏之前的回复",
+    "reply_placeholder": "回复此讨论…",
+    "empty": "此代码块还没有定位讨论。",
+    "go_to_hunk": "跳转到讲解中的这一行"
   }
 }

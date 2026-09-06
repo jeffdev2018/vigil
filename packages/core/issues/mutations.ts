@@ -35,7 +35,7 @@ import type {
   MoveIssueRequest,
   UpdateIssueRequest,
 } from "../types";
-import type { TimelineEntry, IssueSubscriber, Reaction } from "../types";
+import type { TimelineEntry, IssueSubscriber, Reaction, CreateCommentAnchor } from "../types";
 import { sortTimelineEntriesAsc } from "./timeline-sort";
 import {
   onIssueAuxiliaryRevision,
@@ -743,6 +743,18 @@ export function useBatchDeleteIssues() {
 
 type TimelineCache = TimelineEntry[];
 
+/**
+ * Anchored discussions (F07) are read per pull request and per head, and the
+ * walkthrough renders them under the hunk they point at. A comment that
+ * appears or disappears changes that set, so the prefix — every head of every
+ * pull request of every issue — is refetched. It is a handful of cached
+ * queries at most, and scoping it would mean the mutation had to know which
+ * pull request the comment was anchored to.
+ */
+function invalidateAnchoredThreads(qc: ReturnType<typeof useQueryClient>): void {
+  qc.invalidateQueries({ queryKey: ["pr-anchored-threads"] });
+}
+
 export function useCreateComment(issueId: string) {
   const qc = useQueryClient();
   const wsId = useWorkspaceId();
@@ -753,13 +765,17 @@ export function useCreateComment(issueId: string) {
       parentId,
       attachmentIds,
       suppressAgentIds,
+      anchor,
     }: {
       content: string;
       type?: string;
       parentId?: string;
       attachmentIds?: string[];
       suppressAgentIds?: string[];
-    }) => api.createComment(issueId, content, type, parentId, attachmentIds, suppressAgentIds),
+      // Diff anchor (F07). Only valid without a parentId — replies inherit
+      // their thread's anchor and the server refuses one sent on a reply.
+      anchor?: CreateCommentAnchor;
+    }) => api.createComment(issueId, content, type, parentId, attachmentIds, suppressAgentIds, anchor),
     onSuccess: (comment) => {
       if (comment.issue_revision) {
         onIssueAuxiliaryRevision(qc, wsId, issueId, comment.issue_revision);
@@ -779,6 +795,10 @@ export function useCreateComment(issueId: string) {
         attachments: comment.attachments ?? [],
         created_at: comment.created_at,
         updated_at: comment.updated_at,
+        // Carry the anchor into the timeline entry so an anchored thread shows
+        // its chip immediately, not only after the next refetch.
+        anchor: comment.anchor,
+        anchor_stale: comment.anchor_stale,
       };
       // Dedupe by id: the `comment:created` WS event may have already added
       // this entry from the broadcast path before this onSuccess fires. Skip
@@ -792,6 +812,9 @@ export function useCreateComment(issueId: string) {
       // task now dedupes follow-up triggers), so cached previews for this
       // issue are stale the moment the create lands.
       qc.invalidateQueries({ queryKey: issueKeys.commentTriggerPreview(issueId) });
+      // A new thread anchored to a diff line has to show up under its hunk,
+      // and a reply has to join the thread already rendered there.
+      invalidateAnchoredThreads(qc);
     },
     // No onSettled invalidate. The `comment:created` WS broadcast keeps
     // the timeline cache fresh after a successful create, and reconnect
@@ -900,6 +923,9 @@ export function useDeleteComment(issueId: string) {
       // with its revision when connected; this is the no-WS safety net.
       invalidateIssueOwnerProjections(qc, wsId, issueId);
       invalidateLastActivitySortedIssueLists(qc, wsId);
+      // A deleted root takes its anchored thread out of the walkthrough; a
+      // deleted reply shortens one that is still rendered there.
+      invalidateAnchoredThreads(qc);
     },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: issueKeys.timeline(issueId) });

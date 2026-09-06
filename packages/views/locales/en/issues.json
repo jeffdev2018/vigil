@@ -1499,5 +1499,21 @@
       "warning": "Warning",
       "info": "Info"
     }
+  },
+  "anchor": {
+    "section": "Anchored discussion",
+    "ask_line": "Ask about this line",
+    "ask_flag": "Ask about this flag",
+    "ask_placeholder": "Ask about {{location}}…",
+    "cancel": "Cancel",
+    "stale": "code changed since",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_one": "Show {{count}} earlier reply",
+    "show_replies_other": "Show {{count}} earlier replies",
+    "hide_replies": "Hide earlier replies",
+    "reply_placeholder": "Reply to this thread…",
+    "empty": "No discussion anchored to this hunk yet.",
+    "go_to_hunk": "Jump to this line in the walkthrough"
   }
 }
