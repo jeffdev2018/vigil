@@ -26,6 +26,8 @@ export interface OrgUnit {
   id: string;
   name: string;
   kind?: string;
+  /** How this unit takes an issue; inherits the parent's, then the structure's, when absent. */
+  model?: OrgModel;
   owner_id?: string;
   squad_id?: string;
   mission_goal_id?: string;
@@ -114,6 +116,8 @@ export interface OrgRevision {
 
 export interface OrgTemplate {
   model: OrgModel;
+  /** Units carry their own models (a hierarchy of teams). */
+  composite?: boolean;
   name: string;
   pattern: string;
   description: string;

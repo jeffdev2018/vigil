@@ -21,7 +21,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useAuthStore } from "@multica/core/auth";
 import { memberListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
-import type { OrgDefinition, OrgStatus, OrgStructure, OrgTemplate } from "@multica/core/types";
+import type { OrgDefinition, OrgModel, OrgStatus, OrgStructure, OrgTemplate } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
@@ -80,14 +80,14 @@ export function OrgTemplateCards({ templates, onPick, disabled }: { templates: O
     <div className="grid gap-2 sm:grid-cols-2">
       {templates.map((tpl) => (
         <button
-          key={tpl.model}
+          key={tpl.composite === true ? "composite" : tpl.model}
           type="button"
           data-testid="org-template"
           disabled={disabled}
           onClick={() => onPick(tpl)}
           className="flex flex-col items-start gap-1 rounded-md border p-3 text-left hover:bg-accent/70 disabled:opacity-50"
         >
-          <span className="text-body font-medium">{t(($) => $.model[tpl.model])}</span>
+          <span className="text-body font-medium">{tpl.composite === true ? t(($) => $.new.composite_title) : t(($) => $.model[tpl.model])}</span>
           <span className="text-caption text-muted-foreground">{tpl.pattern}</span>
           <span className="text-caption">{tpl.description}</span>
           <span className="text-caption text-muted-foreground">{t(($) => $.new.runs_per_issue, { count: tpl.coordination_runs_per_issue })}</span>
@@ -498,6 +498,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
                 <li key={u.id} data-testid="org-unit" className="rounded-md border p-2 text-caption">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{u.name}</span>
+                    {u.model !== undefined && <Badge variant="outline">{t(($) => $.model[u.model as OrgModel])}</Badge>}
                     {structure.paused_units.includes(u.id) && <Badge className={STATUS_BADGE.paused}>{t(($) => $.status.paused)}</Badge>}
                   </div>
                   <div className="text-muted-foreground">

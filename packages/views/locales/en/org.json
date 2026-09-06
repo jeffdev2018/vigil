@@ -54,7 +54,8 @@
     "loading": "Loading templates...",
     "cancel": "Cancel",
     "error": "Could not create the structure",
-    "replaces_existing": "Picking a template replaces the current structure “{{name}}” as a new revision."
+    "replaces_existing": "Picking a template replaces the current structure “{{name}}” as a new revision.",
+    "composite_title": "Hierarchy of teams"
   },
   "form": {
     "name": "Name",

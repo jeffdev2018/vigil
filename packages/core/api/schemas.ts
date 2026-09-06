@@ -5648,6 +5648,7 @@ const OrgUnitSchema = z.object({
   id: z.string().catch(""),
   name: z.string().catch(""),
   kind: z.string().optional(),
+  model: z.enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"]).optional().catch(undefined),
   owner_id: z.string().optional(),
   squad_id: z.string().optional(),
   mission_goal_id: z.string().optional(),
@@ -5698,7 +5699,7 @@ export const OrgStructureDetailSchema = z.object({
   revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgTemplateListSchema = z.object({
-  templates: z.array(z.object({ model: z.string(), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
+  templates: z.array(z.object({ model: z.string(), composite: z.boolean().optional().catch(undefined), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
 }).loose();
 export const OrgHealthSchema = z.object({
   structure_id: z.string().catch(""),
