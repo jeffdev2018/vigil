@@ -343,6 +343,28 @@ var issueRunMessagesCmd = &cobra.Command{
 	RunE:  runIssueRunMessages,
 }
 
+// The living run plan (F04) is a per-RUN checklist, distinct from `issue plan`,
+// which is the issue's durable plan artifact (F17). A run publishes what it is
+// working through right now; publishing again replaces it.
+var issueRunPlanCmd = &cobra.Command{
+	Use:   "run-plan",
+	Short: "Publish the checklist a run is working through",
+}
+
+var issueRunPlanSetCmd = &cobra.Command{
+	Use:   "set <run-id>",
+	Short: "Publish (and replace) a run's plan",
+	Long: "Publish the checklist this run is working through. Publishing again replaces\n" +
+		"the previous plan; every version stays in the run transcript.\n\n" +
+		"Items come either from repeated --item \"<text>:<status>\" flags (the LAST colon\n" +
+		"separates the status, so the text may contain colons) or, with no --item, from\n" +
+		"a JSON object on stdin: {\"items\":[{\"text\":\"...\",\"status\":\"pending\"}]}.\n\n" +
+		"Status is pending, in_progress or done, and at most one item may be in_progress.\n" +
+		"Only the run itself can publish its plan, using the token it already runs with.",
+	Args: exactArgs(1),
+	RunE: runIssueRunPlanSet,
+}
+
 var issueUsageCmd = &cobra.Command{
 	Use:   "usage <issue-id>",
 	Short: "Show aggregated token usage for an issue",
@@ -470,6 +492,8 @@ func init() {
 	issueCmd.AddCommand(issueSubscriberCmd)
 	issueCmd.AddCommand(issueRunsCmd)
 	issueCmd.AddCommand(issueRunMessagesCmd)
+	issueCmd.AddCommand(issueRunPlanCmd)
+	issueRunPlanCmd.AddCommand(issueRunPlanSetCmd)
 	issueCmd.AddCommand(issueUsageCmd)
 	issueCmd.AddCommand(issueRerunCmd)
 	issueCmd.AddCommand(issueCancelTaskCmd)
@@ -593,6 +617,11 @@ func init() {
 	issueRunMessagesCmd.Flags().String("output", "json", "Output format: table or json")
 	issueRunMessagesCmd.Flags().Int("since", 0, "Only return messages after this sequence number")
 	issueRunMessagesCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
+
+	// issue run-plan set
+	issueRunPlanSetCmd.Flags().StringArray("item", nil, `Checklist item as "<text>:<status>", repeatable. The LAST colon separates the status (pending|in_progress|done), so the text may contain colons. With no --item, the plan is read as JSON from stdin.`)
+	issueRunPlanSetCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
+	issueRunPlanSetCmd.Flags().String("output", "json", "Output format: json")
 
 	// issue comment add
 	issueCommentAddCmd.Flags().String("content", "", "Comment content (decodes \\n, \\r, \\t, \\\\; pipe via --content-stdin for multi-line bodies or to preserve literal backslashes)")
@@ -2378,6 +2407,97 @@ func runIssueRunMessages(cmd *cobra.Command, args []string) error {
 	}
 	cli.PrintTable(os.Stdout, headers, rows)
 	return nil
+}
+
+// parseRunPlanItem splits one --item value into its text and status. The LAST
+// colon separates them, because a checklist line legitimately contains colons
+// ("fix: the parser") while a status never does.
+func parseRunPlanItem(raw string) (map[string]any, error) {
+	cut := strings.LastIndex(raw, ":")
+	if cut < 0 {
+		return nil, fmt.Errorf("--item %q has no status; use \"<text>:<status>\" with status pending, in_progress or done", raw)
+	}
+	text := strings.TrimSpace(raw[:cut])
+	status := strings.TrimSpace(raw[cut+1:])
+	if text == "" {
+		return nil, fmt.Errorf("--item %q has no text before its status", raw)
+	}
+	if status == "" {
+		return nil, fmt.Errorf("--item %q has no status after its last colon", raw)
+	}
+	return map[string]any{"text": text, "status": status}, nil
+}
+
+// runPlanBody assembles the request body from --item flags, or from the JSON
+// object on stdin when none were given. The server owns validation (item count,
+// text length, status vocabulary, one in_progress); this only rejects what it
+// cannot turn into a body at all, so the run gets ONE authoritative answer
+// about what a valid plan is rather than two that can drift.
+func runPlanBody(cmd *cobra.Command) (map[string]any, error) {
+	items, _ := cmd.Flags().GetStringArray("item")
+	if len(items) > 0 {
+		parsed := make([]any, 0, len(items))
+		for _, raw := range items {
+			item, err := parseRunPlanItem(raw)
+			if err != nil {
+				return nil, err
+			}
+			parsed = append(parsed, item)
+		}
+		return map[string]any{"items": parsed}, nil
+	}
+
+	raw, err := readAllStdin()
+	if err != nil {
+		return nil, fmt.Errorf("read plan: %w", err)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, fmt.Errorf("no plan given: pass --item \"<text>:<status>\" (repeatable) or pipe {\"items\":[...]} on stdin")
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, fmt.Errorf("plan must be a JSON object with an items array: %w", err)
+	}
+	if _, ok := body["items"]; !ok {
+		return nil, fmt.Errorf("plan is missing the items array")
+	}
+	return body, nil
+}
+
+func runIssueRunPlanSet(cmd *cobra.Command, args []string) error {
+	// Body first: a malformed --item must fail before the network round trips
+	// that resolve the run.
+	body, err := runPlanBody(cmd)
+	if err != nil {
+		return err
+	}
+
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	issueID := ""
+	if issueInput, _ := cmd.Flags().GetString("issue"); issueInput != "" {
+		issueRef, err := resolveIssueRef(ctx, client, issueInput)
+		if err != nil {
+			return fmt.Errorf("resolve issue: %w", err)
+		}
+		issueID = issueRef.ID
+	}
+	taskRef, err := resolveTaskRunID(ctx, client, issueID, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve run: %w", err)
+	}
+
+	var result map[string]any
+	if err := client.PostJSON(ctx, "/api/tasks/"+url.PathEscape(taskRef.ID)+"/plan", body, &result); err != nil {
+		return fmt.Errorf("set run plan: %w", err)
+	}
+	return cli.PrintJSON(os.Stdout, result)
 }
 
 // ---------------------------------------------------------------------------

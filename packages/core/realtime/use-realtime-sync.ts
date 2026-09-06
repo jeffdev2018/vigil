@@ -772,6 +772,40 @@ function touchCachedRunActivity(qc: QueryClient, taskId: string) {
   }
 }
 
+/**
+ * The living run plan (F04). A `plan` message replaces the run's checklist, so
+ * the cached run rows that carry `plan` are patched in place — the block
+ * updates without the execution log refetching the whole issue's history.
+ *
+ * Same shape and same caches as touchCachedRunActivity above. Nothing is
+ * invalidated: the message payload IS the new plan, so a refetch would only
+ * re-fetch what already arrived.
+ */
+function patchCachedRunPlan(qc: QueryClient, payload: TaskMessagePayload) {
+  const raw = payload.input?.items;
+  if (!Array.isArray(raw)) return;
+  const items = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { text, status } = entry as { text?: unknown; status?: unknown };
+    if (typeof text !== "string" || text === "") return [];
+    return [{ text, status: typeof status === "string" ? status : "" }];
+  });
+  if (items.length === 0) return;
+
+  for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
+    if (!Array.isArray(tasks)) continue;
+    const idx = tasks.findIndex((t) => t?.id === payload.task_id);
+    if (idx === -1) continue;
+    // Out-of-order delivery is possible; the newest plan is the one with the
+    // highest seq, exactly as the server resolves it.
+    const current = tasks[idx]?.plan;
+    if (current && current.seq >= payload.seq) continue;
+    const next = tasks.slice();
+    next[idx] = { ...tasks[idx]!, plan: { items, seq: payload.seq } };
+    qc.setQueryData<AgentTask[]>(key, next);
+  }
+}
+
 export function useRealtimeSync(
   ws: WSClient | null,
   stores: RealtimeSyncStores,
@@ -1545,6 +1579,9 @@ export function useRealtimeSync(
       // last_activity_at in the issue run lists so an "unresponsive" badge
       // clears without a refetch. Throttled per run inside the helper.
       touchCachedRunActivity(qc, payload.task_id);
+      // The run's living plan (F04) rides the same event: patch the run rows
+      // that carry it so the checklist updates without a refetch.
+      if (payload.type === "plan") patchCachedRunPlan(qc, payload);
       // Cheap Map lookup, and it runs before anything allocates — this is the
       // hot path for every run in the workspace, not just the visible ones.
       if (!isTaskMessageTimelineHeld(qc, payload.task_id)) return;

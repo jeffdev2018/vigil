@@ -170,3 +170,46 @@ describe("buildTimeline with run actions", () => {
     expect(items.map((i) => i.content)).toEqual(["m1", "status_changed", "m2"]);
   });
 });
+
+// ─── Living run plan (F04) ──────────────────────────────────────────────────
+
+describe("plan messages in the timeline", () => {
+  it("places a plan by the time it was published, not by its reserved seq", () => {
+    const items = buildTimeline([
+      { task_id: "t", seq: 1, type: "text", content: "starting", created_at: "2026-01-01T00:00:00Z" },
+      // Server-allocated from a band far above the daemon's counter, so
+      // sorting on it would pin the plan to the end of the transcript.
+      {
+        task_id: "t",
+        seq: 1_000_001,
+        type: "plan",
+        content: "0/2 done",
+        input: { items: [{ text: "a", status: "in_progress" }, { text: "b", status: "pending" }] },
+        created_at: "2026-01-01T00:00:10Z",
+      },
+      { task_id: "t", seq: 2, type: "text", content: "later", created_at: "2026-01-01T00:00:20Z" },
+    ] as never);
+
+    expect(items.map((i) => i.type)).toEqual(["text", "plan", "text"]);
+    // The checklist survives the trip: it is what the plan block renders.
+    expect((items[1]?.input as { items: unknown[] }).items).toHaveLength(2);
+  });
+
+  it("does not let a plan's seq push a timestamp-less action past it", () => {
+    const items = buildTimeline(
+      [
+        { task_id: "t", seq: 1, type: "text", content: "hello", created_at: "2026-01-01T00:00:00Z" },
+        { task_id: "t", seq: 1_000_001, type: "plan", content: "0/1 done", created_at: "2026-01-01T00:00:05Z" },
+      ] as never,
+      [{ kind: "action", action: "status_changed", before: "todo", after: "in_progress", at: "" }],
+    );
+
+    // Both are slotted against the message stream, whose last seq is 1 — the
+    // plan's 1,000,001 must never become the stream's maximum, or every
+    // timestamp-less action would be dragged past it.
+    expect(items.map((i) => i.type)).toEqual(["text", "plan", "action"]);
+    for (const item of items) {
+      expect(item.seq).toBeLessThan(3);
+    }
+  });
+});

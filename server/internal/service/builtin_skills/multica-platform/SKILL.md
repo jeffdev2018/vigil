@@ -19,7 +19,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 
 | Open | When the task is about |
 |---|---|
-| `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, who else is running |
+| `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running |
 | `references/mentions.md` | Writing a `mention://` link: which types enqueue a run, which are inert, why one silently did nothing |
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |
@@ -73,6 +73,12 @@ suppressing the assignment alone does not suppress a later status update.
 beyond the built-ins; each inherits its category's platform behavior in full,
 and the runtime brief lists this workspace's catalog. Read `status_category`
 rather than matching `status` against built-in names.
+
+**Publish your plan at milestones, not per tool call.**
+`multica issue run-plan set "$MULTICA_TASK_ID" --item "<text>:<status>"` shows a
+watcher the checklist you are working through. Publishing replaces the whole
+plan, so send it when a step finishes or the plan changes — never after every
+tool call. At most one item may be `in_progress`. See `references/issues.md`.
 
 **Comment reads stay bounded.** Scan the threads cheaply
 (`--roots-only --summary --compact`), then expand only what matters

@@ -60,7 +60,7 @@ import {
   type TranscriptFilterKey,
   type TranscriptSortDirection,
 } from "@multica/core/agents/stores";
-import type { AgentTask, Agent, AgentRuntime } from "@multica/core/types/agent";
+import type { AgentTask, Agent, AgentRuntime, RunPlan as RunPlanData } from "@multica/core/types/agent";
 import { resolveWorkdirCopyTarget } from "@multica/core/issues";
 import { workflowSelectionReason } from "@multica/core/issues/workflow-policy";
 import { runtimeDisplayName, providerDisplayName } from "@multica/core/runtimes";
@@ -71,7 +71,8 @@ import {
   FOLLOW_EDGE_THRESHOLD,
   LINE_SCROLL_PX,
 } from "./transcript-follow";
-import type { TimelineItem } from "./build-timeline";
+import { PLAN_MESSAGE_TYPE, type TimelineItem } from "./build-timeline";
+import { RunPlan } from "./run-plan";
 import {
   buildLanes,
   buildSteps,
@@ -2187,6 +2188,18 @@ function StepBody({ item }: { item: TimelineItem }) {
   const { t } = useT("agents");
   const detail = useMemo(() => traceEventDetail(item), [item]);
   const image = useMemo(() => readImageResult(item.output), [item.output]);
+  const plan = useMemo(() => readRunPlanItem(item), [item]);
+
+  // A plan is a checklist, not a JSON blob: render the version the run
+  // published at this point in the transcript, expanded, since the reader
+  // opened the row precisely to see it.
+  if (plan) {
+    return (
+      <div className="px-2 py-1">
+        <RunPlan plan={plan} />
+      </div>
+    );
+  }
 
   // A screenshot is a picture, not a 200KB base64 string in a <pre>.
   if (image) {
@@ -2221,6 +2234,25 @@ function StepBody({ item }: { item: TimelineItem }) {
       return <ToolDetailSurface text={clipped} language={path ? languageForPath(path) : undefined} />;
     }
   }
+}
+
+/**
+ * Read a plan message's checklist back out of its input, or null when the item
+ * is not a plan (or carries no usable one). Defensive by design: the payload
+ * comes off the wire, and a malformed one must cost the row its checklist, not
+ * the whole transcript.
+ */
+function readRunPlanItem(item: TimelineItem): RunPlanData | null {
+  if (item.type !== PLAN_MESSAGE_TYPE) return null;
+  const raw = item.input?.items;
+  if (!Array.isArray(raw)) return null;
+  const items = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { text, status } = entry as { text?: unknown; status?: unknown };
+    if (typeof text !== "string" || text === "") return [];
+    return [{ text, status: typeof status === "string" ? status : "" }];
+  });
+  return items.length > 0 ? { items, seq: item.seq } : null;
 }
 
 function readPathFromInput(input: Record<string, unknown> | undefined): string | undefined {

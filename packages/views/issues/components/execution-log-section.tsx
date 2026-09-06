@@ -25,7 +25,7 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
-import { ReplayButton, TranscriptButton } from "../../common/task-transcript";
+import { ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../common/task-transcript";
 import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
@@ -375,75 +375,107 @@ export function ActiveTaskRow({
   // test that asserts a scenario production cannot produce. Restore it in the
   // same change that adds incremental reporting + cache invalidation.
   return (
-    <RowShell task={task}>
-      <TriggerText text={trigger} />
-      <TaskCommentCoverage task={task} />
-      <RowStatus title={label}>
-        {task.status === "running" ? (
-          <>
-            <span className="text-info tabular-nums">{elapsed}</span>
-            <span className="sr-only">{label}</span>
-          </>
-        ) : (
-          <span className={`${tone} min-w-0 truncate`}>{label}</span>
-        )}
-        {unresponsive && (
-          <span
-            data-testid="run-unresponsive"
-            className="text-muted-foreground shrink-0"
-            title={t(($) => $.execution_log.unresponsive_tooltip, {
-              duration: formatDuration(new Date(now - (silence ?? 0)).toISOString(), now),
-            })}
-          >
-            {t(($) => $.execution_log.unresponsive)}
-          </span>
-        )}
-      </RowStatus>
-      <RowActions>
-        <RunControls issueId={issueId} task={task} />
-        {showTranscript && (
-          <TranscriptButton
-            task={task}
-            agentName=""
-            isLive={task.status === "running"}
-            title={t(($) => $.execution_log.transcript_tooltip)}
-            onOpenChange={onTranscriptOpenChange}
-          />
-        )}
-        <ReplayButton task={task} />
-        {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={requestCancel}
-                disabled={cancelling}
-                aria-label={t(($) => $.execution_log.cancel_task_aria)}
-              />
-            }
-            className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {cancelling ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Square className="h-3.5 w-3.5" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
-        </Tooltip>
-      </RowActions>
-      <TerminateTaskConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => void handleCancel()}
-        showRunningNote={
-          task.status === "running" ||
-          task.status === "dispatched" ||
-          task.status === "waiting_local_directory"
-        }
-      />
-    </RowShell>
+    <>
+      <RowShell task={task}>
+        <TriggerText text={trigger} />
+        <RunPlanCounter task={task} />
+        <TaskCommentCoverage task={task} />
+        <RowStatus title={label}>
+          {task.status === "running" ? (
+            <>
+              <span className="text-info tabular-nums">{elapsed}</span>
+              <span className="sr-only">{label}</span>
+            </>
+          ) : (
+            <span className={`${tone} min-w-0 truncate`}>{label}</span>
+          )}
+          {unresponsive && (
+            <span
+              data-testid="run-unresponsive"
+              className="text-muted-foreground shrink-0"
+              title={t(($) => $.execution_log.unresponsive_tooltip, {
+                duration: formatDuration(new Date(now - (silence ?? 0)).toISOString(), now),
+              })}
+            >
+              {t(($) => $.execution_log.unresponsive)}
+            </span>
+          )}
+        </RowStatus>
+        <RowActions>
+          <RunControls issueId={issueId} task={task} />
+          {showTranscript && (
+            <TranscriptButton
+              task={task}
+              agentName=""
+              isLive={task.status === "running"}
+              title={t(($) => $.execution_log.transcript_tooltip)}
+              onOpenChange={onTranscriptOpenChange}
+            />
+          )}
+          <ReplayButton task={task} />
+          {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={requestCancel}
+                  disabled={cancelling}
+                  aria-label={t(($) => $.execution_log.cancel_task_aria)}
+                />
+              }
+              className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancelling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
+          </Tooltip>
+        </RowActions>
+        <TerminateTaskConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          onConfirm={() => void handleCancel()}
+          showRunningNote={
+            task.status === "running" ||
+            task.status === "dispatched" ||
+            task.status === "waiting_local_directory"
+          }
+        />
+      </RowShell>
+      <RunPlanBlock task={task} />
+    </>
+  );
+}
+
+// The living run plan (F04). The counter rides the row so the checklist's state
+// is readable without expanding anything; the block sits under it, indented to
+// the row's text column so it reads as this run's detail rather than a sibling.
+//
+// Both render nothing when the run published no plan — which is every run that
+// predates the feature, and every run whose agent does not use it.
+
+function RunPlanCounter({ task }: { task: AgentTask }) {
+  if (!task.plan || task.plan.items.length === 0) return null;
+  const { done, total } = runPlanProgress(task.plan);
+  return (
+    <span className="shrink-0 font-mono text-micro tabular-nums text-muted-foreground">
+      {done}/{total}
+    </span>
+  );
+}
+
+function RunPlanBlock({ task }: { task: AgentTask }) {
+  if (!task.plan || task.plan.items.length === 0) return null;
+  // A settled run's last plan is a record of what it was doing, not live
+  // progress — shown, but visually stepped back.
+  return (
+    <div className="pl-8 pr-1 pb-1">
+      <RunPlan plan={task.plan} muted={isRunSettled(runStateOf(task.status))} />
+    </div>
   );
 }
 
@@ -528,47 +560,51 @@ function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
   };
 
   return (
-    <RowShell task={task} title={rowTitle}>
-      <TriggerText text={trigger} />
-      <TaskCommentCoverage task={task} />
-      <RowStatus title={statusTitle}>
-        <TaskStatusIcon status={task.status} />
-        <span className="sr-only">
-          {[failureLabel ?? label, time].filter(Boolean).join(" · ")}
-        </span>
-        {usage ? (
-          <span className="tabular-nums">{formatTokens(usage.tokens)}</span>
-        ) : (
-          <span className="text-faint-foreground">—</span>
-        )}
-      </RowStatus>
-      <RowActions>
-        <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
-        <ReplayButton task={task} />
-        {canRetry && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={retrying}
-                  aria-label={t(($) => $.execution_log.retry_task_aria)}
-                />
-              }
-              className="flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {retrying ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>{t(($) => $.execution_log.retry_task_tooltip)}</TooltipContent>
-          </Tooltip>
-        )}
-      </RowActions>
-    </RowShell>
+    <>
+      <RowShell task={task} title={rowTitle}>
+        <TriggerText text={trigger} />
+        <RunPlanCounter task={task} />
+        <TaskCommentCoverage task={task} />
+        <RowStatus title={statusTitle}>
+          <TaskStatusIcon status={task.status} />
+          <span className="sr-only">
+            {[failureLabel ?? label, time].filter(Boolean).join(" · ")}
+          </span>
+          {usage ? (
+            <span className="tabular-nums">{formatTokens(usage.tokens)}</span>
+          ) : (
+            <span className="text-faint-foreground">—</span>
+          )}
+        </RowStatus>
+        <RowActions>
+          <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
+          <ReplayButton task={task} />
+          {canRetry && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    disabled={retrying}
+                    aria-label={t(($) => $.execution_log.retry_task_aria)}
+                  />
+                }
+                className="flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {retrying ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{t(($) => $.execution_log.retry_task_tooltip)}</TooltipContent>
+            </Tooltip>
+          )}
+        </RowActions>
+      </RowShell>
+      <RunPlanBlock task={task} />
+    </>
   );
 }
 

@@ -115,6 +115,18 @@ multica issue run-messages <task-id> --issue MUL-123
 multica issue cancel-task <task-id> --issue MUL-123
 ```
 
+A run publishes the checklist it is working through with `run-plan set`. Each `--item` is `<text>:<status>`, where the LAST colon separates the status (`pending`, `in_progress` or `done`) — so the text may contain colons of its own — and at most one item may be `in_progress`. Publishing replaces the whole plan; only the run itself can publish its own, while it is still running:
+
+```bash
+multica issue run-plan set "$MULTICA_TASK_ID" \
+  --item "Reproduce the failing test:done" \
+  --item "Fix the parser:in_progress"
+
+# ...or as JSON on stdin, with no --item
+echo '{"items":[{"text":"Fix the parser","status":"in_progress"}]}' \
+  | multica issue run-plan set "$MULTICA_TASK_ID"
+```
+
 ## Agents and skills
 
 ```bash
@@ -249,6 +261,7 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `property list/set/unset <issue-id>` | Set custom property values | `set`: `--name`, `--value` (`actor` / `multi_actor` accept a member name, email, or id) |
 | | `runs <issue-id>` | View run history | `--full-id` |
 | | `run-messages <task-id>` | View the messages of a single run | `--since`, `--issue` |
+| | `run-plan set <task-id>` | Publish (and replace) the run's own plan | `--item "<text>:<status>"` (repeatable; JSON on stdin otherwise), `--issue` |
 | | `usage <issue-id>` | View aggregated token usage | |
 | | `rerun <id>` | Re-enqueue a run for the current assignee | |
 | | `cancel-task <task-id>` | Cancel a running or queued run | `--issue` |

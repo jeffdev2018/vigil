@@ -128,5 +128,13 @@
   },
   "navigation": {
     "open_in_new_tab": "Open in new tab"
+  },
+  "run_plan": {
+    "progress_aria": "Run plan: {{done}} of {{total}} steps done",
+    "show_all": "Show all {{count}} steps",
+    "show_less": "Show fewer",
+    "status_pending": "To do",
+    "status_in_progress": "In progress",
+    "status_done": "Done"
   }
 }

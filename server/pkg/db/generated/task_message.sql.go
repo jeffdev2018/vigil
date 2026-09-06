@@ -187,6 +187,68 @@ func (q *Queries) CreateTaskMessages(ctx context.Context, arg CreateTaskMessages
 	return items, nil
 }
 
+const createTaskPlanMessage = `-- name: CreateTaskPlanMessage :one
+INSERT INTO task_message (id, task_id, seq, type, content, input)
+SELECT
+    $1::uuid,
+    $2::uuid,
+    GREATEST(COALESCE(MAX(seq), 0), $3::int4) + 1,
+    'plan',
+    $4::text,
+    $5::jsonb
+FROM task_message
+WHERE task_id = $2::uuid
+RETURNING id, task_id, seq, type, tool, content, input, output, created_at
+`
+
+type CreateTaskPlanMessageParams struct {
+	ID       pgtype.UUID `json:"id"`
+	TaskID   pgtype.UUID `json:"task_id"`
+	SeqFloor int32       `json:"seq_floor"`
+	Content  string      `json:"content"`
+	Input    []byte      `json:"input"`
+}
+
+// Living run plan (F04): the plan is a task_message of type 'plan' whose input
+// holds the checklist. Replacement is "highest seq wins", so the only thing the
+// allocator has to guarantee is a seq that is unique for the task and greater
+// than every earlier plan's.
+//
+// seq_floor is what keeps it unique. The daemon numbers its own messages from
+// its in-process counter starting at 1 (daemon.go: `var msgSeq atomic.Int32`),
+// NOT from the database — so a plain MAX(seq)+1 would hand the plan the very
+// number the daemon's next flush is about to use, and the clients' merge-by-seq
+// (mergeTaskMessagesBySeq) would drop one of the two. Allocating plans from a
+// reserved band above anything the daemon can reach removes the collision
+// instead of racing it. Display order does not depend on the number: the
+// transcript slots plan entries chronologically by created_at.
+//
+// The aggregate makes this exactly one row even when the task has no messages
+// yet (MAX over an empty set is NULL, and the SELECT still yields one row), so
+// the statement is atomic on its own and needs no surrounding transaction.
+func (q *Queries) CreateTaskPlanMessage(ctx context.Context, arg CreateTaskPlanMessageParams) (TaskMessage, error) {
+	row := q.db.QueryRow(ctx, createTaskPlanMessage,
+		arg.ID,
+		arg.TaskID,
+		arg.SeqFloor,
+		arg.Content,
+		arg.Input,
+	)
+	var i TaskMessage
+	err := row.Scan(
+		&i.ID,
+		&i.TaskID,
+		&i.Seq,
+		&i.Type,
+		&i.Tool,
+		&i.Content,
+		&i.Input,
+		&i.Output,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteTaskMessages = `-- name: DeleteTaskMessages :exec
 DELETE FROM task_message
 WHERE task_id = $1
@@ -195,6 +257,46 @@ WHERE task_id = $1
 func (q *Queries) DeleteTaskMessages(ctx context.Context, taskID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteTaskMessages, taskID)
 	return err
+}
+
+const listLatestTaskPlans = `-- name: ListLatestTaskPlans :many
+SELECT DISTINCT ON (task_id) id, task_id, seq, type, tool, content, input, output, created_at
+FROM task_message
+WHERE task_id = ANY($1::uuid[]) AND type = 'plan'
+ORDER BY task_id, seq DESC
+`
+
+// The current plan of every run in an execution log, in one round trip: DISTINCT ON
+// keeps the highest-seq plan per task, so hydrating a list of runs costs one
+// query rather than one per row.
+func (q *Queries) ListLatestTaskPlans(ctx context.Context, taskIds []pgtype.UUID) ([]TaskMessage, error) {
+	rows, err := q.db.Query(ctx, listLatestTaskPlans, taskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []TaskMessage{}
+	for rows.Next() {
+		var i TaskMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.TaskID,
+			&i.Seq,
+			&i.Type,
+			&i.Tool,
+			&i.Content,
+			&i.Input,
+			&i.Output,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listRecentTaskToolUses = `-- name: ListRecentTaskToolUses :many

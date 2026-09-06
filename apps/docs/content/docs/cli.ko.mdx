@@ -115,6 +115,18 @@ multica issue run-messages <task-id> --issue MUL-123
 multica issue cancel-task <task-id> --issue MUL-123
 ```
 
+실행은 `run-plan set`으로 지금 진행 중인 체크리스트를 게시합니다. 각 `--item`은 `<텍스트>:<상태>` 형식이며 마지막 콜론이 상태(`pending`, `in_progress`, `done`)를 구분하므로 텍스트에 콜론이 들어가도 됩니다. `in_progress`는 최대 한 개까지입니다. 게시하면 계획 전체가 교체됩니다. 실행 자신만, 그리고 아직 진행 중일 때만 게시할 수 있습니다.
+
+```bash
+multica issue run-plan set "$MULTICA_TASK_ID" \
+  --item "실패하는 테스트 재현:done" \
+  --item "파서 수정:in_progress"
+
+# --item 없이 표준 입력으로 JSON을 넘길 수도 있습니다
+echo '{"items":[{"text":"파서 수정","status":"in_progress"}]}' \
+  | multica issue run-plan set "$MULTICA_TASK_ID"
+```
+
 ## 에이전트와 스킬
 
 ```bash
@@ -241,6 +253,7 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 | | `property list/set/unset <issue-id>` | 사용자 지정 속성 값 설정 | `set`: `--name`, `--value`(`actor` / `multi_actor`는 멤버의 이름, 이메일, id를 받습니다) |
 | | `runs <issue-id>` | 실행 기록 확인 | `--full-id` |
 | | `run-messages <task-id>` | 단일 실행 메시지 확인 | `--since`, `--issue` |
+| | `run-plan set <task-id>` | 실행 자신의 계획 게시(교체) | `--item "<텍스트>:<상태>"`(반복 가능, 없으면 표준 입력의 JSON), `--issue` |
 | | `usage <issue-id>` | 집계 token 사용량 확인 | |
 | | `rerun <id>` | 현재 할당을 기준으로 다시 큐에 넣어 실행 | |
 | | `cancel-task <task-id>` | 진행 중 또는 큐 대기 중인 실행 취소 | `--issue` |

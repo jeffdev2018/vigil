@@ -128,5 +128,13 @@
   },
   "navigation": {
     "open_in_new_tab": "新しいタブで開く"
+  },
+  "run_plan": {
+    "progress_aria": "実行プラン: {{total}} ステップ中 {{done}} 完了",
+    "show_all": "{{count}} ステップをすべて表示",
+    "show_less": "折りたたむ",
+    "status_pending": "未着手",
+    "status_in_progress": "進行中",
+    "status_done": "完了"
   }
 }

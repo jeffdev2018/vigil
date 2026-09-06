@@ -293,6 +293,15 @@ a run you see may finish a second later, and one you don't see may start a
 second later. Coordinate through the issue's comments — the reads tell you whom
 to coordinate with.
 
+## Publishing your run plan
+
+Publish the checklist you are working through so a reader sees where you are:
+```bash
+multica issue run-plan set "$MULTICA_TASK_ID" --item "Fix the parser:in_progress" --item "Update the docs:pending"
+```
+
+`--item` is `<text>:<status>` (last colon splits), status `pending|in_progress|done`, one `in_progress` at most, 1-30 items; JSON `{"items":[…]}` on stdin works too. Publishing REPLACES the plan: do it at milestones only. Only the run itself may publish (`403` otherwise, `409` once finished).
+
 ## Goal ancestry rides the brief
 
 When the claimed issue has a parent, the brief carries `## Goal Ancestry`:

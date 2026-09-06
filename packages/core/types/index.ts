@@ -16,6 +16,8 @@ export type {
   AgentInvocationTarget,
   AgentInvocationTargetInput,
   AgentTask,
+  RunPlan,
+  RunPlanItem,
   TaskUsage,
   TaskAttribution,
   AttributionUser,

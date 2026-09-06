@@ -95,3 +95,42 @@ SELECT * FROM (
 
 -- name: SetTaskDriftReason :exec
 UPDATE agent_task_queue SET drift_reason = $2 WHERE id = $1;
+
+-- name: CreateTaskPlanMessage :one
+-- Living run plan (F04): the plan is a task_message of type 'plan' whose input
+-- holds the checklist. Replacement is "highest seq wins", so the only thing the
+-- allocator has to guarantee is a seq that is unique for the task and greater
+-- than every earlier plan's.
+--
+-- seq_floor is what keeps it unique. The daemon numbers its own messages from
+-- its in-process counter starting at 1 (daemon.go: `var msgSeq atomic.Int32`),
+-- NOT from the database — so a plain MAX(seq)+1 would hand the plan the very
+-- number the daemon's next flush is about to use, and the clients' merge-by-seq
+-- (mergeTaskMessagesBySeq) would drop one of the two. Allocating plans from a
+-- reserved band above anything the daemon can reach removes the collision
+-- instead of racing it. Display order does not depend on the number: the
+-- transcript slots plan entries chronologically by created_at.
+--
+-- The aggregate makes this exactly one row even when the task has no messages
+-- yet (MAX over an empty set is NULL, and the SELECT still yields one row), so
+-- the statement is atomic on its own and needs no surrounding transaction.
+INSERT INTO task_message (id, task_id, seq, type, content, input)
+SELECT
+    sqlc.arg('id')::uuid,
+    sqlc.arg('task_id')::uuid,
+    GREATEST(COALESCE(MAX(seq), 0), sqlc.arg('seq_floor')::int4) + 1,
+    'plan',
+    sqlc.arg('content')::text,
+    sqlc.arg('input')::jsonb
+FROM task_message
+WHERE task_id = sqlc.arg('task_id')::uuid
+RETURNING *;
+
+-- name: ListLatestTaskPlans :many
+-- The current plan of every run in an execution log, in one round trip: DISTINCT ON
+-- keeps the highest-seq plan per task, so hydrating a list of runs costs one
+-- query rather than one per row.
+SELECT DISTINCT ON (task_id) *
+FROM task_message
+WHERE task_id = ANY(sqlc.arg('task_ids')::uuid[]) AND type = 'plan'
+ORDER BY task_id, seq DESC;

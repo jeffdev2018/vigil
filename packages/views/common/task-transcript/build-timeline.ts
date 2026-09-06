@@ -65,22 +65,38 @@ function redactTimelineItems(items: TimelineItem[]): TimelineItem[] {
   }));
 }
 
+/** The run's living plan (F04), which is placed by time rather than by seq. */
+export const PLAN_MESSAGE_TYPE = "plan";
+
+/** An entry with no usable seq of its own, waiting to be slotted by time. */
+interface UnsequencedEntry {
+  at?: string;
+  item: Omit<TimelineItem, "seq">;
+}
+
 /**
- * Place the run's issue changes among its messages.
+ * Place entries that carry no usable seq among the run's messages.
  *
- * Actions come from activity_log, not the message stream, so they carry no
- * seq. Each one is slotted just after the last message that precedes it in
- * time, using a fractional seq so it sorts into place without colliding with a
- * real message or with a sibling action sharing the same anchor. Fractions are
- * safe here because seq is only ever compared and sorted on this side; the
- * merge-by-seq cache never sees these items.
+ * Two kinds need this. Actions come from activity_log and have no seq at all.
+ * Plan messages DO have one, but it is drawn from a reserved band far above the
+ * daemon's per-run counter so the two writers can never collide (see
+ * CreateTaskPlanMessage) — sorting on it would pin every plan to the end of the
+ * transcript instead of the moment it was published.
  *
- * An action with no usable timestamp lands at the end rather than being
- * dropped — the run did make the change, and hiding it is worse than showing
- * it out of order.
+ * Each entry is slotted just after the last message that precedes it in time,
+ * using a fractional seq so it sorts into place without colliding with a real
+ * message or with a sibling sharing the same anchor. Fractions are safe here
+ * because seq is only ever compared and sorted on this side; the merge-by-seq
+ * cache never sees these items.
+ *
+ * An entry with no usable timestamp lands at the end rather than being
+ * dropped — it did happen, and hiding it is worse than showing it out of order.
  */
-function actionsToTimelineItems(actions: RunAction[], msgs: TaskMessagePayload[]): TimelineItem[] {
-  if (actions.length === 0) return [];
+function slotByTimestamp(
+  entries: UnsequencedEntry[],
+  msgs: TaskMessagePayload[],
+): TimelineItem[] {
+  if (entries.length === 0) return [];
   const anchors = msgs
     .map((m) => ({ seq: m.seq, at: m.created_at ? Date.parse(m.created_at) : Number.NaN }))
     .filter((a) => Number.isFinite(a.at))
@@ -88,8 +104,19 @@ function actionsToTimelineItems(actions: RunAction[], msgs: TaskMessagePayload[]
   const maxSeq = msgs.reduce((max, m) => Math.max(max, m.seq), 0);
 
   const perAnchor = new Map<number, number>();
-  return actions.map((action) => {
-    const at = action.at ? Date.parse(action.at) : Number.NaN;
+  // Oldest first, so two entries sharing an anchor keep their real order.
+  // Entries with no timestamp stay last, in the order they came in.
+  const ordered = entries
+    .map((entry, index) => ({ entry, index, at: entry.at ? Date.parse(entry.at) : Number.NaN }))
+    .sort((a, b) => {
+      const aKnown = Number.isFinite(a.at);
+      const bKnown = Number.isFinite(b.at);
+      if (aKnown !== bKnown) return aKnown ? -1 : 1;
+      if (aKnown && a.at !== b.at) return a.at - b.at;
+      return a.index - b.index;
+    });
+
+  return ordered.map(({ entry, at }) => {
     let base = maxSeq;
     if (Number.isFinite(at)) {
       base = 0;
@@ -101,15 +128,38 @@ function actionsToTimelineItems(actions: RunAction[], msgs: TaskMessagePayload[]
     const nth = (perAnchor.get(base) ?? 0) + 1;
     perAnchor.set(base, nth);
     return {
-      // 1/(nth+1) keeps every action strictly between its anchor and the next
-      // integer seq, in the order the server returned them.
+      // 1/(nth+1) keeps every entry strictly between its anchor and the next
+      // integer seq, in the order resolved above.
       seq: base + 1 - 1 / (nth + 1),
+      ...entry.item,
+    };
+  });
+}
+
+function actionEntries(actions: RunAction[]): UnsequencedEntry[] {
+  return actions.map((action) => ({
+    at: action.at || undefined,
+    item: {
       type: "action" as const,
       content: action.action,
       input: { action: action.action, before: action.before, after: action.after },
       created_at: action.at || undefined,
-    };
-  });
+    },
+  }));
+}
+
+function planEntries(plans: TaskMessagePayload[]): UnsequencedEntry[] {
+  return plans.map((msg) => ({
+    at: msg.created_at || undefined,
+    item: {
+      type: msg.type,
+      tool: msg.tool,
+      content: msg.content,
+      input: msg.input,
+      output: msg.output,
+      created_at: msg.created_at,
+    },
+  }));
 }
 
 /**
@@ -117,8 +167,14 @@ function actionsToTimelineItems(actions: RunAction[], msgs: TaskMessagePayload[]
  * interleaving the issue changes the run made.
  */
 export function buildTimeline(msgs: TaskMessagePayload[], actions: RunAction[] = []): TimelineItem[] {
+  // Plan messages are pulled out of the stream before anything anchors on it:
+  // their reserved-band seq would otherwise become the stream's maxSeq and drag
+  // every timestamp-less action to sort after them.
+  const stream = msgs.filter((msg) => msg.type !== PLAN_MESSAGE_TYPE);
+  const plans = msgs.filter((msg) => msg.type === PLAN_MESSAGE_TYPE);
+
   const items: TimelineItem[] = [];
-  for (const msg of msgs) {
+  for (const msg of stream) {
     items.push({
       seq: msg.seq,
       type: msg.type,
@@ -129,6 +185,8 @@ export function buildTimeline(msgs: TaskMessagePayload[], actions: RunAction[] =
       created_at: msg.created_at,
     });
   }
-  items.push(...actionsToTimelineItems(actions, msgs));
+  // One slotting pass for both kinds, so a plan and an action published at the
+  // same moment cannot be handed the same fractional seq.
+  items.push(...slotByTimestamp([...planEntries(plans), ...actionEntries(actions)], stream));
   return redactTimelineItems(coalesceTimelineItems(items));
 }

@@ -75,6 +75,14 @@ From here you can:
 Changing an issue's assignee or status does not stop a run that has already started. To interrupt one, stop the corresponding run in the execution log. Active runs are cancelled along with an issue only when the issue is deleted.
 </Callout>
 
+## The run plan
+
+An agent can publish the checklist it is working through, and replace it as it goes. When it does, the checklist appears under the run's row in the execution log — a filled bullet for a finished step, a spinner for the one in progress, a hollow bullet for what is still ahead — with an `n/total` counter on the row itself. In chat it sits above the status pill of the turn in flight.
+
+The block updates over the realtime connection, with no reload. A run that publishes no plan gets no block at all, and a finished run's last plan stays visible, greyed, as the record of where it got to. A plan longer than five steps shows the step in progress with its neighbours plus a **Show all** toggle.
+
+Every version the run published also stays in the transcript, at the moment it was published, so you can read back what it believed at each point. Agents publish with `multica issue run-plan set` (see [CLI](/docs/cli)); people do not edit a run's plan.
+
 ## Run activity types
 
 Each entry in a transcript carries a type, which decides its lane and how it reads:
@@ -89,6 +97,7 @@ Each entry in a transcript carries a type, which decides its lane and how it rea
 | `action` | An issue change the run made — status, assignee, priority, title, dates — shown as `before → after`. These are joined from the issue's activity, so a change you made by hand never appears in a run's transcript. |
 | `error` | Something went wrong. When the cause is recognised, the entry names the failure reason and offers the matching fix. |
 | `elicitation` | A question back to the user. Accepted and rendered, but nothing produces one yet. |
+| `plan` | One version of the run's plan, at the moment it was published. Expands to the checklist. |
 
 The type filter in the transcript toolbar lists only the types the run actually produced, so an absent type never leaves an empty lane. A type your build predates renders as a plain note labelled with its own name rather than being hidden.
 

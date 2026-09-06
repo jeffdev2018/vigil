@@ -2276,6 +2276,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 			// Task messages (user-facing, not daemon auth)
 			r.Get("/api/tasks/{taskId}/messages", h.ListTaskMessagesByUser)
+			// Living run plan (F04). Deliberately NOT RequireHumanActor: this
+			// is the one write on a member route that only an agent may make,
+			// and the handler gates it on the run's own task token.
+			r.Post("/api/tasks/{taskId}/plan", h.SetRunPlan)
 			r.With(handler.RequireHumanActor).Post("/api/tasks/{taskId}/retry-source-context", h.RetrySourceContextQuickCreate)
 
 			// Issue quick actions (definitions; running one lives under
