@@ -102,21 +102,41 @@ function NewStructureDialog({ onClose, onCreated }: { onClose: () => void; onCre
   const wsId = useWorkspaceId();
   const { data: templates = [], isPending } = useQuery(orgTemplatesOptions(wsId));
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
+  const { data: structures = [] } = useQuery(orgListOptions(wsId));
   const create = useCreateOrgStructure(wsId);
+  const update = useUpdateOrgStructure(wsId);
   const [projectId, setProjectId] = useState("");
 
-  const pick = (tpl: OrgTemplate) =>
-    create.mutate(
-      { project_id: projectId || null, model: tpl.model, name: tpl.name, definition: tpl.definition },
-      {
-        onSuccess: (s: unknown) => {
-          onClose();
-          // The shared mutation helper erases the response type; the server answers with the created structure.
-          if (s && typeof s === "object" && "id" in s && typeof s.id === "string") onCreated(s.id);
+  // One structure per scope (unique index on workspace / project while not
+  // dissolved), so picking a template while one exists is a new revision of
+  // it, not a second structure the server would refuse with a 409.
+  const existing = structures.find((s) => s.status !== "dissolved" && (s.project_id ?? "") === projectId);
+
+  const pick = (tpl: OrgTemplate) => {
+    const body = { project_id: projectId || null, model: tpl.model, name: tpl.name, definition: tpl.definition };
+    const onError = (e: unknown) => toast.error(errorMessage(e, t(($) => $.new.error)));
+    if (existing) {
+      update.mutate(
+        { id: existing.id, data: body },
+        {
+          onSuccess: () => {
+            onClose();
+            onCreated(existing.id);
+          },
+          onError,
         },
-        onError: (e) => toast.error(errorMessage(e, t(($) => $.new.error))),
+      );
+      return;
+    }
+    create.mutate(body, {
+      onSuccess: (s: unknown) => {
+        onClose();
+        // The shared mutation helper erases the response type; the server answers with the created structure.
+        if (s && typeof s === "object" && "id" in s && typeof s.id === "string") onCreated(s.id);
       },
-    );
+      onError,
+    });
+  };
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -134,11 +154,16 @@ function NewStructureDialog({ onClose, onCreated }: { onClose: () => void; onCre
             ))}
           </select>
         </label>
+        {existing ? (
+          <p className="text-caption text-muted-foreground" role="note">
+            {t(($) => $.new.replaces_existing, { name: existing.name })}
+          </p>
+        ) : null}
         {isPending ? (
           <p className="text-caption text-muted-foreground">{t(($) => $.new.loading)}</p>
         ) : (
           <div className="max-h-[60vh] overflow-y-auto">
-            <OrgTemplateCards templates={templates} onPick={pick} disabled={create.isPending} />
+            <OrgTemplateCards templates={templates} onPick={pick} disabled={create.isPending || update.isPending} />
           </div>
         )}
         <DialogFooter>
