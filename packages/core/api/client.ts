@@ -106,6 +106,8 @@ import type {
   TimelineEntry,
   AssigneeFrequencyEntry,
   TaskMessagePayload,
+  TaskActivityResponse,
+  RunAction,
   Attachment,
   ChatSession,
   ChatParticipantList,
@@ -738,6 +740,8 @@ import {
   AgentMemoryListSchema,
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
+  TaskActivityResponseSchema,
+  EMPTY_TASK_ACTIVITY,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -4539,8 +4543,37 @@ export class ApiClient {
     return this.fetch(`/api/issues/${issueId}/active-task`);
   }
 
+  /**
+   * A run's full transcript: the agent's own messages plus the issue changes
+   * it made. The action list is joined server-side out of activity_log on
+   * `details.task_id`, so a human's edit to the same issue never appears here.
+   *
+   * Tolerant of a server that predates the wrapper and still returns the bare
+   * message array — see TaskActivityResponseSchema.
+   */
+  async listTaskActivity(taskId: string): Promise<TaskActivityResponse> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/messages`);
+    return parseWithFallback<TaskActivityResponse>(raw, TaskActivityResponseSchema, EMPTY_TASK_ACTIVITY, {
+      endpoint: "GET /api/tasks/:id/messages",
+    });
+  }
+
+  /**
+   * The message half of listTaskActivity.
+   *
+   * Kept as its own method because the `["task-messages", taskId]` cache is
+   * written by three producers — this fetch, the transcript backfill, and the
+   * realtime `task:message` merge — and all three must agree on a bare array.
+   * Actions are read separately rather than folded into that cache, so the
+   * seq-merge stays a seq-merge.
+   */
   async listTaskMessages(taskId: string): Promise<TaskMessagePayload[]> {
-    return this.fetch(`/api/tasks/${taskId}/messages`);
+    return (await this.listTaskActivity(taskId)).messages;
+  }
+
+  /** The action half of listTaskActivity. */
+  async listTaskActions(taskId: string): Promise<RunAction[]> {
+    return (await this.listTaskActivity(taskId)).actions;
   }
 
   // Skill Miner (K58).

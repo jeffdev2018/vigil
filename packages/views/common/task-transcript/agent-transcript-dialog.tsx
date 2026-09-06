@@ -29,6 +29,12 @@ import {
   Zap,
   Layers,
   Scale,
+  GitCommitHorizontal,
+  MessageSquare,
+  MessageCircleQuestion,
+  RefreshCw,
+  Settings,
+  Download,
 } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
@@ -46,6 +52,7 @@ import {
 import { ActorAvatar } from "../actor-avatar";
 import { AttributionBadge } from "../../issues/components/attribution-badge";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
+import type { useT as useTypedT } from "../../i18n";
 import { RichContent } from "../../rich-content";
 import { api } from "@multica/core/api";
 import {
@@ -87,6 +94,7 @@ import {
   readImageResult,
   traceEventCopyText,
   traceEventDetail,
+  traceActionSummary,
   traceEventLabel,
   traceEventSummary,
   traceToolArgSummary,
@@ -99,6 +107,9 @@ import {
   ToolDetailSurface,
 } from "./detail-surfaces";
 import { languageForPath } from "./diff-highlight";
+import { toast } from "sonner";
+import { useOptionalNavigation } from "../../navigation";
+import { paths as buildPaths, useWorkspaceSlug } from "@multica/core/paths";
 import { useLocale, useT } from "../../i18n";
 import {
   formatTokens,
@@ -195,6 +206,12 @@ function StepIcon({ step, className }: { step: TraceStep; className?: string }) 
   if (!isCallStep(step)) {
     if (step.kind === "thinking") return <Brain className={className} />;
     if (step.kind === "error") return <CircleAlert className={className} />;
+    if (step.kind === "response") return <MessageSquare className={className} />;
+    if (step.kind === "action") return <GitCommitHorizontal className={className} />;
+    if (step.kind === "elicitation") return <MessageCircleQuestion className={className} />;
+    // `note` and anything else: a kind this build does not know renders as a
+    // neutral marker rather than borrowing another kind's glyph.
+    if (step.kind === "note") return <Info className={className} />;
     return <Bot className={className} />;
   }
 
@@ -311,6 +328,12 @@ export function AgentTranscriptDialog({
   headerSlot,
 }: AgentTranscriptDialogProps) {
   const { t } = useT("agents");
+  // Optional on purpose: the transcript is rendered from issue cards, agent
+  // tabs and chat, and nothing guarantees a NavigationProvider or a
+  // workspace-scoped route above every one of them. A remediation that needs
+  // routing is offered only where routing exists — never as a dead button.
+  const navigate = useOptionalNavigation();
+  const workspaceSlug = useWorkspaceSlug();
   const locale = useLocale();
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set());
@@ -465,7 +488,42 @@ export function AgentTranscriptDialog({
 
   // One step per tool call, with its result folded in — see build-steps.ts for
   // why the pairing is positional.
-  const steps = useMemo(() => buildSteps(items), [items]);
+  // The suggested fix for a remediable error. Rerun targets THIS run's agent
+  // (see execution-log-section: without the task id the endpoint falls back to
+  // the issue's current assignee, which is the wrong agent whenever the run's
+  // agent has since been displaced). The two configuration remediations leave
+  // the transcript for the runtimes page, where both credentials and CLI
+  // installation live.
+  const handleRemediate = useCallback(
+    (key: RemediationKey) => {
+      if (key === "rerun") {
+        if (!task.issue_id) return;
+        void api.rerunIssue(task.issue_id, task.id).catch((e) => {
+          toast.error(e instanceof Error ? e.message : t(($) => $.transcript.remediation_failed));
+        });
+        return;
+      }
+      if (!navigate || !workspaceSlug) return;
+      onOpenChange(false);
+      navigate.push(buildPaths.workspace(workspaceSlug).runtimes());
+    },
+    [navigate, onOpenChange, t, task.id, task.issue_id, workspaceSlug],
+  );
+
+  // Which remediations this mount can actually perform. Rerun needs an issue;
+  // the configuration ones need somewhere to navigate to.
+  const availableRemediations = useMemo<RemediationKey[]>(() => {
+    const out: RemediationKey[] = [];
+    if (task.issue_id) out.push("rerun");
+    if (navigate && workspaceSlug) out.push("runtime_settings", "install_cli");
+    return out;
+  }, [navigate, task.issue_id, workspaceSlug]);
+
+  const steps = useMemo(() => {
+    const built = buildSteps(items);
+    if (task.status !== "failed") return built;
+    return built.filter((step) => step.kind !== "response");
+  }, [items, task.status]);
 
   // A facet reads as what its rows look like: the glyph the rows carry, and the
   // name the rows print. The first step of a kind stands in for the glyph. The
@@ -480,7 +538,7 @@ export function AgentTranscriptDialog({
         label:
           step.kind === "call"
             ? step.tool || t(($) => $.transcript.kind_tool)
-            : traceEventLabel({ type: step.item.type, tool: step.item.tool }),
+            : messageStepLabel(step, t),
         step,
       });
     }
@@ -1552,6 +1610,8 @@ export function AgentTranscriptDialog({
               step={selectedStep}
               runStartMs={runStartMs}
               onClose={() => setSelectedSeq(null)}
+              onRemediate={handleRemediate}
+              availableRemediations={availableRemediations}
             />
           )}
         </div>
@@ -1734,6 +1794,36 @@ function ProseRow({ row, runStartMs }: TranscriptRowProps & { row: TraceMessageS
 
 /** One call, one thinking block, or one error: a line, with its detail one
  *  click away in the inspector. */
+/**
+ * The row label for a message step.
+ *
+ * An action prints its own action name verbatim, the way a tool row prints its
+ * tool name — translating `status_changed` would hide which writer produced the
+ * row. A kind this build does not know prints its raw wire type for the same
+ * reason: a neutral note that names itself beats a plausible-looking lie.
+ */
+type AgentsT = ReturnType<typeof useTypedT<"agents">>["t"];
+
+function messageStepLabel(step: TraceMessageStep, t: AgentsT): string {
+  switch (step.kind) {
+    case "thinking":
+      return t(($) => $.transcript.kind_thinking);
+    case "error":
+      return t(($) => $.transcript.kind_error);
+    case "response":
+      return t(($) => $.transcript.kind_response);
+    case "elicitation":
+      return t(($) => $.transcript.kind_elicitation);
+    case "action":
+      return step.item.content || t(($) => $.transcript.kind_action);
+    default:
+      // "text" and any kind this build does not know: the presenter already
+      // names both — "Agent" for prose, the raw wire type otherwise — and the
+      // filter facet has printed exactly that since before F03.
+      return traceEventLabel({ type: step.item.type, tool: step.item.tool });
+  }
+}
+
 function StepRow({
   row,
   runStartMs,
@@ -1751,14 +1841,13 @@ function StepRow({
   );
 
   const call = isCallStep(row) ? row : null;
-  const label = call
-    ? call.tool || t(($) => $.transcript.kind_tool)
-    : row.kind === "thinking"
-      ? t(($) => $.transcript.kind_thinking)
-      : t(($) => $.transcript.kind_error);
+  const message = call ? null : (row as TraceMessageStep);
+  const label = call ? call.tool || t(($) => $.transcript.kind_tool) : messageStepLabel(message!, t);
   const summary = call
     ? callSummary(call, summaryLabels)
-    : firstLineOf((row as TraceMessageStep).item.content);
+    : message!.kind === "action"
+      ? traceActionSummary(message!.item.input)
+      : firstLineOf(message!.item.content);
   const pending = call !== null && isLive && !call.result;
   const selected = selectedSeq === row.seq;
 
@@ -1918,10 +2007,14 @@ function StepInspector({
   step,
   runStartMs,
   onClose,
+  onRemediate,
+  availableRemediations,
 }: {
   step: TraceStep;
   runStartMs?: number;
   onClose: () => void;
+  onRemediate: (key: RemediationKey) => void;
+  availableRemediations: RemediationKey[];
 }) {
   const { t } = useT("agents");
   const [copied, showCopied] = useCopyFeedback();
@@ -2002,12 +2095,79 @@ function StepInspector({
             )}
           </>
         ) : (
-          <InspectorSection label={title}>
-            <ToolDetailSurface text={redactSecrets(message?.item.content ?? "")} />
-          </InspectorSection>
+          <>
+            <InspectorSection label={title}>
+              <ToolDetailSurface text={redactSecrets(message?.item.content ?? "")} />
+            </InspectorSection>
+            {message && (
+              <StepRemediation
+                item={message.item}
+                onRemediate={onRemediate}
+                available={availableRemediations}
+              />
+            )}
+          </>
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * The three remediations the daemon can name. Anything else — including a key
+ * a newer daemon added — renders no button rather than a dead one.
+ */
+const REMEDIATION_ACTIONS = {
+  rerun: { icon: RefreshCw, labelKey: "remediation_rerun" },
+  runtime_settings: { icon: Settings, labelKey: "remediation_runtime_settings" },
+  install_cli: { icon: Download, labelKey: "remediation_install_cli" },
+} as const;
+
+export type RemediationKey = keyof typeof REMEDIATION_ACTIONS;
+
+function remediationKeyOf(item: TimelineItem): RemediationKey | null {
+  const key = item.input?.remediation;
+  return typeof key === "string" && key in REMEDIATION_ACTIONS ? (key as RemediationKey) : null;
+}
+
+/**
+ * The suggested fix for a remediable error, sitting under the error text.
+ *
+ * It lives in the inspector rather than beside the row because the row is
+ * itself a button (selecting the step) and a nested button is invalid markup.
+ * The reason label reuses failureReasonLabel so the transcript names a failure
+ * with exactly the words the run header uses.
+ */
+function StepRemediation({
+  item,
+  onRemediate,
+  available,
+}: {
+  item: TimelineItem;
+  onRemediate: (key: RemediationKey) => void;
+  available: RemediationKey[];
+}) {
+  const { t } = useT("agents");
+  const suggested = remediationKeyOf(item);
+  const key = suggested && available.includes(suggested) ? suggested : null;
+  const reason = typeof item.input?.reason === "string" ? item.input.reason : null;
+  const reasonLabel = failureReasonLabel(reason, t);
+  if (!key && !reasonLabel) return null;
+
+  const action = key ? REMEDIATION_ACTIONS[key] : null;
+  const Icon = action?.icon;
+  return (
+    <InspectorSection label={t(($) => $.transcript.remediation_label)}>
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1">
+        {reasonLabel && <span className="text-caption text-muted-foreground">{reasonLabel}</span>}
+        {action && Icon && (
+          <Button size="sm" variant="outline" onClick={() => onRemediate(key!)}>
+            <Icon className="h-3.5 w-3.5" />
+            {t(($) => $.transcript[action.labelKey])}
+          </Button>
+        )}
+      </div>
+    </InspectorSection>
   );
 }
 

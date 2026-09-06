@@ -14,6 +14,7 @@ import {
   chatKeys,
   isTaskMessageTaskId,
   taskMessagesOptions,
+  taskActionsOptions,
 } from "@multica/core/chat/queries";
 import type { AgentTask } from "@multica/core/types/agent";
 import type { TaskMessagePayload } from "@multica/core/types/events";
@@ -115,10 +116,12 @@ export function TranscriptButton({
         return;
       }
       setLoading(true);
+      // One request for both halves: the endpoint returns the run's messages
+      // and the issue changes it made, and the timeline interleaves them.
       api
-        .listTaskMessages(task.id)
-        .then((msgs) => {
-          setLoadedItems(buildTimeline(msgs));
+        .listTaskActivity(task.id)
+        .then(({ messages, actions }) => {
+          setLoadedItems(buildTimeline(messages, actions));
           setOpen(true);
         })
         .catch((err) => {
@@ -223,6 +226,10 @@ function LiveTranscriptDialog({
     ...taskMessagesOptions(task.id),
     enabled: false,
   });
+  // Actions are not streamed. They arrive as `activity:created`, which
+  // invalidates this key — so unlike messages this query DOES refetch, and
+  // must stay enabled.
+  const { data: actions } = useQuery(taskActionsOptions(task.id));
 
   // Force a backfill on open, and again when the task reaches a terminal state.
   // `taskMessagesOptions` is `staleTime: Infinity`, so a plain subscription
@@ -250,7 +257,7 @@ function LiveTranscriptDialog({
     };
   }, [task.id, isLive, queryClient]);
 
-  const items = useMemo(() => buildTimeline(data ?? []), [data]);
+  const items = useMemo(() => buildTimeline(data ?? [], actions ?? []), [data, actions]);
 
   return (
     <AgentTranscriptDialog

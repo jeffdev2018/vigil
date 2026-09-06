@@ -9155,13 +9155,43 @@ func (d *Daemon) executeAndDrain(ctx context.Context, backend agent.Backend, pro
 						pendingText.WriteString(msg.Content)
 						mu.Unlock()
 					}
+				case agent.MessageResponse:
+					// The run's deliverable answer, as opposed to the narration
+					// turns already buffered as text. Claude Code and Codex both
+					// repeat their final answer in the terminal event, so the
+					// pending buffer usually holds that same text: drop it
+					// rather than emit the answer twice, once mislabelled. A
+					// buffer holding something else is genuinely intermediate
+					// narration and is flushed as text below.
+					mu.Lock()
+					if strings.TrimSpace(pendingText.String()) == strings.TrimSpace(msg.Content) {
+						pendingText.Reset()
+					}
+					mu.Unlock()
+					// Flush before appending so the response cannot be given a
+					// lower seq than narration that preceded it.
+					flush()
+					s := msgSeq.Add(1)
+					mu.Lock()
+					batch = append(batch, TaskMessageData{
+						Seq:     int(s),
+						Type:    "response",
+						Content: msg.Content,
+					})
+					mu.Unlock()
 				case agent.MessageError:
 					taskLog.Error("agent error", "content", msg.Content)
 					s := msgSeq.Add(1)
 					mu.Lock()
 					batch = append(batch, TaskMessageData{
-						Seq:     int(s),
-						Type:    "error",
+						Seq:  int(s),
+						Type: "error",
+						// Classify with the same taxonomy the terminal
+						// failure_reason uses, so the transcript's error and
+						// the task's stored reason can never disagree, and the
+						// client can offer the matching remediation without
+						// re-parsing free-form error prose.
+						Input:   errorRemediationInput(msg.Content),
 						Content: msg.Content,
 					})
 					mu.Unlock()

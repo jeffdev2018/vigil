@@ -26,6 +26,8 @@ import type { TimelineItem } from "./build-timeline";
 vi.mock("@multica/core/api", () => ({
   api: {
     listTaskMessages: vi.fn(),
+    listTaskActivity: vi.fn(),
+    listTaskActions: vi.fn(),
   },
 }));
 
@@ -91,10 +93,16 @@ function renderWith(qc: QueryClient, ui: React.ReactNode): RenderResult {
 }
 
 const listTaskMessages = vi.mocked(api.listTaskMessages);
+const listTaskActivity = vi.mocked(api.listTaskActivity);
+const listTaskActions = vi.mocked(api.listTaskActions);
 
 beforeEach(() => {
   listTaskMessages.mockReset();
   listTaskMessages.mockResolvedValue([]);
+  listTaskActivity.mockReset();
+  listTaskActivity.mockResolvedValue({ messages: [], actions: [] });
+  listTaskActions.mockReset();
+  listTaskActions.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -174,7 +182,8 @@ describe("TranscriptButton", () => {
 
   it("terminal mode: fetches once on open and does not subscribe to the cache", async () => {
     const qc = newClient();
-    listTaskMessages.mockResolvedValue([msg(1, "Bash")]);
+    // The terminal path reads messages and run actions in one request.
+    listTaskActivity.mockResolvedValue({ messages: [msg(1, "Bash")], actions: [] });
 
     renderWith(
       qc,
@@ -199,7 +208,7 @@ describe("TranscriptButton", () => {
     });
 
     expect(screen.getAllByTestId("event")).toHaveLength(1);
-    expect(listTaskMessages).toHaveBeenCalledTimes(1);
+    expect(listTaskActivity).toHaveBeenCalledTimes(1);
   });
 
   it("running→terminal: keeps the dialog populated and takes a final backfill", async () => {

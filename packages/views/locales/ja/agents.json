@@ -901,6 +901,10 @@
     "kind_tool": "ツール",
     "kind_thinking": "思考",
     "kind_error": "エラー",
+    "kind_response": "応答",
+    "kind_action": "アクション",
+    "kind_elicitation": "確認要求",
+    "kind_note": "ノート",
     "group_calls_other": "{{count}} 回の呼び出し",
     "step_running": "実行中",
     "step_input": "入力",
@@ -915,7 +919,12 @@
     "tool_kind_command": "コマンド",
     "tool_kind_write": "編集",
     "tool_kind_read": "読み取り",
-    "tool_kind_misc": "その他"
+    "tool_kind_misc": "その他",
+    "remediation_label": "推奨される対処",
+    "remediation_rerun": "再実行",
+    "remediation_runtime_settings": "ランタイム設定を開く",
+    "remediation_install_cli": "エージェント CLI をインストール",
+    "remediation_failed": "新しい実行を開始できませんでした"
   },
   "task_failure": {
     "cancelled_by_system": "システムによってキャンセルされました",

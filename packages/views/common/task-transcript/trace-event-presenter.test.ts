@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
+  traceActionSummary,
   collapseDiffContext,
   parseUnifiedDiff,
   stripShellWrapper,
@@ -590,5 +591,75 @@ describe("traceToolArgSummary / traceEventHasDetail — Codex changes[]", () => 
     expect(traceEventHasDetail({ type: "tool_result", tool: "patch_apply", output: "" })).toBe(
       false,
     );
+  });
+});
+
+// ─── F03 · typed run activity ───────────────────────────────────────────────
+// Canonical layer for type → kind → label → summary. The component suite must
+// not re-run this matrix through a DOM mount.
+
+describe("F03 message kinds", () => {
+  it("maps every produced type to its own kind", () => {
+    const kinds = [
+      ["text", "agent"],
+      ["thinking", "thinking"],
+      ["tool_use", "tool_use"],
+      ["tool_result", "tool_result"],
+      ["error", "error"],
+      ["response", "response"],
+      ["action", "action"],
+      ["elicitation", "elicitation"],
+    ] as const;
+    for (const [type, kind] of kinds) {
+      expect(traceEventKind({ type })).toBe(kind);
+    }
+  });
+
+  // A type this build predates must reach the reader, not be silently
+  // reclassified as one it knows.
+  it("keeps an unknown type generic and labels it with its own raw type", () => {
+    expect(traceEventKind({ type: "something_the_server_added" })).toBe("generic");
+    expect(traceEventLabel({ type: "something_the_server_added" })).toBe("something_the_server_added");
+    expect(traceEventKind({ type: "" })).toBe("generic");
+    expect(traceEventLabel({ type: "" })).toBe("Event");
+  });
+
+  it("names an action after the activity that produced it", () => {
+    expect(traceEventLabel({ type: "action", content: "status_changed" })).toBe("status_changed");
+    // An action with no name still gets a label rather than an empty cell.
+    expect(traceEventLabel({ type: "action" })).toBe("Action");
+  });
+
+  it("labels a response and an elicitation", () => {
+    expect(traceEventLabel({ type: "response" })).toBe("Response");
+    expect(traceEventLabel({ type: "elicitation" })).toBe("Elicitation");
+  });
+
+  it("summarises an action as before → after", () => {
+    expect(
+      traceEventSummary({ type: "action", input: { before: "todo", after: "in_progress" } }),
+    ).toBe("todo → in_progress");
+  });
+
+  it("renders a missing side of an action as a dash", () => {
+    // A field that had no value before is different from one that did not
+    // change, so the empty side is shown rather than hidden.
+    expect(traceActionSummary({ before: "", after: "in_progress" })).toBe("— → in_progress");
+    expect(traceActionSummary({ after: "" , before: "high" })).toBe("high → —");
+  });
+
+  it("summarises an action with neither side as nothing at all", () => {
+    // issue created / description updated / run finished: an arrow between two
+    // dashes says less than the action name alone.
+    expect(traceActionSummary({})).toBe("");
+    expect(traceActionSummary(undefined)).toBe("");
+    // details is free-form: a non-string must not be coerced into a label.
+    expect(traceActionSummary({ before: 3, after: true })).toBe("");
+  });
+
+  it("summarises a response and an elicitation from their content", () => {
+    expect(traceEventSummary({ type: "response", content: "Fixed the redirect.\nDetails below." }))
+      .toBe("Fixed the redirect.");
+    expect(traceEventSummary({ type: "elicitation", content: "Which branch?" })).toBe("Which branch?");
   });
 });

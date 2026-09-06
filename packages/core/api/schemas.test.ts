@@ -98,6 +98,7 @@ import {
   CrossReviewReportSchema,
   ProjectReviewConfigSchema,
 } from "./schemas";
+import { TaskActivityResponseSchema, EMPTY_TASK_ACTIVITY } from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -2911,5 +2912,110 @@ describe("CrossReviewReportSchema.checklist_results", () => {
     const parsed = CrossReviewReportSchema.parse({ verdict: "approve", checklist_results: "nope" });
     expect(parsed.checklist_results).toBeUndefined();
     expect(parsed.verdict).toBe("approve");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Run transcript (F03 / JEF-11)
+// ---------------------------------------------------------------------------
+
+describe("TaskActivityResponseSchema", () => {
+  const message = {
+    task_id: "t1",
+    issue_id: "i1",
+    seq: 1,
+    type: "text",
+    content: "hello",
+  };
+
+  it("parses the wrapped shape", () => {
+    const parsed = parseWithFallback(
+      { messages: [message], actions: [{ kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" }] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.actions[0]).toMatchObject({
+      kind: "action",
+      action: "status_changed",
+      before: "todo",
+      after: "done",
+    });
+  });
+
+  // A server that predates the wrapper still returns the bare array. An
+  // installed desktop build must render its transcript against it, not a blank
+  // screen — this is the pre-feature timeline, unchanged.
+  it("normalises the old bare-array shape into an empty action list", () => {
+    const parsed = parseWithFallback(
+      [message, { ...message, seq: 2, type: "error", content: "boom" }],
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages.map((m) => m.seq)).toEqual([1, 2]);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("keeps an unrecognised message type verbatim instead of coercing it", () => {
+    const parsed = parseWithFallback(
+      { messages: [{ ...message, type: "elicitation" }, { ...message, seq: 2, type: "something_new" }], actions: [] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    // Coercing to "text" would relabel a future kind as agent prose; the
+    // presenter renders an unknown type as a neutral note that names itself.
+    expect(parsed.messages.map((m) => m.type)).toEqual(["elicitation", "something_new"]);
+  });
+
+  // Actions and messages degrade independently: a broken action list must not
+  // take the transcript down with it.
+  it("drops a malformed action list but keeps the messages", () => {
+    const parsed = parseWithFallback(
+      { messages: [message], actions: "not-a-list" },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("falls back when the response is neither shape", () => {
+    for (const malformed of [null, "nope", 42, true]) {
+      const parsed = parseWithFallback(
+        malformed,
+        TaskActivityResponseSchema,
+        EMPTY_TASK_ACTIVITY,
+        { endpoint: "test" },
+      );
+      expect(parsed).toEqual(EMPTY_TASK_ACTIVITY);
+    }
+  });
+
+  // An object with neither field is not a failure: the loose branch defaults
+  // both, which renders an empty transcript rather than discarding a response
+  // that may simply have been reshaped around them.
+  it("treats an unrecognised object as an empty transcript", () => {
+    const parsed = parseWithFallback(
+      { unrelated: true },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toEqual([]);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("defaults a partial action rather than dropping it", () => {
+    const parsed = parseWithFallback(
+      { messages: [], actions: [{ kind: "action", action: "created" }] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.actions[0]).toEqual({ kind: "action", action: "created", before: "", after: "", at: "" });
   });
 });

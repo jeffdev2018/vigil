@@ -1813,6 +1813,11 @@ func (b *codexBackend) executeOnce(ctx context.Context, prompt string, opts Exec
 			usageMap = map[string]TokenUsage{model: u}
 		}
 
+		// The deliverable answer, typed apart from the narration turns already
+		// streamed as MessageText. codexDeliverableOutput has just picked it out
+		// of the turn, so this is the one place that knows which message it is.
+		emitFinalResponse(msgCh, finalStatus, finalOutput)
+
 		resCh <- Result{
 			Status:                       finalStatus,
 			Output:                       finalOutput,

@@ -1159,3 +1159,132 @@ describe("AgentTranscriptDialog — reason vs raw diagnostics", () => {
     expect(screen.queryByText("Reason")).not.toBeInTheDocument();
   });
 });
+
+// ─── F03 · typed run activity lanes ─────────────────────────────────────────
+// The type→kind→label matrix is pinned in trace-event-presenter.test.ts and the
+// step/lane matrix in build-steps.test.ts. This suite covers only the wiring:
+// which rows appear, which facets they produce, and the remediation affordance.
+
+describe("AgentTranscriptDialog — run activity types", () => {
+  const typedItems: TimelineItem[] = [
+    { seq: 1, type: "thinking", content: "Thinking summary", created_at: "2026-06-08T08:00:01Z" },
+    {
+      seq: 2,
+      type: "action",
+      content: "status_changed",
+      input: { action: "status_changed", before: "todo", after: "in_progress" },
+      created_at: "2026-06-08T08:00:02Z",
+    },
+    { seq: 3, type: "response", content: "Fixed the redirect.", created_at: "2026-06-08T08:00:03Z" },
+    { seq: 4, type: "elicitation", content: "Which branch?", created_at: "2026-06-08T08:00:04Z" },
+  ];
+
+  it("renders an action as its own row showing before → after", () => {
+    renderDialog(typedItems);
+    // The action name appears twice by design: once as the row label, once as
+    // the filter facet that names the same thing.
+    expect(screen.getAllByText("status_changed").length).toBeGreaterThan(0);
+    expect(screen.getByText("todo → in_progress")).toBeInTheDocument();
+  });
+
+  it("shows a dash for the side of an action that has no value", () => {
+    renderDialog([
+      {
+        seq: 1,
+        type: "action",
+        content: "assignee_changed",
+        input: { action: "assignee_changed", before: "", after: "agent:a1" },
+        created_at: "2026-06-08T08:00:01Z",
+      },
+    ]);
+    expect(screen.getByText("— → agent:a1")).toBeInTheDocument();
+  });
+
+  it("offers one filter facet per kind present, and none for a kind that is absent", () => {
+    renderDialog(typedItems);
+    for (const name of ["Thinking", "status_changed", "Response", "Elicitation"]) {
+      expect(screen.getByRole("menuitemcheckbox", { name })).toBeInTheDocument();
+    }
+    // No tool ran, so there is no tool facet — a filter never offers an empty
+    // lane.
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Tool" })).not.toBeInTheDocument();
+  });
+
+  it("filters to one kind without refetching anything", () => {
+    renderDialog(typedItems);
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Response" }));
+
+    expect(screen.getByText("Fixed the redirect.")).toBeInTheDocument();
+    // The facet keeps naming the hidden kind; only its ROW is gone.
+    expect(screen.queryByText("todo → in_progress")).not.toBeInTheDocument();
+    expect(screen.queryByText("Which branch?")).not.toBeInTheDocument();
+  });
+
+  // A failed run produced no deliverable, so the transcript must not present
+  // leftover response text as this run's answer.
+  it("hides the response lane on a failed run", () => {
+    renderDialog(typedItems, { task: { ...baseTask, status: "failed" } });
+    expect(screen.queryByText("Fixed the redirect.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Response" })).not.toBeInTheDocument();
+    // Everything else still renders.
+    expect(screen.getByText("todo → in_progress")).toBeInTheDocument();
+  });
+
+  it("renders a type this build does not know as a neutral note naming itself", () => {
+    renderDialog([
+      { seq: 1, type: "some_future_kind", content: "evidence", created_at: "2026-06-08T08:00:01Z" },
+    ]);
+    expect(screen.getAllByText("some_future_kind").length).toBeGreaterThan(0);
+    expect(screen.getByText("evidence")).toBeInTheDocument();
+    // It gets a facet like any other kind, and no ghost lane appears for a kind
+    // that is not present.
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "some_future_kind" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Response" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — error remediation", () => {
+  function errorItem(input: Record<string, unknown>): TimelineItem {
+    return { seq: 1, type: "error", content: "API Error: 401", input, created_at: "2026-06-08T08:00:01Z" };
+  }
+
+  it("offers the rerun action for a remediable error", async () => {
+    const user = userEvent.setup();
+    renderDialog([errorItem({ reason: "agent_error.provider_auth_or_access", remediation: "rerun" })]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    const button = await screen.findByRole("button", { name: "Run again" });
+    expect(button).toBeInTheDocument();
+    // The classified reason is named with the same words the run header uses.
+    expect(screen.getByText("Provider auth failed")).toBeInTheDocument();
+  });
+
+  // No navigation provider is mounted here, which is the case for at least one
+  // real mount point: a remediation that cannot be performed must not render as
+  // a dead button.
+  it("omits a routing remediation when there is nowhere to route to", async () => {
+    const user = userEvent.setup();
+    renderDialog([
+      errorItem({ reason: "agent_error.missing_config", remediation: "runtime_settings" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    expect(screen.queryByRole("button", { name: "Open runtime settings" })).not.toBeInTheDocument();
+    // The reason is still named — the user learns what went wrong even without
+    // a one-click fix.
+    expect(await screen.findByText("Missing API key or configuration")).toBeInTheDocument();
+  });
+
+  it("renders no remediation section for an error the daemon could not classify", async () => {
+    const user = userEvent.setup();
+    renderDialog([errorItem({})]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    expect(screen.queryByText("Suggested fix")).not.toBeInTheDocument();
+  });
+});

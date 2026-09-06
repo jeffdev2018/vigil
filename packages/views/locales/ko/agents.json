@@ -909,6 +909,10 @@
     "kind_tool": "도구",
     "kind_thinking": "사고",
     "kind_error": "오류",
+    "kind_response": "응답",
+    "kind_action": "작업",
+    "kind_elicitation": "확인 요청",
+    "kind_note": "노트",
     "group_calls_other": "호출 {{count}}회",
     "step_running": "진행 중",
     "step_input": "입력",
@@ -923,7 +927,12 @@
     "tool_kind_command": "명령",
     "tool_kind_write": "편집",
     "tool_kind_read": "읽기",
-    "tool_kind_misc": "기타"
+    "tool_kind_misc": "기타",
+    "remediation_label": "권장 조치",
+    "remediation_rerun": "다시 실행",
+    "remediation_runtime_settings": "런타임 설정 열기",
+    "remediation_install_cli": "에이전트 CLI 설치",
+    "remediation_failed": "새 실행을 시작하지 못했습니다"
   },
   "task_failure": {
     "cancelled_by_system": "시스템에서 취소함",

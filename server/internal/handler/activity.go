@@ -455,3 +455,20 @@ func (h *Handler) GetAssigneeFrequency(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, result)
 }
+
+// actingTaskID returns the agent run this request is being made under, read
+// from the server-trusted X-Task-ID header the CLI sets on every request.
+// Invalid (zero) when no live run is named — a human editing an issue, or an
+// agent acting outside a run. That is the whole point: only activity stamped
+// with a task id joins into that run's action lane
+// (ListTaskMessagesByUser), so human actions can never appear there.
+//
+// Same resolution as commentSourceTaskID: both answer "which run wrote this",
+// one for comment lineage and one for activity lineage.
+func (h *Handler) actingTaskID(r *http.Request) pgtype.UUID {
+	task, ok := h.taskFromRequestHeader(r)
+	if !ok {
+		return pgtype.UUID{}
+	}
+	return task.ID
+}

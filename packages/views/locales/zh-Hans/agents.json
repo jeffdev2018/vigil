@@ -976,6 +976,10 @@
     "kind_tool": "工具",
     "kind_thinking": "思考",
     "kind_error": "错误",
+    "kind_response": "回复",
+    "kind_action": "操作",
+    "kind_elicitation": "信息征询",
+    "kind_note": "备注",
     "group_calls_other": "{{count}} 次调用",
     "step_running": "进行中",
     "step_input": "输入",
@@ -1022,7 +1026,12 @@
     "details_escalation_reason": "升级原因",
     "details_escalation_reason_below_threshold": "置信度得分低于评审阈值",
     "details_escalation_attempt": "升级尝试",
-    "details_escalation_attempt_value": "{{attempt}} / {{max}}"
+    "details_escalation_attempt_value": "{{attempt}} / {{max}}",
+    "remediation_label": "建议的修复",
+    "remediation_rerun": "重新运行",
+    "remediation_runtime_settings": "打开运行时设置",
+    "remediation_install_cli": "安装智能体 CLI",
+    "remediation_failed": "无法启动新的运行"
   },
   "task_failure": {
     "cancelled_by_system": "系统已取消",

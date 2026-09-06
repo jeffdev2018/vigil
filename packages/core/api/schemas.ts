@@ -19,6 +19,7 @@ import type {
   ChatSession,
   PrioritizeQueuedChatTaskResponse,
   SendChatMessageResponse,
+  TaskActivityResponse,
   StartMikaOnboardingResponse,
   Comment,
   CreateBillingCheckoutSessionResponse,
@@ -5775,3 +5776,58 @@ export const ChatParticipantListSchema = z.object({
 }).loose();
 
 export const EMPTY_CHAT_PARTICIPANT_LIST: ChatParticipantList = { participants: [] };
+
+// ---------------------------------------------------------------------------
+// Run transcript: task messages + the issue changes the run made (F03 / JEF-11)
+// ---------------------------------------------------------------------------
+
+export const TaskMessageSchema = z.object({
+  task_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  chat_session_id: z.string().optional(),
+  seq: z.number().default(0),
+  // Never a closed enum. The server writes eight types today and validates none
+  // of them on ingest, so an installed build meets values it predates on every
+  // backend upgrade. Coercing an unknown type to "text" would silently relabel
+  // a future kind as agent prose; keeping it raw lets the presenter render it
+  // as a neutral note that names itself.
+  type: z.string().default("text"),
+  tool: z.string().optional(),
+  content: z.string().optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+  output: z.string().optional(),
+  created_at: z.string().optional(),
+}).loose();
+
+export const RunActionSchema = z.object({
+  kind: z.literal("action").catch("action"),
+  action: z.string().default(""),
+  // Either side may legitimately be empty — an issue created by a run has no
+  // "before". The UI renders the missing half as a dash rather than dropping
+  // the entry.
+  before: z.string().default(""),
+  after: z.string().default(""),
+  at: z.string().default(""),
+}).loose();
+
+/**
+ * `GET /api/tasks/:id/messages`.
+ *
+ * Two shapes are accepted on purpose. A server that predates F03 returns the
+ * bare message array, and installed desktop builds outlive their backend in
+ * both directions — so the old shape is normalised into the new one with an
+ * empty action list rather than failing the whole transcript. This is the
+ * one boundary where the tolerance is worth its weight: the alternative is a
+ * blank transcript on every mismatched pair.
+ */
+export const TaskActivityResponseSchema = z.union([
+  z.object({
+    messages: z.array(TaskMessageSchema).catch([]).default([]),
+    // Actions degrade independently: a malformed action list must not hide the
+    // transcript it accompanies.
+    actions: z.array(RunActionSchema).catch([]).default([]),
+  }).loose(),
+  z.array(TaskMessageSchema).transform((messages) => ({ messages, actions: [] })),
+]);
+
+export const EMPTY_TASK_ACTIVITY: TaskActivityResponse = { messages: [], actions: [] };

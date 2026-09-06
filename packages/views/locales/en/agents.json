@@ -1025,6 +1025,10 @@
     "kind_tool": "Tool",
     "kind_thinking": "Thinking",
     "kind_error": "Error",
+    "kind_response": "Response",
+    "kind_action": "Action",
+    "kind_elicitation": "Elicitation",
+    "kind_note": "Note",
     "group_calls_one": "{{count}} call",
     "group_calls_other": "{{count}} calls",
     "step_running": "Still running",
@@ -1041,7 +1045,12 @@
     "tool_kind_command": "Commands",
     "tool_kind_write": "Edits",
     "tool_kind_read": "Reads",
-    "tool_kind_misc": "Other"
+    "tool_kind_misc": "Other",
+    "remediation_label": "Suggested fix",
+    "remediation_rerun": "Run again",
+    "remediation_runtime_settings": "Open runtime settings",
+    "remediation_install_cli": "Install the agent CLI",
+    "remediation_failed": "Could not start a new run"
   },
   "task_failure": {
     "cancelled_by_system": "Cancelled by the system",

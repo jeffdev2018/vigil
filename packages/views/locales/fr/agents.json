@@ -1025,6 +1025,10 @@
     "kind_tool": "Outil",
     "kind_thinking": "Réflexion",
     "kind_error": "Erreur",
+    "kind_response": "Réponse",
+    "kind_action": "Action",
+    "kind_elicitation": "Sollicitation",
+    "kind_note": "Note",
     "group_calls_one": "{{count}} appel",
     "group_calls_other": "{{count}} appels",
     "step_running": "En cours d'exécution",
@@ -1041,7 +1045,12 @@
     "tool_kind_command": "Commandes",
     "tool_kind_write": "Modifications",
     "tool_kind_read": "Lectures",
-    "tool_kind_misc": "Autre"
+    "tool_kind_misc": "Autre",
+    "remediation_label": "Correction suggérée",
+    "remediation_rerun": "Relancer",
+    "remediation_runtime_settings": "Ouvrir les réglages du runtime",
+    "remediation_install_cli": "Installer la CLI de l’agent",
+    "remediation_failed": "Impossible de lancer une nouvelle exécution"
   },
   "task_failure": {
     "cancelled_by_system": "Annulé par le système",

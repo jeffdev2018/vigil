@@ -2686,3 +2686,53 @@ describe("ApiClient session expiry", () => {
     expect(storage.getItem("multica_token")).toBeNull();
   });
 });
+
+describe("ApiClient run transcript (F03)", () => {
+  function stubJSON(body: unknown) {
+    // A fresh Response per call: a Response body can only be read once, and
+    // these tests hit the endpoint twice.
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const message = { task_id: "t1", issue_id: "i1", seq: 1, type: "response", content: "done" };
+
+  it("splits the wrapped response into messages and actions", async () => {
+    stubJSON({
+      messages: [message],
+      actions: [{ kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" }],
+    });
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([message]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([
+      { kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" },
+    ]);
+  });
+
+  // An installed build talking to a server that predates the wrapper must show
+  // the same transcript it always did, with no action lane.
+  it("still reads a backend that returns the bare message array", async () => {
+    stubJSON([message]);
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([message]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([]);
+  });
+
+  it("degrades to an empty transcript on a malformed response", async () => {
+    stubJSON("not-a-transcript");
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([]);
+  });
+});

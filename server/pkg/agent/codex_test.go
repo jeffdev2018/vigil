@@ -4247,8 +4247,10 @@ func executeFakeCodexCollectingMessagesWithConfig(t *testing.T, fakePath string,
 	var (
 		mu       sync.Mutex
 		messages []Message
+		drained  = make(chan struct{})
 	)
 	go func() {
+		defer close(drained)
 		for msg := range session.Messages {
 			mu.Lock()
 			messages = append(messages, msg)
@@ -4260,6 +4262,12 @@ func executeFakeCodexCollectingMessagesWithConfig(t *testing.T, fakePath string,
 		if !ok {
 			t.Fatal("result channel closed without a value")
 		}
+		// Wait for the stream to close before snapshotting. The result lands
+		// while the last messages may still be sitting in the channel buffer,
+		// so a snapshot taken here would race any assertion about the END of
+		// the stream. The backend closes Messages immediately after sending the
+		// result, so this cannot outlive the run.
+		<-drained
 		mu.Lock()
 		collected := append([]Message(nil), messages...)
 		mu.Unlock()

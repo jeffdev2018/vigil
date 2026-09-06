@@ -38,7 +38,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 			ActorType:   util.StrToText(e.ActorType),
 			ActorID:     optionalUUID(e.ActorID),
 			Action:      "created",
-			Details:     []byte("{}"),
+			Details:     runActivityDetails(payload, nil),
 		})
 		if err != nil {
 			slog.Error("activity: failed to record issue created",
@@ -67,7 +67,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 
 		if statusChanged {
 			prevStatus, _ := payload["prev_status"].(string)
-			details, _ := json.Marshal(map[string]string{
+			details := runActivityDetails(payload, map[string]string{
 				"from": prevStatus,
 				"to":   issue.Status,
 			})
@@ -90,7 +90,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 
 		if priorityChanged {
 			prevPriority, _ := payload["prev_priority"].(string)
-			details, _ := json.Marshal(map[string]string{
+			details := runActivityDetails(payload, map[string]string{
 				"from": prevPriority,
 				"to":   issue.Priority,
 			})
@@ -129,7 +129,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 				detailsMap["to_id"] = *issue.AssigneeID
 			}
 
-			details, _ := json.Marshal(detailsMap)
+			details := runActivityDetails(payload, detailsMap)
 			activity, err := queries.CreateActivity(ctx, db.CreateActivityParams{
 				ID:          dbid.NewV7(),
 				WorkspaceID: parseUUID(issue.WorkspaceID),
@@ -156,7 +156,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 			if issue.StartDate != nil {
 				newStartDate = *issue.StartDate
 			}
-			details, _ := json.Marshal(map[string]string{
+			details := runActivityDetails(payload, map[string]string{
 				"from": prevStartDate,
 				"to":   newStartDate,
 			})
@@ -186,7 +186,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 			if issue.DueDate != nil {
 				newDueDate = *issue.DueDate
 			}
-			details, _ := json.Marshal(map[string]string{
+			details := runActivityDetails(payload, map[string]string{
 				"from": prevDueDate,
 				"to":   newDueDate,
 			})
@@ -209,7 +209,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 
 		if titleChanged, _ := payload["title_changed"].(bool); titleChanged {
 			prevTitle, _ := payload["prev_title"].(string)
-			details, _ := json.Marshal(map[string]string{
+			details := runActivityDetails(payload, map[string]string{
 				"from": prevTitle,
 				"to":   issue.Title,
 			})
@@ -238,7 +238,7 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 				ActorType:   util.StrToText(e.ActorType),
 				ActorID:     optionalUUID(e.ActorID),
 				Action:      "description_updated",
-				Details:     []byte("{}"),
+				Details:     runActivityDetails(payload, nil),
 			})
 			if err != nil {
 				slog.Error("activity: failed to record description change",
@@ -260,6 +260,32 @@ func registerActivityListeners(bus *events.Bus, queries *db.Queries) {
 	})
 }
 
+// runActivityDetails renders an activity's details JSON, stamping the agent run
+// that caused the change when the publisher recorded one.
+//
+// details.task_id is what the run action lane joins on
+// (Handler.runActionsForTask). An activity with no run — a human editing the
+// issue from the UI — deliberately carries no task_id and therefore never
+// appears in any run's lane. acting_task_id is set by the HTTP handlers that an
+// agent CLI can reach, from the server-trusted X-Task-ID header
+// (Handler.actingTaskID); it is absent on system- and webhook-driven publishes.
+func runActivityDetails(payload map[string]any, fields map[string]string) []byte {
+	out := make(map[string]string, len(fields)+1)
+	for k, v := range fields {
+		out[k] = v
+	}
+	if taskID, _ := payload["acting_task_id"].(string); taskID != "" {
+		out["task_id"] = taskID
+	}
+	encoded, err := json.Marshal(out)
+	if err != nil {
+		// Losing the details is bad; losing the activity row is worse.
+		slog.Error("activity: failed to encode details", "error", err)
+		return []byte("{}")
+	}
+	return encoded
+}
+
 // handleTaskActivity records an activity for task:completed or task:failed events.
 func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Queries, e events.Event, action string) {
 	payload, ok := e.Payload.(map[string]any)
@@ -270,6 +296,12 @@ func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Querie
 	issueID, _ := payload["issue_id"].(string)
 	if issueID == "" {
 		return
+	}
+	// A run's own terminal event belongs in that run's action lane, and the
+	// task event payload already names the task — no acting_task_id needed.
+	details := []byte("{}")
+	if taskID, _ := payload["task_id"].(string); taskID != "" {
+		details = runActivityDetails(nil, map[string]string{"task_id": taskID})
 	}
 
 	// Look up issue to get workspace_id
@@ -287,7 +319,7 @@ func handleTaskActivity(ctx context.Context, bus *events.Bus, queries *db.Querie
 		ActorType:   util.StrToText("agent"),
 		ActorID:     parseUUID(agentID),
 		Action:      action,
-		Details:     []byte("{}"),
+		Details:     details,
 	})
 	if err != nil {
 		slog.Error("activity: failed to record task activity",
