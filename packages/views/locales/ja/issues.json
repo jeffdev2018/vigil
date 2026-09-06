@@ -1433,5 +1433,26 @@
       "generated": "自動生成",
       "noise": "ノイズ"
     }
+  },
+  "review_flags": {
+    "section": "レビュー指摘",
+    "empty": "このプルリクエストには指摘がありません。",
+    "error": "レビュー指摘を読み込めませんでした。",
+    "retry": "再試行",
+    "actions": "指摘の操作",
+    "resolve": "解決",
+    "dismiss": "却下",
+    "reopen": "再オープン",
+    "stale": "コード変更済み",
+    "confidence": "確信度 {{value}}%",
+    "filter": {
+      "open": "未対応",
+      "all": "すべて"
+    },
+    "severity": {
+      "bug": "バグ",
+      "warning": "警告",
+      "info": "情報"
+    }
   }
 }

@@ -32,6 +32,7 @@ import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
+import { reviewFlagKeys } from "../review-flags/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
@@ -992,6 +993,13 @@ export function useRealtimeSync(
       pr_walkthrough: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: prWalkthroughKeys.all(wsId) });
+      },
+      // Review flags (F06). A head move can restate flags on several linked
+      // issues at once, so the event carries no issue id and the whole prefix
+      // is invalidated; the open panel refetches the list it is showing.
+      review_flag: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: reviewFlagKeys.all(wsId) });
       },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all

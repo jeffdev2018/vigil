@@ -1469,5 +1469,26 @@
       "generated": "Généré",
       "noise": "Bruit"
     }
+  },
+  "review_flags": {
+    "section": "Signalements de revue",
+    "empty": "Rien n'est signalé sur cette pull request.",
+    "error": "Impossible de charger les signalements de revue.",
+    "retry": "Réessayer",
+    "actions": "Actions du signalement",
+    "resolve": "Résoudre",
+    "dismiss": "Écarter",
+    "reopen": "Rouvrir",
+    "stale": "code modifié",
+    "confidence": "sûr à {{value}} %",
+    "filter": {
+      "open": "Ouverts",
+      "all": "Tous"
+    },
+    "severity": {
+      "bug": "Bug",
+      "warning": "Avertissement",
+      "info": "Info"
+    }
   }
 }
