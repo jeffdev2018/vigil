@@ -118,6 +118,7 @@
       "chore": "雑務"
     },
     "col_samples": "サンプル数",
+    "from_benchmarks": "うち {{n}} 件はベンチマーク",
     "col_success": "成功率",
     "col_avg_cost": "平均コスト",
     "col_avg_duration": "平均時間",

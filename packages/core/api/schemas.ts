@@ -2310,6 +2310,7 @@ export const RuntimeRoutingStatsSchema = z.object({
   model: z.string().default(""),
   task_class: z.string().default(""),
   samples: z.number().default(0),
+  benchmark_samples: z.number().default(0),
   success_rate: z.number().default(0),
   avg_cost_usd: z.number().nullable().default(null),
   avg_duration_secs: z.number().nullable().default(null),
