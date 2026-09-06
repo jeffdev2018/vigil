@@ -18,6 +18,7 @@ vi.mock("@multica/core/api", () => ({
   api: {
     getAgent: vi.fn().mockResolvedValue(null),
     listRuntimes: vi.fn().mockResolvedValue([]),
+    getConfidenceReviewSettings: vi.fn().mockResolvedValue({ enabled: true, threshold: 0.5, max_escalations: 2 }),
   },
 }));
 
@@ -823,6 +824,55 @@ describe("AgentTranscriptDialog — confidence score", () => {
   it("renders no chip for an unscored run", () => {
     renderDialog(items, { task: baseTask });
     expect(screen.queryByTestId("confidence-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — escalation", () => {
+  const escalatedTask: AgentTask = {
+    ...baseTask,
+    escalation: {
+      from_task_id: "task-0",
+      reason: "below_threshold",
+      attempt: 1,
+      from_runtime_id: "runtime-1",
+    },
+  };
+
+  it("names the origin runtime and the attempt in a header chip", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([runtimeFor("claude")]);
+
+    renderDialog(items, { task: escalatedTask });
+
+    const chip = await screen.findByTestId("escalation-chip");
+    expect(chip).toHaveTextContent("Escalated from claude runtime · attempt 1");
+  });
+
+  it("falls back to the raw runtime id while the runtime list loads", async () => {
+    renderDialog(items, { task: escalatedTask });
+
+    const chip = await screen.findByTestId("escalation-chip");
+    expect(chip).toHaveTextContent("Escalated from runtime-1 · attempt 1");
+  });
+
+  it("carries the reason and the attempt count in the run details popover", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: escalatedTask });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Escalated from")).toBeInTheDocument();
+    expect(screen.getByText("runtime-1")).toBeInTheDocument();
+    expect(screen.getByText("Escalation reason")).toBeInTheDocument();
+    expect(
+      screen.getByText("Confidence score below the review threshold"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Escalation attempt")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("renders no chip for a run that was not escalated", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("escalation-chip")).not.toBeInTheDocument();
   });
 });
 
