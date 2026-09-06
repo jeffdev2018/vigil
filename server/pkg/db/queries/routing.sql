@@ -24,6 +24,14 @@ WHERE workspace_id = @workspace_id
   )
 ORDER BY created_at ASC;
 
+-- name: ListDistinctTaskRuntimesForIssue :many
+-- Cascade escalation (JEF-272): every runtime already tried on this issue, so
+-- the escalator never re-enqueues on a runtime that already had its chance.
+SELECT DISTINCT runtime_id
+FROM agent_task_queue
+WHERE issue_id = @issue_id
+  AND runtime_id IS NOT NULL;
+
 -- name: GetRoutingStats :many
 -- Per-(runtime, provider, model, task_class) run statistics over the trailing
 -- window (90 days at the call site), feeding both the runtime router's

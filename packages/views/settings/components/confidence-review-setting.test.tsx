@@ -9,7 +9,7 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/issues/confidence-review", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/issues/confidence-review")>()),
-  confidenceReviewSettingsOptions: () => ({ queryKey: ["confidence-review-settings"], queryFn: async () => ({ enabled: true, threshold: 0.5 }) }),
+  confidenceReviewSettingsOptions: () => ({ queryKey: ["confidence-review-settings"], queryFn: async () => ({ enabled: true, threshold: 0.5, max_escalations: 2 }) }),
   useSaveConfidenceReviewSettings: () => ({ mutate: state.save, isPending: false }),
 }));
 
@@ -27,7 +27,7 @@ describe("ConfidenceReviewSetting", () => {
     await waitFor(() => expect(threshold.value).toBe("0.5"));
     fireEvent.change(threshold, { target: { value: "0.7" } });
     fireEvent.blur(threshold);
-    expect(state.save).toHaveBeenCalledWith({ enabled: true, threshold: 0.7 }, expect.anything());
+    expect(state.save).toHaveBeenCalledWith({ enabled: true, threshold: 0.7, max_escalations: 2 }, expect.anything());
     fireEvent.click(screen.getByRole("switch", { name: "Send low-confidence runs to review" }));
     expect(state.save).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }), expect.anything());
   });
@@ -44,6 +44,25 @@ describe("ConfidenceReviewSetting", () => {
     // The API rejects anything outside 0 < threshold ≤ 1; blur clamps first.
     fireEvent.change(threshold, { target: { value: "2" } });
     fireEvent.blur(threshold);
-    expect(state.save).toHaveBeenCalledWith({ enabled: true, threshold: 1 }, expect.anything());
+    expect(state.save).toHaveBeenCalledWith({ enabled: true, threshold: 1, max_escalations: 2 }, expect.anything());
+  });
+
+  it("persists max escalations and clamps it to the 0-3 contract (JEF-272)", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ConfidenceReviewSetting canEdit />
+      </QueryClientProvider>,
+    );
+    const maxEscalations = (await screen.findByLabelText("Max escalations")) as HTMLInputElement;
+    await waitFor(() => expect(maxEscalations.value).toBe("2"));
+    fireEvent.change(maxEscalations, { target: { value: "3" } });
+    fireEvent.blur(maxEscalations);
+    expect(state.save).toHaveBeenCalledWith({ enabled: true, threshold: 0.5, max_escalations: 3 }, expect.anything());
+    // The API rejects anything outside integer [0, 3]; blur clamps first.
+    fireEvent.change(maxEscalations, { target: { value: "7" } });
+    fireEvent.blur(maxEscalations);
+    expect(state.save).toHaveBeenLastCalledWith({ enabled: true, threshold: 0.5, max_escalations: 3 }, expect.anything());
+    expect(maxEscalations.value).toBe("3");
   });
 });

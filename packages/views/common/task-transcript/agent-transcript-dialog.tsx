@@ -321,6 +321,9 @@ export function AgentTranscriptDialog({
   // router actually chose (which may differ from task.runtime_id on older
   // backends) and resolve candidate names in the ⓘ popover.
   const [runtimes, setRuntimes] = useState<AgentRuntime[]>([]);
+  // The workspace's escalation cap (JEF-272), fetched only when this run is
+  // an escalation child so the ⓘ popover can show "attempt N/max".
+  const [maxEscalations, setMaxEscalations] = useState<number | null>(null);
   const workdirCopyTarget = useMemo(
     () => resolveWorkdirCopyTarget([task]),
     [task],
@@ -615,10 +618,22 @@ export function AgentTranscriptDialog({
       api.listRuntimes().then((list) => {
         if (!cancelled) setRuntimes(list);
       }).catch(() => {});
+    } else if (task.escalation?.from_runtime_id) {
+      // Escalated child runs (JEF-272) need the list too, to name the
+      // runtime the origin run escalated away from.
+      api.listRuntimes().then((list) => {
+        if (!cancelled) setRuntimes(list);
+      }).catch(() => {});
+    }
+
+    if (task.escalation) {
+      api.getConfidenceReviewSettings().then((s) => {
+        if (!cancelled) setMaxEscalations(s.max_escalations);
+      }).catch(() => {});
     }
 
     return () => { cancelled = true; };
-  }, [open, task.agent_id, task.runtime_id, task.routing?.chosen_runtime_id]);
+  }, [open, task.agent_id, task.runtime_id, task.routing?.chosen_runtime_id, task.escalation]);
 
   // Elapsed time for live tasks
   useEffect(() => {
@@ -837,6 +852,10 @@ export function AgentTranscriptDialog({
     ? (confidence.below_threshold ??
       (confidence.threshold != null && confidence.score < confidence.threshold))
     : false;
+  // Escalation (JEF-272): when set, this run is the child a below-threshold
+  // run was re-dispatched as. The header chip names the runtime it escalated
+  // from; the ⓘ popover carries the reason and the attempt count.
+  const escalation = task.escalation ?? null;
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -866,6 +885,7 @@ export function AgentTranscriptDialog({
     !!runtimeInfo ||
     !!routing ||
     !!confidence ||
+    !!escalation ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
     !!reasonLabel ||
@@ -964,6 +984,24 @@ export function AgentTranscriptDialog({
                   >
                     {t(($) => $.transcript.confidence_chip, {
                       score: Math.round(confidence.score * 100),
+                    })}
+                  </span>
+                </>
+              )}
+              {escalation && (
+                <>
+                  <FactDot />
+                  {/* This run exists because a previous run scored under the
+                      review threshold and was re-dispatched to a stronger
+                      runtime — the chip names where it came from. */}
+                  <span
+                    data-testid="escalation-chip"
+                    title={t(($) => $.transcript.escalation_chip_title)}
+                    className="shrink-0 rounded-full border border-info/30 bg-info/10 px-1.5 py-px text-micro font-medium tabular-nums text-info"
+                  >
+                    {t(($) => $.transcript.escalation_chip, {
+                      name: routingRuntimeName(escalation.from_runtime_id),
+                      attempt: escalation.attempt,
                     })}
                   </span>
                 </>
@@ -1114,6 +1152,33 @@ export function AgentTranscriptDialog({
                               value={confidence.rationale}
                             />
                           )}
+                        </>
+                      )}
+                      {escalation && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_from)}
+                            value={routingRuntimeName(escalation.from_runtime_id)}
+                          />
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_reason)}
+                            value={
+                              escalation.reason === "below_threshold"
+                                ? t(($) => $.transcript.details_escalation_reason_below_threshold)
+                                : escalation.reason
+                            }
+                          />
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_attempt)}
+                            value={
+                              maxEscalations != null
+                                ? t(($) => $.transcript.details_escalation_attempt_value, {
+                                    attempt: escalation.attempt,
+                                    max: maxEscalations,
+                                  })
+                                : String(escalation.attempt)
+                            }
+                          />
                         </>
                       )}
                       {workdirCopyTarget?.relativePath && (
