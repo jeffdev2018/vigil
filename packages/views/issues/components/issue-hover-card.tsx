@@ -162,6 +162,11 @@ function IssueHoverCardBody({
   const assigneeType = issue.assignee_type;
   const assigneeId = issue.assignee_id;
   const hasAssignee = !!assigneeType && !!assigneeId;
+  // The delegate (F01) shares the assignee's slot rather than taking a third
+  // child of this justify-between row, which would break its two-slot layout.
+  const delegateType = issue.delegate_type;
+  const delegateId = issue.delegate_id;
+  const hasDelegate = !!delegateType && !!delegateId;
   const progress = childProgress?.get(issue.id);
   const hasProgress = !!progress && progress.total > 0;
   // Board cards and list rows render the glyph into a fixed grid slot, so the
@@ -207,10 +212,17 @@ function IssueHoverCardBody({
         <p className="mt-1 text-caption text-muted-foreground line-clamp-2">{preview}</p>
       )}
 
-      {(hasAssignee || hasProgress) && (
+      {(hasAssignee || hasDelegate || hasProgress) && (
         <div className="mt-1 flex items-center justify-between gap-3">
-          {hasAssignee ? (
-            <IssueHoverCardAssignee actorType={assigneeType} actorId={assigneeId} />
+          {hasAssignee || hasDelegate ? (
+            <span className="flex min-w-0 items-center gap-2">
+              {hasAssignee && (
+                <IssueHoverCardAssignee actorType={assigneeType} actorId={assigneeId} />
+              )}
+              {hasDelegate && (
+                <IssueHoverCardAssignee actorType={delegateType} actorId={delegateId} />
+              )}
+            </span>
           ) : (
             <span />
           )}

@@ -2885,6 +2885,8 @@ func newIssueUpdateTestCmd() *cobra.Command {
 	cmd.Flags().String("priority", "", "")
 	cmd.Flags().String("assignee", "", "")
 	cmd.Flags().String("assignee-id", "", "")
+	cmd.Flags().String("delegate", "", "")
+	cmd.Flags().String("delegate-id", "", "")
 	cmd.Flags().String("project", "", "")
 	cmd.Flags().String("start-date", "", "")
 	cmd.Flags().String("due-date", "", "")

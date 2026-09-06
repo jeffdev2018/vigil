@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   Tag,
   Unlink,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../../layout/breadcrumb-header";
@@ -427,7 +428,12 @@ const EMPTY_REPLIES: TimelineEntry[] = [];
 // its row and add-property entry are gated on `issue.parent_issue_id` at the
 // render site below — it stays in this list so seeding/visibility flow through
 // the same machinery as the other optional props.
-const OPTIONAL_PROP_KEYS = ["priority", "stage", "start_date", "due_date", "labels"] as const;
+// `delegate` (F01) is optional-but-rendered-beside-the-assignee: it flows
+// through this list for seeding, visibility and the "+ Add property" menu, but
+// its ROW is placed directly under the assignee rather than in the optional
+// block below, because the two halves of one relationship reading apart is a
+// worse outcome than the row order being uniform.
+const OPTIONAL_PROP_KEYS = ["delegate", "priority", "stage", "start_date", "due_date", "labels"] as const;
 type OptionalPropKey = (typeof OPTIONAL_PROP_KEYS)[number];
 
 function isOptionalPropSet(
@@ -436,6 +442,8 @@ function isOptionalPropSet(
   attachedLabelsCount: number,
 ): boolean {
   switch (key) {
+    case "delegate":
+      return !!issue.delegate_type && !!issue.delegate_id;
     case "priority":
       return issue.priority !== "none";
     case "stage":
@@ -2366,6 +2374,20 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           <PropRow label={t(($) => $.detail.prop_assignee)}>
             <AssigneePicker assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} onUpdate={handleUpdateField} align="start" />
           </PropRow>
+          {/* The delegate (F01) reads directly under the assignee it partners,
+              but is optional: no delegate means no row until the user adds one
+              from "+ Add property". */}
+          {visibleOptionalProps.has("delegate") && (
+            <PropRow label={t(($) => $.detail.prop_delegate)}>
+              <AssigneePicker
+                kind="delegate"
+                assigneeType={issue.delegate_type ?? null}
+                assigneeId={issue.delegate_id ?? null}
+                onUpdate={handleUpdateField}
+                align="start"
+              />
+            </PropRow>
+          )}
           <PropRow label={t(($) => $.detail.prop_project)}>
             <ProjectPicker
               projectId={issue.project_id}
@@ -2487,6 +2509,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       onClick={() => addOptionalProp(k)}
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-caption text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     >
+                      {k === "delegate" && (
+                        <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
                       {k === "priority" && (
                         <PriorityIcon priority="medium" inheritColor className="text-muted-foreground" />
                       )}
@@ -2503,6 +2528,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                         <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       )}
                       <span className="truncate">
+                        {k === "delegate" && t(($) => $.detail.prop_delegate)}
                         {k === "priority" && t(($) => $.detail.prop_priority)}
                         {k === "stage" && t(($) => $.detail.prop_stage)}
                         {k === "start_date" && t(($) => $.detail.prop_start_date)}

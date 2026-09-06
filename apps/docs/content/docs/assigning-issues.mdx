@@ -50,6 +50,29 @@ When the issue already has an agent or squad owner, moving it out of `backlog` o
 
 Only the `backlog` category works this way, and a [custom status](/issues#custom-statuses) in that category behaves identically. Issues already in `done` or `cancelled` still start a run immediately when assigned or reassigned to an agent.
 
+## Name a delegate
+
+A delegate is the assignee's partner on an issue — the person or agent working
+with the owner without taking ownership. It is a second, optional pairing next
+to **Assignee**, and it is deliberately inert:
+
+- naming a delegate **never starts a run**, even when the delegate is an agent;
+- the delegate **never carries the status** — the assignee does;
+- a delegate can be a member or an agent, never a [squad](/squads);
+- the delegate cannot be the same actor as the assignee.
+
+Add it from **+ Add property** on the issue, then pick a member or an agent.
+An issue with no delegate shows no delegate row.
+
+A human delegate starts watching the issue and gets one inbox notification when
+they are named. Filters and the "involves me" view include issues you are the
+delegate on.
+
+```bash
+multica issue update MUL-42 --delegate "Teammate name"
+multica issue update MUL-42 --delegate-id <member-or-agent-uuid>
+```
+
 ## Assignment permissions
 
 Whether you can assign an agent is decided by its Access:

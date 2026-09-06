@@ -40,7 +40,23 @@ export function canAssignAgent(
   }).allowed;
 }
 
+/**
+ * Which of an issue's two actor pairs this picker edits (F01). The rows, the
+ * search, the avatars and the frequency ordering are identical; only the
+ * emitted field names, the label sub-tree, and whether squads are offered
+ * differ — so this is one component with a discriminator rather than a second
+ * 300-line copy that drifts.
+ */
+export type ActorPickerKind = "assignee" | "delegate";
+
 interface AssigneePickerProps {
+  /** Defaults to "assignee" so every existing call site is unchanged. */
+  kind?: ActorPickerKind;
+  /**
+   * The issue's current actor for `kind` — assignee_type/assignee_id, or
+   * delegate_type/delegate_id in delegate mode. The prop names kept the
+   * assignee wording rather than churn 14 call sites for a rename.
+   */
   assigneeType: IssueAssigneeType | null;
   assigneeId: string | null;
   /**
@@ -90,6 +106,7 @@ export function AssigneePicker(props: AssigneePickerProps) {
 }
 
 function AssigneePickerImpl({
+  kind = "assignee",
   assigneeType,
   assigneeId,
   mixed = false,
@@ -109,6 +126,10 @@ function AssigneePickerImpl({
   const wsId = useWorkspaceId();
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  // A squad is a routing object whose work runs through its leader, not a
+  // person to partner with — the server rejects delegate_type='squad' with a
+  // 400, so the rows are not offered here either.
+  const showSquads = kind === "assignee";
   const { data: squads = [] } = useQuery(squadListOptions(wsId));
   const { data: frequency = [] } = useQuery(assigneeFrequencyOptions(wsId));
   const { getActorName } = useActorName();
@@ -146,10 +167,36 @@ function AssigneePickerImpl({
   const isSelected = (type: string, id: string) =>
     assigneeType === type && assigneeId === id;
 
+  // The two sub-trees have the same shape; resolving them once keeps the JSX
+  // below free of a ternary per label.
+  const labels =
+    kind === "delegate"
+      ? {
+          none: t(($) => $.pickers.delegate.trigger_none),
+          search: t(($) => $.pickers.delegate.search_placeholder),
+          members: t(($) => $.pickers.delegate.members_group),
+          agents: t(($) => $.pickers.delegate.agents_group),
+        }
+      : {
+          none: t(($) => $.pickers.assignee.trigger_unassigned),
+          search: t(($) => $.pickers.assignee.search_placeholder),
+          members: t(($) => $.pickers.assignee.members_group),
+          agents: t(($) => $.pickers.assignee.agents_group),
+        };
+
+  /** The update payload for whichever pair this picker owns. */
+  const patch = (
+    type: IssueAssigneeType | null,
+    id: string | null,
+  ): Partial<UpdateIssueRequest> =>
+    kind === "delegate"
+      ? { delegate_type: type as "member" | "agent" | null, delegate_id: id }
+      : { assignee_type: type, assignee_id: id };
+
   const triggerLabel =
     assigneeType && assigneeId
       ? getActorName(assigneeType, assigneeId)
-      : t(($) => $.pickers.assignee.trigger_unassigned);
+      : labels.none;
 
   return (
     <PropertyPicker
@@ -161,7 +208,7 @@ function AssigneePickerImpl({
       width="w-64"
       align={align}
       searchable
-      searchPlaceholder={t(($) => $.pickers.assignee.search_placeholder)}
+      searchPlaceholder={labels.search}
       onSearchChange={setFilter}
       triggerRender={triggerRender}
       trigger={
@@ -171,7 +218,7 @@ function AssigneePickerImpl({
             <span className="truncate">{triggerLabel}</span>
           </>
         ) : (
-          <span className="text-muted-foreground">{t(($) => $.pickers.assignee.trigger_unassigned)}</span>
+          <span className="text-muted-foreground">{labels.none}</span>
         )
       }
     >
@@ -182,26 +229,23 @@ function AssigneePickerImpl({
         emptyValue
         selected={!mixed && !assigneeType && !assigneeId}
         onClick={() => {
-          onUpdate({ assignee_type: null, assignee_id: null });
+          onUpdate(patch(null, null));
           setOpen(false);
         }}
       >
         <UserMinus className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-muted-foreground">{t(($) => $.pickers.assignee.trigger_unassigned)}</span>
+        <span className="text-muted-foreground">{labels.none}</span>
       </PickerItem>
 
       {/* Members */}
       {filteredMembers.length > 0 && (
-        <PickerSection label={t(($) => $.pickers.assignee.members_group)}>
+        <PickerSection label={labels.members}>
           {filteredMembers.map((m) => (
             <PickerItem
               key={m.user_id}
               selected={isSelected("member", m.user_id)}
               onClick={() => {
-                onUpdate({
-                  assignee_type: "member",
-                  assignee_id: m.user_id,
-                });
+                onUpdate(patch("member", m.user_id));
                 setOpen(false);
               }}
             >
@@ -214,7 +258,7 @@ function AssigneePickerImpl({
 
       {/* Agents */}
       {filteredAgents.length > 0 && (
-        <PickerSection label={t(($) => $.pickers.assignee.agents_group)}>
+        <PickerSection label={labels.agents}>
           {filteredAgents.map((a) => {
             const decision = canAssignAgentToIssue(a, {
               userId: user?.id ?? null,
@@ -225,8 +269,12 @@ function AssigneePickerImpl({
                   ? memberRole
                   : null,
             });
+            // A delegate starts no run, so an agent with no runtime bound is
+            // a perfectly valid partner and the server accepts it. Only the
+            // permission decision gates delegate mode; requiring a runtime
+            // would refuse a write the API allows.
             const runtimeBound = isAgentRuntimeBound(a);
-            const allowed = decision.allowed && runtimeBound;
+            const allowed = decision.allowed && (kind === "delegate" || runtimeBound);
             return (
               <PickerItem
                 key={a.id}
@@ -235,16 +283,13 @@ function AssigneePickerImpl({
                 tooltip={
                   !decision.allowed
                     ? decision.message
-                    : !runtimeBound
+                    : !allowed
                       ? t(($) => $.pickers.assignee.agent_runtime_required)
                       : undefined
                 }
                 onClick={() => {
                   if (!allowed) return;
-                  onUpdate({
-                    assignee_type: "agent",
-                    assignee_id: a.id,
-                  });
+                  onUpdate(patch("agent", a.id));
                   setOpen(false);
                 }}
               >
@@ -261,7 +306,7 @@ function AssigneePickerImpl({
 
       {/* Squads — group ownership; assigning to a squad routes the issue to
           its leader agent on the backend. */}
-      {filteredSquads.length > 0 && (
+      {showSquads && filteredSquads.length > 0 && (
         <PickerSection label={t(($) => $.pickers.assignee.squads_group)}>
           {filteredSquads.map((s) => {
             const runtimeBound = runnableAgentIds.has(s.leader_id);
@@ -277,10 +322,7 @@ function AssigneePickerImpl({
                 }
                 onClick={() => {
                   if (!runtimeBound) return;
-                  onUpdate({
-                    assignee_type: "squad",
-                    assignee_id: s.id,
-                  });
+                  onUpdate(patch("squad", s.id));
                   setOpen(false);
                 }}
               >
@@ -294,7 +336,7 @@ function AssigneePickerImpl({
 
       {filteredMembers.length === 0 &&
         filteredAgents.length === 0 &&
-        filteredSquads.length === 0 &&
+        (!showSquads || filteredSquads.length === 0) &&
         filter && <PickerEmpty />}
     </PropertyPicker>
   );

@@ -7,6 +7,9 @@ export type InboxItemType =
   | "issue_subscribed"
   | "unassigned"
   | "assignee_changed"
+  // Named as the assignee's partner (F01). Info severity, not
+  // action_required: a delegate is not the issue's owner.
+  | "delegate_assigned"
   | "status_changed"
   | "priority_changed"
   | "start_date_changed"

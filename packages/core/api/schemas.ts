@@ -1377,6 +1377,14 @@ export const IssueSchema = z.object({
   priority: z.string(),
   assignee_type: z.string().nullable(),
   assignee_id: z.string().nullable(),
+  // The delegate — the assignee's partner (F01). Optional + defaulted rather
+  // than a bare .nullable() like the assignee pair: a server that predates the
+  // field sends nothing, and IssueSchema parse failures take the WHOLE list
+  // response to its fallback, so one older backend would blank every issue.
+  // Absent therefore parses to null, which is also its product meaning: no
+  // delegate.
+  delegate_type: z.string().nullable().optional().default(null),
+  delegate_id: z.string().nullable().optional().default(null),
   creator_type: z.string(),
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),

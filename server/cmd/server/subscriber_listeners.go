@@ -52,6 +52,16 @@ func registerSubscriberListeners(bus *events.Bus, pool *pgxpool.Pool) {
 			addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.AssigneeType, *issue.AssigneeID, "assignee")
 		}
 
+		// Subscribe the delegate (F01) when it is a direct recipient. Same
+		// creator/assignee de-duplication as above: AddIssueSubscriber's
+		// ON CONFLICT makes a repeat a no-op anyway, but skipping the call
+		// keeps subscriber:added from being published twice for one person.
+		if issue.DelegateType != nil && issue.DelegateID != nil &&
+			isAssignmentRecipientType(*issue.DelegateType) &&
+			!(*issue.DelegateType == issue.CreatorType && *issue.DelegateID == issue.CreatorID) {
+			addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.DelegateType, *issue.DelegateID, "delegate")
+		}
+
 		// Subscribe @mentioned users in description
 		if issue.Description != nil && *issue.Description != "" {
 			for _, m := range parseMentions(*issue.Description) {
@@ -82,6 +92,15 @@ func registerSubscriberListeners(bus *events.Bus, pool *pgxpool.Pool) {
 		if assigneeChanged, _ := payload["assignee_changed"].(bool); assigneeChanged {
 			if issue.AssigneeType != nil && issue.AssigneeID != nil && isAssignmentRecipientType(*issue.AssigneeType) {
 				addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.AssigneeType, *issue.AssigneeID, "assignee")
+			}
+		}
+
+		// Subscribe the new delegate when the delegate changed (F01). Symmetric
+		// with the assignee branch above; reason 'delegate' (not 'delegated',
+		// which is the narrower agent-filed-on-your-behalf tier from MUL-5483).
+		if delegateChanged, _ := payload["delegate_changed"].(bool); delegateChanged {
+			if issue.DelegateType != nil && issue.DelegateID != nil && isAssignmentRecipientType(*issue.DelegateType) {
+				addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.DelegateType, *issue.DelegateID, "delegate")
 			}
 		}
 
@@ -275,6 +294,8 @@ func extractIssueFields(v any) (handler.IssueResponse, bool) {
 	issue.CreatorID, _ = m["creator_id"].(string)
 	issue.AssigneeType, _ = m["assignee_type"].(*string)
 	issue.AssigneeID, _ = m["assignee_id"].(*string)
+	issue.DelegateType, _ = m["delegate_type"].(*string)
+	issue.DelegateID, _ = m["delegate_id"].(*string)
 	issue.Description, _ = m["description"].(*string)
 	if issue.ID == "" || issue.CreatorID == "" {
 		return handler.IssueResponse{}, false

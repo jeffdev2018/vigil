@@ -145,6 +145,11 @@ export interface IssueUpdatedPayload {
   assignee_changed?: boolean;
   status_changed?: boolean;
   project_changed?: boolean;
+  // delegate_changed (F01) plays the same role for the delegate pair: it
+  // reconciles the delegate facets and, because involves_user_id covers
+  // delegates server-side, the involved list. Absent on an older backend,
+  // which has no delegates to move anything.
+  delegate_changed?: boolean;
 }
 
 export interface IssueDeletedPayload {

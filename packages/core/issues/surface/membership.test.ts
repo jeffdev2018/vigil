@@ -111,11 +111,13 @@ describe("issueChangedDims", () => {
       assignee: true,
       project: false,
       status: false,
+      delegate: false,
     });
     expect(issueChangedDims({ project_id: null })).toEqual({
       assignee: false,
       project: true,
       status: false,
+      delegate: false,
     });
   });
 
@@ -125,6 +127,7 @@ describe("issueChangedDims", () => {
       assignee: false,
       project: false,
       status: false,
+      delegate: false,
     });
     expect(issueChangedDims({ status: "todo" }, base).status).toBe(false);
     expect(issueChangedDims({ status: "done" }, base).status).toBe(true);
@@ -136,12 +139,27 @@ describe("issueChangedDims", () => {
       assignee: false,
       project: false,
       status: false,
+      delegate: false,
     });
   });
 });
 
+describe("issueChangedDims (delegate)", () => {
+  it("reports a delegate change only when the value actually moves", () => {
+    const base = { delegate_type: "member", delegate_id: "user-1" } as never;
+    expect(
+      issueChangedDims({ delegate_type: "member", delegate_id: "user-2" }, base).delegate,
+    ).toBe(true);
+    expect(
+      issueChangedDims({ delegate_type: "member", delegate_id: "user-1" }, base).delegate,
+    ).toBe(false);
+    // A patch that never mentions the delegate is not a delegate change.
+    expect(issueChangedDims({ priority: "high" }, base).delegate).toBe(false);
+  });
+});
+
 describe("listFilterDependsOn", () => {
-  const none = { assignee: false, project: false, status: false };
+  const none = { assignee: false, project: false, status: false, delegate: false };
 
   it("my:all reacts to assignee changes only", () => {
     expect(listFilterDependsOn("all", {}, { ...none, assignee: true })).toBe(true);
@@ -181,14 +199,31 @@ describe("listFilterDependsOn", () => {
       listFilterDependsOn(
         "created",
         { creator_id: "me" },
-        { assignee: true, project: true, status: true },
+        { assignee: true, project: true, status: true, delegate: true },
       ),
     ).toBe(false);
   });
 
+  // F01: involves_user_id covers delegates server-side, so a delegate change
+  // can move an issue into (or out of) an involved list. Nothing else on
+  // MyIssuesFilter reacts to it.
+  it("an involved list reacts to a delegate change", () => {
+    expect(
+      listFilterDependsOn("involved", { involves_user_id: "me" }, { ...none, delegate: true }),
+    ).toBe(true);
+  });
+  it("an assignee-filtered list ignores a delegate change", () => {
+    expect(
+      listFilterDependsOn("assigned", { assignee_id: "me" }, { ...none, delegate: true }),
+    ).toBe(false);
+  });
+  it("my:all reacts to a delegate change, since its involved leg covers delegates", () => {
+    expect(listFilterDependsOn("all", {}, { ...none, delegate: true })).toBe(true);
+  });
+
   it("the unfiltered workspace list never reacts", () => {
     expect(
-      listFilterDependsOn(undefined, {}, { assignee: true, project: true, status: true }),
+      listFilterDependsOn(undefined, {}, { assignee: true, project: true, status: true, delegate: true }),
     ).toBe(false);
   });
 });

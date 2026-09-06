@@ -116,10 +116,12 @@
     "no_results": "結果なし",
     "no_labels": "まだラベルがありません",
     "no_assignee": "担当者なし",
+    "no_delegate": "副担当なし",
     "no_project": "プロジェクトなし",
     "section_status": "ステータス",
     "section_priority": "優先度",
     "section_assignee": "担当者",
+    "section_delegate": "副担当",
     "section_creator": "作成者",
     "chip_op_contains": "{{value}} を含む",
     "chip_op_before": "{{value}} より前",
@@ -374,6 +376,7 @@
     "prop_priority": "優先度",
     "prop_stage": "ステージ",
     "prop_assignee": "担当者",
+    "prop_delegate": "副担当",
     "prop_start_date": "開始日",
     "prop_due_date": "期限",
     "prop_project": "プロジェクト",
@@ -778,6 +781,12 @@
       "squads_group": "スクワッド",
       "agent_runtime_required": "作業を割り当てる前に、このエージェントにランタイムをバインドしてください",
       "squad_runtime_required": "作業を割り当てる前に、このスクワッドのリーダーにランタイムをバインドしてください"
+    },
+    "delegate": {
+      "trigger_none": "副担当なし",
+      "search_placeholder": "副担当を設定...",
+      "members_group": "メンバー",
+      "agents_group": "エージェント"
     },
     "start_date": {
       "trigger_label": "開始日",

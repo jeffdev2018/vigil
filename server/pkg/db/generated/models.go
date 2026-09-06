@@ -1329,6 +1329,10 @@ type Issue struct {
 	ContractRisk     string             `json:"contract_risk"`
 	ContractRevision int32              `json:"contract_revision"`
 	GoalID           pgtype.UUID        `json:"goal_id"`
+	// F01: optional partner actor kind (member|agent, never squad). Names who the assignee works with; triggers no run and carries no status.
+	DelegateType pgtype.Text `json:"delegate_type"`
+	// F01: optional partner actor id, paired with delegate_type. Both halves move together; neither is a foreign key.
+	DelegateID pgtype.UUID `json:"delegate_id"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.

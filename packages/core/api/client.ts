@@ -1217,6 +1217,10 @@ export class ApiClient {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
     if (params?.include_no_assignee) search.set("include_no_assignee", "true");
+    if (params?.delegate_filters?.length) {
+      search.set("delegate_filters", params?.delegate_filters.map((f) => `${f.type}:${f.id}`).join(","));
+    }
+    if (params?.include_no_delegate) search.set("include_no_delegate", "true");
     if (params?.creator_filters?.length) {
       search.set("creator_filters", params.creator_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
@@ -1285,6 +1289,10 @@ export class ApiClient {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
     if (params.include_no_assignee) search.set("include_no_assignee", "true");
+    if (params.delegate_filters?.length) {
+      search.set("delegate_filters", params.delegate_filters.map((f) => `${f.type}:${f.id}`).join(","));
+    }
+    if (params.include_no_delegate) search.set("include_no_delegate", "true");
     if (params.creator_filters?.length) {
       search.set("creator_filters", params.creator_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }

@@ -22,6 +22,13 @@ export interface IssueChangedDims {
   assignee: boolean;
   project: boolean;
   status: boolean;
+  /**
+   * The delegate (F01) is a membership dimension for exactly two surfaces:
+   * the `delegate_filters` / `include_no_delegate` facets, and
+   * `involves_user_id` — which the server widened to cover delegates, so
+   * naming someone a delegate can move an issue INTO their involved list.
+   */
+  delegate: boolean;
 }
 
 /**
@@ -44,6 +51,9 @@ export function issueChangedDims(
       (has("assignee_type") && (!base || base.assignee_type !== p.assignee_type)),
     project: has("project_id") && (!base || base.project_id !== p.project_id),
     status: has("status") && p.status !== undefined && (!base || base.status !== p.status),
+    delegate:
+      (has("delegate_id") && (!base || base.delegate_id !== p.delegate_id)) ||
+      (has("delegate_type") && (!base || base.delegate_type !== p.delegate_type)),
   };
 }
 
@@ -61,7 +71,7 @@ export function listFilterDependsOn(
 ): boolean {
   // my:all is the union of assigned / created / involved — the assigned and
   // involved legs key on the assignee.
-  if (scope === "all") return changed.assignee;
+  if (scope === "all") return changed.assignee || changed.delegate;
   if (
     changed.assignee &&
     (filter.assignee_id !== undefined ||
@@ -71,6 +81,10 @@ export function listFilterDependsOn(
   ) {
     return true;
   }
+  // involves_user_id is the only MyIssuesFilter field a delegate change can
+  // move: there is no delegate_id leg on this filter, and the facets are
+  // handled by the flat-window contract in cache-coordinator.
+  if (changed.delegate && filter.involves_user_id !== undefined) return true;
   if (changed.project && filter.project_id !== undefined) return true;
   // creator_id filters never react to updates — creator is immutable.
   return false;

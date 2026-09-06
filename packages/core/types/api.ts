@@ -1,4 +1,4 @@
-import type { Issue, IssueMetadata, IssueStatus, IssueStatusCategory, IssuePriority, IssueAssigneeType } from "./issue";
+import type { Issue, IssueMetadata, IssueStatus, IssueStatusCategory, IssuePriority, IssueAssigneeType, IssueDelegateType } from "./issue";
 import type { PropertyFilterValue } from "./property";
 import type { MemberRole } from "./workspace";
 import type { Project } from "./project";
@@ -11,6 +11,9 @@ export interface CreateIssueRequest {
   priority?: IssuePriority;
   assignee_type?: IssueAssigneeType;
   assignee_id?: string;
+  /** The assignee's partner (F01); both halves must be sent together. */
+  delegate_type?: IssueDelegateType;
+  delegate_id?: string;
   parent_issue_id?: string;
   project_id?: string;
   /** Goal the issue names (K74); absent means it inherits its project's goals. */
@@ -68,6 +71,10 @@ export interface UpdateIssueRequest {
   priority?: IssuePriority;
   assignee_type?: IssueAssigneeType | null;
   assignee_id?: string | null;
+  /** The assignee's partner (F01). Both halves must be sent together; null on
+   *  both clears it. Rejected with 400 when it equals the assignee. */
+  delegate_type?: IssueDelegateType | null;
+  delegate_id?: string | null;
   position?: number;
   start_date?: string | null;
   due_date?: string | null;
@@ -162,6 +169,10 @@ export interface ListIssuesParams {
   /** Actor-aware table facets. OR within each field. */
   assignee_filters?: IssueActorRef[];
   include_no_assignee?: boolean;
+  /** Same shape and semantics for the delegate (F01): OR within the list,
+   *  and OR'd with `include_no_delegate` when both are present. */
+  delegate_filters?: IssueActorRef[];
+  include_no_delegate?: boolean;
   creator_filters?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
@@ -244,6 +255,10 @@ export interface ListGroupedIssuesParams {
   properties?: Record<string, PropertyFilterValue[]>;
   assignee_filters?: IssueActorRef[];
   include_no_assignee?: boolean;
+  /** Same shape and semantics for the delegate (F01): OR within the list,
+   *  and OR'd with `include_no_delegate` when both are present. */
+  delegate_filters?: IssueActorRef[];
+  include_no_delegate?: boolean;
   creator_filters?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;

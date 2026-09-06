@@ -523,7 +523,7 @@ func (q *Queries) ListLiveOrgStructures(ctx context.Context) ([]OrgStructure, er
 }
 
 const listOpenIssuesRoutedToUnit = `-- name: ListOpenIssuesRoutedToUnit :many
-SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id FROM issue i
+SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id FROM issue i
 WHERE i.workspace_id = $1 AND NOT (i.status = ANY($3::text[]))
   AND i.id IN (SELECT f.issue_id FROM org_flow f WHERE f.structure_id = $2 AND f.unit_id = $4::text AND f.kind = 'routing')
 LIMIT 200
@@ -584,6 +584,8 @@ func (q *Queries) ListOpenIssuesRoutedToUnit(ctx context.Context, arg ListOpenIs
 			&i.ContractRisk,
 			&i.ContractRevision,
 			&i.GoalID,
+			&i.DelegateType,
+			&i.DelegateID,
 		); err != nil {
 			return nil, err
 		}

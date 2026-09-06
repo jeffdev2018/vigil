@@ -116,10 +116,12 @@
     "no_results": "无结果",
     "no_labels": "还没有标签",
     "no_assignee": "无负责人",
+    "no_delegate": "无协作人",
     "no_project": "无项目",
     "section_status": "状态",
     "section_priority": "优先级",
     "section_assignee": "负责人",
+    "section_delegate": "协作人",
     "section_creator": "创建者",
     "chip_op_contains": "包含 {{value}}",
     "chip_op_before": "早于 {{value}}",
@@ -374,6 +376,7 @@
     "prop_priority": "优先级",
     "prop_stage": "阶段",
     "prop_assignee": "负责人",
+    "prop_delegate": "协作人",
     "prop_start_date": "开始日期",
     "prop_due_date": "截止日期",
     "prop_project": "项目",
@@ -778,6 +781,12 @@
       "squads_group": "小队",
       "agent_runtime_required": "请先为该智能体绑定运行时，再分配工作",
       "squad_runtime_required": "请先为该小队的负责人绑定运行时，再分配工作"
+    },
+    "delegate": {
+      "trigger_none": "无协作人",
+      "search_placeholder": "指定协作人...",
+      "members_group": "成员",
+      "agents_group": "智能体"
     },
     "start_date": {
       "trigger_label": "开始日期",

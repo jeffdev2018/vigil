@@ -6,7 +6,7 @@
 -- because that is already the meaning of the `assignee_id` filter (tab 1
 -- "Assigned to me"), and the two filters must produce disjoint result sets.
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
-       i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
+       i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
        i.revision, i.goal_id
 FROM issue i
@@ -58,6 +58,16 @@ WHERE i.workspace_id = $1
            WHERE s.workspace_id = $1
              AND sm.member_type = 'agent'
              AND a.workspace_id = $1
+             AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
+    ))
+    -- (5) F01 delegate: the user is named as the assignee's partner, either
+    -- directly or through an agent they own. Unlike the assignee branches,
+    -- MEMBER-direct delegation IS included -- there is no separate delegate_id
+    -- filter tab for it to stay disjoint from.
+    OR (i.delegate_type = 'member' AND i.delegate_id = sqlc.narg('involves_user_id')::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+          SELECT a.id FROM agent a
+           WHERE a.workspace_id = $1
              AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
     ))
   )
@@ -148,10 +158,11 @@ INSERT INTO issue (
     workspace_id, title, description, status, priority,
     assignee_type, assignee_id, creator_type, creator_id,
     parent_issue_id, position, start_date, due_date, number, project_id,
-    stage, last_activity_at, id
+    stage, delegate_type, delegate_id, last_activity_at, id
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-    sqlc.narg('stage'), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+    sqlc.narg('stage'), sqlc.narg('delegate_type'), sqlc.narg('delegate_id'),
+    now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 ) RETURNING *;
 
 -- name: GetIssueByNumber :one
@@ -168,6 +179,15 @@ WITH candidate AS (
         COALESCE(sqlc.narg('priority')::text, i.priority) AS next_priority,
         sqlc.narg('assignee_type')::text AS next_assignee_type,
         sqlc.narg('assignee_id')::uuid AS next_assignee_id,
+        -- F01 delegate: a BARE narg like the assignee pair, so an omitted
+        -- value CLEARS the column. Every caller that builds UpdateIssueParams
+        -- must therefore pre-fill both halves from the current row (they all
+        -- already do this for assignee / dates / parent / project / stage),
+        -- and refreshUntouchedNullableIssueParams re-applies that under the
+        -- row lock. A new builder without the pre-fill silently unsets the
+        -- delegate.
+        sqlc.narg('delegate_type')::text AS next_delegate_type,
+        sqlc.narg('delegate_id')::uuid AS next_delegate_id,
         CASE
             -- An explicit position wins. Cross-column drag-and-drop sends
             -- status and position together and means the slot it dropped on.
@@ -209,18 +229,24 @@ WITH candidate AS (
         candidate.*,
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
+            delegate_type, delegate_id,
             position, start_date, due_date, parent_issue_id, project_id, stage
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
-            next_assignee_type, next_assignee_id, next_position, next_start_date,
+            next_assignee_type, next_assignee_id,
+            next_delegate_type, next_delegate_id,
+            next_position, next_start_date,
             next_due_date, next_parent_issue_id, next_project_id, next_stage
         ) AS did_change,
         ROW(
             title, description, status, priority, assignee_type, assignee_id,
+            delegate_type, delegate_id,
             start_date, due_date, parent_issue_id, project_id, stage
         ) IS DISTINCT FROM ROW(
             next_title, next_description, next_status, next_priority,
-            next_assignee_type, next_assignee_id, next_start_date, next_due_date,
+            next_assignee_type, next_assignee_id,
+            next_delegate_type, next_delegate_id,
+            next_start_date, next_due_date,
             next_parent_issue_id, next_project_id, next_stage
         ) AS did_activity
     FROM candidate
@@ -232,6 +258,8 @@ UPDATE issue AS i SET
     priority = changed.next_priority,
     assignee_type = changed.next_assignee_type,
     assignee_id = changed.next_assignee_id,
+    delegate_type = changed.next_delegate_type,
+    delegate_id = changed.next_delegate_id,
     position = changed.next_position,
     start_date = changed.next_start_date,
     due_date = changed.next_due_date,
@@ -281,10 +309,12 @@ INSERT INTO issue (
     workspace_id, title, description, status, priority,
     assignee_type, assignee_id, creator_type, creator_id,
     parent_issue_id, position, start_date, due_date, number, project_id,
-    origin_type, origin_id, stage, last_activity_at, id
+    origin_type, origin_id, stage, delegate_type, delegate_id, last_activity_at, id
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-    sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('stage'), now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+    sqlc.narg('origin_type'), sqlc.narg('origin_id'), sqlc.narg('stage'),
+    sqlc.narg('delegate_type'), sqlc.narg('delegate_id'),
+    now(), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 ) RETURNING *;
 
 -- name: LockIssueDuplicateKey :exec
@@ -350,7 +380,7 @@ DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 -- See ListIssues for the semantics of involves_user_id (mirrors the 4-branch
 -- filter; member-direct assignment is intentionally excluded).
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
-       i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
+       i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
        i.revision, i.goal_id
 FROM issue i
@@ -453,6 +483,16 @@ WHERE i.workspace_id = $1
              AND a.workspace_id = $1
              AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
     ))
+    -- (5) F01 delegate: the user is named as the assignee's partner, either
+    -- directly or through an agent they own. Unlike the assignee branches,
+    -- MEMBER-direct delegation IS included -- there is no separate delegate_id
+    -- filter tab for it to stay disjoint from.
+    OR (i.delegate_type = 'member' AND i.delegate_id = sqlc.narg('involves_user_id')::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+          SELECT a.id FROM agent a
+           WHERE a.workspace_id = $1
+             AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
+    ))
   )
 ORDER BY i.position ASC, i.created_at DESC;
 
@@ -499,6 +539,16 @@ WHERE i.workspace_id = $1
            WHERE s.workspace_id = $1
              AND sm.member_type = 'agent'
              AND a.workspace_id = $1
+             AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
+    ))
+    -- (5) F01 delegate: the user is named as the assignee's partner, either
+    -- directly or through an agent they own. Unlike the assignee branches,
+    -- MEMBER-direct delegation IS included -- there is no separate delegate_id
+    -- filter tab for it to stay disjoint from.
+    OR (i.delegate_type = 'member' AND i.delegate_id = sqlc.narg('involves_user_id')::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+          SELECT a.id FROM agent a
+           WHERE a.workspace_id = $1
              AND a.owner_id     = sqlc.narg('involves_user_id')::uuid
     ))
   );

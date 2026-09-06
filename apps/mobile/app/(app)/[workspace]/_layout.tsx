@@ -210,6 +210,17 @@ export default function WorkspaceLayout() {
             title: "Assignee",
           }}
         />
+        {/* Delegate (F01) — same native-header + search experiment as the
+            assignee sheet above; the two sit next to each other in the
+            attribute row, so they must feel identical. */}
+        <Stack.Screen
+          name="issue/[id]/picker/delegate"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Delegate",
+          }}
+        />
         <Stack.Screen
           name="issue/[id]/picker/label"
           options={SHEET_OPTIONS}
