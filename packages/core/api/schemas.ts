@@ -5186,6 +5186,27 @@ export const CompetencySettingsSchema = z.object({
   min_sample: z.number().int().catch(5).default(5),
 }).loose();
 
+// Workflow execution safety (JEF-275).
+export const RoutingProblemSchema = z.object({
+  code: z.string().catch("").default(""),
+  message: z.string().catch("").default(""),
+  fatal: z.boolean().catch(false).default(false),
+}).loose();
+
+export const RoutingCheckSchema = z.object({
+  agent_id: z.string().catch("").default(""),
+  ok: z.boolean().catch(true).default(true),
+  fatal: z.boolean().catch(false).default(false),
+  problems: z.array(RoutingProblemSchema).catch([]).default([]),
+}).loose();
+
+export const WorkflowLimitsSchema = z.object({
+  max_legs: z.number().int().catch(8).default(8),
+  max_cost_usd_ticks: z.number().int().catch(0).default(0),
+  min_legs: z.number().int().catch(1).default(1),
+  max_legs_allowed: z.number().int().catch(50).default(50),
+}).loose();
+
 export const AssigneeSuggestionSchema = z.object({
   domain_key: z.string().default(""),
   min_sample: z.number().int().catch(5).default(5),

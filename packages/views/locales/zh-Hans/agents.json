@@ -1138,6 +1138,11 @@
     "preview_off": "已关闭「先给我看看」：写入会即时应用",
     "preview_failed": "无法更改效果模式"
   },
+  "routing_check": {
+    "title": "路由检查",
+    "ok": "针对该 Agent 的触发会实际运行。",
+    "more": "另有 {{count}} 项"
+  },
   "competency": {
     "title": "按领域的能力",
     "empty": "数据不足：随着分配给该智能体的 issue 关闭，统计会增长。",

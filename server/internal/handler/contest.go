@@ -689,7 +689,9 @@ func (h *Handler) settleContestRun(ctx context.Context, task db.AgentTaskQueue, 
 			slog.Warn("contest: store objections failed", "error", err)
 			return
 		}
-		if status == contestStatusObjectionsReady && len(report.Objections) > 0 && c.AuthorAgentID.Valid && c.IssueID.Valid {
+		// Bounded workflows (JEF-275): the author's answer is one more leg.
+		answerAllowed, _ := h.TaskService.WorkflowAllowsLeg(ctx, task, service.LegRoleAnswer)
+		if answerAllowed && status == contestStatusObjectionsReady && len(report.Objections) > 0 && c.AuthorAgentID.Valid && c.IssueID.Valid {
 			if issue, err := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: c.IssueID, WorkspaceID: c.WorkspaceID}); err == nil {
 				if answer, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, c.AuthorAgentID, contestAnswerBrief(t, raw), c.CreatedBy); err == nil {
 					if _, serr := h.TaskService.StampLeg(ctx, answer, service.LegRoleAnswer, task); serr != nil {
@@ -717,7 +719,10 @@ func (h *Handler) settleContestRun(ctx context.Context, task db.AgentTaskQueue, 
 				refuted = true
 			}
 		}
-		if refuted && c.Round < c.MaxRounds && c.ChallengerAgentID.Valid {
+		// Bounded workflows (JEF-275): max_rounds bounds the contest, this
+		// bounds the workflow the contest legs belong to.
+		againAllowed, _ := h.TaskService.WorkflowAllowsLeg(ctx, task, service.LegRoleCritique)
+		if againAllowed && refuted && c.Round < c.MaxRounds && c.ChallengerAgentID.Valid {
 			if issue, err := h.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: c.IssueID, WorkspaceID: c.WorkspaceID}); err == nil {
 				if _, err := h.Queries.SetContestAnswers(ctx, db.SetContestAnswersParams{ID: c.ID, Answers: raw, Status: contestStatusRunning}); err == nil {
 					if again, err := h.TaskService.EnqueueCrossReviewRun(ctx, issue, c.ChallengerAgentID, contestChallengerBrief(t, c.AuthorProvider, int(c.Round)+1, raw), c.CreatedBy); err == nil {

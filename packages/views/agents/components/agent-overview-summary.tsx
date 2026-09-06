@@ -13,6 +13,7 @@ import { VisibilityBadge } from "./visibility-badge";
 import { AgentPerformanceSummary } from "./tabs/activity-tab";
 import { AgentScorecardSection } from "./agent-scorecard-section";
 import { AgentCompetencySection } from "./agent-competency-section";
+import { AgentRoutingCheck } from "./agent-routing-check";
 
 interface AgentOverviewSummaryProps {
   agent: Agent;
@@ -118,6 +119,7 @@ export function AgentOverviewSummary({
       {/* Scorecard (K25): the rates behind "does this agent work on my code". */}
       <AgentScorecardSection agentId={agent.id} />
       {/* Learned competency (K43): success per domain, duels counted apart. */}
+      <AgentRoutingCheck agentId={agent.id} />
       <AgentCompetencySection agentId={agent.id} />
     </aside>
   );

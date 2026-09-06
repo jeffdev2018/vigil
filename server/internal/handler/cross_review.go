@@ -254,6 +254,11 @@ func (h *Handler) startCrossReview(ctx context.Context, task db.AgentTaskQueue, 
 	if ws, err := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); err == nil && !service.CrossReviewSettings(ws.Settings).Allows(uuidToString(issue.ProjectID)) {
 		return db.AgentTaskQueue{}, errors.New("cross review is switched off for this project")
 	}
+	// Bounded workflows (JEF-275): the review grows the reviewed run's
+	// workflow, so it is refused once that workflow reached its ceiling.
+	if ok, reason := h.TaskService.WorkflowAllowsLeg(ctx, task, service.LegRoleReview); !ok {
+		return db.AgentTaskQueue{}, errors.New(service.WorkflowLegRefusedNote(service.LegRoleReview, reason))
+	}
 	cfg := h.projectReviewConfigFor(ctx, issue)
 	provider := h.runProvider(ctx, task)
 	reviewer, err := h.pickCrossReviewer(ctx, issue, task, cfg)
@@ -345,6 +350,13 @@ func (h *Handler) maybeReworkAfterReview(ctx context.Context, issue db.Issue, re
 	if int(cycles) >= int(cfg.MaxCycles) {
 		slog.Warn("cross review: request_changes past max cycles, escalating", "issue_id", uuidToString(issue.ID), "cycles", cycles, "max_cycles", cfg.MaxCycles)
 		h.publish("cross_review:escalated", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "cycles": cycles})
+		return
+	}
+	// Bounded workflows (JEF-275): max_cycles bounds the review count, this
+	// bounds the whole workflow — every retry, fallback and revision included.
+	if ok, reason := h.TaskService.WorkflowAllowsLeg(ctx, reviewTask, service.LegRoleRevision); !ok {
+		slog.Warn("cross review: rework refused by the workflow limits", "issue_id", uuidToString(issue.ID), "reason", reason)
+		h.publish("cross_review:escalated", uuidToString(issue.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(issue.ID), "cycles": cycles, "reason": reason})
 		return
 	}
 	rework, err := h.TaskService.EnqueueTaskForIssueWithHandoff(ctx, issue, reviewReworkNote(report, int(cycles)), reviewTask.OriginatorUserID)

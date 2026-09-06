@@ -437,6 +437,8 @@ import {
   AssigneeSuggestionSchema,
   IssueEstimateSchema,
   CompetencySettingsSchema,
+  RoutingCheckSchema,
+  WorkflowLimitsSchema,
   CrossReviewListSchema,
   AgentEffectListSchema,
   UndoReportSchema,
@@ -3838,6 +3840,22 @@ export class ApiClient {
   async putCompetencySettings(input: import("../agents/competency").CompetencySettings): Promise<import("../agents/competency").CompetencySettings> {
     const raw = await this.fetch<unknown>(`/api/competency-settings`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, CompetencySettingsSchema, input, { endpoint: "PUT /api/competency-settings" });
+  }
+
+  // Workflow execution safety (JEF-275).
+  async getAgentRoutingCheck(agentId: string): Promise<import("../agents/routing-check").RoutingCheck> {
+    const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/routing-check`);
+    return parseWithFallback(raw, RoutingCheckSchema, { agent_id: agentId, ok: true, fatal: false, problems: [] }, { endpoint: "GET /api/agents/:id/routing-check" });
+  }
+
+  async getWorkflowLimits(): Promise<import("../agents/routing-check").WorkflowLimitsSettings> {
+    const raw = await this.fetch<unknown>(`/api/workflow-limits`);
+    return parseWithFallback(raw, WorkflowLimitsSchema, { max_legs: 8, max_cost_usd_ticks: 0, min_legs: 1, max_legs_allowed: 50 }, { endpoint: "GET /api/workflow-limits" });
+  }
+
+  async putWorkflowLimits(input: import("../agents/routing-check").WorkflowLimits): Promise<import("../agents/routing-check").WorkflowLimitsSettings> {
+    const raw = await this.fetch<unknown>(`/api/workflow-limits`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, WorkflowLimitsSchema, { ...input, min_legs: 1, max_legs_allowed: 50 }, { endpoint: "PUT /api/workflow-limits" });
   }
 
   async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {

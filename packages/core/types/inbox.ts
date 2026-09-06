@@ -47,6 +47,9 @@ export type InboxItemType =
   | "mcp_alert"
   // BYOK (K48): a model key was retired after a vendor auth or quota failure.
   | "model_key_alert"
+  // Validated routing (JEF-275): a trigger was refused because the agent is
+  // pointed at nothing that could ever claim its work.
+  | "routing_alert"
   | "decision_auto_decided"
   // The triage queue has items nobody has decided on for two days. Filed for
   // the workspace's admins/owners, at most once a day per workspace.

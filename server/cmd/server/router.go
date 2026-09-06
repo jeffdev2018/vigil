@@ -2318,6 +2318,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Put("/api/issues/{id}/contract-risk", h.SetIssueContractRisk)
 			r.Get("/api/agents/{id}/effect-mode", h.GetAgentEffectMode)
 			r.Put("/api/agents/{id}/effect-mode", h.SetAgentEffectMode)
+			// Validated routing (JEF-275).
+			r.Get("/api/agents/{id}/routing-check", h.GetAgentRoutingCheck)
 			// Permission profiles (K06): what an agent may touch when it runs.
 			r.Route("/api/permission-profiles", func(r chi.Router) {
 				r.Get("/", h.ListPermissionProfiles)
@@ -2384,6 +2386,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/estimate", h.GetIssueEstimate)
 			r.Get("/api/competency-settings", h.GetCompetencySettings)
 			r.Put("/api/competency-settings", h.PutCompetencySettings)
+			// Bounded workflows (JEF-275).
+			r.Get("/api/workflow-limits", h.GetWorkflowLimits)
+			r.Put("/api/workflow-limits", h.PutWorkflowLimits)
 			// Cross-provider self-review (K15): reports and manual retry.
 			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
 			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)

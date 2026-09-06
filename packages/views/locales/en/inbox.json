@@ -98,7 +98,8 @@
     "org_alert": "Organisation alert",
     "decision_auto_decided": "Decided for you",
     "mcp_alert": "MCP gateway alert",
-    "model_key_alert": "Model key retired"
+    "model_key_alert": "Model key retired",
+    "routing_alert": "Agent cannot be routed"
   },
   "labels": {
     "set_status_to": "Set status to",
