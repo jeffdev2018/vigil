@@ -1532,6 +1532,16 @@
     "toast_saved": "Repositories saved",
     "toast_save_failed": "Failed to save repositories"
   },
+  "repo_index": {
+    "section": "Semantic index",
+    "description_semantic": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by meaning and by keyword. Turning it on stores that repository's source in Multica and sends it to this deployment's embeddings provider.",
+    "description_lexical": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by keyword — this deployment has no embeddings model configured. Turning it on stores that repository's source in Multica.",
+    "empty": "No repository is attached to this workspace or its projects yet.",
+    "status_indexed": "Up to date at commit {{commit}} · {{chunks}} chunks across {{files}} files",
+    "status_waiting": "Will be indexed after the next run on this repository",
+    "status_disabled": "Not indexed",
+    "save_failed": "Could not save the semantic index setting."
+  },
   "desktop": {
     "tabs": {
       "updates": "Updates"

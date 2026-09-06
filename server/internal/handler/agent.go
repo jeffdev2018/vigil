@@ -490,9 +490,18 @@ type AgentTaskResponse struct {
 	// memories they are shared by every agent in the workspace. Omitted when
 	// the Brain is empty and by older servers.
 	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
-	CreatedAt      string                 `json:"created_at"`
-	PriorSessionID string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
-	PriorWorkDir   string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
+	// RepoIndexHints (K47) are the shared repo index's most relevant chunks for
+	// this issue: file, line range and a short excerpt, so the run starts from a
+	// place instead of a grep. They ORIENT — the brief tells the run to read the
+	// real file before editing, because a chunk can predate the working tree.
+	// Omitted when no repo is indexed, when nothing matched, and by older
+	// servers. RepoIndexEnabled names the repos the workspace opted in to, so a
+	// daemon knows which ones to re-index after the run without asking again.
+	RepoIndexHints   []RepoIndexHintContext `json:"repo_index_hints,omitempty"`
+	RepoIndexEnabled []string               `json:"repo_index_enabled,omitempty"`
+	CreatedAt        string                 `json:"created_at"`
+	PriorSessionID   string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
+	PriorWorkDir     string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
 	// PriorSessionResumeUnavailable is set when a more recent Codex session was
 	// withheld because its rollout was missing (MUL-5305); PriorSessionID (if
 	// any) is then an older fallback. The daemon surfaces the continuity gap in

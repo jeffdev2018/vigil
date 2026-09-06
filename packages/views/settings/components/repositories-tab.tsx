@@ -61,6 +61,7 @@ import {
 } from "./settings-layout";
 import { useAutoSave } from "./use-auto-save";
 import { GitHubMark } from "./github-mark";
+import { RepoIndexSection } from "./repo-index-section";
 
 const EMPTY_REPOSITORIES: WorkspaceRepo[] = [];
 
@@ -474,6 +475,13 @@ export function RepositoriesTab() {
           )}
         </SettingsCard>
       </SettingsSection>
+
+      {/* Shared semantic index (K47): one opt-in per repository, right below
+          the list it applies to. Its own section rather than a column in the
+          rows above, because it is a different decision — the rows say which
+          repositories agents may clone, this says which ones may be copied
+          into Multica's database. */}
+      <RepoIndexSection canEdit={canManageWorkspace} />
 
       <Dialog
         open={githubPickerOpen}

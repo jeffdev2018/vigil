@@ -138,6 +138,7 @@ type Config struct {
 	//   - LLMAPIKey       -> MULTICA_LLM_API_KEY
 	//   - LLMBaseURL       -> MULTICA_LLM_BASE_URL (OpenAI or any compatible gateway)
 	//   - LLMDefaultModel  -> MULTICA_LLM_DEFAULT_MODEL (used when a request omits `model`)
+	//   - LLMEmbeddingModel -> MULTICA_LLM_EMBEDDING_MODEL (enables /embeddings; empty keeps the shared repo index lexical)
 	//   - LLMMaxRetries    -> MULTICA_LLM_MAX_RETRIES (transport retry budget)
 	//   - STTBaseURL       -> MULTICA_STT_BASE_URL (OpenAI-compatible /v1/audio/transcriptions)
 	//   - STTAPIKey        -> MULTICA_STT_API_KEY
@@ -153,6 +154,10 @@ type Config struct {
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
+	// LLMEmbeddingModel enables the embeddings surface (K47). Empty is the
+	// default and a supported steady state: the shared repo index then ranks
+	// lexically and no code text is ever sent to the embeddings upstream.
+	LLMEmbeddingModel string
 	// LLMMaxRetries is the parsed MULTICA_LLM_MAX_RETRIES budget. nil means
 	// unset (llm.DefaultMaxRetries applies); llm.Retries(0) disables retries.
 	// The type carries the validation: it can only be built through llm.Retries,
@@ -514,10 +519,11 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	}
 
 	llmClient := llm.New(llm.Config{
-		APIKey:       cfg.LLMAPIKey,
-		BaseURL:      cfg.LLMBaseURL,
-		DefaultModel: cfg.LLMDefaultModel,
-		MaxRetries:   cfg.LLMMaxRetries,
+		APIKey:         cfg.LLMAPIKey,
+		BaseURL:        cfg.LLMBaseURL,
+		DefaultModel:   cfg.LLMDefaultModel,
+		EmbeddingModel: cfg.LLMEmbeddingModel,
+		MaxRetries:     cfg.LLMMaxRetries,
 	})
 	// Report the effective retry policy so an operator can confirm from the
 	// boot log alone what a misbehaving upstream will cost, instead of inferring

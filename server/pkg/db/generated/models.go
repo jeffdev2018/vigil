@@ -2050,6 +2050,22 @@ type RefactorCampaign struct {
 	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
 }
 
+type RepoIndexChunk struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	RepoIdentifier string             `json:"repo_identifier"`
+	FilePath       string             `json:"file_path"`
+	Symbol         string             `json:"symbol"`
+	StartLine      int32              `json:"start_line"`
+	EndLine        int32              `json:"end_line"`
+	Content        string             `json:"content"`
+	ContentHash    string             `json:"content_hash"`
+	Tsv            interface{}        `json:"tsv"`
+	Embedding      string             `json:"embedding"`
+	IndexedCommit  string             `json:"indexed_commit"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RunLimitEvent struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

@@ -1359,6 +1359,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceCodeHealthScans(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Shared semantic repo index (K47). Stores repository source text,
+			// so teardown must remove it with the rest of the workspace.
+			name: "purge repo index chunks",
+			run:  func() error { return qtx.PurgeWorkspaceRepoIndexChunks(ctx, requester.WorkspaceID) },
+		},
+		{
 			// Data residency (K46): the declarations hang off this
 			// workspace's runtimes, so they go before agent_runtime does.
 			name: "purge runtime compliance profiles",

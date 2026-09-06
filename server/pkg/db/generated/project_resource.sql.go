@@ -271,6 +271,36 @@ func (q *Queries) ListProjectResourcesInWorkspace(ctx context.Context, arg ListP
 	return items, nil
 }
 
+const listWorkspaceRepoResourceRefs = `-- name: ListWorkspaceRepoResourceRefs :many
+SELECT DISTINCT resource_ref
+FROM project_resource
+WHERE workspace_id = $1
+  AND resource_type = 'github_repo'
+`
+
+// Every github_repo resource of a workspace, whatever project it hangs off.
+// The repo-index settings page needs the workspace's repository list, which is
+// otherwise only reachable one project at a time.
+func (q *Queries) ListWorkspaceRepoResourceRefs(ctx context.Context, workspaceID pgtype.UUID) ([][]byte, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceRepoResourceRefs, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := [][]byte{}
+	for rows.Next() {
+		var resource_ref []byte
+		if err := rows.Scan(&resource_ref); err != nil {
+			return nil, err
+		}
+		items = append(items, resource_ref)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProjectResource = `-- name: UpdateProjectResource :one
 UPDATE project_resource
 SET resource_ref = $2,

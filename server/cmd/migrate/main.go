@@ -403,6 +403,9 @@ var concurrentIndexCleanups = map[string]string{
 	"693_linear_comment_link_remote_index":                      "uq_linear_comment_link_remote",
 	"694_linear_comment_link_comment_index":                     "uq_linear_comment_link_comment",
 	"696_code_health_scan_index":                                "idx_code_health_scan_workspace",
+	"712_repo_index_chunk_path_index":                           "idx_repo_index_chunk_path",
+	"713_repo_index_chunk_tsv_index":                            "idx_repo_index_chunk_tsv",
+	"714_repo_index_chunk_embedding_index":                      "idx_repo_index_chunk_embedding",
 	"702_runtime_compliance_profile_index":                      "idx_runtime_compliance_profile_runtime",
 }
 

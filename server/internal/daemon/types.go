@@ -133,7 +133,14 @@ type Task struct {
 	// WorkspaceNotes mirrors handler.AgentTaskResponse.WorkspaceNotes: the
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.
-	WorkspaceNotes                []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	// RepoIndexHints mirrors handler.AgentTaskResponse.RepoIndexHints (K47):
+	// the shared repo index's best matches for this issue, rendered into the
+	// brief's orientation section. RepoIndexEnabled names the repositories the
+	// workspace opted in to, which is what gates the post-run indexing pass —
+	// the daemon never indexes a repo the server did not list here.
+	RepoIndexHints                []execenv.RepoIndexHintForEnv `json:"repo_index_hints,omitempty"`
+	RepoIndexEnabled              []string                      `json:"repo_index_enabled,omitempty"`
 	IsLeaderTask                  bool                          `json:"is_leader_task,omitempty"`                   // true when executing in the squad-leader coordinator role
 	LeaderRoleResolved            bool                          `json:"leader_role_resolved,omitempty"`             // server capability: IsLeaderTask/SquadID authoritatively answer "is this a leader run". Absent on servers predating it — those before #4951 never sent is_leader_task at all, later ones send it without this guarantee — so taskIsSquadLeader falls back to the briefing marker for both (MUL-5811)
 	PriorSessionID                string                        `json:"prior_session_id,omitempty"`                 // Claude session ID from a previous task on this issue

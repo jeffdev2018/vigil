@@ -437,6 +437,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_LLM_API_KEY")),
 		LLMBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_LLM_BASE_URL")),
 		LLMDefaultModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_DEFAULT_MODEL")),
+		LLMEmbeddingModel:        strings.TrimSpace(os.Getenv("MULTICA_LLM_EMBEDDING_MODEL")),
 		LLMMaxRetries:            opts.LLMMaxRetries,
 		LLMRoutingModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_ROUTING_MODEL")),
 		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
@@ -1615,6 +1616,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Get("/workspaces/{workspaceId}/repos", h.GetDaemonWorkspaceRepos)
 		r.Get("/workspaces/{workspaceId}/runtime-profiles", h.DaemonListRuntimeProfiles)
 
+		// Shared semantic repo index (K47). The daemon holds the checkout, so it
+		// produces the chunks; these three close one incremental pass. Workspace
+		// in the path like every other workspace-scoped daemon route — a daemon
+		// token can be machine-level and serve several workspaces.
+		r.Post("/workspaces/{workspaceId}/repo-index/diff", h.DiffRepoIndex)
+		r.Post("/workspaces/{workspaceId}/repo-index/upsert", h.UpsertRepoIndex)
+		r.Post("/workspaces/{workspaceId}/repo-index/prune", h.PruneRepoIndex)
+
 		// Agent-triggered plugin hooks. The daemon's local MCP server calls
 		// this when an agent picks one of its tools; the server makes the
 		// signed request so the daemon never holds the signing secret.
@@ -2472,6 +2481,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Bounded workflows (JEF-275).
 			r.Get("/api/workflow-limits", h.GetWorkflowLimits)
 			r.Put("/api/workflow-limits", h.PutWorkflowLimits)
+			r.Get("/api/repo-index/settings", h.GetRepoIndexSettings)
+			r.Put("/api/repo-index/settings", h.PutRepoIndexSettings)
 			// Data residency (K46): where this workspace's work may run.
 			r.Get("/api/data-residency", h.GetDataResidencyPolicy)
 			r.Put("/api/data-residency", h.PutDataResidencyPolicy)

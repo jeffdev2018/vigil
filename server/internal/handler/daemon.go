@@ -2319,6 +2319,11 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		resp.ResumeFromCheckpointSeq = task.LastCheckpointSeq.Int64
 	}
 	var issueNumber int32
+	// repoIndexQuery (K47) is what the shared repo index is searched with. Set
+	// from the claimed issue below; empty on chat/autopilot/quick-create claims,
+	// which have no stable subject to search a codebase for and therefore get
+	// the enabled-repo list without hints.
+	var repoIndexQuery string
 	// Claim-only capability: this server resolves the squad-leader role on the
 	// wire (is_leader_task / squad_id), so the daemon must not re-derive it
 	// from the briefing text. Set unconditionally — on every claim, leader or
@@ -2661,6 +2666,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ThreadName = issue.Title
 		issueNumber = issue.Number
+		repoIndexQuery = repoIndexClaimQuery(issue.Title, issue.Description.String)
 
 		// Squad-leader briefing injection: keyed off the task being a
 		// leader-task (is_leader_task) carrying a squad_id — NOT off the
@@ -3484,6 +3490,15 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		if ws.Context.Valid {
 			resp.WorkspaceContext = ws.Context.String
 		}
+		// Shared repo index hints (K47) ride this same assembly point: it is the
+		// one place where BOTH the workspace settings (the per-repo opt-in) and
+		// resp.Repos (already narrowed to the task's project repos by
+		// resolveClaimProjectContext) are in hand. Non-blocking like the Brain
+		// notes above — a failed retrieval costs the run its orientation
+		// section, never its dispatch.
+		hints, enabledRepos := h.repoIndexHintsForClaim(r.Context(), parseUUID(resp.WorkspaceID), ws.Settings, resp.Repos, repoIndexQuery)
+		resp.RepoIndexHints = hints
+		resp.RepoIndexEnabled = enabledRepos
 	} else {
 		slog.Warn("task claim: failed to load workspace for context injection",
 			"task_id", uuidToString(task.ID),

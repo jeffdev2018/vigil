@@ -339,6 +339,7 @@ import {
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
+import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
@@ -3920,6 +3921,25 @@ export class ApiClient {
   async listCodeHealthScans(): Promise<CodeHealthScan[]> {
     const raw = await this.fetch<unknown>(`/api/code-health/scans`);
     return parseWithFallback(raw, CodeHealthScanListSchema, { scans: [] }, { endpoint: "GET /api/code-health/scans" }).scans as CodeHealthScan[];
+  }
+
+  // Shared semantic repo index (K47).
+
+  async getRepoIndexSettings(): Promise<RepoIndexSettings> {
+    const raw = await this.fetch<unknown>(`/api/repo-index/settings`);
+    return parseWithFallback(raw, RepoIndexSettingsSchema, REPO_INDEX_EMPTY_SETTINGS, { endpoint: "GET /api/repo-index/settings" }) as RepoIndexSettings;
+  }
+
+  async putRepoIndexSettings(input: RepoIndexSettingsInput): Promise<RepoIndexRepo> {
+    const raw = await this.fetch<unknown>(`/api/repo-index/settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RepoIndexRepoSchema, {
+      repo_identifier: input.repo_identifier,
+      enabled: input.enabled,
+      chunk_count: 0,
+      file_count: 0,
+      last_indexed_commit: "",
+      last_indexed_at: "",
+    }, { endpoint: "PUT /api/repo-index/settings" }) as RepoIndexRepo;
   }
 
   async triggerCodeHealthScan(): Promise<CodeHealthScan | null> {

@@ -87,6 +87,20 @@ type WorkspaceNoteForEnv struct {
 	Updated string   `json:"updated_at,omitempty"`
 }
 
+// RepoIndexHintForEnv is one hit from the workspace's shared repo index (K47)
+// as the run receives it. It is the wire shape too (json tags mirror
+// handler.RepoIndexHintContext), so the daemon decodes straight into it.
+type RepoIndexHintForEnv struct {
+	RepoIdentifier string  `json:"repo_identifier"`
+	FilePath       string  `json:"file_path"`
+	Symbol         string  `json:"symbol,omitempty"`
+	StartLine      int     `json:"start_line"`
+	EndLine        int     `json:"end_line"`
+	Snippet        string  `json:"snippet"`
+	Score          float64 `json:"score"`
+	Stale          bool    `json:"stale,omitempty"`
+}
+
 // AgentMemoryForEnv is one durable agent memory fact as the brief renders it:
 // the fact text plus its governance state (JEF-269). State values are "draft"
 // and "approved"; an empty state (a pre-governance daemon or caller) is
@@ -227,7 +241,13 @@ type TaskContextForEnv struct {
 	// as files under .multica/knowledge/ and announced by the brief's
 	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
 	// they are shared by every agent in the workspace.
-	WorkspaceNotes        []WorkspaceNoteForEnv
+	WorkspaceNotes []WorkspaceNoteForEnv
+	// RepoIndexHints are the shared repo index's best matches for this issue
+	// (K47), already ranked and capped by the server. They are ORIENTATION: the
+	// section they render tells the run to open the real file before editing,
+	// because a chunk can be older than the working tree. Empty — including on
+	// servers that never send the field — renders the brief byte-identical.
+	RepoIndexHints        []RepoIndexHintForEnv
 	AgentSkills           []SkillContextForEnv
 	DisabledRuntimeSkills []RuntimeSkillRefForEnv
 	Repos                 []RepoContextForEnv     // workspace repos available for checkout
