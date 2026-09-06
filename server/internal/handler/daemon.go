@@ -4214,6 +4214,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.storeCrossReviewReport(r.Context(), *task, req.Output)
 	// Task watchdog (K73): a finished scan leaves its verdict and acts within its tier.
 	h.storeWatchdogVerdict(r.Context(), *task, req.Output)
+	// Code health autopilot (K22): a finished scan leaves its findings and
+	// opens the maintenance issues they justify.
+	h.storeCodeHealthFindings(r.Context(), *task, req.Output)
 	// Contest (K72): a finished challenger or answer run moves its contest;
 	// a finished issue run may be contested by policy.
 	h.settleContestRun(r.Context(), *task, req.Output)
@@ -4917,6 +4920,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// The settlement every terminal run gets (JEF-275): barriers, held writes,
 	// sealed replay. Shared with the complete path and with cancellation.
 	h.terminalRunHooks(r.Context(), *task, false)
+	// Code health autopilot (K22): a crashed scan is settled here, so the next
+	// scheduled scan is not blocked by a row stuck in `running`.
+	h.failCodeHealthScan(r.Context(), *task, req.Error)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

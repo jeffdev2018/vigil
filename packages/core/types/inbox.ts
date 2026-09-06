@@ -41,6 +41,9 @@ export type InboxItemType =
   // A postmortem was drafted after a failed run and waits for review.
   | "postmortem_ready"
   | "watchdog_escalation"
+  // Code health autopilot (K22): a scheduled maintenance scan opened issues,
+  // or failed.
+  | "code_health_report"
   | "contest_ready"
   | "org_alert"
   // The MCP gateway (K77): a high-risk tool ran, or a monthly review proposes unused tools for removal.

@@ -2395,6 +2395,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Bounded workflows (JEF-275).
 			r.Get("/api/workflow-limits", h.GetWorkflowLimits)
 			r.Put("/api/workflow-limits", h.PutWorkflowLimits)
+			// Code health autopilot (K22): admin writes, members read.
+			r.Get("/api/code-health/settings", h.GetCodeHealthSettings)
+			r.Put("/api/code-health/settings", h.PutCodeHealthSettings)
+			r.Get("/api/code-health/scans", h.ListCodeHealthScans)
+			r.Post("/api/code-health/scans/trigger", h.TriggerCodeHealthScan)
 			// Cross-provider self-review (K15): reports and manual retry.
 			r.Get("/api/issues/{id}/cross-reviews", h.ListCrossReviews)
 			r.Post("/api/issues/{id}/cross-reviews/retry", h.RetryCrossReview)

@@ -719,6 +719,11 @@ func classifyOrigin(issue db.Issue, opts IssueCreateOpts) (source, taskID, autop
 		// Accepted from a meeting's action items (origin_id = meeting.id):
 		// a human decision in the triage queue, so the manual source label.
 		return analytics.SourceManual, "", ""
+	case "code_health":
+		// Housekeeping opened by the code health autopilot (K22, origin_id =
+		// code_health_scan.id). Not an autopilot rule run, so it keeps the
+		// manual source label rather than inventing an analytics dimension.
+		return analytics.SourceManual, "", ""
 	default:
 		slog.Warn("analytics: unknown issue origin type",
 			"origin_type", issue.OriginType.String,

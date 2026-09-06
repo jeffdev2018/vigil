@@ -130,6 +130,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"eval_suite":                         workspaceDelete,
 	"eval_run":                           workspaceDelete,
 	"eval_run_case":                      workspaceDelete,
+	"code_health_scan":                   workspaceDelete,
 	"agent_domain_competency":            workspaceDelete,
 	"ci_auto_fix_run":                    workspaceDelete,
 	"mobile_push_token":                  workspaceDeleteKeep,

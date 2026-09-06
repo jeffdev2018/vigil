@@ -97,7 +97,8 @@
     "decision_auto_decided": "已代你决定",
     "mcp_alert": "MCP 网关提醒",
     "model_key_alert": "模型密钥已停用",
-    "routing_alert": "无法路由该 Agent"
+    "routing_alert": "无法路由该 Agent",
+    "code_health_report": "代码健康报告"
   },
   "labels": {
     "set_status_to": "状态设为",
