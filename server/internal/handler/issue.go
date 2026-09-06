@@ -2980,7 +2980,17 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	// be provided together.
 	var originType pgtype.Text
 	var originID pgtype.UUID
-	if req.OriginType != nil || req.OriginID != nil {
+	if req.OriginType != nil && *req.OriginType == IssueOriginVoiceMobile {
+		// Voice draft (K36): the only human-settable origin, and the only one
+		// with nothing to pair with — a transcript is not a stored row. A
+		// supplied origin_id is rejected rather than ignored so a caller
+		// cannot smuggle an unrelated id in under this label.
+		if req.OriginID != nil {
+			writeError(w, http.StatusBadRequest, "origin_type "+IssueOriginVoiceMobile+" takes no origin_id")
+			return
+		}
+		originType = pgtype.Text{String: IssueOriginVoiceMobile, Valid: true}
+	} else if req.OriginType != nil || req.OriginID != nil {
 		if req.OriginType == nil || req.OriginID == nil {
 			writeError(w, http.StatusBadRequest, "origin_type and origin_id must be provided together")
 			return

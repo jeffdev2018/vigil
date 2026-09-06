@@ -83,6 +83,10 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
+  // Voice-dictated issue draft (K36). An action rather than a section, but
+  // this popover is the only always-reachable surface on a phone; the other
+  // entry point is the mic button on the decisions screen.
+  { label: "Dictate issue", icon: "mic", path: "/new-issue-voice" },
   { label: "Pinned", icon: "pin", path: "/more/pins" },
   { label: "Issues", icon: "list.bullet", path: "/more/issues" },
   { label: "Projects", icon: "square.stack", path: "/more/projects" },

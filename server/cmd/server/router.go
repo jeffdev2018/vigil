@@ -2108,6 +2108,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/quick-create", h.QuickCreateIssue)
 				// Issue scoping assistant (K14): raw text in, reviewed proposal out.
 				r.Post("/scoping/propose", h.ProposeIssueScoping)
+				// Voice-dictated issue draft (K36): a transcript in, an
+				// editable draft out. Creates nothing.
+				r.Post("/from-voice-transcript", h.ProposeIssueFromVoiceTranscript)
 				r.Post("/preview-trigger", h.PreviewIssueTrigger)
 				r.Post("/batch-update", h.BatchUpdateIssues)
 				r.Post("/batch-delete", h.BatchDeleteIssues)
