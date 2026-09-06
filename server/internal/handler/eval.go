@@ -127,6 +127,17 @@ func evalSuiteToResponse(s db.EvalSuite) EvalSuiteResponse {
 // each; both are display-only, so a missing row degrades to empty rather than
 // failing the response.
 func (h *Handler) evalRunToResponse(ctx context.Context, run db.EvalRun) EvalRunResponse {
+	rows, err := h.Queries.ListEvalRunCases(ctx, run.ID)
+	if err != nil {
+		slog.Warn("eval: list run cases failed", "run_id", uuidToString(run.ID), "error", err)
+	}
+	return h.evalRunResponseFrom(ctx, run, rows)
+}
+
+// evalRunResponseFrom is the same payload built from cases the caller already
+// holds, so a reader that needs the rows for its own aggregation (the
+// benchmark breakdown, JEF-276) does not load them a second time.
+func (h *Handler) evalRunResponseFrom(ctx context.Context, run db.EvalRun, rows []db.ListEvalRunCasesRow) EvalRunResponse {
 	out := EvalRunResponse{
 		ID: uuidToString(run.ID), WorkspaceID: uuidToString(run.WorkspaceID), SuiteID: uuidToString(run.SuiteID),
 		AgentID: uuidToString(run.AgentID), AgentVersionID: uuidToPtr(run.AgentVersionID), Status: run.Status,
@@ -140,11 +151,6 @@ func (h *Handler) evalRunToResponse(ctx context.Context, run db.EvalRun) EvalRun
 		if version, err := h.Queries.GetAgentVersion(ctx, db.GetAgentVersionParams{ID: run.AgentVersionID, AgentID: run.AgentID}); err == nil {
 			out.AgentVersionNumber = version.VersionNumber
 		}
-	}
-	rows, err := h.Queries.ListEvalRunCases(ctx, run.ID)
-	if err != nil {
-		slog.Warn("eval: list run cases failed", "run_id", uuidToString(run.ID), "error", err)
-		return out
 	}
 	for _, rc := range rows {
 		out.Cases = append(out.Cases, EvalRunCaseResponse{
@@ -414,14 +420,29 @@ func (h *Handler) RunEvalSuite(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to record the eval run")
 		return
 	}
+	run, enqueued := h.startEvalRunCases(r, run, byID, ids, agent, userID)
+	actorType, actorID := h.resolveActor(r, userID, uuidToString(suite.WorkspaceID))
+	h.audit(r.Context(), suite.WorkspaceID, actorType, actorID, AuditEvalRunStarted, "eval_run", run.ID, map[string]any{
+		"suite_id": uuidToString(suite.ID), "agent_id": uuidToString(agent.ID), "agent_version_id": uuidToString(versionUUID), "cases": len(ids), "enqueued": enqueued,
+	}, nil)
+	writeJSON(w, http.StatusAccepted, map[string]any{"run": h.evalRunToResponse(r.Context(), run)})
+}
+
+// startEvalRunCases enqueues one replay per case of the suite, in the suite's
+// own order, and returns the run (finished when nothing could be enqueued)
+// with the number of replays actually queued. Shared with the benchmark
+// harness (JEF-276), which runs the same suite once per candidate.
+func (h *Handler) startEvalRunCases(r *http.Request, run db.EvalRun, byID map[string]db.EvalCase, ids []string, agent db.Agent, userID string) (db.EvalRun, int) {
 	enqueued := 0
-	for _, id := range ids { // keep the suite's own order
+	for _, id := range ids {
 		c, found := byID[id]
 		if !found {
 			continue
 		}
 		issueID, taskID, detail := h.startEvalCase(r, run, c, agent, userID)
-		if _, err := h.Queries.CreateEvalRunCase(r.Context(), db.CreateEvalRunCaseParams{RunID: run.ID, CaseID: c.ID, IssueID: issueID, TaskID: taskID}); err != nil {
+		if _, err := h.Queries.CreateEvalRunCase(r.Context(), db.CreateEvalRunCaseParams{
+			RunID: run.ID, CaseID: c.ID, IssueID: issueID, TaskID: taskID, TaskClass: service.ClassifyTask(c.Title, nil),
+		}); err != nil {
 			slog.Warn("eval: record run case failed", "run_id", uuidToString(run.ID), "case_id", uuidToString(c.ID), "error", err)
 			continue
 		}
@@ -442,11 +463,7 @@ func (h *Handler) RunEvalSuite(w http.ResponseWriter, r *http.Request) {
 			run = finished
 		}
 	}
-	actorType, actorID := h.resolveActor(r, userID, uuidToString(suite.WorkspaceID))
-	h.audit(r.Context(), suite.WorkspaceID, actorType, actorID, AuditEvalRunStarted, "eval_run", run.ID, map[string]any{
-		"suite_id": uuidToString(suite.ID), "agent_id": uuidToString(agent.ID), "agent_version_id": uuidToString(versionUUID), "cases": len(ids), "enqueued": enqueued,
-	}, nil)
-	writeJSON(w, http.StatusAccepted, map[string]any{"run": h.evalRunToResponse(r.Context(), run)})
+	return run, enqueued
 }
 
 // startEvalCase creates the throwaway issue for one case and returns it with
@@ -488,6 +505,27 @@ func (h *Handler) startEvalCase(r *http.Request, run db.EvalRun, c db.EvalCase, 
 	}
 	if !res.AssignedTaskID.Valid {
 		return res.Issue.ID, pgtype.UUID{}, "no run enqueued"
+	}
+	// A benchmark replay (JEF-276) is pinned to the candidate it measures:
+	// stamping the runtime is what makes the task claimable by that runtime
+	// alone (ClaimAgentTask selects on runtime_id, so it stays queued and
+	// invisible for every other one), and leg_role='benchmark' is what makes
+	// the claim fences accept a runtime the agent is not bound to and what
+	// makes the outcome count in GetRoutingStats. A pin that fails leaves a
+	// task that would measure the wrong candidate, so it is an infrastructure
+	// failure rather than a bad score.
+	if run.Benchmark {
+		if _, err := h.Queries.PinBenchmarkReplayTask(r.Context(), db.PinBenchmarkReplayTaskParams{
+			ID: res.AssignedTaskID, RuntimeID: run.RuntimeID, TaskClass: service.ClassifyTask(c.Title, nil),
+		}); err != nil {
+			slog.Warn("benchmark: pin replay task failed", "task_id", uuidToString(res.AssignedTaskID), "error", err)
+			return res.Issue.ID, res.AssignedTaskID, "could not pin the replay to the candidate runtime"
+		}
+		// The enqueue woke the agent's bound runtime; the candidate is the one
+		// that must actually run this, and it may be sitting on a cached
+		// "nothing queued" verdict.
+		h.TaskService.NotifyRuntimeMayHaveWork(run.RuntimeID)
+		return res.Issue.ID, res.AssignedTaskID, ""
 	}
 	// Per-leg accounting (JEF-274): an eval replay is a graded exam on a
 	// throwaway issue, so it is its own root and is never a sample of a
@@ -545,6 +583,14 @@ func (h *Handler) applyEvalAgentVersion(ctx context.Context, row db.GetEvalRunCa
 	resp.Agent.Instructions = version.Instructions
 	if version.Model != "" {
 		resp.Agent.Model = version.Model
+	}
+	// A benchmark (JEF-276) measures a (runtime, model) candidate, so its
+	// model wins over the version's: the version is what is being held equal
+	// across candidates, the model is what varies. An empty candidate model
+	// means "whatever this runtime runs by default", which is a legitimate
+	// candidate too, so it is not overridden back.
+	if row.Benchmark && row.RunModel != "" {
+		resp.Agent.Model = row.RunModel
 	}
 }
 

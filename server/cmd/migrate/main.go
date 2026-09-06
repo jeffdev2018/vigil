@@ -396,6 +396,7 @@ var concurrentIndexCleanups = map[string]string{
 	"678_eval_run_case_task_index":                              "idx_eval_run_case_task",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 	"686_agent_task_workflow_root_index":                        "idx_agent_task_queue_workflow_root",
+	"688_eval_run_benchmark_index":                              "idx_eval_run_benchmark",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

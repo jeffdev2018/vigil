@@ -1042,17 +1042,24 @@ type EvalRun struct {
 	StartedBy      pgtype.UUID        `json:"started_by"`
 	StartedAt      pgtype.Timestamptz `json:"started_at"`
 	CompletedAt    pgtype.Timestamptz `json:"completed_at"`
+	Benchmark      bool               `json:"benchmark"`
+	RuntimeID      pgtype.UUID        `json:"runtime_id"`
+	Model          string             `json:"model"`
+	BaselineRunID  pgtype.UUID        `json:"baseline_run_id"`
 }
 
 type EvalRunCase struct {
-	RunID     pgtype.UUID        `json:"run_id"`
-	CaseID    pgtype.UUID        `json:"case_id"`
-	IssueID   pgtype.UUID        `json:"issue_id"`
-	TaskID    pgtype.UUID        `json:"task_id"`
-	Status    string             `json:"status"`
-	Score     pgtype.Int4        `json:"score"`
-	Detail    string             `json:"detail"`
-	SettledAt pgtype.Timestamptz `json:"settled_at"`
+	RunID           pgtype.UUID        `json:"run_id"`
+	CaseID          pgtype.UUID        `json:"case_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Status          string             `json:"status"`
+	Score           pgtype.Int4        `json:"score"`
+	Detail          string             `json:"detail"`
+	SettledAt       pgtype.Timestamptz `json:"settled_at"`
+	TaskClass       string             `json:"task_class"`
+	CostUsdTicks    pgtype.Int8        `json:"cost_usd_ticks"`
+	DurationSeconds pgtype.Int4        `json:"duration_seconds"`
 }
 
 type EvalSuite struct {

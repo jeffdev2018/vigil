@@ -817,7 +817,11 @@ WHERE id = (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark')
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -930,7 +934,11 @@ WHERE id = (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -980,7 +988,11 @@ WHERE id IN (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark')
             AND (
                 r.visibility = 'public'
                 OR (
@@ -2252,7 +2264,10 @@ WHERE atq.runtime_id = $1
       WHERE a.id = atq.agent_id
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
-        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+        -- A benchmark replay (JEF-276) is stamped with the candidate runtime
+        -- it exists to measure, for the same reason.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+             OR atq.leg_role = 'benchmark')
         AND (
             r.visibility = 'public'
             OR (
@@ -2382,7 +2397,10 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
       WHERE a.id = atq.agent_id
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
-        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+        -- A benchmark replay (JEF-276) is stamped with the candidate runtime
+        -- it exists to measure, for the same reason.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+             OR atq.leg_role = 'benchmark')
         AND (
             r.visibility = 'public'
             OR (

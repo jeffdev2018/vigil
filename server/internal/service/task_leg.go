@@ -15,6 +15,9 @@ import (
 // leg (review, critique, answer, watchdog, eval) judges someone else's work,
 // so it is not a sample of the worker's task class. A retry, fallback,
 // revision or escalation leg is — each is a real attempt at the same class.
+// A benchmark leg (JEF-276) is a real attempt too: it is the same exam an
+// eval replay runs, but pinned to one (runtime, model) candidate precisely so
+// its outcome is evidence about that pair, so it DOES feed the statistics.
 const (
 	LegRoleRetry      = "retry"
 	LegRoleFallback   = "fallback"
@@ -28,6 +31,7 @@ const (
 	LegRoleFanout     = "fanout"
 	LegRoleShard      = "shard"
 	LegRoleEval       = "eval"
+	LegRoleBenchmark  = "benchmark"
 	LegRoleEscalation = "escalation"
 )
 

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -35,7 +36,10 @@ func evalWorkspaceCall(t *testing.T, h http.HandlerFunc, method, path string, bo
 func evalCleanup(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
-		ctx := t.Context()
+		// NOT t.Context(): Go cancels it just before cleanups run, which made
+		// every delete below a silent no-op and leaked eval rows into the next
+		// test in this package.
+		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM eval_run_case WHERE run_id IN (SELECT id FROM eval_run WHERE workspace_id = $1)`, testWorkspaceID)
 		testPool.Exec(ctx, `DELETE FROM eval_run WHERE workspace_id = $1`, testWorkspaceID)
 		testPool.Exec(ctx, `DELETE FROM eval_suite WHERE workspace_id = $1`, testWorkspaceID)

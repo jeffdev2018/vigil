@@ -118,6 +118,7 @@
       "chore": "Maintenance"
     },
     "col_samples": "Échantillons",
+    "from_benchmarks": "dont {{n}} de benchmarks",
     "col_success": "Succès",
     "col_avg_cost": "Coût moyen",
     "col_avg_duration": "Durée moyenne",

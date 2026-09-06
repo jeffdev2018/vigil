@@ -22,6 +22,61 @@ func (q *Queries) CountPendingEvalRunCases(ctx context.Context, runID pgtype.UUI
 	return count, err
 }
 
+const createBenchmarkRun = `-- name: CreateBenchmarkRun :one
+INSERT INTO eval_run (id, workspace_id, suite_id, agent_id, agent_version_id, started_by,
+                      benchmark, runtime_id, model, baseline_run_id)
+VALUES ($1, $2, $3, $4, $5, $6, true, $7, $8, $9)
+RETURNING id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id
+`
+
+type CreateBenchmarkRunParams struct {
+	ID             pgtype.UUID `json:"id"`
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	SuiteID        pgtype.UUID `json:"suite_id"`
+	AgentID        pgtype.UUID `json:"agent_id"`
+	AgentVersionID pgtype.UUID `json:"agent_version_id"`
+	StartedBy      pgtype.UUID `json:"started_by"`
+	RuntimeID      pgtype.UUID `json:"runtime_id"`
+	Model          string      `json:"model"`
+	BaselineRunID  pgtype.UUID `json:"baseline_run_id"`
+}
+
+// One run per (runtime, model) candidate of a benchmark (JEF-276). The pin is
+// stored on the run, not derived at claim: the replay tasks are stamped with
+// runtime_id so only that runtime can claim them, and the claim forces model
+// so the candidate is what actually executes.
+func (q *Queries) CreateBenchmarkRun(ctx context.Context, arg CreateBenchmarkRunParams) (EvalRun, error) {
+	row := q.db.QueryRow(ctx, createBenchmarkRun,
+		arg.ID,
+		arg.WorkspaceID,
+		arg.SuiteID,
+		arg.AgentID,
+		arg.AgentVersionID,
+		arg.StartedBy,
+		arg.RuntimeID,
+		arg.Model,
+		arg.BaselineRunID,
+	)
+	var i EvalRun
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.SuiteID,
+		&i.AgentID,
+		&i.AgentVersionID,
+		&i.Status,
+		&i.Score,
+		&i.StartedBy,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Benchmark,
+		&i.RuntimeID,
+		&i.Model,
+		&i.BaselineRunID,
+	)
+	return i, err
+}
+
 const createEvalCase = `-- name: CreateEvalCase :one
 
 INSERT INTO eval_case (id, workspace_id, source_issue_id, source_issue_number, title, description, criteria, created_by)
@@ -68,7 +123,7 @@ func (q *Queries) CreateEvalCase(ctx context.Context, arg CreateEvalCaseParams) 
 
 const createEvalRun = `-- name: CreateEvalRun :one
 INSERT INTO eval_run (id, workspace_id, suite_id, agent_id, agent_version_id, started_by)
-VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at
+VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id
 `
 
 type CreateEvalRunParams struct {
@@ -101,28 +156,37 @@ func (q *Queries) CreateEvalRun(ctx context.Context, arg CreateEvalRunParams) (E
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.Benchmark,
+		&i.RuntimeID,
+		&i.Model,
+		&i.BaselineRunID,
 	)
 	return i, err
 }
 
 const createEvalRunCase = `-- name: CreateEvalRunCase :one
-INSERT INTO eval_run_case (run_id, case_id, issue_id, task_id)
-VALUES ($1, $2, $3, $4) RETURNING run_id, case_id, issue_id, task_id, status, score, detail, settled_at
+INSERT INTO eval_run_case (run_id, case_id, issue_id, task_id, task_class)
+VALUES ($1, $2, $3, $4, $5) RETURNING run_id, case_id, issue_id, task_id, status, score, detail, settled_at, task_class, cost_usd_ticks, duration_seconds
 `
 
 type CreateEvalRunCaseParams struct {
-	RunID   pgtype.UUID `json:"run_id"`
-	CaseID  pgtype.UUID `json:"case_id"`
-	IssueID pgtype.UUID `json:"issue_id"`
-	TaskID  pgtype.UUID `json:"task_id"`
+	RunID     pgtype.UUID `json:"run_id"`
+	CaseID    pgtype.UUID `json:"case_id"`
+	IssueID   pgtype.UUID `json:"issue_id"`
+	TaskID    pgtype.UUID `json:"task_id"`
+	TaskClass string      `json:"task_class"`
 }
 
+// task_class is classified from the case title once, here, rather than
+// re-derived at settlement: the title is in hand and the class of a case does
+// not depend on how its replay went.
 func (q *Queries) CreateEvalRunCase(ctx context.Context, arg CreateEvalRunCaseParams) (EvalRunCase, error) {
 	row := q.db.QueryRow(ctx, createEvalRunCase,
 		arg.RunID,
 		arg.CaseID,
 		arg.IssueID,
 		arg.TaskID,
+		arg.TaskClass,
 	)
 	var i EvalRunCase
 	err := row.Scan(
@@ -134,6 +198,9 @@ func (q *Queries) CreateEvalRunCase(ctx context.Context, arg CreateEvalRunCasePa
 		&i.Score,
 		&i.Detail,
 		&i.SettledAt,
+		&i.TaskClass,
+		&i.CostUsdTicks,
+		&i.DurationSeconds,
 	)
 	return i, err
 }
@@ -174,7 +241,7 @@ func (q *Queries) CreateEvalSuite(ctx context.Context, arg CreateEvalSuiteParams
 
 const finishEvalRun = `-- name: FinishEvalRun :one
 UPDATE eval_run SET status = $1, score = $2, completed_at = now()
-WHERE id = $3 AND status = 'running' RETURNING id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at
+WHERE id = $3 AND status = 'running' RETURNING id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id
 `
 
 type FinishEvalRunParams struct {
@@ -197,8 +264,57 @@ func (q *Queries) FinishEvalRun(ctx context.Context, arg FinishEvalRunParams) (E
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.Benchmark,
+		&i.RuntimeID,
+		&i.Model,
+		&i.BaselineRunID,
 	)
 	return i, err
+}
+
+const getBenchmarkRunsByIDs = `-- name: GetBenchmarkRunsByIDs :many
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run
+WHERE workspace_id = $1 AND benchmark AND id = ANY($2::uuid[])
+`
+
+type GetBenchmarkRunsByIDsParams struct {
+	WorkspaceID pgtype.UUID   `json:"workspace_id"`
+	Ids         []pgtype.UUID `json:"ids"`
+}
+
+func (q *Queries) GetBenchmarkRunsByIDs(ctx context.Context, arg GetBenchmarkRunsByIDsParams) ([]EvalRun, error) {
+	rows, err := q.db.Query(ctx, getBenchmarkRunsByIDs, arg.WorkspaceID, arg.Ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalRun{}
+	for rows.Next() {
+		var i EvalRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SuiteID,
+			&i.AgentID,
+			&i.AgentVersionID,
+			&i.Status,
+			&i.Score,
+			&i.StartedBy,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Benchmark,
+			&i.RuntimeID,
+			&i.Model,
+			&i.BaselineRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getEvalCasesByIDs = `-- name: GetEvalCasesByIDs :many
@@ -241,7 +357,7 @@ func (q *Queries) GetEvalCasesByIDs(ctx context.Context, arg GetEvalCasesByIDsPa
 }
 
 const getEvalRun = `-- name: GetEvalRun :one
-SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at FROM eval_run WHERE id = $1
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE id = $1
 `
 
 func (q *Queries) GetEvalRun(ctx context.Context, id pgtype.UUID) (EvalRun, error) {
@@ -258,12 +374,16 @@ func (q *Queries) GetEvalRun(ctx context.Context, id pgtype.UUID) (EvalRun, erro
 		&i.StartedBy,
 		&i.StartedAt,
 		&i.CompletedAt,
+		&i.Benchmark,
+		&i.RuntimeID,
+		&i.Model,
+		&i.BaselineRunID,
 	)
 	return i, err
 }
 
 const getEvalRunCaseByTask = `-- name: GetEvalRunCaseByTask :one
-SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, r.agent_version_id, r.agent_id, r.workspace_id
+SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, rc.task_class, rc.cost_usd_ticks, rc.duration_seconds, r.agent_version_id, r.agent_id, r.workspace_id, r.benchmark, r.model AS run_model
 FROM eval_run_case rc
 JOIN eval_run r ON r.id = rc.run_id
 WHERE rc.task_id IN ($1, $2)
@@ -276,17 +396,22 @@ type GetEvalRunCaseByTaskParams struct {
 }
 
 type GetEvalRunCaseByTaskRow struct {
-	RunID          pgtype.UUID        `json:"run_id"`
-	CaseID         pgtype.UUID        `json:"case_id"`
-	IssueID        pgtype.UUID        `json:"issue_id"`
-	TaskID         pgtype.UUID        `json:"task_id"`
-	Status         string             `json:"status"`
-	Score          pgtype.Int4        `json:"score"`
-	Detail         string             `json:"detail"`
-	SettledAt      pgtype.Timestamptz `json:"settled_at"`
-	AgentVersionID pgtype.UUID        `json:"agent_version_id"`
-	AgentID        pgtype.UUID        `json:"agent_id"`
-	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	RunID           pgtype.UUID        `json:"run_id"`
+	CaseID          pgtype.UUID        `json:"case_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Status          string             `json:"status"`
+	Score           pgtype.Int4        `json:"score"`
+	Detail          string             `json:"detail"`
+	SettledAt       pgtype.Timestamptz `json:"settled_at"`
+	TaskClass       string             `json:"task_class"`
+	CostUsdTicks    pgtype.Int8        `json:"cost_usd_ticks"`
+	DurationSeconds pgtype.Int4        `json:"duration_seconds"`
+	AgentVersionID  pgtype.UUID        `json:"agent_version_id"`
+	AgentID         pgtype.UUID        `json:"agent_id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Benchmark       bool               `json:"benchmark"`
+	RunModel        string             `json:"run_model"`
 }
 
 // The eval case a run belongs to: its own run, or the retry chain of it.
@@ -304,9 +429,14 @@ func (q *Queries) GetEvalRunCaseByTask(ctx context.Context, arg GetEvalRunCaseBy
 		&i.Score,
 		&i.Detail,
 		&i.SettledAt,
+		&i.TaskClass,
+		&i.CostUsdTicks,
+		&i.DurationSeconds,
 		&i.AgentVersionID,
 		&i.AgentID,
 		&i.WorkspaceID,
+		&i.Benchmark,
+		&i.RunModel,
 	)
 	return i, err
 }
@@ -339,6 +469,45 @@ func (q *Queries) HasRunningEvalRunForSuite(ctx context.Context, suiteID pgtype.
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const listBenchmarkRuns = `-- name: ListBenchmarkRuns :many
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE workspace_id = $1 AND benchmark ORDER BY started_at DESC LIMIT 200
+`
+
+func (q *Queries) ListBenchmarkRuns(ctx context.Context, workspaceID pgtype.UUID) ([]EvalRun, error) {
+	rows, err := q.db.Query(ctx, listBenchmarkRuns, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []EvalRun{}
+	for rows.Next() {
+		var i EvalRun
+		if err := rows.Scan(
+			&i.ID,
+			&i.WorkspaceID,
+			&i.SuiteID,
+			&i.AgentID,
+			&i.AgentVersionID,
+			&i.Status,
+			&i.Score,
+			&i.StartedBy,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.Benchmark,
+			&i.RuntimeID,
+			&i.Model,
+			&i.BaselineRunID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listEvalCases = `-- name: ListEvalCases :many
@@ -376,7 +545,7 @@ func (q *Queries) ListEvalCases(ctx context.Context, workspaceID pgtype.UUID) ([
 }
 
 const listEvalRunCases = `-- name: ListEvalRunCases :many
-SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, c.title AS case_title
+SELECT rc.run_id, rc.case_id, rc.issue_id, rc.task_id, rc.status, rc.score, rc.detail, rc.settled_at, rc.task_class, rc.cost_usd_ticks, rc.duration_seconds, c.title AS case_title
 FROM eval_run_case rc
 LEFT JOIN eval_case c ON c.id = rc.case_id
 WHERE rc.run_id = $1
@@ -384,15 +553,18 @@ ORDER BY c.created_at ASC
 `
 
 type ListEvalRunCasesRow struct {
-	RunID     pgtype.UUID        `json:"run_id"`
-	CaseID    pgtype.UUID        `json:"case_id"`
-	IssueID   pgtype.UUID        `json:"issue_id"`
-	TaskID    pgtype.UUID        `json:"task_id"`
-	Status    string             `json:"status"`
-	Score     pgtype.Int4        `json:"score"`
-	Detail    string             `json:"detail"`
-	SettledAt pgtype.Timestamptz `json:"settled_at"`
-	CaseTitle pgtype.Text        `json:"case_title"`
+	RunID           pgtype.UUID        `json:"run_id"`
+	CaseID          pgtype.UUID        `json:"case_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	TaskID          pgtype.UUID        `json:"task_id"`
+	Status          string             `json:"status"`
+	Score           pgtype.Int4        `json:"score"`
+	Detail          string             `json:"detail"`
+	SettledAt       pgtype.Timestamptz `json:"settled_at"`
+	TaskClass       string             `json:"task_class"`
+	CostUsdTicks    pgtype.Int8        `json:"cost_usd_ticks"`
+	DurationSeconds pgtype.Int4        `json:"duration_seconds"`
+	CaseTitle       pgtype.Text        `json:"case_title"`
 }
 
 func (q *Queries) ListEvalRunCases(ctx context.Context, runID pgtype.UUID) ([]ListEvalRunCasesRow, error) {
@@ -413,6 +585,9 @@ func (q *Queries) ListEvalRunCases(ctx context.Context, runID pgtype.UUID) ([]Li
 			&i.Score,
 			&i.Detail,
 			&i.SettledAt,
+			&i.TaskClass,
+			&i.CostUsdTicks,
+			&i.DurationSeconds,
 			&i.CaseTitle,
 		); err != nil {
 			return nil, err
@@ -426,9 +601,13 @@ func (q *Queries) ListEvalRunCases(ctx context.Context, runID pgtype.UUID) ([]Li
 }
 
 const listEvalRuns = `-- name: ListEvalRuns :many
-SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at FROM eval_run WHERE workspace_id = $1 ORDER BY started_at DESC LIMIT 200
+SELECT id, workspace_id, suite_id, agent_id, agent_version_id, status, score, started_by, started_at, completed_at, benchmark, runtime_id, model, baseline_run_id FROM eval_run WHERE workspace_id = $1 AND NOT benchmark ORDER BY started_at DESC LIMIT 200
 `
 
+// Plain runs only: a benchmark (JEF-276) creates one eval_run per candidate,
+// and listing those here would fill the run history with rows that differ
+// only by a pin this payload does not carry. They have their own history
+// (ListBenchmarkRuns), so the two lists stay disjoint and each is readable.
 func (q *Queries) ListEvalRuns(ctx context.Context, workspaceID pgtype.UUID) ([]EvalRun, error) {
 	rows, err := q.db.Query(ctx, listEvalRuns, workspaceID)
 	if err != nil {
@@ -449,6 +628,10 @@ func (q *Queries) ListEvalRuns(ctx context.Context, workspaceID pgtype.UUID) ([]
 			&i.StartedBy,
 			&i.StartedAt,
 			&i.CompletedAt,
+			&i.Benchmark,
+			&i.RuntimeID,
+			&i.Model,
+			&i.BaselineRunID,
 		); err != nil {
 			return nil, err
 		}
@@ -490,6 +673,111 @@ func (q *Queries) ListEvalSuites(ctx context.Context, workspaceID pgtype.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const pinBenchmarkReplayTask = `-- name: PinBenchmarkReplayTask :one
+UPDATE agent_task_queue
+SET runtime_id = $1,
+    leg_role   = 'benchmark',
+    task_class = $2
+WHERE id = $3 AND status = 'queued'
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id
+`
+
+type PinBenchmarkReplayTaskParams struct {
+	RuntimeID pgtype.UUID `json:"runtime_id"`
+	TaskClass string      `json:"task_class"`
+	ID        pgtype.UUID `json:"id"`
+}
+
+// Pins one benchmark replay run (JEF-276) to the candidate it measures. The
+// runtime is the pin that matters: ClaimAgentTask already selects on
+// atq.runtime_id, so stamping it here is what makes the task invisible to
+// every other runtime instead of needing a new predicate in the claim. The
+// leg role is what lets the claim fences accept a runtime the agent is not
+// bound to, and what makes GetRoutingStats count the outcome. Restricted to a
+// queued task so a race that already dispatched it is never re-pointed.
+func (q *Queries) PinBenchmarkReplayTask(ctx context.Context, arg PinBenchmarkReplayTaskParams) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, pinBenchmarkReplayTask, arg.RuntimeID, arg.TaskClass, arg.ID)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.LastActivityAt,
+		&i.PermissionProfileID,
+		&i.FailoverHistory,
+		&i.RoutingDecision,
+		&i.PauseRequestedAt,
+		&i.ResumedByTaskID,
+		&i.LastCheckpointSeq,
+		&i.CheckpointAttempts,
+		&i.CheckpointedAt,
+		&i.TouchedPaths,
+		&i.DriftReason,
+		&i.PreemptedAt,
+		&i.PreemptedByTaskID,
+		&i.ReviewOfTaskID,
+		&i.TaskClass,
+		&i.Routing,
+		&i.SafeMode,
+		&i.ModelKeyID,
+		&i.Confidence,
+		&i.LegRole,
+		&i.WorkflowRootTaskID,
+	)
+	return i, err
 }
 
 const purgeWorkspaceEvalCases = `-- name: PurgeWorkspaceEvalCases :exec
@@ -534,9 +822,17 @@ UPDATE eval_run_case SET
     score      = $2,
     detail     = $3,
     task_id    = $4,
+    cost_usd_ticks = (
+        SELECT SUM(u.cost_usd_ticks)::bigint FROM task_usage u WHERE u.task_id = $4
+    ),
+    duration_seconds = (
+        SELECT EXTRACT(EPOCH FROM (t.completed_at - t.started_at))::int
+        FROM agent_task_queue t
+        WHERE t.id = $4 AND t.started_at IS NOT NULL AND t.completed_at IS NOT NULL
+    ),
     settled_at = now()
 WHERE run_id = $5 AND case_id = $6 AND status = 'pending'
-RETURNING run_id, case_id, issue_id, task_id, status, score, detail, settled_at
+RETURNING run_id, case_id, issue_id, task_id, status, score, detail, settled_at, task_class, cost_usd_ticks, duration_seconds
 `
 
 type SettleEvalRunCaseParams struct {
@@ -548,6 +844,11 @@ type SettleEvalRunCaseParams struct {
 	CaseID pgtype.UUID `json:"case_id"`
 }
 
+// Cost and duration are read from the run itself in the same statement rather
+// than passed in: the settlement already knows the task id, and a second
+// round-trip could observe a task_usage row written between the two reads.
+// Both stay NULL when there is nothing to read — a provider that reported no
+// price and a replay that never started are not zero.
 func (q *Queries) SettleEvalRunCase(ctx context.Context, arg SettleEvalRunCaseParams) (EvalRunCase, error) {
 	row := q.db.QueryRow(ctx, settleEvalRunCase,
 		arg.Status,
@@ -567,6 +868,9 @@ func (q *Queries) SettleEvalRunCase(ctx context.Context, arg SettleEvalRunCasePa
 		&i.Score,
 		&i.Detail,
 		&i.SettledAt,
+		&i.TaskClass,
+		&i.CostUsdTicks,
+		&i.DurationSeconds,
 	)
 	return i, err
 }

@@ -118,6 +118,7 @@
       "chore": "Chore"
     },
     "col_samples": "Samples",
+    "from_benchmarks": "{{n}} from benchmarks",
     "col_success": "Success",
     "col_avg_cost": "Avg cost",
     "col_avg_duration": "Avg duration",

@@ -249,12 +249,23 @@ func TestClaimTaskRejectsMismatchedAgentRuntime(t *testing.T) {
 	fixture := newRuntimeClaimAccessFixture(t, "public", false, false, "queued")
 	svc := NewTaskService(db.New(fixture.pool), fixture.pool, nil, events.New())
 
-	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID)
+	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, false)
 	if err != nil {
 		t.Fatalf("claim task: %v", err)
 	}
 	if claimed != nil {
 		t.Fatalf("claimed mismatched task %s", util.UUIDToString(claimed.ID))
+	}
+
+	// The runtimePinned flag (JEF-276) relaxes only the cheap Go pre-filter.
+	// This task is not a benchmark leg, so ClaimAgentTask's own fence still
+	// refuses it — the flag can never dispatch what the SQL would reject.
+	pinned, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
+	if err != nil {
+		t.Fatalf("claim task with the pin flag: %v", err)
+	}
+	if pinned != nil {
+		t.Fatalf("the SQL fence let a mismatched non-benchmark task through: %s", util.UUIDToString(pinned.ID))
 	}
 
 	var status string

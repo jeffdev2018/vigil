@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { evalKeys } from "./queries";
-import type { CreateEvalSuiteRequest, RunEvalSuiteRequest } from "./schemas";
+import type { BenchmarkPolicySearchRequest, CreateEvalSuiteRequest, RunBenchmarkRequest, RunEvalSuiteRequest } from "./schemas";
 
 /** Promoting a resolved issue mints a new eval case for the whole workspace. */
 export function usePromoteIssueToEvalCase(wsId: string, issueId: string) {
@@ -29,5 +29,32 @@ export function useRunEvalSuite(wsId: string) {
       qc.invalidateQueries({ queryKey: evalKeys.runs(wsId) });
       qc.invalidateQueries({ queryKey: evalKeys.suites(wsId) });
     },
+  });
+}
+
+/**
+ * Internal benchmark harness (JEF-276). One benchmark creates an eval run per
+ * candidate, so it moves the benchmark list, the ordinary run list and every
+ * suite's "last run" column at once.
+ */
+export function useRunBenchmark(wsId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ suiteId, ...input }: RunBenchmarkRequest & { suiteId: string }) => api.runBenchmark(suiteId, input),
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: evalKeys.benchmarks(wsId) });
+      qc.invalidateQueries({ queryKey: evalKeys.runs(wsId) });
+      qc.invalidateQueries({ queryKey: evalKeys.suites(wsId) });
+    },
+  });
+}
+
+/**
+ * Replays the router's scoring offline over the named benchmark runs. Nothing
+ * is applied server-side — it only reports — so there is no cache to touch.
+ */
+export function useBenchmarkPolicySearch(wsId: string) {
+  return useMutation({
+    mutationFn: (input: BenchmarkPolicySearchRequest) => api.benchmarkPolicySearch(wsId, input),
   });
 }
