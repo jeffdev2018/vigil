@@ -1511,6 +1511,16 @@
     "toast_saved": "已保存代码仓库",
     "toast_save_failed": "保存代码仓库失败"
   },
+  "repo_index": {
+    "section": "语义索引",
+    "description_semantic": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。按语义和关键词排序。启用后会把该仓库的源码存储在 Multica 中，并发送给当前部署配置的 embeddings 服务商。",
+    "description_lexical": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。当前部署未配置 embeddings 模型，因此按关键词排序。启用后会把该仓库的源码存储在 Multica 中。",
+    "empty": "该工作区及其项目尚未关联任何仓库。",
+    "status_indexed": "已同步到提交 {{commit}} · {{files}} 个文件 / {{chunks}} 个片段",
+    "status_waiting": "将在该仓库的下次运行结束后建立索引",
+    "status_disabled": "未索引",
+    "save_failed": "无法保存语义索引设置。"
+  },
   "desktop": {
     "tabs": {
       "updates": "更新"

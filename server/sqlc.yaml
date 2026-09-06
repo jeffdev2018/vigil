@@ -10,3 +10,11 @@ sql:
         sql_package: "pgx/v5"
         emit_json_tags: true
         emit_empty_slices: true
+        # pgvector's `vector` type (K47, repo_index_chunk.embedding). Mapping it
+        # to string keeps the generated package free of a pgvector-go dependency
+        # we would never call: no query selects the column, and the one query
+        # that writes it casts a text literal ($n::vector). Postgres parses
+        # '[0.1,0.2]'::vector itself, so the text form IS the wire format here.
+        overrides:
+          - column: "repo_index_chunk.embedding"
+            go_type: "string"

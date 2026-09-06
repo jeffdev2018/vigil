@@ -50,3 +50,12 @@ SELECT project_id, count(*)::bigint AS resource_count
 FROM project_resource
 WHERE project_id = ANY(sqlc.arg('project_ids')::uuid[])
 GROUP BY project_id;
+
+-- name: ListWorkspaceRepoResourceRefs :many
+-- Every github_repo resource of a workspace, whatever project it hangs off.
+-- The repo-index settings page needs the workspace's repository list, which is
+-- otherwise only reachable one project at a time.
+SELECT DISTINCT resource_ref
+FROM project_resource
+WHERE workspace_id = $1
+  AND resource_type = 'github_repo';

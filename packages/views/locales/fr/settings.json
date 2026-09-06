@@ -1515,6 +1515,16 @@
     "toast_saved": "Repositories enregistrés",
     "toast_save_failed": "Échec de l'enregistrement des repositories"
   },
+  "repo_index": {
+    "section": "Index sémantique",
+    "description_semantic": "Indexe le code d'un repository pour que chaque exécution démarre sur les fichiers utiles au lieu de tout chercher. Classement par sens et par mot-clé. L'activer stocke le code source de ce repository dans Multica et l'envoie au fournisseur d'embeddings de ce déploiement.",
+    "description_lexical": "Indexe le code d'un repository pour que chaque exécution démarre sur les fichiers utiles au lieu de tout chercher. Classement par mot-clé — aucun modèle d'embeddings n'est configuré sur ce déploiement. L'activer stocke le code source de ce repository dans Multica.",
+    "empty": "Aucun repository n'est encore associé à ce workspace ni à ses projets.",
+    "status_indexed": "À jour au commit {{commit}} · {{chunks}} fragments sur {{files}} fichiers",
+    "status_waiting": "Sera indexé après la prochaine exécution sur ce repository",
+    "status_disabled": "Non indexé",
+    "save_failed": "Impossible d'enregistrer le réglage de l'index sémantique."
+  },
   "desktop": {
     "tabs": {
       "updates": "Mises à jour"

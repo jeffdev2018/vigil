@@ -187,6 +187,48 @@ func writeWorkspaceKnowledgeSection(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("Save durable knowledge, not run logs: nothing about what you did in this task, nothing that will be false next week. Before saving, check `multica brain list --search <keyword>` and update the existing note instead of adding a near-duplicate.\n\n")
 }
 
+// writeRepoIndexHintsSection points the run at the places in the repository
+// most likely to matter for this issue, before it has run a single grep (K47).
+//
+// The heading itself carries the contract — "orientation only, read the real
+// file before editing" — and the body repeats it, because this is the one
+// section of the brief whose content may be out of date with the working tree
+// on purpose. A chunk read as a pointer saves a run several minutes; the same
+// chunk read as the file's current contents produces an edit against code that
+// no longer exists. Chunks the server knows are behind the newest indexed
+// commit are marked inline rather than dropped: an older pointer to the right
+// file still beats no pointer, as long as the run is told.
+//
+// Emitted only when hints were actually injected, so a workspace with no
+// indexed repository gets a byte-identical brief.
+func writeRepoIndexHintsSection(b *strings.Builder, ctx TaskContextForEnv) {
+	if len(ctx.RepoIndexHints) == 0 {
+		return
+	}
+	b.WriteString("## Repo index hints (orientation only — read the real file before editing)\n\n")
+	b.WriteString("These excerpts come from a shared index of the workspace's repositories, matched against this issue. They are a starting point, not the current state of the code: the index is refreshed after runs, so a snippet can be behind the working tree. Open the file and read the real lines before you rely on or change anything here.\n\n")
+	for _, hint := range ctx.RepoIndexHints {
+		location := hint.FilePath
+		if hint.StartLine > 0 {
+			location = fmt.Sprintf("%s:%d-%d", hint.FilePath, hint.StartLine, hint.EndLine)
+		}
+		fmt.Fprintf(b, "### %s", location)
+		if hint.Symbol != "" {
+			fmt.Fprintf(b, " — `%s`", hint.Symbol)
+		}
+		if hint.Stale {
+			b.WriteString(" (indexed at an older commit)")
+		}
+		b.WriteString("\n\n")
+		if hint.RepoIdentifier != "" {
+			fmt.Fprintf(b, "Repository: %s\n\n", hint.RepoIdentifier)
+		}
+		b.WriteString("```\n")
+		b.WriteString(strings.TrimRight(hint.Snippet, "\n"))
+		b.WriteString("\n```\n\n")
+	}
+}
+
 // writeRequestingUser emits the Requesting User block when the runtime
 // owner's profile description is non-empty. Sanitisation rules match the
 // legacy implementation; see runtime_config.go for the rationale.
@@ -1139,6 +1181,7 @@ func buildMetaSkillContentSlim(provider string, ctx TaskContextForEnv) string {
 	writeAgentIdentity(&b, ctx)
 	writeAgentMemory(&b, ctx)
 	writeWorkspaceKnowledgeSection(&b, ctx)
+	writeRepoIndexHintsSection(&b, ctx)
 	writeRequestingUser(&b, ctx)
 	writeWorkspaceContext(&b, ctx)
 

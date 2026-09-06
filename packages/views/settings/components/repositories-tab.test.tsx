@@ -78,7 +78,12 @@ vi.mock("@tanstack/react-query", () => ({
     isFetchingNextPage: false,
     fetchNextPage: mockFetchNextPage,
   }),
-  useQueryClient: () => ({ setQueryData: vi.fn() }),
+  useQueryClient: () => ({ setQueryData: vi.fn(), invalidateQueries: vi.fn() }),
+  // The tab renders <RepoIndexSection>, whose save hook calls useMutation.
+  // Stubbed rather than mocked away so the section still mounts: this file's
+  // subject is the repository list, and it must keep failing if a sibling
+  // section it hosts stops rendering at all.
+  useMutation: () => ({ mutate: vi.fn(), isPending: false }),
   queryOptions: <T,>(options: T) => options,
   infiniteQueryOptions: <T,>(options: T) => options,
 }));

@@ -394,8 +394,15 @@ type Daemon struct {
 	// command resolves; read by runTask to launch the custom command for a
 	// claimed task. Guarded by mu.
 	profileLaunchSpecs map[string]profileLaunchSpec
-	reloading          sync.Mutex         // prevents concurrent workspace syncs
-	runtimeSet         *runtimeSetWatcher // multi-subscriber pub/sub for runtime-set changes
+	reloading          sync.Mutex // prevents concurrent workspace syncs
+
+	// repoIndexLast throttles the shared repo index pass (K47) to one walk per
+	// repository per repoIndexThrottle, keyed workspace+repo. In-process only:
+	// a daemon restart legitimately re-walks, which costs one `git ls-tree` and
+	// one diff request when nothing changed.
+	repoIndexMu   sync.Mutex
+	repoIndexLast map[string]time.Time
+	runtimeSet    *runtimeSetWatcher // multi-subscriber pub/sub for runtime-set changes
 
 	versionsMu    sync.RWMutex      // guards agentVersions
 	agentVersions map[string]string // provider -> detected CLI version (set during registration)
@@ -5697,6 +5704,13 @@ func (d *Daemon) handleTask(ctx context.Context, task Task, slot int) {
 			}
 		}
 	}
+
+	// Shared repo index (K47). Last thing in the task's lifecycle, after the
+	// result is reported and the GC metadata is written, so the pass can only
+	// ever cost this run wall-clock time it no longer needs. It detaches
+	// immediately and does its own throttling; every repository it touches was
+	// named as enabled by the server on this task's claim.
+	d.maybeIndexRepos(task, taskLog)
 }
 
 // worktreePreservedError marks a task error that must survive the cancel path:
@@ -7329,6 +7343,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentInstructions:                instructions,
 		AgentMemories:                    memories,
 		WorkspaceNotes:                   task.WorkspaceNotes,
+		RepoIndexHints:                   task.RepoIndexHints,
 		AgentSkills:                      convertSkillsForEnv(skills),
 		DisabledRuntimeSkills:            convertDisabledRuntimeSkillsForEnv(task.Agent, task.RuntimeID, provider),
 		Repos:                            convertReposForEnv(task.Repos),
