@@ -39,6 +39,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   issue_subscribed: "Subscribed",
   unassigned: "Unassigned",
   assignee_changed: "Reassigned",
+  delegate_assigned: "Delegated",
   status_changed: "Status changed",
   priority_changed: "Priority changed",
   start_date_changed: "Start date changed",
@@ -145,6 +146,15 @@ export function InboxDetailLabel({
             details.new_assignee_id,
           );
           return `Assigned to ${name}`;
+        }
+        return TYPE_LABEL[item.type];
+      case "delegate_assigned":
+        if (details.new_delegate_id) {
+          const name = getName(
+            (details.new_delegate_type ?? "member") as "member" | "agent",
+            details.new_delegate_id,
+          );
+          return `Delegated to ${name}`;
         }
         return TYPE_LABEL[item.type];
       case "unassigned":

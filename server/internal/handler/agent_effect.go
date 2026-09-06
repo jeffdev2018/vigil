@@ -490,7 +490,9 @@ func (h *Handler) reverseIssueField(ctx context.Context, eff db.AgentEffect, bef
 	params := db.UpdateIssueParams{
 		ID: current.ID, Title: pgtype.Text{String: current.Title, Valid: true}, Description: current.Description,
 		Status: pgtype.Text{String: current.Status, Valid: true}, Priority: pgtype.Text{String: current.Priority, Valid: true},
-		AssigneeType: current.AssigneeType, AssigneeID: current.AssigneeID, StartDate: current.StartDate, DueDate: current.DueDate,
+		AssigneeType: current.AssigneeType, AssigneeID: current.AssigneeID,
+		DelegateType: current.DelegateType, DelegateID: current.DelegateID,
+		StartDate: current.StartDate, DueDate: current.DueDate,
 		ParentIssueID: current.ParentIssueID, ProjectID: current.ProjectID, Stage: current.Stage,
 	}
 	field, _ := before["field"].(string)

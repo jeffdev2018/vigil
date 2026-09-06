@@ -60,13 +60,18 @@ func NewIssueService(q *db.Queries, tx TxStarter, bus *events.Bus, ac analytics.
 // to IssueService.Create. The handler owns the parsing step that turns its
 // request payload into this struct; the service stays transport-agnostic.
 type IssueCreateParams struct {
-	WorkspaceID   pgtype.UUID
-	Title         string
-	Description   pgtype.Text
-	Status        string
-	Priority      string
-	AssigneeType  pgtype.Text
-	AssigneeID    pgtype.UUID
+	WorkspaceID  pgtype.UUID
+	Title        string
+	Description  pgtype.Text
+	Status       string
+	Priority     string
+	AssigneeType pgtype.Text
+	AssigneeID   pgtype.UUID
+	// DelegateType / DelegateID name the assignee's partner (F01). Inert:
+	// nothing in the create path reads them, so a delegate never produces a
+	// run — see WillEnqueueRun, which keys only on the assignee.
+	DelegateType  pgtype.Text
+	DelegateID    pgtype.UUID
 	CreatorType   string // "agent" or "member"
 	CreatorID     pgtype.UUID
 	ParentIssueID pgtype.UUID
@@ -346,6 +351,8 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 			Priority:      p.Priority,
 			AssigneeType:  p.AssigneeType,
 			AssigneeID:    p.AssigneeID,
+			DelegateType:  p.DelegateType,
+			DelegateID:    p.DelegateID,
 			CreatorType:   p.CreatorType,
 			CreatorID:     p.CreatorID,
 			ParentIssueID: p.ParentIssueID,
@@ -368,6 +375,8 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 			Priority:      p.Priority,
 			AssigneeType:  p.AssigneeType,
 			AssigneeID:    p.AssigneeID,
+			DelegateType:  p.DelegateType,
+			DelegateID:    p.DelegateID,
 			CreatorType:   p.CreatorType,
 			CreatorID:     p.CreatorID,
 			ParentIssueID: p.ParentIssueID,

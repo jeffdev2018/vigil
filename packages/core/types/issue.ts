@@ -34,6 +34,15 @@ export type IssuePriority = "urgent" | "high" | "medium" | "low" | "none";
 
 export type IssueAssigneeType = "member" | "agent" | "squad";
 
+/**
+ * The delegate (F01) names the assignee's partner. Deliberately NARROWER than
+ * IssueAssigneeType: a squad is a routing object whose work runs through its
+ * leader, not a person to partner with, and the server rejects it with a 400.
+ * Reusing IssueAssigneeType here would make `delegate_type: "squad"`
+ * type-check against a value the API refuses.
+ */
+export type IssueDelegateType = "member" | "agent";
+
 export interface IssueReaction {
   id: string;
   issue_id: string;
@@ -184,6 +193,11 @@ export interface Issue {
   priority: IssuePriority;
   assignee_type: IssueAssigneeType | null;
   assignee_id: string | null;
+  // The assignee's partner (F01). Optional only for a server that predates the
+  // field; a current one always sends both halves, null when unset. The
+  // delegate triggers no run and carries no status.
+  delegate_type?: IssueDelegateType | null;
+  delegate_id?: string | null;
   creator_type: IssueAssigneeType;
   creator_id: string;
   parent_issue_id: string | null;

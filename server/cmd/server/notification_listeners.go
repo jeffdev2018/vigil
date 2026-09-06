@@ -137,6 +137,7 @@ var notifTypeToGroup = map[string]string{
 	"issue_assigned":     "assignments",
 	"unassigned":         "assignments",
 	"assignee_changed":   "assignments",
+	"delegate_assigned":  "assignments",
 	"status_changed":     "status_changes",
 	"new_comment":        "comments",
 	"mentioned":          "mentions",
@@ -660,6 +661,22 @@ func registerNotificationListeners(bus *events.Bus, queries *db.Queries) {
 			)
 		}
 
+		// Direct notification to a delegate that owns an inbox (F01). Info,
+		// not action_required: being named as a partner is not the same call
+		// to act as owning the issue.
+		if issue.DelegateType != nil && issue.DelegateID != nil &&
+			isAssignmentRecipientType(*issue.DelegateType) && !skip[*issue.DelegateID] {
+			skip[*issue.DelegateID] = true
+			notifyDirect(ctx, queries, bus,
+				*issue.DelegateType, *issue.DelegateID,
+				issue.WorkspaceID, e, issue.ID, issue.Status,
+				"delegate_assigned", "info",
+				issue.Title,
+				"",
+				emptyDetails,
+			)
+		}
+
 		// Notify @mentions in description
 		if issue.Description != nil && *issue.Description != "" {
 			mentions := parseMentions(*issue.Description)
@@ -749,6 +766,43 @@ func registerNotificationListeners(bus *events.Bus, queries *db.Queries) {
 				exclude, "assignee_changed", "info",
 				issue.Title, "",
 				assigneeDetails)
+		}
+
+		// F01 delegate. Only the NEW delegate is notified: there is no
+		// "undelegated" counterpart (the assignee's exists because losing an
+		// assignment changes what you are accountable for; losing a partner
+		// role does not), and no subscriber-wide fan-out (a partner change is
+		// not the whole issue's business the way a reassignment is).
+		if delegateChanged, _ := payload["delegate_changed"].(bool); delegateChanged {
+			prevDelegateType, _ := payload["prev_delegate_type"].(*string)
+			prevDelegateID, _ := payload["prev_delegate_id"].(*string)
+			// map[string]string for the same reason as assigneeDetails above:
+			// one non-string value blanks the whole inbox list on the client.
+			delegateDetailsMap := map[string]string{}
+			if prevDelegateType != nil {
+				delegateDetailsMap["prev_delegate_type"] = *prevDelegateType
+			}
+			if prevDelegateID != nil {
+				delegateDetailsMap["prev_delegate_id"] = *prevDelegateID
+			}
+			if issue.DelegateType != nil {
+				delegateDetailsMap["new_delegate_type"] = *issue.DelegateType
+			}
+			if issue.DelegateID != nil {
+				delegateDetailsMap["new_delegate_id"] = *issue.DelegateID
+			}
+			delegateDetails, _ := json.Marshal(delegateDetailsMap)
+
+			if issue.DelegateType != nil && issue.DelegateID != nil && isAssignmentRecipientType(*issue.DelegateType) {
+				notifyDirect(ctx, queries, bus,
+					*issue.DelegateType, *issue.DelegateID,
+					e.WorkspaceID, e, issue.ID, issue.Status,
+					"delegate_assigned", "info",
+					issue.Title,
+					"",
+					delegateDetails,
+				)
+			}
 		}
 
 		if statusChanged {

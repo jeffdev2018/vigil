@@ -117,10 +117,12 @@
     "no_results": "Aucun résultat",
     "no_labels": "Aucun libellé",
     "no_assignee": "Aucun responsable",
+    "no_delegate": "Aucun délégué",
     "no_project": "Aucun projet",
     "section_status": "Statut",
     "section_priority": "Priorité",
     "section_assignee": "Assigné à",
+    "section_delegate": "Délégué",
     "section_creator": "Créateur",
     "chip_op_contains": "contient {{value}}",
     "chip_op_before": "avant le {{value}}",
@@ -378,6 +380,7 @@
     "prop_priority": "Priorité",
     "prop_stage": "Étape",
     "prop_assignee": "Responsable",
+    "prop_delegate": "Délégué",
     "prop_start_date": "Date de début",
     "prop_due_date": "Date d'échéance",
     "prop_project": "Projet",
@@ -810,6 +813,12 @@
       "squads_group": "Squads",
       "agent_runtime_required": "Associez un runtime avant d'assigner du travail à cet agent",
       "squad_runtime_required": "Associez un runtime au leader de cette squad avant d'assigner du travail"
+    },
+    "delegate": {
+      "trigger_none": "Aucun délégué",
+      "search_placeholder": "Déléguer à...",
+      "members_group": "Membres",
+      "agents_group": "Agents"
     },
     "start_date": {
       "trigger_label": "Date de début",

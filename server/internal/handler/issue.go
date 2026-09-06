@@ -62,10 +62,16 @@ type IssueResponse struct {
 	// field at all: with omitempty a built-in fixture hides it from BOTH
 	// renderings, and the drift guard goes green on a payload that has drifted.
 	// (MUL-6749)
-	StatusName    string  `json:"status_name"`
-	Priority      string  `json:"priority"`
-	AssigneeType  *string `json:"assignee_type"`
-	AssigneeID    *string `json:"assignee_id"`
+	StatusName   string  `json:"status_name"`
+	Priority     string  `json:"priority"`
+	AssigneeType *string `json:"assignee_type"`
+	AssigneeID   *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Always
+	// emitted, like the assignee pair, so a client can tell "no delegate"
+	// from "this endpoint did not resolve it". The delegate is inert: it
+	// triggers no run and carries no status.
+	DelegateType  *string `json:"delegate_type"`
+	DelegateID    *string `json:"delegate_id"`
 	CreatorType   string  `json:"creator_type"`
 	CreatorID     string  `json:"creator_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
@@ -322,6 +328,8 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
@@ -362,6 +370,8 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
@@ -432,6 +442,8 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
@@ -1387,6 +1399,28 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		where = append(where, "("+strings.Join(ors, " OR ")+")")
 	}
 
+	// F01 delegate — same wire format and same "no value" semantics as
+	// assignee_filters / include_no_assignee.
+	delegateFilters, ok := parseActorFilterList(w, r.URL.Query().Get("delegate_filters"), "delegate_filters")
+	if !ok {
+		return
+	}
+	includeNoDelegate := r.URL.Query().Get("include_no_delegate") == "true"
+	if len(delegateFilters) > 0 || includeNoDelegate {
+		ors := make([]string, 0, len(delegateFilters)+1)
+		for _, filter := range delegateFilters {
+			ors = append(ors, fmt.Sprintf(
+				"(i.delegate_type = %s::text AND i.delegate_id = %s::uuid)",
+				addArg(filter.actorType),
+				addArg(filter.actorID),
+			))
+		}
+		if includeNoDelegate {
+			ors = append(ors, "(i.delegate_type IS NULL AND i.delegate_id IS NULL)")
+		}
+		where = append(where, "("+strings.Join(ors, " OR ")+")")
+	}
+
 	creatorFilters, ok := parseActorFilterList(w, r.URL.Query().Get("creator_filters"), "creator_filters")
 	if !ok {
 		return
@@ -1487,6 +1521,12 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
         WHERE s.workspace_id = $1
           AND sm.member_type = 'agent'
           AND a.workspace_id = $1
+          AND a.owner_id     = %[1]s::uuid
+    ))
+    OR (i.delegate_type = 'member' AND i.delegate_id = %[1]s::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+       SELECT a.id FROM agent a
+        WHERE a.workspace_id = $1
           AND a.owner_id     = %[1]s::uuid
     ))
 )`, ref))
@@ -1940,6 +1980,12 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
           AND a.workspace_id = $1
           AND a.owner_id     = %[1]s::uuid
     ))
+    OR (i.delegate_type = 'member' AND i.delegate_id = %[1]s::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+       SELECT a.id FROM agent a
+        WHERE a.workspace_id = $1
+          AND a.owner_id     = %[1]s::uuid
+    ))
 )`, ref))
 	}
 
@@ -1959,6 +2005,28 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		if includeNoAssignee {
 			ors = append(ors, "(i.assignee_type IS NULL AND i.assignee_id IS NULL)")
+		}
+		where = append(where, "("+strings.Join(ors, " OR ")+")")
+	}
+
+	// F01 delegate — same wire format and same "no value" semantics as
+	// assignee_filters / include_no_assignee.
+	delegateFilters, ok := parseActorFilterList(w, r.URL.Query().Get("delegate_filters"), "delegate_filters")
+	if !ok {
+		return
+	}
+	includeNoDelegate := r.URL.Query().Get("include_no_delegate") == "true"
+	if len(delegateFilters) > 0 || includeNoDelegate {
+		ors := make([]string, 0, len(delegateFilters)+1)
+		for _, filter := range delegateFilters {
+			ors = append(ors, fmt.Sprintf(
+				"(i.delegate_type = %s::text AND i.delegate_id = %s::uuid)",
+				addArg(filter.actorType),
+				addArg(filter.actorID),
+			))
+		}
+		if includeNoDelegate {
+			ors = append(ors, "(i.delegate_type IS NULL AND i.delegate_id IS NULL)")
 		}
 		where = append(where, "("+strings.Join(ors, " OR ")+")")
 	}
@@ -2798,12 +2866,16 @@ func readRuntimeCLIVersion(metadata []byte) string {
 }
 
 type CreateIssueRequest struct {
-	Title         string   `json:"title"`
-	Description   *string  `json:"description"`
-	Status        string   `json:"status"`
-	Priority      string   `json:"priority"`
-	AssigneeType  *string  `json:"assignee_type"`
-	AssigneeID    *string  `json:"assignee_id"`
+	Title        string  `json:"title"`
+	Description  *string `json:"description"`
+	Status       string  `json:"status"`
+	Priority     string  `json:"priority"`
+	AssigneeType *string `json:"assignee_type"`
+	AssigneeID   *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Both halves
+	// must be sent together; 'squad' is refused.
+	DelegateType  *string  `json:"delegate_type"`
+	DelegateID    *string  `json:"delegate_id"`
 	ParentIssueID *string  `json:"parent_issue_id"`
 	ProjectID     *string  `json:"project_id"`
 	GoalID        *string  `json:"goal_id"`
@@ -2913,6 +2985,25 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if status, msg := h.validateAssigneePair(r.Context(), r, workspaceID, assigneeType, assigneeID); status != 0 {
+		writeError(w, status, msg)
+		return
+	}
+
+	// F01 delegate — the assignee's partner. Parsed and validated after the
+	// assignee so the "must differ" rule sees the pair this create persists.
+	var delegateType pgtype.Text
+	var delegateID pgtype.UUID
+	if req.DelegateType != nil {
+		delegateType = pgtype.Text{String: *req.DelegateType, Valid: true}
+	}
+	if req.DelegateID != nil {
+		id, ok := parseUUIDOrBadRequest(w, *req.DelegateID, "delegate_id")
+		if !ok {
+			return
+		}
+		delegateID = id
+	}
+	if status, msg := h.validateDelegatePair(r.Context(), r, workspaceID, delegateType, delegateID, assigneeType, assigneeID); status != 0 {
 		writeError(w, status, msg)
 		return
 	}
@@ -3096,6 +3187,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		Priority:       priority,
 		AssigneeType:   assigneeType,
 		AssigneeID:     assigneeID,
+		DelegateType:   delegateType,
+		DelegateID:     delegateID,
 		CreatorType:    creatorType,
 		CreatorID:      parseUUID(actualCreatorID),
 		ParentIssueID:  parentIssueID,
@@ -3212,18 +3305,22 @@ type UpdateIssueRequest struct {
 	// that landed asynchronously after that base without making media already
 	// present in the base impossible for the user to delete. Older clients omit
 	// it and receive conservative channel-media preservation.
-	DescriptionBase *string  `json:"description_base,omitempty"`
-	Status          *string  `json:"status"`
-	Priority        *string  `json:"priority"`
-	AssigneeType    *string  `json:"assignee_type"`
-	AssigneeID      *string  `json:"assignee_id"`
-	Position        *float64 `json:"position"`
-	StartDate       *string  `json:"start_date"`
-	DueDate         *string  `json:"due_date"`
-	ParentIssueID   *string  `json:"parent_issue_id"`
-	ProjectID       *string  `json:"project_id"`
-	GoalID          *string  `json:"goal_id"`
-	Stage           *int32   `json:"stage"`
+	DescriptionBase *string `json:"description_base,omitempty"`
+	Status          *string `json:"status"`
+	Priority        *string `json:"priority"`
+	AssigneeType    *string `json:"assignee_type"`
+	AssigneeID      *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Nullable
+	// like the assignee pair: sending an explicit null on both clears it.
+	DelegateType  *string  `json:"delegate_type"`
+	DelegateID    *string  `json:"delegate_id"`
+	Position      *float64 `json:"position"`
+	StartDate     *string  `json:"start_date"`
+	DueDate       *string  `json:"due_date"`
+	ParentIssueID *string  `json:"parent_issue_id"`
+	ProjectID     *string  `json:"project_id"`
+	GoalID        *string  `json:"goal_id"`
+	Stage         *int32   `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
 	// editor's preview Eye keeps working past a refresh. Existing bindings
@@ -3300,6 +3397,13 @@ func refreshUntouchedNullableIssueParams(params *db.UpdateIssueParams, current d
 	if !assigneeTypeTouched && !assigneeIDTouched {
 		params.AssigneeType = current.AssigneeType
 		params.AssigneeID = current.AssigneeID
+	}
+	// The delegate pair (F01) is one validated value in exactly the same way.
+	_, delegateTypeTouched := rawFields["delegate_type"]
+	_, delegateIDTouched := rawFields["delegate_id"]
+	if !delegateTypeTouched && !delegateIDTouched {
+		params.DelegateType = current.DelegateType
+		params.DelegateID = current.DelegateID
 	}
 	if _, touched := rawFields["start_date"]; !touched {
 		params.StartDate = current.StartDate
@@ -3460,6 +3564,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		ID:            prevIssue.ID,
 		AssigneeType:  prevIssue.AssigneeType,
 		AssigneeID:    prevIssue.AssigneeID,
+		DelegateType:  prevIssue.DelegateType,
+		DelegateID:    prevIssue.DelegateID,
 		StartDate:     prevIssue.StartDate,
 		DueDate:       prevIssue.DueDate,
 		ParentIssueID: prevIssue.ParentIssueID,
@@ -3548,6 +3654,24 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 			params.AssigneeID = id
 		} else {
 			params.AssigneeID = pgtype.UUID{Valid: false} // explicit null = unassign
+		}
+	}
+	if _, ok := rawFields["delegate_type"]; ok {
+		if req.DelegateType != nil {
+			params.DelegateType = pgtype.Text{String: *req.DelegateType, Valid: true}
+		} else {
+			params.DelegateType = pgtype.Text{Valid: false} // explicit null = clear delegate
+		}
+	}
+	if _, ok := rawFields["delegate_id"]; ok {
+		if req.DelegateID != nil {
+			id, ok := parseUUIDOrBadRequest(w, *req.DelegateID, "delegate_id")
+			if !ok {
+				return
+			}
+			params.DelegateID = id
+		} else {
+			params.DelegateID = pgtype.UUID{Valid: false} // explicit null = clear delegate
 		}
 	}
 	if _, ok := rawFields["start_date"]; ok {
@@ -3667,6 +3791,22 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// F01 delegate. Re-validated whenever EITHER pair is touched, not just the
+	// delegate one: moving the assignee onto the current delegate would
+	// otherwise slip a self-delegation past the "must differ" rule.
+	_, touchedDelegateType := rawFields["delegate_type"]
+	_, touchedDelegateID := rawFields["delegate_id"]
+	if touchedDelegateType || touchedDelegateID || touchedType || touchedID {
+		if status, msg := h.validateDelegatePair(
+			r.Context(), r, workspaceID,
+			params.DelegateType, params.DelegateID,
+			params.AssigneeType, params.AssigneeID,
+		); status != 0 {
+			writeError(w, status, msg)
+			return
+		}
+	}
+
 	attachmentIDs, ok := parseUUIDSliceOrBadRequest(w, req.AttachmentIDs, "attachment_ids")
 	if !ok {
 		return
@@ -3757,6 +3897,12 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
 	assigneeChanged := (req.AssigneeType != nil || req.AssigneeID != nil) &&
 		(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
+	// delegate_changed drives the delegate's subscription and inbox item, the
+	// same way assignee_changed drives the assignee's. Computed from the
+	// PERSISTED before/after rather than from the request so a no-op write
+	// (re-sending the delegate the issue already has) raises nothing.
+	delegateChanged := (touchedDelegateType || touchedDelegateID) &&
+		(prevIssue.DelegateType.String != issue.DelegateType.String || uuidToString(prevIssue.DelegateID) != uuidToString(issue.DelegateID))
 	statusChanged := req.Status != nil && prevIssue.Status != issue.Status
 	priorityChanged := req.Priority != nil && prevIssue.Priority != issue.Priority
 	// project_changed gates the client's per-project issue-list refetch the way
@@ -3780,6 +3926,7 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		// action lane. Empty for a human edit, which keeps it out (F03).
 		"acting_task_id":      uuidToString(h.actingTaskID(r)),
 		"assignee_changed":    assigneeChanged,
+		"delegate_changed":    delegateChanged,
 		"status_changed":      statusChanged,
 		"priority_changed":    priorityChanged,
 		"project_changed":     projectChanged,
@@ -3790,6 +3937,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		"prev_title":          prevIssue.Title,
 		"prev_assignee_type":  textToPtr(prevIssue.AssigneeType),
 		"prev_assignee_id":    uuidToPtr(prevIssue.AssigneeID),
+		"prev_delegate_type":  textToPtr(prevIssue.DelegateType),
+		"prev_delegate_id":    uuidToPtr(prevIssue.DelegateID),
 		"prev_status":         prevIssue.Status,
 		"prev_priority":       prevIssue.Priority,
 		"prev_start_date":     prevStartDate,
@@ -3869,13 +4018,50 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 // callers should treat any non-zero status as a rejection and surface it back
 // to the client.
 func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, workspaceID string, assigneeType pgtype.Text, assigneeID pgtype.UUID) (int, string) {
-	// Both unset → unassigned issue, valid.
+	return h.validateActorPair(ctx, r, workspaceID, actorPairAssignee, assigneeType, assigneeID)
+}
+
+// actorPairKind names which of an issue's two actor pairs is being validated.
+// The two differ in exactly two ways — the field names their errors quote, and
+// whether 'squad' is an allowed target — so they share one implementation
+// rather than growing a second copy of the workspace / archived / invoke-gate
+// rules that would drift the first time one of them changed.
+type actorPairKind struct {
+	// field is the request field prefix: "assignee" or "delegate".
+	field string
+	// allowSquad is true only for the assignee. A squad is a routing object
+	// whose work runs through its leader; it is not a partner and has no
+	// inbox, so it cannot be a delegate.
+	allowSquad bool
+	// noun is how the error phrases the relationship ("assign work to" /
+	// "delegate work to").
+	noun string
+}
+
+var (
+	actorPairAssignee = actorPairKind{field: "assignee", allowSquad: true, noun: "assign work to"}
+	actorPairDelegate = actorPairKind{field: "delegate", allowSquad: false, noun: "name as delegate on this issue"}
+)
+
+// validateActorPair is validateAssigneePair generalised over the issue's two
+// actor pairs. See validateAssigneePair for the security rationale of each
+// branch; the delegate reuses ALL of it, including the canInvokeAgent gate.
+//
+// The delegate starts no run, so the invoke gate is not protecting an
+// execution here — it is protecting the DISCLOSURE that gate also buys. A
+// private agent named as delegate is welded onto the issue and its name and
+// avatar become visible to everyone who can view it, which is the same leak
+// #3300 closed on the assignee side. Judging both pairs by one predicate is
+// therefore both the smaller change and the stricter one.
+func (h *Handler) validateActorPair(ctx context.Context, r *http.Request, workspaceID string, kind actorPairKind, actorType pgtype.Text, actorID pgtype.UUID) (int, string) {
+	assigneeType, assigneeID := actorType, actorID
+	// Both unset → no actor of this kind, valid.
 	if !assigneeType.Valid && !assigneeID.Valid {
 		return 0, ""
 	}
 	// Exactly one of type/id provided → callers must always pair them.
 	if assigneeType.Valid != assigneeID.Valid {
-		return http.StatusBadRequest, "assignee_type and assignee_id must be provided together"
+		return http.StatusBadRequest, kind.field + "_type and " + kind.field + "_id must be provided together"
 	}
 	wsUUID, err := util.ParseUUID(workspaceID)
 	if err != nil {
@@ -3887,7 +4073,7 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			UserID:      assigneeID,
 			WorkspaceID: wsUUID,
 		}); err != nil {
-			return http.StatusBadRequest, "assignee_id does not refer to a member of this workspace"
+			return http.StatusBadRequest, kind.field + "_id does not refer to a member of this workspace"
 		}
 		return 0, ""
 	case "agent":
@@ -3896,10 +4082,10 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			WorkspaceID: wsUUID,
 		})
 		if err != nil {
-			return http.StatusBadRequest, "assignee_id does not refer to an agent of this workspace"
+			return http.StatusBadRequest, kind.field + "_id does not refer to an agent of this workspace"
 		}
 		if agent.ArchivedAt.Valid {
-			return http.StatusBadRequest, "cannot assign to archived agent"
+			return http.StatusBadRequest, "cannot " + kind.noun + " archived agent"
 		}
 		actorType, actorID := h.resolveActor(r, requestUserID(r), workspaceID)
 		effectiveInvoker := h.invokeOriginatorFromRequest(r, actorType, actorID)
@@ -3912,10 +4098,16 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			// answers 403, so existence remains observable; the guarantee here
 			// is only that the reason no longer names the target's permission
 			// mode (MUL-6380 / GH #7180).
-			return http.StatusForbidden, "you do not have permission to assign work to this agent"
+			return http.StatusForbidden, "you do not have permission to " + kind.noun + " this agent"
 		}
 		return 0, ""
 	case "squad":
+		if !kind.allowSquad {
+			// Reported as an unsupported value rather than "squads are not
+			// delegatable": the delegate simply has no squad variant, and the
+			// message must list what IS allowed so a caller can fix it.
+			return http.StatusBadRequest, kind.field + "_type must be 'member' or 'agent'"
+		}
 		squad, err := h.Queries.GetSquadInWorkspace(ctx, db.GetSquadInWorkspaceParams{
 			ID:          assigneeID,
 			WorkspaceID: wsUUID,
@@ -3939,8 +4131,31 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 		}
 		return 0, ""
 	default:
-		return http.StatusBadRequest, "assignee_type must be 'member', 'agent', or 'squad'"
+		if !kind.allowSquad {
+			return http.StatusBadRequest, kind.field + "_type must be 'member' or 'agent'"
+		}
+		return http.StatusBadRequest, kind.field + "_type must be 'member', 'agent', or 'squad'"
 	}
+}
+
+// validateDelegatePair validates the (delegate_type, delegate_id) pair and the
+// one rule the assignee has no counterpart for: a delegate names the
+// assignee's PARTNER, so it may not be the assignee itself. `assignee` is the
+// pair this same write is about to persist, not the row's current value, so a
+// request that sets both halves at once is judged on its own result.
+func (h *Handler) validateDelegatePair(
+	ctx context.Context, r *http.Request, workspaceID string,
+	delegateType pgtype.Text, delegateID pgtype.UUID,
+	assigneeType pgtype.Text, assigneeID pgtype.UUID,
+) (int, string) {
+	if status, msg := h.validateActorPair(ctx, r, workspaceID, actorPairDelegate, delegateType, delegateID); status != 0 {
+		return status, msg
+	}
+	if delegateType.Valid && assigneeType.Valid &&
+		delegateType.String == assigneeType.String && delegateID == assigneeID {
+		return http.StatusBadRequest, "delegate must differ from the assignee"
+	}
+	return 0, ""
 }
 
 // shouldEnqueueAgentTask returns true when an issue creation or assignment
@@ -4243,7 +4458,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		req.Updates.Priority != nil ||
 		req.Updates.Position != nil
 	if !hasMutation {
-		for _, k := range []string{"assignee_type", "assignee_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage"} {
+		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage"} {
 			if _, ok := rawUpdates[k]; ok {
 				hasMutation = true
 				break
@@ -4326,6 +4541,8 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			ID:            prevIssue.ID,
 			AssigneeType:  prevIssue.AssigneeType,
 			AssigneeID:    prevIssue.AssigneeID,
+			DelegateType:  prevIssue.DelegateType,
+			DelegateID:    prevIssue.DelegateID,
 			StartDate:     prevIssue.StartDate,
 			DueDate:       prevIssue.DueDate,
 			ParentIssueID: prevIssue.ParentIssueID,
@@ -4379,6 +4596,24 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 				params.AssigneeID = assigneeUUID
 			} else {
 				params.AssigneeID = pgtype.UUID{Valid: false}
+			}
+		}
+		if _, ok := rawUpdates["delegate_type"]; ok {
+			if req.Updates.DelegateType != nil {
+				params.DelegateType = pgtype.Text{String: *req.Updates.DelegateType, Valid: true}
+			} else {
+				params.DelegateType = pgtype.Text{Valid: false}
+			}
+		}
+		if _, ok := rawUpdates["delegate_id"]; ok {
+			if req.Updates.DelegateID != nil {
+				delegateUUID, err := util.ParseUUID(*req.Updates.DelegateID)
+				if err != nil {
+					continue
+				}
+				params.DelegateID = delegateUUID
+			} else {
+				params.DelegateID = pgtype.UUID{Valid: false}
 			}
 		}
 		if _, ok := rawUpdates["start_date"]; ok {
@@ -4475,6 +4710,21 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Same per-issue scoping for the delegate pair (F01). "Must differ"
+		// is judged against THIS issue's resulting assignee, which is why it
+		// cannot be hoisted out of the loop like the batch's project check.
+		_, batchTouchedDelegateType := rawUpdates["delegate_type"]
+		_, batchTouchedDelegateID := rawUpdates["delegate_id"]
+		if batchTouchedDelegateType || batchTouchedDelegateID || batchTouchedType || batchTouchedID {
+			if status, _ := h.validateDelegatePair(
+				r.Context(), r, workspaceID,
+				params.DelegateType, params.DelegateID,
+				params.AssigneeType, params.AssigneeID,
+			); status != 0 {
+				continue
+			}
+		}
+
 		var issue db.Issue
 		if req.Updates.Description != nil {
 			// One batch-level base cannot describe multiple issue documents.
@@ -4512,6 +4762,8 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		fillBatch(&resp)
 		assigneeChanged := (req.Updates.AssigneeType != nil || req.Updates.AssigneeID != nil) &&
 			(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
+		delegateChanged := (batchTouchedDelegateType || batchTouchedDelegateID) &&
+			(prevIssue.DelegateType.String != issue.DelegateType.String || uuidToString(prevIssue.DelegateID) != uuidToString(issue.DelegateID))
 		statusChanged := req.Updates.Status != nil && prevIssue.Status != issue.Status
 		priorityChanged := req.Updates.Priority != nil && prevIssue.Priority != issue.Priority
 		projectChanged := req.Updates.ProjectID != nil && uuidToString(prevIssue.ProjectID) != uuidToString(issue.ProjectID)
@@ -4519,11 +4771,14 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
 			"issue": resp,
 			// See UpdateIssue: run lineage for the action lane (F03).
-			"acting_task_id":   uuidToString(h.actingTaskID(r)),
-			"assignee_changed": assigneeChanged,
-			"status_changed":   statusChanged,
-			"priority_changed": priorityChanged,
-			"project_changed":  projectChanged,
+			"acting_task_id":     uuidToString(h.actingTaskID(r)),
+			"assignee_changed":   assigneeChanged,
+			"delegate_changed":   delegateChanged,
+			"prev_delegate_type": textToPtr(prevIssue.DelegateType),
+			"prev_delegate_id":   uuidToPtr(prevIssue.DelegateID),
+			"status_changed":     statusChanged,
+			"priority_changed":   priorityChanged,
+			"project_changed":    projectChanged,
 		})
 
 		// Reassignment does not cancel existing tasks (#4963 / MUL-4113) —

@@ -231,6 +231,8 @@ const issueActivityFields = [
   "priority",
   "assignee_type",
   "assignee_id",
+  "delegate_type",
+  "delegate_id",
   "start_date",
   "due_date",
   "parent_issue_id",
@@ -274,6 +276,12 @@ function flatWindowNeedsReconcile(
   if (
     changed.assignee &&
     ((filter.assignee_filters?.length ?? 0) > 0 || filter.include_no_assignee)
+  ) {
+    return true;
+  }
+  if (
+    changed.delegate &&
+    ((filter.delegate_filters?.length ?? 0) > 0 || filter.include_no_delegate)
   ) {
     return true;
   }

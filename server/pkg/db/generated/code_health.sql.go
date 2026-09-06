@@ -98,7 +98,7 @@ func (q *Queries) FinishCodeHealthScan(ctx context.Context, arg FinishCodeHealth
 }
 
 const getCodeHealthHostIssue = `-- name: GetCodeHealthHostIssue :one
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id FROM issue
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id FROM issue
 WHERE workspace_id = $1 AND origin_type = 'code_health' AND origin_id IS NULL
 ORDER BY created_at ASC
 LIMIT 1
@@ -143,6 +143,8 @@ func (q *Queries) GetCodeHealthHostIssue(ctx context.Context, workspaceID pgtype
 		&i.ContractRisk,
 		&i.ContractRevision,
 		&i.GoalID,
+		&i.DelegateType,
+		&i.DelegateID,
 	)
 	return i, err
 }

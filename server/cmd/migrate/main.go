@@ -417,6 +417,7 @@ var concurrentIndexCleanups = map[string]string{
 	"747_review_flag_issue_state":                               "idx_review_flag_issue_state",
 	"748_review_flag_pr_head":                                   "idx_review_flag_pr_head",
 	"749_review_flag_workspace":                                 "idx_review_flag_workspace",
+	"754_issue_workspace_delegate":                              "idx_issue_workspace_delegate",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

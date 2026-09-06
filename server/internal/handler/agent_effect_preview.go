@@ -247,7 +247,9 @@ func (h *Handler) applyPendingEffect(ctx context.Context, eff db.AgentEffect) er
 		params := db.UpdateIssueParams{
 			ID: prev.ID, Title: pgtype.Text{String: prev.Title, Valid: true}, Description: prev.Description,
 			Status: pgtype.Text{String: prev.Status, Valid: true}, Priority: pgtype.Text{String: prev.Priority, Valid: true},
-			AssigneeType: prev.AssigneeType, AssigneeID: prev.AssigneeID, StartDate: prev.StartDate, DueDate: prev.DueDate,
+			AssigneeType: prev.AssigneeType, AssigneeID: prev.AssigneeID,
+			DelegateType: prev.DelegateType, DelegateID: prev.DelegateID,
+			StartDate: prev.StartDate, DueDate: prev.DueDate,
 			ParentIssueID: prev.ParentIssueID, ProjectID: prev.ProjectID, Stage: prev.Stage,
 		}
 		for k, v := range payload {

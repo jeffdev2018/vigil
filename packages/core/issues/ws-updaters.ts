@@ -426,6 +426,7 @@ export function onIssueUpdated(
     assigneeChanged?: boolean;
     statusChanged?: boolean;
     projectChanged?: boolean;
+    delegateChanged?: boolean;
   } = {},
 ) {
   // Look up the OLD parent + cached entity before mutating cache state, so we
@@ -479,6 +480,17 @@ export function onIssueUpdated(
       (cachedIssue !== undefined &&
         issue.status !== undefined &&
         issue.status !== cachedIssue.status),
+    // Same authoritative-flag-then-diff shape as `assignee` above (F01). An
+    // older backend sends no delegate_changed and no delegate fields, so this
+    // falls to false and nothing reconciles — correct, since that server has
+    // no delegates to move anything.
+    delegate:
+      meta.delegateChanged ??
+      (cachedIssue !== undefined &&
+        ((issue.delegate_id !== undefined &&
+          issue.delegate_id !== cachedIssue.delegate_id) ||
+          (issue.delegate_type !== undefined &&
+            issue.delegate_type !== cachedIssue.delegate_type))),
   };
 
   // The coordinator applies the same rules table the local mutations use:

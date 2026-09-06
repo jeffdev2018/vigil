@@ -117,10 +117,12 @@
     "no_results": "No results",
     "no_labels": "No labels yet",
     "no_assignee": "No assignee",
+    "no_delegate": "No delegate",
     "no_project": "No project",
     "section_status": "Status",
     "section_priority": "Priority",
     "section_assignee": "Assignee",
+    "section_delegate": "Delegate",
     "section_creator": "Creator",
     "chip_op_contains": "contains {{value}}",
     "chip_op_before": "before {{value}}",
@@ -378,6 +380,7 @@
     "prop_priority": "Priority",
     "prop_stage": "Stage",
     "prop_assignee": "Assignee",
+    "prop_delegate": "Delegate",
     "prop_start_date": "Start date",
     "prop_due_date": "Due date",
     "prop_project": "Project",
@@ -810,6 +813,12 @@
       "squads_group": "Squads",
       "agent_runtime_required": "Bind a runtime before assigning work to this agent",
       "squad_runtime_required": "Bind a runtime to this squad's leader before assigning work"
+    },
+    "delegate": {
+      "trigger_none": "No delegate",
+      "search_placeholder": "Delegate to...",
+      "members_group": "Members",
+      "agents_group": "Agents"
     },
     "start_date": {
       "trigger_label": "Start date",

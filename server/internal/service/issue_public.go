@@ -31,6 +31,8 @@ func (s *IssueService) UpdateContent(ctx context.Context, issue db.Issue, patch 
 		ID:            issue.ID,
 		AssigneeType:  issue.AssigneeType,
 		AssigneeID:    issue.AssigneeID,
+		DelegateType:  issue.DelegateType,
+		DelegateID:    issue.DelegateID,
 		StartDate:     issue.StartDate,
 		DueDate:       issue.DueDate,
 		ParentIssueID: issue.ParentIssueID,

@@ -223,6 +223,43 @@ describe("IssueSchema (via ListIssuesResponseSchema)", () => {
     expect(parsed.issues[0]?.id).toBe(baseIssue.id);
     expect(parsed.issues[0]?.status_name).toBeUndefined();
   });
+  // F01 delegate. The pair is additive, so the case that matters is a server
+  // that predates it: IssueSchema failures take the WHOLE list response to its
+  // fallback, so a bare .nullable() here would blank every issue on an older
+  // backend rather than lose one field.
+  it("parses the delegate pair when the server sends it", () => {
+    const parsed = ListIssuesResponseSchema.parse({
+      issues: [{ ...baseIssue, delegate_type: "member", delegate_id: "user-9" }],
+      total: 1,
+    });
+    expect(parsed.issues[0]?.delegate_type).toBe("member");
+    expect(parsed.issues[0]?.delegate_id).toBe("user-9");
+  });
+  it("parses an issue from a server that sends no delegate fields, as no delegate", () => {
+    const parsed = ListIssuesResponseSchema.parse({ issues: [baseIssue], total: 1 });
+    expect(parsed.issues).toHaveLength(1);
+    expect(parsed.issues[0]?.id).toBe(baseIssue.id);
+    expect(parsed.issues[0]?.delegate_type).toBeNull();
+    expect(parsed.issues[0]?.delegate_id).toBeNull();
+  });
+  it("keeps an explicit null delegate distinct from a set one", () => {
+    const parsed = ListIssuesResponseSchema.parse({
+      issues: [{ ...baseIssue, delegate_type: null, delegate_id: null }],
+      total: 1,
+    });
+    expect(parsed.issues[0]?.delegate_type).toBeNull();
+  });
+  // A malformed delegate is NOT tolerated the way status_name is: it is not
+  // display decoration, and a wrong actor id rendered as a partner is worse
+  // than the row degrading. The list-wide blast radius is the reason this is
+  // pinned rather than left to chance.
+  it("degrades the whole response when the delegate pair is malformed", () => {
+    const parsed = ListIssuesResponseSchema.safeParse({
+      issues: [{ ...baseIssue, delegate_type: 42, delegate_id: "user-9" }],
+      total: 1,
+    });
+    expect(parsed.success).toBe(false);
+  });
   it("keeps the issue while independently dropping a malformed source context", () => {
     const parsed = ListIssuesResponseSchema.parse({
       issues: [{ ...baseIssue, source_context: { snapshot: "bad" } }],

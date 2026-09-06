@@ -1548,9 +1548,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
 		// Cascade escalation (JEF-272): lands under context.escalation.
-		Escalation: escalationJSON,
-		Workflow:             pgtype.Text{String: workflow, Valid: true},
-		ForceReview:          pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
+		Escalation:  escalationJSON,
+		Workflow:    pgtype.Text{String: workflow, Valid: true},
+		ForceReview: pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -8139,10 +8139,13 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		// — clients localize those from the key — and a CUSTOM one is filled in
 		// by IssueToMapResolved, which has the catalog. Emitted unconditionally
 		// so this rendering cannot lose a key the HTTP one carries. (MUL-6749)
-		"status_name":     "",
-		"priority":        issue.Priority,
-		"assignee_type":   util.TextToPtr(issue.AssigneeType),
-		"assignee_id":     util.UUIDToPtr(issue.AssigneeID),
+		"status_name":   "",
+		"priority":      issue.Priority,
+		"assignee_type": util.TextToPtr(issue.AssigneeType),
+		"assignee_id":   util.UUIDToPtr(issue.AssigneeID),
+		// Mirrors handler.IssueResponse.DelegateType / DelegateID (F01).
+		"delegate_type":   util.TextToPtr(issue.DelegateType),
+		"delegate_id":     util.UUIDToPtr(issue.DelegateID),
 		"creator_type":    issue.CreatorType,
 		"creator_id":      util.UUIDToString(issue.CreatorID),
 		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),

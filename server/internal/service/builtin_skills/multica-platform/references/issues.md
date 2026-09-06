@@ -8,6 +8,7 @@ Product contracts the runtime brief does not fully encode.
 - [Custom properties: typed workflow state](#custom-properties-typed-workflow-state)
 - [Status changes have server side effects](#status-changes-have-server-side-effects)
 - [Claim ownership without duplicating a run](#claim-ownership-without-duplicating-a-run)
+- [The delegate is not a second assignee](#the-delegate-is-not-a-second-assignee)
 - [Who else is running right now](#who-else-is-running-right-now)
 - [Sub-issues: todo starts work now, backlog parks it](#sub-issues-todo-starts-work-now-backlog-parks-it)
 - [Incorrect to correct](#incorrect-to-correct)
@@ -261,6 +262,18 @@ target `(issue, agent)` pair already has a non-terminal task, but it
 deliberately keeps same-agent handoffs to a fresh issue starting runs:
 cross-issue serial chains and triage batches rely on that.
 
+## The delegate is not a second assignee
+
+`--delegate` / `--delegate-id` on `issue create` and `issue update` name the
+assignee's partner. It is inert: naming one starts **no run** (even for an
+agent) and carries **no status** — the assignee stays the only run trigger and
+the only status writer. Member or agent only; never a squad, and never the
+same actor as the assignee (both `400`).
+
+```bash
+multica issue update <issue-id> --delegate-id <member-or-agent-id>
+```
+
 ## Who else is running right now
 
 Nothing about concurrent runs is pushed into your prompt: the answer changes
@@ -275,9 +288,7 @@ multica issue runs <issue-id> --siblings --output json   # ...and across the sub
 `--active` drops the execution history and returns only `queued` / `dispatched`
 / `running` / `waiting_local_directory` runs. `--siblings` widens the same read
 to the issue's family — its parent (or itself, when it has no parent) plus every
-child of that parent — and labels each row with the issue it belongs to, which
-is how you find another agent already working on a sibling sub-issue before you
-open a second PR against the same code.
+child of that parent — and labels each row with the issue it belongs to.
 
 The family read returns a compact row — task, issue, agent, status, started —
 not the full execution-log record. If you need a run's detail, follow the task
@@ -478,19 +489,8 @@ Fix login redirect                  # incorrect — no issue key, won't link
 MUL-123: fix login redirect        # correct — links the PR
 ```
 
-Serial / phased sub-issues (don't start the whole chain at once):
-
-```bash
-# incorrect — all fire immediately, no ordering
-multica issue create --title "Step 2" --parent <issue-id> --assignee <agent> --status todo
-multica issue create --title "Step 3" --parent <issue-id> --assignee <agent> --status todo
-
-# correct — stage them; Stage 1 runs, later stages park and are promoted as
-# each stage's barrier closes
-multica issue create --title "Step 1" --parent <issue-id> --assignee <agent> --stage 1 --status todo
-multica issue create --title "Step 2" --parent <issue-id> --assignee <agent> --stage 2 --status backlog
-multica issue create --title "Step 3" --parent <issue-id> --assignee <agent> --stage 3 --status backlog
-```
+Serial / phased sub-issues: creating them all `todo` fires the whole chain at
+once. Stage them instead — see "Stages: order sub-issues into barrier groups".
 
 ## Further reading
 

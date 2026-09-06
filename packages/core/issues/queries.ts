@@ -230,6 +230,8 @@ export type IssueFlatFilter = MyIssuesFilter &
     | "priorities"
     | "assignee_filters"
     | "include_no_assignee"
+    | "delegate_filters"
+    | "include_no_delegate"
     | "creator_filters"
     | "project_ids"
     | "include_no_project"

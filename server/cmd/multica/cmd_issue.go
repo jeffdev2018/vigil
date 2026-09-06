@@ -543,6 +543,8 @@ func init() {
 	issueCreateCmd.Flags().String("priority", "", "Issue priority")
 	issueCreateCmd.Flags().String("assignee", "", "Assignee name (member, agent, or squad; fuzzy match)")
 	issueCreateCmd.Flags().String("assignee-id", "", "Assignee UUID — member, agent, or squad (mutually exclusive with --assignee)")
+	issueCreateCmd.Flags().String("delegate", "", "Delegate name — the assignee's partner (member or agent; fuzzy match). Starts no run.")
+	issueCreateCmd.Flags().String("delegate-id", "", "Delegate UUID — member or agent (mutually exclusive with --delegate)")
 	issueCreateCmd.Flags().String("parent", "", "Parent issue ID")
 	issueCreateCmd.Flags().Int("stage", 0, "Stage ordinal (>=1) grouping this sub-issue into an ordered barrier group under its parent; omit for unstaged. The parent assignee is woken only when every sub-issue in a stage finishes.")
 	issueCreateCmd.Flags().String("project", "", "Project ID")
@@ -563,6 +565,8 @@ func init() {
 	issueUpdateCmd.Flags().String("priority", "", "New priority")
 	issueUpdateCmd.Flags().String("assignee", "", "New assignee name (member, agent, or squad; fuzzy match)")
 	issueUpdateCmd.Flags().String("assignee-id", "", "New assignee UUID — member, agent, or squad (mutually exclusive with --assignee)")
+	issueUpdateCmd.Flags().String("delegate", "", "New delegate name — the assignee's partner (member or agent; fuzzy match). Starts no run.")
+	issueUpdateCmd.Flags().String("delegate-id", "", "New delegate UUID — member or agent (mutually exclusive with --delegate)")
 	issueUpdateCmd.Flags().String("project", "", "Project ID")
 	issueUpdateCmd.Flags().String("start-date", "", "New start date (calendar day, YYYY-MM-DD; pass empty string to clear)")
 	issueUpdateCmd.Flags().String("due-date", "", "New due date (calendar day, YYYY-MM-DD)")
@@ -1265,6 +1269,14 @@ func runIssueCreate(cmd *cobra.Command, _ []string) error {
 		body["assignee_type"] = aType
 		body["assignee_id"] = aID
 	}
+	dType, dID, hasDelegate, delegateErr := pickAssigneeFromFlags(ctx, client, cmd, "delegate", "delegate-id", memberOrAgentKinds)
+	if delegateErr != nil {
+		return fmt.Errorf("resolve delegate: %w", delegateErr)
+	}
+	if hasDelegate {
+		body["delegate_type"] = dType
+		body["delegate_id"] = dID
+	}
 
 	// Quick-create stamp: when the daemon sets MULTICA_QUICK_CREATE_TASK_ID
 	// before invoking the agent, the agent's `multica issue create` call
@@ -1439,6 +1451,18 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 			body["assignee_id"] = aID
 		}
 	}
+	// The delegate (F01) is the assignee's partner: member or agent only, and
+	// it starts no run, so --no-start has nothing to suppress here.
+	if cmd.Flags().Changed("delegate") || cmd.Flags().Changed("delegate-id") {
+		dType, dID, hasDelegate, resolveErr := pickAssigneeFromFlags(ctx, client, cmd, "delegate", "delegate-id", memberOrAgentKinds)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve delegate: %w", resolveErr)
+		}
+		if hasDelegate {
+			body["delegate_type"] = dType
+			body["delegate_id"] = dID
+		}
+	}
 	if cmd.Flags().Changed("parent") {
 		v, _ := cmd.Flags().GetString("parent")
 		if v == "" {
@@ -1464,7 +1488,7 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(body) == 0 {
-		return fmt.Errorf("no fields to update; use flags like --title, --status, --priority, --assignee, etc.")
+		return fmt.Errorf("no fields to update; use flags like --title, --status, --priority, --assignee, --delegate, etc.")
 	}
 	if noStart {
 		body["suppress_run"] = true
