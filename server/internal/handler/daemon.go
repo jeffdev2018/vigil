@@ -5341,6 +5341,9 @@ func (h *Handler) GetActiveTaskForIssue(w http.ResponseWriter, r *http.Request) 
 	}
 	// Same issue-facing attribution surface as ListTasksByIssue — hydrate names.
 	h.hydrateTaskAttributions(r.Context(), attributionsOf(resp))
+	// The living run plan (F04): this read backs the "agent is working" banner,
+	// which is exactly where the checklist belongs.
+	h.hydrateTaskPlans(r.Context(), resp)
 
 	writeJSON(w, http.StatusOK, map[string]any{"tasks": resp})
 }
@@ -5546,6 +5549,10 @@ func (h *Handler) ListTasksByIssue(w http.ResponseWriter, r *http.Request) {
 	if !activeOnly {
 		h.hydrateTaskUsage(r.Context(), issue.ID, resp)
 	}
+	// The living run plan (F04). Unlike usage this is hydrated on both paths:
+	// an in-flight run is precisely the one whose checklist a reader wants, and
+	// it is one query for the whole list either way.
+	h.hydrateTaskPlans(r.Context(), resp)
 
 	writeJSON(w, http.StatusOK, resp)
 }

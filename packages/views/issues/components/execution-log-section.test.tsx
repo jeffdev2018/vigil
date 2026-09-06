@@ -17,7 +17,13 @@ vi.mock("../../common/actor-avatar", () => ({
   ActorAvatar: () => <span data-testid="actor-avatar" />,
 }));
 
-vi.mock("../../common/task-transcript", () => ({
+// The transcript buttons are stubbed (they fetch); the run plan is NOT — the
+// counter and the block are part of what this section renders, and the plan
+// component is a pure renderer with nothing to stub away.
+vi.mock("../../common/task-transcript", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>(
+    "../../common/task-transcript/run-plan",
+  )),
   TranscriptButton: ({ title }: { title?: string }) => (
     <button type="button">{title ?? "Transcript"}</button>
   ),
@@ -72,6 +78,34 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("ActiveTaskRow run plan (F04)", () => {
+  const plan = {
+    seq: 1_000_002,
+    items: [
+      { text: "Read the failing test", status: "done" },
+      { text: "Fix the parser", status: "in_progress" },
+      { text: "Update the docs", status: "pending" },
+    ],
+  };
+
+  it("shows the progress counter and the checklist under the row", () => {
+    renderWithI18n(
+      <ActiveTaskRow task={makeTask({ plan })} issueId="issue-1" />,
+    );
+
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Run plan: 1 of 3 steps done" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fix the parser")).toBeInTheDocument();
+  });
+
+  it("renders no counter and no block for a run that published no plan", () => {
+    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
 });
 
 describe("ActiveTaskRow", () => {

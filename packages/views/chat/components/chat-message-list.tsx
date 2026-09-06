@@ -45,10 +45,11 @@ import type {
   ChatMessage,
   ChatPendingTask,
   ChatQuickAction,
+  RunPlan as RunPlanData,
   TaskMessagePayload,
 } from "@multica/core/types";
 import type { ChatTimelineItem } from "@multica/core/chat";
-import { buildTimeline } from "../../common/task-transcript";
+import { buildTimeline, PLAN_MESSAGE_TYPE, RunPlan } from "../../common/task-transcript";
 import { OnboardingStarterCards } from "./onboarding-starter-cards";
 import { TaskStatusPill } from "./task-status-pill";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
@@ -164,8 +165,18 @@ function ChatListHeader({ context }: { context?: ChatListContext }) {
 // constant bottom inset: without it the last row's own py-2 was the only gap
 // between the final reply (and its follow-up pills) and the composer.
 function ChatListFooter({ context }: { context?: ChatListContext }) {
+  // The living run plan (F04) is read straight off the streamed messages the
+  // pill already receives — the newest `plan` message wins — so it needs no
+  // query of its own and updates on the same realtime write. It lives here,
+  // once, rather than on each turn: the run has ONE current plan, and repeating
+  // it per message would be three copies of the same checklist.
+  const plan = useMemo(
+    () => latestRunPlan(context?.liveTaskMessages ?? []),
+    [context?.liveTaskMessages],
+  );
   return (
     <div className={cn(CHAT_COLUMN, "pb-4 space-y-4")}>
+      {context?.showStatusPill && plan ? <RunPlan plan={plan} /> : null}
       {context?.showStatusPill && context.pendingTask ? (
         <TaskStatusPill
           pendingTask={context.pendingTask}
@@ -175,6 +186,29 @@ function ChatListFooter({ context }: { context?: ChatListContext }) {
       ) : null}
     </div>
   );
+}
+
+/**
+ * The run's current plan, out of its streamed messages: the highest-seq `plan`
+ * message. Returns null when the run published none, or when what it published
+ * is not a usable checklist — the payload comes off the wire, so a malformed
+ * one must cost the block, not the conversation.
+ */
+function latestRunPlan(messages: readonly TaskMessagePayload[]): RunPlanData | null {
+  let newest: TaskMessagePayload | null = null;
+  for (const message of messages) {
+    if (message.type !== PLAN_MESSAGE_TYPE) continue;
+    if (!newest || message.seq > newest.seq) newest = message;
+  }
+  const raw = newest?.input?.items;
+  if (!Array.isArray(raw)) return null;
+  const items = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { text, status } = entry as { text?: unknown; status?: unknown };
+    if (typeof text !== "string" || text === "") return [];
+    return [{ text, status: typeof status === "string" ? status : "" }];
+  });
+  return items.length > 0 ? { items, seq: newest?.seq ?? 0 } : null;
 }
 
 const LIST_COMPONENTS: Components<ChatRenderItem, ChatListContext> = {

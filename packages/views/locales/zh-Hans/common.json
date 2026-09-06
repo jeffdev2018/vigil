@@ -128,5 +128,13 @@
   },
   "navigation": {
     "open_in_new_tab": "在新标签页打开"
+  },
+  "run_plan": {
+    "progress_aria": "运行计划：{{total}} 个步骤已完成 {{done}} 个",
+    "show_all": "显示全部 {{count}} 个步骤",
+    "show_less": "收起",
+    "status_pending": "待办",
+    "status_in_progress": "进行中",
+    "status_done": "已完成"
   }
 }

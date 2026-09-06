@@ -2383,6 +2383,25 @@ export const EMPTY_WORKFLOW_STATS_RESPONSE: WorkflowStatsResponse = {
   rows: [],
 };
 
+// ---------------------------------------------------------------------------
+// Living run plan (F04). The run publishes the checklist it is working
+// through; the newest one replaces the last.
+// ---------------------------------------------------------------------------
+
+// `status` stays an OPEN string, not the three-value enum the server accepts
+// today. The write side is closed (a POST with an unknown status is a 400), so
+// only a NEWER server can produce one — and an installed desktop build meeting
+// it must render the item with a neutral bullet, not drop the whole plan.
+export const RunPlanItemSchema = z.object({
+  text: z.string().default(""),
+  status: z.string().default(""),
+}).loose();
+
+export const RunPlanSchema = z.object({
+  items: z.array(RunPlanItemSchema).default([]),
+  seq: z.number().default(0),
+}).loose();
+
 export const AgentTaskSchema = z.object({
   id: z.string(),
   agent_id: z.string().default(""),
@@ -2449,6 +2468,11 @@ export const AgentTaskSchema = z.object({
   // rule as `confidence` — a malformed record costs the row its escalation
   // display, not the whole execution log.
   escalation: TaskEscalationSchema.nullable().optional().catch(undefined),
+  // Living run plan (F04). Same independent-degradation rule as `usage` and
+  // `routing`: a malformed checklist costs the row its plan block, not the
+  // whole execution log. Absent on runs that published none and on servers
+  // that predate the feature, which the UI renders as no block at all.
+  plan: RunPlanSchema.nullish().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);

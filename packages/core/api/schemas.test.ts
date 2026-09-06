@@ -901,6 +901,49 @@ describe("AgentTaskListSchema", () => {
     const parsed = AgentTaskListSchema.parse([task]);
     expect(parsed[0]?.workflow).toBeUndefined();
   });
+
+  // Living run plan (F04).
+  it("parses a run plan and keeps a status this build does not know", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        plan: {
+          seq: 1000002,
+          items: [
+            { text: "Read the failing test", status: "done" },
+            { text: "Fix the parser", status: "in_progress" },
+            // Only a NEWER server can send this; it must survive as data so
+            // the item renders with a neutral bullet instead of vanishing.
+            { text: "Ship", status: "blocked" },
+          ],
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.plan?.seq).toBe(1000002);
+    expect(parsed[0]?.plan?.items).toHaveLength(3);
+    expect(parsed[0]?.plan?.items?.[2]?.status).toBe("blocked");
+  });
+
+  it("omits the plan for runs that published none", () => {
+    const parsed = AgentTaskListSchema.parse([task, { ...task, id: "task-2", plan: null }]);
+    expect(parsed[0]?.plan).toBeUndefined();
+    // An explicit null is still "no plan", and must not become a block.
+    expect(parsed[1]?.plan).toBeNull();
+  });
+
+  it("degrades a malformed plan without dropping the task row", () => {
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, plan: { items: "not-an-array", seq: 3 } },
+      { ...task, id: "task-2", plan: 42 },
+      { ...task, id: "task-3", plan: { items: [{ text: "ok", status: "done" }], seq: 1000001 } },
+    ]);
+
+    expect(parsed).toHaveLength(3);
+    expect(parsed[0]?.plan).toBeUndefined();
+    expect(parsed[1]?.plan).toBeUndefined();
+    expect(parsed[2]?.plan?.items?.[0]?.text).toBe("ok");
+  });
 });
 
 describe("ConfidenceReviewSettingsSchema", () => {

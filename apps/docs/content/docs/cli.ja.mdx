@@ -115,6 +115,18 @@ multica issue run-messages <task-id> --issue MUL-123
 multica issue cancel-task <task-id> --issue MUL-123
 ```
 
+実行は `run-plan set` で、いま取り組んでいるチェックリストを公開します。`--item` は `<テキスト>:<ステータス>` の形式で、最後のコロンがステータス（`pending` / `in_progress` / `done`）を区切るため、テキスト自体にコロンを含められます。`in_progress` は最大 1 件までです。公開するとプラン全体が置き換わります。公開できるのは実行自身だけで、実行中に限られます:
+
+```bash
+multica issue run-plan set "$MULTICA_TASK_ID" \
+  --item "失敗するテストを再現:done" \
+  --item "パーサーを修正:in_progress"
+
+# --item を使わず、標準入力から JSON を渡すこともできます
+echo '{"items":[{"text":"パーサーを修正","status":"in_progress"}]}' \
+  | multica issue run-plan set "$MULTICA_TASK_ID"
+```
+
 ## エージェントとスキル
 
 ```bash
@@ -241,6 +253,7 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | | `property list/set/unset <issue-id>` | カスタムプロパティの値を設定 | `set`: `--name`、`--value`（`actor` / `multi_actor` はメンバーの名前・メール・id を受け付けます） |
 | | `runs <issue-id>` | 実行履歴を表示 | `--full-id` |
 | | `run-messages <task-id>` | 1 回の実行のメッセージを表示 | `--since`、`--issue` |
+| | `run-plan set <task-id>` | 実行自身のプランを公開（置き換え） | `--item "<テキスト>:<ステータス>"`（繰り返し可。省略時は標準入力の JSON）、`--issue` |
 | | `usage <issue-id>` | 集計されたトークン使用量を表示 | |
 | | `rerun <id>` | 現在の担当者で実行を再キューイング | |
 | | `cancel-task <task-id>` | 進行中またはキュー中の実行をキャンセル | `--issue` |

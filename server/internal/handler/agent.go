@@ -630,6 +630,14 @@ type AgentTaskResponse struct {
 	// model call, genuinely has no number, and showing 0 would assert it was
 	// free. omitempty keeps both off the wire.
 	Usage []TaskUsageData `json:"usage,omitempty"`
+	// Plan is the run's living checklist (F04) — the newest 'plan' task_message
+	// it published. Hydrated only on the issue-facing surfaces (the execution
+	// log and the active-task read); the daemon claim path leaves it nil, since
+	// the run is the thing that writes it.
+	//
+	// Absent when the run never published one, which the UI renders as no plan
+	// block at all — an empty checklist would assert the run has nothing to do.
+	Plan *RunPlan `json:"plan,omitempty"`
 	// AuthToken is the task-scoped `mat_` token the daemon must inject as
 	// MULTICA_TOKEN in the agent process environment. The server binds it to
 	// this (agent_id, task_id) pair at claim time and treats any request

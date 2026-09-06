@@ -8,6 +8,8 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { setApiInstance } from "../api";
 import type { ApiClient } from "../api/client";
 import { chatKeys, taskMessagesOptions } from "../chat/queries";
+import { issueKeys } from "../issues/queries";
+import type { AgentTask } from "../types";
 import type { TaskMessagePayload } from "../types/events";
 import type { WSClient } from "../api/ws-client";
 import { useRealtimeSync, type RealtimeSyncStores } from "./use-realtime-sync";
@@ -226,5 +228,95 @@ describe("useRealtimeSync — task:message fanout guards (MUL-6396)", () => {
     await vi.waitFor(() => expect(listTaskMessages).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(cached(qc, HELD_TASK)?.map((m) => m.seq)).toEqual([1]));
     reopen();
+  });
+});
+
+// The living run plan (F04). A `plan` message patches the cached run rows so
+// the block updates without the execution log refetching the issue's history.
+describe("useRealtimeSync — task:message carrying a run plan (F04)", () => {
+  let qc: QueryClient;
+  let handlers: Handlers;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    handlers = new Map();
+    setApiInstance({ listTaskMessages: vi.fn(async () => []) } as unknown as ApiClient);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    setApiInstance(undefined as unknown as ApiClient);
+  });
+
+  function mountWithRuns(tasks: AgentTask[]) {
+    qc.setQueryData(issueKeys.tasks("issue-1"), tasks);
+    renderHook(() => useRealtimeSync(createMockWs(handlers), createStores()), {
+      wrapper: createWrapper(qc),
+    });
+    const handler = handlers.get("task:message");
+    if (!handler) throw new Error("task:message handler was not registered");
+    return handler;
+  }
+
+  function run(overrides: Partial<AgentTask> = {}): AgentTask {
+    return {
+      id: HELD_TASK,
+      agent_id: "agent-1",
+      runtime_id: "runtime-1",
+      issue_id: "issue-1",
+      status: "running",
+      priority: 0,
+      dispatched_at: null,
+      started_at: null,
+      completed_at: null,
+      result: null,
+      error: null,
+      created_at: "2026-01-01T00:00:00Z",
+      ...overrides,
+    };
+  }
+
+  function planMsg(seq: number, items: { text: string; status: string }[]): TaskMessagePayload {
+    return msg(HELD_TASK, seq, { type: "plan", content: "0/1 done", input: { items } });
+  }
+
+  function cachedPlan(qc: QueryClient) {
+    return qc.getQueryData<AgentTask[]>(issueKeys.tasks("issue-1"))?.[0]?.plan;
+  }
+
+  it("patches the run's plan in place, with no refetch", () => {
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const handler = mountWithRuns([run()]);
+
+    handler(planMsg(1_000_001, [{ text: "Fix the parser", status: "in_progress" }]));
+
+    expect(cachedPlan(qc)).toEqual({
+      seq: 1_000_001,
+      items: [{ text: "Fix the parser", status: "in_progress" }],
+    });
+    // The event carries the plan, so refetching the issue's whole run history
+    // would only re-fetch what already arrived.
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the newest plan when one arrives out of order", () => {
+    const handler = mountWithRuns([run()]);
+
+    handler(planMsg(1_000_002, [{ text: "second", status: "done" }]));
+    handler(planMsg(1_000_001, [{ text: "first", status: "pending" }]));
+
+    expect(cachedPlan(qc)?.seq).toBe(1_000_002);
+    expect(cachedPlan(qc)?.items[0]?.text).toBe("second");
+  });
+
+  it("leaves the row alone for a malformed or empty checklist", () => {
+    const handler = mountWithRuns([run()]);
+
+    handler(msg(HELD_TASK, 1_000_001, { type: "plan", input: { items: "nope" } }));
+    handler(msg(HELD_TASK, 1_000_002, { type: "plan", input: { items: [{ status: "done" }] } }));
+    handler(msg(HELD_TASK, 5, { type: "text", content: "not a plan" }));
+
+    expect(cachedPlan(qc)).toBeUndefined();
   });
 });

@@ -293,6 +293,32 @@ a run you see may finish a second later, and one you don't see may start a
 second later. Coordinate through the issue's comments — the reads tell you whom
 to coordinate with.
 
+## Publishing your run plan
+
+A reader watching your run sees a spinner and a wall of tool calls. Publish the
+checklist you are actually working through so they see where you are:
+
+```bash
+multica issue run-plan set "$MULTICA_TASK_ID" \
+  --item "Reproduce the failing test:done" \
+  --item "Fix the parser:in_progress" \
+  --item "Update the docs:pending"
+```
+
+Each `--item` is `<text>:<status>`; the LAST colon separates the status, so the
+text may contain colons of its own. Status is `pending`, `in_progress` or
+`done`, and **at most one item may be `in_progress`** — a plan with two says
+nothing about where you are. With no `--item`, the command reads
+`{"items":[{"text":"...","status":"..."}]}` as JSON on stdin.
+
+Publishing again REPLACES the plan; there is no per-item update. Do it at
+milestones only — when a step finishes, or when the plan itself changes — not
+after every tool call. Bounds: 1 to 30 items, 200 characters each.
+
+Only the run itself can publish its plan, with the token it already runs with,
+and only while it is still running. Passing a run id that is not yours is a
+`403`; a finished run is a `409`.
+
 ## Goal ancestry rides the brief
 
 When the claimed issue has a parent, the brief carries `## Goal Ancestry`:

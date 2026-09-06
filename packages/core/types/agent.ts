@@ -666,6 +666,32 @@ export interface AgentTask {
    * backends — render conditionally.
    */
   escalation?: TaskEscalation | null;
+  /**
+   * The living run plan (F04): the checklist the run last published, and the
+   * seq of the message carrying it so a client can tell a newer plan from the
+   * one it already renders. Absent on runs that published none and on older
+   * backends — render the block conditionally.
+   */
+  plan?: RunPlan | null;
+}
+
+/**
+ * One entry of a run's plan.
+ *
+ * `status` is an open string on purpose. The write side is closed — the server
+ * rejects anything but pending / in_progress / done — so only a NEWER server
+ * can produce a value this build does not know, and the renderer gives it a
+ * neutral bullet rather than dropping the item.
+ */
+export interface RunPlanItem {
+  text: string;
+  status: "pending" | "in_progress" | "done" | (string & {});
+}
+
+export interface RunPlan {
+  items: RunPlanItem[];
+  /** seq of the task_message carrying this plan; higher is newer. */
+  seq: number;
 }
 
 /**
