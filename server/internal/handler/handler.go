@@ -604,6 +604,11 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	h.AutopilotService.OnTriageParked = h.onTriageParked
 	// BYOK (K48): the failure path retires a bad key and retries on the next.
 	taskSvc.ModelKeyFailover = h.modelKeyFailover
+	// Fail-safe cancellation (JEF-275): a cancelled run is settled like a
+	// failed one instead of leaving held writes and barriers hanging.
+	taskSvc.OnTaskCancelled = h.afterTaskCancelled
+	// Validated routing (JEF-275): a refused trigger reaches a human.
+	taskSvc.OnRoutingBlocked = h.onRoutingBlocked
 	return h
 }
 

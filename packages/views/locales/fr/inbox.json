@@ -98,7 +98,8 @@
     "org_alert": "Alerte d'organisation",
     "decision_auto_decided": "Décidé pour toi",
     "mcp_alert": "Alerte de la passerelle MCP",
-    "model_key_alert": "Clé de modèle retirée"
+    "model_key_alert": "Clé de modèle retirée",
+    "routing_alert": "Agent non routable"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

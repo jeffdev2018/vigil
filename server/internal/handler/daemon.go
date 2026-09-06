@@ -4206,18 +4206,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
 	// Pipelines (K37): the executor's completed run advances the cursor.
 	h.advancePipelineAfterTask(r.Context(), *task)
-	// Fan-out (K38): a settled child moves the barrier.
-	h.updateFanoutBarrier(r.Context(), *task)
-	// Agent duel (K39): a finished candidate run moves the duel.
-	h.updateDuelBarrier(r.Context(), *task)
-	// Eval Lab (K24): a finished replay is scored on the criteria it proved.
-	h.settleEvalRunCase(r.Context(), *task)
-	// "Show me first" (K69): the held writes become one decision.
-	h.settlePendingEffects(r.Context(), *task, true)
-	// Replay (K70): seal the run's event chain into the audit log.
-	h.sealRunReplay(r.Context(), *task)
-	// Refactoring campaigns (K42): a finished merge run moves the queue.
-	h.updateCampaignMergeRun(r.Context(), *task)
+	// The settlement every terminal run gets (JEF-275): barriers, held writes,
+	// sealed replay. Shared with the fail path and with cancellation.
+	h.terminalRunHooks(r.Context(), *task, true)
 	// Cross-provider self-review (K15): a finished review leaves its report;
 	// a finished code run gets reviewed by another provider.
 	h.storeCrossReviewReport(r.Context(), *task, req.Output)
@@ -4923,18 +4914,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		return
 	}
 	h.TaskService.NotifyTaskFinished(*task)
-	// Fan-out (K38): a child failed for good settles its member.
-	h.updateFanoutBarrier(r.Context(), *task)
-	// Agent duel (K39): a candidate that failed for good ends the duel.
-	h.updateDuelBarrier(r.Context(), *task)
-	// Eval Lab (K24): a replay that failed for good scores zero.
-	h.settleEvalRunCase(r.Context(), *task)
-	// "Show me first" (K69): a failed run drops its held writes.
-	h.settlePendingEffects(r.Context(), *task, false)
-	// Replay (K70): seal the run's event chain into the audit log.
-	h.sealRunReplay(r.Context(), *task)
-	// Refactoring campaigns (K42): a merge run that failed for good is a conflict.
-	h.updateCampaignMergeRun(r.Context(), *task)
+	// The settlement every terminal run gets (JEF-275): barriers, held writes,
+	// sealed replay. Shared with the complete path and with cancellation.
+	h.terminalRunHooks(r.Context(), *task, false)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

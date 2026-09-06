@@ -1160,6 +1160,11 @@
     "preview_off": "Show me first is off: writes apply as they come",
     "preview_failed": "Failed to change the effect mode"
   },
+  "routing_check": {
+    "title": "Routing check",
+    "ok": "A trigger for this agent would run.",
+    "more": "+{{count}} more"
+  },
   "competency": {
     "title": "Competency by domain",
     "empty": "Not enough data yet: the tally grows as issues assigned to this agent close.",

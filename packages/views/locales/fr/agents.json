@@ -1160,6 +1160,11 @@
     "preview_off": "Montre-moi d'abord désactivé : les écritures s'appliquent au fil de l'eau",
     "preview_failed": "Impossible de changer le mode d'effet"
   },
+  "routing_check": {
+    "title": "Vérification du routage",
+    "ok": "Un déclenchement de cet agent s'exécuterait.",
+    "more": "+{{count}} autre(s)"
+  },
   "competency": {
     "title": "Compétences par domaine",
     "empty": "Données insuffisantes : le bilan s'étoffe à mesure que les issues assignées à cet agent sont fermées.",

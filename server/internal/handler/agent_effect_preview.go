@@ -85,22 +85,28 @@ func rawFieldsToMap(raw map[string]json.RawMessage) map[string]any {
 	return out
 }
 
-// settlePendingEffects runs at the end of a task: a failed run drops its
-// held writes; a completed one files the decision that lists them.
-func (h *Handler) settlePendingEffects(ctx context.Context, task db.AgentTaskQueue, succeeded bool) {
+// settlePendingEffects runs at the end of a task: a failed or cancelled run
+// drops its held writes; a completed one files the decision that lists them.
+// Returns how many held writes it settled, which the cancellation path (JEF-275)
+// reports in its audit entry.
+func (h *Handler) settlePendingEffects(ctx context.Context, task db.AgentTaskQueue, succeeded bool) int {
 	pending, err := h.Queries.ListPendingAgentEffectsForTask(ctx, task.ID)
 	if err != nil || len(pending) == 0 {
-		return
+		return 0
 	}
 	issue, err := h.Queries.GetIssue(ctx, task.IssueID)
 	if err != nil {
-		return
+		return 0
 	}
 	if !succeeded {
-		for _, eff := range pending {
-			_, _ = h.Queries.SetAgentEffectStatus(ctx, db.SetAgentEffectStatusParams{ID: eff.ID, WorkspaceID: eff.WorkspaceID, Status: service.EffectRejected, Error: pgtype.Text{String: "run failed", Valid: true}})
+		reason := "run failed"
+		if task.Status == "cancelled" {
+			reason = "run cancelled"
 		}
-		return
+		for _, eff := range pending {
+			_, _ = h.Queries.SetAgentEffectStatus(ctx, db.SetAgentEffectStatusParams{ID: eff.ID, WorkspaceID: eff.WorkspaceID, Status: service.EffectRejected, Error: pgtype.Text{String: reason, Valid: true}})
+		}
+		return len(pending)
 	}
 	agentName := "the agent"
 	if agent, err := h.Queries.GetAgent(ctx, task.AgentID); err == nil {
@@ -130,7 +136,7 @@ func (h *Handler) settlePendingEffects(ctx context.Context, task db.AgentTaskQue
 	})
 	if err != nil {
 		slog.Warn("effect preview: file decision failed", "task_id", uuidToString(task.ID), "error", err)
-		return
+		return 0
 	}
 	if _, err := h.Queries.SetAgentEffectsDecision(ctx, db.SetAgentEffectsDecisionParams{TaskID: task.ID, DecisionID: decision.ID}); err != nil {
 		slog.Warn("effect preview: link effects failed", "task_id", uuidToString(task.ID), "error", err)
@@ -138,6 +144,7 @@ func (h *Handler) settlePendingEffects(ctx context.Context, task db.AgentTaskQue
 	h.notifyDecisionRequested(ctx, issue, decision, "agent", uuidToString(task.AgentID))
 	h.audit(ctx, issue.WorkspaceID, "agent", uuidToString(task.AgentID), AuditEffectPreviewAsked, "issue", issue.ID,
 		map[string]any{"task_id": uuidToString(task.ID), "decision_id": uuidToString(decision.ID), "effects": len(pending)}, nil)
+	return len(pending)
 }
 
 // describePending renders one held write for the decision card.

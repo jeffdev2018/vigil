@@ -83,6 +83,7 @@ vi.mock("../../navigation", () => ({
 vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => null }));
 vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
 vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
+vi.mock("./workflow-limits-setting", () => ({ WorkflowLimitsSetting: () => null }));
 vi.mock("./cross-review-setting", () => ({ CrossReviewSetting: () => null }));
 vi.mock("./contest-setting", () => ({ ContestSetting: () => null }));
 vi.mock("./export-import-setting", () => ({ ExportImportSetting: () => null }));

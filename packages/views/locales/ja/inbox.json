@@ -96,7 +96,8 @@
     "org_alert": "組織アラート",
     "decision_auto_decided": "代わりに判断しました",
     "mcp_alert": "MCP ゲートウェイのアラート",
-    "model_key_alert": "モデルキーが無効化されました"
+    "model_key_alert": "モデルキーが無効化されました",
+    "routing_alert": "エージェントをルーティングできません"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

@@ -49,6 +49,16 @@ type TaskService struct {
 	// ModelKeyFailover (K48) retires the key a run failed on and says whether
 	// another key can take the retry. Nil keeps runs without BYOK unchanged.
 	ModelKeyFailover func(ctx context.Context, task db.AgentTaskQueue, reason string) bool
+	// OnRoutingBlocked (JEF-275) alerts the accountable human that a trigger
+	// was refused because the agent is pointed at nothing runnable. Nil skips
+	// the alert; the refusal itself does not depend on it.
+	OnRoutingBlocked func(ctx context.Context, agent db.Agent, issue db.Issue, problem RoutingProblem)
+	// OnTaskCancelled (JEF-275) runs the terminal cleanup a cancelled run needs
+	// and the daemon's fail/complete callbacks already do: drop held writes,
+	// seal the replay chain, settle whatever barrier was waiting on this run.
+	// Called once per task, after the cancelling transaction committed. Nil
+	// leaves cancellation as it was for services constructed without a handler.
+	OnTaskCancelled func(ctx context.Context, task db.AgentTaskQueue)
 	// Budget applies workspace-owned spend policies. Nil preserves the legacy
 	// path for tests and deployments that construct TaskService directly.
 	Budget *BudgetService
@@ -972,6 +982,16 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 		slog.Warn("cancel task: failed to revoke task tokens",
 			"task_id", util.UUIDToString(task.ID), "error", err)
 	}
+	s.fireTaskCancelled(ctx, task)
+}
+
+// fireTaskCancelled runs the handler-owned terminal cleanup for one cancelled
+// run. Every cancel path reaches it through captureTaskCancelled; the archived-
+// agent path, which deliberately emits no per-task event, calls it directly.
+func (s *TaskService) fireTaskCancelled(ctx context.Context, task db.AgentTaskQueue) {
+	if s.OnTaskCancelled != nil {
+		s.OnTaskCancelled(ctx, task)
+	}
 }
 
 // costUSDTicks is the provider's own price for this usage in 1e-10 USD, or 0
@@ -1401,11 +1421,23 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	}
 	if agent.ArchivedAt.Valid {
 		slog.Debug("task enqueue skipped: agent is archived", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agent.ID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemAgentArchived)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
 	}
 	if !agent.RuntimeID.Valid {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", "agent has no runtime")
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemNoRuntime)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+	// Validated routing (JEF-275): the remaining fatal shapes — a runtime that
+	// was deleted, or one belonging to another workspace — used to queue a task
+	// no daemon in this workspace could ever claim. Refuse it here instead, and
+	// carry the non-fatal findings into the run's routing trace.
+	routingProblems := s.ValidateRouting(ctx, agent, issue.WorkspaceID)
+	if fatal := FatalRoutingProblem(routingProblems); fatal != nil {
+		slog.Warn("task enqueue refused: routing invalid", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agent.ID), "code", fatal.Code)
+		s.fireRoutingBlocked(ctx, agent, issue, *fatal)
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
 	}
 
 	// The issue assignee reacting to an agent-authored comment is a
@@ -1448,6 +1480,7 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	if stamp.RuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
 	}
+	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
@@ -1620,11 +1653,20 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	}
 	if agent.ArchivedAt.Valid {
 		slog.Debug("mention task enqueue skipped: agent is archived", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemAgentArchived)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
 	}
 	if !agent.RuntimeID.Valid {
 		slog.Error("mention task enqueue failed: agent has no runtime", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemNoRuntime)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+	// Validated routing (JEF-275), same contract as the primary path.
+	routingProblems := s.ValidateRouting(ctx, agent, issue.WorkspaceID)
+	if fatal := FatalRoutingProblem(routingProblems); fatal != nil {
+		slog.Warn("mention task enqueue refused: routing invalid", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "code", fatal.Code)
+		s.fireRoutingBlocked(ctx, agent, issue, *fatal)
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
 	}
 
 	// An explicit mention / thread-parent / squad-leader hop from an
@@ -1649,6 +1691,7 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	if stamp.RuntimeID.Valid {
 		mentionRuntimeID = stamp.RuntimeID
 	}
+	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	taskID := dbid.NewV7()
 	task, err := s.createTaskWithBudget(ctx, BudgetScope{
 		WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, AgentID: agent.ID,
@@ -5229,6 +5272,15 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 		} else if attempts.Valid && wantRetry {
 			checkpointAttempts = attempts
 		}
+		// Bounded workflows (JEF-275): max_attempts bounds one run's retries,
+		// this bounds the workflow they belong to — a retry inside a review
+		// loop that already spent its budget is not queued at all.
+		if wantRetry {
+			if ok, _ := s.WorkflowAllowsLeg(ctx, parent, RetryLegRole(failover.History)); !ok {
+				failureReason = ReasonWorkflowLimit
+				wantRetry = false
+			}
+		}
 	}
 
 	var task db.AgentTaskQueue
@@ -5811,6 +5863,14 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if !failover.OK && !retryEligible(reason, parent) {
 		return nil, nil
 	}
+	// Bounded workflows (JEF-275): the same ceiling FailTask applies, so the
+	// sweeper cannot restart a workflow the in-tx path already refused to grow.
+	if ok, _ := s.WorkflowAllowsLeg(ctx, parent, RetryLegRole(failover.History)); !ok {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonWorkflowLimit, Valid: true}}); err != nil {
+			slog.Warn("workflow limits: mark refused failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
 
 	var runtimeMCPOverlay runtimeMCPOverlayData
 	agent, agentErr := s.Queries.GetAgent(ctx, parent.AgentID)
@@ -6316,9 +6376,19 @@ func (s *TaskService) RecoverOrphanedTasksForRuntime(ctx context.Context, runtim
 // agent:archived event the caller publishes already invalidates every client's
 // active-task view, so per-row events would be redundant noise.
 func (s *TaskService) CancelTasksForArchivedAgent(ctx context.Context, agentID pgtype.UUID) ([]db.AgentTaskQueue, error) {
-	return s.terminateTasksInTx(ctx, func(qtx *db.Queries) ([]db.AgentTaskQueue, error) {
+	cancelled, err := s.terminateTasksInTx(ctx, func(qtx *db.Queries) ([]db.AgentTaskQueue, error) {
 		return qtx.CancelAgentTasksByAgent(ctx, agentID)
 	})
+	if err != nil {
+		return nil, err
+	}
+	// No task:cancelled event here, but the terminal cleanup still owes these
+	// runs what every other cancel path gives them (JEF-275): held writes are
+	// dropped and the replay chain is sealed even when the agent goes away.
+	for _, t := range cancelled {
+		s.fireTaskCancelled(ctx, t)
+	}
+	return cancelled, nil
 }
 
 func (s *TaskService) terminateTasksInTx(ctx context.Context, fail func(*db.Queries) ([]db.AgentTaskQueue, error)) ([]db.AgentTaskQueue, error) {
