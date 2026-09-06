@@ -99,7 +99,8 @@
     "decision_auto_decided": "Decided for you",
     "mcp_alert": "MCP gateway alert",
     "model_key_alert": "Model key retired",
-    "routing_alert": "Agent cannot be routed"
+    "routing_alert": "Agent cannot be routed",
+    "code_health_report": "Code health report"
   },
   "labels": {
     "set_status_to": "Set status to",

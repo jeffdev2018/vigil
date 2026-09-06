@@ -1340,6 +1340,11 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceEvalCases(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Code health autopilot (K22).
+			name: "purge code health scans",
+			run:  func() error { return qtx.PurgeWorkspaceCodeHealthScans(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge contests",
 			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
 		},

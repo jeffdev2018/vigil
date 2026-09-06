@@ -840,6 +840,20 @@ type ClientUsageDaily struct {
 	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
+type CodeHealthScan struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	Status        string             `json:"status"`
+	Findings      []byte             `json:"findings"`
+	IssuesCreated int32              `json:"issues_created"`
+	Error         string             `json:"error"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
+}
+
 type Comment struct {
 	ID                pgtype.UUID        `json:"id"`
 	IssueID           pgtype.UUID        `json:"issue_id"`

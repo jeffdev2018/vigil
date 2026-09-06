@@ -337,6 +337,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import {
@@ -3856,6 +3857,27 @@ export class ApiClient {
   async putWorkflowLimits(input: import("../agents/routing-check").WorkflowLimits): Promise<import("../agents/routing-check").WorkflowLimitsSettings> {
     const raw = await this.fetch<unknown>(`/api/workflow-limits`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, WorkflowLimitsSchema, { ...input, min_legs: 1, max_legs_allowed: 50 }, { endpoint: "PUT /api/workflow-limits" });
+  }
+
+  // Code health autopilot (K22): the scheduled read-only maintenance scan.
+  async getCodeHealthSettings(): Promise<CodeHealthSettings> {
+    const raw = await this.fetch<unknown>(`/api/code-health/settings`);
+    return parseWithFallback(raw, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, { endpoint: "GET /api/code-health/settings" }) as CodeHealthSettings;
+  }
+
+  async putCodeHealthSettings(input: CodeHealthSettingsInput): Promise<CodeHealthSettings> {
+    const raw = await this.fetch<unknown>(`/api/code-health/settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, CodeHealthSettingsSchema, { ...CODE_HEALTH_DEFAULT_SETTINGS, ...input }, { endpoint: "PUT /api/code-health/settings" }) as CodeHealthSettings;
+  }
+
+  async listCodeHealthScans(): Promise<CodeHealthScan[]> {
+    const raw = await this.fetch<unknown>(`/api/code-health/scans`);
+    return parseWithFallback(raw, CodeHealthScanListSchema, { scans: [] }, { endpoint: "GET /api/code-health/scans" }).scans as CodeHealthScan[];
+  }
+
+  async triggerCodeHealthScan(): Promise<CodeHealthScan | null> {
+    const raw = await this.fetch<unknown>(`/api/code-health/scans/trigger`, { method: "POST" });
+    return parseWithFallback(raw, CodeHealthScanEnvelopeSchema, { scan: null }, { endpoint: "POST /api/code-health/scans/trigger" }).scan as CodeHealthScan | null;
   }
 
   async getAssigneeSuggestion(issueId: string): Promise<import("../agents/competency").AssigneeSuggestion> {

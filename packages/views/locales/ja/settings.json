@@ -435,7 +435,8 @@
       "audit_log": "監査ログ",
       "budgets": "予算",
       "learning": "Vigil が知っていること",
-      "eval_lab": "評価ラボ"
+      "eval_lab": "評価ラボ",
+      "code_health": "コードヘルス"
     }
   },
   "plugins": {
@@ -2032,6 +2033,56 @@
       "docs": "ドキュメント",
       "tests": "テスト",
       "chore": "雑務"
+    }
+  },
+  "code_health": {
+    "title": "コードヘルス",
+    "description": "メンテナンスエージェントがスケジュールに従ってリポジトリを読み、誰も計画していない作業（技術的負債、古い依存関係や脆弱な依存関係、テストのないコード）を報告します。確信のある指摘は、そのエージェントに割り当てられた通常の課題になります。",
+    "onboarding_title": "メンテナンスエージェントを選ぶまでは何も実行されません",
+    "onboarding_body": "スキャンは読み取り専用です。エージェントは読んで報告するだけで、決して編集しません。確信のある指摘はそれぞれ 1 件の課題になり、同じエージェントに割り当てられます。1 回のスキャンあたりの上限があり、対象の予算ポリシーの範囲に収まります。",
+    "config_title": "スケジュール",
+    "config_description": "誰が、どのくらいの頻度でスキャンし、1 回のスキャンでどれだけの保守作業をボードに載せられるか。",
+    "loading": "設定を読み込んでいます…",
+    "enabled_label": "スケジュールに従ってスキャン",
+    "enabled_hint": "既定ではオフです。オフのままでも手動でスキャンできます。",
+    "agent_label": "メンテナンスエージェント",
+    "pick_agent": "エージェントを選択",
+    "project_label": "対象範囲",
+    "whole_workspace": "ワークスペース全体",
+    "cron_label": "Cron 式",
+    "cron_hint": "標準の 5 フィールド cron で、下のタイムゾーンで解釈されます。通常は週 1 回で十分です。",
+    "timezone_label": "タイムゾーン",
+    "max_issues_label": "1 回のスキャンあたりの課題数",
+    "min_confidence_label": "最低確信度",
+    "save": "保存",
+    "saved_toast": "コードヘルスの設定を保存しました",
+    "save_failed": "設定を保存できませんでした",
+    "scan_now": "今すぐスキャン",
+    "scan_started_toast": "スキャンを開始しました",
+    "scan_failed": "スキャンを開始できませんでした",
+    "history_title": "スキャン履歴",
+    "history_description": "報告されたすべての指摘。課題にならなかったものとその理由も含みます。",
+    "history_empty": "スキャン履歴はありません",
+    "col_date": "日時",
+    "col_status": "ステータス",
+    "col_findings": "指摘",
+    "col_issues": "作成された課題",
+    "no_findings": "指摘なし",
+    "finding_meta": "（{{kind}}、確信度 {{confidence}}%）",
+    "status_unknown": "不明",
+    "skipped_unknown": "スキップ",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗",
+      "empty": "指摘なし"
+    },
+    "skipped": {
+      "low_confidence": "確信度のしきい値未満",
+      "duplicate": "すでに未解決の課題あり",
+      "cap": "1 回のスキャンの上限超過",
+      "budget": "予算により拒否",
+      "error": "作成できませんでした"
     }
   }
 }
