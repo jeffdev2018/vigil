@@ -210,6 +210,7 @@ func daemonCommonCapabilities() []string {
 		protocol.DaemonCapabilitySourceContextQuickCreateV1,
 		protocol.DaemonCapabilityRPCV1,
 		protocol.DaemonCapabilityPlatformSkillV1,
+		protocol.DaemonCapabilityWorktreeRevertV1,
 	}
 }
 
@@ -535,7 +536,7 @@ func (c *Client) ReportTaskMessages(ctx context.Context, taskID string, messages
 	}, nil)
 }
 
-func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir string) error {
+func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string) error {
 	body := map[string]any{"output": output}
 	if branchName != "" {
 		body["branch_name"] = branchName
@@ -555,6 +556,9 @@ func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, s
 	if retiredSessionID != "" {
 		body["retired_session_id"] = retiredSessionID
 	}
+	if checkpointSHA != "" {
+		body["checkpoint_sha"] = checkpointSHA
+	}
 	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/complete", taskID), body, nil, defaultTerminalRetrySchedule)
 }
 
@@ -567,7 +571,7 @@ func (c *Client) ReportTaskUsage(ctx context.Context, taskID string, usage []Tas
 	}, nil)
 }
 
-func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir string) error {
+func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string) error {
 	body := map[string]any{"error": errMsg}
 	if sessionID != "" {
 		body["session_id"] = sessionID
@@ -592,6 +596,11 @@ func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDi
 	}
 	if retiredSessionID != "" {
 		body["retired_session_id"] = retiredSessionID
+	}
+	// A failed run still carries a turn checkpoint, for the same reason it
+	// carries a branch: Finalize committed and recorded whatever it got to.
+	if checkpointSHA != "" {
+		body["checkpoint_sha"] = checkpointSHA
 	}
 	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/fail", taskID), body, nil, defaultTerminalRetrySchedule)
 }
@@ -656,6 +665,7 @@ type (
 	PendingCliAuth          = protocol.DaemonHeartbeatPendingCliAuth
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
+	PendingWorktreeRevert   = protocol.DaemonHeartbeatPendingWorktreeRevert
 )
 
 // SendHeartbeat beats for one runtime. `skipped` is the machine's
@@ -717,6 +727,11 @@ func (c *Client) ReportCliAuthResult(ctx context.Context, runtimeID, requestID s
 // ReportLocalSkillListResult sends the runtime-local-skill inventory back to the server.
 func (c *Client) ReportLocalSkillListResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/local-skills/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportWorktreeRevertResult tells the server whether the branch went back.
+func (c *Client) ReportWorktreeRevertResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/worktree-revert/%s/result", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillImportResult sends a runtime-local-skill bundle back to the server.

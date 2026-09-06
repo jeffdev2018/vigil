@@ -2530,9 +2530,28 @@ export const AgentTaskSchema = z.object({
   // whole execution log. Absent on runs that published none and on servers
   // that predate the feature, which the UI renders as no block at all.
   plan: RunPlanSchema.nullish().catch(undefined),
+  // Turn checkpoints (F09). Same independent-degradation rule as `usage`: a
+  // malformed value costs the row its revert action, not the whole execution
+  // log. `revertable` is the affordance and it fails CLOSED — anything that is
+  // not literally `true` reads as "not revertible", which is what a server
+  // predating the feature produces and what the UI renders as no action at all.
+  checkpoint_sha: z.string().optional().catch(undefined),
+  turn_seq: z.number().optional().catch(undefined),
+  revertable: z.boolean().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
+
+// Worktree revert (F09). The response the enqueue endpoint and its poll
+// endpoint return. `status` is a server-driven enum, so consumers switch on it
+// with a default branch; the schema keeps it a plain string for that reason.
+export const WorktreeRevertRequestSchema = z.object({
+  request_id: z.string().default(""),
+  status: z.string().default("failed"),
+  error: z.string().optional().catch(undefined),
+}).loose();
+
+export type WorktreeRevertRequestResponse = z.infer<typeof WorktreeRevertRequestSchema>;
 
 // Task cancellation (`POST /api/tasks/:id/cancel`) is consumed directly by
 // chat recovery. Its optional message payload must be well-formed before the

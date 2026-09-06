@@ -2902,3 +2902,53 @@ WHERE id = @task_id
 -- without one query per run.
 SELECT id, dispatch_lane FROM agent_task_queue
 WHERE id = ANY(@task_ids::uuid[]);
+
+-- name: RecordTaskTurnCheckpoint :one
+-- F09: pin what a worktree run delivered, and where it sits in its
+-- conversation.
+--
+-- Deliberately separate from CompleteAgentTask / FailAgentTask rather than two
+-- more columns on those UPDATEs. The checkpoint is an affordance, not part of
+-- the terminal transition: if this statement fails, the run is still correctly
+-- completed and the only loss is a revert button. Folding it into the terminal
+-- write would make a repo-side detail able to fail the report of work that
+-- actually happened.
+--
+-- turn_seq is assigned here because only the server can see the conversation's
+-- other runs. MAX+1 over the already-checkpointed turns of the same issue or
+-- chat session: a terminal report is written once per run, so the sequence is
+-- dense and monotonic without a counter of its own.
+UPDATE agent_task_queue
+SET checkpoint_sha = sqlc.arg('checkpoint_sha'),
+    turn_seq = (
+        SELECT COALESCE(MAX(q.turn_seq), 0) + 1
+        FROM agent_task_queue q
+        WHERE q.turn_seq IS NOT NULL
+          AND q.id <> agent_task_queue.id
+          AND (
+              (agent_task_queue.issue_id IS NOT NULL AND q.issue_id = agent_task_queue.issue_id)
+              OR (agent_task_queue.chat_session_id IS NOT NULL AND q.chat_session_id = agent_task_queue.chat_session_id)
+          )
+    )
+WHERE agent_task_queue.id = sqlc.arg('id') AND agent_task_queue.checkpoint_sha IS NULL
+RETURNING *;
+
+-- name: ListTaskTurnsAfter :many
+-- F09: the runs a revert to target_task_id would remove — every checkpointed
+-- turn of the same conversation that came after it.
+--
+-- Ordered newest-first so the caller deletes leaves before their ancestors when
+-- a turn was retried into a child task.
+SELECT * FROM agent_task_queue
+WHERE turn_seq IS NOT NULL
+  AND turn_seq > sqlc.arg('after_turn_seq')::int
+  AND (
+      (sqlc.narg('issue_id')::uuid IS NOT NULL AND issue_id = sqlc.narg('issue_id')::uuid)
+      OR (sqlc.narg('chat_session_id')::uuid IS NOT NULL AND chat_session_id = sqlc.narg('chat_session_id')::uuid)
+  )
+ORDER BY turn_seq DESC;
+
+-- name: DeleteAgentTasksByID :exec
+-- F09: drop the runs a revert removed. Their task_message rows follow through
+-- the FK inherited from migration 026; nothing new is added here.
+DELETE FROM agent_task_queue WHERE id = ANY(sqlc.arg('ids')::uuid[]);

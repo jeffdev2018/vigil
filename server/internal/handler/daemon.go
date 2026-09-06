@@ -1283,6 +1283,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if len(ack.PendingLocalSkillImports) > 0 {
 		resp["pending_local_skill_imports"] = ack.PendingLocalSkillImports
 	}
+	if ack.PendingWorktreeRevert != nil {
+		resp["pending_worktree_revert"] = ack.PendingWorktreeRevert
+	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -1609,6 +1612,17 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 			slog.Warn("local skill import HasPending timed out", "runtime_id", runtimeID, "elapsed_ms", m.ProbeImportMs)
 		} else {
 			slog.Warn("local skill import HasPending failed", "error", probeErr, "runtime_id", runtimeID)
+		}
+	}
+
+	// Worktree revert (F09). Probe first, claim second, exactly as the queues
+	// above: the probe is one partial-index lookup on a table that is normally
+	// empty, and only a hit pays for the claiming UPDATE.
+	if runtimeUUID, err := util.ParseUUID(runtimeID); err == nil {
+		if hasRevert, err := h.Queries.HasPendingWorktreeRevert(ctx, runtimeUUID); err != nil {
+			slog.Warn("worktree revert HasPending failed", "error", err, "runtime_id", runtimeID)
+		} else if hasRevert {
+			ack.PendingWorktreeRevert = h.claimWorktreeRevertForHeartbeat(ctx, runtimeUUID)
 		}
 	}
 
@@ -4132,6 +4146,10 @@ type TaskCompleteRequest struct {
 	// to report" — this says "never hand this id to a later run". Older
 	// daemons omit it, which is exactly the pre-fix behaviour.
 	RetiredSessionID string `json:"retired_session_id,omitempty"`
+	// CheckpointSHA is the turn record this worktree run delivered (F09) — the
+	// commit refs/multica/turn/<taskKey> points at in the user's repository.
+	// Recording it is what makes the run revertible.
+	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
 }
 
 // sanitizeTaskCompleteRequest / sanitizeTaskFailRequest scrub every
@@ -4149,6 +4167,7 @@ func sanitizeTaskCompleteRequest(req *TaskCompleteRequest) {
 	req.DurableWorkDir = util.SanitizeTextForPostgres(req.DurableWorkDir)
 	req.BranchName = util.SanitizeTextForPostgres(req.BranchName)
 	req.RetiredSessionID = util.SanitizeTextForPostgres(req.RetiredSessionID)
+	req.CheckpointSHA = util.SanitizeTextForPostgres(req.CheckpointSHA)
 }
 
 func sanitizeTaskFailRequest(req *TaskFailRequest) {
@@ -4159,6 +4178,7 @@ func sanitizeTaskFailRequest(req *TaskFailRequest) {
 	req.FailureReason = util.SanitizeTextForPostgres(req.FailureReason)
 	req.BranchName = util.SanitizeTextForPostgres(req.BranchName)
 	req.RetiredSessionID = util.SanitizeTextForPostgres(req.RetiredSessionID)
+	req.CheckpointSHA = util.SanitizeTextForPostgres(req.CheckpointSHA)
 }
 
 func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
@@ -4234,6 +4254,7 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
 	h.emitIssueExecutedOnFirstCompletion(r, task)
 	// Handoff packet (K17): every completed run leaves one.
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
@@ -4907,6 +4928,10 @@ type TaskFailRequest struct {
 	// to report" — this says "never hand this id to a later run". Older
 	// daemons omit it, which is exactly the pre-fix behaviour.
 	RetiredSessionID string `json:"retired_session_id,omitempty"`
+	// CheckpointSHA is the turn record this worktree run delivered (F09) — the
+	// commit refs/multica/turn/<taskKey> points at in the user's repository.
+	// Recording it is what makes the run revertible.
+	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
 }
 
 func (h *Handler) FailTask(w http.ResponseWriter, r *http.Request) {
@@ -4955,6 +4980,7 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
 	h.TaskService.NotifyTaskFinished(*task)
 	// The settlement every terminal run gets (JEF-275): barriers, held writes,
 	// sealed replay. Shared with the complete path and with cancellation.

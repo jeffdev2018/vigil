@@ -1552,6 +1552,13 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceWatchdogs(ctx, requester.WorkspaceID) },
 		},
 		{
+			// F09: before the runs they target. Nothing outside the workspace
+			// reads them, and a pending one names a branch in a repository this
+			// teardown has no say over anyway.
+			name: "delete worktree revert requests",
+			run:  func() error { return qtx.DeleteWorkspaceWorktreeRevertRequests(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete comments",
 			run:  func() error { return qtx.DeleteWorkspaceComments(ctx, requester.WorkspaceID) },
 		},

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { GitBranch, Pencil, TriangleAlert } from "lucide-react";
-import type { LocalDirectoryExecutionMode } from "@multica/core/types";
+import type { LocalDirectoryExecutionMode, LocalDirectoryLifecycle } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
@@ -47,7 +47,31 @@ interface LocalDirectoryModeDialogProps {
   saving?: boolean;
   /** Confirm label differs between adding a resource and editing one. */
   confirmLabel: string;
-  onConfirm: (mode: LocalDirectoryExecutionMode) => void;
+  /** Lifecycle scripts to preselect — the current ones when editing (F09). */
+  lifecycle?: LocalDirectoryLifecycle;
+  /**
+   * Whether this daemon advertises worktree support. Lifecycle scripts only
+   * run in worktree mode, so a daemon that cannot run one is not offered the
+   * fields at all rather than shown fields that would never fire.
+   */
+  lifecycleSupported?: boolean;
+  onConfirm: (mode: LocalDirectoryExecutionMode, lifecycle: LocalDirectoryLifecycle) => void;
+}
+
+/**
+ * One argv rendered as, and read back from, a single line.
+ *
+ * Whitespace separates arguments, which is lossy for an argument that itself
+ * contains a space — deliberately. This field is not a shell, and a user who
+ * needs quoting, a pipeline or a variable writes a script file and names it
+ * here, which is also what keeps `; rm -rf` a literal argument.
+ */
+function argvToText(argv: string[] | undefined): string {
+  return (argv ?? []).join(" ");
+}
+
+function textToArgv(text: string): string[] {
+  return text.trim().split(/\s+/).filter(Boolean);
 }
 
 /**
@@ -68,16 +92,27 @@ export function LocalDirectoryModeDialog({
   errorMessage,
   saving = false,
   confirmLabel,
+  lifecycle,
+  lifecycleSupported = false,
   onConfirm,
 }: LocalDirectoryModeDialogProps) {
   const { t } = useT("projects");
   const [selected, setSelected] = useState<LocalDirectoryExecutionMode>(value);
+  const [setup, setSetup] = useState("");
+  const [run, setRun] = useState("");
+  const [archive, setArchive] = useState("");
 
   // Re-sync when the dialog is reopened for a different resource, otherwise the
-  // previous row's mode would be preselected for this one.
+  // previous row's mode and scripts would be preselected for this one.
   useEffect(() => {
-    if (open) setSelected(value);
-  }, [open, value]);
+    if (!open) return;
+    setSelected(value);
+    setSetup(argvToText(lifecycle?.setup));
+    setRun(argvToText(lifecycle?.run));
+    setArchive(argvToText(lifecycle?.archive));
+  }, [open, value, lifecycle]);
+
+  const showLifecycle = lifecycleSupported && selected === "worktree";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -99,6 +134,32 @@ export function LocalDirectoryModeDialog({
           unavailableReason={unavailableReason}
         />
 
+        {showLifecycle && (
+          <div className="flex flex-col gap-2.5">
+            <p className="text-caption text-muted-foreground">
+              {t(($) => $.resources.lifecycle_description)}
+            </p>
+            <LifecycleField
+              label={t(($) => $.resources.lifecycle_setup_label)}
+              hint={t(($) => $.resources.lifecycle_setup_hint)}
+              value={setup}
+              onChange={setSetup}
+            />
+            <LifecycleField
+              label={t(($) => $.resources.lifecycle_run_label)}
+              hint={t(($) => $.resources.lifecycle_run_hint)}
+              value={run}
+              onChange={setRun}
+            />
+            <LifecycleField
+              label={t(($) => $.resources.lifecycle_archive_label)}
+              hint={t(($) => $.resources.lifecycle_archive_hint)}
+              value={archive}
+              onChange={setArchive}
+            />
+          </div>
+        )}
+
         {errorMessage && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-caption text-destructive">
             <TriangleAlert className="size-3.5 mt-0.5 shrink-0" />
@@ -114,7 +175,26 @@ export function LocalDirectoryModeDialog({
           >
             {t(($) => $.resources.mode_cancel)}
           </Button>
-          <Button onClick={() => onConfirm(selected)} disabled={saving}>
+          <Button
+            onClick={() =>
+              onConfirm(
+                selected,
+                // Only what the user could actually see and edit. When the
+                // fields are hidden — in_place, or a daemon that cannot run
+                // them — the stored scripts pass through untouched, so
+                // toggling the mode does not silently erase a configuration
+                // the user never had a chance to look at.
+                showLifecycle
+                  ? {
+                      setup: textToArgv(setup),
+                      run: textToArgv(run),
+                      archive: textToArgv(archive),
+                    }
+                  : (lifecycle ?? {}),
+              )
+            }
+            disabled={saving}
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>
@@ -235,5 +315,34 @@ function ModeOption({
         )}
       </span>
     </button>
+  );
+}
+
+function LifecycleField({
+  label,
+  hint,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="text-caption font-medium">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={hint}
+        spellCheck={false}
+        // A long command must stay readable as a whole somewhere: the input
+        // scrolls, and the native tooltip carries the full value.
+        title={value || undefined}
+        className="w-full truncate rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-micro outline-none focus-visible:border-ring"
+      />
+    </label>
   );
 }

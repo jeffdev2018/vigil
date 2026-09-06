@@ -135,7 +135,14 @@
     "mode_badge_worktree_tooltip": "実行はそれぞれの git ワークツリーで並行して進み、ブランチとして成果を返します。作業コピーは変更されません。",
     "toast_local_mode_updated": "実行モードを更新しました",
     "toast_local_mode_update_failed": "実行モードを更新できませんでした",
-    "mode_badge_in_place": "直接"
+    "mode_badge_in_place": "直接",
+    "lifecycle_description": "このワークツリー用の任意のコマンド。シェルを介さず直接実行されるため、最初の語がプログラム、残りがその引数になります。",
+    "lifecycle_setup_label": "セットアップ",
+    "lifecycle_setup_hint": "pnpm install",
+    "lifecycle_run_label": "実行（保存のみ、まだ起動しません）",
+    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_archive_label": "アーカイブ",
+    "lifecycle_archive_hint": "./scripts/teardown.sh"
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",

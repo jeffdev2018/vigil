@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uq_worktree_revert_request_target_pending;

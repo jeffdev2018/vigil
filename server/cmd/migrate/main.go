@@ -419,6 +419,8 @@ var concurrentIndexCleanups = map[string]string{
 	"749_review_flag_workspace":                                 "idx_review_flag_workspace",
 	"751_comment_anchor_pr_head":                                "idx_comment_anchor_pr_head",
 	"754_issue_workspace_delegate":                              "idx_issue_workspace_delegate",
+	"759_worktree_revert_request_pending":                       "idx_worktree_revert_request_pending",
+	"760_worktree_revert_request_unique_target":                 "uq_worktree_revert_request_target_pending",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

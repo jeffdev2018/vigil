@@ -643,7 +643,18 @@
     "unresponsive": "无响应",
     "unresponsive_tooltip": "已 {{duration}} 无活动",
     "off_peak": "闲时",
-    "off_peak_hint": "已进入闲时队列：所有紧急运行之后才会被处理，因此开始时间晚于计划。"
+    "off_peak_hint": "已进入闲时队列：所有紧急运行之后才会被处理，因此开始时间晚于计划。",
+    "revert_tooltip": "回退到这一轮",
+    "revert_aria": "把分支回退到这次运行",
+    "revert_dialog_title": "回退到这一轮？",
+    "revert_dialog_body_other": "分支将回到这次运行留下的位置，之后的 {{count}} 次运行及其消息会被删除。",
+    "revert_dialog_body_none": "分支将回到这次运行留下的位置，之后没有需要删除的运行。",
+    "revert_dialog_note": "不会改动你的工作区、暂存区和贮藏。",
+    "revert_dialog_keep": "保持不变",
+    "revert_dialog_confirm": "回退分支",
+    "revert_pending": "正在回退…",
+    "revert_done": "已回退到这一轮",
+    "revert_failed": "回退未完成"
   },
   "legs": {
     "workflow": "工作流",

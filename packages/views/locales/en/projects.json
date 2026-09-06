@@ -136,7 +136,14 @@
     "mode_badge_worktree_tooltip": "Runs execute at the same time in their own git worktree and hand back a branch. Your working copy is untouched.",
     "toast_local_mode_updated": "Execution mode updated",
     "toast_local_mode_update_failed": "Could not update the execution mode",
-    "mode_badge_in_place": "Direct"
+    "mode_badge_in_place": "Direct",
+    "lifecycle_description": "Optional commands for this worktree. Each is run directly — no shell — so the first word is the program and the rest are its arguments.",
+    "lifecycle_setup_label": "Setup",
+    "lifecycle_setup_hint": "pnpm install",
+    "lifecycle_run_label": "Run (saved, not started yet)",
+    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_archive_label": "Archive",
+    "lifecycle_archive_hint": "./scripts/teardown.sh"
   },
   "delete_dialog": {
     "title": "Delete project",

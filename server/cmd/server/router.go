@@ -1646,6 +1646,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/runtimes/{runtimeId}/cli-auth/{requestId}/report", h.ReportCliAuthResult)
 		r.Post("/runtimes/{runtimeId}/local-skills/{requestId}/result", h.ReportLocalSkillListResult)
 		r.Post("/runtimes/{runtimeId}/local-skills/import/{requestId}/result", h.ReportLocalSkillImportResult)
+		// F09: the daemon reports whether it could put the branch back.
+		r.Post("/runtimes/{runtimeId}/worktree-revert/{requestId}/result", h.ReportWorktreeRevertResult)
 
 		r.Get("/tasks/{taskId}/status", h.GetTaskStatus)
 		r.Post("/tasks/{taskId}/paused", h.AckTaskPaused)
@@ -2133,6 +2135,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/quick-actions/{quickActionId}/run", h.RunQuickAction)
 					r.Post("/quick-actions/{quickActionId}/render", h.RenderQuickAction)
 					r.Get("/task-runs", h.ListTasksByIssue)
+					// F09: revert this issue's worktree branch to the turn a
+					// given run delivered.
+					r.Post("/runs/{taskId}/revert", h.RequestIssueRunRevert)
+					r.Get("/runs/{taskId}/revert/{requestId}", h.GetWorktreeRevertRequest)
 					r.Get("/usage", h.GetIssueUsage)
 					r.Post("/reactions", h.AddIssueReaction)
 					r.Delete("/reactions", h.RemoveIssueReaction)

@@ -320,6 +320,10 @@ type AgentTaskQueue struct {
 	LegRole             string             `json:"leg_role"`
 	WorkflowRootTaskID  pgtype.UUID        `json:"workflow_root_task_id"`
 	DispatchLane        string             `json:"dispatch_lane"`
+	// F09: git commit of the turn record this worktree run delivered (refs/multica/turn/<taskKey> in the user repo). NULL means the run is not revertible.
+	CheckpointSha pgtype.Text `json:"checkpoint_sha"`
+	// F09: 1-based position of this run among the checkpointed turns of its conversation. Assigned server-side on the terminal report.
+	TurnSeq pgtype.Int4 `json:"turn_seq"`
 }
 
 type AgentToLabel struct {
@@ -2823,4 +2827,20 @@ type WorkspaceTransferRun struct {
 	CreatedBy    pgtype.UUID        `json:"created_by"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
+}
+
+// F09: one user request to revert a conversation branch to the turn target_task_id delivered.
+type WorktreeRevertRequest struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	RuntimeID     pgtype.UUID        `json:"runtime_id"`
+	TargetTaskID  pgtype.UUID        `json:"target_task_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	ChatSessionID pgtype.UUID        `json:"chat_session_id"`
+	RequestedBy   pgtype.UUID        `json:"requested_by"`
+	Status        string             `json:"status"`
+	Error         pgtype.Text        `json:"error"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	ClaimedAt     pgtype.Timestamptz `json:"claimed_at"`
+	SettledAt     pgtype.Timestamptz `json:"settled_at"`
 }

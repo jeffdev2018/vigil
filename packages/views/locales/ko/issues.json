@@ -643,7 +643,18 @@
     "unresponsive": "응답 없음",
     "unresponsive_tooltip": "{{duration}} 동안 활동 없음",
     "off_peak": "비혼잡",
-    "off_peak_hint": "비혼잡 레인에 대기 중입니다. 긴급 실행이 모두 끝난 뒤 처리되므로 예약된 시각보다 늦게 시작합니다."
+    "off_peak_hint": "비혼잡 레인에 대기 중입니다. 긴급 실행이 모두 끝난 뒤 처리되므로 예약된 시각보다 늦게 시작합니다.",
+    "revert_tooltip": "이 턴으로 되돌리기",
+    "revert_aria": "브랜치를 이 실행 시점으로 되돌리기",
+    "revert_dialog_title": "이 턴으로 되돌릴까요?",
+    "revert_dialog_body_other": "브랜치가 이 실행이 남긴 지점으로 돌아갑니다. 이후 실행 {{count}}건과 그 메시지가 삭제됩니다.",
+    "revert_dialog_body_none": "브랜치가 이 실행이 남긴 지점으로 돌아갑니다. 삭제될 이후 실행은 없습니다.",
+    "revert_dialog_note": "작업 사본, 인덱스, 스태시는 건드리지 않습니다.",
+    "revert_dialog_keep": "그대로 두기",
+    "revert_dialog_confirm": "브랜치 되돌리기",
+    "revert_pending": "되돌리는 중…",
+    "revert_done": "이 턴으로 되돌렸습니다",
+    "revert_failed": "되돌리기가 완료되지 않았습니다"
   },
   "legs": {
     "workflow": "워크플로",

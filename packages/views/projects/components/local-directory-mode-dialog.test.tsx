@@ -3,7 +3,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { I18nProvider } from "@multica/core/i18n/react";
-import type { LocalDirectoryExecutionMode } from "@multica/core/types";
+import type {
+  LocalDirectoryExecutionMode,
+  LocalDirectoryLifecycle,
+} from "@multica/core/types";
 import enProjects from "../../locales/en/projects.json";
 import enCommon from "../../locales/en/common.json";
 import { LocalDirectoryModeDialog } from "./local-directory-mode-dialog";
@@ -16,7 +19,9 @@ function renderDialog(
     value?: LocalDirectoryExecutionMode;
     unavailableReason?: WorktreeUnavailableReason;
     errorMessage?: string;
-    onConfirm?: (mode: LocalDirectoryExecutionMode) => void;
+    onConfirm?: (mode: LocalDirectoryExecutionMode, lifecycle: LocalDirectoryLifecycle) => void;
+    lifecycle?: LocalDirectoryLifecycle;
+    lifecycleSupported?: boolean;
   } = {},
 ) {
   const onConfirm = overrides.onConfirm ?? vi.fn();
@@ -30,6 +35,8 @@ function renderDialog(
         unavailableReason={overrides.unavailableReason}
         errorMessage={overrides.errorMessage}
         confirmLabel="Save"
+        lifecycle={overrides.lifecycle}
+        lifecycleSupported={overrides.lifecycleSupported}
         onConfirm={onConfirm}
       />
     </I18nProvider>,
@@ -58,7 +65,7 @@ describe("LocalDirectoryModeDialog", () => {
     fireEvent.click(worktreeOption());
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onConfirm).toHaveBeenCalledWith("worktree");
+    expect(onConfirm).toHaveBeenCalledWith("worktree", {});
   });
 
   // A non-git folder cannot produce a branch, so offering the option would
@@ -74,7 +81,7 @@ describe("LocalDirectoryModeDialog", () => {
     fireEvent.click(option);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     // Still the mode it opened with — the disabled option cannot be selected.
-    expect(onConfirm).toHaveBeenCalledWith("in_place");
+    expect(onConfirm).toHaveBeenCalledWith("in_place", {});
   });
 
   // A server older than the worktree save gate does not reject the mode — it
@@ -92,7 +99,7 @@ describe("LocalDirectoryModeDialog", () => {
 
     fireEvent.click(option);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(onConfirm).toHaveBeenCalledWith("in_place");
+    expect(onConfirm).toHaveBeenCalledWith("in_place", {});
   });
 
   // The client no longer predicts whether the machine can run the mode — the
@@ -116,6 +123,85 @@ describe("LocalDirectoryModeDialog", () => {
     fireEvent.click(option);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    expect(onConfirm).toHaveBeenCalledWith("worktree");
+    expect(onConfirm).toHaveBeenCalledWith("worktree", {});
+  });
+});
+
+// F09: lifecycle scripts turn the worktree into an environment. They only ever
+// run in worktree mode and only on a daemon that advertises it, so the fields
+// are absent otherwise — a field that could never fire is worse than no field.
+describe("LocalDirectoryModeDialog lifecycle scripts (F09)", () => {
+  function setupField(): HTMLInputElement {
+    return screen.getByLabelText("Setup") as HTMLInputElement;
+  }
+
+  it("hides the fields in in_place mode", () => {
+    renderDialog({ value: "in_place", lifecycleSupported: true });
+    expect(screen.queryByLabelText("Setup")).not.toBeInTheDocument();
+  });
+
+  it("hides the fields when the daemon does not advertise worktree support", () => {
+    renderDialog({ value: "worktree", lifecycleSupported: false });
+    expect(screen.queryByLabelText("Setup")).not.toBeInTheDocument();
+  });
+
+  it("prefills the configured argv and returns it as an argv", () => {
+    const onConfirm = vi.fn();
+    renderDialog({
+      value: "worktree",
+      lifecycleSupported: true,
+      lifecycle: { setup: ["pnpm", "install"], archive: ["./teardown.sh"] },
+      onConfirm,
+    });
+
+    expect(setupField().value).toBe("pnpm install");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(onConfirm).toHaveBeenCalledWith("worktree", {
+      setup: ["pnpm", "install"],
+      run: [],
+      archive: ["./teardown.sh"],
+    });
+  });
+
+  it("splits an edited command into an argv, never a shell string", () => {
+    const onConfirm = vi.fn();
+    renderDialog({ value: "worktree", lifecycleSupported: true, onConfirm });
+
+    fireEvent.change(setupField(), { target: { value: "  make   bootstrap  " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      "worktree",
+      expect.objectContaining({ setup: ["make", "bootstrap"] }),
+    );
+  });
+
+  it("carries a long command in a title so it stays readable", () => {
+    const long = ["node", "./scripts/a-rather-long-bootstrap-script-name.mjs", "--with-flags"];
+    renderDialog({
+      value: "worktree",
+      lifecycleSupported: true,
+      lifecycle: { setup: long },
+    });
+    expect(setupField().getAttribute("title")).toBe(long.join(" "));
+  });
+
+  it("clears a field down to an empty argv", () => {
+    const onConfirm = vi.fn();
+    renderDialog({
+      value: "worktree",
+      lifecycleSupported: true,
+      lifecycle: { setup: ["pnpm", "install"] },
+      onConfirm,
+    });
+
+    fireEvent.change(setupField(), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(onConfirm).toHaveBeenCalledWith(
+      "worktree",
+      expect.objectContaining({ setup: [] }),
+    );
   });
 });
