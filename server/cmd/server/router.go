@@ -2151,6 +2151,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// revision of a linked pull request's diff.
 					r.Get("/pull-requests/{prId}/walkthrough", h.GetIssuePrWalkthrough)
 					r.Post("/pull-requests/{prId}/walkthrough/refresh", h.RefreshIssuePrWalkthrough)
+					// Comment threads anchored to a diff line (F07): the
+					// discussions pinned to a point of this pull request's
+					// diff. `?sha=` scopes them to one head; without it every
+					// head's threads come back, stale ones included.
+					r.Get("/pull-requests/{prId}/anchored-threads", h.GetIssueAnchoredThreads)
 					// Review flags by severity (F06): structured findings
 					// on a line range of a linked pull request. Any actor
 					// records one; RequireHumanActor is not used on the PATCH

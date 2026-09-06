@@ -2617,8 +2617,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             <MergeReadinessPanel issueId={id} />
             <PRStackList issueId={id} />
             <PullRequestList issueId={id} />
-            <PrWalkthroughSection issueId={id} />
-            <ReviewFlagsSection issueId={id} />
+            {/* Anchored discussions (F07) live inside these two sections, so
+                both need who is reading in order to compose one. */}
+            <PrWalkthroughSection
+              issueId={id}
+              currentUserId={user?.id}
+              canModerate={canModerateComments}
+            />
+            <ReviewFlagsSection issueId={id} currentUserId={user?.id} />
           </div>}
         </div>
       )}

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   AppConfigSchema,
+  CommentAnchorSchema,
+  CommentSchema,
+  AnchoredThreadsSchema,
+  EMPTY_ANCHORED_THREADS,
   CloudRuntimeNodeActionSchema,
   EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   WecomInstallationSchema,
@@ -3060,5 +3064,140 @@ describe("TaskActivityResponseSchema", () => {
       { endpoint: "test" },
     );
     expect(parsed.actions[0]).toEqual({ kind: "action", action: "created", before: "", after: "", at: "" });
+  });
+});
+
+// Comment threads anchored to a diff line (F07 / JEF-21).
+//
+// The rule these pin is the one that decides whether a discussion survives a
+// server this build does not fully understand: an unknown anchor kind, or a
+// malformed anchor, must cost the CHIP — never the thread.
+describe("CommentAnchorSchema", () => {
+  const anchor = {
+    kind: "diff_line",
+    pr_source: "github",
+    pr_id: "pr-1",
+    head_sha: "abc1234",
+    file_path: "server/internal/handler/comment.go",
+    line_start: 41,
+    line_end: 44,
+    side: "old",
+    review_flag_id: "flag-1",
+  };
+
+  it("parses a full anchor", () => {
+    const parsed = CommentAnchorSchema.parse(anchor);
+    expect(parsed.file_path).toBe("server/internal/handler/comment.go");
+    expect(parsed.line_start).toBe(41);
+    expect(parsed.line_end).toBe(44);
+    expect(parsed.side).toBe("old");
+    expect(parsed.review_flag_id).toBe("flag-1");
+  });
+
+  it("keeps an unknown kind verbatim so the UI can decide to skip the chip", () => {
+    const parsed = CommentAnchorSchema.parse({ ...anchor, kind: "diff_symbol" });
+    expect(parsed.kind).toBe("diff_symbol");
+  });
+
+  it("defaults every malformed field instead of failing the whole anchor", () => {
+    const parsed = CommentAnchorSchema.parse({
+      kind: 7,
+      file_path: null,
+      line_start: "41",
+      line_end: undefined,
+      side: 3,
+      review_flag_id: 9,
+    });
+    expect(parsed.kind).toBe("");
+    expect(parsed.file_path).toBe("");
+    expect(parsed.line_start).toBe(0);
+    expect(parsed.line_end).toBe(0);
+    expect(parsed.side).toBe("new");
+    expect(parsed.review_flag_id).toBeNull();
+  });
+
+  it("leaves a comment unanchored when the backend omits anchor entirely", () => {
+    const parsed = CommentSchema.parse({
+      id: "c1",
+      issue_id: "i1",
+      author_type: "member",
+      author_id: "u1",
+      content: "hello",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    expect(parsed.anchor ?? null).toBeNull();
+    expect(parsed.anchor_stale).toBe(false);
+  });
+
+  it("survives an anchor that is not an object at all", () => {
+    const parsed = CommentSchema.parse({
+      id: "c1",
+      issue_id: "i1",
+      author_type: "member",
+      author_id: "u1",
+      content: "hello",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      anchor: "server/a.go:41",
+      anchor_stale: "yes",
+    });
+    expect(parsed.anchor ?? null).toBeNull();
+    expect(parsed.anchor_stale).toBe(false);
+    expect(parsed.content).toBe("hello");
+  });
+});
+
+describe("AnchoredThreadsSchema", () => {
+  const comment = (id: string, parent: string | null) => ({
+    id,
+    issue_id: "i1",
+    author_type: "member",
+    author_id: "u1",
+    content: id,
+    type: "comment",
+    parent_id: parent,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  });
+
+  it("parses threads with their replies and the shared anchor", () => {
+    const parsed = AnchoredThreadsSchema.parse({
+      threads: [
+        {
+          root: comment("root", null),
+          replies: [comment("r1", "root"), comment("r2", "root")],
+          anchor: { kind: "diff_line", file_path: "a.go", line_start: 3, line_end: 3 },
+          anchor_stale: true,
+        },
+      ],
+    });
+    expect(parsed.threads).toHaveLength(1);
+    expect(parsed.threads[0]!.replies).toHaveLength(2);
+    expect(parsed.threads[0]!.anchor?.file_path).toBe("a.go");
+    expect(parsed.threads[0]!.anchor_stale).toBe(true);
+  });
+
+  it("falls back to no threads on a malformed payload", () => {
+    expect(
+      parseWithFallback({ threads: "nope" }, AnchoredThreadsSchema, EMPTY_ANCHORED_THREADS, {
+        endpoint: "test",
+      }),
+    ).toEqual(EMPTY_ANCHORED_THREADS);
+    expect(
+      parseWithFallback(null, AnchoredThreadsSchema, EMPTY_ANCHORED_THREADS, { endpoint: "test" }),
+    ).toEqual(EMPTY_ANCHORED_THREADS);
+  });
+
+  it("drops nothing when replies are malformed — the root still renders", () => {
+    const parsed = AnchoredThreadsSchema.parse({
+      threads: [{ root: comment("root", null), replies: "not an array", anchor: null }],
+    });
+    expect(parsed.threads[0]!.root.id).toBe("root");
+    expect(parsed.threads[0]!.replies).toEqual([]);
   });
 });

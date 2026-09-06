@@ -360,6 +360,12 @@ func (s *TaskService) buildCommentTriggerSummary(ctx context.Context, workspaceI
 	if summary == "" {
 		return pgtype.Text{}
 	}
+	// An anchored thread (F07) names the place the question is about. Appended
+	// AFTER the truncation so a long comment can never push the anchor out of
+	// the summary — the place is what the run cannot reconstruct on its own.
+	if suffix := s.anchorSummarySuffix(ctx, workspaceID, comment); suffix != "" {
+		summary += "\n" + suffix
+	}
 	return pgtype.Text{String: summary, Valid: true}
 }
 
@@ -1548,9 +1554,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
 		// Cascade escalation (JEF-272): lands under context.escalation.
-		Escalation: escalationJSON,
-		Workflow:             pgtype.Text{String: workflow, Valid: true},
-		ForceReview:          pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
+		Escalation:  escalationJSON,
+		Workflow:    pgtype.Text{String: workflow, Valid: true},
+		ForceReview: pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),

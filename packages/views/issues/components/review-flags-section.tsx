@@ -28,6 +28,7 @@ import {
 } from "@multica/ui/components/ui/dropdown-menu";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
+import { AnchorAskButton, AnchorComposer } from "./diff-anchor-thread";
 
 /**
  * Review flags by severity (F06 / JEF-19).
@@ -49,7 +50,11 @@ const SEVERITY_DOT: Record<ReviewFlagSeverity, string> = {
   info: "bg-muted-foreground",
 };
 
-export function ReviewFlagsSection({ issueId }: { issueId: string }) {
+export function ReviewFlagsSection({ issueId, currentUserId }: {
+  issueId: string;
+  /** Passed to the composer that opens a discussion anchored to a flag (F07). */
+  currentUserId?: string;
+}) {
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
   const [open, setOpen] = useState(false);
@@ -110,6 +115,8 @@ export function ReviewFlagsSection({ issueId }: { issueId: string }) {
                 <ReviewFlagRow
                   key={flag.id}
                   flag={flag}
+                  issueId={issueId}
+                  currentUserId={currentUserId}
                   disabled={setState.isPending}
                   onSetState={(state) => setState.mutate({ flagId: flag.id, state })}
                 />
@@ -178,14 +185,22 @@ function ReviewFlagFilterTabs({
 
 function ReviewFlagRow({
   flag,
+  issueId,
+  currentUserId,
   disabled,
   onSetState,
 }: {
   flag: ReviewFlag;
+  issueId: string;
+  currentUserId?: string;
   disabled: boolean;
   onSetState: (state: "open" | "resolved" | "dismissed") => void;
 }) {
   const { t } = useT("issues");
+  // "Ask about this flag" (F07): opens a thread anchored to the flag's own
+  // range AND to the flag itself, so the discussion and the finding stay tied
+  // together and the run a reply triggers is told which finding it is about.
+  const [asking, setAsking] = useState(false);
   const severity = normalizeSeverity(flag.severity);
   const state = normalizeState(flag.state);
   const stale = isStale(flag);
@@ -229,7 +244,34 @@ function ReviewFlagRow({
           // Three lines, then the rest is in the thread the reviewer opens.
           <p className="line-clamp-3 text-caption text-muted-foreground">{flag.body}</p>
         )}
+        {asking && (
+          <AnchorComposer
+            issueId={issueId}
+            location={location}
+            currentUserId={currentUserId}
+            onDone={() => setAsking(false)}
+            anchor={{
+              pr_id: flag.pr_id,
+              file_path: flag.file_path,
+              line_start: flag.line_start,
+              line_end: flag.line_end,
+              side: flag.side,
+              // The flag was written against ITS head, and the question is
+              // about the code the flag describes — not about whatever the
+              // pull request has moved on to since.
+              head_sha: flag.head_sha,
+              review_flag_id: flag.id,
+            }}
+          />
+        )}
       </div>
+      {!asking && (
+        <AnchorAskButton
+          label={t(($) => $.anchor.ask_flag)}
+          onAsk={() => setAsking(true)}
+          className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+        />
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={

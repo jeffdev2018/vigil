@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   pullRequests: [{ id: "pr-1", number: 42, title: "Retry on 429" }] as unknown[],
   walkthrough: undefined as PrWalkthrough | undefined,
   refresh: vi.fn(),
+  // Anchored discussions (F07) shown under the hunk they point at.
+  threads: [] as unknown[],
 }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
@@ -21,6 +23,21 @@ vi.mock("@multica/core/pr-walkthrough", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/pr-walkthrough")>()),
   prWalkthroughOptions: () => ({ queryKey: ["wt"], queryFn: async () => state.walkthrough }),
   useRefreshPrWalkthrough: () => ({ mutate: state.refresh, isPending: false }),
+  anchoredThreadsOptions: () => ({ queryKey: ["anchored"], queryFn: async () => ({ threads: state.threads }) }),
+}));
+
+// The thread itself has its own suite (diff-anchor-thread.test.tsx); what
+// matters here is WHICH hunk it lands under.
+vi.mock("./diff-anchor-thread", () => ({
+  DiffAnchorThread: ({ thread }: { thread: { root: { id: string } } }) => (
+    <div data-testid="inline-thread">{thread.root.id}</div>
+  ),
+  AnchorAskButton: ({ label, onAsk }: { label: string; onAsk: () => void }) => (
+    <button type="button" aria-label={label} onClick={onAsk} />
+  ),
+  AnchorComposer: ({ location }: { location: string }) => (
+    <div data-testid="anchor-composer">{location}</div>
+  ),
 }));
 
 import { PrWalkthroughSection } from "./pr-walkthrough-section";
@@ -67,6 +84,51 @@ beforeEach(() => {
   state.pullRequests = [{ id: "pr-1", number: 42, title: "Retry on 429" }];
   state.walkthrough = walkthrough();
   state.refresh.mockReset();
+  state.threads = [];
+});
+
+// A hunk body with real content, so line numbers and the ask affordance have
+// something to attach to.
+// The two sides deliberately start at different numbers: a hunk whose old and
+// new lines share their numbering could not tell a side mistake from a match.
+const DIFF_HUNK = {
+  old_start: 12,
+  new_start: 40,
+  lines: [" ctx", "-old line", "+new line", " tail"].join("\n"),
+  explanation: "Wraps the call.",
+  moved_from: "",
+};
+
+function withDiff(threads: unknown[] = []): void {
+  state.walkthrough = walkthrough({
+    groups: [
+      {
+        title: "Retry the fetch on a 429",
+        kind: "core",
+        rationale: "A throttled response is retried instead of failing.",
+        files: [{ path: "api/client.go", hunks: [DIFF_HUNK] }],
+      },
+    ],
+  });
+  state.threads = threads;
+}
+
+const anchoredThread = (over: Record<string, unknown> = {}) => ({
+  root: { id: "root-1", content: "why?" },
+  replies: [],
+  anchor: {
+    kind: "diff_line",
+    pr_source: "github",
+    pr_id: "pr-1",
+    head_sha: "abc123",
+    file_path: "api/client.go",
+    line_start: 41,
+    line_end: 41,
+    side: "new",
+    review_flag_id: null,
+  },
+  anchor_stale: false,
+  ...over,
 });
 
 describe("PrWalkthroughSection", () => {
@@ -122,6 +184,53 @@ describe("PrWalkthroughSection", () => {
     state.walkthrough = walkthrough({ groups: [] });
     await open();
     await screen.findByText("No walkthrough for this revision yet.");
+  });
+
+  // Diff-anchored threads (F07 / JEF-21).
+  it("numbers each diff line on the side it belongs to", async () => {
+    withDiff();
+    await open();
+    await screen.findByText(/ctx/);
+    const rows = screen.getAllByRole("row");
+    // old / new / (ask) / text — a deletion has no new number and vice versa.
+    const cells = rows.map((r) => Array.from(r.querySelectorAll("td")).map((c) => c.textContent));
+    expect(cells).toEqual([
+      ["12", "40", "", " ctx"],
+      ["13", "", "", "-old line"],
+      ["", "41", "", "+new line"],
+      ["14", "42", "", " tail"],
+    ]);
+  });
+
+  it("opens the composer for the line the reviewer asked about", async () => {
+    withDiff();
+    await open();
+    await screen.findByText(/new line/);
+    // The added line is row 3; its ask affordance anchors to new-side line 13.
+    fireEvent.click(screen.getAllByRole("button", { name: "Ask about this line" })[2]!);
+    expect(screen.getByTestId("anchor-composer").textContent).toContain("api/client.go:41");
+  });
+
+  it("renders a thread under the hunk its anchor points into", async () => {
+    withDiff([anchoredThread()]);
+    await open();
+    expect((await screen.findAllByTestId("inline-thread"))[0]!.textContent).toBe("root-1");
+  });
+
+  it("leaves a thread anchored outside this hunk to the timeline alone", async () => {
+    withDiff([
+      // Right file, a line this hunk does not cover.
+      anchoredThread({ anchor: { ...anchoredThread().anchor, line_start: 900, line_end: 900 } }),
+      // Right line number, wrong file.
+      anchoredThread({ root: { id: "root-2" }, anchor: { ...anchoredThread().anchor, file_path: "other.go" } }),
+      // Right line number, other side of the diff.
+      // Line 41 exists on the new side only; asking for it on the old side
+      // must not drag the thread into this hunk.
+      anchoredThread({ root: { id: "root-3" }, anchor: { ...anchoredThread().anchor, side: "old" } }),
+    ]);
+    await open();
+    await screen.findByText(/new line/);
+    expect(screen.queryByTestId("inline-thread")).toBeNull();
   });
 
   it("renders nothing when the issue has no linked pull request", async () => {

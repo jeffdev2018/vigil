@@ -445,8 +445,11 @@ WITH touched_issue AS (
     WHERE issue.id = sqlc.arg(issue_id) AND issue.workspace_id = sqlc.arg(workspace_id)
     RETURNING issue.id, issue.workspace_id, issue.revision
 ), inserted_comment AS (
-    INSERT INTO comment (issue_id, workspace_id, author_type, author_id, content, type, parent_id, source_task_id, quick_action_id, via_plugin_id, id)
-    SELECT ti.id, ti.workspace_id, sqlc.arg(author_type), sqlc.arg(author_id), sqlc.arg(content), sqlc.arg(type), sqlc.narg(parent_id), sqlc.narg(source_task_id), sqlc.narg(quick_action_id), sqlc.narg(via_plugin_id), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
+    -- The anchor_* columns are the diff anchor (F07). They are all NULL for an
+    -- ordinary comment; the handler stamps them only on a thread ROOT it has
+    -- validated against a pull request linked to the issue.
+    INSERT INTO comment (issue_id, workspace_id, author_type, author_id, content, type, parent_id, source_task_id, quick_action_id, via_plugin_id, id, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id)
+    SELECT ti.id, ti.workspace_id, sqlc.arg(author_type), sqlc.arg(author_id), sqlc.arg(content), sqlc.arg(type), sqlc.narg(parent_id), sqlc.narg(source_task_id), sqlc.narg(quick_action_id), sqlc.narg(via_plugin_id), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()), sqlc.narg(anchor_kind), sqlc.narg(anchor_pr_source), sqlc.narg(anchor_pr_id), sqlc.narg(anchor_head_sha), sqlc.narg(anchor_file_path), sqlc.narg(anchor_line_start), sqlc.narg(anchor_line_end), sqlc.narg(anchor_side), sqlc.narg(anchor_review_flag_id)
     FROM touched_issue ti
     RETURNING *
 )
@@ -527,6 +530,9 @@ WITH locked_issue AS MATERIALIZED (
               comment.parent_id, comment.workspace_id, comment.resolved_at,
               comment.resolved_by_type, comment.resolved_by_id, comment.source_task_id,
               comment.quick_action_id, comment.via_plugin_id, comment.revision,
+              comment.anchor_kind, comment.anchor_pr_source, comment.anchor_pr_id,
+              comment.anchor_head_sha, comment.anchor_file_path, comment.anchor_line_start,
+              comment.anchor_line_end, comment.anchor_side, comment.anchor_review_flag_id,
               target.did_change
 ), touched_issue AS (
     UPDATE issue
@@ -545,6 +551,11 @@ SELECT updated_comment.id, updated_comment.issue_id, updated_comment.author_type
        updated_comment.resolved_by_type, updated_comment.resolved_by_id,
        updated_comment.source_task_id, updated_comment.quick_action_id,
        updated_comment.via_plugin_id, updated_comment.revision,
+       updated_comment.anchor_kind, updated_comment.anchor_pr_source,
+       updated_comment.anchor_pr_id, updated_comment.anchor_head_sha,
+       updated_comment.anchor_file_path, updated_comment.anchor_line_start,
+       updated_comment.anchor_line_end, updated_comment.anchor_side,
+       updated_comment.anchor_review_flag_id,
        COALESCE((SELECT revision FROM touched_issue), 0)::bigint AS issue_revision
 FROM updated_comment;
 
@@ -788,3 +799,49 @@ FROM (
 SELECT content FROM comment
 WHERE issue_id = $1 AND author_type <> 'system'
 ORDER BY created_at ASC;
+
+-- Comment threads anchored to a diff line (F07 / JEF-21).
+
+-- ListAnchoredThreadsForPr returns the anchored threads of one linked pull
+-- request, roots and their complete reply subtrees, in ONE query.
+--
+-- The cap is applied to the ROOTS, not to the rows: capping rows would return
+-- a thread with half its replies, which reads as a thread whose end was
+-- deleted. An empty @head_sha means "every head of this pull request", so the
+-- caller can show a thread anchored to a head the pull request has moved past
+-- instead of losing it.
+-- name: ListAnchoredThreadsForPr :many
+WITH RECURSIVE roots AS (
+    SELECT c.id
+    FROM comment c
+    WHERE c.workspace_id = @workspace_id
+      AND c.issue_id = @issue_id
+      AND c.parent_id IS NULL
+      AND c.anchor_kind IS NOT NULL
+      AND c.anchor_pr_id = @pr_id
+      AND (@head_sha::text = '' OR c.anchor_head_sha = @head_sha)
+    ORDER BY c.created_at, c.id
+    LIMIT @max_threads
+), thread AS (
+    SELECT c.* FROM comment c JOIN roots r ON c.id = r.id
+    UNION ALL
+    SELECT child.* FROM comment child JOIN thread t ON child.parent_id = t.id
+)
+SELECT * FROM thread ORDER BY created_at, id;
+
+-- ListAnchoredRootsForComments resolves the thread ROOT of each given comment
+-- id in one round trip. Used to give a reply the anchor of its thread when the
+-- root is not part of the comment set being rendered (a partial read such as
+-- --since / --tail); a list holding complete threads resolves the root from
+-- what it already has and never reaches this query.
+-- name: ListAnchoredRootsForComments :many
+WITH RECURSIVE up AS (
+    SELECT c.id AS seed, c.id, c.parent_id
+    FROM comment c
+    WHERE c.id = ANY(@comment_ids::uuid[]) AND c.workspace_id = @workspace_id
+    UNION ALL
+    SELECT u.seed, p.id, p.parent_id
+    FROM comment p JOIN up u ON p.id = u.parent_id
+)
+SELECT up.seed, c.* FROM up JOIN comment c ON c.id = up.id
+WHERE up.parent_id IS NULL AND c.anchor_kind IS NOT NULL;
