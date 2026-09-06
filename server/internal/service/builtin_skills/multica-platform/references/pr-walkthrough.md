@@ -23,7 +23,7 @@ End with **exactly one** fenced block. Nothing else in your answer is read.
    "kind":"core",
    "rationale":"The behaviour change: a throttled response is retried instead of surfacing as a failure.",
    "files":[
-     {"path":"api/client.go",
+     {"path":"src/checkout/total.py",
       "hunks":[
         {"old_start":12,"new_start":12,
          "lines":"@@ -12,7 +12,9 @@",
