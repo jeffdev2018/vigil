@@ -67,6 +67,9 @@ export type WSEventType =
   | "chat:session_read"
   | "chat:session_deleted"
   | "chat:session_updated"
+  | "chat:participant_added"
+  | "chat:participant_removed"
+  | "chat:typing"
   | "project:created"
   | "project:updated"
   | "project:deleted"
@@ -511,6 +514,25 @@ export interface ChatMessageEventPayload {
   content: string;
   task_id?: string;
   created_at: string;
+  /** Sender of a user message in a multiplayer session (K31). */
+  author_user_id?: string;
+}
+
+/**
+ * A member joined or left a multiplayer chat session (K31 / JEF-181). Carries
+ * identity only: receivers refetch the roster, which is the only source that
+ * also knows join order and online state.
+ */
+export interface ChatParticipantEventPayload {
+  session_id: string;
+  user_id: string;
+}
+
+/** Ephemeral typing ping. Never persisted; receivers expire it locally. */
+export interface ChatTypingPayload {
+  session_id: string;
+  user_id: string;
+  at: string;
 }
 
 export interface ChatDonePayload {
@@ -732,6 +754,9 @@ export interface WSEventPayloadMap {
   "chat:session_read": ChatSessionReadPayload;
   "chat:session_deleted": ChatSessionDeletedPayload;
   "chat:session_updated": unknown;
+  "chat:participant_added": ChatParticipantEventPayload;
+  "chat:participant_removed": ChatParticipantEventPayload;
+  "chat:typing": ChatTypingPayload;
   "project:created": ProjectCreatedPayload;
   "project:updated": ProjectUpdatedPayload;
   "project:deleted": ProjectDeletedPayload;

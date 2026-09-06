@@ -182,9 +182,9 @@ func (h *Handler) ListChatSessions(w http.ResponseWriter, r *http.Request) {
 	// common response slice via small per-branch loops.
 	var resp []ChatSessionResponse
 	if status == "all" {
-		rows, err := h.Queries.ListAllChatSessionsByCreator(r.Context(), db.ListAllChatSessionsByCreatorParams{
+		rows, err := h.Queries.ListAllChatSessionsForUser(r.Context(), db.ListAllChatSessionsForUserParams{
 			WorkspaceID: parseUUID(workspaceID),
-			CreatorID:   parseUUID(userID),
+			UserID:      parseUUID(userID),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to list chat sessions")
@@ -212,9 +212,9 @@ func (h *Handler) ListChatSessions(w http.ResponseWriter, r *http.Request) {
 			})
 		}
 	} else {
-		rows, err := h.Queries.ListChatSessionsByCreator(r.Context(), db.ListChatSessionsByCreatorParams{
+		rows, err := h.Queries.ListChatSessionsForUser(r.Context(), db.ListChatSessionsForUserParams{
 			WorkspaceID: parseUUID(workspaceID),
-			CreatorID:   parseUUID(userID),
+			UserID:      parseUUID(userID),
 		})
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "failed to list chat sessions")
@@ -266,11 +266,47 @@ func (h *Handler) loadChatSessionForUser(w http.ResponseWriter, r *http.Request,
 		writeError(w, http.StatusNotFound, "chat session not found")
 		return db.ChatSession{}, false
 	}
-	if uuidToString(session.CreatorID) != userID {
+	allowed, err := h.chatSessionAccess(r.Context(), session, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to resolve chat session access")
+		return db.ChatSession{}, false
+	}
+	if !allowed {
 		writeError(w, http.StatusForbidden, "not your chat session")
 		return db.ChatSession{}, false
 	}
 	return session, true
+}
+
+// chatSessionAccess reports whether userID may read and post in session. The
+// creator is an implicit owner (no chat_session_participant row is written for
+// them), so this is the single definition of "in this conversation" that the
+// HTTP loaders, the chat-task gate, and the realtime scope authorizer all
+// answer with. Adding a member to a session must go through
+// AddChatSessionParticipant so all three widen together (K31 / JEF-181).
+func (h *Handler) chatSessionAccess(ctx context.Context, session db.ChatSession, userID string) (bool, error) {
+	if uuidToString(session.CreatorID) == userID {
+		return true, nil
+	}
+	uid, err := util.ParseUUID(userID)
+	if err != nil {
+		return false, nil
+	}
+	return h.Queries.IsChatSessionParticipant(ctx, db.IsChatSessionParticipantParams{
+		ChatSessionID: session.ID,
+		UserID:        uid,
+	})
+}
+
+// requireChatSessionCreator gates the operations that change the session
+// itself rather than its contents: rename, archive/unarchive, delete, and the
+// participant roster. Participants read and post; only the creator reshapes.
+func requireChatSessionCreator(w http.ResponseWriter, session db.ChatSession, userID string) bool {
+	if uuidToString(session.CreatorID) == userID {
+		return true
+	}
+	writeError(w, http.StatusForbidden, "only the chat session creator can do this")
+	return false
 }
 
 // gateChatSessionForUser combines the session ownership check with the
@@ -374,6 +410,9 @@ func (h *Handler) UpdateChatSession(w http.ResponseWriter, r *http.Request) {
 
 	session, ok := h.gatePublicChatSessionForUser(w, r, userID, workspaceID, sessionID)
 	if !ok {
+		return
+	}
+	if !requireChatSessionCreator(w, session, userID) {
 		return
 	}
 
@@ -562,6 +601,9 @@ func (h *Handler) SetChatSessionArchived(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	if !requireChatSessionCreator(w, session, userID) {
+		return
+	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
@@ -686,6 +728,9 @@ func (h *Handler) DeleteChatSession(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireChatSessionCreator(w, session, userID) {
+		return
+	}
 
 	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
@@ -749,6 +794,12 @@ func (h *Handler) DeleteChatSession(w http.ResponseWriter, r *http.Request) {
 	// this sweep (see LockChatSessionForTask in chat.sql).
 	if err := qtx.DeleteChatDraftRestoresBySession(r.Context(), session.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete chat session draft restores")
+		return
+	}
+
+	// Same no-FK chore for the multiplayer roster (K31).
+	if err := qtx.DeleteChatSessionParticipantsBySession(r.Context(), session.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete chat session participants")
 		return
 	}
 
@@ -1005,6 +1056,7 @@ func (h *Handler) SendChatMessage(w http.ResponseWriter, r *http.Request) {
 		Content:       req.Content,
 		TaskID:        uuidToString(task.ID),
 		CreatedAt:     timestampToString(msg.CreatedAt),
+		AuthorUserID:  userID,
 	})
 
 	// First user message → kick off best-effort LLM auto-titling (MUL-4295).
@@ -1536,7 +1588,7 @@ func (h *Handler) ListPendingChatTasks(w http.ResponseWriter, r *http.Request) {
 
 	// The pending query now returns cs.agent_id per row, so we can filter
 	// out private agents the caller has lost access to directly against the
-	// already-loaded `allowed` set — no second ListAllChatSessionsByCreator
+	// already-loaded `allowed` set — no second ListAllChatSessionsForUser
 	// scan on this hot path (MUL-4159).
 	items := make([]PendingChatTaskItem, 0, len(rows))
 	for _, row := range rows {
@@ -1850,7 +1902,12 @@ func (h *Handler) CancelTaskByUser(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusNotFound, "task not found")
 			return
 		}
-		if uuidToString(cs.CreatorID) != userID {
+		allowed, err := h.chatSessionAccess(r.Context(), cs, userID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to resolve chat session access")
+			return
+		}
+		if !allowed {
 			writeError(w, http.StatusForbidden, "not your task")
 			return
 		}
@@ -2023,6 +2080,10 @@ type ChatMessageResponse struct {
 	// QuickActions are sanitized follow-ups generated with this assistant turn.
 	// Always an empty array for legacy rows and user messages.
 	QuickActions []protocol.ChatQuickAction `json:"quick_actions"`
+	// AuthorUserID is the human who sent a user message in a multiplayer
+	// session (K31). Null on assistant rows and on messages written before
+	// the column existed; the client falls back to the session creator.
+	AuthorUserID *string `json:"author_user_id"`
 	// Attachments linked to this message via chat_message_id. The chat
 	// bubble renders file cards from these, and the daemon claim path
 	// (daemon.go) pulls structured metadata from the same source so the
@@ -2058,6 +2119,7 @@ func chatMessageToResponse(m db.ChatMessage, attachments []AttachmentResponse) C
 		ElapsedMs:     int8ToPtr(m.ElapsedMs),
 		MessageKind:   normalizeMessageKind(m.MessageKind),
 		QuickActions:  decodeChatQuickActions(m.QuickActions),
+		AuthorUserID:  uuidToPtr(m.AuthorUserID),
 		Attachments:   attachments,
 	}
 }

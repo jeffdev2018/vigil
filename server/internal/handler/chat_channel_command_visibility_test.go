@@ -96,9 +96,9 @@ func TestChannelCommandVisibility_SessionProjectionUsesPublicMessages(t *testing
 	insertChatVisibilityMessage(t, mixedSessionID, "/issue hidden after public", "channel_command", true, base.Add(4*time.Second))
 	insertChatVisibilityMessage(t, newerPublicSessionID, "newer public", "message", true, base.Add(2*time.Second))
 
-	active, err := testHandler.Queries.ListChatSessionsByCreator(context.Background(), db.ListChatSessionsByCreatorParams{
+	active, err := testHandler.Queries.ListChatSessionsForUser(context.Background(), db.ListChatSessionsForUserParams{
 		WorkspaceID: parseUUID(testWorkspaceID),
-		CreatorID:   parseUUID(testUserID),
+		UserID:      parseUUID(testUserID),
 	})
 	if err != nil {
 		t.Fatalf("list active chat sessions: %v", err)
@@ -130,9 +130,9 @@ func TestChannelCommandVisibility_SessionProjectionUsesPublicMessages(t *testing
 	if _, err := testPool.Exec(context.Background(), `UPDATE chat_session SET status = 'archived' WHERE id = $1`, commandOnlySessionID); err != nil {
 		t.Fatalf("archive command-only session: %v", err)
 	}
-	all, err := testHandler.Queries.ListAllChatSessionsByCreator(context.Background(), db.ListAllChatSessionsByCreatorParams{
+	all, err := testHandler.Queries.ListAllChatSessionsForUser(context.Background(), db.ListAllChatSessionsForUserParams{
 		WorkspaceID: parseUUID(testWorkspaceID),
-		CreatorID:   parseUUID(testUserID),
+		UserID:      parseUUID(testUserID),
 	})
 	if err != nil {
 		t.Fatalf("list all chat sessions: %v", err)

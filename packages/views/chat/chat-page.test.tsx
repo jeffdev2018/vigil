@@ -84,6 +84,10 @@ vi.mock("@multica/ui/hooks/use-mobile", () => ({
 }));
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({ chat: () => "/acme/chat" }),
+  // ChatPage reads the workspace id for the multiplayer roster (K31). These
+  // suites are about routing, not the roster, so a null workspace is enough:
+  // the roster query is disabled on an empty id.
+  useCurrentWorkspace: () => null,
 }));
 
 // The store mock is REACTIVE like real Zustand: setActiveSession replaces the

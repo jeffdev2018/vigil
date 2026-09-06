@@ -11,7 +11,7 @@ import {
   ResizableHandle,
 } from "@multica/ui/components/ui/resizable";
 import { useIsCompact } from "@multica/ui/hooks/use-mobile";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { useWorkspacePaths, useCurrentWorkspace } from "@multica/core/paths";
 import { useChatStore } from "@multica/core/chat";
 import { chatQuickActionsPendingOptions } from "@multica/core/chat/queries";
 import { useRegenerateChatQuickActions } from "@multica/core/chat/mutations";
@@ -27,6 +27,7 @@ import { ChatInput } from "./components/chat-input";
 import { ChatQueue } from "./components/chat-queue";
 import { ChatThreadList } from "./components/chat-thread-list";
 import { ChatSessionHeader } from "./components/chat-session-header";
+import { ParticipantBar, useChatAuthorNames } from "./components/participant-bar";
 import { EmptyState } from "./components/chat-empty-state";
 import { NewChatButton } from "./components/new-chat-button";
 import { useChatController } from "./components/use-chat-controller";
@@ -59,6 +60,10 @@ export function ChatPage() {
   const { t } = useT("chat");
   const { searchParams, replace } = useNavigation();
   const wsPaths = useWorkspacePaths();
+  // Non-throwing accessor on purpose: ChatPage is also mounted outside a
+  // workspace route (deep-link tests, transition shells), and the roster
+  // queries below are simply disabled on an empty id.
+  const wsId = useCurrentWorkspace()?.id ?? "";
   const isCompact = useIsCompact();
 
   const c = useChatController({ isActive: true });
@@ -242,14 +247,21 @@ export function ChatPage() {
   // `@container`: the conversation column's gutter (CHAT_GUTTER) widens with
   // THIS pane, which the user resizes independently of the browser window.
   const queuedTasks = c.pendingTask?.queued_tasks ?? [];
+  // Undefined in a solo chat — the bubbles then render exactly as before K31.
+  const resolveAuthorName = useChatAuthorNames(wsId, c.activeSessionId);
   const conversation = (
     <div className="flex flex-1 flex-col min-h-0 @container">
       {c.currentSession && (
-        <ChatSessionHeader
-          session={c.currentSession}
-          agent={c.activeAgent}
-          onArchive={handleArchive}
-        />
+        <>
+          <ChatSessionHeader
+            session={c.currentSession}
+            agent={c.activeAgent}
+            onArchive={handleArchive}
+          />
+          {/* Multiplayer roster (K31). Renders nothing for a solo session
+              the viewer did not create, so single-player chat is unchanged. */}
+          <ParticipantBar session={c.currentSession} wsId={wsId} />
+        </>
       )}
       {c.showSkeleton ? (
         <ChatMessageSkeleton />
@@ -281,6 +293,7 @@ export function ChatPage() {
               : undefined
           }
           quickActionsPendingMessageId={quickActionsPending?.message_id ?? null}
+          resolveAuthorName={resolveAuthorName}
         />
       ) : (
         <EmptyState

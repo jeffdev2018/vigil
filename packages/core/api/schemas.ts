@@ -13,6 +13,7 @@ import type {
   BillingTransactionsPage,
   CancelTaskResponse,
   ChatMessage,
+  ChatParticipantList,
   ChatDraftRestoresResponse,
   ChatPendingTask,
   ChatSession,
@@ -919,6 +920,9 @@ export const ChatMessageSchema = z.object({
   // Optional additive data degrades independently: a malformed suggestion
   // must not hide the assistant reply that contains it.
   quick_actions: z.array(ChatQuickActionSchema).catch([]).optional().default([]),
+  // Multiplayer attribution (K31): the human who sent a user message. Null on
+  // assistant rows and on messages written before the column existed.
+  author_user_id: z.string().nullable().optional(),
 }).loose();
 
 export const ChatMessageListSchema = z.array(ChatMessageSchema).default([]);
@@ -5699,3 +5703,24 @@ export const WorkspaceTemplateListSchema = z.object({
     created_at: z.string().catch(""),
   }).loose()).catch([]).default([]),
 }).loose();
+
+// ---------------------------------------------------------------------------
+// Multiplayer chat participants (K31 / JEF-181)
+// ---------------------------------------------------------------------------
+
+export const ChatParticipantSchema = z.object({
+  user_id: z.string(),
+  name: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  // Server-driven enum: an unknown role degrades to the least-privileged one
+  // so a future value can never grant a remove button by accident.
+  role: z.enum(["owner", "participant"]).catch("participant"),
+  joined_at: z.string().default(""),
+  online: z.boolean().default(false),
+}).loose();
+
+export const ChatParticipantListSchema = z.object({
+  participants: z.array(ChatParticipantSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_CHAT_PARTICIPANT_LIST: ChatParticipantList = { participants: [] };

@@ -259,5 +259,15 @@
     "error_failed": "L'enregistrement n'a pas pu être transcrit.",
     "listen": "Écouter",
     "stop_listening": "Arrêter l'écoute"
+  },
+  "participants": {
+    "add": "Ajouter un membre",
+    "remove": "Retirer {{name}}",
+    "leave": "Quitter cette conversation",
+    "online": "En ligne",
+    "nobody_to_add": "Tout le monde est déjà là",
+    "typing_name": "{{name}} est en train d'écrire…",
+    "typing_count": "{{count}} personnes sont en train d'écrire…",
+    "author_badge": "Envoyé par {{name}}"
   }
 }

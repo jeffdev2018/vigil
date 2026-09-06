@@ -172,6 +172,31 @@ export interface ChatMessage {
   message_kind?: ChatMessageKind;
   /** Up to three server-validated follow-ups generated with this reply. */
   quick_actions?: ChatQuickAction[];
+  /**
+   * The human who sent this user message in a multiplayer session (K31).
+   * Null on assistant rows and on messages written before the column
+   * existed — the bubble then falls back to the session creator.
+   */
+  author_user_id?: string | null;
+}
+
+/**
+ * A human in a multiplayer chat session (K31 / JEF-181). The session creator
+ * is reported with role "owner" even though no participant row is stored for
+ * them; every other entry was explicitly added by that owner.
+ */
+export interface ChatParticipant {
+  user_id: string;
+  name: string;
+  avatar_url: string | null;
+  role: "owner" | "participant";
+  joined_at: string;
+  /** Holds a live realtime connection right now. Node-local, best effort. */
+  online: boolean;
+}
+
+export interface ChatParticipantList {
+  participants: ChatParticipant[];
 }
 
 export interface ChatMessagesCursor {

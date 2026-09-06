@@ -133,6 +133,15 @@ const (
 	EventChatSessionRead     = "chat:session_read"
 	EventChatSessionDeleted  = "chat:session_deleted"
 	EventChatSessionUpdated  = "chat:session_updated"
+	// Multiplayer chat roster events (K31 / JEF-181). Broadcast to the
+	// workspace, like chat:message: the added member must learn the session
+	// now exists for them, and the removed one must drop it, so neither can
+	// be addressed by a per-session scope they are (or are no longer) in.
+	EventChatParticipantAdded   = "chat:participant_added"
+	EventChatParticipantRemoved = "chat:participant_removed"
+	// EventChatTyping is ephemeral and never persisted. Receivers expire it
+	// on their own timer; no "stopped typing" event is ever sent.
+	EventChatTyping = "chat:typing"
 
 	// Project events
 	EventProjectCreated         = "project:created"
