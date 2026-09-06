@@ -659,6 +659,18 @@ export function useDetachLabel(issueId: string) {
  *  - inboxKeys.all(wsId)          inbox (assignment notification if any) —
  *                                 prefix-matches the inbox list key
  */
+/**
+ * Voice-dictated issue draft (K36). A mutation rather than a direct
+ * `api.*` call from the screen (root CLAUDE.md: only auth/workspace stores
+ * call the client directly). Nothing is cached: the draft is a one-shot
+ * transformation the user then edits, so there is no key to invalidate.
+ */
+export function useIssueDraftFromVoice() {
+  return useMutation({
+    mutationFn: (transcript: string) => api.issueDraftFromVoice(transcript),
+  });
+}
+
 export function useCreateIssue() {
   const qc = useQueryClient();
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);

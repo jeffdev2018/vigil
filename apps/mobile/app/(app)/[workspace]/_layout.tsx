@@ -391,6 +391,16 @@ export default function WorkspaceLayout() {
             headerLeft: () => <ModalCloseButton />,
           }}
         />
+        {/* Voice-dictated issue draft (K36). A modal like new-issue: it is a
+            two-step flow with its own keyboard, not a picker sheet. */}
+        <Stack.Screen
+          name="new-issue-voice"
+          options={{
+            title: "Dictate an issue",
+            presentation: "modal",
+            headerLeft: () => <ModalCloseButton />,
+          }}
+        />
         <Stack.Screen
           name="search"
           options={{

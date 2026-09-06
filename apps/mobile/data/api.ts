@@ -163,6 +163,11 @@ import type { ZodType } from "zod";
 import { getCurrentSlug } from "./workspace-store";
 import { parseWithFallback } from "@/lib/parse-response";
 import { InboxDecisionsSchema, type InboxDecisions } from "./schemas";
+import {
+  EMPTY_VOICE_ISSUE_DRAFT,
+  VoiceIssueDraftSchema,
+  type VoiceIssueDraft,
+} from "./schemas";
 import { RunReplaySchema, type RunReplay } from "./schemas";
 import {
   EMPTY_AGENT_EFFECT_LIST,
@@ -963,6 +968,18 @@ class ApiClient {
   // (server/cmd/server/router.go:320, server/internal/handler/issue.go
   // CreateIssue). Mobile sends only the fields the form fills in; backend
   // applies its own defaults for anything omitted.
+  // Voice-dictated issue draft (K36): a transcript in, an editable draft
+  // out. Creates nothing — the draft screen calls createIssue afterwards.
+  async issueDraftFromVoice(transcript: string): Promise<VoiceIssueDraft> {
+    return this.fetchValidatedWith(
+      "/api/issues/from-voice-transcript",
+      VoiceIssueDraftSchema,
+      EMPTY_VOICE_ISSUE_DRAFT,
+      { method: "POST", body: JSON.stringify({ transcript }) },
+      { endpoint: "issueDraftFromVoice" },
+    );
+  }
+
   async createIssue(body: CreateIssueRequest): Promise<Issue> {
     return this.fetch<Issue>("/api/issues", {
       method: "POST",

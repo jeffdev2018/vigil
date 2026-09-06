@@ -23,6 +23,10 @@ export interface CreateIssueRequest {
   /** Issue-scoped label IDs to attach in the same transaction as the create.
    *  Unknown or non-issue ids are rejected by the server with 400. */
   label_ids?: string[];
+  /** How the issue was captured (K36). The only value a human caller may
+   *  set; it carries no origin_id because a transcript is not a stored row.
+   *  Every other origin_type is server- or daemon-stamped. */
+  origin_type?: "voice_mobile";
 }
 
 export interface CreateCommentSubIssueManualRequest {

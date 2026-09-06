@@ -1034,3 +1034,22 @@ export const RunReplaySchema = z.looseObject({
 export type RunReplayEvent = z.infer<typeof RunReplayEventSchema>;
 export type RunReplayLink = z.infer<typeof RunReplayLinkSchema>;
 export type RunReplay = z.infer<typeof RunReplaySchema>;
+
+// Voice-dictated issue draft (K36): POST /api/issues/from-voice-transcript
+// answers with an editable draft, never an issue. Server shape:
+// server/internal/handler/issue_from_voice.go `VoiceIssueDraft`. Every field
+// tolerates drift because the draft screen renders it straight into inputs —
+// a partial value there would be an uneditable form, not a caught error.
+export const VoiceIssueDraftSchema = z.object({
+  title: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  suggested_labels: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export type VoiceIssueDraft = z.infer<typeof VoiceIssueDraftSchema>;
+
+export const EMPTY_VOICE_ISSUE_DRAFT: VoiceIssueDraft = {
+  title: "",
+  description: "",
+  suggested_labels: [],
+};
