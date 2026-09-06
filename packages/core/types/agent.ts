@@ -163,6 +163,15 @@ export type RuntimeVisibility = "private" | "public";
 /** Confinement a run gets (K10): none, an OS sandbox, or a Docker container. */
 export type SandboxMode = "none" | "sandbox" | "container";
 
+/**
+ * One runtime's data residency declaration (K46). Operator-supplied and
+ * unverified — it is a routing input, not a proof.
+ */
+export interface RuntimeCompliance {
+  region: string;
+  on_prem: boolean;
+}
+
 /** What the daemon reported its machine can do. */
 export interface SandboxCapabilities {
   os?: string;
@@ -207,6 +216,13 @@ export interface RuntimeDevice {
   sandbox_allowed_hosts?: string[];
   sandbox_capabilities?: SandboxCapabilities;
   sandbox_effective?: SandboxMode;
+  /**
+   * Data residency declaration (K46): where this runtime claims to run, or
+   * null when nobody declared anything. Older backends omit the field, and an
+   * undeclared runtime is ineligible under any restrictive policy — so a
+   * missing value and an explicit null mean the same thing.
+   */
+  compliance?: RuntimeCompliance | null;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;

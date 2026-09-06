@@ -74,6 +74,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   mcp_alert: "MCP gateway alert",
   model_key_alert: "Model key retired",
   routing_alert: "Agent cannot be routed",
+  residency_policy_blocked: "Blocked by data residency",
   linear_alert: "Linear is disconnected",
   decision_auto_decided: "Decided for you",
 };

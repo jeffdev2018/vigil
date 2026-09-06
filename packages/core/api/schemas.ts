@@ -5232,6 +5232,11 @@ export const WorkflowLimitsSchema = z.object({
   max_legs_allowed: z.number().int().catch(50).default(50),
 }).loose();
 
+// Data residency (K46). Declared in packages/core/residency/schemas.ts and
+// re-exported here so the API client imports every response schema from one
+// module, like WorkflowLimitsSchema above.
+export { DataResidencyPolicySchema } from "../residency/schemas";
+
 export const AssigneeSuggestionSchema = z.object({
   domain_key: z.string().default(""),
   min_sample: z.number().int().catch(5).default(5),

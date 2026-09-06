@@ -53,6 +53,11 @@ export type InboxItemType =
   // Validated routing (JEF-275): a trigger was refused because the agent is
   // pointed at nothing that could ever claim its work.
   | "routing_alert"
+  // Data residency (K46): a run was refused because the workspace's residency
+  // policy leaves the agent nowhere compliant to run. Distinct from
+  // routing_alert: the fix is declaring a runtime or relaxing the policy, not
+  // rebinding the agent.
+  | "residency_policy_blocked"
   // Linear Bridge (K21): Linear stopped accepting the workspace's token, so
   // the mirror is frozen until someone reconnects it.
   | "linear_alert"

@@ -178,6 +178,26 @@
       "last_run_none": "No run reported yet.",
       "degraded": "{{requested}} was requested, but the last run was degraded to {{effective}} because this machine cannot run it. The run replay records this."
     },
+    "compliance": {
+      "title": "Data residency",
+      "region_label": "Declared region",
+      "region_placeholder": "eu-west-1",
+      "on_prem_label": "On-prem machine",
+      "on_prem_yes": "Yes",
+      "on_prem_no": "No",
+      "save": "Declare",
+      "saving": "Declaring…",
+      "clear": "Clear",
+      "failed": "Failed to save the declaration",
+      "undeclared": "Nothing declared. Under a data residency policy this runtime takes no work.",
+      "no_policy": "This workspace has no data residency policy, so every runtime is eligible. A declaration is recorded for when one is set.",
+      "eligible": "Eligible under this workspace's data residency policy.",
+      "rejected": {
+        "banned_provider": "This runtime's provider is banned by the workspace's data residency policy, so it takes no work.",
+        "not_on_prem": "The policy requires on-prem runtimes. Declare this machine on-prem, or it takes no work.",
+        "region_not_allowed": "This runtime's declared region is not on the workspace's allowlist, so it takes no work."
+      }
+    },
     "delete_dialog": {
       "self_heal_notice": "This runtime is managed by a running local daemon. Deleting it will succeed, but the daemon will re-register a fresh runtime within seconds — stop the daemon process first to remove it permanently.",
       "profile_backed_notice": "This runtime was registered from a custom runtime profile. Deleting it removes only the current runtime instance; a running daemon can register it again while the profile remains. Delete the custom runtime profile from Custom runtimes to remove it permanently.",

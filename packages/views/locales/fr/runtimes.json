@@ -178,6 +178,26 @@
       "last_run_none": "Aucune exécution signalée pour l'instant.",
       "degraded": "{{requested}} a été demandé, mais la dernière exécution a été rétrogradée en {{effective}} car cette machine ne peut pas l'exécuter. La relecture de l'exécution le consigne."
     },
+    "compliance": {
+      "title": "Résidence des données",
+      "region_label": "Région déclarée",
+      "region_placeholder": "eu-west-1",
+      "on_prem_label": "Machine on-premise",
+      "on_prem_yes": "Oui",
+      "on_prem_no": "Non",
+      "save": "Déclarer",
+      "saving": "Déclaration…",
+      "clear": "Effacer",
+      "failed": "Échec de l'enregistrement de la déclaration",
+      "undeclared": "Rien de déclaré. Sous une politique de résidence des données, ce runtime ne prend aucun travail.",
+      "no_policy": "Cet espace n'a pas de politique de résidence des données : tous les runtimes sont éligibles. La déclaration est conservée pour le jour où une politique sera définie.",
+      "eligible": "Éligible selon la politique de résidence des données de cet espace.",
+      "rejected": {
+        "banned_provider": "Le fournisseur de ce runtime est interdit par la politique de résidence des données : il ne prend aucun travail.",
+        "not_on_prem": "La politique exige des runtimes on-premise. Déclarez cette machine on-premise, sinon elle ne prend aucun travail.",
+        "region_not_allowed": "La région déclarée de ce runtime n'est pas dans la liste autorisée : il ne prend aucun travail."
+      }
+    },
     "delete_dialog": {
       "self_heal_notice": "Ce runtime est géré par un daemon local en cours d'exécution. Sa suppression réussira, mais le daemon enregistrera un nouveau runtime d'ici quelques secondes. Arrêtez d'abord le processus du daemon pour le supprimer définitivement.",
       "profile_backed_notice": "Ce runtime a été enregistré à partir d'un profil de runtime personnalisé. Sa suppression ne supprime que l'instance actuelle du runtime ; un daemon actif peut l'enregistrer à nouveau tant que le profil existe. Supprimez le profil de runtime personnalisé depuis les runtimes personnalisés pour le supprimer définitivement.",
