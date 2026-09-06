@@ -34,6 +34,7 @@ import { useCommentUploads } from "./use-comment-uploads";
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
 import { api, dispatchReasonCode, errorCode } from "@multica/core/api";
 import { ReplyInput } from "./reply-input";
+import { AnchorChip } from "./anchor-chip";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
 import type { TimelineEntry, Attachment } from "@multica/core/types";
@@ -995,6 +996,16 @@ function CommentCardImpl({
                 </TooltipContent>
               </Tooltip>
 
+              {/* Diff anchor (F07): where this thread is pinned in the pull
+                  request's diff. Rendered on the ROOT card, since the whole
+                  thread shares one anchor, and clickable so the reader can
+                  jump to the hunk the walkthrough is showing. */}
+              <AnchorChip
+                anchor={entry.anchor}
+                stale={entry.anchor_stale}
+                rootId={entry.id}
+                className="shrink-0"
+              />
               {!open && contentPreview && (
                 <span className="min-w-0 flex-1 truncate text-caption text-muted-foreground">
                   {contentPreview}

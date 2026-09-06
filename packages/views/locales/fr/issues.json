@@ -1490,5 +1490,21 @@
       "warning": "Avertissement",
       "info": "Info"
     }
+  },
+  "anchor": {
+    "section": "Discussion ancrée",
+    "ask_line": "Poser une question sur cette ligne",
+    "ask_flag": "Poser une question sur ce signalement",
+    "ask_placeholder": "Question sur {{location}}…",
+    "cancel": "Annuler",
+    "stale": "code modifié depuis",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_one": "Afficher {{count}} réponse précédente",
+    "show_replies_other": "Afficher {{count}} réponses précédentes",
+    "hide_replies": "Masquer les réponses précédentes",
+    "reply_placeholder": "Répondre à ce fil…",
+    "empty": "Aucune discussion ancrée à ce bloc.",
+    "go_to_hunk": "Aller à cette ligne dans le récit"
   }
 }

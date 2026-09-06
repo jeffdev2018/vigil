@@ -281,3 +281,32 @@ func TestHeadShaDedup_NoLinkedPRFallsBackToLegacyKey(t *testing.T) {
 		t.Fatalf("no-PR issue must dedup on (issue_id, agent_id) like pre-TEN-356")
 	}
 }
+
+// F07 (JEF-21): an anchored thread keys dedup on the head it was ANCHORED to,
+// not on the pull request's current head. The handler resolves which head to
+// use (commentThreadAnchorHead); this pins the query-layer consequence that
+// makes the rule work — a run already queued for the current head B does not
+// satisfy a check keyed on the older anchored head A, so the question about
+// A's code gets its own run instead of being answered by B's.
+func TestHeadShaDedup_AnchoredHeadDoesNotMergeIntoCurrentHeadRun(t *testing.T) {
+	ctx := context.Background()
+	pool := newHeadShaDedupPool(t)
+	q := db.New(pool)
+	// The pull request has moved on to B.
+	fx := createHeadShaDedupFixture(t, ctx, pool, shaB, "open")
+
+	svc := NewTaskService(q, pool, nil, events.New())
+	if got := svc.ResolveIssueReviewSHA(ctx, fx.issueID); got != shaB {
+		t.Fatalf("ResolveIssueReviewSHA = %q, want the current head %q", got, shaB)
+	}
+
+	// A run is already out for the current head.
+	enqueueReviewTask(t, ctx, q, fx, shaB)
+
+	if !hasPending(t, ctx, q, fx, shaB) {
+		t.Fatalf("a second question about the CURRENT head must still coalesce into the queued run")
+	}
+	if hasPending(t, ctx, q, fx, shaA) {
+		t.Fatalf("a thread anchored to head A merged into the run reviewing head B — the answer would be about code the question is not asking about")
+	}
+}

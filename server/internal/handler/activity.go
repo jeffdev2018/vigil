@@ -46,6 +46,12 @@ type TimelineEntry struct {
 	ResolvedByType *string              `json:"resolved_by_type,omitempty"`
 	ResolvedByID   *string              `json:"resolved_by_id,omitempty"`
 	SourceTaskID   *string              `json:"source_task_id,omitempty"`
+	// Diff anchor of the thread this comment belongs to (F07 / JEF-21). Set on
+	// the root AND on every reply, so a timeline reader sees where the
+	// discussion is pinned without opening the walkthrough. Omitted entirely
+	// on an unanchored comment and on activity rows.
+	Anchor      *CommentAnchorResponse `json:"anchor,omitempty"`
+	AnchorStale bool                   `json:"anchor_stale,omitempty"`
 }
 
 // timelineHardCap bounds the per-issue timeline payload. Sized as a defensive
@@ -306,6 +312,16 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			ResolvedByID:   uuidToPtr(c.ResolvedByID),
 			SourceTaskID:   uuidToPtr(c.SourceTaskID),
 		}
+	}
+	// Diff anchors (F07): resolved for the whole timeline at once, so a reply
+	// gets its thread root's anchor without a per-comment lookup.
+	anchors, stale := h.resolveCommentAnchors(r.Context(), comments[0].WorkspaceID, comments)
+	for i := range anchors {
+		if anchors[i] == nil {
+			continue
+		}
+		out[i].Anchor = anchors[i]
+		out[i].AnchorStale = stale[i]
 	}
 	return out
 }

@@ -45,6 +45,8 @@ import type {
   InboxWorkspaceUnread,
   IssueSubscriber,
   Comment,
+  CreateCommentAnchor,
+  AnchoredThreads,
   CommentTriggerPreview,
   IssueTriggerPreview,
   IssueTriggerPreviewParams,
@@ -369,6 +371,8 @@ import {
   ChildIssuesResponseSchema,
   ChildIssueProgressResponseSchema,
   CommentsListSchema,
+  AnchoredThreadsSchema,
+  EMPTY_ANCHORED_THREADS,
   CommentTriggerPreviewSchema,
   IssueTriggerPreviewSchema,
   CloudRuntimeNodeActionSchema,
@@ -2386,6 +2390,10 @@ export class ApiClient {
     parentId?: string,
     attachmentIds?: string[],
     suppressAgentIds?: string[],
+    // Diff anchor (F07). Only valid on a thread root — the server answers 400
+    // when it is sent together with a parent_id, because replies inherit the
+    // thread's anchor rather than carrying their own.
+    anchor?: CreateCommentAnchor,
   ): Promise<Comment> {
     return this.fetch(`/api/issues/${issueId}/comments`, {
       method: "POST",
@@ -2395,8 +2403,25 @@ export class ApiClient {
         ...(parentId ? { parent_id: parentId } : {}),
         ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
         ...(suppressAgentIds?.length ? { suppress_agent_ids: suppressAgentIds } : {}),
+        ...(anchor ? { anchor } : {}),
       }),
     });
+  }
+
+  /**
+   * Comment threads anchored to a point of one pull request's diff (F07).
+   * `sha` scopes them to one head; omitted, every head's threads come back so
+   * a question about a revision that has been pushed over is still readable.
+   * A malformed response yields no threads: the diff still renders.
+   */
+  async listAnchoredThreads(issueId: string, prId: string, sha?: string): Promise<AnchoredThreads> {
+    const query = sha ? `?sha=${encodeURIComponent(sha)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/pull-requests/${encodeURIComponent(prId)}/anchored-threads${query}`,
+    );
+    return parseWithFallback(raw, AnchoredThreadsSchema, EMPTY_ANCHORED_THREADS, {
+      endpoint: "GET /api/issues/:id/pull-requests/:prId/anchored-threads",
+    }) as AnchoredThreads;
   }
 
   async previewCommentTriggers(issueId: string, content: string, parentId?: string, editingCommentId?: string): Promise<CommentTriggerPreview> {

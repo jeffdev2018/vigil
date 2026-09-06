@@ -6953,7 +6953,7 @@ func (q *Queries) ListChatFinalizeDeferredExpired(ctx context.Context, arg ListC
 }
 
 const listPendingDelegatedFailureRecoveries = `-- name: ListPendingDelegatedFailureRecoveries :many
-SELECT recovery.id, recovery.issue_id, recovery.author_type, recovery.author_id, recovery.content, recovery.type, recovery.created_at, recovery.updated_at, recovery.parent_id, recovery.workspace_id, recovery.resolved_at, recovery.resolved_by_type, recovery.resolved_by_id, recovery.source_task_id, recovery.quick_action_id, recovery.via_plugin_id, recovery.revision, recovery.recovery_settled_at
+SELECT recovery.id, recovery.issue_id, recovery.author_type, recovery.author_id, recovery.content, recovery.type, recovery.created_at, recovery.updated_at, recovery.parent_id, recovery.workspace_id, recovery.resolved_at, recovery.resolved_by_type, recovery.resolved_by_id, recovery.source_task_id, recovery.quick_action_id, recovery.via_plugin_id, recovery.revision, recovery.recovery_settled_at, recovery.anchor_kind, recovery.anchor_pr_source, recovery.anchor_pr_id, recovery.anchor_head_sha, recovery.anchor_file_path, recovery.anchor_line_start, recovery.anchor_line_end, recovery.anchor_side, recovery.anchor_review_flag_id
 FROM comment recovery
 JOIN agent_task_queue failed ON failed.id = recovery.source_task_id
 JOIN agent_task_queue source ON source.id = failed.delegated_from_task_id
@@ -7053,6 +7053,15 @@ func (q *Queries) ListPendingDelegatedFailureRecoveries(ctx context.Context, max
 			&i.ViaPluginID,
 			&i.Revision,
 			&i.RecoverySettledAt,
+			&i.AnchorKind,
+			&i.AnchorPrSource,
+			&i.AnchorPrID,
+			&i.AnchorHeadSha,
+			&i.AnchorFilePath,
+			&i.AnchorLineStart,
+			&i.AnchorLineEnd,
+			&i.AnchorSide,
+			&i.AnchorReviewFlagID,
 		); err != nil {
 			return nil, err
 		}

@@ -1454,5 +1454,20 @@
       "warning": "경고",
       "info": "정보"
     }
+  },
+  "anchor": {
+    "section": "고정된 논의",
+    "ask_line": "이 줄에 대해 질문",
+    "ask_flag": "이 지적에 대해 질문",
+    "ask_placeholder": "{{location}}에 대해 질문…",
+    "cancel": "취소",
+    "stale": "이후 코드가 변경됨",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_other": "이전 답글 {{count}}개 보기",
+    "hide_replies": "이전 답글 숨기기",
+    "reply_placeholder": "이 스레드에 답글…",
+    "empty": "이 헝크에 고정된 논의가 아직 없습니다.",
+    "go_to_hunk": "워크스루의 이 줄로 이동"
   }
 }

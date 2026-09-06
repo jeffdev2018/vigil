@@ -150,3 +150,89 @@ export function middleTruncate(path: string, max = 48): string {
 export function groupHunkCount(group: PrWalkthroughGroup): number {
   return (group?.files ?? []).reduce((n, file) => n + (file?.hunks?.length ?? 0), 0);
 }
+
+// ---------------------------------------------------------------------------
+// Diff anchoring (F07 / JEF-21)
+// ---------------------------------------------------------------------------
+
+/** One rendered line of a hunk body, with the numbers a reader can anchor to. */
+export interface HunkLine {
+  /** The raw diff line, marker included. */
+  text: string;
+  kind: "add" | "del" | "context" | "meta";
+  /** Line number on the old side, or 0 when this line is not on it. */
+  oldLine: number;
+  /** Line number on the new side, or 0 when this line is not on it. */
+  newLine: number;
+}
+
+const HUNK_HEADER = /^@@\s*-(\d+)(?:,\d+)?\s*\+(\d+)(?:,\d+)?\s*@@/;
+
+/**
+ * Split a hunk body into lines carrying their real file line numbers, so a
+ * reader can point at "line 41 of the new side" rather than "the 5th row of
+ * this block".
+ *
+ * The counters start at the hunk's declared old_start / new_start and are RESET
+ * by any `@@ … @@` header inside the body — the walkthrough stores the header
+ * as part of `lines`, and a body that concatenates several hunks would
+ * otherwise number everything after the first one wrong.
+ *
+ * A `\ No newline at end of file` marker is `meta`: it belongs to neither side
+ * and must not consume a line number.
+ */
+export function hunkLines(hunk: PrWalkthroughHunk): HunkLine[] {
+  const body = hunk?.lines ?? "";
+  if (!body) return [];
+  let oldNo = Math.max(1, hunk?.old_start ?? 1);
+  let newNo = Math.max(1, hunk?.new_start ?? 1);
+  const out: HunkLine[] = [];
+  for (const text of body.split("\n")) {
+    const header = HUNK_HEADER.exec(text);
+    if (header) {
+      oldNo = Number(header[1]);
+      newNo = Number(header[2]);
+      out.push({ text, kind: "meta", oldLine: 0, newLine: 0 });
+      continue;
+    }
+    if (text.startsWith("+")) {
+      out.push({ text, kind: "add", oldLine: 0, newLine: newNo++ });
+    } else if (text.startsWith("-")) {
+      out.push({ text, kind: "del", oldLine: oldNo++, newLine: 0 });
+    } else if (text.startsWith("\\")) {
+      out.push({ text, kind: "meta", oldLine: 0, newLine: 0 });
+    } else {
+      out.push({ text, kind: "context", oldLine: oldNo++, newLine: newNo++ });
+    }
+  }
+  return out;
+}
+
+/**
+ * Which side and line number a question about `line` is about. A deletion can
+ * only be discussed on the old side; everything else reads on the new one,
+ * which is the code that will be merged.
+ */
+export function anchorForLine(line: HunkLine): { side: "old" | "new"; line: number } | null {
+  if (line.kind === "del") return line.oldLine > 0 ? { side: "old", line: line.oldLine } : null;
+  if (line.kind === "meta") return null;
+  return line.newLine > 0 ? { side: "new", line: line.newLine } : null;
+}
+
+/**
+ * Does an anchor point INTO this hunk? Used to decide which hunk a thread
+ * renders under. A thread anchored to a file the walkthrough does not cover
+ * falls through to the timeline alone.
+ */
+export function hunkContainsAnchor(
+  lines: HunkLine[],
+  side: string,
+  lineStart: number,
+  lineEnd: number,
+): boolean {
+  const end = Math.max(lineStart, lineEnd || lineStart);
+  return lines.some((l) => {
+    const at = side === "old" ? l.oldLine : l.newLine;
+    return at > 0 && at >= lineStart && at <= end;
+  });
+}
