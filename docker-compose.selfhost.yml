@@ -185,6 +185,17 @@ services:
       MULTICA_MODEL_KEY_SECRET_KEY: ${MULTICA_MODEL_KEY_SECRET_KEY:-}
       # SSO (K60) at-rest encryption key for OIDC client secrets
       MULTICA_SSO_SECRET_KEY: ${MULTICA_SSO_SECRET_KEY:-}
+      # Linear Bridge (K21). MULTICA_LINEAR_SECRET_KEY is the opt-in: unset =
+      # integration disabled. It encrypts each workspace's Linear OAuth token
+      # and webhook secret at rest. The CLIENT_ID / CLIENT_SECRET pair is the
+      # deployment's own Linear OAuth application; without it existing
+      # installations keep syncing but no new one can be connected. The
+      # callback and the webhook are served on MULTICA_PUBLIC_URL, which Linear
+      # must be able to reach.
+      MULTICA_LINEAR_SECRET_KEY: ${MULTICA_LINEAR_SECRET_KEY:-}
+      MULTICA_LINEAR_CLIENT_ID: ${MULTICA_LINEAR_CLIENT_ID:-}
+      MULTICA_LINEAR_CLIENT_SECRET: ${MULTICA_LINEAR_CLIENT_SECRET:-}
+      MULTICA_LINEAR_STATE_SECRET: ${MULTICA_LINEAR_STATE_SECRET:-}
       # WeCom smart-bot integration. MULTICA_WECOM_SECRET_KEY is the
       # opt-in: unset = integration disabled. It encrypts each installation's
       # smart-bot secret at rest. The server needs it to unseal a bot's

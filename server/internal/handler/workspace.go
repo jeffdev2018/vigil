@@ -1340,6 +1340,20 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceEvalCases(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Linear Bridge (K21): comment links hang off the installation, so
+			// they go before it; issue links carry their own workspace_id.
+			name: "purge linear comment links",
+			run:  func() error { return qtx.PurgeWorkspaceLinearCommentLinks(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge linear issue links",
+			run:  func() error { return qtx.PurgeWorkspaceLinearIssueLinks(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge linear installations",
+			run:  func() error { return qtx.PurgeWorkspaceLinearInstallations(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge contests",
 			run:  func() error { return qtx.PurgeWorkspaceContests(ctx, requester.WorkspaceID) },
 		},

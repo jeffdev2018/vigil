@@ -397,6 +397,11 @@ var concurrentIndexCleanups = map[string]string{
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
 	"686_agent_task_workflow_root_index":                        "idx_agent_task_queue_workflow_root",
 	"688_eval_run_benchmark_index":                              "idx_eval_run_benchmark",
+	"690_linear_installation_workspace_index":                   "uq_linear_installation_workspace",
+	"691_linear_issue_link_unique_index":                        "uq_linear_issue_link_remote",
+	"692_linear_issue_link_issue_index":                         "idx_linear_issue_link_issue",
+	"693_linear_comment_link_remote_index":                      "uq_linear_comment_link_remote",
+	"694_linear_comment_link_comment_index":                     "uq_linear_comment_link_comment",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

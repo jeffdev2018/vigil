@@ -31,6 +31,7 @@ import (
 	composiointeg "github.com/multica-ai/multica/server/internal/integrations/composio"
 	"github.com/multica-ai/multica/server/internal/integrations/dingtalk"
 	"github.com/multica-ai/multica/server/internal/integrations/lark"
+	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
@@ -1237,6 +1238,54 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			slog.Info("sso (OIDC) enabled")
 		}
 	}
+
+	// Linear Bridge (K21). Two independent halves, each gated by its own env:
+	//
+	//   - MULTICA_LINEAR_SECRET_KEY is the at-rest key for the OAuth token and
+	//     the webhook secret. Without it there is no bridge at all: refusing to
+	//     start is the only alternative to storing an org-wide Linear token in
+	//     plaintext.
+	//   - MULTICA_LINEAR_CLIENT_ID / _SECRET are the deployment's Linear app.
+	//     Without them an existing installation keeps syncing (its token is
+	//     already stored) but no new workspace can connect.
+	//
+	// Like every other integration here, Linear gets its OWN key rather than
+	// sharing Slack's: an operator can rotate one connection's blast radius
+	// without touching the others.
+	if linearKey, err := secretbox.LoadKey("MULTICA_LINEAR_SECRET_KEY"); err == nil {
+		box, err := secretbox.New(linearKey)
+		if err != nil {
+			slog.Error("linear: secretbox.New failed; linear integration disabled", "error", err)
+		} else {
+			h.LinearSecretBox = box
+			publicURL := strings.TrimRight(strings.TrimSpace(os.Getenv("MULTICA_PUBLIC_URL")), "/")
+			h.LinearPublicURL = publicURL
+			h.LinearAppURL = appURLFromEnv()
+			h.LinearOAuth = linear.OAuthConfig{
+				ClientID:     strings.TrimSpace(os.Getenv("MULTICA_LINEAR_CLIENT_ID")),
+				ClientSecret: strings.TrimSpace(os.Getenv("MULTICA_LINEAR_CLIENT_SECRET")),
+				RedirectURI:  publicURL + "/api/integrations/linear/oauth/callback",
+			}
+			h.LinearStateSecret = linearStateSecret()
+			bridge := linear.NewBridge(queries, box.Open, h, slog.Default())
+			bridge.AppURL = h.LinearAppURL
+			bridge.OnCommentCreated = h.PublishLinearComment
+			bridge.OnIssueChanged = h.PublishLinearIssue
+			bridge.OnInstallationBroken = h.NoteLinearInstallationBroken
+			h.Linear = bridge
+			// Mirrors slack.NewOutbound(...).Register(bus): a comment, a status
+			// change or a finished run on a mirrored issue reaches Linear
+			// without every write path knowing Linear exists.
+			linear.NewOutbound(bridge, queries, slog.Default()).Register(bus)
+			if h.LinearOAuth.Configured() && publicURL != "" && len(h.LinearStateSecret) > 0 {
+				slog.Info("linear integration enabled")
+			} else {
+				slog.Info("linear integration enabled for existing installations only (set MULTICA_LINEAR_CLIENT_ID, MULTICA_LINEAR_CLIENT_SECRET, MULTICA_PUBLIC_URL and JWT_SECRET to allow new connections)")
+			}
+		}
+	} else {
+		slog.Info("linear integration disabled (MULTICA_LINEAR_SECRET_KEY not set)")
+	}
 	// Session revocation (K60): SCIM deprovisioning refuses older JWTs at once.
 	middleware.Revocations = auth.NewSessionRevocations(rdb, func(ctx context.Context, userID string) (time.Time, bool, error) {
 		id, err := util.ParseUUID(userID)
@@ -1531,6 +1580,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// only forward the bytes + the Stripe-Signature header; see
 	// HandleCloudBillingStripeWebhook for the rationale).
 	r.Post("/api/webhooks/stripe", h.HandleCloudBillingStripeWebhook)
+
+	// Linear Bridge (K21). Both routes are public because neither carries a
+	// Multica session:
+	//   - the OAuth callback is Linear's browser redirect, and the workspace /
+	//     agent / initiator come from the HMAC-signed `state`;
+	//   - the webhook is server-to-server, and the HMAC-SHA256 signature over
+	//     the raw body under the installation's own secret IS the credential.
+	//     Nothing is read out of the payload before it verifies.
+	r.Get("/api/integrations/linear/oauth/callback", h.LinearOAuthCallback)
+	r.Post("/api/integrations/linear/webhook", h.LinearWebhook)
 
 	// Composio OAuth callback (MUL-3843). NOT under the Auth group on purpose:
 	// Composio 302-redirects the user's browser here at the end of the OAuth
@@ -1869,6 +1928,24 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/dingtalk/installations/{installationId}/groups/{conversationId}", h.ForgetDingTalkGroup)
 					r.Delete("/dingtalk/installations/{installationId}", h.RevokeDingTalkInstallation)
 					r.Post("/dingtalk/install/byo", h.RegisterDingTalkBYO)
+				})
+
+				// Linear Bridge (K21). Same admin/member split as Slack: the
+				// connection is member-visible, connecting and disconnecting
+				// are admin-only. The OAuth callback and the webhook are public
+				// routes (neither carries a session) and live outside this
+				// workspace group.
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireWorkspaceMemberFromURL(queries, "id"))
+					r.Get("/linear/installation", h.GetLinearInstallation)
+					r.Get("/linear/links", h.GetLinearLink)
+					r.Post("/linear/links/{linkId}/resync", h.ResyncLinearLink)
+				})
+				r.Group(func(r chi.Router) {
+					r.Use(middleware.RequireWorkspaceRoleFromURL(queries, "id", "owner", "admin"))
+					r.Post("/linear/oauth/start", h.StartLinearOAuth)
+					r.Delete("/linear/installation", h.DeleteLinearInstallation)
+					r.Put("/linear/installation/status-map", h.UpdateLinearStatusMap)
 				})
 
 				// Telegram integration. Same admin/member split as Slack:
@@ -3038,6 +3115,20 @@ func composioStateSecret() []byte {
 	}
 	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
 		sum := sha256.Sum256([]byte("composio-state:" + v))
+		return sum[:]
+	}
+	return nil
+}
+
+// linearStateSecret derives the key that signs the Linear OAuth state. It
+// prefers a dedicated secret and falls back to a domain-separated derivation of
+// JWT_SECRET, so a deployment that already has one does not need a second.
+func linearStateSecret() []byte {
+	if v := strings.TrimSpace(os.Getenv("MULTICA_LINEAR_STATE_SECRET")); v != "" {
+		return []byte(v)
+	}
+	if v := strings.TrimSpace(os.Getenv("JWT_SECRET")); v != "" {
+		sum := sha256.Sum256([]byte("linear-state:" + v))
 		return sum[:]
 	}
 	return nil

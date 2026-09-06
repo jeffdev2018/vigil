@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { LarkTab } from "./lark-tab";
+import { LinearTab } from "./linear-tab";
 import { ComposioTab } from "./composio-tab";
 import { SlackTab } from "./slack-tab";
 import { DingTalkTab } from "./dingtalk-tab";
@@ -19,7 +20,7 @@ import { IntegrationChannelIcon } from "./integration-channel-icon";
 // Integrations is the umbrella tab for third-party platform connections.
 // GitHub has its own top-level tab (see github-tab.tsx); everything else
 // — currently Lark, Composio, Slack, Telegram, the self-hosted Git providers
-// (Forgejo / Gitea / GitLab), and WeCom smart-bot, with Linear etc. to follow —
+// (Forgejo / Gitea / GitLab), WeCom smart-bot and Linear —
 // lives in here under its own section heading so additional integrations slot
 // in without changing the IA. IntegrationsTab is just the host; each
 // integration owns its own description and install flow.
@@ -67,6 +68,17 @@ export function IntegrationsTab() {
         description={t(($) => $.slack.page_description)}
       >
         <SlackTab />
+      </SettingsSection>
+      <SettingsSection
+        title={
+          <span className="flex items-center gap-2">
+            <IntegrationChannelIcon channel="linear" />
+            {t(($) => $.linear.section_title)}
+          </span>
+        }
+        description={t(($) => $.linear.page_description)}
+      >
+        <LinearTab />
       </SettingsSection>
       <SettingsSection
         title={

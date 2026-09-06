@@ -30,6 +30,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/dingtalk"
 	"github.com/multica-ai/multica/server/internal/integrations/ghsnapshot"
 	"github.com/multica-ai/multica/server/internal/integrations/lark"
+	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
@@ -448,6 +449,25 @@ type Handler struct {
 	ModelKeySecretBox *secretbox.Box
 	// SSOSecretBox (K60) encrypts OIDC client secrets at rest; nil disables SSO.
 	SSOSecretBox *secretbox.Box
+
+	// Linear Bridge (K21). The bridge itself is nil when
+	// MULTICA_LINEAR_SECRET_KEY is unset — there is nowhere safe to keep the
+	// OAuth token, so every endpoint answers "not configured" rather than
+	// storing plaintext. LinearOAuth carries the deployment-level app
+	// credentials (empty when MULTICA_LINEAR_CLIENT_ID / _SECRET are unset, in
+	// which case an existing installation keeps syncing but no new one can be
+	// connected). LinearStateSecret signs the OAuth state; LinearPublicURL is
+	// the address Linear delivers webhooks to and LinearAppURL is where the
+	// callback sends the browser back to. All wired in cmd/server/router.go.
+	Linear            *linear.Bridge
+	LinearSecretBox   *secretbox.Box
+	LinearOAuth       linear.OAuthConfig
+	LinearStateSecret []byte
+	LinearPublicURL   string
+	LinearAppURL      string
+	// LinearClientFactory overrides how the handler builds a Linear API client.
+	// Tests point it at an httptest server; production leaves it nil.
+	LinearClientFactory func(token string) linear.API
 	// PluginSurfaceTokens seal short-lived launch claims. Nil disables surface
 	// launches; wired from a domain-separated MULTICA_PLUGIN_SECRET_KEY at boot.
 	PluginSurfaceTokens *secretbox.Box

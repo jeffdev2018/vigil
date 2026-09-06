@@ -190,6 +190,7 @@
     "./budgets": "./budgets/index.ts",
     "./model-keys": "./model-keys/index.ts",
     "./eval": "./eval/index.ts",
+    "./linear": "./linear/index.ts",
     "./access": "./access/index.ts",
     "./budgets/queries": "./budgets/queries.ts",
     "./budgets/mutations": "./budgets/mutations.ts",
