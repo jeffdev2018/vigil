@@ -98,7 +98,8 @@
     "mcp_alert": "MCP 게이트웨이 알림",
     "model_key_alert": "모델 키가 비활성화됨",
     "routing_alert": "에이전트를 라우팅할 수 없음",
-    "linear_alert": "Linear 연결이 끊어졌습니다"
+    "linear_alert": "Linear 연결이 끊어졌습니다",
+    "code_health_report": "코드 건강 보고서"
   },
   "labels": {
     "set_status_to": "상태 변경:",

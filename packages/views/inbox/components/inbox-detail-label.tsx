@@ -48,6 +48,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     budget_exceeded: t(($) => $.types.budget_exceeded),
     postmortem_ready: t(($) => $.types.postmortem_ready),
     watchdog_escalation: t(($) => $.types.watchdog_escalation),
+    code_health_report: t(($) => $.types.code_health_report),
     contest_ready: t(($) => $.types.contest_ready),
     org_alert: t(($) => $.types.org_alert),
     mcp_alert: t(($) => $.types.mcp_alert),

@@ -436,7 +436,8 @@
       "audit_log": "Journal d'audit",
       "budgets": "Budgets",
       "learning": "Ce que Vigil sait",
-      "eval_lab": "Labo d'évaluation"
+      "eval_lab": "Labo d'évaluation",
+      "code_health": "Santé du code"
     }
   },
   "plugins": {
@@ -2081,6 +2082,56 @@
       "docs": "Docs",
       "tests": "Tests",
       "chore": "Maintenance"
+    }
+  },
+  "code_health": {
+    "title": "Santé du code",
+    "description": "Un agent de maintenance lit le dépôt selon une planification et signale le travail que personne ne planifie : dette technique, dépendances obsolètes ou vulnérables, code sans test. Les constats dont il est sûr deviennent des tickets ordinaires assignés à cet agent.",
+    "onboarding_title": "Rien ne s'exécute tant qu'aucun agent de maintenance n'est choisi",
+    "onboarding_body": "Le scan est en lecture seule : l'agent lit et signale, il ne modifie jamais. Chaque constat dont il est sûr devient un ticket assigné au même agent, plafonné par scan et borné par la politique de budget qui le couvre.",
+    "config_title": "Planification",
+    "config_description": "Qui scanne, à quelle fréquence, et combien de maintenance un scan peut mettre sur le tableau.",
+    "loading": "Chargement des réglages…",
+    "enabled_label": "Scanner selon la planification",
+    "enabled_hint": "Désactivé par défaut. Vous pouvez toujours scanner manuellement.",
+    "agent_label": "Agent de maintenance",
+    "pick_agent": "Choisir un agent",
+    "project_label": "Portée",
+    "whole_workspace": "Tout l'espace de travail",
+    "cron_label": "Expression cron",
+    "cron_hint": "Cron standard à 5 champs, lu dans le fuseau ci-dessous. Une fois par semaine suffit généralement.",
+    "timezone_label": "Fuseau horaire",
+    "max_issues_label": "Tickets par scan",
+    "min_confidence_label": "Confiance minimale",
+    "save": "Enregistrer",
+    "saved_toast": "Réglages de santé du code enregistrés",
+    "save_failed": "Impossible d'enregistrer les réglages",
+    "scan_now": "Scanner maintenant",
+    "scan_started_toast": "Scan lancé",
+    "scan_failed": "Impossible de lancer le scan",
+    "history_title": "Historique des scans",
+    "history_description": "Tous les constats signalés, y compris ceux qui ne sont pas devenus un ticket, et pourquoi.",
+    "history_empty": "Aucun scan",
+    "col_date": "Date",
+    "col_status": "Statut",
+    "col_findings": "Constats",
+    "col_issues": "Tickets ouverts",
+    "no_findings": "Rien trouvé",
+    "finding_meta": "({{kind}}, {{confidence}} % de confiance)",
+    "status_unknown": "Inconnu",
+    "skipped_unknown": "ignoré",
+    "status": {
+      "running": "En cours",
+      "completed": "Terminé",
+      "failed": "Échec",
+      "empty": "Rien trouvé"
+    },
+    "skipped": {
+      "low_confidence": "sous le seuil de confiance",
+      "duplicate": "déjà ouvert",
+      "cap": "au-delà du plafond par scan",
+      "budget": "refusé par le budget",
+      "error": "n'a pas pu être ouvert"
     }
   }
 }

@@ -26,6 +26,7 @@ import {
   ScrollText,
   WalletCards,
   FlaskRound,
+  HeartPulse,
 } from "lucide-react";
 import { GitHubMark } from "./github-mark";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@multica/ui/components/ui/tabs";
@@ -60,6 +61,7 @@ import { AuditLogTab } from "./audit-log-tab";
 import { McpTab } from "./mcp-tab";
 import { ModelKeysTab } from "./model-keys-tab";
 import { EvalLabTab } from "./eval-lab-tab";
+import { CodeHealthTab } from "./code-health-tab";
 import { SecurityTab } from "./security-tab";
 import { BillingTab } from "./billing-tab";
 import { BudgetsTab } from "./budgets-tab";
@@ -94,6 +96,7 @@ const WORKSPACE_TAB_KEYS = [
   "mcp",
   "model_keys",
   "eval_lab",
+  "code_health",
   "security",
   "plugins",
   "audit_log",
@@ -114,6 +117,7 @@ const WORKSPACE_TAB_VALUES = {
   mcp: "mcp",
   model_keys: "model-keys",
   eval_lab: "eval-lab",
+  code_health: "code-health",
   security: "security",
   plugins: "plugins",
   audit_log: "audit-log",
@@ -134,6 +138,7 @@ const WORKSPACE_TAB_ICONS = {
   mcp: Server,
   model_keys: KeyRound,
   eval_lab: FlaskRound,
+  code_health: HeartPulse,
   security: ShieldCheck,
   plugins: Blocks,
   audit_log: ScrollText,
@@ -320,6 +325,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="mcp"><McpTab /></TabsContent>
           <TabsContent value="model-keys"><ModelKeysTab /></TabsContent>
           <TabsContent value="eval-lab"><EvalLabTab /></TabsContent>
+          <TabsContent value="code-health"><CodeHealthTab /></TabsContent>
           <TabsContent value="security"><SecurityTab /></TabsContent>
           {pluginsEnabled ? <TabsContent value="plugins"><PluginsTab /></TabsContent> : null}
           <TabsContent value="audit-log"><AuditLogTab /></TabsContent>

@@ -781,6 +781,11 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
 		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
 	}
+	// Code health autopilot (K22): one scheduled read-only maintenance scan per
+	// enabled workspace. Inert while every workspace leaves it disabled.
+	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
+		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
 		slog.Warn("scheduler: failed to register org_tick job", "error", err)
 	}

@@ -435,7 +435,8 @@
       "audit_log": "审计日志",
       "budgets": "预算",
       "learning": "Vigil 了解的",
-      "eval_lab": "评测实验室"
+      "eval_lab": "评测实验室",
+      "code_health": "代码健康"
     }
   },
   "plugins": {
@@ -2073,6 +2074,56 @@
       "docs": "文档",
       "tests": "测试",
       "chore": "杂务"
+    }
+  },
+  "code_health": {
+    "title": "代码健康",
+    "description": "维护智能体按计划读取代码仓库，报告没人安排的工作：技术债、过时或有漏洞的依赖、缺少测试的代码。它有把握的发现会成为分配给该智能体的普通问题。",
+    "onboarding_title": "选择维护智能体之前不会运行",
+    "onboarding_body": "扫描是只读的：智能体只读取和报告，从不修改。每条有把握的发现会成为一个问题，分配给同一个智能体，每次扫描有上限，并受覆盖它的预算策略约束。",
+    "config_title": "计划",
+    "config_description": "谁来扫描、多久扫描一次，以及一次扫描最多能往看板上放多少维护工作。",
+    "loading": "正在加载设置…",
+    "enabled_label": "按计划扫描",
+    "enabled_hint": "默认关闭。关闭时仍可手动扫描。",
+    "agent_label": "维护智能体",
+    "pick_agent": "选择智能体",
+    "project_label": "范围",
+    "whole_workspace": "整个工作区",
+    "cron_label": "Cron 表达式",
+    "cron_hint": "标准 5 字段 cron，按下方时区解析。通常每周一次即可。",
+    "timezone_label": "时区",
+    "max_issues_label": "每次扫描的问题数",
+    "min_confidence_label": "最低置信度",
+    "save": "保存",
+    "saved_toast": "代码健康设置已保存",
+    "save_failed": "无法保存设置",
+    "scan_now": "立即扫描",
+    "scan_started_toast": "扫描已开始",
+    "scan_failed": "无法开始扫描",
+    "history_title": "扫描记录",
+    "history_description": "所有报告的发现，包括没有变成问题的以及原因。",
+    "history_empty": "暂无扫描记录",
+    "col_date": "日期",
+    "col_status": "状态",
+    "col_findings": "发现",
+    "col_issues": "已创建问题",
+    "no_findings": "没有发现",
+    "finding_meta": "（{{kind}}，置信度 {{confidence}}%）",
+    "status_unknown": "未知",
+    "skipped_unknown": "已跳过",
+    "status": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "empty": "没有发现"
+    },
+    "skipped": {
+      "low_confidence": "低于置信度阈值",
+      "duplicate": "已有未关闭的问题",
+      "cap": "超过每次扫描上限",
+      "budget": "被预算拒绝",
+      "error": "无法创建"
     }
   }
 }

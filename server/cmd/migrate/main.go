@@ -402,6 +402,7 @@ var concurrentIndexCleanups = map[string]string{
 	"692_linear_issue_link_issue_index":                         "idx_linear_issue_link_issue",
 	"693_linear_comment_link_remote_index":                      "uq_linear_comment_link_remote",
 	"694_linear_comment_link_comment_index":                     "uq_linear_comment_link_comment",
+	"696_code_health_scan_index":                                "idx_code_health_scan_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

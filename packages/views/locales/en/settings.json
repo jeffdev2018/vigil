@@ -436,7 +436,8 @@
       "audit_log": "Audit log",
       "budgets": "Budgets",
       "learning": "What Vigil knows",
-      "eval_lab": "Eval Lab"
+      "eval_lab": "Eval Lab",
+      "code_health": "Code health"
     }
   },
   "plugins": {
@@ -2081,6 +2082,56 @@
       "docs": "Docs",
       "tests": "Tests",
       "chore": "Chore"
+    }
+  },
+  "code_health": {
+    "title": "Code health",
+    "description": "A maintenance agent reads the repository on a schedule and reports the work nobody scheduled: technical debt, outdated or vulnerable dependencies, and code without tests. The findings it is sure about become ordinary issues assigned to that agent.",
+    "onboarding_title": "Nothing runs until you pick a maintenance agent",
+    "onboarding_body": "The scan is read-only: the agent reads and reports, it never edits. Each finding it is confident about becomes one issue assigned to the same agent, capped per scan and bounded by whatever budget policy covers it.",
+    "config_title": "Schedule",
+    "config_description": "Who scans, how often, and how much maintenance one scan may put on the board.",
+    "loading": "Loading the settings…",
+    "enabled_label": "Scan on a schedule",
+    "enabled_hint": "Off by default. You can still scan manually while this is off.",
+    "agent_label": "Maintenance agent",
+    "pick_agent": "Pick an agent",
+    "project_label": "Scope",
+    "whole_workspace": "The whole workspace",
+    "cron_label": "Cron expression",
+    "cron_hint": "Standard 5-field cron, read in the timezone below. Weekly is usually enough.",
+    "timezone_label": "Timezone",
+    "max_issues_label": "Issues per scan",
+    "min_confidence_label": "Minimum confidence",
+    "save": "Save",
+    "saved_toast": "Code health settings saved",
+    "save_failed": "Could not save the settings",
+    "scan_now": "Scan now",
+    "scan_started_toast": "Scan started",
+    "scan_failed": "Could not start the scan",
+    "history_title": "Scan history",
+    "history_description": "Every reported finding, including the ones that did not become an issue and why.",
+    "history_empty": "No scan yet",
+    "col_date": "Date",
+    "col_status": "Status",
+    "col_findings": "Findings",
+    "col_issues": "Issues opened",
+    "no_findings": "Nothing found",
+    "finding_meta": "({{kind}}, {{confidence}}% confident)",
+    "status_unknown": "Unknown",
+    "skipped_unknown": "skipped",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "empty": "Nothing found"
+    },
+    "skipped": {
+      "low_confidence": "below the confidence threshold",
+      "duplicate": "already open",
+      "cap": "over the per-scan cap",
+      "budget": "refused by the budget",
+      "error": "could not be opened"
     }
   }
 }

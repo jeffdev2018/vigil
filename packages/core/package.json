@@ -189,6 +189,7 @@
     "./billing/mutations": "./billing/mutations.ts",
     "./budgets": "./budgets/index.ts",
     "./model-keys": "./model-keys/index.ts",
+    "./code-health": "./code-health/index.ts",
     "./eval": "./eval/index.ts",
     "./linear": "./linear/index.ts",
     "./access": "./access/index.ts",
