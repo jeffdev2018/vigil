@@ -1988,6 +1988,23 @@ type Postmortem struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type PrWalkthrough struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	IssueID      pgtype.UUID        `json:"issue_id"`
+	PrSource     string             `json:"pr_source"`
+	PrID         pgtype.UUID        `json:"pr_id"`
+	HeadSha      string             `json:"head_sha"`
+	State        string             `json:"state"`
+	Groups       []byte             `json:"groups"`
+	Truncated    bool               `json:"truncated"`
+	OmittedFiles int32              `json:"omitted_files"`
+	TaskID       pgtype.UUID        `json:"task_id"`
+	Error        string             `json:"error"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Project struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

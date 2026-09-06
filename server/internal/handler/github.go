@@ -1016,6 +1016,11 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	if pr.ChecksRollupState.String == "failure" {
 		h.autoFixGitHubPR(ctx, pr)
 	}
+	// PR walkthrough (F05): the snapshot pipeline is where the server learns a
+	// GitHub PR's head moved, so it is where a walkthrough of the new head is
+	// started. Idempotent per head — the unique index refuses a second claim,
+	// so a re-applied snapshot for an unchanged head enqueues nothing.
+	h.maybeEnqueuePrWalkthrough(ctx, pr.WorkspaceID, prWalkthroughSourceGitHub, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
 		return

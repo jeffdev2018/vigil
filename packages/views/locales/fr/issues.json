@@ -1451,5 +1451,23 @@
     "types_synced": "types synchronisés",
     "sync_failed": "Échec de la mise à jour de ce miroir",
     "unknown_project": "Projet supprimé"
+  },
+  "walkthrough": {
+    "section": "Parcours",
+    "refresh": "Régénérer",
+    "pending": "Rédaction du parcours…",
+    "failed": "Le parcours n'a pas pu être généré.",
+    "empty": "Pas encore de parcours pour cette révision.",
+    "truncated_one": "{{count}} fichier omis — cette pull request dépasse la limite du parcours.",
+    "truncated_other": "{{count}} fichiers omis — cette pull request dépasse la limite du parcours.",
+    "hunk_count_one": "{{count}} bloc",
+    "hunk_count_other": "{{count}} blocs",
+    "moved_from": "Déplacé depuis {{path}}",
+    "kind": {
+      "core": "Cœur",
+      "test": "Tests",
+      "generated": "Généré",
+      "noise": "Bruit"
+    }
   }
 }

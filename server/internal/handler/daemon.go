@@ -4253,6 +4253,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// Agent context drift (K56): a finished scan leaves its proposals; a
 	// finished pull-request run leaves the draft PR it opened.
 	h.settleDocDriftRun(r.Context(), *task, req.Output, req.PRURL)
+	// PR walkthrough (F05): a finished run leaves the narrative of the head
+	// it reviewed, never of whichever head is current now.
+	h.settlePrWalkthroughRun(r.Context(), *task, req.Output)
 	// Contest (K72): a finished challenger or answer run moves its contest;
 	// a finished issue run may be contested by policy.
 	h.settleContestRun(r.Context(), *task, req.Output)
@@ -4962,6 +4965,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// Agent context drift (K56): a crashed scan releases its repository so the
 	// next moved commit is not blocked behind it.
 	h.failDocDriftRun(r.Context(), *task, req.Error)
+	// PR walkthrough (F05): a crashed run settles its head, so the panel
+	// shows a retryable failure instead of an eternal skeleton.
+	h.failPrWalkthroughRun(r.Context(), *task, req.Error)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

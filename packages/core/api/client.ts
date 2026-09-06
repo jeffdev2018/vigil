@@ -344,6 +344,7 @@ import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKey
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
+import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
 import { BATCH_WINDOW_DEFAULTS, BatchWindowSchema } from "../batch-window/schemas";
@@ -3988,6 +3989,45 @@ export class ApiClient {
 
   // Agent context document drift detection (K56): the proposal a human
   // reviews as a draft pull request, never a direct commit.
+  // Narrative PR walkthrough (F05). The fallback is `pending` with no groups
+  // — the same shape a server with no row yet returns — so a malformed
+  // response hides the section instead of breaking the issue page.
+  async getPrWalkthrough(issueId: string, prId: string): Promise<PrWalkthrough> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/pull-requests/${encodeURIComponent(prId)}/walkthrough`,
+    );
+    return parseWithFallback(raw, PrWalkthroughSchema, EMPTY_PR_WALKTHROUGH, {
+      endpoint: "GET /api/issues/:id/pull-requests/:prId/walkthrough",
+    }) as PrWalkthrough;
+  }
+
+  async refreshPrWalkthrough(issueId: string, prId: string): Promise<{ task_id: string }> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/pull-requests/${encodeURIComponent(prId)}/walkthrough/refresh`,
+      { method: "POST" },
+    );
+    return parseWithFallback(raw, PrWalkthroughRefreshSchema, { task_id: "" }, {
+      endpoint: "POST /api/issues/:id/pull-requests/:prId/walkthrough/refresh",
+    });
+  }
+
+  async getPrWalkthroughSettings(): Promise<PrWalkthroughSettings> {
+    const raw = await this.fetch<unknown>(`/api/pr-walkthrough/settings`);
+    return parseWithFallback(raw, PrWalkthroughSettingsSchema, PR_WALKTHROUGH_DEFAULT_SETTINGS, {
+      endpoint: "GET /api/pr-walkthrough/settings",
+    }) as PrWalkthroughSettings;
+  }
+
+  async putPrWalkthroughSettings(input: PrWalkthroughSettings): Promise<PrWalkthroughSettings> {
+    const raw = await this.fetch<unknown>(`/api/pr-walkthrough/settings`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, PrWalkthroughSettingsSchema, input, {
+      endpoint: "PUT /api/pr-walkthrough/settings",
+    }) as PrWalkthroughSettings;
+  }
+
   async getDocDriftSettings(): Promise<DocDriftSettings> {
     const raw = await this.fetch<unknown>(`/api/doc-drift/settings`);
     return parseWithFallback(raw, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, { endpoint: "GET /api/doc-drift/settings" }) as DocDriftSettings;

@@ -104,6 +104,7 @@ vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));
 vi.mock("./issue-routing-setting", () => ({ IssueRoutingSetting: () => null }));
 vi.mock("./traffic-control-setting", () => ({ TrafficControlSetting: () => null }));
 vi.mock("./drift-detection-setting", () => ({ DriftDetectionSetting: () => null }));
+vi.mock("./pr-walkthrough-setting", () => ({ PrWalkthroughSetting: () => null }));
 vi.mock("./pipelines-setting", () => ({ PipelinesSetting: () => null }));
 
 vi.mock("./delete-workspace-dialog", () => ({

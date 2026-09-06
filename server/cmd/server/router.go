@@ -2147,6 +2147,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/properties/{propertyId}", h.SetIssueProperty)
 					r.Delete("/properties/{propertyId}", h.DeleteIssueProperty)
 					r.Get("/pull-requests", h.ListPullRequestsForIssue)
+					// Narrative PR walkthrough (F05): the story of one
+					// revision of a linked pull request's diff.
+					r.Get("/pull-requests/{prId}/walkthrough", h.GetIssuePrWalkthrough)
+					r.Post("/pull-requests/{prId}/walkthrough/refresh", h.RefreshIssuePrWalkthrough)
 					r.Get("/dependencies", h.ListIssueDependencies)
 					r.Post("/dependencies", h.CreateIssueDependency)
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
@@ -2507,6 +2511,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/code-health/scans", h.ListCodeHealthScans)
 			r.Post("/api/code-health/scans/trigger", h.TriggerCodeHealthScan)
 			// Agent context document drift detection (K56).
+			r.Get("/api/pr-walkthrough/settings", h.GetPrWalkthroughSettings)
+			r.Put("/api/pr-walkthrough/settings", h.PutPrWalkthroughSettings)
+
 			r.Get("/api/doc-drift/settings", h.GetDocDriftSettings)
 			r.Put("/api/doc-drift/settings", h.PutDocDriftSettings)
 			r.Post("/api/doc-drift/check", h.CheckDocDrift)

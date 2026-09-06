@@ -213,3 +213,7 @@ ON CONFLICT (issue_id, pull_request_id) DO UPDATE SET
         WHEN sqlc.arg('preserve_close_intent') THEN issue_vcs_pull_request.reference_only
         ELSE EXCLUDED.reference_only
     END;
+
+-- name: ListIssueIDsForVCSPullRequest :many
+SELECT issue_id FROM issue_vcs_pull_request
+WHERE pull_request_id = $1;

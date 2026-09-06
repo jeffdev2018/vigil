@@ -191,6 +191,31 @@ func (q *Queries) ListIssueIDsForVCSPRHead(ctx context.Context, arg ListIssueIDs
 	return items, nil
 }
 
+const listIssueIDsForVCSPullRequest = `-- name: ListIssueIDsForVCSPullRequest :many
+SELECT issue_id FROM issue_vcs_pull_request
+WHERE pull_request_id = $1
+`
+
+func (q *Queries) ListIssueIDsForVCSPullRequest(ctx context.Context, pullRequestID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listIssueIDsForVCSPullRequest, pullRequestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var issue_id pgtype.UUID
+		if err := rows.Scan(&issue_id); err != nil {
+			return nil, err
+		}
+		items = append(items, issue_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listVCSConnectionsByWorkspace = `-- name: ListVCSConnectionsByWorkspace :many
 
 SELECT id, workspace_id, provider, instance_url, account_login, access_token_encrypted, webhook_secret_encrypted, connected_by_id, created_at, updated_at FROM vcs_connection
