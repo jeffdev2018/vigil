@@ -53,7 +53,8 @@
     "runs_per_issue_other": "{{count}} coordination runs per issue",
     "loading": "Loading templates...",
     "cancel": "Cancel",
-    "error": "Could not create the structure"
+    "error": "Could not create the structure",
+    "replaces_existing": "Picking a template replaces the current structure “{{name}}” as a new revision."
   },
   "form": {
     "name": "Name",

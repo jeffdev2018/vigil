@@ -114,6 +114,18 @@ describe("OrgPage", () => {
     expect(state.created[0]).toEqual({ project_id: "p-1", model: "circles", name: "Circles", definition });
   });
 
+  it("revises the existing structure of the scope instead of creating a second one", async () => {
+    state.structures = [structure({ id: "s-default", name: "Owner network", project_id: null, status: "live" })];
+    state.templates = [template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
+    renderWithI18n(<OrgPage />);
+    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByRole("note").textContent).toContain("Owner network");
+    fireEvent.click(within(dialog).getAllByTestId("org-template")[0]!);
+    expect(state.created).toHaveLength(0);
+    expect(state.updated[0]).toEqual({ id: "s-default", data: { project_id: null, model: "circles", name: "Circles", definition } });
+  });
+
   it("opens the detail with the chart, blocks save on invalid JSON, and saves the parsed definition", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
