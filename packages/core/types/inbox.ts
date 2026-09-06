@@ -53,6 +53,9 @@ export type InboxItemType =
   // Validated routing (JEF-275): a trigger was refused because the agent is
   // pointed at nothing that could ever claim its work.
   | "routing_alert"
+  // Linear Bridge (K21): Linear stopped accepting the workspace's token, so
+  // the mirror is frozen until someone reconnects it.
+  | "linear_alert"
   | "decision_auto_decided"
   // The triage queue has items nobody has decided on for two days. Filed for
   // the workspace's admins/owners, at most once a day per workspace.

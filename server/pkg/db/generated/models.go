@@ -1583,6 +1583,48 @@ type LarkUserBinding struct {
 	BoundAt        pgtype.Timestamptz `json:"bound_at"`
 }
 
+type LinearCommentLink struct {
+	ID              pgtype.UUID        `json:"id"`
+	InstallationID  pgtype.UUID        `json:"installation_id"`
+	CommentID       pgtype.UUID        `json:"comment_id"`
+	LinearCommentID string             `json:"linear_comment_id"`
+	Direction       string             `json:"direction"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type LinearInstallation struct {
+	ID                     pgtype.UUID        `json:"id"`
+	WorkspaceID            pgtype.UUID        `json:"workspace_id"`
+	AgentID                pgtype.UUID        `json:"agent_id"`
+	LinearOrgID            string             `json:"linear_org_id"`
+	LinearOrgName          string             `json:"linear_org_name"`
+	ActorUserID            string             `json:"actor_user_id"`
+	AccessTokenEncrypted   []byte             `json:"access_token_encrypted"`
+	WebhookSecretEncrypted []byte             `json:"webhook_secret_encrypted"`
+	LinearWebhookID        string             `json:"linear_webhook_id"`
+	StatusMap              []byte             `json:"status_map"`
+	Status                 string             `json:"status"`
+	LastError              string             `json:"last_error"`
+	InstalledBy            pgtype.UUID        `json:"installed_by"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LinearIssueLink struct {
+	ID                    pgtype.UUID        `json:"id"`
+	WorkspaceID           pgtype.UUID        `json:"workspace_id"`
+	InstallationID        pgtype.UUID        `json:"installation_id"`
+	IssueID               pgtype.UUID        `json:"issue_id"`
+	LinearIssueID         string             `json:"linear_issue_id"`
+	LinearIssueIdentifier string             `json:"linear_issue_identifier"`
+	LinearTeamID          string             `json:"linear_team_id"`
+	LinearUrl             string             `json:"linear_url"`
+	SyncState             string             `json:"sync_state"`
+	LastSyncedAt          pgtype.Timestamptz `json:"last_synced_at"`
+	LastError             string             `json:"last_error"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+}
+
 type Meeting struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`

@@ -337,6 +337,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
@@ -6366,6 +6367,44 @@ export class ApiClient {
   async runBenchmark(suiteId: string, input: RunBenchmarkRequest): Promise<BenchmarkRun[]> {
     const raw = await this.fetch<unknown>(`/api/eval-suites/${encodeURIComponent(suiteId)}/benchmark`, { method: "POST", body: JSON.stringify(input) });
     return parseWithFallback(raw, BenchmarkRunListSchema, { runs: [] }, { endpoint: "POST /api/eval-suites/:id/benchmark" }).runs as BenchmarkRun[];
+  }
+
+  // Linear Bridge (K21). Every response goes through a schema: a desktop build
+  // can be talking to a newer backend, and a settings tab that throws on an
+  // unknown field would take the whole page with it.
+  async getLinearInstallation(workspaceId: string): Promise<LinearInstallation> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/installation`);
+    return parseWithFallback(raw, LinearInstallationSchema, EMPTY_LINEAR_INSTALLATION, { endpoint: "GET /api/workspaces/:id/linear/installation" });
+  }
+
+  async startLinearOAuth(workspaceId: string, agentId: string, redirect?: string): Promise<string> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/oauth/start`, {
+      method: "POST",
+      body: JSON.stringify({ agent_id: agentId, redirect }),
+    });
+    return parseWithFallback(raw, LinearOAuthStartSchema, { authorize_url: "" }, { endpoint: "POST /api/workspaces/:id/linear/oauth/start" }).authorize_url;
+  }
+
+  async disconnectLinear(workspaceId: string): Promise<void> {
+    await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/installation`, { method: "DELETE" });
+  }
+
+  async updateLinearStatusMap(workspaceId: string, statusMap: Record<string, string>): Promise<LinearInstallation> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/installation/status-map`, {
+      method: "PUT",
+      body: JSON.stringify({ status_map: statusMap }),
+    });
+    return parseWithFallback(raw, LinearInstallationSchema, EMPTY_LINEAR_INSTALLATION, { endpoint: "PUT /api/workspaces/:id/linear/installation/status-map" });
+  }
+
+  async getLinearLink(workspaceId: string, issueId: string): Promise<LinearLink | null> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/links?issue_id=${encodeURIComponent(issueId)}`);
+    return parseWithFallback(raw, LinearLinkEnvelopeSchema, { link: null }, { endpoint: "GET /api/workspaces/:id/linear/links" }).link as LinearLink | null;
+  }
+
+  async resyncLinearLink(workspaceId: string, linkId: string): Promise<LinearLink | null> {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${encodeURIComponent(workspaceId)}/linear/links/${encodeURIComponent(linkId)}/resync`, { method: "POST" });
+    return parseWithFallback(raw, LinearLinkEnvelopeSchema, { link: null }, { endpoint: "POST /api/workspaces/:id/linear/links/:linkId/resync" }).link as LinearLink | null;
   }
 
   async listBenchmarks(workspaceId: string): Promise<BenchmarkRun[]> {

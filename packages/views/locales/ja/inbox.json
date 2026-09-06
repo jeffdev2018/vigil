@@ -98,6 +98,7 @@
     "mcp_alert": "MCP ゲートウェイのアラート",
     "model_key_alert": "モデルキーが無効化されました",
     "routing_alert": "エージェントをルーティングできません",
+    "linear_alert": "Linear が切断されています",
     "code_health_report": "コードヘルスレポート"
   },
   "labels": {

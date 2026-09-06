@@ -100,6 +100,7 @@
     "mcp_alert": "Alerte de la passerelle MCP",
     "model_key_alert": "Clé de modèle retirée",
     "routing_alert": "Agent non routable",
+    "linear_alert": "Linear est déconnecté",
     "code_health_report": "Rapport de santé du code"
   },
   "labels": {
