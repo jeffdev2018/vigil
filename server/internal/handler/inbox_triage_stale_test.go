@@ -20,6 +20,16 @@ func TestTriageStaleDigestNotifiesManagersOncePerDay(t *testing.T) {
 	dbfx.Member(t, ws, plain, "member")
 	dbfx.Cleanup(t, `DELETE FROM inbox_item WHERE workspace_id = $1`, ws)
 
+	// The second digest below runs at now+2h and must land on the same UTC day.
+	// Anchored on the wall clock, that is false for the two hours before UTC
+	// midnight, so the test failed every evening and passed every afternoon.
+	// Everything the digest measures is relative to this anchor, planted rows
+	// included, so shifting it back changes nothing else.
+	now := time.Now().UTC()
+	if now.Add(2*time.Hour).Day() != now.Day() {
+		now = now.Add(-3 * time.Hour)
+	}
+
 	plant := func(title, state string, age time.Duration, shadow bool) {
 		t.Helper()
 		cols := testutil.Cols{
@@ -30,11 +40,11 @@ func TestTriageStaleDigestNotifiesManagersOncePerDay(t *testing.T) {
 			"normalized_title": title,
 			"state":            state,
 			"shadow":           shadow,
-			"first_seen_at":    time.Now().Add(-age).UTC(),
+			"first_seen_at":    now.Add(-age),
 		}
 		// A resolved item carries the timestamp its CHECK constraint requires.
 		if state != "pending" {
-			cols["resolved_at"] = time.Now().UTC()
+			cols["resolved_at"] = now
 		}
 		dbfx.Insert(t, "triage_item", cols)
 	}
@@ -46,7 +56,6 @@ func TestTriageStaleDigestNotifiesManagersOncePerDay(t *testing.T) {
 	plant("already dismissed", "dismissed", 90*time.Hour, false)
 	plant("shadow item", "pending", 90*time.Hour, true)
 
-	now := time.Now()
 	if _, err := testHandler.RunTriageStaleDigest(context.Background(), now); err != nil {
 		t.Fatalf("digest: %v", err)
 	}

@@ -83,3 +83,41 @@ func TestProviderArgs(t *testing.T) {
 		t.Fatal("nothing to append when the provider cannot enforce anything")
 	}
 }
+
+// AllowedCommands is told to the model and nothing checks it. That is not an
+// oversight to fix here: an allowlist has to say "only these", and the
+// provider surfaces this package drives are deny lists with prefix matching.
+// This pins the boundary so a later reader does not mistake the prompt
+// paragraph for a control, and so a change that starts emitting deny rules
+// from an allowlist has to say what it means.
+func TestAllowedCommandsProducesNoProviderRule(t *testing.T) {
+	restricted := Profile{Name: "narrow", AllowedCommands: []string{"git status", "make test"}}
+
+	if got := restricted.ClaudeSettingsJSON(); got != "" {
+		t.Errorf("ClaudeSettingsJSON = %q: an allowlist cannot be expressed as deny rules, and pretending otherwise would refuse the wrong things", got)
+	}
+	if got := restricted.CodexArgs(); got != nil {
+		t.Errorf("CodexArgs = %v, want none: Codex exposes read-only, not a command allowlist", got)
+	}
+	if got := restricted.ProviderArgs("claude"); got != nil {
+		t.Errorf("ProviderArgs(claude) = %v, want none", got)
+	}
+	if restricted.AllowsAnyCommand() {
+		t.Error("a narrow list must still read as narrow: the prompt paragraph depends on it")
+	}
+	// The one place it does appear, so the model at least reads it.
+	if section := restricted.PromptSection(); !strings.Contains(section, "git status, make test") {
+		t.Errorf("prompt section must list the commands, got %q", section)
+	}
+
+	// And the fields that ARE enforced still produce their rules, so this test
+	// fails if someone silences the whole payload rather than just the
+	// allowlist.
+	enforced := Profile{Name: "code", ReadOnly: true, DeniedPaths: []string{".env"}}
+	if enforced.ClaudeSettingsJSON() == "" {
+		t.Error("read_only and denied_paths must still reach Claude's deny rules")
+	}
+	if len(enforced.CodexArgs()) == 0 {
+		t.Error("read_only must still reach Codex")
+	}
+}
