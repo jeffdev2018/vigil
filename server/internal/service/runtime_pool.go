@@ -30,6 +30,7 @@ var failoverReasons = map[string]bool{
 	string(taskfailure.ReasonRuntimeReconnectTimeout):          true,
 	string(taskfailure.ReasonRuntimeCLITimeout):                true,
 	string(taskfailure.ReasonEnvironmentPrepareFailed):         true,
+	string(taskfailure.ReasonSandboxUnavailable):               true,
 	string(taskfailure.ReasonAgentProviderAuthOrAccess):        true,
 	string(taskfailure.ReasonAgentProviderQuotaLimit):          true,
 	string(taskfailure.ReasonAgentProviderCapacityOrRateLimit): true,
