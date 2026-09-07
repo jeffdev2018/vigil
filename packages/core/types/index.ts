@@ -7,6 +7,13 @@ export type {
   UpdateIssueStatusRequest,
 } from "./issue-status";
 export type {
+  IssueTypeEntry,
+  ListIssueTypesResponse,
+  CreateIssueTypeRequest,
+  UpdateIssueTypeRequest,
+  IssueDependencyEdge,
+} from "./issue-type";
+export type {
   Agent,
   AgentConversationStarter,
   AgentStatus,

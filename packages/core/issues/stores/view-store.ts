@@ -8,7 +8,10 @@ import type { IssueStatus, IssueStatusCategory, IssuePriority, PropertyFilterVal
 import { createWorkspaceAwareStorage, registerForWorkspaceRehydration } from "../../platform/workspace-storage";
 import { defaultStorage } from "../../platform/storage";
 
-export type ViewMode = "board" | "list" | "table" | "gantt" | "swimlane";
+/** Persisted. A view saved in a mode this build does not know must still
+ *  reload — surfaces narrow to the modes they offer and fall back, they do not
+ *  reject the stored value. (F30 added "calendar".) */
+export type ViewMode = "board" | "list" | "table" | "gantt" | "swimlane" | "calendar";
 export type GanttZoom = "day" | "week" | "month";
 /**
  * Board grouping. Besides the three built-ins, a select-type custom property
@@ -53,7 +56,9 @@ export type TableSystemColumnKey =
   | "created_at"
   | "updated_at"
   | "child_progress"
-  | "creator";
+  | "creator"
+  /** Work item type (F30). */
+  | "issue_type";
 export type TableColumnKey = TableSystemColumnKey | `property:${string}`;
 export interface TableColumnConfig {
   key: TableColumnKey;
@@ -81,6 +86,7 @@ export const TABLE_SYSTEM_COLUMNS: readonly TableSystemColumnKey[] = [
   "updated_at",
   "child_progress",
   "creator",
+  "issue_type",
 ];
 
 export const DEFAULT_TABLE_COLUMNS: readonly TableColumnConfig[] = [
@@ -128,6 +134,9 @@ export interface FilterSnapshot {
   includeNoProject: boolean;
   /** Cycle ids (F29). Exact membership — a cycle has no inheritance. */
   cycleFilters: string[];
+  /** Work item type KEYS (F30), not ids — a type is referenced by its key
+   *  everywhere, including on the issue row. */
+  typeFilters: string[];
   labelFilters: string[];
   propertyFilters: Record<string, PropertyFilterValue[]>;
 }
@@ -142,6 +151,7 @@ export type FilterDimension =
   | "project"
   | "goal"
   | "cycle"
+  | "type"
   | "label"
   | `property:${string}`;
 
@@ -196,6 +206,8 @@ export interface IssueViewState {
   goalFilters: string[];
   /** Cycle ids (F29). Server-side, so it holds across pagination. */
   cycleFilters: string[];
+  /** Work item type keys (F30). Server-side, so it holds across pagination. */
+  typeFilters: string[];
   labelFilters: string[];
   /**
    * Custom-property filters: definition id → selected values (checkbox
@@ -265,6 +277,7 @@ export interface IssueViewState {
   toggleNoProject: () => void;
   toggleGoalFilter: (goalId: string) => void;
   toggleCycleFilter: (cycleId: string) => void;
+  toggleTypeFilter: (typeKey: string) => void;
   toggleLabelFilter: (labelId: string) => void;
   togglePropertyFilter: (propertyId: string, optionId: string) => void;
   /** Replace a property's full filter value set (used by scalar value inputs
@@ -315,6 +328,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
   includeNoProject: false,
   goalFilters: [],
   cycleFilters: [],
+  typeFilters: [],
   labelFilters: [],
   propertyFilters: {},
   dateFilter: null,
@@ -412,6 +426,12 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
         ? state.cycleFilters.filter((id) => id !== cycleId)
         : [...state.cycleFilters, cycleId],
     })),
+  toggleTypeFilter: (typeKey) =>
+    set((state) => ({
+      typeFilters: state.typeFilters.includes(typeKey)
+        ? state.typeFilters.filter((key) => key !== typeKey)
+        : [...state.typeFilters, typeKey],
+    })),
   toggleLabelFilter: (labelId) =>
     set((state) => ({
       labelFilters: state.labelFilters.includes(labelId)
@@ -460,6 +480,7 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
       includeNoProject: false,
       goalFilters: [],
       cycleFilters: [],
+      typeFilters: [],
       labelFilters: [],
       propertyFilters: {},
       dateFilter: null,
@@ -486,6 +507,8 @@ export const viewStoreSlice = (set: StoreApi<IssueViewState>["setState"]): Issue
           return { goalFilters: [] };
         case "cycle":
           return { cycleFilters: [] };
+        case "type":
+          return { typeFilters: [] };
         case "label":
           return { labelFilters: [] };
         default: {
@@ -605,6 +628,7 @@ export const viewStorePersistOptions = (name: string) => ({
     includeNoProject: state.includeNoProject,
     goalFilters: state.goalFilters,
     cycleFilters: state.cycleFilters,
+    typeFilters: state.typeFilters,
     labelFilters: state.labelFilters,
     propertyFilters: state.propertyFilters,
     sortBy: state.sortBy,

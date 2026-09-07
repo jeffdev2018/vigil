@@ -15,6 +15,8 @@ export interface IssueFilters {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  /** Work item type KEYS (F30). Optional so positional callers stay untouched. */
+  typeFilters?: string[];
   /** Goal ids (K74). Optional so positional callers stay untouched. */
   goalFilters?: string[];
   /** project id → goal ids, so an issue without its own goal matches
@@ -46,6 +48,8 @@ export interface IssueFilterState {
   projectFilters: string[];
   includeNoProject: boolean;
   labelFilters: string[];
+  /** Work item type KEYS (F30). Optional so positional callers stay untouched. */
+  typeFilters?: string[];
   /** Goal ids (K74). Optional so positional callers stay untouched. */
   goalFilters?: string[];
   /** project id → goal ids, so an issue without its own goal matches
@@ -254,6 +258,14 @@ export function applyIssueFilters(
       }
     }
 
+    // Work item type (F30). OR within the dimension, like every other
+    // multi-select. An UNTYPED issue matches no type key, so a type filter
+    // excludes it — which is what a reader asking for "the bugs" means.
+    const typeFilters = filters.typeFilters ?? [];
+    if (typeFilters.length > 0) {
+      if (!issue.issue_type || !typeFilters.includes(issue.issue_type)) return false;
+    }
+
     const goalFilters = filters.goalFilters ?? [];
     if (goalFilters.length > 0) {
       const direct = !!issue.goal_id && goalFilters.includes(issue.goal_id);
@@ -292,6 +304,7 @@ export function filterIssues(issues: Issue[], filters: IssueFilters): Issue[] {
       projectFilters: filters.projectFilters,
       includeNoProject: filters.includeNoProject,
       labelFilters: filters.labelFilters,
+      typeFilters: filters.typeFilters,
       goalFilters: filters.goalFilters,
       projectGoalIds: filters.projectGoalIds,
       propertyFilters: filters.propertyFilters,

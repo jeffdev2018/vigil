@@ -302,6 +302,14 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed issue statuses: "+err.Error())
 		return
 	}
+	// Same transaction, same reason: the four work item types are what a
+	// property scope references and what the type picker offers, so a workspace
+	// must never be visible without them. Idempotent, so the read-path
+	// self-heal in ListIssueTypes stays a no-op here. (F30)
+	if err := qtx.SeedIssueTypeEntries(r.Context(), ws.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to seed issue types: "+err.Error())
+		return
+	}
 	// Org chart (K75): a new workspace starts as an owner network.
 	if err := h.seedDefaultOrg(r.Context(), qtx, ws.ID, parseUUID(userID)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
@@ -1633,6 +1641,22 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			name: "delete issue statuses",
 			run: func() error {
 				return qtx.DeleteIssueStatusEntriesForWorkspace(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			// issue_type and issue_property_type carry no foreign key by
+			// project rule, so their rows are swept explicitly. After the issue
+			// deletes, so no issue row outlives the catalogue its type key
+			// resolves against. (F30)
+			name: "delete issue types",
+			run: func() error {
+				return qtx.DeleteIssueTypeEntriesForWorkspace(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			name: "delete issue property type scopes",
+			run: func() error {
+				return qtx.DeleteIssuePropertyTypesForWorkspace(ctx, requester.WorkspaceID)
 			},
 		},
 		{

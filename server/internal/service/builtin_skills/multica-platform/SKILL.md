@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, goals, triage, undo. Not for your product code."
+description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, goals, triage, undo."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -30,6 +30,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/daemon-markdown.md` | A daemon declared as a `DAEMON.md` file: the frontmatter schema, importing and exporting one, and the execution memory a daemon keeps between its runs |
 | `references/projects.md` | Projects and their durable resources (`github_repo`, `local_directory`, worktree mode) |
 | `references/cycles.md` | Planning an issue into a dated cycle: which cycle it may join, what the capacity and burndown numbers mean, what rollover does at the end |
+| `references/issue-types.md` | Classifying an issue: what a work item type is and is not, which custom properties a type carries, what changing a type does to the values already on the issue |
 | `references/epic-mode.md` | Writing one step of a project's epic pipeline: the `epic_step` block, the four step kinds, a text wireframe, a ticket breakdown |
 | `references/runtimes.md` | Runtimes, daemons, `repo checkout`, and the task CLI boundary |
 | `references/run-preview.md` | Bringing up the app a run is working on so a reviewer can open it: the `run` lifecycle script, `MULTICA_PORT_BASE`, where the URL appears, why a preview is local |

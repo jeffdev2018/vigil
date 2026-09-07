@@ -22,6 +22,7 @@ import { runtimeKeys } from "../runtimes/queries";
 import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
+import { issueTypeKeys } from "../issue-types/queries";
 import {
   agentTaskSnapshotKeys,
   workspaceWorkingAgentsKeys,
@@ -691,6 +692,10 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     // 5-minute staleTime — long enough to offer a status the server already
     // archived, or to keep painting its old name.
     qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
+    // Same reason for the type catalogue: a rename missed while disconnected
+    // would sit behind the 5-minute staleTime, long enough to keep painting a
+    // stale badge or to offer a type the server already archived. (F30)
+    qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
   }
   // Cross-workspace, so outside the wsId guard: a reconnect may have missed
   // inbox events from any workspace, so re-pull the switcher-dot summary.
@@ -917,6 +922,24 @@ export function useRealtimeSync(
       issue_status: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
+      },
+      // The work item type catalogue (F30). Invalidate only, exactly like the
+      // status catalogue above: an issue row stores the type KEY, and its name
+      // and colour are resolved from this catalogue at render time, so
+      // refetching the catalogue is what repaints every badge. Dragging the
+      // issue caches along would turn one admin rename into a workspace-wide
+      // refetch storm on every connected client.
+      issue_type: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
+      },
+      // A dependency edge moved (F30). The two affected issues get their own
+      // issue:updated, which refreshes their detail panels; this refreshes the
+      // Gantt's arrow layer, which is a bulk query keyed by the visible row set
+      // and so has no issue row to hang an invalidation off.
+      issue_dependencies: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["issue-dependency-edges", wsId] });
       },
       pin: () => {
         const wsId = getCurrentWsId();

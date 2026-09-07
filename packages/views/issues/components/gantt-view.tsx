@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
@@ -10,6 +11,12 @@ import { projectListOptions } from "@multica/core/projects/queries";
 import type { Issue, IssueStatusCategory } from "@multica/core/types";
 import { issueStatusCategory } from "@multica/core/issues";
 import { dateOnlyToUTCDate } from "@multica/core/issues/date";
+import { issueDependencyEdgesOptions } from "@multica/core/issues/dependency-edges";
+import {
+  buildGanttArrows,
+  ganttBarGeometry,
+  type GanttBarGeometry,
+} from "@multica/core/issues/gantt-arrows";
 import { cn } from "@multica/ui/lib/utils";
 import {
   Tooltip,
@@ -70,6 +77,13 @@ function isWeekStartUTC(d: Date): boolean {
 // ---------------------------------------------------------------------------
 
 const ROW_HEIGHT = 36;
+/**
+ * Rows past this count are windowed (F30). Below it every row is mounted, which
+ * is what the canvas always did: a 40-row chart gains nothing from a window and
+ * pays for a measured scroll container. `top` is `index * ROW_HEIGHT` in BOTH
+ * modes, so the arrow layer's geometry is identical either way.
+ */
+const GANTT_VIRTUALIZE_THRESHOLD = 60;
 const HEADER_HEIGHT = 56;
 const LEFT_COL_WIDTH = 320;
 
@@ -448,6 +462,82 @@ function ScheduledRow({
 }
 
 // ---------------------------------------------------------------------------
+// Dependency arrows — one SVG over the whole track (F30)
+// ---------------------------------------------------------------------------
+
+/**
+ * Draws one arrow per `blocks` dependency between two DATED issues on the
+ * canvas.
+ *
+ * Rendered as a single absolutely-positioned SVG spanning the full track rather
+ * than per row, for the reason the geometry module spells out: every coordinate
+ * comes from a row INDEX and a date, so an arrow between two rows that
+ * virtualization has not mounted still lands in the right place. A per-row
+ * overlay would have to measure the DOM and would lose exactly those arrows.
+ */
+function DependencyArrowLayer({
+  issues,
+  range,
+  dayPx,
+  totalDays,
+  height,
+}: {
+  issues: Issue[];
+  range: Range;
+  dayPx: number;
+  totalDays: number;
+  height: number;
+}) {
+  const wsId = useWorkspaceId();
+  const issueIds = useMemo(() => issues.map((issue) => issue.id), [issues]);
+  const { data: edges = [] } = useQuery({
+    ...issueDependencyEdgesOptions(wsId, issueIds),
+    enabled: issueIds.length > 1,
+  });
+
+  const arrows = useMemo(() => {
+    const geometry = new Map<string, GanttBarGeometry>();
+    issues.forEach((issue, index) => {
+      const bar = ganttBarGeometry(issue, index, range.start, totalDays);
+      if (bar) geometry.set(issue.id, bar);
+    });
+    return buildGanttArrows(edges, geometry, { dayPx, rowHeight: ROW_HEIGHT });
+  }, [dayPx, edges, issues, range.start, totalDays]);
+
+  if (arrows.length === 0) return null;
+
+  return (
+    <svg
+      data-testid="gantt-dependency-arrows"
+      className="pointer-events-none absolute left-0 top-0 overflow-visible"
+      width={totalDays * dayPx}
+      height={height}
+      aria-hidden
+    >
+      {arrows.map((arrow) => (
+        <g key={arrow.id}>
+          <path
+            d={arrow.path}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="text-faint-foreground"
+          />
+          {/* The head is drawn inline rather than through an SVG <marker>:
+              markers inherit neither `currentColor` nor the theme token in
+              every engine, and a two-point polygon costs less than debugging
+              that. */}
+          <polygon
+            points={`${arrow.headX},${arrow.headY} ${arrow.headX - 5},${arrow.headY - 3.5} ${arrow.headX - 5},${arrow.headY + 3.5}`}
+            className="fill-current text-faint-foreground"
+          />
+        </g>
+      ))}
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // GanttView — public component
 // ---------------------------------------------------------------------------
 
@@ -484,6 +574,21 @@ export function GanttView({ issues }: { issues: Issue[] }) {
   const todayOffsetDays = daysBetween(range.start, today);
 
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Virtualization kicks in only past a threshold. Below it the canvas mounts
+  // every row, which is what it always did and costs nothing at this size —
+  // and it keeps the common Gantt out of a window that depends on a measured
+  // scroll container (a container with no layout, as in a test environment,
+  // reports zero height and would render an empty chart).
+  const virtualized = scheduled.length > GANTT_VIRTUALIZE_THRESHOLD;
+  const rowVirtualizer = useVirtualizer({
+    count: virtualized ? scheduled.length : 0,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    // Rows are a fixed height, so the estimate is exact and no measurement pass
+    // is needed. The overscan keeps a screenful of rows mounted either side, so
+    // a fast scroll does not flash empty bands.
+    overscan: 12,
+  });
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
@@ -559,8 +664,17 @@ export function GanttView({ issues }: { issues: Issue[] }) {
             />
           </div>
 
-          {/* Scheduled rows + background overlay */}
-          <div className="relative">
+          {/* Scheduled rows + background overlay.
+              VIRTUALIZED (F30): the canvas is a fully materialized window, and
+              a project with several hundred dated issues used to mount one row
+              — each with its own tooltip, context menu and avatar — per issue.
+              Row height is a constant here, so the virtualizer needs no
+              measurement and the absolute geometry the arrow layer derives
+              from row indices stays exact. */}
+          <div
+            className="relative"
+            style={{ height: scheduled.length * ROW_HEIGHT }}
+          >
             {/* Background gridlines + today line spanning all rows. Positioned
                 starting after the left label column. */}
             <div
@@ -573,16 +687,35 @@ export function GanttView({ issues }: { issues: Issue[] }) {
                 height={scheduled.length * ROW_HEIGHT}
                 todayOffsetDays={todayOffsetDays}
               />
-            </div>
-            {scheduled.map((issue) => (
-              <ScheduledRow
-                key={issue.id}
-                issue={issue}
+              <DependencyArrowLayer
+                issues={scheduled}
                 range={range}
                 dayPx={dayPx}
                 totalDays={totalDays}
+                height={scheduled.length * ROW_HEIGHT}
               />
-            ))}
+            </div>
+            {(virtualized
+              ? rowVirtualizer.getVirtualItems().map((virtualRow) => virtualRow.index)
+              : scheduled.map((_, index) => index)
+            ).map((index) => {
+              const issue = scheduled[index];
+              if (!issue) return null;
+              return (
+                <div
+                  key={issue.id}
+                  className="absolute left-0 right-0"
+                  style={{ top: index * ROW_HEIGHT, height: ROW_HEIGHT }}
+                >
+                  <ScheduledRow
+                    issue={issue}
+                    range={range}
+                    dayPx={dayPx}
+                    totalDays={totalDays}
+                  />
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>

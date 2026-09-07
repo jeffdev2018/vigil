@@ -61,6 +61,13 @@ export interface IssueSurfaceData {
    *  sources its count from the `working_agents` server facet instead. */
   ganttWorkingScopeIssues: Issue[] | undefined;
   filteredGanttIssues: Issue[];
+  /** Calendar rows (F30): the same scheduled window the gantt draws from, with
+   *  the shared filters applied but WITHOUT the gantt's "show completed"
+   *  toggle — the calendar has no such control, and hiding rows behind a
+   *  switch that is not on screen is how a view starts lying about its own
+   *  contents. Undated rows are dropped by the grid builder, which is where
+   *  "an issue with no due date has no cell" belongs. */
+  calendarIssues: Issue[];
   ganttIssues: Issue[];
   visibleStatuses: IssueStatusCategory[];
   hiddenStatuses: IssueStatusCategory[];
@@ -112,6 +119,7 @@ export function useIssueSurfaceData({
   includeNoProject,
   goalFilters,
   labelFilters,
+  typeFilters,
   propertyFilters,
   workingIssueIDs,
   showSubIssues,
@@ -142,6 +150,8 @@ export function useIssueSurfaceData({
   includeNoProject: boolean;
   goalFilters: string[];
   labelFilters: string[];
+  /** Work item type keys (F30). */
+  typeFilters: string[];
   propertyFilters: Record<string, PropertyFilterValue[]>;
   /** Distinct running-task issue ids projected by `/api/working-agents`. */
   workingIssueIDs: ReadonlySet<string>;
@@ -204,6 +214,7 @@ export function useIssueSurfaceData({
       goalFilters,
       projectGoalIds,
       labelFilters,
+      typeFilters,
       propertyFilters,
       workingOnly: agentRunningFilter,
       showSubIssues,
@@ -216,6 +227,7 @@ export function useIssueSurfaceData({
       includeNoAssignee,
       includeNoProject,
       labelFilters,
+      typeFilters,
       priorityFilters,
       projectFilters,
       projectGoalIds,
@@ -272,6 +284,11 @@ export function useIssueSurfaceData({
       ganttShowCompleted,
       workingFilterContext,
     ],
+  );
+
+  const calendarIssues = useMemo(
+    () => applyIssueFilters(ganttIssues, baseFilterState, workingFilterContext),
+    [baseFilterState, ganttIssues, workingFilterContext],
   );
 
   const workingFilterState = useMemo<IssueFilterState>(
@@ -389,6 +406,7 @@ export function useIssueSurfaceData({
       goalFilters,
       projectGoalIds,
       labelFilters,
+      typeFilters,
       propertyFilters,
       showSubIssues,
     }),
@@ -400,6 +418,7 @@ export function useIssueSurfaceData({
       includeNoAssignee,
       includeNoProject,
       labelFilters,
+      typeFilters,
       propertyFilters,
       priorityFilters,
       projectFilters,
@@ -439,6 +458,7 @@ export function useIssueSurfaceData({
     swimlaneIssues,
     ganttWorkingScopeIssues,
     filteredGanttIssues,
+    calendarIssues,
     ganttIssues,
     visibleStatuses,
     hiddenStatuses,

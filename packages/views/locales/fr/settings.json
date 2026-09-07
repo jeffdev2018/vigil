@@ -470,7 +470,8 @@
       "learning": "Ce que Vigil sait",
       "eval_lab": "Labo d'évaluation",
       "code_health": "Santé du code",
-      "doc_drift": "Dérive du contexte agent"
+      "doc_drift": "Dérive du contexte agent",
+      "issue_types": "Types de tickets"
     }
   },
   "plugins": {
@@ -634,7 +635,12 @@
       "cancel": "Annuler",
       "confirm": "Archiver la propriété",
       "failed": "Impossible d'archiver la propriété"
-    }
+    },
+    "types_label": "S'applique à",
+    "types_all": "Tous les types de tickets",
+    "types_hint": "Laissez vide pour appliquer partout, y compris aux tickets sans type.",
+    "types_count": "{{count}} types",
+    "types_failed": "Impossible d'enregistrer la portée."
   },
   "labels": {
     "title": "Étiquettes",
@@ -2270,6 +2276,51 @@
       "opened_pr": "En relecture",
       "dismissed": "Écartée",
       "merged": "Fusionnée"
+    }
+  },
+  "issue_types": {
+    "title": "Types de tickets",
+    "description": "Ce QU'EST un ticket — bug, story, epic, tâche, ou les vôtres. Un type ne change aucun comportement : il regroupe le travail et détermine quelles propriétés s'appliquent.",
+    "loading": "Chargement des types…",
+    "add": "Ajouter un type",
+    "show_archived": "Afficher les archivés ({{count}})",
+    "archived_badge": "Archivé",
+    "archived_hint": "Retiré des nouvelles affectations. Les tickets déjà dessus le conservent.",
+    "system_badge": "Intégré",
+    "system_hint": "Les types intégrés peuvent être renommés et recolorés, jamais archivés.",
+    "reorder_failed": "Impossible d'enregistrer le nouvel ordre.",
+    "empty": "Aucun type de ticket pour l'instant.",
+    "actions": {
+      "open": "Actions pour {{name}}",
+      "edit": "Modifier",
+      "archive": "Archiver",
+      "reorder": "Réordonner {{name}}"
+    },
+    "editor": {
+      "create_title": "Nouveau type de ticket",
+      "edit_title": "Modifier le type de ticket",
+      "hint": "Un type dit ce qu'est un ticket. Il ne lance aucune exécution et ne change aucun statut.",
+      "name": "Nom",
+      "name_placeholder": "ex. Spike",
+      "key_hint": "Désigné par {{key}} dans l'API.",
+      "created": "Type créé. L'API le désigne par {{key}}.",
+      "description": "Description",
+      "description_placeholder": "Ce que ce type signifie pour votre équipe",
+      "color": "Couleur",
+      "icon": "Icône",
+      "choose_icon": "Choisir une icône",
+      "remove_icon": "Retirer l'icône",
+      "cancel": "Annuler",
+      "save": "Enregistrer",
+      "saving": "Enregistrement…",
+      "save_failed": "Impossible d'enregistrer le type."
+    },
+    "archive_dialog": {
+      "title": "Archiver ce type ?",
+      "description": "« {{name}} » ne sera plus proposé pour les nouveaux tickets. Les tickets déjà dessus le conservent, et chaque valeur de propriété reste en place.",
+      "cancel": "Annuler",
+      "confirm": "Archiver",
+      "failed": "Impossible d'archiver le type."
     }
   }
 }

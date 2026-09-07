@@ -81,6 +81,7 @@ export interface IssueSurfaceController {
    *  number it cannot stand behind. */
   workingAgents: WorkingAgentSummary[] | undefined;
   filteredGanttIssues: Issue[];
+  calendarIssues: Issue[];
   sort: IssueSortParam;
   ganttIssues: Issue[];
   visibleStatuses: IssueStatusCategory[];
@@ -231,6 +232,7 @@ export function useIssueSurfaceController({
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
+  const typeFilters = useViewStore((s) => s.typeFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const agentRunningFilter = useViewStore((s) => s.agentRunningFilter);
@@ -327,7 +329,11 @@ export function useIssueSurfaceController({
     groupingPropertyId && catalogSettled && !activeGroupingProperty
       ? "status"
       : grouping;
-  const usesGantt = effectiveViewMode === "gantt" && !!projectId;
+  // The gantt is no longer a project-only surface (F30): a workspace timeline
+  // is exactly the same canvas over a wider scope, and the query now fetches
+  // every scheduled issue when no project narrows it.
+  const usesGantt = effectiveViewMode === "gantt";
+  const usesCalendar = effectiveViewMode === "calendar";
   const usesTable = effectiveViewMode === "table";
   const activeSearch = usesTable ? tableSearch : search;
   const debouncedActiveSearch = useDebouncedTableSearch(activeSearch);
@@ -414,6 +420,7 @@ export function useIssueSurfaceController({
     viewIncludeNoProject ||
     goalFilters.length > 0 ||
     cycleFilters.length > 0 ||
+    typeFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.keys(effectivePropertyFilters).length > 0 ||
     dateFilter != null ||
@@ -502,6 +509,7 @@ export function useIssueSurfaceController({
           : {}),
         ...(viewIncludeNoProject ? { include_no_project: true } : {}),
         ...(cycleFilters.length > 0 ? { cycle_ids: cycleFilters } : {}),
+        ...(typeFilters.length > 0 ? { issue_types: typeFilters } : {}),
         ...(labelFilters.length > 0 ? { label_ids: labelFilters } : {}),
         ...(Object.keys(effectivePropertyFilters).length > 0
           ? { properties: effectivePropertyFilters }
@@ -523,6 +531,7 @@ export function useIssueSurfaceController({
     assigneeFilters,
     creatorFilters,
     cycleFilters,
+    typeFilters,
     dateParams,
     debouncedActiveSearch,
     effectivePropertyFilters,
@@ -744,7 +753,10 @@ export function useIssueSurfaceController({
     wsId,
     queryPlan,
     projectId,
-    usesGantt,
+    // The calendar reads the SAME scheduled window the gantt does — every
+    // issue with a start or due date in scope — so it shares the query rather
+    // than opening a second one over the same rows.
+    usesGantt: usesGantt || usesCalendar,
     usesTable,
     serverStatusBranches,
     serverGroupBranches,
@@ -762,6 +774,7 @@ export function useIssueSurfaceController({
     includeNoProject: viewIncludeNoProject,
     goalFilters,
     labelFilters,
+    typeFilters,
     propertyFilters: effectivePropertyFilters,
     workingIssueIDs,
     showSubIssues,
@@ -858,7 +871,7 @@ export function useIssueSurfaceController({
     projectId,
     createDefaults: resolvedCreateDefaults,
     viewMode: effectiveViewMode,
-    allowGantt: allowedModes.has("gantt") && !!projectId,
+    allowGantt: allowedModes.has("gantt"),
     ...surfaceData,
     workingAgents,
     hasActiveFilters,

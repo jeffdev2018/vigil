@@ -182,3 +182,77 @@ func TestListIssueDependencyStackIsBounded(t *testing.T) {
 		}
 	}
 }
+
+// F30 additions: the unique index that makes a duplicate edge impossible even
+// under a race, and the bulk endpoint the Gantt's arrow layer reads.
+
+// Acceptance 8 (second half): the handler's pre-insert existence check races,
+// so the guarantee lives in uq_issue_dependency_edge. Inserted directly, past
+// the handler, because a handler-level duplicate is already a 409 — this test
+// is about what happens when two racers both get past that check.
+func TestIssueDependencyUniqueIndexRejectsDuplicateEdge(t *testing.T) {
+	ctx := context.Background()
+	a := dbfx.Issue(t, "dup edge A")
+	b := dbfx.Issue(t, "dup edge B")
+	first, err := testHandler.Queries.CreateIssueDependency(ctx, db.CreateIssueDependencyParams{
+		IssueID: parseUUID(a), DependsOnIssueID: parseUUID(b), Type: "blocks",
+	})
+	if err != nil {
+		t.Fatalf("first edge: %v", err)
+	}
+	t.Cleanup(func() {
+		testPool.Exec(ctx, `DELETE FROM issue_dependency WHERE id = $1`, first.ID)
+	})
+	if _, err := testHandler.Queries.CreateIssueDependency(ctx, db.CreateIssueDependencyParams{
+		IssueID: parseUUID(a), DependsOnIssueID: parseUUID(b), Type: "blocks",
+	}); err == nil {
+		t.Fatal("a second identical edge must be refused by the unique index")
+	} else if !isUniqueViolation(err) {
+		t.Fatalf("expected a unique violation, got %v", err)
+	}
+}
+
+func TestListIssueDependenciesBulkReturnsEdgesInsideTheCanvas(t *testing.T) {
+	a := dbfx.Issue(t, "bulk dep A")
+	b := dbfx.Issue(t, "bulk dep B")
+	outside := dbfx.Issue(t, "bulk dep outside")
+	callCreateDependency(t, a, b, "blocks").Want(http.StatusCreated)
+	callCreateDependency(t, a, outside, "blocks").Want(http.StatusCreated)
+
+	var out struct {
+		Dependencies []IssueDependencyEdge `json:"dependencies"`
+		Total        int                   `json:"total"`
+	}
+	testutil.Call(t, testHandler.ListIssueDependenciesBulk,
+		newRequest(http.MethodPost, "/api/issue-dependencies/bulk", map[string]any{
+			"issue_ids": []string{a, b},
+		})).Want(http.StatusOK).JSON(&out)
+
+	if len(out.Dependencies) != 1 {
+		t.Fatalf("only the edge with BOTH ends on the canvas should come back, got %+v", out.Dependencies)
+	}
+	edge := out.Dependencies[0]
+	if edge.From != a || edge.To != b || edge.Type != "blocks" {
+		t.Errorf("edge should be %s blocks %s, got %+v", a, b, edge)
+	}
+}
+
+// An unparseable id must not cost the whole arrow layer: the canvas hands over
+// whatever it is drawing, and one bad entry is a client bug, not a reason to
+// leave every arrow off the screen.
+func TestListIssueDependenciesBulkSkipsUnparseableIDs(t *testing.T) {
+	a := dbfx.Issue(t, "bulk dep skip A")
+	b := dbfx.Issue(t, "bulk dep skip B")
+	callCreateDependency(t, a, b, "blocks").Want(http.StatusCreated)
+
+	var out struct {
+		Dependencies []IssueDependencyEdge `json:"dependencies"`
+	}
+	testutil.Call(t, testHandler.ListIssueDependenciesBulk,
+		newRequest(http.MethodPost, "/api/issue-dependencies/bulk", map[string]any{
+			"issue_ids": []string{a, "not-a-uuid", b},
+		})).Want(http.StatusOK).JSON(&out)
+	if len(out.Dependencies) != 1 {
+		t.Fatalf("expected the one valid edge, got %+v", out.Dependencies)
+	}
+}

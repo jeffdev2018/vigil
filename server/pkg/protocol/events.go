@@ -186,6 +186,18 @@ const (
 	// self-describing); nothing routes on it.
 	EventIssueStatusChanged = "issue_status:changed"
 
+	// The work item type catalogue moved (F30). One event for every write, like
+	// the status catalogue above and for the same reason: clients re-read the
+	// catalogue rather than merge a row out of a frame. The `action` is advisory.
+	EventIssueTypeChanged = "issue_type:changed"
+
+	// A dependency edge was created or deleted (F30). The two affected issues
+	// already get their own issue:updated, which is what refreshes their detail
+	// panels; this second event exists for the Gantt, whose arrow layer is a
+	// BULK query keyed by the whole visible row set and therefore has no issue
+	// row to hang an invalidation off.
+	EventIssueDependenciesChanged = "issue_dependencies:changed"
+
 	// Pin events
 	EventPinCreated   = "pin:created"
 	EventPinDeleted   = "pin:deleted"

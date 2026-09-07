@@ -469,7 +469,8 @@
       "learning": "Vigil 了解的",
       "eval_lab": "评测实验室",
       "code_health": "代码健康",
-      "doc_drift": "智能体上下文漂移"
+      "doc_drift": "智能体上下文漂移",
+      "issue_types": "工作项类型"
     }
   },
   "plugins": {
@@ -631,7 +632,12 @@
       "cancel": "取消",
       "confirm": "归档属性",
       "failed": "归档属性失败"
-    }
+    },
+    "types_label": "适用于",
+    "types_all": "所有工作项类型",
+    "types_hint": "留空则适用于所有议题，包括没有类型的议题。",
+    "types_count": "{{count}} 个类型",
+    "types_failed": "无法保存适用范围。"
   },
   "labels": {
     "title": "标签",
@@ -2262,6 +2268,51 @@
       "opened_pr": "审阅中",
       "dismissed": "已忽略",
       "merged": "已合并"
+    }
+  },
+  "issue_types": {
+    "title": "工作项类型",
+    "description": "议题「是什么」——缺陷、故事、史诗、任务，或你自定义的类型。类型不改变任何行为，它用于归类工作并决定哪些属性适用。",
+    "loading": "正在加载类型…",
+    "add": "添加类型",
+    "show_archived": "显示已归档（{{count}}）",
+    "archived_badge": "已归档",
+    "archived_hint": "不再用于新的指派。已使用该类型的议题保持不变。",
+    "system_badge": "内置",
+    "system_hint": "内置类型可以改名和改色，但不能归档。",
+    "reorder_failed": "无法保存新的顺序。",
+    "empty": "还没有工作项类型。",
+    "actions": {
+      "open": "{{name}} 的操作",
+      "edit": "编辑",
+      "archive": "归档",
+      "reorder": "重新排序 {{name}}"
+    },
+    "editor": {
+      "create_title": "新建工作项类型",
+      "edit_title": "编辑工作项类型",
+      "hint": "类型说明议题是什么。它不会启动运行，也不会改变状态。",
+      "name": "名称",
+      "name_placeholder": "例如 Spike",
+      "key_hint": "API 中以 {{key}} 引用。",
+      "created": "类型已创建。API 中以 {{key}} 引用。",
+      "description": "描述",
+      "description_placeholder": "这个类型对团队意味着什么",
+      "color": "颜色",
+      "icon": "图标",
+      "choose_icon": "选择图标",
+      "remove_icon": "移除图标",
+      "cancel": "取消",
+      "save": "保存",
+      "saving": "正在保存…",
+      "save_failed": "无法保存类型。"
+    },
+    "archive_dialog": {
+      "title": "归档这个类型？",
+      "description": "「{{name}}」将不再用于新议题。已使用该类型的议题保持不变，所有属性值也原样保留。",
+      "cancel": "取消",
+      "confirm": "归档",
+      "failed": "无法归档类型。"
     }
   }
 }

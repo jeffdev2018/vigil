@@ -2344,6 +2344,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetProperty)
 					r.Patch("/", h.UpdateProperty)
+					// Work item type scope (F30). PUT because the scope is a
+					// SET the settings UI edits wholesale — an add/remove pair
+					// would make "make this global" a special case.
+					r.Put("/types", h.SetPropertyTypes)
 				})
 			})
 
@@ -2676,6 +2680,22 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/reject", h.RejectIssueTransitionRequest)
 				r.Delete("/", h.CancelIssueTransitionRequest)
 			})
+			// Work item types (F30). Members read the catalogue — every client
+			// renders a type badge from it; owners/admins write it.
+			r.Route("/api/issue-types", func(r chi.Router) {
+				r.Get("/", h.ListIssueTypes)
+				r.Post("/", h.CreateIssueType)
+				r.Put("/reorder", h.ReorderIssueTypes)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Patch("/", h.UpdateIssueType)
+					r.Post("/archive", h.ArchiveIssueType)
+				})
+			})
+
+			// Dependency graph for a set of issues (F30 Gantt arrows). POST
+			// because the canvas can hold hundreds of ids.
+			r.Post("/api/issue-dependencies/bulk", h.ListIssueDependenciesBulk)
+
 			r.Route("/api/issue-statuses", func(r chi.Router) {
 				r.Get("/", h.ListIssueStatuses)
 				r.Post("/", h.CreateIssueStatus)
