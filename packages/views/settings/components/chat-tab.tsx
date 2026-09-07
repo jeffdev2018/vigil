@@ -13,19 +13,15 @@ import { useVoiceStore } from "@multica/core/voice/store";
 import { VOICE_LANGUAGES, type VoiceLanguage } from "@multica/core/voice";
 import { toast } from "sonner";
 import { useT } from "../../i18n";
-import {
-  SettingsCard,
-  SettingsRow,
-  SettingsSection,
-  SettingsTab,
-} from "./settings-layout";
+import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 
 /**
- * Chat settings — its own tab under "My Account". Both switches are persisted
- * client preferences, so they apply immediately without a round-trip:
+ * Chat preferences, rendered as the "Chat" section of Preferences. Both
+ * switches are persisted client settings, so they apply immediately without a
+ * round-trip:
  *
- *  - the floating window: when off, the FAB / overlay never mount and Chat is
- *    reachable only from its dedicated tab;
+ *  - the floating window (`floatingChatEnabled`): when off, the FAB / overlay
+ *    never mount and Chat is reachable only from its dedicated tab;
  *  - reading replies aloud after a voice memo: when off, a dictated message
  *    behaves like a typed one and the per-message Listen button is the only
  *    way to hear a reply.
@@ -38,23 +34,29 @@ export function ChatTab() {
   const setEnabled = useChatStore((s) => s.setFloatingChatEnabled);
 
   return (
-    <SettingsTab title={t(($) => $.page.tabs.chat)}>
+    <div className="space-y-6">
+      <p className="text-caption text-muted-foreground">
+        {t(($) => $.preferences.device_hint)}
+      </p>
       <SettingsSection title={t(($) => $.chat.floating_title)}>
         <SettingsCard>
           <SettingsRow
             label={t(($) => $.chat.floating_label)}
             description={t(($) => $.chat.floating_hint)}
           >
-          <Switch
-            checked={enabled}
-            onCheckedChange={(checked) => {
-              setEnabled(checked);
-              toast.success(t(($) => $.auto_save.toast_saved), {
-                id: "settings-auto-save",
-              });
-            }}
-            aria-label={t(($) => $.chat.floating_label)}
-          />
+            <Switch
+              checked={enabled}
+              onCheckedChange={(checked) => {
+                setEnabled(checked);
+                toast.success(
+                  t(($) => $.auto_save.toast_saved),
+                  {
+                    id: "settings-auto-save",
+                  },
+                );
+              }}
+              aria-label={t(($) => $.chat.floating_label)}
+            />
           </SettingsRow>
         </SettingsCard>
       </SettingsSection>
@@ -65,7 +67,7 @@ export function ChatTab() {
           <VoiceLanguageRow />
         </SettingsCard>
       </SettingsSection>
-    </SettingsTab>
+    </div>
   );
 }
 

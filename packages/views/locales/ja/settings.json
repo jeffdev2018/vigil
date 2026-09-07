@@ -49,37 +49,6 @@
       "cancelled": "見送り。"
     }
   },
-  "transitions": {
-    "title": "遷移ルール",
-    "description": "誰がイシューをステータスカテゴリ間で移動できるか、どの移動が承認を待つかを定めます。",
-    "loading": "ルールを読み込み中…",
-    "empty": "ルールはまだありません。すべての遷移は自由で、イシューを編集できる人は任意のステータスに変更できます。",
-    "add": "ルールを追加",
-    "edit": "ルールを編集",
-    "delete": "ルールを削除",
-    "delete_failed": "ルールを削除できませんでした。",
-    "save_failed": "ルールを保存できませんでした。",
-    "any_origin": "任意のステータス",
-    "grants": "許可: {{list}}",
-    "no_grants": "許可: なし",
-    "named_actors": "指定 {{count}} 件",
-    "needs_approval": "承認が必要",
-    "disabled": "無効",
-    "editor": {
-      "create_title": "新しい遷移ルール",
-      "edit_title": "遷移ルールを編集",
-      "hint": "ルールはステータスカテゴリに対して定義されるため、ステータス名を変更しても機能し続けます。",
-      "from": "移動元",
-      "to": "移動先",
-      "roles": "許可するロール",
-      "actor_types": "許可するアクター種別",
-      "requires_approval": "承認を待つ",
-      "approver_roles": "承認者のロール",
-      "enabled": "有効",
-      "save": "保存",
-      "cancel": "キャンセル"
-    }
-  },
   "quick_actions": {
     "title": "クイックアクション",
     "description": "実行するエージェントとプロンプトを事前に設定し、任意のタスクのサイドバーからワンクリックで実行します。",
@@ -160,6 +129,11 @@
       "title": "コメントバーを固定",
       "hint": "タスクのページをスクロールしても、コメントバーを常に下部に固定します。"
     },
+    "description": "Multica の使い方をカスタマイズします。",
+    "issue_title": "タスク作成",
+    "comments_title": "コメント",
+    "device_hint": "このデバイスに保存されます。",
+    "issue_scope": "この設定は、このデバイスの現在のワークスペースに適用され、タスク作成時に表示するフィールドのみを変更します。",
     "meetings_title": "ミーティング",
     "meeting_detection": {
       "title": "ミーティングを自動検出",
@@ -232,10 +206,6 @@
         "label": "タスク内を検索",
         "description": "開いているタスクの詳細を検索します。"
       },
-      "openThreadNav": {
-        "label": "スレッドナビゲーターを開く",
-        "description": "開いているタスクのコメントスレッドを一覧・検索して移動します。"
-      },
       "archiveInboxItem": {
         "label": "通知をアーカイブ",
         "description": "開いているインボックス通知をアーカイブします。アーカイブ表示中はアーカイブを解除します。"
@@ -299,6 +269,10 @@
       "goSettings": {
         "label": "設定へ移動",
         "description": "ワークスペース設定を開きます。"
+      },
+      "openThreadNav": {
+        "label": "スレッドナビゲーターを開く",
+        "description": "開いているタスクのコメントスレッドを一覧・検索して移動します。"
       },
       "triageNextItem": {
         "label": "トリアージ: 次の項目",
@@ -456,12 +430,12 @@
       "members": "メンバー",
       "labels": "ラベル",
       "issue_statuses": "タスクステータス",
-      "transitions": "遷移ルール",
       "properties": "プロパティ",
       "quick_actions": "クイックアクション",
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "請求とプラン",
+      "transitions": "遷移ルール",
       "model_keys": "モデルキー",
       "security": "セキュリティ",
       "audit_log": "監査ログ",
@@ -471,7 +445,16 @@
       "code_health": "コードヘルス",
       "doc_drift": "エージェントコンテキストのずれ",
       "issue_types": "作業アイテムタイプ"
-    }
+    },
+    "groups": {
+      "personal": "個人設定",
+      "workspace": "ワークスペース管理",
+      "issues": "タスク設定",
+      "connections": "接続と拡張機能",
+      "device": "デスクトップアプリ"
+    },
+    "navigate": "設定ページへ移動",
+    "device_scope": "このデバイス"
   },
   "plugins": {
     "title": "Plugins",
@@ -1282,47 +1265,6 @@
     "install_error_forbidden": "このワークスペースに Lark ボットを設置する権限がなくなりました。ワークスペース管理者にお問い合わせください。",
     "install_error_generic": "設置に失敗しました。もう一度お試しください。"
   },
-  "linear": {
-    "section_title": "Linear",
-    "page_description": "Multica を Linear アプリとしてインストールします。Multica ユーザーに割り当てられた Linear の課題は、担当エージェントを持つ Multica の課題としてミラーされ、以降はコメントとステータスが双方向に同期されます。",
-    "not_enabled_title": "Linear 連携が有効化されていません",
-    "not_enabled_description": "このデプロイには Linear アプリが設定されていません。サーバーで MULTICA_LINEAR_SECRET_KEY、MULTICA_LINEAR_CLIENT_ID、MULTICA_LINEAR_CLIENT_SECRET を設定してください。",
-    "connect_hint": "ミラーされた Linear の課題を割り当てるエージェントを選び、Linear でアプリを承認してください。",
-    "agent_label": "エージェント",
-    "agent_placeholder": "エージェントを選択",
-    "connect": "Linear を接続",
-    "connecting": "Linear を開いています…",
-    "reconnect": "再接続",
-    "admin_only": "Linear を接続できるのはワークスペースのオーナーと管理者のみです。",
-    "loading": "読み込み中…",
-    "load_failed": "Linear 接続の読み込みに失敗しました",
-    "org_label": "Linear 組織",
-    "broken_title": "Linear がこの接続を受け付けなくなりました",
-    "broken_description": "再接続すると、課題・コメント・ステータスの同期が再開します。",
-    "status_map_title": "ステータスのマッピング",
-    "status_map_description": "各 Linear ワークフロー状態がどの Multica ステータスに対応するか。双方向で使用されます。",
-    "status_placeholder": "ステータスを選択",
-    "save_status_map": "マッピングを保存",
-    "saving": "保存中…",
-    "cancel": "キャンセル",
-    "disconnect": "切断",
-    "disconnecting": "切断中…",
-    "disconnect_confirm_title": "Linear を切断しますか？",
-    "disconnect_confirm_description": "ミラーされた課題とコメントは Multica に残りますが、Linear との同期は停止します。後で再接続できます。",
-    "toast_connect_failed": "Linear 接続を開始できませんでした",
-    "toast_disconnected": "Linear を切断しました",
-    "toast_disconnect_failed": "Linear を切断できませんでした",
-    "toast_status_map_saved": "ステータスのマッピングを保存しました",
-    "toast_status_map_failed": "ステータスのマッピングを保存できませんでした",
-    "badge_title": "Linear",
-    "badge_synced": "Linear と同期済み",
-    "badge_paused": "一時停止 — この課題は Linear で Multica に割り当てられていません",
-    "badge_broken": "同期に失敗しました — Linear を再接続するか再試行してください",
-    "badge_resync": "再同期",
-    "badge_resyncing": "再同期中…",
-    "toast_resynced": "Linear と再同期しました",
-    "toast_resync_failed": "Linear と再同期できませんでした"
-  },
   "composio": {
     "section_title": "Composio",
     "page_description": "Connect the Composio apps your agents can act on. Only apps configured with an enabled auth config in your Composio project appear here.",
@@ -1594,16 +1536,6 @@
     "toast_saved": "リポジトリを保存しました",
     "toast_save_failed": "リポジトリを保存できませんでした"
   },
-  "repo_index": {
-    "section": "セマンティックインデックス",
-    "description_semantic": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。意味とキーワードの両方でランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存され、この環境の埋め込みプロバイダーに送信されます。",
-    "description_lexical": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。この環境には埋め込みモデルが設定されていないため、キーワードでランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存されます。",
-    "empty": "このワークスペースにもそのプロジェクトにも、まだリポジトリが関連付けられていません。",
-    "status_indexed": "コミット {{commit}} 時点で最新 · {{files}} ファイル / {{chunks}} チャンク",
-    "status_waiting": "このリポジトリでの次回の実行後にインデックス化されます",
-    "status_disabled": "未インデックス",
-    "save_failed": "セマンティックインデックスの設定を保存できませんでした。"
-  },
   "desktop": {
     "tabs": {
       "updates": "アップデート"
@@ -1768,6 +1700,104 @@
     "expiry_7d": "7日",
     "expiry_30d": "30日",
     "expiry_never": "無期限"
+  },
+  "integrations": {
+    "description": "ツールを接続して、各連携を管理します。",
+    "code_title": "コードとリポジトリ",
+    "messaging_title": "メッセージチャネル",
+    "apps_title": "自分のアプリ接続",
+    "apps_scope": "これらのアプリ接続はあなたのアカウントに属します。ワークスペースのチャネル接続は上で管理します。",
+    "github_hint": "GitHub を接続し、プルリクエストの関連付けを設定します。",
+    "vcs_hint": "GitLab、Gitea、Forgejo を接続します。",
+    "apps_hint": "Composio 経由でエージェント用のアプリを認可します。",
+    "back": "すべての連携",
+    "status_connected": "接続済み",
+    "status_not_connected": "未接続",
+    "status_loading": "確認中...",
+    "status_unknown": "状態を取得できません",
+    "channel_hint": "{{channel}} でエージェントと会話し、タスクを作成します。"
+  },
+  "transitions": {
+    "title": "遷移ルール",
+    "description": "誰がイシューをステータスカテゴリ間で移動できるか、どの移動が承認を待つかを定めます。",
+    "loading": "ルールを読み込み中…",
+    "empty": "ルールはまだありません。すべての遷移は自由で、イシューを編集できる人は任意のステータスに変更できます。",
+    "add": "ルールを追加",
+    "edit": "ルールを編集",
+    "delete": "ルールを削除",
+    "delete_failed": "ルールを削除できませんでした。",
+    "save_failed": "ルールを保存できませんでした。",
+    "any_origin": "任意のステータス",
+    "grants": "許可: {{list}}",
+    "no_grants": "許可: なし",
+    "named_actors": "指定 {{count}} 件",
+    "needs_approval": "承認が必要",
+    "disabled": "無効",
+    "editor": {
+      "create_title": "新しい遷移ルール",
+      "edit_title": "遷移ルールを編集",
+      "hint": "ルールはステータスカテゴリに対して定義されるため、ステータス名を変更しても機能し続けます。",
+      "from": "移動元",
+      "to": "移動先",
+      "roles": "許可するロール",
+      "actor_types": "許可するアクター種別",
+      "requires_approval": "承認を待つ",
+      "approver_roles": "承認者のロール",
+      "enabled": "有効",
+      "save": "保存",
+      "cancel": "キャンセル"
+    }
+  },
+  "linear": {
+    "section_title": "Linear",
+    "page_description": "Multica を Linear アプリとしてインストールします。Multica ユーザーに割り当てられた Linear の課題は、担当エージェントを持つ Multica の課題としてミラーされ、以降はコメントとステータスが双方向に同期されます。",
+    "not_enabled_title": "Linear 連携が有効化されていません",
+    "not_enabled_description": "このデプロイには Linear アプリが設定されていません。サーバーで MULTICA_LINEAR_SECRET_KEY、MULTICA_LINEAR_CLIENT_ID、MULTICA_LINEAR_CLIENT_SECRET を設定してください。",
+    "connect_hint": "ミラーされた Linear の課題を割り当てるエージェントを選び、Linear でアプリを承認してください。",
+    "agent_label": "エージェント",
+    "agent_placeholder": "エージェントを選択",
+    "connect": "Linear を接続",
+    "connecting": "Linear を開いています…",
+    "reconnect": "再接続",
+    "admin_only": "Linear を接続できるのはワークスペースのオーナーと管理者のみです。",
+    "loading": "読み込み中…",
+    "load_failed": "Linear 接続の読み込みに失敗しました",
+    "org_label": "Linear 組織",
+    "broken_title": "Linear がこの接続を受け付けなくなりました",
+    "broken_description": "再接続すると、課題・コメント・ステータスの同期が再開します。",
+    "status_map_title": "ステータスのマッピング",
+    "status_map_description": "各 Linear ワークフロー状態がどの Multica ステータスに対応するか。双方向で使用されます。",
+    "status_placeholder": "ステータスを選択",
+    "save_status_map": "マッピングを保存",
+    "saving": "保存中…",
+    "cancel": "キャンセル",
+    "disconnect": "切断",
+    "disconnecting": "切断中…",
+    "disconnect_confirm_title": "Linear を切断しますか？",
+    "disconnect_confirm_description": "ミラーされた課題とコメントは Multica に残りますが、Linear との同期は停止します。後で再接続できます。",
+    "toast_connect_failed": "Linear 接続を開始できませんでした",
+    "toast_disconnected": "Linear を切断しました",
+    "toast_disconnect_failed": "Linear を切断できませんでした",
+    "toast_status_map_saved": "ステータスのマッピングを保存しました",
+    "toast_status_map_failed": "ステータスのマッピングを保存できませんでした",
+    "badge_title": "Linear",
+    "badge_synced": "Linear と同期済み",
+    "badge_paused": "一時停止 — この課題は Linear で Multica に割り当てられていません",
+    "badge_broken": "同期に失敗しました — Linear を再接続するか再試行してください",
+    "badge_resync": "再同期",
+    "badge_resyncing": "再同期中…",
+    "toast_resynced": "Linear と再同期しました",
+    "toast_resync_failed": "Linear と再同期できませんでした"
+  },
+  "repo_index": {
+    "section": "セマンティックインデックス",
+    "description_semantic": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。意味とキーワードの両方でランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存され、この環境の埋め込みプロバイダーに送信されます。",
+    "description_lexical": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。この環境には埋め込みモデルが設定されていないため、キーワードでランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存されます。",
+    "empty": "このワークスペースにもそのプロジェクトにも、まだリポジトリが関連付けられていません。",
+    "status_indexed": "コミット {{commit}} 時点で最新 · {{files}} ファイル / {{chunks}} チャンク",
+    "status_waiting": "このリポジトリでの次回の実行後にインデックス化されます",
+    "status_disabled": "未インデックス",
+    "save_failed": "セマンティックインデックスの設定を保存できませんでした。"
   },
   "run_limits": {
     "title": "実行上限",

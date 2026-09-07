@@ -108,6 +108,7 @@ const EMPTY_WORKSPACES: Awaited<ReturnType<typeof api.listWorkspaces>> = [];
 const EMPTY_INVITATIONS: Awaited<ReturnType<typeof api.listMyInvitations>> = [];
 const EMPTY_INBOX: Awaited<ReturnType<typeof api.listInbox>> = [];
 const EMPTY_INBOX_SUMMARY: Awaited<ReturnType<typeof api.getInboxUnreadSummary>> = [];
+const PINNED_PREVIEW_LIMIT = 5;
 
 // Nav items reference WorkspacePaths method names so they can be resolved
 // against the current workspace slug at render time (see AppSidebar body).
@@ -161,29 +162,32 @@ type NavLabelKey =
 // always agree. See route-icon-components.tsx.
 const personalNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "inbox", labelKey: "inbox" },
-  { key: "triage", labelKey: "triage" },
-  { key: "meetings", labelKey: "meetings" },
-  { key: "postmortems", labelKey: "postmortems" },
-  { key: "chat", labelKey: "chat" },
   { key: "myIssues", labelKey: "my_issues" },
+  { key: "chat", labelKey: "chat" },
 ];
 
-const workspaceNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+const workNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "issues", labelKey: "issues" },
   { key: "projects", labelKey: "projects" },
   { key: "goals", labelKey: "goals" },
   { key: "cycles", labelKey: "cycles" },
+  { key: "triage", labelKey: "triage" },
+  { key: "meetings", labelKey: "meetings" },
+  { key: "postmortems", labelKey: "postmortems" },
+  { key: "brain", labelKey: "brain" },
   { key: "autopilots", labelKey: "autopilots" },
+];
+
+const aiTeamNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "agents", labelKey: "agents" },
   { key: "squads", labelKey: "squads" },
   { key: "org", labelKey: "org" },
-  { key: "brain", labelKey: "brain" },
-  { key: "usage", labelKey: "usage" },
+  { key: "skills", labelKey: "skills" },
+  { key: "runtimes", labelKey: "runtimes" },
 ];
 
-const configureNav: { key: NavKey; labelKey: NavLabelKey }[] = [
-  { key: "runtimes", labelKey: "runtimes" },
-  { key: "skills", labelKey: "skills" },
+const utilityNav: { key: NavKey; labelKey: NavLabelKey }[] = [
+  { key: "usage", labelKey: "usage" },
   { key: "settings", labelKey: "settings" },
 ];
 
@@ -562,6 +566,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   // DOM under dnd-kit while its drop animation is still interpolating.
   const [localPinned, setLocalPinned] = useState<PinnedItem[]>(pinnedItems);
   const [localPinnedWsId, setLocalPinnedWsId] = useState<string | null>(wsId ?? null);
+  const [expandedPinsWorkspaceId, setExpandedPinsWorkspaceId] = useState<string | null>(null);
   const isDraggingRef = useRef(false);
   useEffect(() => {
     if (!isDraggingRef.current) {
@@ -572,10 +577,12 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     setLocalPinnedWsId(wsId ?? null);
   }, [wsId]);
   const visiblePinned = localPinnedWsId === (wsId ?? null) ? localPinned : EMPTY_PINS;
+  const pinsExpanded = expandedPinsWorkspaceId === wsId;
+  const displayedPinned = pinsExpanded ? visiblePinned : visiblePinned.slice(0, PINNED_PREVIEW_LIMIT);
   // View pins are absent here (their href resolves async): while a view
   // pin is active the plain nav row for its surface stays highlighted too.
   // Accepted — suppressing it would need every view detail lifted up here.
-  const isActivePinnedRoute = visiblePinned.some((pin) => pathname === getPinHref(pin));
+  const isActivePinnedRoute = displayedPinned.some((pin) => pathname === getPinHref(pin));
 
   const handleDragStart = useCallback(() => {
     isDraggingRef.current = true;
@@ -811,20 +818,6 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                             className="ml-auto text-caption"
                           />
                         )}
-                        {item.key === "triage" && triagePendingCount > 0 && (
-                          <CappedNumberFlow
-                            value={triagePendingCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
-                        {item.key === "postmortems" && postmortemDraftCount > 0 && (
-                          <CappedNumberFlow
-                            value={postmortemDraftCount}
-                            animated={false}
-                            className="ml-auto text-caption"
-                          />
-                        )}
                         {item.key === "chat" && chatUnreadCount > 0 && (
                           <CappedNumberFlow
                             value={chatUnreadCount}
@@ -854,9 +847,9 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                 <CollapsibleContent>
                   <SidebarGroupContent>
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-                      <SortableContext items={visiblePinned.map((p) => p.id)} strategy={verticalListSortingStrategy}>
+                      <SortableContext items={displayedPinned.map((p) => p.id)} strategy={verticalListSortingStrategy}>
                         <SidebarMenu className="gap-0.5">
-                          {visiblePinned.map((pin: PinnedItem) => (
+                          {displayedPinned.map((pin: PinnedItem) => (
                             <PinRow
                               key={pin.id}
                               pin={pin}
@@ -869,6 +862,20 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         </SidebarMenu>
                       </SortableContext>
                     </DndContext>
+                    {visiblePinned.length > PINNED_PREVIEW_LIMIT && (
+                      <SidebarMenuButton
+                        size="sm"
+                        aria-expanded={pinsExpanded}
+                        className="mt-0.5 pl-7 text-muted-foreground"
+                        onClick={() => setExpandedPinsWorkspaceId(pinsExpanded ? null : wsId ?? null)}
+                      >
+                        <span>
+                          {pinsExpanded
+                            ? t(($) => $.sidebar.show_fewer_pins)
+                            : t(($) => $.sidebar.show_more_pins, { count: visiblePinned.length - PINNED_PREVIEW_LIMIT })}
+                        </span>
+                      </SidebarMenuButton>
+                    )}
                   </SidebarGroupContent>
                 </CollapsibleContent>
               </SidebarGroup>
@@ -876,10 +883,10 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           )}
 
           <SidebarGroup>
-            <SidebarGroupLabel>{t(($) => $.sidebar.workspace_group)}</SidebarGroupLabel>
+            <SidebarGroupLabel>{t(($) => $.sidebar.work_group)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {workspaceNav.map((item) => {
+                {workNav.map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
                   const isActive = !isActivePinnedRoute && isNavActive(pathname, href);
@@ -892,6 +899,20 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                       >
                         <Icon />
                         <span>{t(($) => $.nav[item.labelKey])}</span>
+                        {item.key === "triage" && triagePendingCount > 0 && (
+                          <CappedNumberFlow
+                            value={triagePendingCount}
+                            animated={false}
+                            className="ml-auto text-caption"
+                          />
+                        )}
+                        {item.key === "postmortems" && postmortemDraftCount > 0 && (
+                          <CappedNumberFlow
+                            value={postmortemDraftCount}
+                            animated={false}
+                            className="ml-auto text-caption"
+                          />
+                        )}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   );
@@ -901,10 +922,10 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
           </SidebarGroup>
 
           <SidebarGroup>
-            <SidebarGroupLabel>{t(($) => $.sidebar.configure_group)}</SidebarGroupLabel>
+            <SidebarGroupLabel>{t(($) => $.sidebar.ai_team_group)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu className="gap-0.5">
-                {configureNav.map((item) => {
+                {aiTeamNav.map((item) => {
                   const href = p[item.key]();
                   const Icon = routeIconForPath(href);
                   const isActive = isNavActive(pathname, href);
@@ -927,6 +948,24 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         </SidebarContent>
 
         <SidebarFooter className="p-2">
+          <SidebarMenu className="gap-0.5">
+            {utilityNav.map((item) => {
+              const href = p[item.key]();
+              const Icon = routeIconForPath(href);
+              return (
+                <SidebarMenuItem key={item.key}>
+                  <SidebarMenuButton
+                    isActive={isNavActive(pathname, href)}
+                    render={<AppLink href={href} />}
+                    className="text-caption text-muted-foreground hover:not-data-active:bg-sidebar-accent/70 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground"
+                  >
+                    <Icon />
+                    <span>{t(($) => $.nav[item.labelKey])}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              );
+            })}
+          </SidebarMenu>
           {/* One utility strip: the Discord link takes the leading space the
               help trigger was leaving empty. `justify-end` keeps the trigger
               right-aligned once the Discord link is dismissed. */}

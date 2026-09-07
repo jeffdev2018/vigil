@@ -49,37 +49,6 @@
       "cancelled": "决定不做。"
     }
   },
-  "transitions": {
-    "title": "流转规则",
-    "description": "规定谁可以把工作项在状态分类之间移动，以及哪些移动需要等待审批。",
-    "loading": "正在加载规则…",
-    "empty": "暂无规则。所有流转都是自由的：能编辑工作项的人可以把它改成任意状态。",
-    "add": "新增规则",
-    "edit": "编辑规则",
-    "delete": "删除规则",
-    "delete_failed": "无法删除该规则。",
-    "save_failed": "无法保存该规则。",
-    "any_origin": "任意状态",
-    "grants": "允许：{{list}}",
-    "no_grants": "允许：无人",
-    "named_actors": "指定 {{count}} 个",
-    "needs_approval": "需要审批",
-    "disabled": "已停用",
-    "editor": {
-      "create_title": "新建流转规则",
-      "edit_title": "编辑流转规则",
-      "hint": "规则针对状态分类编写，因此重命名状态后依然有效。",
-      "from": "从",
-      "to": "到",
-      "roles": "允许的角色",
-      "actor_types": "允许的执行者类型",
-      "requires_approval": "等待审批",
-      "approver_roles": "审批人角色",
-      "enabled": "启用",
-      "save": "保存",
-      "cancel": "取消"
-    }
-  },
   "quick_actions": {
     "title": "快捷操作",
     "description": "预先配置好执行的智能体和提示词，之后在任意任务侧边栏一键触发。",
@@ -160,6 +129,11 @@
       "title": "固定评论栏",
       "hint": "滚动任务页面时，评论栏始终固定在底部。"
     },
+    "description": "调整你在 Multica 中的使用偏好。",
+    "issue_title": "任务创建",
+    "comments_title": "评论",
+    "device_hint": "保存在当前设备上。",
+    "issue_scope": "这些偏好仅对当前设备上的当前工作区生效，只影响创建任务时显示的字段。",
     "meetings_title": "会议",
     "meeting_detection": {
       "title": "自动检测会议",
@@ -232,10 +206,6 @@
         "label": "在任务中查找",
         "description": "搜索当前打开的任务详情。"
       },
-      "openThreadNav": {
-        "label": "打开讨论导航",
-        "description": "列出、搜索并跳转当前任务的评论讨论。"
-      },
       "archiveInboxItem": {
         "label": "归档通知",
         "description": "归档当前打开的收件箱通知；在归档列表中则取消归档。"
@@ -299,6 +269,10 @@
       "goSettings": {
         "label": "前往设置",
         "description": "打开工作区设置。"
+      },
+      "openThreadNav": {
+        "label": "打开讨论导航",
+        "description": "列出、搜索并跳转当前任务的评论讨论。"
       },
       "triageNextItem": {
         "label": "分诊：下一条",
@@ -456,12 +430,12 @@
       "members": "成员",
       "labels": "标签",
       "issue_statuses": "任务状态",
-      "transitions": "状态流转",
       "properties": "属性",
       "quick_actions": "快捷操作",
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "账单与套餐",
+      "transitions": "状态流转",
       "model_keys": "模型密钥",
       "security": "安全",
       "audit_log": "审计日志",
@@ -471,7 +445,16 @@
       "code_health": "代码健康",
       "doc_drift": "智能体上下文漂移",
       "issue_types": "工作项类型"
-    }
+    },
+    "groups": {
+      "personal": "个人设置",
+      "workspace": "工作区管理",
+      "issues": "任务配置",
+      "connections": "连接与扩展",
+      "device": "桌面应用"
+    },
+    "navigate": "前往设置页面",
+    "device_scope": "当前设备"
   },
   "plugins": {
     "title": "Plugins",
@@ -1282,47 +1265,6 @@
     "install_error_forbidden": "你已没有在此工作区安装飞书 Bot 的权限，请联系工作区管理员。",
     "install_error_generic": "安装失败，请重试。"
   },
-  "linear": {
-    "section_title": "Linear",
-    "page_description": "将 Multica 安装为 Linear 应用。分配给 Multica 用户的 Linear 议题会镜像为一条由你的 Agent 负责的 Multica 议题，之后评论与状态双向同步。",
-    "not_enabled_title": "未启用 Linear 集成",
-    "not_enabled_description": "本部署尚未配置 Linear 应用。请在服务端设置 MULTICA_LINEAR_SECRET_KEY、MULTICA_LINEAR_CLIENT_ID 和 MULTICA_LINEAR_CLIENT_SECRET。",
-    "connect_hint": "选择镜像议题要分配给哪个 Agent，然后在 Linear 中授权该应用。",
-    "agent_label": "Agent",
-    "agent_placeholder": "选择 Agent",
-    "connect": "连接 Linear",
-    "connecting": "正在打开 Linear…",
-    "reconnect": "重新连接",
-    "admin_only": "只有工作区所有者和管理员可以连接 Linear。",
-    "loading": "加载中…",
-    "load_failed": "加载 Linear 连接失败",
-    "org_label": "Linear 组织",
-    "broken_title": "Linear 已不再接受该连接",
-    "broken_description": "重新连接后即可恢复议题、评论与状态同步。",
-    "status_map_title": "状态映射",
-    "status_map_description": "每个 Linear 工作流状态对应哪个 Multica 状态。双向生效。",
-    "status_placeholder": "选择状态",
-    "save_status_map": "保存映射",
-    "saving": "保存中…",
-    "cancel": "取消",
-    "disconnect": "断开连接",
-    "disconnecting": "正在断开…",
-    "disconnect_confirm_title": "要断开 Linear 吗？",
-    "disconnect_confirm_description": "镜像议题及其评论会保留在 Multica，但不再与 Linear 同步。你之后可以重新连接。",
-    "toast_connect_failed": "无法开始连接 Linear",
-    "toast_disconnected": "已断开 Linear",
-    "toast_disconnect_failed": "无法断开 Linear",
-    "toast_status_map_saved": "状态映射已保存",
-    "toast_status_map_failed": "无法保存状态映射",
-    "badge_title": "Linear",
-    "badge_synced": "已与 Linear 同步",
-    "badge_paused": "已暂停 — 该议题在 Linear 中不再分配给 Multica",
-    "badge_broken": "同步失败 — 请重新连接 Linear 或重试",
-    "badge_resync": "重新同步",
-    "badge_resyncing": "正在重新同步…",
-    "toast_resynced": "已与 Linear 重新同步",
-    "toast_resync_failed": "无法与 Linear 重新同步"
-  },
   "composio": {
     "section_title": "Composio",
     "page_description": "连接你的智能体可以操作的 Composio 应用。这里只展示你在 Composio 项目里已配置（启用了 auth config）的应用。",
@@ -1594,16 +1536,6 @@
     "toast_saved": "已保存代码仓库",
     "toast_save_failed": "保存代码仓库失败"
   },
-  "repo_index": {
-    "section": "语义索引",
-    "description_semantic": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。按语义和关键词排序。启用后会把该仓库的源码存储在 Multica 中，并发送给当前部署配置的 embeddings 服务商。",
-    "description_lexical": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。当前部署未配置 embeddings 模型，因此按关键词排序。启用后会把该仓库的源码存储在 Multica 中。",
-    "empty": "该工作区及其项目尚未关联任何仓库。",
-    "status_indexed": "已同步到提交 {{commit}} · {{files}} 个文件 / {{chunks}} 个片段",
-    "status_waiting": "将在该仓库的下次运行结束后建立索引",
-    "status_disabled": "未索引",
-    "save_failed": "无法保存语义索引设置。"
-  },
   "desktop": {
     "tabs": {
       "updates": "更新"
@@ -1768,6 +1700,104 @@
     "expiry_7d": "7 天",
     "expiry_30d": "30 天",
     "expiry_never": "永久有效"
+  },
+  "integrations": {
+    "description": "连接常用工具，分别管理每项集成。",
+    "code_title": "代码与仓库",
+    "messaging_title": "消息渠道",
+    "apps_title": "我的应用连接",
+    "apps_scope": "这些应用连接属于你的账号。工作区的消息渠道连接在上方管理。",
+    "github_hint": "连接 GitHub，配置拉取请求关联。",
+    "vcs_hint": "连接 GitLab、Gitea 或 Forgejo。",
+    "apps_hint": "通过 Composio 为智能体授权应用。",
+    "back": "全部集成",
+    "status_connected": "已连接",
+    "status_not_connected": "未连接",
+    "status_loading": "正在检查...",
+    "status_unknown": "状态暂不可用",
+    "channel_hint": "在 {{channel}} 中与智能体对话、创建任务。"
+  },
+  "transitions": {
+    "title": "流转规则",
+    "description": "规定谁可以把工作项在状态分类之间移动，以及哪些移动需要等待审批。",
+    "loading": "正在加载规则…",
+    "empty": "暂无规则。所有流转都是自由的：能编辑工作项的人可以把它改成任意状态。",
+    "add": "新增规则",
+    "edit": "编辑规则",
+    "delete": "删除规则",
+    "delete_failed": "无法删除该规则。",
+    "save_failed": "无法保存该规则。",
+    "any_origin": "任意状态",
+    "grants": "允许：{{list}}",
+    "no_grants": "允许：无人",
+    "named_actors": "指定 {{count}} 个",
+    "needs_approval": "需要审批",
+    "disabled": "已停用",
+    "editor": {
+      "create_title": "新建流转规则",
+      "edit_title": "编辑流转规则",
+      "hint": "规则针对状态分类编写，因此重命名状态后依然有效。",
+      "from": "从",
+      "to": "到",
+      "roles": "允许的角色",
+      "actor_types": "允许的执行者类型",
+      "requires_approval": "等待审批",
+      "approver_roles": "审批人角色",
+      "enabled": "启用",
+      "save": "保存",
+      "cancel": "取消"
+    }
+  },
+  "linear": {
+    "section_title": "Linear",
+    "page_description": "将 Multica 安装为 Linear 应用。分配给 Multica 用户的 Linear 议题会镜像为一条由你的 Agent 负责的 Multica 议题，之后评论与状态双向同步。",
+    "not_enabled_title": "未启用 Linear 集成",
+    "not_enabled_description": "本部署尚未配置 Linear 应用。请在服务端设置 MULTICA_LINEAR_SECRET_KEY、MULTICA_LINEAR_CLIENT_ID 和 MULTICA_LINEAR_CLIENT_SECRET。",
+    "connect_hint": "选择镜像议题要分配给哪个 Agent，然后在 Linear 中授权该应用。",
+    "agent_label": "Agent",
+    "agent_placeholder": "选择 Agent",
+    "connect": "连接 Linear",
+    "connecting": "正在打开 Linear…",
+    "reconnect": "重新连接",
+    "admin_only": "只有工作区所有者和管理员可以连接 Linear。",
+    "loading": "加载中…",
+    "load_failed": "加载 Linear 连接失败",
+    "org_label": "Linear 组织",
+    "broken_title": "Linear 已不再接受该连接",
+    "broken_description": "重新连接后即可恢复议题、评论与状态同步。",
+    "status_map_title": "状态映射",
+    "status_map_description": "每个 Linear 工作流状态对应哪个 Multica 状态。双向生效。",
+    "status_placeholder": "选择状态",
+    "save_status_map": "保存映射",
+    "saving": "保存中…",
+    "cancel": "取消",
+    "disconnect": "断开连接",
+    "disconnecting": "正在断开…",
+    "disconnect_confirm_title": "要断开 Linear 吗？",
+    "disconnect_confirm_description": "镜像议题及其评论会保留在 Multica，但不再与 Linear 同步。你之后可以重新连接。",
+    "toast_connect_failed": "无法开始连接 Linear",
+    "toast_disconnected": "已断开 Linear",
+    "toast_disconnect_failed": "无法断开 Linear",
+    "toast_status_map_saved": "状态映射已保存",
+    "toast_status_map_failed": "无法保存状态映射",
+    "badge_title": "Linear",
+    "badge_synced": "已与 Linear 同步",
+    "badge_paused": "已暂停 — 该议题在 Linear 中不再分配给 Multica",
+    "badge_broken": "同步失败 — 请重新连接 Linear 或重试",
+    "badge_resync": "重新同步",
+    "badge_resyncing": "正在重新同步…",
+    "toast_resynced": "已与 Linear 重新同步",
+    "toast_resync_failed": "无法与 Linear 重新同步"
+  },
+  "repo_index": {
+    "section": "语义索引",
+    "description_semantic": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。按语义和关键词排序。启用后会把该仓库的源码存储在 Multica 中，并发送给当前部署配置的 embeddings 服务商。",
+    "description_lexical": "为仓库代码建立索引，让每次运行直接从相关文件开始，而不必从头搜索。当前部署未配置 embeddings 模型，因此按关键词排序。启用后会把该仓库的源码存储在 Multica 中。",
+    "empty": "该工作区及其项目尚未关联任何仓库。",
+    "status_indexed": "已同步到提交 {{commit}} · {{files}} 个文件 / {{chunks}} 个片段",
+    "status_waiting": "将在该仓库的下次运行结束后建立索引",
+    "status_disabled": "未索引",
+    "save_failed": "无法保存语义索引设置。"
   },
   "run_limits": {
     "title": "运行上限",

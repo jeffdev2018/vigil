@@ -393,9 +393,13 @@ func (h *Handler) ImportDaemon(w http.ResponseWriter, r *http.Request) {
 	if hasExisting {
 		switch strategy {
 		case daemonImportStrategyOverwrite:
-			if !h.requireAutopilotWrite(w, r, existing, workspaceID) {
+			actor, aok := h.requireAutopilotWrite(w, r, existing, workspaceID)
+			if !aok {
 				return
 			}
+			// The gate judges the human an agent-invoked import acts for, so
+			// the overwrite is recorded against them, not the agent (MUL-7108).
+			creatorUUID = actor.UserID
 		case daemonImportStrategyRename:
 			free, ferr := h.freeDaemonName(r.Context(), wsUUID, doc.Name)
 			if ferr != nil {

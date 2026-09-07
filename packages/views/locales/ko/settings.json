@@ -49,37 +49,6 @@
       "cancelled": "진행하지 않기로 함."
     }
   },
-  "transitions": {
-    "title": "전환 규칙",
-    "description": "누가 이슈를 상태 카테고리 간에 옮길 수 있는지, 어떤 이동이 승인을 기다릴지 정합니다.",
-    "loading": "규칙을 불러오는 중…",
-    "empty": "아직 규칙이 없습니다. 모든 전환이 자유로우며, 이슈를 수정할 수 있는 사람은 어떤 상태로든 옮길 수 있습니다.",
-    "add": "규칙 추가",
-    "edit": "규칙 편집",
-    "delete": "규칙 삭제",
-    "delete_failed": "규칙을 삭제하지 못했습니다.",
-    "save_failed": "규칙을 저장하지 못했습니다.",
-    "any_origin": "모든 상태",
-    "grants": "허용: {{list}}",
-    "no_grants": "허용: 없음",
-    "named_actors": "지정 {{count}}명",
-    "needs_approval": "승인 필요",
-    "disabled": "비활성",
-    "editor": {
-      "create_title": "새 전환 규칙",
-      "edit_title": "전환 규칙 편집",
-      "hint": "규칙은 상태 카테고리를 기준으로 작성되므로 상태 이름을 바꿔도 계속 동작합니다.",
-      "from": "출발",
-      "to": "도착",
-      "roles": "허용 역할",
-      "actor_types": "허용 액터 유형",
-      "requires_approval": "승인 대기",
-      "approver_roles": "승인자 역할",
-      "enabled": "활성",
-      "save": "저장",
-      "cancel": "취소"
-    }
-  },
   "quick_actions": {
     "title": "퀵 액션",
     "description": "실행할 에이전트와 프롬프트를 미리 설정한 뒤, 어떤 태스크의 사이드바에서든 한 번의 클릭으로 실행합니다.",
@@ -160,6 +129,11 @@
       "title": "댓글 입력창 고정",
       "hint": "태스크 페이지를 스크롤할 때 댓글 입력창을 항상 하단에 고정합니다."
     },
+    "description": "Multica 사용 환경을 맞춤 설정합니다.",
+    "issue_title": "태스크 생성",
+    "comments_title": "댓글",
+    "device_hint": "현재 기기에 저장됩니다.",
+    "issue_scope": "이 설정은 현재 기기의 현재 워크스페이스에 적용되며 태스크 생성 시 표시되는 필드만 변경합니다.",
     "meetings_title": "미팅",
     "meeting_detection": {
       "title": "미팅 자동 감지",
@@ -232,10 +206,6 @@
         "label": "태스크에서 찾기",
         "description": "열린 태스크 상세 내용에서 검색합니다."
       },
-      "openThreadNav": {
-        "label": "스레드 내비게이터 열기",
-        "description": "열린 태스크의 댓글 스레드를 나열하고 검색해 이동합니다."
-      },
       "archiveInboxItem": {
         "label": "알림 보관",
         "description": "열린 인박스 알림을 보관합니다. 보관함을 보는 중에는 보관을 해제합니다."
@@ -299,6 +269,10 @@
       "goSettings": {
         "label": "설정으로 이동",
         "description": "워크스페이스 설정을 엽니다."
+      },
+      "openThreadNav": {
+        "label": "스레드 내비게이터 열기",
+        "description": "열린 태스크의 댓글 스레드를 나열하고 검색해 이동합니다."
       },
       "triageNextItem": {
         "label": "트리아지: 다음 항목",
@@ -456,12 +430,12 @@
       "members": "멤버",
       "labels": "레이블",
       "issue_statuses": "태스크 상태",
-      "transitions": "전환 규칙",
       "properties": "속성",
       "quick_actions": "퀵 액션",
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "결제 및 요금제",
+      "transitions": "전환 규칙",
       "model_keys": "모델 키",
       "security": "보안",
       "audit_log": "감사 로그",
@@ -471,7 +445,16 @@
       "code_health": "코드 건강",
       "doc_drift": "에이전트 컨텍스트 드리프트",
       "issue_types": "작업 항목 유형"
-    }
+    },
+    "groups": {
+      "personal": "개인 설정",
+      "workspace": "워크스페이스 관리",
+      "issues": "태스크 설정",
+      "connections": "연결 및 확장",
+      "device": "데스크톱 앱"
+    },
+    "navigate": "설정 페이지로 이동",
+    "device_scope": "현재 기기"
   },
   "plugins": {
     "title": "Plugins",
@@ -1291,16 +1274,6 @@
     "toast_saved": "저장소를 저장했습니다",
     "toast_save_failed": "저장소를 저장하지 못했습니다"
   },
-  "repo_index": {
-    "section": "시맨틱 인덱스",
-    "description_semantic": "저장소 코드를 색인해 각 실행이 처음부터 찾지 않고 관련 파일에서 시작하도록 합니다. 의미와 키워드 양쪽으로 순위를 매깁니다. 켜면 해당 저장소의 소스 코드가 Multica에 저장되고 이 배포의 임베딩 제공자에게 전송됩니다.",
-    "description_lexical": "저장소 코드를 색인해 각 실행이 처음부터 찾지 않고 관련 파일에서 시작하도록 합니다. 이 배포에는 임베딩 모델이 설정되어 있지 않아 키워드로 순위를 매깁니다. 켜면 해당 저장소의 소스 코드가 Multica에 저장됩니다.",
-    "empty": "이 워크스페이스와 그 프로젝트에 아직 연결된 저장소가 없습니다.",
-    "status_indexed": "커밋 {{commit}} 기준 최신 · 파일 {{files}}개 / 청크 {{chunks}}개",
-    "status_waiting": "이 저장소에서 다음 실행이 끝난 뒤 색인됩니다",
-    "status_disabled": "색인되지 않음",
-    "save_failed": "시맨틱 인덱스 설정을 저장하지 못했습니다."
-  },
   "desktop": {
     "tabs": {
       "updates": "업데이트"
@@ -1541,47 +1514,6 @@
     "install_error_forbidden": "이 워크스페이스에 Lark 봇을 설치할 권한이 더 이상 없어요. 워크스페이스 관리자에게 문의하세요.",
     "install_error_generic": "설치에 실패했어요. 다시 시도하세요."
   },
-  "linear": {
-    "section_title": "Linear",
-    "page_description": "Multica를 Linear 앱으로 설치합니다. Multica 사용자에게 할당된 Linear 이슈는 담당 에이전트를 가진 Multica 이슈로 미러링되며, 이후 댓글과 상태가 양방향으로 동기화됩니다.",
-    "not_enabled_title": "Linear 연동이 활성화되지 않았습니다",
-    "not_enabled_description": "이 배포에는 Linear 앱이 구성되어 있지 않습니다. 서버에서 MULTICA_LINEAR_SECRET_KEY, MULTICA_LINEAR_CLIENT_ID, MULTICA_LINEAR_CLIENT_SECRET를 설정하세요.",
-    "connect_hint": "미러링된 Linear 이슈를 할당할 에이전트를 선택한 다음 Linear에서 앱을 승인하세요.",
-    "agent_label": "에이전트",
-    "agent_placeholder": "에이전트 선택",
-    "connect": "Linear 연결",
-    "connecting": "Linear 여는 중…",
-    "reconnect": "다시 연결",
-    "admin_only": "워크스페이스 소유자와 관리자만 Linear를 연결할 수 있습니다.",
-    "loading": "불러오는 중…",
-    "load_failed": "Linear 연결을 불러오지 못했습니다",
-    "org_label": "Linear 조직",
-    "broken_title": "Linear가 이 연결을 더 이상 허용하지 않습니다",
-    "broken_description": "다시 연결하면 이슈, 댓글, 상태 동기화가 재개됩니다.",
-    "status_map_title": "상태 매핑",
-    "status_map_description": "각 Linear 워크플로 상태가 어떤 Multica 상태를 의미하는지 지정합니다. 양방향으로 사용됩니다.",
-    "status_placeholder": "상태 선택",
-    "save_status_map": "매핑 저장",
-    "saving": "저장 중…",
-    "cancel": "취소",
-    "disconnect": "연결 해제",
-    "disconnecting": "연결 해제 중…",
-    "disconnect_confirm_title": "Linear 연결을 해제할까요?",
-    "disconnect_confirm_description": "미러링된 이슈와 댓글은 Multica에 남지만 Linear와의 동기화는 중단됩니다. 나중에 다시 연결할 수 있습니다.",
-    "toast_connect_failed": "Linear 연결을 시작하지 못했습니다",
-    "toast_disconnected": "Linear 연결을 해제했습니다",
-    "toast_disconnect_failed": "Linear 연결을 해제하지 못했습니다",
-    "toast_status_map_saved": "상태 매핑을 저장했습니다",
-    "toast_status_map_failed": "상태 매핑을 저장하지 못했습니다",
-    "badge_title": "Linear",
-    "badge_synced": "Linear와 동기화됨",
-    "badge_paused": "일시 중지 — 이 이슈는 Linear에서 더 이상 Multica에 할당되어 있지 않습니다",
-    "badge_broken": "동기화 실패 — Linear를 다시 연결하거나 재시도하세요",
-    "badge_resync": "다시 동기화",
-    "badge_resyncing": "다시 동기화 중…",
-    "toast_resynced": "Linear와 다시 동기화했습니다",
-    "toast_resync_failed": "Linear와 다시 동기화하지 못했습니다"
-  },
   "composio": {
     "section_title": "Composio",
     "page_description": "Connect the Composio apps your agents can act on. Only apps configured with an enabled auth config in your Composio project appear here.",
@@ -1768,6 +1700,104 @@
     "byo_credentials_unverifiable": "WeCom에 연결하지 못해 이 봇을 확인할 수 없었어요. 인증 정보는 변경되지 않았어요. 잠시 후 다시 시도해 주세요.",
     "byo_install_failed": "봇을 저장하지 못했어요. 저희 쪽 문제입니다. 인증 정보는 변경되지 않았어요. 다시 시도해 보시고, 계속 실패하면 지원팀에 문의해 주세요.",
     "byo_failed_toast": "WeCom 봇을 연결하지 못했어요"
+  },
+  "integrations": {
+    "description": "도구를 연결하고 각 연동을 관리하세요.",
+    "code_title": "코드 및 저장소",
+    "messaging_title": "메시지 채널",
+    "apps_title": "내 앱 연결",
+    "apps_scope": "이 앱 연결은 내 계정에 속합니다. 워크스페이스 채널 연결은 위에서 관리합니다.",
+    "github_hint": "GitHub를 연결하고 풀 리퀘스트 연결을 설정합니다.",
+    "vcs_hint": "GitLab, Gitea 또는 Forgejo를 연결합니다.",
+    "apps_hint": "Composio를 통해 에이전트용 앱을 승인합니다.",
+    "back": "모든 연동",
+    "status_connected": "연결됨",
+    "status_not_connected": "연결되지 않음",
+    "status_loading": "확인 중...",
+    "status_unknown": "상태를 확인할 수 없음",
+    "channel_hint": "{{channel}}에서 에이전트와 대화하고 태스크를 생성합니다."
+  },
+  "transitions": {
+    "title": "전환 규칙",
+    "description": "누가 이슈를 상태 카테고리 간에 옮길 수 있는지, 어떤 이동이 승인을 기다릴지 정합니다.",
+    "loading": "규칙을 불러오는 중…",
+    "empty": "아직 규칙이 없습니다. 모든 전환이 자유로우며, 이슈를 수정할 수 있는 사람은 어떤 상태로든 옮길 수 있습니다.",
+    "add": "규칙 추가",
+    "edit": "규칙 편집",
+    "delete": "규칙 삭제",
+    "delete_failed": "규칙을 삭제하지 못했습니다.",
+    "save_failed": "규칙을 저장하지 못했습니다.",
+    "any_origin": "모든 상태",
+    "grants": "허용: {{list}}",
+    "no_grants": "허용: 없음",
+    "named_actors": "지정 {{count}}명",
+    "needs_approval": "승인 필요",
+    "disabled": "비활성",
+    "editor": {
+      "create_title": "새 전환 규칙",
+      "edit_title": "전환 규칙 편집",
+      "hint": "규칙은 상태 카테고리를 기준으로 작성되므로 상태 이름을 바꿔도 계속 동작합니다.",
+      "from": "출발",
+      "to": "도착",
+      "roles": "허용 역할",
+      "actor_types": "허용 액터 유형",
+      "requires_approval": "승인 대기",
+      "approver_roles": "승인자 역할",
+      "enabled": "활성",
+      "save": "저장",
+      "cancel": "취소"
+    }
+  },
+  "repo_index": {
+    "section": "시맨틱 인덱스",
+    "description_semantic": "저장소 코드를 색인해 각 실행이 처음부터 찾지 않고 관련 파일에서 시작하도록 합니다. 의미와 키워드 양쪽으로 순위를 매깁니다. 켜면 해당 저장소의 소스 코드가 Multica에 저장되고 이 배포의 임베딩 제공자에게 전송됩니다.",
+    "description_lexical": "저장소 코드를 색인해 각 실행이 처음부터 찾지 않고 관련 파일에서 시작하도록 합니다. 이 배포에는 임베딩 모델이 설정되어 있지 않아 키워드로 순위를 매깁니다. 켜면 해당 저장소의 소스 코드가 Multica에 저장됩니다.",
+    "empty": "이 워크스페이스와 그 프로젝트에 아직 연결된 저장소가 없습니다.",
+    "status_indexed": "커밋 {{commit}} 기준 최신 · 파일 {{files}}개 / 청크 {{chunks}}개",
+    "status_waiting": "이 저장소에서 다음 실행이 끝난 뒤 색인됩니다",
+    "status_disabled": "색인되지 않음",
+    "save_failed": "시맨틱 인덱스 설정을 저장하지 못했습니다."
+  },
+  "linear": {
+    "section_title": "Linear",
+    "page_description": "Multica를 Linear 앱으로 설치합니다. Multica 사용자에게 할당된 Linear 이슈는 담당 에이전트를 가진 Multica 이슈로 미러링되며, 이후 댓글과 상태가 양방향으로 동기화됩니다.",
+    "not_enabled_title": "Linear 연동이 활성화되지 않았습니다",
+    "not_enabled_description": "이 배포에는 Linear 앱이 구성되어 있지 않습니다. 서버에서 MULTICA_LINEAR_SECRET_KEY, MULTICA_LINEAR_CLIENT_ID, MULTICA_LINEAR_CLIENT_SECRET를 설정하세요.",
+    "connect_hint": "미러링된 Linear 이슈를 할당할 에이전트를 선택한 다음 Linear에서 앱을 승인하세요.",
+    "agent_label": "에이전트",
+    "agent_placeholder": "에이전트 선택",
+    "connect": "Linear 연결",
+    "connecting": "Linear 여는 중…",
+    "reconnect": "다시 연결",
+    "admin_only": "워크스페이스 소유자와 관리자만 Linear를 연결할 수 있습니다.",
+    "loading": "불러오는 중…",
+    "load_failed": "Linear 연결을 불러오지 못했습니다",
+    "org_label": "Linear 조직",
+    "broken_title": "Linear가 이 연결을 더 이상 허용하지 않습니다",
+    "broken_description": "다시 연결하면 이슈, 댓글, 상태 동기화가 재개됩니다.",
+    "status_map_title": "상태 매핑",
+    "status_map_description": "각 Linear 워크플로 상태가 어떤 Multica 상태를 의미하는지 지정합니다. 양방향으로 사용됩니다.",
+    "status_placeholder": "상태 선택",
+    "save_status_map": "매핑 저장",
+    "saving": "저장 중…",
+    "cancel": "취소",
+    "disconnect": "연결 해제",
+    "disconnecting": "연결 해제 중…",
+    "disconnect_confirm_title": "Linear 연결을 해제할까요?",
+    "disconnect_confirm_description": "미러링된 이슈와 댓글은 Multica에 남지만 Linear와의 동기화는 중단됩니다. 나중에 다시 연결할 수 있습니다.",
+    "toast_connect_failed": "Linear 연결을 시작하지 못했습니다",
+    "toast_disconnected": "Linear 연결을 해제했습니다",
+    "toast_disconnect_failed": "Linear 연결을 해제하지 못했습니다",
+    "toast_status_map_saved": "상태 매핑을 저장했습니다",
+    "toast_status_map_failed": "상태 매핑을 저장하지 못했습니다",
+    "badge_title": "Linear",
+    "badge_synced": "Linear와 동기화됨",
+    "badge_paused": "일시 중지 — 이 이슈는 Linear에서 더 이상 Multica에 할당되어 있지 않습니다",
+    "badge_broken": "동기화 실패 — Linear를 다시 연결하거나 재시도하세요",
+    "badge_resync": "다시 동기화",
+    "badge_resyncing": "다시 동기화 중…",
+    "toast_resynced": "Linear와 다시 동기화했습니다",
+    "toast_resync_failed": "Linear와 다시 동기화하지 못했습니다"
   },
   "run_limits": {
     "title": "실행 한도",

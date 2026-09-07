@@ -992,8 +992,8 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 }
 
 // fireTaskCancelled runs the handler-owned terminal cleanup for one cancelled
-// run. Every cancel path reaches it through captureTaskCancelled; the archived-
-// agent path, which deliberately emits no per-task event, calls it directly.
+// run. Every cancel path reaches it through captureTaskCancelled, including the
+// archived-agent path, which runs the cleanup but emits no per-task event.
 func (s *TaskService) fireTaskCancelled(ctx context.Context, task db.AgentTaskQueue) {
 	if s.OnTaskCancelled != nil {
 		s.OnTaskCancelled(ctx, task)
@@ -6433,9 +6433,10 @@ func (s *TaskService) RecoverOrphanedTasksForRuntime(ctx context.Context, runtim
 // CancelTasksForArchivedAgent cancels every active task belonging to an agent
 // being archived and settles their recovery receipts in the same transaction.
 //
-// Unlike CancelTasksForAgent it emits no per-task task:cancelled event: the
-// agent:archived event the caller publishes already invalidates every client's
-// active-task view, so per-row events would be redundant noise.
+// After commit, cancellation side effects are captured before chat tasks emit
+// task:cancelled so existing consumers can clear processing indicators, release
+// streams, and refresh chat state. The caller still publishes agent:archived;
+// non-chat tasks keep their existing behavior.
 func (s *TaskService) CancelTasksForArchivedAgent(ctx context.Context, agentID pgtype.UUID) ([]db.AgentTaskQueue, error) {
 	cancelled, err := s.terminateTasksInTx(ctx, func(qtx *db.Queries) ([]db.AgentTaskQueue, error) {
 		return qtx.CancelAgentTasksByAgent(ctx, agentID)
@@ -6443,11 +6444,14 @@ func (s *TaskService) CancelTasksForArchivedAgent(ctx context.Context, agentID p
 	if err != nil {
 		return nil, err
 	}
-	// No task:cancelled event here, but the terminal cleanup still owes these
-	// runs what every other cancel path gives them (JEF-275): held writes are
-	// dropped and the replay chain is sealed even when the agent goes away.
-	for _, t := range cancelled {
-		s.fireTaskCancelled(ctx, t)
+	// CaptureCancelledTasks also runs the terminal cleanup every other cancel
+	// path gives a run (JEF-275): held writes are dropped and the replay chain
+	// is sealed even when the agent goes away. Only chat tasks get an event.
+	s.CaptureCancelledTasks(ctx, cancelled)
+	for _, task := range cancelled {
+		if task.ChatSessionID.Valid {
+			s.broadcastTaskEvent(ctx, protocol.EventTaskCancelled, task)
+		}
 	}
 	return cancelled, nil
 }
