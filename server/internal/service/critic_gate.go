@@ -23,10 +23,14 @@ import (
 //     ends because it ran out of rounds is not a run that could not find a
 //     reviewer, and reading the reasons the other way round would leave a
 //     workspace whose critic was archived mid-loop enqueueing forever.
-//  3. No usable critic degrades to `pass`, never to a hold. A policy that
-//     cannot be honoured must not become a way for issues to get stuck: the
-//     verdict says `no_distinct_provider` so the reason is on the card, and
-//     the delivery finalises exactly as it would have without the policy.
+//  3. No usable critic degrades to `concerns`, never to a hold. A policy that
+//     cannot be honoured must not become a way for issues to get stuck, so the
+//     delivery finalises exactly as it would have without the policy — but an
+//     absent reviewer is not a reviewer who approved. It lands where every
+//     other "the platform has no assessment" case lands: `concerns`, with
+//     `no_distinct_provider` on the card. `concerns` costs nothing
+//     operationally (only `block` relaunches the author), so telling the truth
+//     here is free.
 //
 // `blocking` is deliberately NOT part of whether the critic runs. A
 // non-blocking policy still gets its second opinion; it just does not make the
@@ -40,8 +44,10 @@ const (
 	CriticFinalize CriticAction = "finalize"
 	// CriticEnqueue: run the critic. Hold says whether the issue waits.
 	CriticEnqueue CriticAction = "enqueue"
-	// CriticPassDegraded: record a `pass` naming why no critic ran.
-	CriticPassDegraded CriticAction = "pass_degraded"
+	// CriticConcernsDegraded: record a `concerns` naming why no critic ran.
+	// Distinct from CriticConcernsBudget so the inbox can tell "nobody could
+	// review this" from "the loop ran out of budget".
+	CriticConcernsDegraded CriticAction = "concerns_degraded"
 	// CriticConcernsBudget: record a `concerns` naming the budget that stopped
 	// the loop.
 	CriticConcernsBudget CriticAction = "concerns_budget"
@@ -135,7 +141,7 @@ func DecideCritic(policy CriticPolicy, round int, costSoFar int64, hasDistinctCr
 		return CriticDecision{Action: CriticConcernsBudget, Reason: CriticReasonMaxCost}
 	}
 	if !hasDistinctCritic {
-		return CriticDecision{Action: CriticPassDegraded, Reason: CriticReasonNoDistinctProvider}
+		return CriticDecision{Action: CriticConcernsDegraded, Reason: CriticReasonNoDistinctProvider}
 	}
 	return CriticDecision{Action: CriticEnqueue, Hold: policy.Blocking}
 }

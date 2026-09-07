@@ -28,7 +28,7 @@ func TestCriticGateDecides(t *testing.T) {
 		{"disabled policy is not rescued by a critic", CriticPolicy{MaxRounds: 3}, 1, 0, true, CriticFinalize, "", false},
 		{"enabled, first round, critic available", on, 1, 0, true, CriticEnqueue, "", false},
 		{"a blocking policy holds the issue", blocking, 1, 0, true, CriticEnqueue, "", true},
-		{"no distinct critic degrades to pass, never a hold", blocking, 1, 0, false, CriticPassDegraded, CriticReasonNoDistinctProvider, false},
+		{"no distinct critic degrades to concerns, never a hold", blocking, 1, 0, false, CriticConcernsDegraded, CriticReasonNoDistinctProvider, false},
 		{"past max_rounds the loop stops with concerns", on, 2, 0, true, CriticConcernsBudget, CriticReasonMaxRounds, false},
 		{"the round cap is inclusive", blocking, 2, 0, true, CriticEnqueue, "", true},
 		{"max_rounds below 1 is read as 1", CriticPolicy{Enabled: true, MaxRounds: 0}, 2, 0, true, CriticConcernsBudget, CriticReasonMaxRounds, false},
@@ -126,5 +126,47 @@ func TestTaskCriticOf(t *testing.T) {
 	got, ok = TaskCriticOf([]byte(`{"critic_of_task_id":"abc"}`))
 	if !ok || got.Round != 1 || got.Phase != CriticPhaseChange {
 		t.Errorf("defaults not applied: %+v", got)
+	}
+}
+
+// The four ways the platform ends a critic loop without a critic's own answer
+// must agree: none of them is a pass. Silence, a spent budget, a workflow at
+// its ceiling and a workspace with nobody to review are all "we have no
+// assessment", and recording any of them as approval would make the feature
+// claim a review that never happened.
+func TestCriticPlatformVerdictsAreNeverAPass(t *testing.T) {
+	blocking := CriticPolicy{Enabled: true, Blocking: true, MaxRounds: 2}
+	budgeted := CriticPolicy{Enabled: true, MaxRounds: 1, MaxCostUsdTicks: 100}
+
+	for _, tc := range []struct {
+		name   string
+		policy CriticPolicy
+		round  int
+		cost   int64
+		critic bool
+		reason string
+	}{
+		{"nobody can review", blocking, 1, 0, false, CriticReasonNoDistinctProvider},
+		{"the rounds ran out", budgeted, 2, 0, true, CriticReasonMaxRounds},
+		{"the budget ran out", budgeted, 1, 101, true, CriticReasonMaxCost},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := DecideCritic(tc.policy, tc.round, tc.cost, tc.critic)
+			if d.Reason != tc.reason {
+				t.Fatalf("reason = %q, want %q", d.Reason, tc.reason)
+			}
+			if d.Action != CriticConcernsDegraded && d.Action != CriticConcernsBudget {
+				t.Fatalf("action = %q: a verdict the platform wrote itself is never a pass", d.Action)
+			}
+			if d.Hold {
+				t.Error("a policy that cannot be honoured must never hold the issue")
+			}
+		})
+	}
+
+	// And the reason a critic wrote nothing readable is already concerns, which
+	// is the doctrine the three above now follow.
+	if NormalizeCriticVerdict("") != CriticVerdictConcerns {
+		t.Error("silence is not approval")
 	}
 }

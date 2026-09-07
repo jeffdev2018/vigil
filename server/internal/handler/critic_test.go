@@ -209,8 +209,11 @@ func TestCriticWithoutDistinctProviderPassesDegraded(t *testing.T) {
 		t.Error("a policy with no distinct-provider critic must not queue a run")
 	}
 	v, ok := latestVerdict(t, f.issue)
-	if !ok || v.Verdict != service.CriticVerdictPass || v.Reason != service.CriticReasonNoDistinctProvider {
-		t.Fatalf("verdict = %+v, want a degraded pass naming no_distinct_provider", v)
+	// An absent reviewer is not a reviewer who approved. It records the same
+	// verdict as every other case where the platform has no assessment, and
+	// `concerns` costs nothing: only `block` relaunches the author.
+	if !ok || v.Verdict != service.CriticVerdictConcerns || v.Reason != service.CriticReasonNoDistinctProvider {
+		t.Fatalf("verdict = %+v, want a degraded concerns naming no_distinct_provider", v)
 	}
 	if got := issueStatus(t, f.issue); got != "in_progress" {
 		t.Errorf("status = %q: a policy that cannot be honoured must never hold the issue", got)

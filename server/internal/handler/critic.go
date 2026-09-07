@@ -300,8 +300,8 @@ func (h *Handler) triggerCriticReview(ctx context.Context, task db.AgentTaskQueu
 	switch decision.Action {
 	case service.CriticFinalize:
 		return
-	case service.CriticPassDegraded:
-		h.recordPlatformCriticVerdict(ctx, issue, task, service.CriticVerdictPass, decision.Reason, round, cost, InboxTypeCriticDegraded)
+	case service.CriticConcernsDegraded:
+		h.recordPlatformCriticVerdict(ctx, issue, task, service.CriticVerdictConcerns, decision.Reason, round, cost, InboxTypeCriticDegraded)
 		return
 	case service.CriticConcernsBudget:
 		h.recordPlatformCriticVerdict(ctx, issue, task, service.CriticVerdictConcerns, decision.Reason, round, cost, InboxTypeCriticBudget)
