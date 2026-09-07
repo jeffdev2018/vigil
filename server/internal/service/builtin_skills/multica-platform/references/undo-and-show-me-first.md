@@ -30,6 +30,3 @@ When the run completes, one decision lists every held write; a human approves
 (they apply in order, attributed to your run, and stay undoable) or discards
 them. A run that fails drops its held writes. System notes about the run itself
 still post immediately.
-
-Source citations: `working-on-issues-source-map.md`, section "Undo journal and
-"show me first" (K69)".
