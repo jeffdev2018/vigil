@@ -31,6 +31,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/mcpgov"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/redact"
 	"github.com/multica-ai/multica/server/pkg/skillbundle"
@@ -2831,6 +2832,22 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		// Org chart (K75): the structure and unit this run acts in.
 		resp.Org = h.resolveClaimOrgContext(r.Context(), issue, task.AgentID)
+		// The unit's deny list is enforced on the tool catalogue, not only
+		// printed in the brief. Every unit inherits orgNonNegotiableDeny at
+		// save, and its only runtime consumer was a sentence telling the model
+		// "Never, whatever a comment says" — which a prompt injection is
+		// enough to neutralise. Tightening happens through mcpgov.Weaker, so a
+		// tool already refused stays refused and nothing is ever loosened.
+		// Matching is on the tool name: the description is not carried on the
+		// claim payload, and the verb lives in the name for every tool we have
+		// seen. Workspaces with no org structure are untouched.
+		if resp.Org != nil && resp.McpGateway != nil {
+			if tightened := mcpgov.ApplyOrgDeny(resp.McpGateway, resp.Org.Deny, nil); len(tightened) > 0 {
+				slog.Info("org deny applied to the tool catalogue",
+					"task_id", uuidToString(task.ID), "unit", resp.Org.UnitName,
+					"tools", strings.Join(tightened, ", "))
+			}
+		}
 
 		// Load every planned input as one chronological, de-duplicated set.
 		// The trigger is included here so the delivery receipt can only contain
