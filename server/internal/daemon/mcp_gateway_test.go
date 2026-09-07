@@ -384,3 +384,58 @@ func TestStdioMcpUpstreamFraming(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// A provider the broker cannot wrap used to receive the configuration intact,
+// so a workspace that had set a tool to never got that tool handed to an
+// ungoverned CLI. Only a restriction the workspace DECLARED costs the server:
+// a server nobody has ruled on keeps working, because deleting it would remove
+// capability on the strength of a classification the daemon derived itself.
+func TestMcpGatewayDropsDeclaredRestrictionsOnAnUnsupportedProvider(t *testing.T) {
+	ctx := context.Background()
+	config := json.RawMessage(`{"mcpServers":{"issues":{"command":"/nonexistent/mcp"},"other":{"command":"/nonexistent/other"}}}`)
+	serversOf := func(out json.RawMessage) map[string]json.RawMessage {
+		t.Helper()
+		var document struct {
+			MCPServers map[string]json.RawMessage `json:"mcpServers"`
+		}
+		if err := json.Unmarshal(out, &document); err != nil {
+			t.Fatalf("unmarshal rewritten config: %v", err)
+		}
+		return document.MCPServers
+	}
+
+	// Declared never on "issues": it goes, "other" stays.
+	out, diagnostics, gateway, err := startTaskMcpGateway(ctx, ctx, policyTask("propose", "never"), "gemini", config, mcpGatewayDeps{}, nil)
+	if err != nil || gateway != nil {
+		t.Fatalf("unsupported provider: gw=%v err=%v", gateway, err)
+	}
+	servers := serversOf(out)
+	if _, kept := servers["issues"]; kept {
+		t.Error("a declared never must not reach an ungoverned CLI")
+	}
+	if _, kept := servers["other"]; !kept {
+		t.Error("a server the workspace never ruled on must keep working")
+	}
+	if len(diagnostics) != 2 {
+		t.Errorf("diagnostics = %v, want the provider line plus the dropped server", diagnostics)
+	}
+
+	// Declared act_alone everywhere: nothing is lost by passing it through.
+	out, _, _, err = startTaskMcpGateway(ctx, ctx, policyTask("autonomous", "act_alone"), "gemini", config, mcpGatewayDeps{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, kept := serversOf(out)["issues"]; !kept {
+		t.Error("act_alone loses no decision: the server must pass through")
+	}
+
+	// A skipped server is the daemon's own plumbing and is not the
+	// workspace's to lose, declared policy or not.
+	out, _, _, err = startTaskMcpGateway(ctx, ctx, policyTask("propose", "never"), "gemini", config, mcpGatewayDeps{skip: map[string]bool{"issues": true}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, kept := serversOf(out)["issues"]; !kept {
+		t.Error("a skipped server must be left alone")
+	}
+}

@@ -167,6 +167,30 @@ func (p mcpServerPolicy) restrictive() bool {
 	return false
 }
 
+// declaredRestriction reports a restriction the WORKSPACE stated, as opposed
+// to one the daemon would have derived from a tool's risk. It is the test to
+// use where the gateway cannot run at all: an explicit never or ask must not
+// be handed to an ungoverned CLI, while a server nobody has ruled on keeps
+// working rather than disappearing from a provider the broker cannot wrap.
+//
+// restrictive() answers a different question — "would passing this through
+// unguarded lose a decision" — and is true for an unlisted server precisely
+// because the daemon would have classified it. Do not swap one for the other.
+func (p mcpServerPolicy) declaredRestriction() bool {
+	if !p.listed {
+		return false
+	}
+	if p.def == mcpgov.ClassNever || p.def == mcpgov.ClassAsk {
+		return true
+	}
+	for _, tool := range p.tools {
+		if tool.Class != mcpgov.ClassActAlone {
+			return true
+		}
+	}
+	return false
+}
+
 // startTaskMcpGateway rewrites every stdio/http server of mcpConfig to a
 // local governed endpoint. A server that cannot be wrapped is passed through
 // untouched when its policy lets everything run alone, and dropped otherwise:
@@ -175,9 +199,6 @@ func startTaskMcpGateway(setupCtx, lifetimeCtx context.Context, task Task, provi
 	trimmed := bytes.TrimSpace(mcpConfig)
 	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 		return mcpConfig, nil, nil, nil
-	}
-	if !providerSupportsRemoteMCPBroker(provider) {
-		return mcpConfig, []string{"MCP gateway is incompatible with provider " + provider + "; tools run ungoverned"}, nil, nil
 	}
 	var document map[string]json.RawMessage
 	if err := json.Unmarshal(trimmed, &document); err != nil {
@@ -194,6 +215,37 @@ func startTaskMcpGateway(setupCtx, lifetimeCtx context.Context, task Task, provi
 	if err := json.Unmarshal(document[container], &servers); err != nil {
 		return nil, nil, nil, fmt.Errorf("parse mcp_config %s: %w", container, err)
 	}
+	// A provider the broker cannot wrap used to receive the whole
+	// configuration intact: "the gateway cannot run" silently became "nothing
+	// is governed", which is the opposite of what this same function decides
+	// for every other way the gateway can fail. A workspace that set a tool to
+	// never got that tool handed to an ungoverned CLI.
+	//
+	// The rule here is narrower than restrictive() on purpose. restrictive()
+	// answers "would passing this through unguarded lose a decision", and it
+	// is true for a server nobody has ruled on, because the daemon would have
+	// classified its tools by risk. Applying it here would delete every MCP
+	// server from every unsupported provider, including for workspaces that
+	// never configured a policy — removing capability nobody asked to remove.
+	// Only a restriction the workspace actually declared is worth a run's
+	// tools; an inferred one passes through, named in the diagnostics.
+	if !providerSupportsRemoteMCPBroker(provider) {
+		diagnostics := []string{"MCP gateway is incompatible with provider " + provider + "; tools run ungoverned"}
+		for name := range servers {
+			if deps.skip[name] || !mcpPolicyFor(task, name).declaredRestriction() {
+				continue
+			}
+			delete(servers, name)
+			diagnostics = append(diagnostics, "MCP server "+name+" dropped: its never/ask policy cannot be enforced on provider "+provider)
+		}
+		document[container], _ = json.Marshal(servers)
+		out, err := json.Marshal(document)
+		if err != nil {
+			return nil, diagnostics, nil, err
+		}
+		return out, diagnostics, nil, nil
+	}
+
 	gateway := &mcpGateway{}
 	diagnostics := make([]string, 0)
 	for name, raw := range servers {
