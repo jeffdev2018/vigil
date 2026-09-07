@@ -94,6 +94,7 @@
     "postmortem_ready": "Postmortem prêt",
     "trust_promotion_suggested": "Promotion de confiance suggérée",
     "triage_stale": "La file de triage stagne",
+    "transition_approval_requested": "Approbation requise",
     "watchdog_escalation": "Escalade du watchdog",
     "contest_ready": "Contestation prête pour votre verdict",
     "org_alert": "Alerte d'organisation",

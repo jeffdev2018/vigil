@@ -1489,5 +1489,16 @@
     "reply_placeholder": "이 스레드에 답글…",
     "empty": "이 헝크에 고정된 논의가 아직 없습니다.",
     "go_to_hunk": "워크스루의 이 줄로 이동"
+  },
+  "transitions": {
+    "not_allowed": "워크스페이스 규칙이 이 이동을 허용하지 않습니다.",
+    "needs_approval": "승인 필요",
+    "banner_title": "승인 대기 중",
+    "banner_body": "{{status}}(으)로의 상태 변경이 요청되어 승인자를 기다리고 있습니다.",
+    "approve": "승인",
+    "reject": "거부",
+    "note_placeholder": "메모(선택)",
+    "decide_failed": "결정을 기록하지 못했습니다.",
+    "pending_toast": "승인 요청을 보냈습니다. 상태는 아직 바뀌지 않았습니다."
   }
 }

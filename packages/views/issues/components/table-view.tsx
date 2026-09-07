@@ -1161,6 +1161,7 @@ function IssueTableBodyCell({
             align="start"
             open={editorOpen}
             onOpenChange={setEditorOpen}
+            issueId={issue.id}
           />
         </div>
       );

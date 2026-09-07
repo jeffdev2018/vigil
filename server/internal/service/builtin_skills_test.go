@@ -356,6 +356,7 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		// merged the per-domain built-ins into one router.
 		"references/goals.md":                  "goal",
 		"references/triage-verdicts.md":        "triage",
+		"references/status-transitions.md":     "status transition",
 		"references/undo-and-show-me-first.md": "undo",
 		"references/pr-walkthrough.md":         "walkthrough",
 		"references/review-flags.md":           "review flag",

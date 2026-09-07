@@ -16,6 +16,7 @@ import {
   Plug,
   MessageCircle,
   Tags,
+  ArrowRightLeft,
   CircleDot,
   Keyboard,
   ListTodo,
@@ -54,6 +55,7 @@ import { LabsTab } from "./labs-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { LabelsTab } from "./labels-tab";
 import { IssueStatusesTab } from "./issue-statuses-tab";
+import { TransitionsTab } from "./transitions-tab";
 import { PropertiesTab } from "./properties-tab";
 import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
@@ -93,6 +95,7 @@ const WORKSPACE_TAB_KEYS = [
   "budgets",
   "labels",
   "issue_statuses",
+  "transitions",
   "properties",
   "quick_actions",
   "mcp",
@@ -115,6 +118,7 @@ const WORKSPACE_TAB_VALUES = {
   budgets: "budgets",
   labels: "labels",
   issue_statuses: "issue-statuses",
+  transitions: "transitions",
   properties: "properties",
   quick_actions: "quick-actions",
   mcp: "mcp",
@@ -137,6 +141,7 @@ const WORKSPACE_TAB_ICONS = {
   budgets: WalletCards,
   labels: Tags,
   issue_statuses: CircleDot,
+  transitions: ArrowRightLeft,
   properties: SlidersHorizontal,
   quick_actions: Zap,
   mcp: Server,
@@ -325,6 +330,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="budgets"><BudgetsTab /></TabsContent>
           <TabsContent value="labels"><LabelsTab /></TabsContent>
           <TabsContent value="issue-statuses"><IssueStatusesTab /></TabsContent>
+          <TabsContent value="transitions"><TransitionsTab /></TabsContent>
           <TabsContent value="properties"><PropertiesTab /></TabsContent>
           <TabsContent value="quick-actions"><QuickActionsTab /></TabsContent>
           <TabsContent value="mcp"><McpTab /></TabsContent>

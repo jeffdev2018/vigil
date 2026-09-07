@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Use for Multica platform actions the runtime brief does not fully cover: issue and PR contracts, PR walkthrough runs, review flag findings, mentions, agents, squads, autopilots, projects, epic steps, runtimes, skill import, goals, triage verdicts, undo. Not for the product code you are working on."
+description: "Use for Multica platform actions the runtime brief does not cover: issue and PR contracts, status transitions, PR walkthrough runs, review flag findings, mentions, agents, squads, autopilots, projects, epic steps, runtimes, skill import, goals, triage, undo. Not for your product code."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -32,6 +32,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
 | `references/triage-verdicts.md` | The triage queue: suggesting a verdict on inbound work a human then decides |
+| `references/status-transitions.md` | A status change refused with `transition_not_allowed`, or held with `202 pending_approval`: what the workspace's transition rules govern and what to do instead of retrying |
 | `references/undo-and-show-me-first.md` | The undo journal and the `202` "show me first" approval contract |
 
 Open what the task needs. A single-domain task usually needs one; a task that

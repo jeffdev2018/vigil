@@ -1524,6 +1524,51 @@ type IssueToLabel struct {
 	LabelID pgtype.UUID `json:"label_id"`
 }
 
+// F28: one status change held for approval. The issue is unchanged while state = pending. No FK by house rule.
+type IssueTransitionRequest struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	IssueID         pgtype.UUID        `json:"issue_id"`
+	FromStatus      string             `json:"from_status"`
+	ToStatus        string             `json:"to_status"`
+	RuleID          pgtype.UUID        `json:"rule_id"`
+	RequestedByType string             `json:"requested_by_type"`
+	RequestedByID   pgtype.UUID        `json:"requested_by_id"`
+	State           string             `json:"state"`
+	DecidedByType   pgtype.Text        `json:"decided_by_type"`
+	DecidedByID     pgtype.UUID        `json:"decided_by_id"`
+	DecidedAt       pgtype.Timestamptz `json:"decided_at"`
+	Note            pgtype.Text        `json:"note"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+// F28: one workspace (project_id NULL) or per-project rule saying who may move an issue into to_category, and whether the move needs approval. No FK by house rule.
+type IssueTransitionRule struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	ProjectID        pgtype.UUID        `json:"project_id"`
+	FromCategory     pgtype.Text        `json:"from_category"`
+	ToCategory       string             `json:"to_category"`
+	AllowedRoles     []string           `json:"allowed_roles"`
+	AllowActorTypes  []string           `json:"allow_actor_types"`
+	RequiresApproval bool               `json:"requires_approval"`
+	ApproverRoles    []string           `json:"approver_roles"`
+	RejectStatusKey  pgtype.Text        `json:"reject_status_key"`
+	Enabled          bool               `json:"enabled"`
+	CreatedBy        pgtype.UUID        `json:"created_by"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+// F28: one nominative grant on an issue_transition_rule. No FK by house rule.
+type IssueTransitionRuleActor struct {
+	ID        pgtype.UUID        `json:"id"`
+	RuleID    pgtype.UUID        `json:"rule_id"`
+	ActorType string             `json:"actor_type"`
+	ActorID   pgtype.UUID        `json:"actor_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type IssueVcsPullRequest struct {
 	IssueID       pgtype.UUID        `json:"issue_id"`
 	PullRequestID pgtype.UUID        `json:"pull_request_id"`

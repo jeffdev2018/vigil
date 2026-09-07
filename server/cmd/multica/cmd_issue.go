@@ -1496,7 +1496,13 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 
 	var result map[string]any
 	if err := client.PutJSON(ctx, "/api/issues/"+issueRef.ID, body, &result); err != nil {
+		if tErr := transitionRefusal(err); tErr != nil {
+			return tErr
+		}
 		return fmt.Errorf("update issue: %w", err)
+	}
+	if tErr := transitionHeld(result); tErr != nil {
+		return tErr
 	}
 
 	output, _ := cmd.Flags().GetString("output")
@@ -1611,7 +1617,13 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 	}
 	var result map[string]any
 	if err := client.PutJSON(ctx, "/api/issues/"+issueRef.ID, body, &result); err != nil {
+		if tErr := transitionRefusal(err); tErr != nil {
+			return tErr
+		}
 		return fmt.Errorf("update status: %w", err)
+	}
+	if tErr := transitionHeld(result); tErr != nil {
+		return tErr
 	}
 
 	fmt.Fprintf(os.Stderr, "Issue %s status changed to %s.\n", issueDisplayKey(result), status)
@@ -3140,5 +3152,54 @@ func compactComments(comments []map[string]any) {
 				}
 			}
 		}
+	}
+}
+
+// Transition rules (F28). Two answers a status write can get that are neither
+// a plain success nor a plain HTTP failure, and both have to leave a non-zero
+// exit code so a script — or an agent — does not read them as "done".
+//
+// transitionRefusal recognises the 403 the gate writes and replaces the raw
+// "PUT /api/issues/x returned 403: {json}" line with the reason. Returns nil
+// for any other error so the caller falls through to its own wrapping.
+func transitionRefusal(err error) error {
+	var httpErr *cli.HTTPError
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusForbidden {
+		return nil
+	}
+	var body struct {
+		Code   string `json:"code"`
+		Error  string `json:"error"`
+		From   string `json:"from"`
+		To     string `json:"to"`
+		RuleID string `json:"rule_id"`
+	}
+	if json.Unmarshal([]byte(httpErr.Body), &body) != nil || body.Code != "transition_not_allowed" {
+		return nil
+	}
+	msg := body.Error
+	if msg == "" {
+		msg = "a transition rule does not allow this status change"
+	}
+	if body.From != "" && body.To != "" {
+		msg = fmt.Sprintf("%s (%s -> %s)", msg, body.From, body.To)
+	}
+	if body.RuleID != "" {
+		msg += " [rule " + body.RuleID + "]"
+	}
+	return cli.WithUserMessage("transition not allowed: "+msg, err)
+}
+
+// transitionHeld recognises the 202 the approval gate writes. PutJSON treats
+// 202 as success, so without this the CLI would print "status changed to done"
+// for a write that has not been applied.
+func transitionHeld(result map[string]any) error {
+	if status, _ := result["status"].(string); status != "pending_approval" {
+		return nil
+	}
+	requestID, _ := result["request_id"].(string)
+	return &cli.UserMessageError{
+		Msg: fmt.Sprintf("pending approval (request %s): the status change was recorded but not applied. "+
+			"Do not retry it; an approver decides.", requestID),
 	}
 }

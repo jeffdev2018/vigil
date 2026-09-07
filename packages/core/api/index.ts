@@ -4,6 +4,7 @@ export {
   clientErrorMessage,
   dispatchReasonCode,
   errorCode,
+  IssueTransitionPendingError,
   PreviewTooLargeError,
   PreviewUnsupportedError,
 } from "./client";
@@ -11,6 +12,7 @@ export type {
   ApiClientOptions,
   ClientRuntimeSnapshot,
   ClientUsageRequest,
+  IssueTransitionRuleWrite,
 } from "./client";
 export { parseWithFallback, setSchemaLogger } from "./schema";
 export type { ParseOptions } from "./schema";

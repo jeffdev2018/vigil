@@ -4156,3 +4156,78 @@ func TestRunIssueRunsWarnsOnTruncatedFamilyRead(t *testing.T) {
 		})
 	}
 }
+
+// Transition rules (F28): the two answers a status write can get that must not
+// read as success. Both leave a non-zero exit code — the CLI is what an agent
+// reads, and "status changed" printed for a write that never landed is the
+// failure mode this guards.
+func TestRunIssueStatusReportsTransitionOutcomes(t *testing.T) {
+	cases := []struct {
+		name       string
+		status     int
+		body       map[string]any
+		wantSubstr []string
+	}{
+		{
+			name:   "refused",
+			status: http.StatusForbidden,
+			body: map[string]any{
+				"code":    "transition_not_allowed",
+				"error":   "a transition rule does not allow you to move this issue to done",
+				"from":    "in_progress",
+				"to":      "done",
+				"rule_id": "rule-7",
+			},
+			wantSubstr: []string{"transition not allowed", "in_progress -> done", "rule-7"},
+		},
+		{
+			name:   "held for approval",
+			status: http.StatusAccepted,
+			body: map[string]any{
+				"status":     "pending_approval",
+				"request_id": "req-42",
+				"issue":      map[string]any{"id": "issue-1", "status": "in_progress"},
+			},
+			wantSubstr: []string{"pending approval", "req-42", "Do not retry"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					json.NewEncoder(w).Encode(map[string]any{"id": "issue-1", "identifier": "MUL-1"})
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				json.NewEncoder(w).Encode(tc.body)
+			}))
+			defer srv.Close()
+
+			t.Setenv("MULTICA_SERVER_URL", srv.URL)
+			t.Setenv("MULTICA_WORKSPACE_ID", "ws-1")
+			t.Setenv("MULTICA_TOKEN", "test-token")
+
+			err := runIssueStatus(newIssueStatusTestCmd(), []string{"MUL-1", "done"})
+			if err == nil {
+				t.Fatalf("runIssueStatus returned nil; a %d must exit non-zero", tc.status)
+			}
+			if code := cli.ExitCodeFor(err); code == 0 {
+				t.Fatalf("exit code = 0 for %v, want non-zero", err)
+			}
+			for _, want := range tc.wantSubstr {
+				if !strings.Contains(err.Error(), want) {
+					t.Fatalf("error %q does not mention %q", err.Error(), want)
+				}
+			}
+
+			// `issue update --status` takes the same two paths.
+			updateCmd := newIssueUpdateTestCmd()
+			_ = updateCmd.Flags().Set("status", "done")
+			if err := runIssueUpdate(updateCmd, []string{"MUL-1"}); err == nil {
+				t.Fatalf("runIssueUpdate returned nil; a %d must exit non-zero", tc.status)
+			}
+		})
+	}
+}

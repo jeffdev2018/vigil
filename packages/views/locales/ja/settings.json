@@ -49,6 +49,37 @@
       "cancelled": "見送り。"
     }
   },
+  "transitions": {
+    "title": "遷移ルール",
+    "description": "誰がイシューをステータスカテゴリ間で移動できるか、どの移動が承認を待つかを定めます。",
+    "loading": "ルールを読み込み中…",
+    "empty": "ルールはまだありません。すべての遷移は自由で、イシューを編集できる人は任意のステータスに変更できます。",
+    "add": "ルールを追加",
+    "edit": "ルールを編集",
+    "delete": "ルールを削除",
+    "delete_failed": "ルールを削除できませんでした。",
+    "save_failed": "ルールを保存できませんでした。",
+    "any_origin": "任意のステータス",
+    "grants": "許可: {{list}}",
+    "no_grants": "許可: なし",
+    "named_actors": "指定 {{count}} 件",
+    "needs_approval": "承認が必要",
+    "disabled": "無効",
+    "editor": {
+      "create_title": "新しい遷移ルール",
+      "edit_title": "遷移ルールを編集",
+      "hint": "ルールはステータスカテゴリに対して定義されるため、ステータス名を変更しても機能し続けます。",
+      "from": "移動元",
+      "to": "移動先",
+      "roles": "許可するロール",
+      "actor_types": "許可するアクター種別",
+      "requires_approval": "承認を待つ",
+      "approver_roles": "承認者のロール",
+      "enabled": "有効",
+      "save": "保存",
+      "cancel": "キャンセル"
+    }
+  },
   "quick_actions": {
     "title": "クイックアクション",
     "description": "実行するエージェントとプロンプトを事前に設定し、任意のタスクのサイドバーからワンクリックで実行します。",
@@ -425,6 +456,7 @@
       "members": "メンバー",
       "labels": "ラベル",
       "issue_statuses": "タスクステータス",
+      "transitions": "遷移ルール",
       "properties": "プロパティ",
       "quick_actions": "クイックアクション",
       "plugins": "Plugins",

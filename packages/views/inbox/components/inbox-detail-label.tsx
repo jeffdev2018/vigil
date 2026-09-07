@@ -60,6 +60,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     linear_alert: t(($) => $.types.linear_alert),
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
+    transition_approval_requested: t(($) => $.types.transition_approval_requested),
   };
 }
 

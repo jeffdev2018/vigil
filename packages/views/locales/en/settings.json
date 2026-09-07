@@ -49,6 +49,37 @@
       "cancelled": "Decided not to do."
     }
   },
+  "transitions": {
+    "title": "Transition Rules",
+    "description": "Say who may move an issue between status categories, and which moves wait for an approver.",
+    "loading": "Loading rules…",
+    "empty": "No rules yet. Every transition is free: anyone who can edit an issue can move it to any status.",
+    "add": "Add rule",
+    "edit": "Edit rule",
+    "delete": "Delete rule",
+    "delete_failed": "Could not delete the rule.",
+    "save_failed": "Could not save the rule.",
+    "any_origin": "any status",
+    "grants": "Allowed: {{list}}",
+    "no_grants": "Allowed: nobody",
+    "named_actors": "{{count}} named",
+    "needs_approval": "needs approval",
+    "disabled": "disabled",
+    "editor": {
+      "create_title": "New transition rule",
+      "edit_title": "Edit transition rule",
+      "hint": "Rules are written against status categories, so they keep working when a status is renamed.",
+      "from": "From",
+      "to": "To",
+      "roles": "Allowed roles",
+      "actor_types": "Allowed actor types",
+      "requires_approval": "Wait for an approver",
+      "approver_roles": "Approver roles",
+      "enabled": "Enabled",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  },
   "quick_actions": {
     "title": "Quick Actions",
     "description": "Preset an agent and a prompt once, then trigger it from any issue's sidebar with a single click.",
@@ -426,6 +457,7 @@
       "members": "Members",
       "labels": "Labels",
       "issue_statuses": "Issue Statuses",
+      "transitions": "Transitions",
       "properties": "Properties",
       "quick_actions": "Quick Actions",
       "plugins": "Plugins",

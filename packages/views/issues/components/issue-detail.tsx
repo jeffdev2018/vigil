@@ -108,6 +108,7 @@ import { WatchdogSection } from "./watchdog-section";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { TrafficConflictBanner } from "./traffic-conflict-banner";
+import { TransitionApprovalBanner } from "./transition-approval-banner";
 import { DriftBadge } from "./drift-badge";
 import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
@@ -818,6 +819,7 @@ function SubIssueRow({
           status={child.status}
           onUpdate={handleUpdate}
           align="start"
+          issueId={child.id}
           trigger={
             <StatusIcon
               status={child.status}
@@ -2369,7 +2371,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         {propertiesOpen && <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 pl-2">
           {/* Core props — always rendered. */}
           <PropRow label={t(($) => $.detail.prop_status)}>
-            <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" />
+            <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" issueId={issue.id} />
           </PropRow>
           <PropRow label={t(($) => $.detail.prop_assignee)}>
             <AssigneePicker assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} onUpdate={handleUpdateField} align="start" />
@@ -2687,6 +2689,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Org chart (K75): market offers on this issue, escalate and route-now. */}
       <IssueOrgSection issueId={id} issue={issue} />
+
+      {/* Transition rules (F28): a status change held for an approver. First in
+          the stack because it is the one banner that says the issue is NOT in
+          the state someone just asked for. */}
+      <TransitionApprovalBanner issueId={id} />
 
       {/* Undo for agent actions (K69): what each run changed here, and the button to take it back. */}
       <AgentEffectsSection issueId={id} />

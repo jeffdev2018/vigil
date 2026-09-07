@@ -3019,6 +3019,12 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Transition rules (F28): a create landing outside the default category is
+	// governed by the any-origin rules, so filing an issue straight into
+	// `done` cannot bypass the rule that governs moving one there.
+	if !h.transitionAllowsCreate(w, r, wsUUID, projectID, status) {
+		return
+	}
 	var goalUUID pgtype.UUID
 	if req.GoalID != nil {
 		id, ok := h.validateIssueGoal(w, r, wsUUID, *req.GoalID)
@@ -3626,6 +3632,12 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	// Trust Dial (K26): an observer never moves an issue; propose needs an approved plan.
 	if !h.trustModeAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Transition rules (F28): who may make this move, and whether it waits for
+	// an approver. Answers 403 or holds the write with 202 — either way the
+	// caller returns here, so nothing below runs and no run is enqueued.
+	if !h.transitionAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
 	if req.Priority != nil {
@@ -4517,6 +4529,9 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	}
 
 	updated := 0
+	// Issues the transition gate (F28) refused, reported alongside the count
+	// so a partial batch says which items did not move and why.
+	refused := []map[string]any{}
 	// One Resolver for the whole batch — a per-issue filler would query the
 	// catalog once per custom-status row. (MUL-6243)
 	fillBatch := h.newStatusCategoryFiller(r.Context(), wsUUID)
@@ -4571,6 +4586,42 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			// Cross-repo mirrors (K54): one source with an open mirror refuses the batch.
 			if !h.mirrorsAllowStatus(w, r, prevIssue, batchStatusKey) {
 				return
+			}
+			// Transition rules (F28) refuse PER ISSUE, unlike the five gates
+			// above. Those describe a property of the batch's shared target
+			// status, so one failure means every item would fail the same way.
+			// A transition rule is about the ISSUE — its project, its origin
+			// category — so a batch can legitimately be half-allowed, and
+			// aborting the whole thing would refuse work the actor may do.
+			// The refused items come back in `refused` with their reason.
+			decision, decideErr := h.decideTransition(r, prevIssue.WorkspaceID, prevIssue.ProjectID, prevIssue.Status, batchStatusKey)
+			if decideErr != nil {
+				slog.Warn("batch update: transition gate failed",
+					append(logger.RequestAttrs(r), "error", decideErr, "issue_id", issueID)...)
+				writeError(w, http.StatusInternalServerError, "failed to evaluate transition rules")
+				return
+			}
+			if decision.Outcome != issuestatus.TransitionAllow {
+				entry := map[string]any{
+					"issue_id": uuidToString(prevIssue.ID),
+					"code":     ErrCodeTransitionNotAllowed,
+					"from":     prevIssue.Status,
+					"to":       batchStatusKey,
+					"reason":   decision.Reason,
+				}
+				if decision.Outcome == issuestatus.TransitionNeedsApproval {
+					// A batch does not open approval requests: the actor asked
+					// for N moves at once, and silently queueing some of them
+					// would report neither an applied change nor a refusal.
+					// Report it as refused with the approval reason so the
+					// caller can retry that issue on its own and get its 202.
+					entry["requires_approval"] = true
+				}
+				if decision.Rule != nil {
+					entry["rule_id"] = decision.Rule.ID
+				}
+				refused = append(refused, entry)
+				continue
 			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}
 		}
@@ -4834,8 +4885,8 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	// batch. Single-issue UpdateIssue is unchanged and still notifies inline.
 	h.notifyParentsOfBatchChildDone(r.Context(), childDoneCompleted)
 
-	slog.Info("batch update issues", append(logger.RequestAttrs(r), "count", updated)...)
-	writeJSON(w, http.StatusOK, map[string]any{"updated": updated})
+	slog.Info("batch update issues", append(logger.RequestAttrs(r), "count", updated, "refused", len(refused))...)
+	writeJSON(w, http.StatusOK, map[string]any{"updated": updated, "refused": refused})
 }
 
 type BatchDeleteIssuesRequest struct {

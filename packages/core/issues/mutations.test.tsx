@@ -7,7 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 
 import { setApiInstance } from "../api";
-import type { ApiClient } from "../api/client";
+import { ApiError, IssueTransitionPendingError, type ApiClient } from "../api/client";
 import {
   useBatchUpdateIssues,
   useCreateComment,
@@ -223,6 +223,61 @@ describe("useUpdateIssue — optimistic move keeps every bucketed board in sync"
     // Authoritative settle keeps the card in place in both caches.
     for (const key of [wsKey, myKey, projectKey]) {
       expect(bucketIds(key, "in_progress")).toEqual(["issue-1"]);
+    }
+  });
+
+  // Transition rules (F28). Both refusals must undo the optimistic patch: a
+  // card left in the target column after the server refused the move is a lie
+  // the user only discovers on the next refetch.
+  it("rolls the optimistic patch back when the transition is refused with 403", async () => {
+    updateIssue.mockRejectedValue(
+      new ApiError("transition not allowed", 403, "Forbidden", {
+        code: "transition_not_allowed",
+        from: "todo",
+        to: "in_progress",
+        rule_id: "rule-1",
+      }),
+    );
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: createWrapper(qc),
+    });
+
+    await act(async () => {
+      await result.current
+        .mutateAsync({ id: "issue-1", status: "in_progress" })
+        .catch(() => undefined);
+    });
+
+    for (const key of [wsKey, myKey, projectKey]) {
+      expect(bucketIds(key, "todo")).toEqual(["issue-1"]);
+      expect(bucketIds(key, "in_progress")).toEqual([]);
+    }
+  });
+
+  it("rolls the optimistic patch back when the transition is held for approval (202)", async () => {
+    // The 202 body is an UNCHANGED issue, so treating it as success would
+    // reconcile the optimistic move as if the server had applied it.
+    updateIssue.mockRejectedValue(new IssueTransitionPendingError("req-1"));
+
+    const { result } = renderHook(() => useUpdateIssue(), {
+      wrapper: createWrapper(qc),
+    });
+
+    let caught: unknown;
+    await act(async () => {
+      await result.current
+        .mutateAsync({ id: "issue-1", status: "in_progress" })
+        .catch((err) => {
+          caught = err;
+        });
+    });
+
+    expect(caught).toBeInstanceOf(IssueTransitionPendingError);
+    expect((caught as IssueTransitionPendingError).requestId).toBe("req-1");
+    for (const key of [wsKey, myKey, projectKey]) {
+      expect(bucketIds(key, "todo")).toEqual(["issue-1"]);
+      expect(bucketIds(key, "in_progress")).toEqual([]);
     }
   });
 

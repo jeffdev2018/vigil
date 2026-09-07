@@ -49,6 +49,37 @@
       "cancelled": "진행하지 않기로 함."
     }
   },
+  "transitions": {
+    "title": "전환 규칙",
+    "description": "누가 이슈를 상태 카테고리 간에 옮길 수 있는지, 어떤 이동이 승인을 기다릴지 정합니다.",
+    "loading": "규칙을 불러오는 중…",
+    "empty": "아직 규칙이 없습니다. 모든 전환이 자유로우며, 이슈를 수정할 수 있는 사람은 어떤 상태로든 옮길 수 있습니다.",
+    "add": "규칙 추가",
+    "edit": "규칙 편집",
+    "delete": "규칙 삭제",
+    "delete_failed": "규칙을 삭제하지 못했습니다.",
+    "save_failed": "규칙을 저장하지 못했습니다.",
+    "any_origin": "모든 상태",
+    "grants": "허용: {{list}}",
+    "no_grants": "허용: 없음",
+    "named_actors": "지정 {{count}}명",
+    "needs_approval": "승인 필요",
+    "disabled": "비활성",
+    "editor": {
+      "create_title": "새 전환 규칙",
+      "edit_title": "전환 규칙 편집",
+      "hint": "규칙은 상태 카테고리를 기준으로 작성되므로 상태 이름을 바꿔도 계속 동작합니다.",
+      "from": "출발",
+      "to": "도착",
+      "roles": "허용 역할",
+      "actor_types": "허용 액터 유형",
+      "requires_approval": "승인 대기",
+      "approver_roles": "승인자 역할",
+      "enabled": "활성",
+      "save": "저장",
+      "cancel": "취소"
+    }
+  },
   "quick_actions": {
     "title": "퀵 액션",
     "description": "실행할 에이전트와 프롬프트를 미리 설정한 뒤, 어떤 태스크의 사이드바에서든 한 번의 클릭으로 실행합니다.",
@@ -425,6 +456,7 @@
       "members": "멤버",
       "labels": "레이블",
       "issue_statuses": "태스크 상태",
+      "transitions": "전환 규칙",
       "properties": "속성",
       "quick_actions": "퀵 액션",
       "plugins": "Plugins",

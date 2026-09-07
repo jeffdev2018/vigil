@@ -2120,6 +2120,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/", h.GetIssue)
 					r.Put("/", h.UpdateIssue)
 					r.Post("/move", h.MoveIssue)
+					// Transition rules (F28): this issue's held status changes.
+					r.Get("/transition-requests", h.ListIssueTransitionRequests)
 					r.Delete("/", h.DeleteIssue)
 					r.Post("/comments/trigger-preview", h.PreviewCommentTriggers)
 					r.Post("/comments", h.CreateComment)
@@ -2616,6 +2618,20 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Put("/{id}/disable", h.DisableBusinessRule)
 				r.Delete("/{id}", h.DeleteBusinessRule)
 				r.Get("/{id}/violations", h.ListBusinessRuleViolations)
+			})
+			// Transition rules and approval gates (F28): who may move an issue
+			// between status categories, and which moves wait for an approver.
+			r.Route("/api/issue-transition-rules", func(r chi.Router) {
+				r.Get("/", h.ListIssueTransitionRules)
+				r.Get("/effective", h.EffectiveIssueTransitions)
+				r.Post("/", h.CreateIssueTransitionRule)
+				r.Patch("/{id}", h.UpdateIssueTransitionRule)
+				r.Delete("/{id}", h.DeleteIssueTransitionRule)
+			})
+			r.Route("/api/issue-transition-requests/{id}", func(r chi.Router) {
+				r.Post("/approve", h.ApproveIssueTransitionRequest)
+				r.Post("/reject", h.RejectIssueTransitionRequest)
+				r.Delete("/", h.CancelIssueTransitionRequest)
 			})
 			r.Route("/api/issue-statuses", func(r chi.Router) {
 				r.Get("/", h.ListIssueStatuses)
