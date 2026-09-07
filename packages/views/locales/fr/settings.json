@@ -176,7 +176,12 @@
       "check_ok": "{{count}} événements dans les deux prochaines semaines.",
       "check_failed": "Impossible de lire le flux de calendrier.",
       "save_failed": "Impossible d'enregistrer le flux de calendrier."
-    }
+    },
+    "comments_title": "Commentaires",
+    "description": "Personnalisez votre façon de travailler dans Multica.",
+    "device_hint": "Enregistré sur cet appareil.",
+    "issue_scope": "Ces préférences s'appliquent à ce workspace sur cet appareil. Elles changent seulement les champs affichés à la création d'une issue.",
+    "issue_title": "Création d'issue"
   },
   "shortcuts": {
     "title": "Raccourcis clavier",
@@ -472,7 +477,16 @@
       "code_health": "Santé du code",
       "doc_drift": "Dérive du contexte agent",
       "issue_types": "Types de tickets"
-    }
+    },
+    "device_scope": "Cet appareil",
+    "groups": {
+      "connections": "Connexions et extensions",
+      "device": "Application desktop",
+      "issues": "Configuration des issues",
+      "personal": "Personnel",
+      "workspace": "Workspace"
+    },
+    "navigate": "Aller à la page de réglages"
   },
   "plugins": {
     "title": "Plugins",
@@ -2322,5 +2336,21 @@
       "confirm": "Archiver",
       "failed": "Impossible d'archiver le type."
     }
+  },
+  "integrations": {
+    "apps_hint": "Autorisez des applications pour vos agents via Composio.",
+    "apps_scope": "Ces connexions d'applications appartiennent à votre compte. Les connexions de canaux du workspace sont gérées ci-dessus.",
+    "apps_title": "Vos applications connectées",
+    "back": "Toutes les intégrations",
+    "channel_hint": "Discutez avec les agents et créez des issues depuis {{channel}}.",
+    "code_title": "Code et dépôts",
+    "description": "Connectez vos outils et gérez chaque intégration au même endroit.",
+    "github_hint": "Connectez GitHub et configurez la liaison des pull requests.",
+    "messaging_title": "Canaux de messagerie",
+    "status_connected": "Connecté",
+    "status_loading": "Vérification…",
+    "status_not_connected": "Non connecté",
+    "status_unknown": "Statut indisponible",
+    "vcs_hint": "Connectez GitLab, Gitea ou Forgejo."
   }
 }

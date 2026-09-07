@@ -136,7 +136,7 @@ func (h *Handler) DryRunAutopilotWebhookTrigger(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	if !h.requireAutopilotWrite(w, r, ap, workspaceID) {
+	if _, ok := h.requireAutopilotWrite(w, r, ap, workspaceID); !ok {
 		return
 	}
 	trigger, ok := h.loadTriggerForAutopilot(w, r, ap, chi.URLParam(r, "triggerId"))

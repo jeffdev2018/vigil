@@ -418,26 +418,6 @@
     "unpin_tooltip": "Désépingler de la barre latérale",
     "thread_nav_label": "Accéder au fil de commentaires",
     "thread_nav_resolved_label": "{{title}} (résolu)",
-    "thread_nav": {
-      "button_label_one": "Fils de commentaires ({{count}})",
-      "button_label_other": "Fils de commentaires ({{count}})",
-      "search_placeholder": "Rechercher des fils ou des auteurs",
-      "match_count_one": "{{count}} correspondance",
-      "match_count_other": "{{count}} correspondances",
-      "filter_all": "Tous",
-      "filter_unresolved": "Non résolus",
-      "filter_resolved": "Résolus",
-      "filter_mine": "@moi",
-      "group": {
-        "today": "Aujourd'hui",
-        "yesterday": "Hier",
-        "earlier": "Plus tôt"
-      },
-      "empty": "Aucun fil ne correspond",
-      "hint_select": "sélectionner",
-      "hint_jump": "accéder",
-      "hint_close": "fermer"
-    },
     "sidebar_tooltip": "Afficher/masquer la barre latérale droite",
     "find": {
       "placeholder": "Rechercher dans l'issue...",

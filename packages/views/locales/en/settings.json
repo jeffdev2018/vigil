@@ -49,37 +49,6 @@
       "cancelled": "Decided not to do."
     }
   },
-  "transitions": {
-    "title": "Transition Rules",
-    "description": "Say who may move an issue between status categories, and which moves wait for an approver.",
-    "loading": "Loading rules…",
-    "empty": "No rules yet. Every transition is free: anyone who can edit an issue can move it to any status.",
-    "add": "Add rule",
-    "edit": "Edit rule",
-    "delete": "Delete rule",
-    "delete_failed": "Could not delete the rule.",
-    "save_failed": "Could not save the rule.",
-    "any_origin": "any status",
-    "grants": "Allowed: {{list}}",
-    "no_grants": "Allowed: nobody",
-    "named_actors": "{{count}} named",
-    "needs_approval": "needs approval",
-    "disabled": "disabled",
-    "editor": {
-      "create_title": "New transition rule",
-      "edit_title": "Edit transition rule",
-      "hint": "Rules are written against status categories, so they keep working when a status is renamed.",
-      "from": "From",
-      "to": "To",
-      "roles": "Allowed roles",
-      "actor_types": "Allowed actor types",
-      "requires_approval": "Wait for an approver",
-      "approver_roles": "Approver roles",
-      "enabled": "Enabled",
-      "save": "Save",
-      "cancel": "Cancel"
-    }
-  },
   "quick_actions": {
     "title": "Quick Actions",
     "description": "Preset an agent and a prompt once, then trigger it from any issue's sidebar with a single click.",
@@ -160,6 +129,11 @@
       "title": "Sticky comment bar",
       "hint": "Keep the comment bar pinned to the bottom while scrolling an issue page."
     },
+    "description": "Customize how you work in Multica.",
+    "issue_title": "Issue creation",
+    "comments_title": "Comments",
+    "device_hint": "Saved on this device.",
+    "issue_scope": "These preferences apply to this workspace on this device. They only change which fields you see when creating an issue.",
     "meetings_title": "Meetings",
     "meeting_detection": {
       "title": "Detect meetings automatically",
@@ -232,10 +206,6 @@
         "label": "Find in issue",
         "description": "Search within the open issue detail."
       },
-      "openThreadNav": {
-        "label": "Open thread navigator",
-        "description": "List, search, and jump between the comment threads of the open issue."
-      },
       "archiveInboxItem": {
         "label": "Archive notification",
         "description": "Archive the open inbox notification, or restore it while reading the archive."
@@ -299,6 +269,10 @@
       "goSettings": {
         "label": "Go to Settings",
         "description": "Open workspace settings."
+      },
+      "openThreadNav": {
+        "label": "Open thread navigator",
+        "description": "List, search, and jump between the comment threads of the open issue."
       },
       "triageNextItem": {
         "label": "Triage: next item",
@@ -457,12 +431,12 @@
       "members": "Members",
       "labels": "Labels",
       "issue_statuses": "Issue Statuses",
-      "transitions": "Transitions",
       "properties": "Properties",
       "quick_actions": "Quick Actions",
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "Billing",
+      "transitions": "Transitions",
       "model_keys": "Model keys",
       "security": "Security",
       "audit_log": "Audit log",
@@ -472,7 +446,16 @@
       "code_health": "Code health",
       "doc_drift": "Agent context drift",
       "issue_types": "Work item types"
-    }
+    },
+    "groups": {
+      "personal": "Personal",
+      "workspace": "Workspace",
+      "issues": "Issue configuration",
+      "connections": "Connections & extensions",
+      "device": "Desktop app"
+    },
+    "navigate": "Go to settings page",
+    "device_scope": "This device"
   },
   "plugins": {
     "title": "Plugins",
@@ -1285,47 +1268,6 @@
     "install_error_forbidden": "You no longer have permission to install Lark Bots in this workspace. Ask a workspace admin to continue.",
     "install_error_generic": "Install failed. Try again."
   },
-  "linear": {
-    "section_title": "Linear",
-    "page_description": "Install Multica as a Linear app. A Linear issue assigned to the Multica user is mirrored into a Multica issue owned by your agent, and comments and status flow both ways from then on.",
-    "not_enabled_title": "Linear integration not enabled",
-    "not_enabled_description": "This deployment has no Linear app configured. Set MULTICA_LINEAR_SECRET_KEY, MULTICA_LINEAR_CLIENT_ID and MULTICA_LINEAR_CLIENT_SECRET on the server to enable it.",
-    "connect_hint": "Choose the agent every mirrored Linear issue is assigned to, then approve the app in Linear.",
-    "agent_label": "Agent",
-    "agent_placeholder": "Select an agent",
-    "connect": "Connect Linear",
-    "connecting": "Opening Linear…",
-    "reconnect": "Reconnect",
-    "admin_only": "Only workspace owners and admins can connect Linear.",
-    "loading": "Loading…",
-    "load_failed": "Failed to load the Linear connection",
-    "org_label": "Linear organization",
-    "broken_title": "Linear stopped accepting this connection",
-    "broken_description": "Reconnect to resume mirroring issues, comments and status.",
-    "status_map_title": "Status mapping",
-    "status_map_description": "Which Multica status each Linear workflow state means. It is used in both directions.",
-    "status_placeholder": "Select a status",
-    "save_status_map": "Save mapping",
-    "saving": "Saving…",
-    "cancel": "Cancel",
-    "disconnect": "Disconnect",
-    "disconnecting": "Disconnecting…",
-    "disconnect_confirm_title": "Disconnect Linear?",
-    "disconnect_confirm_description": "Mirrored issues and their comments stay in Multica, but they stop syncing with Linear. You can reconnect later.",
-    "toast_connect_failed": "Could not start the Linear connection",
-    "toast_disconnected": "Linear disconnected",
-    "toast_disconnect_failed": "Could not disconnect Linear",
-    "toast_status_map_saved": "Status mapping saved",
-    "toast_status_map_failed": "Could not save the status mapping",
-    "badge_title": "Linear",
-    "badge_synced": "Synced with Linear",
-    "badge_paused": "Paused — this issue is no longer assigned to Multica in Linear",
-    "badge_broken": "Sync failed — reconnect Linear or retry",
-    "badge_resync": "Resync",
-    "badge_resyncing": "Resyncing…",
-    "toast_resynced": "Resynced with Linear",
-    "toast_resync_failed": "Could not resync with Linear"
-  },
   "composio": {
     "section_title": "Composio",
     "page_description": "Connect the Composio apps your agents can act on. Only apps configured with an enabled auth config in your Composio project appear here.",
@@ -1598,16 +1540,6 @@
     "toast_saved": "Repositories saved",
     "toast_save_failed": "Failed to save repositories"
   },
-  "repo_index": {
-    "section": "Semantic index",
-    "description_semantic": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by meaning and by keyword. Turning it on stores that repository's source in Multica and sends it to this deployment's embeddings provider.",
-    "description_lexical": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by keyword — this deployment has no embeddings model configured. Turning it on stores that repository's source in Multica.",
-    "empty": "No repository is attached to this workspace or its projects yet.",
-    "status_indexed": "Up to date at commit {{commit}} · {{chunks}} chunks across {{files}} files",
-    "status_waiting": "Will be indexed after the next run on this repository",
-    "status_disabled": "Not indexed",
-    "save_failed": "Could not save the semantic index setting."
-  },
   "desktop": {
     "tabs": {
       "updates": "Updates"
@@ -1776,6 +1708,104 @@
     "expiry_7d": "7 days",
     "expiry_30d": "30 days",
     "expiry_never": "Never"
+  },
+  "integrations": {
+    "description": "Connect your tools and manage each integration in one place.",
+    "code_title": "Code & repositories",
+    "messaging_title": "Messaging channels",
+    "apps_title": "Your connected apps",
+    "apps_scope": "These app connections belong to your account. Workspace channel connections are managed above.",
+    "github_hint": "Connect GitHub and configure pull request linking.",
+    "vcs_hint": "Connect GitLab, Gitea, or Forgejo.",
+    "apps_hint": "Authorize apps for your agents through Composio.",
+    "back": "All integrations",
+    "status_connected": "Connected",
+    "status_not_connected": "Not connected",
+    "status_loading": "Checking...",
+    "status_unknown": "Status unavailable",
+    "channel_hint": "Chat with agents and create issues from {{channel}}."
+  },
+  "transitions": {
+    "title": "Transition Rules",
+    "description": "Say who may move an issue between status categories, and which moves wait for an approver.",
+    "loading": "Loading rules…",
+    "empty": "No rules yet. Every transition is free: anyone who can edit an issue can move it to any status.",
+    "add": "Add rule",
+    "edit": "Edit rule",
+    "delete": "Delete rule",
+    "delete_failed": "Could not delete the rule.",
+    "save_failed": "Could not save the rule.",
+    "any_origin": "any status",
+    "grants": "Allowed: {{list}}",
+    "no_grants": "Allowed: nobody",
+    "named_actors": "{{count}} named",
+    "needs_approval": "needs approval",
+    "disabled": "disabled",
+    "editor": {
+      "create_title": "New transition rule",
+      "edit_title": "Edit transition rule",
+      "hint": "Rules are written against status categories, so they keep working when a status is renamed.",
+      "from": "From",
+      "to": "To",
+      "roles": "Allowed roles",
+      "actor_types": "Allowed actor types",
+      "requires_approval": "Wait for an approver",
+      "approver_roles": "Approver roles",
+      "enabled": "Enabled",
+      "save": "Save",
+      "cancel": "Cancel"
+    }
+  },
+  "linear": {
+    "section_title": "Linear",
+    "page_description": "Install Multica as a Linear app. A Linear issue assigned to the Multica user is mirrored into a Multica issue owned by your agent, and comments and status flow both ways from then on.",
+    "not_enabled_title": "Linear integration not enabled",
+    "not_enabled_description": "This deployment has no Linear app configured. Set MULTICA_LINEAR_SECRET_KEY, MULTICA_LINEAR_CLIENT_ID and MULTICA_LINEAR_CLIENT_SECRET on the server to enable it.",
+    "connect_hint": "Choose the agent every mirrored Linear issue is assigned to, then approve the app in Linear.",
+    "agent_label": "Agent",
+    "agent_placeholder": "Select an agent",
+    "connect": "Connect Linear",
+    "connecting": "Opening Linear…",
+    "reconnect": "Reconnect",
+    "admin_only": "Only workspace owners and admins can connect Linear.",
+    "loading": "Loading…",
+    "load_failed": "Failed to load the Linear connection",
+    "org_label": "Linear organization",
+    "broken_title": "Linear stopped accepting this connection",
+    "broken_description": "Reconnect to resume mirroring issues, comments and status.",
+    "status_map_title": "Status mapping",
+    "status_map_description": "Which Multica status each Linear workflow state means. It is used in both directions.",
+    "status_placeholder": "Select a status",
+    "save_status_map": "Save mapping",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "disconnect": "Disconnect",
+    "disconnecting": "Disconnecting…",
+    "disconnect_confirm_title": "Disconnect Linear?",
+    "disconnect_confirm_description": "Mirrored issues and their comments stay in Multica, but they stop syncing with Linear. You can reconnect later.",
+    "toast_connect_failed": "Could not start the Linear connection",
+    "toast_disconnected": "Linear disconnected",
+    "toast_disconnect_failed": "Could not disconnect Linear",
+    "toast_status_map_saved": "Status mapping saved",
+    "toast_status_map_failed": "Could not save the status mapping",
+    "badge_title": "Linear",
+    "badge_synced": "Synced with Linear",
+    "badge_paused": "Paused — this issue is no longer assigned to Multica in Linear",
+    "badge_broken": "Sync failed — reconnect Linear or retry",
+    "badge_resync": "Resync",
+    "badge_resyncing": "Resyncing…",
+    "toast_resynced": "Resynced with Linear",
+    "toast_resync_failed": "Could not resync with Linear"
+  },
+  "repo_index": {
+    "section": "Semantic index",
+    "description_semantic": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by meaning and by keyword. Turning it on stores that repository's source in Multica and sends it to this deployment's embeddings provider.",
+    "description_lexical": "Index a repository's code so every run starts from the files that matter instead of searching from scratch. Ranked by keyword — this deployment has no embeddings model configured. Turning it on stores that repository's source in Multica.",
+    "empty": "No repository is attached to this workspace or its projects yet.",
+    "status_indexed": "Up to date at commit {{commit}} · {{chunks}} chunks across {{files}} files",
+    "status_waiting": "Will be indexed after the next run on this repository",
+    "status_disabled": "Not indexed",
+    "save_failed": "Could not save the semantic index setting."
   },
   "run_limits": {
     "title": "Run limits",
