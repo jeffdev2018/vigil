@@ -50,6 +50,8 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { FILTER_ITEM_CLASS, HoverCheck } from "../../common/hover-check";
+import type { RuntimeMachine } from "../../runtimes/components/runtime-machines";
+import { RuntimeMachineFilterDropdown } from "./runtime-machine-filter-dropdown";
 import { availabilityConfig } from "../presence";
 import { useT } from "../../i18n";
 import type { AgentListRow } from "./agents-page";
@@ -112,6 +114,11 @@ export function AgentListToolbar({
   allRows,
   members,
   visibleCount,
+  machines,
+  runtimeMachineId,
+  onRuntimeMachineChange,
+  agentCountByMachine,
+  totalAgentCount,
 }: {
   scope: AgentsScope;
   onScopeChange: (scope: AgentsScope) => void;
@@ -134,6 +141,17 @@ export function AgentListToolbar({
   members: MemberWithUser[];
   /** Rows surviving the filters — shown as "n / total" when narrowed. */
   visibleCount: number;
+  /** Runtime machines (Local / Remote / Cloud), grouped the same way the
+   *  Runtimes page groups them so both surfaces name a host identically. */
+  machines: RuntimeMachine[];
+  /** Selected machine id, or null for "All runtimes". */
+  runtimeMachineId: string | null;
+  onRuntimeMachineChange: (id: string | null) => void;
+  /** Agents per machine within the current scope — the dropdown's badges. */
+  agentCountByMachine: Map<string, number>;
+  /** Scope total, ignoring the machine filter: the "All runtimes" badge. Not
+   *  `allRows.length`, which is already machine-narrowed. */
+  totalAgentCount: number;
 }) {
   const { t } = useT("agents");
 
@@ -284,6 +302,18 @@ export function AgentListToolbar({
       </div>
 
       <div className="flex shrink-0 items-center gap-1">
+        {/* Runtime machine — "which host is this agent bound to?". Its own
+            control rather than a section of the Filter menu: machines are the
+            axis users arrive on from the Runtimes page, and the trigger has
+            to name the selected host. */}
+        <RuntimeMachineFilterDropdown
+          machines={machines}
+          value={runtimeMachineId}
+          onChange={onRuntimeMachineChange}
+          agentCountByMachine={agentCountByMachine}
+          totalAgentCount={totalAgentCount}
+        />
+
         {/* Filter */}
         <DropdownMenu>
           <DropdownMenuTrigger

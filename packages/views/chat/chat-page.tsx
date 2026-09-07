@@ -30,6 +30,7 @@ import { ChatSessionHeader } from "./components/chat-session-header";
 import { ParticipantBar, useChatAuthorNames } from "./components/participant-bar";
 import { EmptyState } from "./components/chat-empty-state";
 import { NewChatButton } from "./components/new-chat-button";
+import { QuickAgentBar } from "./components/quick-agent-bar";
 import { useChatController } from "./components/use-chat-controller";
 import { OfflineBanner } from "./components/offline-banner";
 import { NoAgentBanner } from "./components/no-agent-banner";
@@ -228,16 +229,26 @@ export function ChatPage() {
     </PageHeader>
   );
 
+  // One body for both layouts (mobile full-width list, desktop left panel), so
+  // the pinned-agent strip cannot end up on only one of them. The bar sits
+  // above the conversation list and hides itself when there is nothing to pin.
   const listBody = (
-    <div className="px-2 py-1">
-      <ChatThreadList
-        sessions={c.sessions}
-        agents={c.agents}
-        activeSessionId={c.activeSessionId}
-        onSelectSession={handleSelect}
-        onArchive={handleArchive}
+    <>
+      <QuickAgentBar
+        agents={c.availableAgents}
+        userId={c.user?.id}
+        onStartNewChat={startNewChat}
       />
-    </div>
+      <div className="px-2 py-1">
+        <ChatThreadList
+          sessions={c.sessions}
+          agents={c.agents}
+          activeSessionId={c.activeSessionId}
+          onSelectSession={handleSelect}
+          onArchive={handleArchive}
+        />
+      </div>
+    </>
   );
 
   // The conversation pane: message list / skeleton / empty above a persistent
