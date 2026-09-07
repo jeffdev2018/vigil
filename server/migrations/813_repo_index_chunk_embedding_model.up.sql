@@ -1,0 +1,11 @@
+-- The vectors in repo_index_chunk were stored without saying which model
+-- produced them. Two models place the same text at different points, so a
+-- change of MULTICA_LLM_EMBEDDING_MODEL turned every stored vector into noise
+-- that cosine distance still scored plausibly: the ranking degraded with no
+-- error, no log and no way to notice after the fact.
+--
+-- NULL means "produced before this column existed, model unknown". The search
+-- treats an unknown model as a mismatch and ranks those chunks lexically,
+-- which is the honest reading: an unlabelled vector cannot be compared to a
+-- query vector. Re-indexing the repository stamps them.
+ALTER TABLE repo_index_chunk ADD COLUMN IF NOT EXISTS embedding_model TEXT;

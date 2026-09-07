@@ -47,11 +47,18 @@ func TestRepoIndexSettingsFromSettings(t *testing.T) {
 // repoIndexFakeEmbedder counts calls and can fail on demand.
 type repoIndexFakeEmbedder struct {
 	enabled bool
+	model   string
 	calls   int
 	err     error
 }
 
 func (e *repoIndexFakeEmbedder) EmbeddingsEnabled() bool { return e.enabled }
+func (e *repoIndexFakeEmbedder) EmbeddingModel() string {
+	if e.model == "" {
+		return "fake-embed-v1"
+	}
+	return e.model
+}
 func (e *repoIndexFakeEmbedder) Embed(_ context.Context, texts []string) ([][]float32, error) {
 	e.calls++
 	if e.err != nil {
@@ -124,3 +131,26 @@ func TestRepoIndexPruneRefusesEmptyPresentList(t *testing.T) {
 // RepoIndexer satisfies the embedder seam with the real client, so a signature
 // drift in pkg/llm fails here rather than at wiring time in router.go.
 var _ RepoIndexEmbedder = (*llm.Client)(nil)
+
+// A vector is only comparable to a query the same model embedded. The model in
+// force is stamped on every chunk and sent with every search; a deployment
+// with embeddings turned off names no model at all, so nothing claims to be
+// comparable.
+func TestRepoIndexerEmbeddingModel(t *testing.T) {
+	var none RepoIndexer
+	if got := none.embeddingModel(); got.Valid {
+		t.Errorf("no embedder must name no model, got %q", got.String)
+	}
+	off := &RepoIndexer{Embedder: &repoIndexFakeEmbedder{enabled: false, model: "text-embedding-3-small"}}
+	if got := off.embeddingModel(); got.Valid {
+		t.Errorf("embeddings disabled must name no model, got %q", got.String)
+	}
+	blank := &RepoIndexer{Embedder: &repoIndexFakeEmbedder{enabled: true, model: "   "}}
+	if got := blank.embeddingModel(); got.Valid {
+		t.Errorf("a blank model name is no model, got %q", got.String)
+	}
+	on := &RepoIndexer{Embedder: &repoIndexFakeEmbedder{enabled: true, model: "text-embedding-3-small"}}
+	if got := on.embeddingModel(); !got.Valid || got.String != "text-embedding-3-small" {
+		t.Errorf("model = %+v, want the configured one", got)
+	}
+}

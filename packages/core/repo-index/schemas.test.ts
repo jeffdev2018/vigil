@@ -20,6 +20,7 @@ const repo = (over: Partial<RepoIndexRepo> = {}): RepoIndexRepo => ({
   file_count: 3,
   last_indexed_commit: "abc1234def",
   last_indexed_at: "2026-01-02T03:04:05Z",
+  unusable_embedding_count: 0,
   ...over,
 });
 
@@ -84,5 +85,30 @@ describe("shortCommit", () => {
     expect(shortCommit("abc1234def5678")).toBe("abc1234");
     expect(shortCommit("")).toBe("");
     expect(shortCommit(undefined as unknown as string)).toBe("");
+  });
+});
+
+describe("RepoIndexRepoSchema: unusable embeddings", () => {
+  it("reports how many chunks the current embedding model cannot compare against", () => {
+    const parsed = parseWithFallback(
+      { repos: [repo({ unusable_embedding_count: 4 })], embeddings_enabled: true },
+      RepoIndexSettingsSchema,
+      REPO_INDEX_EMPTY_SETTINGS,
+      { endpoint: "test" },
+    );
+    expect(parsed.repos[0]?.unusable_embedding_count).toBe(4);
+  });
+
+  it("reads an older backend that omits the field as nothing unusable", () => {
+    // The field arrived with the embedding-model column; a desktop client
+    // talking to a server from before it must not render "NaN chunks".
+    const { unusable_embedding_count: _omitted, ...older } = repo();
+    const parsed = parseWithFallback(
+      { repos: [older], embeddings_enabled: true },
+      RepoIndexSettingsSchema,
+      REPO_INDEX_EMPTY_SETTINGS,
+      { endpoint: "test" },
+    );
+    expect(parsed.repos[0]?.unusable_embedding_count).toBe(0);
   });
 });
