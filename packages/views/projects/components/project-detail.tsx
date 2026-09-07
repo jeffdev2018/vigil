@@ -26,6 +26,7 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { WikiPanel } from "./wiki-panel";
 import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectOrgSection } from "./project-org-section";
 import { ProjectMembersSection } from "./project-members-section";
@@ -493,6 +494,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+
+      {/* Generated code wiki (F26) */}
+      <WikiPanel projectId={projectId} />
 
       {/* Decision memory (K29) */}
       <ProjectDecisionsSection projectId={projectId} />

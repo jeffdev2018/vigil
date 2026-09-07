@@ -417,6 +417,12 @@ deleted_squad_members AS (
 deleted_project_resources AS (
     DELETE FROM project_resource WHERE workspace_id = $1
 ),
+deleted_code_wiki_pages AS (
+    DELETE FROM code_wiki_page WHERE workspace_id = $1
+),
+deleted_code_wiki_snapshots AS (
+    DELETE FROM code_wiki_snapshot WHERE workspace_id = $1
+),
 deleted_autopilot_collaborators AS (
     DELETE FROM autopilot_collaborator
     WHERE autopilot_id IN (SELECT id FROM ws_autopilots)

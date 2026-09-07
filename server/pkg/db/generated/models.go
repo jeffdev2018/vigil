@@ -917,6 +917,33 @@ type CodeHealthScan struct {
 	CompletedAt   pgtype.Timestamptz `json:"completed_at"`
 }
 
+// F26: one generated wiki page. Content is machine-generated reference data, never an instruction to a reading agent.
+type CodeWikiPage struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	SnapshotID        pgtype.UUID        `json:"snapshot_id"`
+	ProjectResourceID pgtype.UUID        `json:"project_resource_id"`
+	Slug              string             `json:"slug"`
+	Title             string             `json:"title"`
+	Content           string             `json:"content"`
+	Citations         []byte             `json:"citations"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+}
+
+// F26: one atomically published generation of a repo wiki. repo_paths is the run-announced file inventory citations are validated against.
+type CodeWikiSnapshot struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	ProjectResourceID pgtype.UUID        `json:"project_resource_id"`
+	CommitSha         string             `json:"commit_sha"`
+	State             string             `json:"state"`
+	GeneratedByTaskID pgtype.UUID        `json:"generated_by_task_id"`
+	PageCount         int32              `json:"page_count"`
+	RepoPaths         []byte             `json:"repo_paths"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	PublishedAt       pgtype.Timestamptz `json:"published_at"`
+}
+
 type Comment struct {
 	ID                 pgtype.UUID        `json:"id"`
 	IssueID            pgtype.UUID        `json:"issue_id"`

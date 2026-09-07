@@ -927,6 +927,9 @@ func (h *Handler) DeleteProjectResource(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusInternalServerError, "failed to delete project resource")
 		return
 	}
+	// F26: the generated wiki belongs to the resource, and no foreign key
+	// removes it for us.
+	h.purgeCodeWikiForResource(r.Context(), resource.ID)
 	h.publish(
 		protocol.EventProjectResourceDeleted,
 		uuidToString(project.WorkspaceID),

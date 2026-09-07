@@ -1243,6 +1243,7 @@ type ghPullRequestPayload struct {
 		CreatedAt      string `json:"created_at"`
 		UpdatedAt      string `json:"updated_at"`
 		MergeableState string `json:"mergeable_state"`
+		MergeCommitSHA string `json:"merge_commit_sha"`
 		Additions      int32  `json:"additions"`
 		Deletions      int32  `json:"deletions"`
 		ChangedFiles   int32  `json:"changed_files"`
@@ -1707,6 +1708,16 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 		"pull_request":     resp,
 		"linked_issue_ids": linkedIssueIDs,
 	})
+
+	// F26: a merge is the moment the repository's documentation went stale.
+	// Regenerating it is opt-in per project (the wiki daemon's trigger label)
+	// and collapses a burst of merges into one run — see
+	// triggerCodeWikiForMergedPR.
+	if state == "merged" {
+		h.triggerCodeWikiForMergedPR(ctx, wsID,
+			p.Repository.Owner.Login, p.Repository.Name,
+			coalesce(p.PullRequest.MergeCommitSHA, p.PullRequest.Head.SHA))
+	}
 }
 
 // derivePRMergeableState resolves the upsert behaviour for the PR row's

@@ -1701,6 +1701,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// the host over MessagePort; the host calls this internal route with the
 	// signed-in user's session and the installation header. Keeping it outside
 	// /v1 prevents the Public API from accepting session cookies.
+	// Hosted MCP server for the generated code wiki (F26). It authenticates
+	// with the agent task token the auth middleware already validates, so it
+	// sits in the Auth group but outside RequireWorkspaceMember: the workspace
+	// comes from the token, and the handler refuses any other auth path.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
+		r.Post("/api/mcp/code-wiki", h.CodeWikiMCP)
+	})
+
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
 		r.Route(pluginBridgePrefix, func(r chi.Router) {
@@ -2747,6 +2756,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
 					r.Delete("/resources/{resourceId}", h.DeleteProjectResource)
 					r.Get("/decisions", h.ListProjectDecisions)
+					// Generated code wiki (F26). The write half is used by the
+					// generating run through its task token; the read half by
+					// the project panel.
+					r.Get("/wiki", h.GetProjectCodeWiki)
+					r.Get("/wiki/pages/{slug}", h.GetProjectCodeWikiPage)
+					r.Post("/wiki/refresh", h.RefreshProjectCodeWiki)
+					r.Post("/wiki/snapshots", h.CreateProjectCodeWikiSnapshot)
+					r.Post("/wiki/snapshots/{sid}/pages", h.CreateProjectCodeWikiPage)
+					r.Post("/wiki/snapshots/{sid}/publish", h.PublishProjectCodeWikiSnapshot)
 					// Goals (K74): the goals a project serves.
 					r.Put("/goals", h.SetProjectGoals)
 					// Blast radius (K07): autonomy by path pattern.

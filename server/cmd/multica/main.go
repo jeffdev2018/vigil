@@ -80,6 +80,7 @@ func init() {
 	rootCmd.AddCommand(autopilotCmd)
 	rootCmd.AddCommand(triageCmd)
 	rootCmd.AddCommand(brainCmd)
+	rootCmd.AddCommand(wikiCmd)
 	rootCmd.AddCommand(workspaceCmd)
 	rootCmd.AddCommand(repoCmd)
 	rootCmd.AddCommand(skillCmd)

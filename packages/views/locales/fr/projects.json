@@ -315,5 +315,24 @@
     "ticket_description": "Description",
     "ticket_depends_on": "Dépend de",
     "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "Wiki du code",
+    "description": "Documentation générée pour le dépôt de ce projet. Matériau de référence écrit par un agent, pas une source de vérité.",
+    "no_repo": "Ajoutez une ressource de dépôt à ce projet pour générer un wiki du code.",
+    "empty": "Aucun wiki n'a encore été généré pour ce dépôt.",
+    "generate": "Générer",
+    "regenerate": "Régénérer",
+    "building": "Génération en cours...",
+    "started": "Génération du wiki lancée.",
+    "not_started": "La génération n'a pas démarré.",
+    "failed": "Impossible de charger le wiki du code.",
+    "banner": "Généré automatiquement - commit {{commit}} - {{date}}",
+    "stale": "Ce wiki décrit un commit antérieur au HEAD du dépôt.",
+    "pages": "Pages",
+    "citations": "Citations",
+    "no_citations": "Cette page ne cite aucun fichier. Considérez-la comme non sourcée.",
+    "select_page": "Choisissez une page pour la lire.",
+    "page_failed": "Impossible de charger cette page."
   }
 }

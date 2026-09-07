@@ -57,6 +57,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"autopilot_memory":                   workspaceDelete,
 	"insight_widget":                     workspaceDelete,
 	"insight_query_log":                  workspaceDelete,
+	"code_wiki_snapshot":                 workspaceDelete,
+	"code_wiki_page":                     workspaceDelete,
 	"autopilot_quota_period":             workspaceDelete,
 	"autopilot_quota_reservation":        workspaceDelete,
 	"autopilot_rule_version":             workspaceDelete,
