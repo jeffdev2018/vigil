@@ -1,12 +1,14 @@
 "use client";
 
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
+import { useIssueTypes } from "@multica/core/issue-types/hooks";
 import { useStatusLabel } from "../utils/status-label";
 import { NO_PROPERTY_VALUE } from "../utils/filter";
 import { useMemo, type ReactNode } from "react";
 import {
   CalendarDays,
   CalendarRange,
+  Shapes,
   CircleDot,
   FolderKanban,
   Target,
@@ -187,6 +189,7 @@ function useFilterChips(
   const wsId = useWorkspaceId();
   const resolveStatusLabel = useStatusLabel(wsId);
   const { categoryOf, colorOf } = useIssueStatuses(wsId);
+  const issueTypeCatalog = useIssueTypes(wsId);
 
   const statusFilters = useViewStore((s) => s.statusFilters);
   const priorityFilters = useViewStore((s) => s.priorityFilters);
@@ -197,6 +200,7 @@ function useFilterChips(
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
+  const typeFilters = useViewStore((s) => s.typeFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const store = useViewStoreApi();
@@ -211,6 +215,7 @@ function useFilterChips(
     includeNoProject ||
     goalFilters.length > 0 ||
     cycleFilters.length > 0 ||
+    typeFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.values(propertyFilters).some((selected) => selected.length > 0);
   const showDateChip = !!onDateFilterChange && !!dateFilter;
@@ -281,6 +286,7 @@ function useFilterChips(
       projectFilters: s.projectFilters,
       includeNoProject: s.includeNoProject,
       cycleFilters: s.cycleFilters,
+      typeFilters: s.typeFilters,
       labelFilters: s.labelFilters,
       propertyFilters: s.propertyFilters,
     };
@@ -313,6 +319,9 @@ function useFilterChips(
         break;
       case "cycle":
         s.resetFiltersTo({ ...current, cycleFilters: raw.cycleFilters });
+        break;
+      case "type":
+        s.resetFiltersTo({ ...current, typeFilters: raw.typeFilters });
         break;
       case "goal":
         // Saved views never fix a goal, so there is nothing to fall back to.
@@ -468,6 +477,21 @@ function useFilterChips(
       label: t(($) => $.filters.section_cycle),
       value: summarize(deltaCycles.map((id) => cycleById.get(id)?.name)),
       onRemove: () => clearDimension("cycle"),
+    });
+  }
+  // A view can fix a type, so the chip shows only what the user added on top.
+  const deltaTypes = baseline
+    ? typeFilters.filter((key) => !baseline.type.has(key))
+    : typeFilters;
+  if (deltaTypes.length > 0) {
+    chips.push({
+      key: "type",
+      icon: <Shapes className={CHIP_ICON_CLASS} />,
+      label: t(($) => $.filters.section_type),
+      // labelOf falls back to the raw key, so a type this client has not
+      // resolved yet still reads as something rather than blank.
+      value: summarize(deltaTypes.map((key) => issueTypeCatalog.labelOf(key))),
+      onRemove: () => clearDimension("type"),
     });
   }
   if (goalFilters.length > 0) {

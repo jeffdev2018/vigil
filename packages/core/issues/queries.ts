@@ -406,7 +406,10 @@ async function fetchProjectGanttIssues(
   let offset = 0;
   while (offset < PROJECT_GANTT_MAX_ISSUES) {
     const res = await api.listIssues({
-      project_id: projectId,
+      // Empty projectId means the WORKSPACE gantt (F30): the timeline is no
+      // longer a project-only surface, so an omitted project_id fetches every
+      // scheduled issue the caller can see rather than none.
+      ...(projectId ? { project_id: projectId } : {}),
       scheduled: true,
       ...(cycleId ? { cycle_id: cycleId } : {}),
       ...(assigneeTypes?.length ? { assignee_types: assigneeTypes } : {}),

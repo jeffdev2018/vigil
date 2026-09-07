@@ -103,6 +103,7 @@ const LAYOUT_LABEL_KEY = {
   table: "table",
   swimlane: "swimlane",
   gantt: "gantt",
+  calendar: "calendar",
 } as const;
 
 const GROUPING_LABEL_KEY = {
@@ -591,6 +592,9 @@ export function SaveViewDialog({
         creatorFilters: state.creatorFilters,
         projectFilters: state.projectFilters,
         includeNoProject: state.includeNoProject,
+        // Work item types (F30). A view saved before this key parses to [] —
+        // `baselineFromQuery` is tolerant of an absent dimension by design.
+        typeFilters: state.typeFilters,
         labelFilters: state.labelFilters,
         propertyFilters: state.propertyFilters,
       },

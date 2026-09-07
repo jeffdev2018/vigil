@@ -153,7 +153,8 @@
     "active_count_other": "フィルター {{count}} 件",
     "in_view": "このビューに含まれています",
     "chip_edit": "編集",
-    "chip_save_as": "別名で保存"
+    "chip_save_as": "別名で保存",
+    "section_type": "タイプ"
   },
   "display": {
     "tooltip": "表示設定",
@@ -196,7 +197,9 @@
     "list": "リスト",
     "table": "テーブル",
     "gantt": "ガント",
-    "swimlane": "スイムレーン"
+    "swimlane": "スイムレーン",
+    "calendar": "カレンダー",
+    "tooltip_calendar": "カレンダー表示"
   },
   "table": {
     "select_all": "表示中のタスクをすべて選択",
@@ -253,7 +256,8 @@
       "created_at": "作成日",
       "updated_at": "更新日",
       "child_progress": "サブタスクの進捗",
-      "creator": "作成者"
+      "creator": "作成者",
+      "issue_type": "タイプ"
     },
     "calculation": {
       "label": "計算",
@@ -464,7 +468,10 @@
     "pr_stack_truncated": "{{depth}} 階層で打ち切り",
     "pr_stack_cyclic": "依存関係の循環: 一部の階層は非表示",
     "blocker_adr_required": "アーキテクチャ決定記録が必要です（{{count}} ファイル編集）",
-    "from_meeting": "ミーティングから"
+    "from_meeting": "ミーティングから",
+    "hidden_properties_other": "非表示のプロパティ ({{count}})",
+    "hidden_properties_hint": "別のタイプで設定された値です。保持されており、タイプを戻すと再び表示されます。",
+    "prop_issue_type": "タイプ"
   },
   "timeline": {
     "loading": "読み込み中..."
@@ -1537,5 +1544,21 @@
     "links_title": "共有リンク",
     "links_empty": "リンクはまだありません。",
     "uses_other": "{{count}} 回使用"
+  },
+  "calendar": {
+    "due_date_hint": "課題は期限日に表示されます",
+    "empty_month": "今月が期限の課題はありません。",
+    "more_other": "他 {{count}} 件",
+    "next_month": "次の月",
+    "previous_month": "前の月",
+    "today": "今日"
+  },
+  "issue_types": {
+    "archived_badge": "アーカイブ済み",
+    "clear": "タイプを外す",
+    "label": "タイプ",
+    "none": "タイプなし",
+    "search": "タイプを検索...",
+    "section": "タイプ"
   }
 }

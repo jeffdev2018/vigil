@@ -8160,6 +8160,10 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		// F29: the dated cycle the issue is planned into. Emitted here too, so
 		// this rendering cannot lose a key the HTTP one carries.
 		"cycle_id": util.UUIDToPtr(issue.CycleID),
+		// F30: the work item type key, an open catalogue key like status.
+		// Emitted here too, so this rendering cannot lose a key the HTTP one
+		// carries.
+		"issue_type": util.TextToPtr(issue.IssueType),
 		// Mirrors handler.IssueResponse.OriginType / OriginID: what produced
 		// the issue when it was not typed by hand. Emitted unconditionally
 		// here, like status_name, so this rendering cannot lose a key the

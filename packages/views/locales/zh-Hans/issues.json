@@ -153,7 +153,8 @@
     "active_count_other": "{{count}} 个筛选",
     "in_view": "已包含在视图中",
     "chip_edit": "编辑",
-    "chip_save_as": "另存"
+    "chip_save_as": "另存",
+    "section_type": "类型"
   },
   "display": {
     "tooltip": "显示设置",
@@ -196,7 +197,9 @@
     "list": "列表",
     "table": "表格",
     "gantt": "甘特图",
-    "swimlane": "泳道"
+    "swimlane": "泳道",
+    "calendar": "日历",
+    "tooltip_calendar": "日历视图"
   },
   "table": {
     "select_all": "选择所有可见任务",
@@ -253,7 +256,8 @@
       "created_at": "创建时间",
       "updated_at": "更新时间",
       "child_progress": "子任务进度",
-      "creator": "创建者"
+      "creator": "创建者",
+      "issue_type": "类型"
     },
     "calculation": {
       "label": "计算",
@@ -464,7 +468,10 @@
     "pr_stack_truncated": "在 {{depth}} 层处截断",
     "pr_stack_cyclic": "依赖循环：部分层级已隐藏",
     "blocker_adr_required": "需要架构决策记录（编辑了 {{count}} 个文件）",
-    "from_meeting": "来自会议"
+    "from_meeting": "来自会议",
+    "hidden_properties_other": "隐藏的属性（{{count}}）",
+    "hidden_properties_hint": "这些值是在其他工作项类型下填写的。它们会被保留，切回该类型即可重新显示。",
+    "prop_issue_type": "类型"
   },
   "timeline": {
     "loading": "加载中…"
@@ -1537,5 +1544,21 @@
     "links_title": "共享链接",
     "links_empty": "还没有链接。",
     "uses_other": "使用 {{count}} 次"
+  },
+  "calendar": {
+    "due_date_hint": "议题按截止日期显示",
+    "empty_month": "本月没有到期的议题。",
+    "more_other": "还有 {{count}} 个",
+    "next_month": "下个月",
+    "previous_month": "上个月",
+    "today": "今天"
+  },
+  "issue_types": {
+    "archived_badge": "已归档",
+    "clear": "清除类型",
+    "label": "类型",
+    "none": "无类型",
+    "search": "搜索类型...",
+    "section": "类型"
   }
 }

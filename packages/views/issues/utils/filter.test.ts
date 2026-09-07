@@ -652,3 +652,35 @@ describe("goal filter (K74)", () => {
     expect(filterIssues([withGoal, orphan], { ...NO_FILTER, goalFilters: [] })).toHaveLength(2);
   });
 });
+
+// Work item types (F30). Client-side narrowing for the surfaces that
+// materialize their own window (gantt, calendar); the server owns the same
+// dimension for the paginated ones.
+describe("filterIssues — work item type", () => {
+  const bug = makeIssue({ id: "a", issue_type: "bug" });
+  const story = makeIssue({ id: "b", issue_type: "story" });
+  const untyped = makeIssue({ id: "c", issue_type: null });
+  const all = [bug, story, untyped];
+
+  it("keeps everything when no type is selected", () => {
+    expect(filterIssues(all, { ...NO_FILTER, typeFilters: [] }).map((i) => i.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("ORs within the dimension", () => {
+    expect(
+      filterIssues(all, { ...NO_FILTER, typeFilters: ["bug", "story"] }).map((i) => i.id),
+    ).toEqual(["a", "b"]);
+  });
+
+  // An untyped issue matches no type key. Asking for "the bugs" and being
+  // handed every unclassified issue too would make the filter useless.
+  it("excludes untyped issues", () => {
+    expect(filterIssues(all, { ...NO_FILTER, typeFilters: ["bug"] }).map((i) => i.id)).toEqual([
+      "a",
+    ]);
+  });
+});

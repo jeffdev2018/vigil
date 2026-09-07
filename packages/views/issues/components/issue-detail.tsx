@@ -62,14 +62,14 @@ import { AvatarGroup, AvatarGroupCount } from "@multica/ui/components/ui/avatar"
 import { ActorAvatar } from "../../common/actor-avatar";
 import { PropRow } from "../../common/prop-row";
 import { PropertyIcon } from "../../common/property-icon";
-import type { Attachment, Issue, IssueProperty, IssueStatus, IssueStatusCategory, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@multica/core/types";
+import type { Attachment, Issue, IssueProperty, IssuePropertyValue, IssueStatus, IssueStatusCategory, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@multica/core/types";
 import { contentReferencesAttachment } from "@multica/core/types";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
 import { formatDateOnly, isPastDateOnly } from "@multica/core/issues/date";
 import { useUpdateIssue } from "@multica/core/issues/mutations";
 import { toast } from "sonner";
 import { errorCode } from "@multica/core/api";
-import { StatusIcon, PriorityIcon, StatusPicker, PriorityPicker, StagePicker, StartDatePicker, DueDatePicker, AssigneePicker, LabelPicker } from ".";
+import { StatusIcon, PriorityIcon, StatusPicker, PriorityPicker, StagePicker, StartDatePicker, DueDatePicker, AssigneePicker, LabelPicker, TypePicker } from ".";
 import { maxSiblingStage } from "./pickers/stage-picker";
 import { CustomPropertyValueEditor, CustomPropertyValueDisplay } from "./pickers/custom-property-picker";
 import { Switch } from "@multica/ui/components/ui/switch";
@@ -1257,6 +1257,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Same progressive-disclosure machinery for custom properties, keyed by
   // property definition id instead of a static key union.
   const [visibleCustomProps, setVisibleCustomProps] = useState<Set<string>>(() => new Set());
+  // Collapsed by default: out-of-scope values are context, not the issue's
+  // current shape, and expanding them by default would make every reclassified
+  // issue read as if it still carried the old type's fields.
+  const [showHiddenProps, setShowHiddenProps] = useState(false);
   const [autoOpenCustomProp, setAutoOpenCustomProp] = useState<string | null>(null);
   // Optional property to auto-open as soon as it's mounted (the user just
   // picked it from "+ Add property" and we want them dropped straight into
@@ -2162,6 +2166,49 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // renderable (read-only) until someone clears it.
   const { data: workspaceProperties = [] } = useQuery(propertyListOptions(wsId, true));
 
+  // Applicability (F30). A property scoped to some work item types applies to
+  // an issue only when the issue carries one of them; an UNTYPED issue carries
+  // only global properties, because "no type" matches no type list. `type_keys`
+  // absent (an older backend) reads as global, which is what every property was
+  // before F30 — so nothing changed for a workspace that never scopes.
+  const appliesToThisIssue = useCallback(
+    (property: IssueProperty) =>
+      propertyAppliesToIssueType(property.type_keys, issue?.issue_type ?? null),
+    [issue?.issue_type],
+  );
+  // Rows the sidebar renders as editable: same progressive-disclosure rule as
+  // before (a value is set, or the user added the row this session), narrowed
+  // to what applies.
+  const applicableCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) =>
+          appliesToThisIssue(p) &&
+          (issue?.properties?.[p.id] !== undefined ||
+            (!p.archived && visibleCustomProps.has(p.id))),
+      ),
+    [appliesToThisIssue, issue?.properties, visibleCustomProps, workspaceProperties],
+  );
+  // Values that exist but no longer apply. Never dropped — see the fold below.
+  const hiddenCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) => !appliesToThisIssue(p) && issue?.properties?.[p.id] !== undefined,
+      ),
+    [appliesToThisIssue, issue?.properties, workspaceProperties],
+  );
+  const addableCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) =>
+          !p.archived &&
+          appliesToThisIssue(p) &&
+          !visibleCustomProps.has(p.id) &&
+          issue?.properties?.[p.id] === undefined,
+      ),
+    [appliesToThisIssue, issue?.properties, visibleCustomProps, workspaceProperties],
+  );
+
   // Sub-issue rows only surface live definitions: the display picker offers
   // non-archived properties, and chips render only ids that resolve here.
   const activeWorkspaceProperties = useMemo(
@@ -2392,6 +2439,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               />
             </PropRow>
           )}
+          {/* Work item type (F30). Always visible, like status and project: it
+              is what decides which of the rows below apply, so hiding it
+              behind "+ Add property" would leave the folded-properties note
+              pointing at a control the user cannot see. */}
+          <PropRow label={t(($) => $.detail.prop_issue_type)}>
+            <TypePicker issueType={issue.issue_type ?? null} onUpdate={handleUpdateField} align="start" />
+          </PropRow>
           <PropRow label={t(($) => $.detail.prop_project)}>
             <ProjectPicker
               projectId={issue.project_id}
@@ -2470,36 +2524,43 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               built-in optional props: a row renders when the issue has a
               value OR the user added the property this session. Archived
               definitions render read-only until their value is cleared. */}
-          {workspaceProperties
-            .filter(
-              (p) =>
-                issue.properties?.[p.id] !== undefined ||
-                (!p.archived && visibleCustomProps.has(p.id)),
-            )
-            .map((p) => (
-              <PropRow
-                key={p.id}
-                label={
-                  <>
-                    <PropertyIcon property={p} className="size-3.5 text-caption" />
-                    <span className="truncate">{p.name}</span>
-                  </>
-                }
-              >
-                <CustomPropertyValueEditor
-                  issue={issue}
-                  property={p}
-                  defaultOpen={autoOpenCustomProp === p.id}
-                />
-              </PropRow>
-            ))}
+          {applicableCustomProps.map((p) => (
+            <PropRow
+              key={p.id}
+              label={
+                <>
+                  <PropertyIcon property={p} className="size-3.5 text-caption" />
+                  <span className="truncate">{p.name}</span>
+                </>
+              }
+            >
+              <CustomPropertyValueEditor
+                issue={issue}
+                property={p}
+                defaultOpen={autoOpenCustomProp === p.id}
+              />
+            </PropRow>
+          ))}
+
+          {/* Out-of-scope values (F30). A property scoped to another work item
+              type is NOT applicable to this issue, but its value is never
+              deleted — reclassifying an issue must not destroy data. So the
+              rows fold instead of vanishing: visible on demand, read-only
+              (the server refuses a write with property_not_applicable), and
+              back to normal the moment the type is switched back. */}
+          <HiddenPropertiesFold
+            properties={hiddenCustomProps}
+            values={issue.properties ?? {}}
+            open={showHiddenProps}
+            onToggle={() => setShowHiddenProps((v) => !v)}
+          />
 
           {/* "+ Add property" — opens a Popover listing optional fields
               not yet displayed. Hidden once every optional field is on
               screen. Sits inside the same grid as a full-row, with its
               own padding so the visual rhythm follows the rows above. */}
           {(OPTIONAL_PROP_KEYS.some((k) => !visibleOptionalProps.has(k) && (k !== "stage" || issue.parent_issue_id != null)) ||
-            workspaceProperties.some((p) => !p.archived && !visibleCustomProps.has(p.id) && issue.properties?.[p.id] === undefined)) && (
+            addableCustomProps.length > 0) && (
             <div className="col-span-2 mt-1">
               <Popover open={addPropPopoverOpen} onOpenChange={setAddPropPopoverOpen}>
                 <PopoverTrigger
@@ -2549,12 +2610,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     </button>
                   ))}
                   {(() => {
-                    const addable = workspaceProperties.filter(
-                      (p) =>
-                        !p.archived &&
-                        !visibleCustomProps.has(p.id) &&
-                        issue.properties?.[p.id] === undefined,
-                    );
+                    const addable = addableCustomProps;
                     if (addable.length === 0) return null;
                     return (
                       <>
@@ -3722,5 +3778,108 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </AnimatedRightSidebar>
       </ResizablePanel>
     </ResizablePanelGroup>
+  );
+}
+
+/**
+ * Whether a property applies to an issue of `issueType` (F30).
+ *
+ * `scope` empty or absent means GLOBAL — every type plus untyped issues — which
+ * is what every property created before F30 carries, so the migration changed
+ * nothing. A scoped property never applies to an UNTYPED issue: "no type"
+ * matches no type list, and pretending otherwise would put a bug-only field on
+ * every unclassified issue in the workspace.
+ *
+ * Mirrors `propertyAppliesToType` in the server's property_type_scope.go — the
+ * server is the authority (it answers 409 property_not_applicable), this is the
+ * client's rendering of the same rule.
+ */
+export function propertyAppliesToIssueType(
+  scope: string[] | undefined,
+  issueType: string | null | undefined,
+): boolean {
+  if (!scope || scope.length === 0) return true;
+  if (!issueType) return false;
+  return scope.includes(issueType);
+}
+
+/**
+ * A folded-away property value as one line of text. Read-only by construction:
+ * an out-of-scope value cannot be edited (the server refuses the write), so
+ * this renders rather than offering a control that can only fail.
+ */
+export function formatHiddenPropertyValue(
+  property: IssueProperty,
+  value: IssuePropertyValue | undefined,
+): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "boolean") return value ? "\u2713" : "\u2014";
+  if (Array.isArray(value)) {
+    const options = property.config?.options ?? [];
+    return value
+      .map((entry) => options.find((option) => option.id === entry)?.name ?? entry)
+      .join(", ");
+  }
+  const option = (property.config?.options ?? []).find((o) => o.id === value);
+  return option?.name ?? String(value);
+}
+
+/**
+ * The out-of-scope property values, folded (F30).
+ *
+ * Extracted from the sidebar so it can be mounted on its own in a test: the
+ * whole point of this block is a behaviour — values SURVIVE a type change and
+ * stay readable — and proving it through the full issue-detail mount would
+ * cost a page of unrelated fixtures to assert one paragraph.
+ *
+ * Read-only by construction: an out-of-scope value cannot be written (the
+ * server answers `property_not_applicable`), so this renders text rather than
+ * offering an editor that can only fail.
+ */
+export function HiddenPropertiesFold({
+  properties,
+  values,
+  open,
+  onToggle,
+}: {
+  properties: IssueProperty[];
+  values: Record<string, IssuePropertyValue>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useT("issues");
+  if (properties.length === 0) return null;
+  return (
+    <div className="col-span-2 mt-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 -mx-2 text-caption text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+      >
+        <ChevronRight
+          className={cn("h-3 w-3 shrink-0 transition-transform", open && "rotate-90")}
+        />
+        <span>{t(($) => $.detail.hidden_properties, { count: properties.length })}</span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1 pl-2">
+          <p className="text-caption text-muted-foreground">
+            {t(($) => $.detail.hidden_properties_hint)}
+          </p>
+          {properties.map((property) => (
+            <div key={property.id} className="flex min-w-0 items-center gap-2 py-0.5">
+              <PropertyIcon property={property} className="size-3.5 shrink-0 text-caption" />
+              <span className="w-28 shrink-0 truncate text-caption text-muted-foreground">
+                {property.name}
+              </span>
+              <span className="truncate text-caption">
+                {formatHiddenPropertyValue(property, values[property.id])}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

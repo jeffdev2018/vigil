@@ -111,6 +111,12 @@ type PropertyResponse struct {
 	UsageCount  int64          `json:"usage_count"`
 	CreatedAt   string         `json:"created_at"`
 	UpdatedAt   string         `json:"updated_at"`
+	// TypeKeys is the work item types this property applies to (F30). EMPTY
+	// means GLOBAL — every type plus untyped issues — and is what every
+	// property created before F30 carries, so nothing changed on migration.
+	// Always emitted (never nil) so a client can `types.includes(t)` without
+	// a null guard.
+	TypeKeys []string `json:"type_keys"`
 }
 
 func parsePropertyConfig(raw []byte) PropertyConfig {
@@ -138,6 +144,7 @@ func propertyToResponse(p db.IssueProperty, usageCount int64) PropertyResponse {
 		UsageCount:  usageCount,
 		CreatedAt:   timestampToString(p.CreatedAt),
 		UpdatedAt:   timestampToString(p.UpdatedAt),
+		TypeKeys:    []string{},
 	}
 	if p.ArchivedAt.Valid {
 		s := timestampToString(p.ArchivedAt)
@@ -659,9 +666,23 @@ func (h *Handler) ListProperties(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to list properties")
 		return
 	}
+	// One bulk read for the whole catalog's type scopes rather than one per
+	// property: the settings page and every issue surface read this list, and a
+	// per-row query would be an N+1 on the hottest catalog in the product.
+	scopes, err := h.propertyTypeScopes(r.Context(), wsUUID)
+	if err != nil {
+		// Non-fatal: a property with no resolvable scope renders as global,
+		// which is what it was before F30. Failing the whole catalog because
+		// the scope table is unreadable would blank every property surface.
+		slog.Warn("list property type scopes failed", append(logger.RequestAttrs(r), "error", err)...)
+		scopes = map[string][]string{}
+	}
 	resp := make([]PropertyResponse, len(rows))
 	for i, row := range rows {
 		resp[i] = propertyListRowToResponse(row)
+		if keys := scopes[resp[i].ID]; len(keys) > 0 {
+			resp[i].TypeKeys = keys
+		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"properties": resp, "total": len(resp)})
 }
@@ -730,12 +751,17 @@ func (h *Handler) CreateProperty(w http.ResponseWriter, r *http.Request) {
 	var property db.IssueProperty
 	var capErr error
 	err = h.withPropertyLock(r, []string{"props:" + workspaceID}, func(q *db.Queries) error {
-		active, err := q.CountActiveIssueProperties(r.Context(), wsUUID)
+		// The cap is PER WORK ITEM TYPE since F30, and a property is created
+		// GLOBAL — no scope rows — so it lands in every type's budget at once.
+		// Checking the fullest type is therefore the same admission decision
+		// the old workspace-wide count made for an unscoped workspace, and a
+		// strictly more permissive one for a workspace that scopes.
+		over, err := h.overflowingIssueTypes(r.Context(), q, wsUUID, nil, 1)
 		if err != nil {
 			return err
 		}
-		if active >= maxActivePropertiesPerWorkspace {
-			capErr = fmt.Errorf("a workspace cannot have more than %d active properties; archive unused ones first", maxActivePropertiesPerWorkspace)
+		if len(over) > 0 {
+			capErr = fmt.Errorf("a work item type cannot have more than %d active properties; %s is already at the limit — archive unused ones or scope this property to fewer types", maxActivePropertiesPerWorkspace, strings.Join(over, ", "))
 			return capErr
 		}
 		property, err = q.CreateIssueProperty(r.Context(), db.CreateIssuePropertyParams{
@@ -925,8 +951,16 @@ func (h *Handler) SetIssueProperty(w http.ResponseWriter, r *http.Request) {
 	var updated db.Issue
 	var httpStatus int
 	var httpMsg string
+	var httpCode string
 	fail := func(status int, msg string) error {
-		httpStatus, httpMsg = status, msg
+		httpStatus, httpMsg, httpCode = status, msg, ""
+		return errClientRejected
+	}
+	// Same capture, plus a machine-readable code. Clients branch on
+	// `property_not_applicable` to offer "change the issue type" instead of
+	// re-parsing the sentence.
+	failCode := func(status int, code, msg string) error {
+		httpStatus, httpMsg, httpCode = status, msg, code
 		return errClientRejected
 	}
 	err := h.withPropertyLock(r, []string{"prop:" + uuidToString(propertyID)}, func(q *db.Queries) error {
@@ -939,6 +973,22 @@ func (h *Handler) SetIssueProperty(w http.ResponseWriter, r *http.Request) {
 		}
 		if def.ArchivedAt.Valid {
 			return fail(http.StatusBadRequest, fmt.Sprintf("property %q is archived and cannot receive new values", def.Name))
+		}
+		// Applicability (F30). A property scoped to some work item types cannot
+		// receive a value on an issue of another type — or on an untyped one,
+		// which no type list matches. Read inside the property lock so a scope
+		// edit cannot land between this check and the write.
+		//
+		// 409 rather than 400: the payload is well-formed, it is the CURRENT
+		// STATE of the issue that makes the write illegal, and the caller fixes
+		// it by changing the issue's type or the property's scope.
+		scope, err := q.ListIssuePropertyTypeKeys(r.Context(), def.ID)
+		if err != nil {
+			return err
+		}
+		if !propertyAppliesToType(scope, issueTypeKeyOf(issue)) {
+			return failCode(http.StatusConflict, "property_not_applicable",
+				fmt.Sprintf("property %q does not apply to this issue's work item type", def.Name))
 		}
 		value, err := validatePropertyValue(def, req.Value)
 		if err != nil {
@@ -972,6 +1022,10 @@ func (h *Handler) SetIssueProperty(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		if errors.Is(err, errClientRejected) {
+			if httpCode != "" {
+				writeErrorCode(w, httpStatus, httpCode, httpMsg)
+				return
+			}
 			writeError(w, httpStatus, httpMsg)
 			return
 		}

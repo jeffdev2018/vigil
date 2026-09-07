@@ -153,7 +153,8 @@
     "active_count_other": "필터 {{count}}개",
     "in_view": "이미 이 뷰에 포함되어 있습니다",
     "chip_edit": "편집",
-    "chip_save_as": "다른 이름으로 저장"
+    "chip_save_as": "다른 이름으로 저장",
+    "section_type": "유형"
   },
   "display": {
     "tooltip": "보기 설정",
@@ -196,7 +197,9 @@
     "list": "리스트",
     "table": "테이블",
     "gantt": "간트",
-    "swimlane": "스윔레인"
+    "swimlane": "스윔레인",
+    "calendar": "캘린더",
+    "tooltip_calendar": "캘린더 보기"
   },
   "table": {
     "select_all": "표시된 모든 태스크 선택",
@@ -253,7 +256,8 @@
       "created_at": "생성일",
       "updated_at": "수정일",
       "child_progress": "하위 태스크 진행률",
-      "creator": "작성자"
+      "creator": "작성자",
+      "issue_type": "유형"
     },
     "calculation": {
       "label": "계산",
@@ -464,7 +468,10 @@
     "pr_stack_truncated": "{{depth}}단계에서 잘림",
     "pr_stack_cyclic": "의존성 순환: 일부 단계가 숨겨짐",
     "blocker_adr_required": "아키텍처 결정 기록 필요({{count}}개 파일 편집)",
-    "from_meeting": "미팅에서 생성"
+    "from_meeting": "미팅에서 생성",
+    "hidden_properties_other": "숨겨진 속성 ({{count}})",
+    "hidden_properties_hint": "다른 유형에서 입력한 값입니다. 그대로 보관되며 유형을 되돌리면 다시 표시됩니다.",
+    "prop_issue_type": "유형"
   },
   "timeline": {
     "loading": "불러오는 중..."
@@ -1537,5 +1544,21 @@
     "links_title": "공유 링크",
     "links_empty": "아직 링크가 없습니다.",
     "uses_other": "{{count}}회 사용"
+  },
+  "calendar": {
+    "due_date_hint": "이슈는 마감일에 표시됩니다",
+    "empty_month": "이번 달 마감인 이슈가 없습니다.",
+    "more_other": "+{{count}}개 더",
+    "next_month": "다음 달",
+    "previous_month": "이전 달",
+    "today": "오늘"
+  },
+  "issue_types": {
+    "archived_badge": "보관됨",
+    "clear": "유형 해제",
+    "label": "유형",
+    "none": "유형 없음",
+    "search": "유형 검색...",
+    "section": "유형"
   }
 }

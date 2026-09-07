@@ -153,6 +153,11 @@ import type {
   IssueStatusEntry,
   CreateIssueStatusRequest,
   UpdateIssueStatusRequest,
+  ListIssueTypesResponse,
+  IssueTypeEntry,
+  CreateIssueTypeRequest,
+  UpdateIssueTypeRequest,
+  IssueDependencyEdge,
   IssueLabelsResponse,
   LabelResourceType,
   ResourceLabelsResponse,
@@ -667,6 +672,12 @@ import {
   ListLabelsResponseSchema,
   ListIssueStatusesResponseSchema,
   IssueStatusEntrySchema,
+  ListIssueTypesResponseSchema,
+  IssueTypeEntrySchema,
+  EMPTY_ISSUE_TYPE_ENTRY,
+  EMPTY_LIST_ISSUE_TYPES_RESPONSE,
+  ListIssueDependencyEdgesResponseSchema,
+  EMPTY_LIST_ISSUE_DEPENDENCY_EDGES_RESPONSE,
   IssuePropertySchema,
   ListPropertiesResponseSchema,
   IssuePropertiesResponseSchema,
@@ -1262,6 +1273,8 @@ export class ApiClient {
     if (params?.project_id) search.set("project_id", params.project_id);
     if (params?.goal_id) search.set("goal_id", params.goal_id);
     if (params?.cycle_id) search.set("cycle_id", params.cycle_id);
+    // Comma-joined, matching how the server's splitCommaParam reads it (F30).
+    if (params?.issue_type?.length) search.set("issue_type", params.issue_type.join(","));
     if (params?.assignee_filters?.length) {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
@@ -6355,6 +6368,96 @@ export class ApiClient {
     return parseWithFallback(raw, IssueStatusEntrySchema, EMPTY_ISSUE_STATUS_ENTRY, {
       endpoint: "DELETE /api/issue-statuses/{id}",
     });
+  }
+
+  // Work item type catalogue (F30). Reads are open to any workspace member;
+  // the mutations below are owner/admin only and return 403 otherwise.
+  async listIssueTypes(includeArchived = false): Promise<ListIssueTypesResponse> {
+    const query = includeArchived ? "?include_archived=true" : "";
+    const raw = await this.fetch<unknown>(`/api/issue-types${query}`);
+    return parseWithFallback(raw, ListIssueTypesResponseSchema, EMPTY_LIST_ISSUE_TYPES_RESPONSE, {
+      endpoint: "GET /api/issue-types",
+    });
+  }
+
+  async createIssueType(data: CreateIssueTypeRequest): Promise<IssueTypeEntry> {
+    const raw = await this.fetch<unknown>(`/api/issue-types`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, IssueTypeEntrySchema, EMPTY_ISSUE_TYPE_ENTRY, {
+      endpoint: "POST /api/issue-types",
+    });
+  }
+
+  async updateIssueType(id: string, data: UpdateIssueTypeRequest): Promise<IssueTypeEntry> {
+    const raw = await this.fetch<unknown>(`/api/issue-types/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, IssueTypeEntrySchema, EMPTY_ISSUE_TYPE_ENTRY, {
+      endpoint: "PATCH /api/issue-types/{id}",
+    });
+  }
+
+  /**
+   * Rewrites the whole catalogue order in one server-side statement, for the
+   * same reason `reorderIssueStatuses` does: a row rejected mid-sequence would
+   * leave the earlier rows already reordered while the caller sees a failure.
+   */
+  async reorderIssueTypes(ids: string[]): Promise<ListIssueTypesResponse> {
+    const raw = await this.fetch<unknown>(`/api/issue-types/reorder`, {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+    return parseWithFallback(raw, ListIssueTypesResponseSchema, EMPTY_LIST_ISSUE_TYPES_RESPONSE, {
+      endpoint: "PUT /api/issue-types/reorder",
+    });
+  }
+
+  /**
+   * Archives a custom type, retiring it from future assignment. Issues already
+   * on it keep it and keep resolving their label through it. The four system
+   * types return 409.
+   */
+  async archiveIssueType(id: string): Promise<IssueTypeEntry> {
+    const raw = await this.fetch<unknown>(`/api/issue-types/${id}/archive`, { method: "POST" });
+    return parseWithFallback(raw, IssueTypeEntrySchema, EMPTY_ISSUE_TYPE_ENTRY, {
+      endpoint: "POST /api/issue-types/{id}/archive",
+    });
+  }
+
+  /**
+   * Replaces a property's work item type scope. An EMPTY list makes it global
+   * again — which is why this is a PUT of the whole set rather than an
+   * add/remove pair that would make "global" a special case.
+   */
+  async setPropertyTypes(id: string, typeKeys: string[]): Promise<IssueProperty> {
+    const raw = await this.fetch<unknown>(`/api/properties/${id}/types`, {
+      method: "PUT",
+      body: JSON.stringify({ type_keys: typeKeys }),
+    });
+    return parseWithFallback(raw, IssuePropertySchema, EMPTY_ISSUE_PROPERTY, {
+      endpoint: "PUT /api/properties/{id}/types",
+    });
+  }
+
+  /**
+   * Dependency edges among a set of issues (F30 Gantt arrows). POST for a read,
+   * like `queryIssueTable`: a Gantt canvas can hold hundreds of ids, which do
+   * not fit in a query string.
+   */
+  async listIssueDependencyEdges(issueIds: string[]): Promise<IssueDependencyEdge[]> {
+    const raw = await this.fetch<unknown>(`/api/issue-dependencies/bulk`, {
+      method: "POST",
+      body: JSON.stringify({ issue_ids: issueIds }),
+    });
+    return parseWithFallback(
+      raw,
+      ListIssueDependencyEdgesResponseSchema,
+      EMPTY_LIST_ISSUE_DEPENDENCY_EDGES_RESPONSE,
+      { endpoint: "POST /api/issue-dependencies/bulk" },
+    ).dependencies;
   }
 
   // Custom issue properties

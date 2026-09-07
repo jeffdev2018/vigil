@@ -207,6 +207,11 @@ export interface Issue {
   goal_id?: string | null;
   // Dated cycle the issue is planned into (F29). Optional for the same reason.
   cycle_id?: string | null;
+  // Work item type key (F30), or null for an UNTYPED issue — which every
+  // pre-F30 issue is. Optional only for a server that predates the field.
+  // Carries no platform behavior: it groups, it filters, and it decides which
+  // custom properties apply.
+  issue_type?: string | null;
   position: number;
   // Ordered barrier group among sibling sub-issues (null = unstaged). The
   // parent assignee is notified/woken only when every sub-issue in a stage
