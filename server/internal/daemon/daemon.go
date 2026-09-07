@@ -162,6 +162,51 @@ func taskScopedAuthToken(task Task) (string, error) {
 	return token, nil
 }
 
+// shellHookForRun registers the PreToolUse command gate when this run
+// declares a command allowlist and the provider has a hook Multica knows how
+// to install. Everything else — an open allowlist, no profile, another
+// provider — returns nil, and the run behaves exactly as before.
+//
+// The hook is the ONLY place an allowlist can be decided: it receives the
+// command string the CLI is about to run, so chaining and wrapping are visible
+// to it, where a provider permission rule only ever matches a prefix of what
+// the model proposed. See pkg/permissionprofile/shellcommand.go.
+func shellHookForRun(task Task, provider string, logger *slog.Logger) *execenv.ClaudeShellHook {
+	if provider != "claude" || task.Agent == nil || task.Agent.PermissionProfile == nil {
+		return nil
+	}
+	if task.Agent.PermissionProfile.AllowsAnyCommand() {
+		return nil
+	}
+	self, err := resolveSelfExecutable()
+	if err != nil || strings.TrimSpace(self) == "" {
+		// Without a binary to call there is no gate. Say so loudly: the run
+		// continues, but nothing may later report the allowlist as enforced.
+		if logger != nil {
+			logger.Warn("shell command gate not registered: could not resolve the multica binary",
+				"profile", task.Agent.PermissionProfile.Name, "error", err)
+		}
+		return nil
+	}
+	return &execenv.ClaudeShellHook{Command: self}
+}
+
+// hookEnvironment is what `multica hook pre-tool-use` reads. The allowlist
+// travels in the environment rather than over the network on purpose: a
+// PreToolUse hook that times out does NOT block the tool call, so a callback
+// to the daemon on this path would fail open on every slow moment.
+func hookEnvironment(task Task, markerPath string) map[string]string {
+	if markerPath == "" || task.Agent == nil || task.Agent.PermissionProfile == nil {
+		return nil
+	}
+	profile := task.Agent.PermissionProfile
+	return map[string]string{
+		"MULTICA_HOOK_ALLOWED_COMMANDS": strings.Join(profile.AllowedCommands, "\n"),
+		"MULTICA_HOOK_PROFILE":          profile.Name,
+		"MULTICA_HOOK_OBSERVED_FILE":    markerPath,
+	}
+}
+
 func taskMulticaEnvironment(task Task, agentName, token, configRoot, workspacesRoot, serverURL string, healthPort, slot int, tempDir string, portBase, portCount int) map[string]string {
 	env := map[string]string{
 		"MULTICA_TOKEN":        token,
@@ -7916,6 +7961,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			// locked and the directory we use could differ.
 			WorkDir:               priorWorkDir,
 			Provider:              provider,
+			ShellHook:             shellHookForRun(task, provider, taskLog),
 			CodexVersion:          codexVersion,
 			ResumeSessionID:       task.PriorSessionID,
 			OpenclawBin:           openclawBin,
@@ -7967,6 +8013,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			// it implies; preparation must not try to take it again.
 			EnvRootPreclaimed:     true,
 			Provider:              provider,
+			ShellHook:             shellHookForRun(task, provider, taskLog),
 			CodexVersion:          codexVersion,
 			OpenclawBin:           openclawBin,
 			McpConfig:             effectiveMcpConfig,
@@ -8315,6 +8362,25 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, err
 	}
 	agentEnv := taskMulticaEnvironment(task, agentName, agentToken, env.MulticaConfigRoot, d.cfg.WorkspacesRoot, d.cfg.ServerBaseURL, d.cfg.HealthPort, slot, taskTempDir, d.cfg.TaskPortBase, d.cfg.TaskPortCount)
+	for key, value := range hookEnvironment(task, env.ClaudeHookMarkerPath) {
+		agentEnv[key] = value
+	}
+	if env.ClaudeHookMarkerPath != "" {
+		// Report the gate's coverage from what was observed, not from what was
+		// configured. A CLI whose hooks were disabled — by an enterprise
+		// allowManagedHooksOnly, or by a settings source that does not carry
+		// hooks — looks from here exactly like a run that used no shell
+		// command, and only one of those enforced anything.
+		defer func() {
+			if _, err := os.Stat(env.ClaudeHookMarkerPath); err == nil {
+				taskLog.Info("shell command gate observed", "profile", task.Agent.PermissionProfile.Name)
+				return
+			}
+			taskLog.Warn("shell command gate never ran: the run declared an allowlist and no command reached the hook",
+				"profile", task.Agent.PermissionProfile.Name,
+				"note", "either the run used no shell command, or the CLI did not honour the hook")
+		}()
+	}
 	// Approval gates (K05): every git push from this run goes through the
 	// daemon's pre-push hook, which asks the server.
 	if hooksDir, err := ensureGateHooksDir(env.MulticaConfigRoot); err != nil {
