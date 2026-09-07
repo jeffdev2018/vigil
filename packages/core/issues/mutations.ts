@@ -573,6 +573,26 @@ export function useBatchUpdateIssues() {
         }
       }
     },
+    onSuccess: (data, vars) => {
+      // A batch answers 200 even when the server applied only part of it: the
+      // transition rules (F28) and the cycle guard (F29) refuse per issue. The
+      // optimistic pass in onMutate already patched every id, so a refused row
+      // is showing a change that did not happen. onError never fires on a 200,
+      // so the refused ids are re-read from the server here rather than
+      // rolled back from the snapshot — the snapshot would also undo the ids
+      // that DID apply.
+      if (!data.refused || data.refused.length === 0) return;
+      const refusedIds = new Set(data.refused.map((r) => r.issue_id).filter(Boolean));
+      if (refusedIds.size === 0) return;
+      for (const id of refusedIds) {
+        qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, id) });
+      }
+      // The boards carry the patched rows, and only a refetch can tell which of
+      // the N ids kept their old status.
+      qc.invalidateQueries({ queryKey: issueKeys.list(wsId) });
+      qc.invalidateQueries({ queryKey: issueKeys.myAll(wsId) });
+      void vars;
+    },
     onSettled: (_data, _err, _vars, ctx) => {
       // Deliberately NOT invalidating issueKeys.list / myAll here: the onMutate
       // pass above is a complete surgical reconcile for the loaded bucketed

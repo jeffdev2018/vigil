@@ -1821,6 +1821,10 @@ export function TableView({
         }
         return value.parent?.title ?? t(($) => $.table.value_unavailable);
       }
+      // A group kind this build does not know (the schema normalises it rather
+      // than failing the row, MUL-6243). It keeps its key and count, so the
+      // lane renders with a neutral label instead of the board going empty.
+      if (value.kind !== "property") return t(($) => $.table.value_unavailable);
       if (value.value_state === "unset") return t(($) => $.table.no_value);
       if (value.value_state === "unavailable") {
         return t(($) => $.table.value_unavailable);

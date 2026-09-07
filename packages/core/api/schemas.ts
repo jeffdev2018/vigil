@@ -2012,7 +2012,13 @@ const IssueTableParentRefSchema = z.object({
   status: z.string(),
 }).loose();
 
-const IssueTableGroupValueSchema = z.discriminatedUnion("kind", [
+// The group kind is server-driven and the catalogue is open (the facet list
+// below already knows dimensions this union does not). A discriminated union
+// with no fallback would fail one element, then the array, then the whole
+// response through parseWithFallback — an empty grouped board on a client one
+// release behind. The unknown branch keeps the row addressable instead.
+const IssueTableGroupValueSchema = z.union([
+  z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("status"),
     status: z.string(),
@@ -2035,8 +2041,13 @@ const IssueTableGroupValueSchema = z.discriminatedUnion("kind", [
     kind: z.literal("property"),
     property_id: z.string(),
     value: z.union([z.string(), z.boolean(), z.null()]).optional(),
-    value_state: z.enum(["value", "unavailable", "unset"]),
+    value_state: z.enum(["value", "unavailable", "unset"]).catch("value"),
   }).loose(),
+  ]),
+  // A kind this build does not know yet. Normalised to a literal so the union
+  // stays discriminable on the client; the group keeps its key and count, so
+  // the lane renders with a neutral label instead of the board going empty.
+  z.object({ kind: z.string() }).loose().transform(() => ({ kind: "unknown" as const })),
 ]);
 
 const IssueTableGroupDescriptorSchema: z.ZodType<IssueTableGroupDescriptor> = z.lazy(() => z.object({
@@ -2085,13 +2096,38 @@ export const EMPTY_ISSUE_TABLE_ROWS_RESPONSE: IssueTableRowsResponse = {
   next_cursor: null,
 };
 
+/**
+ * A per-issue refusal from a batch update. The endpoint answers 200 with the
+ * applied count and this list, so a caller that reads only `updated` reports a
+ * partial refusal as a clean success. `code` and `reason` are server-driven and
+ * kept lenient on purpose: a refusal reason this build does not know must still
+ * name the issue it refused.
+ */
+export const BatchUpdateRefusalSchema = z.object({
+  issue_id: z.string(),
+  code: z.string().default(""),
+  reason: z.string().default(""),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  rule_id: z.string().optional(),
+  requires_approval: z.boolean().default(false),
+}).loose();
+
+export const BatchUpdateIssuesResponseSchema = z.object({
+  updated: z.number().default(0),
+  refused: z.array(BatchUpdateRefusalSchema).default([]),
+}).loose();
+
+export type BatchUpdateRefusal = z.infer<typeof BatchUpdateRefusalSchema>;
+export type BatchUpdateIssuesResponse = z.infer<typeof BatchUpdateIssuesResponseSchema>;
+
 const IssueTableFacetValueSchema = z.object({
   key: z.string(),
   count: z.number(),
 }).loose();
 
 const IssueTableFacetSchema = z.object({
-  kind: z.enum(["status", "priority", "assignee", "creator", "project", "label", "property", "working_agents"]),
+  kind: z.enum(["status", "priority", "assignee", "creator", "project", "label", "property", "working_agents"]).catch("status"),
   property_id: z.string().optional(),
   values: z.array(IssueTableFacetValueSchema).default([]),
 }).loose();

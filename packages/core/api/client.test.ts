@@ -2736,3 +2736,74 @@ describe("ApiClient run transcript (F03)", () => {
     await expect(client.listTaskActions("t1")).resolves.toEqual([]);
   });
 });
+
+describe("ApiClient batch update refusals", () => {
+  // The endpoint answers 200 even when it applied only part of the batch: the
+  // transition rules (F28) and the cycle guard (F29) refuse per issue. A client
+  // that reads only `updated` reports a partial refusal as a clean success and
+  // leaves the optimistic patch standing on rows the server never moved.
+  const respond = (body: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  it("surfaces the per-issue refusals the server reports alongside the applied count", async () => {
+    respond({
+      updated: 7,
+      refused: [
+        {
+          issue_id: "issue-1",
+          code: "transition_not_allowed",
+          from: "in_progress",
+          to: "done",
+          reason: "no_grant",
+          rule_id: "rule-1",
+        },
+        { issue_id: "issue-2", code: "transition_not_allowed", requires_approval: true },
+      ],
+    });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(
+      ["issue-1", "issue-2"],
+      { status: "done" },
+    );
+
+    expect(result.updated).toBe(7);
+    expect(result.refused).toHaveLength(2);
+    expect(result.refused[0]).toMatchObject({ issue_id: "issue-1", code: "transition_not_allowed" });
+    // requires_approval tells the caller this one would succeed on its own, as a
+    // single update that opens the 202 approval flow a batch deliberately skips.
+    expect(result.refused[1].requires_approval).toBe(true);
+    expect(result.refused[0].requires_approval).toBe(false);
+  });
+
+  it("defaults refused to empty when an older backend omits it", async () => {
+    respond({ updated: 3 });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(["a"], {
+      status: "done",
+    });
+
+    expect(result).toEqual({ updated: 3, refused: [] });
+  });
+
+  it("keeps a refusal whose code this build does not know", async () => {
+    respond({ updated: 0, refused: [{ issue_id: "issue-9", code: "some_future_guard" }] });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(["issue-9"], {
+      status: "done",
+    });
+
+    // The row must survive: naming the refused issue matters more than
+    // recognising why, and a strict code would have dropped the whole list.
+    expect(result.refused).toEqual([
+      { issue_id: "issue-9", code: "some_future_guard", reason: "", requires_approval: false },
+    ]);
+  });
+});

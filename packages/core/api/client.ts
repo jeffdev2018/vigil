@@ -336,6 +336,7 @@ import { type Logger, noopLogger } from "../logger";
 import { createRequestId, createSafeId } from "../utils";
 import { getCurrentSlug } from "../platform/workspace-storage";
 import { parseWithFallback } from "./schema";
+import { BatchUpdateIssuesResponseSchema, type BatchUpdateIssuesResponse } from "./schemas";
 import {
   parseDaemonImportPreview,
   parseDaemonImportResult,
@@ -2442,11 +2443,17 @@ export class ApiClient {
     });
   }
 
-  async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<{ updated: number }> {
-    return this.fetch("/api/issues/batch-update", {
+  async batchUpdateIssues(issueIds: string[], updates: UpdateIssueRequest): Promise<BatchUpdateIssuesResponse> {
+    // The server answers 200 even when it applied only some of the batch: the
+    // transition rules (F28) and the cycle guard (F29) refuse per issue and
+    // report each one in `refused`. Parsing it here is what lets the caller
+    // roll those rows back and say so — an unparsed `{updated}` made a partial
+    // refusal look like a complete success.
+    const raw = await this.fetch<unknown>("/api/issues/batch-update", {
       method: "POST",
       body: JSON.stringify({ issue_ids: issueIds, updates }),
     });
+    return parseWithFallback(raw, BatchUpdateIssuesResponseSchema, { updated: 0, refused: [] } as BatchUpdateIssuesResponse, { endpoint: "batchUpdateIssues" });
   }
 
   async batchDeleteIssues(issueIds: string[]): Promise<{ deleted: number }> {
