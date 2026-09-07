@@ -792,6 +792,11 @@ func main() {
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
 		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
 	}
+	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
+	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
+	if err := schedulerMgr.Register(scheduler.NativeAgentTickJob(h.NativeAgents.Tick)); err != nil {
+		slog.Warn("scheduler: failed to register native_agent_tick job", "error", err)
+	}
 	// Code health autopilot (K22): one scheduled read-only maintenance scan per
 	// enabled workspace. Inert while every workspace leaves it disabled.
 	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
