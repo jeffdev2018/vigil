@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uq_epic_artifact_project_kind_version;

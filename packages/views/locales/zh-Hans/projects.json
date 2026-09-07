@@ -248,5 +248,49 @@
     "removed": "已删除镜像链接，已生成的镜像会保留。",
     "remove_failed": "删除镜像链接失败",
     "unknown_project": "已删除的项目"
+  },
+  "epic": {
+    "section": "史诗",
+    "description": "依次撰写 PRD、技术方案、线框图和工单拆分。每一步通过后，下一步才会开放。",
+    "no_repo_warning": "本项目没有仓库资源，生成方案时没有代码可读。添加后效果更好。",
+    "steps": {
+      "prd": "PRD",
+      "tech_plan": "技术方案",
+      "wireframe": "线框图",
+      "tickets": "工单"
+    },
+    "state": {
+      "empty": "未开始",
+      "generating": "撰写中",
+      "draft": "草稿",
+      "approved": "已通过",
+      "superseded": "已被取代",
+      "unknown": "无法识别的状态"
+    },
+    "locked_explanation": "请先通过“{{step}}”这一步。",
+    "empty": "还没有内容。",
+    "generating_hint": "智能体正在撰写这一步。",
+    "generate": "生成",
+    "regenerate": "重新生成",
+    "generation_started": "运行已开始",
+    "generate_failed": "运行启动失败",
+    "edit": "编辑",
+    "edit_label": "步骤内容",
+    "save": "存为新草稿",
+    "cancel": "取消",
+    "saved": "已存为新草稿",
+    "saved_reopened": "已存为新草稿，后续 {{count}} 步退回为已被取代。",
+    "save_failed": "保存步骤失败",
+    "approve": "通过",
+    "approved": "已通过该步骤",
+    "approve_failed": "通过该步骤失败",
+    "apply": "应用工单",
+    "applied": "已创建 {{count}} 个问题",
+    "apply_failed": "应用工单失败",
+    "all_applied": "本次拆分的工单都已创建为问题。",
+    "ticket_title": "标题",
+    "ticket_description": "说明",
+    "ticket_depends_on": "依赖",
+    "version_badge": "v{{version}}"
   }
 }

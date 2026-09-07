@@ -250,5 +250,49 @@
     "removed": "Mirror link removed. Existing mirrors are kept.",
     "remove_failed": "Failed to remove the mirror link",
     "unknown_project": "Deleted project"
+  },
+  "epic": {
+    "section": "Epic",
+    "description": "Write the PRD, then the technical plan, then the wireframe, then the ticket breakdown. Each step is approved before the next one opens.",
+    "no_repo_warning": "This project has no repository resource, so a generated plan has no code to read. Add one for a better result.",
+    "steps": {
+      "prd": "PRD",
+      "tech_plan": "Technical plan",
+      "wireframe": "Wireframe",
+      "tickets": "Tickets"
+    },
+    "state": {
+      "empty": "Not started",
+      "generating": "Writing",
+      "draft": "Draft",
+      "approved": "Approved",
+      "superseded": "Superseded",
+      "unknown": "Unrecognised"
+    },
+    "locked_explanation": "Approve the {{step}} step first.",
+    "empty": "Nothing written yet.",
+    "generating_hint": "An agent is writing this step.",
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "generation_started": "The run has started",
+    "generate_failed": "Failed to start the run",
+    "edit": "Edit",
+    "edit_label": "Step content",
+    "save": "Save as a new draft",
+    "cancel": "Cancel",
+    "saved": "Saved as a new draft",
+    "saved_reopened": "Saved as a new draft. {{count}} later step(s) went back to superseded.",
+    "save_failed": "Failed to save the step",
+    "approve": "Approve",
+    "approved": "Step approved",
+    "approve_failed": "Failed to approve the step",
+    "apply": "Apply the tickets",
+    "applied": "{{count}} issue(s) created",
+    "apply_failed": "Failed to apply the tickets",
+    "all_applied": "Every ticket in this breakdown is already an issue.",
+    "ticket_title": "Title",
+    "ticket_description": "Description",
+    "ticket_depends_on": "Depends on",
+    "version_badge": "v{{version}}"
   }
 }

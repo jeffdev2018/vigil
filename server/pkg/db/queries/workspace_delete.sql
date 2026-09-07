@@ -767,3 +767,7 @@ WHERE issue_plan.workspace_id = $1;
 -- name: DeleteWorkspaceIssueDecisions :exec
 DELETE FROM issue_decision
 WHERE issue_decision.workspace_id = $1;
+
+-- name: DeleteWorkspaceEpicArtifacts :exec
+DELETE FROM epic_artifact
+WHERE epic_artifact.workspace_id = $1;

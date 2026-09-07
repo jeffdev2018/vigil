@@ -2669,6 +2669,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/mirror-links", h.ListProjectMirrorLinks)
 					r.Post("/mirror-links", h.CreateProjectMirrorLink)
 					r.Delete("/mirror-links/{linkId}", h.DeleteProjectMirrorLink)
+					// Epic Mode (F18): PRD -> tech plan -> wireframe -> tickets.
+					// `apply` takes {kind} rather than a literal `tickets`
+					// segment so a static child cannot shadow `{kind}` in the
+					// router's trie; the handler rejects any other step.
+					r.Get("/epic", h.GetProjectEpic)
+					r.Post("/epic/steps/{kind}/generate", h.GenerateProjectEpicStep)
+					r.Put("/epic/steps/{kind}", h.PutProjectEpicStep)
+					r.Post("/epic/steps/{kind}/approve", h.ApproveProjectEpicStep)
+					r.Post("/epic/steps/{kind}/apply", h.ApplyProjectEpicTickets)
 				})
 			})
 

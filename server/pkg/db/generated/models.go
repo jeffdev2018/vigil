@@ -1073,6 +1073,26 @@ type DocDriftProposal struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+// Versioned project artifact for Epic Mode (F18): prd -> tech_plan -> wireframe -> tickets, one row per publication. A row with empty content and a generated_by_task_id is an in-flight generation claim. No FK by house rule.
+type EpicArtifact struct {
+	ID                pgtype.UUID        `json:"id"`
+	WorkspaceID       pgtype.UUID        `json:"workspace_id"`
+	ProjectID         pgtype.UUID        `json:"project_id"`
+	Kind              string             `json:"kind"`
+	Version           int32              `json:"version"`
+	Content           string             `json:"content"`
+	Payload           []byte             `json:"payload"`
+	State             string             `json:"state"`
+	EpicIssueID       pgtype.UUID        `json:"epic_issue_id"`
+	GeneratedByTaskID pgtype.UUID        `json:"generated_by_task_id"`
+	ApprovedBy        pgtype.UUID        `json:"approved_by"`
+	ApprovedAt        pgtype.Timestamptz `json:"approved_at"`
+	AuthorType        string             `json:"author_type"`
+	AuthorID          pgtype.UUID        `json:"author_id"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type EvalCase struct {
 	ID                pgtype.UUID        `json:"id"`
 	WorkspaceID       pgtype.UUID        `json:"workspace_id"`

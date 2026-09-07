@@ -248,5 +248,49 @@
     "removed": "ミラーリンクを削除しました。作成済みのミラーは残ります。",
     "remove_failed": "ミラーリンクの削除に失敗しました",
     "unknown_project": "削除されたプロジェクト"
+  },
+  "epic": {
+    "section": "エピック",
+    "description": "PRD、技術計画、ワイヤーフレーム、チケット分解の順に作成します。各ステップは承認されてから次のステップが開きます。",
+    "no_repo_warning": "このプロジェクトにはリポジトリリソースがないため、生成される計画が読めるコードがありません。追加するとより良い結果になります。",
+    "steps": {
+      "prd": "PRD",
+      "tech_plan": "技術計画",
+      "wireframe": "ワイヤーフレーム",
+      "tickets": "チケット"
+    },
+    "state": {
+      "empty": "未着手",
+      "generating": "作成中",
+      "draft": "下書き",
+      "approved": "承認済み",
+      "superseded": "置き換え済み",
+      "unknown": "不明な状態"
+    },
+    "locked_explanation": "先に{{step}}ステップを承認してください。",
+    "empty": "まだ何も書かれていません。",
+    "generating_hint": "エージェントがこのステップを作成しています。",
+    "generate": "生成",
+    "regenerate": "再生成",
+    "generation_started": "実行を開始しました",
+    "generate_failed": "実行の開始に失敗しました",
+    "edit": "編集",
+    "edit_label": "ステップの内容",
+    "save": "新しい下書きとして保存",
+    "cancel": "キャンセル",
+    "saved": "新しい下書きとして保存しました",
+    "saved_reopened": "新しい下書きとして保存しました。後続の{{count}}件のステップが置き換え済みに戻りました。",
+    "save_failed": "ステップの保存に失敗しました",
+    "approve": "承認",
+    "approved": "ステップを承認しました",
+    "approve_failed": "ステップの承認に失敗しました",
+    "apply": "チケットを適用",
+    "applied": "{{count}}件のイシューを作成しました",
+    "apply_failed": "チケットの適用に失敗しました",
+    "all_applied": "この分解のチケットはすべてイシューになっています。",
+    "ticket_title": "タイトル",
+    "ticket_description": "説明",
+    "ticket_depends_on": "依存先",
+    "version_badge": "v{{version}}"
   }
 }

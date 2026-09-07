@@ -250,5 +250,49 @@
     "removed": "Lien miroir supprimé. Les miroirs existants sont conservés.",
     "remove_failed": "Échec de la suppression du lien miroir",
     "unknown_project": "Projet supprimé"
+  },
+  "epic": {
+    "section": "Épopée",
+    "description": "Rédigez le PRD, puis le plan technique, puis le wireframe, puis le découpage en tickets. Chaque étape doit être validée avant que la suivante s'ouvre.",
+    "no_repo_warning": "Ce projet n'a aucune ressource de dépôt : le plan généré n'a donc aucun code à lire. En ajouter une donne un meilleur résultat.",
+    "steps": {
+      "prd": "PRD",
+      "tech_plan": "Plan technique",
+      "wireframe": "Wireframe",
+      "tickets": "Tickets"
+    },
+    "state": {
+      "empty": "Pas commencé",
+      "generating": "Rédaction en cours",
+      "draft": "Brouillon",
+      "approved": "Validé",
+      "superseded": "Remplacé",
+      "unknown": "État inconnu"
+    },
+    "locked_explanation": "Validez d'abord l'étape {{step}}.",
+    "empty": "Rien de rédigé pour l'instant.",
+    "generating_hint": "Un agent rédige cette étape.",
+    "generate": "Générer",
+    "regenerate": "Regénérer",
+    "generation_started": "L'exécution a démarré",
+    "generate_failed": "Impossible de démarrer l'exécution",
+    "edit": "Modifier",
+    "edit_label": "Contenu de l'étape",
+    "save": "Enregistrer comme nouveau brouillon",
+    "cancel": "Annuler",
+    "saved": "Enregistré comme nouveau brouillon",
+    "saved_reopened": "Enregistré comme nouveau brouillon. {{count}} étape(s) suivante(s) repassent en remplacé.",
+    "save_failed": "Impossible d'enregistrer l'étape",
+    "approve": "Valider",
+    "approved": "Étape validée",
+    "approve_failed": "Impossible de valider l'étape",
+    "apply": "Appliquer les tickets",
+    "applied": "{{count}} issue(s) créée(s)",
+    "apply_failed": "Impossible d'appliquer les tickets",
+    "all_applied": "Tous les tickets de ce découpage sont déjà des issues.",
+    "ticket_title": "Titre",
+    "ticket_description": "Description",
+    "ticket_depends_on": "Dépend de",
+    "version_badge": "v{{version}}"
   }
 }

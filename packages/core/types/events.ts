@@ -103,6 +103,9 @@ export type WSEventType =
   | "pull_request:updated"
   | "pull_request:unlinked"
   | "pr_walkthrough:updated"
+  | "epic_artifact:updated"
+  | "epic_artifact:approved"
+  | "epic_artifact:failed"
   | "review_flag:changed"
   | "meeting:created"
   | "meeting:updated"
@@ -849,6 +852,9 @@ export interface WSEventPayloadMap {
   "pull_request:updated": unknown;
   "pull_request:unlinked": unknown;
   "pr_walkthrough:updated": unknown;
+  "epic_artifact:updated": unknown;
+  "epic_artifact:approved": unknown;
+  "epic_artifact:failed": unknown;
   "review_flag:changed": unknown;
   "meeting:created": MeetingEventPayload;
   "meeting:updated": MeetingEventPayload;

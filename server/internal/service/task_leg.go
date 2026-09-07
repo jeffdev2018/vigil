@@ -37,6 +37,12 @@ const (
 	// LegRolePrWalkthrough (F05) narrates someone else's diff, so it is
 	// review-like: it must not count as a sample of the worker's task class.
 	LegRolePrWalkthrough = "pr_walkthrough"
+	// LegRoleEpicStep (F18) writes one artifact of a project's epic pipeline
+	// — a PRD, a tech plan, a wireframe, a ticket breakdown. Like a
+	// walkthrough it produces a document about work rather than attempting
+	// the work, so it is review-like and must not feed the routing statistics
+	// as a sample of the host issue's task class.
+	LegRoleEpicStep = "epic_step"
 )
 
 // WorkflowRoot is the run every leg of parent's workflow points at: parent's

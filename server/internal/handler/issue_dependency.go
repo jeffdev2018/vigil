@@ -129,22 +129,15 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if storedType == dependencyBlocks {
-		// "from blocks to" closes a loop when `to` already blocks `from`,
-		// directly or through the chain below it.
-		stack, err := h.Queries.ListIssueDependencyStack(ctx, db.ListIssueDependencyStackParams{
-			IssueID:  to.ID,
-			MaxDepth: issueDependencyStackDepth,
-		})
+		cycles, err := h.blockingEdgeWouldCycle(ctx, from.ID, to.ID)
 		if err != nil {
 			slog.Warn("issue dependency cycle check failed", append(logger.RequestAttrs(r), "error", err)...)
 			writeError(w, http.StatusInternalServerError, "failed to check dependency cycle")
 			return
 		}
-		for _, s := range stack {
-			if s.IssueID == from.ID {
-				writeError(w, http.StatusConflict, "dependency would create a cycle")
-				return
-			}
+		if cycles {
+			writeError(w, http.StatusConflict, "dependency would create a cycle")
+			return
 		}
 	}
 
@@ -202,6 +195,31 @@ func (h *Handler) DeleteIssueDependency(w http.ResponseWriter, r *http.Request) 
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
 	h.publishIssueDependencyChange(r, actorType, actorID, issue.WorkspaceID, issue.ID, other)
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// blockingEdgeWouldCycle reports whether adding "from blocks to" closes a loop:
+// it does when `to` already blocks `from`, directly or through the chain below
+// it. Shared by the dependency endpoint and by Epic Mode's ticket apply (F18),
+// which links generated tickets with the same edge type and must refuse the
+// same cycles — a check that lived only in the handler body would have let the
+// second caller create what the first one rejects.
+func (h *Handler) blockingEdgeWouldCycle(ctx context.Context, from, to pgtype.UUID) (bool, error) {
+	if from == to {
+		return true, nil
+	}
+	stack, err := h.Queries.ListIssueDependencyStack(ctx, db.ListIssueDependencyStackParams{
+		IssueID:  to,
+		MaxDepth: issueDependencyStackDepth,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, s := range stack {
+		if s.IssueID == from {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 func (h *Handler) issueDependencyExists(ctx context.Context, from, to pgtype.UUID, depType string) bool {
