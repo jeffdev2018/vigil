@@ -182,5 +182,24 @@
     },
     "empty_title": "暂无工作流数据",
     "empty_body": "工作流会随着运行的积累不断学习 — 选择器积累足够历史后,结果会显示在这里。"
+  },
+  "insights": {
+    "title": "洞察",
+    "ask": "提问",
+    "asking": "读取中…",
+    "ask_label": "就此工作区提问",
+    "ask_placeholder": "有多少议题被阻塞超过 5 天？",
+    "pin": "固定",
+    "retry": "重试",
+    "value": "数值",
+    "no_rows": "没有符合该问题的数据。",
+    "no_widgets": "尚未固定任何内容。先在上方提问，再固定答案。",
+    "no_question": "未记录问题。",
+    "error_failed": "无法将该问题转换为查询。请重新表述后再试。",
+    "error_timeout": "该问题耗时过长。请缩小时间范围或分组。",
+    "too_many_series": "共 {{count}} 个类别 — 以表格显示。",
+    "move_up": "上移",
+    "move_down": "下移",
+    "remove": "删除"
   }
 }

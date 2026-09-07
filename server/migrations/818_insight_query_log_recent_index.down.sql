@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_insight_query_log_workspace_recent;

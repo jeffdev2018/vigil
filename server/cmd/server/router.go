@@ -2310,6 +2310,19 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/unarchive", h.UnarchiveWorkspaceNote)
 				})
 			})
+			// Insights (F27): ask a question in plain language, run a saved
+			// document, pin it. /ask needs the assist layer; /run never does,
+			// which is what makes a pinned widget refresh without a model.
+			r.Route("/api/insights", func(r chi.Router) {
+				r.Post("/ask", h.AskInsight)
+				r.Post("/run", h.RunInsight)
+				r.Route("/widgets", func(r chi.Router) {
+					r.Get("/", h.ListInsightWidgets)
+					r.Post("/", h.CreateInsightWidget)
+					r.Patch("/{id}", h.UpdateInsightWidget)
+					r.Delete("/{id}", h.DeleteInsightWidget)
+				})
+			})
 			r.Route("/api/postmortems", func(r chi.Router) {
 				r.Get("/", h.GetPostmortems)
 				r.Get("/stats", h.GetPostmortemsStats)

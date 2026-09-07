@@ -362,6 +362,22 @@ import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSetti
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
+import {
+  InsightAskResponseSchema,
+  InsightRunResponseSchema,
+  InsightWidgetSchema,
+  InsightWidgetListSchema,
+  EMPTY_INSIGHT_ASK_RESPONSE,
+  EMPTY_INSIGHT_RUN_RESPONSE,
+  EMPTY_INSIGHT_WIDGET,
+  EMPTY_INSIGHT_WIDGETS,
+  type CreateInsightWidgetInput,
+  type InsightAskResponse,
+  type InsightQuery,
+  type InsightRunResponse,
+  type InsightWidget,
+  type UpdateInsightWidgetInput,
+} from "../insights/schemas";
 import { ReviewFlagSchema, ReviewFlagListSchema, EMPTY_REVIEW_FLAG_LIST, type ReviewFlag, type ReviewFlagFilter, type ReviewFlagList, type ReviewFlagState } from "../review-flags/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
@@ -2364,6 +2380,85 @@ export class ApiClient {
     );
     return parseWithFallback<Postmortem | null>(raw, PostmortemSchema, null, {
       endpoint: "POST /api/postmortems/:id/discard",
+    });
+  }
+
+  // Insights (F27). `ask` costs a model call and returns the document it
+  // produced so the client can pin it; `run` executes a document with no model
+  // at all, which is what every pinned widget calls to refresh.
+  async askInsight(
+    question: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<InsightAskResponse> {
+    const raw = await this.fetch<unknown>("/api/insights/ask", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return parseWithFallback<InsightAskResponse>(
+      raw,
+      InsightAskResponseSchema,
+      EMPTY_INSIGHT_ASK_RESPONSE,
+      { endpoint: "POST /api/insights/ask" },
+    );
+  }
+
+  async runInsight(
+    query: InsightQuery,
+    options?: { signal?: AbortSignal },
+  ): Promise<InsightRunResponse> {
+    const raw = await this.fetch<unknown>("/api/insights/run", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return parseWithFallback<InsightRunResponse>(
+      raw,
+      InsightRunResponseSchema,
+      EMPTY_INSIGHT_RUN_RESPONSE,
+      { endpoint: "POST /api/insights/run" },
+    );
+  }
+
+  async listInsightWidgets(options?: { signal?: AbortSignal }): Promise<InsightWidget[]> {
+    const raw = await this.fetch<unknown>(
+      "/api/insights/widgets",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<InsightWidget[]>(
+      raw,
+      InsightWidgetListSchema,
+      EMPTY_INSIGHT_WIDGETS,
+      { endpoint: "GET /api/insights/widgets" },
+    );
+  }
+
+  async createInsightWidget(input: CreateInsightWidgetInput): Promise<InsightWidget> {
+    const raw = await this.fetch<unknown>("/api/insights/widgets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<InsightWidget>(raw, InsightWidgetSchema, EMPTY_INSIGHT_WIDGET, {
+      endpoint: "POST /api/insights/widgets",
+    });
+  }
+
+  async updateInsightWidget(
+    id: string,
+    input: UpdateInsightWidgetInput,
+  ): Promise<InsightWidget> {
+    const raw = await this.fetch<unknown>(`/api/insights/widgets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<InsightWidget>(raw, InsightWidgetSchema, EMPTY_INSIGHT_WIDGET, {
+      endpoint: "PATCH /api/insights/widgets/:id",
+    });
+  }
+
+  async deleteInsightWidget(id: string): Promise<void> {
+    await this.fetch<void>(`/api/insights/widgets/${encodeURIComponent(id)}`, {
+      method: "DELETE",
     });
   }
 

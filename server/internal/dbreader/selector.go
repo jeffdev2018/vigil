@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -31,6 +32,7 @@ var (
 	BusinessDashboard        = Business{label: "dashboard"}
 	BusinessDaemonWorkspaces = Business{label: "daemon_workspaces"}
 	BusinessGitHubPRRefresh  = Business{label: "github_pr_refresh"}
+	BusinessInsight          = Business{label: "insight"}
 	businessUnknown          = Business{label: "unknown"}
 )
 
@@ -68,13 +70,34 @@ type Recorder interface {
 // Selector keeps primary as the safe default. Existing handlers continue to
 // use their primary *db.Queries directly; an eventual-consistency read must
 // explicitly use Read, which owns replica selection, fallback, and recovery.
+// TxStarter opens one transaction on a pool. The insight compiler produces
+// dynamic SQL, which no sqlc handle can carry, and its transaction-local
+// statement_timeout / transaction_read_only settings need a transaction — so
+// routing that read still has to happen here, in the one place that owns
+// replica selection, rather than in a handler that would reimplement the
+// circuit.
+type TxStarter interface {
+	Begin(ctx context.Context) (pgx.Tx, error)
+}
+
 type Selector struct {
-	primary  *db.Queries
-	replica  *db.Queries
-	recorder Recorder
-	logger   *slog.Logger
-	now      func() time.Time
-	circuit  replicaCircuit
+	primary   *db.Queries
+	replica   *db.Queries
+	primaryTx TxStarter
+	replicaTx TxStarter
+	recorder  Recorder
+	logger    *slog.Logger
+	now       func() time.Time
+	circuit   replicaCircuit
+}
+
+// SetTxStarters attaches the pools behind the primary and replica handles.
+// Optional: a Selector with no tx starters simply refuses ReadTx, and every
+// sqlc-based Read keeps working. replica may be nil, which routes every ReadTx
+// to primary under ReasonReplicaDisabled.
+func (s *Selector) SetTxStarters(primary, replica TxStarter) {
+	s.primaryTx = primary
+	s.replicaTx = replica
 }
 
 type replicaCircuit struct {
@@ -86,6 +109,7 @@ type replicaCircuit struct {
 
 type selection struct {
 	queries    *db.Queries
+	tx         TxStarter
 	role       Role
 	reason     Reason
 	generation uint64
@@ -165,36 +189,51 @@ func Read[T any](
 }
 
 func (s *Selector) selectForRead(business Business, consistency Consistency) selection {
+	return s.route(business, consistency, s.replica != nil)
+}
+
+func (s *Selector) selectTxForRead(business Business, consistency Consistency) selection {
+	return s.route(business, consistency, s.replicaTx != nil)
+}
+
+// route decides the role and records the routing metric. replicaAvailable is
+// per-handle: a deployment may have a replica pool for raw SQL and none for
+// sqlc, or the reverse, and a caller must never be routed to a nil handle.
+func (s *Selector) route(business Business, consistency Consistency, replicaAvailable bool) selection {
 	if consistency != EventualConsistency {
-		return s.route(business, s.primary, RolePrimary, ReasonStrongConsistency, 0, false)
+		return s.selected(business, RolePrimary, ReasonStrongConsistency, 0, false)
 	}
-	if s.replica == nil {
-		return s.route(business, s.primary, RolePrimary, ReasonReplicaDisabled, 0, false)
+	if !replicaAvailable {
+		return s.selected(business, RolePrimary, ReasonReplicaDisabled, 0, false)
 	}
 
 	allowed, generation, halfOpen := s.circuit.allow(s.now())
 	if !allowed {
-		return s.route(business, s.primary, RolePrimary, ReasonCircuitOpen, generation, false)
+		return s.selected(business, RolePrimary, ReasonCircuitOpen, generation, false)
 	}
-	return s.route(business, s.replica, RoleReplica, ReasonReplicaSelected, generation, halfOpen)
+	return s.selected(business, RoleReplica, ReasonReplicaSelected, generation, halfOpen)
 }
 
-func (s *Selector) route(
+func (s *Selector) selected(
 	business Business,
-	queries *db.Queries,
 	role Role,
 	reason Reason,
 	generation uint64,
 	halfOpen bool,
 ) selection {
 	s.recordRoute(business, role, reason)
-	return selection{
-		queries:    queries,
+	sel := selection{
 		role:       role,
 		reason:     reason,
 		generation: generation,
 		halfOpen:   halfOpen,
 	}
+	if role == RoleReplica {
+		sel.queries, sel.tx = s.replica, s.replicaTx
+	} else {
+		sel.queries, sel.tx = s.primary, s.primaryTx
+	}
+	return sel
 }
 
 func (s *Selector) recordRoute(business Business, role Role, reason Reason) {
@@ -359,4 +398,81 @@ func (c *replicaCircuit) abandonTrial(generation uint64, now time.Time, cooldown
 	c.generation++
 	c.openUntil = now.Add(cooldown)
 	c.halfOpenInFlight = false
+}
+
+// ErrNoTxStarter is returned when ReadTx is called on a Selector whose pools
+// were never attached. It is a wiring bug, not a runtime condition: it means
+// SetTxStarters was not called at boot.
+var ErrNoTxStarter = errors.New("dbreader: no transaction starter configured")
+
+// ReadTx is Read's raw-SQL sibling. It runs one explicitly idempotent read
+// inside a transaction on the selected role, with the same replica selection,
+// circuit accounting and single primary retry.
+//
+// fn must be safe to run twice: on a replica connection failure the whole
+// transaction is retried on primary, exactly as Read retries its query. fn owns
+// nothing but the reads it issues — begin, rollback and commit belong here, so
+// a caller cannot leave a connection dirty.
+func ReadTx(
+	ctx context.Context,
+	selector *Selector,
+	business Business,
+	consistency Consistency,
+	fn func(context.Context, pgx.Tx) error,
+) error {
+	if selector == nil || selector.primaryTx == nil {
+		return ErrNoTxStarter
+	}
+	selected := selector.selectTxForRead(business, consistency)
+	if selected.halfOpen {
+		defer selector.circuit.releaseTrial(selected.generation)
+	}
+	err := runInTx(ctx, selected.tx, fn)
+	if selected.role != RoleReplica {
+		return err
+	}
+	if err == nil {
+		selector.replicaSucceeded(selected)
+		return nil
+	}
+
+	decision := fallbackFor(ctx, err)
+	if !decision.retry {
+		selector.replicaDidNotProveAvailability(selected, err)
+		return err
+	}
+	if decision.openCircuit {
+		selector.replicaFailed(selected, decision.reason, err)
+	} else {
+		selector.replicaSucceeded(selected)
+	}
+
+	selector.recordRoute(business, RolePrimary, decision.reason)
+	return runInTx(ctx, selector.primaryTx, fn)
+}
+
+func runInTx(ctx context.Context, starter TxStarter, fn func(context.Context, pgx.Tx) error) error {
+	if starter == nil {
+		return ErrNoTxStarter
+	}
+	tx, err := starter.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			// Fresh context so a caller cancellation still returns a clean
+			// connection to the pool.
+			_ = tx.Rollback(context.Background())
+		}
+	}()
+	if err := fn(ctx, tx); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
