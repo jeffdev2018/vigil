@@ -89,6 +89,11 @@ export interface Comment {
   // keys off the id rather than a dedicated `type`, because `type` is
   // client-supplied on the generic comment endpoint and would be forgeable.
   quick_action_id?: string | null;
+  // Agent-to-agent message intent (F19): question | review | handoff. Written
+  // only by POST /issues/{id}/agent-messages — the generic comment endpoint has
+  // no field for it — so the chip it drives cannot be forged. A free string: an
+  // intent this build cannot label renders as an ordinary comment.
+  a2a_intent?: string | null;
   // Per-target result of every explicit @agent / @squad mention in this comment
   // (MUL-4525 §2). Present only on create/edit responses; older servers omit it.
   trigger_outcomes?: CommentTriggerOutcome[];

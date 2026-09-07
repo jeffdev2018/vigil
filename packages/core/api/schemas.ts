@@ -1105,6 +1105,9 @@ const TimelineEntrySchema = z.object({
   updated_at: z.string().optional(),
   revision: z.number().int().positive().optional(),
   comment_type: z.string().optional(),
+  // Agent-to-agent message intent (F19). Same free-string contract as
+  // CommentSchema.a2a_intent.
+  a2a_intent: z.string().nullish(),
   reactions: z.array(ReactionSchema).optional(),
   attachments: z.array(AttachmentSchema).optional(),
   source_task_id: z.string().nullable().optional(),
@@ -1218,6 +1221,12 @@ export const CommentSchema = z.object({
   source_task_id: z.string().nullable().optional(),
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
+  // Agent-to-agent message intent (F19): question | review | handoff. Server-only
+  // — POST /comments has no field for it, which is what makes the chip
+  // unforgeable. A FREE STRING with a `default` branch downstream, not an enum:
+  // the column has no CHECK, so a value this build cannot label must render as
+  // an ordinary comment rather than fail the whole comment's parse.
+  a2a_intent: z.string().nullish(),
   // Diff anchor (F07). `nullish` rather than required: a backend that predates
   // the feature omits it entirely, and the thread must still render.
   anchor: CommentAnchorSchema.nullish().catch(null),

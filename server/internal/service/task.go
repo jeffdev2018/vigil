@@ -1553,6 +1553,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		TriggerEvidenceRefID: attrEvidenceRef,
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
+		// A2A hop distance (F19): 0 unless the trigger comment is an
+		// agent-to-agent message, in which case it is the sending run's depth + 1.
+		A2aDepth: s.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID),
 		// Cascade escalation (JEF-272): lands under context.escalation.
 		Escalation:  escalationJSON,
 		Workflow:    pgtype.Text{String: workflow, Valid: true},
@@ -1779,6 +1782,11 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 			TriggerEvidenceRefID: attrEvidenceRef,
 			TaskClass:            stamp.TaskClass,
 			Routing:              stamp.Routing,
+			// A2A hop distance (F19): 0 unless the trigger comment is an
+			// agent-to-agent message, in which case it is the sending run's
+			// depth + 1. This is the funnel an @mention goes through, so it is
+			// the one the agent-messages endpoint actually lands in.
+			A2aDepth: s.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID),
 			// Stamp the reviewed head so dedup can distinguish this run's target
 			// from a later request against a new HEAD (TEN-356).
 			HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -7057,7 +7065,13 @@ func (s *TaskService) dispatchDelegatedFailureRecovery(ctx context.Context, targ
 			RuleVersionID:        ruleVersionID,
 			TriggerEvidenceKind:  pgtype.Text{String: string(attribution.EvidenceDelegatedFailure), Valid: true},
 			TriggerEvidenceRefID: target.failed.ID,
-			HeadSha:              headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
+			// A2A hop distance (F19). Carried over from the DELEGATING run, not
+			// recomputed: the trigger here is a system-authored recovery comment
+			// with no a2a_intent, so deriving it would reset an A2A chain to 0 and
+			// hide the recovery run from the per-issue budget. Same depth rather
+			// than +1 — this re-runs the hop that failed, it is not a new one.
+			A2aDepth: pgtype.Int4{Int32: target.source.A2aDepth, Valid: true},
+			HeadSha:  headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
 		})
 		if err == nil {
 			slog.Info("delegated failure recovery task enqueued",

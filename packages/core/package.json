@@ -102,6 +102,7 @@
     "./search/why": "./search/why.ts",
     "./workspace/business-rules": "./workspace/business-rules.ts",
     "./issues/timeline-sort": "./issues/timeline-sort.ts",
+    "./issues/a2a-message": "./issues/a2a-message.ts",
     "./issues/comment-trigger-outcomes": "./issues/comment-trigger-outcomes.ts",
     "./issues/date": "./issues/date.ts",
     "./issues/ws-updaters": "./issues/ws-updaters.ts",

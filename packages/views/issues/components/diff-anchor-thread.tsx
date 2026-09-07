@@ -55,6 +55,7 @@ function toTimelineEntry(comment: Comment): TimelineEntry {
     content: comment.content,
     comment_type: comment.type,
     quick_action_id: comment.quick_action_id,
+    a2a_intent: comment.a2a_intent,
     parent_id: comment.parent_id,
     created_at: comment.created_at,
     updated_at: comment.updated_at,

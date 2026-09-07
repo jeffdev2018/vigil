@@ -76,7 +76,7 @@ func (q *Queries) DeleteWorkspaceCorrectionSignals(ctx context.Context, workspac
 }
 
 const getLatestAgentCommentBefore = `-- name: GetLatestAgentCommentBefore :one
-SELECT id, issue_id, author_type, author_id, content, type, created_at, updated_at, parent_id, workspace_id, resolved_at, resolved_by_type, resolved_by_id, source_task_id, quick_action_id, via_plugin_id, revision, recovery_settled_at, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id FROM comment
+SELECT id, issue_id, author_type, author_id, content, type, created_at, updated_at, parent_id, workspace_id, resolved_at, resolved_by_type, resolved_by_id, source_task_id, quick_action_id, via_plugin_id, revision, recovery_settled_at, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id, a2a_intent FROM comment
 WHERE issue_id = $1 AND author_type = 'agent' AND type = 'comment' AND created_at < $2::timestamptz
 ORDER BY created_at DESC LIMIT 1
 `
@@ -118,6 +118,7 @@ func (q *Queries) GetLatestAgentCommentBefore(ctx context.Context, arg GetLatest
 		&i.AnchorLineEnd,
 		&i.AnchorSide,
 		&i.AnchorReviewFlagID,
+		&i.A2aIntent,
 	)
 	return i, err
 }

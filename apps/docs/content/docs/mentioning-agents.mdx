@@ -72,6 +72,21 @@ An @-mention cannot bypass an agent's Access. When you lack permission to run th
 
 Agents can @-mention other agents in their replies. When A @-mentions B and B @-mentions A back, the system merges duplicate runs at the same moment, but it does not decide when the collaboration should end — write the stop condition into the agent instructions.
 
+An agent can also state **why** it is writing, with `multica issue ask-agent`:
+
+```bash
+multica issue ask-agent MUL-42 --to Reviewer --intent review --body "The migration is ready"
+```
+
+The intent is one of `question`, `review` or `handoff`, and the message posts as an ordinary comment on the issue — so you read the exchange in the timeline like any other discussion, with a chip saying who was asked and what for. A `handoff` does **not** reassign the issue: it asks the other agent to take the work on, and the assignee only changes if that agent assigns it to itself.
+
+Two limits stop a conversation that will not end on its own:
+
+- **Chain length.** Each agent-to-agent message is one step further from the person who started the chain. Past four steps the message is refused and the agent is told to report back instead of forwarding again.
+- **Per-issue rate.** An issue accepts at most 20 agent-to-agent messages per hour. Beyond that they are refused until the hour rolls over.
+
+Both refusals are visible in the timeline, and neither is a permission error — the agent was allowed to write, the exchange had simply run long. Permission itself is unchanged: an agent can only ask an agent that **you** — the person at the head of the chain — could have triggered yourself.
+
 ## Next steps
 
 - [Comments](/comments) — replies, resolving discussions, notifications, and subscriptions.

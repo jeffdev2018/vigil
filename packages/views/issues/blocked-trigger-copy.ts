@@ -23,6 +23,11 @@ import type { useT } from "../i18n";
 // sends the user to reconnect something that is already connected. The fix is a
 // reinstall on that machine, and the system comment the server leaves on the
 // issue carries the exact command.
+// `a2a_depth_exceeded` and `a2a_budget_exceeded` (F19) are the two circuit
+// breakers on agent-to-agent messaging, and they are NOT permission verdicts:
+// the target was invocable, the chain was simply too long or the issue too busy.
+// Their copy must not read like a permission error, or a person will go auditing
+// agent visibility settings over a rate limit that clears on its own.
 type IssuesT = ReturnType<typeof useT<"issues">>["t"];
 
 // Full sentence — for tooltips and other surfaces with room to explain.
@@ -40,6 +45,10 @@ export function blockedReasonLabel(reasonCode: string, t: IssuesT): string {
       return t(($) => $.comment.trigger_blocked_agent_runtime_required);
     case "budget_exceeded":
       return t(($) => $.comment.trigger_blocked_budget_exceeded);
+    case "a2a_depth_exceeded":
+      return t(($) => $.comment.trigger_blocked_a2a_depth_exceeded);
+    case "a2a_budget_exceeded":
+      return t(($) => $.comment.trigger_blocked_a2a_budget_exceeded);
     default:
       return t(($) => $.comment.trigger_blocked_generic);
   }
@@ -61,6 +70,10 @@ export function blockedShortReasonLabel(reasonCode: string, t: IssuesT): string 
       return t(($) => $.comment.trigger_blocked_short_agent_runtime_required);
     case "budget_exceeded":
       return t(($) => $.comment.trigger_blocked_short_budget_exceeded);
+    case "a2a_depth_exceeded":
+      return t(($) => $.comment.trigger_blocked_short_a2a_depth_exceeded);
+    case "a2a_budget_exceeded":
+      return t(($) => $.comment.trigger_blocked_short_a2a_budget_exceeded);
     default:
       return t(($) => $.comment.trigger_blocked_short_generic);
   }

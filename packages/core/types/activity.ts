@@ -27,6 +27,13 @@ export interface TimelineEntry {
   comment_type?: string;
   /** Set only on comments a quick action produced (MUL-5465). Unforgeable. */
   quick_action_id?: string | null;
+  /**
+   * Agent-to-agent message intent (F19): question | review | handoff. Written
+   * only by POST /issues/{id}/agent-messages, so it cannot be forged through the
+   * comment endpoint. Typed as a free string: an intent this build cannot label
+   * renders as an ordinary comment.
+   */
+  a2a_intent?: string | null;
   reactions?: Reaction[];
   attachments?: Attachment[];
   resolved_at?: string | null;

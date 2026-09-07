@@ -60,6 +60,18 @@ const (
 	// success: nothing new runs. (Named to avoid implying the NEW comment was
 	// already processed.)
 	ReasonSelfTriggerSuppressed ReasonCode = "self_trigger_suppressed"
+	// ReasonA2ADepthExceeded: an agent-to-agent message would have enqueued a run
+	// further from the human at the head of the chain than MaxA2ADepth allows
+	// (F19). This is the SHORT-loop breaker — two agents handing work back and
+	// forth stop here — and it is a circuit breaker, never a permission verdict:
+	// canInvokeAgent already said yes, the chain is simply too long.
+	ReasonA2ADepthExceeded ReasonCode = "a2a_depth_exceeded"
+	// ReasonA2ABudgetExceeded: this issue has already absorbed
+	// MaxA2ARunsPerIssuePerHour agent-to-agent runs inside the budget window
+	// (F19). This is the WIDE-loop breaker, the one depth cannot see: a chain
+	// that leaves the issue and comes back through a human trigger restarts at
+	// depth 0, so only a rate on the issue itself catches it.
+	ReasonA2ABudgetExceeded ReasonCode = "a2a_budget_exceeded"
 	// ReasonQuotaExceeded is a policy-neutral refusal for an exhausted
 	// Cloud-provided autopilot interval.
 	ReasonQuotaExceeded ReasonCode = "quota_exceeded"

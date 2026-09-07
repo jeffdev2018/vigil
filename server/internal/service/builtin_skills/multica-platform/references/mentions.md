@@ -11,6 +11,7 @@ that and do not re-derive it here.
 - [@all is the broadcast type](#all-is-the-broadcast-type)
 - [What does NOT happen](#what-does-not-happen)
 - [Who the invoke gate judges](#who-the-invoke-gate-judges)
+- [Saying WHY: `issue ask-agent`](#saying-why-issue-ask-agent)
 - [Incorrect to correct](#incorrect-to-correct)
 
 ## A mention link is built from a real UUID
@@ -194,6 +195,49 @@ editing an agent's comment — CLEARS it. So editing an old autopilot comment fr
 an unrelated issue, or an admin editing an agent's comment (manage rights, not
 invoke rights), fails closed at the deferred completion-reconcile instead of
 reusing the original run's authority.
+
+## Saying WHY: `issue ask-agent`
+
+A bare `@mention` wakes another agent but says nothing about what you want from
+it. `multica issue ask-agent` says it:
+
+```bash
+multica issue ask-agent <issue-id> --to <agent-name-or-id> --intent review \
+  --body "The migration is ready; check 828-830 against the index policy"
+```
+
+`--intent` is `question`, `review` or `handoff`. The server composes the mention
+markup itself from `--to`, so the intent and the agent it addresses can never
+disagree, and posts the result as an ORDINARY comment on the issue: same
+timeline, same thread, same trigger path as anything you write by hand. Do not
+paste `mention://` markup into `--body` — the server already put it there.
+
+`handoff` REASSIGNS NOTHING. It asks the other agent to take the work on. If it
+accepts, IT calls `multica issue assign`; the issue's assignee is unchanged until
+that happens. Do not report a handoff as a transfer of ownership.
+
+Two circuit breakers refuse a message before it is written, so a refusal leaves
+NO comment behind:
+
+- `429 a2a_depth_exceeded` — the chain is already 4 hops from the human who
+  started it. Do not retry, and do not route around it by posting a plain
+  `@mention` instead: report back to your own caller and stop.
+- `429 a2a_budget_exceeded` — this issue has taken 20 agent-to-agent runs inside
+  the last hour. Wait or write a plain comment; the window slides.
+
+Other refusals: `403 invocation_not_allowed` (the human at the top of your chain
+may not invoke that agent, OR the id names nothing here — deliberately the same
+answer, so you cannot enumerate private agents by trying ids), `409` (your own
+run is already terminal — a finished run cannot send), `400` (unknown intent,
+empty body, or addressing yourself).
+
+Both limits are deployment-tunable (`MULTICA_A2A_MAX_DEPTH`,
+`MULTICA_A2A_MAX_RUNS_PER_ISSUE_PER_HOUR`), so do not hard-code 4 and 20 into
+your reasoning — read the refusal, not the number.
+
+The permission gate is EXACTLY the `@mention` gate above: judged by the human at
+the top of your chain, never by you. An agent you cannot `@mention` is an agent
+you cannot `ask-agent`.
 
 ## Incorrect to correct
 

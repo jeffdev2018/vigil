@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2 } from "lucide-react";
 import type { TimelineEntry } from "@multica/core/types";
+import { knownA2AIntent } from "@multica/core/issues/a2a-message";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { cn } from "@multica/ui/lib/utils";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
@@ -182,12 +183,20 @@ function MinimapTick({
   label,
   inViewport,
   isHighlighted,
+  isAgentMessage,
   onClick,
 }: {
   label: string;
   inViewport: boolean;
   /** The corresponding outline row is active. */
   isHighlighted: boolean;
+  /**
+   * The thread opens on an agent-to-agent message (F19). Tinted rather than
+   * badged: the rail's whole job is to answer "where am I" at a glance, and a
+   * second glyph at 12x2px would be noise. The tint is a hint, never the only
+   * carrier — the outline row and the card both name the intent in words.
+   */
+  isAgentMessage: boolean;
   onClick: React.MouseEventHandler<HTMLButtonElement>;
 }) {
   return (
@@ -211,6 +220,10 @@ function MinimapTick({
           // pointer samples and as the settle on leave.
           "h-0.5 w-3 origin-right rounded-full transition-[scale,background-color] duration-100 ease-out",
           inViewport ? "bg-foreground/70" : "bg-muted-foreground/30",
+          // Agent-to-agent threads keep the viewport/out-of-viewport contrast —
+          // the tint replaces the color at each level rather than flattening the
+          // two into one, so the rail still reads as a position indicator first.
+          isAgentMessage && (inViewport ? "bg-brand/70" : "bg-brand/30"),
           !isHighlighted && "group-hover/tick:bg-foreground",
           // CSS floor states for when no inline wave value is present:
           // the open card's tick stays grown while the pointer rests on the
@@ -463,6 +476,7 @@ export function ThreadMinimap({
               }
               inViewport={visibleIds.has(thread.id)}
               isHighlighted={preview?.index === i}
+              isAgentMessage={knownA2AIntent(thread.entry.a2a_intent) !== null}
               onClick={(event) => handleJump(thread.id, event)}
             />
           );

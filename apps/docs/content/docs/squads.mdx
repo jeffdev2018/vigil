@@ -76,6 +76,8 @@ Dedup applies on top of these rules: if the leader already has a `queued` or `di
 
 @-mentioning a specific member directly hands the work to that member. Multica also dedupes repeated triggers and prevents the leader's comments from re-triggering itself, avoiding execution loops.
 
+A leader delegating with `multica issue ask-agent --intent handoff` asks a member to take the work on; it does not move the assignee by itself. The member assigns the issue to itself if it accepts. Agent-to-agent messages are also bounded — four steps from the person who started the chain, and 20 per issue per hour — so a squad conversation cannot run away on its own; see [agents mentioning each other](/mentioning-agents#agents-mentioning-each-other).
+
 ## Squads and Access
 
 Adding an agent to a squad does not bypass its [Access](/agents#permissions-and-access). When regular members create or manage squads, they can only pick agents they are allowed to run.

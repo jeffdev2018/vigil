@@ -3268,6 +3268,29 @@ describe("CommentAnchorSchema", () => {
     expect(parsed.anchor_stale).toBe(false);
   });
 
+  // Agent-to-agent messages (F19). a2a_intent is a FREE STRING on the wire with
+  // no CHECK behind it, so the schema must accept anything and let the renderer
+  // decide — an unknown intent that failed the parse would take the whole
+  // comment down with it.
+  it("keeps an agent-to-agent intent, and tolerates one it has never seen", () => {
+    const base = {
+      id: "c1",
+      issue_id: "i1",
+      author_type: "agent",
+      author_id: "a1",
+      content: "[@Bob](mention://agent/a2)\n\nplease review",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    expect(CommentSchema.parse({ ...base, a2a_intent: "review" }).a2a_intent).toBe("review");
+    // A newer backend's value, and a backend that predates the column.
+    expect(CommentSchema.parse({ ...base, a2a_intent: "escalation" }).a2a_intent).toBe("escalation");
+    expect(CommentSchema.parse({ ...base, a2a_intent: null }).a2a_intent).toBeNull();
+    expect(CommentSchema.parse(base).a2a_intent ?? null).toBeNull();
+  });
+
   it("survives an anchor that is not an object at all", () => {
     const parsed = CommentSchema.parse({
       id: "c1",

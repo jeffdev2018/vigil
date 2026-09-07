@@ -2147,6 +2147,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/comments/trigger-preview", h.PreviewCommentTriggers)
 					r.Post("/comments", h.CreateComment)
 					r.Get("/comments", h.ListComments)
+					// Agent-to-agent messaging (F19). Next to /comments because
+					// that is what it writes, and deliberately WITHOUT
+					// RequireHumanActor: the caller is an agent speaking from a
+					// live run. Authorization is still canInvokeAgent, judged by
+					// the human at the head of that run's chain.
+					r.Post("/agent-messages", h.SendAgentMessage)
 					r.Get("/timeline", h.ListTimeline)
 					r.Get("/subscribers", h.ListIssueSubscribers)
 					r.Post("/subscribe", h.SubscribeToIssue)
