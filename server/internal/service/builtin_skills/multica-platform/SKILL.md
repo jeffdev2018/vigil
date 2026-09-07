@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, projects, cycles, epics, runtimes, run previews, skill import, goals, triage, undo. Not for product code."
+description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, goals, triage, undo."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -27,6 +27,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |
 | `references/autopilots.md` | Autopilots: schedule / webhook / manual triggers, `create_issue` vs `run_only`, why one did not fire |
+| `references/daemon-markdown.md` | A daemon declared as a `DAEMON.md` file: the frontmatter schema, importing and exporting one, and the execution memory a daemon keeps between its runs |
 | `references/projects.md` | Projects and their durable resources (`github_repo`, `local_directory`, worktree mode) |
 | `references/cycles.md` | Planning an issue into a dated cycle: which cycle it may join, what the capacity and burndown numbers mean, what rollover does at the end |
 | `references/issue-types.md` | Classifying an issue: what a work item type is and is not, which custom properties a type carries, what changing a type does to the values already on the issue |

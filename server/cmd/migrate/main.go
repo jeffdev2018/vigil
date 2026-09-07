@@ -442,6 +442,7 @@ var concurrentIndexCleanups = map[string]string{
 	"798_issue_issue_type_index":                                "idx_issue_issue_type",
 	"800_issue_dependency_unique_index":                         "uq_issue_dependency_edge",
 	"801_issue_property_type_index":                             "idx_issue_property_type_workspace_key",
+	"811_autopilot_memory_workspace_index":                      "idx_autopilot_memory_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

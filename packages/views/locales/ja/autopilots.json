@@ -541,5 +541,52 @@
       "confirm": "完全に削除",
       "deleting": "削除中…"
     }
+  },
+  "daemon_import": {
+    "open": "DAEMON.md をインポート",
+    "title": "デーモンをインポート",
+    "description": "DAEMON.md はオートパイロットをファイルとして宣言します。誰が実行し、いつ発火し、毎回どのスキルを読むかを記述します。同じファイルを二度インポートしても何も変わりません。",
+    "drop_hint": "DAEMON.md をここにドロップするか、下に貼り付けてください",
+    "choose_file": "ファイルを選択",
+    "placeholder": "---\nname: 夜間トリアージ\nrole: 受信キューを仕分けしてラベルを付ける。\nagent: Nova\ntriggers:\n  - kind: schedule\n    cron: \"0 9 * * *\"\n---\n",
+    "textarea_label": "DAEMON.md の内容",
+    "checking": "宣言を確認しています...",
+    "errors_title": "この宣言に {{count}} 件の問題があります",
+    "line_prefix": "{{line}} 行目",
+    "field_name": "名前",
+    "field_agent": "エージェント",
+    "field_outputs": "出力",
+    "field_role": "役割",
+    "agent_unknown": "このワークスペースにその名前のエージェントはありません",
+    "triggers_title": "トリガー",
+    "next_runs_title": "次回の実行",
+    "next_runs_unknown": "プレビューできませんでした",
+    "body_title": "エージェントが読むスキル",
+    "unchanged": "このデーモンはすでにこのファイルと一致しています。インポートしても何も変わりません。",
+    "strategy_title": "同じ名前のデーモンがすでに存在します",
+    "strategy": {
+      "fail": "中止",
+      "overwrite": "置き換える",
+      "rename": "両方を残す"
+    },
+    "strategy_hint": {
+      "fail": "何も書き込まれません。ファイル内でデーモン名を変更するか、別の方法を選んでください。",
+      "overwrite": "既存のデーモンがこのファイルの構成になります。宣言されなくなったトリガーは発火しなくなります。",
+      "rename": "接尾辞付きの名前で 2 つ目のデーモンを作成します。既存のものはそのままです。"
+    },
+    "cancel": "キャンセル",
+    "submit": "インポート",
+    "preview_failed": "宣言を確認できませんでした。",
+    "import_failed": "デーモンをインポートできませんでした。",
+    "read_failed": "そのファイルを読み取れませんでした。"
+  },
+  "memory": {
+    "section_title": "メモリー",
+    "export_button": "DAEMON.md をエクスポート",
+    "empty_title": "メモリーはまだありません",
+    "empty_hint": "このデーモンの実行が、次の実行に必要なことを書き込みます。",
+    "updated_at": "更新 {{at}}",
+    "last_run": "最終実行 {{at}}",
+    "read_only": "実行が書き込みます。ここでは編集できません"
   }
 }

@@ -453,6 +453,8 @@ type Autopilot struct {
 	ProjectID          pgtype.UUID        `json:"project_id"`
 	PauseReason        pgtype.Text        `json:"pause_reason"`
 	BatchEligible      bool               `json:"batch_eligible"`
+	SourceMarkdown     pgtype.Text        `json:"source_markdown"`
+	SourceDigest       pgtype.Text        `json:"source_digest"`
 }
 
 type AutopilotCollaborator struct {
@@ -461,6 +463,16 @@ type AutopilotCollaborator struct {
 	UserID      pgtype.UUID        `json:"user_id"`
 	GrantedBy   pgtype.UUID        `json:"granted_by"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+// F24: one execution-memory document per autopilot, rewritten by its runs and re-injected into every following brief as DATA. revision is the If-Match token. No FK by house rule.
+type AutopilotMemory struct {
+	AutopilotID     pgtype.UUID        `json:"autopilot_id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	Content         string             `json:"content"`
+	Revision        int32              `json:"revision"`
+	UpdatedByTaskID pgtype.UUID        `json:"updated_by_task_id"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
 }
 
 type AutopilotQuotaPeriod struct {

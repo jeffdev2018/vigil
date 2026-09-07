@@ -2604,6 +2604,26 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		resp.Agent.Memories = contents
 		resp.Agent.MemoryStates = states
 	}
+	// Daemon execution memory (F24) rides the SAME assembly point as agent
+	// memory above, deliberately: there is one place a brief is built, and a
+	// second channel would drift from it. Same non-blocking contract too.
+	// The scope differs — this hangs off the autopilot that started the run,
+	// so an agent serving several daemons never carries one's notes into
+	// another's run — and so does the labelling: the daemon renders it under a
+	// heading that says it is DATA the run may not treat as instructions.
+	if task.AutopilotRunID.Valid {
+		if memory, err := h.Queries.GetAutopilotMemoryForRun(r.Context(), db.GetAutopilotMemoryForRunParams{
+			ID:          task.AutopilotRunID,
+			WorkspaceID: agent.WorkspaceID,
+		}); err != nil {
+			if !errors.Is(err, pgx.ErrNoRows) {
+				slog.Warn("daemon claim: load autopilot memory failed; continuing without it",
+					"task_id", uuidToString(task.ID), "run_id", uuidToString(task.AutopilotRunID), "error", err)
+			}
+		} else if strings.TrimSpace(memory.Content) != "" {
+			resp.AutopilotMemory = memory.Content
+		}
+	}
 	// Workspace Brain notes ride the same assembly point and the same
 	// non-blocking contract: the shared knowledge base is briefing context,
 	// so a failed read costs the run its Workspace Knowledge section, never

@@ -141,6 +141,11 @@ type Task struct {
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.
 	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	// AutopilotMemory mirrors handler.AgentTaskResponse.AutopilotMemory: the
+	// execution memory of the daemon that started this run (F24 / JEF-15).
+	// Empty when the run has no autopilot, when the memory is empty, and on
+	// older servers.
+	AutopilotMemory string `json:"autopilot_memory,omitempty"`
 	// RepoIndexHints mirrors handler.AgentTaskResponse.RepoIndexHints (K47):
 	// the shared repo index's best matches for this issue, rendered into the
 	// brief's orientation section. RepoIndexEnabled names the repositories the

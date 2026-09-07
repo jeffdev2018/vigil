@@ -249,7 +249,7 @@ func (q *Queries) GetAgentByNameForImport(ctx context.Context, arg GetAgentByNam
 }
 
 const getAutopilotByTitleForImport = `-- name: GetAutopilotByTitleForImport :one
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible FROM autopilot WHERE workspace_id = $1 AND title = $2 AND status <> 'archived' LIMIT 1
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot WHERE workspace_id = $1 AND title = $2 AND status <> 'archived' LIMIT 1
 `
 
 type GetAutopilotByTitleForImportParams struct {
@@ -278,6 +278,8 @@ func (q *Queries) GetAutopilotByTitleForImport(ctx context.Context, arg GetAutop
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
@@ -481,7 +483,7 @@ func (q *Queries) GetWorkspaceTransferRun(ctx context.Context, id pgtype.UUID) (
 }
 
 const listAutopilotsForExport = `-- name: ListAutopilotsForExport :many
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible FROM autopilot WHERE workspace_id = $1 AND status <> 'archived' ORDER BY created_at ASC
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot WHERE workspace_id = $1 AND status <> 'archived' ORDER BY created_at ASC
 `
 
 func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtype.UUID) ([]Autopilot, error) {
@@ -511,6 +513,8 @@ func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtyp
 			&i.ProjectID,
 			&i.PauseReason,
 			&i.BatchEligible,
+			&i.SourceMarkdown,
+			&i.SourceDigest,
 		); err != nil {
 			return nil, err
 		}

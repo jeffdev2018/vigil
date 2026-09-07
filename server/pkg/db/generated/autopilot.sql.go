@@ -115,7 +115,7 @@ INSERT INTO autopilot (
     $1, $2, $10, $3, $4,
     $5, $6, $11, $12,
     $7, $8, $9
-) RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible
+) RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest
 `
 
 type CreateAutopilotParams struct {
@@ -167,6 +167,8 @@ func (q *Queries) CreateAutopilot(ctx context.Context, arg CreateAutopilotParams
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
@@ -750,7 +752,7 @@ func (q *Queries) GetActiveAutopilotRuleVersion(ctx context.Context, arg GetActi
 }
 
 const getAutopilot = `-- name: GetAutopilot :one
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible FROM autopilot
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot
 WHERE id = $1
 `
 
@@ -775,12 +777,14 @@ func (q *Queries) GetAutopilot(ctx context.Context, id pgtype.UUID) (Autopilot, 
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
 
 const getAutopilotInWorkspace = `-- name: GetAutopilotInWorkspace :one
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible FROM autopilot
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot
 WHERE id = $1 AND workspace_id = $2
 `
 
@@ -810,6 +814,8 @@ func (q *Queries) GetAutopilotInWorkspace(ctx context.Context, arg GetAutopilotI
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
@@ -1513,7 +1519,7 @@ func (q *Queries) ListAutopilotTriggers(ctx context.Context, autopilotID pgtype.
 const listAutopilots = `-- name: ListAutopilots :many
 
 SELECT
-  a.id, a.workspace_id, a.title, a.description, a.assignee_id, a.status, a.execution_mode, a.issue_title_template, a.created_by_type, a.created_by_id, a.last_run_at, a.created_at, a.updated_at, a.assignee_type, a.project_id, a.pause_reason, a.batch_eligible,
+  a.id, a.workspace_id, a.title, a.description, a.assignee_id, a.status, a.execution_mode, a.issue_title_template, a.created_by_type, a.created_by_id, a.last_run_at, a.created_at, a.updated_at, a.assignee_type, a.project_id, a.pause_reason, a.batch_eligible, a.source_markdown, a.source_digest,
   (
     SELECT array_agg(DISTINCT t.kind ORDER BY t.kind)
     FROM autopilot_trigger t
@@ -1588,6 +1594,8 @@ func (q *Queries) ListAutopilots(ctx context.Context, arg ListAutopilotsParams) 
 			&i.Autopilot.ProjectID,
 			&i.Autopilot.PauseReason,
 			&i.Autopilot.BatchEligible,
+			&i.Autopilot.SourceMarkdown,
+			&i.Autopilot.SourceDigest,
 			&i.TriggerKinds,
 			&i.NextRunAt,
 			&i.LastRunStatus,
@@ -1677,7 +1685,7 @@ func (q *Queries) ListSchedulableAutopilotTriggers(ctx context.Context) ([]ListS
 }
 
 const lockAutopilotForUpdate = `-- name: LockAutopilotForUpdate :one
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible FROM autopilot
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot
 WHERE id = $1 AND workspace_id = $2
 FOR UPDATE
 `
@@ -1711,6 +1719,8 @@ func (q *Queries) LockAutopilotForUpdate(ctx context.Context, arg LockAutopilotF
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
@@ -1733,7 +1743,7 @@ WHERE a.status = 'active'
       )
     )
   )
-RETURNING a.id, a.workspace_id, a.title, a.description, a.assignee_id, a.status, a.execution_mode, a.issue_title_template, a.created_by_type, a.created_by_id, a.last_run_at, a.created_at, a.updated_at, a.assignee_type, a.project_id, a.pause_reason, a.batch_eligible
+RETURNING a.id, a.workspace_id, a.title, a.description, a.assignee_id, a.status, a.execution_mode, a.issue_title_template, a.created_by_type, a.created_by_id, a.last_run_at, a.created_at, a.updated_at, a.assignee_type, a.project_id, a.pause_reason, a.batch_eligible, a.source_markdown, a.source_digest
 `
 
 // A runtime delete is a persistent admission failure, not a per-tick event.
@@ -1767,6 +1777,8 @@ func (q *Queries) PauseAutopilotsByUnboundAgents(ctx context.Context, agentIds [
 			&i.ProjectID,
 			&i.PauseReason,
 			&i.BatchEligible,
+			&i.SourceMarkdown,
+			&i.SourceDigest,
 		); err != nil {
 			return nil, err
 		}
@@ -1786,7 +1798,7 @@ SET status = 'paused',
 WHERE status = 'active'
   AND assignee_type = 'squad'
   AND assignee_id = $1
-RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible
+RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest
 `
 
 // Rotating a squad to an already-unbound leader has the same persistent
@@ -1819,6 +1831,8 @@ func (q *Queries) PauseAutopilotsByUnrunnableSquad(ctx context.Context, squadID 
 			&i.ProjectID,
 			&i.PauseReason,
 			&i.BatchEligible,
+			&i.SourceMarkdown,
+			&i.SourceDigest,
 		); err != nil {
 			return nil, err
 		}
@@ -2026,6 +2040,51 @@ func (q *Queries) SelectAutopilotsExceedingFailureThreshold(ctx context.Context,
 	return items, nil
 }
 
+const setAutopilotSource = `-- name: SetAutopilotSource :one
+UPDATE autopilot SET
+    source_markdown = $2,
+    source_digest = $3,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest
+`
+
+type SetAutopilotSourceParams struct {
+	ID             pgtype.UUID `json:"id"`
+	SourceMarkdown pgtype.Text `json:"source_markdown"`
+	SourceDigest   pgtype.Text `json:"source_digest"`
+}
+
+// Records the DAEMON.md an autopilot was imported from and its digest. Called
+// only when the import actually changed something: an identical re-import is
+// short-circuited on the digest before any write, so updated_at stays put.
+func (q *Queries) SetAutopilotSource(ctx context.Context, arg SetAutopilotSourceParams) (Autopilot, error) {
+	row := q.db.QueryRow(ctx, setAutopilotSource, arg.ID, arg.SourceMarkdown, arg.SourceDigest)
+	var i Autopilot
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Title,
+		&i.Description,
+		&i.AssigneeID,
+		&i.Status,
+		&i.ExecutionMode,
+		&i.IssueTitleTemplate,
+		&i.CreatedByType,
+		&i.CreatedByID,
+		&i.LastRunAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AssigneeType,
+		&i.ProjectID,
+		&i.PauseReason,
+		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
+	)
+	return i, err
+}
+
 const setAutopilotTriggerPublisher = `-- name: SetAutopilotTriggerPublisher :exec
 UPDATE autopilot_trigger
 SET published_by_type = $2, published_by_id = $3, updated_at = now()
@@ -2173,7 +2232,7 @@ const systemPauseAutopilot = `-- name: SystemPauseAutopilot :one
 UPDATE autopilot
 SET status = 'paused', pause_reason = $2, updated_at = now()
 WHERE id = $1 AND status = 'active'
-RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible
+RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest
 `
 
 type SystemPauseAutopilotParams struct {
@@ -2207,6 +2266,8 @@ func (q *Queries) SystemPauseAutopilot(ctx context.Context, arg SystemPauseAutop
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
@@ -2248,7 +2309,7 @@ UPDATE autopilot SET
     project_id = $10,
     updated_at = now()
 WHERE id = $1
-RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible
+RETURNING id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest
 `
 
 type UpdateAutopilotParams struct {
@@ -2296,6 +2357,8 @@ func (q *Queries) UpdateAutopilot(ctx context.Context, arg UpdateAutopilotParams
 		&i.ProjectID,
 		&i.PauseReason,
 		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }

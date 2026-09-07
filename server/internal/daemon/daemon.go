@@ -7414,6 +7414,7 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		AgentInstructions:                instructions,
 		AgentMemories:                    memories,
 		WorkspaceNotes:                   task.WorkspaceNotes,
+		AutopilotMemory:                  task.AutopilotMemory,
 		RepoIndexHints:                   task.RepoIndexHints,
 		AgentSkills:                      convertSkillsForEnv(skills),
 		DisabledRuntimeSkills:            convertDisabledRuntimeSkillsForEnv(task.Agent, task.RuntimeID, provider),
