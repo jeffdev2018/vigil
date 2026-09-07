@@ -952,7 +952,7 @@
     "profiles_denied_paths": "Chemins d'accès refusés",
     "profiles_denied_paths_description": "Globs que l'exécution ne peut ni lire, ni modifier, ni pusher, séparés par des virgules. Exemple : .env, infra/**",
     "profiles_allowed_commands": "Commandes autorisées",
-    "profiles_allowed_commands_description": "Commandes que le modèle est autorisé à exécuter ; * signifie n'importe quelle commande.",
+    "profiles_allowed_commands_description": "Commandes que le modèle est informé qu'il peut exécuter ; rien ne le vérifie. * signifie n'importe quelle commande.",
     "profiles_hidden_secrets": "Secrets masqués",
     "profiles_hidden_secrets_description": "Clés d'environnement non communiquées à l'exécution, sous forme de globs. Exemple : *PROD*, *_PASSWORD",
     "profiles_failed": "Échec de la mise à jour du profil de permission.",

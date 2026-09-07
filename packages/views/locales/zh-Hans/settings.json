@@ -918,7 +918,7 @@
     "profiles_denied_paths": "禁止路径",
     "profiles_denied_paths_description": "运行不得读取、编辑或推送的 glob，逗号分隔。示例：.env, infra/**",
     "profiles_allowed_commands": "允许命令",
-    "profiles_allowed_commands_description": "告知模型可运行的命令；* 表示不限。",
+    "profiles_allowed_commands_description": "告知模型可运行的命令；并不强制执行。* 表示不限。",
     "profiles_hidden_secrets": "隐藏密钥",
     "profiles_hidden_secrets_description": "不传给运行的环境变量键（glob）。示例：*PROD*, *_PASSWORD",
     "profiles_failed": "更新权限配置失败",

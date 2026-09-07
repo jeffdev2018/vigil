@@ -918,7 +918,7 @@
     "profiles_denied_paths": "禁止パス",
     "profiles_denied_paths_description": "実行が読み取り・編集・push できないグロブ（カンマ区切り）。例: .env, infra/**",
     "profiles_allowed_commands": "許可コマンド",
-    "profiles_allowed_commands_description": "モデルに実行を許可すると伝えるコマンド。* は何でも可。",
+    "profiles_allowed_commands_description": "モデルに実行を許可すると伝えるコマンド。強制はされません。* は何でも可。",
     "profiles_hidden_secrets": "秘匿シークレット",
     "profiles_hidden_secrets_description": "実行に渡さない環境変数キー（グロブ）。例: *PROD*, *_PASSWORD",
     "profiles_failed": "権限プロファイルを更新できませんでした",
