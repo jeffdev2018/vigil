@@ -211,6 +211,7 @@ func daemonCommonCapabilities() []string {
 		protocol.DaemonCapabilityRPCV1,
 		protocol.DaemonCapabilityPlatformSkillV1,
 		protocol.DaemonCapabilityWorktreeRevertV1,
+		protocol.DaemonCapabilityRunPreviewV1,
 	}
 }
 
@@ -460,6 +461,47 @@ func (c *Client) StartTask(ctx context.Context, taskID, sandboxRequested, sandbo
 // reason is a no-op once the row is already waiting_local_directory (the
 // underlying SQL filters on status='dispatched', so the second call is a
 // 400 the daemon swallows and proceeds to wait).
+// RunPreviewReport is what the daemon tells the server about a run's dev
+// server (F12). Error carries the reason a preview could not start, tail of the
+// run script's log included — it is the only thing that says what to fix.
+type RunPreviewReport struct {
+	Port       int    `json:"port"`
+	Scheme     string `json:"scheme"`
+	Status     string `json:"status"`
+	HealthPath string `json:"health_path,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ReportRunPreview declares (or re-declares) this run's preview.
+func (c *Client) ReportRunPreview(ctx context.Context, taskID string, report RunPreviewReport) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/preview", taskID), report, nil)
+}
+
+// DeleteRunPreview marks this run's preview stopped. A 404 from a server that
+// predates F12 is not an error worth surfacing: the daemon still killed the
+// process, which is the part that matters.
+func (c *Client) DeleteRunPreview(ctx context.Context, taskID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.baseURL+fmt.Sprintf("/api/daemon/tasks/%s/preview", taskID), nil)
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	c.setIdentityHeaders(req)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode == http.StatusNotFound || (resp.StatusCode >= 200 && resp.StatusCode < 300) {
+		return nil
+	}
+	return fmt.Errorf("delete run preview: server returned %d", resp.StatusCode)
+}
+
 func (c *Client) MarkTaskWaitingLocalDirectory(ctx context.Context, taskID, reason string) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/wait-local-directory", taskID), map[string]any{
 		"reason": reason,

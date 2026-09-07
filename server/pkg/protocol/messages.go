@@ -60,6 +60,18 @@ const (
 	// nothing extra, so the stub retires itself as daemons update.
 	DaemonCapabilityPlatformSkillV1 = "platform-skill-v1"
 
+	// DaemonCapabilityRunPreviewV1 advertises that the daemon can start a run's
+	// `run` lifecycle script, probe its port, and answer the server→daemon
+	// `preview.fetch` RPC (F12).
+	//
+	// A capability rather than a version check, for the reason every other one
+	// here is: a daemon without the implementation ignores the reverse RPC
+	// frame entirely, so the relay would hang until its timeout on every single
+	// request. When it is absent the server declares the preview `loopback` —
+	// the URL is only reachable on the machine that ran it, and the web UI says
+	// so instead of handing out a link that cannot work.
+	DaemonCapabilityRunPreviewV1 = "run-preview-v1"
+
 	// AppCapabilityChatDraftRestoreV1 is advertised (X-Client-Capabilities) by
 	// app clients that understand the durable draft-restore recovery path:
 	// chat:cancel_finalized as an invalidation hint plus the draft-restores
@@ -104,6 +116,33 @@ type RPCResponsePayload struct {
 	Status    int             `json:"status"`
 	Body      json.RawMessage `json:"body,omitempty"`
 	Error     string          `json:"error,omitempty"`
+}
+
+// PreviewFetchRequest is the body of the server→daemon `preview.fetch` RPC
+// (F12). The server has already resolved the share link and the run; the daemon
+// only has to reach 127.0.0.1 on the run's port and hand back what it got.
+//
+// Headers are the allow-listed subset the proxy forwards — the daemon does not
+// re-filter them, because the filter that matters is the one applied before the
+// request left the server.
+type PreviewFetchRequest struct {
+	TaskID  string              `json:"task_id"`
+	Method  string              `json:"method"`
+	Path    string              `json:"path"`
+	Query   string              `json:"query,omitempty"`
+	Headers map[string][]string `json:"headers,omitempty"`
+	// Body is base64 so the JSON envelope stays valid for any byte sequence.
+	Body string `json:"body,omitempty"`
+}
+
+// PreviewFetchResponse is what the daemon read back off the local port.
+// Truncated is set when the body hit the cap: the visitor gets what fits rather
+// than nothing, and the flag is what lets the proxy say why.
+type PreviewFetchResponse struct {
+	Status    int                 `json:"status"`
+	Headers   map[string][]string `json:"headers,omitempty"`
+	Body      string              `json:"body,omitempty"`
+	Truncated bool                `json:"truncated,omitempty"`
 }
 
 // Message is the envelope for all WebSocket messages.

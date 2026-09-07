@@ -356,6 +356,7 @@ import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSch
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
 import { IssueTransitionRuleSchema, IssueTransitionRuleListSchema, EMPTY_TRANSITION_RULES, EMPTY_TRANSITION_RULE, EffectiveTransitionsSchema, EMPTY_EFFECTIVE_TRANSITIONS, IssueTransitionRequestListSchema, EMPTY_TRANSITION_REQUESTS, PendingTransitionSchema, type IssueTransitionRule, type IssueTransitionRuleList, type EffectiveTransitions, type IssueTransitionRequestList } from "../issue-transitions/schemas";
+import { RunPreviewSchema, EMPTY_RUN_PREVIEW, TaskShareLinkSchema, TaskShareLinkListSchema, EMPTY_TASK_SHARE_LINK, EMPTY_TASK_SHARE_LINKS, type RunPreview, type TaskShareLink, type TaskShareLinkList, type CreateShareLinkInput } from "../runs/schemas";
 import { CriticPolicySchema, EMPTY_CRITIC_POLICY, CriticVerdictListSchema, EMPTY_CRITIC_VERDICTS, type CriticPolicy, type CriticPolicyWrite, type CriticVerdictList } from "../critic/schemas";
 import {
   AgentTaskListSchema,
@@ -6748,6 +6749,27 @@ export class ApiClient {
   async listCriticVerdicts(issueId: string): Promise<CriticVerdictList> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/critic-verdicts`);
     return parseWithFallback(raw, CriticVerdictListSchema, EMPTY_CRITIC_VERDICTS, { endpoint: "GET /api/issues/{id}/critic-verdicts" });
+  }
+
+  // Run previews and run share links (F12).
+
+  async getRunPreview(taskId: string): Promise<RunPreview> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/preview`);
+    return parseWithFallback(raw, RunPreviewSchema, EMPTY_RUN_PREVIEW, { endpoint: "GET /api/tasks/{taskId}/preview" });
+  }
+
+  async listTaskShareLinks(taskId: string): Promise<TaskShareLinkList> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/share-links`);
+    return parseWithFallback(raw, TaskShareLinkListSchema, EMPTY_TASK_SHARE_LINKS, { endpoint: "GET /api/tasks/{taskId}/share-links" });
+  }
+
+  async createTaskShareLink(taskId: string, data: CreateShareLinkInput): Promise<TaskShareLink> {
+    const raw = await this.fetch<unknown>(`/api/tasks/${encodeURIComponent(taskId)}/share-links`, { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, TaskShareLinkSchema, EMPTY_TASK_SHARE_LINK, { endpoint: "POST /api/tasks/{taskId}/share-links" });
+  }
+
+  async revokeTaskShareLink(taskId: string, linkId: string): Promise<void> {
+    await this.fetch<void>(`/api/tasks/${encodeURIComponent(taskId)}/share-links/${encodeURIComponent(linkId)}`, { method: "DELETE" });
   }
 
   // Transition rules and approval gates (F28).

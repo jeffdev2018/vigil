@@ -139,10 +139,11 @@
     "lifecycle_description": "このワークツリー用の任意のコマンド。シェルを介さず直接実行されるため、最初の語がプログラム、残りがその引数になります。",
     "lifecycle_setup_label": "セットアップ",
     "lifecycle_setup_hint": "pnpm install",
-    "lifecycle_run_label": "実行（保存のみ、まだ起動しません）",
-    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_run_label": "Run（開発サーバー）",
+    "lifecycle_run_hint": "pnpm dev -- --port $MULTICA_PORT_BASE",
     "lifecycle_archive_label": "アーカイブ",
-    "lifecycle_archive_hint": "./scripts/teardown.sh"
+    "lifecycle_archive_hint": "./scripts/teardown.sh",
+    "lifecycle_run_help": "Setup の後に起動し、実行の終了とともに停止します。プレビューリンクを得るには 127.0.0.1 の MULTICA_PORT_BASE で待ち受けてください。"
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",

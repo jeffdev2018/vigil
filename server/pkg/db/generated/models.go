@@ -2303,6 +2303,22 @@ type RunLimitPolicy struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+// F12: the dev server a run started in its worktree. One row per task (779). No FK by house rule.
+type RunPreview struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	TaskID         pgtype.UUID        `json:"task_id"`
+	RuntimeID      pgtype.UUID        `json:"runtime_id"`
+	Port           int32              `json:"port"`
+	Scheme         string             `json:"scheme"`
+	Status         string             `json:"status"`
+	HealthPath     string             `json:"health_path"`
+	Error          pgtype.Text        `json:"error"`
+	StartedAt      pgtype.Timestamptz `json:"started_at"`
+	LastReportedAt pgtype.Timestamptz `json:"last_reported_at"`
+	StoppedAt      pgtype.Timestamptz `json:"stopped_at"`
+}
+
 type RunScopedSecret struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
@@ -2470,6 +2486,21 @@ type TaskMessage struct {
 	Input     []byte             `json:"input"`
 	Output    pgtype.Text        `json:"output"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// F12: scoped, expiring share link to one run. The code is the credential; unique in 782. No FK by house rule.
+type TaskShareLink struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	TaskID       pgtype.UUID        `json:"task_id"`
+	Code         string             `json:"code"`
+	Capabilities []string           `json:"capabilities"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	RevokedAt    pgtype.Timestamptz `json:"revoked_at"`
+	UseCount     int64              `json:"use_count"`
+	LastUsedAt   pgtype.Timestamptz `json:"last_used_at"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 }
 
 type TaskToken struct {

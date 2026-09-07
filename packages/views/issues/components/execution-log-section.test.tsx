@@ -33,6 +33,15 @@ vi.mock("../../common/task-transcript", async () => ({
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 
 vi.mock("./run-controls", () => ({ RunControls: () => null }));
+// The preview chip (F12) queries the run's preview; its own states live in
+// packages/views/runs/components/run-preview-card.test.tsx. Here it stands in
+// as a marker so the row's wiring is still asserted without dragging a query
+// client into every row test.
+vi.mock("../../runs/components/run-preview-chip", () => ({
+  RunPreviewChip: ({ taskId }: { taskId: string }) => (
+    <span data-testid="run-preview-chip" data-task={taskId} />
+  ),
+}));
 vi.mock("./terminate-task-confirm-dialog", () => ({
   TerminateTaskConfirmDialog: () => null,
 }));
@@ -105,6 +114,11 @@ describe("ActiveTaskRow run plan (F04)", () => {
   it("renders no counter and no block for a run that published no plan", () => {
     renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("carries the run's preview chip (F12) so a reviewer can reach the dev server", () => {
+    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    expect(screen.getByTestId("run-preview-chip").getAttribute("data-task")).toBe("task-1");
   });
 });
 

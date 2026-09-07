@@ -140,10 +140,11 @@
     "lifecycle_description": "Optional commands for this worktree. Each is run directly — no shell — so the first word is the program and the rest are its arguments.",
     "lifecycle_setup_label": "Setup",
     "lifecycle_setup_hint": "pnpm install",
-    "lifecycle_run_label": "Run (saved, not started yet)",
-    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_run_label": "Run (dev server)",
+    "lifecycle_run_hint": "pnpm dev -- --port $MULTICA_PORT_BASE",
     "lifecycle_archive_label": "Archive",
-    "lifecycle_archive_hint": "./scripts/teardown.sh"
+    "lifecycle_archive_hint": "./scripts/teardown.sh",
+    "lifecycle_run_help": "Started after Setup and stopped with the run. Bind MULTICA_PORT_BASE on 127.0.0.1 to get a preview link."
   },
   "delete_dialog": {
     "title": "Delete project",

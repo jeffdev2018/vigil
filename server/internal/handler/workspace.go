@@ -1501,6 +1501,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			// Links first: they are the credential pointing at the previews, so
+			// dropping the previews before them would leave codes that resolve
+			// to nothing for as long as the transaction runs.
+			name: "purge run previews",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceTaskShareLinks(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceRunPreviews(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			name: "purge trust mode changes",
 			run:  func() error { return qtx.PurgeWorkspaceTrustModeChanges(ctx, requester.WorkspaceID) },
 		},

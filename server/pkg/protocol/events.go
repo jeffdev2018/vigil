@@ -229,6 +229,17 @@ const (
 	// HTTP fallback) and any future daemon→server RPC.
 	EventDaemonRPCRequest  = "daemon:rpc_request"
 	EventDaemonRPCResponse = "daemon:rpc_response"
+	// The reverse direction (F12): the SERVER asks the daemon for something and
+	// waits for the answer on the same socket. Same envelopes, opposite roles —
+	// EventServerRPCRequest carries a correlation id + method + body from the
+	// server, EventServerRPCResponse carries the daemon's answer back.
+	//
+	// It exists because the preview relay has no other route: the daemon lives
+	// on a laptop behind NAT with no inbound port, and the control connection it
+	// already holds open is the only path a browser request can take to reach
+	// the dev server running in a worktree.
+	EventServerRPCRequest  = "server:rpc_request"
+	EventServerRPCResponse = "server:rpc_response"
 
 	// GitHub integration events
 	EventGitHubInstallationCreated = "github_installation:created"

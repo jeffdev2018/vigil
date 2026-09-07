@@ -438,6 +438,19 @@ func (d *Daemon) readTaskWakeupMessagesForConnection(conn *websocket.Conn, taskW
 				continue
 			}
 			d.handleWSHeartbeatAckForConnection(context.Background(), &ack, wsRPCGeneration)
+		case protocol.EventServerRPCRequest:
+			var req protocol.RPCRequestPayload
+			if err := json.Unmarshal(msg.Payload, &req); err != nil {
+				d.logger.Debug("server rpc request invalid payload", "error", err)
+				continue
+			}
+			if req.RequestID == "" {
+				d.logger.Debug("server rpc request missing request_id")
+				continue
+			}
+			// Own goroutine: the handler makes a local HTTP call that can take
+			// seconds, and the read pump must stay free for the next frame.
+			go d.handleServerRPC(req)
 		case protocol.EventDaemonRPCResponse:
 			var resp protocol.RPCResponsePayload
 			if err := json.Unmarshal(msg.Payload, &resp); err != nil {

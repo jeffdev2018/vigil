@@ -140,10 +140,11 @@
     "lifecycle_description": "Commandes facultatives pour ce worktree. Chacune est exécutée directement — sans shell — donc le premier mot est le programme et le reste ses arguments.",
     "lifecycle_setup_label": "Préparation",
     "lifecycle_setup_hint": "pnpm install",
-    "lifecycle_run_label": "Démarrage (enregistré, pas encore lancé)",
-    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_run_label": "Run (serveur de dev)",
+    "lifecycle_run_hint": "pnpm dev -- --port $MULTICA_PORT_BASE",
     "lifecycle_archive_label": "Archivage",
-    "lifecycle_archive_hint": "./scripts/teardown.sh"
+    "lifecycle_archive_hint": "./scripts/teardown.sh",
+    "lifecycle_run_help": "Démarré après Setup et arrêté avec le run. Écoutez MULTICA_PORT_BASE sur 127.0.0.1 pour obtenir un lien d'aperçu."
   },
   "delete_dialog": {
     "title": "Supprimer le projet",

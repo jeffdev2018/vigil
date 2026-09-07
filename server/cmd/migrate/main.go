@@ -430,6 +430,10 @@ var concurrentIndexCleanups = map[string]string{
 	"774_agent_critic_policy_subject":                           "uq_agent_critic_policy_subject",
 	"776_agent_critic_verdict_issue":                            "idx_agent_critic_verdict_issue",
 	"777_agent_critic_verdict_critic_task":                      "idx_agent_critic_verdict_critic_task",
+	"779_run_preview_task":                                      "uq_run_preview_task",
+	"780_run_preview_runtime_live":                              "idx_run_preview_runtime_live",
+	"782_task_share_link_code":                                  "uq_task_share_link_code",
+	"783_task_share_link_task_active":                           "idx_task_share_link_task_active",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
