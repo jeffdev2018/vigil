@@ -82,6 +82,12 @@ type IssueResponse struct {
 	// cycle of the issue's own project — a write naming another project's
 	// cycle is refused with 409 cycle_project_mismatch.
 	CycleID *string `json:"cycle_id"`
+	// IssueType (F30) is the work item type key from the workspace catalogue,
+	// or null for an UNTYPED issue. Always emitted, like the assignee pair, so
+	// a client can tell "untyped" from "this endpoint did not resolve it".
+	// Carries no platform behavior: it groups, it filters, and it decides which
+	// custom properties apply.
+	IssueType *string `json:"issue_type"`
 	// OriginType / OriginID record what produced the issue when it was not
 	// typed by hand — today "meeting" (accepting an action item a recording
 	// extracted) and the other triage origins. Omitted, like status_category,
@@ -340,6 +346,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
@@ -383,6 +390,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -456,6 +464,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
 		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -1144,6 +1153,12 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		cycleFilter = id
 	}
+	// Work item types (F30). Comma-separated so one request can ask for
+	// "bugs and stories"; a single value is the common case. Values are NOT
+	// checked against the catalogue: an unknown key simply matches nothing,
+	// which is the honest answer for a filter and is what keeps a saved view
+	// holding a since-archived type from 400-ing the whole list.
+	issueTypeFilters := splitCommaParam(r.URL.Query().Get("issue_type"))
 	// involves_user_id widens the assignee filter to surface issues where the
 	// user is the indirect assignee (their owned agent, or a squad they belong
 	// to / lead / have an agent inside). Direct member-assignment is excluded
@@ -1396,6 +1411,9 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	if cycleFilter.Valid {
 		where = append(where, fmt.Sprintf("i.cycle_id = %s::uuid", addArg(cycleFilter)))
 	}
+	if len(issueTypeFilters) > 0 {
+		where = append(where, fmt.Sprintf("i.issue_type = ANY(%s::text[])", addArg(issueTypeFilters)))
+	}
 
 	// Table facets must be part of the server window. Applying them after
 	// LIMIT/OFFSET hides matches that live on later pages and makes `total`
@@ -1581,7 +1599,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision, i.goal_id, i.cycle_id
+	   i.revision, i.goal_id, i.cycle_id, i.issue_type
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1624,6 +1642,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Revision,
 			&row.GoalID,
 			&row.CycleID,
+			&row.IssueType,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -2209,7 +2228,7 @@ WITH ranked AS (
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
-		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id, i.cycle_id,
+		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id, i.cycle_id, i.issue_type,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -2222,7 +2241,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
-	number, project_id, metadata, stage, properties, revision, goal_id, cycle_id, group_total
+	number, project_id, metadata, stage, properties, revision, goal_id, cycle_id, issue_type, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -2273,6 +2292,7 @@ ORDER BY
 			&row.Revision,
 			&row.GoalID,
 			&row.CycleID,
+			&row.IssueType,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -2904,7 +2924,11 @@ type CreateIssueRequest struct {
 	GoalID        *string `json:"goal_id"`
 	// CycleID (F29): the dated cycle to plan the new issue into. Must be a
 	// cycle of ProjectID; anything else is refused with 409.
-	CycleID       *string  `json:"cycle_id"`
+	CycleID *string `json:"cycle_id"`
+	// IssueType (F30): a work item type key from the workspace catalogue.
+	// Omitted or null creates an UNTYPED issue, which is what every caller that
+	// predates F30 does.
+	IssueType     *string  `json:"issue_type"`
 	Stage         *int32   `json:"stage,omitempty"`
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
@@ -3304,6 +3328,14 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Work item type (F30): same post-transaction write as the cycle above. An
+	// unknown or archived key is a 400 here rather than silently dropped — the
+	// caller classified the issue and has to learn the classification failed.
+	if req.IssueType != nil && strings.TrimSpace(*req.IssueType) != "" {
+		if !h.applyIssueTypeWrite(w, r, wsUUID, &issue, req.IssueType) {
+			return
+		}
+	}
 	// Goals (K74): the goal an issue names is set after the create transaction.
 	if goalUUID.Valid {
 		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
@@ -3363,7 +3395,11 @@ type UpdateIssueRequest struct {
 	// CycleID (F29): the dated cycle this issue is planned into. An explicit
 	// null clears it; a cycle of another project is refused with 409.
 	CycleID *string `json:"cycle_id"`
-	Stage   *int32  `json:"stage"`
+	// IssueType (F30): the work item type key. An explicit null CLEARS it back
+	// to untyped; omitting the field leaves it alone. Validated against the
+	// workspace catalogue — an unknown key is 400, an archived one is 400.
+	IssueType *string `json:"issue_type"`
+	Stage     *int32  `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
 	// editor's preview Eye keeps working past a refresh. Existing bindings
@@ -3920,6 +3956,18 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	// change of intent, and the project check inside bounds what it can do.
 	if _, touched := rawFields["cycle_id"]; touched {
 		if !h.applyIssueCycleWrite(w, prevIssue.WorkspaceID, &issue, req.CycleID, r.Context()) {
+			return
+		}
+	}
+	// Work item type (F30). Presence in rawFields, not a non-nil pointer: an
+	// explicit `"issue_type": null` is how a caller clears a classification,
+	// and a nil-check alone cannot tell that from an omitted field.
+	//
+	// An agent may set it, like the cycle: classifying an issue changes no
+	// platform behavior, it only decides which properties apply and how the
+	// issue groups.
+	if _, touched := rawFields["issue_type"]; touched {
+		if !h.applyIssueTypeWrite(w, r, prevIssue.WorkspaceID, &issue, req.IssueType) {
 			return
 		}
 	}
@@ -4520,7 +4568,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		req.Updates.Priority != nil ||
 		req.Updates.Position != nil
 	if !hasMutation {
-		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage", "cycle_id"} {
+		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage", "cycle_id", "issue_type"} {
 			if _, ok := rawUpdates[k]; ok {
 				hasMutation = true
 				break
@@ -4599,6 +4647,21 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			batchCycle = cycle
+		}
+	}
+	// Work item type (F30). Resolved ONCE for the whole batch: the catalogue is
+	// per workspace, not per issue, so an unknown key is wrong for every item
+	// and must fail the request rather than be reported as N per-issue skips.
+	batchTypeTouched := false
+	batchType := pgtype.Text{}
+	if _, ok := rawUpdates["issue_type"]; ok {
+		batchTypeTouched = true
+		if req.Updates.IssueType != nil && strings.TrimSpace(*req.Updates.IssueType) != "" {
+			key, ok := h.resolveIssueTypeKey(w, r, wsUUID, *req.Updates.IssueType)
+			if !ok {
+				return
+			}
+			batchType = pgtype.Text{String: key, Valid: true}
 		}
 	}
 
@@ -4906,6 +4969,17 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 				slog.Warn("batch update: set cycle failed", "issue_id", issueID, "error", err)
 			} else {
 				issue.CycleID = target
+			}
+		}
+		if batchTypeTouched {
+			if err := h.Queries.SetIssueIssueType(r.Context(), db.SetIssueIssueTypeParams{
+				ID:          issue.ID,
+				WorkspaceID: issue.WorkspaceID,
+				IssueType:   batchType,
+			}); err != nil {
+				slog.Warn("batch update: set issue type failed", "issue_id", issueID, "error", err)
+			} else {
+				issue.IssueType = batchType
 			}
 		}
 

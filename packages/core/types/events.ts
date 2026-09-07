@@ -93,6 +93,8 @@ export type WSEventType =
   | "property:created"
   | "property:updated"
   | "issue_status:changed"
+  | "issue_type:changed"
+  | "issue_dependencies:changed"
   | "budget:updated"
   | "pin:created"
   | "pin:deleted"
@@ -206,6 +208,13 @@ export interface PropertyChangedPayload {
  * refreshes the catalog correctly.
  */
 export interface IssueStatusChangedPayload {
+  action?: "created" | "updated" | "archived" | "reordered";
+}
+
+/** The work item type catalogue moved (F30). `action` is advisory — it makes a
+ *  frame self-describing in devtools; nothing routes on it, so a future write
+ *  verb this client has never heard of still refreshes the catalogue. */
+export interface IssueTypeChangedPayload {
   action?: "created" | "updated" | "archived" | "reordered";
 }
 
@@ -814,6 +823,10 @@ export interface WSEventPayloadMap {
   "property:created": PropertyChangedPayload;
   "property:updated": PropertyChangedPayload;
   "issue_status:changed": IssueStatusChangedPayload;
+  "issue_type:changed": IssueTypeChangedPayload;
+  // No payload: the Gantt re-reads the edges for the rows it is drawing, so
+  // there is nothing useful a frame could carry that would not go stale.
+  "issue_dependencies:changed": Record<string, never>;
   "budget:updated": unknown;
   "issue_reaction:added": IssueReactionAddedPayload;
   "issue_reaction:removed": IssueReactionRemovedPayload;

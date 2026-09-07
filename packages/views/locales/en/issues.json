@@ -156,7 +156,8 @@
     "active_count_other": "{{count}} filters",
     "in_view": "Already in this view",
     "chip_edit": "Edit",
-    "chip_save_as": "Save as"
+    "chip_save_as": "Save as",
+    "section_type": "Type"
   },
   "display": {
     "tooltip": "Display settings",
@@ -199,7 +200,9 @@
     "list": "List",
     "table": "Table",
     "gantt": "Gantt",
-    "swimlane": "Swimlane"
+    "swimlane": "Swimlane",
+    "calendar": "Calendar",
+    "tooltip_calendar": "Calendar view"
   },
   "table": {
     "select_all": "Select all visible issues",
@@ -256,7 +259,8 @@
       "created_at": "Created",
       "updated_at": "Updated",
       "child_progress": "Sub-issue progress",
-      "creator": "Created by"
+      "creator": "Created by",
+      "issue_type": "Type"
     },
     "calculation": {
       "label": "Calculate",
@@ -470,7 +474,11 @@
     "pr_stack_truncated": "Stack cut after {{depth}} levels",
     "pr_stack_cyclic": "Dependency cycle: some levels are hidden",
     "blocker_adr_required": "Architecture decision record required ({{count}} files edited)",
-    "from_meeting": "From meeting"
+    "from_meeting": "From meeting",
+    "hidden_properties_one": "Hidden property ({{count}})",
+    "hidden_properties_other": "Hidden properties ({{count}})",
+    "hidden_properties_hint": "These values were set under another work item type. They are kept, and come back if you switch the type back.",
+    "prop_issue_type": "Type"
   },
   "timeline": {
     "loading": "Loading..."
@@ -1577,5 +1585,22 @@
     "links_empty": "No link yet.",
     "uses_one": "{{count}} use",
     "uses_other": "{{count}} uses"
+  },
+  "calendar": {
+    "due_date_hint": "Issues are placed on their due date",
+    "empty_month": "No issue is due this month.",
+    "more_one": "+{{count}} more",
+    "more_other": "+{{count}} more",
+    "next_month": "Next month",
+    "previous_month": "Previous month",
+    "today": "Today"
+  },
+  "issue_types": {
+    "archived_badge": "Archived",
+    "clear": "Clear type",
+    "label": "Type",
+    "none": "No type",
+    "search": "Search type...",
+    "section": "Type"
   }
 }

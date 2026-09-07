@@ -146,7 +146,7 @@ export function CycleDetail({ cycleId }: { cycleId: string }) {
         {scope && (
           <IssueSurface
             scope={scope}
-            modes={["board", "list", "table", "swimlane", "gantt"]}
+            modes={["board", "list", "table", "swimlane", "gantt", "calendar"]}
           />
         )}
       </div>

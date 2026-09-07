@@ -84,3 +84,30 @@ describe("baselineFromQuery cycle filters", () => {
     expect(baseline.raw.cycleFilters).toEqual(["cycle-1"]);
   });
 });
+
+// Work item types (F30) added `typeFilters` the same way cycles added theirs.
+describe("baselineFromQuery type filters", () => {
+  it("reads a type filter into both the membership set and the reset snapshot", () => {
+    const baseline = baselineFromQuery({ typeFilters: ["bug", "story"] });
+    expect([...baseline.type]).toEqual(["bug", "story"]);
+    expect(baseline.raw.typeFilters).toEqual(["bug", "story"]);
+  });
+
+  // Acceptance 13 (second half): a view saved before F30 must still open.
+  it("keeps a view saved before work item types valid, with no type fixed", () => {
+    const baseline = baselineFromQuery({ statusFilters: ["todo"], cycleFilters: ["c1"] });
+    expect(baseline.type.size).toBe(0);
+    expect(baseline.raw.typeFilters).toEqual([]);
+    expect(baseline.raw.statusFilters).toEqual(["todo"]);
+    expect(baseline.raw.cycleFilters).toEqual(["c1"]);
+  });
+
+  // A type key is WORKSPACE-defined, so there is no constant to validate it
+  // against. Filtering here against a fixed list is exactly what deleted every
+  // custom status filter on reopen before MUL-6243 — only unrepresentable
+  // members (non-strings, empty strings) are dropped.
+  it("keeps a custom type key it has never heard of", () => {
+    const baseline = baselineFromQuery({ typeFilters: ["spike", 7, "", null] });
+    expect(baseline.raw.typeFilters).toEqual(["spike"]);
+  });
+});

@@ -1428,6 +1428,7 @@ type Issue struct {
 	// F01: optional partner actor id, paired with delegate_type. Both halves move together; neither is a foreign key.
 	DelegateID pgtype.UUID `json:"delegate_id"`
 	CycleID    pgtype.UUID `json:"cycle_id"`
+	IssueType  pgtype.Text `json:"issue_type"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.
@@ -1458,10 +1459,11 @@ type IssueDecision struct {
 }
 
 type IssueDependency struct {
-	ID               pgtype.UUID `json:"id"`
-	IssueID          pgtype.UUID `json:"issue_id"`
-	DependsOnIssueID pgtype.UUID `json:"depends_on_issue_id"`
-	Type             string      `json:"type"`
+	ID               pgtype.UUID        `json:"id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	DependsOnIssueID pgtype.UUID        `json:"depends_on_issue_id"`
+	Type             string             `json:"type"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type IssueLabel struct {
@@ -1513,6 +1515,14 @@ type IssueProperty struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 	Icon        string             `json:"icon"`
+}
+
+// F30: which work item types a custom property applies to. No row for a property = global.
+type IssuePropertyType struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	PropertyID  pgtype.UUID        `json:"property_id"`
+	TypeKey     string             `json:"type_key"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type IssuePullRequest struct {
@@ -1638,6 +1648,22 @@ type IssueTransitionRuleActor struct {
 	ActorType string             `json:"actor_type"`
 	ActorID   pgtype.UUID        `json:"actor_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+// F30: per-workspace work item type catalogue. issue.issue_type holds a key from here; NULL means untyped.
+type IssueType struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Key         string             `json:"key"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	Color       string             `json:"color"`
+	Icon        string             `json:"icon"`
+	IsSystem    bool               `json:"is_system"`
+	Position    float64            `json:"position"`
+	ArchivedAt  pgtype.Timestamptz `json:"archived_at"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type IssueVcsPullRequest struct {

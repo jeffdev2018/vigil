@@ -156,7 +156,8 @@
     "active_count_other": "{{count}} filtres",
     "in_view": "Déjà dans cette vue",
     "chip_edit": "Modifier",
-    "chip_save_as": "Enregistrer sous"
+    "chip_save_as": "Enregistrer sous",
+    "section_type": "Type"
   },
   "display": {
     "tooltip": "Paramètres d'affichage",
@@ -199,7 +200,9 @@
     "list": "Liste",
     "table": "Tableau",
     "gantt": "Gantt",
-    "swimlane": "Couloirs"
+    "swimlane": "Couloirs",
+    "calendar": "Calendrier",
+    "tooltip_calendar": "Vue Calendrier"
   },
   "table": {
     "select_all": "Sélectionner toutes les issues visibles",
@@ -256,7 +259,8 @@
       "created_at": "Création",
       "updated_at": "Mise à jour",
       "child_progress": "Progression des sous-issues",
-      "creator": "Créé par"
+      "creator": "Créé par",
+      "issue_type": "Type"
     },
     "calculation": {
       "label": "Calculer",
@@ -470,7 +474,11 @@
     "pr_stack_truncated": "Stack tronqué après {{depth}} niveaux",
     "pr_stack_cyclic": "Cycle de dépendances : certains niveaux sont masqués",
     "blocker_adr_required": "Document de décision d'architecture requis ({{count}} fichiers modifiés)",
-    "from_meeting": "Depuis la réunion"
+    "from_meeting": "Depuis la réunion",
+    "hidden_properties_one": "Propriété masquée ({{count}})",
+    "hidden_properties_other": "Propriétés masquées ({{count}})",
+    "hidden_properties_hint": "Ces valeurs ont été saisies sous un autre type. Elles sont conservées et reviennent si vous remettez ce type.",
+    "prop_issue_type": "Type"
   },
   "timeline": {
     "loading": "Chargement..."
@@ -1577,5 +1585,22 @@
     "links_empty": "Aucun lien pour l'instant.",
     "uses_one": "{{count}} utilisation",
     "uses_other": "{{count}} utilisations"
+  },
+  "calendar": {
+    "due_date_hint": "Les tickets sont placés à leur date d'échéance",
+    "empty_month": "Aucun ticket à échéance ce mois-ci.",
+    "more_one": "+{{count}} autre",
+    "more_other": "+{{count}} autres",
+    "next_month": "Mois suivant",
+    "previous_month": "Mois précédent",
+    "today": "Aujourd'hui"
+  },
+  "issue_types": {
+    "archived_badge": "Archivé",
+    "clear": "Retirer le type",
+    "label": "Type",
+    "none": "Sans type",
+    "search": "Rechercher un type...",
+    "section": "Type"
   }
 }

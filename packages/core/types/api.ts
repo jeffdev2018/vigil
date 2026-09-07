@@ -20,6 +20,8 @@ export interface CreateIssueRequest {
   goal_id?: string;
   /** Cycle to plan the issue into (F29). Must be a cycle of `project_id`. */
   cycle_id?: string;
+  /** Work item type key (F30). Omitted creates an UNTYPED issue. */
+  issue_type?: string;
   /** Ordered stage (>= 1) grouping this sub-issue under its parent. */
   stage?: number;
   start_date?: string;
@@ -87,6 +89,9 @@ export interface UpdateIssueRequest {
   /** Cycle the issue is planned into (F29); null takes it out of every cycle.
    *  A cycle of another project is refused with 409 cycle_project_mismatch. */
   cycle_id?: string | null;
+  /** Work item type key (F30); null clears it back to untyped. An unknown or
+   *  archived key is refused with 400. */
+  issue_type?: string | null;
   /** Ordered stage (>= 1); null clears it (unstaged). */
   stage?: number | null;
   /** Attachment IDs to bind to this issue alongside the description update.
@@ -185,6 +190,9 @@ export interface ListIssuesParams {
   goal_id?: string;
   /** Issues planned into a dated cycle (F29). Exact membership, no inheritance. */
   cycle_id?: string;
+  /** Work item type keys (F30). Comma-joined into `?issue_type=` by the client;
+   *  an unknown key simply matches nothing rather than failing the request. */
+  issue_type?: string[];
   label_ids?: string[];
   /** Restrict the window to root issues instead of filtering loaded pages. */
   top_level_only?: boolean;
@@ -330,6 +338,8 @@ export interface IssueTableFilters {
   include_no_project?: boolean;
   /** Cycle ids (F29). OR within the field, like project_ids. */
   cycle_ids?: string[];
+  /** Work item type KEYS (F30), not ids. */
+  issue_types?: string[];
   label_ids?: string[];
   /** Same shape as `ListIssuesParams.properties`: bare strings are exact
    *  equality / "No value", operator objects narrow scalar matches. */

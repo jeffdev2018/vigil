@@ -470,7 +470,8 @@
       "learning": "What Vigil knows",
       "eval_lab": "Eval Lab",
       "code_health": "Code health",
-      "doc_drift": "Agent context drift"
+      "doc_drift": "Agent context drift",
+      "issue_types": "Work item types"
     }
   },
   "plugins": {
@@ -634,7 +635,12 @@
       "cancel": "Cancel",
       "confirm": "Archive property",
       "failed": "Couldn't archive property"
-    }
+    },
+    "types_label": "Applies to",
+    "types_all": "All work item types",
+    "types_hint": "Leave empty to apply everywhere, including untyped issues.",
+    "types_count": "{{count}} types",
+    "types_failed": "Could not save the type scope."
   },
   "labels": {
     "title": "Labels",
@@ -2270,6 +2276,51 @@
       "opened_pr": "In review",
       "dismissed": "Dismissed",
       "merged": "Merged"
+    }
+  },
+  "issue_types": {
+    "title": "Work item types",
+    "description": "What an issue IS — bug, story, epic, task, or your own. A type changes no behaviour; it groups your work and decides which properties apply.",
+    "loading": "Loading types…",
+    "add": "Add type",
+    "show_archived": "Show archived ({{count}})",
+    "archived_badge": "Archived",
+    "archived_hint": "Retired from new assignments. Issues already on it keep it.",
+    "system_badge": "Built-in",
+    "system_hint": "Built-in types can be renamed and recoloured, but never archived.",
+    "reorder_failed": "Could not save the new order.",
+    "empty": "No work item types yet.",
+    "actions": {
+      "open": "Actions for {{name}}",
+      "edit": "Edit",
+      "archive": "Archive",
+      "reorder": "Reorder {{name}}"
+    },
+    "editor": {
+      "create_title": "New work item type",
+      "edit_title": "Edit work item type",
+      "hint": "A type says what an issue is. It starts no run and changes no status.",
+      "name": "Name",
+      "name_placeholder": "e.g. Spike",
+      "key_hint": "Referred to as {{key}} by the API.",
+      "created": "Type created. The API refers to it as {{key}}.",
+      "description": "Description",
+      "description_placeholder": "What this type means for your team",
+      "color": "Color",
+      "icon": "Icon",
+      "choose_icon": "Choose an icon",
+      "remove_icon": "Remove icon",
+      "cancel": "Cancel",
+      "save": "Save",
+      "saving": "Saving…",
+      "save_failed": "Could not save the type."
+    },
+    "archive_dialog": {
+      "title": "Archive this type?",
+      "description": "\"{{name}}\" stops being available for new issues. Issues already on it keep it, and every property value stays exactly where it is.",
+      "cancel": "Cancel",
+      "confirm": "Archive",
+      "failed": "Could not archive the type."
     }
   }
 }

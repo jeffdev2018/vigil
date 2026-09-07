@@ -172,6 +172,13 @@ export interface IssueProperty {
   archived: boolean;
   archived_at?: string | null;
   usage_count?: number;
+  /**
+   * Work item types this property applies to (F30). EMPTY (or absent, on a
+   * server that predates F30) means GLOBAL: every type plus untyped issues.
+   * A non-empty list narrows the property to exactly those types — an untyped
+   * issue then does not carry it, because "no type" matches no type list.
+   */
+  type_keys?: string[];
   created_at: string;
   updated_at: string;
 }

@@ -437,6 +437,11 @@ var concurrentIndexCleanups = map[string]string{
 	"785_cycle_project_index":                                   "idx_cycle_workspace_project",
 	"786_issue_cycle_index":                                     "idx_issue_cycle",
 	"787_cycle_snapshot_workspace_index":                        "idx_cycle_snapshot_workspace",
+	"794_issue_type_workspace_key_index":                        "idx_issue_type_workspace_key",
+	"795_issue_type_workspace_name_index":                       "idx_issue_type_workspace_name_active",
+	"798_issue_issue_type_index":                                "idx_issue_issue_type",
+	"800_issue_dependency_unique_index":                         "uq_issue_dependency_edge",
+	"801_issue_property_type_index":                             "idx_issue_property_type_workspace_key",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

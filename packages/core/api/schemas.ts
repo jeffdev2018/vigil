@@ -86,6 +86,9 @@ import type {
   ListWebhookDeliveriesResponse,
   IssueStatusEntry,
   ListIssueStatusesResponse,
+  IssueTypeEntry,
+  ListIssueTypesResponse,
+  IssueDependencyEdge,
   NotificationPreferenceResponse,
   PluginInstallation,
   PluginInstallationListResponse,
@@ -612,6 +615,74 @@ export const EMPTY_LIST_ISSUE_STATUSES_RESPONSE: ListIssueStatusesResponse = {
   total: 0,
 };
 
+// Work item type catalogue (F30). Every field a client renders is lenient for
+// the same reason the status catalogue's are: a newer server can add a type
+// this build has never heard of, and failing the whole catalogue parse would
+// leave the UI with no types at all — including the four it does know.
+export const IssueTypeEntrySchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  key: z.string(),
+  name: z.string(),
+  description: z.string().optional().default(""),
+  color: z.string().optional().default("#6b7280"),
+  icon: z.string().optional().default(""),
+  is_system: z.boolean().optional().default(false),
+  position: z.number().optional().default(0),
+  archived_at: z.string().nullable().optional().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const EMPTY_ISSUE_TYPE_ENTRY: IssueTypeEntry = {
+  id: "",
+  workspace_id: "",
+  key: "",
+  name: "",
+  description: "",
+  color: "#6b7280",
+  icon: "",
+  is_system: false,
+  position: 0,
+  archived_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+export const ListIssueTypesResponseSchema = z.object({
+  types: z.array(IssueTypeEntrySchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+// Empty rather than the four seeded keys: unlike a status category, a type key
+// is not a constant of the product — a workspace can rename all four — so a
+// client that cannot reach the endpoint must render "no type", not four
+// invented rows.
+export const EMPTY_LIST_ISSUE_TYPES_RESPONSE: ListIssueTypesResponse = {
+  types: [],
+  total: 0,
+};
+
+// One dependency edge (F30 Gantt arrows). `type` stays a plain string: the
+// server may add a relation kind, and the arrow layer draws only the ones it
+// recognizes rather than dropping the whole graph.
+export const IssueDependencyEdgeSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  type: z.string(),
+}).loose();
+
+export const ListIssueDependencyEdgesResponseSchema = z.object({
+  dependencies: z.array(IssueDependencyEdgeSchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+export const EMPTY_LIST_ISSUE_DEPENDENCY_EDGES_RESPONSE: {
+  dependencies: IssueDependencyEdge[];
+  total: number;
+} = { dependencies: [], total: 0 };
+
 export const ResourceLabelsResponseSchema = z.object({
   labels: z.array(LabelSchema).default([]),
   issue_revision: z.number().int().positive().optional(),
@@ -697,6 +768,9 @@ export const IssuePropertySchema = z.object({
   archived: z.boolean().optional().default(false),
   archived_at: z.string().nullable().optional(),
   usage_count: z.number().optional().default(0),
+  // F30 type scope. Absent on an older backend, which is also its product
+  // meaning: nothing is scoped, so every property is global.
+  type_keys: z.array(z.string()).optional().default([]),
   created_at: z.string(),
   updated_at: z.string(),
 }).loose();
@@ -712,6 +786,7 @@ export const EMPTY_ISSUE_PROPERTY: IssueProperty = {
   position: 0,
   archived: false,
   usage_count: 0,
+  type_keys: [],
   created_at: "",
   updated_at: "",
 };
@@ -1391,6 +1466,12 @@ export const IssueSchema = z.object({
   project_id: z.string().nullable(),
   // Goals (K74) predate older backends; absent parses to null.
   goal_id: z.string().nullable().optional().default(null),
+  // Work item type key (F30), or null for an UNTYPED issue. Optional +
+  // defaulted rather than a bare .nullable(): a server that predates the field
+  // sends nothing, and an IssueSchema parse failure takes the WHOLE list
+  // response to its fallback, so one older backend would blank every issue.
+  // Absent therefore parses to null, which is also its product meaning.
+  issue_type: z.string().nullable().optional().default(null),
   // Detail-only, and absent on an older backend. Absent means "not resolved
   // here", so consumers must not read it as "no origin".
   origin_type: z.string().nullish(),

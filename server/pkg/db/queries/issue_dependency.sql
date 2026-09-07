@@ -82,3 +82,16 @@ FROM blockers b
 JOIN issue i ON i.id = b.issue_id
 GROUP BY i.id
 ORDER BY depth ASC, i.number ASC;
+
+-- name: ListDependenciesForIssues :many
+-- Bulk variant for the Gantt (F30): every edge whose BOTH ends are in the
+-- requested set, in one round-trip. Modelled on ListLabelsForIssues.
+--
+-- Both ends, not either: an arrow needs two bars to connect, so an edge
+-- pointing at an issue the canvas does not draw has nothing to render against.
+-- Filtering it here keeps the payload proportional to what is on screen.
+SELECT d.id, d.issue_id, d.depends_on_issue_id, d.type
+FROM issue_dependency d
+WHERE d.issue_id = ANY(sqlc.arg('issue_ids')::uuid[])
+  AND d.depends_on_issue_id = ANY(sqlc.arg('issue_ids')::uuid[])
+ORDER BY d.issue_id, d.depends_on_issue_id, d.type;

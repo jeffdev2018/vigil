@@ -469,7 +469,8 @@
       "learning": "Vigil が知っていること",
       "eval_lab": "評価ラボ",
       "code_health": "コードヘルス",
-      "doc_drift": "エージェントコンテキストのずれ"
+      "doc_drift": "エージェントコンテキストのずれ",
+      "issue_types": "作業アイテムタイプ"
     }
   },
   "plugins": {
@@ -631,7 +632,12 @@
       "cancel": "キャンセル",
       "confirm": "プロパティをアーカイブ",
       "failed": "プロパティをアーカイブできませんでした"
-    }
+    },
+    "types_label": "適用先",
+    "types_all": "すべての作業アイテムタイプ",
+    "types_hint": "空のままにすると、タイプなしの課題も含めてすべてに適用されます。",
+    "types_count": "{{count}} 件のタイプ",
+    "types_failed": "適用範囲を保存できませんでした。"
   },
   "labels": {
     "title": "ラベル",
@@ -2262,6 +2268,51 @@
       "opened_pr": "レビュー中",
       "dismissed": "見送り",
       "merged": "マージ済み"
+    }
+  },
+  "issue_types": {
+    "title": "作業アイテムタイプ",
+    "description": "課題が「何であるか」— バグ、ストーリー、エピック、タスク、または独自のもの。タイプは動作を変えず、作業の分類と適用プロパティを決めます。",
+    "loading": "タイプを読み込み中…",
+    "add": "タイプを追加",
+    "show_archived": "アーカイブ済みを表示 ({{count}})",
+    "archived_badge": "アーカイブ済み",
+    "archived_hint": "新規割り当てから外れます。すでに設定されている課題はそのまま保持します。",
+    "system_badge": "標準",
+    "system_hint": "標準タイプは名前と色を変更できますが、アーカイブはできません。",
+    "reorder_failed": "新しい並び順を保存できませんでした。",
+    "empty": "作業アイテムタイプがまだありません。",
+    "actions": {
+      "open": "{{name}} の操作",
+      "edit": "編集",
+      "archive": "アーカイブ",
+      "reorder": "{{name}} を並べ替え"
+    },
+    "editor": {
+      "create_title": "新しい作業アイテムタイプ",
+      "edit_title": "作業アイテムタイプを編集",
+      "hint": "タイプは課題が何であるかを示します。実行を開始せず、ステータスも変えません。",
+      "name": "名前",
+      "name_placeholder": "例: Spike",
+      "key_hint": "API では {{key}} として参照されます。",
+      "created": "タイプを作成しました。API では {{key}} として参照されます。",
+      "description": "説明",
+      "description_placeholder": "このタイプがチームにとって何を意味するか",
+      "color": "色",
+      "icon": "アイコン",
+      "choose_icon": "アイコンを選択",
+      "remove_icon": "アイコンを削除",
+      "cancel": "キャンセル",
+      "save": "保存",
+      "saving": "保存中…",
+      "save_failed": "タイプを保存できませんでした。"
+    },
+    "archive_dialog": {
+      "title": "このタイプをアーカイブしますか？",
+      "description": "「{{name}}」は新しい課題で選べなくなります。すでに設定されている課題はそのまま保持し、プロパティの値もすべて残ります。",
+      "cancel": "キャンセル",
+      "confirm": "アーカイブ",
+      "failed": "タイプをアーカイブできませんでした。"
     }
   }
 }

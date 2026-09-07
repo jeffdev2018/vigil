@@ -155,6 +155,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"plan_verification":                  workspaceDelete,
 	"issue_source_context_object_intent": workspaceDeleteSettle,
 	"issue_status":                       workspaceDelete,
+	"issue_type":                         workspaceDelete,
+	"issue_property_type":                workspaceDelete,
 	"issue_subscriber":                   workspaceDelete,
 	"issue_to_label":                     workspaceDelete,
 	"issue_vcs_pull_request":             workspaceDelete,

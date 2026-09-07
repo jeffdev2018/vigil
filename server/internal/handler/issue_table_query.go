@@ -96,7 +96,13 @@ type issueTableFiltersRequest struct {
 	// "no cycle" counterpart because an unplanned issue is the default state,
 	// not a value someone chose.
 	CycleIDs []string `json:"cycle_ids,omitempty"`
-	LabelIDs []string `json:"label_ids,omitempty"`
+	// IssueTypes (F30) holds work item type KEYS, not ids — a type is
+	// referenced by its key everywhere, including on the issue row. Values are
+	// not checked against the catalogue: an unknown key matches nothing, which
+	// is what keeps a saved view holding a since-archived type from failing the
+	// whole request.
+	IssueTypes []string `json:"issue_types,omitempty"`
+	LabelIDs   []string `json:"label_ids,omitempty"`
 	// Members are raw JSON so operator objects ({op, value}) and plain
 	// strings both survive the round-trip into parsePropertiesFilterParam.
 	Properties       map[string][]json.RawMessage `json:"properties,omitempty"`
@@ -624,6 +630,10 @@ func (h *Handler) compileIssueTableQuery(w http.ResponseWriter, r *http.Request,
 	}
 	if len(cycleIDs) > 0 {
 		where = append(where, fmt.Sprintf("i.cycle_id = ANY(%s::uuid[])", addArg(cycleIDs)))
+	}
+
+	if len(spec.Filters.IssueTypes) > 0 {
+		where = append(where, fmt.Sprintf("i.issue_type = ANY(%s::text[])", addArg(spec.Filters.IssueTypes)))
 	}
 
 	labelIDs, ok := parseIssueTableUUIDList(w, spec.Filters.LabelIDs, "filters.label_ids")

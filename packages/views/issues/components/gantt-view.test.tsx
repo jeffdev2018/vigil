@@ -10,9 +10,15 @@ import type { Issue } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 import { IssueContextMenuProvider } from "../actions";
 
+// The row's project lookup and the F30 arrow layer's edge query both go
+// through useQuery. Routing on the query key keeps one stub honest for both:
+// the arrow tests need edges, the date tests need an empty project list.
+let ganttEdges: unknown[] = [];
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@tanstack/react-query")>()),
-  useQuery: () => ({ data: [] }),
+  useQuery: (options: { queryKey?: readonly unknown[] }) => ({
+    data: options?.queryKey?.[0] === "issue-dependency-edges" ? ganttEdges : [],
+  }),
 }));
 
 vi.mock("@multica/core/hooks", () => ({
@@ -131,5 +137,76 @@ describe("GanttView date localization", () => {
 
     expect(screen.getByText("Mar 2026")).toBeTruthy();
     expect(container.textContent ?? "").not.toMatch(/年/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dependency arrows (F30). The arrow GEOMETRY matrix lives in
+// packages/core/issues/gantt-arrows.test.ts; this covers the wiring: one arrow
+// per blocks edge between two dated issues, nothing when there are no edges,
+// and nothing for an edge whose end has no bar.
+// ---------------------------------------------------------------------------
+
+function datedIssue(id: string, start: string | null, due: string | null): Issue {
+  return { ...ISSUE, id, identifier: `MUL-${id}`, title: id, start_date: start, due_date: due };
+}
+
+function renderGanttWithEdges(issues: Issue[], edges: unknown[]) {
+  ganttEdges = edges;
+  const store = createStore<IssueViewState>()(viewStoreSlice);
+  return renderWithI18n(
+    <ViewStoreProvider store={store}>
+      <IssueContextMenuProvider>
+        <GanttView issues={issues} />
+      </IssueContextMenuProvider>
+    </ViewStoreProvider>,
+    { locale: "en" },
+  );
+}
+
+describe("GanttView dependency arrows", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-03-04T12:00:00Z"));
+  });
+  afterAll(() => {
+    vi.useRealTimers();
+    ganttEdges = [];
+  });
+
+  it("draws one arrow per blocks dependency between two dated issues", () => {
+    const { container, unmount } = renderGanttWithEdges(
+      [datedIssue("a", "2026-03-02", "2026-03-04"), datedIssue("b", "2026-03-06", "2026-03-08")],
+      [{ id: "e1", from: "a", to: "b", type: "blocks" }],
+    );
+
+    const layer = container.querySelector('[data-testid="gantt-dependency-arrows"]');
+    expect(layer).toBeTruthy();
+    expect(layer!.querySelectorAll("path")).toHaveLength(1);
+
+    unmount();
+  });
+
+  it("draws no arrow layer at all when there are no dependencies", () => {
+    const { container, unmount } = renderGanttWithEdges(
+      [datedIssue("a", "2026-03-02", "2026-03-04"), datedIssue("b", "2026-03-06", "2026-03-08")],
+      [],
+    );
+
+    expect(container.querySelector('[data-testid="gantt-dependency-arrows"]')).toBeNull();
+    unmount();
+  });
+
+  it("draws no arrow when one end of the edge is not on the canvas", () => {
+    // An undated issue never reaches the canvas (the surface drops it), so the
+    // edge points at a bar that does not exist. Nothing is drawn rather than an
+    // arrow to a guessed position.
+    const { container, unmount } = renderGanttWithEdges(
+      [datedIssue("a", "2026-03-02", "2026-03-04")],
+      [{ id: "e1", from: "a", to: "absent", type: "blocks" }],
+    );
+
+    expect(container.querySelector('[data-testid="gantt-dependency-arrows"]')).toBeNull();
+    unmount();
   });
 });

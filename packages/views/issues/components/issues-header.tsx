@@ -6,6 +6,7 @@ import {
   ArrowUp,
   CalendarDays,
   CalendarRange,
+  Shapes,
   ChartGantt,
   ChevronDown,
   CircleDot,
@@ -65,6 +66,8 @@ import {
 import { StatusIcon, PriorityIcon } from ".";
 import { useQuery } from "@tanstack/react-query";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useIssueTypes } from "@multica/core/issue-types/hooks";
+import { TypeGlyph } from "./pickers/type-picker";
 import { memberListOptions, agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { goalListOptions } from "@multica/core/goals";
@@ -148,6 +151,7 @@ function getActiveFilterCount(
     includeNoProject: boolean;
     goalFilters?: string[];
     cycleFilters?: string[];
+    typeFilters?: string[];
     labelFilters: string[];
     propertyFilters?: Record<string, PropertyFilterValue[]>;
     dateFilter?: IssueDateFilter | null;
@@ -172,6 +176,7 @@ function getActiveFilterCount(
   if (projectDelta) count++;
   if ((state.goalFilters ?? []).length > 0) count++;
   if (delta(state.cycleFilters ?? [], baseline?.cycle) > 0) count++;
+  if (delta(state.typeFilters ?? [], baseline?.type) > 0) count++;
   if (delta(state.labelFilters, baseline?.label) > 0) count++;
   for (const [id, selected] of Object.entries(state.propertyFilters ?? {})) {
     // Property members can be operator objects — compare through their
@@ -589,6 +594,47 @@ function CycleSubContent({
         );
       })}
       {ordered.length === 0 && (
+        <div className="px-2 py-3 text-center text-body text-muted-foreground">
+          {t(($) => $.filters.no_results)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Work item type filter (F30). ACTIVE types only: an archived one is retired
+ * from assignment, so offering it would filter to a set nobody can grow.
+ */
+function TypeSubContent({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (typeKey: string) => void;
+}) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const { activeTypes } = useIssueTypes(wsId);
+
+  return (
+    <div className="max-h-64 overflow-y-auto p-1">
+      {activeTypes.map((entry) => {
+        const checked = selected.includes(entry.key);
+        return (
+          <DropdownMenuCheckboxItem
+            key={entry.key}
+            checked={checked}
+            onCheckedChange={() => onToggle(entry.key)}
+            className={FILTER_ITEM_CLASS}
+          >
+            <HoverCheck checked={checked} />
+            <TypeGlyph icon={entry.icon} color={entry.color} className="size-3.5 shrink-0" />
+            <span className="truncate">{entry.name}</span>
+          </DropdownMenuCheckboxItem>
+        );
+      })}
+      {activeTypes.length === 0 && (
         <div className="px-2 py-3 text-center text-body text-muted-foreground">
           {t(($) => $.filters.no_results)}
         </div>
@@ -1533,6 +1579,7 @@ export function IssueFilterMenu({
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
+  const typeFilters = useViewStore((s) => s.typeFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const viewStoreApi = useViewStoreApi();
@@ -1569,6 +1616,7 @@ export function IssueFilterMenu({
         includeNoProject,
         goalFilters,
         cycleFilters,
+        typeFilters,
         labelFilters,
         dateFilter: showDateFilter ? dateFilter : null,
       },
@@ -1850,6 +1898,22 @@ export function IssueFilterMenu({
               </DropdownMenuSubContent>
             </DropdownMenuSub>
 
+            {/* Work item type (F30) */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Shapes className="size-3.5" />
+                <span className="flex-1">{t(($) => $.filters.section_type)}</span>
+                {typeFilters.length > 0 && (
+                  <span className="text-caption text-primary font-medium">
+                    {typeFilters.length}
+                  </span>
+                )}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="w-auto min-w-52 p-0">
+                <TypeSubContent selected={typeFilters} onToggle={act.toggleTypeFilter} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
             {/* Label */}
             <DropdownMenuSub
               onOpenChange={(open) =>
@@ -1989,6 +2053,7 @@ export function IssueDisplayControls({
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const goalFilters = useViewStore((s) => s.goalFilters);
   const cycleFilters = useViewStore((s) => s.cycleFilters);
+  const typeFilters = useViewStore((s) => s.typeFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const cardPropertyIds = useViewStore((s) => s.cardPropertyIds);
@@ -2054,6 +2119,7 @@ export function IssueDisplayControls({
       includeNoProject,
       goalFilters,
       cycleFilters,
+      typeFilters,
       labelFilters,
       dateFilter: showDateFilter ? dateFilter : null,
     },
@@ -2468,6 +2534,8 @@ export function IssueDisplayControls({
                           <Waves className="size-3.5" />
                         ) : viewMode === "gantt" && allowGantt ? (
                           <ChartGantt className="size-3.5" />
+                        ) : viewMode === "calendar" ? (
+                          <CalendarDays className="size-3.5" />
                         ) : (
                           <List className="size-3.5" />
                         )}
@@ -2480,6 +2548,8 @@ export function IssueDisplayControls({
                             ? t(($) => $.view.swimlane)
                             : viewMode === "gantt" && allowGantt
                             ? t(($) => $.view.gantt)
+                            : viewMode === "calendar"
+                            ? t(($) => $.view.calendar)
                             : t(($) => $.view.list)}
                         </span>
                       </Button>
@@ -2496,6 +2566,8 @@ export function IssueDisplayControls({
                   ? t(($) => $.view.tooltip_swimlane)
                   : viewMode === "gantt" && allowGantt
                   ? t(($) => $.view.tooltip_gantt)
+                  : viewMode === "calendar"
+                  ? t(($) => $.view.tooltip_calendar)
                   : t(($) => $.view.tooltip_list)}
               </TooltipContent>
             </Tooltip>
@@ -2532,6 +2604,10 @@ export function IssueDisplayControls({
                     {t(($) => $.view.gantt)}
                   </DropdownMenuRadioItem>
                 )}
+                <DropdownMenuRadioItem value="calendar">
+                  <CalendarDays />
+                  {t(($) => $.view.calendar)}
+                </DropdownMenuRadioItem>
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>

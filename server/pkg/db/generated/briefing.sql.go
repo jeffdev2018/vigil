@@ -35,7 +35,7 @@ func (q *Queries) GetMorningBriefingSent(ctx context.Context, arg GetMorningBrie
 }
 
 const listIssuesCompletedBetween = `-- name: ListIssuesCompletedBetween :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id FROM issue
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type FROM issue
 WHERE workspace_id = $1 AND completed_at >= $2 AND completed_at < $3
 ORDER BY completed_at DESC
 LIMIT 50
@@ -93,6 +93,7 @@ func (q *Queries) ListIssuesCompletedBetween(ctx context.Context, arg ListIssues
 			&i.DelegateType,
 			&i.DelegateID,
 			&i.CycleID,
+			&i.IssueType,
 		); err != nil {
 			return nil, err
 		}
@@ -105,7 +106,7 @@ func (q *Queries) ListIssuesCompletedBetween(ctx context.Context, arg ListIssues
 }
 
 const listIssuesInStatuses = `-- name: ListIssuesInStatuses :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id FROM issue
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type FROM issue
 WHERE workspace_id = $1 AND status = ANY($2::text[])
 ORDER BY updated_at DESC
 LIMIT 50
@@ -162,6 +163,7 @@ func (q *Queries) ListIssuesInStatuses(ctx context.Context, arg ListIssuesInStat
 			&i.DelegateType,
 			&i.DelegateID,
 			&i.CycleID,
+			&i.IssueType,
 		); err != nil {
 			return nil, err
 		}

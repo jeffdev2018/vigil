@@ -18,6 +18,7 @@ import {
   Tags,
   ArrowRightLeft,
   CircleDot,
+  Shapes,
   Keyboard,
   ListTodo,
   Zap,
@@ -55,6 +56,7 @@ import { LabsTab } from "./labs-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { LabelsTab } from "./labels-tab";
 import { IssueStatusesTab } from "./issue-statuses-tab";
+import { IssueTypesTab } from "./issue-types-tab";
 import { TransitionsTab } from "./transitions-tab";
 import { PropertiesTab } from "./properties-tab";
 import { QuickActionsTab } from "./quick-actions-tab";
@@ -95,6 +97,7 @@ const WORKSPACE_TAB_KEYS = [
   "budgets",
   "labels",
   "issue_statuses",
+  "issue_types",
   "transitions",
   "properties",
   "quick_actions",
@@ -118,6 +121,7 @@ const WORKSPACE_TAB_VALUES = {
   budgets: "budgets",
   labels: "labels",
   issue_statuses: "issue-statuses",
+  issue_types: "issue-types",
   transitions: "transitions",
   properties: "properties",
   quick_actions: "quick-actions",
@@ -141,6 +145,7 @@ const WORKSPACE_TAB_ICONS = {
   budgets: WalletCards,
   labels: Tags,
   issue_statuses: CircleDot,
+  issue_types: Shapes,
   transitions: ArrowRightLeft,
   properties: SlidersHorizontal,
   quick_actions: Zap,
@@ -307,7 +312,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
 
       {/* Right content */}
       <div className="min-w-0 flex-1 md:overflow-y-auto">
-        <div className={`mx-auto w-full p-4 sm:p-6 md:p-8 ${activeTab === "labels" || activeTab === "issue-statuses" || activeTab === "properties" || activeTab === "quick-actions"
+        <div className={`mx-auto w-full p-4 sm:p-6 md:p-8 ${activeTab === "labels" || activeTab === "issue-statuses" || activeTab === "issue-types" || activeTab === "properties" || activeTab === "quick-actions"
               ? "max-w-5xl"
               : "max-w-3xl"}`}>
           <TabsContent value="profile"><AccountTab /></TabsContent>
@@ -330,6 +335,7 @@ export function SettingsPage({ extraAccountTabs }: SettingsPageProps = {}) {
           <TabsContent value="budgets"><BudgetsTab /></TabsContent>
           <TabsContent value="labels"><LabelsTab /></TabsContent>
           <TabsContent value="issue-statuses"><IssueStatusesTab /></TabsContent>
+          <TabsContent value="issue-types"><IssueTypesTab /></TabsContent>
           <TabsContent value="transitions"><TransitionsTab /></TabsContent>
           <TabsContent value="properties"><PropertiesTab /></TabsContent>
           <TabsContent value="quick-actions"><QuickActionsTab /></TabsContent>

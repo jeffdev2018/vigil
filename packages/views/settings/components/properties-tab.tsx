@@ -22,6 +22,8 @@ import {
   useCreateProperty,
   useUpdateProperty,
 } from "@multica/core/properties";
+import { issueTypeListOptions } from "@multica/core/issue-types/queries";
+import { useSetPropertyTypes } from "@multica/core/issue-types/mutations";
 import type {
   IssueProperty,
   IssuePropertyOption,
@@ -34,6 +36,7 @@ import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Label as FieldLabel } from "@multica/ui/components/ui/label";
 import { Switch } from "@multica/ui/components/ui/switch";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -93,6 +96,8 @@ interface PropertyDraft {
   description: string;
   icon: string;
   options: OptionDraft[];
+  /** Work item types this property applies to (F30). EMPTY = global. */
+  typeKeys: string[];
 }
 
 const EMPTY_DRAFT: PropertyDraft = {
@@ -101,6 +106,8 @@ const EMPTY_DRAFT: PropertyDraft = {
   description: "",
   icon: "",
   options: [{ name: "", color: COLOR_PICKER_PRESETS[6] }],
+  // A new property starts GLOBAL, which is what every property was before F30.
+  typeKeys: [],
 };
 
 function typeHasOptions(type: string): boolean {
@@ -229,6 +236,13 @@ export function PropertiesTab() {
                   </div>
                   <span className="text-caption text-muted-foreground md:text-body">
                     <PropertyTypeLabel type={property.type} />
+                    {(property.type_keys?.length ?? 0) > 0 && (
+                      <span className="ml-1 rounded-full bg-muted/60 px-1.5 py-0.5 text-micro">
+                        {t(($) => $.properties.types_count, {
+                          count: property.type_keys!.length,
+                        })}
+                      </span>
+                    )}
                   </span>
                   <div className="flex min-w-0 flex-wrap items-center gap-1">
                     {(property.config.options ?? []).slice(0, 6).map((option) => (
@@ -369,6 +383,7 @@ function PropertyEditorDialog({
   const { t } = useT("settings");
   const create = useCreateProperty();
   const update = useUpdateProperty();
+  const setTypes = useSetPropertyTypes();
   const [draft, setDraft] = useState<PropertyDraft>(EMPTY_DRAFT);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
 
@@ -387,6 +402,7 @@ function PropertyEditorDialog({
               name: option.name,
               color: option.color,
             })),
+            typeKeys: property.type_keys ?? [],
           }
         : EMPTY_DRAFT,
     );
@@ -416,6 +432,35 @@ function PropertyEditorDialog({
       toast.error(
         error instanceof Error ? error.message : t(($) => $.properties.save_failed),
       );
+    // The scope is a SEPARATE endpoint from the definition, so it is written
+    // second and only when it actually changed. Two writes rather than one is
+    // the honest shape here: the cap check lives on the scope endpoint and can
+    // refuse independently, and folding it into the definition write would make
+    // a rename fail because a type is full.
+    const scopeChanged =
+      !property ||
+      draft.typeKeys.length !== (property.type_keys?.length ?? 0) ||
+      draft.typeKeys.some((key) => !(property.type_keys ?? []).includes(key));
+    const writeScope = (id: string) => {
+      if (!scopeChanged) {
+        onOpenChange(false);
+        return;
+      }
+      setTypes.mutate(
+        { id, typeKeys: draft.typeKeys },
+        {
+          onSuccess: () => onOpenChange(false),
+          // The dialog STAYS OPEN on a scope failure: the definition already
+          // saved, and closing would leave the user believing a scope the
+          // server refused (a full type's cap) is in force.
+          onError: (error) =>
+            toast.error(
+              error instanceof Error ? error.message : t(($) => $.properties.types_failed),
+            ),
+        },
+      );
+    };
+
     if (property) {
       update.mutate(
         {
@@ -425,7 +470,7 @@ function PropertyEditorDialog({
           icon: draft.icon,
           ...(config ? { config } : {}),
         },
-        { onSuccess: () => onOpenChange(false), onError },
+        { onSuccess: () => writeScope(property.id), onError },
       );
       return;
     }
@@ -437,7 +482,16 @@ function PropertyEditorDialog({
         icon: draft.icon,
         ...(config ? { config } : {}),
       },
-      { onSuccess: () => onOpenChange(false), onError },
+      {
+        onSuccess: (created) => {
+          if (created?.id && draft.typeKeys.length > 0) {
+            writeScope(created.id);
+            return;
+          }
+          onOpenChange(false);
+        },
+        onError,
+      },
     );
   };
 
@@ -569,6 +623,16 @@ function PropertyEditorDialog({
               placeholder={t(($) => $.properties.editor.description_placeholder)}
             />
           </div>
+          <div className="space-y-2">
+            <FieldLabel>{t(($) => $.properties.types_label)}</FieldLabel>
+            <TypeScopeSelector
+              value={draft.typeKeys}
+              onChange={(typeKeys) => setDraft((current) => ({ ...current, typeKeys }))}
+            />
+            <p className="text-caption text-muted-foreground">
+              {t(($) => $.properties.types_hint)}
+            </p>
+          </div>
           {showOptions && (
             <div className="space-y-2">
               <FieldLabel>{t(($) => $.properties.editor.options)}</FieldLabel>
@@ -697,5 +761,69 @@ function ArchivePropertyDialog({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+/**
+ * Multi-select over the workspace's ACTIVE work item types (F30).
+ *
+ * EMPTY is a meaningful value, not an unset one: it means the property is
+ * GLOBAL — every type plus untyped issues. So "All work item types" is a real
+ * row at the top rather than a placeholder, and unticking every type lands back
+ * on it instead of leaving the control in an ambiguous state.
+ *
+ * Archived types are excluded: a scope naming one would keep a property hidden
+ * from issues nobody can create any more. A scope already holding an archived
+ * key is left alone by this control — it edits what you tick, and silently
+ * dropping a key on open would rewrite a scope the user never touched.
+ */
+function TypeScopeSelector({
+  value,
+  onChange,
+}: {
+  value: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const { t } = useT("settings");
+  const wsId = useWorkspaceId();
+  const { data: types = [] } = useQuery(issueTypeListOptions(wsId));
+  const active = types.filter((entry) => !entry.archived_at);
+  const isGlobal = value.length === 0;
+
+  const toggle = (key: string) => {
+    onChange(value.includes(key) ? value.filter((k) => k !== key) : [...value, key]);
+  };
+
+  return (
+    <div className="rounded-md border border-surface-border">
+      <button
+        type="button"
+        onClick={() => onChange([])}
+        className="flex w-full items-center gap-2 border-b border-surface-border px-2 py-1.5 text-caption transition-colors hover:bg-accent/50"
+      >
+        <Checkbox checked={isGlobal} aria-hidden tabIndex={-1} />
+        <span className={isGlobal ? "font-medium" : "text-muted-foreground"}>
+          {t(($) => $.properties.types_all)}
+        </span>
+      </button>
+      <div className="max-h-40 overflow-y-auto p-1">
+        {active.map((entry) => (
+          <button
+            key={entry.key}
+            type="button"
+            onClick={() => toggle(entry.key)}
+            className="flex w-full items-center gap-2 rounded px-1 py-1 text-caption transition-colors hover:bg-accent/50"
+          >
+            <Checkbox checked={value.includes(entry.key)} aria-hidden tabIndex={-1} />
+            <span
+              aria-hidden
+              className="size-2 shrink-0 rounded-full"
+              style={{ backgroundColor: entry.color }}
+            />
+            <span className="truncate">{entry.name}</span>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -568,6 +568,7 @@ func init() {
 	issueUpdateCmd.Flags().String("delegate", "", "New delegate name — the assignee's partner (member or agent; fuzzy match). Starts no run.")
 	issueUpdateCmd.Flags().String("delegate-id", "", "New delegate UUID — member or agent (mutually exclusive with --delegate)")
 	issueUpdateCmd.Flags().String("project", "", "Project ID")
+	issueUpdateCmd.Flags().String("type", "", "Work item type KEY from the workspace catalogue (bug, story, epic, task, or a custom one). Pass an empty string to clear it back to untyped. Classification only: it starts no run and changes no status.")
 	issueUpdateCmd.Flags().String("start-date", "", "New start date (calendar day, YYYY-MM-DD; pass empty string to clear)")
 	issueUpdateCmd.Flags().String("due-date", "", "New due date (calendar day, YYYY-MM-DD)")
 	issueUpdateCmd.Flags().String("parent", "", "Parent issue ID (use --parent \"\" to clear)")
@@ -1420,6 +1421,17 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 	}
 	if priorityChanged {
 		body["priority"] = priorityFlag
+	}
+	if cmd.Flags().Changed("type") {
+		v, _ := cmd.Flags().GetString("type")
+		// Empty CLEARS: `--type ""` is how the CLI expresses "untyped", the
+		// same way `--project ""` and `--parent ""` clear theirs. Sending the
+		// empty string through would be refused by the server's blank check.
+		if strings.TrimSpace(v) == "" {
+			body["issue_type"] = nil
+		} else {
+			body["issue_type"] = v
+		}
 	}
 	if cmd.Flags().Changed("project") {
 		v, _ := cmd.Flags().GetString("project")
