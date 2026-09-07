@@ -16,6 +16,8 @@ import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { cycleKeys } from "../cycles/queries";
 import { orgKeys } from "../org/queries";
+import { issueTransitionKeys } from "../issue-transitions/queries";
+import { docDriftKeys } from "../doc-drift/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { budgetKeys } from "../budgets/queries";
@@ -900,6 +902,37 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: orgKeys.all(wsId) });
       },
+      // issue_transition:requested|approved|rejected (F28). The approval gate is
+      // a two-person flow: one member requests, another decides. The approver's
+      // banner reads a per-issue query whose key starts with "issue" (singular)
+      // while issueKeys uses "issues" (plural), so the issue-detail invalidation
+      // can never reach it, and staleTime: Infinity means navigating away and
+      // back does not heal it either. Without this the banner never appears for
+      // the approver, and never clears for the requester.
+      issue_transition: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: issueTransitionKeys.rules(wsId) });
+        // The payload names one request; the open surfaces are keyed per issue,
+        // so the two per-issue families are invalidated by their suffix.
+        qc.invalidateQueries({
+          predicate: (q) => {
+            const k = q.queryKey;
+            const last = k[k.length - 1];
+            return k[0] === "issue" && (last === "transition-requests" || last === "transition-effective");
+          },
+        });
+      },
+      // doc_drift:proposed|pr_opened|dismissed (K56). A drift check starts a run
+      // whose proposal lands later, so the mutation's own invalidation fires too
+      // early and the proposals list has no poll of its own. Without this the
+      // admin watches the scan finish and the list stays empty.
+      doc_drift: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: docDriftKeys.settings(wsId) });
+        qc.invalidateQueries({ queryKey: docDriftKeys.proposals(wsId) });
+      },
       squad: () => {
         const wsId = getCurrentWsId();
         if (wsId) {
@@ -1150,7 +1183,7 @@ export function useRealtimeSync(
     // Event types handled by specific handlers below -- skip generic refresh
     const specificEvents = new Set([
       "workspace:updated",
-      "issue:updated", "issue:created", "issue:deleted", "issue_attachments:changed", "issue_labels:changed", "issue_metadata:changed", "issue_properties:changed", "property:created", "property:updated", "inbox:new",
+      "issue:updated", "issue:created", "issue:deleted", "issue:aux_changed", "issue_attachments:changed", "issue_labels:changed", "issue_metadata:changed", "issue_properties:changed", "property:created", "property:updated", "inbox:new",
       "comment:created", "comment:updated", "comment:deleted",
       "comment:resolved", "comment:unresolved",
       "activity:created",
@@ -1221,6 +1254,19 @@ export function useRealtimeSync(
       if (!issue) return;
       const wsId = getCurrentWsId();
       if (wsId) onIssueCreated(qc, wsId, issue);
+    });
+
+    // issue:aux_changed carries an answer given outside the web app — a decision
+    // card answered from Slack, say. Only the issue's decision list is stale;
+    // the issue row itself is not, so this is a targeted invalidation rather
+    // than a prefix entry, which would also swallow every future issue:* event
+    // that has no specific handler.
+    const unsubIssueAuxChanged = ws.on("issue:aux_changed", (p) => {
+      const { issue_id } = p as { issue_id?: string };
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      if (issue_id) qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
+      else qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {
@@ -2057,6 +2103,7 @@ export function useRealtimeSync(
       unsubIssueUpdated();
       unsubIssueCreated();
       unsubIssueDeleted();
+      unsubIssueAuxChanged();
       unsubIssueAttachmentsChanged();
       unsubIssueLabelsChanged();
       unsubIssueMetadataChanged();

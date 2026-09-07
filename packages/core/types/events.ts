@@ -16,6 +16,7 @@ export type WSEventType =
   | "issue:updated"
   | "issue_attachments:changed"
   | "issue:deleted"
+  | "issue:aux_changed"
   | "comment:created"
   | "comment:updated"
   | "comment:deleted"
@@ -817,6 +818,8 @@ export interface WSEventPayloadMap {
   "issue:created": IssueCreatedPayload;
   "issue:updated": IssueUpdatedPayload;
   "issue:deleted": IssueDeletedPayload;
+  /** An answer given outside the web app (a decision card answered from Slack). */
+  "issue:aux_changed": { issue_id?: string };
   "issue_attachments:changed": IssueAttachmentsChangedPayload;
   "issue_labels:changed": IssueLabelsChangedPayload;
   "issue_properties:changed": IssuePropertiesChangedPayload;

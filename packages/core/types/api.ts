@@ -424,6 +424,11 @@ export interface IssueTableParentRef {
 }
 
 export type IssueTableGroupValue =
+  // A kind this build does not know. The schema maps it here rather than
+  // failing the row, which would fail the array and blank the whole board
+  // (see schemas.ts). A literal keeps the union discriminable, so every
+  // consumer's switch still narrows and its default branch handles this.
+  | { kind: "unknown" }
   | { kind: "status"; status: string }
   | { kind: "assignee"; actor: IssueTableActorRef | null }
   | { kind: "project"; project_id: string | null }
