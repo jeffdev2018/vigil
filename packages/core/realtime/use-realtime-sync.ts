@@ -15,6 +15,7 @@ import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
 import { cycleKeys } from "../cycles/queries";
+import { orgKeys } from "../org/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { budgetKeys } from "../budgets/queries";
@@ -886,6 +887,18 @@ export function useRealtimeSync(
           qc.invalidateQueries({ queryKey: cycleKeys.all(wsId) });
           qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
         }
+      },
+      // org:updated (K75) covers every write to an org structure: create,
+      // revise, activate, pause, dissolve, and the routing an active structure
+      // applies. The payload names the structure, but the page reads a list, a
+      // detail, a health and a preflight query per structure, so the prefix is
+      // invalidated wholesale — a handful of small queries against one open
+      // page. Without this the Organisation page never learns about a
+      // structure written anywhere but in this client, which is exactly what a
+      // desktop tab left open does not survive.
+      org: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: orgKeys.all(wsId) });
       },
       squad: () => {
         const wsId = getCurrentWsId();
