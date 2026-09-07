@@ -369,6 +369,7 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		// Fork-side references re-homed under the platform skill when upstream
 		// merged the per-domain built-ins into one router.
 		"references/goals.md":                  "goal",
+		"references/insights.md":               "insight",
 		"references/triage-verdicts.md":        "triage",
 		"references/status-transitions.md":     "status transition",
 		"references/undo-and-show-me-first.md": "undo",

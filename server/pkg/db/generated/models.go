@@ -1400,6 +1400,37 @@ type InboxItem struct {
 	Details       []byte             `json:"details"`
 }
 
+// F27: translation-quality evidence. One row per plain-language question; outcome distinguishes a rejected document from an absent model.
+type InsightQueryLog struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	Question    string             `json:"question"`
+	Compiled    []byte             `json:"compiled"`
+	Outcome     string             `json:"outcome"`
+	DurationMs  int32              `json:"duration_ms"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+// F27: one pinned insight. query is a closed-DSL document the server compiles, never SQL. No FK by house rule.
+type InsightWidget struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	OwnerID     pgtype.UUID `json:"owner_id"`
+	Name        string      `json:"name"`
+	// The plain-language question that produced the document. Always rendered on the card.
+	Question string `json:"question"`
+	// DSL version the document was written against, so a future widening can migrate stored documents instead of guessing.
+	DefinitionVersion int32              `json:"definition_version"`
+	Query             []byte             `json:"query"`
+	Display           []byte             `json:"display"`
+	Visibility        string             `json:"visibility"`
+	Position          float64            `json:"position"`
+	Revision          int32              `json:"revision"`
+	CreatedAt         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Issue struct {
 	ID                 pgtype.UUID        `json:"id"`
 	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
