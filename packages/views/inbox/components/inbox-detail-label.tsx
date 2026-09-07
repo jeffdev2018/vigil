@@ -61,6 +61,8 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
     transition_approval_requested: t(($) => $.types.transition_approval_requested),
+    critic_degraded: t(($) => $.types.critic_degraded),
+    critic_budget: t(($) => $.types.critic_budget),
   };
 }
 

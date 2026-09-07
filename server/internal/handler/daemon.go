@@ -4285,6 +4285,11 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	h.settleContestRun(r.Context(), *task, req.Output)
 	h.autoContestTaskResult(r.Context(), *task)
 	h.triggerCrossReview(r.Context(), *task, req.PRURL, req.BranchName)
+	// Adversarial critic (F25): a finished critic run leaves its verdict and
+	// relaunches the author when it blocks; a finished delivery gets its
+	// critic when the agent's (or its squad's) policy asks for one.
+	h.settleCriticRun(r.Context(), *task, req.Output)
+	h.triggerCriticReview(r.Context(), *task, req.PRURL, req.BranchName)
 
 	// MUL-4195: guarantee at-least-once processing. If a member posted a
 	// deliberate comment while this run was executing (or one was merged into

@@ -101,6 +101,7 @@ import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { CrossReviewSection } from "./cross-review-section";
+import { CriticVerdictCard } from "./critic-verdict-card";
 import { ContestsSection } from "../../contests/components/contests-section";
 import { IssueOrgSection } from "../../org/components/issue-org-section";
 import { AgentEffectsSection } from "./agent-effects-section";
@@ -2683,6 +2684,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Cross-provider self-review (K15): another provider's report on the last diff, before the human review. */}
       <CrossReviewSection issueId={id} />
+
+      {/* Adversarial review (F25): the critic's verdicts on this issue's deliveries. */}
+      <CriticVerdictCard issueId={id} />
 
       {/* Contest (K72): rival-model objections on this issue's outputs, and the human verdict. */}
       <ContestsSection issueId={id} />

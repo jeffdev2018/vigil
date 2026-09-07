@@ -1,0 +1,40 @@
+{
+  "section": {
+    "title": "批評レビュー",
+    "description": "別のプロバイダーの批評エージェントが、このエージェントの各変更をレビューし、判定を記録します。",
+    "description_squad": "別のプロバイダーの批評エージェントが、このスクワッドの各変更をレビューし、判定を記録します。",
+    "enabled": "批評レビューを有効にする",
+    "critic": "批評エージェント",
+    "critic_placeholder": "エージェントを選択",
+    "require_distinct_provider": "異なるプロバイダーを必須にする",
+    "require_distinct_provider_hint": "別プロバイダーの批評がいない場合、レビューはスキップされ、その旨が記録されます。",
+    "blocking": "判定が出るまで課題を保留する",
+    "blocking_hint": "課題はレビュー中で待機します。メンバーはいつでも移動できます。",
+    "max_rounds": "ラウンド数",
+    "max_rounds_hint": "ブロックされた変更が差し戻される最大回数。",
+    "budget": "コスト上限",
+    "budget_placeholder": "上限なし",
+    "budget_hint": "この課題の合計費用（ドル）。超えるとループを停止します。",
+    "save": "保存",
+    "saving": "保存中…",
+    "error_critic_required": "批評レビューを有効にする前に批評エージェントを選んでください。",
+    "error_critic_is_author": "エージェントは自分自身の批評者になれません。",
+    "error_save": "ポリシーを保存できませんでした。"
+  },
+  "card": {
+    "title": "批評レビュー",
+    "round": "ラウンド {{round}}",
+    "verdict_pass": "問題なし",
+    "verdict_concerns": "懸念あり",
+    "verdict_block": "ブロック",
+    "reason_no_distinct_provider": "スキップ：別プロバイダーの批評エージェントがいません",
+    "reason_max_rounds": "停止：ラウンド上限に達しました",
+    "reason_max_cost": "停止：コスト上限に達しました",
+    "reason_no_verdict": "批評エージェントは判定を残さずに終了しました",
+    "findings": "指摘（{{count}}）",
+    "hide_findings": "指摘を隠す",
+    "cost": "コスト {{cost}}",
+    "open_run": "批評の実行を開く",
+    "empty": "この課題にはまだ批評レビューがありません。"
+  }
+}

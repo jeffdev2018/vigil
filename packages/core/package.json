@@ -204,6 +204,7 @@
     "./access": "./access/index.ts",
     "./mirrors": "./mirrors/index.ts",
     "./issue-transitions": "./issue-transitions/index.ts",
+    "./critic": "./critic/index.ts",
     "./budgets/queries": "./budgets/queries.ts",
     "./budgets/mutations": "./budgets/mutations.ts",
     "./github": "./github/index.ts",

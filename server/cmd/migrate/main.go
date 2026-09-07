@@ -427,6 +427,9 @@ var concurrentIndexCleanups = map[string]string{
 	"769_issue_transition_rule_actor_rule":                      "idx_issue_transition_rule_actor_rule",
 	"771_issue_transition_request_pending":                      "uq_issue_transition_request_pending",
 	"772_issue_transition_request_listing":                      "idx_issue_transition_request_listing",
+	"774_agent_critic_policy_subject":                           "uq_agent_critic_policy_subject",
+	"776_agent_critic_verdict_issue":                            "idx_agent_critic_verdict_issue",
+	"777_agent_critic_verdict_critic_task":                      "idx_agent_critic_verdict_critic_task",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

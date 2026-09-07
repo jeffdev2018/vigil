@@ -1,0 +1,40 @@
+{
+  "section": {
+    "title": "비판 검토",
+    "description": "다른 제공자의 비판 에이전트가 이 에이전트가 전달한 모든 변경을 검토하고 판정을 기록합니다.",
+    "description_squad": "다른 제공자의 비판 에이전트가 이 스쿼드가 전달한 모든 변경을 검토하고 판정을 기록합니다.",
+    "enabled": "비판 검토 사용",
+    "critic": "비판 에이전트",
+    "critic_placeholder": "에이전트 선택",
+    "require_distinct_provider": "다른 제공자 필수",
+    "require_distinct_provider_hint": "다른 제공자의 비판 에이전트가 없으면 검토를 건너뛰고 그 사실을 기록합니다.",
+    "blocking": "판정이 나올 때까지 이슈 보류",
+    "blocking_hint": "이슈는 검토 상태로 대기합니다. 멤버는 언제든 옮길 수 있습니다.",
+    "max_rounds": "라운드",
+    "max_rounds_hint": "차단된 변경이 다시 돌아올 수 있는 횟수입니다.",
+    "budget": "비용 예산",
+    "budget_placeholder": "상한 없음",
+    "budget_hint": "이 이슈에 쓴 총 비용(달러). 초과하면 루프를 멈춥니다.",
+    "save": "저장",
+    "saving": "저장 중…",
+    "error_critic_required": "비판 검토를 켜기 전에 비판 에이전트를 선택하세요.",
+    "error_critic_is_author": "에이전트는 자신의 비판자가 될 수 없습니다.",
+    "error_save": "정책을 저장하지 못했습니다."
+  },
+  "card": {
+    "title": "비판 검토",
+    "round": "라운드 {{round}}",
+    "verdict_pass": "통과",
+    "verdict_concerns": "우려",
+    "verdict_block": "차단",
+    "reason_no_distinct_provider": "건너뜀: 다른 제공자의 비판 에이전트가 없습니다",
+    "reason_max_rounds": "중단: 라운드 한도에 도달했습니다",
+    "reason_max_cost": "중단: 비용 한도에 도달했습니다",
+    "reason_no_verdict": "비판 에이전트가 판정 없이 종료했습니다",
+    "findings": "지적 사항 ({{count}})",
+    "hide_findings": "지적 사항 숨기기",
+    "cost": "비용 {{cost}}",
+    "open_run": "비판 실행 열기",
+    "empty": "이 이슈에는 아직 비판 검토가 없습니다."
+  }
+}

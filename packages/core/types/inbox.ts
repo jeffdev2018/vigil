@@ -71,7 +71,13 @@ export type InboxItemType =
   | "triage_stale"
   // Transition rules (F28): a status change is held for an approver. Filed for
   // every member holding a role the rule accepts as an approver.
-  | "transition_approval_requested";
+  | "transition_approval_requested"
+  // Adversarial critic (F25): the policy could not be honoured (no critic on
+  // another provider, or the critic run could not be started), or the loop
+  // stopped on its round / cost budget. Both are cases where a policy quietly
+  // stopped doing what it promised, so a human is told.
+  | "critic_degraded"
+  | "critic_budget";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

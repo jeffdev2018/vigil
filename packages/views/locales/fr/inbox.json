@@ -95,6 +95,8 @@
     "trust_promotion_suggested": "Promotion de confiance suggérée",
     "triage_stale": "La file de triage stagne",
     "transition_approval_requested": "Approbation requise",
+    "critic_degraded": "Revue adverse ignorée",
+    "critic_budget": "Revue adverse arrêtée",
     "watchdog_escalation": "Escalade du watchdog",
     "contest_ready": "Contestation prête pour votre verdict",
     "org_alert": "Alerte d'organisation",
