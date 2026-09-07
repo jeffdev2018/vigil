@@ -17,6 +17,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/multica-ai/multica/server/pkg/modelkey"
 	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
@@ -87,7 +88,7 @@ func (b *claudeBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	cmd.Env = buildEnv(b.cfg)
 	if err := claudeRootSudoPreflight(args, cmd.Env); err != nil {
 		cancel()
 		return nil, err
@@ -880,8 +881,52 @@ func resolveSessionID(requestedResume, emitted string, failed bool, texts ...str
 	return emitted
 }
 
-func buildEnv(extra map[string]string) []string {
-	return mergeEnv(os.Environ(), extra)
+func buildEnv(cfg Config) []string {
+	return mergeEnv(dropForeignVendorKeys(os.Environ(), cfg.provider), cfg.Env)
+}
+
+// dropForeignVendorKeys removes, from an inherited environment, the model
+// vendor API keys the running provider does not spend. A claude run has no
+// use for OPENAI_API_KEY or DEEPSEEK_API_KEY, and inheriting them hands
+// every third-party model credential that happens to sit in the daemon's
+// environment to whatever the agent decides to do with it — a prompt
+// injection included.
+//
+// The key the provider does spend is left alone on purpose: dropping it
+// would break a workspace that authenticates through the daemon's ambient
+// environment rather than through BYOK or the agent's custom env. A CLI
+// that fronts several vendors (opencode, pi, cursor) has no single vendor,
+// so nothing is dropped for it either — VendorForRuntime returns "" and
+// this is a no-op.
+//
+// SCOPE (honest): this is a floor, not a boundary. A credential that is not
+// a known model vendor key — a cloud token, a registry token, an unrelated
+// SaaS key exported in the daemon's shell — still reaches the child.
+// Building the child environment from an allowlist instead of subtracting
+// from the daemon's is the real fix, and it is a separate change.
+func dropForeignVendorKeys(env []string, provider string) []string {
+	spends := modelkey.VendorForRuntime(provider)
+	if spends == "" {
+		return env
+	}
+	drop := make(map[string]bool, len(modelkey.Vendors))
+	for _, v := range modelkey.Vendors {
+		if v.ID != spends {
+			drop[v.EnvVar] = true
+		}
+	}
+	if len(drop) == 0 {
+		return env
+	}
+	out := make([]string, 0, len(env))
+	for _, entry := range env {
+		key, _, _ := strings.Cut(entry, "=")
+		if drop[strings.ToUpper(key)] {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
 }
 
 func claudeRootSudoPreflight(args, env []string) error {

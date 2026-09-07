@@ -355,7 +355,7 @@ func (b *copilotBackend) Execute(ctx context.Context, prompt string, opts ExecOp
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	cmd.Env = buildEnv(b.cfg)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
