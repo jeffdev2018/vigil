@@ -12,9 +12,6 @@ verification run after every completed run. This skill fixes the two
 contracts an agent has with it: how a plan is published, and how a
 verification run reports.
 
-Every contract below is traced to source in
-`references/plan-verification-source-map.md`.
-
 ## Publishing a plan
 
 Write the plan as markdown, then publish it before you start executing:
