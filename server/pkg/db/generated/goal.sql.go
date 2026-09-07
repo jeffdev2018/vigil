@@ -58,9 +58,9 @@ func (q *Queries) CountChildGoals(ctx context.Context, arg CountChildGoalsParams
 }
 
 const createGoal = `-- name: CreateGoal :one
-INSERT INTO goal (id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at
+INSERT INTO goal (id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, start_date)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date
 `
 
 type CreateGoalParams struct {
@@ -73,6 +73,7 @@ type CreateGoalParams struct {
 	DueDate        pgtype.Date `json:"due_date"`
 	OwnerID        pgtype.UUID `json:"owner_id"`
 	Status         string      `json:"status"`
+	StartDate      pgtype.Date `json:"start_date"`
 }
 
 func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, error) {
@@ -86,6 +87,7 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 		arg.DueDate,
 		arg.OwnerID,
 		arg.Status,
+		arg.StartDate,
 	)
 	var i Goal
 	err := row.Scan(
@@ -100,6 +102,7 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StartDate,
 	)
 	return i, err
 }
@@ -147,7 +150,7 @@ func (q *Queries) DeleteProjectGoalsByProject(ctx context.Context, arg DeletePro
 }
 
 const getGoalInWorkspace = `-- name: GetGoalInWorkspace :one
-SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at FROM goal WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date FROM goal WHERE id = $1 AND workspace_id = $2
 `
 
 type GetGoalInWorkspaceParams struct {
@@ -170,6 +173,7 @@ func (q *Queries) GetGoalInWorkspace(ctx context.Context, arg GetGoalInWorkspace
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StartDate,
 	)
 	return i, err
 }
@@ -220,7 +224,7 @@ func (q *Queries) GetGoalIssueStats(ctx context.Context, arg GetGoalIssueStatsPa
 }
 
 const listGoalIssues = `-- name: ListGoalIssues :many
-SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id FROM issue i
+SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id, i.cycle_id FROM issue i
 WHERE i.workspace_id = $1
   AND (i.goal_id = $2
        OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = $2)))
@@ -278,6 +282,7 @@ func (q *Queries) ListGoalIssues(ctx context.Context, arg ListGoalIssuesParams) 
 			&i.GoalID,
 			&i.DelegateType,
 			&i.DelegateID,
+			&i.CycleID,
 		); err != nil {
 			return nil, err
 		}
@@ -291,7 +296,7 @@ func (q *Queries) ListGoalIssues(ctx context.Context, arg ListGoalIssuesParams) 
 
 const listGoals = `-- name: ListGoals :many
 
-SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at FROM goal WHERE workspace_id = $1 ORDER BY created_at ASC
+SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date FROM goal WHERE workspace_id = $1 ORDER BY created_at ASC
 `
 
 // Goals with ancestry (K74).
@@ -316,6 +321,7 @@ func (q *Queries) ListGoals(ctx context.Context, workspaceID pgtype.UUID) ([]Goa
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.StartDate,
 		); err != nil {
 			return nil, err
 		}
@@ -414,9 +420,10 @@ UPDATE goal SET
     due_date = $7,
     owner_id = $8,
     status = $9,
+    start_date = $10,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
-RETURNING id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at
+RETURNING id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date
 `
 
 type UpdateGoalParams struct {
@@ -429,6 +436,7 @@ type UpdateGoalParams struct {
 	DueDate        pgtype.Date `json:"due_date"`
 	OwnerID        pgtype.UUID `json:"owner_id"`
 	Status         string      `json:"status"`
+	StartDate      pgtype.Date `json:"start_date"`
 }
 
 func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, error) {
@@ -442,6 +450,7 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 		arg.DueDate,
 		arg.OwnerID,
 		arg.Status,
+		arg.StartDate,
 	)
 	var i Goal
 	err := row.Scan(
@@ -456,6 +465,7 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StartDate,
 	)
 	return i, err
 }

@@ -71,6 +71,7 @@
       "slugs": [
         "issues",
         "projects",
+        "cycles",
         "goals",
         "autopilots",
         "agents",

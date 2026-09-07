@@ -34,6 +34,7 @@ import { AppLink } from "../../navigation";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
 import { useT } from "../../i18n";
 import { flattenGoalTree } from "./goal-tree";
+import { GoalProgressSection } from "./goal-progress-section";
 
 const GOAL_STATUSES: GoalStatus[] = ["draft", "active", "done", "dropped"];
 
@@ -321,7 +322,8 @@ export function GoalsPage() {
                       <p className="mt-1 truncate text-caption text-muted-foreground">{goal.success_measure}</p>
                     )}
                     {isOpen && (
-                      <div className="mt-2">
+                      <div className="mt-2 flex flex-col gap-3">
+                        <GoalProgressSection goalId={goal.id} />
                         <GoalIssues goalId={goal.id} />
                       </div>
                     )}

@@ -97,6 +97,7 @@
     "transition_approval_requested": "Approbation requise",
     "critic_degraded": "Revue adverse ignorée",
     "critic_budget": "Revue adverse arrêtée",
+    "cycle_rollover_orphaned": "Du travail a quitté un cycle sans destination",
     "watchdog_escalation": "Escalade du watchdog",
     "contest_ready": "Contestation prête pour votre verdict",
     "org_alert": "Alerte d'organisation",

@@ -35,6 +35,9 @@ function workspaceScoped(slug: string) {
     projectDetail: (id: string) => `${ws}/projects/${encode(id)}`,
     // Goals with ancestry (K74): the tree every project and issue serves.
     goals: () => `${ws}/goals`,
+    // Dated cycles (F29): a project's iterations, their capacity and burndown.
+    cycles: () => `${ws}/cycles`,
+    cycleDetail: (id: string) => `${ws}/cycles/${encode(id)}`,
     // Executable org chart (K75): the structures routing work in this workspace.
     org: () => `${ws}/org`,
     autopilots: () => `${ws}/autopilots`,

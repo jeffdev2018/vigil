@@ -56,6 +56,16 @@ var createActivityCallSites = map[string]createActivityCallSite{
 		why:          "squad leader evaluation, agent-only endpoint; already stamped task_id before F03.",
 		wantSource:   `"task_id":  util.UUIDToString(taskUUID)`,
 	},
+	"internal/handler/cycle.go": {
+		file:         "internal/handler/cycle.go",
+		stampsTaskID: false,
+		why: "cycle rollover journal (F29). Written by the cycle_rollover " +
+			"scheduler job and by an explicit close, never under an agent run: " +
+			"actor_type is the literal \"system\" and there is no task to " +
+			"attribute it to, so a task_id would be an invention rather than " +
+			"lineage. The row belongs to the issue's timeline, not to a run lane.",
+		wantSource: `ActorType:   pgtype.Text{String: "system", Valid: true},`,
+	},
 	"internal/handler/agent_env.go": {
 		file:         "internal/handler/agent_env.go",
 		stampsTaskID: false,

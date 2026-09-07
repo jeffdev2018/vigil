@@ -283,7 +283,7 @@ func (q *Queries) GetAutopilotByTitleForImport(ctx context.Context, arg GetAutop
 }
 
 const getGoalByTitleForImport = `-- name: GetGoalByTitleForImport :one
-SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at FROM goal WHERE workspace_id = $1 AND title = $2 AND status <> 'dropped' LIMIT 1
+SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date FROM goal WHERE workspace_id = $1 AND title = $2 AND status <> 'dropped' LIMIT 1
 `
 
 type GetGoalByTitleForImportParams struct {
@@ -306,6 +306,7 @@ func (q *Queries) GetGoalByTitleForImport(ctx context.Context, arg GetGoalByTitl
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StartDate,
 	)
 	return i, err
 }
@@ -522,7 +523,7 @@ func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtyp
 }
 
 const listIssuesForExport = `-- name: ListIssuesForExport :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
 `
 
 func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UUID) ([]Issue, error) {
@@ -570,6 +571,7 @@ func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UU
 			&i.GoalID,
 			&i.DelegateType,
 			&i.DelegateID,
+			&i.CycleID,
 		); err != nil {
 			return nil, err
 		}

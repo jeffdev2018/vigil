@@ -205,6 +205,8 @@ export interface Issue {
   // Goal the issue names itself (K74); null means it inherits its project's.
   // Optional only for a server that predates it.
   goal_id?: string | null;
+  // Dated cycle the issue is planned into (F29). Optional for the same reason.
+  cycle_id?: string | null;
   position: number;
   // Ordered barrier group among sibling sub-issues (null = unstaged). The
   // parent assignee is notified/woken only when every sub-issue in a stage

@@ -1,0 +1,73 @@
+---
+title: Cycles
+description: Plan a project's work into dated iterations with separate human and agent capacity, a burndown, and automatic rollover.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+A cycle is one [project](/projects)'s dated iteration: a start date, an end date, and the issues the team took on between them.
+
+A project answers "what are we building"; a cycle answers "what are we doing about it in the next two weeks". A project without a delivery rhythm does not need cycles at all.
+
+## Parts of a cycle
+
+| Part | Purpose |
+|---|---|
+| **Name** | What the iteration is called — "Sprint 14", "October release". |
+| **Project** | The one project it plans. A cycle only accepts that project's issues. |
+| **Start and end dates** | The calendar range. Status follows the dates: a cycle becomes active because the calendar turned over, not because someone pressed start. |
+| **People capacity / Agent capacity** | Two separate numbers. Either may be left empty, which means "no limit declared". |
+| **Load property** | An optional workspace number property whose value is one issue's load. Without it, load is the issue count. |
+| **Rollover** | Whether unfinished work moves to the next cycle when this one ends. On by default. |
+
+Cycles of the same project may overlap — a support cycle running alongside a feature cycle is a normal setup, not a mistake.
+
+## Human and agent capacity are separate
+
+Multica counts the two pools apart because they are not interchangeable: a sprint that fits the people on it can still be impossible for the agents, and one combined "team capacity" number hides exactly that.
+
+Which side an issue loads follows its assignee:
+
+| Assignee | Loads |
+|---|---|
+| A member | People |
+| An agent or a squad | Agents |
+| Nobody | Neither — reported on its own as unassigned |
+
+An undeclared capacity shows the load with no bar. That is different from a capacity of zero, and the cycle is not "over capacity" because of it.
+
+## Load: issues or a number property
+
+By default one issue is one unit of load, and the cycle says so. Pick a workspace number property — story points, estimated hours — and the load becomes the sum of that property across the cycle's issues. An issue with no value for it, or a value that is not a number, counts as zero.
+
+## Burndown
+
+The burndown has one point per calendar day from start to end, with no gaps:
+
+- **Past days** come from a daily snapshot. A day without one carries the previous value forward.
+- **Today** is computed live, so the chart agrees with the board between snapshots.
+- **Future days** carry the ideal line only — nothing has happened on them yet.
+
+The ideal line runs from the cycle's current total down to zero on the last day. It is anchored to the *current* total on purpose: scope added mid-cycle raises the bar the team is measured against instead of quietly vanishing from it.
+
+<Callout type="info">
+A cycle keeps history only from the first daily snapshot after it was created. Days before that are drawn as a flat fill and the chart says so — Multica does not invent a past it never recorded.
+</Callout>
+
+## Planning an issue into a cycle
+
+Set the **Cycle** property on the issue, or select several issues and use the cycle action in the batch toolbar. A cycle only accepts issues of its own project: naming another project's cycle is refused, and the batch toolbar offers the cycle action only when every selected issue is in one project.
+
+The cycle page carries the same board, list, table and timeline as a project page, scoped to that cycle's issues.
+
+## What happens when a cycle ends
+
+When the end date passes and nobody has closed the cycle, Multica closes it. If rollover is on, its unfinished issues move to the next cycle of the same project — the nearest one starting later — and each move is recorded on the issue.
+
+When there is no next cycle, those issues leave every cycle and the project lead is told, so unplanned work does not sit silently attached to a plan that is over.
+
+Closing freezes the burndown. Finished issues stay where they were: a closed cycle keeps the record of what it delivered.
+
+## Cycles and goals
+
+Cycles answer *when*; [goals](/goals) answer *why*. A goal spans projects and outlives any single cycle, and its progress aggregates across every project linked to it — which is what makes a goal usable as a cross-project initiative. An issue can serve a goal and sit in a cycle at the same time; the two are independent.

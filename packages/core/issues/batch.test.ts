@@ -36,7 +36,45 @@ describe("commonIssueFields", () => {
       status: null,
       priority: null,
       assignee: null,
+      projectId: null,
+      cycleId: null,
     });
+  });
+
+  // Dated cycles (F29): the batch toolbar offers a cycle only when every
+  // selected issue is in ONE project, because a cycle refuses another
+  // project's issues. A mixed selection must therefore report no project.
+  it("reports the shared project and cycle of a single-project selection", () => {
+    const common = commonIssueFields([
+      makeIssue({ project_id: "p1", cycle_id: "c1" }),
+      makeIssue({ project_id: "p1", cycle_id: "c1" }),
+    ]);
+    expect(common.projectId).toBe("p1");
+    expect(common.cycleId).toBe("c1");
+  });
+
+  it("reports no project for a selection spanning two projects", () => {
+    const common = commonIssueFields([
+      makeIssue({ project_id: "p1" }),
+      makeIssue({ project_id: "p2" }),
+    ]);
+    expect(common.projectId).toBeNull();
+  });
+
+  it("reports no project when the selection has none at all", () => {
+    // Every issue agreeing on "no project" is a shared value, but it is not a
+    // project a cycle could belong to — the picker must stay hidden.
+    expect(commonIssueFields([makeIssue({}), makeIssue({})]).projectId).toBeNull();
+  });
+
+  it("reports no cycle when the selection disagrees, or none is planned", () => {
+    expect(
+      commonIssueFields([
+        makeIssue({ project_id: "p1", cycle_id: "c1" }),
+        makeIssue({ project_id: "p1", cycle_id: "c2" }),
+      ]).cycleId,
+    ).toBeNull();
+    expect(commonIssueFields([makeIssue({ project_id: "p1" })]).cycleId).toBeNull();
   });
 
   it("reflects a single issue's own fields", () => {

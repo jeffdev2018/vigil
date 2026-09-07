@@ -683,6 +683,27 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to detach project goals")
 		return
 	}
+	// Dated cycles (F29) plan THIS project's work; nothing about them survives
+	// it. Cycle-scoped saved views are unreachable once their cycle is gone,
+	// so they go in the same transaction as the project-scoped ones above.
+	if err := qtx.DeleteIssueViewsByCycleScopeOfProject(r.Context(), db.DeleteIssueViewsByCycleScopeOfProjectParams{
+		WorkspaceID: project.WorkspaceID, ProjectID: project.ID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete cycle views")
+		return
+	}
+	if err := qtx.ClearIssueCycleByProject(r.Context(), db.ClearIssueCycleByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to detach project cycles")
+		return
+	}
+	if err := qtx.DeleteCycleSnapshotsByProject(r.Context(), db.DeleteCycleSnapshotsByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete cycle history")
+		return
+	}
+	if err := qtx.DeleteCyclesByProject(r.Context(), db.DeleteCyclesByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete project cycles")
+		return
+	}
 	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,

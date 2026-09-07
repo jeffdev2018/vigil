@@ -6,6 +6,7 @@ import type { Comment, Reaction } from "./comment";
 import type { TimelineEntry } from "./activity";
 import type { Workspace, MemberWithUser, Invitation } from "./workspace";
 import type { Project } from "./project";
+import type { Cycle } from "./cycle";
 import type { Label } from "./label";
 import type { Postmortem } from "./postmortem";
 
@@ -74,6 +75,9 @@ export type WSEventType =
   | "project:created"
   | "project:updated"
   | "project:deleted"
+  | "cycle:created"
+  | "cycle:updated"
+  | "cycle:deleted"
   | "squad:created"
   | "squad:updated"
   | "squad:deleted"
@@ -721,6 +725,26 @@ export interface ProjectDeletedPayload {
 }
 
 /**
+ * Dated cycles (F29). `cycle:updated` is emitted both for an edit and for the
+ * rollover sweep, which carries counts instead of the cycle — the client
+ * invalidates either way, so the payload is deliberately loose.
+ */
+export interface CycleCreatedPayload {
+  cycle: Cycle;
+}
+
+export interface CycleUpdatedPayload {
+  cycle?: Cycle;
+  cycle_id?: string;
+  rolled_over?: number;
+  orphaned?: number;
+}
+
+export interface CycleDeletedPayload {
+  cycle_id: string;
+}
+
+/**
  * Agent persistent-memory events (JEF-236). The server only needs to tell us
  * WHICH agent's memory list changed — both identifiers are optional because
  * the wire contract is still settling; a payload without `agent_id` falls
@@ -845,6 +869,9 @@ export interface WSEventPayloadMap {
   "project:created": ProjectCreatedPayload;
   "project:updated": ProjectUpdatedPayload;
   "project:deleted": ProjectDeletedPayload;
+  "cycle:created": CycleCreatedPayload;
+  "cycle:updated": CycleUpdatedPayload;
+  "cycle:deleted": CycleDeletedPayload;
   "invitation:created": InvitationCreatedPayload;
   "invitation:accepted": InvitationAcceptedPayload;
   "invitation:declined": InvitationDeclinedPayload;
