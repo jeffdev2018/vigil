@@ -362,6 +362,7 @@ import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSetti
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
+import { CodeWikiSchema, CodeWikiPageSchema, EMPTY_CODE_WIKI, type CodeWiki, type CodeWikiPage } from "../projects/wiki";
 import {
   InsightAskResponseSchema,
   InsightRunResponseSchema,
@@ -4565,6 +4566,36 @@ export class ApiClient {
   async putProjectReviewConfig(projectId: string, input: UpdateProjectReviewConfigRequest): Promise<ProjectReviewConfig> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/review-config`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, ProjectReviewConfigSchema, { project_id: projectId, ...input }, { endpoint: "PUT /api/projects/:id/review-config" });
+  }
+
+  // Generated code wiki (F26). The fallback is the "nothing published yet"
+  // shape, so a malformed response shows the panel's empty state rather than
+  // breaking the project page.
+  async getProjectCodeWiki(projectId: string): Promise<CodeWiki> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/wiki`);
+    return parseWithFallback(raw, CodeWikiSchema, EMPTY_CODE_WIKI, { endpoint: "GET /api/projects/:id/wiki" }) as CodeWiki;
+  }
+
+  async getProjectCodeWikiPage(projectId: string, slug: string): Promise<CodeWikiPage> {
+    const raw = await this.fetch<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/wiki/pages/${encodeURIComponent(slug)}`,
+    );
+    return parseWithFallback(raw, CodeWikiPageSchema, {
+      id: "", slug, title: slug, content: "", citations: [], commit_sha: "", generated: true, stale: false,
+    }, { endpoint: "GET /api/projects/:id/wiki/pages/:slug" }) as CodeWikiPage;
+  }
+
+  async refreshProjectCodeWiki(projectId: string): Promise<{ started: boolean; reason: string }> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/wiki/refresh`, {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+    return parseWithFallback(
+      raw,
+      z.object({ started: z.boolean().catch(false).default(false), reason: z.string().catch("").default("") }).loose(),
+      { started: false, reason: "" },
+      { endpoint: "POST /api/projects/:id/wiki/refresh" },
+    ) as { started: boolean; reason: string };
   }
 
   // Epic Mode (F18). The fallback is an empty pipeline — the same shape a

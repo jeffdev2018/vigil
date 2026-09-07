@@ -313,5 +313,24 @@
     "ticket_description": "説明",
     "ticket_depends_on": "依存先",
     "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "コード wiki",
+    "description": "このプロジェクトのリポジトリ向けに生成されたドキュメントです。エージェントが書いた参考資料であり、真実の源ではありません。",
+    "no_repo": "コード wiki を生成するには、このプロジェクトにリポジトリリソースを追加してください。",
+    "empty": "このリポジトリの wiki はまだ生成されていません。",
+    "generate": "生成",
+    "regenerate": "再生成",
+    "building": "生成中...",
+    "started": "wiki の生成を開始しました。",
+    "not_started": "生成は開始されませんでした。",
+    "failed": "コード wiki を読み込めませんでした。",
+    "banner": "自動生成 - commit {{commit}} - {{date}}",
+    "stale": "この wiki はリポジトリの HEAD より古い commit を説明しています。",
+    "pages": "ページ",
+    "citations": "引用",
+    "no_citations": "このページはファイルを引用していません。出典なしとして扱ってください。",
+    "select_page": "読むページを選択してください。",
+    "page_failed": "このページを読み込めませんでした。"
   }
 }

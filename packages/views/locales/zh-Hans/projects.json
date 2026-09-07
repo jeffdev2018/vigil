@@ -313,5 +313,24 @@
     "ticket_description": "说明",
     "ticket_depends_on": "依赖",
     "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "代码 wiki",
+    "description": "为本项目的代码仓库生成的文档。由智能体撰写的参考材料，不是事实来源。",
+    "no_repo": "为本项目添加一个代码仓库资源，才能生成代码 wiki。",
+    "empty": "尚未为该仓库生成 wiki。",
+    "generate": "生成",
+    "regenerate": "重新生成",
+    "building": "生成中...",
+    "started": "已开始生成 wiki。",
+    "not_started": "生成未开始。",
+    "failed": "无法加载代码 wiki。",
+    "banner": "自动生成 - commit {{commit}} - {{date}}",
+    "stale": "该 wiki 描述的 commit 早于仓库当前 HEAD。",
+    "pages": "页面",
+    "citations": "引用",
+    "no_citations": "本页未引用任何文件，请视为无来源。",
+    "select_page": "选择一个页面来阅读。",
+    "page_failed": "无法加载该页面。"
   }
 }

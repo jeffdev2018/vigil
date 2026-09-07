@@ -315,5 +315,24 @@
     "ticket_description": "Description",
     "ticket_depends_on": "Depends on",
     "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "Code wiki",
+    "description": "Generated documentation for this project's repository. Reference material written by an agent, not a source of truth.",
+    "no_repo": "Add a repository resource to this project to generate a code wiki.",
+    "empty": "No wiki has been generated for this repository yet.",
+    "generate": "Generate",
+    "regenerate": "Regenerate",
+    "building": "Generating...",
+    "started": "Wiki generation started.",
+    "not_started": "Generation did not start.",
+    "failed": "Could not load the code wiki.",
+    "banner": "Generated automatically - commit {{commit}} - {{date}}",
+    "stale": "This wiki describes an older commit than the repository head.",
+    "pages": "Pages",
+    "citations": "Citations",
+    "no_citations": "This page cites no file. Treat it as unsourced.",
+    "select_page": "Select a page to read it.",
+    "page_failed": "Could not load this page."
   }
 }

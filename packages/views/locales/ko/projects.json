@@ -313,5 +313,24 @@
     "ticket_description": "설명",
     "ticket_depends_on": "선행 티켓",
     "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "코드 wiki",
+    "description": "이 프로젝트 저장소를 위해 생성된 문서입니다. 에이전트가 작성한 참고 자료이며 진실의 원천이 아닙니다.",
+    "no_repo": "코드 wiki를 생성하려면 이 프로젝트에 저장소 리소스를 추가하세요.",
+    "empty": "이 저장소의 wiki가 아직 생성되지 않았습니다.",
+    "generate": "생성",
+    "regenerate": "다시 생성",
+    "building": "생성 중...",
+    "started": "wiki 생성을 시작했습니다.",
+    "not_started": "생성이 시작되지 않았습니다.",
+    "failed": "코드 wiki를 불러오지 못했습니다.",
+    "banner": "자동 생성 - commit {{commit}} - {{date}}",
+    "stale": "이 wiki는 저장소 HEAD보다 오래된 commit을 설명합니다.",
+    "pages": "페이지",
+    "citations": "인용",
+    "no_citations": "이 페이지는 어떤 파일도 인용하지 않았습니다. 출처 없음으로 다루세요.",
+    "select_page": "읽을 페이지를 선택하세요.",
+    "page_failed": "이 페이지를 불러오지 못했습니다."
   }
 }
