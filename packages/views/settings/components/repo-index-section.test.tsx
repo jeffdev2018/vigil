@@ -36,6 +36,7 @@ const repo = (over: Partial<RepoIndexRepo> = {}): RepoIndexRepo => ({
   enabled: true,
   chunk_count: 42,
   file_count: 7,
+  unusable_embedding_count: 0,
   last_indexed_commit: "abc1234def5678",
   last_indexed_at: "2026-01-02T03:04:05Z",
   ...over,

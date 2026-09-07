@@ -401,6 +401,7 @@ export function AgentOverviewPane({
                 agent={agent}
                 runtime={runtime}
                 owner={owner}
+                canEdit={canEdit}
               />
             </div>
           </div>

@@ -182,7 +182,27 @@
     "author_agent": "智能体",
     "author_member": "成员",
     "empty": "尚未记录任何决策。被接受的运行会在此添加。",
-    "source": "运行消息 #{{seq}}"
+    "source": "运行消息 #{{seq}}",
+    "record": {
+      "trigger": "记录",
+      "title": "记录一条决策",
+      "description": "决策记录挂在 issue 上，并引用其最后一次完成运行中的某条消息——正是这条引用让记录可追溯。",
+      "issue_label": "Issue",
+      "issue_placeholder": "选择一个 issue…",
+      "source_label": "引用的运行消息",
+      "source_placeholder": "选择陈述该决策的消息…",
+      "source_loading": "正在加载该 issue 最后一次完成的运行…",
+      "no_run": "该 issue 还没有可引用的已完成运行。",
+      "title_label": "标题",
+      "context_label": "背景",
+      "decision_label": "决策",
+      "consequences_label": "影响",
+      "cancel": "取消",
+      "save": "记录",
+      "saving": "正在记录…",
+      "toast_saved": "决策已记录。",
+      "toast_failed": "记录决策失败。"
+    }
   },
   "blast_radius": {
     "section": "影响范围",

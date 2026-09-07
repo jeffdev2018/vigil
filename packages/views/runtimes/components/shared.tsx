@@ -1,27 +1,7 @@
-import { Cloud, Monitor, Wifi, WifiHigh, WifiOff } from "lucide-react";
+import { Wifi, WifiHigh, WifiOff } from "lucide-react";
 import { Badge } from "@multica/ui/components/ui/badge";
 import type { RuntimeHealth } from "@multica/core/runtimes";
-import { ProviderLogo } from "./provider-logo";
 import { useT } from "../../i18n";
-
-export function RuntimeModeIcon({ mode }: { mode: string }) {
-  return mode === "cloud" ? (
-    <Cloud className="h-3.5 w-3.5" />
-  ) : (
-    <Monitor className="h-3.5 w-3.5" />
-  );
-}
-
-// Compact provider tag: small logo square + provider name. Used in dense
-// list rows to identify which CLI / model provider a runtime is wired to.
-export function ProviderChip({ provider }: { provider: string }) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md border bg-muted/40 px-1.5 py-0.5 text-caption font-medium text-muted-foreground">
-      <ProviderLogo provider={provider} className="h-3 w-3" />
-      <span className="capitalize">{provider}</span>
-    </span>
-  );
-}
 
 // Maps each derived 4-state runtime health to a semantic colour class.
 // The mapping intentionally reuses our existing tokens (success/warning/
@@ -133,27 +113,6 @@ export function HealthBadge({
       <span className={`h-1.5 w-1.5 rounded-full ${v.dot}`} />
       {labelOf(health)}
     </Badge>
-  );
-}
-
-export function InfoField({
-  label,
-  value,
-  mono,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <div className="text-caption text-muted-foreground">{label}</div>
-      <div
-        className={`mt-0.5 text-body truncate ${mono ? "font-mono text-caption" : ""}`}
-      >
-        {value}
-      </div>
-    </div>
   );
 }
 
