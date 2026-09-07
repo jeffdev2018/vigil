@@ -1,0 +1,10 @@
+{
+  "token": "keel-4",
+  "baseline_n": 2,
+  "treatment_n": 2,
+  "baseline_correction_needed": 2,
+  "treatment_correction_needed": 0,
+  "baseline_rate": 1.0,
+  "treatment_rate": 0.0,
+  "relative_reduction": 1.0
+}

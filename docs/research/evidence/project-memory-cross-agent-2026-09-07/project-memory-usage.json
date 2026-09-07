@@ -1,0 +1,22 @@
+{
+  "since": "2026-08-08T22:08:59.370435Z",
+  "until": "2026-09-07T22:08:59.370435Z",
+  "started_runs": 6,
+  "recorded_runs": 6,
+  "unrecorded_runs": 0,
+  "runs_with_project_memory": 5,
+  "versions": [
+    {
+      "project_id": "517f91bf-be45-4f11-a053-aaef6873b748",
+      "revision": 1,
+      "prepared_runs": 4,
+      "last_started_at": "2026-09-07T22:05:14.726422+00:00"
+    },
+    {
+      "project_id": "517f91bf-be45-4f11-a053-aaef6873b748",
+      "revision": 2,
+      "prepared_runs": 1,
+      "last_started_at": "2026-09-07T22:08:03.674318+00:00"
+    }
+  ]
+}

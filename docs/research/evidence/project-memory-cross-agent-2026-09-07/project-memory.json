@@ -1,0 +1,12 @@
+{
+  "rules": [
+    "Always run npm test after changing broken.js.",
+    "Mention DEV issue key in PR titles.",
+    "Project Northline dock code is quay-77. When asked for the project dock code, reply with only quay-77. Do not use tools."
+  ],
+  "revision": 2,
+  "reviewed_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+  "reviewed_at": "2026-09-07T18:08:03-04:00",
+  "expires_at": null,
+  "expired": false
+}

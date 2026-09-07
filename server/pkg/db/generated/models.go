@@ -88,6 +88,48 @@ type AgentMemory struct {
 	SourceTaskID pgtype.UUID        `json:"source_task_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	Status       string             `json:"status"`
+	Revision     int32              `json:"revision"`
+	ReviewedBy   pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt   pgtype.Timestamptz `json:"reviewed_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	SourceReview []byte             `json:"source_review"`
+}
+
+type AgentMemoryEvaluation struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	AgentID            pgtype.UUID        `json:"agent_id"`
+	MemoryID           pgtype.UUID        `json:"memory_id"`
+	Revision           int32              `json:"revision"`
+	MemoryIds          []pgtype.UUID      `json:"memory_ids"`
+	Report             []byte             `json:"report"`
+	ReportHash         string             `json:"report_hash"`
+	UploadedBy         pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	AdoptedRevision    pgtype.Int4        `json:"adopted_revision"`
+	ExecutionStatus    string             `json:"execution_status"`
+	ExecutionRuntimeID pgtype.UUID        `json:"execution_runtime_id"`
+	ExecutionRequestID pgtype.UUID        `json:"execution_request_id"`
+	ExecutionDeadline  pgtype.Timestamptz `json:"execution_deadline"`
+}
+
+type AgentMemoryVersion struct {
+	MemoryID             pgtype.UUID        `json:"memory_id"`
+	WorkspaceID          pgtype.UUID        `json:"workspace_id"`
+	AgentID              pgtype.UUID        `json:"agent_id"`
+	Revision             int32              `json:"revision"`
+	Content              string             `json:"content"`
+	Status               string             `json:"status"`
+	Source               string             `json:"source"`
+	SourceTaskID         pgtype.UUID        `json:"source_task_id"`
+	ReviewedBy           pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	RestoredFromRevision pgtype.Int4        `json:"restored_from_revision"`
+	SourceReview         []byte             `json:"source_review"`
 }
 
 type AgentRuntime struct {
@@ -183,6 +225,7 @@ type AgentTaskQueue struct {
 	BranchName                pgtype.Text `json:"branch_name"`
 	DurableWorkDir            pgtype.Text `json:"durable_work_dir"`
 	ChannelContextRevision    pgtype.Int8 `json:"channel_context_revision"`
+	MemoryContext             []byte      `json:"memory_context"`
 }
 
 type AgentToLabel struct {
@@ -795,6 +838,54 @@ type Issue struct {
 	LastActivityAt     pgtype.Timestamptz `json:"last_activity_at"`
 }
 
+type IssueDecision struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	SourceTaskID  pgtype.UUID        `json:"source_task_id"`
+	RecipientID   pgtype.UUID        `json:"recipient_id"`
+	RequestedBy   pgtype.UUID        `json:"requested_by"`
+	RequesterType string             `json:"requester_type"`
+	Question      string             `json:"question"`
+	Context       string             `json:"context"`
+	Options       []byte             `json:"options"`
+	InputHash     string             `json:"input_hash"`
+	Status        string             `json:"status"`
+	Answer        pgtype.Text        `json:"answer"`
+	AnsweredBy    pgtype.UUID        `json:"answered_by"`
+	AnsweredAt    pgtype.Timestamptz `json:"answered_at"`
+	ResumeTaskID  pgtype.UUID        `json:"resume_task_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
+type IssueDeliveryContract struct {
+	IssueID     pgtype.UUID        `json:"issue_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Criteria    []byte             `json:"criteria"`
+	Revision    int32              `json:"revision"`
+	UpdatedBy   pgtype.UUID        `json:"updated_by"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type IssueDeliveryReview struct {
+	ID                 pgtype.UUID        `json:"id"`
+	IssueID            pgtype.UUID        `json:"issue_id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	TaskID             pgtype.UUID        `json:"task_id"`
+	Decision           string             `json:"decision"`
+	Feedback           string             `json:"feedback"`
+	Assessments        []byte             `json:"assessments"`
+	Snapshot           []byte             `json:"snapshot"`
+	SnapshotToken      string             `json:"snapshot_token"`
+	InputHash          string             `json:"input_hash"`
+	ReviewedBy         pgtype.UUID        `json:"reviewed_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	CorrectionTaskID   pgtype.UUID        `json:"correction_task_id"`
+	UsageSnapshot      []byte             `json:"usage_snapshot"`
+	HumanEffortSeconds pgtype.Int8        `json:"human_effort_seconds"`
+}
+
 type IssueDependency struct {
 	ID               pgtype.UUID `json:"id"`
 	IssueID          pgtype.UUID `json:"issue_id"`
@@ -1188,19 +1279,37 @@ type Postmortem struct {
 }
 
 type Project struct {
-	ID          pgtype.UUID        `json:"id"`
-	WorkspaceID pgtype.UUID        `json:"workspace_id"`
-	Title       string             `json:"title"`
-	Description pgtype.Text        `json:"description"`
-	Icon        pgtype.Text        `json:"icon"`
-	Status      string             `json:"status"`
-	LeadType    pgtype.Text        `json:"lead_type"`
-	LeadID      pgtype.UUID        `json:"lead_id"`
-	CreatedAt   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
-	Priority    string             `json:"priority"`
-	StartDate   pgtype.Date        `json:"start_date"`
-	DueDate     pgtype.Date        `json:"due_date"`
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	Title              string             `json:"title"`
+	Description        pgtype.Text        `json:"description"`
+	Icon               pgtype.Text        `json:"icon"`
+	Status             string             `json:"status"`
+	LeadType           pgtype.Text        `json:"lead_type"`
+	LeadID             pgtype.UUID        `json:"lead_id"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+	Priority           string             `json:"priority"`
+	StartDate          pgtype.Date        `json:"start_date"`
+	DueDate            pgtype.Date        `json:"due_date"`
+	MemoryRules        []byte             `json:"memory_rules"`
+	MemoryRevision     int32              `json:"memory_revision"`
+	MemoryReviewedBy   pgtype.UUID        `json:"memory_reviewed_by"`
+	MemoryReviewedAt   pgtype.Timestamptz `json:"memory_reviewed_at"`
+	MemoryExpiresAt    pgtype.Timestamptz `json:"memory_expires_at"`
+	MemorySourceReview []byte             `json:"memory_source_review"`
+}
+
+type ProjectMemoryVersion struct {
+	ProjectID            pgtype.UUID        `json:"project_id"`
+	WorkspaceID          pgtype.UUID        `json:"workspace_id"`
+	Revision             int32              `json:"revision"`
+	Rules                []byte             `json:"rules"`
+	ReviewedBy           pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	RestoredFromRevision pgtype.Int4        `json:"restored_from_revision"`
+	SourceReview         []byte             `json:"source_review"`
 }
 
 type ProjectResource struct {
