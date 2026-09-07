@@ -1660,6 +1660,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			// insight_widget / insight_query_log carry no FK; both are keyed
+			// on workspace_id and sweep in one statement. (F27)
+			name: "delete insights",
+			run:  func() error { return qtx.DeleteWorkspaceInsights(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete autopilot children",
 			run:  func() error { return qtx.DeleteWorkspaceAutopilotChildren(ctx, requester.WorkspaceID) },
 		},

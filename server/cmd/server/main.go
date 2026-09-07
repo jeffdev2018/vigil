@@ -646,6 +646,16 @@ func main() {
 	// Reuse the handler's primary Queries handle so replica routing does not
 	// create a second wrapper around the same primary pool.
 	h.ReadSelector = dbreader.New(h.Queries, replicaQueries, readRecorder)
+	// Raw-SQL reads (the insight compiler) need a transaction for their
+	// SET LOCAL guards, which no sqlc handle can carry, so the pools are
+	// attached here too. The nil check is not decoration: assigning a nil
+	// *pgxpool.Pool straight into the interface would make it non-nil and
+	// route every insight read at a replica that is not there.
+	var replicaTx dbreader.TxStarter
+	if replicaPool != nil {
+		replicaTx = replicaPool
+	}
+	h.ReadSelector.SetTxStarters(pool, replicaTx)
 	h.PRRefresh.SetReadSelector(h.ReadSelector)
 
 	// Reconciled race recoveries in the batched scheduler reuse the same

@@ -362,6 +362,22 @@ import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSetti
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
+import {
+  InsightAskResponseSchema,
+  InsightRunResponseSchema,
+  InsightWidgetSchema,
+  InsightWidgetListSchema,
+  EMPTY_INSIGHT_ASK_RESPONSE,
+  EMPTY_INSIGHT_RUN_RESPONSE,
+  EMPTY_INSIGHT_WIDGET,
+  EMPTY_INSIGHT_WIDGETS,
+  type CreateInsightWidgetInput,
+  type InsightAskResponse,
+  type InsightQuery,
+  type InsightRunResponse,
+  type InsightWidget,
+  type UpdateInsightWidgetInput,
+} from "../insights/schemas";
 import { ReviewFlagSchema, ReviewFlagListSchema, EMPTY_REVIEW_FLAG_LIST, type ReviewFlag, type ReviewFlagFilter, type ReviewFlagList, type ReviewFlagState } from "../review-flags/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
@@ -2367,6 +2383,85 @@ export class ApiClient {
     });
   }
 
+  // Insights (F27). `ask` costs a model call and returns the document it
+  // produced so the client can pin it; `run` executes a document with no model
+  // at all, which is what every pinned widget calls to refresh.
+  async askInsight(
+    question: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<InsightAskResponse> {
+    const raw = await this.fetch<unknown>("/api/insights/ask", {
+      method: "POST",
+      body: JSON.stringify({ question }),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return parseWithFallback<InsightAskResponse>(
+      raw,
+      InsightAskResponseSchema,
+      EMPTY_INSIGHT_ASK_RESPONSE,
+      { endpoint: "POST /api/insights/ask" },
+    );
+  }
+
+  async runInsight(
+    query: InsightQuery,
+    options?: { signal?: AbortSignal },
+  ): Promise<InsightRunResponse> {
+    const raw = await this.fetch<unknown>("/api/insights/run", {
+      method: "POST",
+      body: JSON.stringify({ query }),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return parseWithFallback<InsightRunResponse>(
+      raw,
+      InsightRunResponseSchema,
+      EMPTY_INSIGHT_RUN_RESPONSE,
+      { endpoint: "POST /api/insights/run" },
+    );
+  }
+
+  async listInsightWidgets(options?: { signal?: AbortSignal }): Promise<InsightWidget[]> {
+    const raw = await this.fetch<unknown>(
+      "/api/insights/widgets",
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<InsightWidget[]>(
+      raw,
+      InsightWidgetListSchema,
+      EMPTY_INSIGHT_WIDGETS,
+      { endpoint: "GET /api/insights/widgets" },
+    );
+  }
+
+  async createInsightWidget(input: CreateInsightWidgetInput): Promise<InsightWidget> {
+    const raw = await this.fetch<unknown>("/api/insights/widgets", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<InsightWidget>(raw, InsightWidgetSchema, EMPTY_INSIGHT_WIDGET, {
+      endpoint: "POST /api/insights/widgets",
+    });
+  }
+
+  async updateInsightWidget(
+    id: string,
+    input: UpdateInsightWidgetInput,
+  ): Promise<InsightWidget> {
+    const raw = await this.fetch<unknown>(`/api/insights/widgets/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<InsightWidget>(raw, InsightWidgetSchema, EMPTY_INSIGHT_WIDGET, {
+      endpoint: "PATCH /api/insights/widgets/:id",
+    });
+  }
+
+  async deleteInsightWidget(id: string): Promise<void> {
+    await this.fetch<void>(`/api/insights/widgets/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
   // Workspace Brain. Shared knowledge notes: every workspace member reads and
   // writes; delete is narrower (workspace admin or the note's author).
   async listWorkspaceNotes(
@@ -3885,6 +3980,44 @@ export class ApiClient {
     return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, { endpoint: "GET /api/projects/:id/decisions" }).decisions;
   }
 
+  /**
+   * Record decision records on an issue by hand (K29).
+   *
+   * The write half of decision memory: until now only the LLM extractor could
+   * create an ADR, so `POST /api/issues/:id/decision-records` had no caller.
+   *
+   * The endpoint's contract, from `handler.CreateIssueDecisions`:
+   *  - 1..N decisions per call, each needing a non-empty `title` and
+   *    `decision`; `context` and `consequences` are optional.
+   *  - every decision must cite a `source_message_seq` that exists in the run,
+   *    or the call is refused 422 `invalid_source`.
+   *  - `run_id` is optional and defaults to the issue's LAST COMPLETED run.
+   *    Callers that read the seqs off a specific run should send that run's id
+   *    rather than rely on the default, or a run finishing in between makes
+   *    the seqs they showed the user belong to a different transcript.
+   */
+  async createIssueDecisions(
+    issueId: string,
+    input: {
+      run_id?: string;
+      decisions: Array<{
+        source_message_seq: number;
+        title: string;
+        decision: string;
+        context?: string;
+        consequences?: string;
+      }>;
+    },
+  ): Promise<DecisionRecord[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decision-records`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+    return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, {
+      endpoint: "POST /api/issues/:id/decision-records",
+    }).decisions;
+  }
+
   async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
     return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
@@ -4765,10 +4898,6 @@ export class ApiClient {
     return this.fetch(`/api/agent-run-counts`);
   }
 
-  async getActiveTasksForIssue(issueId: string): Promise<{ tasks: AgentTask[] }> {
-    return this.fetch(`/api/issues/${issueId}/active-task`);
-  }
-
   /**
    * A run's full transcript: the agent's own messages plus the issue changes
    * it made. The action list is joined server-side out of activity_log on
@@ -5006,10 +5135,6 @@ export class ApiClient {
 
   async unarchiveInbox(id: string): Promise<InboxItem> {
     return this.fetch(`/api/inbox/${id}/unarchive`, { method: "POST" });
-  }
-
-  async getUnreadInboxCount(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/unread-count");
   }
 
   // Cross-workspace unread summary: one entry per workspace the user belongs

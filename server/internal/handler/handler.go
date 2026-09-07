@@ -569,7 +569,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	taskSvc.BrainCuration = llmClient
 	h := &Handler{
 		Queries:                      queries,
-		ReadSelector:                 dbreader.NewPrimaryOnly(queries),
+		ReadSelector:                 newPrimaryReadSelector(queries, txStarter),
 		DB:                           executor,
 		TxStarter:                    txStarter,
 		Hub:                          hub,
@@ -1042,6 +1042,19 @@ func (h *Handler) workspaceMember(w http.ResponseWriter, r *http.Request, worksp
 		return m, true
 	}
 	return h.requireWorkspaceMember(w, r, workspaceID, "workspace not found")
+}
+
+// newPrimaryReadSelector builds the default primary-only selector and attaches
+// the pool behind it, so raw-SQL reads work before cmd/server upgrades the
+// selector with a replica. Without the tx starter every insight read would
+// return ErrNoTxStarter in any deployment (and every test) that does not run
+// the full boot path.
+func newPrimaryReadSelector(queries *db.Queries, txStarter txStarter) *dbreader.Selector {
+	selector := dbreader.NewPrimaryOnly(queries)
+	if starter, ok := txStarter.(dbreader.TxStarter); ok {
+		selector.SetTxStarters(starter, nil)
+	}
+	return selector
 }
 
 func roleAllowed(role string, roles ...string) bool {

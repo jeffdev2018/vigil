@@ -34,10 +34,7 @@ import type {
   SourceContextPreview,
 } from "@multica/core/types";
 import { contentReferencesAttachment } from "@multica/core/types";
-import {
-  DialogContent,
-  DialogTitle,
-} from "@multica/ui/components/ui/dialog";
+import { DialogTitle } from "@multica/ui/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1474,32 +1471,5 @@ export function manualDialogContentClass(isExpanded: boolean) {
     isExpanded
       ? "!h-5/6 !-translate-y-1/2 sm:!max-w-4xl"
       : "!h-96 !-translate-y-1/2 sm:!max-w-2xl",
-  );
-}
-
-// Thin Dialog-wrapping export — registry mounts the panel directly under the
-// shell's shared Dialog, but a few legacy callers (and the test suite) still
-// import this module's modal version. Equivalent runtime behavior to the
-// pre-refactor component when used standalone.
-import { Dialog as DialogRoot } from "@multica/ui/components/ui/dialog";
-export function CreateIssueModal(props: {
-  onClose: () => void;
-  data?: Record<string, unknown> | null;
-}) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  return (
-    <DialogRoot open onOpenChange={(v) => { if (!v) props.onClose(); }}>
-      <DialogContent
-        finalFocus={false}
-        showCloseButton={false}
-        className={manualDialogContentClass(isExpanded)}
-      >
-        <ManualCreatePanel
-          {...props}
-          isExpanded={isExpanded}
-          setIsExpanded={setIsExpanded}
-        />
-      </DialogContent>
-    </DialogRoot>
   );
 }

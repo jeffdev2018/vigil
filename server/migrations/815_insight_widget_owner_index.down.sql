@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS idx_insight_widget_workspace_owner;

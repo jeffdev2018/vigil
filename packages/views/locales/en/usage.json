@@ -182,5 +182,24 @@
     },
     "empty_title": "No workflow data yet",
     "empty_body": "Workflows are learned as runs complete — outcomes show up here once the selector has history to work with."
+  },
+  "insights": {
+    "title": "Insights",
+    "ask": "Ask",
+    "asking": "Reading…",
+    "ask_label": "Ask a question about this workspace",
+    "ask_placeholder": "How many issues have been blocked for more than 5 days?",
+    "pin": "Pin",
+    "retry": "Try again",
+    "value": "Value",
+    "no_rows": "No row matches this question.",
+    "no_widgets": "Nothing pinned yet. Ask a question above, then pin the answer.",
+    "no_question": "No question recorded.",
+    "error_failed": "Could not turn this question into a query. Rephrase it and try again.",
+    "error_timeout": "This question took too long to answer. Narrow the time range or the grouping.",
+    "too_many_series": "{{count}} categories — shown as a table.",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove"
   }
 }

@@ -184,7 +184,27 @@
     "author_agent": "Agent",
     "author_member": "Membre",
     "empty": "Aucune décision enregistrée pour le moment. Les exécutions acceptées ajoutent les leurs ici.",
-    "source": "Message de l'exécution #{{seq}}"
+    "source": "Message de l'exécution #{{seq}}",
+    "record": {
+      "trigger": "Consigner",
+      "title": "Consigner une décision",
+      "description": "Une décision est rattachée à une issue et cite un message de son dernier run terminé — cette citation est ce qui la rend traçable.",
+      "issue_label": "Issue",
+      "issue_placeholder": "Choisir une issue…",
+      "source_label": "Message de run cité",
+      "source_placeholder": "Choisir le message qui l'énonce…",
+      "source_loading": "Chargement du dernier run terminé de l'issue…",
+      "no_run": "Cette issue n'a pas encore de run terminé à citer.",
+      "title_label": "Titre",
+      "context_label": "Contexte",
+      "decision_label": "Décision",
+      "consequences_label": "Conséquences",
+      "cancel": "Annuler",
+      "save": "Consigner",
+      "saving": "Enregistrement…",
+      "toast_saved": "Décision consignée.",
+      "toast_failed": "Échec de l'enregistrement de la décision."
+    }
   },
   "blast_radius": {
     "section": "Périmètre d'action",

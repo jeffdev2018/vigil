@@ -617,6 +617,16 @@ deleted_autopilot_memories AS (
 DELETE FROM autopilot_rule_version
 WHERE autopilot_rule_version.workspace_id = $1;
 
+-- name: DeleteWorkspaceInsights :exec
+-- F27: pinned insight widgets and the translation-quality log. Both carry
+-- workspace_id directly and neither has a FK, so they purge in one statement.
+WITH deleted_widgets AS (
+    DELETE FROM insight_widget
+    WHERE insight_widget.workspace_id = $1
+)
+DELETE FROM insight_query_log
+WHERE insight_query_log.workspace_id = $1;
+
 -- name: DeleteWorkspaceAutopilots :exec
 DELETE FROM autopilot WHERE autopilot.workspace_id = $1;
 

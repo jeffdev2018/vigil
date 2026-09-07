@@ -182,7 +182,27 @@
     "author_agent": "에이전트",
     "author_member": "멤버",
     "empty": "아직 기록된 결정이 없습니다. 수락된 실행이 여기에 추가합니다.",
-    "source": "실행 메시지 #{{seq}}"
+    "source": "실행 메시지 #{{seq}}",
+    "record": {
+      "trigger": "기록",
+      "title": "결정 기록",
+      "description": "결정 기록은 이슈에 연결되며, 마지막으로 완료된 실행의 메시지 하나를 인용합니다. 이 인용이 기록을 추적 가능하게 만듭니다.",
+      "issue_label": "이슈",
+      "issue_placeholder": "이슈 선택…",
+      "source_label": "인용할 실행 메시지",
+      "source_placeholder": "해당 결정을 서술한 메시지 선택…",
+      "source_loading": "이슈의 마지막 완료 실행을 불러오는 중…",
+      "no_run": "이 이슈에는 아직 인용할 완료된 실행이 없습니다.",
+      "title_label": "제목",
+      "context_label": "배경",
+      "decision_label": "결정",
+      "consequences_label": "영향",
+      "cancel": "취소",
+      "save": "기록",
+      "saving": "기록 중…",
+      "toast_saved": "결정을 기록했습니다.",
+      "toast_failed": "결정 기록에 실패했습니다."
+    }
   },
   "blast_radius": {
     "section": "영향 범위",

@@ -14,6 +14,13 @@ vi.mock("@multica/core/paths", () => ({ useWorkspacePaths: () => ({ issueDetail:
 vi.mock("../../navigation", () => ({
   AppLink: ({ href, children, ...rest }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} {...rest}>{children}</a>,
 }));
+// The dialog's contract is pinned in record-decision-dialog.test.tsx; here it
+// is stubbed so this file asserts only that the section offers the write path
+// at all — before K29's write half landed, the section was read-only.
+vi.mock("./record-decision-dialog", () => ({
+  RecordDecisionDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="record-decision-dialog" /> : null,
+}));
 vi.mock("@multica/core/projects/decisions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/projects/decisions")>()),
   projectDecisionsOptions: (wsId: string, projectId: string, author: string) => {
@@ -51,6 +58,13 @@ describe("ProjectDecisionsSection", () => {
   it("says the project has no decision yet", async () => {
     renderSection();
     expect(await screen.findByTestId("project-decisions-empty")).toBeTruthy();
+  });
+
+  it("opens the record dialog so a human can write a decision, not just read them", async () => {
+    renderSection();
+    expect(screen.queryByTestId("record-decision-dialog")).toBeNull();
+    fireEvent.click(await screen.findByTestId("project-decisions-record"));
+    expect(screen.getByTestId("record-decision-dialog")).toBeTruthy();
   });
 
   it("lists decisions with their issue link and source, and filters by author", async () => {

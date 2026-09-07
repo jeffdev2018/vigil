@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo."
+description: "Platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo, insights."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -37,6 +37,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/spending.md` | Paying for something from a run: asking for a spend token, the approval gate over the workspace threshold, redeeming it, and reading the run's budget and limits |
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
+| `references/insights.md` | Answering a question about the workspace with a figure: what the insight vocabulary accepts, why no SQL is ever written, and what the numbers do not mean |
 | `references/triage-verdicts.md` | The triage queue: suggesting a verdict on inbound work a human then decides |
 | `references/status-transitions.md` | A status change refused with `transition_not_allowed`, or held with `202 pending_approval`: what the workspace's transition rules govern and what to do instead of retrying |
 | `references/undo-and-show-me-first.md` | The undo journal and the `202` "show me first" approval contract |

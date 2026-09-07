@@ -311,6 +311,22 @@ func (q *Queries) DeleteWorkspaceEpicArtifacts(ctx context.Context, workspaceID 
 	return err
 }
 
+const deleteWorkspaceInsights = `-- name: DeleteWorkspaceInsights :exec
+WITH deleted_widgets AS (
+    DELETE FROM insight_widget
+    WHERE insight_widget.workspace_id = $1
+)
+DELETE FROM insight_query_log
+WHERE insight_query_log.workspace_id = $1
+`
+
+// F27: pinned insight widgets and the translation-quality log. Both carry
+// workspace_id directly and neither has a FK, so they purge in one statement.
+func (q *Queries) DeleteWorkspaceInsights(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceInsights, workspaceID)
+	return err
+}
+
 const deleteWorkspaceIssueDecisions = `-- name: DeleteWorkspaceIssueDecisions :exec
 DELETE FROM issue_decision
 WHERE issue_decision.workspace_id = $1

@@ -1,110 +1,16 @@
 "use client";
 
-import { Input } from "@multica/ui/components/ui/input";
 import { cn } from "@multica/ui/lib/utils";
-import { useT } from "../../i18n";
-
-const OTHER_INPUT_MAX_LENGTH = 80;
 
 /**
- * Editorial radio-style option row used in the Step 1 questionnaire.
+ * Radio marker for the onboarding questionnaire rows: thin ring resting,
+ * filled dot once selected.
  *
- * Design reference: onboarding(3) `.opt` — thin border resting, and on
- * select: filled inset ring + radio marker turns into a filled dot.
- * Enter/Space select; full row is the hit target. ARIA radio inside a
- * containing `<fieldset role="radiogroup">` in StepQuestionnaire.
+ * The `OptionCard` / `OtherOptionCard` rows that used to live here were
+ * superseded by `icon-option-card.tsx`, which every questionnaire step now
+ * uses. Only the marker outlived them — `step-workspace.tsx` draws its own
+ * rows and reuses it so the selected state reads identically across steps.
  */
-export function OptionCard({
-  selected,
-  onSelect,
-  label,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      onClick={onSelect}
-      className={cn(
-        "group flex w-full items-center gap-3.5 rounded-lg border bg-card px-4 py-2.5 text-left transition-all",
-        selected
-          ? "border-foreground shadow-[inset_0_0_0_1px_var(--color-foreground)]"
-          : "hover:border-foreground/20 hover:bg-accent/30",
-      )}
-    >
-      <RadioMark selected={selected} />
-      <span className="text-body font-normal leading-tight text-foreground">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-/**
- * "Other" variant — reveals an 80-char text input below the row once
- * selected. Auto-focus on first open saves the user a click.
- *
- * Clearing `otherValue` when the user picks a sibling option is the
- * parent questionnaire's job; this component stays focus-stable while
- * the user is mid-typing.
- */
-export function OtherOptionCard({
-  selected,
-  onSelect,
-  otherValue,
-  onOtherChange,
-  placeholder,
-}: {
-  selected: boolean;
-  onSelect: () => void;
-  otherValue: string;
-  onOtherChange: (value: string) => void;
-  placeholder: string;
-}) {
-  const { t } = useT("onboarding");
-  return (
-    <div
-      className={cn(
-        "flex w-full flex-col rounded-lg border bg-card transition-all",
-        selected
-          ? "border-foreground shadow-[inset_0_0_0_1px_var(--color-foreground)]"
-          : "hover:border-foreground/20",
-      )}
-    >
-      <button
-        type="button"
-        role="radio"
-        aria-checked={selected}
-        onClick={onSelect}
-        className="flex w-full items-center gap-3.5 px-4 py-2.5 text-left"
-      >
-        <RadioMark selected={selected} />
-        <span className="text-body font-normal leading-tight text-foreground">
-          {t(($) => $.option_card.other_label)}
-        </span>
-      </button>
-      {selected && (
-        <div className="px-4 pb-3 pl-[44px]">
-          <Input
-            autoFocus
-            type="text"
-            value={otherValue}
-            onChange={(e) => onOtherChange(e.target.value)}
-            placeholder={placeholder}
-            maxLength={OTHER_INPUT_MAX_LENGTH}
-            className="h-8 rounded-none border-x-0 border-t-0 border-b px-0 text-body shadow-none focus-visible:border-foreground focus-visible:ring-0"
-            aria-label={placeholder}
-          />
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function RadioMark({ selected }: { selected: boolean }) {
   return (
     <span
@@ -120,5 +26,3 @@ export function RadioMark({ selected }: { selected: boolean }) {
     </span>
   );
 }
-
-export { OTHER_INPUT_MAX_LENGTH };
