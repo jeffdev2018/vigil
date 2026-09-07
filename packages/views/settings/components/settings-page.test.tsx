@@ -179,9 +179,14 @@ describe("SettingsPage information architecture", () => {
     expect(
       within(issues).getByRole("link", { name: "Issue Statuses" }),
     ).toBeInTheDocument();
+    // Issue, Chat and GitHub folded into other pages upstream. Labs did not:
+    // we kept the container, so it stays a page of its own.
     expect(
-      within(nav).queryByRole("link", { name: /^(Issue|Chat|GitHub|Labs)$/ }),
+      within(nav).queryByRole("link", { name: /^(Issue|Chat|GitHub)$/ }),
     ).not.toBeInTheDocument();
+    expect(
+      within(nav).getByRole("link", { name: "Labs" }),
+    ).toBeInTheDocument();
   });
 
   it("opens old issue bookmarks in preferences", () => {

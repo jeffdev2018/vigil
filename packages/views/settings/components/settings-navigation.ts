@@ -8,7 +8,7 @@ export function resolveSettingsLocation(params: URLSearchParams) {
     return { tab: "integrations", section: null, integration: tab };
   }
   return {
-    tab: tab === "labs" ? "workspace" : tab,
+    tab,
     section: params.get("section"),
     integration: params.get("integration"),
   };

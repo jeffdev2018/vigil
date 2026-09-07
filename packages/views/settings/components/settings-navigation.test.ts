@@ -8,11 +8,20 @@ describe("settings location", () => {
     ["chat", "preferences", "chat", null],
     ["github", "integrations", null, "github"],
     ["lark", "integrations", null, "lark"],
-    ["labs", "workspace", null, null],
   ])("resolves the retired %s entry", (old, tab, section, integration) => {
     expect(resolveSettingsLocation(new URLSearchParams({ tab: old! }))).toEqual(
       { tab, section, integration },
     );
+  });
+
+  it("keeps labs on its own page", () => {
+    // Upstream retired the tab while it was an empty container; we kept the
+    // container, so the bookmark must land on it rather than redirect.
+    expect(resolveSettingsLocation(new URLSearchParams({ tab: "labs" }))).toEqual({
+      tab: "labs",
+      section: null,
+      integration: null,
+    });
   });
 
   it("preserves unrelated query state while replacing page-specific state", () => {
