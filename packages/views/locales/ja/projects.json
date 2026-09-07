@@ -182,7 +182,27 @@
     "author_agent": "エージェント",
     "author_member": "メンバー",
     "empty": "まだ決定は記録されていません。受け入れられた実行がここに追加します。",
-    "source": "実行メッセージ #{{seq}}"
+    "source": "実行メッセージ #{{seq}}",
+    "record": {
+      "trigger": "記録",
+      "title": "決定を記録",
+      "description": "決定記録は Issue に紐づき、その最後に完了した実行のメッセージを 1 件引用します。この引用が記録を追跡可能にします。",
+      "issue_label": "Issue",
+      "issue_placeholder": "Issue を選択…",
+      "source_label": "引用する実行メッセージ",
+      "source_placeholder": "その決定を述べたメッセージを選択…",
+      "source_loading": "Issue の最後に完了した実行を読み込み中…",
+      "no_run": "この Issue には引用できる完了済みの実行がまだありません。",
+      "title_label": "タイトル",
+      "context_label": "背景",
+      "decision_label": "決定",
+      "consequences_label": "影響",
+      "cancel": "キャンセル",
+      "save": "記録",
+      "saving": "記録中…",
+      "toast_saved": "決定を記録しました。",
+      "toast_failed": "決定の記録に失敗しました。"
+    }
   },
   "blast_radius": {
     "section": "影響範囲",

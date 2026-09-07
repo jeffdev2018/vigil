@@ -3885,6 +3885,44 @@ export class ApiClient {
     return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, { endpoint: "GET /api/projects/:id/decisions" }).decisions;
   }
 
+  /**
+   * Record decision records on an issue by hand (K29).
+   *
+   * The write half of decision memory: until now only the LLM extractor could
+   * create an ADR, so `POST /api/issues/:id/decision-records` had no caller.
+   *
+   * The endpoint's contract, from `handler.CreateIssueDecisions`:
+   *  - 1..N decisions per call, each needing a non-empty `title` and
+   *    `decision`; `context` and `consequences` are optional.
+   *  - every decision must cite a `source_message_seq` that exists in the run,
+   *    or the call is refused 422 `invalid_source`.
+   *  - `run_id` is optional and defaults to the issue's LAST COMPLETED run.
+   *    Callers that read the seqs off a specific run should send that run's id
+   *    rather than rely on the default, or a run finishing in between makes
+   *    the seqs they showed the user belong to a different transcript.
+   */
+  async createIssueDecisions(
+    issueId: string,
+    input: {
+      run_id?: string;
+      decisions: Array<{
+        source_message_seq: number;
+        title: string;
+        decision: string;
+        context?: string;
+        consequences?: string;
+      }>;
+    },
+  ): Promise<DecisionRecord[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/decision-records`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+    return parseWithFallback(raw, DecisionRecordListSchema, { decisions: [] }, {
+      endpoint: "POST /api/issues/:id/decision-records",
+    }).decisions;
+  }
+
   async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
     const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
     return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
