@@ -918,7 +918,7 @@
     "profiles_denied_paths": "금지 경로",
     "profiles_denied_paths_description": "실행이 읽기·편집·push할 수 없는 글롭(쉼표 구분). 예: .env, infra/**",
     "profiles_allowed_commands": "허용 명령",
-    "profiles_allowed_commands_description": "모델에 실행 가능하다고 알리는 명령. *는 모두 허용.",
+    "profiles_allowed_commands_description": "모델에 실행 가능하다고 알리는 명령. 강제되지는 않습니다. *는 모두 허용.",
     "profiles_hidden_secrets": "숨김 시크릿",
     "profiles_hidden_secrets_description": "실행에 전달하지 않는 환경 변수 키(글롭). 예: *PROD*, *_PASSWORD",
     "profiles_failed": "권한 프로필을 업데이트하지 못했습니다",

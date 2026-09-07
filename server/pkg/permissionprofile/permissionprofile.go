@@ -4,6 +4,41 @@
 // daemon, which enforces what the provider can enforce and tells the model
 // the rest. It is shared by the server and the daemon, so it depends on
 // nothing but the blast radius globs.
+//
+// SCOPE, stated negatively first, because the name invites the wrong reading.
+// A permission profile is NOT a sandbox and does not bound what the agent
+// process can do on the machine. Multica launches a third-party CLI as a
+// subprocess and does not own its loop, so a shell command the CLI decides to
+// run passes through no Multica code. Confinement is SandboxSpec's job
+// (internal/daemon/sandbox.go), and it is the thing that either holds or
+// refuses the run.
+//
+// What each field actually does:
+//
+//   - ReadOnly: enforced for the providers that expose a flag for it —
+//     Claude through the --settings deny rules below, Codex through
+//     --sandbox read-only. Told to the model on every other provider.
+//   - DeniedPaths: enforced on the paths Multica sees, which are the MCP
+//     tool-call arguments (daemon's remoteMCPToolGate) and the push gate, plus
+//     Claude's own per-tool deny rules. A file the CLI reads with its built-in
+//     Read tool on another provider is not seen and not gated.
+//   - HiddenSecrets: enforced on agent.CustomEnv, which is the only secret
+//     channel this package owns. The daemon's own inherited environment is
+//     narrowed elsewhere (pkg/agent buildEnv drops foreign model-vendor keys)
+//     and a BYOK key is injected after this filter on purpose.
+//   - AllowedCommands: told to the model, and nothing checks it. See
+//     AllowsAnyCommand and PromptSection.
+//
+// AllowedCommands cannot be made a control from here, and the reason is worth
+// writing down so nobody spends a week discovering it again. An allowlist has
+// to be expressible as "only these", and the provider surfaces Multica drives
+// are deny lists with prefix matching: they can refuse a named command, not
+// admit a closed set. Chaining and wrapping defeat prefix matching anyway
+// (`cd /tmp && rm x`, `sh -c 'rm x'`, `sudo rm x` all miss a rule written for
+// `rm`), and Multica sees none of those strings, because the CLI builds and
+// runs them itself. Enforce a real command boundary with a sandbox, or with
+// blast radius rules on the effects the command produces — both of which
+// Multica does see.
 package permissionprofile
 
 import (

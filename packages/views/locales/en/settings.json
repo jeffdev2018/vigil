@@ -921,7 +921,7 @@
     "profiles_denied_paths": "Denied paths",
     "profiles_denied_paths_description": "Globs the run may neither read, edit nor push, comma separated. Example: .env, infra/**",
     "profiles_allowed_commands": "Allowed commands",
-    "profiles_allowed_commands_description": "Commands the model is told it may run; * means anything.",
+    "profiles_allowed_commands_description": "Commands the model is told it may run; nothing enforces it. * means anything.",
     "profiles_hidden_secrets": "Hidden secrets",
     "profiles_hidden_secrets_description": "Environment keys withheld from the run, as globs. Example: *PROD*, *_PASSWORD",
     "profiles_failed": "Failed to update the permission profile",
