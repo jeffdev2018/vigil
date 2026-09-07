@@ -92,6 +92,11 @@ type Task struct {
 	// server of the run. Nil on a server too old to send it: the daemon then
 	// classifies each tool itself and caps it with the agent's trust dial.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// SensitiveTools (K05) is the workspace's pattern for the MCP tools that
+	// pause for a human, sent with the claim. Empty means the compiled
+	// default: a daemon serves several workspaces, so this cannot come from
+	// the daemon's own environment.
+	SensitiveTools string `json:"sensitive_tools,omitempty"`
 	// Sandbox (K10) is the confinement the server requested for this run.
 	// Nil or mode "none" runs the CLI directly on the host, as before.
 	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
