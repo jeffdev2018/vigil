@@ -1527,5 +1527,16 @@
     "reply_placeholder": "Reply to this thread…",
     "empty": "No discussion anchored to this hunk yet.",
     "go_to_hunk": "Jump to this line in the walkthrough"
+  },
+  "transitions": {
+    "not_allowed": "A workspace rule does not allow this move.",
+    "needs_approval": "Needs approval",
+    "banner_title": "Waiting for approval",
+    "banner_body": "A status change to {{status}} was requested and is waiting for an approver.",
+    "approve": "Approve",
+    "reject": "Reject",
+    "note_placeholder": "Note (optional)",
+    "decide_failed": "Could not record the decision.",
+    "pending_toast": "Sent for approval. The status has not changed yet."
   }
 }

@@ -49,6 +49,37 @@
       "cancelled": "Abandonné."
     }
   },
+  "transitions": {
+    "title": "Règles de transition",
+    "description": "Définissez qui peut déplacer un ticket d'une catégorie de statut à une autre, et quels déplacements attendent une approbation.",
+    "loading": "Chargement des règles…",
+    "empty": "Aucune règle. Toutes les transitions sont libres : qui peut modifier un ticket peut lui donner n'importe quel statut.",
+    "add": "Ajouter une règle",
+    "edit": "Modifier la règle",
+    "delete": "Supprimer la règle",
+    "delete_failed": "Impossible de supprimer la règle.",
+    "save_failed": "Impossible d'enregistrer la règle.",
+    "any_origin": "n'importe quel statut",
+    "grants": "Autorisé : {{list}}",
+    "no_grants": "Autorisé : personne",
+    "named_actors": "{{count}} nommés",
+    "needs_approval": "approbation requise",
+    "disabled": "désactivée",
+    "editor": {
+      "create_title": "Nouvelle règle de transition",
+      "edit_title": "Modifier la règle de transition",
+      "hint": "Les règles portent sur les catégories de statut : elles restent valides si un statut est renommé.",
+      "from": "Depuis",
+      "to": "Vers",
+      "roles": "Rôles autorisés",
+      "actor_types": "Types d'acteurs autorisés",
+      "requires_approval": "Attendre une approbation",
+      "approver_roles": "Rôles approbateurs",
+      "enabled": "Activée",
+      "save": "Enregistrer",
+      "cancel": "Annuler"
+    }
+  },
   "quick_actions": {
     "title": "Actions rapides",
     "description": "Préconfigurez un agent et un prompt une seule fois, puis déclenchez-le depuis la barre latérale de n'importe quelle issue en un seul clic.",
@@ -426,6 +457,7 @@
       "members": "Membres",
       "labels": "Labels",
       "issue_statuses": "Statuts des issues",
+      "transitions": "Transitions",
       "properties": "Propriétés",
       "quick_actions": "Actions rapides",
       "plugins": "Plugins",

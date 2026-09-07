@@ -68,6 +68,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   budget_exceeded: "Budget exceeded",
   postmortem_ready: "Postmortem ready",
   triage_stale: "Triage is stalling",
+  transition_approval_requested: "Approval needed",
   watchdog_escalation: "Watchdog escalation",
   code_health_report: "Code health report",
   doc_drift_report: "Agent context drift",

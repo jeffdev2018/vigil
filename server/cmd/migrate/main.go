@@ -423,6 +423,10 @@ var concurrentIndexCleanups = map[string]string{
 	"760_worktree_revert_request_unique_target":                 "uq_worktree_revert_request_target_pending",
 	"762_epic_artifact_project_kind_version":                    "uq_epic_artifact_project_kind_version",
 	"763_epic_artifact_project_state":                           "idx_epic_artifact_project_state",
+	"767_issue_transition_rule_lookup":                          "idx_issue_transition_rule_lookup",
+	"769_issue_transition_rule_actor_rule":                      "idx_issue_transition_rule_actor_rule",
+	"771_issue_transition_request_pending":                      "uq_issue_transition_request_pending",
+	"772_issue_transition_request_listing":                      "idx_issue_transition_request_listing",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

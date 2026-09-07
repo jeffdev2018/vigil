@@ -279,4 +279,12 @@ const (
 	// front-ends invalidate the Telegram installations query on either.
 	EventTelegramInstallationCreated = "telegram_installation:created"
 	EventTelegramInstallationRevoked = "telegram_installation:revoked"
+
+	// Transition approvals (F28). Workspace-scoped: a held status change is
+	// filed for approvers, then approved or rejected. The issue itself only
+	// moves on approval, which publishes the usual issue:updated with
+	// status_changed — these three carry the REQUEST, not the issue.
+	EventIssueTransitionRequested = "issue_transition:requested"
+	EventIssueTransitionApproved  = "issue_transition:approved"
+	EventIssueTransitionRejected  = "issue_transition:rejected"
 )

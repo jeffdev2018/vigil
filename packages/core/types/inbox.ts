@@ -68,7 +68,10 @@ export type InboxItemType =
   | "decision_auto_decided"
   // The triage queue has items nobody has decided on for two days. Filed for
   // the workspace's admins/owners, at most once a day per workspace.
-  | "triage_stale";
+  | "triage_stale"
+  // Transition rules (F28): a status change is held for an approver. Filed for
+  // every member holding a role the rule accepts as an approver.
+  | "transition_approval_requested";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

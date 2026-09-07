@@ -1489,5 +1489,16 @@
     "reply_placeholder": "このスレッドに返信…",
     "empty": "このハンクに紐づく議論はまだありません。",
     "go_to_hunk": "ウォークスルーのこの行へ移動"
+  },
+  "transitions": {
+    "not_allowed": "ワークスペースのルールによりこの移動は許可されていません。",
+    "needs_approval": "承認が必要",
+    "banner_title": "承認待ち",
+    "banner_body": "{{status}} へのステータス変更が申請され、承認者を待っています。",
+    "approve": "承認",
+    "reject": "却下",
+    "note_placeholder": "メモ（任意）",
+    "decide_failed": "判断を記録できませんでした。",
+    "pending_toast": "承認に送りました。ステータスはまだ変わっていません。"
   }
 }

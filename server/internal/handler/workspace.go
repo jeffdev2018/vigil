@@ -1475,6 +1475,20 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceApprovalGateEvents(ctx, requester.WorkspaceID) },
 		},
 		{
+			// Grants first: they are keyed by rule_id, so deleting the rules
+			// before them would strand rows nothing can reach.
+			name: "purge issue transition rules",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceIssueTransitionRuleActors(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				if err := qtx.PurgeWorkspaceIssueTransitionRules(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceIssueTransitionRequests(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			name: "purge trust mode changes",
 			run:  func() error { return qtx.PurgeWorkspaceTrustModeChanges(ctx, requester.WorkspaceID) },
 		},

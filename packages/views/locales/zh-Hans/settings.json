@@ -49,6 +49,37 @@
       "cancelled": "决定不做。"
     }
   },
+  "transitions": {
+    "title": "流转规则",
+    "description": "规定谁可以把工作项在状态分类之间移动，以及哪些移动需要等待审批。",
+    "loading": "正在加载规则…",
+    "empty": "暂无规则。所有流转都是自由的：能编辑工作项的人可以把它改成任意状态。",
+    "add": "新增规则",
+    "edit": "编辑规则",
+    "delete": "删除规则",
+    "delete_failed": "无法删除该规则。",
+    "save_failed": "无法保存该规则。",
+    "any_origin": "任意状态",
+    "grants": "允许：{{list}}",
+    "no_grants": "允许：无人",
+    "named_actors": "指定 {{count}} 个",
+    "needs_approval": "需要审批",
+    "disabled": "已停用",
+    "editor": {
+      "create_title": "新建流转规则",
+      "edit_title": "编辑流转规则",
+      "hint": "规则针对状态分类编写，因此重命名状态后依然有效。",
+      "from": "从",
+      "to": "到",
+      "roles": "允许的角色",
+      "actor_types": "允许的执行者类型",
+      "requires_approval": "等待审批",
+      "approver_roles": "审批人角色",
+      "enabled": "启用",
+      "save": "保存",
+      "cancel": "取消"
+    }
+  },
   "quick_actions": {
     "title": "快捷操作",
     "description": "预先配置好执行的智能体和提示词，之后在任意任务侧边栏一键触发。",
@@ -425,6 +456,7 @@
       "members": "成员",
       "labels": "标签",
       "issue_statuses": "任务状态",
+      "transitions": "状态流转",
       "properties": "属性",
       "quick_actions": "快捷操作",
       "plugins": "Plugins",

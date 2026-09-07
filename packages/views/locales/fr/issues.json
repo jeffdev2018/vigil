@@ -1527,5 +1527,16 @@
     "reply_placeholder": "Répondre à ce fil…",
     "empty": "Aucune discussion ancrée à ce bloc.",
     "go_to_hunk": "Aller à cette ligne dans le récit"
+  },
+  "transitions": {
+    "not_allowed": "Une règle de l'espace de travail interdit ce déplacement.",
+    "needs_approval": "Approbation requise",
+    "banner_title": "En attente d'approbation",
+    "banner_body": "Un changement de statut vers {{status}} a été demandé et attend un approbateur.",
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "note_placeholder": "Note (facultative)",
+    "decide_failed": "Impossible d'enregistrer la décision.",
+    "pending_toast": "Envoyé pour approbation. Le statut n'a pas encore changé."
   }
 }

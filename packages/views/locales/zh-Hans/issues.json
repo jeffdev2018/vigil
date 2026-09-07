@@ -1489,5 +1489,16 @@
     "reply_placeholder": "回复此讨论…",
     "empty": "此代码块还没有定位讨论。",
     "go_to_hunk": "跳转到讲解中的这一行"
+  },
+  "transitions": {
+    "not_allowed": "工作区规则不允许这样流转。",
+    "needs_approval": "需要审批",
+    "banner_title": "等待审批",
+    "banner_body": "已申请将状态改为 {{status}}，正在等待审批人处理。",
+    "approve": "通过",
+    "reject": "驳回",
+    "note_placeholder": "备注（可选）",
+    "decide_failed": "无法记录审批结果。",
+    "pending_toast": "已提交审批，状态尚未变更。"
   }
 }

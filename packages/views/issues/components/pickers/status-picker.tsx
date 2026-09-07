@@ -1,10 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { IssueStatus, UpdateIssueRequest } from "@multica/core/types";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { useWorkspaceId } from "@multica/core/hooks";
+import {
+  effectiveFor,
+  effectiveIssueTransitionsOptions,
+} from "@multica/core/issue-transitions";
 import { StatusIcon } from "../status-icon";
 import { PropertyPicker, PickerItem } from "./property-picker";
 import { useT } from "../../../i18n";
@@ -22,6 +27,7 @@ export function StatusPicker({
   open: controlledOpen,
   onOpenChange: controlledOnOpenChange,
   align,
+  issueId,
 }: {
   /**
    * The currently-selected status, used to check the matching row. `null`
@@ -36,6 +42,14 @@ export function StatusPicker({
   open?: boolean;
   onOpenChange?: (v: boolean) => void;
   align?: "start" | "center" | "end";
+  /**
+   * The issue this picker acts on. Optional because the batch toolbar and the
+   * create-issue modal have no single issue — those keep every option
+   * offerable, and the server is still the authority either way. When present,
+   * transition rules (F28) grey the options the viewer may not pick and badge
+   * the ones that would go to an approver.
+   */
+  issueId?: string;
 }) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -67,6 +81,15 @@ export function StatusPicker({
 
   const searchable = allOptions.length > SEARCH_THRESHOLD;
 
+  // Transition rules (F28). Only fetched when the popover is open and the
+  // picker knows its issue — one query per issue, cached by React Query, so
+  // reopening the popover costs nothing and a board full of pickers costs
+  // nothing at all until one is opened.
+  const { data: effective } = useQuery({
+    ...effectiveIssueTransitionsOptions(wsId, issueId ?? ""),
+    enabled: !!wsId && !!issueId && open,
+  });
+
   return (
     <PropertyPicker
       open={open}
@@ -95,26 +118,40 @@ export function StatusPicker({
         ) : null)
       }
     >
-      {options.map((option) => (
-        <PickerItem
-          key={option.key}
-          selected={option.key === status}
-          hoverClassName={STATUS_CONFIG[option.category].hoverBg}
-          onClick={() => {
-            onUpdate({ status: option.key });
-            setOpen(false);
-            setQuery("");
-          }}
-        >
-          <StatusIcon
-            status={option.key}
-            category={option.category}
-            color={option.color}
-            className="h-3.5 w-3.5"
-          />
-          <span className="truncate">{option.label}</span>
-        </PickerItem>
-      ))}
+      {options.map((option) => {
+        // Defaults to allowed: an unloaded query, a category the server did
+        // not answer for, and a workspace with no rules all mean "free move".
+        const rule = effectiveFor(effective, option.category);
+        const blocked = issueId != null && rule.allowed === false && option.key !== status;
+        return (
+          <PickerItem
+            key={option.key}
+            selected={option.key === status}
+            disabled={blocked}
+            tooltip={blocked ? t(($) => $.transitions.not_allowed) : undefined}
+            hoverClassName={STATUS_CONFIG[option.category].hoverBg}
+            onClick={() => {
+              if (blocked) return;
+              onUpdate({ status: option.key });
+              setOpen(false);
+              setQuery("");
+            }}
+          >
+            <StatusIcon
+              status={option.key}
+              category={option.category}
+              color={option.color}
+              className="h-3.5 w-3.5"
+            />
+            <span className="truncate">{option.label}</span>
+            {!blocked && rule.requires_approval && (
+              <span className="ml-auto shrink-0 rounded-sm bg-muted px-1 text-caption text-muted-foreground">
+                {t(($) => $.transitions.needs_approval)}
+              </span>
+            )}
+          </PickerItem>
+        );
+      })}
     </PropertyPicker>
   );
 }

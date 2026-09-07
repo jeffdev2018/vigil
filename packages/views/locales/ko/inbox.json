@@ -92,6 +92,7 @@
     "postmortem_ready": "포스트모템 준비됨",
     "trust_promotion_suggested": "신뢰 모드 승격 제안",
     "triage_stale": "분류가 지연되고 있습니다",
+    "transition_approval_requested": "승인이 필요합니다",
     "watchdog_escalation": "워치독 에스컬레이션",
     "contest_ready": "이의 제기 판정 대기",
     "org_alert": "조직 알림",

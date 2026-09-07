@@ -92,6 +92,7 @@
     "postmortem_ready": "ポストモーテム作成済み",
     "trust_promotion_suggested": "信頼モードの昇格提案",
     "triage_stale": "トリアージが滞っています",
+    "transition_approval_requested": "承認が必要です",
     "watchdog_escalation": "ウォッチドッグのエスカレーション",
     "contest_ready": "異議申し立ての判定待ち",
     "org_alert": "組織アラート",

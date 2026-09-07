@@ -355,6 +355,7 @@ import { BATCH_WINDOW_DEFAULTS, BatchWindowSchema } from "../batch-window/schema
 import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSchema, EvalCaseEnvelopeSchema, EvalCaseListSchema, EvalRunEnvelopeSchema, EvalRunListSchema, EvalSuiteEnvelopeSchema, EvalSuiteListSchema, type BenchmarkCorpus, type BenchmarkPolicySearch, type BenchmarkPolicySearchRequest, type BenchmarkRun, type CreateEvalSuiteRequest, type EvalCase, type EvalRun, type EvalSuite, type RunBenchmarkRequest, type RunEvalSuiteRequest } from "../eval/schemas";
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
+import { IssueTransitionRuleSchema, IssueTransitionRuleListSchema, EMPTY_TRANSITION_RULES, EMPTY_TRANSITION_RULE, EffectiveTransitionsSchema, EMPTY_EFFECTIVE_TRANSITIONS, IssueTransitionRequestListSchema, EMPTY_TRANSITION_REQUESTS, PendingTransitionSchema, type IssueTransitionRule, type IssueTransitionRuleList, type EffectiveTransitions, type IssueTransitionRequestList } from "../issue-transitions/schemas";
 import {
   AgentTaskListSchema,
   WorktreeRevertRequestSchema,
@@ -861,6 +862,44 @@ export function clientErrorMessage(err: unknown): string | undefined {
     return err.message || undefined;
   }
   return undefined;
+}
+
+// Transition rules (F28). A held status change comes back as 202 with an
+// UNCHANGED issue, which every 2xx path in this client would otherwise treat
+// as the applied write and reconcile into cache. Raising it as an error is
+// what routes it to the mutation's existing rollback: the optimistic patch is
+// undone, exactly as it is for the 403, and the UI can catch this type to say
+// "waiting for approval" rather than "failed".
+export class IssueTransitionPendingError extends Error {
+  readonly requestId: string;
+
+  constructor(requestId: string) {
+    super("this status change is waiting for approval");
+    this.name = "IssueTransitionPendingError";
+    this.requestId = requestId;
+  }
+}
+
+// throwIfTransitionHeld raises IssueTransitionPendingError when raw is the
+// server's 202 body. Returns raw untouched otherwise, so an ordinary update
+// pays one shape check.
+function throwIfTransitionHeld(raw: unknown): unknown {
+  const held = PendingTransitionSchema.safeParse(raw);
+  if (held.success) throw new IssueTransitionPendingError(held.data.request_id);
+  return raw;
+}
+
+export interface IssueTransitionRuleWrite {
+  project_id?: string | null;
+  from_category?: string | null;
+  to_category?: string;
+  allowed_roles?: string[];
+  allow_actor_types?: string[];
+  requires_approval?: boolean;
+  approver_roles?: string[];
+  reject_status_key?: string | null;
+  enabled?: boolean;
+  actors?: { actor_type: string; actor_id: string }[];
 }
 
 // Thrown by getAttachmentTextContent when the server refuses to inline a
@@ -1534,17 +1573,20 @@ export class ApiClient {
   }
 
   async updateIssue(id: string, data: UpdateIssueRequest): Promise<Issue> {
-    return this.fetch(`/api/issues/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/issues/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
+    // F28: a 202 means the write is held for an approver, not applied.
+    return throwIfTransitionHeld(raw) as Issue;
   }
 
   async moveIssue(id: string, data: MoveIssueRequest): Promise<Issue> {
-    return this.fetch(`/api/issues/${id}/move`, {
+    const raw = await this.fetch<unknown>(`/api/issues/${id}/move`, {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return throwIfTransitionHeld(raw) as Issue;
   }
 
   async listChildIssues(id: string): Promise<{ issues: Issue[] }> {
@@ -6687,6 +6729,48 @@ export class ApiClient {
   async clearProjectMemberRole(projectId: string, subjectType: "member" | "agent", subjectId: string): Promise<ProjectMembers> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members/${subjectType}/${encodeURIComponent(subjectId)}/role`, { method: "DELETE" });
     return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "DELETE /api/projects/{id}/members/{subjectType}/{subjectId}/role" });
+  }
+
+  // Transition rules and approval gates (F28).
+
+  async listIssueTransitionRules(): Promise<IssueTransitionRuleList> {
+    const raw = await this.fetch<unknown>("/api/issue-transition-rules");
+    return parseWithFallback(raw, IssueTransitionRuleListSchema, EMPTY_TRANSITION_RULES, { endpoint: "GET /api/issue-transition-rules" });
+  }
+
+  async getEffectiveIssueTransitions(issueId: string): Promise<EffectiveTransitions> {
+    const raw = await this.fetch<unknown>(`/api/issue-transition-rules/effective?issue_id=${encodeURIComponent(issueId)}`);
+    return parseWithFallback(raw, EffectiveTransitionsSchema, EMPTY_EFFECTIVE_TRANSITIONS, { endpoint: "GET /api/issue-transition-rules/effective" });
+  }
+
+  async createIssueTransitionRule(data: IssueTransitionRuleWrite): Promise<IssueTransitionRule> {
+    const raw = await this.fetch<unknown>("/api/issue-transition-rules", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, IssueTransitionRuleSchema, EMPTY_TRANSITION_RULE, { endpoint: "POST /api/issue-transition-rules" });
+  }
+
+  async updateIssueTransitionRule(id: string, data: IssueTransitionRuleWrite): Promise<IssueTransitionRule> {
+    const raw = await this.fetch<unknown>(`/api/issue-transition-rules/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) });
+    return parseWithFallback(raw, IssueTransitionRuleSchema, { ...EMPTY_TRANSITION_RULE, id }, { endpoint: "PATCH /api/issue-transition-rules/{id}" });
+  }
+
+  async deleteIssueTransitionRule(id: string): Promise<void> {
+    await this.fetch(`/api/issue-transition-rules/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async listIssueTransitionRequests(issueId: string): Promise<IssueTransitionRequestList> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/transition-requests`);
+    return parseWithFallback(raw, IssueTransitionRequestListSchema, EMPTY_TRANSITION_REQUESTS, { endpoint: "GET /api/issues/{id}/transition-requests" });
+  }
+
+  async decideIssueTransitionRequest(requestId: string, decision: "approve" | "reject", note?: string): Promise<void> {
+    await this.fetch(`/api/issue-transition-requests/${encodeURIComponent(requestId)}/${decision}`, {
+      method: "POST",
+      body: JSON.stringify({ note: note ?? "" }),
+    });
+  }
+
+  async cancelIssueTransitionRequest(requestId: string): Promise<void> {
+    await this.fetch(`/api/issue-transition-requests/${encodeURIComponent(requestId)}`, { method: "DELETE" });
   }
 
   // Cross-repo mirror issues (K54).

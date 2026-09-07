@@ -11,6 +11,7 @@ import { useModalStore } from "@multica/core/modals";
 import { useUpdateIssue } from "@multica/core/issues/mutations";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
 import { errorCode } from "@multica/core/api";
+import { isTransitionPending } from "@multica/core/issue-transitions";
 import { pinListOptions, useCreatePin, useDeletePin } from "@multica/core/pins";
 import { copyText } from "@multica/ui/lib/clipboard";
 import { useNavigation } from "../../navigation";
@@ -103,6 +104,13 @@ export function useIssueActions(issue: Issue | null): UseIssueActionsResult {
           {
             onSuccess: options?.onSuccess,
             onError: (err) => {
+              // F28: see use-issue-surface-actions — a held transition is
+              // information, not a failure.
+              if (isTransitionPending(err)) {
+                toast.info(t(($) => $.transitions.pending_toast));
+                options?.onError?.(err);
+                return;
+              }
               toast.error(
                 errorCode(err) === "revision_conflict"
                   ? t(($) => $.revision.conflict)
