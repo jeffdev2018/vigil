@@ -912,6 +912,47 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.confidence?.below_threshold).toBe(false);
   });
 
+  it("carries how the scoring model relates to the producing one", () => {
+    const parsed = AgentTaskListSchema.parse([
+      {
+        ...task,
+        confidence: {
+          score: 0.9,
+          rationale: "ok",
+          model: "claude-sonnet-4-6",
+          producer_model: "gpt-5-codex",
+          judge_independence: "independent",
+        },
+      },
+      {
+        ...task,
+        id: "task-self",
+        confidence: {
+          score: 0.9,
+          rationale: "ok",
+          model: "claude-sonnet-4-6",
+          producer_model: "claude-sonnet-4-6",
+          judge_independence: "self",
+        },
+      },
+    ]);
+
+    expect(parsed[0]?.confidence?.judge_independence).toBe("independent");
+    expect(parsed[0]?.confidence?.producer_model).toBe("gpt-5-codex");
+    expect(parsed[1]?.confidence?.judge_independence).toBe("self");
+  });
+
+  it("leaves the relation absent on a backend that predates it", () => {
+    // An older server sends no relation. Absent must read as "not stated",
+    // which the UI renders as unknown — never as a claim of independence.
+    const parsed = AgentTaskListSchema.parse([
+      { ...task, confidence: { score: 0.9, rationale: "ok" } },
+    ]);
+
+    expect(parsed[0]?.confidence?.judge_independence).toBeUndefined();
+    expect(parsed[0]?.confidence?.producer_model).toBeUndefined();
+  });
+
   it("accepts task payloads from backends that have not scored the run yet", () => {
     const parsed = AgentTaskListSchema.parse([
       task,

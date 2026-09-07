@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -69,6 +70,44 @@ type TaskConfidence struct {
 	Model          string  `json:"model"`
 	Threshold      float64 `json:"threshold"`
 	BelowThreshold bool    `json:"below_threshold"`
+	// ProducerModel is the model that produced the run being scored, empty
+	// when the agent lets its CLI choose and never records one.
+	ProducerModel string `json:"producer_model,omitempty"`
+	// JudgeIndependence relates the scoring model to the producing one:
+	// JudgeIndependent, JudgeSelf, or JudgeUnknown. The cross-review query
+	// already refuses a reviewer running the author's own (runtime, model)
+	// pair — "the same pair would be the same reviewer wearing another name".
+	// This score decides whether a human is pulled in, and it had no such
+	// check; where independence cannot be had, the record says so, which is
+	// the doctrine the contest already follows.
+	JudgeIndependence string `json:"judge_independence,omitempty"`
+}
+
+// How the scoring model relates to the model that produced the run.
+const (
+	// JudgeIndependent: the two models are named and differ.
+	JudgeIndependent = "independent"
+	// JudgeSelf: the same model scored its own delivery.
+	JudgeSelf = "self"
+	// JudgeUnknown: the producing model is not recorded, so independence
+	// cannot be claimed. Not the same as independent, and not the same as
+	// self — it is the absence of evidence, stored as such.
+	JudgeUnknown = "unknown"
+)
+
+// judgeIndependence compares the scoring model with the producing one. Names
+// are compared case-insensitively and trimmed; either being empty is unknown,
+// never independent, because an unnamed model cannot be shown to differ.
+func judgeIndependence(judgeModel, producerModel string) string {
+	judge := strings.ToLower(strings.TrimSpace(judgeModel))
+	producer := strings.ToLower(strings.TrimSpace(producerModel))
+	if judge == "" || producer == "" {
+		return JudgeUnknown
+	}
+	if judge == producer {
+		return JudgeSelf
+	}
+	return JudgeIndependent
 }
 
 // SubscribeRunConfidence wires the scoring pass onto the bus. The listener
@@ -222,12 +261,22 @@ func (s *TaskService) ScoreRunConfidence(ctx context.Context, taskID pgtype.UUID
 		rationale = string([]rune(rationale)[:runConfidenceRationaleMaxRunes])
 	}
 
+	judgeModel := s.RunConfidence.DefaultModel()
+	producerModel := strings.TrimSpace(agent.Model.String)
+	independence := judgeIndependence(judgeModel, producerModel)
+	if independence != JudgeIndependent {
+		slog.Warn("run confidence: the judge is not known to be independent of the producer",
+			"task_id", util.UUIDToString(task.ID), "independence", independence,
+			"judge_model", judgeModel, "producer_model", producerModel)
+	}
 	conf := TaskConfidence{
-		Score:          score,
-		Rationale:      rationale,
-		Model:          s.RunConfidence.DefaultModel(),
-		Threshold:      cfg.Threshold,
-		BelowThreshold: score < cfg.Threshold,
+		Score:             score,
+		Rationale:         rationale,
+		Model:             judgeModel,
+		Threshold:         cfg.Threshold,
+		BelowThreshold:    score < cfg.Threshold,
+		ProducerModel:     producerModel,
+		JudgeIndependence: independence,
 	}
 	encoded, merr := json.Marshal(conf)
 	if merr != nil {
