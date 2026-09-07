@@ -14,6 +14,7 @@ import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review"
 import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
+import { cycleKeys } from "../cycles/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { budgetKeys } from "../budgets/queries";
@@ -871,6 +872,15 @@ export function useRealtimeSync(
       project: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
+      },
+      // Dated cycles (F29). A cycle write can also move issues between cycles
+      // (close runs the rollover), so the issue tree is stale too.
+      cycle: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: cycleKeys.all(wsId) });
+          qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+        }
       },
       squad: () => {
         const wsId = getCurrentWsId();

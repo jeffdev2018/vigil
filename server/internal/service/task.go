@@ -8157,6 +8157,9 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),
 		"project_id":      util.UUIDToPtr(issue.ProjectID),
 		"goal_id":         util.UUIDToPtr(issue.GoalID),
+		// F29: the dated cycle the issue is planned into. Emitted here too, so
+		// this rendering cannot lose a key the HTTP one carries.
+		"cycle_id": util.UUIDToPtr(issue.CycleID),
 		// Mirrors handler.IssueResponse.OriginType / OriginID: what produced
 		// the issue when it was not typed by hand. Emitted unconditionally
 		// here, like status_name, so this rendering cannot lose a key the

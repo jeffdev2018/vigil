@@ -5644,6 +5644,74 @@ export const ProjectGoalsResponseSchema = z.object({
   goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+// Dated cycles (F29). Lenient like every other boundary schema: an unknown
+// status or load unit still parses, and the UI's switches carry a default.
+const CycleCapacitySideSchema = z.object({
+  capacity: z.number().nullable().catch(null).default(null),
+  load: z.number().catch(0).default(0),
+}).loose();
+export const CycleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().catch(""),
+  name: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  start_date: z.string().catch(""),
+  end_date: z.string().catch(""),
+  rollover: z.boolean().catch(true).default(true),
+  closed_at: z.string().nullable().catch(null).default(null),
+  status: z.enum(["upcoming", "active", "closed"]).catch("active").default("active"),
+  late: z.boolean().catch(false).default(false),
+  load_unit: z.enum(["issues", "property"]).catch("issues").default("issues"),
+  load_property_id: z.string().nullable().catch(null).default(null),
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  capacity: z.object({
+    human: CycleCapacitySideSchema,
+    agent: CycleCapacitySideSchema,
+    unassigned_load: z.number().catch(0).default(0),
+  }).loose().catch({
+    human: { capacity: null, load: 0 },
+    agent: { capacity: null, load: 0 },
+    unassigned_load: 0,
+  }),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const ListCyclesResponseSchema = z.object({
+  cycles: z.array(CycleSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+export const CycleBurndownSchema = z.object({
+  days: z.array(z.object({
+    date: z.string().catch(""),
+    remaining_count: z.number().nullable().catch(null).default(null),
+    remaining_load: z.number().nullable().catch(null).default(null),
+    ideal_count: z.number().catch(0).default(0),
+    ideal_load: z.number().catch(0).default(0),
+    human_load: z.number().nullable().catch(null).default(null),
+    agent_load: z.number().nullable().catch(null).default(null),
+  }).loose()).catch([]).default([]),
+  capacity: z.object({
+    human: z.number().nullable().catch(null).default(null),
+    agent: z.number().nullable().catch(null).default(null),
+  }).loose().catch({ human: null, agent: null }),
+  load_unit: z.enum(["issues", "property"]).catch("issues").default("issues"),
+  load_property_id: z.string().nullable().catch(null).default(null),
+  approximate_before: z.string().nullable().catch(null).default(null),
+}).loose();
+export const GoalProgressSchema = z.object({
+  goal_id: z.string().catch(""),
+  projects: z.array(z.object({
+    project_id: z.string().catch(""),
+    name: z.string().catch(""),
+    total_count: z.number().catch(0).default(0),
+    done_count: z.number().catch(0).default(0),
+  }).loose()).catch([]).default([]),
+  total_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+}).loose();
+
 // Contest (K72): a rival model's objections, the author's answers, the human verdict.
 const ContestObjectionSchema = z.object({
   n: z.number().catch(0).default(0),

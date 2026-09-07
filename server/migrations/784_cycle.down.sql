@@ -1,0 +1,3 @@
+ALTER TABLE issue DROP COLUMN IF EXISTS cycle_id;
+DROP TABLE IF EXISTS cycle_snapshot;
+DROP TABLE IF EXISTS cycle;

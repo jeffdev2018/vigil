@@ -154,9 +154,13 @@ const (
 	EventChatTyping = "chat:typing"
 
 	// Project events
-	EventProjectCreated         = "project:created"
-	EventProjectUpdated         = "project:updated"
-	EventProjectDeleted         = "project:deleted"
+	EventProjectCreated = "project:created"
+	EventProjectUpdated = "project:updated"
+	EventProjectDeleted = "project:deleted"
+	// Dated cycles (F29): workspace-scoped, like the project events above.
+	EventCycleCreated           = "cycle:created"
+	EventCycleUpdated           = "cycle:updated"
+	EventCycleDeleted           = "cycle:deleted"
 	EventProjectResourceCreated = "project_resource:created"
 	EventProjectResourceUpdated = "project_resource:updated"
 	EventProjectResourceDeleted = "project_resource:deleted"

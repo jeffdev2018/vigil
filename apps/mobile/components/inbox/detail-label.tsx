@@ -71,6 +71,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   transition_approval_requested: "Approval needed",
   critic_degraded: "Adversarial review skipped",
   critic_budget: "Adversarial review stopped",
+  cycle_rollover_orphaned: "Work left a cycle with nowhere to go",
   watchdog_escalation: "Watchdog escalation",
   code_health_report: "Code health report",
   doc_drift_report: "Agent context drift",

@@ -429,6 +429,10 @@ import {
   ListGoalsResponseSchema,
   GoalDetailResponseSchema,
   ProjectGoalsResponseSchema,
+  CycleSchema,
+  ListCyclesResponseSchema,
+  CycleBurndownSchema,
+  GoalProgressSchema,
   SkillDraftListSchema,
   WatchdogVerdictListSchema,
   WatchdogScanResultSchema,
@@ -1257,6 +1261,7 @@ export class ApiClient {
     if (params?.creator_id) search.set("creator_id", params.creator_id);
     if (params?.project_id) search.set("project_id", params.project_id);
     if (params?.goal_id) search.set("goal_id", params.goal_id);
+    if (params?.cycle_id) search.set("cycle_id", params.cycle_id);
     if (params?.assignee_filters?.length) {
       search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
     }
@@ -6167,6 +6172,52 @@ export class ApiClient {
   async setProjectGoals(projectId: string, goalIds: string[]): Promise<string[]> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/goals`, { method: "PUT", body: JSON.stringify({ goal_ids: goalIds }) });
     return parseWithFallback(raw, ProjectGoalsResponseSchema, { goal_ids: [] }, { endpoint: "PUT /api/projects/:id/goals" }).goal_ids;
+  }
+
+  async getGoalProgress(id: string): Promise<import("../types").GoalProgress> {
+    const raw = await this.fetch<unknown>(`/api/goals/${encodeURIComponent(id)}/progress`);
+    return parseWithFallback(raw, GoalProgressSchema, { goal_id: id, projects: [], total_count: 0, done_count: 0 }, { endpoint: "GET /api/goals/:id/progress" });
+  }
+
+  // Dated cycles (F29)
+  async listCycles(params?: { projectId?: string; status?: string }): Promise<import("../types").ListCyclesResponse> {
+    const query = new URLSearchParams();
+    if (params?.projectId) query.set("project_id", params.projectId);
+    if (params?.status) query.set("status", params.status);
+    const suffix = query.toString() ? `?${query.toString()}` : "";
+    const raw = await this.fetch<unknown>(`/api/cycles${suffix}`);
+    return parseWithFallback(raw, ListCyclesResponseSchema, { cycles: [], total: 0 }, { endpoint: "GET /api/cycles" });
+  }
+
+  async getCycle(id: string): Promise<import("../types").Cycle | null> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}`);
+    return parseWithFallback(raw, CycleSchema.nullable(), null, { endpoint: "GET /api/cycles/:id" });
+  }
+
+  async createCycle(data: import("../types").CycleWriteRequest): Promise<import("../types").Cycle | null> {
+    const raw = await this.fetch<unknown>("/api/cycles", { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, CycleSchema.nullable(), null, { endpoint: "POST /api/cycles" });
+  }
+
+  async updateCycle(id: string, data: import("../types").CycleWriteRequest): Promise<import("../types").Cycle | null> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}`, { method: "PATCH", body: JSON.stringify(data) });
+    return parseWithFallback(raw, CycleSchema.nullable(), null, { endpoint: "PATCH /api/cycles/:id" });
+  }
+
+  async deleteCycle(id: string): Promise<void> {
+    await this.fetch(`/api/cycles/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }
+
+  async closeCycle(id: string): Promise<import("../types").Cycle | null> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}/close`, { method: "POST" });
+    return parseWithFallback(raw, z.object({ cycle: CycleSchema.nullable().catch(null) }).loose(), { cycle: null }, { endpoint: "POST /api/cycles/:id/close" }).cycle;
+  }
+
+  async getCycleBurndown(id: string): Promise<import("../types").CycleBurndown> {
+    const raw = await this.fetch<unknown>(`/api/cycles/${encodeURIComponent(id)}/burndown`);
+    return parseWithFallback(raw, CycleBurndownSchema, {
+      days: [], capacity: { human: null, agent: null }, load_unit: "issues" as const, load_property_id: null, approximate_before: null,
+    }, { endpoint: "GET /api/cycles/:id/burndown" });
   }
 
   // Project resources

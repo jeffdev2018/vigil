@@ -434,6 +434,9 @@ var concurrentIndexCleanups = map[string]string{
 	"780_run_preview_runtime_live":                              "idx_run_preview_runtime_live",
 	"782_task_share_link_code":                                  "uq_task_share_link_code",
 	"783_task_share_link_task_active":                           "idx_task_share_link_task_active",
+	"785_cycle_project_index":                                   "idx_cycle_workspace_project",
+	"786_issue_cycle_index":                                     "idx_issue_cycle",
+	"787_cycle_snapshot_workspace_index":                        "idx_cycle_snapshot_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

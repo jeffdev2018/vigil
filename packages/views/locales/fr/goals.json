@@ -59,5 +59,13 @@
     "link": "Relier des objectifs",
     "no_goals": "Créez d'abord un objectif.",
     "error": "Impossible de mettre à jour les objectifs du projet"
+  },
+  "progress_section": {
+    "header": "Projets",
+    "empty": "Aucun projet ne sert encore cet objectif.",
+    "cta": "Lier un projet",
+    "progress": "{{done}} / {{total}} terminés",
+    "loading": "Chargement de l'avancement",
+    "total": "Tous projets confondus"
   }
 }

@@ -994,6 +994,39 @@ type Contest struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+// F29: a project's dated iteration. Human and agent capacity are separate; load_property_id NULL means load = issue count. Overlaps allowed. No FK by house rule.
+type Cycle struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	ProjectID      pgtype.UUID        `json:"project_id"`
+	Name           string             `json:"name"`
+	Description    string             `json:"description"`
+	StartDate      pgtype.Date        `json:"start_date"`
+	EndDate        pgtype.Date        `json:"end_date"`
+	HumanCapacity  pgtype.Int4        `json:"human_capacity"`
+	AgentCapacity  pgtype.Int4        `json:"agent_capacity"`
+	LoadPropertyID pgtype.UUID        `json:"load_property_id"`
+	Rollover       bool               `json:"rollover"`
+	ClosedAt       pgtype.Timestamptz `json:"closed_at"`
+	CreatedBy      pgtype.UUID        `json:"created_by"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// F29: one daily row per open cycle. The only burndown history there is — status changes are not journaled in a queryable shape.
+type CycleSnapshot struct {
+	CycleID      pgtype.UUID        `json:"cycle_id"`
+	SnapshotDate pgtype.Date        `json:"snapshot_date"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	TotalCount   int64              `json:"total_count"`
+	DoneCount    int64              `json:"done_count"`
+	TotalLoad    pgtype.Numeric     `json:"total_load"`
+	DoneLoad     pgtype.Numeric     `json:"done_load"`
+	HumanLoad    pgtype.Numeric     `json:"human_load"`
+	AgentLoad    pgtype.Numeric     `json:"agent_load"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type DaemonConnection struct {
 	ID              pgtype.UUID        `json:"id"`
 	AgentID         pgtype.UUID        `json:"agent_id"`
@@ -1319,6 +1352,7 @@ type Goal struct {
 	Status         string             `json:"status"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	StartDate      pgtype.Date        `json:"start_date"`
 }
 
 type HandoffPacket struct {
@@ -1393,6 +1427,7 @@ type Issue struct {
 	DelegateType pgtype.Text `json:"delegate_type"`
 	// F01: optional partner actor id, paired with delegate_type. Both halves move together; neither is a foreign key.
 	DelegateID pgtype.UUID `json:"delegate_id"`
+	CycleID    pgtype.UUID `json:"cycle_id"`
 }
 
 // Decision Cards (K01): a typed question from an agent to a human on an issue, with options, recommendation, urgency and the recorded answer. No FK by house rule.

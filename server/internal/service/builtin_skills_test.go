@@ -349,6 +349,7 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 		"references/squads.md":       "squad",
 		"references/autopilots.md":   "autopilot",
 		"references/projects.md":     "project",
+		"references/cycles.md":       "cycle",
 		"references/epic-mode.md":    "epic",
 		"references/runtimes.md":     "runtime",
 		"references/skill-import.md": "skill import",

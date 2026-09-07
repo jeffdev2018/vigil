@@ -791,6 +791,12 @@ func main() {
 		slog.Error("scheduler: register run preview stale sweep job", "error", err)
 		os.Exit(1)
 	}
+	if err := schedulerMgr.Register(scheduler.CycleSnapshotJob(h.SnapshotCycles)); err != nil {
+		slog.Warn("scheduler: failed to register cycle_snapshot job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.CycleRolloverJob(h.RolloverCycles)); err != nil {
+		slog.Warn("scheduler: failed to register cycle_rollover job", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
 		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
 	}

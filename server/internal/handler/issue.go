@@ -78,6 +78,10 @@ type IssueResponse struct {
 	ProjectID     *string `json:"project_id"`
 	// GoalID (K74) is the goal the issue names itself; absent means it inherits its project's.
 	GoalID *string `json:"goal_id"`
+	// CycleID (F29) is the dated cycle the issue is planned into. Always a
+	// cycle of the issue's own project — a write naming another project's
+	// cycle is refused with 409 cycle_project_mismatch.
+	CycleID *string `json:"cycle_id"`
 	// OriginType / OriginID record what produced the issue when it was not
 	// typed by hand — today "meeting" (accepting an action item a recording
 	// extracted) and the other triage origins. Omitted, like status_category,
@@ -335,6 +339,7 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
@@ -377,6 +382,7 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -449,6 +455,7 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -886,7 +893,7 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position,
 		i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id,
-		i.revision, i.goal_id,
+		i.revision, i.goal_id, i.cycle_id,
 		%s AS match_source,
 		%s AS matched_comment_content
 	FROM issue i
@@ -986,6 +993,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 				&sr.issue.ProjectID,
 				&sr.issue.Revision,
 				&sr.issue.GoalID,
+				&sr.issue.CycleID,
 				&sr.matchSource,
 				&sr.matchedCommentContent,
 			); err != nil {
@@ -1127,6 +1135,15 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		goalFilter = id
 	}
+	// Dated cycles (F29): the cycle page's surface filters on this.
+	var cycleFilter pgtype.UUID
+	if c := r.URL.Query().Get("cycle_id"); c != "" {
+		id, ok := parseUUIDOrBadRequest(w, c, "cycle_id")
+		if !ok {
+			return
+		}
+		cycleFilter = id
+	}
 	// involves_user_id widens the assignee filter to surface issues where the
 	// user is the indirect assignee (their owned agent, or a squad they belong
 	// to / lead / have an agent inside). Direct member-assignment is excluded
@@ -1181,6 +1198,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			CreatorID:          creatorFilter,
 			ProjectID:          projectFilter,
 			GoalID:             goalFilter,
+			CycleID:            cycleFilter,
 			InvolvesUserID:     involvesUserFilter,
 			MetadataFilter:     metadataFilter,
 			PropertiesFilter:   openPropertiesFilter,
@@ -1375,6 +1393,9 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	if goalFilter.Valid {
 		where = append(where, goalFilterSQL(addArg(goalFilter)))
 	}
+	if cycleFilter.Valid {
+		where = append(where, fmt.Sprintf("i.cycle_id = %s::uuid", addArg(cycleFilter)))
+	}
 
 	// Table facets must be part of the server window. Applying them after
 	// LIMIT/OFFSET hides matches that live on later pages and makes `total`
@@ -1560,7 +1581,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision, i.goal_id
+	   i.revision, i.goal_id, i.cycle_id
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1602,6 +1623,7 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Properties,
 			&row.Revision,
 			&row.GoalID,
+			&row.CycleID,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -2187,7 +2209,7 @@ WITH ranked AS (
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
-		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id,
+		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id, i.cycle_id,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -2200,7 +2222,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
-	number, project_id, metadata, stage, properties, revision, goal_id, group_total
+	number, project_id, metadata, stage, properties, revision, goal_id, cycle_id, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -2250,6 +2272,7 @@ ORDER BY
 			&row.Properties,
 			&row.Revision,
 			&row.GoalID,
+			&row.CycleID,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -2874,11 +2897,14 @@ type CreateIssueRequest struct {
 	AssigneeID   *string `json:"assignee_id"`
 	// DelegateType / DelegateID name the assignee's partner (F01). Both halves
 	// must be sent together; 'squad' is refused.
-	DelegateType  *string  `json:"delegate_type"`
-	DelegateID    *string  `json:"delegate_id"`
-	ParentIssueID *string  `json:"parent_issue_id"`
-	ProjectID     *string  `json:"project_id"`
-	GoalID        *string  `json:"goal_id"`
+	DelegateType  *string `json:"delegate_type"`
+	DelegateID    *string `json:"delegate_id"`
+	ParentIssueID *string `json:"parent_issue_id"`
+	ProjectID     *string `json:"project_id"`
+	GoalID        *string `json:"goal_id"`
+	// CycleID (F29): the dated cycle to plan the new issue into. Must be a
+	// cycle of ProjectID; anything else is refused with 409.
+	CycleID       *string  `json:"cycle_id"`
 	Stage         *int32   `json:"stage,omitempty"`
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
@@ -3270,6 +3296,14 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Dated cycles (F29): membership is written after the create transaction,
+	// like the goal. A cycle of another project is refused rather than
+	// silently dropped — the caller asked for a plan that cannot exist.
+	if req.CycleID != nil && strings.TrimSpace(*req.CycleID) != "" {
+		if !h.applyIssueCycleWrite(w, wsUUID, &issue, req.CycleID, r.Context()) {
+			return
+		}
+	}
 	// Goals (K74): the goal an issue names is set after the create transaction.
 	if goalUUID.Valid {
 		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
@@ -3326,7 +3360,10 @@ type UpdateIssueRequest struct {
 	ParentIssueID *string  `json:"parent_issue_id"`
 	ProjectID     *string  `json:"project_id"`
 	GoalID        *string  `json:"goal_id"`
-	Stage         *int32   `json:"stage"`
+	// CycleID (F29): the dated cycle this issue is planned into. An explicit
+	// null clears it; a cycle of another project is refused with 409.
+	CycleID *string `json:"cycle_id"`
+	Stage   *int32  `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
 	// editor's preview Eye keeps working past a refresh. Existing bindings
@@ -3878,6 +3915,14 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine actor identity: agent (via X-Agent-ID header) or member.
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Dated cycles (F29). Unlike the goal, an agent may set this: planning an
+	// issue into the cycle it is already working under is bookkeeping, not a
+	// change of intent, and the project check inside bounds what it can do.
+	if _, touched := rawFields["cycle_id"]; touched {
+		if !h.applyIssueCycleWrite(w, prevIssue.WorkspaceID, &issue, req.CycleID, r.Context()) {
+			return
+		}
+	}
 	// Goals (K74): members set the goal; an agent proposes it through a decision.
 	if _, touched := rawFields["goal_id"]; touched && actorType == "member" {
 		goalUUID := pgtype.UUID{}
@@ -4475,7 +4520,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		req.Updates.Priority != nil ||
 		req.Updates.Position != nil
 	if !hasMutation {
-		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage"} {
+		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage", "cycle_id"} {
 			if _, ok := rawUpdates[k]; ok {
 				hasMutation = true
 				break
@@ -4531,6 +4576,30 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		batchProjectID = projectUUID
+	}
+	// Dated cycles (F29). The cycle row is resolved once — the batch shares one
+	// cycle_id — but the project match is judged PER ISSUE, like a transition
+	// rule and unlike the project check above: a batch can legitimately span
+	// two projects, and only the issues outside the cycle's project are wrong.
+	batchCycleTouched := false
+	batchCycle := db.Cycle{}
+	batchCycleClears := false
+	if _, ok := rawUpdates["cycle_id"]; ok {
+		batchCycleTouched = true
+		if req.Updates.CycleID == nil || strings.TrimSpace(*req.Updates.CycleID) == "" {
+			batchCycleClears = true
+		} else {
+			cycleUUID, ok := parseUUIDOrBadRequest(w, *req.Updates.CycleID, "cycle_id")
+			if !ok {
+				return
+			}
+			cycle, err := h.Queries.GetCycleInWorkspace(r.Context(), db.GetCycleInWorkspaceParams{ID: cycleUUID, WorkspaceID: wsUUID})
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "cycle not found in this workspace")
+				return
+			}
+			batchCycle = cycle
+		}
 	}
 
 	updated := 0
@@ -4786,6 +4855,18 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// The cycle's project is checked against the project this issue ENDS UP
+		// in, so a batch that moves issues into a project and into one of its
+		// cycles in the same call is accepted.
+		if batchCycleTouched && !batchCycleClears && batchCycle.ProjectID != params.ProjectID {
+			refused = append(refused, map[string]any{
+				"issue_id": uuidToString(prevIssue.ID),
+				"code":     ErrCodeCycleProjectMismatch,
+				"reason":   "the cycle belongs to another project",
+			})
+			continue
+		}
+
 		var issue db.Issue
 		if req.Updates.Description != nil {
 			// One batch-level base cannot describe multiple issue documents.
@@ -4814,6 +4895,18 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 			slog.Warn("batch update issue failed", "issue_id", issueID, "error", err)
 			continue
+		}
+
+		if batchCycleTouched {
+			target := pgtype.UUID{}
+			if !batchCycleClears {
+				target = batchCycle.ID
+			}
+			if err := h.Queries.SetIssueCycle(r.Context(), db.SetIssueCycleParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, CycleID: target}); err != nil {
+				slog.Warn("batch update: set cycle failed", "issue_id", issueID, "error", err)
+			} else {
+				issue.CycleID = target
+			}
 		}
 
 		prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)

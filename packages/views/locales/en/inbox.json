@@ -97,6 +97,7 @@
     "transition_approval_requested": "Approval needed",
     "critic_degraded": "Adversarial review skipped",
     "critic_budget": "Adversarial review stopped",
+    "cycle_rollover_orphaned": "Work left a cycle with nowhere to go",
     "watchdog_escalation": "Watchdog escalation",
     "contest_ready": "Contest ready for your verdict",
     "org_alert": "Organisation alert",

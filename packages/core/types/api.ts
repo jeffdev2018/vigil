@@ -18,6 +18,8 @@ export interface CreateIssueRequest {
   project_id?: string;
   /** Goal the issue names (K74); absent means it inherits its project's goals. */
   goal_id?: string;
+  /** Cycle to plan the issue into (F29). Must be a cycle of `project_id`. */
+  cycle_id?: string;
   /** Ordered stage (>= 1) grouping this sub-issue under its parent. */
   stage?: number;
   start_date?: string;
@@ -82,6 +84,9 @@ export interface UpdateIssueRequest {
   project_id?: string | null;
   /** Goal the issue names (K74); null clears it (inherits the project's). */
   goal_id?: string | null;
+  /** Cycle the issue is planned into (F29); null takes it out of every cycle.
+   *  A cycle of another project is refused with 409 cycle_project_mismatch. */
+  cycle_id?: string | null;
   /** Ordered stage (>= 1); null clears it (unstaged). */
   stage?: number | null;
   /** Attachment IDs to bind to this issue alongside the description update.
@@ -178,6 +183,8 @@ export interface ListIssuesParams {
   include_no_project?: boolean;
   /** Issues serving a goal (K74): named directly or inherited from the project. */
   goal_id?: string;
+  /** Issues planned into a dated cycle (F29). Exact membership, no inheritance. */
+  cycle_id?: string;
   label_ids?: string[];
   /** Restrict the window to root issues instead of filtering loaded pages. */
   top_level_only?: boolean;
@@ -307,6 +314,8 @@ export interface GroupedIssuesResponse {
 export type IssueTableScope =
   | { kind: "workspace"; assignee_types?: IssueAssigneeType[] }
   | { kind: "project"; project_id: string; assignee_types?: IssueAssigneeType[] }
+  /** Dated cycles (F29). Exact membership; no project predicate beside it. */
+  | { kind: "cycle"; cycle_id: string; assignee_types?: IssueAssigneeType[] }
   | { kind: "assignee"; actor: IssueActorRef }
   | { kind: "creator"; actor: IssueActorRef }
   | { kind: "my"; relation: "assigned" | "created" | "involved" | "any" };
@@ -319,6 +328,8 @@ export interface IssueTableFilters {
   creators?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
+  /** Cycle ids (F29). OR within the field, like project_ids. */
+  cycle_ids?: string[];
   label_ids?: string[];
   /** Same shape as `ListIssuesParams.properties`: bare strings are exact
    *  equality / "No value", operator objects narrow scalar matches. */

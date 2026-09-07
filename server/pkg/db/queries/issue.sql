@@ -8,7 +8,7 @@
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision, i.goal_id
+       i.revision, i.goal_id, i.cycle_id
 FROM issue i
 WHERE i.workspace_id = $1
   AND (sqlc.narg('status')::text IS NULL OR i.status = sqlc.narg('status'))
@@ -20,6 +20,7 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('scheduled')::bool IS NULL OR (i.start_date IS NOT NULL OR i.due_date IS NOT NULL))
   AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
        OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
+  AND (sqlc.narg('cycle_id')::uuid IS NULL OR i.cycle_id = sqlc.narg('cycle_id'))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   AND (
     sqlc.narg('involves_user_id')::uuid IS NULL
@@ -382,7 +383,7 @@ DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target);
 SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.delegate_type, i.delegate_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-       i.revision, i.goal_id
+       i.revision, i.goal_id, i.cycle_id
 FROM issue i
 WHERE i.workspace_id = $1
   -- Negate only known terminal keys so an unknown legacy key remains visible.
@@ -394,6 +395,7 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('project_id')::uuid IS NULL OR i.project_id = sqlc.narg('project_id'))
   AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
        OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
+  AND (sqlc.narg('cycle_id')::uuid IS NULL OR i.cycle_id = sqlc.narg('cycle_id'))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   -- properties_filter is a jsonb array of groups, each group an array of
   -- patterns (built by parsePropertiesFilterParam): the issue must match at
@@ -509,6 +511,7 @@ WHERE i.workspace_id = $1
   AND (sqlc.narg('scheduled')::bool IS NULL OR (i.start_date IS NOT NULL OR i.due_date IS NOT NULL))
   AND (sqlc.narg('goal_id')::uuid IS NULL OR i.goal_id = sqlc.narg('goal_id')
        OR (i.goal_id IS NULL AND i.project_id IN (SELECT pg.project_id FROM project_goal pg WHERE pg.goal_id = sqlc.narg('goal_id'))))
+  AND (sqlc.narg('cycle_id')::uuid IS NULL OR i.cycle_id = sqlc.narg('cycle_id'))
   AND (sqlc.narg('metadata_filter')::jsonb IS NULL OR i.metadata @> sqlc.narg('metadata_filter')::jsonb)
   AND (
     sqlc.narg('involves_user_id')::uuid IS NULL

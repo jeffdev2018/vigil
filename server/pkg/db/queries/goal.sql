@@ -7,8 +7,8 @@ SELECT * FROM goal WHERE workspace_id = $1 ORDER BY created_at ASC;
 SELECT * FROM goal WHERE id = $1 AND workspace_id = $2;
 
 -- name: CreateGoal :one
-INSERT INTO goal (id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO goal (id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, start_date)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: UpdateGoal :one
@@ -20,6 +20,7 @@ UPDATE goal SET
     due_date = $7,
     owner_id = $8,
     status = $9,
+    start_date = $10,
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
 RETURNING *;

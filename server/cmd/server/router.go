@@ -2420,7 +2420,21 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Put("/{id}", h.UpdateGoal)
 				r.Delete("/{id}", h.DeleteGoal)
 			})
+			r.Get("/api/goals/{id}/progress", h.GetGoalProgress)
 			r.Post("/api/issues/{id}/goal-proposal", h.ProposeIssueGoal)
+			// Dated cycles (F29): a project's iteration, its capacity and its
+			// burndown.
+			r.Route("/api/cycles", func(r chi.Router) {
+				r.Get("/", h.ListCycles)
+				r.Post("/", h.CreateCycle)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetCycle)
+					r.Patch("/", h.UpdateCycle)
+					r.Delete("/", h.DeleteCycle)
+					r.Get("/burndown", h.GetCycleBurndown)
+					r.Post("/close", h.CloseCycle)
+				})
+			})
 			// Contest (K72): a rival model challenges an agent output.
 			r.Route("/api/contests", func(r chi.Router) {
 				r.Get("/preflight", h.PreflightContest)

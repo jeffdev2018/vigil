@@ -25,6 +25,7 @@ import type projects from "../locales/en/projects.json";
 import type autopilots from "../locales/en/autopilots.json";
 import type skills from "../locales/en/skills.json";
 import type goals from "../locales/en/goals.json";
+import type cycles from "../locales/en/cycles.json";
 import type org from "../locales/en/org.json";
 import type contests from "../locales/en/contests.json";
 import type chat from "../locales/en/chat.json";
@@ -74,6 +75,7 @@ declare global {
     autopilots: typeof autopilots;
     skills: typeof skills;
     goals: typeof goals;
+    cycles: typeof cycles;
     org: typeof org;
     contests: typeof contests;
     chat: typeof chat;

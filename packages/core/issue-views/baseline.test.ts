@@ -59,3 +59,28 @@ describe("baselineFromQuery property filters", () => {
     expect(baseline.property.size).toBe(0);
   });
 });
+
+// Dated cycles (F29) added `cycleFilters` to the saved-view query. A view
+// saved before it must still open — the whole point of a tolerant parse.
+describe("baselineFromQuery cycle filters", () => {
+  it("reads a cycle filter into both the membership set and the reset snapshot", () => {
+    const baseline = baselineFromQuery({ cycleFilters: ["cycle-1", "cycle-2"] });
+    expect([...baseline.cycle]).toEqual(["cycle-1", "cycle-2"]);
+    expect(baseline.raw.cycleFilters).toEqual(["cycle-1", "cycle-2"]);
+  });
+
+  it("keeps a view saved before cycles valid, with no cycle fixed", () => {
+    const baseline = baselineFromQuery({ statusFilters: ["todo"], projectFilters: ["p1"] });
+    expect(baseline.cycle.size).toBe(0);
+    expect(baseline.raw.cycleFilters).toEqual([]);
+    // The rest of the view is untouched: an added dimension must not cost the
+    // dimensions the view already had.
+    expect(baseline.raw.statusFilters).toEqual(["todo"]);
+    expect([...baseline.project]).toEqual(["p1"]);
+  });
+
+  it("drops a non-string member a hand-edited query smuggled in", () => {
+    const baseline = baselineFromQuery({ cycleFilters: ["cycle-1", 7, null] });
+    expect(baseline.raw.cycleFilters).toEqual(["cycle-1"]);
+  });
+});

@@ -125,11 +125,14 @@ export const issueKeys = {
     wsId: string,
     projectId: string,
     assigneeTypes?: IssueAssigneeType[],
+    /** Narrows the gantt to one dated cycle of the project (F29). */
+    cycleId?: string,
   ) =>
     [
       ...issueKeys.projectGanttAll(wsId),
       projectId,
       assigneeTypes ?? null,
+      cycleId ?? null,
     ] as const,
   detail: (wsId: string, id: string) =>
     [...issueKeys.all(wsId), "detail", id] as const,
@@ -216,6 +219,7 @@ export type MyIssuesFilter = Pick<
   | "assignee_types"
   | "creator_id"
   | "project_id"
+  | "cycle_id"
   | "involves_user_id"
 >;
 
@@ -396,6 +400,7 @@ export const PROJECT_GANTT_MAX_ISSUES = 10_000;
 async function fetchProjectGanttIssues(
   projectId: string,
   assigneeTypes?: IssueAssigneeType[],
+  cycleId?: string,
 ) {
   const issues = [];
   let offset = 0;
@@ -403,6 +408,7 @@ async function fetchProjectGanttIssues(
     const res = await api.listIssues({
       project_id: projectId,
       scheduled: true,
+      ...(cycleId ? { cycle_id: cycleId } : {}),
       ...(assigneeTypes?.length ? { assignee_types: assigneeTypes } : {}),
       limit: PROJECT_GANTT_PAGE_LIMIT,
       offset,
@@ -434,10 +440,13 @@ export function projectGanttIssuesOptions(
   // The page's assignee-type tab narrows the Gantt exactly like every
   // other mode — same scope, same single mapping upstream.
   assigneeTypes?: IssueAssigneeType[],
+  // A cycle surface narrows it further to that cycle's issues (F29), so the
+  // timeline shows the iteration rather than the whole project around it.
+  cycleId?: string,
 ) {
   return queryOptions({
-    queryKey: issueKeys.projectGantt(wsId, projectId, assigneeTypes),
-    queryFn: () => fetchProjectGanttIssues(projectId, assigneeTypes),
+    queryKey: issueKeys.projectGantt(wsId, projectId, assigneeTypes, cycleId),
+    queryFn: () => fetchProjectGanttIssues(projectId, assigneeTypes, cycleId),
   });
 }
 

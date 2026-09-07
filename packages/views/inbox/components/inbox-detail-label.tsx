@@ -63,6 +63,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     transition_approval_requested: t(($) => $.types.transition_approval_requested),
     critic_degraded: t(($) => $.types.critic_degraded),
     critic_budget: t(($) => $.types.critic_budget),
+    cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
   };
 }
 

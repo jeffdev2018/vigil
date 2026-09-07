@@ -77,7 +77,10 @@ export type InboxItemType =
   // stopped on its round / cost budget. Both are cases where a policy quietly
   // stopped doing what it promised, so a human is told.
   | "critic_degraded"
-  | "critic_budget";
+  | "critic_budget"
+  // Dated cycles (F29): a cycle ended with unfinished work and no next cycle
+  // to roll it into, so it is now planned nowhere. Filed for the project lead.
+  | "cycle_rollover_orphaned";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

@@ -67,11 +67,15 @@ type issueTableActorRef struct {
 }
 
 type issueTableScope struct {
-	Kind          string              `json:"kind"`
-	AssigneeTypes []string            `json:"assignee_types,omitempty"`
-	ProjectID     string              `json:"project_id,omitempty"`
-	Actor         *issueTableActorRef `json:"actor,omitempty"`
-	Relation      string              `json:"relation,omitempty"`
+	Kind          string   `json:"kind"`
+	AssigneeTypes []string `json:"assignee_types,omitempty"`
+	ProjectID     string   `json:"project_id,omitempty"`
+	// CycleID (F29) scopes the surface to one dated cycle. Membership is
+	// exact — a cycle's issues are the issues planned into it — so it needs no
+	// project predicate beside it.
+	CycleID  string              `json:"cycle_id,omitempty"`
+	Actor    *issueTableActorRef `json:"actor,omitempty"`
+	Relation string              `json:"relation,omitempty"`
 }
 
 type issueTableDateFilterRequest struct {
@@ -88,7 +92,11 @@ type issueTableFiltersRequest struct {
 	Creators          []issueTableActorRef `json:"creators,omitempty"`
 	ProjectIDs        []string             `json:"project_ids,omitempty"`
 	IncludeNoProject  bool                 `json:"include_no_project,omitempty"`
-	LabelIDs          []string             `json:"label_ids,omitempty"`
+	// CycleIDs (F29). OR within the field, like ProjectIDs; a cycle has no
+	// "no cycle" counterpart because an unplanned issue is the default state,
+	// not a value someone chose.
+	CycleIDs []string `json:"cycle_ids,omitempty"`
+	LabelIDs []string `json:"label_ids,omitempty"`
 	// Members are raw JSON so operator objects ({op, value}) and plain
 	// strings both survive the round-trip into parsePropertiesFilterParam.
 	Properties       map[string][]json.RawMessage `json:"properties,omitempty"`
@@ -256,6 +264,7 @@ func canonicalIssueTableFingerprint(workspaceID string, spec issueTableQuerySpec
 	normalized.Filters.Statuses = sortedUniqueStrings(normalized.Filters.Statuses)
 	normalized.Filters.Priorities = sortedUniqueStrings(normalized.Filters.Priorities)
 	normalized.Filters.ProjectIDs = sortedUniqueStrings(normalized.Filters.ProjectIDs)
+	normalized.Filters.CycleIDs = sortedUniqueStrings(normalized.Filters.CycleIDs)
 	normalized.Filters.LabelIDs = sortedUniqueStrings(normalized.Filters.LabelIDs)
 	normalized.Filters.Assignees = sortedUniqueActors(normalized.Filters.Assignees)
 	normalized.Filters.WorkingIssueIDs = sortedUniqueStrings(normalized.Filters.WorkingIssueIDs)
@@ -495,6 +504,16 @@ func (h *Handler) compileIssueTableQuery(w http.ResponseWriter, r *http.Request,
 		if !appendAssigneeTypes() {
 			return issueTableSQL{}, false
 		}
+	case "cycle":
+		cycleID, err := util.ParseUUID(spec.Scope.CycleID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "invalid scope.cycle_id")
+			return issueTableSQL{}, false
+		}
+		where = append(where, fmt.Sprintf("i.cycle_id = %s::uuid", addArg(cycleID)))
+		if !appendAssigneeTypes() {
+			return issueTableSQL{}, false
+		}
 	case "assignee":
 		if spec.Scope.Actor == nil {
 			writeError(w, http.StatusBadRequest, "scope.actor is required")
@@ -597,6 +616,14 @@ func (h *Handler) compileIssueTableQuery(w http.ResponseWriter, r *http.Request,
 			ors = append(ors, "i.project_id IS NULL")
 		}
 		where = append(where, "("+strings.Join(ors, " OR ")+")")
+	}
+
+	cycleIDs, ok := parseIssueTableUUIDList(w, spec.Filters.CycleIDs, "filters.cycle_ids")
+	if !ok {
+		return issueTableSQL{}, false
+	}
+	if len(cycleIDs) > 0 {
+		where = append(where, fmt.Sprintf("i.cycle_id = ANY(%s::uuid[])", addArg(cycleIDs)))
 	}
 
 	labelIDs, ok := parseIssueTableUUIDList(w, spec.Filters.LabelIDs, "filters.label_ids")

@@ -79,6 +79,7 @@ import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { SubIssuesAgentWorkingChip } from "./sub-issues-agent-working-chip";
 import { ProjectPicker } from "../../projects/components/project-picker";
 import { GoalPicker } from "../../goals/components/goal-picker";
+import { CyclePicker } from "../../cycles/components/cycle-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { CommentCard } from "./comment-card";
 import { MeetingOriginLink } from "./meeting-origin-link";
@@ -2404,6 +2405,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 <span className="text-caption text-muted-foreground">{t(($) => $.detail.goal_inherited)}</span>
               )}
             </div>
+          </PropRow>
+          <PropRow label={t(($) => $.detail.prop_cycle)}>
+            <CyclePicker
+              cycleId={issue.cycle_id ?? null}
+              projectId={issue.project_id}
+              onUpdate={handleUpdateField}
+            />
           </PropRow>
 
           {/* Optional props — rendered only when set on the issue OR added

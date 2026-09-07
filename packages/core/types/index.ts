@@ -231,6 +231,19 @@ export type {
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
 export type {
+  Cycle,
+  CycleBurndown,
+  CycleBurndownDay,
+  CycleCapacity,
+  CycleCapacitySide,
+  CycleLoadUnit,
+  CycleStatus,
+  CycleWriteRequest,
+  GoalProgress,
+  GoalProjectProgress,
+  ListCyclesResponse,
+} from "./cycle";
+export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
 } from "./org";

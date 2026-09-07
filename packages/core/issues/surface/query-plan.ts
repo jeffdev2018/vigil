@@ -80,6 +80,20 @@ export function buildIssueSurfaceQueryPlan(
         createDefaults: { project_id: scope.projectId },
       };
     }
+    case "cycle": {
+      const assigneeTypes = assigneeTypesForActorKind(scope.actorKind);
+      // The cycle filter alone defines membership; project_id is not sent
+      // beside it (every issue in a cycle is already in its project, and two
+      // redundant predicates would drift the day one of them is wrong).
+      // Creating from this surface plans the new issue straight into it.
+      return {
+        scopeKey,
+        queryFilter: assigneeTypes
+          ? { cycle_id: scope.cycleId, assignee_types: assigneeTypes }
+          : { cycle_id: scope.cycleId },
+        createDefaults: { project_id: scope.projectId, cycle_id: scope.cycleId },
+      };
+    }
     case "my":
       return buildMyRelationPlan(scope, scopeKey);
     case "actor":

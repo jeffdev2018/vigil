@@ -21,6 +21,7 @@ export interface IssueViewBaseline {
   creator: Set<string>;
   project: Set<string>;
   includeNoProject: boolean;
+  cycle: Set<string>;
   label: Set<string>;
   /** Property definition id → fixed member keys (`propertyFilterValueKey`). */
   property: Map<string, Set<string>>;
@@ -78,6 +79,10 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
   const assigneeFilters = actorArray(query.assigneeFilters);
   const creatorFilters = actorArray(query.creatorFilters);
   const projectFilters = stringArray(query.projectFilters);
+  // Views saved before F29 carry no cycleFilters key. stringArray answers []
+  // for an absent one, so an older view stays valid rather than failing to
+  // parse — the same tolerance every other dimension already has.
+  const cycleFilters = stringArray(query.cycleFilters);
   const labelFilters = stringArray(query.labelFilters);
   const includeNoAssignee = query.includeNoAssignee === true;
   const includeNoProject = query.includeNoProject === true;
@@ -104,6 +109,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
     creator: new Set(creatorFilters.map(actorFilterKey)),
     project: new Set(projectFilters),
     includeNoProject,
+    cycle: new Set(cycleFilters),
     label: new Set(labelFilters),
     property,
     raw: {
@@ -114,6 +120,7 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
       creatorFilters,
       projectFilters,
       includeNoProject,
+      cycleFilters,
       labelFilters,
       propertyFilters,
     },
