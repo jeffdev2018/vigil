@@ -1,0 +1,10 @@
+{
+  "method": "operator stopwatch around re-read of exported artifacts vs expected answers",
+  "first_pass_wall_seconds": 18,
+  "attributed_human_seconds_total": 18,
+  "usd_billed": null,
+  "cost_source": null,
+  "scope": "synthetic connected pilot review only; not external-team supervision time",
+  "reviewer": "jeff-campaign-operator",
+  "reviewed_at": "2026-09-07T16:44:18Z"
+}

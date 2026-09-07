@@ -1,0 +1,30 @@
+{
+  "source": "Runtime adapter reported usage; both attempts retained; no billing receipt",
+  "attempts": [
+    {
+      "file": "attempt1-report.json",
+      "observed_runs": 3,
+      "started_at": "2026-09-06T22:54:09.94015Z",
+      "completed_at": null,
+      "eligible": false
+    },
+    {
+      "file": "exported-report.json",
+      "observed_runs": 4,
+      "started_at": "2026-09-06T22:57:01.963165Z",
+      "completed_at": "2026-09-06T22:57:24.907596Z",
+      "eligible": true
+    }
+  ],
+  "totals": {
+    "runs": 7,
+    "input_tokens": 84723,
+    "output_tokens": 783,
+    "cache_read_tokens": 69888,
+    "cache_write_tokens": 0,
+    "tool_calls": 0
+  },
+  "actual_cost_usd": null,
+  "human_corrections": null,
+  "human_seconds": null
+}

@@ -1,0 +1,11 @@
+{
+  "evaluation_id": "9e17d3cf-c917-4b9b-9887-e744f3fac402",
+  "memory_id": "05d52d65-7792-4fd6-bf27-ce162462d153",
+  "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+  "revision": 2,
+  "execution_status": "completed",
+  "eligible": true,
+  "reason": "checks passed with improvement on replay and holdout; human review required",
+  "export_sha256": "93661724771323068f51e70d284f38cb38ed98ffcd079e8fe8248a8da6ba409e",
+  "note": "report_hash is not exposed on connected evaluation API responses; this hash is of the exported report file bytes used with pilot-summary"
+}

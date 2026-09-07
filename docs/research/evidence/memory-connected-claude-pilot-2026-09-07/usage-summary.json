@@ -1,0 +1,11 @@
+{
+  "provider": "claude",
+  "model": "claude-sonnet-4-5",
+  "effort": "low",
+  "responses": 4,
+  "input_tokens": 36,
+  "output_tokens": 1102,
+  "cache_read_tokens": 54396,
+  "cache_write_tokens": 56802,
+  "note": "cache_read is a subset of provider accounting; billed USD unknown; adapter observations are not server attestation of model identity"
+}

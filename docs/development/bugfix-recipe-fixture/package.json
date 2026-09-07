@@ -1,0 +1,10 @@
+{
+  "name": "multica-bugfix-recipe-fixture",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test broken.test.js",
+    "test:fixed": "FIX_APPLIED=1 node --test broken.test.js",
+    "prove": "node prove.mjs"
+  }
+}

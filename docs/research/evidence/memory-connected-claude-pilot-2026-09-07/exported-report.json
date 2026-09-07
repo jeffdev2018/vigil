@@ -1,0 +1,183 @@
+{
+  "version": 1,
+  "kind": "connected_memory_comparison",
+  "server_url": "",
+  "candidate": {
+    "id": "05d52d65-7792-4fd6-bf27-ce162462d153",
+    "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+    "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+    "content": "When asked for the org color code, answer exactly: teal-7. When asked for the org badge word, answer exactly: lighthouse.",
+    "revision": 2,
+    "status": "pending",
+    "expired": false,
+    "expires_at": null
+  },
+  "baseline": [],
+  "suite": {
+    "image": "",
+    "worker": [],
+    "verifier": [],
+    "timeout_seconds": 60,
+    "cases": [
+      {
+        "id": "replay",
+        "split": "replay",
+        "input": "replay",
+        "checks": "replay"
+      },
+      {
+        "id": "holdout",
+        "split": "holdout",
+        "input": "holdout",
+        "checks": "holdout"
+      }
+    ],
+    "worker_protocol": "connected_runtime_v1",
+    "connected": {
+      "provider": "claude",
+      "model": "claude-sonnet-4-5",
+      "effort": "low",
+      "agent_name": "Memory connected Claude pilot",
+      "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, reply unknown. Do not use tools.",
+      "workspace_context": ""
+    },
+    "text_cases": [
+      {
+        "check": "exact",
+        "id": "replay",
+        "split": "replay",
+        "prompt": "Do not use tools. Do not read files. What is the org color code? Reply with only that code.",
+        "expected": "teal-7"
+      },
+      {
+        "check": "exact",
+        "id": "holdout",
+        "split": "holdout",
+        "prompt": "Do not use tools. Do not read files. What is the org badge word? Reply with only that word.",
+        "expected": "lighthouse"
+      }
+    ]
+  },
+  "started_at": "2026-09-07T15:28:09.598054Z",
+  "completed_at": "2026-09-07T15:28:46.935429Z",
+  "cases": [
+    {
+      "id": "replay",
+      "split": "replay",
+      "input_hash": "263f63b8d08cd1aa786fe67def22e177663ae21ab848be2f070da302361a4bf9",
+      "checks_hash": "64f858568eb723173c1ec30f86ab73042551b17b4b4ab2dfd3d778a9f07162b3",
+      "baseline": {
+        "status": "failed",
+        "duration_ms": 9892,
+        "artifact": "unknown",
+        "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "f058af78b7f0701e4387ae11b7fd3eeca218b1613d6bac0942f7b7b9ac78fde5",
+          "brief_hash": "bd27a62d288a8db79b617b126ef39f88db4753fc565e6992ea923315cf029754",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 371,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14171
+            }
+          }
+        }
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 6930,
+        "artifact": "teal-7",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "f058af78b7f0701e4387ae11b7fd3eeca218b1613d6bac0942f7b7b9ac78fde5",
+          "brief_hash": "2a36e4871ca3ddd4e21c381cad18008a99a835b80feffcea299a5a6eddcbaf9b",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 157,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14230
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "holdout",
+      "split": "holdout",
+      "input_hash": "c5a8d2d1fab8f7607d407ecee74ff4555c4774d8c6fa67d1f9b568ced4092c7b",
+      "checks_hash": "b370de14e94142d4a108a79df6d0e265a0ba3fa2e10f57c4b3a892b74c9f84aa",
+      "baseline": {
+        "status": "failed",
+        "duration_ms": 13703,
+        "artifact": "unknown",
+        "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "a4a5978e4aa3f55e8f8315cb8c5b356242352e7297a43ba2ff7d3bb312cd643a",
+          "brief_hash": "bd27a62d288a8db79b617b126ef39f88db4753fc565e6992ea923315cf029754",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 433,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14171
+            }
+          }
+        }
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 6731,
+        "artifact": "lighthouse",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "a4a5978e4aa3f55e8f8315cb8c5b356242352e7297a43ba2ff7d3bb312cd643a",
+          "brief_hash": "2a36e4871ca3ddd4e21c381cad18008a99a835b80feffcea299a5a6eddcbaf9b",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 141,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14230
+            }
+          }
+        }
+      }
+    }
+  ],
+  "eligible": true,
+  "reason": "checks passed with improvement on replay and holdout; human review required"
+}

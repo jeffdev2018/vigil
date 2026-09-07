@@ -1,0 +1,211 @@
+{
+    "execution_status": "completed",
+    "execution_runtime_id": "0c344870-3ba2-4bba-aaea-9fc0e37b261a",
+    "id": "9fc96209-a234-4c64-b0ef-2bc6799bf059",
+    "memory_id": "fc3905fd-c946-4853-810d-83b8dba06166",
+    "revision": 2,
+    "uploaded_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+    "created_at": "2026-09-07T14:48:06-04:00",
+    "adopted_revision": null,
+    "eligible": false,
+    "reason": "require an improvement on both replay and holdout with every candidate check passing",
+    "total": 2,
+    "baseline_passed": 2,
+    "candidate_passed": 2,
+    "regressions": 0,
+    "errors": 0,
+    "report": {
+        "version": 1,
+        "kind": "connected_memory_comparison",
+        "server_url": "",
+        "candidate": {
+            "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+            "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+            "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+            "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+            "revision": 2,
+            "status": "pending",
+            "expired": false,
+            "expires_at": null
+        },
+        "baseline": [
+            {
+                "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+                "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+                "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+                "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+                "revision": 1,
+                "status": "active",
+                "expired": false,
+                "expires_at": null
+            }
+        ],
+        "suite": {
+            "image": "",
+            "worker": [],
+            "verifier": [],
+            "timeout_seconds": 60,
+            "cases": [
+                {
+                    "id": "r08",
+                    "split": "replay",
+                    "input": "r08",
+                    "checks": "r08"
+                },
+                {
+                    "id": "h04",
+                    "split": "holdout",
+                    "input": "h04",
+                    "checks": "h04"
+                }
+            ],
+            "worker_protocol": "connected_runtime_v1",
+            "connected": {
+                "provider": "claude",
+                "model": "claude-sonnet-4-5",
+                "effort": "low",
+                "agent_name": "Memory connected Claude pilot",
+                "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, reply unknown. Do not use tools.",
+                "workspace_context": ""
+            },
+            "text_cases": [
+                {
+                    "check": "exact",
+                    "id": "r08",
+                    "split": "replay",
+                    "prompt": "Do not use tools. Do not read files. For the add() fixture family, what is the preferred test command? Reply with only that command.",
+                    "expected": "npm test"
+                },
+                {
+                    "check": "exact",
+                    "id": "h04",
+                    "split": "holdout",
+                    "prompt": "Do not use tools. Do not read files. For the add() fixture family, what branch prefix should fixes use? Reply with only the prefix including the trailing slash.",
+                    "expected": "fix/"
+                }
+            ]
+        },
+        "started_at": "2026-09-07T18:48:06.866368Z",
+        "completed_at": "2026-09-07T18:48:42.19942Z",
+        "cases": [
+            {
+                "id": "r08",
+                "split": "replay",
+                "input_hash": "b51f491f71d48b9460712098f01a81b23ba53851aacf9a21a2723fc5d3f0e31a",
+                "checks_hash": "328e123c63857fd8473bd4bd3581e655b08b7440d7f5d2c31cc375607582f539",
+                "baseline": {
+                    "status": "passed",
+                    "duration_ms": 9414,
+                    "artifact": "npm test",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "7bce15a9f9e6282c1e406e25c28550028f0d9b9bab30f175af5162756215b3b0",
+                        "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 174,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14314
+                            }
+                        }
+                    }
+                },
+                "candidate": {
+                    "status": "passed",
+                    "duration_ms": 7189,
+                    "artifact": "npm test",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "7bce15a9f9e6282c1e406e25c28550028f0d9b9bab30f175af5162756215b3b0",
+                        "brief_hash": "5749dbd8faa2367c1a265d65ceaa3369a39a2b80bd79626a083f9de37dddacf8",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 153,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14422
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "h04",
+                "split": "holdout",
+                "input_hash": "25b53e9509971554e5666ec946d303b94f247327a138a19fab797f74c59cd72c",
+                "checks_hash": "4c09a67a6ed53047a7a284403f47b233d9856b218f2036514516895d9b128ed6",
+                "baseline": {
+                    "status": "passed",
+                    "duration_ms": 8892,
+                    "artifact": "fix/",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "ece35d283961ee6c4dbd85611b78bcf714797270fd2849385e6d4057373f87aa",
+                        "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 225,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14318
+                            }
+                        }
+                    }
+                },
+                "candidate": {
+                    "status": "passed",
+                    "duration_ms": 9793,
+                    "artifact": "fix/",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "ece35d283961ee6c4dbd85611b78bcf714797270fd2849385e6d4057373f87aa",
+                        "brief_hash": "5749dbd8faa2367c1a265d65ceaa3369a39a2b80bd79626a083f9de37dddacf8",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 258,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14426
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "eligible": false,
+        "reason": "require an improvement on both replay and holdout with every candidate check passing"
+    }
+}

@@ -1,0 +1,211 @@
+{
+    "execution_status": "completed",
+    "execution_runtime_id": "0c344870-3ba2-4bba-aaea-9fc0e37b261a",
+    "id": "cb9ec8a1-4c03-47d3-8281-820d012bc53e",
+    "memory_id": "fc3905fd-c946-4853-810d-83b8dba06166",
+    "revision": 3,
+    "uploaded_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+    "created_at": "2026-09-07T14:49:17-04:00",
+    "adopted_revision": null,
+    "eligible": true,
+    "reason": "checks passed with improvement on replay and holdout; human review required",
+    "total": 2,
+    "baseline_passed": 0,
+    "candidate_passed": 2,
+    "regressions": 0,
+    "errors": 0,
+    "report": {
+        "version": 1,
+        "kind": "connected_memory_comparison",
+        "server_url": "",
+        "candidate": {
+            "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+            "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+            "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+            "content": "Northline add() fixture family (from Multica DEV-1 style correction): implement add(a,b) as numeric sum, arity 2, no string coerce, no global mutation; prove with npm test; PR branch prefix fix/. Organization-specific codes for this family: fixture codename is harbor-17 ; delivery stamp is NL-ADD-9. When asked for the fixture codename or delivery stamp, reply with only that token.",
+            "revision": 3,
+            "status": "pending",
+            "expired": false,
+            "expires_at": null
+        },
+        "baseline": [
+            {
+                "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+                "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+                "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+                "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+                "revision": 1,
+                "status": "active",
+                "expired": false,
+                "expires_at": null
+            }
+        ],
+        "suite": {
+            "image": "",
+            "worker": [],
+            "verifier": [],
+            "timeout_seconds": 60,
+            "cases": [
+                {
+                    "id": "r-code",
+                    "split": "replay",
+                    "input": "r-code",
+                    "checks": "r-code"
+                },
+                {
+                    "id": "h-stamp",
+                    "split": "holdout",
+                    "input": "h-stamp",
+                    "checks": "h-stamp"
+                }
+            ],
+            "worker_protocol": "connected_runtime_v1",
+            "connected": {
+                "provider": "claude",
+                "model": "claude-sonnet-4-5",
+                "effort": "low",
+                "agent_name": "Memory connected Claude pilot",
+                "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, reply unknown. Do not use tools.",
+                "workspace_context": ""
+            },
+            "text_cases": [
+                {
+                    "check": "exact",
+                    "id": "r-code",
+                    "split": "replay",
+                    "prompt": "Do not use tools. Do not read files. What is the Northline add() fixture codename? Reply with only that token.",
+                    "expected": "harbor-17"
+                },
+                {
+                    "check": "exact",
+                    "id": "h-stamp",
+                    "split": "holdout",
+                    "prompt": "Do not use tools. Do not read files. What is the Northline add() delivery stamp? Reply with only that token.",
+                    "expected": "NL-ADD-9"
+                }
+            ]
+        },
+        "started_at": "2026-09-07T18:49:17.421538Z",
+        "completed_at": "2026-09-07T18:50:17.229768Z",
+        "cases": [
+            {
+                "id": "r-code",
+                "split": "replay",
+                "input_hash": "6aa4e991824077300d4eda2a7e8da2c63ff73025c20ce86c5d6e20789044c526",
+                "checks_hash": "be6481c70d44160c747c0f07a940ccd107991ad4dd7c5469609fc82e03a8b5bc",
+                "baseline": {
+                    "status": "failed",
+                    "duration_ms": 19050,
+                    "artifact": "unknown",
+                    "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "1eaf21309e8b7d4051583721e84cc0fb5ebc93a821cc4026b6eb1599359b0b9e",
+                        "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 620,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14312
+                            }
+                        }
+                    }
+                },
+                "candidate": {
+                    "status": "passed",
+                    "duration_ms": 10195,
+                    "artifact": "harbor-17",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "1eaf21309e8b7d4051583721e84cc0fb5ebc93a821cc4026b6eb1599359b0b9e",
+                        "brief_hash": "ecc869619061097ff1deb72eb00448b36a25fcd1c3bc3c0485ea41f1fa17c3de",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 250,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14414
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "id": "h-stamp",
+                "split": "holdout",
+                "input_hash": "92c6514db0f7a67990a63e377fb94be982a1ffec06715c85c0366ebd693e82ce",
+                "checks_hash": "8553c6624e0f0f0925ce8b662c6f5055bdd92ded8e00372d1c3dd9f329923568",
+                "baseline": {
+                    "status": "failed",
+                    "duration_ms": 20542,
+                    "artifact": "unknown",
+                    "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "f3e0d42971b6097b762e7073253b8beb2eaece23a5c9536046bf38abdfc517a3",
+                        "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 663,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14311
+                            }
+                        }
+                    }
+                },
+                "candidate": {
+                    "status": "passed",
+                    "duration_ms": 9955,
+                    "artifact": "NL-ADD-9",
+                    "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+                    "cost_usd": null,
+                    "human_interventions": null,
+                    "runtime": {
+                        "provider": "claude",
+                        "requested_model": "claude-sonnet-4-5",
+                        "requested_effort": "low",
+                        "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+                        "prompt_hash": "f3e0d42971b6097b762e7073253b8beb2eaece23a5c9536046bf38abdfc517a3",
+                        "brief_hash": "ecc869619061097ff1deb72eb00448b36a25fcd1c3bc3c0485ea41f1fa17c3de",
+                        "status": "completed",
+                        "tool_calls": 0,
+                        "usage": {
+                            "claude-sonnet-4-5": {
+                                "input_tokens": 9,
+                                "output_tokens": 232,
+                                "cache_read_tokens": 13599,
+                                "cache_write_tokens": 14413
+                            }
+                        }
+                    }
+                }
+            }
+        ],
+        "eligible": true,
+        "reason": "checks passed with improvement on replay and holdout; human review required"
+    }
+}

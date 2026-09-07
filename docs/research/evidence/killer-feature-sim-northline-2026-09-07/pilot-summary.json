@@ -1,0 +1,27 @@
+{
+  "baseline": {
+    "planned": 2,
+    "passed": 0,
+    "execution_errors": 0,
+    "reviewed": 2,
+    "usage_reported": 2,
+    "accepted": 0,
+    "human_seconds": 8,
+    "human_recorded_cost_usd": null,
+    "human_recorded_cost_per_accepted_usd": null
+  },
+  "candidate": {
+    "planned": 2,
+    "passed": 2,
+    "execution_errors": 0,
+    "reviewed": 2,
+    "usage_reported": 2,
+    "accepted": 2,
+    "human_seconds": 16,
+    "human_recorded_cost_usd": null,
+    "human_recorded_cost_per_accepted_usd": null
+  },
+  "regressions": 0,
+  "report_hash": "5aa53bb5bab2110750e738ea7c7dfac7018c18bea78b71452c03e17c18883302",
+  "reviewer": "jeff-campaign-operator-sim"
+}

@@ -1,0 +1,220 @@
+{
+  "candidate": {
+    "content": "Organization support policy: for an enterprise customer with an outage, queue = incident and sla_hours = 1. For a standard customer asking about an invoice, queue = billing and sla_hours = 24. Apply these rules to both direct answers and functions implementing support routing.",
+    "revision": 2,
+    "id": "1d761efa-3e86-4e8a-a02a-4d670206af8f",
+    "agent_id": "d500b555-c9ef-4ea0-8143-17dc12e8c8e7",
+    "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+    "status": "pending",
+    "expired": false,
+    "expires_at": null
+  },
+  "suite": {
+    "image": "",
+    "worker": [],
+    "verifier": [],
+    "code_image": "sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
+    "timeout_seconds": 60,
+    "cases": [
+      {
+        "id": "replay",
+        "split": "replay",
+        "input": "replay",
+        "checks": "replay"
+      },
+      {
+        "id": "holdout",
+        "split": "holdout",
+        "input": "holdout",
+        "checks": "holdout"
+      }
+    ],
+    "worker_protocol": "connected_runtime_v1",
+    "connected": {
+      "provider": "codex",
+      "model": "gpt-5.6-luna",
+      "effort": "low",
+      "agent_name": "Memory pilot 2026-09-06",
+      "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, use queue general and SLA 48 hours. Do not use tools.",
+      "workspace_context": ""
+    },
+    "text_cases": [
+      {
+        "check": "json",
+        "id": "replay",
+        "split": "replay",
+        "prompt": "A standard customer asks about an invoice. Return only a JSON object with exactly queue and sla_hours, following our organization support policy. If no policy is supplied, use the default rule from your instructions.",
+        "expected": "{\"queue\":\"billing\",\"sla_hours\":24}"
+      },
+      {
+        "check": "javascript",
+        "id": "holdout",
+        "split": "holdout",
+        "prompt": "Return only plain CommonJS JavaScript: module.exports = function(customer, topic) { ... }. Implement our support routing policy for enterprise customers reporting an outage, with an object containing exactly queue and sla_hours. For other inputs or an unknown policy, use the default rule from your instructions. No tools or Markdown.",
+        "expected": "[{\"args\":[\"enterprise\",\"outage\"],\"expected\":{\"queue\":\"incident\",\"sla_hours\":1}},{\"args\":[\"standard\",\"other\"],\"expected\":{\"queue\":\"general\",\"sla_hours\":48}}]"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "replay",
+      "split": "replay",
+      "input_hash": "dfa7753425357f033bfa28cae83c88a0011bb2909086624c3f07d8ef2beea844",
+      "checks_hash": "eb469b0eb41792d38ac13ee58f16bca629877d97ebd539712ca0fc0a1a2961c0",
+      "baseline": {
+        "status": "failed",
+        "duration_ms": 5378,
+        "artifact": "{\"queue\":\"general\",\"sla_hours\":48}",
+        "diagnostic": "Structured JSON check failed",
+        "runtime": {
+          "provider": "codex",
+          "requested_model": "gpt-5.6-luna",
+          "requested_effort": "low",
+          "status": "completed",
+          "executable_hash": "195ace4100a634a9df39147f493e730e666b5bd87795f3c9f3251d8542400424",
+          "prompt_hash": "7ee95b2f324dc545ad302ab5beef310246aed96c72931943178791fd044109e3",
+          "brief_hash": "57cf7f753f87593c7bfd645bc22049bffa61d946be5787805904421b1e9bc85f",
+          "tool_calls": 0,
+          "usage": {
+            "gpt-5.6-luna": {
+              "input_tokens": 11975,
+              "output_tokens": 62,
+              "cache_read_tokens": 9984,
+              "cache_write_tokens": 0
+            }
+          }
+        },
+        "cost_usd": null,
+        "human_interventions": null
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 4281,
+        "artifact": "{\"queue\":\"billing\",\"sla_hours\":24}",
+        "diagnostic": "Structured JSON check passed",
+        "runtime": {
+          "provider": "codex",
+          "requested_model": "gpt-5.6-luna",
+          "requested_effort": "low",
+          "status": "completed",
+          "executable_hash": "195ace4100a634a9df39147f493e730e666b5bd87795f3c9f3251d8542400424",
+          "prompt_hash": "7ee95b2f324dc545ad302ab5beef310246aed96c72931943178791fd044109e3",
+          "brief_hash": "35fe5c58f4041007c920e27b08da97f6eb4e00809434d17a37127b594ed20ad9",
+          "tool_calls": 0,
+          "usage": {
+            "gpt-5.6-luna": {
+              "input_tokens": 12057,
+              "output_tokens": 58,
+              "cache_read_tokens": 9984,
+              "cache_write_tokens": 0
+            }
+          }
+        },
+        "cost_usd": null,
+        "human_interventions": null
+      }
+    },
+    {
+      "id": "holdout",
+      "split": "holdout",
+      "input_hash": "34c4a09b9190860f2adc1639f9a990e4b05e1f1a8c5c59532b56d91d65c06b19",
+      "checks_hash": "500b1032d6629633936534df4c67189b4a883f9461d65a2c0d592ba7c52e7d14",
+      "baseline": {
+        "status": "failed",
+        "duration_ms": 6470,
+        "artifact": "module.exports = function(customer, topic) {\n  return { queue: \"general\", sla_hours: 48 };\n};",
+        "diagnostic": "JavaScript function tests failed",
+        "runtime": {
+          "provider": "codex",
+          "requested_model": "gpt-5.6-luna",
+          "requested_effort": "low",
+          "status": "completed",
+          "executable_hash": "195ace4100a634a9df39147f493e730e666b5bd87795f3c9f3251d8542400424",
+          "prompt_hash": "6cd915dab00c70afe65c02b1d468ee664da93e35a5bc5897e4e518195fa5d31c",
+          "brief_hash": "57cf7f753f87593c7bfd645bc22049bffa61d946be5787805904421b1e9bc85f",
+          "tool_calls": 0,
+          "usage": {
+            "gpt-5.6-luna": {
+              "input_tokens": 11997,
+              "output_tokens": 186,
+              "cache_read_tokens": 9984,
+              "cache_write_tokens": 0
+            }
+          }
+        },
+        "code": {
+          "binding": "ac64cfd016d4a071ca7041cddfd2238d916f9f083a32d273364b68c402cd025b",
+          "outputs": [
+            {
+              "value": {
+                "queue": "general",
+                "sla_hours": 48
+              }
+            },
+            {
+              "value": {
+                "queue": "general",
+                "sla_hours": 48
+              }
+            }
+          ],
+          "error": false
+        },
+        "cost_usd": null,
+        "human_interventions": null
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 6024,
+        "artifact": "module.exports = function(customer, topic) {\n  if (customer === \"enterprise\" && topic === \"outage\") {\n    return { queue: \"incident\", sla_hours: 1 };\n  }\n  if (customer === \"standard\" && topic === \"invoice\") {\n    return { queue: \"billing\", sla_hours: 24 };\n  }\n  return { queue: \"general\", sla_hours: 48 };\n};",
+        "diagnostic": "JavaScript function tests passed",
+        "runtime": {
+          "provider": "codex",
+          "requested_model": "gpt-5.6-luna",
+          "requested_effort": "low",
+          "status": "completed",
+          "executable_hash": "195ace4100a634a9df39147f493e730e666b5bd87795f3c9f3251d8542400424",
+          "prompt_hash": "6cd915dab00c70afe65c02b1d468ee664da93e35a5bc5897e4e518195fa5d31c",
+          "brief_hash": "35fe5c58f4041007c920e27b08da97f6eb4e00809434d17a37127b594ed20ad9",
+          "tool_calls": 0,
+          "usage": {
+            "gpt-5.6-luna": {
+              "input_tokens": 12079,
+              "output_tokens": 201,
+              "cache_read_tokens": 9984,
+              "cache_write_tokens": 0
+            }
+          }
+        },
+        "code": {
+          "binding": "c8f9c16cd4688a777591e8f725549f9e1222971e7cb9a97bbfa9e17d99e2a70a",
+          "outputs": [
+            {
+              "value": {
+                "queue": "incident",
+                "sla_hours": 1
+              }
+            },
+            {
+              "value": {
+                "queue": "general",
+                "sla_hours": 48
+              }
+            }
+          ],
+          "error": false
+        },
+        "cost_usd": null,
+        "human_interventions": null
+      }
+    }
+  ],
+  "version": 1,
+  "kind": "connected_memory_comparison",
+  "server_url": "",
+  "baseline": [],
+  "started_at": "2026-09-06T22:57:01.963165Z",
+  "completed_at": "2026-09-06T22:57:24.907596Z",
+  "eligible": true,
+  "reason": "checks passed with improvement on replay and holdout; human review required"
+}

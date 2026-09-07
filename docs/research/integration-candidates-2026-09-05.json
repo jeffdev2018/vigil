@@ -1,0 +1,321 @@
+{
+  "observed_on": "2026-09-05",
+  "candidates": [
+    {
+      "repo": "trycompai/crm",
+      "branch": "release",
+      "sha": "6d4793dd6d7aeea91aa6a034e00b17d7408a2d08",
+      "commit_date": "2026-08-21T14:25:00Z",
+      "pushed_at": "2026-09-02T11:22:46Z",
+      "language": "TypeScript",
+      "license": "MIT",
+      "archived": false,
+      "remote": "https://github.com/trycompai/crm",
+      "license_observed": "MIT",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/trycompai/crm/blob/6d4793dd6d7aeea91aa6a034e00b17d7408a2d08/LICENSE",
+          "sha256": "d1fec07bab615535c9ce693c131a7da938f2fb3cce0a0c457ce45dfcbbbaeb60"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/trycompai/crm/blob/6d4793dd6d7aeea91aa6a034e00b17d7408a2d08/README.md",
+          "sha256": "01f54b4c1eeaca8a2c80e3411bed9cae2be2e578d75389046878cfa433a08e54"
+        },
+        {
+          "path": "docs/agent.md",
+          "url": "https://github.com/trycompai/crm/blob/6d4793dd6d7aeea91aa6a034e00b17d7408a2d08/docs/agent.md",
+          "sha256": "90c9a69be6bcd0d6a519e29650054c46fe26d2e491db517f646c0183447b85e1"
+        }
+      ]
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "branch": "main",
+      "sha": "69e46b20fb3c896a0255b1635e00e6d18e581790",
+      "commit_date": "2026-09-04T18:37:33Z",
+      "pushed_at": "2026-09-05T03:29:46Z",
+      "language": "TypeScript",
+      "license": "NOASSERTION",
+      "archived": false,
+      "remote": "https://github.com/twentyhq/twenty",
+      "license_observed": "AGPL-3.0 with Twenty Application Exception; selected MIT packages; Enterprise-marked files commercial",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/twentyhq/twenty/blob/69e46b20fb3c896a0255b1635e00e6d18e581790/LICENSE",
+          "sha256": "e8c2240a022c9d44cad9e5113857fe1f6b0d3c997763e62e4cb743f3b2a2299d"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/twentyhq/twenty/blob/69e46b20fb3c896a0255b1635e00e6d18e581790/README.md",
+          "sha256": "c071d6f378e7aad1508eb4c0b0cd1b54d37db9de1dbc3b870522ae7cf83ceb53"
+        }
+      ]
+    },
+    {
+      "repo": "margince/margince",
+      "branch": "main",
+      "sha": "fa73e7bcaf9c1a8606081e12480296e4f275e071",
+      "commit_date": "2026-09-05T04:27:44Z",
+      "pushed_at": "2026-09-05T04:27:45Z",
+      "language": "Go",
+      "license": "NOASSERTION",
+      "archived": false,
+      "remote": "https://github.com/margince/margince",
+      "license_observed": "BUSL-1.1; production <=10 seats; third-party hosting requires agreement; change license Apache-2.0 on 2028-07-04",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/margince/margince/blob/fa73e7bcaf9c1a8606081e12480296e4f275e071/LICENSE",
+          "sha256": "451eb8e0e840b697ade997446dfd54dc521d360b5225cc9cf8d87642e09a6bd4"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/margince/margince/blob/fa73e7bcaf9c1a8606081e12480296e4f275e071/README.md",
+          "sha256": "e823f882652be8e8c6ff3bf4db322939e53210668ea62e5993b8ccef98c7d8d5"
+        },
+        {
+          "path": "docs/explanation/agent-surface.md",
+          "url": "https://github.com/margince/margince/blob/fa73e7bcaf9c1a8606081e12480296e4f275e071/docs/explanation/agent-surface.md",
+          "sha256": "e4dd8ad00ee2af809f19264ac601dcf70e4b7bcb59cbc7779349d4df78a24d63"
+        }
+      ]
+    },
+    {
+      "repo": "buildkite/agent",
+      "branch": "main",
+      "sha": "6991ebb30c15269cc540a0ddcca7d94b2c84be2d",
+      "commit_date": "2026-09-04T05:58:15Z",
+      "pushed_at": "2026-09-05T02:25:24Z",
+      "language": "Go",
+      "license": "MIT",
+      "archived": false,
+      "remote": "https://github.com/buildkite/agent",
+      "license_observed": "MIT",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://github.com/buildkite/agent/blob/6991ebb30c15269cc540a0ddcca7d94b2c84be2d/LICENSE.txt",
+          "sha256": "8f22b991dba412d7f6952cb8901bb7d06acfbffebb6e880d37192d14e6a2828a"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/buildkite/agent/blob/6991ebb30c15269cc540a0ddcca7d94b2c84be2d/README.md",
+          "sha256": "002ddd11d23d9135fa0016c4a1665de2fb81a18c2945c7bb72ac8ca47fa1c5f4"
+        },
+        {
+          "path": "go.mod",
+          "url": "https://github.com/buildkite/agent/blob/6991ebb30c15269cc540a0ddcca7d94b2c84be2d/go.mod",
+          "sha256": "7c2fb41da516f46e86cbbaf6faa087e2a21edac3e95a8f4cf1567c890deb8c0d"
+        },
+        {
+          "path": "agent/job_runner.go",
+          "url": "https://github.com/buildkite/agent/blob/6991ebb30c15269cc540a0ddcca7d94b2c84be2d/agent/job_runner.go",
+          "sha256": "02a9a4c917a8add0bf61d4ca8cfb596a3cac5ff758036aa933bae96b02eab72e"
+        }
+      ]
+    },
+    {
+      "repo": "agentscope-ai/AgentTeams",
+      "branch": "main",
+      "sha": "acaed255b32beed3c31e21a598d8f143d488ead0",
+      "commit_date": "2026-09-04T10:18:46Z",
+      "pushed_at": "2026-09-04T10:18:46Z",
+      "language": "Go",
+      "license": "Apache-2.0",
+      "archived": false,
+      "remote": "https://github.com/agentscope-ai/AgentTeams",
+      "license_observed": "Apache-2.0",
+      "verdict": "EXCLUDE",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/agentscope-ai/AgentTeams/blob/acaed255b32beed3c31e21a598d8f143d488ead0/LICENSE",
+          "sha256": "a86f8b59d8c5b7b5d94bf5b4926a6a7c0df20e6255569528ed45f0f3732ee9fd"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/agentscope-ai/AgentTeams/blob/acaed255b32beed3c31e21a598d8f143d488ead0/README.md",
+          "sha256": "165d1ae39cacd8af652c2d0d6cc92711931734990ae5faacbc9b8badd262b1a6"
+        },
+        {
+          "path": "agentteams-controller/go.mod",
+          "url": "https://github.com/agentscope-ai/AgentTeams/blob/acaed255b32beed3c31e21a598d8f143d488ead0/agentteams-controller/go.mod",
+          "sha256": "e3e63cbf77f86daadb9f5e6dbe3e2ff1cf289dee80899738577ca4841454305b"
+        }
+      ]
+    },
+    {
+      "repo": "Untrivial-ai/agent-orchestrator",
+      "branch": "main",
+      "sha": "d2c88dae7d968df26c990ac5dd42ed2fc17513b1",
+      "commit_date": "2026-09-04T23:21:20Z",
+      "pushed_at": "2026-09-05T04:22:34Z",
+      "language": "Go",
+      "license": "Apache-2.0",
+      "archived": false,
+      "remote": "https://github.com/Untrivial-ai/agent-orchestrator",
+      "license_observed": "Apache-2.0",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/LICENSE",
+          "sha256": "1a2219722b7ef58364065e9073a2cb2831891eb147a785742a31431c9cddad1d"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/README.md",
+          "sha256": "d7b362e9071fca5182107aea83e41f2b1d7aedcac902e76c0d7796b8bcc81827"
+        },
+        {
+          "path": ".gitmodules",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/.gitmodules",
+          "sha256": "3a4b72b4a77ccbddca63d33bbb73d24eda261b1d7ffe233c6faa0db6aa1267e1"
+        },
+        {
+          "path": "backend/go.mod",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/backend/go.mod",
+          "sha256": "632a22a435b3237364c1a0b786eec14216c257720677d452c88709c2bc6a796e"
+        },
+        {
+          "path": "docs/architecture.md",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/docs/architecture.md",
+          "sha256": "ad16e2dccab2967be0bae6a95236f85f3f13ab013cf32be77578efe2639f0da5"
+        },
+        {
+          "path": "backend/internal/domain/agent_readiness.go",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/backend/internal/domain/agent_readiness.go",
+          "sha256": "cbf0ec516faa0684daa75d72b2ae2cfc9c1afade279fd3168fa60268a8e3f2ad"
+        },
+        {
+          "path": "backend/internal/autoreview/coordinator.go",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/backend/internal/autoreview/coordinator.go",
+          "sha256": "677efd2f81e9c55a5f3973049f9d0b062fe06e7bd5097af23bdfa5e5a95431ca"
+        },
+        {
+          "path": "backend/internal/sessionguard/guard.go",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/backend/internal/sessionguard/guard.go",
+          "sha256": "345deadca40ef3ec5872af517c27f02ac47117cc0d72d2c1a28c1b44b1ac2551"
+        },
+        {
+          "path": "backend/internal/lifecycle/reactions.go",
+          "url": "https://github.com/Untrivial-ai/agent-orchestrator/blob/d2c88dae7d968df26c990ac5dd42ed2fc17513b1/backend/internal/lifecycle/reactions.go",
+          "sha256": "d6de64610a353738713b921f5128940ddb139439f6282ddf5d6173fb706857be"
+        }
+      ]
+    },
+    {
+      "remote": "https://github.com/Infisical/agent-vault",
+      "branch": "main",
+      "sha": "bd1a325d79129644487f3e5b4f18c51adbc64638",
+      "commit_date": "2026-09-03T23:08:09Z",
+      "pushed_at": "2026-09-03T23:08:12Z",
+      "language": "Go",
+      "license": "NOASSERTION",
+      "archived": false,
+      "repo": "Infisical/agent-vault",
+      "license_observed": "MIT Expat outside ee/ and third-party components",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/LICENSE",
+          "sha256": "ec701a993a5e14b71f1fc6ffb649ca6e704a2e3bc7d06fd5dd47f6334324cf8a"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/README.md",
+          "sha256": "4447949999bcefc7b3207c669b0f88cd57b5f67eaebd0d1a04a3c8156f3f3e75"
+        },
+        {
+          "path": "go.mod",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/go.mod",
+          "sha256": "05f6ba055e8ad7cbce04d7dd28218ed19113fd15494eb92ef84b1c7a44acc89c"
+        },
+        {
+          "path": "internal/brokercore/session.go",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/internal/brokercore/session.go",
+          "sha256": "cb8b4af3d20afc8d47653664d30b6752c01276bf1cf8fd0bfd5c25932cac3949"
+        },
+        {
+          "path": "internal/server/handle_sessions.go",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/internal/server/handle_sessions.go",
+          "sha256": "1dc5ae075f23aaa6432c514a32f3ca2a77ee20cfdeeadfeb6f804cfe67690cdb"
+        },
+        {
+          "path": "docs/learn/security.mdx",
+          "url": "https://github.com/Infisical/agent-vault/blob/bd1a325d79129644487f3e5b4f18c51adbc64638/docs/learn/security.mdx",
+          "sha256": "67cb8f4d5ea52c829e9bf96d150b6f8f921f70c5db427498c16d11f396aa471a"
+        }
+      ]
+    },
+    {
+      "remote": "https://github.com/TencentCloud/CubeSandbox",
+      "branch": "master",
+      "sha": "fe3852025ca802cd99a0f682536e1632e1cc711d",
+      "commit_date": "2026-09-04T12:30:19Z",
+      "pushed_at": "2026-09-04T12:30:19Z",
+      "language": "Go",
+      "license": "NOASSERTION",
+      "archived": false,
+      "repo": "TencentCloud/CubeSandbox",
+      "license_observed": "Apache-2.0 with third-party notices",
+      "verdict": "ADAPTER_ONLY",
+      "evidence_level": "source_and_documentation_only",
+      "runtime_probe": "not_run",
+      "sources": [
+        {
+          "path": "LICENSE",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/LICENSE",
+          "sha256": "ec4e72bcae6fbd76307517767f046f9c724fbf8aaee735b60310b21e46cd959a"
+        },
+        {
+          "path": "README.md",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/README.md",
+          "sha256": "a518ff3c68b574b8d260b474d94ad2f2c38ca011d84bc893423158a1c3eb581e"
+        },
+        {
+          "path": "sdk/go/sandbox.go",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/sdk/go/sandbox.go",
+          "sha256": "984b814cc1c2b2baec6732834cb9aae82dd7c3acf3ff1bca8a5d8fc74068c1f7"
+        },
+        {
+          "path": "CubeMaster/pkg/service/sandbox/sandbox_resume_pause.go",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/CubeMaster/pkg/service/sandbox/sandbox_resume_pause.go",
+          "sha256": "1435c4ea2da5ee54aa802a3756f3297d3bbbc00563b2b36145ea10aee2f24abb"
+        },
+        {
+          "path": "docs/guide/pvm-deploy.md",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/docs/guide/pvm-deploy.md",
+          "sha256": "1dd68b4d14598aa1f513348de427438a47c49756c1ece426c17848424a8d1d68"
+        },
+        {
+          "path": "docs/guide/security-proxy.md",
+          "url": "https://github.com/TencentCloud/CubeSandbox/blob/fe3852025ca802cd99a0f682536e1632e1cc711d/docs/guide/security-proxy.md",
+          "sha256": "76813ce85e1540467771d445766794cc3032aaa095fcafdfd79f64ea07c7c32f"
+        }
+      ]
+    }
+  ]
+}

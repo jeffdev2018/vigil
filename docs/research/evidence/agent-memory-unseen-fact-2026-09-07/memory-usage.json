@@ -1,0 +1,29 @@
+{
+  "since": "2026-08-08T22:06:11.296137Z",
+  "until": "2026-09-07T22:06:11.296137Z",
+  "started_runs": 3,
+  "recorded_runs": 3,
+  "unrecorded_runs": 0,
+  "load_failed_runs": 0,
+  "runs_with_agent_memory": 3,
+  "versions": [
+    {
+      "memory_id": "9595267c-1a65-47d2-977d-b27c0e02099a",
+      "revision": 3,
+      "prepared_runs": 1,
+      "last_started_at": "2026-09-07T22:05:14.726422+00:00"
+    },
+    {
+      "memory_id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+      "revision": 1,
+      "prepared_runs": 3,
+      "last_started_at": "2026-09-07T22:05:14.726422+00:00"
+    },
+    {
+      "memory_id": "fc3905fd-c946-4853-810d-83b8dba06166",
+      "revision": 4,
+      "prepared_runs": 3,
+      "last_started_at": "2026-09-07T22:05:14.726422+00:00"
+    }
+  ]
+}

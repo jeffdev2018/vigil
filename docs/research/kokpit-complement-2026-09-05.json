@@ -1,0 +1,154 @@
+[
+  {
+    "repo": "matrixorigin/memoria",
+    "commit": "62793426103d772f856209a3bd4b3ac8fb783a24",
+    "commit_date": "2026-08-26T10:51:11Z",
+    "local_path": "/tmp/vigil-kokpit-extra-20260905/memoria",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "7de2777717dd756b8a8871cd6b608b0f0a32ccf55b9141c869380ce94e00dbd1",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/README.md"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "a6e2f408924ad44acabe43da942d149060a4e8174a8f30240a089bda10279607",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/LICENSE"
+      },
+      {
+        "path": "memoria/Cargo.toml",
+        "sha256": "7ee721eb0d537eaf4a6856446a6a7252352158cdc9db47cec13f25fe087b3e87",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/memoria/Cargo.toml"
+      },
+      {
+        "path": "docker-compose.yml",
+        "sha256": "2d053609496a9b92df8b7f37125acb32a690e763389db6eb84fe3f9050430da4",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/docker-compose.yml"
+      },
+      {
+        "path": ".claude/rules/memory-branching-patterns.md",
+        "sha256": "f88862d15799471884f7cd6ca6270ac46b15f9761a68923a0bae47440d1c0370",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/.claude/rules/memory-branching-patterns.md"
+      },
+      {
+        "path": "sdk/python/src/memoria/resources/branches.py",
+        "sha256": "8ec7dbcfca5e8b4b52f62905af7983fdef74a66de4aa7e4cd478e099696f0892",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/sdk/python/src/memoria/resources/branches.py"
+      },
+      {
+        "path": "memoria/vendor/sqlx-mysql/LICENSE-APACHE",
+        "sha256": "9be39331309bc958aab10457c1a8459c038ae95662f26dfcf6c9088e2b3d653f",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/memoria/vendor/sqlx-mysql/LICENSE-APACHE"
+      },
+      {
+        "path": "memoria/vendor/sqlx-mysql/LICENSE-MIT",
+        "sha256": "44b1600a26039a75b28e1ce154a5dd163b16549f50e34fa577d9efe9c1bae179",
+        "url": "https://raw.githubusercontent.com/matrixorigin/memoria/62793426103d772f856209a3bd4b3ac8fb783a24/memoria/vendor/sqlx-mysql/LICENSE-MIT"
+      }
+    ]
+  },
+  {
+    "repo": "zilliztech/memsearch",
+    "commit": "6f86211d4145fd534c2f76425f033faf313ea331",
+    "commit_date": "2026-09-05T03:56:37Z",
+    "local_path": "/tmp/vigil-kokpit-extra-20260905/memsearch",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "d02b59a5d5e4e66958aad83f213d063cd7d4304c51fbf0a0a6291a0a6a555a45",
+        "url": "https://raw.githubusercontent.com/zilliztech/memsearch/6f86211d4145fd534c2f76425f033faf313ea331/README.md"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "eef6eabff44f247f1e1d3d35854070e20d4d1604c5ba798dae4f99462fd8abc7",
+        "url": "https://raw.githubusercontent.com/zilliztech/memsearch/6f86211d4145fd534c2f76425f033faf313ea331/LICENSE"
+      },
+      {
+        "path": "pyproject.toml",
+        "sha256": "7b6430d15839197fd8f57bb4a8c63bf5b85f45c8f6ea8759ee4176ca9fcb012f",
+        "url": "https://raw.githubusercontent.com/zilliztech/memsearch/6f86211d4145fd534c2f76425f033faf313ea331/pyproject.toml"
+      },
+      {
+        "path": "docs/home/skills-from-memory.md",
+        "sha256": "61de5bc1b79a220aa151d72ce434a945e1d3c6b16c929bc1287f92fba824e828",
+        "url": "https://raw.githubusercontent.com/zilliztech/memsearch/6f86211d4145fd534c2f76425f033faf313ea331/docs/home/skills-from-memory.md"
+      },
+      {
+        "path": "src/memsearch/config.py",
+        "sha256": "08364d6fe17d950384b8acfc042a1d32cc02cce01c71e121c67cbb3501ba647e",
+        "url": "https://raw.githubusercontent.com/zilliztech/memsearch/6f86211d4145fd534c2f76425f033faf313ea331/src/memsearch/config.py"
+      }
+    ]
+  },
+  {
+    "repo": "NangoHQ/nango",
+    "commit": "4be7a16deb878aa4424baee332505d0b7ae79168",
+    "commit_date": "2026-09-04T22:45:24Z",
+    "local_path": "/tmp/vigil-kokpit-extra-20260905/nango",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "8ac3783c8c398defa3ebeea37ca5ddabcabc4fc27e30ba737b444fe8a7b70e20",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/README.md"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "6dbe65007c1f2eb6c362834cc509bd958938a7be3fd15155f3a29c0c8d0a334a",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/LICENSE"
+      },
+      {
+        "path": "LICENSE_SHORT",
+        "sha256": "d8173232ac620f67955d4106d8bfed353a4c899ec9eeef2f28089a65be504a2d",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/LICENSE_SHORT"
+      },
+      {
+        "path": "package.json",
+        "sha256": "c160f5f891f58a305a0fe7720b1416fd062d40f00d2dbe3503b2a9a6e81ac6d6",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/package.json"
+      },
+      {
+        "path": "docker-compose.yaml",
+        "sha256": "a6e30774d67cc1367d97d7b30e47985225be682de0bf25d749402e851f13abd8",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/docker-compose.yaml"
+      },
+      {
+        "path": "docs/guides/platform/self-hosting.mdx",
+        "sha256": "db2e19e14efdf6981dfb6b791cd6be38300ebbf0c3fb05e77b057ce3bada55fc",
+        "url": "https://raw.githubusercontent.com/NangoHQ/nango/4be7a16deb878aa4424baee332505d0b7ae79168/docs/guides/platform/self-hosting.mdx"
+      }
+    ]
+  },
+  {
+    "repo": "Forward-Future/relay",
+    "commit": "c9efc915c7453c4f8e39b8b61aa2f32db4231020",
+    "commit_date": "2026-07-22T18:32:04Z",
+    "local_path": "/tmp/vigil-kokpit-extra-20260905/relay",
+    "files": [
+      {
+        "path": "README.md",
+        "sha256": "a2d32f768add2277d84fed7c8916fdca4091bd3caf1b291adee256cbab00bf18",
+        "url": "https://raw.githubusercontent.com/Forward-Future/relay/c9efc915c7453c4f8e39b8b61aa2f32db4231020/README.md"
+      },
+      {
+        "path": "LICENSE",
+        "sha256": "499ee96ced52e2f9829abc848119f1e5f2c6d2085a261d654968297839b628cc",
+        "url": "https://raw.githubusercontent.com/Forward-Future/relay/c9efc915c7453c4f8e39b8b61aa2f32db4231020/LICENSE"
+      },
+      {
+        "path": ".agents/skills/relay/SKILL.md",
+        "sha256": "3707b3d56692dab6e335cb6f5ef27d5c4ba56b148dccb18267bb36e4897d37c9",
+        "url": "https://raw.githubusercontent.com/Forward-Future/relay/c9efc915c7453c4f8e39b8b61aa2f32db4231020/.agents/skills/relay/SKILL.md"
+      },
+      {
+        "path": ".agents/skills/relay/ENVIRONMENTS.md",
+        "sha256": "0e6556197b0c72c846aa6f629ca13b7615a85283c91e3291f85215f51ed4e237",
+        "url": "https://raw.githubusercontent.com/Forward-Future/relay/c9efc915c7453c4f8e39b8b61aa2f32db4231020/.agents/skills/relay/ENVIRONMENTS.md"
+      },
+      {
+        "path": ".agents/skills/relay/MODEL_SELECTION.md",
+        "sha256": "3cc358b4d11bbfb2ae6796a8d1f6576c0c115f69d52987e77ac7012bbb2587b7",
+        "url": "https://raw.githubusercontent.com/Forward-Future/relay/c9efc915c7453c4f8e39b8b61aa2f32db4231020/.agents/skills/relay/MODEL_SELECTION.md"
+      }
+    ]
+  }
+]

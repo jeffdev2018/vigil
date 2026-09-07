@@ -1,0 +1,336 @@
+{
+  "checked_at": "2026-09-05",
+  "source_directory": "/Users/jeff/Downloads/kokpit",
+  "inventoried_html": 1311,
+  "scope": "Triage of local fiches; eight source-level shortlists; no deployed upstream runtime",
+  "candidates": [
+    {
+      "repo": "mudler/LocalRecall",
+      "commit": "4de7307e16e2e603c24592a536281c6215e3821f",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-07-19T21:43:35Z",
+      "license": "MIT",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/mudler--LocalRecall",
+      "files": [
+        {
+          "path": "Dockerfile",
+          "sha256": "eae2798d671d0bd1a4b0b37994ea8cfb11477af2e82b48fe615365b39f918bd0"
+        },
+        {
+          "path": "Dockerfile.pgsql",
+          "sha256": "35a366fb478c064191b2e5e1a83deae424e70c8b84b4640b142b2fbdb5617625"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "56bef7ba54ae4e4477b9effe34b6e6cadc1b0bcfaacc5be503096a1ce0a9d391"
+        },
+        {
+          "path": "README.md",
+          "sha256": "493290360d1a23ac797d9a7137776075aa4a20020fbb0d710773cab210abb248"
+        },
+        {
+          "path": "docker-compose.yml",
+          "sha256": "40cceff2480e38f1e9ee3220bbcee0b3263cc1f8469fa4980617b058f9a55da3"
+        },
+        {
+          "path": "go.mod",
+          "sha256": "3f5b6be6573612c18bb5955e0209fab75eb6e5afad2fbe9b64bbca1a249ab3b7"
+        },
+        {
+          "path": "pkg/client/client.go",
+          "sha256": "33621fab71dddcd209d12430f137aea6b668ceef75c425584f06b965ad1c90dd"
+        },
+        {
+          "path": "pkg/chunk/chunking.go",
+          "sha256": "7aa206a38eff6f03ffe33a72e2fe88125b9d7bd7e095ac2e23285c37f0be019d"
+        },
+        {
+          "path": "rag/engine/localai.go",
+          "sha256": "915e3333c2bd18e14ee031df94f87811b75dedcdcafef98db59665887dd025b4"
+        },
+        {
+          "path": "main.go",
+          "sha256": "c0773b1361b62af1a873208393a0bf0bb569f6a038bd05af63129134de49ecf8"
+        },
+        {
+          "path": "routes.go",
+          "sha256": "8af20c040b168e79becf1894c2275b5e3dc22ca6ac4b3b04bc8aba62f7df5ae9"
+        }
+      ]
+    },
+    {
+      "repo": "headroomlabs-ai/headroom",
+      "commit": "e59cf1012a2b277689555833fd221a92279f777d",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-09-05T04:39:59Z",
+      "license": "Apache-2.0",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/headroomlabs-ai--headroom",
+      "files": [
+        {
+          "path": "Dockerfile",
+          "sha256": "6cc28afd1fda85365a3ee3c76b84ecdea35cb19fbb14ad72bfb0b7fd2ebba7cc"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "f14dd440c8e3152b4d4d324615de8251ddb011dc81f484daad0b6902093539cc"
+        },
+        {
+          "path": "NOTICE",
+          "sha256": "54134ada2d53b593077422f69031f0ca161a7710b8e2687d777fe6f1690f71f4"
+        },
+        {
+          "path": "README.md",
+          "sha256": "5b83d4276da4266fcdb30c346485c0b811e5c925c69a4fb4e3f953e38e22064e"
+        },
+        {
+          "path": "docker-bake.hcl",
+          "sha256": "6a5ddbec5be60134204ba09dad39b95d7b38269891f3352ee9a793af92eb527f"
+        },
+        {
+          "path": "docker-compose.yml",
+          "sha256": "373634bac8a81a749014cfc4488b7aca73a1de60bf7b6d9f142995ad4a756b69"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "744ad9413a53422e29d3cc66888c68bc455a199232bd1a62630d230981c099fd"
+        },
+        {
+          "path": "docs/content/docs/how-compression-works.mdx",
+          "sha256": "dd962c1631a29b1f697a25945e40222d174ae76465d0b52446bf4c628dfff203"
+        },
+        {
+          "path": "docs/content/docs/filesystem-contract.mdx",
+          "sha256": "5f4b913e03a9e03ac634e40487e6c982edefd12cb4f8a5de8dc474f71165dc23"
+        },
+        {
+          "path": "plugins/headroom-oauth2/LICENSE",
+          "sha256": "dfa3dd92e0891b331d57e9e36a671642077da67619d2154a88ec80c8cc5daca4"
+        }
+      ]
+    },
+    {
+      "repo": "volcengine/OpenViking",
+      "commit": "0c5147cae26aec8d6d93445ec6ad86d5faff4035",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-09-05T02:29:50Z",
+      "license": "AGPL-3.0",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/volcengine--OpenViking",
+      "files": [
+        {
+          "path": "Dockerfile",
+          "sha256": "dd56e4e90d89657ed38a36a8159c57564444fc3c442dcb1f839a02502c389f92"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "1bd87fa6d9a5c79daf0c2af042b6725c9773bf095cc3d1bdf3656e66d1c3e5b1"
+        },
+        {
+          "path": "README.md",
+          "sha256": "dedc9ea62ccfe04b916365322e8051f1bb6986c7e2e9cfe8308122c75ecaebcc"
+        },
+        {
+          "path": "README_CN.md",
+          "sha256": "14b5c01d612a1cdd375beec59b1e0e32f670df3d5b38abe715efd5f940fb1c2b"
+        },
+        {
+          "path": "README_JA.md",
+          "sha256": "ee355851a4fe63c04dc3b51ba82ec31621df2f3341faacbb811066cb478eeb89"
+        },
+        {
+          "path": "docker-compose.yml",
+          "sha256": "9e1d2680af66c45eda5c47a0007d0fe33d14955c1921eb36c5dc4f15c5efb6fb"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "634e7f280258e66fa683a465d5ac1b33e0b7424736cc65d48a396002761e989e"
+        },
+        {
+          "path": "docs/en/concepts/03-context-layers.md",
+          "sha256": "675b54d12c66b471988416f9dafa606f75281d88733dcbc57a7765f05e5031e2"
+        },
+        {
+          "path": "crates/LICENSE",
+          "sha256": "4d1f5066d5b9623cc083f88af9fa11867eaebbd11c8d8115432234f155376e74"
+        },
+        {
+          "path": "examples/LICENSE",
+          "sha256": "081a54b68d890cdbcfdfb97b79f32504b4ed320f52d5f8abdae806e5cbee2ad6"
+        },
+        {
+          "path": "bot/license/LICENSE",
+          "sha256": "4821a110ffbe931bbf692c70e24e9bee180bc7b7ba622a2674aa167e79dddd21"
+        }
+      ]
+    },
+    {
+      "repo": "Kulaxyz/self-learning-skills",
+      "commit": "d4e0a7ec1f1ae1b5c7f7972b52ad8ed0c2c067ae",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-07-01T03:41:29Z",
+      "license": "MIT",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/Kulaxyz--self-learning-skills",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "e81879a9c9f39e8611554adb189b2af335d5ea341b03ed2ce202ab33e954d024"
+        },
+        {
+          "path": "README.md",
+          "sha256": "44e35f2f8aa285debcfbd98b8a0204d5534ac7b7dfeb7151a5cb2472cfcdc0ad"
+        },
+        {
+          "path": "skills/self-learning/SKILL.md",
+          "sha256": "2ece37c8f8e436fdaa605e0b6dbe4438cd8a38791900edae1b38d141823e29b8"
+        }
+      ]
+    },
+    {
+      "repo": "shepherd-agents/shepherd",
+      "commit": "4b44f4e8822a919a74b4bf9c13d9370dbf4cd9be",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-08-09T20:42:47Z",
+      "license": "MIT",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/shepherd-agents--shepherd",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "9bd9a082bf9f89d8e73c60d0eadfeaba329beaabaa8eace0cf0304f46ce7fdf1"
+        },
+        {
+          "path": "README.md",
+          "sha256": "5637ba42a088bc332fdffcbdfa43a31b56bf64dbaa628acd5ea8ca7f660de348"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "acbb57124c9843cfa7984d55e8a9a387bf61fff6105e1f640887ba634c8c523f"
+        },
+        {
+          "path": "docs/shepherd/concepts/permissions.md",
+          "sha256": "2d66b9b00e11e8395775744bd79a0c4a1e5624f7cb63a3cb7d3a32c2e3d2895e"
+        },
+        {
+          "path": "shepherd/packages/dialect/src/shepherd_dialect/workspace_control/retained_output_authority.py",
+          "sha256": "01cbd983698963f2419ba2b44341978420a13058958e2eaeaf30cddb5b2e3a85"
+        }
+      ]
+    },
+    {
+      "repo": "smithersai/smithers",
+      "commit": "66e5adf76a06c9556a398bdfa299d28d27bb87a1",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-09-05T02:32:39Z",
+      "license": "MIT",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/smithersai--smithers",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "a3aaca5d88b4805fdc839fc70dca35fb5c9d2465d2bd986729e218076f66adc5"
+        },
+        {
+          "path": "README.md",
+          "sha256": "fc7bfcba90e8c5608609d9deb2cf0de5f59b5c0fa5a2494c9e06a708637f675e"
+        },
+        {
+          "path": "package.json",
+          "sha256": "6f9ca5596aff9f7ea27a474622421a225439ea87fad8729a4bc42c6d8aec9694"
+        },
+        {
+          "path": "packages/smithers/flows/time-travel/LICENSE",
+          "sha256": "a3aaca5d88b4805fdc839fc70dca35fb5c9d2465d2bd986729e218076f66adc5"
+        },
+        {
+          "path": "packages/smithers/flows/time-travel/src/EffectBoundary.ts",
+          "sha256": "437be607b48e365f20ef4054fb4f8d5e6955c93053324a2d71de935cccd4abdf"
+        },
+        {
+          "path": "packages/smithers/flows/time-travel/src/internal/Fork.ts",
+          "sha256": "9292442ea4583fe6a4a238209742e272e9e9a8336a1418c00d618597b2f876fd"
+        }
+      ]
+    },
+    {
+      "repo": "topoteretes/cognee",
+      "commit": "20e0bd88746de2d96e99b4b122361dfc3dad21bc",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-09-04T17:19:19Z",
+      "license": "Apache-2.0",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/topoteretes--cognee",
+      "files": [
+        {
+          "path": "Dockerfile",
+          "sha256": "80e338a14143c65dd0ba8d9fb1bd75473d5454662cf32f44881ad2f428009271"
+        },
+        {
+          "path": "Dockerfile.ci",
+          "sha256": "e03f3217e9f8f205aa18d0542b41254c552ea75927a7e83dfcc3c0a28263ec7f"
+        },
+        {
+          "path": "LICENSE",
+          "sha256": "a471e34908f50c3f120e9a56f3c30cb34e133e4ede01a9cbd5ce718fc358ecd4"
+        },
+        {
+          "path": "NOTICE.md",
+          "sha256": "e8bdec68fde44a97229e03b10e1f921a3312f0663bf51961d9d04d2da3b4a397"
+        },
+        {
+          "path": "README.md",
+          "sha256": "b3871ae9d1f4b4f5404e7de890f6daa22542b512bc7d87f8e897806156312d1a"
+        },
+        {
+          "path": "README_ko.md",
+          "sha256": "aef44a6dd5658b7fe812874ecc263583d77d536e5023eb36686e86d35e870770"
+        },
+        {
+          "path": "docker-compose.yml",
+          "sha256": "cbe1cc0c0dbacdbb78e262460d6e02c5c47d10bc092cbdbb1773777b992f2dd8"
+        },
+        {
+          "path": "pyproject.toml",
+          "sha256": "79c66357db569e440b662792a078f3d37a810bafbd58bd4e66162b02d8bd11f0"
+        }
+      ]
+    },
+    {
+      "repo": "Archive228/adversarial-contract-gate",
+      "commit": "c895b8f65f6a588fd327336616cc517623a17703",
+      "branch": "main",
+      "archived": false,
+      "pushed_at": "2026-07-25T11:02:01Z",
+      "license": "MIT",
+      "local_path": "/tmp/vigil-kokpit-audit-20260905/Archive228--adversarial-contract-gate",
+      "files": [
+        {
+          "path": "LICENSE",
+          "sha256": "e93bfc3e5a54863df81de091b686b149378cb80ceca683bfd62907b1af929541"
+        },
+        {
+          "path": "README.md",
+          "sha256": "5fb103961468b8ef5edc1420200f63008f5204e2f865a14caeeb155492303e81"
+        },
+        {
+          "path": "src/contract.py",
+          "sha256": "e6aca801cb215671d34d8871fa286d2752633a3dd253bdd56dad01aba399f0ab"
+        },
+        {
+          "path": "src/evaluators.py",
+          "sha256": "59b48b59cf25d2bcc8b20d3adaeabd4ec2a134121ca0eab1e746bc6c5cc66d13"
+        },
+        {
+          "path": "src/generator.py",
+          "sha256": "d34479476493d4dc29d709537c431cb6b45c03bbc4beb698106c1be051c3ffb5"
+        },
+        {
+          "path": "tests/test_harness.py",
+          "sha256": "f84d69e14b44cf8516a0562268539cc621ca7e8ed266850712fffbfc37cc8d00"
+        }
+      ]
+    }
+  ]
+}

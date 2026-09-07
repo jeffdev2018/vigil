@@ -1,0 +1,20 @@
+[
+  {
+    "id": "01a07de2-4629-719e-ac87-cbad636da44a",
+    "issue_id": "01a07de1-a171-7484-b99b-d7134171b2ad",
+    "author_type": "agent",
+    "author_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+    "content": "harbor-17",
+    "type": "comment",
+    "parent_id": null,
+    "created_at": "2026-09-07T17:59:36-04:00",
+    "updated_at": "2026-09-07T17:59:36-04:00",
+    "revision": 1,
+    "resolved_at": null,
+    "resolved_by_type": null,
+    "resolved_by_id": null,
+    "source_task_id": "01a07de1-a1cd-7914-a5e9-7d94ece6d827",
+    "reactions": [],
+    "attachments": []
+  }
+]

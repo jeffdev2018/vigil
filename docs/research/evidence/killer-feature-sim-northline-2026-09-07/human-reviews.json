@@ -1,0 +1,30 @@
+{
+  "report_hash": "5aa53bb5bab2110750e738ea7c7dfac7018c18bea78b71452c03e17c18883302",
+  "reviewer": "jeff-campaign-operator-sim",
+  "runs": [
+    {
+      "case_id": "r-code",
+      "variant": "baseline",
+      "accepted": false,
+      "human_seconds": 4
+    },
+    {
+      "case_id": "r-code",
+      "variant": "candidate",
+      "accepted": true,
+      "human_seconds": 8
+    },
+    {
+      "case_id": "h-stamp",
+      "variant": "baseline",
+      "accepted": false,
+      "human_seconds": 4
+    },
+    {
+      "case_id": "h-stamp",
+      "variant": "candidate",
+      "accepted": true,
+      "human_seconds": 8
+    }
+  ]
+}

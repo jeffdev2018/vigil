@@ -1,0 +1,62 @@
+{
+  "memory_context": {
+    "dispatched_at": "2026-09-07T21:58:54.235081Z",
+    "agent_status": "loaded",
+    "agent_versions": [
+      {
+        "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+        "revision": 4
+      },
+      {
+        "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+        "revision": 1
+      }
+    ],
+    "project_version": {
+      "id": "517f91bf-be45-4f11-a053-aaef6873b748",
+      "revision": 1
+    }
+  },
+  "id": "01a07de1-a1cd-7914-a5e9-7d94ece6d827",
+  "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+  "runtime_id": "0c344870-3ba2-4bba-aaea-9fc0e37b261a",
+  "issue_id": "01a07de1-a171-7484-b99b-d7134171b2ad",
+  "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+  "status": "completed",
+  "priority": 0,
+  "dispatched_at": "2026-09-07T17:58:54-04:00",
+  "started_at": "2026-09-07T17:58:54-04:00",
+  "completed_at": "2026-09-07T17:59:48-04:00",
+  "result": {
+    "output": "T\u00e2che termin\u00e9e. Le codename du fixture a \u00e9t\u00e9 post\u00e9.",
+    "pr_url": "",
+    "session_id": "c4144df6-081e-45f6-85bc-5771ffd005a8",
+    "work_dir": "/Users/jeff/multica_workspaces_dev-vigil-482/multica-bugfix-pilot"
+  },
+  "error": null,
+  "attempt": 1,
+  "max_attempts": 2,
+  "created_at": "2026-09-07T17:58:54-04:00",
+  "work_dir": "/Users/jeff/multica_workspaces_dev-vigil-482/multica-bugfix-pilot",
+  "relative_work_dir": "multica_workspaces_dev-vigil-482/multica-bugfix-pilot",
+  "delivered_comment_ids": [],
+  "kind": "direct",
+  "attribution": {
+    "source": "direct_human",
+    "precise": true,
+    "initiator": {
+      "id": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+      "name": "dev",
+      "email": "dev@localhost"
+    },
+    "originator": {
+      "id": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+      "name": "dev",
+      "email": "dev@localhost"
+    },
+    "evidence": {
+      "kind": "issue_assignment",
+      "ref_id": "01a07de1-a171-7484-b99b-d7134171b2ad"
+    }
+  }
+}

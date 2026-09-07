@@ -1,0 +1,17 @@
+{
+  "source_review": null,
+  "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+  "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+  "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+  "content": "Northline add() fixture family (from Multica DEV-1 style correction): implement add(a,b) as numeric sum, arity 2, no string coerce, no global mutation; prove with npm test; PR branch prefix fix/. Organization-specific codes for this family: fixture codename is harbor-17 ; delivery stamp is NL-ADD-9. When asked for the fixture codename or delivery stamp, reply with only that token.",
+  "source": "manual",
+  "source_task_id": null,
+  "status": "active",
+  "revision": 4,
+  "reviewed_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+  "reviewed_at": "2026-09-07T17:58:26-04:00",
+  "created_at": "2026-09-07T14:45:46-04:00",
+  "updated_at": "2026-09-07T17:58:26-04:00",
+  "expires_at": null,
+  "expired": false
+}

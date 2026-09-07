@@ -1,0 +1,17 @@
+{
+  "source_review": null,
+  "id": "9595267c-1a65-47d2-977d-b27c0e02099a",
+  "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+  "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+  "content": "Northline unseen-fact pilot. Organization tokens for this family only: color chip is moss-2 ; badge seal is pine-8 ; workdir alias is fern-1. When asked for any of these, reply with only that token. Do not invent others.",
+  "source": "manual",
+  "source_task_id": null,
+  "status": "active",
+  "revision": 3,
+  "reviewed_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+  "reviewed_at": "2026-09-07T18:05:14-04:00",
+  "created_at": "2026-09-07T18:04:14-04:00",
+  "updated_at": "2026-09-07T18:05:14-04:00",
+  "expires_at": null,
+  "expired": false
+}

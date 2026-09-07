@@ -1,0 +1,194 @@
+{
+  "version": 1,
+  "kind": "connected_memory_comparison",
+  "server_url": "",
+  "candidate": {
+    "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+    "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+    "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+    "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+    "revision": 2,
+    "status": "pending",
+    "expired": false,
+    "expires_at": null
+  },
+  "baseline": [
+    {
+      "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+      "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+      "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+      "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+      "revision": 1,
+      "status": "active",
+      "expired": false,
+      "expires_at": null
+    }
+  ],
+  "suite": {
+    "image": "",
+    "worker": [],
+    "verifier": [],
+    "timeout_seconds": 60,
+    "cases": [
+      {
+        "id": "r01",
+        "split": "replay",
+        "input": "r01",
+        "checks": "r01"
+      },
+      {
+        "id": "h01",
+        "split": "holdout",
+        "input": "h01",
+        "checks": "h01"
+      }
+    ],
+    "worker_protocol": "connected_runtime_v1",
+    "connected": {
+      "provider": "claude",
+      "model": "claude-sonnet-4-5",
+      "effort": "low",
+      "agent_name": "Memory connected Claude pilot",
+      "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, reply unknown. Do not use tools.",
+      "workspace_context": ""
+    },
+    "text_cases": [
+      {
+        "check": "exact",
+        "id": "r01",
+        "split": "replay",
+        "prompt": "Do not use tools. Do not read files. What does add(2,3) return? Reply with only the number.",
+        "expected": "5"
+      },
+      {
+        "check": "exact",
+        "id": "h01",
+        "split": "holdout",
+        "prompt": "Do not use tools. Do not read files. What does add(7,8) return? Reply with only the number.",
+        "expected": "15"
+      }
+    ]
+  },
+  "started_at": "2026-09-07T18:46:47.86186Z",
+  "completed_at": "2026-09-07T18:47:27.287837Z",
+  "cases": [
+    {
+      "id": "r01",
+      "split": "replay",
+      "input_hash": "53c2282f7dd155e65d44071fad2bbb65b3f4e18ea0f5290736923986cf6df077",
+      "checks_hash": "ef2d127de37b942baad06145e54b0c619a1f22327b2ebbcfbec78f5564afe39d",
+      "baseline": {
+        "status": "passed",
+        "duration_ms": 9005,
+        "artifact": "5",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "18c14fe2d57afd1d4ab21cdbf0c4376e55344d4c11189d647a208711c9a39525",
+          "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 254,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14310
+            }
+          }
+        }
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 9570,
+        "artifact": "5",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "18c14fe2d57afd1d4ab21cdbf0c4376e55344d4c11189d647a208711c9a39525",
+          "brief_hash": "5749dbd8faa2367c1a265d65ceaa3369a39a2b80bd79626a083f9de37dddacf8",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 241,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14418
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "h01",
+      "split": "holdout",
+      "input_hash": "73919f5c58b7b0f544ccbe86f5d62365a8ca2518770227cddb87acf46780236c",
+      "checks_hash": "e629fa6598d732768f7c726b4b621285f9c3b85303900aa912017db7617d8bdb",
+      "baseline": {
+        "status": "passed",
+        "duration_ms": 8886,
+        "artifact": "15",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "e721fcbcd3fedb77ccbe183b9bce7b51a7370546dd20a49605445a4057720dfb",
+          "brief_hash": "38ea359f9576f99b262fea3781bcce31f85ad175964ea52d87c18b2246a8b6b1",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 236,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14310
+            }
+          }
+        }
+      },
+      "candidate": {
+        "status": "passed",
+        "duration_ms": 11824,
+        "artifact": "15",
+        "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+        "cost_usd": null,
+        "human_interventions": null,
+        "runtime": {
+          "provider": "claude",
+          "requested_model": "claude-sonnet-4-5",
+          "requested_effort": "low",
+          "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+          "prompt_hash": "e721fcbcd3fedb77ccbe183b9bce7b51a7370546dd20a49605445a4057720dfb",
+          "brief_hash": "5749dbd8faa2367c1a265d65ceaa3369a39a2b80bd79626a083f9de37dddacf8",
+          "status": "completed",
+          "tool_calls": 0,
+          "usage": {
+            "claude-sonnet-4-5": {
+              "input_tokens": 9,
+              "output_tokens": 282,
+              "cache_read_tokens": 13599,
+              "cache_write_tokens": 14418
+            }
+          }
+        }
+      }
+    }
+  ],
+  "eligible": false,
+  "reason": "require an improvement on both replay and holdout with every candidate check passing"
+}

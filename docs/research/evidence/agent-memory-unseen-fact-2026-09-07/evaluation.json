@@ -1,0 +1,221 @@
+{
+  "execution_status": "completed",
+  "execution_runtime_id": "0c344870-3ba2-4bba-aaea-9fc0e37b261a",
+  "id": "cc1a5a80-4230-49b9-bf00-105674436282",
+  "memory_id": "9595267c-1a65-47d2-977d-b27c0e02099a",
+  "revision": 2,
+  "uploaded_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+  "created_at": "2026-09-07T18:04:14-04:00",
+  "adopted_revision": null,
+  "eligible": true,
+  "reason": "checks passed with improvement on replay and holdout; human review required",
+  "total": 2,
+  "baseline_passed": 0,
+  "candidate_passed": 2,
+  "regressions": 0,
+  "errors": 0,
+  "report": {
+    "version": 1,
+    "kind": "connected_memory_comparison",
+    "server_url": "",
+    "candidate": {
+      "id": "9595267c-1a65-47d2-977d-b27c0e02099a",
+      "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+      "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+      "content": "Northline unseen-fact pilot. Organization tokens for this family only: color chip is moss-2 ; badge seal is pine-8 ; workdir alias is fern-1. When asked for any of these, reply with only that token. Do not invent others.",
+      "revision": 2,
+      "status": "pending",
+      "expired": false,
+      "expires_at": null
+    },
+    "baseline": [
+      {
+        "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+        "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+        "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+        "content": "Northline add() fixture family (from Multica DEV-1 style correction): implement add(a,b) as numeric sum, arity 2, no string coerce, no global mutation; prove with npm test; PR branch prefix fix/. Organization-specific codes for this family: fixture codename is harbor-17 ; delivery stamp is NL-ADD-9. When asked for the fixture codename or delivery stamp, reply with only that token.",
+        "revision": 4,
+        "status": "active",
+        "expired": false,
+        "expires_at": null
+      },
+      {
+        "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+        "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+        "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+        "content": "For the add() fixture family: implement add(a,b) as numeric sum with exact arity 2; never coerce strings; never mutate globals. Prove with npm test. Open a PR on branch prefix fix/ whose title references the issue id. When asked numeric results, reply with only the number. When asked yes/no policy questions, reply with only yes or no or the single expected token. add(2,3) returns 5. add(7,8) returns 15.",
+        "revision": 1,
+        "status": "active",
+        "expired": false,
+        "expires_at": null
+      }
+    ],
+    "suite": {
+      "image": "",
+      "worker": [],
+      "verifier": [],
+      "timeout_seconds": 60,
+      "cases": [
+        {
+          "id": "r-moss",
+          "split": "replay",
+          "input": "r-moss",
+          "checks": "r-moss"
+        },
+        {
+          "id": "h-pine",
+          "split": "holdout",
+          "input": "h-pine",
+          "checks": "h-pine"
+        }
+      ],
+      "worker_protocol": "connected_runtime_v1",
+      "connected": {
+        "provider": "claude",
+        "model": "claude-sonnet-4-5",
+        "effort": "low",
+        "agent_name": "Memory connected Claude pilot",
+        "instructions": "Answer only the requested output, without explanation or Markdown fences. Use the supplied memory for organization-specific rules. If the rule is unknown, reply unknown. Do not use tools.",
+        "workspace_context": ""
+      },
+      "text_cases": [
+        {
+          "check": "exact",
+          "id": "r-moss",
+          "split": "replay",
+          "prompt": "Do not use tools. Do not read files. What is the Northline color chip? Reply with only that token.",
+          "expected": "moss-2"
+        },
+        {
+          "check": "exact",
+          "id": "h-pine",
+          "split": "holdout",
+          "prompt": "Do not use tools. Do not read files. What is the Northline badge seal? Reply with only that token.",
+          "expected": "pine-8"
+        }
+      ]
+    },
+    "started_at": "2026-09-07T22:04:14.319586Z",
+    "completed_at": "2026-09-07T22:05:12.176585Z",
+    "cases": [
+      {
+        "id": "r-moss",
+        "split": "replay",
+        "input_hash": "34d4aa28b2209e8803364c8d698299ce0d09dc2fc7d9948ed74301fcbf760c3c",
+        "checks_hash": "12cc85fafb63e26a09652476e15c52de68cc4c9d6b88db9cd7d263eee5124a7c",
+        "baseline": {
+          "status": "failed",
+          "duration_ms": 18582,
+          "artifact": "unknown",
+          "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+          "cost_usd": null,
+          "human_interventions": null,
+          "runtime": {
+            "provider": "claude",
+            "requested_model": "claude-sonnet-4-5",
+            "requested_effort": "low",
+            "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+            "prompt_hash": "a020aea2edf60177f5e0912d7be04635443671b35281aa7d6a237dfd7b42b786",
+            "brief_hash": "2af020b8b090037be35ac9e4371ea0af8ae7d9b800805c88e59c6c99e20a090a",
+            "status": "completed",
+            "tool_calls": 0,
+            "usage": {
+              "claude-sonnet-4-5": {
+                "input_tokens": 9,
+                "output_tokens": 489,
+                "cache_read_tokens": 13599,
+                "cache_write_tokens": 14408
+              }
+            }
+          }
+        },
+        "candidate": {
+          "status": "passed",
+          "duration_ms": 9377,
+          "artifact": "moss-2",
+          "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+          "cost_usd": null,
+          "human_interventions": null,
+          "runtime": {
+            "provider": "claude",
+            "requested_model": "claude-sonnet-4-5",
+            "requested_effort": "low",
+            "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+            "prompt_hash": "a020aea2edf60177f5e0912d7be04635443671b35281aa7d6a237dfd7b42b786",
+            "brief_hash": "5c918260872cb5e87e5d8addd58559ac6fd29c8f2698f7f305450522b22bbbac",
+            "status": "completed",
+            "tool_calls": 0,
+            "usage": {
+              "claude-sonnet-4-5": {
+                "input_tokens": 9,
+                "output_tokens": 215,
+                "cache_read_tokens": 13599,
+                "cache_write_tokens": 14473
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": "h-pine",
+        "split": "holdout",
+        "input_hash": "54ea958d0e26888f3b578a9b84311334db273148e3586090832634e0dff6d4df",
+        "checks_hash": "164544395e1e31ecd8b1a80adab4cf83f7e017e7026dc16ed02fe363784de836",
+        "baseline": {
+          "status": "failed",
+          "duration_ms": 19365,
+          "artifact": "unknown",
+          "diagnostic": "Exact answer check failed (leading and trailing whitespace ignored)",
+          "cost_usd": null,
+          "human_interventions": null,
+          "runtime": {
+            "provider": "claude",
+            "requested_model": "claude-sonnet-4-5",
+            "requested_effort": "low",
+            "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+            "prompt_hash": "306c52d8a30710218e4542649bf6591bd7b4724c6fa1f07ab68df333268dbbd1",
+            "brief_hash": "2af020b8b090037be35ac9e4371ea0af8ae7d9b800805c88e59c6c99e20a090a",
+            "status": "completed",
+            "tool_calls": 0,
+            "usage": {
+              "claude-sonnet-4-5": {
+                "input_tokens": 9,
+                "output_tokens": 528,
+                "cache_read_tokens": 13599,
+                "cache_write_tokens": 14411
+              }
+            }
+          }
+        },
+        "candidate": {
+          "status": "passed",
+          "duration_ms": 10453,
+          "artifact": "pine-8",
+          "diagnostic": "Exact answer check passed (leading and trailing whitespace ignored)",
+          "cost_usd": null,
+          "human_interventions": null,
+          "runtime": {
+            "provider": "claude",
+            "requested_model": "claude-sonnet-4-5",
+            "requested_effort": "low",
+            "executable_hash": "5efecaff231b798be3c66def9be54183623b328b80eaef17f93c43987024e82a",
+            "prompt_hash": "306c52d8a30710218e4542649bf6591bd7b4724c6fa1f07ab68df333268dbbd1",
+            "brief_hash": "5c918260872cb5e87e5d8addd58559ac6fd29c8f2698f7f305450522b22bbbac",
+            "status": "completed",
+            "tool_calls": 0,
+            "usage": {
+              "claude-sonnet-4-5": {
+                "input_tokens": 9,
+                "output_tokens": 216,
+                "cache_read_tokens": 13599,
+                "cache_write_tokens": 14470
+              }
+            }
+          }
+        }
+      }
+    ],
+    "eligible": true,
+    "reason": "checks passed with improvement on replay and holdout; human review required"
+  }
+}

@@ -1,0 +1,20 @@
+[
+  {
+    "id": "01a07de3-add6-7b37-a686-b93cca88e3e1",
+    "issue_id": "01a07de2-f848-7e8a-93d9-cb33872c00ed",
+    "author_type": "agent",
+    "author_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+    "content": "NL-ADD-9",
+    "type": "comment",
+    "parent_id": null,
+    "created_at": "2026-09-07T18:01:08-04:00",
+    "updated_at": "2026-09-07T18:01:08-04:00",
+    "revision": 1,
+    "resolved_at": null,
+    "resolved_by_type": null,
+    "resolved_by_id": null,
+    "source_task_id": "01a07de2-f863-7e2c-9a13-2031fdad8b20",
+    "reactions": [],
+    "attachments": []
+  }
+]

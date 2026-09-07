@@ -1,0 +1,10 @@
+{
+  "report_hash": "93661724771323068f51e70d284f38cb38ed98ffcd079e8fe8248a8da6ba409e",
+  "reviewer": "jeff-campaign-operator",
+  "runs": [
+    {"case_id": "replay", "variant": "baseline", "accepted": false, "human_seconds": 3},
+    {"case_id": "replay", "variant": "candidate", "accepted": true, "human_seconds": 6},
+    {"case_id": "holdout", "variant": "baseline", "accepted": false, "human_seconds": 3},
+    {"case_id": "holdout", "variant": "candidate", "accepted": true, "human_seconds": 6}
+  ]
+}

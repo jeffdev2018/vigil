@@ -1,0 +1,61 @@
+{
+  "memory_context": {
+    "dispatched_at": "2026-09-07T22:05:14.617503Z",
+    "agent_status": "loaded",
+    "agent_versions": [
+      {
+        "id": "fc3905fd-c946-4853-810d-83b8dba06166",
+        "revision": 4
+      },
+      {
+        "id": "a3b4931d-c7e0-45de-b169-6103b008cc78",
+        "revision": 1
+      },
+      {
+        "id": "9595267c-1a65-47d2-977d-b27c0e02099a",
+        "revision": 3
+      }
+    ],
+    "project_version": {
+      "id": "517f91bf-be45-4f11-a053-aaef6873b748",
+      "revision": 1
+    }
+  },
+  "id": "01a07de7-6fe4-76f1-a86d-e38e4fd9d243",
+  "agent_id": "5711f250-70ec-44a4-973e-87da2b8e0497",
+  "runtime_id": "0c344870-3ba2-4bba-aaea-9fc0e37b261a",
+  "issue_id": "01a07de7-6fcd-71c9-9ae9-d7ce6c99bd71",
+  "workspace_id": "9bcbf6e8-94af-451b-9eda-65dd50f6f16e",
+  "status": "running",
+  "priority": 0,
+  "dispatched_at": "2026-09-07T18:05:14-04:00",
+  "started_at": "2026-09-07T18:05:14-04:00",
+  "completed_at": null,
+  "result": null,
+  "error": null,
+  "attempt": 1,
+  "max_attempts": 2,
+  "created_at": "2026-09-07T18:05:14-04:00",
+  "work_dir": "/Users/jeff/multica_workspaces_dev-vigil-482/multica-bugfix-pilot",
+  "relative_work_dir": "multica_workspaces_dev-vigil-482/multica-bugfix-pilot",
+  "delivered_comment_ids": [],
+  "kind": "direct",
+  "attribution": {
+    "source": "direct_human",
+    "precise": true,
+    "initiator": {
+      "id": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+      "name": "dev",
+      "email": "dev@localhost"
+    },
+    "originator": {
+      "id": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+      "name": "dev",
+      "email": "dev@localhost"
+    },
+    "evidence": {
+      "kind": "issue_assignment",
+      "ref_id": "01a07de7-6fcd-71c9-9ae9-d7ce6c99bd71"
+    }
+  }
+}
