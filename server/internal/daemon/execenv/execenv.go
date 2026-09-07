@@ -243,6 +243,15 @@ type TaskContextForEnv struct {
 	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
 	// they are shared by every agent in the workspace.
 	WorkspaceNotes []WorkspaceNoteForEnv
+	// AutopilotMemory is the execution memory of the daemon that started this
+	// run (F24 / JEF-15): what a previous run of the SAME autopilot left for
+	// the next one. Autopilot-scoped, so unlike AgentMemories it never
+	// follows the agent into another daemon's run. Rendered under a heading
+	// that states it is data the run reads, never instructions it obeys —
+	// unlike agent memory, a run writes this file itself, so a compromised or
+	// merely confused run could otherwise escalate its own notes into orders
+	// for every run that follows. Empty renders the brief byte-identical.
+	AutopilotMemory string
 	// RepoIndexHints are the shared repo index's best matches for this issue
 	// (K47), already ranked and capped by the server. They are ORIENTATION: the
 	// section they render tells the run to open the real file before editing,

@@ -1256,6 +1256,15 @@ func (h *Handler) DeleteAutopilot(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to delete autopilot")
 		return
 	}
+	// The daemon's execution memory (F24) goes with it, in the same
+	// transaction. Runs, deliveries and subscribers are execution HISTORY and
+	// survive archival on purpose; the memory is not history, it is what the
+	// next run would have been told, and there is no next run. No FK does this
+	// for us, per the repository rule.
+	if err := qtx.DeleteAutopilotMemory(r.Context(), idUUID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete autopilot")
+		return
+	}
 	if err := tx.Commit(r.Context()); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to delete autopilot")
 		return

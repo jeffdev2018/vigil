@@ -19,6 +19,8 @@ export const autopilotKeys = {
     [...autopilotKeys.all(wsId), "cron-preview", expr, tz, windowMinutes] as const,
   scheduleDryRun: (wsId: string, autopilotId: string, triggerId: string) =>
     [...autopilotKeys.all(wsId), "dry-run", autopilotId, triggerId] as const,
+  memory: (wsId: string, id: string) =>
+    [...autopilotKeys.all(wsId), id, "memory"] as const,
 };
 
 export function autopilotQuotaUsageOptions(wsId: string) {
@@ -175,5 +177,15 @@ export function scheduleTriggerDryRunOptions(
     // A 400 (the stored cron no longer parses) is a stable answer for this
     // trigger, not a transient failure — retrying only delays the message.
     retry: false,
+  });
+}
+
+// Autopilot execution memory (F24). Read-only: the write side is authorized by
+// a run's task token, so there is no matching mutation.
+export function autopilotMemoryOptions(wsId: string, id: string) {
+  return queryOptions({
+    queryKey: autopilotKeys.memory(wsId, id),
+    queryFn: () => api.getAutopilotMemory(id),
+    enabled: wsId.length > 0 && id.length > 0,
   });
 }

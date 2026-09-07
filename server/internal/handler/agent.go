@@ -498,6 +498,12 @@ type AgentTaskResponse struct {
 	// memories they are shared by every agent in the workspace. Omitted when
 	// the Brain is empty and by older servers.
 	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
+	// AutopilotMemory is the execution memory of the daemon that started this
+	// run (F24 / JEF-15) — notes a previous run of THIS autopilot left for the
+	// next one. Autopilot-scoped, not agent-scoped: the same agent serving
+	// another daemon never sees it. Omitted when the run has no autopilot,
+	// when the memory is empty, and by older servers.
+	AutopilotMemory string `json:"autopilot_memory,omitempty"`
 	// RepoIndexHints (K47) are the shared repo index's most relevant chunks for
 	// this issue: file, line range and a short excerpt, so the run starts from a
 	// place instead of a grep. They ORIENT — the brief tells the run to read the

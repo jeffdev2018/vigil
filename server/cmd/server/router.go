@@ -2765,11 +2765,20 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateAutopilot)
 				r.Get("/cron-preview", h.CronPreview)
 				r.Get("/usage", h.GetAutopilotQuotaUsage)
+				// DAEMON.md (F24): a declaration imports onto the autopilot
+				// machinery below. Static before /{id}, like cron-preview.
+				r.Post("/import", h.ImportDaemon)
+				r.Post("/import/preview", h.PreviewDaemonImport)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetAutopilot)
 					r.Patch("/", h.UpdateAutopilot)
 					r.Delete("/", h.DeleteAutopilot)
 					r.Post("/trigger", h.TriggerAutopilot)
+					r.Get("/export", h.ExportDaemon)
+					// Members read the daemon's memory; only a run of that
+					// daemon writes it (task token, see UpdateAutopilotMemory).
+					r.Get("/memory", h.GetAutopilotMemory)
+					r.Put("/memory", h.UpdateAutopilotMemory)
 					r.Get("/runs", h.ListAutopilotRuns)
 					r.Get("/runs/{runId}", h.GetAutopilotRun)
 					r.Get("/deliveries", h.ListAutopilotDeliveries)

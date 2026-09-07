@@ -607,6 +607,12 @@ deleted_triggers AS (
     WHERE autopilot_id IN (
         SELECT id FROM autopilot WHERE autopilot.workspace_id = $1
     )
+),
+-- Daemon execution memory (F24). Denormalized workspace_id, so it purges
+-- directly rather than through the autopilot id set.
+deleted_autopilot_memories AS (
+    DELETE FROM autopilot_memory
+    WHERE autopilot_memory.workspace_id = $1
 )
 DELETE FROM autopilot_rule_version
 WHERE autopilot_rule_version.workspace_id = $1;

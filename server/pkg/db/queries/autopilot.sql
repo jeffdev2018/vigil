@@ -86,6 +86,17 @@ UPDATE autopilot SET
 WHERE id = $1
 RETURNING *;
 
+-- name: SetAutopilotSource :one
+-- Records the DAEMON.md an autopilot was imported from and its digest. Called
+-- only when the import actually changed something: an identical re-import is
+-- short-circuited on the digest before any write, so updated_at stays put.
+UPDATE autopilot SET
+    source_markdown = $2,
+    source_digest = $3,
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
 -- name: ArchiveAutopilot :exec
 UPDATE autopilot
 SET status = 'archived', pause_reason = NULL, updated_at = now()

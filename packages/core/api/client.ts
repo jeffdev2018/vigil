@@ -332,6 +332,14 @@ import { createRequestId, createSafeId } from "../utils";
 import { getCurrentSlug } from "../platform/workspace-storage";
 import { parseWithFallback } from "./schema";
 import {
+  parseDaemonImportPreview,
+  parseDaemonImportResult,
+  type DaemonImportPreview,
+  type DaemonImportResult,
+  type DaemonImportStrategy,
+} from "../autopilots/markdown";
+import { AutopilotMemorySchema, EMPTY_AUTOPILOT_MEMORY, type AutopilotMemory } from "../autopilots/memory";
+import {
   BudgetOverrideSchema,
   BudgetPolicyListSchema,
   BudgetPolicySchema,
@@ -7074,6 +7082,37 @@ export class ApiClient {
       EMPTY_LIST_AUTOPILOTS_RESPONSE as ListAutopilotsResponse,
       { endpoint: "GET /api/autopilots" },
     );
+  }
+
+  // DAEMON.md (F24): preview parses without writing; import creates or
+  // updates; export returns text/markdown, so it goes through fetchRaw rather
+  // than the JSON path.
+  async previewDaemonImport(markdown: string): Promise<DaemonImportPreview> {
+    const raw = await this.fetch<unknown>("/api/autopilots/import/preview", {
+      method: "POST",
+      body: JSON.stringify({ markdown }),
+    });
+    return parseDaemonImportPreview(raw, "POST /api/autopilots/import/preview");
+  }
+
+  async importDaemon(markdown: string, strategy?: DaemonImportStrategy): Promise<DaemonImportResult> {
+    const raw = await this.fetch<unknown>("/api/autopilots/import", {
+      method: "POST",
+      body: JSON.stringify(strategy ? { markdown, strategy } : { markdown }),
+    });
+    return parseDaemonImportResult(raw, "POST /api/autopilots/import");
+  }
+
+  async exportDaemon(id: string): Promise<string> {
+    const res = await this.fetchRaw(`/api/autopilots/${id}/export`);
+    return res.text();
+  }
+
+  async getAutopilotMemory(id: string): Promise<AutopilotMemory> {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}/memory`);
+    return parseWithFallback(raw, AutopilotMemorySchema, EMPTY_AUTOPILOT_MEMORY, {
+      endpoint: "GET /api/autopilots/:id/memory",
+    });
   }
 
   async getAutopilot(id: string): Promise<GetAutopilotResponse> {

@@ -437,6 +437,7 @@ var concurrentIndexCleanups = map[string]string{
 	"785_cycle_project_index":                                   "idx_cycle_workspace_project",
 	"786_issue_cycle_index":                                     "idx_issue_cycle",
 	"787_cycle_snapshot_workspace_index":                        "idx_cycle_snapshot_workspace",
+	"811_autopilot_memory_workspace_index":                      "idx_autopilot_memory_workspace",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

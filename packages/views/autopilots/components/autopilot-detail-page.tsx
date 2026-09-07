@@ -18,6 +18,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useNavigation, AppLink } from "../../navigation";
+import { AutopilotMemoryCard } from "./autopilot-memory-card";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -641,6 +642,12 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
           <WebhookDeliveriesSection
             autopilotId={autopilotId}
             hasWebhookTrigger={triggers.some((trig) => trig.kind === "webhook")}
+          />
+
+          {/* Daemon memory (F24): what the last run left for the next one. */}
+          <AutopilotMemoryCard
+            autopilotId={autopilotId}
+            lastRunAt={autopilot.last_run_at}
           />
 
           {/* Run History */}

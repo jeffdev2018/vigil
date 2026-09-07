@@ -343,16 +343,17 @@ func TestPlatformSkillDescriptionNamesEveryDomain(t *testing.T) {
 	// These are task nouns, not section headings: a task arrives as "set up an
 	// autopilot", never as "Core model".
 	triggerWords := map[string]string{
-		"references/issues.md":       "issue",
-		"references/mentions.md":     "mention",
-		"references/agents.md":       "agent",
-		"references/squads.md":       "squad",
-		"references/autopilots.md":   "autopilot",
-		"references/projects.md":     "project",
-		"references/cycles.md":       "cycle",
-		"references/epic-mode.md":    "epic",
-		"references/runtimes.md":     "runtime",
-		"references/skill-import.md": "skill import",
+		"references/issues.md":          "issue",
+		"references/mentions.md":        "mention",
+		"references/agents.md":          "agent",
+		"references/squads.md":          "squad",
+		"references/autopilots.md":      "autopilot",
+		"references/daemon-markdown.md": "daemon",
+		"references/projects.md":        "project",
+		"references/cycles.md":          "cycle",
+		"references/epic-mode.md":       "epic",
+		"references/runtimes.md":        "runtime",
+		"references/skill-import.md":    "skill import",
 		// Fork-side references re-homed under the platform skill when upstream
 		// merged the per-domain built-ins into one router.
 		"references/goals.md":                  "goal",
