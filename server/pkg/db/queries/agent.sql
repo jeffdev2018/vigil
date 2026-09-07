@@ -322,6 +322,7 @@ INSERT INTO agent_task_queue (
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
     task_class, routing, a2a_depth,
+    run_group_id, model_override,
     id
 )
 SELECT
@@ -362,6 +363,10 @@ SELECT
     -- Agent-to-agent hop distance (F19). 0 unless the trigger comment carried
     -- an a2a_intent, in which case the caller passes parent.a2a_depth + 1.
     COALESCE(sqlc.narg('a2a_depth')::integer, 0),
+    -- Racing attempts (F11). Both NULL for every run outside a group, which is
+    -- what keeps this INSERT's behaviour identical to its pre-F11 self.
+    sqlc.narg('run_group_id')::uuid,
+    NULLIF(COALESCE(sqlc.narg('model_override')::text, ''), ''),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -607,7 +612,7 @@ INSERT INTO agent_task_queue (
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
     channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
-    task_class, routing, id
+    task_class, routing, run_group_id, model_override, id
 )
 SELECT
     p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -640,13 +645,24 @@ SELECT
     -- the runtime_id arg above), and the child carries the parent's session_id /
     -- work_dir, which only resume on the runtime that produced them.
     p.task_class, p.routing,
+    -- Racing attempts (F11): a retry is the SAME attempt trying again, so it
+    -- stays inside its group and keeps its model. Dropping either would quietly
+    -- take that attempt out of the race — its diff would never reach the
+    -- comparison, and it would be serialized against its own siblings.
+    p.run_group_id, p.model_override,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
 WHERE p.id = $1
   AND lock_task_owner_rows(p.agent_id, p.issue_id, p.runtime_id)
-ON CONFLICT (issue_id, agent_id) WHERE status IN ('queued', 'dispatched')
-       OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+-- Arbiter for idx_one_pending_task_per_issue_agent_v3 (migration 835). The
+-- run_group_id predicate is part of the index and so must be part of the
+-- arbiter: without it PostgreSQL finds no matching index and raises 42P10.
+-- Grouped rows have no pending-slot rule to conflict with, which is why this
+-- clause simply does not apply to them.
+ON CONFLICT (issue_id, agent_id) WHERE run_group_id IS NULL
+       AND (status IN ('queued', 'dispatched')
+            OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true'))
 DO NOTHING
 RETURNING *;
 
@@ -812,6 +828,9 @@ WHERE atq.id = $1 AND a.workspace_id = $2;
 -- "any other quick-create-shaped task" (all four FKs NULL) for the same agent —
 -- otherwise a user mashing the create button could fire concurrent quick-creates
 -- whose completion lookup would race over "most recent issue by this agent".
+-- Racing attempts (F11) are the one documented exception: two rows of the same
+-- run_group are meant to execute together, so they do not exclude each other.
+-- Everything outside a group is serialized exactly as it was.
 UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
@@ -873,6 +892,24 @@ WHERE id = (
                 AND active.autopilot_run_id IS NULL
               )
             )
+            -- Racing attempts (F11): two runs of the SAME group are concurrent
+            -- by construction, so a sibling attempt is not a reason to hold
+            -- this one back. Everything else about the exclusion is unchanged.
+            --
+            -- Guarded on atq.run_group_id IS NOT NULL, which is false for every
+            -- row that exists today and for every run enqueued outside a group.
+            -- AND short-circuits to FALSE there whatever the right operand is,
+            -- so the conjunct is TRUE and the NOT EXISTS matches exactly the
+            -- rows it matched before F11 existed.
+            --
+            -- IS NOT DISTINCT FROM, not `=`: with `=`, a grouped candidate
+            -- compared against an UNGROUPED active run yields NULL, the
+            -- subquery row is not selected, and the exclusion silently
+            -- disappears — an attempt would run alongside an ordinary run of
+            -- the same agent on the same issue, which is the case this feature
+            -- must NOT relax. IS NOT DISTINCT FROM returns FALSE there, so the
+            -- exclusion holds; two runs of two DIFFERENT groups likewise.
+            AND NOT (atq.run_group_id IS NOT NULL AND active.run_group_id IS NOT DISTINCT FROM atq.run_group_id)
       )
     -- Off-peak batch lane (K45): a task the scheduler stamped 'batch' is
     -- non-urgent autopilot work, so it is only served after every 'sync' task
