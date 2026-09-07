@@ -102,6 +102,11 @@ func RepoIndexEnabled(settings []byte, repoIdentifier string) bool {
 // lexical — which is a supported steady state, not a degraded one.
 type RepoIndexEmbedder interface {
 	EmbeddingsEnabled() bool
+	// EmbeddingModel names the model the vectors come from. It is stored with
+	// every chunk and compared at query time: two models place the same text
+	// at different points, so a vector from another model is not a worse
+	// answer, it is not an answer.
+	EmbeddingModel() string
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 }
 
@@ -133,6 +138,10 @@ type RepoIndexStats struct {
 	FileCount         int64  `json:"file_count"`
 	LastIndexedCommit string `json:"last_indexed_commit"`
 	LastIndexedAt     string `json:"last_indexed_at,omitempty"`
+	// UnusableEmbeddingCount is how many chunks hold a vector the current
+	// embedding model cannot compare against. Non-zero means the deployment
+	// changed model and this repo needs re-indexing to rank by meaning again.
+	UnusableEmbeddingCount int64 `json:"unusable_embedding_count"`
 }
 
 // RepoIndexer owns the index's read and write paths. It is a struct rather than
@@ -192,6 +201,7 @@ func (x *RepoIndexer) UpsertChunks(ctx context.Context, workspaceID pgtype.UUID,
 	}
 
 	embeddings := x.embedChunks(ctx, chunks)
+	model := x.embeddingModel()
 
 	tx, err := x.TxStarter.Begin(ctx)
 	if err != nil {
@@ -233,6 +243,7 @@ func (x *RepoIndexer) UpsertChunks(ctx context.Context, workspaceID pgtype.UUID,
 			Content:        truncateRunes(chunk.Content, repoIndexMaxChunkRunes),
 			ContentHash:    chunk.ContentHash,
 			Embedding:      embedding,
+			EmbeddingModel: model,
 			IndexedCommit:  commit,
 		}); err != nil {
 			return 0, fmt.Errorf("insert repo index chunk: %w", err)
@@ -340,6 +351,7 @@ func (x *RepoIndexer) Query(ctx context.Context, workspaceID pgtype.UUID, repo, 
 		RepoIdentifier: repo,
 		Query:          query,
 		QueryEmbedding: x.embedQuery(ctx, query),
+		EmbeddingModel: x.embeddingModel(),
 		Prefilter:      int32(prefilter),
 		TopK:           int32(topK),
 	})
@@ -363,6 +375,20 @@ func (x *RepoIndexer) Query(ctx context.Context, workspaceID pgtype.UUID, repo, 
 	return hints, nil
 }
 
+// embeddingModel is the model currently in force, or NULL when this
+// deployment has no embeddings at all. Chunks stamped with anything else are
+// ranked lexically.
+func (x *RepoIndexer) embeddingModel() pgtype.Text {
+	if x.Embedder == nil || !x.Embedder.EmbeddingsEnabled() {
+		return pgtype.Text{}
+	}
+	model := strings.TrimSpace(x.Embedder.EmbeddingModel())
+	if model == "" {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: model, Valid: true}
+}
+
 func (x *RepoIndexer) embedQuery(ctx context.Context, query string) pgtype.Text {
 	if x.Embedder == nil || !x.Embedder.EmbeddingsEnabled() {
 		return pgtype.Text{}
@@ -384,6 +410,7 @@ func (x *RepoIndexer) Stats(ctx context.Context, workspaceID pgtype.UUID, repo s
 	row, err := x.Queries.RepoIndexStats(ctx, db.RepoIndexStatsParams{
 		WorkspaceID:    workspaceID,
 		RepoIdentifier: repo,
+		EmbeddingModel: x.embeddingModel(),
 	})
 	if err != nil {
 		return RepoIndexStats{}, fmt.Errorf("repo index stats: %w", err)
@@ -392,6 +419,10 @@ func (x *RepoIndexer) Stats(ctx context.Context, workspaceID pgtype.UUID, repo s
 		ChunkCount:        row.ChunkCount,
 		FileCount:         row.FileCount,
 		LastIndexedCommit: row.LastIndexedCommit,
+		// Chunks holding a vector from another model, or from before the model
+		// was recorded. They still answer lexically; re-indexing restores their
+		// ranking by meaning.
+		UnusableEmbeddingCount: row.UnusableEmbeddingCount,
 	}
 	// '-infinity' is the COALESCE default for a repo with no rows; report it as
 	// "never indexed" rather than as a timestamp from the beginning of time.

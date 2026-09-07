@@ -16,6 +16,7 @@ export const RepoIndexRepoSchema = z.object({
   file_count: z.number().catch(0),
   last_indexed_commit: z.string().catch(""),
   last_indexed_at: z.string().catch(""),
+  unusable_embedding_count: z.number().catch(0),
 }).loose();
 
 export const RepoIndexSettingsSchema = z.object({
@@ -32,6 +33,13 @@ export interface RepoIndexRepo {
   last_indexed_commit: string;
   /** RFC3339; empty when never indexed. */
   last_indexed_at: string;
+  /**
+   * Chunks holding a vector the deployment's current embedding model cannot
+   * compare against, because another model produced it or because it predates
+   * the model being recorded. They still answer lexically; re-indexing the
+   * repository restores ranking by meaning. Non-zero means the model changed.
+   */
+  unusable_embedding_count: number;
 }
 
 export interface RepoIndexSettings {

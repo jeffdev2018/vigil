@@ -78,9 +78,10 @@ func (q *Queries) DiffRepoIndexFiles(ctx context.Context, arg DiffRepoIndexFiles
 const insertRepoIndexChunk = `-- name: InsertRepoIndexChunk :exec
 INSERT INTO repo_index_chunk (
     workspace_id, repo_identifier, file_path, symbol,
-    start_line, end_line, content, content_hash, embedding, indexed_commit
+    start_line, end_line, content, content_hash, embedding, embedding_model, indexed_commit
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, CAST($10::text AS vector), $9
+    $1, $2, $3, $4, $5, $6, $7, $8, CAST($10::text AS vector),
+    $11::text, $9
 )
 `
 
@@ -95,6 +96,7 @@ type InsertRepoIndexChunkParams struct {
 	ContentHash    string      `json:"content_hash"`
 	IndexedCommit  string      `json:"indexed_commit"`
 	Embedding      pgtype.Text `json:"embedding"`
+	EmbeddingModel pgtype.Text `json:"embedding_model"`
 }
 
 // embedding is text-cast rather than a typed parameter: NULL stays NULL (the
@@ -113,6 +115,7 @@ func (q *Queries) InsertRepoIndexChunk(ctx context.Context, arg InsertRepoIndexC
 		arg.ContentHash,
 		arg.IndexedCommit,
 		arg.Embedding,
+		arg.EmbeddingModel,
 	)
 	return err
 }
@@ -175,30 +178,31 @@ WITH query AS (
     -- handling and escaping — the parts that are genuinely hard — while letting
     -- a chunk match on the words it does share. ts_rank then does the ordering:
     -- a chunk matching six of the terms outranks one matching two.
-    SELECT replace(plainto_tsquery('english', $3::text)::text, '&', '|')::tsquery AS tsq
+    SELECT replace(plainto_tsquery('english', $4::text)::text, '&', '|')::tsquery AS tsq
 ), newest AS (
     SELECT n.indexed_commit
     FROM repo_index_chunk n
-    WHERE n.workspace_id = $4
-      AND n.repo_identifier = $5
+    WHERE n.workspace_id = $5
+      AND n.repo_identifier = $6
     ORDER BY n.updated_at DESC
     LIMIT 1
 ), lexical AS (
     SELECT
-        c.id, c.file_path, c.symbol, c.start_line, c.end_line, c.content, c.indexed_commit, c.embedding,
+        c.id, c.file_path, c.symbol, c.start_line, c.end_line, c.content, c.indexed_commit,
+        c.embedding, c.embedding_model,
         ts_rank(c.tsv, (SELECT query.tsq FROM query)) AS lex_rank,
-        (CASE WHEN c.symbol <> '' AND c.symbol ILIKE '%' || $3::text || '%' THEN 1 ELSE 0 END
-         + CASE WHEN c.file_path ILIKE '%' || $3::text || '%' THEN 1 ELSE 0 END)::float8 AS name_hits
+        (CASE WHEN c.symbol <> '' AND c.symbol ILIKE '%' || $4::text || '%' THEN 1 ELSE 0 END
+         + CASE WHEN c.file_path ILIKE '%' || $4::text || '%' THEN 1 ELSE 0 END)::float8 AS name_hits
     FROM repo_index_chunk c
-    WHERE c.workspace_id = $4
-      AND c.repo_identifier = $5
+    WHERE c.workspace_id = $5
+      AND c.repo_identifier = $6
       AND (
         c.tsv @@ (SELECT query.tsq FROM query)
-        OR (c.symbol <> '' AND c.symbol ILIKE '%' || $3::text || '%')
-        OR c.file_path ILIKE '%' || $3::text || '%'
+        OR (c.symbol <> '' AND c.symbol ILIKE '%' || $4::text || '%')
+        OR c.file_path ILIKE '%' || $4::text || '%'
       )
     ORDER BY lex_rank DESC, name_hits DESC
-    LIMIT $6::int
+    LIMIT $7::int
 )
 SELECT
     lexical.file_path,
@@ -210,14 +214,17 @@ SELECT
     (lexical.indexed_commit <> COALESCE((SELECT newest.indexed_commit FROM newest), lexical.indexed_commit))::boolean AS stale,
     (lexical.lex_rank
         + lexical.name_hits * 0.25
-        + COALESCE(1 - (lexical.embedding <=> CAST($1::text AS vector)), 0) * 2
+        + CASE WHEN lexical.embedding_model = $1::text
+               THEN COALESCE(1 - (lexical.embedding <=> CAST($2::text AS vector)), 0)
+               ELSE 0 END * 2
     )::float8 AS score
 FROM lexical
 ORDER BY score DESC, lexical.file_path ASC, lexical.start_line ASC
-LIMIT $2::int
+LIMIT $3::int
 `
 
 type QueryRepoIndexParams struct {
+	EmbeddingModel pgtype.Text `json:"embedding_model"`
 	QueryEmbedding pgtype.Text `json:"query_embedding"`
 	TopK           int32       `json:"top_k"`
 	Query          string      `json:"query"`
@@ -254,6 +261,7 @@ type QueryRepoIndexRow struct {
 // run is told when a hint predates the current index pass.
 func (q *Queries) QueryRepoIndex(ctx context.Context, arg QueryRepoIndexParams) ([]QueryRepoIndexRow, error) {
 	rows, err := q.db.Query(ctx, queryRepoIndex,
+		arg.EmbeddingModel,
 		arg.QueryEmbedding,
 		arg.TopK,
 		arg.Query,
@@ -293,6 +301,10 @@ SELECT
     COUNT(*)::bigint AS chunk_count,
     COUNT(DISTINCT file_path)::bigint AS file_count,
     COALESCE(MAX(updated_at), '-infinity'::timestamptz)::timestamptz AS last_indexed_at,
+    COUNT(*) FILTER (
+        WHERE embedding IS NOT NULL
+          AND NOT COALESCE(embedding_model = $3::text, false)
+    )::bigint AS unusable_embedding_count,
     COALESCE((
         SELECT newest.indexed_commit
         FROM repo_index_chunk newest
@@ -309,25 +321,28 @@ WHERE workspace_id = $1
 type RepoIndexStatsParams struct {
 	WorkspaceID    pgtype.UUID `json:"workspace_id"`
 	RepoIdentifier string      `json:"repo_identifier"`
+	EmbeddingModel pgtype.Text `json:"embedding_model"`
 }
 
 type RepoIndexStatsRow struct {
-	ChunkCount        int64              `json:"chunk_count"`
-	FileCount         int64              `json:"file_count"`
-	LastIndexedAt     pgtype.Timestamptz `json:"last_indexed_at"`
-	LastIndexedCommit string             `json:"last_indexed_commit"`
+	ChunkCount             int64              `json:"chunk_count"`
+	FileCount              int64              `json:"file_count"`
+	LastIndexedAt          pgtype.Timestamptz `json:"last_indexed_at"`
+	UnusableEmbeddingCount int64              `json:"unusable_embedding_count"`
+	LastIndexedCommit      string             `json:"last_indexed_commit"`
 }
 
 // Per-repo summary for the Settings block: how much is indexed, at which
 // commit, and when. The commit is the one carried by the most recently written
 // chunk, which is also the commit staleness is measured against.
 func (q *Queries) RepoIndexStats(ctx context.Context, arg RepoIndexStatsParams) (RepoIndexStatsRow, error) {
-	row := q.db.QueryRow(ctx, repoIndexStats, arg.WorkspaceID, arg.RepoIdentifier)
+	row := q.db.QueryRow(ctx, repoIndexStats, arg.WorkspaceID, arg.RepoIdentifier, arg.EmbeddingModel)
 	var i RepoIndexStatsRow
 	err := row.Scan(
 		&i.ChunkCount,
 		&i.FileCount,
 		&i.LastIndexedAt,
+		&i.UnusableEmbeddingCount,
 		&i.LastIndexedCommit,
 	)
 	return i, err

@@ -2319,6 +2319,7 @@ type RepoIndexChunk struct {
 	Embedding      string             `json:"embedding"`
 	IndexedCommit  string             `json:"indexed_commit"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	EmbeddingModel pgtype.Text        `json:"embedding_model"`
 }
 
 type ReviewFlag struct {

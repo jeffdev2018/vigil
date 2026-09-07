@@ -26,9 +26,10 @@ WHERE workspace_id = $1
 -- here by the column, which is the intended failure — see migration 711.
 INSERT INTO repo_index_chunk (
     workspace_id, repo_identifier, file_path, symbol,
-    start_line, end_line, content, content_hash, embedding, indexed_commit
+    start_line, end_line, content, content_hash, embedding, embedding_model, indexed_commit
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, CAST(sqlc.narg('embedding')::text AS vector), $9
+    $1, $2, $3, $4, $5, $6, $7, $8, CAST(sqlc.narg('embedding')::text AS vector),
+    sqlc.narg('embedding_model')::text, $9
 );
 
 -- name: PruneRepoIndexPaths :exec
@@ -65,6 +66,10 @@ SELECT
     COUNT(*)::bigint AS chunk_count,
     COUNT(DISTINCT file_path)::bigint AS file_count,
     COALESCE(MAX(updated_at), '-infinity'::timestamptz)::timestamptz AS last_indexed_at,
+    COUNT(*) FILTER (
+        WHERE embedding IS NOT NULL
+          AND NOT COALESCE(embedding_model = sqlc.narg('embedding_model')::text, false)
+    )::bigint AS unusable_embedding_count,
     COALESCE((
         SELECT newest.indexed_commit
         FROM repo_index_chunk newest
@@ -111,7 +116,8 @@ WITH query AS (
     LIMIT 1
 ), lexical AS (
     SELECT
-        c.id, c.file_path, c.symbol, c.start_line, c.end_line, c.content, c.indexed_commit, c.embedding,
+        c.id, c.file_path, c.symbol, c.start_line, c.end_line, c.content, c.indexed_commit,
+        c.embedding, c.embedding_model,
         ts_rank(c.tsv, (SELECT query.tsq FROM query)) AS lex_rank,
         (CASE WHEN c.symbol <> '' AND c.symbol ILIKE '%' || @query::text || '%' THEN 1 ELSE 0 END
          + CASE WHEN c.file_path ILIKE '%' || @query::text || '%' THEN 1 ELSE 0 END)::float8 AS name_hits
@@ -136,7 +142,9 @@ SELECT
     (lexical.indexed_commit <> COALESCE((SELECT newest.indexed_commit FROM newest), lexical.indexed_commit))::boolean AS stale,
     (lexical.lex_rank
         + lexical.name_hits * 0.25
-        + COALESCE(1 - (lexical.embedding <=> CAST(sqlc.narg('query_embedding')::text AS vector)), 0) * 2
+        + CASE WHEN lexical.embedding_model = sqlc.narg('embedding_model')::text
+               THEN COALESCE(1 - (lexical.embedding <=> CAST(sqlc.narg('query_embedding')::text AS vector)), 0)
+               ELSE 0 END * 2
     )::float8 AS score
 FROM lexical
 ORDER BY score DESC, lexical.file_path ASC, lexical.start_line ASC

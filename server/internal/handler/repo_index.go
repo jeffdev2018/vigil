@@ -226,6 +226,10 @@ type repoIndexRepoStatus struct {
 	FileCount         int64  `json:"file_count"`
 	LastIndexedCommit string `json:"last_indexed_commit"`
 	LastIndexedAt     string `json:"last_indexed_at,omitempty"`
+	// UnusableEmbeddingCount surfaces chunks whose vector the current
+	// embedding model cannot compare against, so a model change is visible as
+	// "re-index this repo" instead of as ranking that quietly got worse.
+	UnusableEmbeddingCount int64 `json:"unusable_embedding_count"`
 }
 
 type repoIndexSettingsResponse struct {
@@ -265,6 +269,7 @@ func (h *Handler) GetRepoIndexSettings(w http.ResponseWriter, r *http.Request) {
 			status.FileCount = stats.FileCount
 			status.LastIndexedCommit = stats.LastIndexedCommit
 			status.LastIndexedAt = stats.LastIndexedAt
+			status.UnusableEmbeddingCount = stats.UnusableEmbeddingCount
 		} else {
 			slog.Warn("repo index: stats failed", "workspace_id", uuidToString(wsUUID), "repo", repo, "error", err)
 		}
@@ -339,6 +344,7 @@ func (h *Handler) PutRepoIndexSettings(w http.ResponseWriter, r *http.Request) {
 		status.FileCount = stats.FileCount
 		status.LastIndexedCommit = stats.LastIndexedCommit
 		status.LastIndexedAt = stats.LastIndexedAt
+		status.UnusableEmbeddingCount = stats.UnusableEmbeddingCount
 	}
 	writeJSON(w, http.StatusOK, status)
 }
