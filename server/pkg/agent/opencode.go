@@ -126,7 +126,7 @@ func (b *opencodeBackend) Execute(ctx context.Context, prompt string, opts ExecO
 		cmd.Dir = opts.Cwd
 	}
 
-	env := buildEnv(b.cfg.Env)
+	env := buildEnv(b.cfg)
 	// Keep daemon-mode runs non-interactive without relying on
 	// OPENCODE_PERMISSION. OpenCode deep-merges that env override into user
 	// config while preserving existing key order, so a pre-existing
