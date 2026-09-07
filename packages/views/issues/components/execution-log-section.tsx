@@ -5,6 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
+import {
+  activeRunGuidanceKind,
+  liveWaitReason,
+} from "@multica/core/issues/run-guidance";
 import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask } from "@multica/core/types";
@@ -319,6 +323,21 @@ export function ActiveTaskRow({
   const tone = STATUS_TONE[task.status];
   const label = useStatusLabel(task.status);
   const trigger = useTriggerText(task);
+  // Hold text is only live while parked; the server (and liveWaitReason) drop
+  // it for every other status so a resumed run never keeps "held by …".
+  const waitReason = liveWaitReason(task.status, task.wait_reason);
+  const statusText = waitReason
+    ? t(($) => $.execution_log.status_waiting_local_directory_reason, {
+        reason: waitReason,
+      })
+    : label;
+  // Cause + next action for parked / not-yet-started rows. Lives on the status
+  // title so the row stays one line; the visible label already carries the
+  // reason when the server sent one.
+  const guidanceKind = activeRunGuidanceKind(task.status);
+  const guidanceTitle = guidanceKind
+    ? t(($) => $.execution_log.guidance[guidanceKind])
+    : undefined;
 
   // Running rows show a live-ticking elapsed timer (the ticking digits carry
   // "alive", the duration carries "how long"). Only running rows tick.
@@ -368,14 +387,14 @@ export function ActiveTaskRow({
     <RowShell task={task}>
       <TriggerText text={trigger} />
       <TaskCommentCoverage task={task} />
-      <RowStatus title={label}>
+      <RowStatus title={guidanceTitle ?? statusText}>
         {task.status === "running" ? (
           <>
             <span className="text-info tabular-nums">{elapsed}</span>
             <span className="sr-only">{label}</span>
           </>
         ) : (
-          <span className={`${tone} min-w-0 truncate`}>{label}</span>
+          <span className={`${tone} min-w-0 truncate`}>{statusText}</span>
         )}
       </RowStatus>
       <RowActions>
@@ -539,7 +558,9 @@ function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
                 <RotateCcw className="h-3.5 w-3.5" />
               )}
             </TooltipTrigger>
-            <TooltipContent>{t(($) => $.execution_log.retry_task_tooltip)}</TooltipContent>
+            <TooltipContent className="max-w-xs text-left">
+              {t(($) => $.execution_log.retry_task_tooltip)}
+            </TooltipContent>
           </Tooltip>
         )}
       </RowActions>

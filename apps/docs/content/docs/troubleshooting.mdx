@@ -79,11 +79,15 @@ If the runtime list is missing an expected tool, first confirm the tool runs and
 
 ### `waiting_local_directory` status
 
-This means another in-flight run is using the same local directory. Multica waits for the directory lock to be released so two agents never modify the same files at once.
+This means another in-flight run is using the same local directory. Multica waits for the directory lock to be released so two agents never modify the same files at once. The issue **execution log** shows the hold cause (directory / holding task when known) and the next action on the status hover.
 
 This wait only exists in the directory's `in_place` ("Direct") mode. If the directory is a git repository, switching the resource to `worktree` ("Parallel") removes the queue altogether: each run gets its own worktree and hands its work back as a branch, so nothing waits on anything. See [Project resources](/project-resources#how-runs-share-the-directory).
 
 Otherwise you just wait for the earlier run to finish. If it is stuck, stop it from its execution log, or pick a different local directory for the current agent. This directory mutex lives in the daemon's memory — no lock file is written to disk. If you suspect stale lock state, `multica daemon restart` releases it; there is nothing to delete manually.
+
+### Retry from the execution log
+
+A manual **Retry** on a failed or cancelled row starts a new run for that same agent. It reuses the prior working directory when still available, and resumes the prior agent session only when that failure did not poison the conversation; otherwise it starts a fresh session. Comments, pull requests, and other side effects the earlier run already produced are **not** undone and may be repeated — Multica does not roll those back.
 
 ## AI coding tool fails to start
 

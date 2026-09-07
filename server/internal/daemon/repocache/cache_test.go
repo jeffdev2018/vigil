@@ -19,7 +19,9 @@ func testLogger() *slog.Logger {
 }
 
 func TestGitEnv(t *testing.T) {
-	t.Parallel()
+	// Isolate from ambient GIT_CONFIG_* (agent hosts often inject credential
+	// prompt keys). Cannot combine t.Setenv with t.Parallel.
+	t.Setenv("GIT_CONFIG_COUNT", "0")
 	env := gitEnv()
 
 	// Must contain GIT_TERMINAL_PROMPT=0.
@@ -50,7 +52,7 @@ func TestGitEnv(t *testing.T) {
 		t.Error("gitEnv() must include HOME from os.Environ()")
 	}
 
-	// Must set safe.directory=* via GIT_CONFIG env vars.
+	// Must set safe.directory=* via GIT_CONFIG env vars at index 0.
 	envHas := func(env []string, want string) bool {
 		for _, e := range env {
 			if e == want {
@@ -58,6 +60,9 @@ func TestGitEnv(t *testing.T) {
 			}
 		}
 		return false
+	}
+	if !envHas(env, "GIT_CONFIG_COUNT=1") {
+		t.Error("gitEnv() must include GIT_CONFIG_COUNT=1 (no pre-existing config)")
 	}
 	if !envHas(env, "GIT_CONFIG_KEY_0=safe.directory") {
 		t.Error("gitEnv() must include GIT_CONFIG_KEY_0=safe.directory (no pre-existing config)")

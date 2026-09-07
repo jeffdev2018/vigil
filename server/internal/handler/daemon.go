@@ -1147,6 +1147,12 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if ack.PendingUpdate != nil {
 		resp["pending_update"] = ack.PendingUpdate
 	}
+	if ack.PendingMemoryEvaluation != "" {
+		resp["pending_memory_evaluation"] = ack.PendingMemoryEvaluation
+	}
+	if ack.PendingCliAuth != nil {
+		resp["pending_cli_auth"] = ack.PendingCliAuth
+	}
 	if ack.PendingModelList != nil {
 		resp["pending_model_list"] = ack.PendingModelList
 	}
@@ -1315,6 +1321,13 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 		ServerCapabilities: []string{protocol.DaemonCapabilityRPCV1},
 	}
 
+	if runtimeUUID, parseErr := util.ParseUUID(runtimeID); parseErr == nil {
+		probe, cancel := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
+		if pending, err := h.Queries.PeekAgentMemoryEvaluation(probe, runtimeUUID); err == nil {
+			ack.PendingMemoryEvaluation = uuidToString(pending)
+		}
+		cancel()
+	}
 	probeUpdateCtx, cancelProbeUpdate := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
 	hasUpdate, probeUpdateErr := h.UpdateStore.HasPending(probeUpdateCtx, runtimeID)
 	cancelProbeUpdate()
@@ -1335,6 +1348,21 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 		} else {
 			slog.Warn("update HasPending failed", "error", probeUpdateErr, "runtime_id", runtimeID)
 		}
+	}
+
+	probeAuthCtx, cancelProbeAuth := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
+	hasAuth, probeAuthErr := h.CliAuthStore.HasPending(probeAuthCtx, runtimeID)
+	cancelProbeAuth()
+	switch {
+	case probeAuthErr == nil && hasAuth:
+		pendingAuth, popErr := h.CliAuthStore.PopPending(ctx, runtimeID)
+		if popErr != nil {
+			slog.Warn("CLI auth PopPending failed", "error", popErr, "runtime_id", runtimeID)
+		} else if pendingAuth != nil {
+			ack.PendingCliAuth = &protocol.DaemonHeartbeatPendingCliAuth{ID: pendingAuth.ID, Action: pendingAuth.Action}
+		}
+	case probeAuthErr != nil:
+		slog.Warn("CLI auth HasPending failed", "error", probeAuthErr, "runtime_id", runtimeID)
 	}
 
 	// Probe then claim the model list queue. Same pattern as the local-skill
@@ -1802,7 +1830,7 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: parseUUID(resp.WorkspaceID),
 			UserID:      rt.OwnerID,
 			ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
-		}, deliveredCommentIDs, commentBackedTask, daemonTokens...)
+		}, deliveredCommentIDs, commentBackedTask, resp.MemoryContext, daemonTokens...)
 		if ferr != nil {
 			slog.Error("batch claim: finalize task claim failed; requeueing claim",
 				"task_id", uuidToString(task.ID), "error", ferr)
@@ -2258,11 +2286,17 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// because a partial skill set is indistinguishable from a correct one,
 	// while a missing Memory section is plainly visible in the brief — a
 	// failed read must never stop an agent from being dispatched.
-	if memories, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
+	resp.MemoryContext = &service.TaskMemoryContext{
+		DispatchedAt: task.DispatchedAt.Time.UTC().Format(time.RFC3339Nano),
+		AgentStatus:  "unavailable", AgentVersions: []service.MemoryVersion{},
+	}
+	if memories, versions, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
 		slog.Warn("daemon claim: load agent memories failed; continuing without memory",
 			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
-	} else if len(memories) > 0 {
+	} else {
 		resp.Agent.Memories = memories
+		resp.MemoryContext.AgentStatus = "loaded"
+		resp.MemoryContext.AgentVersions = versions
 	}
 	if !claimResponseAgentIdentityMatches(resp) {
 		responseAgentID := ""
@@ -2329,6 +2363,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ThreadName = issue.Title
 		issueNumber = issue.Number
+		if !task.ChatSessionID.Valid {
+			brief, err := h.deliveryCriteriaBrief(r.Context(), issue)
+			if err != nil {
+				return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount,
+					h.rejectClaimSourceLoad(r.Context(), task, err, "delivery criteria", uuidToString(issue.ID))
+			}
+			resp.Agent.Instructions += brief
+		}
 
 		// Squad-leader briefing injection: keyed off the task being a
 		// leader-task (is_leader_task) carrying a squad_id — NOT off the
@@ -3393,7 +3435,7 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: parseUUID(resp.WorkspaceID),
 		UserID:      runtime.OwnerID,
 		ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
-	}, deliveredCommentIDs, commentBackedTask, daemonTokens...)
+	}, deliveredCommentIDs, commentBackedTask, resp.MemoryContext, daemonTokens...)
 	if ferr != nil {
 		outcome = "error_claim_finalize"
 		slog.Error("task claim: failed to finalize token and comment delivery receipt",

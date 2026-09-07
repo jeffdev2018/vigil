@@ -171,6 +171,13 @@ export default function WorkspaceLayout() {
           }}
         />
         <Stack.Screen name="inbox/[id]" options={SHEET_OPTIONS} />
+        <Stack.Screen
+          name="inbox/decisions"
+          options={{
+            title: "Decisions",
+            headerBackTitle: "Inbox",
+          }}
+        />
         {/* Issue-detail formSheet pickers. All share the same sheet config:
             explicit numeric detents to dodge expo/expo#42904+#42965 (the
             `fitToContents` zero-size / padding bugs on iOS 26 + Expo 55),

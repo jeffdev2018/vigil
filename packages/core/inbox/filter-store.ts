@@ -7,6 +7,7 @@ export interface InboxFilters {
   /** Actor keys — see `inboxActorKey`. */
   readonly actors: readonly string[];
   readonly unreadOnly: boolean;
+  readonly actionRequiredOnly: boolean;
 }
 
 /**
@@ -43,6 +44,7 @@ export const EMPTY_INBOX_FILTERS: InboxFilters = Object.freeze({
   priorities: Object.freeze([]),
   actors: Object.freeze([]),
   unreadOnly: false,
+  actionRequiredOnly: false,
 });
 
 /** True when nothing is selected in any dimension. */
@@ -56,6 +58,7 @@ interface InboxFilterState {
   togglePriorityFilter: (wsId: string, priority: IssuePriority) => void;
   toggleActorFilter: (wsId: string, actor: string) => void;
   toggleUnreadOnly: (wsId: string) => void;
+  toggleActionRequiredOnly: (wsId: string) => void;
   clearPriorityFilters: (wsId: string) => void;
   clearFilters: (wsId: string) => void;
 }
@@ -111,6 +114,16 @@ export const useInboxFilterStore = create<InboxFilterState>()((set) => ({
         filtersByWorkspace: {
           ...state.filtersByWorkspace,
           [wsId]: { ...current, unreadOnly: !current.unreadOnly },
+        },
+      };
+    }),
+  toggleActionRequiredOnly: (wsId) =>
+    set((state) => {
+      const current = state.filtersByWorkspace[wsId] ?? EMPTY_INBOX_FILTERS;
+      return {
+        filtersByWorkspace: {
+          ...state.filtersByWorkspace,
+          [wsId]: { ...current, actionRequiredOnly: !current.actionRequiredOnly },
         },
       };
     }),
@@ -210,7 +223,8 @@ export function filterInboxItems(
       (priorities.size === 0 ||
         (item.issue_priority != null && priorities.has(item.issue_priority))) &&
       (actors.size === 0 || (actor != null && actors.has(actor))) &&
-      (!filters.unreadOnly || item.read !== true)
+      (!filters.unreadOnly || item.read !== true) &&
+      (!filters.actionRequiredOnly || item.severity === "action_required")
     );
   });
 }
@@ -220,6 +234,7 @@ export function inboxFilterCount(filters: InboxFilters): number {
     filters.statuses.length +
     filters.priorities.length +
     filters.actors.length +
-    (filters.unreadOnly ? 1 : 0)
+    (filters.unreadOnly ? 1 : 0) +
+    (filters.actionRequiredOnly ? 1 : 0)
   );
 }

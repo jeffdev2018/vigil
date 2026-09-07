@@ -50,6 +50,7 @@ import {
 } from "../../onboarding/templates";
 import { ConnectRemoteDialog } from "./connect-remote-dialog";
 import { CloudRuntimeDialog } from "./cloud-runtime-dialog";
+import { ActivationReadinessCard } from "./activation-readiness-card";
 import { ProviderLogo } from "./provider-logo";
 import { buildWorkloadIndex, RuntimeList } from "./runtime-list";
 import { pendingRuntimeFromProfile } from "./pending-runtime";
@@ -172,40 +173,43 @@ export function RuntimesPage({
         onOpenCloudRuntime={() => setShowCloudRuntimeDialog(true)}
       />
 
-      {showEmpty ? (
-        <div className="flex flex-1 items-center justify-center p-6">
-          <EmptyState onConnectRemote={() => setShowConnectDialog(true)} />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-[1440px] flex-col p-4 sm:p-6">
+          <ActivationReadinessCard machines={machines} />
+          {showEmpty ? (
+            <div className="flex flex-1 items-center justify-center py-6">
+              <EmptyState onConnectRemote={() => setShowConnectDialog(true)} />
+            </div>
+          ) : (
+            <>
+              {!agentsLoading &&
+                !chatSessionsLoading &&
+                memberNeedsMikaSetup(agents, chatSessions) &&
+                runtimes.length > 0 && (
+                <MikaSetupCard
+                  workspaceId={wsId}
+                  runtimes={runtimes}
+                  runtimesLoading={runtimesLoading}
+                  currentUserId={currentUserId ?? null}
+                />
+              )}
+              {(machines.length > 0 || bootstrapping) && (
+                <MachineList
+                  machines={machines}
+                  bootstrapping={bootstrapping}
+                />
+              )}
+              {orphanProfileRuntimes.length > 0 && (
+                <OrphanRuntimeProfiles
+                  runtimes={orphanProfileRuntimes}
+                  now={now}
+                  hasMachines={machines.length > 0}
+                />
+              )}
+            </>
+          )}
         </div>
-      ) : (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex w-full max-w-[1440px] flex-col p-4 sm:p-6">
-            {!agentsLoading &&
-              !chatSessionsLoading &&
-              memberNeedsMikaSetup(agents, chatSessions) &&
-              runtimes.length > 0 && (
-              <MikaSetupCard
-                workspaceId={wsId}
-                runtimes={runtimes}
-                runtimesLoading={runtimesLoading}
-                currentUserId={currentUserId ?? null}
-              />
-            )}
-            {(machines.length > 0 || bootstrapping) && (
-              <MachineList
-                machines={machines}
-                bootstrapping={bootstrapping}
-              />
-            )}
-            {orphanProfileRuntimes.length > 0 && (
-              <OrphanRuntimeProfiles
-                runtimes={orphanProfileRuntimes}
-                now={now}
-                hasMachines={machines.length > 0}
-              />
-            )}
-          </div>
-        </div>
-      )}
+      </div>
 
       {showConnectDialog && (
         <ConnectRemoteDialog onClose={() => setShowConnectDialog(false)} />

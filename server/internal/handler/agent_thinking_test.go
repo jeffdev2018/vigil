@@ -13,8 +13,9 @@ import (
 // MUL-2339 invariant: when an HTTP caller sends a literal-invalid
 // thinking_level the API MUST return 400, regardless of which other
 // field combination the same request mutates. The constraint comes
-// from Trump's PR1 review: "invalid value 的 API 行为请保持一致，
-// 不要同一类变更有时 400、有时静默清空".
+// from Trump's PR1 review: "keep the API behavior for invalid values
+// consistent — don't let the same class of change sometimes return 400
+// and sometimes silently clear the field".
 func TestCreateAgent_ThinkingLevel_ValidationConsistency(t *testing.T) {
 	if testHandler == nil {
 		t.Skip("database not available")

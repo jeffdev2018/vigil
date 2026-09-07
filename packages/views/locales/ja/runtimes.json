@@ -272,6 +272,27 @@
       "timeout": "タイムアウト"
     }
   },
+  "cli_auth": {
+    "authenticated": "認証済み",
+    "not_authenticated": "未認証",
+    "unknown": "不明",
+    "connect": "接続",
+    "disconnect": "切断",
+    "offline": "ランタイムはオフラインです。先にデーモンを再接続してください。",
+    "help": "認証ヘルプ",
+    "failed": "CLI の認証に失敗しました",
+    "title": "{{provider}} に接続",
+    "disconnecting_title": "{{provider}} を切断",
+    "machine_scope": "認証情報はこのマシンの CLI に保存され、それを使うすべてのワークスペースに適用されます。トークンは Multica に送信されません。",
+    "waiting": "CLI を待機中…",
+    "expires_in": "残り {{seconds}} 秒",
+    "open_url": "この認証ページを開く",
+    "copy_url": "認証 URL をコピー",
+    "code": "ワンタイムコード",
+    "copy_code": "コードをコピー",
+    "completed": "CLI は認証されました。",
+    "disconnected": "CLI は切断されました。"
+  },
   "charts": {
     "heatmap_less": "少ない",
     "heatmap_more": "多い",
@@ -449,5 +470,42 @@
     "table_cache_r": "キャッシュ R",
     "table_cache_w": "キャッシュ W",
     "no_data": "まだ使用量データがありません"
+  },
+  "activation": {
+    "title": "最初の結果の準備はできていますか？",
+    "description": "エージェントに仕事を渡す前に確認してください。ブロックを先に解消を。リポジトリはコーディング向けに推奨ですが、Mika とのチャットには必須ではありません。",
+    "optional": "任意",
+    "steps": {
+      "machine_online": {
+        "label": "マシンがオンライン",
+        "ready": "到達可能なオンライン runtime があります。",
+        "action": "デスクトップの daemon を起動／再接続するか、コンピュータを追加してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "cli_present": {
+        "label": "エージェント CLI あり",
+        "ready": "マシンにエージェント CLI が登録されています。",
+        "action": "Claude Code か Codex を入れ、daemon の検出を待つか再起動してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "cli_authenticated": {
+        "label": "CLI サインイン済み",
+        "ready": "オンラインの Claude / Codex runtime の認証が有効です。",
+        "action": "マシンを開き、エージェント CLI（Claude または Codex）にサインインしてください。",
+        "not_applicable": "オンラインの Claude / Codex runtime がまだありません — 接続後にサインインします。"
+      },
+      "repo_linked": {
+        "label": "リポジトリ連携",
+        "ready": "エージェントが使えるリポジトリが少なくとも 1 つあります。",
+        "action": "設定 → リポジトリで追加するか、GitHub を接続してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "first_agent_ready": {
+        "label": "最初のエージェント会話",
+        "ready": "このメンバー向けに Mika が準備できています。",
+        "action": "runtime がオンラインになったら「Mika で始める」を使ってください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      }
+    }
   }
 }

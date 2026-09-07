@@ -25,6 +25,7 @@ import { ActorAvatar } from "../../common/actor-avatar";
 import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
+import { ProjectMemorySection } from "./project-memory-section";
 import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
@@ -429,9 +430,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
               <ChevronRight className={`!size-3 shrink-0 stroke-[2.5] text-muted-foreground transition-transform ${progressOpen ? "rotate-90" : ""}`} />
             </button>
             {progressOpen && <div className="pl-2 flex items-center gap-3">
-              <div className="relative h-2 flex-1 rounded-full bg-muted overflow-hidden">
+              <div role="progressbar" aria-label={t(($) => $.detail.section_progress)} aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} className="relative h-2 flex-1 rounded-full bg-muted overflow-hidden">
                 <div
-                  className="absolute inset-y-0 left-0 rounded-full bg-emerald-500 transition-all"
+                  className="absolute inset-y-0 left-0 rounded-full bg-primary transition-all"
                   style={{ width: `${pct}%` }}
                 />
               </div>
@@ -439,6 +440,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
                 {issueMetrics.completedCount}/{issueMetrics.totalCount}
               </span>
             </div>}
+            {progressOpen && <p className="mt-2 pl-2 text-caption text-muted-foreground">{t(($) => $.detail.progress_hint)}</p>}
           </div>
         );
       })()}
@@ -470,6 +472,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+      <ProjectMemorySection wsId={wsId} projectId={projectId} canEdit={isWorkspaceAdmin} />
     </div>
   );
 

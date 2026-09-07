@@ -11,9 +11,10 @@ import (
 // TestManagerTickClosesAbandonedRunning exercises张大彪's blocker #1
 // directly through the Manager.runOnce tick path:
 //
-//	"Manager 在 plan 推进后必须能扫到旧的 stale RUNNING row 重入或
-//	 转 FAILED，不能只盯当前 latest——得加用例直接打 Manager 的 tick
-//	 路径，别再只测 tryClaim"
+//	"After a plan advances, the Manager must be able to sweep old stale
+//	 RUNNING rows back in or mark them FAILED — it cannot only watch the
+//	 current latest. Add cases that hit the Manager tick path directly;
+//	 stop testing only tryClaim"
 //
 // We seed a stuck RUNNING row at an old plan_time (representing a
 // crashed pod's lease) and run Manager.runOnce. The tick must:

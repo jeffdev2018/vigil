@@ -88,6 +88,47 @@ describe("ActiveTaskRow", () => {
     expect(screen.getByText("View transcript")).toBeInTheDocument();
     expect(mockState.taskMessagesOptions).not.toHaveBeenCalled();
   });
+
+  // Canonical gate + guidance kinds: packages/core/issues/run-guidance.test.ts
+  it("shows wait cause on a parked row and keeps guidance in the status title", () => {
+    renderWithI18n(
+      <ActiveTaskRow
+        task={makeTask({
+          status: "waiting_local_directory",
+          wait_reason: "NuvioTV (held by task a1b2c3d4)",
+          started_at: null,
+          dispatched_at: "2026-06-08T08:00:00Z",
+        })}
+        issueId="issue-1"
+      />,
+    );
+
+    expect(
+      screen.getByText("Waiting for NuvioTV (held by task a1b2c3d4)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle(
+        /Another run holds this local directory/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("does not show a stale wait_reason once the row is running", () => {
+    renderWithI18n(
+      <ActiveTaskRow
+        task={makeTask({
+          status: "running",
+          wait_reason: "NuvioTV (held by task a1b2c3d4)",
+        })}
+        issueId="issue-1"
+      />,
+    );
+
+    expect(screen.getByText("5m 04s")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/NuvioTV \(held by task a1b2c3d4\)/),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("TaskCommentCoverage", () => {

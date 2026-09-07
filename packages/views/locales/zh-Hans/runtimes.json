@@ -272,6 +272,27 @@
       "timeout": "超时"
     }
   },
+  "cli_auth": {
+    "authenticated": "已认证",
+    "not_authenticated": "未认证",
+    "unknown": "未知",
+    "connect": "连接",
+    "disconnect": "断开连接",
+    "offline": "运行时已离线。请先重新连接守护进程。",
+    "help": "认证帮助",
+    "failed": "CLI 认证失败",
+    "title": "连接 {{provider}}",
+    "disconnecting_title": "断开 {{provider}}",
+    "machine_scope": "认证信息由此机器上的 CLI 保存，并适用于使用它的所有工作区。不会向 Multica 发送令牌。",
+    "waiting": "正在等待 CLI…",
+    "expires_in": "{{seconds}} 秒后过期",
+    "open_url": "打开此验证页面",
+    "copy_url": "复制验证链接",
+    "code": "一次性代码",
+    "copy_code": "复制代码",
+    "completed": "CLI 已认证。",
+    "disconnected": "CLI 已断开连接。"
+  },
   "charts": {
     "heatmap_less": "少",
     "heatmap_more": "多",
@@ -449,5 +470,42 @@
     "table_cache_r": "缓存读",
     "table_cache_w": "缓存写",
     "no_data": "还没有使用数据"
+  },
+  "activation": {
+    "title": "准备好拿到第一个结果了吗？",
+    "description": "把工作交给智能体前先核对这些项。先处理阻塞项；代码任务建议关联仓库，但与 Mika 聊天并非必须。",
+    "optional": "可选",
+    "steps": {
+      "machine_online": {
+        "label": "机器在线",
+        "ready": "已有可达的在线运行时。",
+        "action": "启动或重连桌面守护进程，或添加一台电脑。",
+        "not_applicable": "当前工作区状态不需要此项。"
+      },
+      "cli_present": {
+        "label": "已安装智能体 CLI",
+        "ready": "机器上已注册智能体 CLI。",
+        "action": "安装 Claude Code 或 Codex，等待守护进程发现（或重启守护进程）。",
+        "not_applicable": "当前工作区状态不需要此项。"
+      },
+      "cli_authenticated": {
+        "label": "CLI 已登录",
+        "ready": "在线 Claude 或 Codex 运行时的提供商认证有效。",
+        "action": "打开机器，登录智能体 CLI（Claude 或 Codex）。",
+        "not_applicable": "尚无在线的 Claude 或 Codex 运行时 — 有连接后再登录。"
+      },
+      "repo_linked": {
+        "label": "已关联仓库",
+        "ready": "至少一个仓库可供智能体使用。",
+        "action": "在「设置 → 仓库」添加仓库，或连接 GitHub。",
+        "not_applicable": "当前工作区状态不需要此项。"
+      },
+      "first_agent_ready": {
+        "label": "首次智能体对话",
+        "ready": "本成员的 Mika 已就绪。",
+        "action": "运行时在线后，使用「从 Mika 开始」。",
+        "not_applicable": "当前工作区状态不需要此项。"
+      }
+    }
   }
 }

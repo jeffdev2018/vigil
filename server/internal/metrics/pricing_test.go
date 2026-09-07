@@ -489,3 +489,16 @@ func TestPriceForModelAliasAnthropicFable51(t *testing.T) {
 		}
 	}
 }
+
+func TestEstimateTokenUsageUSD(t *testing.T) {
+	got, ok := EstimateTokenUsageUSD("gpt-5.6-luna", 1_000_000, 1_000_000, 0, 0)
+	if !ok || got < 6.999 || got > 7.001 {
+		t.Fatalf("got %v ok=%v", got, ok)
+	}
+	if _, ok := EstimateTokenUsageUSD("not-a-real-model", 1, 1, 0, 0); ok {
+		t.Fatal("unmapped model priced")
+	}
+	if _, ok := EstimateTokenUsageUSD("gpt-5.6-luna", -1, 0, 0, 0); ok {
+		t.Fatal("negative tokens priced")
+	}
+}

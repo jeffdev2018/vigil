@@ -46,6 +46,22 @@ After leaving a workspace, you need a new invitation to return. Leaving also dea
 
 The last `owner` cannot leave; promote another member to `owner` first.
 
+## Usage limits and ceilings
+
+Cloud subscriptions can apply **issue count**, **autopilot run**, and **seat** ceilings. Multica enforces them only at boundaries it controls:
+
+| Ceiling | Controlled boundary | What happens at the limit |
+|---|---|---|
+| Issue count | Creating an issue (API / triage / quick-create) | Create is refused with an explicit limit error |
+| Autopilot runs | Admitting a new automation run for the period | Run is not started; owners/admins can get one Inbox notice per period |
+| Seats | Adding a human member or invitation | Capacity is refused until seats are purchased or members leave |
+
+Settings → Billing shows current usage, soft alerts as you approach a ceiling (about 80%), and a hard “limit reached” state when Multica will refuse new work.
+
+<Callout type="info">
+These ceilings do **not** stop an already-running provider CLI, and they do not block external GitHub, cloud, or model spend outside Multica’s queue. Provider quota errors on a run are separate from workspace plan limits.
+</Callout>
+
 ## Delete a workspace
 
 Only an `owner` can delete a workspace. Deletion permanently removes all of its work, members, agent configuration, and run history, and cannot be undone. If you are only stepping away for a while, leave instead of deleting.

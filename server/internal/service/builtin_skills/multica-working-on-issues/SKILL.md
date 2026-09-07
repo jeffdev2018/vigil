@@ -1,6 +1,6 @@
 ---
 name: multica-working-on-issues
-description: "Use when acting on a Multica issue beyond what the brief covers: PR linking vs close intent, reading a linked PR's real state, metadata keys, status-change side effects, sub-issue todo vs backlog."
+description: "Use when acting on a Multica issue beyond what the brief covers: human decisions and blockers, PR linking vs close intent, reading a linked PR's real state, metadata keys, status-change side effects, sub-issue todo vs backlog."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -15,6 +15,37 @@ For building mention links, load `multica-mentioning` instead — not this skill
 
 Every contract below is traced to source in
 `references/working-on-issues-source-map.md`.
+
+## Requesting a human decision
+
+When an issue run needs a human choice, create a durable request addressed to a
+known workspace member who can view your agent:
+
+```bash
+multica issue decision request <issue-id> --id <stable-request-uuid> \
+  --source-run <your-run-uuid> --recipient <human-user-uuid> \
+  --question "Which compatible approach should I implement?" \
+  --context-file decision-context.txt --option "Keep the API" --option "Migrate it"
+multica issue decision get <issue-id> <request-uuid>
+```
+
+Generate the request UUID once. Retrying with the same ID and content returns
+the saved request; a different payload returns 409. Supply the question yourself;
+private chats and runs from another issue cannot be used as sources. Do not copy
+secrets into context. Limits: question 1,000 characters, context 8,000, 8 distinct
+options of 500 characters each, and 20 open requests per issue.
+
+A human credential may create requests only addressed to that same human.
+A task credential can address an authorized human, but can only create/read
+decisions for its own source run. It
+cannot answer, cancel, or resume. Do not poll while consuming model turns: save
+work, report the request ID and blocker, and end the run. Creating a request does
+not pause or cancel the CLI process, change issue status, or make a tool approval.
+
+The recipient answers or cancels in **Inbox → Decisions**. **Start follow-up**
+is a separate human action creating a fresh session after the source is terminal;
+it keeps tool approvals and delivery review. Read the **Human decision lifecycle**
+section in `references/working-on-issues-source-map.md` for API and retry details.
 
 ## PR linking and close intent are two distinct contracts
 
@@ -87,6 +118,63 @@ not produce a PR because no code changed or the user asked not to create one, sa
 that explicitly.
 
 ## Reading a linked PR's real state
+
+### Human delivery review
+
+An issue can carry human-defined acceptance criteria. They are injected into
+the issue run's instructions at claim time with their revision. Report concrete
+evidence and gaps for each criterion. A completed run, `done` issue, or merged
+PR does not imply human acceptance. Only a human workspace member can publish
+criteria or record acceptance / correction requests in the issue's Delivery
+review card. Decisions retain the reviewed result and PR heads; changing the
+criteria, issue description, latest run, or linked evidence makes them outdated.
+A review records an assessment, not authorization to merge or deploy. Correction
+feedback is saved with the review. A human can then choose **Start correction**
+to enqueue a fresh session for the agent that produced the reviewed result, with
+that feedback and the reviewed criteria. Previous work is reused when available.
+The launch checks current access and evidence, and does not cancel pending work.
+Retrying the same review returns the same correction task, including after a
+restart. Its result requires a new human review; launching does not accept it.
+After acceptance, the UI may offer to set the issue board status to `done`; that
+write is optional, human-confirmed, and still not merge/deploy authorization.
+
+The review API is rooted at `/api/issues/{id}/delivery`. Do not invent a
+`multica issue delivery` CLI command: it has not been added. The human-only
+correction endpoint is `POST /api/issues/{id}/delivery/correction` with
+`{"review_id":"<saved changes_requested review UUID>"}`. A failed launch leaves
+the saved review intact.
+
+`GET /api/issues/{id}/delivery/reviews` returns 20 reviews at a time;
+use `next_before_id` as the next request's `before_id` cursor. Each new review
+freezes cumulative usage of all non-private issue runs, including retries, in
+`usage_snapshot`. USD amounts are decimal strings; reported provider amounts
+and estimates using saved server catalog rates are separate. Missing reports,
+unknown prices and unfinished runs make coverage partial; unavailable is not
+zero. Old reviews have no backfilled cost. Later reports and personal pricing
+changes do not reprice saved reviews. Do not add cumulative snapshots together.
+These costs exclude human time, infrastructure and subscription fees.
+
+Delivery metrics count distinct evidence snapshots by their latest review,
+not repeated acceptances of the same snapshot. Acceptance reversals count a
+human acceptance followed by a correction request, not issue-status changes.
+`review_delay_seconds` measures completion-to-review elapsed time, not active
+human effort. None of these metrics establishes an agent's general quality.
+
+A human who can manage the original agent can propose a memory from a saved
+correction, including one in review history. `POST /api/agents/{id}/memories`
+accepts `content` and `source_review_id` (a changes-requested delivery review).
+The server resolves the non-private source run and copies the review's criteria,
+assessments, feedback, reviewer and date into immutable `source_review` evidence.
+The new memory is pending; its creation is not approval or replay validation.
+The original agent's ordinary memory review/expiration/version rules apply.
+Approved agent memory applies across that agent's runs, not only to the source
+issue or project. Do not imply project-only scoping.
+
+While the memory exists, an identical retry returns it without resetting later
+edits or approval. A different proposal for that review returns 409; edit the
+existing memory. Saved evidence remains after deletion of the source review or
+run, and is removed when the memory and its history are deleted. This contract
+does not authorize agents to approve their own lessons or claim general efficacy.
 
 When a step depends on PR state, query Multica's link table — do not infer it
 from branch names, GitHub search, memory, or `pr_url` metadata (which can be
@@ -237,8 +325,7 @@ close intent writes the literal `done` key.
   Squad leaders: dispatching members is not delivery — a dispatch turn
   leaves the parent `in_progress`, and it moves to `in_review` only when a
   later re-trigger confirms the overall goal is met.
-- **`in_review`** is an accepted issue status. Some workflows use it while a PR
-  is open and awaiting review; moving to it is an explicit mutation.
+- **`in_review`** is a board workflow status meaning "a result is waiting for human attention". It is not human delivery acceptance and does not authorize merge or deploy. Some workflows use it while a PR is open; moving to it is an explicit mutation.
 - **`done`** on a child issue posts a system comment on its parent. If a PR
   carries close intent (`Closes MUL-XXXX`), it advances the issue to `done`
   itself on merge — you do not also need to flip it manually.
@@ -394,3 +481,24 @@ contract above: the `pull-requests` CLI and route, the PR response field list,
 notify, the stage column / `stageBarrierClosed` barrier and the `--stage` /
 `issue children` CLI, and the metadata CLI. Re-derive before depending on an
 exact line.
+
+### Memory context on runs
+
+Task responses may include `memory_context` for the latest finalized dispatch:
+`dispatched_at`, `agent_status` (`loaded` or `unavailable`), ordered
+`agent_versions` (`id`, `revision`), and nullable `project_version`.
+`loaded` with no versions means no eligible agent memory was selected; missing
+metadata means unrecorded, not zero. Reclaim before start replaces the snapshot.
+This is prepared response context, not daemon acknowledgement, model adherence,
+or an immutable history of every claim. Memory deletion removes its text and
+version history; run records keep only references. Do not report these counts
+as learning success or independently verified reuse.
+
+`GET /api/agents/{id}/memories/usage` reports the last 30 days of retained,
+started runs with identifiable non-chat provenance, using the agent's private
+run-history access gate. Chats remain excluded after deletion; legacy runs with
+unknown origin are excluded too. Coverage distinguishes recorded/unrecorded
+context, memory load failure and inclusion. Per-version counts describe prepared
+context only. The UI refreshes every minute and links to available memory history.
+Do not interpret a missing receipt as zero memory use or these counts as proof
+of an improved result. Deleted memory text is not recovered by this endpoint.

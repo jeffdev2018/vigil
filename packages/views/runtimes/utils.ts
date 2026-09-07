@@ -193,9 +193,8 @@ const MODEL_PRICING: Record<
   { input: number; output: number; cacheRead: number; cacheWrite: number }
 > = {
   // -- Anthropic: current generation. Sonnet 5 uses Anthropic's published
-  //    intro launch rate ($2 / $10 through 2026-08-31). This static map has
-  //    no future-dated pricing support yet, so update the row when the
-  //    post-intro $3 / $15 rate takes effect. Fable 5 and 5.1 are Mythos-class
+  //    $2 / $10 launch rate, made permanent on 2026-08-10 (verified 2026-09-05,
+  //    anthropic.com/research/claude-sonnet-5). Fable 5 and 5.1 are Mythos-class
   //    SKUs at 10/50 (5.1 prices cache reads at 0.025x input, a quarter of the
   //    usual 0.1x); Opus 4.5 through Opus 5 stay on the lower 5/25 Opus tier. --
   "claude-sonnet-5":     { input: 2,    output: 10,   cacheRead: 0.20, cacheWrite: 2.50 },

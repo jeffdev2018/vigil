@@ -46,6 +46,26 @@ go test ./internal/service -run TestBuiltinSkillsConformToTemplate
 | Skills copied in the create transaction | 239 | Source skill ids sent as `skill_ids`, bound in the same `POST /api/agents` tx (267); `--no-skills` opts out | read `runAgentCopy` |
 | Secrets never copied | 240–266 | `custom_env`/`mcp_config`/`runtime_config` set only from explicit secret-safe flags, never read from the source | `multica agent copy --help` |
 
+## Offline memory comparison
+
+The container entry point is `cmd_agent_memory_runtime.go`: explicit Claude executable,
+shared `daemon.BuildPrompt` run-only path, `execenv.InjectRuntimeConfig`, and
+`agent.Backend.Execute`. `memoryeval.RuntimeEvidence` carries fingerprints, requested
+model/effort, observed tool events and adapter-reported token usage. It does not
+claim scheduler/MCP parity or access a real account in default tests.
+`cmd_agent_memory_pilot.go` / `memoryeval/pilot.go` summarize separate, fingerprint-bound
+human reviews. Missing effort/cost stays unknown; cost per accepted output includes
+all runs in that variant and requires complete sourced cost coverage.
+
+| Contract | Source | Behavior |
+|---|---|---|
+| Evaluate, publish, adopt, restore CLI | `server/cmd/multica/cmd_agent_memory.go` | API snapshot, offline suite, local report, idempotent server import and evaluated adoption via existing PUT |
+| Saved reports and atomic adoption | `server/internal/handler/agent_memory_evaluation.go`; `agent_memory.go`; `pkg/db/queries/agent_memory_evaluation.sql` | Human-manager gates, saved-version validation, bounded imports, gate recomputation, writer lock protecting baseline and candidate, adoption receipt |
+| Report UI and cleanup | `packages/views/agents/components/tabs/memory-evaluations-dialog.tsx`; `pkg/db/queries/agent_memory.sql`; `workspace_delete.sql` | Shared web/desktop import, inspection, export, removal and adoption; list/detail expose `report_hash` (server receipt) and optional catalog `estimated_cost_usd`/`cost_status` (not a provider invoice); deleting a memory removes reports containing its text, including baseline copies |
+| Independent comparison | `server/internal/memoryeval/evaluation.go` | Frozen inputs, separate worker/verifier containers, sequential paired replay/holdout, bounded resources, no provider calls, partial evidence and conservative gate |
+| Existing human review/rollback authority | `server/internal/handler/agent_memory.go` `UpdateAgentMemory` | Machine credentials refused; agent-management permission, expected revision and immutable historical versions |
+| Verification | `server/internal/memoryeval/evaluation_test.go`; `server/cmd/multica/cmd_agent_memory_test.go` | Real local Docker fixture opt-in; gate, timeout/output/isolation and HTTP adoption checks; no LLM efficacy claim |
+
 ## Create handler — `server/internal/handler/agent.go`
 
 | Contract | Line | Behavior |
@@ -146,3 +166,16 @@ go test ./internal/service -run TestBuiltinSkillsConformToTemplate
 | `CreateAgentParams` | generated from `queries/agent.sql` | typed params include nullable `Model`, `ThinkingLevel`, and `ServiceTier` |
 | `UpdateAgent` SET | generated from `queries/agent.sql` | COALESCE updates include model/thinking/service tier; dedicated clear queries restore each nullable override |
 | `UpdateAgentCustomEnv` (called by the `UpdateAgentEnv` handler) | 2652 | `SET custom_env = $2` — the only write path for env values |
+
+## Connected text comparison
+
+`handler/agent_memory_execution.go` owns human launch/cancel and runtime claim/report
+authorization. `memoryeval/connected.go` validates frozen text cases and performs
+server-side grading with `memoryeval/answer_checks.go` (JSON and networkless Docker
+function tests); expected answers are absent from `ConnectedJob` payloads.
+`daemon/memory_evaluation.go` reuses the CLI adapters and runtime brief in fresh
+folders, serializing paired runs and stopping after cancellation/report rejection.
+The `memory-evaluation-v1` capability gates launch. Migrations 496–498 extend the
+existing report table with durable execution state and idempotent request identity.
+Web/desktop use `memory-execution-form.tsx` and the existing comparison dialog.
+This mode uses local runtime permissions, not the offline Docker security boundary.

@@ -340,14 +340,15 @@ type TaskIssueStatusData struct {
 }
 
 type AgentTaskResponse struct {
-	ID                   string                 `json:"id"`
-	AgentID              string                 `json:"agent_id"`
-	RuntimeID            string                 `json:"runtime_id"`
-	IssueID              string                 `json:"issue_id"`
-	WorkspaceID          string                 `json:"workspace_id"`
-	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
-	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
-	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
+	MemoryContext        *service.TaskMemoryContext `json:"memory_context,omitempty"`
+	ID                   string                     `json:"id"`
+	AgentID              string                     `json:"agent_id"`
+	RuntimeID            string                     `json:"runtime_id"`
+	IssueID              string                     `json:"issue_id"`
+	WorkspaceID          string                     `json:"workspace_id"`
+	WorkspaceSlug        string                     `json:"workspace_slug,omitempty"`
+	IssueIdentifier      string                     `json:"issue_identifier,omitempty"`
+	RemoteMCPConnections []remotemcp.Connection     `json:"remote_mcp_connections,omitempty"`
 	// PluginHookTools are the workspace's agent-trigger plugin hooks, which the
 	// daemon renders as MCP tools for this task. Resolved at claim time so
 	// disabling or uninstalling a plugin takes effect on the next task rather
@@ -378,7 +379,13 @@ type AgentTaskResponse struct {
 	IssueStatusesOmitted int                   `json:"issue_statuses_omitted,omitempty"`
 	ThreadName           string                `json:"thread_name,omitempty"` // semantic title for provider-native session/thread history
 	Status               string                `json:"status"`
-	Priority             int32                 `json:"priority"`
+	// WaitReason explains a waiting_local_directory hold: which directory the
+	// task is parked on and, when known, the short id of the task holding it.
+	// Gated the same way as chat pending tasks — the column outlives the hold,
+	// so any other status must omit it. Absent on older clients is fine: they
+	// already render the bare "Waiting for local directory" label.
+	WaitReason  string `json:"wait_reason,omitempty"`
+	Priority    int32  `json:"priority"`
 	DispatchedAt         *string               `json:"dispatched_at"`
 	StartedAt            *string               `json:"started_at"`
 	CompletedAt          *string               `json:"completed_at"`
@@ -765,13 +772,22 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	if t.HandoffNote.Valid {
 		handoffNote = t.HandoffNote.String
 	}
+	var memoryContext *service.TaskMemoryContext
+	if len(t.MemoryContext) > 0 {
+		if err := json.Unmarshal(t.MemoryContext, &memoryContext); err != nil {
+			slog.Error("invalid stored task memory context", "task_id", uuidToString(t.ID), "error", err)
+			memoryContext = nil
+		}
+	}
 	return AgentTaskResponse{
+		MemoryContext:          memoryContext,
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),
 		RuntimeID:              uuidToString(t.RuntimeID),
 		IssueID:                uuidToString(t.IssueID),
 		WorkspaceID:            workspaceID,
 		Status:                 t.Status,
+		WaitReason:             waitReasonForStatus(t.Status, t.WaitReason),
 		Priority:               t.Priority,
 		DispatchedAt:           timestampToPtr(t.DispatchedAt),
 		StartedAt:              timestampToPtr(t.StartedAt),

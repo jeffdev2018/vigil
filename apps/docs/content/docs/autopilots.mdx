@@ -128,6 +128,8 @@ A fully processed webhook delivery can be replayed from its detail view. A repla
 
 A failed run in run-only mode is not retried automatically; the next schedule still fires as planned. Create-issue mode produces regular issue runs, and infrastructure failures follow the rules in [Runs](/tasks#failures-and-automatic-retries).
 
+When the workspace automation-run ceiling is enforcing, Multica refuses to admit a new autopilot run for the period (completed and reserved runs both count). That is a Multica admission refusal, not a provider-quota error on an already-running CLI. See [Usage limits and ceilings](/workspaces#usage-limits-and-ceilings).
+
 Multica periodically checks whether recent runs keep failing: when the past 7 days have at least 50 completed or failed runs with a failure rate of 90%, the system pauses the autopilot and notifies its creator; fix the cause, then resume it manually.
 
 Pausing manually stops schedules, webhooks, and **Run now**. Deletion is actually archiving: future triggers stop, and run and delivery history is kept.

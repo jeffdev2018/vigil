@@ -19,3 +19,5 @@ export {
   useUpdateProjectResource,
   useDeleteProjectResource,
 } from "./resource-queries";
+
+export { projectMemoryOptions, projectMemoryHistoryOptions, projectMemoryUsageOptions, useUpdateProjectMemory, useRestoreProjectMemory } from "./memory";

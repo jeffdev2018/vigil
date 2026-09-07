@@ -29,7 +29,8 @@ const (
 	// request/response RPCs over the WebSocket control connection (MUL-4257).
 	// Gated so only daemons+servers that both support it route claim over WS;
 	// everyone else keeps using the HTTP claim endpoint.
-	DaemonCapabilityRPCV1 = "rpc-v1"
+	DaemonCapabilityRPCV1              = "rpc-v1"
+	DaemonCapabilityMemoryEvaluationV1 = "memory-evaluation-v1"
 
 	// AppCapabilityChatDraftRestoreV1 is advertised (X-Client-Capabilities) by
 	// app clients that understand the durable draft-restore recovery path:
@@ -118,6 +119,8 @@ type WorkspacesChangedPayload struct{}
 // newer server stays safe on an older daemon.
 const (
 	PendingWorkKindModelList        = "model_list"
+	PendingWorkKindCliAuth          = "cli_auth"
+	PendingWorkKindMemoryEvaluation = "memory_evaluation"
 	PendingWorkKindLocalSkills      = "local_skills"
 	PendingWorkKindLocalSkillImport = "local_skill_import"
 )
@@ -361,12 +364,14 @@ type DaemonHeartbeatRequestPayload struct {
 // and re-registers; without it the dead UUID would keep heartbeating until the
 // daemon process restarts.
 type DaemonHeartbeatAckPayload struct {
+	PendingMemoryEvaluation string                                  `json:"pending_memory_evaluation,omitempty"`
 	RuntimeID               string                                  `json:"runtime_id"`
 	Status                  string                                  `json:"status"`
 	ServerCapabilities      []string                                `json:"server_capabilities,omitempty"`
 	RuntimeGone             bool                                    `json:"runtime_gone,omitempty"`
 	PendingUpdate           *DaemonHeartbeatPendingUpdate           `json:"pending_update,omitempty"`
 	PendingModelList        *DaemonHeartbeatPendingModelList        `json:"pending_model_list,omitempty"`
+	PendingCliAuth          *DaemonHeartbeatPendingCliAuth          `json:"pending_cli_auth,omitempty"`
 	PendingLocalSkills      *DaemonHeartbeatPendingLocalSkills      `json:"pending_local_skills,omitempty"`
 	PendingLocalSkillImport *DaemonHeartbeatPendingLocalSkillImport `json:"pending_local_skill_import,omitempty"`
 	// PendingLocalSkillImports carries multiple import requests in a single
@@ -391,6 +396,14 @@ type DaemonHeartbeatPendingUpdate struct {
 // enumerate the runtime's supported models.
 type DaemonHeartbeatPendingModelList struct {
 	ID string `json:"id"`
+}
+
+// DaemonHeartbeatPendingCliAuth asks the daemon to authenticate or disconnect
+// the CLI installed for a runtime. No credential crosses this boundary: the
+// daemon only receives the request id and operation.
+type DaemonHeartbeatPendingCliAuth struct {
+	ID     string `json:"id"`
+	Action string `json:"action"`
 }
 
 // DaemonHeartbeatPendingLocalSkills describes a request for the runtime's

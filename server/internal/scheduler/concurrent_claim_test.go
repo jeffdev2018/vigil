@@ -8,8 +8,8 @@ import (
 
 // TestConcurrentClaimsSingleWinner covers RFC §14:
 //
-//	"pg_cron 并跑 | app scheduler 与 pg_cron 同时调用函数,
-//	 无重复窗口写入"
+//	"pg_cron running in parallel | the app scheduler and pg_cron call
+//	 the function at the same time; no duplicate window writes"
 //
 // The legacy `pg_cron` tick and the in-process scheduler both call
 // `rollup_task_usage_hourly()`, so the SQL function's advisory lock

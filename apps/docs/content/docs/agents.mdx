@@ -83,6 +83,33 @@ Archiving cancels all of the agent's unfinished runs, including queued and runni
 
 The agent owner and workspace `owner`s and `admin`s can archive or restore an agent.
 
+## Memory and corrections
+
+The **Memory** tab stores short facts for an agent. The latest 50 active, unexpired memories are included in new run briefs. Changes do not rewrite runs already started.
+
+Set an optional expiration in the memory editor using your local time. Expired memories stay visible but are excluded from new runs. Editing their text or approving them preserves the expiration; explicitly change or clear the date to renew them. Changing an expiration does not approve a pending suggestion. Expired entries still count toward the 200-entry limit.
+
+- **Add memory** creates an active fact directly. Each fact is limited to 500 characters.
+- Suggestions extracted after completed runs await human review. Private chat runs are excluded from extraction.
+- In **Activity**, **Teach a correction** records a proposed rule tied to a finished, failed, or cancelled run. Open **Memory** to inspect its source, edit it, and approve or reject it. Editing a suggestion does not approve it.
+- **Stop using** removes a fact from future briefs while preserving it. **Review again** returns it to the review queue. Deletion is permanent.
+
+Use **History** to inspect versions and preview a restoration. Restoring creates a new version with the selected text, review state and expiration, attributed to the person restoring it. An active, unexpired version can be used by new runs; a pending version still needs approval. A concurrent change requires returning to history and reviewing the latest state before trying again. History starts with the state preserved at upgrade; older edits cannot be reconstructed. Deleting a memory permanently deletes its history too.
+
+Only the agent owner and workspace owners/admins can change memory; machine credentials cannot approve it. Reviews record the human and time. If the memory changed since it was displayed, reload before approving.
+
+An agent holds up to 200 memories, including pending and rejected suggestions. Extraction stops at capacity and never evicts reviewed facts. Delete an unwanted entry to make room. Keeping a rejected suggestion also prevents exact normalized duplicates from being extracted again.
+
+When upgrading to memory review, existing suggestions extracted from runs move to the review queue; manual facts remain active. Approval controls what is used next. Manual approval alone does not measure whether the rule improves results.
+
+**Evaluations** opens imported offline comparisons for a memory. Human agent managers can import a JSON report (up to 2 MiB, 10 reports per memory), inspect baseline/candidate results and reserved validation cases, export or remove reports, and adopt an eligible revision after reviewing the evidence. The CLI also supports `multica agent memory evaluate`, `publish`, and `adopt`. Adoption checks the complete active memory context atomically and records the resulting revision; a changed context requires another evaluation. Reports are human-supplied evidence, not server-attested executions or proof of production improvement. Cost and human effort remain unknown. Removing a report does not undo adoption; deleting a referenced memory removes reports containing its text, including baseline copies. Use memory history to restore a previous version. This workflow is available on web and desktop.
+
+
+
+In a run’s **Run details**, expand **Memory prepared for this run** to inspect the agent memory IDs and revisions and the project memory revision selected for its latest finalized dispatch. A failed memory read is distinct from a successful read with no eligible memories. Older runs show unrecorded context. Reclaiming before execution replaces this snapshot; it is not a history of every dispatch, an acknowledgement of receipt, or proof that the model followed the rules. Run history retains version references, not a copy of deleted memory text.
+
+**Memory across runs** shows the last 30 days of retained, started runs with an identifiable non-chat origin. Chats remain excluded after deletion; older runs with an unknown origin are also excluded. Counts distinguish memory included, no eligible memory, a failed memory read and unrecorded context. Expand the version list to see how often each revision was prepared and when its last run started. Current text is labelled separately; **History** opens the available versions. Statistics refresh every minute. They do not measure model adherence or improvement, and failed requests show an error rather than zero.
+
 ## Next steps
 
 - [Create and configure an agent](/agents-create) — start blank, or build with AI.

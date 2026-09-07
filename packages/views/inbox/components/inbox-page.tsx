@@ -85,6 +85,7 @@ import { useIsCompact } from "@multica/ui/hooks/use-mobile";
 import { cn } from "@multica/ui/lib/utils";
 import { PAGE_GUTTER, PageHeader } from "../../layout/page-header";
 import { useTimeAgo } from "./inbox-list-item";
+import { InboxDecisions } from "./inbox-decisions";
 import { InboxList } from "./inbox-list";
 import { InboxFilterMenu } from "./inbox-filter-menu";
 import { InboxContextMenuProvider } from "./inbox-context-menu";
@@ -101,6 +102,11 @@ import { useT } from "../../i18n";
 import { useIssueLimitUpgradePrompt } from "../../modals/use-issue-limit-upgrade-prompt";
 
 export function InboxPage() {
+  const { searchParams } = useNavigation();
+  return searchParams.get("view") === "decisions" ? <InboxDecisions /> : <InboxNotificationsPage />;
+}
+
+function InboxNotificationsPage() {
   const { t } = useT("inbox");
   const showIssueLimitUpgradePrompt = useIssueLimitUpgradePrompt();
   const showAutopilotQuotaRecoveryPrompt = useIssueLimitUpgradePrompt(
@@ -531,6 +537,7 @@ export function InboxPage() {
           />
         )}
       </div>
+      <Button variant="ghost" size="sm" onClick={() => replace(wsPaths.inbox() + "?view=decisions")}>{t(($) => $.decisions.title)}</Button>
       <InboxFilterMenu
         wsId={wsId}
         items={viewItems}

@@ -20,8 +20,8 @@ import (
 )
 
 // TestHook_DirectV034Upgrade simulates the path described in
-// docs/db-backed-execution-scheduler-rfc.md §12.3 ("从 v0.3.4 直接升级
-// 到带 scheduler 的版本") and RFC §14 row "direct v0.3.4 upgrade":
+// docs/db-backed-execution-scheduler-rfc.md §12.3 ("direct upgrade from
+// v0.3.4 to the scheduler-backed version") and RFC §14 row "direct v0.3.4 upgrade":
 //
 //   - apply migrations through 102 (legacy daily rollups + new hourly
 //     schema/pipeline are both live);

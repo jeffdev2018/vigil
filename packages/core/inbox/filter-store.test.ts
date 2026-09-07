@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { InboxItem } from "../types";
+import { deduplicateInboxItems } from "./queries";
 import {
   EMPTY_INBOX_FILTERS,
   filterInboxItems,
@@ -172,6 +173,30 @@ describe("unread filtering", () => {
   });
 });
 
+describe("action-required filtering", () => {
+  it("uses the displayed notification severity, independently of read or issue status", () => {
+    const rows = [
+      item("action-read", "done", "high", { severity: "action_required", read: true }),
+      item("action-system", null, null, { severity: "action_required" }),
+      item("attention", "blocked", "high", { severity: "attention" }),
+      item("info", "in_review", "high"),
+    ];
+    const filters = { ...EMPTY_INBOX_FILTERS, actionRequiredOnly: true };
+    expect(filterInboxItems(rows, filters).map((row) => row.id)).toEqual(["action-read", "action-system"]);
+    expect(filterInboxItems(rows, { ...filters, unreadOnly: true }).map((row) => row.id)).toEqual(["action-system"]);
+    expect(filterInboxItems(rows, { ...filters, priorities: ["high"] }).map((row) => row.id)).toEqual(["action-read"]);
+    expect(inboxFilterCount(filters)).toBe(1);
+  });
+
+  it("does not resurrect a superseded action notification as an unresolved decision", () => {
+    const rows = deduplicateInboxItems([
+      item("older", "todo", "high", { issue_id: "issue", severity: "action_required", created_at: "2026-09-01T00:00:00Z" }),
+      item("latest", "todo", "high", { issue_id: "issue", created_at: "2026-09-02T00:00:00Z" }),
+    ]);
+    expect(filterInboxItems(rows, { ...EMPTY_INBOX_FILTERS, actionRequiredOnly: true })).toEqual([]);
+  });
+});
+
 describe("inboxPriorityFilterSupport", () => {
   it("distinguishes an omitted legacy projection from a supported null", () => {
     expect(inboxPriorityFilterSupport([])).toBe("unknown");
@@ -185,6 +210,19 @@ describe("inboxPriorityFilterSupport", () => {
 });
 
 describe("useInboxFilterStore", () => {
+  it("isolates and toggles action-required filtering and preserves it when priority is unsupported", () => {
+    const store = useInboxFilterStore.getState();
+    store.toggleActionRequiredOnly("ws-1");
+    store.togglePriorityFilter("ws-1", "high");
+    store.clearPriorityFilters("ws-1");
+    expect(useInboxFilterStore.getState().filtersByWorkspace["ws-1"]).toEqual({ ...EMPTY_INBOX_FILTERS, actionRequiredOnly: true });
+    expect(useInboxFilterStore.getState().filtersByWorkspace["ws-2"]).toBeUndefined();
+    store.toggleActionRequiredOnly("ws-1");
+    expect(inboxFilterCount(useInboxFilterStore.getState().filtersByWorkspace["ws-1"]!)).toBe(0);
+    store.toggleActionRequiredOnly("ws-1");
+    store.clearFilters("ws-1");
+    expect(useInboxFilterStore.getState().filtersByWorkspace["ws-1"]).toBeUndefined();
+  });
   it("keeps filters isolated by workspace and clears one workspace only", () => {
     const store = useInboxFilterStore.getState();
     store.toggleStatusFilter("ws-1", "todo");

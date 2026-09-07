@@ -13,9 +13,10 @@ import (
 // TestManagerEveryPlanRetriesFailedSamePlanTime exercises the
 // `every_plan` retry path that张大彪 flagged on PR #3707:
 //
-//	"every_plan 的 FAILED retry 路径断了。CatchUpEveryPlan 规划必须把
-//	 还在 retry 窗口、attempts < max_attempts 的 FAILED row 先递回去
-//	 给 tryClaim 的 retry 分支，不能直接 latestPlan + cadence 跳过"
+//	"The every_plan FAILED retry path is broken. CatchUpEveryPlan planning
+//	 must hand FAILED rows still inside the retry window with
+//	 attempts < max_attempts back to tryClaim's retry branch first,
+//	 instead of skipping straight to latestPlan + cadence"
 //
 // The previous planner unconditionally advanced the cursor to
 // `latestStored + cadence`, so after a FAILED row was written the next

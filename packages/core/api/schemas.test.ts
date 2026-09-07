@@ -628,6 +628,20 @@ describe("AgentTaskListSchema", () => {
     expect(parsed[0]?.delivered_comment_ids).toBeUndefined();
   });
 
+  it("keeps a live wait_reason and tolerates older backends that omit it", () => {
+    const withReason = AgentTaskListSchema.parse([
+      {
+        ...task,
+        status: "waiting_local_directory",
+        wait_reason: "NuvioTV (held by task a1b2c3d4)",
+      },
+    ]);
+    expect(withReason[0]?.wait_reason).toBe("NuvioTV (held by task a1b2c3d4)");
+
+    const legacy = AgentTaskListSchema.parse([task]);
+    expect(legacy[0]?.wait_reason).toBeUndefined();
+  });
+
   it("degrades malformed optional coverage without dropping task rows", () => {
     const parsed = AgentTaskListSchema.parse([
       {
@@ -2111,6 +2125,15 @@ describe("issue status catalog schemas", () => {
 });
 
 describe("AgentMemory schemas", () => {
+  it("does not mistake absent or malformed review metadata for approval", () => {
+    for (const metadata of [{}, { status: null, revision: "1", reviewed_by: 42 }]) {
+      const parsed = AgentMemorySchema.parse({ id: "m", agent_id: "a", ...metadata });
+      expect(parsed.status).toBe("unknown");
+      expect(parsed.revision).toBe(0);
+      expect(parsed.reviewed_by).toBeNull();
+    }
+    expect(AgentMemorySchema.parse({ id: "m", agent_id: "a", status: "future-status", revision: 2 }).status).toBe("future-status");
+  });
   it("parses a full memory row and keeps unknown fields", () => {
     const parsed = AgentMemorySchema.parse({
       id: "mem-1",

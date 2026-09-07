@@ -114,33 +114,37 @@ vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: unknown) => mocks.useQuery(options),
 }));
 
-vi.mock("@multica/core/billing", () => ({
-  workspaceSubscriptionPricesOptions: (wsId: string) => ({
-    queryKey: ["workspace-subscriptions", wsId, "prices"],
-  }),
-  workspaceSubscriptionSummaryOptions: (wsId: string) => ({
-    queryKey: ["workspace-subscriptions", wsId, "summary"],
-  }),
-  issueLimitUsageOptions: (wsId: string) => ({
-    queryKey: ["workspace-subscriptions", wsId, "issue-limit-usage"],
-  }),
-  useCreateWorkspaceSubscriptionCheckout: () => ({
-    mutateAsync: mocks.checkout,
-    isPending: false,
-  }),
-  useCreateWorkspaceSubscriptionPortal: () => ({
-    mutateAsync: mocks.portal,
-    isPending: false,
-  }),
-  usePreviewWorkspaceSeatPurchase: () => ({
-    mutateAsync: mocks.previewSeats,
-    isPending: false,
-  }),
-  usePurchaseWorkspaceSeats: () => ({
-    mutateAsync: mocks.purchaseSeats,
-    isPending: mocks.purchasePending,
-  }),
-}));
+vi.mock("@multica/core/billing", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@multica/core/billing")>();
+  return {
+    ...actual,
+    workspaceSubscriptionPricesOptions: (wsId: string) => ({
+      queryKey: ["workspace-subscriptions", wsId, "prices"],
+    }),
+    workspaceSubscriptionSummaryOptions: (wsId: string) => ({
+      queryKey: ["workspace-subscriptions", wsId, "summary"],
+    }),
+    issueLimitUsageOptions: (wsId: string) => ({
+      queryKey: ["workspace-subscriptions", wsId, "issue-limit-usage"],
+    }),
+    useCreateWorkspaceSubscriptionCheckout: () => ({
+      mutateAsync: mocks.checkout,
+      isPending: false,
+    }),
+    useCreateWorkspaceSubscriptionPortal: () => ({
+      mutateAsync: mocks.portal,
+      isPending: false,
+    }),
+    usePreviewWorkspaceSeatPurchase: () => ({
+      mutateAsync: mocks.previewSeats,
+      isPending: false,
+    }),
+    usePurchaseWorkspaceSeats: () => ({
+      mutateAsync: mocks.purchaseSeats,
+      isPending: mocks.purchasePending,
+    }),
+  };
+});
 
 vi.mock("@multica/core/autopilots", () => ({
   autopilotQuotaUsageOptions: (wsId: string) => ({

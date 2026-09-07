@@ -36,6 +36,40 @@ it again. Unbound is orthogonal to archived.
 
 ## Core model
 
+### Offline memory comparison (human workflow)
+
+`multica agent memory evaluate <agent-id> <memory-id> --suite suite.json --output NEW_DIR`
+compares a pending memory in sequential offline containers against its frozen active
+memory baseline, with separate replay/holdout cases and independent executable checks.
+It reads the API but never starts the production agent or calls a provider. The suite
+uses a full local image ID and explicitly prepared fixtures. See
+`docs/development/memory-evaluation.md` for the worker/verifier contract.
+
+`multica agent memory publish NEW_DIR/report.json` saves human-supplied evidence in
+**Agent → Memory → Evaluations**, where human managers can import, inspect, export,
+remove or adopt reports. Limits: 2 MiB each and 10 per memory. An eligible report can
+also be adopted with `multica agent memory adopt NEW_DIR/report.json --reviewed`:
+it publishes first, then the server checks the complete memory context under the
+memory writer lock and records adoption atomically with the expected revision.
+`multica agent memory restore <agent-id> <memory-id> --revision N --expected-revision M`
+restores an existing historical version. Agents must not approve their own candidate.
+Reports are imported evidence; they do not attest production behavior. Costs and
+human interventions are unknown, not zero. No automatic promotion is performed.
+
+Human managers can launch connected text-response comparisons in Memory →
+Evaluations using an owned/administered Claude or Codex runtime. The server keeps
+expected answers out of runtime jobs, grades exact text, structured JSON or isolated JavaScript function tests, and queues work.
+JavaScript requires a server-configured immutable Node image; expected test outputs
+are never mounted with generated code. See the evaluation guide for the contract.
+Authorized human reports retain the expected answers for review and export.
+Provider charges may apply; local runtime permissions remain in use. See the guide.
+
+Suites may use `worker_protocol: "multica_runtime_v1"` and the container-only
+`agent memory runtime-worker` to reuse Multica's run-only prompt, runtime brief and
+Claude adapter. `agent memory pilot-summary REPORT --reviews REVIEWS` joins explicit
+human acceptance, effort and sourced costs to the exact report hash. See the guide
+above; imported observations and human records are not provider attestation.
+
 An agent is a workspace-scoped row (table `agent`). Creation is a single
 `POST /api/agents` (`multica agent create`). At task claim time the daemon
 re-reads the agent row and assembles the runtime payload — so the persisted

@@ -79,6 +79,7 @@ export type WSEventType =
   | "agent_memory:deleted"
   | "issue_labels:changed"
   | "issue_metadata:changed"
+  | "delivery:changed"
   | "issue_properties:changed"
   | "property:created"
   | "property:updated"

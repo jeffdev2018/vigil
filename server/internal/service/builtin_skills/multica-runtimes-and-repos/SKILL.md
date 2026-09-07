@@ -49,6 +49,16 @@ multica repo checkout <url> --ref <branch-or-sha>
 
 `repo checkout` requires both `MULTICA_DAEMON_PORT` and the injected task-scoped `MULTICA_TOKEN`; it is intended to run inside the active daemon task and from that task's workdir (or a descendant). The local daemon authenticates the token against its active-task registry, derives workspace/task/agent identity itself, and rejects a caller-supplied workdir outside that task. If either variable is absent, you are not in the normal agent checkout path. When a project `github_repo` resource has `resource_ref.ref`, `repo checkout <url>` uses that ref by default for the current task; an explicit `repo checkout <url> --ref <branch-or-sha>` overrides it.
 
+## Provider authentication
+
+The machine page exposes Connect/Disconnect for online Claude Code and Codex runtimes. These actions change the provider account used by the daemon on that machine; they are not Multica login/logout. Only runtime owners and workspace owners/admins can initiate or read an authentication request. Ask that operator to use the machine page when authentication is missing; an agent should not change the machine's provider account itself.
+
+The Runtimes page also shows an activation checklist when a member is not yet ready for a first useful agent result (machine online, CLI present, provider signed in, optional repo, Mika kickoff). Point the member at that checklist; do not invent a parallel setup flow.
+
+Concurrent authentication changes for the same provider and OS account are rejected across Multica processes; wait for the first request to finish before retrying. This does not lock provider commands launched outside Multica.
+
+The page displays a provider URL and device code while the request runs. An unknown state means no authenticated result has been reported, not a failed login. Older servers without the route fall back to the CLI documentation. No credential or full CLI output belongs in an issue, memory, or chat.
+
 ## Task CLI boundary
 
 The daemon injects a task-scoped `mat_` credential for Multica API commands and a private task-local Multica configuration root. Inside that managed task context:

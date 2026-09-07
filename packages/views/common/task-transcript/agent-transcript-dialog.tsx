@@ -78,6 +78,7 @@ import {
 } from "./build-steps";
 import { buildRunOutcome } from "./run-outcome";
 import { RunTimeline } from "./run-timeline";
+import { MemoryContextDetails } from "./memory-context-details";
 import {
   base64ByteLength,
   readImageResult,
@@ -1050,6 +1051,7 @@ export function AgentTranscriptDialog({
                         </>
                       )}
                     </div>
+                    <MemoryContextDetails context={task.memory_context} />
                   </PopoverContent>
                 </Popover>
               )}

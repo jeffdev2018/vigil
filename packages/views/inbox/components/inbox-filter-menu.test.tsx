@@ -128,6 +128,22 @@ afterEach(() => {
 });
 
 describe("InboxFilterMenu", () => {
+  // Filtering combinations and grouping semantics live in core/inbox/filter-store.test.ts.
+  it("shows the faceted action count, toggles the filter and clears it", async () => {
+    useInboxFilterStore.getState().toggleUnreadOnly("ws-1");
+    renderMenu({ items: [
+      item("action", "todo", "high", { severity: "action_required" }),
+      item("read-action", "todo", "high", { severity: "action_required", read: true }),
+      item("info", "todo", "high"),
+    ] });
+    fireEvent.click(screen.getByRole("button", { name: "1 active filter" }));
+    fireEvent.click(await screen.findByRole("menuitemcheckbox", { name: /Action required.*1 notification/ }));
+    expect(useInboxFilterStore.getState().filtersByWorkspace["ws-1"]?.actionRequiredOnly).toBe(true);
+    expect(await screen.findByRole("button", { name: "2 active filters" })).toHaveTextContent("2");
+    expect(await screen.findByRole("menuitemcheckbox", { name: /Action required/ })).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Clear filters" }));
+    expect(useInboxFilterStore.getState().filtersByWorkspace["ws-1"]).toBeUndefined();
+  });
   it("selects a status and exposes the active count on the trigger", async () => {
     renderMenu();
     await openSubmenu("Status");

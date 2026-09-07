@@ -498,6 +498,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	if rdb != nil {
 		h.UpdateStore = handler.NewRedisUpdateStore(rdb)
 		h.ModelListStore = handler.NewRedisModelListStore(rdb)
+		h.CliAuthStore = handler.NewRedisCliAuthStore(rdb)
 		h.ModelCatalogCache = handler.NewRedisModelCatalogCache(rdb)
 		h.LocalSkillListStore = handler.NewRedisLocalSkillListStore(rdb)
 		h.LocalSkillImportStore = handler.NewRedisLocalSkillImportStore(rdb)
@@ -1476,6 +1477,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Get("/runtimes/{runtimeId}/tasks/pending", h.ListPendingTasksByRuntime)
 		r.Post("/runtimes/{runtimeId}/update/{updateId}/result", h.ReportUpdateResult)
 		r.Post("/runtimes/{runtimeId}/models/{requestId}/result", h.ReportModelListResult)
+		r.Post("/runtimes/{runtimeId}/cli-auth/{requestId}/report", h.ReportCliAuthResult)
+		r.Post("/runtimes/{runtimeId}/memory-evaluations/{evaluationId}/claim", h.ClaimMemoryExecution)
+		r.Post("/runtimes/{runtimeId}/memory-evaluations/{evaluationId}/report", h.ReportMemoryExecution)
 		r.Post("/runtimes/{runtimeId}/local-skills/{requestId}/result", h.ReportLocalSkillListResult)
 		r.Post("/runtimes/{runtimeId}/local-skills/import/{requestId}/result", h.ReportLocalSkillImportResult)
 
@@ -1915,6 +1919,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Post("/quick-actions/{quickActionId}/render", h.RenderQuickAction)
 					r.Get("/task-runs", h.ListTasksByIssue)
 					r.Get("/usage", h.GetIssueUsage)
+					r.Post("/decisions", h.CreateIssueDecision)
+					r.Get("/decisions/{decisionID}", h.GetIssueDecision)
+					r.Post("/decisions/{decisionID}/answer", h.AnswerIssueDecision)
+					r.Post("/decisions/{decisionID}/resume", h.ResumeIssueDecision)
+					r.Get("/delivery", h.GetIssueDelivery)
+					r.Put("/delivery/criteria", h.UpdateIssueDeliveryCriteria)
+					r.Post("/delivery/reviews", h.ReviewIssueDelivery)
+					r.Get("/delivery/reviews", h.ListIssueDeliveryHistory)
+					r.Post("/delivery/correction", h.StartIssueDeliveryCorrection)
 					r.Post("/reactions", h.AddIssueReaction)
 					r.Delete("/reactions", h.RemoveIssueReaction)
 					r.Get("/attachments", h.ListAttachments)
@@ -2013,6 +2026,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/", h.GetProject)
 					r.Put("/", h.UpdateProject)
 					r.Delete("/", h.DeleteProject)
+					r.Get("/memory", h.GetProjectMemory)
+					r.Get("/memory/history", h.ListProjectMemoryHistory)
+					r.Get("/memory/usage", h.GetProjectMemoryUsage)
+					r.Put("/memory", h.UpdateProjectMemory)
 					r.Get("/resources", h.ListProjectResources)
 					r.Post("/resources", h.CreateProjectResource)
 					r.Put("/resources/{resourceId}", h.UpdateProjectResource)
@@ -2140,7 +2157,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					// every run's brief. Same permission model as the agent's
 					// skill bindings above.
 					r.Get("/memories", h.ListAgentMemories)
+					r.Get("/memories/usage", h.GetAgentMemoryUsage)
 					r.Post("/memories", h.CreateAgentMemory)
+					r.Get("/memories/{memoryId}/history", h.ListAgentMemoryHistory)
+					r.Get("/memories/{memoryId}/evaluations", h.ListAgentMemoryEvaluations)
+					r.Post("/memories/{memoryId}/evaluations", h.CreateAgentMemoryEvaluation)
+					r.Get("/memories/{memoryId}/evaluations/runtime", h.GetMemoryExecutionConfig)
+					r.Post("/memories/{memoryId}/evaluations/run", h.StartMemoryExecution)
+					r.Post("/memories/{memoryId}/evaluations/{evaluationId}/cancel", h.CancelMemoryExecution)
+					r.Get("/memories/{memoryId}/evaluations/{evaluationId}", h.GetAgentMemoryEvaluation)
+					r.Delete("/memories/{memoryId}/evaluations/{evaluationId}", h.DeleteAgentMemoryEvaluation)
 					r.Put("/memories/{memoryId}", h.UpdateAgentMemory)
 					r.Delete("/memories/{memoryId}", h.DeleteAgentMemory)
 					// Workspace MCP servers assigned to this agent. Mirrors
@@ -2216,6 +2242,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/activity", h.GetRuntimeTaskActivity)
 					r.Post("/update", h.InitiateUpdate)
 					r.Get("/update/{updateId}", h.GetUpdate)
+					r.Post("/cli-auth", h.InitiateCliAuth)
+					r.Delete("/cli-auth", h.InitiateCliLogout)
+					r.Get("/cli-auth/{requestId}", h.GetCliAuthRequest)
 					r.Post("/models", h.InitiateListModels)
 					r.Get("/models/{requestId}", h.GetModelListRequest)
 					r.Post("/local-skills", h.InitiateListLocalSkills)
@@ -2318,6 +2347,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Inbox
 			r.Route("/api/inbox", func(r chi.Router) {
 				r.Get("/", h.ListInbox)
+				r.Get("/decisions", h.ListIssueDecisions)
 				// Archived notifications, for the inbox's "Archived" sub-view.
 				// Separate from "/" so the main list keeps its contract and
 				// never carries the unbounded archive.

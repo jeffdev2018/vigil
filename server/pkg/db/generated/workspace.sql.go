@@ -136,6 +136,18 @@ cleared_installations AS (
 cleared_issue_properties AS (
     DELETE FROM issue_property WHERE workspace_id = $1
 ),
+cleared_project_memory_versions AS (
+ DELETE FROM project_memory_version WHERE workspace_id = $1
+),
+cleared_decisions AS (
+    DELETE FROM issue_decision WHERE workspace_id = $1
+),
+cleared_delivery_contracts AS (
+    DELETE FROM issue_delivery_contract WHERE workspace_id = $1
+),
+cleared_delivery_reviews AS (
+    DELETE FROM issue_delivery_review WHERE workspace_id = $1
+),
 cleared_quick_actions AS (
     DELETE FROM quick_action WHERE workspace_id = $1
 ),

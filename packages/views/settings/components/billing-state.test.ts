@@ -9,6 +9,7 @@ import type {
 import {
   hasActiveWorkspaceSeatCapacity,
   resolveAutopilotUsage,
+  resolveIssueUsage,
 } from "./billing-state";
 
 const freeEntitlements: WorkspaceSubscriptionEntitlements = {
@@ -50,8 +51,17 @@ describe("resolveAutopilotUsage", () => {
       limit: 7,
       progress: 500 / 7,
       reached: false,
+      level: "ok",
       resetAt: "2030-02-01T00:00:00Z",
     });
+
+    expect(
+      resolveAutopilotUsage(
+        freeEntitlements,
+        { ...quotaUsage, used: 5, reserved: 1, total: 6, reached: false },
+        false,
+      ),
+    ).toMatchObject({ level: "alert", progress: 600 / 7 });
 
     expect(
       resolveAutopilotUsage(
@@ -59,7 +69,7 @@ describe("resolveAutopilotUsage", () => {
         { ...quotaUsage, used: 5, total: 7, reached: true },
         false,
       ),
-    ).toMatchObject({ total: 7, reached: true, progress: 100 });
+    ).toMatchObject({ total: 7, reached: true, progress: 100, level: "blocked" });
   });
 
   it("renders the server's explicit unlimited mode", () => {
@@ -124,6 +134,35 @@ describe("resolveAutopilotUsage", () => {
         false,
       ),
     ).toMatchObject({ kind: "metered", limit: 7 });
+  });
+});
+
+describe("resolveIssueUsage", () => {
+  it("alerts before the hard issue ceiling and blocks at capacity", () => {
+    expect(
+      resolveIssueUsage(freeEntitlements, { used: 10, limit: 17 }, false),
+    ).toEqual({
+      kind: "metered",
+      used: 10,
+      limit: 17,
+      progress: (10 / 17) * 100,
+      level: "ok",
+    });
+    expect(
+      resolveIssueUsage(freeEntitlements, { used: 14, limit: 17 }, false),
+    ).toMatchObject({ level: "alert" });
+    expect(
+      resolveIssueUsage(freeEntitlements, { used: 17, limit: 17 }, false),
+    ).toMatchObject({ level: "blocked", progress: 100 });
+  });
+
+  it("stays unavailable when usage does not match the entitlement limit", () => {
+    expect(
+      resolveIssueUsage(freeEntitlements, { used: 3, limit: 99 }, false),
+    ).toEqual({ kind: "unavailable" });
+    expect(resolveIssueUsage(freeEntitlements, null, true)).toEqual({
+      kind: "unavailable",
+    });
   });
 });
 

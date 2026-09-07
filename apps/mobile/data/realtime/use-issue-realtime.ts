@@ -34,6 +34,7 @@ import type {
   TaskQueuedPayload,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
+import { deliveryKeys } from "@/data/queries/delivery";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 import {
   addCommentReaction,
@@ -86,6 +87,10 @@ export function useIssueRealtime(
       const invalidateTaskQueries = () => {
         qc.invalidateQueries({ queryKey: issueKeys.activeTasks(wsId, issueId) });
         qc.invalidateQueries({ queryKey: issueKeys.tasks(wsId, issueId) });
+        // Delivery snapshot includes the latest run + review freshness.
+        qc.invalidateQueries({
+          queryKey: deliveryKeys.detail(wsId, issueId),
+        });
       };
 
       // Shared cross-event handler for the 6 task:* subscriptions below.

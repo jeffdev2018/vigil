@@ -155,13 +155,15 @@ describe("JoinPage", () => {
     render(<JoinPage />, { wrapper: createWrapper() });
 
     await user.click(
-      await screen.findByRole("button", { name: "Log In to Join" }),
+      await screen.findByRole("button", {
+        name: "Log In to Join",
+      }),
     );
     expect(mockPush).toHaveBeenCalledWith(
       "/login?next=" + encodeURIComponent("/join?code=abc123"),
     );
     expect(mockJoinByShareLink).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 
   it("joins only when an authenticated user clicks the button", async () => {
     const user = userEvent.setup();

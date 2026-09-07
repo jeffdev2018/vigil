@@ -6,6 +6,29 @@ after the latest `main` merge; the prior skill cited pre-merge lines that have
 since moved (see the "drifted" column). Re-confirm with the verification command
 at the bottom before relying on an exact line.
 
+## Human decision lifecycle
+
+The human recipient uses **Inbox → Decisions** to save a final answer (up to
+4,000 characters) or cancel. Reading/archiving notifications is unrelated. After
+answering, **Start follow-up** starts a fresh session using the recorded question,
+context, answer and source lineage, provided the source run is terminal and the
+human can invoke the agent. The original execution is not unpaused. Runtime or
+pending-work errors keep the answer saved. Retrying resume returns the same run
+receipt, including after that run completes or is deleted. Tool approvals and
+human delivery review still apply. The source token may expire when its run ends;
+the new run receives the answer in its handoff without reusing that token.
+
+API: `POST /api/issues/{id}/decisions` accepts `id`, `source_task_id`,
+`recipient_id`, `question`, `context`, `options`; `GET .../decisions/{decisionID}`
+reads one request. Human-only `POST .../{decisionID}/answer` accepts
+`{status:"answered",answer:"..."}` or `{status:"cancelled",answer:""}`.
+Human-only `POST .../{decisionID}/resume` returns the decision with
+`resume_task_id`. `GET /api/inbox/decisions` lists the recipient's actionable
+requests; `?history=true` lists cancelled/resumed requests, 50 per page with
+`next_before_id` / `before_id`. Answered but not resumed requests remain actionable.
+Snapshots remain addressed to the original recipient; later agent visibility
+changes do not erase this record. Issue/workspace deletion removes the record.
+
 ## `multica issue pull-requests` — read PR links from Multica
 
 | Behavior | File:line | Drifted from |
@@ -215,6 +238,22 @@ about the issue — there is no assignee gate (MUL-6417).
 | Shared actor-reference types and helpers | `packages/core/types/property.ts` (`parseActorRef`, `actorRefsFromValue`, `MAX_ISSUE_PROPERTY_ACTOR_VALUES`) |
 | API routes (`/api/properties`, PUT/DELETE `/api/issues/{id}/properties/{propertyId}`) | `server/cmd/server/router.go` |
 
+## Human delivery review sources
+
+- `server/internal/handler/agent_memory.go`, `CreateAgentMemory`: human/agent-management gate, correction source resolution, pending proposal and idempotent recovery; immutable criteria/assessment provenance retained across edits and history.
+- `server/pkg/db/queries/agent_memory.sql`, `GetAgentMemoryCorrectionSource` and `GetAgentMemoryForCorrection`: workspace/original-agent/non-private source boundaries and receipt lookup.
+- `server/migrations/484_agent_memory_correction_source.up.sql` and `485_agent_memory_correction_identity.up.sql`: source evidence on memory and versions, one live candidate per agent/review.
+- `server/internal/handler/agent_memory_correction_test.go`: concurrent proposal, no pending injection, approval/restore, source deletion, rollback and boundary tests.
+- `server/internal/handler/issue_delivery_usage.go`: immutable cumulative cost snapshot, exact decimal amounts, catalog quote, missing/unpriced/nonterminal coverage; no private-chat runs in `ListIssueDeliveryUsage`.
+- `server/migrations/483_delivery_usage_snapshot.up.sql`: nullable snapshot on new reviews, without reconstructing costs for old decisions.
+- `server/internal/handler/issue_delivery.go`, `ListIssueDeliveryHistory` and `deliveryReviewResponse`: workspace-scoped cursor pagination and elapsed completion-to-review duration.
+- `server/pkg/db/queries/issue_delivery.sql`, `GetIssueDeliveryMetrics`: distinct evidence snapshots and latest decision per snapshot; correction and acceptance-reversal counts.
+- `server/internal/handler/issue_delivery.go`: member gate, machine-credential refusal, criteria revisions, immutable evidence snapshots, idempotent review IDs, concurrent decision rejection.
+- `server/internal/handler/daemon.go`, `buildClaimedTaskResponse`: current issue criteria added to the issue-bound run instructions, excluding chat tasks.
+- `server/pkg/db/queries/issue_delivery.sql`: workspace-scoped criteria/reviews and latest non-chat run.
+- `packages/views/issues/components/issue-delivery-section.tsx`: human assessment UI, outdated review and incomplete cost labels; separate human correction launch, persistent receipt, reviewer attribution and shared transcript access; always-visible honesty that board `in_review` ≠ acceptance ≠ merge/deploy; pending accept/correct CTA when a completed run awaits a human decision; optional post-accept offer to set board status `done` without auto-applying it.
+- `server/internal/handler/issue_delivery_test.go` and `packages/core/api/issue-delivery.test.ts`: freshness, tenant scope, concurrency, retry and malformed-response contracts.
+
 ## Verification command
 
 Re-derive any line above before depending on it:
@@ -229,3 +268,28 @@ grep -n 'qualifyingIdents\|reference_only\|ReferenceOnly' internal/handler/githu
 grep -n 'prevIssue.Status == "backlog"\|func (h \*Handler) shouldEnqueueAgentTask' internal/handler/issue.go
 grep -n 'func notifyParentOfChildDone'       internal/handler/issue_child_done.go
 ```
+
+- `server/internal/service/task_delivery.go`: transaction-bound correction enqueue reusing the existing mention-task admission path; fresh session and source-run lineage, no cancellation of pending work.
+- `server/migrations/477_issue_delivery_correction.up.sql`: persistent correction task receipt on the saved review.
+
+### Memory dispatch context
+
+- `internal/service/task_memory_context.go`: reference-only wire contract.
+- `internal/service/task.go`: `LoadAgentMemories` pairs content and versions from one SQL read; `FinalizeTaskClaim` atomically writes exact-claim context and credentials.
+- `internal/handler/daemon.go`: single/batch/WS claim assembly; unavailable memory stays non-blocking.
+- `internal/handler/project_memory.go` and `project_resource.go`: project revision captured alongside the same rendered rules.
+- `pkg/db/queries/agent.sql`, `SetTaskMemoryContext`: runtime/dispatch timestamp/start-state CAS; migration 486.
+- `internal/handler/task_memory_context_test.go`: claim variants, cap/order, expiry, tenant boundary, failed read, rollback, reclaim and already-started protection.
+- `pkg/db/queries/agent.sql`, `SetTaskMemoryContext`: database-owned `is_chat` marker survives chat deletion and overrides caller JSON; this internal marker is not part of the public context DTO.
+- `internal/handler/agent_memory_usage.go`, `pkg/db/queries/agent_memory_usage.sql`: private-agent gate, 30-day coverage/version counts, positive non-chat provenance and dispatch-generation matching; migration 487 indexes the time window.
+- `internal/handler/agent_memory_usage_test.go`: coverage, tenant/private-agent access, deleted-chat exclusion and retained quick-create runs.
+- `packages/views/agents/components/tabs/memory-usage-section.tsx`: shared web/desktop statistics, error/retry, version references and existing history dialog.
+
+## Durable human decisions
+
+- `server/cmd/multica/cmd_issue_decision.go`: request/get CLI, required retry ID.
+- `server/internal/handler/issue_decision.go`: source provenance, recipient authorization, immutable answer and atomic resume receipt.
+- `server/internal/service/task_delivery.go`: transaction-bound follow-up using normal human attribution and rerun lineage.
+- `server/pkg/db/queries/issue_decision.sql`: pending/history pagination and response writes.
+- `packages/views/inbox/components/inbox-decisions.tsx`: separate answer/resume actions and history.
+- `server/internal/handler/issue_decision_test.go`: concurrent writes, source privacy, recipient boundaries, retry receipts and claim prompt.

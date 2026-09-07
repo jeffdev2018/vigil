@@ -70,6 +70,7 @@ export type {
   RuntimeUnavailableModel,
   RuntimeModelThinkingLevel,
   RuntimeModelListRequest,
+  RuntimeCliAuthRequest,
   RuntimeModelListStatus,
   RuntimeModelsResult,
   RuntimeLocalSkillStatus,
@@ -83,7 +84,14 @@ export type {
   RuntimeLocalSkillsResult,
   RuntimeLocalSkillImportResult,
   AgentMemory,
+  AgentMemoryVersion,
+  AgentMemoryHistory,
+  AgentMemoryEvaluation,
+  MemoryExecutionConfig,
+  MemoryExecutionRequest,
+  AgentMemoryUsage,
   AgentMemorySource,
+  AgentMemoryStatus,
   IssueUsageSummary,
   MikaBootstrapResponse,
 } from "./agent";
@@ -353,3 +361,5 @@ export type {
   WorkspaceSubscriptionSeatReconcileResult,
   CreateWorkspaceSubscriptionPortalResponse,
 } from "./billing";
+
+export type { ProjectMemory, ProjectMemoryHistory, ProjectMemoryUsage } from "./project";

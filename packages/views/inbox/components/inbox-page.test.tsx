@@ -1,10 +1,12 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@multica/core/api";
 import type { InboxItem } from "@multica/core/types";
 import { useInboxFilterStore } from "@multica/core/inbox/filter-store";
 import { InboxPage } from "./inbox-page";
+
+vi.mock("./inbox-decisions", () => ({ InboxDecisions: () => <div>Durable decisions</div> }));
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -334,6 +336,20 @@ describe("InboxPage", () => {
     expect(screen.getByTestId("row")).toHaveTextContent("from-alice");
   });
 
+  it.each(["inbox", "archived"])("applies action-required filtering in the %s view", (view) => {
+    reset();
+    const archived = view === "archived";
+    searchParams = new URLSearchParams(archived ? "view=archived" : "");
+    listData[archived ? "archived" : "active"] = [
+      item({ id: "action-row", severity: "action_required", archived }),
+      item({ id: "info-row", issue_id: "issue-2", archived }),
+    ];
+    useInboxFilterStore.getState().toggleActionRequiredOnly("workspace-1");
+    render(<InboxPage />);
+    expect(screen.getAllByTestId("row")).toHaveLength(1);
+    expect(screen.getByTestId("row")).toHaveTextContent("action-row");
+  });
+
   it("offers to clear filters when they hide every notification", () => {
     reset();
     listData.active = [
@@ -350,7 +366,7 @@ describe("InboxPage", () => {
     render(<InboxPage />);
 
     expect(screen.queryByTestId("row")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Inbox" }));
+    fireEvent.click(within(screen.getByTestId("list")).getByRole("button", { name: "Inbox" }));
     expect(screen.getByTestId("row")).toHaveTextContent("todo-high");
   });
 
@@ -853,4 +869,11 @@ describe("InboxPage", () => {
     expect(replace).toHaveBeenCalledWith("/acme/issues/issue-404");
     expect(replace).not.toHaveBeenCalledWith("/acme/inbox");
   });
+});
+
+it("opens the durable decisions view from its workspace route", () => {
+  searchParams = new URLSearchParams("view=decisions");
+  render(<InboxPage />);
+  expect(screen.getByText("Durable decisions")).toBeTruthy();
+  searchParams = new URLSearchParams();
 });

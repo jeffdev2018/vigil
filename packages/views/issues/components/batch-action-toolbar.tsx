@@ -116,8 +116,8 @@ export function BatchActionToolbar({
   // starts its run the same way a single-issue status change or the CLI does,
   // without an extra confirmation step (product decision on MUL-4155). The
   // status change was previously routed through the pre-trigger modal, which for
-  // the common done/cancelled case only rendered a misleading "现在开始处理？ →
-  // 不会开始处理" box. Agent/squad assignment still confirms via
+  // the common done/cancelled case only rendered a misleading "Start
+  // processing now? → Will not start processing" box. Agent/squad assignment still confirms via
   // handleBatchAssignee — that is the only batch action that should preview a
   // run fan-out.
   const handleBatchStatus = (updates: Partial<UpdateIssueRequest>) => {

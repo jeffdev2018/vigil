@@ -74,6 +74,7 @@ import {
 import {
   hasActiveWorkspaceSeatCapacity,
   resolveAutopilotUsage,
+  resolveIssueUsage,
 } from "./billing-state";
 import { formatStripeMinorAmount } from "./billing-format";
 
@@ -804,14 +805,11 @@ function BillingTabContent() {
       ? formatDateTime(quotaUsage.resetAt, locale)
       : null;
   const numberFormatter = new Intl.NumberFormat(locale);
-  const issueCountLimit = entitlements.limits.issueCount;
-  const issueLimitUsage = issueLimitUsageQuery.data;
-  const issueLimitValue =
-    issueCountLimit.mode === "unlimited"
-      ? t(($) => $.workspace.limits.unlimited)
-      : issueLimitUsage?.limit === issueCountLimit.limit
-        ? `${numberFormatter.format(issueLimitUsage.used)} / ${numberFormatter.format(issueLimitUsage.limit)}`
-        : numberFormatter.format(issueCountLimit.limit);
+  const issueUsage = resolveIssueUsage(
+    entitlements,
+    issueLimitUsageQuery.data,
+    issueLimitUsageQuery.isError,
+  );
   const isMutating =
     checkoutMutation.isPending ||
     portalMutation.isPending ||
@@ -1197,7 +1195,62 @@ function BillingTabContent() {
             label={t(($) => $.workspace.limits.issues)}
             description={t(($) => $.workspace.limits.issues_description)}
           >
-            <span className="tabular-nums">{issueLimitValue}</span>
+            {issueUsage.kind === "unlimited" ? (
+              <span className="tabular-nums">
+                {t(($) => $.workspace.limits.unlimited)}
+              </span>
+            ) : issueLimitUsageQuery.isPending ? (
+              <div
+                className="w-full max-w-72 space-y-2 motion-reduce:[&_[data-slot=skeleton]]:animate-none"
+                role="status"
+                aria-label={t(($) => $.workspace.limits.issues_usage_loading)}
+              >
+                <Skeleton className="h-5 w-full" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ) : issueUsage.kind === "metered" ? (
+              <div className="w-full max-w-72 space-y-2">
+                <Progress
+                  value={issueUsage.progress}
+                  aria-label={t(($) => $.workspace.limits.issues_usage_label)}
+                >
+                  <ProgressLabel>
+                    {issueUsage.level === "blocked"
+                      ? t(($) => $.workspace.limits.reached)
+                      : issueUsage.level === "alert"
+                        ? t(($) => $.workspace.limits.approaching)
+                        : t(($) => $.workspace.limits.current_usage)}
+                  </ProgressLabel>
+                  <ProgressValue>
+                    {() =>
+                      t(($) => $.workspace.limits.usage_total, {
+                        total: numberFormatter.format(issueUsage.used),
+                        limit: numberFormatter.format(issueUsage.limit),
+                      })
+                    }
+                  </ProgressValue>
+                </Progress>
+                {issueUsage.level === "alert" || issueUsage.level === "blocked" ? (
+                  <p className="text-caption text-warning">
+                    {issueUsage.level === "blocked"
+                      ? t(($) => $.workspace.limits.issues_blocked_hint)
+                      : t(($) => $.workspace.limits.issues_alert_hint)}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="flex flex-col gap-2 sm:items-end">
+                {entitlements.limits.issueCount.mode === "limited" &&
+                entitlements.limits.issueCount.limit !== null ? (
+                  <span className="tabular-nums">
+                    {numberFormatter.format(entitlements.limits.issueCount.limit)}
+                  </span>
+                ) : null}
+                <span className="text-caption text-muted-foreground">
+                  {t(($) => $.workspace.limits.usage_unavailable)}
+                </span>
+              </div>
+            )}
           </SettingsRow>
           <SettingsRow
             label={t(($) => $.workspace.limits.autopilots)}
@@ -1223,9 +1276,11 @@ function BillingTabContent() {
                   aria-label={t(($) => $.workspace.limits.usage_label)}
                 >
                   <ProgressLabel>
-                    {quotaUsage.reached
+                    {quotaUsage.level === "blocked"
                       ? t(($) => $.workspace.limits.reached)
-                      : t(($) => $.workspace.limits.current_usage)}
+                      : quotaUsage.level === "alert"
+                        ? t(($) => $.workspace.limits.approaching)
+                        : t(($) => $.workspace.limits.current_usage)}
                   </ProgressLabel>
                   <ProgressValue>
                     {() =>
@@ -1242,6 +1297,13 @@ function BillingTabContent() {
                     reserved: numberFormatter.format(quotaUsage.reserved),
                   })}
                 </p>
+                {quotaUsage.level === "alert" || quotaUsage.level === "blocked" ? (
+                  <p className="text-caption text-warning">
+                    {quotaUsage.level === "blocked"
+                      ? t(($) => $.workspace.limits.autopilots_blocked_hint)
+                      : t(($) => $.workspace.limits.autopilots_alert_hint)}
+                  </p>
+                ) : null}
                 {quotaResetAt ? (
                   <p className="text-caption text-muted-foreground tabular-nums">
                     {t(($) => $.workspace.limits.resets_at, {
@@ -1282,6 +1344,9 @@ function BillingTabContent() {
               </div>
             )}
           </SettingsRow>
+          <p className="px-4 pb-4 text-caption text-muted-foreground">
+            {t(($) => $.workspace.limits.boundary_honesty)}
+          </p>
         </SettingsCard>
       </SettingsSection>
 

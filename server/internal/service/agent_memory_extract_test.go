@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -31,6 +32,7 @@ func seedAgentMemoryExtractionFixture(t *testing.T) (agentMemoryExtractionFixtur
 	t.Helper()
 	pool := newResolveOriginatorPool(t)
 	workspaceID, userID, agentID, issueID := seedAttributionFixture(t, pool)
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM agent_memory_version WHERE agent_id=$1`, agentID) })
 	return agentMemoryExtractionFixture{
 		workspaceID: workspaceID,
 		userID:      userID,
@@ -139,12 +141,18 @@ func TestAgentMemoryExtractionInsertsFacts(t *testing.T) {
 	// fact came from.
 	var linked int
 	if err := pool.QueryRow(context.Background(),
-		`SELECT COUNT(*) FROM agent_memory WHERE agent_id = $1 AND source_task_id = $2`,
+		`SELECT COUNT(*) FROM agent_memory WHERE agent_id = $1 AND source_task_id = $2 AND status = 'pending'`,
 		fx.agentID, taskID).Scan(&linked); err != nil {
 		t.Fatalf("count linked: %v", err)
 	}
 	if linked != 2 {
 		t.Fatalf("source_task_id linked rows = %d, want 2", linked)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM agent_memory_version WHERE agent_id=$1 AND source_task_id=$2 AND status='pending' AND revision=1`, fx.agentID, taskID).Scan(&linked); err != nil {
+		t.Fatal(err)
+	}
+	if linked != 2 {
+		t.Fatalf("missing extraction versions: %d", linked)
 	}
 }
 
@@ -210,6 +218,23 @@ func TestAgentMemoryExtractionCapsAtThreeFacts(t *testing.T) {
 	}
 }
 
+func TestAgentMemoryExtractionSkipsPrivateChat(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	chatID := testutil.New(pool, fx.workspaceID, fx.userID).ChatSession(t, fx.agentID)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "Private conversation output.")
+	if _, err := pool.Exec(context.Background(), `UPDATE agent_task_queue SET chat_session_id = $1, issue_id = NULL WHERE id = $2`, chatID, taskID); err != nil {
+		t.Fatal(err)
+	}
+	svc := memoryExtractionService(pool, events.New(),
+		stubMemoryLLM(t, `{"facts":["Private fact must not become shared memory."]}`))
+	if err := svc.ExtractAgentMemoriesForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatal(err)
+	}
+	if got := fx.memoryContents(t, pool); len(got) != 0 {
+		t.Fatalf("private chat leaked into memory: %v", got)
+	}
+}
+
 func TestAgentMemoryExtractionSkipsNonSuccessRun(t *testing.T) {
 	fx, pool := seedAgentMemoryExtractionFixture(t)
 	// A context-exhausted run is re-routed to the failure path, so its output
@@ -261,5 +286,34 @@ func TestAgentMemoryExtractionEventWiring(t *testing.T) {
 			t.Fatal("timed out waiting for the extraction pass to write its fact")
 		}
 		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func TestAgentMemoryExtractionPreservesReviewedAndRejectedFactsAtCapacity(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "New conventions.")
+	fixtures := testutil.New(pool, fx.workspaceID, fx.userID)
+	for i := 0; i < 200; i++ {
+		status := "active"
+		if i == 199 {
+			status = "rejected"
+		}
+		fixtures.Insert(t, "agent_memory", testutil.Cols{
+			"workspace_id": fx.workspaceID, "agent_id": fx.agentID,
+			"content": fmt.Sprintf("Keep fact %d.", i), "source": "run", "status": status,
+		})
+	}
+	svc := memoryExtractionService(pool, events.New(), stubMemoryLLM(t, `{"facts":["New suggestion."]}`))
+	if err := svc.ExtractAgentMemoriesForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatal(err)
+	}
+	contents := fx.memoryContents(t, pool)
+	if len(contents) != 200 {
+		t.Fatalf("capacity changed: %d", len(contents))
+	}
+	for _, content := range contents {
+		if content == "run: New suggestion." {
+			t.Fatal("extraction displaced a reviewed or rejected fact")
+		}
 	}
 }

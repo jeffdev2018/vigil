@@ -23,7 +23,12 @@ function createMemoryStorage(): Storage {
 // with `// @vitest-environment node` and share this file, so there is no DOM to
 // patch there — bail out rather than guard each stub.
 if (typeof window !== "undefined") {
-  if (typeof globalThis.localStorage?.clear !== "function") {
+  if (
+    typeof globalThis.localStorage?.clear !== "function" ||
+    typeof globalThis.localStorage?.setItem !== "function" ||
+    typeof globalThis.localStorage?.removeItem !== "function" ||
+    typeof globalThis.localStorage?.getItem !== "function"
+  ) {
     const storage = createMemoryStorage();
     Object.defineProperty(globalThis, "localStorage", {
       configurable: true,

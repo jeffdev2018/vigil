@@ -113,6 +113,14 @@ export default function Inbox() {
         right={
           <>
             <IconButton
+              name="list-outline"
+              onPress={() => {
+                if (!wsSlug) return;
+                router.push(`/(app)/${wsSlug}/inbox/decisions`);
+              }}
+              accessibilityLabel="Decisions"
+            />
+            <IconButton
               name="ellipsis-horizontal"
               onPress={onPressMenu}
               accessibilityLabel="Inbox actions"

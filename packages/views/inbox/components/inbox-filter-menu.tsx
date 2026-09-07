@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { CircleDot, Filter, Mail, RotateCcw, SignalHigh, UserRound } from "lucide-react";
+import { CircleAlert, CircleDot, Filter, Mail, RotateCcw, SignalHigh, UserRound } from "lucide-react";
 import { PRIORITY_DISPLAY_ORDER } from "@multica/core/issues/config";
 import {
   filterInboxItems,
@@ -86,6 +86,9 @@ export function InboxFilterMenu({
   const toggleUnreadOnly = useInboxFilterStore(
     (state) => state.toggleUnreadOnly,
   );
+  const toggleActionRequiredOnly = useInboxFilterStore(
+    (state) => state.toggleActionRequiredOnly,
+  );
   const { getActorName, getActorInitials, getActorAvatarUrl } = useActorName();
   const clearFilters = useInboxFilterStore((state) => state.clearFilters);
   const clearPriorityFilters = useInboxFilterStore(
@@ -149,6 +152,10 @@ export function InboxFilterMenu({
       ).length,
     [items, effectiveFilters],
   );
+  const actionRequiredCount = useMemo(
+    () => filterInboxItems(items, { ...effectiveFilters, actionRequiredOnly: true }).length,
+    [items, effectiveFilters],
+  );
   const statuses = useMemo(
     () => statusCounts(statusFacetItems),
     [statusFacetItems],
@@ -206,6 +213,16 @@ export function InboxFilterMenu({
         )}
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-auto min-w-44">
+        <DropdownMenuCheckboxItem
+          checked={effectiveFilters.actionRequiredOnly}
+          onCheckedChange={() => toggleActionRequiredOnly(wsId)}
+        >
+          <CircleAlert className="size-3.5" />
+          <span className="flex-1">{t(($) => $.filters.action_required_only)}</span>
+          <span className="text-caption text-muted-foreground">
+            {t(($) => $.filters.notification_count, { count: actionRequiredCount })}
+          </span>
+        </DropdownMenuCheckboxItem>
         <DropdownMenuCheckboxItem
           checked={effectiveFilters.unreadOnly}
           onCheckedChange={() => toggleUnreadOnly(wsId)}

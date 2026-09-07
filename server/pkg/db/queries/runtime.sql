@@ -86,7 +86,9 @@ DO UPDATE SET
     runtime_mode = EXCLUDED.runtime_mode,
     status = EXCLUDED.status,
     device_info = EXCLUDED.device_info,
-    metadata = EXCLUDED.metadata,
+    metadata = EXCLUDED.metadata || CASE WHEN agent_runtime.metadata ? 'cli_auth'
+        THEN jsonb_build_object('cli_auth', agent_runtime.metadata->'cli_auth')
+        ELSE '{}'::jsonb END,
     owner_id = COALESCE(EXCLUDED.owner_id, agent_runtime.owner_id),
     last_seen_at = now(),
     updated_at = now()
@@ -120,7 +122,9 @@ DO UPDATE SET
     provider = EXCLUDED.provider,
     status = EXCLUDED.status,
     device_info = EXCLUDED.device_info,
-    metadata = EXCLUDED.metadata,
+    metadata = EXCLUDED.metadata || CASE WHEN agent_runtime.metadata ? 'cli_auth'
+        THEN jsonb_build_object('cli_auth', agent_runtime.metadata->'cli_auth')
+        ELSE '{}'::jsonb END,
     owner_id = COALESCE(EXCLUDED.owner_id, agent_runtime.owner_id),
     last_seen_at = now(),
     updated_at = now()
@@ -228,12 +232,20 @@ WHERE id = $1;
 -- and leaves no reason, because "wait for it" needs no explanation.
 --
 -- Merged into metadata rather than a column: registration overwrites metadata
--- wholesale (`metadata = EXCLUDED.metadata`), so a runtime that comes back
+-- except for the server-owned cli_auth snapshot, so a runtime that comes back
 -- drops the reason as a side effect of being usable again — there is no stale
 -- explanation to clean up and no code path that has to remember to clear it.
 UPDATE agent_runtime
 SET status = 'offline',
     metadata = metadata || jsonb_build_object('offline_reason', @offline_reason::jsonb),
+    updated_at = now()
+WHERE id = $1;
+
+-- name: UpdateRuntimeCliAuthState :exec
+-- Authentication tokens remain exclusively in the provider CLI's local
+-- config. Only the non-secret status snapshot is durable.
+UPDATE agent_runtime
+SET metadata = metadata || jsonb_build_object('cli_auth', @cli_auth::jsonb),
     updated_at = now()
 WHERE id = $1;
 

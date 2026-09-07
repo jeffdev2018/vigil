@@ -356,3 +356,6 @@ describe("ProjectDetail project deletion", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// Memory behavior is covered in project-memory-section.test.tsx.
+vi.mock("./project-memory-section", () => ({ ProjectMemorySection: () => null }));

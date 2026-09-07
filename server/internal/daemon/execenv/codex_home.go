@@ -101,6 +101,13 @@ func prepareCodexHome(codexHome string, logger *slog.Logger) error {
 	return prepareCodexHomeWithOpts(codexHome, CodexHomeOptions{GOOS: "linux"}, logger)
 }
 
+// PrepareCodexRuntimeHome prepares a disposable home for a fresh, run-only
+// evaluation. It shares authentication and copies provider config exactly as
+// task execution does; sessions and managed MCP changes remain task-local.
+func PrepareCodexRuntimeHome(path string, logger *slog.Logger) error {
+	return prepareCodexHomeWithOpts(path, CodexHomeOptions{}, logger)
+}
+
 // sharedConfigPresence is the tri-state existence of the shared
 // ~/.codex/config.toml copy source. It is three-valued so a stat that fails for
 // a reason other than "not found" (permission/IO) never masquerades as a

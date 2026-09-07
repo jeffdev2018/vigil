@@ -103,6 +103,8 @@ func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID
 }
 
 const deleteWorkspaceAgentMemories = `-- name: DeleteWorkspaceAgentMemories :exec
+WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
+cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
 DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1
 `
 
@@ -239,6 +241,9 @@ func (q *Queries) DeleteWorkspaceConnections(ctx context.Context, workspaceID pg
 
 const deleteWorkspaceIssueRoots = `-- name: DeleteWorkspaceIssueRoots :exec
 WITH
+deleted_decisions AS (
+    DELETE FROM issue_decision WHERE workspace_id = $1
+),
 deleted_issues AS (
     DELETE FROM issue WHERE issue.workspace_id = $1
 ),

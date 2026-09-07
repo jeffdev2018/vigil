@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -37,9 +38,8 @@ var modelPrices = map[string]ModelPrice{
 	"openai:gpt-5.4-mini":  {Provider: "openai", Model: "gpt-5.4-mini", InputPerM: 0.75, CacheReadPerM: 0.075, CacheWritePerM: 0.075, OutputPerM: 4.50},
 	"openai:gpt-5.3-codex": {Provider: "openai", Model: "gpt-5.3-codex", InputPerM: 1.75, CacheReadPerM: 0.175, CacheWritePerM: 0.175, OutputPerM: 14.00},
 	"openai:gpt-5.2-codex": {Provider: "openai", Model: "gpt-5.2-codex", InputPerM: 1.75, CacheReadPerM: 0.175, CacheWritePerM: 0.175, OutputPerM: 14.00},
-	// Anthropic's Sonnet 5 launch price is $2 / $10 through 2026-08-31. This
-	// static table cannot schedule the published post-intro $3 / $15 change yet,
-	// so keep the intro rate here and update the row when catalog support exists.
+	// Sonnet 5's $2 / $10 launch rate became permanent on 2026-08-10.
+	// Verified 2026-09-05: anthropic.com/research/claude-sonnet-5 (changelog).
 	"anthropic:claude-sonnet-5":   {Provider: "anthropic", Model: "claude-sonnet-5", InputPerM: 2.00, CacheReadPerM: 0.20, CacheWritePerM: 2.50, OutputPerM: 10.00},
 	"anthropic:claude-fable-5-1":  {Provider: "anthropic", Model: "claude-fable-5-1", InputPerM: 10.00, CacheReadPerM: 0.25, CacheWritePerM: 12.50, OutputPerM: 50.00},
 	"anthropic:claude-fable-5":    {Provider: "anthropic", Model: "claude-fable-5", InputPerM: 10.00, CacheReadPerM: 1.00, CacheWritePerM: 12.50, OutputPerM: 50.00},
@@ -255,4 +255,26 @@ func tokenCostUSD(tokens int64, pricePerM float64) float64 {
 		return 0
 	}
 	return float64(tokens) * pricePerM / 1_000_000
+}
+
+// EstimateTokenUsageUSD prices adapter-reported tokens against the Multica
+// catalog. It is an estimate, not a provider invoice. ok is false when the
+// model is unmapped or token counts are invalid.
+func EstimateTokenUsageUSD(model string, input, output, cacheRead, cacheWrite int64) (float64, bool) {
+	if input < 0 || output < 0 || cacheRead < 0 || cacheWrite < 0 {
+		return 0, false
+	}
+	price, ok := PriceForModelAlias(model)
+	if !ok {
+		return 0, false
+	}
+	total := tokenCostUSD(input, price.InputPerM) +
+		tokenCostUSD(output, price.OutputPerM) +
+		tokenCostUSD(cacheRead, price.CacheReadPerM) +
+		tokenCostUSD(cacheWrite, price.CacheWritePerM)
+	rounded, err := strconv.ParseFloat(strconv.FormatFloat(total, 'f', 10, 64), 64)
+	if err != nil {
+		return 0, false
+	}
+	return rounded, true
 }

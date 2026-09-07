@@ -23,7 +23,7 @@ import (
 // Agent memory extraction (JEF-236): after a run completes, a best-effort
 // pass asks the deployment's assist-layer LLM for the durable facts the run
 // revealed about the repo / workflow / tooling, and stores the new ones as
-// source='run' rows in agent_memory. The whole path is a nicety: a disabled
+// pending source='run' rows in agent_memory. The whole path is a nicety: a disabled
 // or failing LLM must cost the completed task nothing.
 
 const (
@@ -43,8 +43,8 @@ const (
 	// extracted minutes late would still write, but the spend is not worth a
 	// backlog.
 	agentMemoryExtractionMaxConcurrent = 8
-	// agentMemoryMaxPerAgent mirrors the handler cap: after inserting, the
-	// oldest source='run' rows are evicted until the agent is back under it.
+	// agentMemoryMaxPerAgent mirrors the handler cap. At capacity, extraction
+	// stops adding suggestions; reviewed and rejected facts are preserved.
 	agentMemoryMaxPerAgent = 200
 )
 
@@ -142,8 +142,7 @@ func (s *TaskService) launchAgentMemoryExtraction(taskID pgtype.UUID, agentID st
 
 // ExtractAgentMemoriesForTask runs one extraction pass for a completed task:
 // load the run's output, ask the LLM for durable facts, dedup against the
-// agent's existing memory, insert the survivors as source='run', evict the
-// oldest run-facts beyond the per-agent cap. Synchronous and safe to call
+// agent's existing memory, insert pending suggestions up to the cap. Synchronous and safe to call
 // directly from tests; the async admission path is launchAgentMemoryExtraction.
 func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pgtype.UUID) error {
 	if s.MemoryExtraction == nil || !s.MemoryExtraction.Enabled() {
@@ -159,7 +158,7 @@ func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pg
 		}
 		return fmt.Errorf("load completed task: %w", err)
 	}
-	if task.Status != "completed" {
+	if task.Status != "completed" || task.ChatSessionID.Valid {
 		return nil
 	}
 
@@ -195,6 +194,9 @@ func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pg
 	if err != nil {
 		return fmt.Errorf("list existing agent memories: %w", err)
 	}
+	if len(existing) >= agentMemoryMaxPerAgent {
+		return nil
+	}
 
 	issueTitle := ""
 	if task.IssueID.Valid {
@@ -219,16 +221,34 @@ func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pg
 		return nil
 	}
 
+	// Serialize with manual creation and other server processes. Never evict a
+	// reviewed rule to make room for a model suggestion.
+	tx, err := s.TxStarter.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin memory extraction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	qtx := s.Queries.WithTx(tx)
+	if _, err := qtx.LockWorkspaceForChatSessionCreate(ctx, agent.WorkspaceID); err != nil {
+		return fmt.Errorf("lock memory workspace: %w", err)
+	}
+	if _, err := qtx.LockAgentForMemoryUpdate(ctx, db.LockAgentForMemoryUpdateParams{ID: agent.ID, WorkspaceID: agent.WorkspaceID}); err != nil {
+		return fmt.Errorf("lock memory agent: %w", err)
+	}
+	existing, err = qtx.ListAgentMemories(ctx, db.ListAgentMemoriesParams{AgentID: agent.ID, WorkspaceID: agent.WorkspaceID})
+	if err != nil {
+		return fmt.Errorf("reload agent memories: %w", err)
+	}
 	known := make(map[string]struct{}, len(existing))
 	for _, m := range existing {
 		known[normalizeAgentMemoryFact(m.Content)] = struct{}{}
 	}
-
-	inserted := 0
+	inserted := make([]db.AgentMemory, 0, agentMemoryExtractionMaxFacts)
 	for _, fact := range facts {
-		if inserted >= agentMemoryExtractionMaxFacts {
+		if len(inserted) >= agentMemoryExtractionMaxFacts || len(existing)+len(inserted) >= agentMemoryMaxPerAgent {
 			break
 		}
+		fact = strings.TrimSpace(util.SanitizeTextForPostgres(fact))
 		key := normalizeAgentMemoryFact(fact)
 		if key == "" || utf8.RuneCountInString(fact) > agentMemoryFactMaxRunes {
 			continue
@@ -236,29 +256,28 @@ func (s *TaskService) ExtractAgentMemoriesForTask(ctx context.Context, taskID pg
 		if _, dup := known[key]; dup {
 			continue
 		}
-		memory, err := s.Queries.CreateAgentMemory(ctx, db.CreateAgentMemoryParams{
+		memory, err := qtx.CreateAgentMemory(ctx, db.CreateAgentMemoryParams{
 			WorkspaceID:  agent.WorkspaceID,
 			AgentID:      agent.ID,
-			Content:      util.SanitizeTextForPostgres(fact),
+			Content:      fact,
 			Source:       "run",
 			SourceTaskID: task.ID,
+			Status:       pgtype.Text{String: "pending", Valid: true},
 		})
 		if err != nil {
 			return fmt.Errorf("insert extracted agent memory: %w", err)
 		}
-		known[key] = struct{}{}
-		inserted++
-		s.publishAgentMemoryEvent(protocol.EventAgentMemoryCreated, agent, memory)
-	}
-
-	if inserted > 0 {
-		if err := s.Queries.DeleteOldestRunMemories(ctx, db.DeleteOldestRunMemoriesParams{
-			AgentID:   agent.ID,
-			KeepLimit: agentMemoryMaxPerAgent,
-		}); err != nil {
-			slog.Warn("agent memory eviction failed",
-				"agent_id", util.UUIDToString(agent.ID), "error", err)
+		if err := qtx.SaveAgentMemoryVersion(ctx, db.SaveAgentMemoryVersionParams{MemoryID: memory.ID, WorkspaceID: agent.WorkspaceID}); err != nil {
+			return fmt.Errorf("preserve extracted memory: %w", err)
 		}
+		known[key] = struct{}{}
+		inserted = append(inserted, memory)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit agent memories: %w", err)
+	}
+	for _, memory := range inserted {
+		s.publishAgentMemoryEvent(protocol.EventAgentMemoryCreated, agent, memory)
 	}
 	return nil
 }
@@ -278,6 +297,10 @@ func (s *TaskService) publishAgentMemoryEvent(eventType string, agent db.Agent, 
 			"agent_id":       util.UUIDToString(memory.AgentID),
 			"content":        memory.Content,
 			"source":         memory.Source,
+			"status":         memory.Status,
+			"revision":       memory.Revision,
+			"reviewed_by":    nil,
+			"reviewed_at":    nil,
 			"source_task_id": util.UUIDToString(memory.SourceTaskID),
 			"created_at":     memory.CreatedAt.Time.Format(time.RFC3339Nano),
 			"updated_at":     memory.UpdatedAt.Time.Format(time.RFC3339Nano),
@@ -315,7 +338,7 @@ func renderAgentMemoryExtractionPrompt(issueTitle, output string, existing []db.
 	}
 	b.WriteString("FINAL OUTPUT OF THE RUN:\n")
 	b.WriteString(truncateAgentMemoryOutput(output))
-	b.WriteString("\n\nEXISTING MEMORY (do not restate):\n")
+	b.WriteString("\n\nEXISTING FACTS AND SUGGESTIONS (including rejected ones; do not restate or treat as evidence):\n")
 	if len(existing) == 0 {
 		b.WriteString("(none)\n")
 	} else {

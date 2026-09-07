@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY idx_agent_task_memory_usage_window;

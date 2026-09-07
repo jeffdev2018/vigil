@@ -22,3 +22,7 @@ export function customRuntimeDocsHref(language?: string): string {
   }
   return `${base}#custom-runtime-profiles`;
 }
+
+export function cliAuthDocsHref(language?: string): string {
+  return `${daemonRuntimesDocsHref(language)}#cli-authentication`;
+}

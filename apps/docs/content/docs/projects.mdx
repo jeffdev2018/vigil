@@ -64,8 +64,18 @@ Any workspace member can create and edit projects; only `owner` and `admin` can 
 Deleting a project does not delete its issues: they detach and stay in the workspace. The project's description, status, and resources are permanently deleted.
 </Callout>
 
+## Shared project memory
+
+The project sidebar has a **Project memory** section. Workspace owners and admins can publish up to 20 shared rules, each at most 500 characters. Members can read them. Each publication records the human reviewer, time, and a revision number. Publishing an empty list stops using the rules in future runs.
+
+These rules are included in new runs linked to this project: issues, chats with an explicit project, automations, and quick creation. Other projects and chats without a project do not receive them. Existing runs are unchanged. Conflicting edits return an error and preserve the draft until you close the editor and review the latest version. Agents cannot publish project memory. This is a manually reviewed rule set, not an automatic promotion of agent memories or a measured improvement from replay.
+
+
 ## Next steps
 
 - [Project resources](/project-resources) — link GitHub repositories or local directories.
 - [Issues](/issues) — create and organize the concrete work in a project.
 - [Agents](/agents) — learn about agent identity, configuration, and Access.
+
+
+Each publication is kept in **Version history**. Owners and admins can restore an earlier version as a new publication. An optional expiration stops including the rules in new runs; it does not change runs already started. Restoration preserves the original expiration, so expired rules remain inactive until an administrator explicitly publishes a renewed version. Deleting the project or workspace also removes its memory history.

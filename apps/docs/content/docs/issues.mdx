@@ -47,7 +47,7 @@ Every workspace starts with seven built-in statuses. They are also the seven **c
 | `backlog` | Not starting yet. An issue assigned to an agent only creates a run after it leaves `backlog`. |
 | `todo` | Scoped and waiting to start. |
 | `in_progress` | Being worked on. |
-| `in_review` | Has a result waiting for review. |
+| `in_review` | Board signal that a result is waiting for human attention. Not delivery acceptance, and not a lock on merge or deploy. |
 | `done` | Finished. |
 | `blocked` | Cannot continue for now. |
 | `cancelled` | No longer pursued; the record stays. |
@@ -72,7 +72,7 @@ A workspace owner or admin can add statuses of their own under **Settings → Is
 | `backlog` | Parked: assigning an agent never starts a run. Moving the issue out of this category is what starts one, unless the target is `done` or `cancelled`. |
 | `todo` | Queued to start. Unlike `backlog`, assigning an agent to an issue here starts a run right away. |
 | `in_progress` | Counts as actively worked on: a run that fails with nothing else in flight rolls the issue back to `todo`. |
-| `in_review` | Counts as delivered and waiting on review: it finalizes an [autopilot](/autopilots) run, and past run-failure notifications are archived automatically. |
+| `in_review` | Counts as delivered and waiting on review: it finalizes an [autopilot](/autopilots) run, and past run-failure notifications are archived automatically. It still does not accept the delivery or authorize merge/deploy — use [Delivery review](#review-a-delivery) for that. |
 | `done` | Counts as finished: it closes out a sub-issue stage and counts toward the parent's progress. |
 | `blocked` | Stalled on something external; nothing resumes on its own. |
 | `cancelled` | No longer pursued, record kept; also terminal for a sub-issue stage. |
@@ -93,6 +93,24 @@ Built-in statuses are translated into the interface language; a custom status al
 ## Issues and runs
 
 An issue is the persistent record of a piece of work; a [run](/tasks) is one concrete run by an agent. One issue can produce several runs over time — a first implementation, follow-up changes, another check. A completed run only means that run ended; whether the issue is finished is determined by the issue's status.
+
+## Guided bug-fix recipe
+
+For a first end-to-end pass on existing primitives (issue + criteria + agent + repo + Delivery review), use the readiness checklist and fixture in the development guide: reproduce → fix → test → open PR → delivery review, without inventing a new orchestrator. The fixture proof runs local Node tests only and never calls a provider.
+
+## Review a delivery
+
+In web and desktop, **Delivery review** brings together acceptance criteria, the latest non-private run's result, and linked PR evidence. Human workspace members can edit criteria, accept a completed result with evidence for every criterion, or request corrections. A review preserves the result, criteria and PR heads that were examined. Later changes can make it outdated. This decision is separate from the issue status: putting an issue in `in_review` (or any custom status in that category) does not accept the delivery, and accepting a delivery does not grant permission to merge or deploy. For the full soft-signal vs Multica hard-gate list, see [Review vs action authorization](/security-model#review-vs-action-authorization).
+
+After requesting corrections, **Start correction** launches a fresh session for the original agent with the saved feedback. Previous work is reused when available. Retrying this action returns the same run; the corrected result needs another human review.
+
+After you accept a delivery, the card may offer to set the issue status to `done`. That board update is optional and separate from acceptance; declining leaves the status unchanged.
+
+**Review history** loads older decisions with their recorded evidence. Each new review freezes the cumulative usage cost of the issue's non-private runs, including retries. Provider-reported amounts and estimates from the server's saved catalog are distinguished; missing reports, unknown model prices and unfinished runs make coverage incomplete. No available price means **Cost unavailable**, not zero. Older reviews without a saved cost remain unavailable. Later usage reports and personal pricing changes do not rewrite past reviews.
+
+This amount excludes human time, infrastructure and subscription fees. Do not add review amounts together: each is cumulative. The result counts use distinct evidence snapshots and the latest decision for each snapshot, so repeated acceptance of the same evidence counts once. The correction count includes every correction request; the reversal count records an acceptance followed by a correction request, not an issue-status change. The completion-to-review delay is elapsed time, not active review time.
+
+From a saved correction, **Propose a memory** lets a human who can manage the original agent write a reusable lesson. It creates a pending agent memory, with the correction’s criteria, evidence, author and date attached. Review it separately in the agent’s Memory tab before it affects future runs. This memory applies to the agent across its runs; it is not restricted automatically to the source issue or project. Retrying the same proposal returns the existing memory while it exists. A different proposal for that correction must edit the existing memory. Deleting the source run does not remove evidence already saved in the memory. This is a human-reviewed lesson, not a procedure validated on independent cases.
 
 ## Projects and sub-issues
 

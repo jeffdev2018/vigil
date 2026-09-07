@@ -275,7 +275,16 @@ export interface TaskAttribution {
   rerun_of_task_id?: string;
 }
 
+/** Versions selected for the latest finalized claim, not proof of model use. */
+export interface TaskMemoryContext {
+  dispatched_at: string;
+  agent_status: "loaded" | "unavailable";
+  agent_versions: { id: string; revision: number }[];
+  project_version: { id: string; revision: number } | null;
+}
+
 export interface AgentTask {
+  memory_context?: TaskMemoryContext;
   id: string;
   agent_id: string;
   runtime_id: string;
@@ -312,6 +321,14 @@ export interface AgentTask {
   // coarse values; `string & {}` admits the rest without collapsing the
   // hints.
   failure_reason?: TaskFailureReason | (string & {}) | "";
+  /**
+   * Live hold explanation for `waiting_local_directory` only: which directory
+   * (and often which sibling task) owns the lock. The server gates this the
+   * same way as chat pending tasks — the DB column outlives the hold, so any
+   * other status omits the field. Older backends omit it entirely; render the
+   * bare waiting label when absent.
+   */
+  wait_reason?: string;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
@@ -1157,6 +1174,20 @@ export type RuntimeModelListStatus =
   | "failed"
   | "timeout";
 
+export interface RuntimeCliAuthRequest {
+  id: string;
+  runtime_id: string;
+  action: string;
+  status: string;
+  verification_url?: string;
+  user_code?: string;
+  authenticated?: boolean;
+  error?: string;
+  created_at: string;
+  updated_at: string;
+  expires_at: string;
+}
+
 export interface RuntimeModelListRequest {
   id: string;
   runtime_id: string;
@@ -1300,6 +1331,7 @@ export interface RuntimeLocalSkillImportResult {
 }
 
 export type AgentMemorySource = "manual" | "run";
+export type AgentMemoryStatus = "pending" | "active" | "rejected";
 
 /**
  * One persistent memory fact an agent carries across runs. `source` tells
@@ -1307,6 +1339,17 @@ export type AgentMemorySource = "manual" | "run";
  * `source_task_id` links a run-sourced memory to the task that produced it.
  */
 export interface AgentMemory {
+  source_review?: {
+    review_id: string;
+    issue_id: string;
+    task_id: string;
+    feedback: string;
+    criteria: string[];
+    assessments: { passed: boolean; evidence: string }[];
+    snapshot_token: string;
+    reviewed_by: string;
+    reviewed_at: string;
+  } | null;
   id: string;
   agent_id: string;
   content: string;
@@ -1314,4 +1357,70 @@ export interface AgentMemory {
   source_task_id: string | null;
   created_at: string;
   updated_at: string;
+  status?: string;
+  revision?: number;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  expires_at?: string | null;
+  expired?: boolean;
 }
+
+export interface AgentMemoryVersion extends AgentMemory {
+  revision: number;
+  restored_from_revision?: number;
+}
+
+export interface AgentMemoryHistory {
+  versions: AgentMemoryVersion[];
+  next_before_revision: number | null;
+}
+
+export interface AgentMemoryEvaluation {
+  execution_status?: string;
+  execution_runtime_id?: string;
+  id: string;
+  memory_id: string;
+  revision: number;
+  uploaded_by: string;
+  created_at: string;
+  adopted_revision: number | null;
+  eligible: boolean;
+  reason: string;
+  /** Server receipt fingerprint of stored report bytes; not provider attestation. */
+  report_hash?: string;
+  /** Catalog estimate status — never a provider invoice. */
+  cost_status?: "unavailable" | "estimated" | "partial";
+  estimated_cost_usd?: number;
+  total: number;
+  baseline_passed: number;
+  candidate_passed: number;
+  regressions: number;
+  errors: number;
+  report?: {
+    candidate: { content: string; revision: number };
+    suite: { image: string; worker: string[]; verifier: string[] };
+    cases: {
+      id: string;
+      split: string;
+      input_hash: string;
+      checks_hash: string;
+      baseline: { status: string; duration_ms: number; artifact: string; diagnostic: string; runtime?: Record<string, unknown> };
+      candidate: { status: string; duration_ms: number; artifact: string; diagnostic: string; runtime?: Record<string, unknown> };
+    }[];
+  };
+}
+
+/** Prepared memory context for retained, started non-chat runs in a fixed window. */
+export interface AgentMemoryUsage {
+  since: string;
+  until: string;
+  started_runs: number;
+  recorded_runs: number;
+  unrecorded_runs: number;
+  load_failed_runs: number;
+  runs_with_agent_memory: number;
+  versions: { memory_id: string; revision: number; prepared_runs: number; last_started_at: string }[];
+}
+
+export interface MemoryExecutionConfig { runtime_id: string; provider: string; model: string; effort: string; config_hash: string; max_cases: number; timeout_seconds: number; check_modes?: ("exact" | "json" | "javascript")[]; }
+export interface MemoryExecutionRequest { request_id: string; expected_revision: number; config_hash: string; cases: { id: string; split: "replay" | "holdout"; prompt: string; expected: string; check?: "exact" | "json" | "javascript" }[]; }

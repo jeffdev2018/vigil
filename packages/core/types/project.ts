@@ -136,3 +136,50 @@ export interface ListProjectResourcesResponse {
   resources: ProjectResource[];
   total: number;
 }
+
+export interface ProjectMemoryHistory {
+  versions: ProjectMemory[];
+  next_before_revision: number | null;
+}
+
+export interface ProjectMemory {
+  rules: string[];
+  revision: number;
+  reviewed_by: string | null;
+  reviewed_at: string | null;
+  expires_at: string | null;
+  expired: boolean;
+  restored_from_revision?: number;
+  /**
+   * Immutable delivery-correction evidence when this publication (or restored
+   * version) was promoted from a changes_requested review. Older backends omit it.
+   */
+  source_review?: {
+    review_id: string;
+    issue_id: string;
+    task_id: string;
+    feedback: string;
+    criteria: string[];
+    assessments: { passed: boolean; evidence: string }[];
+    snapshot_token?: string;
+    reviewed_by: string;
+    reviewed_at: string;
+    input_hash?: string;
+  };
+}
+
+/** Prepared-context coverage for project memory; not proof of model use. */
+export interface ProjectMemoryUsage {
+  since: string;
+  until: string;
+  started_runs: number;
+  recorded_runs: number;
+  unrecorded_runs: number;
+  runs_with_project_memory: number;
+  versions: {
+    project_id: string;
+    revision: number;
+    prepared_runs: number;
+    last_started_at: string;
+  }[];
+}

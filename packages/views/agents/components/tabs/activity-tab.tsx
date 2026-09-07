@@ -32,6 +32,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { issueDetailOptions } from "@multica/core/issues/queries";
 import { AppLink } from "../../../navigation";
+import { TeachFromRunButton } from "./memory-tab";
 import { TranscriptButton } from "../../../common/task-transcript";
 import { AttributionBadge } from "../../../issues/components/attribution-badge";
 import { taskStatusConfig } from "../../config";
@@ -726,6 +727,7 @@ function TaskRow({
             <TooltipContent>{t(($) => $.tab_body.activity.open_issue_tooltip)}</TooltipContent>
           </Tooltip>
         )}
+        <TeachFromRunButton agent={agent} task={task} />
         {showTranscript && (
           <TranscriptButton
             task={task}

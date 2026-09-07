@@ -16,6 +16,9 @@ import enIssues from "../../locales/en/issues.json";
 
 const TEST_RESOURCES = { en: { common: enCommon, issues: enIssues } };
 
+// Delivery interactions have their canonical suite beside the shared section.
+vi.mock("./issue-delivery-section", () => ({ IssueDeliverySection: () => <section aria-label="Delivery review" /> }));
+
 const mockViewport = vi.hoisted(() => ({ isMobile: false }));
 
 // Counts MockContentEditor mounts. This pins the description to exactly one

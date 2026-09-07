@@ -3760,7 +3760,8 @@ func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.
 }
 
 // FinalizeTaskClaim atomically persists the task-scoped agent token, an
-// optional short-lived daemon token used by the Remote MCP broker, and, for a
+// optional short-lived daemon token used by the Remote MCP broker, the memory
+// context of the exact dispatched claim, and, for a
 // comment-backed task, the exact comment ids embedded in the response. The
 // handler must call this only after the full payload has been built and before
 // writing any response bytes. A failure rolls every write back so the claim can
@@ -3771,13 +3772,36 @@ func (s *TaskService) FinalizeTaskClaim(
 	token db.CreateTaskTokenParams,
 	deliveredCommentIDs []pgtype.UUID,
 	recordCommentReceipt bool,
+	memoryContext *TaskMemoryContext,
 	daemonTokens ...db.CreateDaemonTokenParams,
 ) ([]pgtype.UUID, error) {
 	if len(daemonTokens) > 1 {
 		return nil, fmt.Errorf("finalize task claim: expected at most one daemon token, got %d", len(daemonTokens))
 	}
+	var memoryJSON []byte
+	if memoryContext != nil {
+		// Copy before stamping the exact SQL claim generation; do not mutate a
+		// caller's response while finalizing it.
+		snapshot := *memoryContext
+		snapshot.DispatchedAt = task.DispatchedAt.Time.UTC().Format(time.RFC3339Nano)
+		var err error
+		memoryJSON, err = json.Marshal(snapshot)
+		if err != nil {
+			return nil, fmt.Errorf("encode memory context: %w", err)
+		}
+	}
 	receipt := task.DeliveredCommentIds
 	err := s.runInTx(ctx, func(qtx *db.Queries) error {
+		updated, err := qtx.SetTaskMemoryContext(ctx, db.SetTaskMemoryContextParams{
+			TaskID: task.ID, RuntimeID: task.RuntimeID, DispatchedAt: task.DispatchedAt, MemoryContext: memoryJSON,
+		})
+		if err != nil {
+			return fmt.Errorf("set memory context: %w", err)
+		}
+		if updated != 1 {
+			return fmt.Errorf("set memory context: %w", pgx.ErrNoRows)
+		}
+
 		if _, err := qtx.CreateTaskToken(ctx, token); err != nil {
 			return fmt.Errorf("create task token: %w", err)
 		}
@@ -6639,27 +6663,29 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 	return s.skillsWithFiles(ctx, skills)
 }
 
-// LoadAgentMemories returns the contents of an agent's 50 most recent memory
-// facts (JEF-236), in chronological order for the brief. SQL returns them
+// LoadAgentMemories returns paired content and version references for an
+// agent's 50 most recent eligible facts, in chronological order for the brief. SQL returns them
 // newest-first (the cap keeps the read bounded); the reverse happens here so
 // the prompt reads oldest → newest, matching how the facts were learned.
 //
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
 // the brief and the claim continues without it (see buildClaimedTaskResponse).
-func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, []MemoryVersion, error) {
 	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
 		AgentID:     agentID,
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list agent memories: %w", err)
+		return nil, nil, fmt.Errorf("list agent memories: %w", err)
 	}
 	contents := make([]string, 0, len(rows))
+	versions := make([]MemoryVersion, 0, len(rows))
 	for i := len(rows) - 1; i >= 0; i-- {
 		contents = append(contents, rows[i].Content)
+		versions = append(versions, MemoryVersion{ID: util.UUIDToString(rows[i].ID), Revision: rows[i].Revision})
 	}
-	return contents, nil
+	return contents, versions, nil
 }
 
 // skillsWithFiles loads the files of every given skill in ONE round trip

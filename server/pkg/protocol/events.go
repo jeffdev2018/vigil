@@ -5,6 +5,7 @@ const (
 	// Issue events
 	EventIssueCreated            = "issue:created"
 	EventIssueUpdated            = "issue:updated"
+	EventDeliveryChanged         = "delivery:changed"
 	EventIssueDeleted            = "issue:deleted"
 	EventIssueMetadataChanged    = "issue_metadata:changed"
 	EventIssueAttachmentsChanged = "issue_attachments:changed"

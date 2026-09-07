@@ -56,6 +56,12 @@ From the inbox menu you can also:
 - archive notifications for issues in `done` or `cancelled`;
 - open Archived and restore a notification.
 
+## Filter for action required
+
+On web and desktop, open **Filter inbox → Action required** to keep displayed notifications marked as requiring action. The count respects your other filters, and reading a notification does not remove it unless **Unread only** is also enabled. You can combine it with sender, status and priority filters or use it in Archived.
+
+The filter uses the newest notification displayed for each issue. It is not a list of unresolved decisions: a later notification can replace an earlier request. Open the issue for the full discussion; filtering does not answer a question, approve an action or restart an agent.
+
 ## Tune notification types
 
 Open **Settings → Notifications** to toggle each group separately:
@@ -74,3 +80,28 @@ Turning a group off doesn't stop the changes from being recorded on the issue �
 - [Comments](/comments) — replies, mentions, and discussion threads.
 - [@-mention agents in comments](/mentioning-agents) — member notifications vs. agent runs.
 - [Autopilots](/autopilots) — configure automatic work creation and default subscribers.
+
+## Decisions
+
+Open **Decisions** in the Inbox header to answer questions addressed to you. This
+list is independent of notification read/archive state. **To resolve** keeps open
+requests and saved answers awaiting a follow-up; **History** keeps cancelled
+requests and their recorded follow-up runs.
+
+Select a suggestion or write an answer, then **Save answer**. Selecting an option
+does not submit it. A saved answer is final and does not start the agent. You can
+instead cancel the request after confirming cancellation.
+
+**Start follow-up** queues a new run with the saved question, context and answer
+once the source run has finished. You need permission to run that agent. A
+missing runtime or pending run leaves the answer intact; retrying returns the
+same run receipt. A receipt confirms a queued run, not completed work. Tool
+approvals and delivery review still apply. **Decision record** shows the source,
+requester and respondent. These records are removed when their issue or workspace
+is deleted. The view refreshes every 15 seconds while open and loads 50 records
+per page. It is available in the shared web and desktop interface.
+
+Agents can request a decision with `multica issue decision request`; see the
+built-in `multica-working-on-issues` skill for arguments and source-run rules.
+Creating a request does not pause a running agent process. The agent should save
+its work and end the run; the recipient can then start the follow-up explicitly.

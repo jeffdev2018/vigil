@@ -48,6 +48,34 @@ These are real, but they are conveniences and blast-radius reduction — not a s
 On Linux, Codex runs previously ran under the `workspace-write` sandbox with a redirected per-run `HOME`. That was removed: it left host CLIs unconfigured inside runs, and because it restricted writes only, it never prevented a run from reading and exfiltrating credentials. Linux now matches the macOS and Windows default.
 </Callout>
 
+## Review vs action authorization
+
+Multica separates **workflow signals**, **delivery assessment**, and **action authorization**. Confusing them invents a lock that does not exist.
+
+| Signal | What it means | What it does **not** do |
+| --- | --- | --- |
+| Board status `in_review` (or any custom status in that category) | A result is waiting for human attention on the board | Accept the delivery; authorize merge or deploy; approve coding-tool actions |
+| Delivery **Accept** / **Request changes** | A human recorded an assessment of criteria and evidence for that snapshot | Change GitHub/GitLab merge rights; deploy; turn tool approvals back on |
+| Board status `done` | Scope closed on the Multica board (often after human confirmation or a closing PR merge event Multica observes) | Prove production deploy succeeded |
+
+Moving an issue to `in_review` does have Multica-only side effects: it can finalize an autopilot run and archive past run-failure notifications. Those stay inside Multica bookkeeping. They are still not merge or deploy permission.
+
+Coding tools run unattended: approval prompts are answered automatically (`bypassPermissions` / `danger-full-access` on the default path — see [What is not a boundary](#what-is-not-a-boundary)). A Multica review button cannot reintroduce those prompts for an already-running agent process.
+
+### Where Multica does enforce a real refusal
+
+These are controlled Multica frontiers — not prompts, and not board labels:
+
+- **Workspace membership** — non-members cannot read or mutate workspace resources.
+- **Private agent invoke** — seeing an issue does not grant the right to trigger a private agent (assign, mention, rerun).
+- **Run-scoped `MULTICA_TOKEN`** — a run cannot act as you or as another agent through the Multica API.
+- **Delivery review CAS** — a stale snapshot or concurrent review loses with conflict; it does not unlock merge.
+- **Decision destinee-only** — only the addressed human can answer a structured decision request.
+- **CLI auth operator-only** — login/logout codes for a machine stay with the authorized human operator.
+- **Memory evaluation human adopt** — offline/connected evaluation reports do not auto-promote memory without the human adopt path.
+
+If you need a hard block on merge or deploy, put it on the VCS host, deploy credentials, or an external policy engine — with restricted identities outside the daemon user's ambient access. Multica will not invent that boundary from an `in_review` label.
+
 ## Checking what a run ran with
 
 The daemon logs the effective sandbox mode at warn level when a run starts unsandboxed:

@@ -754,7 +754,12 @@ export function useRealtimeSync(
   useEffect(() => {
     if (!ws) return;
 
+    const refreshDelivery = () => {
+      const wsId = getCurrentWsId();
+      if (wsId) qc.invalidateQueries({ queryKey: ["issueDelivery", wsId] });
+    };
     const refreshMap: Record<string, () => void> = {
+      delivery: refreshDelivery,
       inbox: () => {
         const wsId = getCurrentWsId();
         if (wsId) onInboxInvalidate(qc, wsId);
@@ -894,6 +899,7 @@ export function useRealtimeSync(
         if (wsId) qc.invalidateQueries({ queryKey: telegramKeys.installations(wsId) });
       },
       pull_request: () => {
+        refreshDelivery();
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
         qc.invalidateQueries({ queryKey: ["github", "pull-requests"] });
@@ -904,6 +910,7 @@ export function useRealtimeSync(
       // reflects the change. task:message is NOT in this prefix path — it
       // stays in specificEvents to avoid an invalidate storm during long runs.
       task: () => {
+        refreshDelivery();
         const wsId = getCurrentWsId();
         if (!wsId) return;
         qc.invalidateQueries({ queryKey: agentTaskSnapshotKeys.list(wsId) });
@@ -1024,6 +1031,7 @@ export function useRealtimeSync(
           statusChanged: payload.status_changed,
           projectChanged: payload.project_changed,
         });
+        qc.invalidateQueries({ queryKey: ["issueDelivery", wsId, issue.id] });
         if (issue.status) {
           onInboxIssueStatusChanged(qc, wsId, issue.id, issue.status);
         }
