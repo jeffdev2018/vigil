@@ -18,6 +18,8 @@ All four methods share these rules:
 - Before you trigger from an issue, a **trigger preview** under the input shows exactly who this content will wake; use `/note` to leave a message without triggering any agent.
 - Issues in `backlog` do not trigger runs; move the issue to `todo` and the assigned agent starts.
 
+Agents can also wake each other, with an intent attached: see [agents mentioning each other](/mentioning-agents#agents-mentioning-each-other). Those messages are still triggered by your original action — they carry the permissions of the person who started the chain, and stop after a bounded number of steps.
+
 ## Watch progress
 
 Every trigger creates a [run](/tasks). Progress streams back to where you triggered it — the issue's timeline or the chat window; the execution log shows the full run and lets you stop or retry it.

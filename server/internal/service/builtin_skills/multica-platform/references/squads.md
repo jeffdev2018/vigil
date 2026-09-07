@@ -205,6 +205,22 @@ Current behavior: resolve the squad, read `leader_id`, enqueue a leader task,
 and use the current comment as the trigger comment. It does not enqueue every
 squad member.
 
+### Delegating with a stated intent
+
+A leader delegating to a member can use `multica issue ask-agent <issue-id> --to
+<member> --intent handoff|review|question` instead of a bare `@mention`, which
+records WHY on the comment. It changes no routing: the message is still an
+ordinary comment and still wakes the member through the mention path.
+
+`--intent handoff` does NOT move the assignee. The member assigns the issue to
+itself if it accepts, so a leader must not report a handoff as done work.
+
+Agent-to-agent messages are bounded (4 hops from the human who started the chain,
+and 20 per issue per hour). A squad conversation that hits either limit is
+refused with `a2a_depth_exceeded` / `a2a_budget_exceeded` and writes no comment —
+report back rather than re-sending. See `mentions.md`, "Saying WHY: `issue
+ask-agent`".
+
 ## Autopilot behavior
 
 Autopilots can be assigned to squads. For `assignee_type = "squad"`:

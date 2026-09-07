@@ -4,6 +4,10 @@ package db
 // the canonical model used by comment rendering and task side effects. The
 // row's IssueRevision remains available separately for owner-cache coherence.
 func (r CreateCommentRow) Comment() Comment {
+	// A2aIntent (F19) rides here for the same reason as QuickActionID: the
+	// create response and the realtime payload must expose the marker the row
+	// was stamped with, and this hand-written projection is the only place that
+	// carries it across.
 	return Comment{
 		ID:             r.ID,
 		IssueID:        r.IssueID,
@@ -20,6 +24,7 @@ func (r CreateCommentRow) Comment() Comment {
 		ResolvedByID:   r.ResolvedByID,
 		SourceTaskID:   r.SourceTaskID,
 		QuickActionID:  r.QuickActionID,
+		A2aIntent:      r.A2aIntent,
 		ViaPluginID:    r.ViaPluginID,
 		Revision:       r.Revision,
 		// Diff anchor (F07). Carried through so the create/update response and
@@ -56,6 +61,7 @@ func (r UpdateCommentRow) Comment() Comment {
 		ResolvedByID:   r.ResolvedByID,
 		SourceTaskID:   r.SourceTaskID,
 		QuickActionID:  r.QuickActionID,
+		A2aIntent:      r.A2aIntent,
 		ViaPluginID:    r.ViaPluginID,
 		Revision:       r.Revision,
 		// Diff anchor (F07). Carried through so the create/update response and
@@ -91,6 +97,7 @@ func (r ListAnchoredThreadsForPrRow) Comment() Comment {
 		ResolvedByID:       r.ResolvedByID,
 		SourceTaskID:       r.SourceTaskID,
 		QuickActionID:      r.QuickActionID,
+		A2aIntent:          r.A2aIntent,
 		ViaPluginID:        r.ViaPluginID,
 		Revision:           r.Revision,
 		AnchorKind:         r.AnchorKind,
@@ -125,6 +132,7 @@ func (r ListAnchoredRootsForCommentsRow) Comment() Comment {
 		ResolvedByID:       r.ResolvedByID,
 		SourceTaskID:       r.SourceTaskID,
 		QuickActionID:      r.QuickActionID,
+		A2aIntent:          r.A2aIntent,
 		ViaPluginID:        r.ViaPluginID,
 		Revision:           r.Revision,
 		AnchorKind:         r.AnchorKind,

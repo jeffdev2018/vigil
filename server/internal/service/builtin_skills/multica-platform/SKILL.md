@@ -23,7 +23,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/pr-walkthrough.md` | Answering a pull request walkthrough run: the `pr_walkthrough` block, the group kinds, anchoring an explanation to a hunk |
 | `references/review-flags.md` | Recording a review flag: what each severity means, when to state a confidence, the per-run cap, what a moving head does to a flag |
 | `references/critic-review.md` | Answering an adversarial review run: what each critic verdict costs, the findings JSON shape, recording it once, what a blocked author sees |
-| `references/mentions.md` | Writing a `mention://` link: which types enqueue a run, which are inert, why one silently did nothing |
+| `references/mentions.md` | Writing a `mention://` link: which types enqueue a run, which are inert, why one silently did nothing; asking another agent with a stated intent (`issue ask-agent`) and the depth/budget refusals |
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |
 | `references/autopilots.md` | Autopilots: schedule / webhook / manual triggers, `create_issue` vs `run_only`, why one did not fire |

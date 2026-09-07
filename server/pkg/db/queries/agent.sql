@@ -321,7 +321,7 @@ INSERT INTO agent_task_queue (
     coalesced_comment_ids, trigger_summary, force_fresh_session, is_leader_task, handoff_note,
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
-    task_class, routing,
+    task_class, routing, a2a_depth,
     id
 )
 SELECT
@@ -359,6 +359,9 @@ SELECT
     sqlc.narg(trigger_evidence_ref_id),
     COALESCE(sqlc.narg('task_class')::text, 'general'),
     sqlc.narg('routing')::jsonb,
+    -- Agent-to-agent hop distance (F19). 0 unless the trigger comment carried
+    -- an a2a_intent, in which case the caller passes parent.a2a_depth + 1.
+    COALESCE(sqlc.narg('a2a_depth')::integer, 0),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -1843,6 +1846,25 @@ WHERE issue_id = $1 AND status IN ('queued', 'dispatched', 'running', 'waiting_l
 -- task already exists (natural dedup).
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
 WHERE issue_id = $1 AND status IN ('queued', 'dispatched');
+
+-- name: CountA2ARunsForIssueSince :one
+-- Per-issue agent-to-agent budget (F19 / JEF-32): how many A2A-triggered runs
+-- this issue has accumulated since `since`.
+--
+-- A COUNTER, not a reservation. The autopilot quota machinery
+-- (autopilot_quota_period / autopilot_quota_reservation) was considered and
+-- rejected: its limits come from Cloud through entitlement.GateAutopilotRuns,
+-- its tables are keyed by (workspace_id, period_start, period_end) with no
+-- issue dimension, and there is nothing here to bill. A racing pair can both
+-- read 20 and both enqueue; the breaker is a circuit breaker on a runaway
+-- fan-out, and being off by one on the boundary costs nothing worth a lock.
+--
+-- a2a_depth > 0 is exactly the A2A subset and matches the partial index
+-- idx_agent_task_issue_a2a_created (migration 830).
+SELECT count(*) FROM agent_task_queue
+WHERE issue_id = $1
+  AND a2a_depth > 0
+  AND created_at >= sqlc.arg(since);
 
 -- name: HasPendingTaskForIssueAndAgent :one
 -- Returns true if a specific agent already has a queued or dispatched task

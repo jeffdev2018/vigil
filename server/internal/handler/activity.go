@@ -39,7 +39,10 @@ type TimelineEntry struct {
 	CommentType *string `json:"comment_type,omitempty"`
 	// Set only on comments produced by a quick action run. Unforgeable: there
 	// is no request field for it on the generic comment endpoint.
-	QuickActionID  *string              `json:"quick_action_id,omitempty"`
+	QuickActionID *string `json:"quick_action_id,omitempty"`
+	// Agent-to-agent message intent (F19), so the timeline chips it without a
+	// second fetch. Omitted on activity rows and on ordinary comments.
+	A2aIntent      *string              `json:"a2a_intent,omitempty"`
 	Reactions      []ReactionResponse   `json:"reactions,omitempty"`
 	Attachments    []AttachmentResponse `json:"attachments,omitempty"`
 	ResolvedAt     *string              `json:"resolved_at,omitempty"`
@@ -301,6 +304,7 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			Content:        &content,
 			CommentType:    &commentType,
 			QuickActionID:  uuidToPtr(c.QuickActionID),
+			A2aIntent:      textToPtr(c.A2aIntent),
 			ParentID:       uuidToPtr(c.ParentID),
 			CreatedAt:      timestampToString(c.CreatedAt),
 			UpdatedAt:      &updatedAt,

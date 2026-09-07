@@ -63,6 +63,8 @@ const (
 	ReasonAttributionBlocked    = dispatch.ReasonAttributionBlocked
 	ReasonAlreadyActive         = dispatch.ReasonAlreadyActive
 	ReasonSelfTriggerSuppressed = dispatch.ReasonSelfTriggerSuppressed
+	ReasonA2ADepthExceeded      = dispatch.ReasonA2ADepthExceeded
+	ReasonA2ABudgetExceeded     = dispatch.ReasonA2ABudgetExceeded
 	ReasonQuotaExceeded         = dispatch.ReasonQuotaExceeded
 	ReasonBudgetExceeded        = dispatch.ReasonBudgetExceeded
 	ReasonInternalError         = dispatch.ReasonInternalError
@@ -147,6 +149,10 @@ func dispatchBlockedFallbackMessage(code DispatchReasonCode) string {
 		return "the autopilot run allowance has been reached"
 	case ReasonBudgetExceeded:
 		return "the workspace budget has been reached"
+	case ReasonA2ADepthExceeded:
+		return "this agent-to-agent chain is too far from the person who started it"
+	case ReasonA2ABudgetExceeded:
+		return "this issue has reached its agent-to-agent message allowance"
 	default:
 		return "the run was blocked"
 	}

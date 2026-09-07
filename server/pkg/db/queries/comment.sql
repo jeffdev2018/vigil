@@ -108,7 +108,7 @@ thread_stats AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.revision,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision,
        ts.reply_count AS reply_count,
        ts.last_activity_at AS last_activity_at
 FROM selected_roots sr
@@ -154,7 +154,7 @@ thread_stats AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.revision,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision,
        ts.reply_count AS reply_count,
        ts.last_activity_at AS last_activity_at
 FROM selected_roots sr
@@ -195,14 +195,14 @@ descendants AS (
     SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
            c.created_at, c.updated_at, c.parent_id, c.workspace_id,
            c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-           c.source_task_id, c.quick_action_id, c.revision
+           c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision
     FROM comment c
     JOIN thread_root tr ON c.id = tr.id
     UNION
     SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
            c.created_at, c.updated_at, c.parent_id, c.workspace_id,
            c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-           c.source_task_id, c.quick_action_id, c.revision
+           c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision
     FROM comment c
     JOIN descendants d ON c.parent_id = d.id
     WHERE c.issue_id = @issue_id AND c.workspace_id = @workspace_id
@@ -211,7 +211,7 @@ reply_page AS (
     SELECT d.id, d.issue_id, d.author_type, d.author_id, d.content, d.type,
            d.created_at, d.updated_at, d.parent_id, d.workspace_id,
            d.resolved_at, d.resolved_by_type, d.resolved_by_id,
-           d.source_task_id, d.quick_action_id, d.revision
+           d.source_task_id, d.quick_action_id, d.a2a_intent, d.revision
     FROM descendants d
     WHERE d.id NOT IN (SELECT id FROM thread_root)
       AND (
@@ -224,19 +224,19 @@ reply_page AS (
 SELECT id, issue_id, author_type, author_id, content, type,
        created_at, updated_at, parent_id, workspace_id,
        resolved_at, resolved_by_type, resolved_by_id,
-       source_task_id, quick_action_id, revision
+       source_task_id, quick_action_id, a2a_intent, revision
 FROM (
     SELECT d.id, d.issue_id, d.author_type, d.author_id, d.content, d.type,
            d.created_at, d.updated_at, d.parent_id, d.workspace_id,
            d.resolved_at, d.resolved_by_type, d.resolved_by_id,
-           d.source_task_id, d.quick_action_id, d.revision
+           d.source_task_id, d.quick_action_id, d.a2a_intent, d.revision
     FROM descendants d
     JOIN thread_root tr ON d.id = tr.id
     UNION ALL
     SELECT id, issue_id, author_type, author_id, content, type,
            created_at, updated_at, parent_id, workspace_id,
            resolved_at, resolved_by_type, resolved_by_id,
-           source_task_id, quick_action_id, revision
+           source_task_id, quick_action_id, a2a_intent, revision
     FROM reply_page
 ) combined
 ORDER BY created_at ASC, id ASC;
@@ -301,7 +301,7 @@ picked AS (
 SELECT c.id, c.issue_id, c.author_type, c.author_id, c.content, c.type,
        c.created_at, c.updated_at, c.parent_id, c.workspace_id,
        c.resolved_at, c.resolved_by_type, c.resolved_by_id,
-       c.source_task_id, c.quick_action_id, c.revision,
+       c.source_task_id, c.quick_action_id, c.a2a_intent, c.revision,
        p.root_id AS thread_root_id,
        p.last_activity_at AS thread_last_activity_at
 FROM picked p
@@ -448,14 +448,38 @@ WITH touched_issue AS (
     -- The anchor_* columns are the diff anchor (F07). They are all NULL for an
     -- ordinary comment; the handler stamps them only on a thread ROOT it has
     -- validated against a pull request linked to the issue.
-    INSERT INTO comment (issue_id, workspace_id, author_type, author_id, content, type, parent_id, source_task_id, quick_action_id, via_plugin_id, id, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id)
-    SELECT ti.id, ti.workspace_id, sqlc.arg(author_type), sqlc.arg(author_id), sqlc.arg(content), sqlc.arg(type), sqlc.narg(parent_id), sqlc.narg(source_task_id), sqlc.narg(quick_action_id), sqlc.narg(via_plugin_id), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()), sqlc.narg(anchor_kind), sqlc.narg(anchor_pr_source), sqlc.narg(anchor_pr_id), sqlc.narg(anchor_head_sha), sqlc.narg(anchor_file_path), sqlc.narg(anchor_line_start), sqlc.narg(anchor_line_end), sqlc.narg(anchor_side), sqlc.narg(anchor_review_flag_id)
+    INSERT INTO comment (issue_id, workspace_id, author_type, author_id, content, type, parent_id, source_task_id, quick_action_id, a2a_intent, via_plugin_id, id, anchor_kind, anchor_pr_source, anchor_pr_id, anchor_head_sha, anchor_file_path, anchor_line_start, anchor_line_end, anchor_side, anchor_review_flag_id)
+    SELECT ti.id, ti.workspace_id, sqlc.arg(author_type), sqlc.arg(author_id), sqlc.arg(content), sqlc.arg(type), sqlc.narg(parent_id), sqlc.narg(source_task_id), sqlc.narg(quick_action_id), sqlc.narg(a2a_intent), sqlc.narg(via_plugin_id), COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()), sqlc.narg(anchor_kind), sqlc.narg(anchor_pr_source), sqlc.narg(anchor_pr_id), sqlc.narg(anchor_head_sha), sqlc.narg(anchor_file_path), sqlc.narg(anchor_line_start), sqlc.narg(anchor_line_end), sqlc.narg(anchor_side), sqlc.narg(anchor_review_flag_id)
     FROM touched_issue ti
     RETURNING *
 )
 SELECT inserted_comment.*, touched_issue.revision AS issue_revision
 FROM inserted_comment
 JOIN touched_issue ON touched_issue.id = inserted_comment.issue_id;
+
+-- name: A2ADepthForTriggerComment :one
+-- Hop distance of the run a trigger comment is about to enqueue (F19 / JEF-32).
+--
+-- Returns parent.a2a_depth + 1 when the comment IS an agent-to-agent message,
+-- and NO ROWS otherwise — which is the caller's "this is depth 0" answer, so
+-- the ordinary human-triggered enqueue needs no branching in Go.
+--
+-- One statement rather than two reads: comment.a2a_intent decides whether this
+-- is an A2A hop at all, and comment.source_task_id is the single hop
+-- attributionFromComment already walks to reach the sending run. A LEFT JOIN
+-- keeps the message counted as hop 1 even when its sending run cannot be
+-- resolved (NULL source_task_id, or a task since deleted): an A2A message is by
+-- construction at least one hop from the human, so an unresolvable parent must
+-- fail TOWARD the circuit breaker, never away from it.
+--
+-- workspace_id scopes the lookup so a foreign comment UUID cannot reach a depth
+-- from another tenant (same rule as attributionFromTriggerComment, MUL-4252).
+SELECT COALESCE(parent.a2a_depth, 0) + 1 AS a2a_depth
+FROM comment c
+LEFT JOIN agent_task_queue parent ON parent.id = c.source_task_id
+WHERE c.id = @comment_id
+  AND c.workspace_id = @workspace_id
+  AND c.a2a_intent IS NOT NULL;
 
 -- name: GetDelegatedFailureRecoveryComment :one
 -- The failed task row is locked by the caller before this lookup/insert pair,
@@ -529,7 +553,7 @@ WITH locked_issue AS MATERIALIZED (
               comment.content, comment.type, comment.created_at, comment.updated_at,
               comment.parent_id, comment.workspace_id, comment.resolved_at,
               comment.resolved_by_type, comment.resolved_by_id, comment.source_task_id,
-              comment.quick_action_id, comment.via_plugin_id, comment.revision,
+              comment.quick_action_id, comment.a2a_intent, comment.via_plugin_id, comment.revision,
               comment.anchor_kind, comment.anchor_pr_source, comment.anchor_pr_id,
               comment.anchor_head_sha, comment.anchor_file_path, comment.anchor_line_start,
               comment.anchor_line_end, comment.anchor_side, comment.anchor_review_flag_id,
@@ -550,7 +574,7 @@ SELECT updated_comment.id, updated_comment.issue_id, updated_comment.author_type
        updated_comment.workspace_id, updated_comment.resolved_at,
        updated_comment.resolved_by_type, updated_comment.resolved_by_id,
        updated_comment.source_task_id, updated_comment.quick_action_id,
-       updated_comment.via_plugin_id, updated_comment.revision,
+       updated_comment.a2a_intent, updated_comment.via_plugin_id, updated_comment.revision,
        updated_comment.anchor_kind, updated_comment.anchor_pr_source,
        updated_comment.anchor_pr_id, updated_comment.anchor_head_sha,
        updated_comment.anchor_file_path, updated_comment.anchor_line_start,

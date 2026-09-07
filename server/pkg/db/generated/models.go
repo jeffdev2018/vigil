@@ -360,6 +360,8 @@ type AgentTaskQueue struct {
 	CheckpointSha pgtype.Text `json:"checkpoint_sha"`
 	// F09: 1-based position of this run among the checkpointed turns of its conversation. Assigned server-side on the terminal report.
 	TurnSeq pgtype.Int4 `json:"turn_seq"`
+	// Agent-to-agent hop count from the human originator (F19). 0 = human-triggered. Circuit breaker only, never an authorization signal.
+	A2aDepth int32 `json:"a2a_depth"`
 }
 
 type AgentToLabel struct {
@@ -972,6 +974,8 @@ type Comment struct {
 	AnchorLineEnd      pgtype.Int4        `json:"anchor_line_end"`
 	AnchorSide         pgtype.Text        `json:"anchor_side"`
 	AnchorReviewFlagID pgtype.UUID        `json:"anchor_review_flag_id"`
+	// Agent-to-agent message intent: question | review | handoff. Written only by POST /api/issues/{id}/agent-messages; NULL on every other comment. An unknown value renders as an ordinary comment.
+	A2aIntent pgtype.Text `json:"a2a_intent"`
 }
 
 type CommentReaction struct {

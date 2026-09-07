@@ -34,6 +34,7 @@ import { useCommentUploads } from "./use-comment-uploads";
 import { FileUploadButton } from "@multica/ui/components/common/file-upload-button";
 import { api, dispatchReasonCode, errorCode } from "@multica/core/api";
 import { ReplyInput } from "./reply-input";
+import { A2AIntentChip } from "./a2a-intent-chip";
 import { AnchorChip } from "./anchor-chip";
 import { CommentTriggerChips } from "./comment-trigger-chips";
 import { useCommentTriggerPreview } from "../hooks/use-comment-trigger-preview";
@@ -664,6 +665,10 @@ function CommentRow({
           </TooltipContent>
         </Tooltip>
 
+        {/* Agent-to-agent message (F19): what this agent asked the next one for,
+            and who was asked. Body-visible by design — see A2AIntentChip. */}
+        <A2AIntentChip intent={entry.a2a_intent} content={entry.content} />
+
         {isResolution && (
           <span className="text-caption font-medium text-success">
             {t(($) => $.comment.resolve.resolution_badge)}
@@ -1000,6 +1005,9 @@ function CommentCardImpl({
                   request's diff. Rendered on the ROOT card, since the whole
                   thread shares one anchor, and clickable so the reader can
                   jump to the hunk the walkthrough is showing. */}
+              {/* Agent-to-agent message (F19). Sits with the other header
+                  chips; the body below stays fully visible. */}
+              <A2AIntentChip intent={entry.a2a_intent} content={entry.content} />
               <AnchorChip
                 anchor={entry.anchor}
                 stale={entry.anchor_stale}
