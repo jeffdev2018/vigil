@@ -21,11 +21,43 @@ import (
 // and on every runtime sweeper tick (for duration). Warn once per gate at
 // warn_bps, stop once at 100% when enforced (failed, reason
 // budget_exceeded — never cancelled, which is a human act), only record
-// when observed. The most restrictive cap per gate wins across scopes.
+// when observed. The most restrictive cap per gate wins across scopes, and
+// a gate no policy declares falls back to the built-in wall below.
 
 const ReasonBudgetExceeded = "budget_exceeded"
 
 var RunLimitGates = []string{"cost", "duration", "turns", "tool_calls"}
+
+// Built-in run limits: the wall that applies to a gate no policy declares.
+// Without them, a workspace whose administrator never created a policy row
+// had no cost, duration, turn or tool-call ceiling at all: the enforce
+// default of run_limit_policy governed no row, and only the workflow leg cap
+// applied. They are not a policy of their own: an explicit policy for a
+// gate replaces the built-in for that gate entirely, so a workspace can raise
+// a ceiling as well as lower it. The values are runaway ceilings, not
+// budgets — a run that reaches one has stopped making progress.
+const (
+	builtinRunLimitScope    = "built_in"
+	builtinRunLimitPolicyID = "00000000-0000-0000-0000-000000000001"
+	builtinRunLimitWarnBps  = 8000 // matches the run_limit_policy default
+
+	builtinRunLimitCost      = 20_0000000000 // $20, in 1e-10 USD ticks
+	builtinRunLimitDuration  = 4 * 60 * 60   // 4 hours, in seconds
+	builtinRunLimitTurns     = 500
+	builtinRunLimitToolCalls = 2000
+)
+
+func builtinRunLimit(gate string) int64 {
+	switch gate {
+	case "cost":
+		return builtinRunLimitCost
+	case "duration":
+		return builtinRunLimitDuration
+	case "turns":
+		return builtinRunLimitTurns
+	}
+	return builtinRunLimitToolCalls
+}
 
 // RunLimitGate is one effective cap: the smallest limit among the policies that apply.
 type RunLimitGate struct {
@@ -87,9 +119,10 @@ func EffectiveRunLimits(policies []db.RunLimitPolicy) []RunLimitGate {
 				best = &RunLimitGate{Gate: gate, Limit: limit, Action: p.Action, WarnBps: p.WarnBps, PolicyID: util.UUIDToString(p.ID), Scope: p.ScopeType}
 			}
 		}
-		if best != nil {
-			out = append(out, *best)
+		if best == nil {
+			best = &RunLimitGate{Gate: gate, Limit: builtinRunLimit(gate), Action: "enforce", WarnBps: builtinRunLimitWarnBps, PolicyID: builtinRunLimitPolicyID, Scope: builtinRunLimitScope}
 		}
+		out = append(out, *best)
 	}
 	return out
 }
@@ -168,7 +201,7 @@ func (s *TaskService) EvaluateRunLimits(ctx context.Context, task db.AgentTaskQu
 		return false
 	}
 	policies, wsID, err := s.runLimitPolicies(ctx, task)
-	if err != nil || len(policies) == 0 {
+	if err != nil {
 		return false
 	}
 	gates := EffectiveRunLimits(policies)
