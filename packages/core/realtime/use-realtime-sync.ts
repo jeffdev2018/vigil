@@ -961,6 +961,13 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: ["cross-reviews", wsId] });
       },
+      // critic_verdict:created / :relaunch (F25) refresh the issue's verdict
+      // list. The issue itself is not dragged along: a verdict that moves the
+      // issue also publishes issue:updated, which is what repaints the row.
+      critic_verdict: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["critic-verdicts", wsId] });
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });

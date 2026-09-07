@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
@@ -48,6 +49,26 @@ var reviewFlagListCmd = &cobra.Command{
 	RunE:  runReviewFlagList,
 }
 
+// `multica review verdict` — the adversarial critic's answer (F25 / JEF-18).
+// One verdict per critic run; the server refuses a second one.
+var reviewVerdictCmd = &cobra.Command{
+	Use:   "verdict",
+	Short: "Record this critic run's verdict on the change it reviewed",
+	Long: `Records the verdict of an adversarial review run.
+
+pass     — nothing in the way; the delivery finalises.
+concerns — worth reading, not worth another round. Never relaunches the author.
+block    — the author is relaunched with your summary and findings as its brief.
+           Use it only for something that would be wrong to ship.
+
+--findings-file is a JSON array of objects:
+  {"severity":"bug"|"warning"|"info","file":"...","line":42,"title":"...","note":"..."}
+
+Only the critic run of that issue may write, and only once.`,
+	Args: cobra.NoArgs,
+	RunE: runReviewVerdict,
+}
+
 func init() {
 	reviewFlagAddCmd.Flags().String("issue", "", "Issue ID or key the pull request is linked to (required)")
 	reviewFlagAddCmd.Flags().String("pr", "", "Pull request UUID from the issue's pull-requests listing (required)")
@@ -63,8 +84,14 @@ func init() {
 	reviewFlagListCmd.Flags().String("issue", "", "Issue ID or key (required)")
 	reviewFlagListCmd.Flags().String("state", "open", "open (default) or all")
 
+	reviewVerdictCmd.Flags().String("issue", "", "Issue ID or key the review is about (required)")
+	reviewVerdictCmd.Flags().String("task", "", "Critic run id (defaults to MULTICA_TASK_ID)")
+	reviewVerdictCmd.Flags().String("verdict", "", "pass | concerns | block (required)")
+	reviewVerdictCmd.Flags().String("summary", "", "One paragraph saying what you found (required)")
+	reviewVerdictCmd.Flags().String("findings-file", "", "JSON array of findings. Use - to read it from stdin")
+
 	reviewFlagCmd.AddCommand(reviewFlagAddCmd, reviewFlagListCmd)
-	reviewCmd.AddCommand(reviewFlagCmd)
+	reviewCmd.AddCommand(reviewFlagCmd, reviewVerdictCmd)
 	rootCmd.AddCommand(reviewCmd)
 }
 
@@ -203,4 +230,66 @@ func reviewFlagCall(cmd *cobra.Command, issueArg string, call func(ctx context.C
 		return err
 	}
 	return cli.PrintJSON(os.Stdout, result)
+}
+
+// criticFindings reads --findings-file. Absent is the common case: a verdict
+// is the answer, findings are the detail behind it.
+func criticFindings(path string) ([]any, error) {
+	if strings.TrimSpace(path) == "" {
+		return nil, nil
+	}
+	var raw []byte
+	var err error
+	if path == "-" {
+		raw, err = io.ReadAll(os.Stdin)
+	} else {
+		raw, err = os.ReadFile(path)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("read --findings-file: %w", err)
+	}
+	var findings []any
+	if err := json.Unmarshal(raw, &findings); err != nil {
+		return nil, fmt.Errorf("--findings-file must be a JSON array of findings: %w", err)
+	}
+	return findings, nil
+}
+
+func runReviewVerdict(cmd *cobra.Command, _ []string) error {
+	issueArg, _ := cmd.Flags().GetString("issue")
+	taskID, _ := cmd.Flags().GetString("task")
+	if strings.TrimSpace(taskID) == "" {
+		taskID = os.Getenv("MULTICA_TASK_ID")
+	}
+	if strings.TrimSpace(taskID) == "" {
+		return fmt.Errorf("--task is required outside a run (MULTICA_TASK_ID is not set)")
+	}
+	verdict := strings.ToLower(strings.TrimSpace(mustFlag(cmd, "verdict")))
+	switch verdict {
+	case "pass", "concerns", "block":
+	default:
+		return fmt.Errorf("--verdict must be one of pass, concerns, block")
+	}
+	summary := strings.TrimSpace(mustFlag(cmd, "summary"))
+	if summary == "" {
+		return fmt.Errorf("--summary is required: the author reads it, not your run log")
+	}
+	findingsPath, _ := cmd.Flags().GetString("findings-file")
+	findings, err := criticFindings(findingsPath)
+	if err != nil {
+		return err
+	}
+
+	payload := map[string]any{"verdict": verdict, "summary": summary}
+	if findings != nil {
+		payload["findings"] = findings
+	}
+	return reviewFlagCall(cmd, issueArg, func(ctx context.Context, client *cli.APIClient, id string, out *map[string]any) error {
+		return client.PostJSON(ctx, "/api/issues/"+id+"/critic-verdicts", payload, out)
+	})
+}
+
+func mustFlag(cmd *cobra.Command, name string) string {
+	v, _ := cmd.Flags().GetString(name)
+	return v
 }

@@ -78,6 +78,11 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/handler/interview.go": statusWriterSystem,
 	// The watchdog resets a stalled issue to todo.
 	"internal/handler/watchdog.go": statusWriterSystem,
+	// The adversarial critic (F25) parks a finished delivery in review while
+	// its critic reads it. The platform is holding its own work: a workspace
+	// rule that could refuse the hold would leave the issue between a finished
+	// run and a verdict nobody is waiting for.
+	"internal/handler/critic.go": statusWriterSystem,
 	// The Linear bridge (K21) mirrors a state change made in Linear.
 	"internal/integrations/linear/sync.go": statusWriterSystem,
 	// A low-confidence run is sent back for review by the platform.

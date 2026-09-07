@@ -1,0 +1,40 @@
+{
+  "section": {
+    "title": "Adversarial review",
+    "description": "A critic on another provider reviews every change this agent delivers, and records a verdict.",
+    "description_squad": "A critic on another provider reviews every change this squad delivers, and records a verdict.",
+    "enabled": "Enable adversarial review",
+    "critic": "Critic",
+    "critic_placeholder": "Choose an agent",
+    "require_distinct_provider": "Require a different provider",
+    "require_distinct_provider_hint": "Without one on another provider, the review is skipped and said so.",
+    "blocking": "Hold the issue until the verdict",
+    "blocking_hint": "The issue waits in review. A member can always move it anyway.",
+    "max_rounds": "Rounds",
+    "max_rounds_hint": "How many times a blocked change may come back.",
+    "budget": "Cost budget",
+    "budget_placeholder": "No cap",
+    "budget_hint": "Total spent on the issue, in dollars. Past it the loop stops.",
+    "save": "Save",
+    "saving": "Saving…",
+    "error_critic_required": "Choose a critic before enabling adversarial review.",
+    "error_critic_is_author": "An agent cannot be its own critic.",
+    "error_save": "Could not save the policy."
+  },
+  "card": {
+    "title": "Adversarial review",
+    "round": "Round {{round}}",
+    "verdict_pass": "Pass",
+    "verdict_concerns": "Concerns",
+    "verdict_block": "Blocked",
+    "reason_no_distinct_provider": "Skipped: no critic on another provider",
+    "reason_max_rounds": "Stopped: round limit reached",
+    "reason_max_cost": "Stopped: cost limit reached",
+    "reason_no_verdict": "The critic finished without a readable verdict",
+    "findings": "Findings ({{count}})",
+    "hide_findings": "Hide findings",
+    "cost": "Cost {{cost}}",
+    "open_run": "Open the critic run",
+    "empty": "No adversarial review on this issue yet."
+  }
+}

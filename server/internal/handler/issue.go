@@ -3618,6 +3618,11 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if statusKeyForGuard != "" && !h.reviewGateAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Adversarial critic (F25): a blocking policy holds the issue until its
+	// critic answers. Agents only — a member always decides for themselves.
+	if !h.criticHoldAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
 	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
@@ -4578,6 +4583,11 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 			// Review gate (JEF-238): same for a project gating on the review.
 			if !h.reviewGateAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			// Adversarial critic (F25): same for an issue still waiting for
+			// its critic's verdict.
+			if !h.criticHoldAllowsStatus(w, r, prevIssue, batchStatusKey) {
 				return
 			}
 			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {

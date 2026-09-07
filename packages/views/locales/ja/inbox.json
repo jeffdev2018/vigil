@@ -93,6 +93,8 @@
     "trust_promotion_suggested": "信頼モードの昇格提案",
     "triage_stale": "トリアージが滞っています",
     "transition_approval_requested": "承認が必要です",
+    "critic_degraded": "批評レビューをスキップしました",
+    "critic_budget": "批評レビューを停止しました",
     "watchdog_escalation": "ウォッチドッグのエスカレーション",
     "contest_ready": "異議申し立ての判定待ち",
     "org_alert": "組織アラート",

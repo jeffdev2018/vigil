@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Use for Multica platform actions the runtime brief does not cover: issue and PR contracts, status transitions, PR walkthrough runs, review flag findings, mentions, agents, squads, autopilots, projects, epic steps, runtimes, skill import, goals, triage, undo. Not for your product code."
+description: "Use for Multica platform actions the runtime brief does not cover: issue and PR contracts, status transitions, PR walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, projects, epic steps, runtimes, skill import, goals, triage, undo. Not for your product code."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -22,6 +22,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running |
 | `references/pr-walkthrough.md` | Answering a pull request walkthrough run: the `pr_walkthrough` block, the group kinds, anchoring an explanation to a hunk |
 | `references/review-flags.md` | Recording a review flag: what each severity means, when to state a confidence, the per-run cap, what a moving head does to a flag |
+| `references/critic-review.md` | Answering an adversarial review run: what each critic verdict costs, the findings JSON shape, recording it once, what a blocked author sees |
 | `references/mentions.md` | Writing a `mention://` link: which types enqueue a run, which are inert, why one silently did nothing |
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |

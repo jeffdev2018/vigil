@@ -1489,6 +1489,18 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			// Verdicts first: they are the record of what the policies did, so
+			// dropping the policies before them would strand rows nothing can
+			// explain.
+			name: "purge critic policies",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceCriticVerdicts(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceCriticPolicies(ctx, requester.WorkspaceID)
+			},
+		},
+		{
 			name: "purge trust mode changes",
 			run:  func() error { return qtx.PurgeWorkspaceTrustModeChanges(ctx, requester.WorkspaceID) },
 		},

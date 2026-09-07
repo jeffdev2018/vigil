@@ -2173,6 +2173,12 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Get("/review-flags", h.ListIssueReviewFlags)
 					r.Post("/review-flags", h.CreateIssueReviewFlag)
 					r.Patch("/review-flags/{flagId}", h.SetIssueReviewFlagState)
+					// Adversarial critic (F25): the structured verdicts on
+					// this issue's deliveries. The POST is authorized by the
+					// critic run's own task token, not by membership, so it
+					// carries no RequireHumanActor.
+					r.Get("/critic-verdicts", h.ListCriticVerdicts)
+					r.Post("/critic-verdicts", h.CreateCriticVerdict)
 					r.Get("/dependencies", h.ListIssueDependencies)
 					r.Post("/dependencies", h.CreateIssueDependency)
 					r.Delete("/dependencies/{depId}", h.DeleteIssueDependency)
@@ -2561,6 +2567,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Post("/api/pull-requests/{id}/ci-auto-fix/retry", h.RetryCIAutoFix)
 			r.Get("/api/cross-review-settings", h.GetCrossReviewSettings)
 			r.Put("/api/cross-review-settings", h.PutCrossReviewSettings)
+			// Adversarial critic (F25): the per-agent / per-squad policy.
+			r.Get("/api/critic-policies/{subjectType}/{subjectId}", h.GetCriticPolicy)
+			r.Put("/api/critic-policies/{subjectType}/{subjectId}", h.PutCriticPolicy)
 			// Run confidence scoring (JEF-240): the workspace auto-review threshold.
 			r.Get("/api/confidence-review-settings", h.GetConfidenceReviewSettings)
 			r.Put("/api/confidence-review-settings", h.PutConfidenceReviewSettings)

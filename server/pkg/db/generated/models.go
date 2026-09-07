@@ -80,6 +80,42 @@ type AgentCorrectionSignal struct {
 	DetectedAt          pgtype.Timestamptz `json:"detected_at"`
 }
 
+// F25: per-agent / per-squad adversarial critic policy. One row per subject; the unique index of 774 enforces it. No FK by house rule.
+type AgentCriticPolicy struct {
+	ID                      pgtype.UUID        `json:"id"`
+	WorkspaceID             pgtype.UUID        `json:"workspace_id"`
+	SubjectType             string             `json:"subject_type"`
+	SubjectID               pgtype.UUID        `json:"subject_id"`
+	Enabled                 bool               `json:"enabled"`
+	CriticAgentID           pgtype.UUID        `json:"critic_agent_id"`
+	RequireDistinctProvider bool               `json:"require_distinct_provider"`
+	Blocking                bool               `json:"blocking"`
+	MaxRounds               int16              `json:"max_rounds"`
+	MaxCostUsdTicks         pgtype.Int8        `json:"max_cost_usd_ticks"`
+	Phases                  []string           `json:"phases"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+}
+
+// F25: one structured critic verdict (pass|concerns|block) on one delivery. No FK by house rule.
+type AgentCriticVerdict struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	SubjectTaskID pgtype.UUID        `json:"subject_task_id"`
+	CriticTaskID  pgtype.UUID        `json:"critic_task_id"`
+	Phase         string             `json:"phase"`
+	Verdict       string             `json:"verdict"`
+	Reason        pgtype.Text        `json:"reason"`
+	Summary       pgtype.Text        `json:"summary"`
+	Findings      []byte             `json:"findings"`
+	Round         int32              `json:"round"`
+	CostUsdTicks  int64              `json:"cost_usd_ticks"`
+	CreatedByType pgtype.Text        `json:"created_by_type"`
+	CreatedByID   pgtype.UUID        `json:"created_by_id"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+}
+
 type AgentDomainCompetency struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`

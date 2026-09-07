@@ -121,7 +121,9 @@ export type WSEventType =
   | "cross_review:queued"
   | "cross_review:report"
   | "cross_review:rework"
-  | "cross_review:escalated";
+  | "cross_review:escalated"
+  | "critic_verdict:created"
+  | "critic_verdict:relaunch";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -296,6 +298,15 @@ export interface PostmortemResolvedPayload {
 }
 
 /** Cross-provider review lifecycle (K15): a review was queued or reported. */
+/**
+ * Adversarial critic (F25). Deliberately carries only the issue: a verdict is
+ * read from the list endpoint, so a client that missed an event catches up by
+ * re-reading rather than by reconstructing state from payloads.
+ */
+export interface CriticVerdictEventPayload {
+  issue_id: string;
+}
+
 export interface CrossReviewEventPayload {
   issue_id: string;
   review_task_id?: string;
@@ -868,6 +879,8 @@ export interface WSEventPayloadMap {
   "cross_review:report": CrossReviewEventPayload;
   "cross_review:rework": CrossReviewReworkPayload;
   "cross_review:escalated": CrossReviewEscalatedPayload;
+  "critic_verdict:created": CriticVerdictEventPayload;
+  "critic_verdict:relaunch": CriticVerdictEventPayload;
 }
 
 /**

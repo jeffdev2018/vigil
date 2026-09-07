@@ -356,6 +356,7 @@ import { BenchmarkCorpusSchema, BenchmarkPolicySearchSchema, BenchmarkRunListSch
 import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, type SSOState, type SSOConnectionRequest, type ScimToken, type ProjectMembers, type ProjectRole } from "../access/schemas";
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
 import { IssueTransitionRuleSchema, IssueTransitionRuleListSchema, EMPTY_TRANSITION_RULES, EMPTY_TRANSITION_RULE, EffectiveTransitionsSchema, EMPTY_EFFECTIVE_TRANSITIONS, IssueTransitionRequestListSchema, EMPTY_TRANSITION_REQUESTS, PendingTransitionSchema, type IssueTransitionRule, type IssueTransitionRuleList, type EffectiveTransitions, type IssueTransitionRequestList } from "../issue-transitions/schemas";
+import { CriticPolicySchema, EMPTY_CRITIC_POLICY, CriticVerdictListSchema, EMPTY_CRITIC_VERDICTS, type CriticPolicy, type CriticPolicyWrite, type CriticVerdictList } from "../critic/schemas";
 import {
   AgentTaskListSchema,
   WorktreeRevertRequestSchema,
@@ -6729,6 +6730,24 @@ export class ApiClient {
   async clearProjectMemberRole(projectId: string, subjectType: "member" | "agent", subjectId: string): Promise<ProjectMembers> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/members/${subjectType}/${encodeURIComponent(subjectId)}/role`, { method: "DELETE" });
     return parseWithFallback(raw, ProjectMembersSchema, EMPTY_PROJECT_MEMBERS, { endpoint: "DELETE /api/projects/{id}/members/{subjectType}/{subjectId}/role" });
+  }
+
+  // Adversarial critic (F25): the per-agent / per-squad policy and the
+  // structured verdicts it produced.
+
+  async getCriticPolicy(subjectType: string, subjectId: string): Promise<CriticPolicy> {
+    const raw = await this.fetch<unknown>(`/api/critic-policies/${encodeURIComponent(subjectType)}/${encodeURIComponent(subjectId)}`);
+    return parseWithFallback(raw, CriticPolicySchema, EMPTY_CRITIC_POLICY, { endpoint: "GET /api/critic-policies/{subjectType}/{subjectId}" });
+  }
+
+  async putCriticPolicy(subjectType: string, subjectId: string, data: CriticPolicyWrite): Promise<CriticPolicy> {
+    const raw = await this.fetch<unknown>(`/api/critic-policies/${encodeURIComponent(subjectType)}/${encodeURIComponent(subjectId)}`, { method: "PUT", body: JSON.stringify(data) });
+    return parseWithFallback(raw, CriticPolicySchema, EMPTY_CRITIC_POLICY, { endpoint: "PUT /api/critic-policies/{subjectType}/{subjectId}" });
+  }
+
+  async listCriticVerdicts(issueId: string): Promise<CriticVerdictList> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/critic-verdicts`);
+    return parseWithFallback(raw, CriticVerdictListSchema, EMPTY_CRITIC_VERDICTS, { endpoint: "GET /api/issues/{id}/critic-verdicts" });
   }
 
   // Transition rules and approval gates (F28).

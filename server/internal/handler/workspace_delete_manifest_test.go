@@ -124,6 +124,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"issue_transition_rule":              workspaceDelete,
 	"issue_transition_rule_actor":        workspaceDelete,
 	"issue_transition_request":           workspaceDelete,
+	"agent_critic_policy":                workspaceDelete,
+	"agent_critic_verdict":               workspaceDelete,
 	"project_blast_radius_rule":          workspaceDelete,
 	"agent_permission_profile":           workspaceDelete,
 	"run_scoped_secret":                  workspaceDelete,

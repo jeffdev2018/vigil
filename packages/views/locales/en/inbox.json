@@ -95,6 +95,8 @@
     "trust_promotion_suggested": "Trust promotion suggested",
     "triage_stale": "Triage is stalling",
     "transition_approval_requested": "Approval needed",
+    "critic_degraded": "Adversarial review skipped",
+    "critic_budget": "Adversarial review stopped",
     "watchdog_escalation": "Watchdog escalation",
     "contest_ready": "Contest ready for your verdict",
     "org_alert": "Organisation alert",
