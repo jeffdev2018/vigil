@@ -24,6 +24,7 @@ import {
   CreditCard,
   Server,
   ScrollText,
+  FlaskConical,
   WalletCards,
   FlaskRound,
   HeartPulse,
@@ -56,6 +57,7 @@ import { QuickActionsTab } from "./quick-actions-tab";
 import { KeyboardShortcutsTab } from "./keyboard-shortcuts-tab";
 import { PluginsTab } from "./plugins-tab";
 import { AuditLogTab } from "./audit-log-tab";
+import { LabsTab } from "./labs-tab";
 import { McpTab } from "./mcp-tab";
 import { ModelKeysTab } from "./model-keys-tab";
 import { EvalLabTab } from "./eval-lab-tab";
@@ -186,6 +188,12 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           t(($) => $.page.tabs.audit_log),
           ScrollText,
           <AuditLogTab />,
+        ),
+        entry(
+          "labs",
+          t(($) => $.page.tabs.labs),
+          FlaskConical,
+          <LabsTab />,
         ),
       ],
     },
