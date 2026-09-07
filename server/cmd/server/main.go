@@ -787,6 +787,10 @@ func main() {
 		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
 	}
 
+	if err := schedulerMgr.Register(scheduler.RunPreviewStaleSweepJob(h.SweepStaleRunPreviews)); err != nil {
+		slog.Error("scheduler: register run preview stale sweep job", "error", err)
+		os.Exit(1)
+	}
 	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
 		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
 	}

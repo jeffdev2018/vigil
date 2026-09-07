@@ -187,12 +187,25 @@ A worktree is a checkout, and a checkout usually needs something done to it befo
 | Script | When it runs | If it fails |
 | --- | --- | --- |
 | Setup | Once the worktree exists, before the agent starts | The run fails, with the script's output as the reason |
-| Run | Not started yet — saved for a future release | — |
+| Run | After Setup, alongside the agent, and stopped when the run ends | The preview is marked failed; the run continues |
 | Archive | Before the branch is delivered | Logged; delivery continues |
 
 Each is a command, not a shell line: the first word is the program and the rest are its arguments. Nothing is interpreted by a shell, so a value containing `;` or `&&` is a literal argument rather than a second command. If you need a pipeline, a variable or a conditional, write a script file and name it here.
 
-Both are bounded at five minutes and their full output is kept in the run's `logs/` directory.
+Setup and Archive are bounded at five minutes. Run is long-lived by design and is killed, with its whole process group, when the run ends. All three keep their full output in the run's `logs/` directory.
+
+### Run previews
+
+When a resource declares a Run script, the daemon starts it after Setup and probes `MULTICA_PORT_BASE` on `127.0.0.1` for up to 90 seconds. Once something answers, the run gets a **preview**: a chip on the run row and a panel on the run's detail showing where the app is.
+
+Bind `MULTICA_PORT_BASE`, not a fixed port. A dev server on a hardcoded port gets no preview and collides with the next concurrent run.
+
+How the preview is reachable depends on the daemon:
+
+- **Relayed.** The server proxies requests to your machine over the connection the daemon already holds open, behind a scoped link that expires and can be revoked. Nothing listens on your machine's network interfaces and no inbound port is opened. Revoking a link stops it serving on the next request.
+- **Local.** When the daemon is too old to relay, or the deployment sets `MULTICA_PREVIEW_RELAY=off`, the address is `http://127.0.0.1:<port>` and only means something on the machine that ran the task. The desktop app opens it; the web app says it is local rather than offering a link that cannot work.
+
+The preview dies with its run: the process group is killed and an open link answers "gone". WebSockets are not relayed, so hot module reload does not survive a relayed preview — reload the page.
 
 ### Ports
 

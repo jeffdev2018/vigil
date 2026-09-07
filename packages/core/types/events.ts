@@ -123,7 +123,8 @@ export type WSEventType =
   | "cross_review:rework"
   | "cross_review:escalated"
   | "critic_verdict:created"
-  | "critic_verdict:relaunch";
+  | "critic_verdict:relaunch"
+  | "run_preview:updated";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -305,6 +306,16 @@ export interface PostmortemResolvedPayload {
  */
 export interface CriticVerdictEventPayload {
   issue_id: string;
+}
+
+/**
+ * A run's dev server changed state (F12). Carries only the run and the new
+ * status: the preview is read back from its endpoint, so a client that missed
+ * an event catches up by re-reading rather than by reconstructing state.
+ */
+export interface RunPreviewUpdatedPayload {
+  task_id: string;
+  status: string;
 }
 
 export interface CrossReviewEventPayload {
@@ -881,6 +892,7 @@ export interface WSEventPayloadMap {
   "cross_review:escalated": CrossReviewEscalatedPayload;
   "critic_verdict:created": CriticVerdictEventPayload;
   "critic_verdict:relaunch": CriticVerdictEventPayload;
+  "run_preview:updated": RunPreviewUpdatedPayload;
 }
 
 /**

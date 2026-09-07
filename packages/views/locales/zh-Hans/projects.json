@@ -139,10 +139,11 @@
     "lifecycle_description": "这个工作树的可选命令。它们不经过 shell 直接执行，所以第一个词是程序，其余是参数。",
     "lifecycle_setup_label": "准备",
     "lifecycle_setup_hint": "pnpm install",
-    "lifecycle_run_label": "运行（已保存，尚未启动）",
-    "lifecycle_run_hint": "pnpm dev",
+    "lifecycle_run_label": "Run（开发服务器）",
+    "lifecycle_run_hint": "pnpm dev -- --port $MULTICA_PORT_BASE",
     "lifecycle_archive_label": "归档",
-    "lifecycle_archive_hint": "./scripts/teardown.sh"
+    "lifecycle_archive_hint": "./scripts/teardown.sh",
+    "lifecycle_run_help": "在 Setup 之后启动，随运行结束而停止。请在 127.0.0.1 上监听 MULTICA_PORT_BASE 才能获得预览链接。"
   },
   "delete_dialog": {
     "title": "删除项目",

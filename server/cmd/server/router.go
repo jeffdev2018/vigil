@@ -1555,6 +1555,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// inviter so a not-yet-logged-in visitor can see what they're joining.
 	r.Get("/api/share-links/{code}", h.GetShareLinkInfo)
 
+	// Public run preview (F12). Outside the authenticated group for the same
+	// reason as the webhook ingress above: the code in the path IS the
+	// credential, and the workspace comes from the link row it resolves to,
+	// never from a request header. A reviewer opens this on a phone with no
+	// Multica account.
+	r.HandleFunc("/preview/{code}", h.PreviewProxy)
+	r.HandleFunc("/preview/{code}/*", h.PreviewProxy)
+
 	// Webhook ingress for autopilots. Outside the authenticated group on
 	// purpose: the bearer token in the URL path IS the credential. Workspace
 	// context is derived from the trigger row, never from request headers.
@@ -1660,6 +1668,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Post("/tasks/{taskId}/messages", h.ReportTaskMessages)
 		r.Get("/tasks/{taskId}/messages", h.ListTaskMessages)
 		r.Post("/tasks/{taskId}/cancel-ack", h.AckTaskCancelled)
+		// F12: the run's dev server. The daemon declares what it found on the
+		// port, and reports the stop on every exit path.
+		r.Post("/tasks/{taskId}/preview", h.ReportRunPreview)
+		r.Delete("/tasks/{taskId}/preview", h.StopRunPreview)
 
 		r.Post("/workspaces/{workspaceId}/issues/gc-check", h.BatchIssueGCCheck)
 		r.Get("/issues/{issueId}/gc-check", h.GetIssueGCCheck)
@@ -2383,6 +2395,14 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Per-leg accounting (JEF-274): the whole workflow this run belongs
 			// to, from any of its legs, with the totals every leg contributed.
 			r.Get("/api/tasks/{taskId}/legs", h.GetTaskLegs)
+			// F12: where this run's dev server is, and the scoped links that
+			// let someone outside the workspace open it.
+			r.Get("/api/tasks/{taskId}/preview", h.GetRunPreview)
+			r.Route("/api/tasks/{taskId}/share-links", func(r chi.Router) {
+				r.Get("/", h.ListTaskShareLinks)
+				r.Post("/", h.CreateTaskShareLink)
+				r.Delete("/{id}", h.RevokeTaskShareLink)
+			})
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
 				r.Get("/", h.GetIssueWatchdog)

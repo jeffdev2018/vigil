@@ -968,6 +968,14 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: ["critic-verdicts", wsId] });
       },
+      // run_preview:updated (F12) repaints the run's preview chip and card.
+      // Prefix-invalidated: the payload names the run, but the chip is keyed
+      // per task and a workspace-wide refetch of a handful of tiny queries is
+      // cheaper than threading the id through.
+      run_preview: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["run-preview", wsId] });
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });

@@ -148,6 +148,7 @@ export function LocalDirectoryModeDialog({
             <LifecycleField
               label={t(($) => $.resources.lifecycle_run_label)}
               hint={t(($) => $.resources.lifecycle_run_hint)}
+              help={t(($) => $.resources.lifecycle_run_help)}
               value={run}
               onChange={setRun}
             />
@@ -321,11 +322,15 @@ function ModeOption({
 function LifecycleField({
   label,
   hint,
+  help,
   value,
   onChange,
 }: {
   label: string;
   hint: string;
+  /** One line under the field. The `run` script needs it: binding
+      MULTICA_PORT_BASE is the difference between getting a preview and not. */
+  help?: string;
   value: string;
   onChange: (next: string) => void;
 }) {
@@ -343,6 +348,7 @@ function LifecycleField({
         title={value || undefined}
         className="w-full truncate rounded-md border border-input bg-background px-2.5 py-1.5 font-mono text-micro outline-none focus-visible:border-ring"
       />
+      {help && <span className="text-micro text-muted-foreground">{help}</span>}
     </label>
   );
 }

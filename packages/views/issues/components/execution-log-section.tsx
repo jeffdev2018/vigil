@@ -39,6 +39,7 @@ import { TerminateTaskConfirmDialog } from "./terminate-task-confirm-dialog";
 import { RunControls } from "./run-controls";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
+import { RunPreviewChip } from "../../runs/components/run-preview-chip";
 import { RunRevertAction } from "./run-revert-action";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
 
@@ -424,6 +425,7 @@ export function ActiveTaskRow({
           )}
         </RowStatus>
         <RowActions>
+          <RunPreviewChip taskId={task.id} />
           <RunControls issueId={issueId} task={task} />
           {showTranscript && (
             <TranscriptButton
@@ -608,6 +610,7 @@ function PastRow({
           )}
         </RowStatus>
         <RowActions>
+          <RunPreviewChip taskId={task.id} />
           <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
           <ReplayButton task={task} />
           <RunRevertAction task={task} issueId={issueId} laterRunCount={laterRunCount} />

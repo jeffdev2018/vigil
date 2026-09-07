@@ -656,6 +656,12 @@ type Daemon struct {
 	// waits. See MUL-2663.
 	localPathLocks *LocalPathLocker
 
+	// previews holds the live run previews (F12) this daemon owns: task id →
+	// the dev server its `run` script started. The reverse RPC reads the port
+	// from here rather than from the wire, and task teardown reads the process
+	// group to kill.
+	previews previewRegistry
+
 	// bgSyncs tracks background goroutines started by registerTaskRepos so
 	// callers (notably tests using t.TempDir-backed cache roots) can wait for
 	// them to drain before tearing the daemon down. Without this the bg
@@ -8162,6 +8168,28 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 	}
 	if checkoutMode := repoCheckoutModeFor(provider, runtime.GOOS); checkoutMode != "" {
 		agentEnv[repoCheckoutModeEnv] = checkoutMode
+	}
+	// The run script (F12): the worktree's dev server, started once setup has
+	// built the environment and just before the agent gets it, so both read the
+	// SAME MULTICA_PORT_BASE. Deriving the port twice would re-probe, and a
+	// probe that shifted the block would leave the dev server on one port and
+	// the agent told about another.
+	//
+	// Unlike its two lifecycle siblings this one is long-lived, and its failure
+	// is not the run's: an agent works perfectly well in a worktree whose dev
+	// server never came up, so a failed preview is recorded as `error` rather
+	// than trading the deliverable for a convenience. Started in a goroutine
+	// because the probe waits up to 90 s for a first compile, and the agent has
+	// no reason to.
+	if runScript := localAssignment.RunScript(); len(runScript) > 0 {
+		// A copy: agentEnv keeps being written below (PATH, CODEX_HOME, …) and
+		// the goroutine reads it concurrently.
+		previewEnv := make(map[string]string, len(agentEnv))
+		for k, v := range agentEnv {
+			previewEnv[k] = v
+		}
+		go d.startRunPreview(context.WithoutCancel(ctx), task, runScript, env.WorkDir, env.RootDir, previewEnv, taskLog)
+		defer d.stopRunPreview(task.ID, taskLog)
 	}
 	if task.AutopilotRunID != "" {
 		agentEnv["MULTICA_AUTOPILOT_RUN_ID"] = task.AutopilotRunID

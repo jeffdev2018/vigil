@@ -173,6 +173,9 @@ type client struct {
 
 	// rpcSem bounds concurrent RPC handlers for this connection.
 	rpcSem chan struct{}
+
+	// serverRPC holds the reply slots for server→daemon requests (F12).
+	serverRPC *serverRPCPending
 }
 
 // trySend delivers frame to the write pump without blocking and without ever
@@ -434,6 +437,8 @@ func (h *Hub) HandleWebSocket(w http.ResponseWriter, r *http.Request, identity C
 		identity: identity,
 		runtimes: runtimes,
 		rpcSem:   make(chan struct{}, maxInFlightRPCPerClient),
+
+		serverRPC: newServerRPCPending(),
 	}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 	h.register(c)
@@ -918,6 +923,11 @@ func (h *Hub) unregister(c *client) {
 	total := len(h.clients)
 	h.mu.Unlock()
 
+	// Release every server→daemon caller blocked on this socket (F12), so a
+	// proxied preview request fails fast instead of waiting out its deadline
+	// against a connection that is already gone.
+	c.serverRPC.failAll()
+
 	M.DisconnectsTotal.Add(1)
 	M.ActiveConnections.Add(-1)
 	slog.Info("daemon websocket disconnected",
@@ -939,9 +949,12 @@ func (c *client) readPump() {
 		c.conn.Close()
 	}()
 
-	// Read limit sized for daemon:rpc_request frames carrying a machine's full
-	// runtime_id set (MUL-4257), well above the tiny heartbeat/wakeup frames.
-	c.conn.SetReadLimit(64 * 1024)
+	// Read limit sized for the biggest frame this direction carries: a
+	// server:rpc_response holding one preview.fetch body (F12). The claim
+	// frames it was originally sized for (MUL-4257) are three orders of
+	// magnitude smaller; the bound is derived from the body cap so raising one
+	// cannot silently truncate the other.
+	c.conn.SetReadLimit(serverRPCReadLimit)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
 	c.conn.SetPongHandler(func(string) error {
 		c.conn.SetReadDeadline(time.Now().Add(pongWait))
@@ -981,6 +994,8 @@ func (c *client) handleFrame(raw []byte) {
 		c.handleHeartbeatFrame(msg.Payload)
 	case protocol.EventDaemonRPCRequest:
 		c.handleRPCFrame(msg.Payload)
+	case protocol.EventServerRPCResponse:
+		c.handleServerRPCResponseFrame(msg.Payload)
 	default:
 		// Unknown app messages are intentionally ignored for forward
 		// compatibility with future daemon → server message types.

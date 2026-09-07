@@ -283,6 +283,26 @@ func (c *wsRPCClient) call(ctx context.Context, method string, serverTimeout tim
 	}
 }
 
+// send pushes one frame onto the attached connection's writer without
+// registering a pending reply. It is how the daemon answers a SERVER-initiated
+// RPC (F12): the correlation id is the server's, so there is nothing for this
+// side to await.
+func (c *wsRPCClient) send(frame []byte) error {
+	if c == nil {
+		return errWSRPCUnavailable
+	}
+	c.mu.Lock()
+	sendFrame := c.sendFrame
+	c.mu.Unlock()
+	if sendFrame == nil {
+		return errWSRPCUnavailable
+	}
+	if _, err := sendFrame(frame); err != nil {
+		return err
+	}
+	return nil
+}
+
 // deliver routes an inbound rpc_response frame to the waiting Call. The send
 // happens under the mutex so it is serialized with attach(nil)'s close+delete:
 // a channel present in pending is guaranteed not yet closed, so this never
