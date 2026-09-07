@@ -40,8 +40,25 @@ const (
 	sandboxDockerRmTimeout = 30 * time.Second
 )
 
+// errSandboxUnavailable is returned when a run asked for confinement and this
+// machine can provide none. It is a sentinel so taskRunFailureReason can name
+// it without reading the message.
+var errSandboxUnavailable = errors.New("sandbox unavailable")
+
+// sandboxRefused reports a confinement request the machine cannot honour at
+// all. Degrading container to bubblewrap is still a boundary and is allowed;
+// degrading either of them to "none" is not, because "none" is not a weaker
+// sandbox, it is the absence of one. A mode the daemon does not recognise
+// lands here too: an unreadable request must not resolve to running
+// unconfined.
+func sandboxRefused(requested, effective string) bool {
+	return requested != sandboxrun.ModeNone && effective == sandboxrun.ModeNone
+}
+
 // resolveSandboxMode degrades the requested mode to what the machine can run.
 // It never picks silently: reason is non-empty whenever mode != requested.
+// A degradation all the way to "none" is not a degradation the caller may
+// accept — see sandboxRefused.
 func resolveSandboxMode(spec *SandboxSpec, caps SandboxCapabilities) (mode, reason string) {
 	requested := sandboxrun.ModeNone
 	if spec != nil && spec.Mode != "" {

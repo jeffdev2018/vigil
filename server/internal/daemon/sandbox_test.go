@@ -15,7 +15,10 @@ import (
 	"strings"
 	"testing"
 
+	"fmt"
+
 	"github.com/multica-ai/multica/server/internal/daemon/sandboxrun"
+	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
 
 func TestResolveSandboxModeMatrix(t *testing.T) {
@@ -30,21 +33,33 @@ func TestResolveSandboxModeMatrix(t *testing.T) {
 		caps       SandboxCapabilities
 		wantMode   string
 		wantReason bool
+		// wantRefused: the run asked for confinement and got none, so the
+		// daemon must refuse rather than launch the agent on the host.
+		// Container degrading to bubblewrap is not refused — that is still a
+		// boundary.
+		wantRefused bool
 	}{
-		{"nil spec", nil, bare, "none", false},
-		{"none", &SandboxSpec{Mode: "none"}, both, "none", false},
-		{"container with docker", &SandboxSpec{Mode: "container"}, docker, "container", false},
-		{"container degrades to bwrap", &SandboxSpec{Mode: "container"}, bwrap, "sandbox", true},
-		{"container degrades to none", &SandboxSpec{Mode: "container"}, bare, "none", true},
-		{"sandbox with bwrap", &SandboxSpec{Mode: "sandbox"}, bwrap, "sandbox", false},
-		{"sandbox without bwrap on linux", &SandboxSpec{Mode: "sandbox"}, SandboxCapabilities{OS: "linux"}, "none", true},
-		{"sandbox on macos", &SandboxSpec{Mode: "sandbox"}, bare, "none", true},
-		{"unknown", &SandboxSpec{Mode: "vm"}, both, "none", true},
+		{"nil spec", nil, bare, "none", false, false},
+		{"none", &SandboxSpec{Mode: "none"}, both, "none", false, false},
+		{"container with docker", &SandboxSpec{Mode: "container"}, docker, "container", false, false},
+		{"container degrades to bwrap", &SandboxSpec{Mode: "container"}, bwrap, "sandbox", true, false},
+		{"container degrades to none", &SandboxSpec{Mode: "container"}, bare, "none", true, true},
+		{"sandbox with bwrap", &SandboxSpec{Mode: "sandbox"}, bwrap, "sandbox", false, false},
+		{"sandbox without bwrap on linux", &SandboxSpec{Mode: "sandbox"}, SandboxCapabilities{OS: "linux"}, "none", true, true},
+		{"sandbox on macos", &SandboxSpec{Mode: "sandbox"}, bare, "none", true, true},
+		{"unknown", &SandboxSpec{Mode: "vm"}, both, "none", true, true},
 	}
 	for _, tc := range cases {
+		requested := sandboxrun.ModeNone
+		if tc.spec != nil && tc.spec.Mode != "" {
+			requested = tc.spec.Mode
+		}
 		mode, reason := resolveSandboxMode(tc.spec, tc.caps)
 		if mode != tc.wantMode || (reason != "") != tc.wantReason {
 			t.Errorf("%s: got (%q, %q), want mode %q reason=%v", tc.name, mode, reason, tc.wantMode, tc.wantReason)
+		}
+		if got := sandboxRefused(requested, mode); got != tc.wantRefused {
+			t.Errorf("%s: refused = %v, want %v — a run that asked to be confined must never launch unconfined", tc.name, got, tc.wantRefused)
 		}
 	}
 	if _, reason := resolveSandboxMode(&SandboxSpec{Mode: "container"}, bare); reason != "docker is not available on this machine" {
@@ -320,4 +335,19 @@ func TestPrepareSandboxLaunchWritesSpecAndSeedsHome(t *testing.T) {
 	if l, _, err := d.prepareSandboxLaunch(task, "claude", "none", tempDir, nil, d.logger); err != nil || l != nil {
 		t.Fatalf("mode none must not produce a launch: %v %v", l, err)
 	}
+}
+
+// The refusal must be nameable and moveable: a machine that cannot confine a
+// run is an infrastructure failure, not the agent's, so the pool answers it by
+// moving the run to a host that can rather than by losing it.
+func TestSandboxUnavailableIsANamedFailoverReason(t *testing.T) {
+	t.Parallel()
+	if !errors.Is(fmt.Errorf("%w: container requested, no docker", errSandboxUnavailable), errSandboxUnavailable) {
+		t.Fatal("the wrapped refusal must stay recognisable to taskRunFailureReason")
+	}
+	if taskfailure.ReasonSandboxUnavailable.String() != "sandbox_unavailable" {
+		t.Fatalf("reason = %q, want a name an operator can act on", taskfailure.ReasonSandboxUnavailable)
+	}
+	// That the pool answers this reason is asserted in internal/service, next
+	// to the map that decides it.
 }
