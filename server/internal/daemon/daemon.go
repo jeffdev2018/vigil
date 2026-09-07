@@ -10181,7 +10181,7 @@ func (d *Daemon) remoteMCPToolGate(task Task, log *slog.Logger) remoteMCPToolGat
 	if err != nil {
 		return nil
 	}
-	matcher := sensitiveToolMatcher(os.Getenv("MULTICA_GATE_SENSITIVE_TOOLS"))
+	matcher := sensitiveToolMatcher(task.SensitiveTools)
 	client := newApprovalGateClient(d.cfg.ServerBaseURL, token, task.ID)
 	return func(ctx context.Context, toolName string, params json.RawMessage) (bool, string) {
 		// Permission profile (K06): a denied path is refused without asking.

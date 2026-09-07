@@ -2472,6 +2472,17 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 			slog.Warn("failed to unmarshal agent custom_args", "agent_id", uuidToString(agent.ID), "error", err)
 		}
 	}
+	// Approval gates (K05): the workspace decides which MCP tools pause for a
+	// human, and the daemon has no way to read that setting on its own. Send
+	// it with the claim, like the gateway below. A failed read leaves the
+	// field empty and the daemon keeps its compiled default, which is the
+	// conservative pattern — never a wider one.
+	if ws, wsErr := h.Queries.GetWorkspace(r.Context(), agent.WorkspaceID); wsErr != nil {
+		slog.Warn("daemon claim: load workspace for approval gates failed; daemon keeps its default sensitive-tool pattern",
+			"task_id", uuidToString(task.ID), "workspace_id", uuidToString(agent.WorkspaceID), "error", wsErr)
+	} else {
+		resp.SensitiveTools = service.ApprovalGatesSettings(ws.Settings).SensitiveTools
+	}
 	var mcpConfig json.RawMessage
 	if agent.McpConfig != nil {
 		mcpConfig = json.RawMessage(agent.McpConfig)

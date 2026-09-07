@@ -374,6 +374,12 @@ type AgentTaskResponse struct {
 	// McpGateway (K77): the effective class of every catalogued tool of the
 	// agent's bound workspace servers, enforced by the daemon's local gateway.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// SensitiveTools (K05) is the workspace's own pattern for the MCP tools
+	// that pause for a human. It travels with the claim because one daemon
+	// serves several workspaces and cannot read a workspace's settings from
+	// its own process environment. Empty means the daemon keeps its compiled
+	// default, which is also what an older server sends.
+	SensitiveTools string `json:"sensitive_tools,omitempty"`
 	// Sandbox (K10): the confinement the claiming runtime asks for; the
 	// daemon decides what the machine can honour and reports it at start.
 	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
