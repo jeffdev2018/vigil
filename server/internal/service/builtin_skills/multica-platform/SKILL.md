@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, goals, triage, undo."
+description: "Multica platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -34,6 +34,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/epic-mode.md` | Writing one step of a project's epic pipeline: the `epic_step` block, the four step kinds, a text wireframe, a ticket breakdown |
 | `references/runtimes.md` | Runtimes, daemons, `repo checkout`, and the task CLI boundary |
 | `references/run-preview.md` | Bringing up the app a run is working on so a reviewer can open it: the `run` lifecycle script, `MULTICA_PORT_BASE`, where the URL appears, why a preview is local |
+| `references/spending.md` | Paying for something from a run: asking for a spend token, the approval gate over the workspace threshold, redeeming it, and reading the run's budget and limits |
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
 | `references/triage-verdicts.md` | The triage queue: suggesting a verdict on inbound work a human then decides |
