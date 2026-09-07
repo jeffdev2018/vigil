@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { parseWithFallback } from "../api/schema";
 import {
   CodeWikiPageSchema,
+  type CodeWikiPage,
   CodeWikiSchema,
   EMPTY_CODE_WIKI,
   citationUrl,
@@ -89,7 +90,7 @@ describe("CodeWikiPageSchema", () => {
       const parsed = parseWithFallback(
         { id: "p1", slug: "a", title: "A", content: "body", citations },
         CodeWikiPageSchema,
-        { id: "", slug: "a", title: "a", content: "", citations: [], commit_sha: "", generated: true, stale: false },
+        { id: "", slug: "a", title: "a", content: "", citations: [], commit_sha: "", generated: true, stale: false } as CodeWikiPage,
         { endpoint: "test" },
       );
       expect(parsed.citations).toEqual([]);
@@ -105,7 +106,7 @@ describe("CodeWikiPageSchema", () => {
         commit_sha: "abc", generated: true, stale: true,
       },
       CodeWikiPageSchema,
-      { id: "", slug: "a", title: "a", content: "", citations: [], commit_sha: "", generated: true, stale: false },
+      { id: "", slug: "a", title: "a", content: "", citations: [], commit_sha: "", generated: true, stale: false } as CodeWikiPage,
       { endpoint: "test" },
     );
     expect(parsed.citations[0]?.start_line).toBe(3);
