@@ -48,6 +48,20 @@ Project resources tell agents which code and working directories to use:
 
 See [Project resources](/project-resources) for how to choose and for the safety boundaries.
 
+## Epic mode
+
+A project can carry an **epic**: four artifacts written in order, each one approved before the next opens.
+
+`PRD` → `Technical plan` → `Wireframe` → `Tickets`
+
+Each step is written by an agent run or typed by hand, reviewed as a draft, and then approved. **Only an approved step unlocks the next one**, and the panel names the approval a locked step is waiting on rather than only greying it out.
+
+Editing or regenerating a step that was already approved creates a new draft and sends every later step back to superseded — they were approved against a premise that changed. The panel says how many steps that reopened.
+
+The `Tickets` step is the only one with consequences. Approving it enables **Apply**, which creates one child issue per ticket under the project's epic issue and links them with blocking dependencies where the breakdown declares them. Apply previews what it would create first, and applying again only creates the tickets that are not issues yet — it never duplicates one.
+
+<Callout>A wireframe is text: an ASCII layout or a Mermaid diagram. Images are not part of this step.</Callout>
+
 ## Project lead
 
 The lead can be a member or an agent, and marks who coordinates the project. It is not a permission setting: it does not auto-assign the project's issues, and making an agent the lead does not automatically run it. Starting a run still takes an issue assignment, an @mention, or an automation trigger.

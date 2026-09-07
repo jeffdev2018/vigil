@@ -29,6 +29,7 @@ import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectOrgSection } from "./project-org-section";
 import { ProjectMembersSection } from "./project-members-section";
+import { EpicPanel } from "./epic-panel";
 import { ProjectMirrorsSection } from "./project-mirrors-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
@@ -483,6 +484,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Members and project roles (K60) */}
       <ProjectMembersSection projectId={projectId} />
+
+      {/* Epic Mode (F18): PRD -> tech plan -> wireframe -> tickets, gated. */}
+      <EpicPanel projectId={projectId} />
 
       {/* Cross-repo mirrors (K54): trigger label -> mirror issue in a target project. */}
       <ProjectMirrorsSection projectId={projectId} />

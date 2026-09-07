@@ -107,6 +107,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"issue_reaction":                     workspaceDelete,
 	"issue_source_context":               workspaceDelete,
 	"issue_plan":                         workspaceDelete,
+	"epic_artifact":                      workspaceDelete,
 	"issue_decision":                     workspaceDelete,
 	"module_ownership":                   workspaceDelete,
 	"morning_briefing_sent":              workspaceDelete,

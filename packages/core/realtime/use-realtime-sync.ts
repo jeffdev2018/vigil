@@ -32,6 +32,7 @@ import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
+import { epicKeys } from "../projects/epic";
 import { reviewFlagKeys } from "../review-flags/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
@@ -993,6 +994,12 @@ export function useRealtimeSync(
       pr_walkthrough: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: prWalkthroughKeys.all(wsId) });
+      },
+      // Epic Mode (F18). Keyed by project, so invalidate the whole prefix and
+      // let the open project panel refetch the pipeline it is showing.
+      epic_artifact: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: epicKeys.all(wsId) });
       },
       // Review flags (F06). A head move can restate flags on several linked
       // issues at once, so the event carries no issue id and the whole prefix

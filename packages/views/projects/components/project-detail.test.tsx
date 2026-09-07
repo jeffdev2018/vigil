@@ -235,6 +235,7 @@ vi.mock("../../issues/components/priority-icon", () => ({
   PriorityIcon: () => null,
 }));
 
+vi.mock("./epic-panel", () => ({ EpicPanel: () => null }));
 vi.mock("./project-decisions-section", () => ({ ProjectDecisionsSection: () => null }));
 vi.mock("./project-members-section", () => ({ ProjectMembersSection: () => null }));
 vi.mock("./project-mirrors-section", () => ({ ProjectMirrorsSection: () => null }));

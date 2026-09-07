@@ -4277,6 +4277,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	// PR walkthrough (F05): a finished run leaves the narrative of the head
 	// it reviewed, never of whichever head is current now.
 	h.settlePrWalkthroughRun(r.Context(), *task, req.Output)
+	// Epic Mode (F18): a finished step run leaves its artifact as a draft for
+	// a human to approve; an unreadable answer releases the claim.
+	h.settleEpicStepRun(r.Context(), *task, req.Output)
 	// Contest (K72): a finished challenger or answer run moves its contest;
 	// a finished issue run may be contested by policy.
 	h.settleContestRun(r.Context(), *task, req.Output)
@@ -4994,6 +4997,9 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 	// PR walkthrough (F05): a crashed run settles its head, so the panel
 	// shows a retryable failure instead of an eternal skeleton.
 	h.failPrWalkthroughRun(r.Context(), *task, req.Error)
+	// Epic Mode (F18): a crashed run releases its claim, so the step offers a
+	// retry instead of an eternal skeleton.
+	h.failEpicStepRun(r.Context(), *task, req.Error)
 
 	// Best-effort revoke of the mat_ task token minted at claim. Same
 	// rationale as CompleteTask — eager deletion shrinks the post-

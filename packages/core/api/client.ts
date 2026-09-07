@@ -347,6 +347,7 @@ import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelope
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
+import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
 import { ReviewFlagSchema, ReviewFlagListSchema, EMPTY_REVIEW_FLAG_LIST, type ReviewFlag, type ReviewFlagFilter, type ReviewFlagList, type ReviewFlagState } from "../review-flags/schemas";
 import { RepoIndexSettingsSchema, RepoIndexRepoSchema, REPO_INDEX_EMPTY_SETTINGS, type RepoIndexRepo, type RepoIndexSettings, type RepoIndexSettingsInput } from "../repo-index/schemas";
 import { DATA_RESIDENCY_DEFAULTS, RuntimeComplianceSchema } from "../residency/schemas";
@@ -4351,6 +4352,51 @@ export class ApiClient {
   async putProjectReviewConfig(projectId: string, input: UpdateProjectReviewConfigRequest): Promise<ProjectReviewConfig> {
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/review-config`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, ProjectReviewConfigSchema, { project_id: projectId, ...input }, { endpoint: "PUT /api/projects/:id/review-config" });
+  }
+
+  // Epic Mode (F18). The fallback is an empty pipeline — the same shape a
+  // project with no epic returns — so a malformed response hides the panel's
+  // contents instead of breaking the project page.
+  async getProjectEpic(projectId: string): Promise<Epic> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/epic`);
+    return parseWithFallback(raw, EpicSchema, EMPTY_EPIC, { endpoint: "GET /api/projects/:id/epic" }) as Epic;
+  }
+
+  async generateProjectEpicStep(projectId: string, kind: string, agentId?: string): Promise<{ task_id: string; kind: string }> {
+    const raw = await this.fetch<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/epic/steps/${encodeURIComponent(kind)}/generate`,
+      { method: "POST", body: JSON.stringify(agentId ? { agent_id: agentId } : {}) },
+    );
+    return parseWithFallback(raw, EpicGenerateSchema, { task_id: "", kind }, {
+      endpoint: "POST /api/projects/:id/epic/steps/:kind/generate",
+    });
+  }
+
+  async putProjectEpicStep(projectId: string, kind: string, content: string, payload?: unknown): Promise<{ reopened_steps: string[] }> {
+    const raw = await this.fetch<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/epic/steps/${encodeURIComponent(kind)}`,
+      { method: "PUT", body: JSON.stringify(payload === undefined ? { content } : { content, payload }) },
+    );
+    return parseWithFallback(raw, EpicStepWriteSchema, { reopened_steps: [] }, {
+      endpoint: "PUT /api/projects/:id/epic/steps/:kind",
+    }) as { reopened_steps: string[] };
+  }
+
+  async approveProjectEpicStep(projectId: string, kind: string): Promise<unknown> {
+    return this.fetch<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/epic/steps/${encodeURIComponent(kind)}/approve`,
+      { method: "POST" },
+    );
+  }
+
+  async applyProjectEpicTickets(projectId: string): Promise<EpicApplyResult> {
+    const raw = await this.fetch<unknown>(
+      `/api/projects/${encodeURIComponent(projectId)}/epic/steps/tickets/apply`,
+      { method: "POST" },
+    );
+    return parseWithFallback(raw, EpicApplySchema, { created: [], existing: [], dependencies: 0, epic_issue_id: "" }, {
+      endpoint: "POST /api/projects/:id/epic/steps/tickets/apply",
+    }) as EpicApplyResult;
   }
 
   // Refactoring campaigns (K42).

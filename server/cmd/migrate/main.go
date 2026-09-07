@@ -421,6 +421,8 @@ var concurrentIndexCleanups = map[string]string{
 	"754_issue_workspace_delegate":                              "idx_issue_workspace_delegate",
 	"759_worktree_revert_request_pending":                       "idx_worktree_revert_request_pending",
 	"760_worktree_revert_request_unique_target":                 "uq_worktree_revert_request_target_pending",
+	"762_epic_artifact_project_kind_version":                    "uq_epic_artifact_project_kind_version",
+	"763_epic_artifact_project_state":                           "idx_epic_artifact_project_state",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
