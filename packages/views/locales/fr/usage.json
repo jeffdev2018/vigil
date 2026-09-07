@@ -182,5 +182,24 @@
     },
     "empty_title": "Pas encore de données de workflow",
     "empty_body": "Les workflows s'apprennent au fil des runs — les résultats apparaîtront ici une fois que le sélecteur aura de l'historique."
+  },
+  "insights": {
+    "title": "Analyses",
+    "ask": "Demander",
+    "asking": "Lecture…",
+    "ask_label": "Poser une question sur cet espace de travail",
+    "ask_placeholder": "Combien de tickets sont bloqués depuis plus de 5 jours ?",
+    "pin": "Épingler",
+    "retry": "Réessayer",
+    "value": "Valeur",
+    "no_rows": "Aucune ligne ne correspond à cette question.",
+    "no_widgets": "Rien d'épinglé pour l'instant. Posez une question ci-dessus, puis épinglez la réponse.",
+    "no_question": "Aucune question enregistrée.",
+    "error_failed": "Impossible de traduire cette question en requête. Reformulez-la et réessayez.",
+    "error_timeout": "Cette question a mis trop de temps à répondre. Réduisez la période ou le regroupement.",
+    "too_many_series": "{{count}} catégories — affichées sous forme de tableau.",
+    "move_up": "Monter",
+    "move_down": "Descendre",
+    "remove": "Supprimer"
   }
 }

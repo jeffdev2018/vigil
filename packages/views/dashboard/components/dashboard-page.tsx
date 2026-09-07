@@ -35,6 +35,7 @@ import { AgentRoiCard } from "./agent-roi-card";
 import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
 import { AgentScorecardsCard } from "./agent-scorecards-card";
 import { AutopilotQuotaCard } from "./autopilot-quota-card";
+import { InsightsTab } from "../../insights";
 import { useNavigation } from "../../navigation";
 import {
   addDaysIso,
@@ -94,7 +95,7 @@ const EMPTY_WORKFLOW_STATS_ROWS: import("@multica/core/types").WorkflowStats[] =
   [];
 const EMPTY_AGENTS: Agent[] = [];
 
-type DashboardTab = "usage" | "errors";
+type DashboardTab = "usage" | "errors" | "insights";
 const TAB_QUERY_KEY = "tab";
 const DEFAULT_TAB: DashboardTab = "usage";
 
@@ -175,7 +176,8 @@ export function DashboardPage() {
   // flipping tabs does not stack up history entries. An unknown ?tab= value
   // falls back to Usage rather than rendering nothing.
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
-  const tab: DashboardTab = tabFromUrl === "errors" ? "errors" : DEFAULT_TAB;
+  const tab: DashboardTab =
+    tabFromUrl === "errors" || tabFromUrl === "insights" ? tabFromUrl : DEFAULT_TAB;
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
     if (next === DEFAULT_TAB) params.delete(TAB_QUERY_KEY);
@@ -533,6 +535,12 @@ export function DashboardPage() {
             >
               {t(($) => $.errors.title)}
             </TabsTrigger>
+            <TabsTrigger
+              value="insights"
+              className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t(($) => $.insights.title)}
+            </TabsTrigger>
           </TabsList>
           <div className="flex shrink-0 items-center gap-2">
             <TimeRangeFilter days={days} onChange={setDays} />
@@ -690,6 +698,13 @@ export function DashboardPage() {
                 locales={locales}
               />
             )}
+          </TabsContent>
+
+          {/* Insights (F27). Mounted only on its own tab: every pinned card
+              issues its own /run, so prefetching them all would cost a query
+              per widget for a tab nobody opened. */}
+          <TabsContent value="insights">
+            {tab === "insights" ? <InsightsTab wsId={wsId} /> : null}
           </TabsContent>
         </div>
       </div>
