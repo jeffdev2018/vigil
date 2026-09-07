@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
@@ -41,22 +42,48 @@ func createWebhookTestAgent(t *testing.T, name string) string {
 	return agentID
 }
 
+// createWebhookTestAutopilot inserts one autopilot for a test.
+//
+// The title carries a per-call suffix on purpose. An autopilot's title becomes
+// the title of every issue its deliveries create, and the issue create guard
+// refuses a second non-terminal issue with the same normalised title in the
+// same workspace (FindActiveDuplicateIssue). Two tests sharing one literal
+// title therefore raced: whichever accepted a triage item second got a
+// `duplicate` instead of an issue, depending on how the other test's cleanup
+// had interleaved. Same reasoning as repoIndexRepoURL in the repo index suite.
+//
+// Read the title back with webhookTestAutopilotTitle rather than rebuilding
+// it, so an assertion pins "the item carries the autopilot's title" and not a
+// literal.
 func createWebhookTestAutopilot(t *testing.T, agentID, status, mode string) string {
 	t.Helper()
 	var apID string
+	title := "Webhook test " + status + " " + uuid.NewString()[:8]
 	if err := testPool.QueryRow(context.Background(), `
 		INSERT INTO autopilot (
 			workspace_id, title, assignee_id, status, execution_mode,
 			created_by_type, created_by_id
 		) VALUES ($1, $2, $3, $4, $5, 'member', $6)
 		RETURNING id
-	`, testWorkspaceID, "Webhook test "+status, agentID, status, mode, testUserID).Scan(&apID); err != nil {
+	`, testWorkspaceID, title, agentID, status, mode, testUserID).Scan(&apID); err != nil {
 		t.Fatalf("create autopilot: %v", err)
 	}
 	t.Cleanup(func() {
 		testPool.Exec(context.Background(), `DELETE FROM autopilot WHERE id = $1`, apID)
 	})
 	return apID
+}
+
+// webhookTestAutopilotTitle reads back the title createWebhookTestAutopilot
+// generated, so callers assert against the autopilot's real title.
+func webhookTestAutopilotTitle(t *testing.T, apID string) string {
+	t.Helper()
+	var title string
+	if err := testPool.QueryRow(context.Background(),
+		`SELECT title FROM autopilot WHERE id = $1`, apID).Scan(&title); err != nil {
+		t.Fatalf("load autopilot title: %v", err)
+	}
+	return title
 }
 
 func createWebhookTriggerViaHandler(t *testing.T, autopilotID string) AutopilotTriggerResponse {
