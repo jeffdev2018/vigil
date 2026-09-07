@@ -241,7 +241,20 @@ func (h *Handler) gateDualApproval(ctx context.Context, gate db.ApprovalGateEven
 		Required  int      `json:"required_approvals"`
 		Approvers []string `json:"approvers"`
 	}
-	if json.Unmarshal(gate.Details, &d) != nil || d.Required < 2 {
+	if err := json.Unmarshal(gate.Details, &d); err != nil {
+		// Unreadable details cannot prove a second approver is NOT required, and
+		// this is the one gate where getting that wrong lets an irreversible
+		// action through on a single approval. The column is JSONB NOT NULL
+		// DEFAULT '{}', so an empty gate parses fine and lands on the
+		// `Required < 2` branch below; reaching here means the shape itself is
+		// wrong — a value of an unexpected type, most likely written by a
+		// `details || extra` merge. Require the second approver instead of
+		// settling: the worst case becomes one extra human, and the next
+		// approval re-writes `approvers` in a readable shape.
+		slog.Warn("approval gate: unreadable details, requiring a second approver",
+			"gate_id", uuidToString(gate.ID), "gate_type", gate.GateType, "error", err)
+		d.Required, d.Approvers = 2, nil
+	} else if d.Required < 2 {
 		return true
 	}
 	seen := false

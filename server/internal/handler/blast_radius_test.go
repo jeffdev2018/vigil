@@ -137,4 +137,29 @@ func TestBlastRadiusDrivesApprovalGates(t *testing.T) {
 	if polled.Status != "approved" {
 		t.Fatalf("after second approver = %+v", polled)
 	}
+
+	// Details whose shape is wrong cannot prove a second approver is not
+	// required. The gate must ask for one rather than settle: reading an
+	// unreadable requirement as "no requirement" is the one failure this gate
+	// exists to prevent. `details` is JSONB NOT NULL DEFAULT '{}', so an empty
+	// object is not this case — it parses, and one approval settles it.
+	g = open([]string{"billing/statement.go"})
+	if g.Status != "pending" {
+		t.Fatalf("dual gate = %+v", g)
+	}
+	dbfx.Exec(t, `UPDATE approval_gate_event SET details = details || '{"approvers": "not-an-array"}'::jsonb WHERE id = $1`, g.ID)
+	respondDecision(t, issue, *g.DecisionID, map[string]any{"option_id": "approve"}).Want(http.StatusOK)
+	gateCall(t, testHandler.GetApprovalGate, http.MethodGet, "/api/tasks/"+task+"/gates/"+g.ID, nil, hdr, "taskId", task, "gateId", g.ID).Want(http.StatusOK).JSON(&polled)
+	if polled.Status != "pending" {
+		t.Fatalf("unreadable details settled the gate on one approval: %+v", polled)
+	}
+	// And it converges: the merge that files the second card rewrites
+	// `approvers` in a readable shape, so a different admin settles it.
+	dbfx.QueryRow(t, `SELECT details->>'pending_decision_id' FROM approval_gate_event WHERE id = $1`, g.ID).Scan(&secondCard)
+	req = testutil.WithHeaders(newRequest(http.MethodPost, "/api/issues/"+issue+"/decisions/"+secondCard+"/respond", map[string]any{"option_id": "approve"}), "X-User-ID", second)
+	testutil.Call(t, testHandler.RespondIssueDecision, testutil.WithURLParams(req, "id", issue, "decisionId", secondCard)).Want(http.StatusOK)
+	gateCall(t, testHandler.GetApprovalGate, http.MethodGet, "/api/tasks/"+task+"/gates/"+g.ID, nil, hdr, "taskId", task, "gateId", g.ID).Want(http.StatusOK).JSON(&polled)
+	if polled.Status != "approved" {
+		t.Fatalf("a repaired gate must still settle on a second approver: %+v", polled)
+	}
 }
