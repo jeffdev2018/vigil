@@ -2481,6 +2481,11 @@ const TaskConfidenceSchema = z.object({
   model: z.string().optional(),
   threshold: z.number().optional(),
   below_threshold: z.boolean().optional(),
+  producer_model: z.string().optional(),
+  // Left as a plain string on purpose: a newer backend may name a relation
+  // this build has never heard of, and coercing it to "independent" would be
+  // the one wrong answer. Render an unrecognised value as unknown.
+  judge_independence: z.string().optional(),
 }).loose();
 
 // ---------------------------------------------------------------------------

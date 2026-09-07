@@ -273,3 +273,36 @@ func TestParseConfidenceScore(t *testing.T) {
 		t.Error("a malformed reply must be rejected")
 	}
 }
+
+// The confidence score decides whether a human is pulled in, so who produced
+// it matters. The cross-review query already refuses a reviewer running the
+// author's own (runtime, model) pair — "the same pair would be the same
+// reviewer wearing another name" — and this score had no such check. It cannot
+// pick its own judge, so it records the relation instead, which is the
+// doctrine the contest already follows when it cannot avoid the same vendor.
+func TestJudgeIndependence(t *testing.T) {
+	for _, tc := range []struct {
+		name            string
+		judge, produced string
+		want            string
+	}{
+		{"different models", "claude-opus-5", "gpt-5-codex", JudgeIndependent},
+		{"same model", "claude-opus-5", "claude-opus-5", JudgeSelf},
+		{"same model, different case and spacing", "  Claude-Opus-5 ", "claude-opus-5", JudgeSelf},
+		{"producer never recorded its model", "claude-opus-5", "", JudgeUnknown},
+		{"judge model unnamed", "", "gpt-5-codex", JudgeUnknown},
+		{"neither named", "", "", JudgeUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := judgeIndependence(tc.judge, tc.produced); got != tc.want {
+				t.Errorf("judgeIndependence(%q, %q) = %q, want %q", tc.judge, tc.produced, got, tc.want)
+			}
+		})
+	}
+
+	// An unnamed model is the absence of evidence, never a claim of
+	// independence: that is the whole point of the third state.
+	if judgeIndependence("claude-opus-5", "") == JudgeIndependent {
+		t.Error("an unrecorded producing model must never read as independent")
+	}
+}

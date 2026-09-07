@@ -61,6 +61,16 @@ export interface TaskConfidence {
   model?: string;
   threshold?: number;
   below_threshold?: boolean;
+  /** The model that produced the scored run; absent when it was never recorded. */
+  producer_model?: string;
+  /**
+   * How the scoring model relates to the producing one: `"independent"` (the
+   * two are named and differ), `"self"` (the same model scored its own
+   * delivery) or `"unknown"` (a model was not recorded, so independence
+   * cannot be claimed). Absent on older backends. Treat any unrecognised
+   * value as unknown — never as independent.
+   */
+  judge_independence?: string;
 }
 
 /**
