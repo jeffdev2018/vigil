@@ -4803,10 +4803,6 @@ export class ApiClient {
     return this.fetch(`/api/agent-run-counts`);
   }
 
-  async getActiveTasksForIssue(issueId: string): Promise<{ tasks: AgentTask[] }> {
-    return this.fetch(`/api/issues/${issueId}/active-task`);
-  }
-
   /**
    * A run's full transcript: the agent's own messages plus the issue changes
    * it made. The action list is joined server-side out of activity_log on
@@ -5044,10 +5040,6 @@ export class ApiClient {
 
   async unarchiveInbox(id: string): Promise<InboxItem> {
     return this.fetch(`/api/inbox/${id}/unarchive`, { method: "POST" });
-  }
-
-  async getUnreadInboxCount(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/unread-count");
   }
 
   // Cross-workspace unread summary: one entry per workspace the user belongs
