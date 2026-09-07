@@ -176,6 +176,22 @@ const (
 	// only repeat an isolation failure.
 	ReasonInvalidTaskIdentity Reason = "invalid_task_identity"
 
+	// ReasonSandboxUnavailable: the run asked for confinement and this
+	// machine could not provide any — no Docker and no bubblewrap, or a mode
+	// the daemon does not recognise. The agent process is never launched.
+	//
+	// Before this reason existed the run degraded to host execution and said
+	// so only in a log line, which meant a workspace that had asked for a
+	// container got an unconfined run and no signal. "none" is not a weaker
+	// sandbox, it is the absence of one, so it cannot answer a request for
+	// confinement. Degrading container to bubblewrap is different and stays
+	// allowed: that is still a boundary, and the swap is reported.
+	//
+	// It is a failover reason (service/runtime_pool.go): another machine in
+	// the pool may have Docker, so the run moves rather than dies. When none
+	// does, the failure names exactly what to fix.
+	ReasonSandboxUnavailable Reason = "sandbox_unavailable"
+
 	// Agent process side: failure surfaced by the agent CLI / SDK as
 	// an error string. Classify(rawError) is responsible for picking
 	// the right sub-reason from the string. IsAgentError returns true
@@ -274,6 +290,7 @@ var allReasons = []Reason{
 	ReasonRuntimeCLITimeout,
 	ReasonEnvironmentPrepareFailed,
 	ReasonInvalidTaskIdentity,
+	ReasonSandboxUnavailable,
 
 	// Agent process side: provider errors.
 	ReasonAgentProviderAuthOrAccess,

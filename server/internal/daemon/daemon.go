@@ -5850,6 +5850,12 @@ func taskRunFailureReason(err error) string {
 	// this host — filesystem faults, and the per-provider local config
 	// Prepare writes or validates — whose text Classify can only read as
 	// agent output (#7913).
+	// A machine that cannot confine the run is named on its own: the fix is
+	// the machine or the policy, not the filesystem, and the pool can move
+	// the run to a host that can.
+	if errors.Is(err, errSandboxUnavailable) {
+		return taskfailure.ReasonSandboxUnavailable.String()
+	}
 	var envSetupErr *environmentSetupError
 	if errors.As(err, &envSetupErr) {
 		return taskfailure.ReasonEnvironmentPrepareFailed.String()
@@ -7651,6 +7657,17 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		sandboxRequested = task.Sandbox.Mode
 	}
 	sandboxMode, sandboxReason := resolveSandboxMode(task.Sandbox, d.sandboxCapabilities())
+	if sandboxRefused(sandboxRequested, sandboxMode) {
+		// The run asked to be confined and this machine has no way to do it.
+		// Running it on the host anyway would hand the workspace an
+		// unconfined agent while its policy says otherwise, with a log line
+		// as the only trace. Refuse instead: the reason is a failover reason,
+		// so a pool with a Docker-capable machine moves the run rather than
+		// losing it.
+		taskLog.Error("sandbox refused: the run asked for confinement this machine cannot provide",
+			"requested", sandboxRequested, "reason", sandboxReason)
+		return TaskResult{}, fmt.Errorf("%w: %s requested, %s", errSandboxUnavailable, sandboxRequested, sandboxReason)
+	}
 	if sandboxReason != "" {
 		taskLog.Warn("sandbox mode degraded", "requested", sandboxRequested, "effective", sandboxMode, "reason", sandboxReason)
 	}
