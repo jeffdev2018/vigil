@@ -131,8 +131,8 @@ func TestWebhookGatedDeliveryParksItemInsteadOfIssue(t *testing.T) {
 	if shadow {
 		t.Fatal("gated item must be real (shadow=false), not measurement")
 	}
-	if title != "Webhook test active" {
-		t.Fatalf("gated item title = %q, want the interpolated autopilot title", title)
+	if want := webhookTestAutopilotTitle(t, apID); title != want {
+		t.Fatalf("gated item title = %q, want the interpolated autopilot title %q", title, want)
 	}
 }
 

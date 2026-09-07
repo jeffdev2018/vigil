@@ -184,7 +184,27 @@
     "author_agent": "Agent",
     "author_member": "Member",
     "empty": "No decision recorded yet. Accepted runs add theirs here.",
-    "source": "run message #{{seq}}"
+    "source": "run message #{{seq}}",
+    "record": {
+      "trigger": "Record",
+      "title": "Record a decision",
+      "description": "Decision records hang off an issue and cite one message of its last completed run — that citation is what makes the record traceable.",
+      "issue_label": "Issue",
+      "issue_placeholder": "Pick an issue…",
+      "source_label": "Cited run message",
+      "source_placeholder": "Pick the message that states it…",
+      "source_loading": "Loading the issue's last completed run…",
+      "no_run": "This issue has no completed run to cite yet.",
+      "title_label": "Title",
+      "context_label": "Context",
+      "decision_label": "Decision",
+      "consequences_label": "Consequences",
+      "cancel": "Cancel",
+      "save": "Record",
+      "saving": "Recording…",
+      "toast_saved": "Decision recorded.",
+      "toast_failed": "Failed to record the decision."
+    }
   },
   "blast_radius": {
     "section": "Blast radius",

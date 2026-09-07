@@ -624,10 +624,45 @@ vi.mock("sonner", () => ({
 }));
 
 import { configStore } from "@multica/core/config";
+import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
 import {
-  CreateIssueModal,
   ManualCreatePanel,
+  manualDialogContentClass,
 } from "./create-issue";
+
+/**
+ * Test-only shell around `ManualCreatePanel`.
+ *
+ * Production mounts the panel through `CreateIssueDialog`, which owns the one
+ * `<Dialog>` + `<DialogContent>` for both create modes and lifts `isExpanded`
+ * so mode switching never replays the open animation. `create-issue.tsx` used
+ * to export an equivalent standalone wrapper whose only remaining caller was
+ * this file; it lived on as production code purely to serve these tests, so it
+ * moved here. It mirrors the shell's manual-mode composition — same
+ * DialogContent props, same expanded className source — so the assertions
+ * below still exercise the panel in the shape it really renders in.
+ */
+function CreateIssueModal(props: {
+  onClose: () => void;
+  data?: Record<string, unknown> | null;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <Dialog open onOpenChange={(v: boolean) => { if (!v) props.onClose(); }}>
+      <DialogContent
+        finalFocus={false}
+        showCloseButton={false}
+        className={manualDialogContentClass(isExpanded)}
+      >
+        <ManualCreatePanel
+          {...props}
+          isExpanded={isExpanded}
+          setIsExpanded={setIsExpanded}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function renderModal(element: React.ReactElement) {
   const qc = new QueryClient({

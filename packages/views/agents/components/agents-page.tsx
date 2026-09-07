@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertCircle,
   Bot,
@@ -68,6 +68,10 @@ import {
   CollectionPageState,
 } from "../../layout/collection-page";
 import { availabilityConfig } from "../presence";
+import {
+  buildRuntimeMachines,
+  type RuntimeMachine,
+} from "../../runtimes/components/runtime-machines";
 import { AgentRowActions } from "./agent-row-actions";
 import {
   AgentListToolbar,
@@ -236,9 +240,10 @@ import { AgentBatchToolbar } from "./agent-batch-toolbar";
 export { isAccessChangeReady };
 
 export interface AgentsPageProps {
-  /** Desktop-only daemon wiring, currently unused by the list (kept for
-   *  platform-layer compatibility; the runtime filter lists runtimes by
-   *  name rather than grouped machines). */
+  /** Desktop-only daemon wiring, forwarded into `buildRuntimeMachines` so the
+   *  runtime-machine filter groups this host under "Local" (and keeps a
+   *  placeholder row when the daemon is stopped) exactly like the Runtimes
+   *  page does. Web omits all three — the SaaS shell bundles no daemon. */
   localDaemonId?: string | null;
   localMachineName?: string | null;
   hasLocalMachine?: boolean;
@@ -766,7 +771,11 @@ function LoadingSkeleton() {
 // Page
 // ---------------------------------------------------------------------------
 
-export function AgentsPage(_props: AgentsPageProps = {}) {
+export function AgentsPage({
+  localDaemonId = null,
+  localMachineName = null,
+  hasLocalMachine = false,
+}: AgentsPageProps = {}) {
   const { t } = useT("agents");
   const locale = useLocale();
   const wsId = useWorkspaceId();
@@ -797,6 +806,12 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
     new Set(),
   );
   const [search, setSearch] = useState("");
+  // `null` means "All runtimes". When set, it is a RuntimeMachine id from
+  // `buildRuntimeMachines` — the same grouping the Runtimes page sidebar
+  // uses, so a user can drill from a machine there into the agents bound to
+  // it. Local state, not the view store: unlike the persisted filter
+  // dimensions, a machine id is only meaningful while that machine exists.
+  const [runtimeMachineId, setRuntimeMachineId] = useState<string | null>(null);
 
   const rawScope = useAgentsViewStore((s) => s.scope);
   const scope = AGENT_SCOPES.includes(rawScope) ? rawScope : "mine";
@@ -828,6 +843,40 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
     for (const r of runtimes) m.set(r.id, r);
     return m;
   }, [runtimes]);
+
+  // Machine groupings, built exactly as the Runtimes page builds them so the
+  // filter's labels match what the user sees there. `now` only feeds health
+  // rollups, which this list never renders, so a mount-time snapshot is fine.
+  const [machinesNow] = useState(() => Date.now());
+  const machines = useMemo(
+    () =>
+      buildRuntimeMachines(runtimes, {
+        now: machinesNow,
+        localDaemonId,
+        localMachineName,
+        currentUserId: currentUser?.id ?? null,
+        ensureLocalMachine: hasLocalMachine,
+      }),
+    [
+      runtimes,
+      machinesNow,
+      localDaemonId,
+      localMachineName,
+      currentUser?.id,
+      hasLocalMachine,
+    ],
+  );
+
+  // runtime_id → machine id, so filtering an agent row is O(1). Derived from
+  // the machines (not `runtimesById`) because machines dedupe across
+  // providers by daemon — the dropdown's identity must be the filter's.
+  const runtimeIdToMachineId = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const machine of machines) {
+      for (const r of machine.runtimes) m.set(r.id, machine.id);
+    }
+    return m;
+  }, [machines]);
 
   const runCountsById = useMemo(() => {
     const m = new Map<string, number>();
@@ -903,9 +952,55 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
     isWorkspaceAdmin,
   ]);
 
+  // Rows narrowed by the runtime-machine filter only — the toolbar's option
+  // lists and per-machine counts derive from this so picking a machine
+  // narrows the other dimensions rather than emptying them.
+  const machineRows = useMemo<AgentListRow[]>(() => {
+    if (runtimeMachineId === null) return scopeRows;
+    return scopeRows.filter(
+      (row) =>
+        runtimeIdToMachineId.get(row.agent.runtime_id) === runtimeMachineId,
+    );
+  }, [scopeRows, runtimeMachineId, runtimeIdToMachineId]);
+
+  // Per-machine counts for the dropdown badges, computed against the whole
+  // scope (not `machineRows`) so every machine keeps a real number while one
+  // is selected. Agents bound to a GC'd runtime map to no machine and are
+  // skipped here; the "All runtimes" badge uses `scopeRows.length` so it
+  // still matches the unfiltered list.
+  const agentCountByMachine = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const row of scopeRows) {
+      const machineId = runtimeIdToMachineId.get(row.agent.runtime_id);
+      if (!machineId) continue;
+      counts.set(machineId, (counts.get(machineId) ?? 0) + 1);
+    }
+    return counts;
+  }, [scopeRows, runtimeIdToMachineId]);
+
+  // A machine can be GC'd while the page is open (daemon stopped, runtime
+  // deleted). Without this the list would empty out with no way to recover
+  // except reloading — bounce back to "All runtimes".
+  useEffect(() => {
+    if (
+      runtimeMachineId !== null &&
+      !machines.some((machine) => machine.id === runtimeMachineId)
+    ) {
+      setRuntimeMachineId(null);
+    }
+  }, [runtimeMachineId, machines]);
+
+  const selectedMachine = useMemo<RuntimeMachine | null>(
+    () =>
+      runtimeMachineId === null
+        ? null
+        : machines.find((machine) => machine.id === runtimeMachineId) ?? null,
+    [runtimeMachineId, machines],
+  );
+
   // Visible rows: local search + filters, then sort.
   const rows = useMemo<AgentListRow[]>(() => {
-    const filtered = scopeRows.filter((row) => rowMatchesFilters(row, filters, search));
+    const filtered = machineRows.filter((row) => rowMatchesFilters(row, filters, search));
 
     const dir = sortDirection === "asc" ? 1 : -1;
     filtered.sort((a, b) => {
@@ -934,13 +1029,19 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
       );
     });
     return filtered;
-  }, [scopeRows, search, filters, sortField, sortDirection]);
+  }, [machineRows, search, filters, sortField, sortDirection]);
 
   const noMatchText = useMemo(() => {
     const query = search.trim();
+    const machine = selectedMachine?.title ?? null;
     if (query) {
       if (scope === "archived") {
         return t(($) => $.no_matches.search_archived, { query });
+      }
+      // The machine filter names itself: "No agents on dev.local match …"
+      // beats a generic "no match" when the machine is doing the narrowing.
+      if (machine) {
+        return t(($) => $.no_matches.search_runtime_filtered, { query, machine });
       }
       if (countActiveFilterDimensions(filters) > 0) {
         return t(($) => $.no_matches.search_active_filtered, { query });
@@ -948,11 +1049,14 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
       return t(($) => $.no_matches.search_active, { query });
     }
     if (scope === "archived") return t(($) => $.no_matches.no_archived);
+    if (machine) {
+      return t(($) => $.no_matches.runtime_filtered, { machine });
+    }
     if (countActiveFilterDimensions(filters) > 0) {
       return t(($) => $.no_matches.no_filter_match);
     }
     return t(($) => $.no_matches.title);
-  }, [filters, scope, search, t]);
+  }, [filters, scope, search, selectedMachine, t]);
 
   // Row virtualization — headless math, offsets as padding on the rows
   // wrapper, fixed-height rows. The scroll element is the SINGLE outer
@@ -1065,9 +1169,14 @@ export function AgentsPage(_props: AgentsPageProps = {}) {
             onSortDirectionChange={setSortDirection}
             hiddenColumns={hiddenColumns}
             onToggleColumn={toggleColumn}
-            allRows={scopeRows}
+            allRows={machineRows}
             members={members}
             visibleCount={rows.length}
+            machines={machines}
+            runtimeMachineId={runtimeMachineId}
+            onRuntimeMachineChange={setRuntimeMachineId}
+            agentCountByMachine={agentCountByMachine}
+            totalAgentCount={scopeRows.length}
           />
           <div
             ref={listScrollRef}

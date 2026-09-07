@@ -2,17 +2,22 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Plus } from "lucide-react";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { projectDecisionsOptions, type DecisionAuthorFilter } from "@multica/core/projects/decisions";
+import { Button } from "@multica/ui/components/ui/button";
 import { AppLink } from "../../navigation";
+import { RecordDecisionDialog } from "./record-decision-dialog";
 import { useT, useTimeAgo } from "../../i18n";
 
 /**
  * Decision memory (K29): the decisions recorded on this project's issues,
  * newest first, each linking to the issue and naming the run message that
  * states it. Filterable by author (agent or member).
+ *
+ * "Record" opens the write half — before it, only the LLM extractor could
+ * create a record, so every entry here was authored by an agent.
  */
 export function ProjectDecisionsSection({ projectId }: { projectId: string }) {
   const { t } = useT("projects");
@@ -20,6 +25,7 @@ export function ProjectDecisionsSection({ projectId }: { projectId: string }) {
   const wsId = useWorkspaceId();
   const paths = useWorkspacePaths();
   const [author, setAuthor] = useState<DecisionAuthorFilter>("");
+  const [recording, setRecording] = useState(false);
   const { data: decisions = [], isLoading } = useQuery(projectDecisionsOptions(wsId, projectId, author));
 
   return (
@@ -38,7 +44,23 @@ export function ProjectDecisionsSection({ projectId }: { projectId: string }) {
           <option value="agent">{t(($) => $.decisions.author_agent)}</option>
           <option value="member">{t(($) => $.decisions.author_member)}</option>
         </select>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="h-7 gap-1 text-caption"
+          data-testid="project-decisions-record"
+          onClick={() => setRecording(true)}
+        >
+          <Plus className="h-3 w-3" />
+          {t(($) => $.decisions.record.trigger)}
+        </Button>
       </div>
+      <RecordDecisionDialog
+        projectId={projectId}
+        open={recording}
+        onOpenChange={setRecording}
+      />
       {isLoading ? null : decisions.length === 0 ? (
         <p data-testid="project-decisions-empty" className="px-2 text-muted-foreground">{t(($) => $.decisions.empty)}</p>
       ) : (
