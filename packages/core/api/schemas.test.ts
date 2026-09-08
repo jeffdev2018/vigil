@@ -124,6 +124,33 @@ import {
   AgentRuntimeSchema,
   AgentRuntimeListSchema,
 } from "./schemas";
+import {
+  RuntimeUpdateSchema,
+  MALFORMED_RUNTIME_UPDATE,
+  RuntimeLocalSkillListRequestSchema,
+  MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST,
+  RuntimeLocalSkillImportRequestSchema,
+  MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST,
+  WorkspaceWorkingAgentListSchema,
+  EMPTY_WORKSPACE_WORKING_AGENTS,
+  AgentActivityBucketListSchema,
+  EMPTY_AGENT_ACTIVITY_BUCKETS,
+  AgentRunCountListSchema,
+  EMPTY_AGENT_RUN_COUNTS,
+  IssueUsageSummarySchema,
+  EMPTY_ISSUE_USAGE_SUMMARY,
+  EMPTY_AGENT_TASK,
+  AgentTaskSchema,
+  InboxItemSchema,
+  EMPTY_INBOX_ITEM,
+  WorkspaceSchema,
+  WorkspaceListSchema,
+  EMPTY_WORKSPACE,
+  EMPTY_WORKSPACES,
+  BusinessRuleEnvelopeSchema,
+  BusinessRuleDryRunSchema,
+  BlastRadiusRuleEnvelopeSchema,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -3881,6 +3908,778 @@ describe("AgentRuntimeListSchema", () => {
       expect(
         parseWithFallback(malformed, AgentRuntimeListSchema, [], { endpoint: "GET /api/runtimes" }),
       ).toEqual([]);
+    }
+  });
+});
+// ---------------------------------------------------------------------------
+// Run transcript (F03 / JEF-11)
+// ---------------------------------------------------------------------------
+
+describe("TaskActivityResponseSchema", () => {
+  const message = {
+    task_id: "t1",
+    issue_id: "i1",
+    seq: 1,
+    type: "text",
+    content: "hello",
+  };
+
+  it("parses the wrapped shape", () => {
+    const parsed = parseWithFallback(
+      { messages: [message], actions: [{ kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" }] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.actions[0]).toMatchObject({
+      kind: "action",
+      action: "status_changed",
+      before: "todo",
+      after: "done",
+    });
+  });
+
+  // A server that predates the wrapper still returns the bare array. An
+  // installed desktop build must render its transcript against it, not a blank
+  // screen — this is the pre-feature timeline, unchanged.
+  it("normalises the old bare-array shape into an empty action list", () => {
+    const parsed = parseWithFallback(
+      [message, { ...message, seq: 2, type: "error", content: "boom" }],
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages.map((m) => m.seq)).toEqual([1, 2]);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("keeps an unrecognised message type verbatim instead of coercing it", () => {
+    const parsed = parseWithFallback(
+      { messages: [{ ...message, type: "elicitation" }, { ...message, seq: 2, type: "something_new" }], actions: [] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    // Coercing to "text" would relabel a future kind as agent prose; the
+    // presenter renders an unknown type as a neutral note that names itself.
+    expect(parsed.messages.map((m) => m.type)).toEqual(["elicitation", "something_new"]);
+  });
+
+  // Actions and messages degrade independently: a broken action list must not
+  // take the transcript down with it.
+  it("drops a malformed action list but keeps the messages", () => {
+    const parsed = parseWithFallback(
+      { messages: [message], actions: "not-a-list" },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("falls back when the response is neither shape", () => {
+    for (const malformed of [null, "nope", 42, true]) {
+      const parsed = parseWithFallback(
+        malformed,
+        TaskActivityResponseSchema,
+        EMPTY_TASK_ACTIVITY,
+        { endpoint: "test" },
+      );
+      expect(parsed).toEqual(EMPTY_TASK_ACTIVITY);
+    }
+  });
+
+  // An object with neither field is not a failure: the loose branch defaults
+  // both, which renders an empty transcript rather than discarding a response
+  // that may simply have been reshaped around them.
+  it("treats an unrecognised object as an empty transcript", () => {
+    const parsed = parseWithFallback(
+      { unrelated: true },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.messages).toEqual([]);
+    expect(parsed.actions).toEqual([]);
+  });
+
+  it("defaults a partial action rather than dropping it", () => {
+    const parsed = parseWithFallback(
+      { messages: [], actions: [{ kind: "action", action: "created" }] },
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
+      { endpoint: "test" },
+    );
+    expect(parsed.actions[0]).toEqual({ kind: "action", action: "created", before: "", after: "", at: "" });
+  });
+});
+
+// Comment threads anchored to a diff line (F07 / JEF-21).
+//
+// The rule these pin is the one that decides whether a discussion survives a
+// server this build does not fully understand: an unknown anchor kind, or a
+// malformed anchor, must cost the CHIP — never the thread.
+describe("CommentAnchorSchema", () => {
+  const anchor = {
+    kind: "diff_line",
+    pr_source: "github",
+    pr_id: "pr-1",
+    head_sha: "abc1234",
+    file_path: "server/internal/handler/comment.go",
+    line_start: 41,
+    line_end: 44,
+    side: "old",
+    review_flag_id: "flag-1",
+  };
+
+  it("parses a full anchor", () => {
+    const parsed = CommentAnchorSchema.parse(anchor);
+    expect(parsed.file_path).toBe("server/internal/handler/comment.go");
+    expect(parsed.line_start).toBe(41);
+    expect(parsed.line_end).toBe(44);
+    expect(parsed.side).toBe("old");
+    expect(parsed.review_flag_id).toBe("flag-1");
+  });
+
+  it("keeps an unknown kind verbatim so the UI can decide to skip the chip", () => {
+    const parsed = CommentAnchorSchema.parse({ ...anchor, kind: "diff_symbol" });
+    expect(parsed.kind).toBe("diff_symbol");
+  });
+
+  it("defaults every malformed field instead of failing the whole anchor", () => {
+    const parsed = CommentAnchorSchema.parse({
+      kind: 7,
+      file_path: null,
+      line_start: "41",
+      line_end: undefined,
+      side: 3,
+      review_flag_id: 9,
+    });
+    expect(parsed.kind).toBe("");
+    expect(parsed.file_path).toBe("");
+    expect(parsed.line_start).toBe(0);
+    expect(parsed.line_end).toBe(0);
+    expect(parsed.side).toBe("new");
+    expect(parsed.review_flag_id).toBeNull();
+  });
+
+  it("leaves a comment unanchored when the backend omits anchor entirely", () => {
+    const parsed = CommentSchema.parse({
+      id: "c1",
+      issue_id: "i1",
+      author_type: "member",
+      author_id: "u1",
+      content: "hello",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    });
+    expect(parsed.anchor ?? null).toBeNull();
+    expect(parsed.anchor_stale).toBe(false);
+  });
+
+  // Agent-to-agent messages (F19). a2a_intent is a FREE STRING on the wire with
+  // no CHECK behind it, so the schema must accept anything and let the renderer
+  // decide — an unknown intent that failed the parse would take the whole
+  // comment down with it.
+  it("keeps an agent-to-agent intent, and tolerates one it has never seen", () => {
+    const base = {
+      id: "c1",
+      issue_id: "i1",
+      author_type: "agent",
+      author_id: "a1",
+      content: "[@Bob](mention://agent/a2)\n\nplease review",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    expect(CommentSchema.parse({ ...base, a2a_intent: "review" }).a2a_intent).toBe("review");
+    // A newer backend's value, and a backend that predates the column.
+    expect(CommentSchema.parse({ ...base, a2a_intent: "escalation" }).a2a_intent).toBe("escalation");
+    expect(CommentSchema.parse({ ...base, a2a_intent: null }).a2a_intent).toBeNull();
+    expect(CommentSchema.parse(base).a2a_intent ?? null).toBeNull();
+  });
+
+  it("survives an anchor that is not an object at all", () => {
+    const parsed = CommentSchema.parse({
+      id: "c1",
+      issue_id: "i1",
+      author_type: "member",
+      author_id: "u1",
+      content: "hello",
+      type: "comment",
+      parent_id: null,
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      anchor: "server/a.go:41",
+      anchor_stale: "yes",
+    });
+    expect(parsed.anchor ?? null).toBeNull();
+    expect(parsed.anchor_stale).toBe(false);
+    expect(parsed.content).toBe("hello");
+  });
+});
+
+describe("AnchoredThreadsSchema", () => {
+  const comment = (id: string, parent: string | null) => ({
+    id,
+    issue_id: "i1",
+    author_type: "member",
+    author_id: "u1",
+    content: id,
+    type: "comment",
+    parent_id: parent,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-01T00:00:00Z",
+  });
+
+  it("parses threads with their replies and the shared anchor", () => {
+    const parsed = AnchoredThreadsSchema.parse({
+      threads: [
+        {
+          root: comment("root", null),
+          replies: [comment("r1", "root"), comment("r2", "root")],
+          anchor: { kind: "diff_line", file_path: "a.go", line_start: 3, line_end: 3 },
+          anchor_stale: true,
+        },
+      ],
+    });
+    expect(parsed.threads).toHaveLength(1);
+    expect(parsed.threads[0]!.replies).toHaveLength(2);
+    expect(parsed.threads[0]!.anchor?.file_path).toBe("a.go");
+    expect(parsed.threads[0]!.anchor_stale).toBe(true);
+  });
+
+  it("falls back to no threads on a malformed payload", () => {
+    expect(
+      parseWithFallback({ threads: "nope" }, AnchoredThreadsSchema, EMPTY_ANCHORED_THREADS, {
+        endpoint: "test",
+      }),
+    ).toEqual(EMPTY_ANCHORED_THREADS);
+    expect(
+      parseWithFallback(null, AnchoredThreadsSchema, EMPTY_ANCHORED_THREADS, { endpoint: "test" }),
+    ).toEqual(EMPTY_ANCHORED_THREADS);
+  });
+
+  it("drops nothing when replies are malformed — the root still renders", () => {
+    const parsed = AnchoredThreadsSchema.parse({
+      threads: [{ root: comment("root", null), replies: "not an array", anchor: null }],
+    });
+    expect(parsed.threads[0]!.root.id).toBe("root");
+    expect(parsed.threads[0]!.replies).toEqual([]);
+  });
+});
+
+// Runtime profiles (MUL-3284). client.ts casted network JSON straight to
+// RuntimeProfile until this schema was added; these tests cover the drift
+// cases the CLAUDE.md "API Compatibility" rule requires.
+describe("RuntimeProfileSchema", () => {
+  const validProfile = {
+    id: "profile-1",
+    workspace_id: "ws-1",
+    display_name: "Custom Codex",
+    protocol_family: "codex",
+    command_name: "codex-runner",
+    description: "In-house wrapper",
+    fixed_args: ["--flag"],
+    visibility: "workspace",
+    created_by: "user-1",
+    enabled: true,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-02T00:00:00Z",
+  };
+
+  it("passes a valid response through intact", () => {
+    expect(
+      parseWithFallback(validProfile, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(validProfile);
+  });
+
+  it("falls back to EMPTY_RUNTIME_PROFILE when a required field is missing", () => {
+    const { id: _id, ...rest } = validProfile;
+    expect(
+      parseWithFallback(rest, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(EMPTY_RUNTIME_PROFILE);
+  });
+
+  it("falls back to EMPTY_RUNTIME_PROFILE when a required field has the wrong type", () => {
+    expect(
+      parseWithFallback({ ...validProfile, id: 42 }, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(EMPTY_RUNTIME_PROFILE);
+  });
+
+  it("does not throw and degrades an unrecognized visibility to the safe default", () => {
+    const parsed = parseWithFallback(
+      { ...validProfile, visibility: "future-visibility" },
+      RuntimeProfileSchema,
+      EMPTY_RUNTIME_PROFILE,
+      { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId" },
+    );
+    expect(parsed.visibility).toBe("workspace");
+  });
+});
+
+describe("RuntimeProfileListSchema", () => {
+  it("returns an empty list when runtime_profiles is absent", () => {
+    expect(
+      parseWithFallback(
+        {},
+        RuntimeProfileListSchema,
+        { runtime_profiles: [] },
+        { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles" },
+      ).runtime_profiles,
+    ).toEqual([]);
+  });
+
+  it("does not throw on a malformed list payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(
+          malformed,
+          RuntimeProfileListSchema,
+          { runtime_profiles: [] },
+          { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles" },
+        ).runtime_profiles,
+      ).toEqual([]);
+    }
+  });
+});
+
+describe("RunGroupSchema", () => {
+  const GROUP_ENDPOINT = { endpoint: "POST /api/run-groups/:id/settle" };
+  const LIST_ENDPOINT = { endpoint: "GET /api/issues/:id/run-groups" };
+  // Typed so the fallback does not narrow parseWithFallback's T to `null`.
+  const EMPTY_GROUP: { group: RunGroup | null } = { group: null };
+  const EMPTY_LIST: { groups: RunGroup[] } = { groups: [] };
+  const attempt = {
+    task_id: "task-1",
+    agent_id: "agent-1",
+    status: "completed",
+    model: "opus",
+    diff_stat: { files: 2 },
+    diff_unified: "patch",
+    diff_truncated: false,
+    created_at: "2026-09-01T00:00:00Z",
+    completed_at: "2026-09-01T00:10:00Z",
+  };
+  const group = {
+    id: "group-1",
+    issue_id: "issue-1",
+    status: "settled",
+    attempt_count: 3,
+    winner_task_id: "task-1",
+    created_by: "user-1",
+    created_at: "2026-09-01T00:00:00Z",
+    settled_at: "2026-09-01T00:20:00Z",
+    attempts: [attempt],
+  };
+
+  it("keeps a settled race and its winning attempt", () => {
+    const parsed = parseWithFallback({ group }, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group;
+    expect(parsed?.status).toBe("settled");
+    expect(parsed?.winner_task_id).toBe("task-1");
+    expect(parsed?.attempts[0]?.model).toBe("opus");
+    expect(parsed?.attempts[0]?.diff_truncated).toBe(false);
+  });
+
+  it("distinguishes a truncated diff from no diff at all", () => {
+    const truncated = { ...group, attempts: [{ ...attempt, diff_unified: null, diff_truncated: true }, { ...attempt, task_id: "task-2", diff_stat: null, diff_unified: null }] };
+    const parsed = parseWithFallback({ group: truncated }, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group;
+    expect(parsed?.attempts[0]?.diff_truncated).toBe(true);
+    expect(parsed?.attempts[1]?.diff_truncated).toBe(false);
+    expect(parsed?.attempts[1]?.diff_stat).toBeNull();
+  });
+
+  it("falls back on an unknown status and on missing fields rather than throwing", () => {
+    const parsed = parseWithFallback(
+      { group: { id: "group-2", status: "photo_finish", attempts: [{ task_id: "task-9" }] } },
+      RunGroupEnvelopeSchema,
+      EMPTY_GROUP,
+      GROUP_ENDPOINT,
+    ).group;
+    expect(parsed?.status).toBe("running");
+    expect(parsed?.attempt_count).toBe(0);
+    expect(parsed?.winner_task_id).toBeNull();
+    expect(parsed?.attempts[0]?.status).toBe("");
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], { group: "nope" }]) {
+      expect(parseWithFallback(malformed, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group).toBeNull();
+    }
+    for (const malformed of [null, "oops", 42, { groups: "nope" }, { groups: [1, 2] }]) {
+      expect(parseWithFallback(malformed, RunGroupListEnvelopeSchema, EMPTY_LIST, LIST_ENDPOINT).groups).toEqual([]);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch B
+// ---------------------------------------------------------------------------
+
+describe("RuntimeUpdateSchema", () => {
+  const running = {
+    id: "upd-1",
+    runtime_id: "rt-1",
+    status: "running",
+    target_version: "1.2.3",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:01Z",
+  };
+
+  it("parses a live update record", () => {
+    const parsed = parseWithFallback(running, RuntimeUpdateSchema, MALFORMED_RUNTIME_UPDATE, { endpoint: "test" });
+    expect(parsed.status).toBe("running");
+    expect(parsed.target_version).toBe("1.2.3");
+  });
+
+  it("passes an unknown status through instead of failing the whole response", () => {
+    const parsed = parseWithFallback({ ...running, status: "superseded" }, RuntimeUpdateSchema, MALFORMED_RUNTIME_UPDATE, { endpoint: "test" });
+    expect(parsed.status).toBe("superseded");
+  });
+
+  it("falls back to an explicit failure on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, { id: "upd-1", status: 7 }]) {
+      const parsed = parseWithFallback(malformed, RuntimeUpdateSchema, MALFORMED_RUNTIME_UPDATE, { endpoint: "test" });
+      expect(parsed.status).toBe("failed");
+      expect(parsed.error).toBe("invalid update response");
+    }
+  });
+
+  it("keeps unknown server fields instead of stripping them", () => {
+    const parsed = parseWithFallback({ ...running, future_field: "keep me" }, RuntimeUpdateSchema, MALFORMED_RUNTIME_UPDATE, { endpoint: "test" });
+    expect((parsed as unknown as { future_field?: string }).future_field).toBe("keep me");
+  });
+});
+
+describe("RuntimeLocalSkillListRequestSchema", () => {
+  const completed = {
+    id: "req-1",
+    runtime_id: "rt-1",
+    status: "completed",
+    supported: true,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:01Z",
+    skills: [
+      {
+        key: "skill-a",
+        name: "Skill A",
+        source_path: "~/.claude/skills/skill-a",
+        provider: "claude",
+        root: "provider",
+        file_count: 3,
+      },
+    ],
+    mcp_servers: [{ name: "server-a", transport: "stdio", enabled: true }],
+    mcp_supported: true,
+  };
+
+  it("parses a completed discovery, keeping skills and mcp servers", () => {
+    const parsed = parseWithFallback(completed, RuntimeLocalSkillListRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST, { endpoint: "test" });
+    expect(parsed.status).toBe("completed");
+    expect(parsed.skills?.[0]?.key).toBe("skill-a");
+    expect(parsed.mcp_servers?.[0]?.name).toBe("server-a");
+  });
+
+  it("tolerates a backend that omits mcp fields entirely", () => {
+    const { mcp_servers: _mcp, mcp_supported: _supported, ...withoutMcp } = completed;
+    const parsed = parseWithFallback(withoutMcp, RuntimeLocalSkillListRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST, { endpoint: "test" });
+    expect(parsed.mcp_servers).toBeUndefined();
+    expect(parsed.skills?.length).toBe(1);
+  });
+
+  it("falls back to an explicit failure on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, { id: "req-1", skills: "nope" }]) {
+      const parsed = parseWithFallback(malformed, RuntimeLocalSkillListRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST, { endpoint: "test" });
+      expect(parsed.status).toBe("failed");
+      expect(parsed.error).toBe("invalid local-skill discovery response");
+    }
+  });
+});
+
+describe("RuntimeLocalSkillImportRequestSchema", () => {
+  const completed = {
+    id: "imp-1",
+    runtime_id: "rt-1",
+    skill_key: "skill-a",
+    status: "completed",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:01Z",
+  };
+
+  it("parses a completed import", () => {
+    const parsed = parseWithFallback(completed, RuntimeLocalSkillImportRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST, { endpoint: "test" });
+    expect(parsed.status).toBe("completed");
+    expect(parsed.skill_key).toBe("skill-a");
+  });
+
+  it("parses a conflict response", () => {
+    const conflict = {
+      ...completed,
+      status: "conflict",
+      conflict: { existing_skill_id: "sk-9", can_overwrite: true },
+    };
+    const parsed = parseWithFallback(conflict, RuntimeLocalSkillImportRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST, { endpoint: "test" });
+    expect(parsed.conflict?.existing_skill_id).toBe("sk-9");
+    expect(parsed.conflict?.can_overwrite).toBe(true);
+  });
+
+  it("falls back to an explicit failure on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, { id: "imp-1", status: 7 }]) {
+      const parsed = parseWithFallback(malformed, RuntimeLocalSkillImportRequestSchema, MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST, { endpoint: "test" });
+      expect(parsed.status).toBe("failed");
+      expect(parsed.error).toBe("invalid local-skill import response");
+    }
+  });
+});
+
+describe("WorkspaceWorkingAgentListSchema", () => {
+  const agent = {
+    id: "agent-1",
+    name: "Agent One",
+    avatar_url: null,
+    running_task_count: 2,
+    issue_ids: ["issue-1", "issue-2"],
+  };
+
+  it("parses a live working-agents list", () => {
+    const parsed = parseWithFallback([agent], WorkspaceWorkingAgentListSchema, EMPTY_WORKSPACE_WORKING_AGENTS, { endpoint: "test" });
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.running_task_count).toBe(2);
+    expect(parsed[0]?.issue_ids).toEqual(["issue-1", "issue-2"]);
+  });
+
+  it("degrades a malformed entry's issue_ids independently rather than dropping the row", () => {
+    const parsed = parseWithFallback([{ ...agent, issue_ids: "nope" }], WorkspaceWorkingAgentListSchema, EMPTY_WORKSPACE_WORKING_AGENTS, { endpoint: "test" });
+    expect(parsed[0]?.issue_ids).toEqual([]);
+  });
+
+  it("falls back to an empty list on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, [{ name: "no id" }]]) {
+      expect(parseWithFallback(malformed, WorkspaceWorkingAgentListSchema, EMPTY_WORKSPACE_WORKING_AGENTS, { endpoint: "test" })).toEqual([]);
+    }
+  });
+});
+
+describe("AgentActivityBucketListSchema / AgentRunCountListSchema", () => {
+  it("parses live activity buckets and run counts", () => {
+    const buckets = parseWithFallback(
+      [{ agent_id: "agent-1", bucket_at: "2026-09-01T00:00:00Z", task_count: 3, failed_count: 1 }],
+      AgentActivityBucketListSchema,
+      EMPTY_AGENT_ACTIVITY_BUCKETS,
+      { endpoint: "test" },
+    );
+    expect(buckets[0]?.task_count).toBe(3);
+
+    const counts = parseWithFallback(
+      [{ agent_id: "agent-1", run_count: 12 }],
+      AgentRunCountListSchema,
+      EMPTY_AGENT_RUN_COUNTS,
+      { endpoint: "test" },
+    );
+    expect(counts[0]?.run_count).toBe(12);
+  });
+
+  it("falls back to an empty list when the body is malformed", () => {
+    for (const malformed of [null, "nope", 42, [{ bucket_at: "no agent_id" }]]) {
+      expect(parseWithFallback(malformed, AgentActivityBucketListSchema, EMPTY_AGENT_ACTIVITY_BUCKETS, { endpoint: "test" })).toEqual([]);
+      expect(parseWithFallback(malformed, AgentRunCountListSchema, EMPTY_AGENT_RUN_COUNTS, { endpoint: "test" })).toEqual([]);
+    }
+  });
+});
+
+describe("IssueUsageSummarySchema", () => {
+  const usage = {
+    total_input_tokens: 100,
+    total_output_tokens: 50,
+    total_cache_read_tokens: 10,
+    total_cache_write_tokens: 5,
+    cost_usd_ticks: 42,
+    task_count: 3,
+  };
+
+  it("parses a live usage summary, keeping the optional cost split", () => {
+    const parsed = parseWithFallback(usage, IssueUsageSummarySchema, EMPTY_ISSUE_USAGE_SUMMARY, { endpoint: "test" });
+    expect(parsed.cost_usd_ticks).toBe(42);
+    expect(parsed.task_count).toBe(3);
+  });
+
+  it("leaves the cost split undefined on a backend that predates it", () => {
+    const { cost_usd_ticks: _omitted, ...older } = usage;
+    const parsed = parseWithFallback(older, IssueUsageSummarySchema, EMPTY_ISSUE_USAGE_SUMMARY, { endpoint: "test" });
+    expect(parsed.cost_usd_ticks).toBeUndefined();
+  });
+
+  it("falls back to the empty summary on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, { total_input_tokens: "nope" }]) {
+      expect(parseWithFallback(malformed, IssueUsageSummarySchema, EMPTY_ISSUE_USAGE_SUMMARY, { endpoint: "test" })).toEqual(EMPTY_ISSUE_USAGE_SUMMARY);
+    }
+  });
+});
+
+describe("AgentTaskSchema (cancelTask / rerunIssue fallback)", () => {
+  it("provides an honest failed fallback that still carries the caller's ids", () => {
+    const fallback = { ...EMPTY_AGENT_TASK, id: "task-1", issue_id: "issue-1" };
+    for (const malformed of [null, "nope", 42, {}]) {
+      const parsed = parseWithFallback(malformed, AgentTaskSchema, fallback, { endpoint: "test" });
+      expect(parsed.status).toBe("failed");
+      expect(parsed.id).toBe("task-1");
+      expect(parsed.issue_id).toBe("issue-1");
+    }
+  });
+});
+
+describe("InboxItemSchema (single-item inbox mutations)", () => {
+  const item = {
+    id: "inbox-1",
+    workspace_id: "ws-1",
+    recipient_type: "member",
+    recipient_id: "member-1",
+    type: "mentioned",
+    severity: "info",
+    issue_id: "issue-1",
+    title: "You were mentioned",
+    read: false,
+    archived: false,
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("parses a live inbox item", () => {
+    const parsed = parseWithFallback(item, InboxItemSchema, EMPTY_INBOX_ITEM, { endpoint: "test" });
+    expect(parsed.id).toBe("inbox-1");
+    expect(parsed.read).toBe(false);
+  });
+
+  it("falls back to the caller's known read/archived intent on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}]) {
+      const readFallback = { ...EMPTY_INBOX_ITEM, id: "inbox-1", read: true };
+      const parsed = parseWithFallback(malformed, InboxItemSchema, readFallback, { endpoint: "test" });
+      expect(parsed.id).toBe("inbox-1");
+      expect(parsed.read).toBe(true);
+    }
+  });
+});
+
+describe("WorkspaceSchema / WorkspaceListSchema", () => {
+  const workspace = {
+    id: "ws-1",
+    name: "Acme",
+    slug: "acme",
+    description: null,
+    context: null,
+    settings: { theme: "dark" },
+    repos: [{ url: "https://github.com/acme/repo" }],
+    issue_prefix: "ACM",
+    avatar_url: null,
+    postmortem_cost_threshold_usd_ticks: 5000,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:01Z",
+  };
+
+  it("parses a live workspace, keeping settings and repos", () => {
+    const parsed = parseWithFallback(workspace, WorkspaceSchema, EMPTY_WORKSPACE, { endpoint: "test" });
+    expect(parsed.slug).toBe("acme");
+    expect(parsed.settings).toEqual({ theme: "dark" });
+    expect(parsed.repos).toEqual([{ url: "https://github.com/acme/repo" }]);
+  });
+
+  it("parses a live workspace list", () => {
+    const parsed = parseWithFallback([workspace], WorkspaceListSchema, EMPTY_WORKSPACES, { endpoint: "test" });
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.id).toBe("ws-1");
+  });
+
+  it("degrades a malformed repos entry to an empty array rather than dropping the workspace", () => {
+    const parsed = parseWithFallback({ ...workspace, repos: "nope" }, WorkspaceSchema, EMPTY_WORKSPACE, { endpoint: "test" });
+    expect(parsed.repos).toEqual([]);
+  });
+
+  it("falls back to the empty workspace / empty list on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, { id: "ws-1" }]) {
+      expect(parseWithFallback(malformed, WorkspaceSchema, EMPTY_WORKSPACE, { endpoint: "test" })).toEqual(EMPTY_WORKSPACE);
+    }
+    for (const malformed of [null, "nope", 42, [{ name: "no id or slug" }]]) {
+      expect(parseWithFallback(malformed, WorkspaceListSchema, EMPTY_WORKSPACES, { endpoint: "test" })).toEqual([]);
+    }
+  });
+});
+
+describe("BusinessRuleEnvelopeSchema / BusinessRuleDryRunSchema (create/dry-run/status-toggle)", () => {
+  const rule = {
+    id: "rule-1",
+    workspace_id: "ws-1",
+    title: "Auto-assign",
+    natural_language: "assign new bugs to triage",
+    predicate: { kind: "always" },
+    description: "",
+    attach_point: "project_create",
+    status: "active",
+    created_by: "member-1",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:01Z",
+  };
+
+  it("parses a live create/status-toggle envelope", () => {
+    const parsed = parseWithFallback<{ rule: typeof rule } | null>({ rule }, BusinessRuleEnvelopeSchema, null, { endpoint: "test" });
+    expect(parsed?.rule.id).toBe("rule-1");
+    expect(parsed?.rule.status).toBe("active");
+  });
+
+  // Malformed create/toggle responses fall back to null, and the client
+  // throws on null rather than returning a fabricated empty rule — a
+  // "successful" create with id "" is worse than a visible error.
+  it("falls back to null on a malformed envelope", () => {
+    for (const malformed of [null, "nope", 42, {}, { rule: { title: "no id" } }]) {
+      expect(parseWithFallback(malformed, BusinessRuleEnvelopeSchema, null, { endpoint: "test" })).toBeNull();
+    }
+  });
+
+  it("parses a live dry-run response", () => {
+    const dryRun = { rule, checked: 5, violations: [{ subject_type: "issue", subject_id: "iss-1", label: "", detail: "would fire" }] };
+    const parsed = parseWithFallback<typeof dryRun | null>(dryRun, BusinessRuleDryRunSchema, null, { endpoint: "test" });
+    expect(parsed?.checked).toBe(5);
+    expect(parsed?.violations[0]?.detail).toBe("would fire");
+  });
+
+  it("falls back to null on a malformed dry-run body", () => {
+    for (const malformed of [null, "nope", 42, {}, { checked: 5 }]) {
+      expect(parseWithFallback(malformed, BusinessRuleDryRunSchema, null, { endpoint: "test" })).toBeNull();
+    }
+  });
+});
+
+describe("BlastRadiusRuleEnvelopeSchema (createBlastRadiusRule)", () => {
+  const rule = {
+    id: "brr-1",
+    project_id: "proj-1",
+    path_pattern: "src/**",
+    autonomy_level: "act_alone",
+    specificity: 2,
+    created_by: "member-1",
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("parses a live create response", () => {
+    const parsed = parseWithFallback<{ rule: typeof rule } | null>({ rule }, BlastRadiusRuleEnvelopeSchema, null, { endpoint: "test" });
+    expect(parsed?.rule.path_pattern).toBe("src/**");
+    expect(parsed?.rule.autonomy_level).toBe("act_alone");
+  });
+
+  // Same as the business-rule envelope: a malformed create response falls
+  // back to null so the client throws instead of "succeeding" with id "".
+  it("falls back to null on a malformed body", () => {
+    for (const malformed of [null, "nope", 42, {}, { rule: { path_pattern: "no id" } }]) {
+      expect(parseWithFallback(malformed, BlastRadiusRuleEnvelopeSchema, null, { endpoint: "test" })).toBeNull();
     }
   });
 });
