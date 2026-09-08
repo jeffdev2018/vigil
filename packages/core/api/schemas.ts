@@ -120,6 +120,16 @@ import type {
   Agent,
   IssueReaction,
   Reaction,
+  // JEF-321 batch B
+  Workspace,
+  IssueUsageSummary,
+  AgentActivityBucket,
+  AgentRunCount,
+  WorkspaceWorkingAgent,
+  RuntimeUpdate,
+  RuntimeLocalSkillListRequest,
+  RuntimeLocalSkillImportRequest,
+  AgentTask,
 } from "../types";
 import type {
   CloudRuntimeNode,
@@ -4856,6 +4866,8 @@ export const BlastRadiusRulesSchema = z.object({
   levels: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+export const BlastRadiusRuleEnvelopeSchema = z.object({ rule: BlastRadiusRuleSchema }).loose();
+
 export const BlastRadiusPreviewSchema = z.object({
   path: z.string().default(""),
   level: z.string().default("inherit"),
@@ -6423,3 +6435,249 @@ export const AgentRuntimeSchema = z.object({
 }).loose();
 
 export const AgentRuntimeListSchema = z.array(AgentRuntimeSchema);
+// ---------------------------------------------------------------------------
+// JEF-321 batch B — runtime updates, local-skill discovery/import, working
+// agents, agent-activity/run-count projections, issue usage, single-item
+// inbox mutations, and workspaces.
+// ---------------------------------------------------------------------------
+
+// CLI/runtime version updates (`POST /api/runtimes/:id/update`, its poll
+// endpoint). Same poll-while-pending state machine as the CLI auth / model
+// discovery requests above, so a malformed body degrades to an explicit
+// "failed" record instead of a fabricated "completed" or an endless spinner.
+export const RuntimeUpdateSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  status: z.string().default("failed"),
+  target_version: z.string().default(""),
+  output: z.string().optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_UPDATE: RuntimeUpdate = {
+  id: "",
+  runtime_id: "",
+  status: "failed",
+  target_version: "",
+  error: "invalid update response",
+  created_at: "",
+  updated_at: "",
+};
+
+const RuntimeLocalMcpServerSummarySchema = z.object({
+  name: z.string(),
+  transport: z.enum(["stdio", "http", "sse", "unknown"]).optional(),
+  source: z.string().optional(),
+  enabled: z.boolean().default(false),
+}).loose();
+
+const RuntimeLocalSkillSummarySchema = z.object({
+  key: z.string(),
+  name: z.string().default(""),
+  description: z.string().optional(),
+  source_path: z.string().default(""),
+  provider: z.string().default(""),
+  root: z.enum(["provider", "universal", "plugin"]).optional(),
+  plugin: z.string().optional(),
+  can_disable: z.boolean().optional(),
+  file_count: z.number().default(0),
+}).loose();
+
+export const RuntimeLocalSkillListRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  status: z.string().default("failed"),
+  skills: z.array(RuntimeLocalSkillSummarySchema).optional(),
+  supported: z.boolean().default(true),
+  mcp_servers: z.array(RuntimeLocalMcpServerSummarySchema).optional(),
+  mcp_supported: z.boolean().optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST: RuntimeLocalSkillListRequest = {
+  id: "",
+  runtime_id: "",
+  status: "failed",
+  supported: true,
+  error: "invalid local-skill discovery response",
+  created_at: "",
+  updated_at: "",
+};
+
+const RuntimeLocalSkillImportConflictSchema = z.object({
+  existing_skill_id: z.string().default(""),
+  existing_created_by: z.string().optional(),
+  can_overwrite: z.boolean().default(false),
+}).loose();
+
+// `skill` reuses SkillSchema (defined above) rather than a parallel shape —
+// the import response embeds the same skill row the Skills API returns.
+export const RuntimeLocalSkillImportRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  skill_key: z.string().default(""),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  action: z.literal("overwrite").optional(),
+  target_skill_id: z.string().optional(),
+  supports_conflict: z.boolean().optional(),
+  status: z.string().default("failed"),
+  skill: SkillSchema.optional(),
+  conflict: RuntimeLocalSkillImportConflictSchema.optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST: RuntimeLocalSkillImportRequest = {
+  id: "",
+  runtime_id: "",
+  skill_key: "",
+  status: "failed",
+  error: "invalid local-skill import response",
+  created_at: "",
+  updated_at: "",
+};
+
+// Workspace-level working-agent projection backing the Agents-list presence
+// dots and the sub-issue header. `issue_ids` degrades independently since a
+// malformed entry there should not drop the whole agent row.
+export const WorkspaceWorkingAgentSchema = z.object({
+  id: z.string(),
+  name: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  running_task_count: z.number().default(0),
+  issue_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const WorkspaceWorkingAgentListSchema = z.array(WorkspaceWorkingAgentSchema);
+export const EMPTY_WORKSPACE_WORKING_AGENTS: WorkspaceWorkingAgent[] = [];
+
+// Per-agent 30-day daily activity buckets, backing the Agents-list sparkline
+// and the agent detail "Last 30 days" panel.
+export const AgentActivityBucketSchema = z.object({
+  agent_id: z.string(),
+  bucket_at: z.string().default(""),
+  task_count: z.number().default(0),
+  failed_count: z.number().default(0),
+}).loose();
+
+export const AgentActivityBucketListSchema = z.array(AgentActivityBucketSchema);
+export const EMPTY_AGENT_ACTIVITY_BUCKETS: AgentActivityBucket[] = [];
+
+// Per-agent 30-day total run count, backing the Agents-list RUNS column.
+export const AgentRunCountSchema = z.object({
+  agent_id: z.string(),
+  run_count: z.number().default(0),
+}).loose();
+
+export const AgentRunCountListSchema = z.array(AgentRunCountSchema);
+export const EMPTY_AGENT_RUN_COUNTS: AgentRunCount[] = [];
+
+// `GET /api/issues/:id/usage`. `uncosted_*` and `cost_usd_ticks` stay
+// optional (not defaulted) — undefined there means "estimate from the full
+// token counts", distinct from a real 0, same convention as the per-task
+// usage rows (see RuntimeUsage / TaskUsageSchema above).
+export const IssueUsageSummarySchema = z.object({
+  total_input_tokens: z.number().default(0),
+  total_output_tokens: z.number().default(0),
+  total_cache_read_tokens: z.number().default(0),
+  total_cache_write_tokens: z.number().default(0),
+  cost_usd_ticks: z.number().optional(),
+  uncosted_input_tokens: z.number().optional(),
+  uncosted_output_tokens: z.number().optional(),
+  uncosted_cache_read_tokens: z.number().optional(),
+  uncosted_cache_write_tokens: z.number().optional(),
+  task_count: z.number().default(0),
+}).loose();
+
+export const EMPTY_ISSUE_USAGE_SUMMARY: IssueUsageSummary = {
+  total_input_tokens: 0,
+  total_output_tokens: 0,
+  total_cache_read_tokens: 0,
+  total_cache_write_tokens: 0,
+  task_count: 0,
+};
+
+// Fallback for cancelTask / rerunIssue, which return a single AgentTask.
+// `status: "failed"` is the honest read for an unparseable response — it
+// neither claims the cancel/rerun succeeded nor leaves the run mid-flight.
+export const EMPTY_AGENT_TASK: AgentTask = {
+  id: "",
+  agent_id: "",
+  runtime_id: "",
+  issue_id: "",
+  status: "failed",
+  priority: 0,
+  dispatched_at: null,
+  started_at: null,
+  completed_at: null,
+  result: null,
+  error: null,
+  created_at: "",
+};
+
+// Single-item inbox mutations (read/unread/archive/unarchive) return the same
+// row shape as the list endpoints, so the schema is just the list's element.
+export const InboxItemSchema = InboxItemListSchema.element;
+
+export const EMPTY_INBOX_ITEM: InboxItem = {
+  id: "",
+  workspace_id: "",
+  recipient_type: "member",
+  recipient_id: "",
+  actor_type: null,
+  actor_id: null,
+  type: "mentioned",
+  severity: "info",
+  issue_id: null,
+  title: "",
+  body: null,
+  issue_status: null,
+  issue_priority: null,
+  read: false,
+  archived: false,
+  created_at: "",
+  details: null,
+};
+
+export const WorkspaceRepoSchema = z.object({
+  url: z.string(),
+  description: z.string().optional(),
+}).loose();
+
+export const WorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string().default(""),
+  slug: z.string(),
+  description: z.string().nullable().default(null),
+  context: z.string().nullable().default(null),
+  settings: z.record(z.string(), z.unknown()).catch({}).default({}),
+  repos: z.array(WorkspaceRepoSchema).catch([]).default([]),
+  issue_prefix: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  postmortem_cost_threshold_usd_ticks: z.number().nullable().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const WorkspaceListSchema = z.array(WorkspaceSchema);
+export const EMPTY_WORKSPACES: Workspace[] = [];
+
+export const EMPTY_WORKSPACE: Workspace = {
+  id: "",
+  name: "",
+  slug: "",
+  description: null,
+  context: null,
+  settings: {},
+  repos: [],
+  issue_prefix: "",
+  avatar_url: null,
+  created_at: "",
+  updated_at: "",
+};

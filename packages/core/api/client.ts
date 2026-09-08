@@ -522,7 +522,6 @@ import {
   WhySearchResponseSchema,
   ADRRequirementSchema,
   DecisionRecordListSchema,
-  BlastRadiusRuleSchema,
   BlastRadiusRulesSchema,
   BlastRadiusPreviewSchema,
   BusinessRuleListSchema,
@@ -811,6 +810,29 @@ import {
   MikaBootstrapResponseSchema,
   AgentEnvResponseSchema,
   AgentRuntimeListSchema,
+  // JEF-321 batch B
+  RuntimeUpdateSchema,
+  MALFORMED_RUNTIME_UPDATE,
+  RuntimeLocalSkillListRequestSchema,
+  MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST,
+  RuntimeLocalSkillImportRequestSchema,
+  MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST,
+  WorkspaceWorkingAgentListSchema,
+  EMPTY_WORKSPACE_WORKING_AGENTS,
+  AgentActivityBucketListSchema,
+  EMPTY_AGENT_ACTIVITY_BUCKETS,
+  AgentRunCountListSchema,
+  EMPTY_AGENT_RUN_COUNTS,
+  IssueUsageSummarySchema,
+  EMPTY_ISSUE_USAGE_SUMMARY,
+  EMPTY_AGENT_TASK,
+  InboxItemSchema,
+  EMPTY_INBOX_ITEM,
+  WorkspaceSchema,
+  WorkspaceListSchema,
+  EMPTY_WORKSPACE,
+  EMPTY_WORKSPACES,
+  BlastRadiusRuleEnvelopeSchema,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -3794,17 +3816,29 @@ export class ApiClient {
     runtimeId: string,
     targetVersion: string,
   ): Promise<RuntimeUpdate> {
-    return this.fetch(`/api/runtimes/${runtimeId}/update`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/update`, {
       method: "POST",
       body: JSON.stringify({ target_version: targetVersion }),
     });
+    return parseWithFallback<RuntimeUpdate>(
+      raw,
+      RuntimeUpdateSchema,
+      { ...MALFORMED_RUNTIME_UPDATE, runtime_id: runtimeId, target_version: targetVersion },
+      { endpoint: "POST /api/runtimes/{id}/update" },
+    );
   }
 
   async getUpdateResult(
     runtimeId: string,
     updateId: string,
   ): Promise<RuntimeUpdate> {
-    return this.fetch(`/api/runtimes/${runtimeId}/update/${updateId}`);
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/update/${updateId}`);
+    return parseWithFallback<RuntimeUpdate>(
+      raw,
+      RuntimeUpdateSchema,
+      { ...MALFORMED_RUNTIME_UPDATE, id: updateId, runtime_id: runtimeId },
+      { endpoint: "GET /api/runtimes/{id}/update/{updateId}" },
+    );
   }
 
   // Both discovery endpoints feed a UI state machine (poll while
@@ -3916,33 +3950,57 @@ export class ApiClient {
   async initiateListLocalSkills(
     runtimeId: string,
   ): Promise<RuntimeLocalSkillListRequest> {
-    return this.fetch(`/api/runtimes/${runtimeId}/local-skills`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/local-skills`, {
       method: "POST",
     });
+    return parseWithFallback<RuntimeLocalSkillListRequest>(
+      raw,
+      RuntimeLocalSkillListRequestSchema,
+      { ...MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST, runtime_id: runtimeId },
+      { endpoint: "POST /api/runtimes/{id}/local-skills" },
+    );
   }
 
   async getListLocalSkillsResult(
     runtimeId: string,
     requestId: string,
   ): Promise<RuntimeLocalSkillListRequest> {
-    return this.fetch(`/api/runtimes/${runtimeId}/local-skills/${requestId}`);
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/local-skills/${requestId}`);
+    return parseWithFallback<RuntimeLocalSkillListRequest>(
+      raw,
+      RuntimeLocalSkillListRequestSchema,
+      { ...MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST, id: requestId, runtime_id: runtimeId },
+      { endpoint: "GET /api/runtimes/{id}/local-skills/{requestId}" },
+    );
   }
 
   async initiateImportLocalSkill(
     runtimeId: string,
     data: CreateRuntimeLocalSkillImportRequest,
   ): Promise<RuntimeLocalSkillImportRequest> {
-    return this.fetch(`/api/runtimes/${runtimeId}/local-skills/import`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/local-skills/import`, {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return parseWithFallback<RuntimeLocalSkillImportRequest>(
+      raw,
+      RuntimeLocalSkillImportRequestSchema,
+      { ...MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST, runtime_id: runtimeId, skill_key: data.skill_key },
+      { endpoint: "POST /api/runtimes/{id}/local-skills/import" },
+    );
   }
 
   async getImportLocalSkillResult(
     runtimeId: string,
     requestId: string,
   ): Promise<RuntimeLocalSkillImportRequest> {
-    return this.fetch(`/api/runtimes/${runtimeId}/local-skills/import/${requestId}`);
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/local-skills/import/${requestId}`);
+    return parseWithFallback<RuntimeLocalSkillImportRequest>(
+      raw,
+      RuntimeLocalSkillImportRequestSchema,
+      { ...MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST, id: requestId, runtime_id: runtimeId },
+      { endpoint: "GET /api/runtimes/{id}/local-skills/import/{requestId}" },
+    );
   }
 
   async listAgentTasks(agentId: string): Promise<AgentTask[]> {
@@ -4006,7 +4064,10 @@ export class ApiClient {
   // derivation; one fetch backs every per-agent presence read in the app.
   // Workspace is resolved server-side from the X-Workspace-Slug header.
   async getAgentTaskSnapshot(): Promise<AgentTask[]> {
-    return this.fetch(`/api/agent-task-snapshot`);
+    const raw = await this.fetch<unknown>(`/api/agent-task-snapshot`);
+    return parseWithFallback<AgentTask[]>(raw, AgentTaskListSchema, [], {
+      endpoint: "GET /api/agent-task-snapshot",
+    });
   }
 
   // Independent workspace-level projection. Unlike the task snapshot, this
@@ -4031,7 +4092,13 @@ export class ApiClient {
       search.set("parent", parentIssueId);
     }
     const query = search.toString();
-    return this.fetch(`/api/working-agents${query ? `?${query}` : ""}`);
+    const raw = await this.fetch<unknown>(`/api/working-agents${query ? `?${query}` : ""}`);
+    return parseWithFallback<WorkspaceWorkingAgent[]>(
+      raw,
+      WorkspaceWorkingAgentListSchema,
+      EMPTY_WORKSPACE_WORKING_AGENTS,
+      { endpoint: "GET /api/working-agents" },
+    );
   }
 
   // Per-agent daily activity for the last 30 days, anchored on
@@ -4064,24 +4131,30 @@ export class ApiClient {
 
   async createBusinessRule(data: { natural_language: string; attach_point: string; title?: string; predicate?: unknown; action?: { kind: string; priority?: string; assignee_type?: string; assignee_id?: string } }): Promise<BusinessRule> {
     const raw = await this.fetch<unknown>("/api/business-rules", { method: "POST", body: JSON.stringify(data) });
-    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
-    if (!parsed.success) throw new Error("Malformed business rule response");
-    return parsed.data.rule;
+    const parsed = parseWithFallback<{ rule: BusinessRule } | null>(raw, BusinessRuleEnvelopeSchema, null, {
+      endpoint: "POST /api/business-rules",
+    });
+    if (!parsed) throw new Error("Malformed business rule response");
+    return parsed.rule;
   }
 
   async dryRunBusinessRule(id: string): Promise<BusinessRuleDryRun> {
     const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/dry-run`, { method: "POST" });
-    const parsed = BusinessRuleDryRunSchema.safeParse(raw);
-    if (!parsed.success) throw new Error("Malformed dry-run response");
-    return parsed.data;
+    const parsed = parseWithFallback<BusinessRuleDryRun | null>(raw, BusinessRuleDryRunSchema, null, {
+      endpoint: "POST /api/business-rules/:id/dry-run",
+    });
+    if (!parsed) throw new Error("Malformed dry-run response");
+    return parsed;
   }
 
   async setBusinessRuleStatus(id: string, status: "active" | "disabled"): Promise<BusinessRule> {
     const verb = status === "active" ? "activate" : "disable";
     const raw = await this.fetch<unknown>(`/api/business-rules/${encodeURIComponent(id)}/${verb}`, { method: "PUT" });
-    const parsed = BusinessRuleEnvelopeSchema.safeParse(raw);
-    if (!parsed.success) throw new Error("Malformed business rule response");
-    return parsed.data.rule;
+    const parsed = parseWithFallback<{ rule: BusinessRule } | null>(raw, BusinessRuleEnvelopeSchema, null, {
+      endpoint: "PUT /api/business-rules/:id/:verb",
+    });
+    if (!parsed) throw new Error("Malformed business rule response");
+    return parsed.rule;
   }
 
   async deleteBusinessRule(id: string): Promise<void> {
@@ -4100,10 +4173,12 @@ export class ApiClient {
   }
 
   async createBlastRadiusRule(projectId: string, data: { path_pattern: string; autonomy_level: string }): Promise<BlastRadiusRule> {
-    const raw = await this.fetch<{ rule?: unknown }>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`, { method: "POST", body: JSON.stringify(data) });
-    const parsed = BlastRadiusRuleSchema.safeParse(raw?.rule);
-    if (!parsed.success) throw new Error("Malformed blast radius rule response");
-    return parsed.data;
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(projectId)}/blast-radius-rules`, { method: "POST", body: JSON.stringify(data) });
+    const parsed = parseWithFallback<{ rule: BlastRadiusRule } | null>(raw, BlastRadiusRuleEnvelopeSchema, null, {
+      endpoint: "POST /api/projects/:id/blast-radius-rules",
+    });
+    if (!parsed) throw new Error("Malformed blast radius rule response");
+    return parsed.rule;
   }
 
   async deleteBlastRadiusRule(projectId: string, ruleId: string): Promise<void> {
@@ -4788,6 +4863,10 @@ export class ApiClient {
     }) as { reopened_steps: string[] };
   }
 
+  // JEF-321 batch B: left unvalidated on purpose. The response is `unknown`
+  // and useApproveEpicStep (packages/core/projects/epic.ts) never reads it —
+  // it only invalidates the epic query on settle — so there is no schema to
+  // add here without inventing a shape nothing consumes.
   async approveProjectEpicStep(projectId: string, kind: string): Promise<unknown> {
     return this.fetch<unknown>(
       `/api/projects/${encodeURIComponent(projectId)}/epic/steps/${encodeURIComponent(kind)}/approve`,
@@ -5083,12 +5162,24 @@ export class ApiClient {
   }
 
   async getWorkspaceAgentActivity30d(): Promise<AgentActivityBucket[]> {
-    return this.fetch(`/api/agent-activity-30d`);
+    const raw = await this.fetch<unknown>(`/api/agent-activity-30d`);
+    return parseWithFallback<AgentActivityBucket[]>(
+      raw,
+      AgentActivityBucketListSchema,
+      EMPTY_AGENT_ACTIVITY_BUCKETS,
+      { endpoint: "GET /api/agent-activity-30d" },
+    );
   }
 
   // Per-agent 30-day total run count for the Agents-list RUNS column.
   async getWorkspaceAgentRunCounts(): Promise<AgentRunCount[]> {
-    return this.fetch(`/api/agent-run-counts`);
+    const raw = await this.fetch<unknown>(`/api/agent-run-counts`);
+    return parseWithFallback<AgentRunCount[]>(
+      raw,
+      AgentRunCountListSchema,
+      EMPTY_AGENT_RUN_COUNTS,
+      { endpoint: "GET /api/agent-run-counts" },
+    );
   }
 
   /**
@@ -5256,20 +5347,35 @@ export class ApiClient {
   }
 
   async getIssueUsage(issueId: string): Promise<IssueUsageSummary> {
-    return this.fetch(`/api/issues/${issueId}/usage`);
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/usage`);
+    return parseWithFallback(raw, IssueUsageSummarySchema, EMPTY_ISSUE_USAGE_SUMMARY, {
+      endpoint: "GET /api/issues/:id/usage",
+    });
   }
 
   async cancelTask(issueId: string, taskId: string): Promise<AgentTask> {
-    return this.fetch(`/api/issues/${issueId}/tasks/${taskId}/cancel`, {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/tasks/${taskId}/cancel`, {
       method: "POST",
     });
+    return parseWithFallback(
+      raw,
+      AgentTaskSchema,
+      { ...EMPTY_AGENT_TASK, id: taskId, issue_id: issueId },
+      { endpoint: "POST /api/issues/:id/tasks/:taskId/cancel" },
+    );
   }
 
   async rerunIssue(issueId: string, taskId?: string): Promise<AgentTask> {
-    return this.fetch(`/api/issues/${issueId}/rerun`, {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/rerun`, {
       method: "POST",
       body: JSON.stringify(taskId ? { task_id: taskId } : {}),
     });
+    return parseWithFallback(
+      raw,
+      AgentTaskSchema,
+      { ...EMPTY_AGENT_TASK, issue_id: issueId },
+      { endpoint: "POST /api/issues/:id/rerun" },
+    );
   }
 
   async retrySourceContextQuickCreate(taskId: string): Promise<AgentTask> {
@@ -5292,15 +5398,24 @@ export class ApiClient {
   }
 
   async markInboxRead(id: string): Promise<InboxItem> {
-    return this.fetch(`/api/inbox/${id}/read`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/inbox/${id}/read`, { method: "POST" });
+    return parseWithFallback(raw, InboxItemSchema, { ...EMPTY_INBOX_ITEM, id, read: true }, {
+      endpoint: "POST /api/inbox/:id/read",
+    });
   }
 
   async markInboxUnread(id: string): Promise<InboxItem> {
-    return this.fetch(`/api/inbox/${id}/unread`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/inbox/${id}/unread`, { method: "POST" });
+    return parseWithFallback(raw, InboxItemSchema, { ...EMPTY_INBOX_ITEM, id, read: false }, {
+      endpoint: "POST /api/inbox/:id/unread",
+    });
   }
 
   async archiveInbox(id: string): Promise<InboxItem> {
-    return this.fetch(`/api/inbox/${id}/archive`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/inbox/${id}/archive`, { method: "POST" });
+    return parseWithFallback(raw, InboxItemSchema, { ...EMPTY_INBOX_ITEM, id, archived: true }, {
+      endpoint: "POST /api/inbox/:id/archive",
+    });
   }
 
   // Archived notifications, backing the inbox's "Archived" sub-view. Capped
@@ -5327,7 +5442,10 @@ export class ApiClient {
   }
 
   async unarchiveInbox(id: string): Promise<InboxItem> {
-    return this.fetch(`/api/inbox/${id}/unarchive`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/inbox/${id}/unarchive`, { method: "POST" });
+    return parseWithFallback(raw, InboxItemSchema, { ...EMPTY_INBOX_ITEM, id, archived: false }, {
+      endpoint: "POST /api/inbox/:id/unarchive",
+    });
   }
 
   // Cross-workspace unread summary: one entry per workspace the user belongs
@@ -5403,27 +5521,42 @@ export class ApiClient {
 
   // Workspaces
   async listWorkspaces(): Promise<Workspace[]> {
-    return this.fetch("/api/workspaces");
+    const raw = await this.fetch<unknown>("/api/workspaces");
+    return parseWithFallback<Workspace[]>(raw, WorkspaceListSchema, EMPTY_WORKSPACES, {
+      endpoint: "GET /api/workspaces",
+    });
   }
 
   async getWorkspace(id: string): Promise<Workspace> {
-    return this.fetch(`/api/workspaces/${id}`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${id}`);
+    return parseWithFallback<Workspace>(raw, WorkspaceSchema, { ...EMPTY_WORKSPACE, id }, {
+      endpoint: "GET /api/workspaces/:id",
+    });
   }
 
   async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string; template_run_id?: string }): Promise<Workspace> {
-    return this.fetch("/api/workspaces", {
+    const raw = await this.fetch<unknown>("/api/workspaces", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    return parseWithFallback<Workspace>(
+      raw,
+      WorkspaceSchema,
+      { ...EMPTY_WORKSPACE, name: data.name, slug: data.slug },
+      { endpoint: "POST /api/workspaces" },
+    );
   }
 
   // postmortem_cost_threshold_usd_ticks: 0 turns the costly-run postmortem
   // trigger off (the server stores NULL), a positive value arms it. Omitting
   // the field leaves the stored threshold alone, like every other field here.
   async updateWorkspace(id: string, data: { name?: string; description?: string; context?: string; settings?: Record<string, unknown>; repos?: WorkspaceRepo[]; issue_prefix?: string; avatar_url?: string; postmortem_cost_threshold_usd_ticks?: number }): Promise<Workspace> {
-    return this.fetch(`/api/workspaces/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback<Workspace>(raw, WorkspaceSchema, { ...EMPTY_WORKSPACE, id }, {
+      endpoint: "PATCH /api/workspaces/:id",
     });
   }
 
