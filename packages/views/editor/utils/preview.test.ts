@@ -118,12 +118,12 @@ describe("text extensions stay in sync with the Go proxy", () => {
   const goExtensions = (() => {
     const m = /ext := strings\.ToLower\(path\.Ext\(filename\)\)\s*switch ext \{\s*case ([\s\S]*?):\s*return true/.exec(goSource);
     if (!m) throw new Error("extension switch not found in file.go");
-    return new Set([...m[1].matchAll(/"\.([a-z0-9]+)"/g)].map((x) => x[1]));
+    return new Set([...(m[1] ?? "").matchAll(/"\.([a-z0-9]+)"/g)].map((x) => x[1] ?? ""));
   })();
   const tsExtensions = (() => {
     const m = /const TEXT_EXTENSIONS = new Set<string>\(\[([\s\S]*?)\]\)/.exec(tsSource);
     if (!m) throw new Error("TEXT_EXTENSIONS not found in preview.ts");
-    return new Set([...m[1].matchAll(/"([a-z0-9]+)"/g)].map((x) => x[1]));
+    return new Set([...(m[1] ?? "").matchAll(/"([a-z0-9]+)"/g)].map((x) => x[1] ?? ""));
   })();
 
   it("both lists were found and are non-trivial", () => {
