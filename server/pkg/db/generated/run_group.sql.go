@@ -143,7 +143,7 @@ func (q *Queries) GetRunGroupInWorkspace(ctx context.Context, arg GetRunGroupInW
 }
 
 const listRunGroupTasks = `-- name: ListRunGroupTasks :many
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, memory_context, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified FROM agent_task_queue WHERE run_group_id = $1 ORDER BY created_at ASC, id ASC
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue WHERE run_group_id = $1 ORDER BY created_at ASC, id ASC
 `
 
 // The attempts of one group, oldest first so the columns in the compare view
@@ -231,7 +231,6 @@ func (q *Queries) ListRunGroupTasks(ctx context.Context, runGroupID pgtype.UUID)
 			&i.SafeMode,
 			&i.ModelKeyID,
 			&i.Confidence,
-			&i.MemoryContext,
 			&i.LegRole,
 			&i.WorkflowRootTaskID,
 			&i.DispatchLane,
@@ -242,6 +241,7 @@ func (q *Queries) ListRunGroupTasks(ctx context.Context, runGroupID pgtype.UUID)
 			&i.ModelOverride,
 			&i.DiffStat,
 			&i.DiffUnified,
+			&i.MemoryContext,
 		); err != nil {
 			return nil, err
 		}
@@ -254,7 +254,7 @@ func (q *Queries) ListRunGroupTasks(ctx context.Context, runGroupID pgtype.UUID)
 }
 
 const listRunGroupTasksForIssue = `-- name: ListRunGroupTasksForIssue :many
-SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, memory_context, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified FROM agent_task_queue
+SELECT id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context FROM agent_task_queue
 WHERE run_group_id IS NOT NULL AND issue_id = $1
 ORDER BY created_at ASC, id ASC
 `
@@ -344,7 +344,6 @@ func (q *Queries) ListRunGroupTasksForIssue(ctx context.Context, issueID pgtype.
 			&i.SafeMode,
 			&i.ModelKeyID,
 			&i.Confidence,
-			&i.MemoryContext,
 			&i.LegRole,
 			&i.WorkflowRootTaskID,
 			&i.DispatchLane,
@@ -355,6 +354,7 @@ func (q *Queries) ListRunGroupTasksForIssue(ctx context.Context, issueID pgtype.
 			&i.ModelOverride,
 			&i.DiffStat,
 			&i.DiffUnified,
+			&i.MemoryContext,
 		); err != nil {
 			return nil, err
 		}
@@ -416,7 +416,7 @@ UPDATE agent_task_queue
 SET diff_stat = $2::jsonb,
     diff_unified = NULLIF(COALESCE($3::text, ''), '')
 WHERE id = $1
-RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, memory_context, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context
 `
 
 type RecordTaskDiffParams struct {
@@ -505,7 +505,6 @@ func (q *Queries) RecordTaskDiff(ctx context.Context, arg RecordTaskDiffParams) 
 		&i.SafeMode,
 		&i.ModelKeyID,
 		&i.Confidence,
-		&i.MemoryContext,
 		&i.LegRole,
 		&i.WorkflowRootTaskID,
 		&i.DispatchLane,
@@ -516,6 +515,7 @@ func (q *Queries) RecordTaskDiff(ctx context.Context, arg RecordTaskDiffParams) 
 		&i.ModelOverride,
 		&i.DiffStat,
 		&i.DiffUnified,
+		&i.MemoryContext,
 	)
 	return i, err
 }
