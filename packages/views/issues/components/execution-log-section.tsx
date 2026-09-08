@@ -264,13 +264,12 @@ export function IssueUsageTotal({
   onOpen: () => void;
 }) {
   const { t } = useT("issues");
-  // Custom rates are read imperatively inside `estimateCost`, so a saved rate
-  // change does not re-render this on its own — subscribe and make the memo
-  // depend on the snapshot, or the header total keeps quoting the old price
-  // until the task list refetches.
+  // Subscribed and passed into summarizeTaskUsageAcross below so a saved
+  // custom rate re-renders this instead of quoting the old price until the
+  // task list happens to refetch.
   const pricings = useCustomPricingStore((s) => s.pricings);
   const total = useMemo(
-    () => summarizeTaskUsageAcross(tasks.map((task) => task.usage)),
+    () => summarizeTaskUsageAcross(tasks.map((task) => task.usage), pricings),
     [tasks, pricings],
   );
   if (!total) return null;

@@ -345,13 +345,13 @@ function WhenChart({
   const [showHeatmap, setShowHeatmap] = useState(false);
   // Daily and Weekly share a Cost-vs-Tokens metric toggle.
   const [chartMetric, setChartMetric] = useState<DailyMetric>("cost");
-  // Memo dep — the aggregates below run `estimateCost`, which now consults
-  // the user override store. Without listing pricings here the memos cache
-  // pre-override totals when query data hasn't changed.
+  // Subscribed so the aggregates below re-run when the user saves a custom
+  // rate; passed into the pricing functions explicitly (see `estimateCost`
+  // in ../utils) so the dependency is real, not just listed.
   const pricings = useCustomPricingStore((s) => s.pricings);
 
   const { dailyCostStack, dailyTokens } = useMemo(
-    () => aggregateByDate(filtered),
+    () => aggregateByDate(filtered, pricings),
     [filtered, pricings],
   );
   // Weekly aggregation builds exactly N trailing calendar weeks anchored at
@@ -361,7 +361,7 @@ function WhenChart({
   // aggregate surfaced old populated weeks instead of in-range empty ones.
   const weekCount = Math.max(1, Math.ceil(days / 7));
   const { weeklyTokens, weeklyCostStack } = useMemo(
-    () => aggregateByWeek(usage, tz, weekCount),
+    () => aggregateByWeek(usage, tz, weekCount, pricings),
     [usage, tz, weekCount, pricings],
   );
 
@@ -660,8 +660,8 @@ function CostByBlock({
 }) {
   const { t } = useT("runtimes");
   const [tab, setTab] = useState<"agent" | "model">("agent");
-  // Memo dep — same reason as WhenChart: aggregateCostBy{Agent,Model} call
-  // estimateCost, which now reads the override store.
+  // Subscribed and passed explicitly into aggregateCostBy{Agent,Model} below
+  // (see ../utils) so a saved custom rate re-runs these memos.
   const pricings = useCustomPricingStore((s) => s.pricings);
 
   // by-agent is server-side aggregation (fetched lazily on tab activation).
@@ -675,11 +675,11 @@ function CostByBlock({
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
 
   const byAgent = useMemo(
-    () => aggregateCostByAgent(byAgentRows),
+    () => aggregateCostByAgent(byAgentRows, pricings),
     [byAgentRows, pricings],
   );
   const byModel = useMemo(
-    () => aggregateCostByModel(usage),
+    () => aggregateCostByModel(usage, pricings),
     [usage, pricings],
   );
 

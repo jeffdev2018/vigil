@@ -3,7 +3,21 @@ import type {
   RuntimeUsage,
   RuntimeUsageByAgent,
 } from "@multica/core/types";
-import { getCustomPricing } from "@multica/core/runtimes/custom-pricing-store";
+import {
+  getCustomPricing,
+  type CustomModelPricing,
+} from "@multica/core/runtimes/custom-pricing-store";
+
+// Custom-rate overrides, keyed the same way `MODEL_PRICING` / the pricing
+// dialog key them (see `pricingKey`). Every cost function below takes this
+// as an optional trailing argument: passing the caller's subscribed
+// `useCustomPricingStore((s) => s.pricings)` snapshot makes the dependency
+// explicit in a `useMemo` (it actually appears in the memoized body, so
+// eslint's exhaustive-deps stops flagging it as unused). Omitting it falls
+// back to reading the store imperatively via `getCustomPricing` — the
+// original behaviour, kept for non-reactive callers (tests, one-off calls
+// outside a component render).
+type PricingOverrides = Record<string, CustomModelPricing>;
 
 // A live local daemon re-registers itself within seconds of a server-side
 // delete (daemon self-heal, #2404), so deleting an online local runtime from
@@ -403,7 +417,7 @@ const MODEL_PRICING: Record<
 // every candidate is tried `${provider}/…`-qualified first, then bare, so a
 // `cursor/auto` row wins for a Cursor row while an unqualified `auto` (no
 // provider) stays unmapped instead of silently borrowing Cursor's price.
-function resolvePricing(model: string, provider?: string) {
+function resolvePricing(model: string, provider?: string, pricings?: PricingOverrides) {
   if (!model) return undefined;
 
   const candidates = pricingCandidates(model, provider);
@@ -412,7 +426,7 @@ function resolvePricing(model: string, provider?: string) {
     if (hit) return hit;
   }
   for (const candidate of candidates) {
-    const hit = getCustomPricing(candidate);
+    const hit = pricings ? pricings[candidate] : getCustomPricing(candidate);
     if (hit) return hit;
   }
   return undefined;
@@ -550,8 +564,12 @@ function canonicalCandidates(model: string): string[] {
 // Cheap predicate for the empty-state diagnostic: which model strings in a
 // usage batch failed pricing resolution. Useful when the user is staring at
 // "$0.00 / 2M tokens" and wants to know why.
-export function isModelPriced(model: string, provider?: string): boolean {
-  return resolvePricing(model, provider) !== undefined;
+export function isModelPriced(
+  model: string,
+  provider?: string,
+  pricings?: PricingOverrides,
+): boolean {
+  return resolvePricing(model, provider, pricings) !== undefined;
 }
 
 // Returns the unique, sorted list of pricing keys present in `rows` that
@@ -563,10 +581,13 @@ export function isModelPriced(model: string, provider?: string): boolean {
 // raise the "we can't price this model" warning — its cost is already exact,
 // and asking the user to supply a rate for it would be asking them to override
 // a real bill with a guess.
-export function collectUnmappedModels(rows: readonly Priceable[]): string[] {
+export function collectUnmappedModels(
+  rows: readonly Priceable[],
+  pricings?: PricingOverrides,
+): string[] {
   const set = new Set<string>();
   for (const r of rows) {
-    if (!r.model || isModelPriced(r.model, r.provider)) continue;
+    if (!r.model || isModelPriced(r.model, r.provider, pricings)) continue;
     const uncosted = uncostedTokens(r);
     const needsEstimate =
       uncosted.input > 0 ||
@@ -656,9 +677,9 @@ function uncostedTokens(usage: Priceable): {
 // either side of a CLI upgrade). Custom pricing overrides still apply — but
 // only to the estimated half, since they are a user's guess at a rate and the
 // authoritative half is not a guess.
-export function estimateCost(usage: Priceable): number {
+export function estimateCost(usage: Priceable, pricings?: PricingOverrides): number {
   const authoritative = (usage.cost_usd_ticks ?? 0) / COST_USD_TICKS_PER_USD;
-  const pricing = resolvePricing(usage.model, usage.provider);
+  const pricing = resolvePricing(usage.model, usage.provider, pricings);
   if (!pricing) return authoritative;
   const uncosted = uncostedTokens(usage);
   return (
@@ -684,8 +705,11 @@ export interface CostBreakdown {
 // Only the total is authoritative — the split is presentation, and doing it
 // this way keeps the stacked chart summing to the headline figure instead of
 // silently under-drawing every Grok row.
-export function estimateCostBreakdown(usage: Priceable): CostBreakdown {
-  const pricing = resolvePricing(usage.model, usage.provider);
+export function estimateCostBreakdown(
+  usage: Priceable,
+  pricings?: PricingOverrides,
+): CostBreakdown {
+  const pricing = resolvePricing(usage.model, usage.provider, pricings);
   if (!pricing) {
     // No rates to split by, but the provider may still have priced the turn
     // itself. Returning zeros here would make the stacked chart disagree with
@@ -766,6 +790,7 @@ export interface TaskUsageSummary {
  */
 export function summarizeTaskUsage(
   usage: readonly Priceable[] | undefined,
+  pricings?: PricingOverrides,
 ): TaskUsageSummary | null {
   if (!usage || usage.length === 0) return null;
 
@@ -781,8 +806,8 @@ export function summarizeTaskUsage(
     summary.output += slice.output_tokens;
     summary.cacheRead += slice.cache_read_tokens;
     summary.cacheWrite += slice.cache_write_tokens;
-    summary.cost += estimateCost(slice);
-    summary.cacheSavings += estimateCacheSavings(slice);
+    summary.cost += estimateCost(slice, pricings);
+    summary.cacheSavings += estimateCacheSavings(slice, pricings);
     if (slice.model && !models.includes(slice.model)) models.push(slice.model);
   }
   summary.tokens =
@@ -799,15 +824,16 @@ export function summarizeTaskUsage(
  */
 export function summarizeTaskUsageAcross(
   runs: readonly (readonly Priceable[] | undefined)[],
+  pricings?: PricingOverrides,
 ): TaskUsageSummary | null {
-  return summarizeTaskUsage(runs.flatMap((u) => u ?? []));
+  return summarizeTaskUsage(runs.flatMap((u) => u ?? []), pricings);
 }
 
 // Cache savings: what cache *reads* would have cost at full input pricing
 // minus what they actually cost at the discounted cache-hit rate. This is a
 // reconstruction of "money the cache saved you", not real-world spend.
-export function estimateCacheSavings(usage: Priceable): number {
-  const pricing = resolvePricing(usage.model, usage.provider);
+export function estimateCacheSavings(usage: Priceable, pricings?: PricingOverrides): number {
+  const pricing = resolvePricing(usage.model, usage.provider, pricings);
   if (!pricing) return 0;
   const wouldHaveCost = (usage.cache_read_tokens * pricing.input) / 1_000_000;
   const actualCost = (usage.cache_read_tokens * pricing.cacheRead) / 1_000_000;
@@ -894,7 +920,10 @@ export interface WeeklyCostStackData {
   total: number;
 }
 
-export function aggregateByDate(usage: RuntimeUsage[]): {
+export function aggregateByDate(
+  usage: RuntimeUsage[],
+  pricings?: PricingOverrides,
+): {
   dailyTokens: DailyTokenData[];
   dailyCost: DailyCostData[];
   dailyCostStack: DailyCostStackData[];
@@ -922,10 +951,10 @@ export function aggregateByDate(usage: RuntimeUsage[]): {
     existing.cacheWrite += u.cache_write_tokens;
     dateMap.set(u.date, existing);
 
-    const dayCost = (costMap.get(u.date) ?? 0) + estimateCost(u);
+    const dayCost = (costMap.get(u.date) ?? 0) + estimateCost(u, pricings);
     costMap.set(u.date, dayCost);
 
-    const breakdown = estimateCostBreakdown(u);
+    const breakdown = estimateCostBreakdown(u, pricings);
     const stack = stackMap.get(u.date) ?? {
       input: 0,
       output: 0,
@@ -942,7 +971,7 @@ export function aggregateByDate(usage: RuntimeUsage[]): {
     const m = modelMap.get(modelName) ?? { tokens: 0, cost: 0 };
     m.tokens +=
       u.input_tokens + u.output_tokens + u.cache_read_tokens + u.cache_write_tokens;
-    m.cost += estimateCost(u);
+    m.cost += estimateCost(u, pricings);
     modelMap.set(modelName, m);
   }
 
@@ -1023,6 +1052,7 @@ export function aggregateByWeek(
   usage: readonly WeeklyAggregable[],
   tz: string,
   weekCount: number,
+  pricings?: PricingOverrides,
 ): {
   weeklyTokens: WeeklyTokenData[];
   weeklyCostStack: WeeklyCostStackData[];
@@ -1063,7 +1093,7 @@ export function aggregateByWeek(
     tokens.cacheRead += u.cache_read_tokens;
     tokens.cacheWrite += u.cache_write_tokens;
 
-    const breakdown = estimateCostBreakdown(u);
+    const breakdown = estimateCostBreakdown(u, pricings);
     const stack = stackMap.get(wkStart);
     if (!stack) continue;
     stack.input += breakdown.input;
@@ -1221,7 +1251,10 @@ export interface CostByKey {
 // Per-(agent, model) rows → per-agent totals. Cost is summed across all
 // models for that agent, then the list is sorted by cost desc so the
 // heaviest-spending agent appears first.
-export function aggregateCostByAgent(rows: RuntimeUsageByAgent[]): CostByKey[] {
+export function aggregateCostByAgent(
+  rows: RuntimeUsageByAgent[],
+  pricings?: PricingOverrides,
+): CostByKey[] {
   const map = new Map<string, CostByKey>();
   for (const r of rows) {
     const entry = map.get(r.agent_id) ?? {
@@ -1232,7 +1265,7 @@ export function aggregateCostByAgent(rows: RuntimeUsageByAgent[]): CostByKey[] {
     };
     entry.tokens +=
       r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_write_tokens;
-    entry.cost += estimateCost(r);
+    entry.cost += estimateCost(r, pricings);
     entry.taskCount += r.task_count;
     map.set(r.agent_id, entry);
   }
@@ -1241,14 +1274,17 @@ export function aggregateCostByAgent(rows: RuntimeUsageByAgent[]): CostByKey[] {
 
 // Per-(date, model) rows → per-model totals (the "By model" tab reuses the
 // daily-grain data we already cache, so no extra request is needed).
-export function aggregateCostByModel(rows: RuntimeUsage[]): CostByKey[] {
+export function aggregateCostByModel(
+  rows: RuntimeUsage[],
+  pricings?: PricingOverrides,
+): CostByKey[] {
   const map = new Map<string, CostByKey>();
   for (const r of rows) {
     const key = modelGroupingKey(r.model, r.provider);
     const entry = map.get(key) ?? { key, tokens: 0, cost: 0, taskCount: 0 };
     entry.tokens +=
       r.input_tokens + r.output_tokens + r.cache_read_tokens + r.cache_write_tokens;
-    entry.cost += estimateCost(r);
+    entry.cost += estimateCost(r, pricings);
     map.set(key, entry);
   }
   return Array.from(map.values()).toSorted((a, b) => b.cost - a.cost);

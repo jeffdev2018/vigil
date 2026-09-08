@@ -71,8 +71,8 @@ export function ActivityHeatmap({
   const { t } = useT("runtimes");
   const locale = useLocale();
   const weekdayLabels = useMemo(() => fmtWeekdays(locale), [locale]);
-  // Memo dep — estimateCost (called inside the body below) consults the
-  // user-override store, so saving a custom rate must invalidate the cells.
+  // Subscribed and passed into estimateCost below so a saved custom rate
+  // re-runs the memo instead of leaving stale cells on the heatmap.
   const pricings = useCustomPricingStore((s) => s.pricings);
   const { cells, monthLabels, insights } = useMemo(() => {
     // Sum priced cost per day. Cost (not tokens) gives the colour scale a
@@ -80,7 +80,7 @@ export function ActivityHeatmap({
     // square here means the same thing as a tall bar in Daily cost.
     const dateCost = new Map<string, number>();
     for (const u of usage) {
-      dateCost.set(u.date, (dateCost.get(u.date) ?? 0) + estimateCost(u));
+      dateCost.set(u.date, (dateCost.get(u.date) ?? 0) + estimateCost(u, pricings));
     }
 
     // Anchor the grid on the Monday of the week containing "today" in the
