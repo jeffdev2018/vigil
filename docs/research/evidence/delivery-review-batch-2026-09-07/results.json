@@ -1,0 +1,184 @@
+[
+  {
+    "issue": "DEV-16",
+    "expected": "mast-9",
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 1326,
+    "error": null
+  },
+  {
+    "issue": "DEV-17",
+    "expected": "mast-9",
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 1269,
+    "error": null
+  },
+  {
+    "issue": "DEV-18",
+    "expected": "mast-9",
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 1182,
+    "error": null
+  },
+  {
+    "issue": "DEV-9",
+    "expected": "keel-4",
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 6787,
+    "error": null
+  },
+  {
+    "issue": "DEV-10",
+    "expected": "keel-4",
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 6689,
+    "error": null
+  },
+  {
+    "issue": "DEV-6",
+    "expected": "quay-77",
+    "bodies": [
+      "quay-77"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 9960,
+    "error": null
+  },
+  {
+    "issue": "DEV-5",
+    "expected": "fern-1",
+    "bodies": [
+      "fern-1"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 10131,
+    "error": null
+  },
+  {
+    "issue": "DEV-4",
+    "expected": "NL-ADD-9",
+    "bodies": [
+      "NL-ADD-9"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 10418,
+    "error": null
+  },
+  {
+    "issue": "DEV-3",
+    "expected": "harbor-17",
+    "bodies": [
+      "harbor-17"
+    ],
+    "hit": true,
+    "http": 201,
+    "decision": "accepted",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 10528,
+    "error": null
+  },
+  {
+    "issue": "DEV-12",
+    "expected": "mast-9",
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "http": 201,
+    "decision": "changes_requested",
+    "human_effort_seconds": 2,
+    "review_delay_seconds": 1642,
+    "error": null
+  },
+  {
+    "issue": "DEV-13",
+    "expected": "mast-9",
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "http": 201,
+    "decision": "changes_requested",
+    "human_effort_seconds": 2,
+    "review_delay_seconds": 1558,
+    "error": null
+  },
+  {
+    "issue": "DEV-14",
+    "expected": "mast-9",
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "http": 201,
+    "decision": "changes_requested",
+    "human_effort_seconds": 2,
+    "review_delay_seconds": 1483,
+    "error": null
+  },
+  {
+    "issue": "DEV-8",
+    "expected": "keel-4",
+    "bodies": [
+      "517f91bf-be45-4f11-a053-aaef6873b748"
+    ],
+    "hit": false,
+    "http": 201,
+    "decision": "changes_requested",
+    "human_effort_seconds": 2,
+    "review_delay_seconds": 6882,
+    "error": null
+  },
+  {
+    "issue": "DEV-7",
+    "expected": "keel-4",
+    "bodies": [
+      "Le bug dans broken.js a \u00e9t\u00e9 corrig\u00e9 et les tests passent. La PR est disponible ici : https://github.com/jeffdev2018/multica-bugfix-pilot/pull/1"
+    ],
+    "hit": false,
+    "http": 201,
+    "decision": "changes_requested",
+    "human_effort_seconds": 2,
+    "review_delay_seconds": 6989,
+    "error": null
+  }
+]

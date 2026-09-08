@@ -150,6 +150,12 @@ load_manifest() {
   require_env_name "$1"
   file="$(manifest_of "$1")"
   [ -f "$file" ] || return 1
+  # Clear ambient desktop / workspaces identity before sourcing. A dogfood
+  # shell that exported vigil-482's DESKTOP_USER_DATA_DIR (or workspaces root)
+  # would otherwise poison `destroy` of every other registry entry — and fail
+  # scripts/dev-env.test.sh whenever that ambient path was present.
+  unset DESKTOP_USER_DATA_DIR DESKTOP_APP_SUFFIX DESKTOP_RENDERER_PORT \
+    DESKTOP_ENV_FILE WORKSPACES_ROOT 2>/dev/null || true
   # shellcheck disable=SC1090
   . "$file"
   [ "$NAME" = "$1" ] || die "Manifest $file declares NAME=$NAME; expected $1."

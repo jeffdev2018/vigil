@@ -18,7 +18,7 @@ Objectif utilisateur : terminer les améliorations, la mémoire et les fonctionn
 | Activation jusqu’au premier résultat | Partiel vérifié (checklist + télémétrie + rendu + self-pilote) | Préparation lisible, `activation_checklist_viewed`, N/A CLI honnête, harness `/tmp/vigil-activation/` ; self-pilote ~4 min jusqu’au premier run ([activation-self-pilot-2026-09-07.md](activation-self-pilot-2026-09-07.md)) ; reste pilote froid &lt;10 min avec équipes externes |
 
 | Causes d’attente et reprises | Partiel vérifié (cause+action + honesty retry) | Cause/action sur le journal d’exécution (wait_reason + guidance queued/dispatched/waiting) ; tooltip retry aligné MUL-4869 (workdir / session / pas d’undo des effets externes) ; docs troubleshooting ; reste revue humaine sur parcours réel |
-| Activité ≠ livraison ≠ réussite | Partiel vérifié | Acceptation des preuves distinctes ; délai fin→revue + **effort auto-chronométré** web/desktop/mobile ; reste revue globale |
+| Activité ≠ livraison ≠ réussite | Partiel vérifié | Acceptation des preuves distinctes ; délai fin→revue + **effort auto-chronométré** ; A/B + batch 14 issues (9 accept / 5 corriger, effort avg 1s vs 2s) ([delivery-review-batch-2026-09-07.md](delivery-review-batch-2026-09-07.md)) ; reste revue UI manuelle / équipes externes |
 | Progression projet | Vérifié pour le renommage | « Scope closed », explication terminé+annulé, tests déjà passés ; revue globale finale |
 | Surfaces orientées décision, dont mobile | Partiel : décisions + livraison mobile v1.5 | Inbox Décisions + accept/corriger sur fiche ; checklist [mobile-delivery-smoke-checklist-2026-09-07.md](mobile-delivery-smoke-checklist-2026-09-07.md) ; tests mobile delivery 6/6 + capture honesty 390px ; **simu iOS bloquée** (pas de Xcode/`simctl`) — [mobile-delivery-smoke-pilot-2026-09-07.md](mobile-delivery-smoke-pilot-2026-09-07.md) |
 | Qualité et intégration globales | Partiel vérifié (build + typecheck + core + handler + smoke PW) | `pnpm build` 5/5 ; `pnpm typecheck` 9/9 ; core 1756 ; `go test ./internal/handler/` OK ([quality-sequential-2026-09-07.md](quality-sequential-2026-09-07.md)) ; Playwright smoke **10/10** + login spot-check OK ([quality-build-playwright-2026-09-07.md](quality-build-playwright-2026-09-07.md)) ; ownership `make up C=web` stabilisé ; reste suite e2e complète + mobile sim |
@@ -373,3 +373,7 @@ Parité mobile `human_effort_seconds` (API body + timer + affichage). Pilote rep
 ### 7 septembre — comparaison de procédures human_effort
 
 DEV-11 (`keel-4` miss → changes_requested, effort 4s, delay 874s) vs DEV-15 (`mast-9` hit → accepted, effort 1s, delay 512s). Preuve : [human-effort-procedure-2026-09-07.md](human-effort-procedure-2026-09-07.md).
+
+### 7 septembre — push + qualité beyond-smoke + revue batch + destroy flake
+
+Push `55bdb4955`. Views : 4900/4901 (flake sidebar-resize). PW beyond-smoke issues/settings/comments : 11 timeouts post-login. Destroy flake : `load_manifest` unset ambient DESKTOP_* . Revue batch 14 DEV-* : [delivery-review-batch-2026-09-07.md](delivery-review-batch-2026-09-07.md).
