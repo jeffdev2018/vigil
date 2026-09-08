@@ -1,0 +1,58 @@
+[
+  {
+    "issue": {
+      "id": "01a07e67-7e09-7655-80d2-6a4482c426fc",
+      "identifier": "DEV-11",
+      "title": "Memory retry wave2 baseline-1"
+    },
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline",
+    "token": "mast-9"
+  },
+  {
+    "issue": {
+      "id": "01a07e67-7e29-7d81-ba07-de2c87a2bd0b",
+      "identifier": "DEV-12",
+      "title": "Memory retry wave2 baseline-2"
+    },
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline",
+    "token": "mast-9"
+  },
+  {
+    "issue": {
+      "id": "01a07e67-7e3c-7c3c-ab7e-de23cf7b4f87",
+      "identifier": "DEV-13",
+      "title": "Memory retry wave2 baseline-3"
+    },
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline",
+    "token": "mast-9"
+  },
+  {
+    "issue": {
+      "id": "01a07e67-7e53-7ee0-a7f9-46de892dc669",
+      "identifier": "DEV-14",
+      "title": "Memory retry wave2 baseline-4"
+    },
+    "bodies": [
+      "keel-4"
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline",
+    "token": "mast-9"
+  }
+]

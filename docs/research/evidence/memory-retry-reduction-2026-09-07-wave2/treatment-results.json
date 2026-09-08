@@ -1,0 +1,62 @@
+[
+  {
+    "issue": {
+      "id": "01a07e6c-afd9-78d9-866b-5fbb0dab079f",
+      "identifier": "DEV-15",
+      "title": "Memory retry wave2 treatment-1"
+    },
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment",
+    "token": "mast-9",
+    "project_revision": 5
+  },
+  {
+    "issue": {
+      "id": "01a07e6c-afed-72da-9320-d99c2372d65e",
+      "identifier": "DEV-16",
+      "title": "Memory retry wave2 treatment-2"
+    },
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment",
+    "token": "mast-9",
+    "project_revision": 5
+  },
+  {
+    "issue": {
+      "id": "01a07e6c-affa-7d17-9ed7-caf4a97e54e5",
+      "identifier": "DEV-17",
+      "title": "Memory retry wave2 treatment-3"
+    },
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment",
+    "token": "mast-9",
+    "project_revision": 5
+  },
+  {
+    "issue": {
+      "id": "01a07e6c-b003-7737-8c7a-52d92a5aaa45",
+      "identifier": "DEV-18",
+      "title": "Memory retry wave2 treatment-4"
+    },
+    "bodies": [
+      "mast-9"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment",
+    "token": "mast-9",
+    "project_revision": 5
+  }
+]

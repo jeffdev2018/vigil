@@ -1,0 +1,14 @@
+{
+  "issue": {
+    "id": "01a07e67-7e09-7655-80d2-6a4482c426fc",
+    "identifier": "DEV-11",
+    "title": "Memory retry wave2 baseline-1"
+  },
+  "bodies": [
+    "keel-4"
+  ],
+  "hit": false,
+  "correction_needed": true,
+  "arm": "baseline",
+  "token": "mast-9"
+}

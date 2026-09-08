@@ -1,0 +1,12 @@
+{
+  "token": "mast-9",
+  "wave": 2,
+  "baseline_n": 4,
+  "treatment_n": 4,
+  "baseline_correction_needed": 4,
+  "treatment_correction_needed": 0,
+  "baseline_rate": 1.0,
+  "treatment_rate": 0.0,
+  "relative_reduction": 1.0,
+  "pending_treatment": []
+}

@@ -1,0 +1,15 @@
+{
+  "issue": {
+    "id": "01a07e6c-affa-7d17-9ed7-caf4a97e54e5",
+    "identifier": "DEV-17",
+    "title": "Memory retry wave2 treatment-3"
+  },
+  "bodies": [
+    "mast-9"
+  ],
+  "hit": true,
+  "correction_needed": false,
+  "arm": "treatment",
+  "token": "mast-9",
+  "project_revision": 5
+}
