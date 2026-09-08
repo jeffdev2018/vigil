@@ -85,6 +85,17 @@ import {
   PluginPreviewSchema,
   EMPTY_PLUGIN_INSTALLATION_LIST,
   EMPTY_PLUGIN_PREVIEW,
+  InboxBulkActionResponseSchema,
+  EMPTY_INBOX_BULK_ACTION_RESPONSE,
+  BatchDeleteIssuesResponseSchema,
+  EMPTY_BATCH_DELETE_ISSUES_RESPONSE,
+  CancelAgentTasksResponseSchema,
+  EMPTY_CANCEL_AGENT_TASKS_RESPONSE,
+  OIDCLoginResponseSchema,
+  IssueCliTokenResponseSchema,
+  QuickCreateIssueResponseSchema,
+  UnbindAgentsAndDeleteRuntimeResponseSchema,
+  EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE,
 } from "./schemas";
 import { IssueViewSchema, IssueViewListSchema } from "./schemas";
 import {
@@ -5636,6 +5647,158 @@ describe("RedeemSlackBindingTokenResponseSchema", () => {
   it("does not throw on a malformed payload", () => {
     for (const malformed of [null, "oops", 42, [1, 2]]) {
       expect(parseWithFallback(malformed, RedeemSlackBindingTokenResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch E — inbox bulk actions, issue batch-delete, agent task
+// cancellation, OIDC login completion, CLI token issuance, quick-create,
+// runtime unbind-and-delete
+// ---------------------------------------------------------------------------
+
+describe("InboxBulkActionResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/inbox/mark-all-read" };
+
+  it("keeps a valid count intact", () => {
+    expect(parseWithFallback({ count: 5 }, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, ENDPOINT)).toEqual({ count: 5 });
+  });
+
+  it("falls back to count 0 on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(
+        parseWithFallback(malformed, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, ENDPOINT),
+      ).toEqual(EMPTY_INBOX_BULK_ACTION_RESPONSE);
+    }
+  });
+});
+
+describe("BatchDeleteIssuesResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/issues/batch-delete" };
+
+  it("keeps a valid deleted count intact", () => {
+    expect(parseWithFallback({ deleted: 3 }, BatchDeleteIssuesResponseSchema, EMPTY_BATCH_DELETE_ISSUES_RESPONSE, ENDPOINT)).toEqual({ deleted: 3 });
+  });
+
+  it("falls back to deleted 0 on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(
+        parseWithFallback(malformed, BatchDeleteIssuesResponseSchema, EMPTY_BATCH_DELETE_ISSUES_RESPONSE, ENDPOINT),
+      ).toEqual(EMPTY_BATCH_DELETE_ISSUES_RESPONSE);
+    }
+  });
+});
+
+describe("CancelAgentTasksResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/agents/:id/cancel-tasks" };
+
+  it("keeps a valid cancelled count intact", () => {
+    expect(parseWithFallback({ cancelled: 2 }, CancelAgentTasksResponseSchema, EMPTY_CANCEL_AGENT_TASKS_RESPONSE, ENDPOINT)).toEqual({ cancelled: 2 });
+  });
+
+  it("falls back to cancelled 0 on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(
+        parseWithFallback(malformed, CancelAgentTasksResponseSchema, EMPTY_CANCEL_AGENT_TASKS_RESPONSE, ENDPOINT),
+      ).toEqual(EMPTY_CANCEL_AGENT_TASKS_RESPONSE);
+    }
+  });
+});
+
+describe("OIDCLoginResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /auth/oidc/callback" };
+  const user = {
+    id: "user-1",
+    email: "a@b.com",
+    name: "Ada",
+    avatar_url: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+  const login = { token: "tok-1", user, workspace_slug: "acme" };
+
+  it("keeps a valid OIDC login response intact", () => {
+    const parsed = parseWithFallback<typeof login | null>(login, OIDCLoginResponseSchema, null, ENDPOINT);
+    expect(parsed?.token).toBe("tok-1");
+    expect(parsed?.workspace_slug).toBe("acme");
+    expect(parsed?.user.id).toBe("user-1");
+  });
+
+  it("falls back to null (not an invented token) when workspace_slug is missing", () => {
+    const { workspace_slug: _slug, ...rest } = login;
+    expect(parseWithFallback(rest, OIDCLoginResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(parseWithFallback(malformed, OIDCLoginResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("IssueCliTokenResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/cli-token" };
+
+  it("keeps a valid token intact", () => {
+    expect(parseWithFallback({ token: "tok-1" }, IssueCliTokenResponseSchema, null, ENDPOINT)).toEqual({ token: "tok-1" });
+  });
+
+  it("falls back to null (not an invented token) when token is missing", () => {
+    expect(parseWithFallback({}, IssueCliTokenResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, IssueCliTokenResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("QuickCreateIssueResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/issues/quick-create" };
+
+  it("keeps a valid task_id intact", () => {
+    expect(parseWithFallback({ task_id: "task-1" }, QuickCreateIssueResponseSchema, null, ENDPOINT)).toEqual({ task_id: "task-1" });
+  });
+
+  it("falls back to null (a failed create, not a blank task) when task_id is missing", () => {
+    expect(parseWithFallback({}, QuickCreateIssueResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, QuickCreateIssueResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("UnbindAgentsAndDeleteRuntimeResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/runtimes/:id/unbind-agents-and-delete" };
+  const result = {
+    status: "deleted",
+    agents_unbound: 2,
+    tasks_cancelled: 1,
+    autopilots_paused: 0,
+  };
+
+  it("keeps a valid result intact", () => {
+    expect(
+      parseWithFallback(result, UnbindAgentsAndDeleteRuntimeResponseSchema, EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE, ENDPOINT),
+    ).toEqual(result);
+  });
+
+  it("defaults tasks_cancelled to 0 when absent", () => {
+    const { tasks_cancelled: _tc, ...rest } = result;
+    expect(
+      parseWithFallback(rest, UnbindAgentsAndDeleteRuntimeResponseSchema, EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE, ENDPOINT),
+    ).toEqual({ ...rest, tasks_cancelled: 0 });
+  });
+
+  it("falls back to EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, UnbindAgentsAndDeleteRuntimeResponseSchema, EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE, ENDPOINT),
+      ).toEqual(EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE);
     }
   });
 });

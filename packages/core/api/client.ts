@@ -356,7 +356,7 @@ import {
   type CreateBudgetPolicyRequest,
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
-import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
@@ -844,6 +844,7 @@ import {
   MikaBootstrapResponseSchema,
   AgentEnvResponseSchema,
   AgentRuntimeListSchema,
+  AgentRuntimeSchema,
   // JEF-321 batch B
   RuntimeUpdateSchema,
   MALFORMED_RUNTIME_UPDATE,
@@ -893,6 +894,18 @@ import {
   EMPTY_PROJECT_RESOURCE,
   ListProjectResourcesResponseSchema,
   EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
+  // JEF-321 batch E
+  InboxBulkActionResponseSchema,
+  EMPTY_INBOX_BULK_ACTION_RESPONSE,
+  BatchDeleteIssuesResponseSchema,
+  EMPTY_BATCH_DELETE_ISSUES_RESPONSE,
+  CancelAgentTasksResponseSchema,
+  EMPTY_CANCEL_AGENT_TASKS_RESPONSE,
+  OIDCLoginResponseSchema,
+  IssueCliTokenResponseSchema,
+  QuickCreateIssueResponseSchema,
+  UnbindAgentsAndDeleteRuntimeResponseSchema,
+  EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -1076,7 +1089,7 @@ function remapSkillImportError(err: unknown): unknown {
   return new ApiError(message, err.status, err.statusText, err.body);
 }
 
-function skillFromImportResult(raw: unknown, endpoint: string): Skill {
+function parseSkillImportResult(raw: unknown, endpoint: string): Skill {
   const result = parseWithFallback(
     raw,
     SkillImportResultSchema,
@@ -1335,7 +1348,14 @@ export class ApiClient {
   }
 
   async issueCliToken(): Promise<{ token: string }> {
-    return this.fetch("/api/cli-token", { method: "POST" });
+    const raw = await this.fetch<unknown>("/api/cli-token", { method: "POST" });
+    const parsed = parseWithFallback<{ token: string } | null>(raw, IssueCliTokenResponseSchema, null, {
+      endpoint: "POST /api/cli-token",
+    });
+    if (!parsed) {
+      throw new Error("POST /api/cli-token returned a malformed response");
+    }
+    return parsed;
   }
 
   async getMe(): Promise<User> {
@@ -1644,10 +1664,20 @@ export class ApiClient {
     parent_issue_id?: string | null;
     attachment_ids?: string[];
   }): Promise<{ task_id: string }> {
-    return this.fetch("/api/issues/quick-create", {
+    // Same "create is a failed mutation, not a safe-empty read" rule as
+    // createIssue: an invented empty task_id would report success on a
+    // submission that actually failed to enqueue anything.
+    const raw = await this.fetch<unknown>("/api/issues/quick-create", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    const parsed = parseWithFallback<{ task_id: string } | null>(raw, QuickCreateIssueResponseSchema, null, {
+      endpoint: "POST /api/issues/quick-create",
+    });
+    if (!parsed) {
+      throw new Error("POST /api/issues/quick-create returned a malformed response");
+    }
+    return parsed;
   }
 
   async getCommentSubIssuePreview(anchorCommentId: string): Promise<SourceContextPreview> {
@@ -1751,7 +1781,15 @@ export class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
-    return throwIfTransitionHeld(raw) as Issue;
+    // F28: a 202 means the write is held for an approver, not applied.
+    const checked = throwIfTransitionHeld(raw);
+    const issue = parseWithFallback<Issue | null>(checked, IssueSchema, null, {
+      endpoint: "POST /api/issues/:id/move",
+    });
+    if (!issue) {
+      throw new Error("POST /api/issues/:id/move returned a malformed issue");
+    }
+    return issue;
   }
 
   async listChildIssues(id: string): Promise<{ issues: Issue[] }> {
@@ -2672,9 +2710,12 @@ export class ApiClient {
   }
 
   async batchDeleteIssues(issueIds: string[]): Promise<{ deleted: number }> {
-    return this.fetch("/api/issues/batch-delete", {
+    const raw = await this.fetch<unknown>("/api/issues/batch-delete", {
       method: "POST",
       body: JSON.stringify({ issue_ids: issueIds }),
+    });
+    return parseWithFallback(raw, BatchDeleteIssuesResponseSchema, EMPTY_BATCH_DELETE_ISSUES_RESPONSE, {
+      endpoint: "POST /api/issues/batch-delete",
     });
   }
 
@@ -2698,7 +2739,11 @@ export class ApiClient {
     // thread's anchor rather than carrying their own.
     anchor?: CreateCommentAnchor,
   ): Promise<Comment> {
-    return this.fetch(`/api/issues/${issueId}/comments`, {
+    // Same "create is a failed mutation, not a safe-empty read" rule as
+    // createIssue: useCreateComment reads the returned comment directly to
+    // build the optimistic timeline entry, so a malformed body must reject
+    // rather than insert a blank comment row.
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/comments`, {
       method: "POST",
       body: JSON.stringify({
         content,
@@ -2709,6 +2754,13 @@ export class ApiClient {
         ...(anchor ? { anchor } : {}),
       }),
     });
+    const comment = parseWithFallback<Comment | null>(raw, CommentSchema, null, {
+      endpoint: "POST /api/issues/:id/comments",
+    });
+    if (!comment) {
+      throw new Error("POST /api/issues/:id/comments returned a malformed comment");
+    }
+    return comment;
   }
 
   /**
@@ -3140,7 +3192,10 @@ export class ApiClient {
   // count of cancelled rows; broadcasts task:cancelled for each so other
   // surfaces can clear their live cards.
   async cancelAgentTasks(id: string): Promise<{ cancelled: number }> {
-    return this.fetch(`/api/agents/${id}/cancel-tasks`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/agents/${id}/cancel-tasks`, { method: "POST" });
+    return parseWithFallback(raw, CancelAgentTasksResponseSchema, EMPTY_CANCEL_AGENT_TASKS_RESPONSE, {
+      endpoint: "POST /api/agents/:id/cancel-tasks",
+    });
   }
 
   async listRuntimes(
@@ -3533,10 +3588,16 @@ export class ApiClient {
     tasks_cancelled: number;
     autopilots_paused?: number;
   }> {
-    return this.fetch(`/api/runtimes/${runtimeId}/unbind-agents-and-delete`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}/unbind-agents-and-delete`, {
       method: "POST",
       body: JSON.stringify({ expected_active_agent_ids: expectedActiveAgentIds }),
     });
+    return parseWithFallback(
+      raw,
+      UnbindAgentsAndDeleteRuntimeResponseSchema,
+      EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE,
+      { endpoint: "POST /api/runtimes/:id/unbind-agents-and-delete" },
+    );
   }
 
   async updateRuntime(
@@ -3556,10 +3617,17 @@ export class ApiClient {
       sandbox_allowed_hosts?: string[];
     },
   ): Promise<AgentRuntime> {
-    return this.fetch(`/api/runtimes/${runtimeId}`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes/${runtimeId}`, {
       method: "PATCH",
       body: JSON.stringify(patch),
     });
+    const runtime = parseWithFallback<AgentRuntime | null>(raw, AgentRuntimeSchema, null, {
+      endpoint: "PATCH /api/runtimes/:id",
+    });
+    if (!runtime) {
+      throw new Error("PATCH /api/runtimes/:id returned a malformed runtime");
+    }
+    return runtime;
   }
 
   // ---------------------------------------------------------------------
@@ -5520,19 +5588,31 @@ export class ApiClient {
   }
 
   async markAllInboxRead(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/mark-all-read", { method: "POST" });
+    const raw = await this.fetch<unknown>("/api/inbox/mark-all-read", { method: "POST" });
+    return parseWithFallback(raw, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, {
+      endpoint: "POST /api/inbox/mark-all-read",
+    });
   }
 
   async archiveAllInbox(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/archive-all", { method: "POST" });
+    const raw = await this.fetch<unknown>("/api/inbox/archive-all", { method: "POST" });
+    return parseWithFallback(raw, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, {
+      endpoint: "POST /api/inbox/archive-all",
+    });
   }
 
   async archiveAllReadInbox(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/archive-all-read", { method: "POST" });
+    const raw = await this.fetch<unknown>("/api/inbox/archive-all-read", { method: "POST" });
+    return parseWithFallback(raw, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, {
+      endpoint: "POST /api/inbox/archive-all-read",
+    });
   }
 
   async archiveCompletedInbox(): Promise<{ count: number }> {
-    return this.fetch("/api/inbox/archive-completed", { method: "POST" });
+    const raw = await this.fetch<unknown>("/api/inbox/archive-completed", { method: "POST" });
+    return parseWithFallback(raw, InboxBulkActionResponseSchema, EMPTY_INBOX_BULK_ACTION_RESPONSE, {
+      endpoint: "POST /api/inbox/archive-completed",
+    });
   }
 
   // Notification preferences
@@ -6189,7 +6269,7 @@ export class ApiClient {
     }
 
     const raw = (await res.json()) as unknown;
-    return skillFromImportResult(raw, "POST /api/skills/import");
+    return parseSkillImportResult(raw, "POST /api/skills/import");
   }
 
   // Re-downloads the skill from its stored config.origin source, replacing
@@ -7668,7 +7748,17 @@ export class ApiClient {
   }
 
   async completeOIDCLogin(code: string, state: string): Promise<{ token: string; user: User; workspace_slug: string }> {
-    return this.fetch("/auth/oidc/callback", { method: "POST", body: JSON.stringify({ code, state }) });
+    const raw = await this.fetch<unknown>("/auth/oidc/callback", { method: "POST", body: JSON.stringify({ code, state }) });
+    const login = parseWithFallback<{ token: string; user: User; workspace_slug: string } | null>(
+      raw,
+      OIDCLoginResponseSchema,
+      null,
+      { endpoint: "POST /auth/oidc/callback" },
+    );
+    if (!login) {
+      throw new Error("POST /auth/oidc/callback returned a malformed login response");
+    }
+    return login;
   }
 
   // BYOK model keys (K48). Values are write-only: the server answers hints.
@@ -7688,7 +7778,10 @@ export class ApiClient {
   }
 
   async retireModelKey(workspaceId: string, keyId: string): Promise<{ retired: boolean }> {
-    return this.fetch(`/api/workspaces/${workspaceId}/model-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/model-keys/${encodeURIComponent(keyId)}`, { method: "DELETE" });
+    return parseWithFallback(raw, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, {
+      endpoint: "DELETE /api/workspaces/:id/model-keys/:keyId",
+    });
   }
 
   // Eval Lab (K24). A proved issue becomes a case; suites of cases are
