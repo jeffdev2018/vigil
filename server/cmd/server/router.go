@@ -770,11 +770,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	//     (xoxb-) stored on the channel_installation row. It gates the inbound
 	//     ResolverSet + the outbound reply subscriber, so without it there is no
 	//     Slack at all.
-	//   - MULTICA_SLACK_APP_TOKEN is the app-level token (xapp-) authorizing the
-	//     single Socket Mode connection. It cannot be obtained via OAuth, so it
-	//     is a one-time operator config. Without it, inbound is disabled (the
-	//     ResolverSet + outbound are still wired so an existing install's replies
-	//     keep flowing, but no new events are received).
+	//   - There is no deployment-level app token. Each installation brings its
+	//     own app-level token (xapp-), stored encrypted on its row under the
+	//     same key, and opens its own Socket Mode connection (see
+	//     integrations/slack/config.go). An installation without one has no
+	//     inbound; its outbound replies still flow.
 	//
 	// The ResolverSet/Outbound share the same engine.ChatSession, channel_*
 	// tables, IssueService and TaskService as Feishu, so /issue, dedup, and
