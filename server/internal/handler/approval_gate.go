@@ -125,6 +125,14 @@ func (h *Handler) openGate(ctx context.Context, task db.AgentTaskQueue, gateType
 	if err != nil {
 		return db.ApprovalGateEvent{}, fmt.Errorf("load workspace: %w", err)
 	}
+	// A halt reaches the runs already in flight here. They keep their tools
+	// and their config — those were resolved at claim and cannot be taken
+	// back — but every action that asks first is refused, which is every
+	// action the product calls consequential. The caller treats an error as a
+	// refusal, so this is the existing fail-closed path, not a new one.
+	if halt := service.RunHaltFromSettings(ws.Settings); halt.Halted {
+		return db.ApprovalGateEvent{}, errors.New(halt.Message())
+	}
 	cfg := service.ApprovalGatesSettings(ws.Settings)
 	label := map[string]string{GateGitPush: "git push", GateMCPToolCall: "tool call", GateSpend: "spend"}[gateType]
 	options, _ := json.Marshal([]DecisionOption{

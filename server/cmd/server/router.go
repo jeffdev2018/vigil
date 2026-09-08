@@ -2298,6 +2298,11 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// configured, which is the client's cue to use speechSynthesis.
 			r.With(handler.RequireHumanActor).Post("/api/voice/speak", h.SpeakVoice)
 
+			// Fleet halt (K05): one switch that stops this workspace's agents.
+			// Readable by every member — someone whose run was refused has to
+			// be able to see by whom — and writable by owner/admin.
+			r.Get("/api/run-halt", h.GetRunHalt)
+			r.Put("/api/run-halt", h.PutRunHalt)
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.
 			r.Route("/api/tasks/{taskId}/gates", func(r chi.Router) {
 				r.Get("/", h.ListApprovalGates)
