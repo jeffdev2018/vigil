@@ -247,11 +247,11 @@ function StepperTrigger({
   const btnRef = useRef<HTMLButtonElement>(null)
   // Vendored ReUI stepper: registers the trigger node once it is mounted.
   // The ref is the mount signal here; registerTrigger is a context callback.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (btnRef.current) {
       registerTrigger(btnRef.current)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [btnRef.current])
 
   // Find our index among triggers for navigation
