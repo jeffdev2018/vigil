@@ -141,6 +141,9 @@ function Stepper({
       triggerNodes,
       indicators,
     }),
+    // Vendored ReUI stepper: the focus helpers are stable closures over refs,
+    // omitted upstream on purpose.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       currentStep,
       handleSetActiveStep,
@@ -242,6 +245,9 @@ function StepperTrigger({
 
   // Register this trigger for keyboard navigation
   const btnRef = useRef<HTMLButtonElement>(null)
+  // Vendored ReUI stepper: registers the trigger node once it is mounted.
+  // The ref is the mount signal here; registerTrigger is a context callback.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (btnRef.current) {
       registerTrigger(btnRef.current)
@@ -252,7 +258,7 @@ function StepperTrigger({
   const myIdx = useMemo(
     () =>
       triggerNodes.findIndex((n: HTMLButtonElement) => n === btnRef.current),
-    [triggerNodes, btnRef.current]
+    [triggerNodes]
   )
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {

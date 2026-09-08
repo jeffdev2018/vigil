@@ -51,6 +51,9 @@ export function TabContent() {
     if (!group) return;
     const tab = group.tabs.find((t) => t.id === group.activeTabId);
     if (tab) document.title = tab.title;
+    // Field-level deps on purpose: only the active tab and the tab list can
+    // change the title; re-running on every other `group` change is waste.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group?.activeTabId, group?.tabs]);
 
   if (!group) return null;
