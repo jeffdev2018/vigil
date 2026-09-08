@@ -671,20 +671,6 @@ func writeOrgContext(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("\n")
 }
 
-// writeIssueMetadata emits the Issue Metadata discipline section
-// (compressed). The dispatcher gates by kind.hasIssueContext(); this
-// helper does not re-check.
-func writeIssueMetadata(b *strings.Builder, ctx TaskContextForEnv) {
-	b.WriteString("## Issue Metadata\n\n")
-	b.WriteString("`metadata` is a small per-issue KV bag — custom key-value state your workflow wants future runs on this issue to re-read. Most runs write nothing.\n\n")
-	b.WriteString("- **Read on entry.** Hints, not truth: latest comment / code wins on conflict. Empty `{}` is normal.\n")
-	b.WriteString("- **Write on exit.** Only what a future run will actually re-read — short values, never secrets or long content. Overwrite or `multica issue metadata delete` stale keys.")
-	if where, ok := issueContractsSkill(modelVisibleSkills(ctx.AgentSkills)); ok {
-		b.WriteString(" Full write discipline: " + where + ".")
-	}
-	b.WriteString("\n\n")
-}
-
 // writeInstructionPrecedence emits the "Agent Identity wins over the issue
 // workflow below" guardrail. Caller gates on kind == kindIssue.
 //

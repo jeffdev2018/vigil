@@ -3,7 +3,6 @@ package daemon
 import (
 	"fmt"
 	"net"
-	"time"
 )
 
 // Per-run port blocks (F09).
@@ -20,15 +19,10 @@ import (
 // shifted by a whole block while it is busy — a whole block, never one port, so
 // two runs can never end up with interleaved ranges.
 
-const (
-	// taskPortProbeTimeout bounds one listen attempt. Local only, so this is
-	// generous; the whole probe is at most taskPortProbeAttempts of these.
-	taskPortProbeTimeout = 150 * time.Millisecond
-	// taskPortProbeAttempts bounds the shifting. Past it the run gets the block
-	// its slot names anyway: a busy port is a problem the run may survive,
-	// while refusing to start is one it certainly does not.
-	taskPortProbeAttempts = 16
-)
+// taskPortProbeAttempts bounds the shifting. Past it the run gets the block
+// its slot names anyway: a busy port is a problem the run may survive,
+// while refusing to start is one it certainly does not.
+const taskPortProbeAttempts = 16
 
 // resolveTaskPortBase returns the first port of this slot's block, shifted past
 // any block whose first port is already bound.

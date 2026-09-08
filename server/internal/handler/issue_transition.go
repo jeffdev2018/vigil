@@ -59,12 +59,6 @@ func (h *Handler) loadActorSquads(ctx context.Context, workspaceID pgtype.UUID, 
 	service.LoadTransitionActorSquads(ctx, h.Queries, workspaceID, actor)
 }
 
-// loadTransitionRulesForTarget reads the enabled rules that could govern a
-// move into toCategory on an issue in projectID, with their grants.
-func (h *Handler) loadTransitionRulesForTarget(ctx context.Context, workspaceID, projectID pgtype.UUID, toCategory string) ([]issuestatus.TransitionRule, error) {
-	return service.TransitionRulesForTarget(ctx, h.Queries, workspaceID, projectID, toCategory)
-}
-
 // attachRuleActors loads the nominative grants for the given rule rows.
 func (h *Handler) attachRuleActors(ctx context.Context, rows []db.IssueTransitionRule) ([]issuestatus.TransitionRule, error) {
 	return service.AttachTransitionRuleActors(ctx, h.Queries, rows)
