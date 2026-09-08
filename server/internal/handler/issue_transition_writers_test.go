@@ -32,7 +32,20 @@ const (
 	// already run, or a delegation to one. Gating it again would double-charge
 	// the same request.
 	statusWriterDownstream statusWriterClass = "downstream"
+	// pinned: calls a status-writing query but pins status to the row's
+	// current value, because UpdateIssue's bare narg columns overwrite with
+	// NULL when unset. It cannot move a status, so neither gating it nor
+	// exempting it would mean anything — and calling it "system" would claim
+	// the platform is writing its own state, which is not what it does.
+	//
+	// A pin is a claim about the code, so this class is the only one the test
+	// verifies rather than takes on trust: statusWriterPinPattern must match.
+	statusWriterPinned statusWriterClass = "pinned"
 )
+
+// statusWriterPinPattern is the pin a `pinned` file must carry: status copied
+// from the row it just read, never from a caller's input.
+var statusWriterPinPattern = regexp.MustCompile(`params\.Status = pgtype\.Text\{String: \w+\.Status`)
 
 // issueStatusWriters classifies every non-test call site that can change
 // issue.status. Key is "<path>:<line-content-fragment>"-free: it is just the
@@ -57,6 +70,13 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/service/issue.go": statusWriterDownstream,
 	// UpdateIssuePublic is the service half of the public update path.
 	"internal/service/issue_public.go": statusWriterDownstream,
+
+	// --- Cannot move a status ----------------------------------------------
+	// The native runtime's update tool edits title, description and priority.
+	// It has to pass Status to UpdateIssue because the query nulls unset
+	// columns, so it pins the value it just read: "the native runtime does not
+	// move statuses in this iteration". The pin is asserted below.
+	"internal/service/native_agent_tools.go": statusWriterPinned,
 
 	// --- System writers ----------------------------------------------------
 	// The stuck-issue sweeper returns an in_progress issue with no live task to
@@ -149,10 +169,28 @@ func TestIssueTransitionGateCoversEveryStatusWriter(t *testing.T) {
 	sort.Strings(unclassified)
 	sort.Strings(stale)
 
+	// A pinned file's claim is checked, not believed: if the pin goes, the file
+	// can move a status and needs a real classification.
+	for path, class := range issueStatusWriters {
+		if class != statusWriterPinned {
+			continue
+		}
+		body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
+		if err != nil {
+			t.Errorf("%s is classified pinned but could not be read: %v", path, err)
+			continue
+		}
+		if !statusWriterPinPattern.Match(body) {
+			t.Errorf("%s is classified pinned but no longer pins status to the row it read. "+
+				"It can now move a status: classify it gated, downstream or system instead.", path)
+		}
+	}
+
 	for _, path := range unclassified {
 		t.Errorf("%s writes issue.status but is not classified in issueStatusWriters. "+
 			"Decide whether it runs the F28 transition gate (gated), sits behind one (downstream), "+
-			"or is the platform writing its own state (system), then add it with the reason.", path)
+			"is the platform writing its own state (system), or pins status to the current value "+
+			"and cannot move it (pinned), then add it with the reason.", path)
 	}
 	for _, path := range stale {
 		t.Errorf("issueStatusWriters classifies %s, which no longer writes issue.status; drop the entry", path)
