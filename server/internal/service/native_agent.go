@@ -62,6 +62,9 @@ const (
 	nativeBriefDescriptionCap = 6 * 1024
 	// nativeBriefChatCap bounds each archived chat message in the chat brief.
 	nativeBriefChatCap = 2000
+	// Continuity (N03): how many predecessor run summaries ride the brief of
+	// a follow-up run on the same issue.
+	nativeBriefRunSummaries = 3
 	// nativeMaxEffectfulActions bounds how many state-changing tool calls one
 	// run may perform (comments, issue writes, creates). A confused model
 	// loops; the workspace must not eat the loop.
@@ -525,6 +528,31 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext)
 	if issue.Description.Valid && strings.TrimSpace(issue.Description.String) != "" {
 		b.WriteString("\nDescription:\n" + nativeDataFence("issue description", nativeHeadTail(issue.Description.String, nativeBriefDescriptionCap)) + "\n")
 	}
+	// Continuity (N03): what the predecessor runs on this issue concluded.
+	// Their summaries are records — fenced like everything else the workspace
+	// holds — and they come out of the same brief budget.
+	priorRuns, runErr := q.ListRecentRunSummariesForIssue(ctx, db.ListRecentRunSummariesForIssueParams{
+		IssueID: issue.ID,
+		ID:      tctx.task.ID,
+		Limit:   nativeBriefRunSummaries,
+	})
+	if runErr == nil && len(priorRuns) > 0 {
+		var parts []string
+		for _, run := range priorRuns {
+			var decoded struct {
+				Summary string `json:"summary"`
+			}
+			if len(run.Result) == 0 || json.Unmarshal(run.Result, &decoded) != nil || strings.TrimSpace(decoded.Summary) == "" {
+				continue
+			}
+			parts = append(parts, "- "+nativeDataFence("previous run summary", clampString(decoded.Summary, 1000)))
+		}
+		if len(parts) > 0 {
+			b.WriteString("\nWhat previous runs on this issue concluded (newest first):\n")
+			b.WriteString(strings.Join(parts, "\n") + "\n")
+		}
+	}
+
 	// Comments newest-first into the remaining budget; the loop reads the
 	// oldest-first slice, so walk it backwards and print the kept ones in
 	// chronological order.

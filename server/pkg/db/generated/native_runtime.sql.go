@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const heartbeatNativeRuntimes = `-- name: HeartbeatNativeRuntimes :execrows
@@ -65,6 +67,50 @@ func (q *Queries) ListNativeRuntimes(ctx context.Context) ([]AgentRuntime, error
 			&i.SandboxCapabilities,
 			&i.SandboxEffective,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listRecentRunSummariesForIssue = `-- name: ListRecentRunSummariesForIssue :many
+SELECT id, result FROM agent_task_queue
+WHERE issue_id = $1
+  AND id <> $2
+  AND status IN ('completed', 'failed')
+ORDER BY completed_at DESC NULLS LAST
+LIMIT $3
+`
+
+type ListRecentRunSummariesForIssueParams struct {
+	IssueID pgtype.UUID `json:"issue_id"`
+	ID      pgtype.UUID `json:"id"`
+	Limit   int32       `json:"limit"`
+}
+
+type ListRecentRunSummariesForIssueRow struct {
+	ID     pgtype.UUID `json:"id"`
+	Result []byte      `json:"result"`
+}
+
+// Continuity (N03): the summaries of the last terminated runs on an issue,
+// newest first, so a follow-up run opens already knowing what its predecessors
+// did instead of starting from zero. Failed runs count too — their result is
+// empty but their presence is context; the caller filters what it renders.
+func (q *Queries) ListRecentRunSummariesForIssue(ctx context.Context, arg ListRecentRunSummariesForIssueParams) ([]ListRecentRunSummariesForIssueRow, error) {
+	rows, err := q.db.Query(ctx, listRecentRunSummariesForIssue, arg.IssueID, arg.ID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListRecentRunSummariesForIssueRow{}
+	for rows.Next() {
+		var i ListRecentRunSummariesForIssueRow
+		if err := rows.Scan(&i.ID, &i.Result); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
