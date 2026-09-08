@@ -707,6 +707,9 @@ import {
   AgentMemoryListSchema,
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
+  RuntimeProfileSchema,
+  RuntimeProfileListSchema,
+  EMPTY_RUNTIME_PROFILE,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -3095,28 +3098,39 @@ export class ApiClient {
   // ---------------------------------------------------------------------
 
   async listRuntimeProfiles(workspaceId: string): Promise<RuntimeProfile[]> {
-    const res = await this.fetch<{ runtime_profiles?: RuntimeProfile[] }>(
+    const raw = await this.fetch<unknown>(
       `/api/workspaces/${workspaceId}/runtime-profiles`,
     );
-    return res.runtime_profiles ?? [];
+    return parseWithFallback(raw, RuntimeProfileListSchema, { runtime_profiles: [] }, {
+      endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles",
+    }).runtime_profiles;
   }
 
   async getRuntimeProfile(
     workspaceId: string,
     profileId: string,
   ): Promise<RuntimeProfile> {
-    return this.fetch(
+    const raw = await this.fetch<unknown>(
       `/api/workspaces/${workspaceId}/runtime-profiles/${profileId}`,
     );
+    return parseWithFallback(raw, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+      endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+    });
   }
 
   async createRuntimeProfile(
     workspaceId: string,
     body: CreateRuntimeProfileRequest,
   ): Promise<RuntimeProfile> {
-    return this.fetch(`/api/workspaces/${workspaceId}/runtime-profiles`, {
-      method: "POST",
-      body: JSON.stringify(body),
+    const raw = await this.fetch<unknown>(
+      `/api/workspaces/${workspaceId}/runtime-profiles`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    );
+    return parseWithFallback(raw, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+      endpoint: "POST /api/workspaces/:workspaceId/runtime-profiles",
     });
   }
 
@@ -3125,13 +3139,16 @@ export class ApiClient {
     profileId: string,
     patch: UpdateRuntimeProfileRequest,
   ): Promise<RuntimeProfile> {
-    return this.fetch(
+    const raw = await this.fetch<unknown>(
       `/api/workspaces/${workspaceId}/runtime-profiles/${profileId}`,
       {
         method: "PATCH",
         body: JSON.stringify(patch),
       },
     );
+    return parseWithFallback(raw, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+      endpoint: "PATCH /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+    });
   }
 
   async deleteRuntimeProfile(

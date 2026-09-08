@@ -109,6 +109,7 @@ import type {
   MergeReadiness,
   PRStack,
   IssuePlanEnvelope,
+  RuntimeProfile,
 } from "../types";
 import type {
   CloudRuntimeNode,
@@ -5513,4 +5514,41 @@ export const WorkspaceTemplateListSchema = z.object({
     report: z.record(z.string(), z.unknown()).catch({}).default({}),
     created_at: z.string().catch(""),
   }).loose()).catch([]).default([]),
+}).loose();
+
+// Custom runtime profiles (MUL-3284). `protocol_family` is left as a bare
+// string (not the closed union) so an unrecognized family from a newer
+// server still parses instead of falling back to EMPTY_RUNTIME_PROFILE.
+export const RuntimeProfileSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  display_name: z.string().catch(""),
+  protocol_family: z.string().catch(""),
+  command_name: z.string().catch(""),
+  description: z.string().nullable().catch(null),
+  fixed_args: z.array(z.string()).catch([]).default([]),
+  visibility: z.enum(["workspace", "private"]).catch("workspace"),
+  created_by: z.string().nullable().catch(null),
+  enabled: z.boolean().catch(false),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const EMPTY_RUNTIME_PROFILE: RuntimeProfile = {
+  id: "",
+  workspace_id: "",
+  display_name: "",
+  protocol_family: "claude",
+  command_name: "",
+  description: null,
+  fixed_args: [],
+  visibility: "workspace",
+  created_by: null,
+  enabled: false,
+  created_at: "",
+  updated_at: "",
+};
+
+export const RuntimeProfileListSchema = z.object({
+  runtime_profiles: z.array(RuntimeProfileSchema).catch([]).default([]),
 }).loose();

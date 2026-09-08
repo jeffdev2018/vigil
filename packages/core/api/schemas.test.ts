@@ -90,6 +90,11 @@ import {
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
 } from "./schemas";
+import {
+  RuntimeProfileSchema,
+  RuntimeProfileListSchema,
+  EMPTY_RUNTIME_PROFILE,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -2556,6 +2561,87 @@ describe("TriageEmailSourceSchema", () => {
           endpoint: "POST /api/triage/sources/email",
         }),
       ).toEqual(EMPTY_TRIAGE_EMAIL_SOURCE);
+    }
+  });
+});
+
+// Runtime profiles (MUL-3284). client.ts casted network JSON straight to
+// RuntimeProfile until this schema was added; these tests cover the drift
+// cases the CLAUDE.md "API Compatibility" rule requires.
+describe("RuntimeProfileSchema", () => {
+  const validProfile = {
+    id: "profile-1",
+    workspace_id: "ws-1",
+    display_name: "Custom Codex",
+    protocol_family: "codex",
+    command_name: "codex-runner",
+    description: "In-house wrapper",
+    fixed_args: ["--flag"],
+    visibility: "workspace",
+    created_by: "user-1",
+    enabled: true,
+    created_at: "2026-01-01T00:00:00Z",
+    updated_at: "2026-01-02T00:00:00Z",
+  };
+
+  it("passes a valid response through intact", () => {
+    expect(
+      parseWithFallback(validProfile, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(validProfile);
+  });
+
+  it("falls back to EMPTY_RUNTIME_PROFILE when a required field is missing", () => {
+    const { id: _id, ...rest } = validProfile;
+    expect(
+      parseWithFallback(rest, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(EMPTY_RUNTIME_PROFILE);
+  });
+
+  it("falls back to EMPTY_RUNTIME_PROFILE when a required field has the wrong type", () => {
+    expect(
+      parseWithFallback({ ...validProfile, id: 42 }, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
+        endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
+      }),
+    ).toEqual(EMPTY_RUNTIME_PROFILE);
+  });
+
+  it("does not throw and degrades an unrecognized visibility to the safe default", () => {
+    const parsed = parseWithFallback(
+      { ...validProfile, visibility: "future-visibility" },
+      RuntimeProfileSchema,
+      EMPTY_RUNTIME_PROFILE,
+      { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId" },
+    );
+    expect(parsed.visibility).toBe("workspace");
+  });
+});
+
+describe("RuntimeProfileListSchema", () => {
+  it("returns an empty list when runtime_profiles is absent", () => {
+    expect(
+      parseWithFallback(
+        {},
+        RuntimeProfileListSchema,
+        { runtime_profiles: [] },
+        { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles" },
+      ).runtime_profiles,
+    ).toEqual([]);
+  });
+
+  it("does not throw on a malformed list payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(
+          malformed,
+          RuntimeProfileListSchema,
+          { runtime_profiles: [] },
+          { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles" },
+        ).runtime_profiles,
+      ).toEqual([]);
     }
   });
 });
