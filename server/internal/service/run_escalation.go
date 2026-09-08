@@ -79,6 +79,21 @@ func (s *TaskService) escalateRunToStrongerRuntime(ctx context.Context, issue db
 		return false
 	}
 
+	// The cascade moves the run to a runtime the agent is not bound to, and
+	// only an auto-routed agent may execute there: for every other routing
+	// mode the claim fence (ClaimAgentTask, and the candidate listings that
+	// mirror it) refuses a task whose runtime differs from the agent's
+	// binding, so the escalation would sit queued forever and the human review
+	// it replaced would never happen. residency.go gates the same candidate
+	// lookup on the same condition. A fixed agent goes straight to a human.
+	if agent.RuntimeRouting != RoutingModeAuto {
+		slog.Info("run confidence cascade: agent is not auto-routed, going to human review",
+			"task_id", util.UUIDToString(task.ID),
+			"agent_id", util.UUIDToString(agent.ID),
+			"runtime_routing", agent.RuntimeRouting)
+		return false
+	}
+
 	target, ok := s.pickEscalationRuntime(ctx, agent, issue, task)
 	if !ok {
 		slog.Info("run confidence cascade: no stronger runtime available, going to human review",
