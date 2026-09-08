@@ -54,6 +54,75 @@
     "replaces_existing": "템플릿을 선택하면 현재 구조 “{{name}}”이(가) 새 리비전으로 대체됩니다.",
     "composite_title": "팀 계층 구조"
   },
+  "wizard": {
+    "title": "조직 만들기",
+    "step": "{{total}}단계 중 {{n}}단계",
+    "back": "뒤로",
+    "next": "다음",
+    "cancel": "취소",
+    "purpose": {
+      "question": "이 팀은 무엇을 해내야 하나요?",
+      "help": "한 문장으로. 그 단어들이 구조의 이름이 되고, 각 유닛이 맡을 일이 됩니다.",
+      "label": "한 문장으로",
+      "placeholder": "고객 티켓에 당일 안에 답한다.",
+      "remaining": "{{count}}자 남음",
+      "too_long": "{{count}}자 초과"
+    },
+    "flow": {
+      "question": "일은 어떻게 흘러가나요?",
+      "decider": "요청이 들어오면 최종적으로 누가 결정하나요?",
+      "decider_one_person": "언제나 같은 한 사람",
+      "decider_each_team": "각 팀이 자기 영역에서",
+      "decider_topic_owner": "각 주제의 담당자",
+      "shape": "팀을 프로젝트별로, 역할별로, 아니면 둘 다?",
+      "shape_project": "프로젝트별",
+      "shape_role": "역할별",
+      "shape_both": "둘 다",
+      "end": "끝이 정해진 미션인가요?",
+      "compete": "에이전트끼리 경쟁시킬까요?",
+      "yes": "예",
+      "no": "아니오",
+      "result": "선택된 모델: {{model}}",
+      "pick_another": "다르게 고르기",
+      "catalog": "일곱 가지 구조",
+      "catalog_close": "질문으로 돌아가기"
+    },
+    "model_line": {
+      "hierarchy": "명확한 사슬: 모든 팀이 누구에게 올릴지 압니다.",
+      "squads": "각 스쿼드가 자기 영역과 예산과 답을 책임집니다.",
+      "matrix": "역량 풀이 필요한 프로젝트에 사람을 빌려줍니다.",
+      "circles": "직함이 아니라 역할: 각 서클이 스스로 결정합니다.",
+      "owner_network": "수평: 주제마다 담당자 한 명과 백업 한 명.",
+      "taskforce": "빌려온 팀, 그리고 명시된 종료 조건.",
+      "market": "에이전트가 입찰하고, 상한선 안에서 가장 좋은 제안이 이깁니다."
+    },
+    "template": {
+      "support": "고객 지원",
+      "practice": "전문 사무소",
+      "agency": "에이전시",
+      "finance": "경영과 재무",
+      "research": "리서치",
+      "generic": "경영과 팀"
+    },
+    "people": {
+      "question": "누가 참여하나요?",
+      "help": "이 워크스페이스의 모든 사람, 사람과 에이전트 모두.",
+      "template": "'{{template}}'에 제안하는 유닛",
+      "unit_of": "{{name}}의 유닛",
+      "empty": "이 워크스페이스에 아직 멤버나 에이전트가 없습니다."
+    },
+    "review": {
+      "question": "내 초안",
+      "model": "모델",
+      "name": "이름",
+      "unnamed": "모델 이름 사용",
+      "members_other": "멤버 {{count}}명",
+      "open": "내 초안 열기",
+      "draft_note": "아직 아무것도 활성화되지 않았습니다. 초안은 조직도에서 열려 바로 조정할 수 있습니다.",
+      "replaces_existing": "초안을 열면 현재 구조 “{{name}}”의 새 판이 됩니다.",
+      "error": "구조를 만들지 못했습니다"
+    }
+  },
   "form": {
     "name": "이름",
     "owner": "사람 담당자",
@@ -245,6 +314,8 @@
     "name": "이름",
     "mission": "미션",
     "mission_none": "목표 없음",
+    "own_mission": "이 유닛의 미션",
+    "own_mission_placeholder": "이 유닛이 해내야 할 일.",
     "trust": "신뢰 다이얼",
     "trust_level": {
       "read_only": "읽기만 합니다",

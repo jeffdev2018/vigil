@@ -54,6 +54,75 @@
     "replaces_existing": "テンプレートを選ぶと、現在の構造「{{name}}」が新しいリビジョンとして置き換えられます。",
     "composite_title": "チームの階層"
   },
+  "wizard": {
+    "title": "組織を作る",
+    "step": "ステップ {{n}} / {{total}}",
+    "back": "戻る",
+    "next": "次へ",
+    "cancel": "キャンセル",
+    "purpose": {
+      "question": "このチームは何を成し遂げるのですか？",
+      "help": "一文で。その言葉が構造の名前になり、各ユニットが引き受ける内容にもなります。",
+      "label": "一文で",
+      "placeholder": "顧客のチケットにその日のうちに回答する。",
+      "remaining": "残り {{count}} 文字",
+      "too_long": "{{count}} 文字超過"
+    },
+    "flow": {
+      "question": "仕事はどう流れますか？",
+      "decider": "依頼が届いたとき、最終的に誰が決めますか？",
+      "decider_one_person": "常に同じ一人",
+      "decider_each_team": "各チームが自分の領域で",
+      "decider_topic_owner": "各テーマのオーナー",
+      "shape": "チームはプロジェクト単位、役割単位、その両方？",
+      "shape_project": "プロジェクト単位",
+      "shape_role": "役割単位",
+      "shape_both": "両方",
+      "end": "終わりのあるミッションですか？",
+      "compete": "エージェントを競わせますか？",
+      "yes": "はい",
+      "no": "いいえ",
+      "result": "選ばれたモデル：{{model}}",
+      "pick_another": "別の選び方をする",
+      "catalog": "7つの構造",
+      "catalog_close": "質問に戻る"
+    },
+    "model_line": {
+      "hierarchy": "明確な指揮系統：どのチームも誰に上げるか分かっています。",
+      "squads": "各スクワッドが自分の領域と予算と結論を持ちます。",
+      "matrix": "コンピテンシープールが必要なプロジェクトに人を貸し出します。",
+      "circles": "肩書きではなく役割：各サークルが自分で決めます。",
+      "owner_network": "フラット：テーマごとにオーナーと代理が一人ずつ。",
+      "taskforce": "借り受けたメンバーと、宣言された終了条件。",
+      "market": "エージェントが入札し、上限内で最良の提案が勝ちます。"
+    },
+    "template": {
+      "support": "カスタマーサポート",
+      "practice": "士業事務所",
+      "agency": "エージェンシー",
+      "finance": "経営と財務",
+      "research": "リサーチ",
+      "generic": "経営とチーム"
+    },
+    "people": {
+      "question": "誰が参加しますか？",
+      "help": "このワークスペースの全員、人もエージェントも。",
+      "template": "「{{template}}」向けに提案するユニット",
+      "unit_of": "{{name}} のユニット",
+      "empty": "このワークスペースにはまだメンバーもエージェントもいません。"
+    },
+    "review": {
+      "question": "あなたの下書き",
+      "model": "モデル",
+      "name": "名前",
+      "unnamed": "モデル名を使用",
+      "members_other": "メンバー {{count}}人",
+      "open": "下書きを開く",
+      "draft_note": "まだ何も有効化されていません。下書きは組織図で開くので調整できます。",
+      "replaces_existing": "下書きを開くと現在の構造「{{name}}」の新しい版になります。",
+      "error": "構造を作成できませんでした"
+    }
+  },
   "form": {
     "name": "名前",
     "owner": "人間のオーナー",
@@ -245,6 +314,8 @@
     "name": "名前",
     "mission": "ミッション",
     "mission_none": "目標なし",
+    "own_mission": "このユニットの使命",
+    "own_mission_placeholder": "このユニットが果たすべきこと。",
     "trust": "トラストダイヤル",
     "trust_level": {
       "read_only": "読むだけ",
