@@ -25,6 +25,11 @@ export const ORG_PERSON_HEIGHT = 72;
 const GAP_X = 28;
 const GAP_Y = 56;
 const PAD = 12;
+/** Past this many reports without a team of their own, they stack in rows off
+ *  a spine instead of one endless line — a lead with thirty agents stays readable. */
+const MAX_PER_ROW = 4;
+const SPINE_X = 16;
+const ROW_GAP_Y = 16;
 
 export const orgPersonKey = (unitId: string, m: Pick<OrgMember, "type" | "id">): string => `${unitId}/${m.type}:${m.id}`;
 
@@ -109,7 +114,8 @@ export interface OrgPeopleLayout {
 
 /** Classic tidy tree: a parent sits centred over the block of its reports,
  *  roots side by side. Order follows `people`, so an edit never reshuffles
- *  the chart under the pointer. A report whose manager is missing is a root. */
+ *  the chart under the pointer. A report whose manager is missing is a root.
+ *  Many leaf reports under one person wrap into rows hung off a spine. */
 export function orgPeopleLayout(people: OrgPerson[]): OrgPeopleLayout {
   const keys = new Set(people.map((p) => p.key));
   const children = new Map<string | null, OrgPerson[]>();
@@ -118,42 +124,81 @@ export function orgPeopleLayout(people: OrgPerson[]): OrgPeopleLayout {
     children.set(parent, [...(children.get(parent) ?? []), p]);
   }
   // Guard against a manager loop: a person already on the path is treated as a root.
-  const widths = new Map<string, number>();
-  const subtreeWidth = (key: string, path: Set<string>): number => {
-    const cached = widths.get(key);
+  const kidsOf = (key: string, path: Set<string>) => (children.get(key) ?? []).filter((k) => !path.has(k.key));
+  const stacks = (key: string, path: Set<string>): boolean => {
+    const kids = kidsOf(key, path);
+    return kids.length > MAX_PER_ROW && kids.every((k) => kidsOf(k.key, new Set(path).add(key)).length === 0);
+  };
+  const sizes = new Map<string, { w: number; h: number }>();
+  const subtree = (key: string, path: Set<string>): { w: number; h: number } => {
+    const cached = sizes.get(key);
     if (cached !== undefined) return cached;
-    const kids = (children.get(key) ?? []).filter((k) => !path.has(k.key));
+    const kids = kidsOf(key, path);
     const next = new Set(path).add(key);
-    const inner = kids.reduce((sum, k) => sum + subtreeWidth(k.key, next), 0) + Math.max(0, kids.length - 1) * GAP_X;
-    const w = Math.max(ORG_PERSON_WIDTH, inner);
-    widths.set(key, w);
-    return w;
+    let size: { w: number; h: number };
+    if (kids.length === 0) {
+      size = { w: ORG_PERSON_WIDTH, h: ORG_PERSON_HEIGHT };
+    } else if (stacks(key, path)) {
+      const cols = Math.min(MAX_PER_ROW, kids.length);
+      const rows = Math.ceil(kids.length / MAX_PER_ROW);
+      size = {
+        w: Math.max(ORG_PERSON_WIDTH, SPINE_X + cols * ORG_PERSON_WIDTH + (cols - 1) * GAP_X),
+        h: ORG_PERSON_HEIGHT + GAP_Y + rows * ORG_PERSON_HEIGHT + (rows - 1) * ROW_GAP_Y,
+      };
+    } else {
+      const under = kids.map((k) => subtree(k.key, next));
+      size = {
+        w: Math.max(ORG_PERSON_WIDTH, under.reduce((sum, u) => sum + u.w, 0) + (kids.length - 1) * GAP_X),
+        h: ORG_PERSON_HEIGHT + GAP_Y + Math.max(...under.map((u) => u.h)),
+      };
+    }
+    sizes.set(key, size);
+    return size;
   };
 
   const nodes: OrgPeopleNode[] = [];
+  const stacked = new Set<string>();
   const placed = new Set<string>();
-  const place = (key: string, left: number, depth: number, path: Set<string>) => {
+  const place = (key: string, left: number, top: number, path: Set<string>) => {
     if (placed.has(key)) return;
     placed.add(key);
-    const w = subtreeWidth(key, path);
-    nodes.push({ key, x: left + (w - ORG_PERSON_WIDTH) / 2, y: PAD + depth * (ORG_PERSON_HEIGHT + GAP_Y), width: ORG_PERSON_WIDTH, height: ORG_PERSON_HEIGHT });
+    const { w } = subtree(key, path);
     const next = new Set(path).add(key);
+    const kids = kidsOf(key, path);
+    const below = top + ORG_PERSON_HEIGHT + GAP_Y;
+    if (stacks(key, path)) {
+      // The lead sits over the block's spine; reports fill rows of MAX_PER_ROW.
+      nodes.push({ key, x: left + SPINE_X, y: top, width: ORG_PERSON_WIDTH, height: ORG_PERSON_HEIGHT });
+      kids.forEach((kid, i) => {
+        placed.add(kid.key);
+        stacked.add(kid.key);
+        nodes.push({
+          key: kid.key,
+          x: left + SPINE_X + (i % MAX_PER_ROW) * (ORG_PERSON_WIDTH + GAP_X),
+          y: below + Math.floor(i / MAX_PER_ROW) * (ORG_PERSON_HEIGHT + ROW_GAP_Y),
+          width: ORG_PERSON_WIDTH,
+          height: ORG_PERSON_HEIGHT,
+        });
+      });
+      return;
+    }
+    nodes.push({ key, x: left + (w - ORG_PERSON_WIDTH) / 2, y: top, width: ORG_PERSON_WIDTH, height: ORG_PERSON_HEIGHT });
     let cursor = left;
-    for (const kid of (children.get(key) ?? []).filter((k) => !path.has(k.key))) {
-      place(kid.key, cursor, depth + 1, next);
-      cursor += subtreeWidth(kid.key, next) + GAP_X;
+    for (const kid of kids) {
+      place(kid.key, cursor, below, next);
+      cursor += subtree(kid.key, next).w + GAP_X;
     }
   };
   let cursor = PAD;
   for (const root of children.get(null) ?? []) {
-    place(root.key, cursor, 0, new Set());
-    cursor += subtreeWidth(root.key, new Set()) + GAP_X;
+    place(root.key, cursor, PAD, new Set());
+    cursor += subtree(root.key, new Set()).w + GAP_X;
   }
   // Anyone left over sits in a manager loop nobody reached: lay them out as roots.
   for (const p of people) {
     if (placed.has(p.key)) continue;
-    place(p.key, cursor, 0, new Set());
-    cursor += subtreeWidth(p.key, new Set()) + GAP_X;
+    place(p.key, cursor, PAD, new Set());
+    cursor += subtree(p.key, new Set()).w + GAP_X;
   }
 
   const byKey = new Map(nodes.map((n) => [n.key, n]));
@@ -163,6 +208,13 @@ export function orgPeopleLayout(people: OrgPerson[]): OrgPeopleLayout {
     const b = byKey.get(p.key);
     if (a === undefined || b === undefined || b.y <= a.y) continue;
     const ax = a.x + a.width / 2;
+    if (stacked.has(p.key)) {
+      // Down the spine on the block's left, then a stub into the card's side.
+      const sx = a.x - SPINE_X / 2;
+      const cy = b.y + b.height / 2;
+      edges.push({ from: p.reportsTo as string, to: p.key, d: `M ${ax} ${a.y + a.height} V ${a.y + a.height + GAP_Y / 2} H ${sx} V ${cy} H ${b.x}` });
+      continue;
+    }
     const bx = b.x + b.width / 2;
     const mid = (a.y + a.height + b.y) / 2;
     edges.push({ from: p.reportsTo as string, to: p.key, d: `M ${ax} ${a.y + a.height} V ${mid} H ${bx} V ${b.y}` });

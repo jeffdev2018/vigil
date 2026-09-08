@@ -63,6 +63,25 @@ describe("orgPeopleLayout", () => {
     expect(layout.height).toBeGreaterThan(0);
   });
 
+  it("stacks many leaf reports in rows off a spine instead of one endless line", () => {
+    const many = def({
+      units: [unit({ id: "front", name: "Front line", owner_id: "lea", members: [{ type: "member", id: "lea" }, ...Array.from({ length: 9 }, (_, i) => ({ type: "agent" as const, id: `a${i}` }))] })],
+    });
+    const people = orgPeople(many);
+    const layout = orgPeopleLayout(people);
+    const lead = layout.nodes.find((n) => n.key === "front/member:lea")!;
+    const reports = layout.nodes.filter((n) => n.key !== lead.key);
+    expect(new Set(reports.map((n) => n.y)).size).toBe(3);
+    expect(new Set(reports.map((n) => n.x)).size).toBe(4);
+    expect(reports[0]?.x).toBe(lead.x);
+    expect(layout.width).toBeLessThan(5 * ORG_PERSON_WIDTH);
+    // The stub enters the card's left side, from a spine to the left of the block.
+    expect(layout.edges.find((e) => e.to === "front/agent:a5")?.d).toMatch(/^M [\d.]+ [\d.]+ V [\d.]+ H [\d.]+ V [\d.]+ H [\d.]+$/);
+    // Four reports or fewer keep the one-line tree.
+    const few = def({ units: [unit({ id: "f", owner_id: "lea", members: [{ type: "member", id: "lea" }, ...Array.from({ length: 4 }, (_, i) => ({ type: "agent" as const, id: `a${i}` }))] })] });
+    expect(new Set(orgPeopleLayout(orgPeople(few)).nodes.map((n) => n.y)).size).toBe(2);
+  });
+
   it("still lays out a manager loop instead of hanging", () => {
     const people = orgPeople(def({
       units: [unit({ id: "a", members: [{ type: "member", id: "1" }] }), unit({ id: "b", members: [{ type: "member", id: "2" }] })],

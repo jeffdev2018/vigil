@@ -136,8 +136,8 @@ export function OrgPeopleChart({
         <span className="text-caption text-muted-foreground">{t(($) => $.people.hint)}</span>
       </div>
 
-      <div className="grid gap-3 min-[820px]:grid-cols-[1fr_20rem]">
-        <div className="relative">
+      <div className="grid gap-3 min-[820px]:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="relative min-w-0">
           <div
             ref={scrollRef}
             data-testid="org-people-chart"
