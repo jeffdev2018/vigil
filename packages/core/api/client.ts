@@ -800,6 +800,17 @@ import {
   RuntimeProfileSchema,
   RuntimeProfileListSchema,
   EMPTY_RUNTIME_PROFILE,
+  LoginResponseSchema,
+  IssueReactionSchema,
+  EMPTY_ISSUE_REACTION,
+  AssigneeFrequencyListSchema,
+  ReactionSchema,
+  EMPTY_REACTION,
+  AgentSchema,
+  AgentListSchema,
+  MikaBootstrapResponseSchema,
+  AgentEnvResponseSchema,
+  AgentRuntimeListSchema,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -1210,17 +1221,31 @@ export class ApiClient {
   }
 
   async verifyCode(email: string, code: string): Promise<LoginResponse> {
-    return this.fetch("/auth/verify-code", {
+    const raw = await this.fetch<unknown>("/auth/verify-code", {
       method: "POST",
       body: JSON.stringify({ email, code }),
     });
+    const login = parseWithFallback<LoginResponse | null>(raw, LoginResponseSchema, null, {
+      endpoint: "POST /auth/verify-code",
+    });
+    if (!login) {
+      throw new Error("POST /auth/verify-code returned a malformed login response");
+    }
+    return login;
   }
 
   async googleLogin(code: string, redirectUri: string): Promise<LoginResponse> {
-    return this.fetch("/auth/google", {
+    const raw = await this.fetch<unknown>("/auth/google", {
       method: "POST",
       body: JSON.stringify({ code, redirect_uri: redirectUri }),
     });
+    const login = parseWithFallback<LoginResponse | null>(raw, LoginResponseSchema, null, {
+      endpoint: "POST /auth/google",
+    });
+    if (!login) {
+      throw new Error("POST /auth/google returned a malformed login response");
+    }
+    return login;
   }
 
   async logout(): Promise<void> {
@@ -1629,7 +1654,14 @@ export class ApiClient {
       body: JSON.stringify(data),
     });
     // F28: a 202 means the write is held for an approver, not applied.
-    return throwIfTransitionHeld(raw) as Issue;
+    const checked = throwIfTransitionHeld(raw);
+    const issue = parseWithFallback<Issue | null>(checked, IssueSchema, null, {
+      endpoint: "PUT /api/issues/:id",
+    });
+    if (!issue) {
+      throw new Error("PUT /api/issues/:id returned a malformed issue");
+    }
+    return issue;
   }
 
   async moveIssue(id: string, data: MoveIssueRequest): Promise<Issue> {
@@ -2657,11 +2689,14 @@ export class ApiClient {
   }
 
   async getAssigneeFrequency(): Promise<AssigneeFrequencyEntry[]> {
-    return this.fetch("/api/assignee-frequency");
+    const raw = await this.fetch<unknown>("/api/assignee-frequency");
+    return parseWithFallback(raw, AssigneeFrequencyListSchema, [], {
+      endpoint: "GET /api/assignee-frequency",
+    });
   }
 
   async updateComment(commentId: string, content: string, attachmentIds?: string[], suppressAgentIds?: string[], contentBase?: string, expectedRevision?: number): Promise<Comment> {
-    return this.fetch(`/api/comments/${commentId}`, {
+    const raw = await this.fetch<unknown>(`/api/comments/${commentId}`, {
       method: "PUT",
       body: JSON.stringify({
         content,
@@ -2671,6 +2706,9 @@ export class ApiClient {
         ...(expectedRevision !== undefined ? { expected_revision: expectedRevision } : {}),
       }),
     });
+    return parseWithFallback(raw, CommentSchema, EMPTY_COMMENT, {
+      endpoint: "PUT /api/comments/:id",
+    });
   }
 
   async deleteComment(commentId: string): Promise<void> {
@@ -2678,17 +2716,26 @@ export class ApiClient {
   }
 
   async resolveComment(commentId: string): Promise<Comment> {
-    return this.fetch(`/api/comments/${commentId}/resolve`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/comments/${commentId}/resolve`, { method: "POST" });
+    return parseWithFallback(raw, CommentSchema, EMPTY_COMMENT, {
+      endpoint: "POST /api/comments/:id/resolve",
+    });
   }
 
   async unresolveComment(commentId: string): Promise<Comment> {
-    return this.fetch(`/api/comments/${commentId}/resolve`, { method: "DELETE" });
+    const raw = await this.fetch<unknown>(`/api/comments/${commentId}/resolve`, { method: "DELETE" });
+    return parseWithFallback(raw, CommentSchema, EMPTY_COMMENT, {
+      endpoint: "DELETE /api/comments/:id/resolve",
+    });
   }
 
   async addReaction(commentId: string, emoji: string): Promise<Reaction> {
-    return this.fetch(`/api/comments/${commentId}/reactions`, {
+    const raw = await this.fetch<unknown>(`/api/comments/${commentId}/reactions`, {
       method: "POST",
       body: JSON.stringify({ emoji }),
+    });
+    return parseWithFallback(raw, ReactionSchema, EMPTY_REACTION, {
+      endpoint: "POST /api/comments/:id/reactions",
     });
   }
 
@@ -2700,9 +2747,12 @@ export class ApiClient {
   }
 
   async addIssueReaction(issueId: string, emoji: string): Promise<IssueReaction> {
-    return this.fetch(`/api/issues/${issueId}/reactions`, {
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/reactions`, {
       method: "POST",
       body: JSON.stringify({ emoji }),
+    });
+    return parseWithFallback(raw, IssueReactionSchema, EMPTY_ISSUE_REACTION, {
+      endpoint: "POST /api/issues/:id/reactions",
     });
   }
 
@@ -2770,19 +2820,36 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params?.workspace_id) search.set("workspace_id", params.workspace_id);
     if (params?.include_archived) search.set("include_archived", "true");
-    return this.fetch(`/api/agents?${search}`);
+    const raw = await this.fetch<unknown>(`/api/agents?${search}`);
+    return parseWithFallback(raw, AgentListSchema, [], {
+      endpoint: "GET /api/agents",
+    });
   }
 
   async getAgent(id: string): Promise<Agent> {
-    return this.fetch(`/api/agents/${id}`);
+    const raw = await this.fetch<unknown>(`/api/agents/${id}`);
+    const agent = parseWithFallback<Agent | null>(raw, AgentSchema, null, {
+      endpoint: "GET /api/agents/:id",
+    });
+    if (!agent) {
+      throw new Error("GET /api/agents/:id returned a malformed agent");
+    }
+    return agent;
   }
 
   async createAgent(data: CreateAgentRequest): Promise<Agent> {
     assertAgentConversationStartersWriteSupported(data);
-    return this.fetch("/api/agents", {
+    const raw = await this.fetch<unknown>("/api/agents", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    const agent = parseWithFallback<Agent | null>(raw, AgentSchema, null, {
+      endpoint: "POST /api/agents",
+    });
+    if (!agent) {
+      throw new Error("POST /api/agents returned a malformed agent");
+    }
+    return agent;
   }
 
   /**
@@ -2807,11 +2874,21 @@ export class ApiClient {
     },
     workspaceSlug?: string,
   ): Promise<MikaBootstrapResponse> {
-    return this.fetch("/api/agents/mika", {
+    const raw = await this.fetch<unknown>("/api/agents/mika", {
       method: "POST",
       headers: workspaceHeader(workspaceSlug),
       body: JSON.stringify(data),
     });
+    const mika = parseWithFallback<MikaBootstrapResponse | null>(
+      raw,
+      MikaBootstrapResponseSchema,
+      null,
+      { endpoint: "POST /api/agents/mika" },
+    );
+    if (!mika) {
+      throw new Error("POST /api/agents/mika returned a malformed agent");
+    }
+    return mika;
   }
 
   async createAgentBuilderSession(data: {
@@ -2895,14 +2972,28 @@ export class ApiClient {
 
   async updateAgent(id: string, data: UpdateAgentRequest): Promise<Agent> {
     assertAgentConversationStartersWriteSupported(data);
-    return this.fetch(`/api/agents/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/agents/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
+    const agent = parseWithFallback<Agent | null>(raw, AgentSchema, null, {
+      endpoint: "PUT /api/agents/:id",
+    });
+    if (!agent) {
+      throw new Error("PUT /api/agents/:id returned a malformed agent");
+    }
+    return agent;
   }
 
   async archiveAgent(id: string): Promise<Agent> {
-    return this.fetch(`/api/agents/${id}/archive`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/agents/${id}/archive`, { method: "POST" });
+    const agent = parseWithFallback<Agent | null>(raw, AgentSchema, null, {
+      endpoint: "POST /api/agents/:id/archive",
+    });
+    if (!agent) {
+      throw new Error("POST /api/agents/:id/archive returned a malformed agent");
+    }
+    return agent;
   }
 
   /**
@@ -2910,9 +3001,20 @@ export class ApiClient {
    * agent's owner or a workspace owner/admin (MUL-5438); calls from
    * agent-actor sessions get a 403. Every successful call writes an
    * `agent_env_revealed` activity_log row server-side. MUL-2600.
+   *
+   * No EMPTY_ fallback on failure: a malformed response must not present as
+   * "this agent has no custom env" — the caller's own try/catch (env-tab.tsx)
+   * already handles a thrown error with a reveal-failed toast.
    */
   async getAgentEnv(id: string): Promise<AgentEnvResponse> {
-    return this.fetch(`/api/agents/${id}/env`);
+    const raw = await this.fetch<unknown>(`/api/agents/${id}/env`);
+    const env = parseWithFallback<AgentEnvResponse | null>(raw, AgentEnvResponseSchema, null, {
+      endpoint: "GET /api/agents/:id/env",
+    });
+    if (!env) {
+      throw new Error("GET /api/agents/:id/env returned a malformed response");
+    }
+    return env;
   }
 
   /**
@@ -2922,16 +3024,33 @@ export class ApiClient {
    * placeholder. Admits the agent's owner or a workspace owner/admin
    * (MUL-5438); agent actors get a 403. Every successful call writes an
    * `agent_env_updated` activity_log row. MUL-2600.
+   *
+   * Same no-fallback reasoning as `getAgentEnv`: a malformed response after a
+   * save must surface as a failed save, not a silently emptied env.
    */
   async updateAgentEnv(id: string, data: UpdateAgentEnvRequest): Promise<AgentEnvResponse> {
-    return this.fetch(`/api/agents/${id}/env`, {
+    const raw = await this.fetch<unknown>(`/api/agents/${id}/env`, {
       method: "PUT",
       body: JSON.stringify(data),
     });
+    const env = parseWithFallback<AgentEnvResponse | null>(raw, AgentEnvResponseSchema, null, {
+      endpoint: "PUT /api/agents/:id/env",
+    });
+    if (!env) {
+      throw new Error("PUT /api/agents/:id/env returned a malformed response");
+    }
+    return env;
   }
 
   async restoreAgent(id: string): Promise<Agent> {
-    return this.fetch(`/api/agents/${id}/restore`, { method: "POST" });
+    const raw = await this.fetch<unknown>(`/api/agents/${id}/restore`, { method: "POST" });
+    const agent = parseWithFallback<Agent | null>(raw, AgentSchema, null, {
+      endpoint: "POST /api/agents/:id/restore",
+    });
+    if (!agent) {
+      throw new Error("POST /api/agents/:id/restore returned a malformed agent");
+    }
+    return agent;
   }
 
   // Bulk-cancel every active task (queued/dispatched/running) for the agent.
@@ -2952,8 +3071,11 @@ export class ApiClient {
     // workspace_id alone is not enough: the server resolves the workspace from
     // the slug header first, so a caller listing another workspace's runtimes
     // must override the header too.
-    return this.fetch(`/api/runtimes?${search}`, {
+    const raw = await this.fetch<unknown>(`/api/runtimes?${search}`, {
       headers: workspaceHeader(workspaceSlug),
+    });
+    return parseWithFallback(raw, AgentRuntimeListSchema, [], {
+      endpoint: "GET /api/runtimes",
     });
   }
 
