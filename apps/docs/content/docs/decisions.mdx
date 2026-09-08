@@ -1,0 +1,121 @@
+---
+title: Decisions
+description: How an agent asks a human a typed question instead of guessing — one Decision Card, or up to three at once as a Requirement Interview — and how the answer gets back to the work.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+Some calls only a human should make: which of two approaches to take, whether
+a destructive step is really wanted, what the workspace actually meant by a
+vague issue. Instead of guessing or stalling, an agent can file a **Decision
+Card** — a typed question with options — and continue once it has an answer.
+
+## Decision Cards
+
+A card carries a question, two to eight options (each an id, a label, and an
+optional one-line impact), an optional recommended option, and an urgency
+(`low`, `normal`, or `high`). A member can also file one by hand from the
+issue.
+
+A pending card appears in the issue's **Decisions** section with one button
+per option — the recommended one leads — and a free-text alternative
+("Answer with something else…") for when none of the options fit. A card
+carries the reader's own answer history for that kind of question when it has
+one ("You chose « Retry » 3 times out of 4 for this kind of request"); it is a
+hint, not a default, and both stay a click away.
+
+Answering is recorded once: a second attempt on the same card is refused.
+When the issue is assigned to an agent, the answer starts one new run with
+the question and the chosen answer at the top of its handoff note; a
+human-assigned issue just keeps the recorded answer, since there is no run to
+resume.
+
+<Callout type="info">
+If the workspace has set a Decision SLA (an admin setting), a card carries a
+deadline. Past it, the card escalates — first to a designated substitute,
+then to the workspace's owners and admins — and the card itself shows
+"Overdue" with who was notified. Escalation only adds notifications; it never
+answers the card.
+</Callout>
+
+## Requirement Interview
+
+Before coding on a vague issue, an agent can ask up to three multiple-choice
+questions at once instead of one at a time. They are Decision Cards sharing a
+group, and the issue parks in a **Waiting for PM** status (created
+automatically the first time a workspace uses this, in the `blocked`
+category) while they wait. The run only resumes once every question in the
+group is answered — one new run, with every question and its answer, in
+order, at the top of its handoff note. Answering one question of the group
+while a sibling is still pending changes nothing else yet.
+
+An issue can only have one open interview at a time; asking again while one
+is pending is refused.
+
+## Where you answer
+
+- **The issue itself** — the **Decisions** section lists every card on it,
+  pending ones first.
+- **Inbox → Decisions waiting for you** — up to five pending cards across
+  every issue you can see, ordered like the [Attention Inbox](/inbox#needs-your-attention)
+  (risk, then SLA deadline) with the total past five, answered inline without
+  opening the issue.
+- **Mobile** — the same list under **Inbox → Decisions**, answered with a
+  swipe: right reveals "Answer `<recommended option>`", left reveals
+  "Options" and opens the full list, and free text goes through a prompt.
+  Nothing sends until you tap or confirm — the swipe only reveals the action.
+
+Only a human can answer a card; an agent that tries is refused, the mirror
+image of who is allowed to ask.
+
+## CLI
+
+An agent (or anyone scripting the API) files cards from the CLI; answering is
+a human action and only happens from the UI.
+
+```bash
+multica decision ask <issue-id> \
+  --question "Retry the failing deploy, or roll back?" \
+  --option "retry=Retry|Keeps today's fix live if it works" \
+  --option "rollback=Roll back|Safe, but loses today's fix" \
+  --recommend retry \
+  --urgency high
+```
+
+`--option` is repeatable and takes `id=Label` or `id=Label|impact`; at least
+two are required.
+
+```bash
+multica interview ask <issue-id> --file questions.json
+```
+
+`questions.json` is `{"questions": [...]}`, one to three entries, each
+`{"question": "...", "options": [{"id": "a", "label": "..."}, ...],
+"recommended_option_id": "a"}` with two to eight options. `--file -` (or no
+`--file` at all) reads from stdin instead of a file.
+
+## API
+
+| Method | Route | Actor | Body |
+| --- | --- | --- | --- |
+| `GET` | `/api/issues/{id}/decisions` | member | — |
+| `POST` | `/api/issues/{id}/decisions` | agent or member | `{question, options[], recommended_option_id?, urgency?}` |
+| `POST` | `/api/issues/{id}/decisions/{decisionId}/respond` | **human only** | `{option_id}` or `{modified_text}` — exactly one |
+| `POST` | `/api/issues/{id}/interview` | agent or member | `{questions: [...]}` |
+| `GET` | `/api/inbox/decisions` | member | the current user's up-to-five pending cards |
+
+## Limits
+
+- A card needs 2 to 8 options; each id must be unique, question at most 4 KB,
+  each label or impact at most 512 bytes.
+- An interview takes 1 to 3 questions, each with 2 to 8 options; only one
+  interview may be open on an issue at a time (`409 interview_pending`).
+- Answering an already-answered card returns `409 already_decided`.
+- `urgency` is `low`, `normal`, or `high` (defaults to `normal`).
+
+## Next steps
+
+- [Issues](/issues) — where a Decision Card and an interview live.
+- [Acceptance criteria](/acceptance-criteria) — the proof that decides when an issue can reach `done`.
+- [Inbox and subscriptions](/inbox) — the Attention Inbox and the Decisions view.
+- [Assign issues to agents](/assigning-issues) — how a run starts, and what resumes it.

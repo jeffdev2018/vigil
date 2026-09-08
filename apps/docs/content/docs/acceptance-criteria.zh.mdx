@@ -1,0 +1,76 @@
+---
+title: 验收标准
+description: 每一条验收标准都带着自己的证明，只要有一条还没有证明，任务就无法到达 done。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+描述说明任务想要什么，验收标准说明任何人——无论是人还是智能体——该如何检查它是否真的发生了。每条标准都带着自己的证明，只要有一条还没有满足证明，服务器就会拒绝把任务移动到 `done`——这是任务自己对自己的约束，而不是要靠人记得去核对的清单。
+
+## 证明类型
+
+| 类型 | 指向什么 | 何时变为 `satisfied` |
+| --- | --- | --- |
+| `test` | 一条测试命令 | 命令被记录（服务器不会重新运行其结果） |
+| `file` | 一个路径 | 路径被记录 |
+| `screenshot` | 图片的路径或 URL | 引用被记录 |
+| `url` | 一个链接 | 链接被记录 |
+| `human_validation` | 不指向任何东西——就是本人的点击 | 有成员点击"我来确认" |
+
+`test`、`file`、`screenshot`、`url` 的工作方式相同：谁附加了它——通常是完成那项工作的智能体——就对这条引用本身负责；服务器不会执行测试或抓取 URL。`human_validation` 则有意不同：智能体可以发起请求，但那只能到达 `pending_human`——证明只有在成员亲自点击后才存在，这样一条只被机器看过的标准就无法自称已经证明。
+
+## 证明状态
+
+| 状态 | 含义 |
+| --- | --- |
+| `missing` | 尚未附加证明。 |
+| `pending_human` | 已请求 `human_validation` 证明，但还没有成员点击。 |
+| `satisfied` | 该标准已有可计数的证明。 |
+
+## 在哪里管理
+
+任务的**验收标准**区块列出每条标准及其状态（圆点、时钟或对勾），以及一旦有证明就会显示的证明内容。在这里你可以：
+
+- **添加**——逐条内联输入标准。
+- **附加证明**——选择类型（`test`、`file`、`screenshot`、`url`）并填写引用。
+- **我来确认**——`human_validation` 的快捷方式；只有成员能点击，一次操作同时完成请求证明和满足证明。
+- **移除**——删除一条标准。
+
+<Callout type="info">
+改写一条标准会重置它：只有 id 匹配（或在没有 id 时文本完全未变）才会保留证明。改动文本会从 `missing` 重新开始——读起来不一样的承诺就是一个新的承诺。
+</Callout>
+
+## 阻止 `done`
+
+只要还有标准未满足证明，把任务（无论是单个还是批量）移动到分类为 `done` 的状态都会被 `409 unsatisfied_acceptance_criteria` 拒绝。这不仅适用于内置的 `done`，也适用于 `done` 分类下的所有状态（参见[自定义状态](/issues#自定义状态)）。拒绝响应会列出所有仍缺证明的标准，所以光看这一次响应就能知道缺了什么。
+
+信任模式为 Observer 的智能体不能附加或声称证明——只能评论和建议，这与 Observer 模式对任务其余部分的限制一致。
+
+## CLI
+
+```bash
+multica criteria list <issue-id>
+multica criteria set <issue-id> --text "Safari 上结账成功" --text "没有新的控制台错误"
+multica criteria prove <issue-id> <criterion-id> --type test --ref "go test ./checkout/..."
+multica criteria prove <issue-id> <criterion-id> --type human_validation
+```
+
+`criteria set` 会替换整份列表——`--text` 可重复指定，每条标准一个，按顺序排列。文本未变的标准会保留证明，改写过的标准会按上述规则从没有证明开始。
+
+## API
+
+| 方法 | 路由 | 操作者 | 请求体 |
+| --- | --- | --- | --- |
+| `GET` | `/api/issues/{id}/acceptance-criteria` | 成员 | — |
+| `PUT` | `/api/issues/{id}/acceptance-criteria` | 成员 | `{criteria: [{id?, text}]}` |
+| `PATCH` | `/api/issues/{id}/acceptance-criteria/{criterionId}/proof` | 智能体或成员 | `{proof_type, proof_ref?}`——`proof_type` 为空即清除证明 |
+
+## 限制
+
+- 每个任务最多 50 条标准；每条标准的文本最多 2 KB。
+- 证明的引用（`proof_ref`）最多 2 KB；除 `human_validation` 外的每种 `proof_type` 都必须提供。
+
+## 接下来
+
+- [任务](/issues) — 状态、分类，以及 `done` 的含义。
+- [决策](/decisions) — 智能体在需要判断而不是核对时提出的结构化问题。

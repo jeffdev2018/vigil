@@ -231,3 +231,18 @@ An item nobody resolves is **expired** after its source's retention window (14
 days by default). Expiring frees the title so the same report can be captured
 again, and the row is kept rather than deleted: resolved and expired items are
 what auto-classification learns from.
+
+## Aging queue digest
+
+The queue's stats already show the oldest pending item's age — to whoever is
+already looking, which is exactly the person who doesn't need the reminder.
+Nothing tells the rest of the workspace when the queue quietly stops being
+read.
+
+Once the oldest real pending item (a snoozed one doesn't count) has waited
+more than 48 hours, every workspace owner and admin gets one inbox
+notification a day pointing at Triage, naming how many items are pending and
+how long the oldest has waited, for as long as the queue stays stale. It's
+sent once per calendar day in the workspace's own timezone — a queue left over
+a normal weekend doesn't page anyone on Monday morning for Friday's items —
+and stops on its own once the queue catches up.

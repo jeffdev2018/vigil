@@ -1,0 +1,76 @@
+---
+title: 인수 기준
+description: 각 인수 기준은 자체 증거를 가지며, 하나라도 증거가 없는 동안 태스크는 done에 도달할 수 없습니다.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+설명은 태스크가 무엇을 원하는지 말하고, 인수 기준은 사람이든 에이전트든 그것이 실제로 일어났는지 누가 어떻게 확인하는지를 말합니다. 각 기준은 자체 증거를 가지며, 서버는 하나라도 증거를 충족하지 못한 동안 태스크를 `done`으로 옮기는 것을 거부합니다 — 누군가 읽어야 한다고 기억해야 하는 체크리스트가 아니라, 태스크 스스로가 자신을 구속하는 계약입니다.
+
+## 증거 유형
+
+| 유형 | 무엇을 가리키는가 | `satisfied`가 되는 조건 |
+| --- | --- | --- |
+| `test` | 테스트 명령 | 명령이 기록됨(서버가 결과를 다시 실행하지 않음) |
+| `file` | 경로 | 경로가 기록됨 |
+| `screenshot` | 이미지 경로 또는 URL | 참조가 기록됨 |
+| `url` | 링크 | 링크가 기록됨 |
+| `human_validation` | 아무것도 가리키지 않음 — 사람의 클릭 그 자체 | 멤버가 "직접 확인"을 클릭함 |
+
+`test`, `file`, `screenshot`, `url`은 모두 같은 방식으로 동작합니다. 이를 첨부한 사람 — 보통은 그 작업을 한 에이전트 — 이 참조 자체에 대해 신뢰됩니다. 서버는 테스트를 실행하거나 URL을 가져오지 않습니다. `human_validation`은 의도적으로 다릅니다. 에이전트가 요청할 수는 있지만 그것만으로는 `pending_human`에 그칩니다 — 증거는 멤버가 직접 클릭했을 때만 존재하므로, 기계만 본 기준이 증명되었다고 주장할 수 없습니다.
+
+## 증거 상태
+
+| 상태 | 의미 |
+| --- | --- |
+| `missing` | 아직 증거가 첨부되지 않음. |
+| `pending_human` | `human_validation` 증거가 요청되었지만 아직 아무도 클릭하지 않음. |
+| `satisfied` | 유효한 증거가 있는 기준. |
+
+## 관리하는 곳
+
+태스크의 **인수 기준** 섹션에는 각 기준이 상태(점·시계·체크)와 있다면 그 증거와 함께 나열됩니다. 여기서 다음을 할 수 있습니다.
+
+- **추가** — 기준을 한 번에 하나씩 인라인으로 입력.
+- **증거 첨부** — 유형(`test`, `file`, `screenshot`, `url`)을 선택하고 참조를 입력.
+- **직접 확인** — `human_validation` 지름길. 클릭은 멤버만 할 수 있으며, 한 번의 동작으로 증거를 요청하고 충족시킵니다.
+- **삭제** — 기준을 제거.
+
+<Callout type="info">
+기준을 다시 표현하면 초기화됩니다. id가 일치하거나(없다면 정확히 같은 텍스트일 때) 증거가 유지됩니다. 텍스트를 바꾸면 `missing`부터 다시 시작합니다 — 다르게 읽히는 약속은 새로운 약속입니다.
+</Callout>
+
+## `done`을 막는 방법
+
+태스크를(하나씩이든 배치로든) 카테고리가 `done`인 상태로 옮기는 작업은 어떤 기준이라도 증거를 충족하지 못한 동안 `409 unsatisfied_acceptance_criteria`로 거부됩니다. 이는 내장된 `done`뿐 아니라 `done` 카테고리에 속하는 모든 상태([사용자 지정 상태](/issues#사용자-지정-상태) 참고)에 적용됩니다. 거부 응답에는 증거가 부족한 모든 기준이 나열되므로, 그 응답만으로 무엇이 빠졌는지 알 수 있습니다.
+
+신뢰 모드가 Observer인 에이전트는 증거를 첨부하거나 주장할 수 없습니다 — 댓글과 제안만 가능하며, 이는 태스크의 다른 부분에 대한 Observer 모드의 제약과 같습니다.
+
+## CLI
+
+```bash
+multica criteria list <issue-id>
+multica criteria set <issue-id> --text "Safari에서 결제가 성공한다" --text "새 콘솔 오류가 없다"
+multica criteria prove <issue-id> <criterion-id> --type test --ref "go test ./checkout/..."
+multica criteria prove <issue-id> <criterion-id> --type human_validation
+```
+
+`criteria set`은 전체 목록을 교체합니다 — `--text`는 반복 지정할 수 있으며 기준마다 하나씩 순서대로입니다. 텍스트가 바뀌지 않은 기준은 증거를 유지하고, 다시 표현한 기준은 위 규칙대로 증거 없이 시작합니다.
+
+## API
+
+| 메서드 | 라우트 | 액터 | 본문 |
+| --- | --- | --- | --- |
+| `GET` | `/api/issues/{id}/acceptance-criteria` | 멤버 | — |
+| `PUT` | `/api/issues/{id}/acceptance-criteria` | 멤버 | `{criteria: [{id?, text}]}` |
+| `PATCH` | `/api/issues/{id}/acceptance-criteria/{criterionId}/proof` | 에이전트 또는 멤버 | `{proof_type, proof_ref?}` — `proof_type`을 비우면 증거가 지워짐 |
+
+## 제한
+
+- 태스크당 최대 50개의 기준, 각 기준의 텍스트는 최대 2KB.
+- 증거 참조(`proof_ref`)는 최대 2KB이며 `human_validation`을 제외한 모든 `proof_type`에 필수입니다.
+
+## 다음 단계
+
+- [태스크](/issues) — 상태, 카테고리, `done`의 의미.
+- [결정](/decisions) — 확인이 아니라 판단이 필요할 때 에이전트가 묻는 정형화된 질문.
