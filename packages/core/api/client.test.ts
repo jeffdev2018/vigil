@@ -1163,11 +1163,41 @@ describe("ApiClient", () => {
   });
 
   it("uses the expected HTTP contract for autopilot endpoints", async () => {
+    // This test only asserts the HTTP contract (method/url/body), not the
+    // parsed response shape — so one mock body is shared across every call.
+    // It must satisfy every schema in the sequence: GetAutopilotResponseSchema
+    // (`autopilot`), AutopilotSchema (top-level, createAutopilot),
+    // AutopilotTriggerSchema (top-level, rotateAutopilotTriggerWebhookToken) —
+    // getAutopilot/createAutopilot/rotateAutopilotTriggerWebhookToken throw on
+    // a malformed body (JEF-321), so an empty `{}` would break this test.
+    const autopilotFields = {
+      id: "ap-1",
+      workspace_id: "ws-1",
+      title: "Daily triage",
+      assignee_id: "agent-1",
+      status: "active",
+      execution_mode: "create_issue",
+      created_by_type: "member",
+      created_by_id: "member-1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      new Response(JSON.stringify({ autopilots: [], runs: [], total: 0 }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      }),
+      new Response(
+        JSON.stringify({
+          autopilots: [],
+          runs: [],
+          total: 0,
+          autopilot: autopilotFields,
+          autopilot_id: "ap-1",
+          kind: "schedule",
+          ...autopilotFields,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     ));
     vi.stubGlobal("fetch", fetchMock);
 

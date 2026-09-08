@@ -570,6 +570,40 @@ import {
   AutopilotQuotaUsageSchema,
   FALLBACK_AUTOPILOT_RUN,
   CronPreviewResponseSchema,
+  // JEF-321 batch D — pins, squad members, autopilots, integrations
+  PinnedItemListSchema,
+  EMPTY_PINNED_ITEM_LIST,
+  PinnedItemSchema,
+  SquadMemberListSchema,
+  EMPTY_SQUAD_MEMBER_LIST,
+  SquadMemberSchema,
+  EMPTY_SQUAD_MEMBER,
+  GetAutopilotResponseSchema,
+  AutopilotSchema,
+  EMPTY_AUTOPILOT,
+  AutopilotCollaboratorsResponseSchema,
+  EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE,
+  ListAutopilotRunsResponseSchema,
+  EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE,
+  AutopilotTriggerSchema,
+  EMPTY_AUTOPILOT_TRIGGER,
+  ListVCSConnectionsResponseSchema,
+  EMPTY_LIST_VCS_CONNECTIONS_RESPONSE,
+  ConnectVCSResponseSchema,
+  ListLarkInstallationsResponseSchema,
+  EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE,
+  BeginLarkInstallResponseSchema,
+  LarkInstallStatusResponseSchema,
+  RedeemLarkBindingTokenResponseSchema,
+  ComposioToolkitListSchema,
+  EMPTY_COMPOSIO_TOOLKIT_LIST,
+  ComposioConnectionListSchema,
+  EMPTY_COMPOSIO_CONNECTION_LIST,
+  ComposioConnectInitResponseSchema,
+  ListSlackInstallationsResponseSchema,
+  EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE,
+  SlackInstallationSchema,
+  RedeemSlackBindingTokenResponseSchema,
   UNREADABLE_CRON_PREVIEW_RESPONSE,
   ListIssuesResponseSchema,
   IssueDependenciesResponseSchema,
@@ -7354,14 +7388,27 @@ export class ApiClient {
     // include=view is the capability opt-in: the server withholds view pins
     // from clients that don't declare support (old builds treated any
     // non-issue pin as a project pin and auto-deleted it on 404).
-    return this.fetch("/api/pins?include=view");
+    const raw = await this.fetch<unknown>("/api/pins?include=view");
+    return parseWithFallback(raw, PinnedItemListSchema, EMPTY_PINNED_ITEM_LIST, {
+      endpoint: "GET /api/pins",
+    }) as PinnedItem[];
   }
 
+  // useCreatePin (pins/mutations.ts) appends the returned pin straight into
+  // the sidebar cache — a malformed body must not become a blank pin row, so
+  // this throws like createIssue rather than falling back to an empty pin.
   async createPin(data: CreatePinRequest): Promise<PinnedItem> {
-    return this.fetch("/api/pins", {
+    const raw = await this.fetch<unknown>("/api/pins", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    const pin = parseWithFallback<PinnedItem | null>(raw, PinnedItemSchema, null, {
+      endpoint: "POST /api/pins",
+    });
+    if (!pin) {
+      throw new Error("POST /api/pins returned a malformed pin");
+    }
+    return pin;
   }
 
   async deletePin(itemType: PinnedItemType, itemId: string): Promise<void> {
@@ -7409,11 +7456,21 @@ export class ApiClient {
   }
 
   async listSquadMembers(squadId: string): Promise<SquadMember[]> {
-    return this.fetch(`/api/squads/${squadId}/members`);
+    const raw = await this.fetch<unknown>(`/api/squads/${squadId}/members`);
+    return parseWithFallback(raw, SquadMemberListSchema, EMPTY_SQUAD_MEMBER_LIST, {
+      endpoint: "GET /api/squads/:id/members",
+    }) as SquadMember[];
   }
 
+  // addSquadMember/updateSquadMemberRole: the caller (squad-detail-page.tsx)
+  // discards the mutation result and calls refetchMembers() on success, so
+  // EMPTY_SQUAD_MEMBER is never rendered — matches getSquad/createSquad's
+  // existing EMPTY_SQUAD fallback convention above rather than throwing.
   async addSquadMember(squadId: string, data: { member_type: string; member_id: string; role?: string }): Promise<SquadMember> {
-    return this.fetch(`/api/squads/${squadId}/members`, { method: "POST", body: JSON.stringify(data) });
+    const raw = await this.fetch<unknown>(`/api/squads/${squadId}/members`, { method: "POST", body: JSON.stringify(data) });
+    return parseWithFallback(raw, SquadMemberSchema, EMPTY_SQUAD_MEMBER, {
+      endpoint: "POST /api/squads/:id/members",
+    }) as SquadMember;
   }
 
   async removeSquadMember(squadId: string, data: { member_type: string; member_id: string }): Promise<void> {
@@ -7421,7 +7478,10 @@ export class ApiClient {
   }
 
   async updateSquadMemberRole(squadId: string, data: { member_type: string; member_id: string; role: string }): Promise<SquadMember> {
-    return this.fetch(`/api/squads/${squadId}/members/role`, { method: "PATCH", body: JSON.stringify(data) });
+    const raw = await this.fetch<unknown>(`/api/squads/${squadId}/members/role`, { method: "PATCH", body: JSON.stringify(data) });
+    return parseWithFallback(raw, SquadMemberSchema, EMPTY_SQUAD_MEMBER, {
+      endpoint: "PATCH /api/squads/:id/members/role",
+    }) as SquadMember;
   }
 
   // Per-squad members status snapshot: one row per member with derived
@@ -7808,21 +7868,48 @@ export class ApiClient {
     });
   }
 
+  // Read directly by autopilot-detail-page.tsx (`const { autopilot, triggers } = data`);
+  // a malformed body must not render a blank autopilot, so this throws like
+  // getIssue — the page's `if (!data)` branch already covers that case.
   async getAutopilot(id: string): Promise<GetAutopilotResponse> {
-    return this.fetch(`/api/autopilots/${id}`);
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}`);
+    const detail = parseWithFallback<GetAutopilotResponse | null>(raw, GetAutopilotResponseSchema, null, {
+      endpoint: "GET /api/autopilots/:id",
+    });
+    if (!detail) {
+      throw new Error("GET /api/autopilots/:id returned a malformed autopilot");
+    }
+    return detail;
   }
 
+  // useCreateAutopilot appends the returned autopilot straight into the list
+  // cache — a malformed body must not become a blank row, so this throws like
+  // createIssue rather than falling back to an empty autopilot.
   async createAutopilot(data: CreateAutopilotRequest): Promise<Autopilot> {
-    return this.fetch("/api/autopilots", {
+    const raw = await this.fetch<unknown>("/api/autopilots", {
       method: "POST",
       body: JSON.stringify(data),
     });
+    const autopilot = parseWithFallback<Autopilot | null>(raw, AutopilotSchema, null, {
+      endpoint: "POST /api/autopilots",
+    });
+    if (!autopilot) {
+      throw new Error("POST /api/autopilots returned a malformed autopilot");
+    }
+    return autopilot;
   }
 
+  // useUpdateAutopilot never reads the mutation result (its optimistic cache
+  // write comes from the request variables) and rolls back on error — a
+  // malformed-but-successful response must NOT throw here, or a save that
+  // actually landed would appear to fail and get rolled back client-side.
   async updateAutopilot(id: string, data: UpdateAutopilotRequest): Promise<Autopilot> {
-    return this.fetch(`/api/autopilots/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AutopilotSchema, EMPTY_AUTOPILOT, {
+      endpoint: "PATCH /api/autopilots/:id",
     });
   }
 
@@ -7832,17 +7919,24 @@ export class ApiClient {
 
   // Grant a workspace member explicit write access to the autopilot. Both
   // grant and revoke return the full updated collaborator list so callers can
-  // refresh without a second round-trip.
+  // refresh without a second round-trip. Neither result is read (both
+  // mutations only invalidate the detail query on settle), so EMPTY_* is safe.
   async grantAutopilotAccess(id: string, userId: string): Promise<AutopilotCollaboratorsResponse> {
-    return this.fetch(`/api/autopilots/${id}/collaborators`, {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}/collaborators`, {
       method: "POST",
       body: JSON.stringify({ user_id: userId }),
+    });
+    return parseWithFallback(raw, AutopilotCollaboratorsResponseSchema, EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE, {
+      endpoint: "POST /api/autopilots/:id/collaborators",
     });
   }
 
   async revokeAutopilotAccess(id: string, userId: string): Promise<AutopilotCollaboratorsResponse> {
-    return this.fetch(`/api/autopilots/${id}/collaborators/${userId}`, {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}/collaborators/${userId}`, {
       method: "DELETE",
+    });
+    return parseWithFallback(raw, AutopilotCollaboratorsResponseSchema, EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE, {
+      endpoint: "DELETE /api/autopilots/:id/collaborators/:userId",
     });
   }
 
@@ -7884,27 +7978,44 @@ export class ApiClient {
     const search = new URLSearchParams();
     if (params?.limit) search.set("limit", params.limit.toString());
     if (params?.offset) search.set("offset", params.offset.toString());
-    return this.fetch(`/api/autopilots/${id}/runs?${search}`);
+    const raw = await this.fetch<unknown>(`/api/autopilots/${id}/runs?${search}`);
+    return parseWithFallback(raw, ListAutopilotRunsResponseSchema, EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE, {
+      endpoint: "GET /api/autopilots/:id/runs",
+    });
   }
 
   // Returns a single run including its full trigger_payload. List responses
   // omit trigger_payload to keep them small (a webhook envelope can be
   // up to 256 KiB × limit rows), so the detail view fetches via this route.
+  // Reuses AutopilotRunSchema/FALLBACK_AUTOPILOT_RUN, matching triggerAutopilot
+  // above.
   async getAutopilotRun(autopilotId: string, runId: string): Promise<AutopilotRun> {
-    return this.fetch(`/api/autopilots/${autopilotId}/runs/${runId}`);
+    const raw = await this.fetch<unknown>(`/api/autopilots/${autopilotId}/runs/${runId}`);
+    return parseWithFallback(raw, AutopilotRunSchema, FALLBACK_AUTOPILOT_RUN, {
+      endpoint: "GET /api/autopilots/:id/runs/:runId",
+    });
   }
 
+  // createAutopilotTrigger/updateAutopilotTrigger results are discarded by
+  // the caller (autopilots/mutations.ts invalidates the detail query on
+  // settle without reading the response), so EMPTY_AUTOPILOT_TRIGGER is safe.
   async createAutopilotTrigger(autopilotId: string, data: CreateAutopilotTriggerRequest): Promise<AutopilotTrigger> {
-    return this.fetch(`/api/autopilots/${autopilotId}/triggers`, {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${autopilotId}/triggers`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AutopilotTriggerSchema, EMPTY_AUTOPILOT_TRIGGER, {
+      endpoint: "POST /api/autopilots/:id/triggers",
     });
   }
 
   async updateAutopilotTrigger(autopilotId: string, triggerId: string, data: UpdateAutopilotTriggerRequest): Promise<AutopilotTrigger> {
-    return this.fetch(`/api/autopilots/${autopilotId}/triggers/${triggerId}`, {
+    const raw = await this.fetch<unknown>(`/api/autopilots/${autopilotId}/triggers/${triggerId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, AutopilotTriggerSchema, EMPTY_AUTOPILOT_TRIGGER, {
+      endpoint: "PATCH /api/autopilots/:id/triggers/:triggerId",
     });
   }
 
@@ -7933,14 +8044,24 @@ export class ApiClient {
     );
   }
 
+  // Rotates the trigger's webhook_token — a one-time-visible secret (the new
+  // token is only ever shown from this response). No EMPTY_* fallback: throw
+  // on a malformed body rather than hand the UI an invented empty token.
   async rotateAutopilotTriggerWebhookToken(
     autopilotId: string,
     triggerId: string,
   ): Promise<AutopilotTrigger> {
-    return this.fetch(
+    const raw = await this.fetch<unknown>(
       `/api/autopilots/${autopilotId}/triggers/${triggerId}/rotate-webhook-token`,
       { method: "POST" },
     );
+    const trigger = parseWithFallback<AutopilotTrigger | null>(raw, AutopilotTriggerSchema, null, {
+      endpoint: "POST /api/autopilots/:id/triggers/:triggerId/rotate-webhook-token",
+    });
+    if (!trigger) {
+      throw new Error("POST .../rotate-webhook-token returned a malformed trigger");
+    }
+    return trigger;
   }
 
   // Dry-runs replay a real decision without side effects. The webhook one
@@ -7975,16 +8096,25 @@ export class ApiClient {
   }
 
   // Write-only: the new secret is never echoed back. The response is the
-  // trigger with has_signing_secret / signing_secret_hint refreshed.
+  // trigger with has_signing_secret / signing_secret_hint refreshed — read
+  // directly by signing-secret-section.tsx, so throw on a malformed body
+  // rather than invent an empty hint.
   async setAutopilotTriggerSigningSecret(
     autopilotId: string,
     triggerId: string,
     signingSecret: string,
   ): Promise<AutopilotTrigger> {
-    return this.fetch(
+    const raw = await this.fetch<unknown>(
       `/api/autopilots/${autopilotId}/triggers/${triggerId}/signing-secret`,
       { method: "PUT", body: JSON.stringify({ signing_secret: signingSecret }) },
     );
+    const trigger = parseWithFallback<AutopilotTrigger | null>(raw, AutopilotTriggerSchema, null, {
+      endpoint: "PUT /api/autopilots/:id/triggers/:triggerId/signing-secret",
+    });
+    if (!trigger) {
+      throw new Error("PUT .../signing-secret returned a malformed trigger");
+    }
+    return trigger;
   }
 
   // Webhook deliveries — list is slim (no raw_body / selected_headers /
@@ -8128,17 +8258,30 @@ export class ApiClient {
 
   // VCS integration (Forgejo / Gitea / GitLab)
   async listVCSConnections(workspaceId: string): Promise<ListVCSConnectionsResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/vcs/connections`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/vcs/connections`);
+    return parseWithFallback(raw, ListVCSConnectionsResponseSchema, EMPTY_LIST_VCS_CONNECTIONS_RESPONSE, {
+      endpoint: "GET /api/workspaces/:id/vcs/connections",
+    });
   }
 
+  // connectVCS/rotateVCSWebhook return the one-time plaintext webhook_secret,
+  // read directly by vcs-tab.tsx to display it. No EMPTY_* fallback: throw on
+  // a malformed body rather than invent an empty secret.
   async connectVCS(
     workspaceId: string,
     body: ConnectVCSRequest,
   ): Promise<ConnectVCSResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/vcs/connections`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/vcs/connections`, {
       method: "POST",
       body: JSON.stringify(body),
     });
+    const conn = parseWithFallback<ConnectVCSResponse | null>(raw, ConnectVCSResponseSchema, null, {
+      endpoint: "POST /api/workspaces/:id/vcs/connections",
+    });
+    if (!conn) {
+      throw new Error("POST /api/workspaces/:id/vcs/connections returned a malformed connection");
+    }
+    return conn;
   }
 
   async deleteVCSConnection(workspaceId: string, connectionId: string): Promise<void> {
@@ -8151,17 +8294,31 @@ export class ApiClient {
     workspaceId: string,
     connectionId: string,
   ): Promise<ConnectVCSResponse> {
-    return this.fetch(
+    const raw = await this.fetch<unknown>(
       `/api/workspaces/${workspaceId}/vcs/connections/${connectionId}/rotate-webhook`,
       { method: "POST" },
     );
+    const conn = parseWithFallback<ConnectVCSResponse | null>(raw, ConnectVCSResponseSchema, null, {
+      endpoint: "POST /api/workspaces/:id/vcs/connections/:connectionId/rotate-webhook",
+    });
+    if (!conn) {
+      throw new Error("POST .../rotate-webhook returned a malformed connection");
+    }
+    return conn;
   }
 
   // Lark integration
   async listLarkInstallations(workspaceId: string): Promise<ListLarkInstallationsResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/lark/installations`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/lark/installations`);
+    return parseWithFallback(raw, ListLarkInstallationsResponseSchema, EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE, {
+      endpoint: "GET /api/workspaces/:id/lark/installations",
+    });
   }
 
+  // beginLarkInstall/getLarkInstallStatus/redeemLarkBindingToken responses are
+  // read directly (QR url, polled status, redemption ids) by lark-tab.tsx /
+  // bind-page.tsx. No EMPTY_* fallback: throw on a malformed body rather than
+  // invent an empty QR url or a false "success".
   async beginLarkInstall(
     workspaceId: string,
     agentId: string,
@@ -8176,13 +8333,27 @@ export class ApiClient {
     // arg here so every call site is forced to make a deliberate
     // choice rather than silently defaulting to mainland.
     const search = new URLSearchParams({ agent_id: agentId, region });
-    return this.fetch(`/api/workspaces/${workspaceId}/lark/install/begin?${search.toString()}`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/lark/install/begin?${search.toString()}`, {
       method: "POST",
     });
+    const res = parseWithFallback<BeginLarkInstallResponse | null>(raw, BeginLarkInstallResponseSchema, null, {
+      endpoint: "POST /api/workspaces/:id/lark/install/begin",
+    });
+    if (!res) {
+      throw new Error("POST /api/workspaces/:id/lark/install/begin returned a malformed response");
+    }
+    return res;
   }
 
   async getLarkInstallStatus(workspaceId: string, sessionId: string): Promise<LarkInstallStatusResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/lark/install/${sessionId}/status`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/lark/install/${sessionId}/status`);
+    const res = parseWithFallback<LarkInstallStatusResponse | null>(raw, LarkInstallStatusResponseSchema, null, {
+      endpoint: "GET /api/workspaces/:id/lark/install/:sessionId/status",
+    });
+    if (!res) {
+      throw new Error("GET .../lark/install/:sessionId/status returned a malformed response");
+    }
+    return res;
   }
 
   async deleteLarkInstallation(workspaceId: string, installationId: string): Promise<void> {
@@ -8192,10 +8363,17 @@ export class ApiClient {
   }
 
   async redeemLarkBindingToken(token: string): Promise<RedeemLarkBindingTokenResponse> {
-    return this.fetch(`/api/lark/binding/redeem`, {
+    const raw = await this.fetch<unknown>(`/api/lark/binding/redeem`, {
       method: "POST",
       body: JSON.stringify({ token }),
     });
+    const res = parseWithFallback<RedeemLarkBindingTokenResponse | null>(raw, RedeemLarkBindingTokenResponseSchema, null, {
+      endpoint: "POST /api/lark/binding/redeem",
+    });
+    if (!res) {
+      throw new Error("POST /api/lark/binding/redeem returned a malformed response");
+    }
+    return res;
   }
 
   // Composio integration (MUL-3720). All routes are user-scoped (a connection
@@ -8206,21 +8384,36 @@ export class ApiClient {
    * so every entry has `connectable: true`. A resolver/upstream failure is a
    * 502 rather than an empty list. */
   async listComposioToolkits(): Promise<ComposioToolkit[]> {
-    return this.fetch(`/api/integrations/composio/toolkits`);
+    const raw = await this.fetch<unknown>(`/api/integrations/composio/toolkits`);
+    return parseWithFallback(raw, ComposioToolkitListSchema, EMPTY_COMPOSIO_TOOLKIT_LIST, {
+      endpoint: "GET /api/integrations/composio/toolkits",
+    }) as ComposioToolkit[];
   }
 
   /** The caller's active Composio connections. */
   async listComposioConnections(): Promise<ComposioConnection[]> {
-    return this.fetch(`/api/integrations/composio/connections`);
+    const raw = await this.fetch<unknown>(`/api/integrations/composio/connections`);
+    return parseWithFallback(raw, ComposioConnectionListSchema, EMPTY_COMPOSIO_CONNECTION_LIST, {
+      endpoint: "GET /api/integrations/composio/connections",
+    }) as ComposioConnection[];
   }
 
   /** Starts a hosted Composio connect flow for a toolkit and returns the
-   * redirect URL the browser should be sent to. */
+   * redirect URL the browser should be sent to. `window.location.href` is set
+   * to it directly (composio-tab.tsx), so throw on a malformed body rather
+   * than invent an empty redirect target. */
   async beginComposioConnect(toolkitSlug: string): Promise<ComposioConnectInitResponse> {
-    return this.fetch(`/api/integrations/composio/connect/init`, {
+    const raw = await this.fetch<unknown>(`/api/integrations/composio/connect/init`, {
       method: "POST",
       body: JSON.stringify({ toolkit_slug: toolkitSlug }),
     });
+    const res = parseWithFallback<ComposioConnectInitResponse | null>(raw, ComposioConnectInitResponseSchema, null, {
+      endpoint: "POST /api/integrations/composio/connect/init",
+    });
+    if (!res) {
+      throw new Error("POST /api/integrations/composio/connect/init returned a malformed response");
+    }
+    return res;
   }
 
   /** Disconnects a Composio connection the caller owns. */
@@ -8232,22 +8425,34 @@ export class ApiClient {
 
   // Slack integration (MUL-3666)
   async listSlackInstallations(workspaceId: string): Promise<ListSlackInstallationsResponse> {
-    return this.fetch(`/api/workspaces/${workspaceId}/slack/installations`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/slack/installations`);
+    return parseWithFallback(raw, ListSlackInstallationsResponseSchema, EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE, {
+      endpoint: "GET /api/workspaces/:id/slack/installations",
+    });
   }
 
   // registerSlackBYO performs a bring-your-own-app install: the admin pastes the
   // bot token (xoxb-) + app-level token (xapp-) of the Slack app they created,
   // and the backend validates + persists it, returning the new installation.
+  // Throws on a malformed body (one-time install flow, JEF-321) rather than
+  // inventing a placeholder installation.
   async registerSlackBYO(
     workspaceId: string,
     agentId: string,
     body: RegisterSlackBYORequest,
   ): Promise<SlackInstallation> {
     const search = new URLSearchParams({ agent_id: agentId });
-    return this.fetch(`/api/workspaces/${workspaceId}/slack/install/byo?${search.toString()}`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/slack/install/byo?${search.toString()}`, {
       method: "POST",
       body: JSON.stringify(body),
     });
+    const installation = parseWithFallback<SlackInstallation | null>(raw, SlackInstallationSchema, null, {
+      endpoint: "POST /api/workspaces/:id/slack/install/byo",
+    });
+    if (!installation) {
+      throw new Error("POST /api/workspaces/:id/slack/install/byo returned a malformed installation");
+    }
+    return installation;
   }
 
   async deleteSlackInstallation(workspaceId: string, installationId: string): Promise<void> {
@@ -8257,10 +8462,17 @@ export class ApiClient {
   }
 
   async redeemSlackBindingToken(token: string): Promise<RedeemSlackBindingTokenResponse> {
-    return this.fetch(`/api/slack/binding/redeem`, {
+    const raw = await this.fetch<unknown>(`/api/slack/binding/redeem`, {
       method: "POST",
       body: JSON.stringify({ token }),
     });
+    const res = parseWithFallback<RedeemSlackBindingTokenResponse | null>(raw, RedeemSlackBindingTokenResponseSchema, null, {
+      endpoint: "POST /api/slack/binding/redeem",
+    });
+    if (!res) {
+      throw new Error("POST /api/slack/binding/redeem returned a malformed response");
+    }
+    return res;
   }
 
   // DingTalk integration

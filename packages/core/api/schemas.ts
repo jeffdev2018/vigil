@@ -140,6 +140,18 @@ import type {
   RuntimeLocalSkillListRequest,
   RuntimeLocalSkillImportRequest,
   AgentTask,
+  // JEF-321 batch D
+  PinnedItem,
+  SquadMember,
+  Autopilot,
+  AutopilotCollaboratorsResponse,
+  AutopilotTrigger,
+  ListAutopilotRunsResponse,
+  ListVCSConnectionsResponse,
+  ListLarkInstallationsResponse,
+  ComposioToolkit,
+  ComposioConnection,
+  ListSlackInstallationsResponse,
 } from "../types";
 import type {
   CloudRuntimeNode,
@@ -6868,3 +6880,337 @@ export const ListProjectResourcesResponseSchema = z.object({
 }).loose();
 
 export const EMPTY_LIST_PROJECT_RESOURCES_RESPONSE: ListProjectResourcesResponse = { resources: [], total: 0 };
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch D — pins, squad members, autopilots, VCS/Lark/Composio/Slack
+// integrations (client.ts lines ~6900-7900)
+// ---------------------------------------------------------------------------
+
+// Pins (GET/POST /api/pins). Lists fall back to []; createPin throws on a
+// malformed body rather than optimistically inserting a blank pin row into
+// the sidebar cache (same "create is a failed mutation" rule as createIssue).
+export const PinnedItemSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  user_id: z.string(),
+  item_type: z.string(),
+  item_id: z.string(),
+  position: z.number().default(0),
+  created_at: z.string(),
+}).loose();
+
+export const PinnedItemListSchema = z.array(PinnedItemSchema);
+export const EMPTY_PINNED_ITEM_LIST: PinnedItem[] = [];
+
+// Squad members. listSquadMembers/addSquadMember/updateSquadMemberRole mirror
+// the existing SquadSchema/getSquad convention already in this file (EMPTY_*
+// fallback, not throw) — every caller (squad-detail-page.tsx) discards the
+// mutation's return value and refetches the member list on success, so an
+// EMPTY_SQUAD_MEMBER placeholder is never rendered.
+export const SquadMemberSchema = z.object({
+  id: z.string(),
+  squad_id: z.string(),
+  member_type: z.string(),
+  member_id: z.string(),
+  role: z.string().default(""),
+  created_at: z.string(),
+}).loose();
+
+export const SquadMemberListSchema = z.array(SquadMemberSchema);
+export const EMPTY_SQUAD_MEMBER_LIST: SquadMember[] = [];
+export const EMPTY_SQUAD_MEMBER: SquadMember = {
+  id: "",
+  squad_id: "",
+  member_type: "agent",
+  member_id: "",
+  role: "",
+  created_at: "",
+};
+
+// Autopilots. AutopilotSchema mirrors the Autopilot interface (superset of
+// the private AutopilotListItemSchema used by listAutopilots, plus the
+// detail-only subscribers/pause_reason fields) so getAutopilot/createAutopilot
+// share one definition with GetAutopilotResponseSchema.
+const AutopilotSubscriberSchema = z.object({
+  user_type: z.string().default("member"),
+  user_id: z.string(),
+  created_at: z.string(),
+}).loose();
+
+export const AutopilotSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  title: z.string(),
+  description: z.string().nullable().default(null),
+  project_id: z.string().nullable().optional(),
+  assignee_type: z.string().default("agent"),
+  assignee_id: z.string(),
+  status: z.string(),
+  pause_reason: z.string().nullable().optional(),
+  execution_mode: z.string(),
+  batch_eligible: z.boolean().catch(false).optional(),
+  issue_title_template: z.string().nullable().default(null),
+  created_by_type: z.string(),
+  created_by_id: z.string(),
+  last_run_at: z.string().nullable().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+  trigger_kinds: z.array(z.string()).optional(),
+  next_run_at: z.string().nullable().optional(),
+  last_run_status: z.string().nullable().optional(),
+  subscribers: z.array(AutopilotSubscriberSchema).optional(),
+  can_write: z.boolean().optional(),
+  can_manage_access: z.boolean().optional(),
+}).loose();
+
+// Update is a patch response the caller never reads (useUpdateAutopilot's
+// optimistic cache write comes from the request variables, not the mutation
+// result) — falling back here must NOT throw, or a malformed-but-successful
+// server response would trip onError and roll back an edit that actually saved.
+export const EMPTY_AUTOPILOT: Autopilot = {
+  id: "",
+  workspace_id: "",
+  title: "",
+  description: null,
+  assignee_type: "agent",
+  assignee_id: "",
+  status: "paused",
+  execution_mode: "create_issue",
+  issue_title_template: null,
+  created_by_type: "",
+  created_by_id: "",
+  last_run_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+export const AutopilotCollaboratorSchema = z.object({
+  user_type: z.string().default("member"),
+  user_id: z.string(),
+  granted_by: z.string(),
+  created_at: z.string(),
+}).loose();
+
+export const AutopilotCollaboratorsResponseSchema = z.object({
+  collaborators: z.array(AutopilotCollaboratorSchema).default([]),
+}).loose();
+
+export const EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE: AutopilotCollaboratorsResponse = {
+  collaborators: [],
+};
+
+export const AutopilotTriggerSchema = z.object({
+  id: z.string(),
+  autopilot_id: z.string(),
+  kind: z.string(),
+  enabled: z.boolean().default(false),
+  cron_expression: z.string().nullable().default(null),
+  timezone: z.string().nullable().default(null),
+  next_run_at: z.string().nullable().default(null),
+  window_minutes: z.number().optional(),
+  webhook_token: z.string().nullable().default(null),
+  webhook_path: z.string().nullable().optional(),
+  webhook_url: z.string().nullable().optional(),
+  label: z.string().nullable().default(null),
+  event_filters: z.array(
+    z.object({ event: z.string(), actions: z.array(z.string()).optional() }).loose(),
+  ).nullable().optional(),
+  event_match_criteria: z.string().optional(),
+  provider: z.string().nullable().optional(),
+  has_signing_secret: z.boolean().optional(),
+  signing_secret_hint: z.string().nullable().optional(),
+  last_fired_at: z.string().nullable().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+// createAutopilotTrigger/updateAutopilotTrigger callers (autopilots/mutations.ts)
+// discard the mutation result and invalidate the autopilot detail query, so
+// EMPTY_AUTOPILOT_TRIGGER is safe here — never rendered directly. Secret-bearing
+// trigger writes (rotateAutopilotTriggerWebhookToken, setAutopilotTriggerSigningSecret)
+// are handled separately below with a throw, since those responses ARE read
+// directly by trigger-row.tsx / signing-secret-section.tsx.
+export const EMPTY_AUTOPILOT_TRIGGER: AutopilotTrigger = {
+  id: "",
+  autopilot_id: "",
+  kind: "schedule",
+  enabled: false,
+  cron_expression: null,
+  timezone: null,
+  next_run_at: null,
+  webhook_token: null,
+  label: null,
+  last_fired_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// getAutopilot (GET /api/autopilots/:id). Read directly by autopilot-detail-page.tsx
+// (`const { autopilot, triggers } = data`); a malformed body must not render a
+// blank autopilot, so this throws on failure like getIssue — the page's
+// `if (!data)` branch already renders a "not found" state for that case.
+export const GetAutopilotResponseSchema = z.object({
+  autopilot: AutopilotSchema,
+  triggers: z.array(AutopilotTriggerSchema).default([]),
+  collaborators: z.array(AutopilotCollaboratorSchema).optional(),
+}).loose();
+
+export const ListAutopilotRunsResponseSchema = z.object({
+  runs: z.array(AutopilotRunSchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+export const EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE: ListAutopilotRunsResponse = {
+  runs: [],
+  total: 0,
+};
+
+// VCS integration (Forgejo/Gitea/GitLab). webhook_url/webhook_path are
+// legitimately empty when the server has no public URL configured (see
+// VCSConnection doc comment), so they default rather than fail the parse.
+export const VCSConnectionSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  provider: z.string(),
+  instance_url: z.string(),
+  account_login: z.string(),
+  webhook_url: z.string().default(""),
+  webhook_path: z.string().default(""),
+  created_at: z.string(),
+}).loose();
+
+export const ListVCSConnectionsResponseSchema = z.object({
+  connections: z.array(VCSConnectionSchema).default([]),
+  available: z.boolean().default(true),
+  configured: z.boolean().default(false),
+  can_manage: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_LIST_VCS_CONNECTIONS_RESPONSE: ListVCSConnectionsResponse = {
+  connections: [],
+  available: true,
+  configured: false,
+  can_manage: false,
+};
+
+// connectVCS / rotateVCSWebhook return the one-time plaintext webhook_secret
+// (never retrievable afterwards) directly rendered by vcs-tab.tsx. No
+// EMPTY_* fallback: an unreadable response must throw rather than hand the
+// UI an invented empty secret.
+export const ConnectVCSResponseSchema = VCSConnectionSchema.extend({
+  webhook_secret: z.string(),
+});
+
+// Lark integration.
+export const LarkInstallationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  agent_id: z.string(),
+  app_id: z.string(),
+  tenant_key: z.string().nullable().optional(),
+  bot_open_id: z.string(),
+  installer_user_id: z.string(),
+  status: z.string(),
+  region: z.string().optional(),
+  installed_at: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const ListLarkInstallationsResponseSchema = z.object({
+  installations: z.array(LarkInstallationSchema).default([]),
+  configured: z.boolean().default(false),
+  install_supported: z.boolean().optional(),
+}).loose();
+
+export const EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE: ListLarkInstallationsResponse = {
+  installations: [],
+  configured: false,
+};
+
+// beginLarkInstall / getLarkInstallStatus / redeemLarkBindingToken responses
+// are read directly (QR url, polled status, redemption ids) by lark-tab.tsx /
+// bind-page.tsx. No EMPTY_* fallback: throw on a malformed body rather than
+// invent an empty QR url or a false "success".
+export const BeginLarkInstallResponseSchema = z.object({
+  session_id: z.string(),
+  qr_code_url: z.string(),
+  expires_in_seconds: z.number(),
+  poll_interval_seconds: z.number(),
+}).loose();
+
+export const LarkInstallStatusResponseSchema = z.object({
+  status: z.string(),
+  installation_id: z.string().optional(),
+  error_reason: z.string().optional(),
+  error_message: z.string().optional(),
+}).loose();
+
+export const RedeemLarkBindingTokenResponseSchema = z.object({
+  workspace_id: z.string(),
+  installation_id: z.string(),
+  lark_open_id: z.string(),
+}).loose();
+
+// Composio integration. Toolkit/connection lists fall back to []; the connect
+// redirect_url is navigated to directly (`window.location.href = redirect_url`)
+// so beginComposioConnect throws rather than invent an empty redirect target.
+export const ComposioToolkitSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  logo: z.string().optional(),
+  category: z.string().optional(),
+  connectable: z.boolean().default(false),
+}).loose();
+
+export const ComposioToolkitListSchema = z.array(ComposioToolkitSchema);
+export const EMPTY_COMPOSIO_TOOLKIT_LIST: ComposioToolkit[] = [];
+
+export const ComposioConnectionSchema = z.object({
+  id: z.string(),
+  toolkit_slug: z.string(),
+  status: z.string(),
+  connected_at: z.string(),
+  last_used_at: z.string().nullable().optional(),
+}).loose();
+
+export const ComposioConnectionListSchema = z.array(ComposioConnectionSchema);
+export const EMPTY_COMPOSIO_CONNECTION_LIST: ComposioConnection[] = [];
+
+export const ComposioConnectInitResponseSchema = z.object({
+  redirect_url: z.string(),
+}).loose();
+
+// Slack integration (bring-your-own-app install, MUL-3666).
+export const SlackInstallationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  agent_id: z.string(),
+  team_id: z.string(),
+  bot_user_id: z.string(),
+  installer_user_id: z.string(),
+  status: z.string(),
+  installed_at: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const ListSlackInstallationsResponseSchema = z.object({
+  installations: z.array(SlackInstallationSchema).default([]),
+  configured: z.boolean().default(false),
+  install_supported: z.boolean().optional(),
+}).loose();
+
+export const EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE: ListSlackInstallationsResponse = {
+  installations: [],
+  configured: false,
+};
+
+// registerSlackBYO reuses SlackInstallationSchema and throws on a malformed
+// body (no EMPTY_* fallback) — listed alongside the other one-time/write-only
+// integration flows per JEF-321: never invent placeholder installation data.
+export const RedeemSlackBindingTokenResponseSchema = z.object({
+  workspace_id: z.string(),
+  installation_id: z.string(),
+  slack_user_id: z.string(),
+}).loose();
