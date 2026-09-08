@@ -23,8 +23,8 @@ func TestAgentMemorySectionPresent(t *testing.T) {
 
 	for _, want := range []string{
 		"## Memory\n",
-		"facts you learned from previous tasks",
-		"re-verify if the current state contradicts them",
+		"records of what previous tasks learned",
+		"Re-verify if the current state contradicts one",
 		"cite it",
 		"say so instead of improvising",
 		"- This repo uses pnpm, never npm.\n",
