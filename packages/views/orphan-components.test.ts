@@ -263,7 +263,12 @@ function importEdges(source: ts.SourceFile): Edge[] {
   return edges;
 }
 
+const ORPHAN_SCAN_TIMEOUT_MS = 60_000;
+
 describe("packages/views components are mounted somewhere", () => {
+  // The scan parses every source file in the package with the TypeScript
+  // compiler. It runs in ~2s on a laptop and took 7s on a loaded CI shard,
+  // past vitest's default 5s — the budget is for the machine, not the code.
   it("every exported component is rendered by production code", () => {
     const files = SCAN_ROOTS.flatMap((root) => walk(root));
     const known = new Set(files);
@@ -392,5 +397,5 @@ describe("packages/views components are mounted somewhere", () => {
         `${key} is allow-listed but ${relPath} no longer exports ${name} — drop the entry.`,
       ).toBe(true);
     }
-  });
+  }, ORPHAN_SCAN_TIMEOUT_MS);
 });
