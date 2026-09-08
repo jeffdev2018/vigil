@@ -192,6 +192,21 @@ const (
 	// does, the failure names exactly what to fix.
 	ReasonSandboxUnavailable Reason = "sandbox_unavailable"
 
+	// ReasonIssueTerminal: the run's issue reached a terminal status while the
+	// run was still queued or running. Somebody closed or cancelled the work
+	// from under it, so there is nothing left for it to deliver.
+	//
+	// Two authorities can end an orphan, and the daemon only ever had one: a
+	// dead process, recovered through the stale window and /recover-orphans.
+	// A live process working on a closed issue looked healthy from every angle
+	// and kept its slot, its budget and its tokens until it finished on its
+	// own. This is the second authority.
+	//
+	// Deliberately NOT retryable, and deliberately not `cancelled`: cancelling
+	// a run is a human act on the run, and this is the platform noticing the
+	// subject went away.
+	ReasonIssueTerminal Reason = "issue_terminal"
+
 	// Agent process side: failure surfaced by the agent CLI / SDK as
 	// an error string. Classify(rawError) is responsible for picking
 	// the right sub-reason from the string. IsAgentError returns true
@@ -291,6 +306,7 @@ var allReasons = []Reason{
 	ReasonEnvironmentPrepareFailed,
 	ReasonInvalidTaskIdentity,
 	ReasonSandboxUnavailable,
+	ReasonIssueTerminal,
 
 	// Agent process side: provider errors.
 	ReasonAgentProviderAuthOrAccess,
