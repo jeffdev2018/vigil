@@ -149,6 +149,29 @@ func TestAgentMemoryExtractionInsertsFacts(t *testing.T) {
 	}
 }
 
+// TestAgentMemoryExtractionInsertsDrafts pins the governance default
+// (JEF-269): facts the pass learned on its own land as drafts until a human
+// approves them, while manual rows stay approved.
+func TestAgentMemoryExtractionInsertsDrafts(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "Migrated the build to pnpm workspaces.")
+	svc := memoryExtractionService(pool, events.New(),
+		stubMemoryLLM(t, `{"facts":["This repo uses pnpm workspaces."]}`))
+
+	if err := svc.ExtractAgentMemoriesForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+
+	var state string
+	if err := pool.QueryRow(context.Background(),
+		`SELECT state FROM agent_memory WHERE agent_id = $1 AND source = 'run'`, fx.agentID).Scan(&state); err != nil {
+		t.Fatalf("load extracted memory state: %v", err)
+	}
+	if state != "draft" {
+		t.Fatalf("extracted memory state = %q, want draft", state)
+	}
+}
+
 func TestAgentMemoryExtractionDisabledLLMIsNoop(t *testing.T) {
 	fx, pool := seedAgentMemoryExtractionFixture(t)
 	taskID := fx.seedTerminalTask(t, pool, "completed", "Some output worth mining.")

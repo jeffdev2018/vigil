@@ -16,10 +16,12 @@ import (
 
 // Cross-provider self-review (K15): a completed code run with a diff gets
 // a review run by the least recently used agent of ANOTHER provider, briefed
-// with the diff only; review runs are not reviewed; no diff, no review; a
-// single provider means no review at all; the reviewer's report is stored
-// as a review_report message and listed; a failed review can be retried
-// once, not while one is pending.
+// with the diff only; review runs are not reviewed; no diff, no review; the
+// author alone in the workspace means no review at all; the reviewer's report
+// is stored as a review_report message and listed; a failed review can be
+// retried once, not while one is pending. (JEF-238 widened "another provider"
+// to "not the author's (runtime, model) pair, another provider first" — see
+// cross_review_reviewer_test.go.)
 
 func providerRuntime(t *testing.T, provider string) string {
 	t.Helper()

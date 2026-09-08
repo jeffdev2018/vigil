@@ -151,7 +151,9 @@
     "skipped_group": {
       "label": "Ignoré",
       "summary": "{{count}} exécutions ignorées"
-    }
+    },
+    "off_peak": "Heures creuses",
+    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes."
   },
   "webhook_payload": {
     "label": "Événement webhook :",
@@ -401,7 +403,11 @@
     },
     "event_criteria_label": "S'exécuter uniquement quand…",
     "event_criteria_placeholder": "ex. échecs de déploiement en production, ou PR touchant à la facturation",
-    "event_criteria_hint": "Décrivez avec vos propres mots les événements devant déclencher cet autopilot. Chaque livraison est évaluée selon ce critère, de manière souple : en cas de doute, l'autopilot s'exécute. Laissez vide pour vous appuyer uniquement sur les filtres d'événements."
+    "event_criteria_hint": "Décrivez avec vos propres mots les événements devant déclencher cet autopilot. Chaque livraison est évaluée selon ce critère, de manière souple : en cas de doute, l'autopilot s'exécute. Laissez vide pour vous appuyer uniquement sur les filtres d'événements.",
+    "section_off_peak": "Heures creuses",
+    "off_peak_label": "Peut attendre les heures creuses",
+    "off_peak_hint": "Les exécutions planifiées qui se déclenchent pendant la plage creuse de l'espace passent après tout ce qui est urgent : moins cher, mais l'heure de départ varie. Un lancement manuel n'est jamais retardé.",
+    "off_peak_unavailable": "Cet espace n'a pas encore de plage creuse. Un administrateur la définit dans Paramètres → Espace de travail."
   },
   "schedule_editor": {
     "time_label": "Heure",
@@ -538,5 +544,52 @@
       "confirm": "Supprimer définitivement",
       "deleting": "Suppression…"
     }
+  },
+  "daemon_import": {
+    "open": "Importer un DAEMON.md",
+    "title": "Importer un daemon",
+    "description": "Un DAEMON.md décrit un autopilote sous forme de fichier : qui l'exécute, quand il se déclenche, et la compétence lue à chaque exécution. Importer deux fois le même fichier ne change rien.",
+    "drop_hint": "Déposez un DAEMON.md ici, ou collez-le ci-dessous",
+    "choose_file": "Choisir un fichier",
+    "placeholder": "---\nname: Tri nocturne\nrole: Trier la file entrante et l'étiqueter.\nagent: Nova\ntriggers:\n  - kind: schedule\n    cron: \"0 9 * * *\"\n---\n",
+    "textarea_label": "Contenu du DAEMON.md",
+    "checking": "Vérification de la déclaration...",
+    "errors_title": "{{count}} problème(s) dans cette déclaration",
+    "line_prefix": "ligne {{line}}",
+    "field_name": "Nom",
+    "field_agent": "Agent",
+    "field_outputs": "Sorties",
+    "field_role": "Rôle",
+    "agent_unknown": "aucun agent de ce nom dans cet espace de travail",
+    "triggers_title": "Déclencheurs",
+    "next_runs_title": "Prochaines exécutions",
+    "next_runs_unknown": "aperçu impossible",
+    "body_title": "Compétence que l'agent lira",
+    "unchanged": "Ce daemon correspond déjà à ce fichier. L'importer ne changerait rien.",
+    "strategy_title": "Un daemon portant ce nom existe déjà",
+    "strategy": {
+      "fail": "Arrêter",
+      "overwrite": "Le remplacer",
+      "rename": "Garder les deux"
+    },
+    "strategy_hint": {
+      "fail": "Rien n'est écrit. Renommez le daemon dans le fichier, ou choisissez une autre option.",
+      "overwrite": "Le daemon existant prend la configuration de ce fichier. Les déclencheurs qu'il ne déclare plus cessent de se déclencher.",
+      "rename": "Un second daemon est créé sous un nom suffixé. L'existant n'est pas touché."
+    },
+    "cancel": "Annuler",
+    "submit": "Importer",
+    "preview_failed": "La déclaration n'a pas pu être vérifiée.",
+    "import_failed": "Le daemon n'a pas pu être importé.",
+    "read_failed": "Ce fichier n'a pas pu être lu."
+  },
+  "memory": {
+    "section_title": "Mémoire",
+    "export_button": "Exporter DAEMON.md",
+    "empty_title": "Aucune mémoire pour l'instant",
+    "empty_hint": "Les exécutions de ce daemon y écrivent ce que la suivante doit savoir.",
+    "updated_at": "Mis à jour {{at}}",
+    "last_run": "Dernière exécution {{at}}",
+    "read_only": "Écrit par les exécutions, non modifiable ici"
   }
 }

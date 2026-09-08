@@ -32,7 +32,7 @@
     "archived": "アーカイブ済み"
   },
   "execution_mode": {
-    "create_issue": "タスクを作成",
+    "create_issue": "課題を作成",
     "run_only": "実行のみ"
   },
   "relative_date": {
@@ -86,7 +86,7 @@
     "run_blocked_attribution": "実行されませんでした — 実行の責任者を特定できませんでした",
     "run_blocked_already_active": "実行されませんでした — 直近の実行が本件をカバーしています",
     "run_blocked_quota_exceeded": "実行されませんでした — この期間の実行上限に達しました",
-    "run_blocked_issue_limit_reached": "実行されませんでした — ワークスペースのタスク数上限に達しました",
+    "run_blocked_issue_limit_reached": "実行されませんでした — ワークスペースの課題数上限に達しました",
     "run_blocked_generic": "実行されませんでした — 実行がブロックされました",
     "section_properties": "プロパティ",
     "section_triggers": "トリガー",
@@ -133,7 +133,7 @@
     "owner_note": "作成者とワークスペース管理者は常にアクセスできます。"
   },
   "run_status": {
-    "issue_created": "タスク作成済み",
+    "issue_created": "課題作成済み",
     "running": "実行中",
     "completed": "完了",
     "failed": "失敗",
@@ -146,12 +146,14 @@
     "api": "API"
   },
   "run": {
-    "issue_linked": "タスクをリンク済み",
+    "issue_linked": "課題をリンク済み",
     "view_log": "実行ログを表示",
     "skipped_group": {
       "label": "スキップ済み",
       "summary": "スキップされた実行 {{count}} 件"
-    }
+    },
+    "off_peak": "オフピーク",
+    "off_peak_hint": "オフピークのレーンに入っています。緊急の実行がすべて終わってから処理されます。"
   },
   "webhook_payload": {
     "label": "Webhook イベント:",
@@ -359,7 +361,7 @@
     "project_hint": "実行環境も決まります — このプロジェクトのリポジトリまたはローカルディレクトリ",
     "no_project": "プロジェクトなし",
     "section_subscribers": "購読者",
-    "subscribers_hint": "このオートパイロットが作成するすべてのタスクを自動で購読します",
+    "subscribers_hint": "このオートパイロットが作成するすべての課題を自動で購読します",
     "subscribers_empty": "購読者はいません。チームメイトを追加すると、毎回通知されます",
     "subscribers_add": "購読者を追加",
     "subscribers_search_placeholder": "名前でメンバーを検索…",
@@ -391,17 +393,21 @@
     "error_assignee_required": "実行するエージェントまたはスクワッドを選択してください。",
     "output_modes": {
       "create_issue": {
-        "label": "タスクを作成",
-        "description": "実行のたびに追跡可能なタスクを作成します"
+        "label": "課題を作成",
+        "description": "実行のたびに追跡可能な課題を作成します"
       },
       "run_only": {
         "label": "実行のみ",
-        "description": "タスクを作成せず、静かに実行します"
+        "description": "課題を作成せず、静かに実行します"
       }
     },
     "event_criteria_label": "次の場合のみ実行…",
     "event_criteria_placeholder": "例：本番環境のデプロイ失敗、または課金に関わるプルリクエスト",
-    "event_criteria_hint": "このオートパイロットを実行すべきイベントを自分の言葉で説明します。各配信はこの説明に対して寛容に判定され、迷う場合は実行されます。空欄の場合はイベントフィルターのみで判定します。"
+    "event_criteria_hint": "このオートパイロットを実行すべきイベントを自分の言葉で説明します。各配信はこの説明に対して寛容に判定され、迷う場合は実行されます。空欄の場合はイベントフィルターのみで判定します。",
+    "section_off_peak": "オフピーク",
+    "off_peak_label": "オフピーク時間帯まで待てる",
+    "off_peak_hint": "ワークスペースのオフピーク時間帯に発火したスケジュール実行は、緊急の作業の後ろに並びます。コストは下がりますが開始時刻は変動します。今すぐ実行した場合は遅延しません。",
+    "off_peak_unavailable": "このワークスペースにはまだオフピーク時間帯がありません。管理者が 設定 → ワークスペース で設定します。"
   },
   "schedule_editor": {
     "time_label": "時刻",
@@ -535,5 +541,52 @@
       "confirm": "完全に削除",
       "deleting": "削除中…"
     }
+  },
+  "daemon_import": {
+    "open": "DAEMON.md をインポート",
+    "title": "デーモンをインポート",
+    "description": "DAEMON.md はオートパイロットをファイルとして宣言します。誰が実行し、いつ発火し、毎回どのスキルを読むかを記述します。同じファイルを二度インポートしても何も変わりません。",
+    "drop_hint": "DAEMON.md をここにドロップするか、下に貼り付けてください",
+    "choose_file": "ファイルを選択",
+    "placeholder": "---\nname: 夜間トリアージ\nrole: 受信キューを仕分けしてラベルを付ける。\nagent: Nova\ntriggers:\n  - kind: schedule\n    cron: \"0 9 * * *\"\n---\n",
+    "textarea_label": "DAEMON.md の内容",
+    "checking": "宣言を確認しています...",
+    "errors_title": "この宣言に {{count}} 件の問題があります",
+    "line_prefix": "{{line}} 行目",
+    "field_name": "名前",
+    "field_agent": "エージェント",
+    "field_outputs": "出力",
+    "field_role": "役割",
+    "agent_unknown": "このワークスペースにその名前のエージェントはありません",
+    "triggers_title": "トリガー",
+    "next_runs_title": "次回の実行",
+    "next_runs_unknown": "プレビューできませんでした",
+    "body_title": "エージェントが読むスキル",
+    "unchanged": "このデーモンはすでにこのファイルと一致しています。インポートしても何も変わりません。",
+    "strategy_title": "同じ名前のデーモンがすでに存在します",
+    "strategy": {
+      "fail": "中止",
+      "overwrite": "置き換える",
+      "rename": "両方を残す"
+    },
+    "strategy_hint": {
+      "fail": "何も書き込まれません。ファイル内でデーモン名を変更するか、別の方法を選んでください。",
+      "overwrite": "既存のデーモンがこのファイルの構成になります。宣言されなくなったトリガーは発火しなくなります。",
+      "rename": "接尾辞付きの名前で 2 つ目のデーモンを作成します。既存のものはそのままです。"
+    },
+    "cancel": "キャンセル",
+    "submit": "インポート",
+    "preview_failed": "宣言を確認できませんでした。",
+    "import_failed": "デーモンをインポートできませんでした。",
+    "read_failed": "そのファイルを読み取れませんでした。"
+  },
+  "memory": {
+    "section_title": "メモリー",
+    "export_button": "DAEMON.md をエクスポート",
+    "empty_title": "メモリーはまだありません",
+    "empty_hint": "このデーモンの実行が、次の実行に必要なことを書き込みます。",
+    "updated_at": "更新 {{at}}",
+    "last_run": "最終実行 {{at}}",
+    "read_only": "実行が書き込みます。ここでは編集できません"
   }
 }

@@ -646,6 +646,22 @@ func main() {
 	// Reuse the handler's primary Queries handle so replica routing does not
 	// create a second wrapper around the same primary pool.
 	h.ReadSelector = dbreader.New(h.Queries, replicaQueries, readRecorder)
+	// Raw-SQL reads (the insight compiler) need a transaction for their
+	// SET LOCAL guards, which no sqlc handle can carry, so the pools are
+	// attached here too. The nil check is not decoration: assigning a nil
+	// *pgxpool.Pool straight into the interface would make it non-nil and
+	// route every insight read at a replica that is not there.
+	var replicaTx dbreader.TxStarter
+	if replicaPool != nil {
+		replicaTx = replicaPool
+	}
+	h.ReadSelector.SetTxStarters(pool, replicaTx)
+	h.PRRefresh.SetReadSelector(h.ReadSelector)
+
+	// Reconciled race recoveries in the batched scheduler reuse the same
+	// daemon:register refresh the sync transition path publishes. Wired before
+	// the scheduler's Run goroutine starts so the field write is race-free.
+	heartbeatScheduler.RecoveryNotifier = h
 
 	srv := newMainHTTPServer(":"+port, r)
 	profilingServer := profiling.NewServer()
@@ -775,6 +791,30 @@ func main() {
 	}
 	if err := schedulerMgr.Register(scheduler.WatchdogScanJob(pool, h.ScanWatchdogs)); err != nil {
 		slog.Warn("scheduler: failed to register watchdog_scan job", "error", err)
+	}
+	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
+	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
+	if err := schedulerMgr.Register(scheduler.NativeAgentTickJob(h.NativeAgents.Tick)); err != nil {
+		slog.Warn("scheduler: failed to register native_agent_tick job", "error", err)
+	}
+	// Code health autopilot (K22): one scheduled read-only maintenance scan per
+	// enabled workspace. Inert while every workspace leaves it disabled.
+	if err := schedulerMgr.Register(scheduler.CodeHealthScanJob(pool, h.ScanCodeHealth)); err != nil {
+		slog.Warn("scheduler: failed to register code_health_scan job", "error", err)
+	}
+
+	if err := schedulerMgr.Register(scheduler.RunPreviewStaleSweepJob(h.SweepStaleRunPreviews)); err != nil {
+		slog.Error("scheduler: register run preview stale sweep job", "error", err)
+		os.Exit(1)
+	}
+	if err := schedulerMgr.Register(scheduler.CycleSnapshotJob(h.SnapshotCycles)); err != nil {
+		slog.Warn("scheduler: failed to register cycle_snapshot job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.CycleRolloverJob(h.RolloverCycles)); err != nil {
+		slog.Warn("scheduler: failed to register cycle_rollover job", "error", err)
+	}
+	if err := schedulerMgr.Register(scheduler.DocDriftCheckJob(pool, h.ScanDocDrift)); err != nil {
+		slog.Warn("scheduler: failed to register doc_drift_check job", "error", err)
 	}
 	if err := schedulerMgr.Register(scheduler.OrgTickJob(pool, h.TickOrgStructures)); err != nil {
 		slog.Warn("scheduler: failed to register org_tick job", "error", err)

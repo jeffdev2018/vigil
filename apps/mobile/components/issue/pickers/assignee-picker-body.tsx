@@ -1,7 +1,13 @@
 /**
- * Pure picker body for issue assignee — polymorphic single-select over
- * members + agents + squads, plus an "Unassigned" option. See
- * status-picker-body.tsx for the split rationale.
+ * Pure picker body for an issue's actor — polymorphic single-select over
+ * members + agents + squads, plus an empty option. See status-picker-body.tsx
+ * for the split rationale.
+ *
+ * Serves BOTH actor pairs (F01): the delegate reuses this body with
+ * `showSquads={false}` rather than forking a second 220-line component that
+ * would drift the first time either picker changed. The server rejects
+ * delegate_type='squad' with a 400, and a delegate starts no run, so the
+ * runtime requirement is lifted with the same prop.
  *
  * Mirrors web `packages/views/issues/components/pickers/assignee-picker.tsx`
  * (mobile skips frequency-sort; alphabetical instead).
@@ -45,6 +51,14 @@ interface Props {
   value: AssigneeValue;
   query: string;
   onChange: (next: AssigneeValue) => void;
+  /**
+   * Assignee mode (default). Set false for the delegate: squads are not
+   * delegatable, and an agent with no runtime is a perfectly valid partner
+   * because naming one starts nothing.
+   */
+  showSquads?: boolean;
+  /** Label of the "no actor" row. */
+  emptyLabel?: string;
 }
 
 type Row =
@@ -63,7 +77,13 @@ function isRowSelected(value: AssigneeValue, row: Row): boolean {
   return value.type === "squad" && value.id === row.squad.id;
 }
 
-export function AssigneePickerBody({ value, query, onChange }: Props) {
+export function AssigneePickerBody({
+  value,
+  query,
+  onChange,
+  showSquads = true,
+  emptyLabel = "Unassigned",
+}: Props) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const { data: agents = [] } = useQuery(agentListOptions(wsId));
@@ -98,10 +118,12 @@ export function AssigneePickerBody({ value, query, onChange }: Props) {
       .filter((a) => matchName(a.name))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((a) => ({ kind: "agent" as const, agent: a }));
-    const squadRows: Row[] = [...squads]
-      .filter((s) => !s.archived_at && matchName(s.name))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((s) => ({ kind: "squad" as const, squad: s }));
+    const squadRows: Row[] = showSquads
+      ? [...squads]
+          .filter((s) => !s.archived_at && matchName(s.name))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((s) => ({ kind: "squad" as const, squad: s }))
+      : [];
 
     if (q) return [...memberRows, ...agentRows, ...squadRows];
 
@@ -119,7 +141,7 @@ export function AssigneePickerBody({ value, query, onChange }: Props) {
       ...agentRows.filter((r) => !isRowSelected(value, r)),
       ...squadRows.filter((r) => !isRowSelected(value, r)),
     ];
-  }, [members, agents, squads, query, value]);
+  }, [members, agents, squads, query, value, showSquads]);
 
   const isSelected = (row: Row) => isRowSelected(value, row);
 
@@ -151,10 +173,13 @@ export function AssigneePickerBody({ value, query, onChange }: Props) {
         return `s:${row.squad.id}`;
       }}
       renderItem={({ item }) => {
+        // Only assignment needs a runtime — a delegate produces no run, so
+        // gating on one here would refuse a write the API accepts.
         const needsRuntime =
-          (item.kind === "agent" && !isAgentRuntimeBound(item.agent)) ||
-          (item.kind === "squad" &&
-            !runnableAgentIds.has(item.squad.leader_id));
+          showSquads &&
+          ((item.kind === "agent" && !isAgentRuntimeBound(item.agent)) ||
+            (item.kind === "squad" &&
+              !runnableAgentIds.has(item.squad.leader_id)));
         return (
           <Pressable
           disabled={needsRuntime}
@@ -184,7 +209,7 @@ export function AssigneePickerBody({ value, query, onChange }: Props) {
           )}
           <Text className="flex-1 text-base text-foreground">
             {item.kind === "unassigned"
-              ? "Unassigned"
+              ? emptyLabel
               : item.kind === "member"
                 ? item.member.name
                 : item.kind === "agent"
@@ -197,7 +222,9 @@ export function AssigneePickerBody({ value, query, onChange }: Props) {
               the same row. Members carry no tag (they're the default actor). */}
           {item.kind === "agent" ? (
             <Text className="text-sm text-muted-foreground">
-              {isAgentRuntimeBound(item.agent) ? "Agent" : "Needs runtime"}
+              {!showSquads || isAgentRuntimeBound(item.agent)
+                ? "Agent"
+                : "Needs runtime"}
             </Text>
           ) : item.kind === "squad" ? (
             <Text className="text-sm text-muted-foreground">

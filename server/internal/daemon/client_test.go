@@ -43,6 +43,14 @@ func TestClient_IdentityHeaders_PostJSON(t *testing.T) {
 			// is cancelled with an upgrade prompt (MUL-5707). Pin it here so
 			// dropping it from the list can never be a silent change.
 			protocol.DaemonCapabilityLocalWorktreeV1,
+			// Same shape, opposite default: this daemon's brief names the
+			// merged multica-platform skill, and advertising that is what
+			// stops the server shipping it a redirect stub under the old name
+			// (MUL-6986). Dropping it would silently hand every task on this
+			// machine a skill it does not need; the failure is extra payload
+			// and a stale signpost, neither of which any other test would
+			// notice.
+			protocol.DaemonCapabilityPlatformSkillV1,
 		} {
 			if !capabilities[want] {
 				t.Errorf("X-Client-Capabilities missing %q: %v", want, capabilities)
@@ -356,11 +364,52 @@ func TestFailTask_RetriesOnTransient5xxThenSucceeds(t *testing.T) {
 	defer srv.Close()
 
 	c := NewClient(srv.URL)
-	if err := c.FailTask(context.Background(), "task-1", "boom", "", "", "", "timeout", true, "", ""); err != nil {
+	if err := c.FailTask(context.Background(), "task-1", "boom", "", "", "", "timeout", true, "", "", "", nil); err != nil {
 		t.Fatalf("FailTask: %v", err)
 	}
 	if got := calls.Load(); got != 3 {
 		t.Fatalf("expected 3 attempts (2 transient 5xx + 1 success), got %d", got)
+	}
+}
+
+// TestFailTaskSendsDiffFields pins the fail half of F11: a losing attempt
+// that still delivered a branch must carry its diff on the /fail callback
+// exactly like a winner does on /complete (addDiffFields is the function
+// shared by both).
+func TestFailTaskSendsDiffFields(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	c := NewClient(srv.URL)
+	diff := &runDiff{
+		Stat:    protocol.TaskDiffStat{Files: 2, Insertions: 5, Deletions: 1},
+		Unified: "diff --git a/a.txt b/a.txt\n+partial\n",
+	}
+	if err := c.FailTask(context.Background(), "task-1", "boom", "", "", "", "", false, "", "", "", diff); err != nil {
+		t.Fatalf("FailTask: %v", err)
+	}
+	if _, ok := gotBody["diff_stat"]; !ok {
+		t.Errorf("request body missing diff_stat: %v", gotBody)
+	}
+	if got, _ := gotBody["diff_unified"].(string); got != diff.Unified {
+		t.Errorf("diff_unified = %q, want %q", got, diff.Unified)
+	}
+}
+
+// TestAddDiffFieldsNilDiffIsNoop pins the truncated/no-diff case both
+// callbacks share: a nil diff (no run group, or nothing to report) must add
+// nothing to the request body.
+func TestAddDiffFieldsNilDiffIsNoop(t *testing.T) {
+	body := map[string]any{"error": "boom"}
+	addDiffFields(body, nil)
+	if len(body) != 1 {
+		t.Errorf("body = %v, want only the original key", body)
 	}
 }
 
@@ -471,14 +520,14 @@ func TestTerminalReportsCarryRetiredSessionID(t *testing.T) {
 			name:     "complete",
 			endpoint: "/api/daemon/tasks/task-1/complete",
 			call: func(c *Client) error {
-				return c.CompleteTask(context.Background(), "task-1", "done", "", "", "/tmp/wd", false, "POISONED-S", "")
+				return c.CompleteTask(context.Background(), "task-1", "done", "", "", "/tmp/wd", false, "POISONED-S", "", "", nil)
 			},
 		},
 		{
 			name:     "fail",
 			endpoint: "/api/daemon/tasks/task-1/fail",
 			call: func(c *Client) error {
-				return c.FailTask(context.Background(), "task-1", "boom", "", "/tmp/wd", "", "api_invalid_request", false, "POISONED-S", "")
+				return c.FailTask(context.Background(), "task-1", "boom", "", "/tmp/wd", "", "api_invalid_request", false, "POISONED-S", "", "", nil)
 			},
 		},
 	} {
@@ -514,7 +563,7 @@ func TestTerminalReportsOmitEmptyRetiredSessionID(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if err := NewClient(srv.URL).CompleteTask(context.Background(), "task-1", "done", "", "sess-1", "/tmp/wd", false, "", ""); err != nil {
+	if err := NewClient(srv.URL).CompleteTask(context.Background(), "task-1", "done", "", "sess-1", "/tmp/wd", false, "", "", "", nil); err != nil {
 		t.Fatalf("CompleteTask: %v", err)
 	}
 	if _, present := body["retired_session_id"]; present {
@@ -531,13 +580,13 @@ func TestTerminalReportsCarryDurableWorkDir(t *testing.T) {
 		{
 			name: "complete",
 			call: func(c *Client) error {
-				return c.CompleteTask(context.Background(), "task-1", "done", "", "", "/tmp/wd", false, "", durableWorkDir)
+				return c.CompleteTask(context.Background(), "task-1", "done", "", "", "/tmp/wd", false, "", durableWorkDir, "", nil)
 			},
 		},
 		{
 			name: "fail",
 			call: func(c *Client) error {
-				return c.FailTask(context.Background(), "task-1", "boom", "", "/tmp/wd", "", "agent_error", false, "", durableWorkDir)
+				return c.FailTask(context.Background(), "task-1", "boom", "", "/tmp/wd", "", "agent_error", false, "", durableWorkDir, "", nil)
 			},
 		},
 		{

@@ -46,6 +46,19 @@ type TaskService struct {
 	Analytics analytics.Client
 	Metrics   *obsmetrics.BusinessMetrics
 	Wakeup    TaskWakeupNotifier
+	// ModelKeyFailover (K48) retires the key a run failed on and says whether
+	// another key can take the retry. Nil keeps runs without BYOK unchanged.
+	ModelKeyFailover func(ctx context.Context, task db.AgentTaskQueue, reason string) bool
+	// OnRoutingBlocked (JEF-275) alerts the accountable human that a trigger
+	// was refused because the agent is pointed at nothing runnable. Nil skips
+	// the alert; the refusal itself does not depend on it.
+	OnRoutingBlocked func(ctx context.Context, agent db.Agent, issue db.Issue, problem RoutingProblem)
+	// OnTaskCancelled (JEF-275) runs the terminal cleanup a cancelled run needs
+	// and the daemon's fail/complete callbacks already do: drop held writes,
+	// seal the replay chain, settle whatever barrier was waiting on this run.
+	// Called once per task, after the cancelling transaction committed. Nil
+	// leaves cancellation as it was for services constructed without a handler.
+	OnTaskCancelled func(ctx context.Context, task db.AgentTaskQueue)
 	// Budget applies workspace-owned spend policies. Nil preserves the legacy
 	// path for tests and deployments that construct TaskService directly.
 	Budget *BudgetService
@@ -91,6 +104,11 @@ type TaskService struct {
 	// postmortem scaffold, a skill is only worth storing when genuinely
 	// distilled, so an unconfigured deployment simply skips it.
 	SkillDistillation SkillDistillationLLM
+	// RunConfidence powers the post-success confidence scoring pass (JEF-240).
+	// Optional: nil (or a disabled client) turns the pass off — a score is only
+	// worth storing when genuinely assessed, so an unconfigured deployment
+	// simply skips it. Wired in handler.New from the same *llm.Client.
+	RunConfidence RunConfidenceLLM
 	// MemoryExtraction powers the post-run durable-fact pass (JEF-236).
 	// Optional: nil (or a disabled client) turns extraction off, which is the
 	// expected state for a self-hosted deployment with no MULTICA_LLM_*
@@ -135,6 +153,12 @@ type TaskService struct {
 	// above.
 	skillDistillationInFlight sync.Map
 	skillDistillationRunning  atomic.Int64
+
+	// runConfidenceInFlight (task id -> struct{}{}) and runConfidenceRunning
+	// gate the post-success scoring pass: one per task, and a process-wide
+	// ceiling. Zero values are usable, like the gates above.
+	runConfidenceInFlight sync.Map
+	runConfidenceRunning  atomic.Int64
 
 	analyticsContextMu    sync.Mutex
 	analyticsContextCache map[string]analytics.TaskContext
@@ -335,6 +359,12 @@ func (s *TaskService) buildCommentTriggerSummary(ctx context.Context, workspaceI
 	summary := truncateForSummary(comment.Content, triggerSummaryMaxLen)
 	if summary == "" {
 		return pgtype.Text{}
+	}
+	// An anchored thread (F07) names the place the question is about. Appended
+	// AFTER the truncation so a long comment can never push the anchor out of
+	// the summary — the place is what the run cannot reconstruct on its own.
+	if suffix := s.anchorSummarySuffix(ctx, workspaceID, comment); suffix != "" {
+		summary += "\n" + suffix
 	}
 	return pgtype.Text{String: summary, Valid: true}
 }
@@ -822,7 +852,11 @@ func isDuplicatePendingTaskErr(err error) bool {
 		return false
 	}
 	switch pgErr.ConstraintName {
-	case "idx_one_pending_task_per_issue_agent", "idx_one_pending_task_per_issue_agent_v2":
+	case "idx_one_pending_task_per_issue_agent",
+		"idx_one_pending_task_per_issue_agent_v2",
+		// v3 (migration 835) is the one in force; v1/v2 stay listed because a
+		// rolling deploy can still be running against either.
+		"idx_one_pending_task_per_issue_agent_v3":
 		return true
 	default:
 		return false
@@ -909,7 +943,7 @@ func (s *TaskService) OriginatorForIssueTask(ctx context.Context, issue db.Issue
 func (s *TaskService) captureTaskDispatched(ctx context.Context, task db.AgentTaskQueue) {
 	if s.Metrics != nil {
 		source, runtimeMode, _ := s.taskMetricsContext(ctx, task)
-		s.Metrics.RecordTaskDispatched(util.UUIDToString(task.ID), source, runtimeMode, taskQueueWaitSeconds(task))
+		s.Metrics.RecordTaskDispatched(util.UUIDToString(task.ID), source, runtimeMode, taskQueueWaitSeconds(task), taskClaimableWaitSeconds(task))
 	}
 }
 
@@ -957,6 +991,16 @@ func (s *TaskService) captureTaskCancelled(ctx context.Context, task db.AgentTas
 	if err := s.Queries.DeleteTaskTokensByTask(ctx, task.ID); err != nil {
 		slog.Warn("cancel task: failed to revoke task tokens",
 			"task_id", util.UUIDToString(task.ID), "error", err)
+	}
+	s.fireTaskCancelled(ctx, task)
+}
+
+// fireTaskCancelled runs the handler-owned terminal cleanup for one cancelled
+// run. Every cancel path reaches it through captureTaskCancelled, including the
+// archived-agent path, which runs the cleanup but emits no per-task event.
+func (s *TaskService) fireTaskCancelled(ctx context.Context, task db.AgentTaskQueue) {
+	if s.OnTaskCancelled != nil {
+		s.OnTaskCancelled(ctx, task)
 	}
 }
 
@@ -1155,6 +1199,16 @@ func taskQueueWaitSeconds(task db.AgentTaskQueue) float64 {
 	return durationSeconds(task.CreatedAt, task.DispatchedAt)
 }
 
+// taskClaimableWaitSeconds excludes an intentional deferred delay when fire_at
+// is still available on the claimed row. Immediate tasks start at creation.
+func taskClaimableWaitSeconds(task db.AgentTaskQueue) float64 {
+	claimableAt := task.CreatedAt
+	if task.FireAt.Valid && (!claimableAt.Valid || task.FireAt.Time.After(claimableAt.Time)) {
+		claimableAt = task.FireAt
+	}
+	return durationSeconds(claimableAt, task.DispatchedAt)
+}
+
 func taskRunSeconds(task db.AgentTaskQueue) float64 {
 	return durationSeconds(task.StartedAt, task.CompletedAt)
 }
@@ -1212,7 +1266,14 @@ func (s *TaskService) EnqueueTaskForIssue(ctx context.Context, issue db.Issue, t
 // crash-safe fallback; the channel router promotes the task as soon as the
 // detached attachment transaction settles.
 func (s *TaskService) EnqueueDeferredChannelIssueTask(ctx context.Context, issue db.Issue, fireAt time.Time) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{}, pgtype.Timestamptz{Time: fireAt, Valid: true})
+	task, err := s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, "", pgtype.UUID{}, pgtype.UUID{}, pgtype.Timestamptz{Time: fireAt, Valid: true})
+	if err != nil {
+		return db.AgentTaskQueue{}, err
+	}
+	// The task is durable but not claimable yet. Wake once without a task ID so
+	// the daemon refreshes its deferred schedule without treating it as ready.
+	s.notifyRuntimeMayHaveWork(task.RuntimeID, "")
+	return task, nil
 }
 
 // createDeferredChannelIssueTaskWithQueries inserts the inert media-gated task
@@ -1270,8 +1331,60 @@ func (s *TaskService) EnqueueTaskForIssueByActor(ctx context.Context, issue db.I
 // variant used when an installed client still sends handoff_note. The note is
 // persisted on the task so both old and current daemons can render it in the
 // run's opening prompt. Empty text behaves like EnqueueTaskForIssueByActor.
+//
+// Coalescing (JEF-241): interview answers, review reworks and resume runs all
+// carry a handoff note, and they commonly arrive while the issue already has
+// a pending task (e.g. the assignment enqueue). The unique pending slot must
+// not swallow the note — it merges into the waiting task so the run still
+// opens with it.
 func (s *TaskService) EnqueueTaskForIssueWithHandoff(ctx context.Context, issue db.Issue, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	task, err := s.enqueueIssueTask(ctx, issue, pgtype.UUID{}, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{})
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return task, err
+	}
+	return s.mergeHandoffIntoPendingTask(ctx, issue, handoffNote)
+}
+
+// mergeHandoffIntoPendingTask appends a handoff note to the task currently
+// occupying the issue's pending slot. The merge is deliberate (not the fresh
+// enqueue's) so attribution, routing and the trigger snapshot of the waiting
+// run stay untouched — only the operator-facing note grows.
+func (s *TaskService) mergeHandoffIntoPendingTask(ctx context.Context, issue db.Issue, handoffNote string) (db.AgentTaskQueue, error) {
+	pending, err := s.Queries.GetPendingTaskForIssueAndAgent(ctx, db.GetPendingTaskForIssueAndAgentParams{
+		IssueID: issue.ID,
+		AgentID: issue.AssigneeID,
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("load pending task for handoff merge: %w", err)
+	}
+	merged, err := s.Queries.AppendTaskHandoffNote(ctx, db.AppendTaskHandoffNoteParams{
+		ID:          pending.ID,
+		HandoffNote: pgtype.Text{String: handoffNote, Valid: true},
+	})
+	if err != nil {
+		return db.AgentTaskQueue{}, fmt.Errorf("append handoff note: %w", err)
+	}
+	slog.Info("handoff note merged into pending task",
+		"issue_id", util.UUIDToString(issue.ID), "task_id", util.UUIDToString(merged.ID))
+	return merged, nil
+}
+
+// EnqueueTaskForIssueEscalation re-enqueues the issue's assignee on a forced
+// runtime after a below-threshold run (cascade, JEF-272). The forced runtime
+// is applied after the JEF-237 routing stamp, so the escalation wins over the
+// router; escalationJSON is persisted under context.escalation of the new
+// task so the next scoring pass knows which attempt this is.
+//
+// Coalescing (JEF-241) applies like EnqueueTaskForIssueWithHandoff: when the
+// pending slot is already taken, the note merges into the waiting task and
+// the forced runtime / escalation context are dropped — the merged task keeps
+// its own plan, exactly like the other handoff merges.
+func (s *TaskService) EnqueueTaskForIssueEscalation(ctx context.Context, issue db.Issue, handoffNote string, actorUserID pgtype.UUID, forcedRuntimeID pgtype.UUID, escalationJSON []byte) (db.AgentTaskQueue, error) {
+	task, err := s.enqueueIssueTaskWithCommentPlan(ctx, issue, pgtype.UUID{}, nil, false, handoffNote, actorUserID, pgtype.UUID{}, pgtype.Timestamptz{}, forcedRuntimeID, escalationJSON)
+	if err == nil || handoffNote == "" || !pendingSlotTakenErr(err) {
+		return task, err
+	}
+	return s.mergeHandoffIntoPendingTask(ctx, issue, handoffNote)
 }
 
 // enqueueIssueTask is the shared implementation behind EnqueueTaskForIssue
@@ -1320,10 +1433,10 @@ func (s *TaskService) ResolveIssueReviewSHAParam(ctx context.Context, issueID pg
 }
 
 func (s *TaskService) enqueueIssueTask(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz) (db.AgentTaskQueue, error) {
-	return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, nil, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, fireAt)
+	return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, nil, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, fireAt, pgtype.UUID{}, nil)
 }
 
-func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz) (db.AgentTaskQueue, error) {
+func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue db.Issue, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, fireAt pgtype.Timestamptz, forcedRuntimeID pgtype.UUID, escalationJSON []byte) (db.AgentTaskQueue, error) {
 	if !issue.AssigneeID.Valid {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", "issue has no assignee")
 		return db.AgentTaskQueue{}, fmt.Errorf("issue has no assignee")
@@ -1336,11 +1449,23 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	}
 	if agent.ArchivedAt.Valid {
 		slog.Debug("task enqueue skipped: agent is archived", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agent.ID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemAgentArchived)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
 	}
 	if !agent.RuntimeID.Valid {
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", "agent has no runtime")
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemNoRuntime)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+	// Validated routing (JEF-275): the remaining fatal shapes — a runtime that
+	// was deleted, or one belonging to another workspace — used to queue a task
+	// no daemon in this workspace could ever claim. Refuse it here instead, and
+	// carry the non-fatal findings into the run's routing trace.
+	routingProblems := s.ValidateRouting(ctx, agent, issue.WorkspaceID)
+	if fatal := FatalRoutingProblem(routingProblems); fatal != nil {
+		slog.Warn("task enqueue refused: routing invalid", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agent.ID), "code", fatal.Code)
+		s.fireRoutingBlocked(ctx, agent, issue, *fatal)
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
 	}
 
 	// The issue assignee reacting to an agent-authored comment is a
@@ -1360,12 +1485,17 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	runtimeMCPOverlay := s.buildRuntimeMCPOverlay(ctx, originatorUserID, agent)
 	attrSource, attrDelegatedFrom, attrEvidenceKind, attrEvidenceRef := attributionCreateParams(attr)
 	taskID := dbid.NewV7()
+	// Data residency (K46): the workspace's policy and its runtime
+	// declarations, read once for this enqueue and handed to every routing
+	// stage below, so a non-compliant runtime is excluded before it can be
+	// scored, failed over to, or picked by risk. Nil when no policy is set.
+	residency := s.compliantRuntimeFilter(ctx, issue.WorkspaceID)
 	// Runtime pools (K28): an offline runtime at enqueue sends the task to
 	// the first online runtime of the pool, recorded on the task.
-	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent)
+	enqueueRuntimeID, failoverHistory := s.enqueueRuntimeForAgent(ctx, agent, residency)
 	// Issue router (K27): risk and past failures may pick another pool first.
 	var routingDecision *RoutingDecision
-	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent); ok {
+	if routed, decision, ok := s.routeIssueTask(ctx, issue, agent, residency); ok {
 		routingDecision = decision
 		if routed.Valid {
 			enqueueRuntimeID, failoverHistory = routed, nil
@@ -1379,10 +1509,31 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 	// auto is an explicit per-agent opt-in, so its choice wins. The decision
 	// trace lands in the routing JSONB column; any degradation falls back to
 	// whatever runtime was selected so far.
-	stamp := s.StampRouting(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue))
+	stamp := s.StampRoutingWithFilter(ctx, agent, issue.Title, s.listIssueLabelNames(ctx, issue), residency)
 	if stamp.RuntimeID.Valid {
 		enqueueRuntimeID, failoverHistory = stamp.RuntimeID, nil
 	}
+	// Workflow selection (JEF-273): above the runtime router, pick the task's
+	// workflow from the workspace policy and the per-(class, workflow) run
+	// history. A cascade start overrides the runtime with the cheapest proven
+	// candidate (the router already had its say; the workflow's whole point is
+	// to start cheap and let low-confidence escalation climb); critique flags
+	// the context for a forced cross-review. Any degradation stays single and
+	// nothing above changes.
+	workflow, workflowReason := s.selectWorkflow(ctx, agent, issue, stamp.TaskClass.String)
+	if workflow == WorkflowCascade {
+		if cheap, ok := s.cheapCascadeCandidate(ctx, agent, stamp.TaskClass.String); ok {
+			enqueueRuntimeID, failoverHistory = cheap, nil
+		}
+	}
+	// Cascade escalation (JEF-272): a forced runtime wins over everything
+	// above, the JEF-237 router and the workflow selector's cheap-cascade
+	// candidate included — the escalation policy already ran the candidate
+	// scoring itself and its choice is the point of the retry.
+	if forcedRuntimeID.Valid {
+		enqueueRuntimeID, failoverHistory = forcedRuntimeID, nil
+	}
+	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	createParams := db.CreateAgentTaskParams{
 		ID:                   taskID,
 		AgentID:              issue.AssigneeID,
@@ -1406,6 +1557,13 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		TriggerEvidenceRefID: attrEvidenceRef,
 		TaskClass:            stamp.TaskClass,
 		Routing:              stamp.Routing,
+		// A2A hop distance (F19): 0 unless the trigger comment is an
+		// agent-to-agent message, in which case it is the sending run's depth + 1.
+		A2aDepth: s.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID),
+		// Cascade escalation (JEF-272): lands under context.escalation.
+		Escalation:  escalationJSON,
+		Workflow:    pgtype.Text{String: workflow, Valid: true},
+		ForceReview: pgtype.Bool{Bool: workflow == WorkflowCritique, Valid: true},
 		// Stamp the reviewed head so dedup can distinguish this run's target
 		// from a later request against a new HEAD (TEN-356).
 		HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
@@ -1442,6 +1600,8 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 			TriggerEvidenceRefID: createParams.TriggerEvidenceRefID,
 			TaskClass:            createParams.TaskClass,
 			Routing:              createParams.Routing,
+			Workflow:             createParams.Workflow,
+			ForceReview:          createParams.ForceReview,
 			FireAt:               fireAt,
 		})
 	})
@@ -1449,6 +1609,9 @@ func (s *TaskService) enqueueIssueTaskWithCommentPlan(ctx context.Context, issue
 		slog.Error("task enqueue failed", "issue_id", util.UUIDToString(issue.ID), "error", err)
 		return db.AgentTaskQueue{}, fmt.Errorf("create task: %w", err)
 	}
+	// JEF-273: broadcast the stamped workflow (with the selector's reason) so
+	// live clients can show why this run is single / cascade / critique.
+	s.publishWorkflowSelected(issue, task, workflow, workflowReason)
 	if failoverHistory != nil {
 		if moved, merr := s.Queries.SetTaskFailover(ctx, db.SetTaskFailoverParams{ID: task.ID, RuntimeID: task.RuntimeID, FailoverHistory: failoverHistory}); merr != nil {
 			slog.Warn("runtime pool: record enqueue failover failed", "task_id", util.UUIDToString(task.ID), "error", merr)
@@ -1544,10 +1707,39 @@ func (s *TaskService) EnqueueTaskForSquadLeaderWithHandoff(ctx context.Context, 
 }
 
 func (s *TaskService) enqueueMentionTask(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
-	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, nil, isLeader, squadID, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID)
+	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, nil, isLeader, squadID, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, RunGroupAttempt{})
 }
 
-func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
+// RunGroupAttempt is what makes an enqueue one attempt of a race (F11 / JEF-6)
+// instead of an ordinary run. Its zero value is "not an attempt", which is what
+// every pre-existing caller passes, so the enqueue path is unchanged for them.
+type RunGroupAttempt struct {
+	// GroupID is the run_group this attempt belongs to. Invalid for an
+	// ordinary run — and that NULL is what keeps the claim's exclusion and the
+	// pending-slot index behaving exactly as they did before F11.
+	GroupID pgtype.UUID
+	// ModelOverride is the model this attempt runs with instead of agent.model.
+	// Empty means "the agent's own", which is also the only possibility outside
+	// a group. Validated against the daemon-discovered catalogue by the caller,
+	// which is the only layer that can see it.
+	ModelOverride string
+}
+
+// EnqueueRunGroupAttempt queues one attempt of a racing group (F11 / JEF-6).
+//
+// Deliberately the ordinary mention-enqueue path with two extra columns: an
+// attempt is a normal run — same claim, heartbeat, task_usage, transcript — and
+// a second enqueue path would be a second set of rules to keep in sync with
+// attribution, budget, routing and MCP overlay.
+//
+// forceFreshSession is true because attempts must not resume one another's
+// session: the whole point is N independent tries at the same problem.
+func (s *TaskService) EnqueueRunGroupAttempt(ctx context.Context, issue db.Issue, agentID pgtype.UUID, groupID pgtype.UUID, modelOverride string, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{},
+		RunGroupAttempt{GroupID: groupID, ModelOverride: modelOverride})
+}
+
+func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, attempt RunGroupAttempt) (db.AgentTaskQueue, error) {
 	agent, err := s.Queries.GetAgent(ctx, agentID)
 	if err != nil {
 		slog.Error("mention task enqueue failed: agent not found", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "error", err)
@@ -1555,11 +1747,20 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	}
 	if agent.ArchivedAt.Valid {
 		slog.Debug("mention task enqueue skipped: agent is archived", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemAgentArchived)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent is archived")
 	}
 	if !agent.RuntimeID.Valid {
 		slog.Error("mention task enqueue failed: agent has no runtime", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID))
+		s.reportRoutingBlocked(ctx, agent, issue, RoutingProblemNoRuntime)
 		return db.AgentTaskQueue{}, fmt.Errorf("agent has no runtime")
+	}
+	// Validated routing (JEF-275), same contract as the primary path.
+	routingProblems := s.ValidateRouting(ctx, agent, issue.WorkspaceID)
+	if fatal := FatalRoutingProblem(routingProblems); fatal != nil {
+		slog.Warn("mention task enqueue refused: routing invalid", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "code", fatal.Code)
+		s.fireRoutingBlocked(ctx, agent, issue, *fatal)
+		return db.AgentTaskQueue{}, fmt.Errorf("%s: %s", RoutingInvalidReason, fatal.Message)
 	}
 
 	// An explicit mention / thread-parent / squad-leader hop from an
@@ -1584,6 +1785,7 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	if stamp.RuntimeID.Valid {
 		mentionRuntimeID = stamp.RuntimeID
 	}
+	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	taskID := dbid.NewV7()
 	task, err := s.createTaskWithBudget(ctx, BudgetScope{
 		WorkspaceID: issue.WorkspaceID, ProjectID: issue.ProjectID, AgentID: agent.ID,
@@ -1613,9 +1815,17 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 			TriggerEvidenceRefID: attrEvidenceRef,
 			TaskClass:            stamp.TaskClass,
 			Routing:              stamp.Routing,
+			// A2A hop distance (F19): 0 unless the trigger comment is an
+			// agent-to-agent message, in which case it is the sending run's
+			// depth + 1. This is the funnel an @mention goes through, so it is
+			// the one the agent-messages endpoint actually lands in.
+			A2aDepth: s.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID),
 			// Stamp the reviewed head so dedup can distinguish this run's target
 			// from a later request against a new HEAD (TEN-356).
 			HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
+			// Racing attempts (F11). Both zero for every other caller.
+			RunGroupID:    attempt.GroupID,
+			ModelOverride: pgtype.Text{String: attempt.ModelOverride, Valid: attempt.ModelOverride != ""},
 		})
 	})
 	if err != nil {
@@ -1710,6 +1920,9 @@ func (s *TaskService) EnqueueDeferredAssigneeFallback(ctx context.Context, issue
 		"agent_id", util.UUIDToString(agentID),
 		"fire_at", fireAt.UTC().Format(time.RFC3339),
 	)
+	// Refresh the daemon's durable deferred schedule after the insert commits.
+	// An empty task ID means "claim to refresh state", not "this task is ready".
+	s.notifyRuntimeMayHaveWork(task.RuntimeID, "")
 	return task, nil
 }
 
@@ -2694,6 +2907,9 @@ func (s *TaskService) SendDirectChatMessage(
 			Content:       content,
 			TaskID:        task.ID,
 			MessageKind:   pgtype.Text{String: protocol.ChatMessageKindMessage, Valid: true},
+			// Multiplayer attribution (K31): in a shared session the sender is
+			// not necessarily the creator, so the bubble needs its own author.
+			AuthorUserID: initiatorUserID,
 		})
 		if err != nil {
 			return fmt.Errorf("create user chat message: %w", err)
@@ -3706,7 +3922,7 @@ func (s *TaskService) broadcastChatCancelFinalized(ctx context.Context, task db.
 // ClaimTask atomically claims the next queued task for an agent on its current
 // runtime, respecting max_concurrent_tasks.
 func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.AgentTaskQueue, error) {
-	return s.claimTask(ctx, agentID, pgtype.UUID{})
+	return s.claimTask(ctx, agentID, pgtype.UUID{}, false)
 }
 
 // claimTask is the runtime-scoped claim primitive used by daemon poll paths.
@@ -3714,7 +3930,25 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 // agent's currently bound runtime. Scoping the SQL claim itself prevents an
 // offline candidate on runtime A from causing the same agent's task on runtime
 // B to be dispatched and then dropped by the caller's runtime guard.
-func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.UUID) (*db.AgentTaskQueue, error) {
+//
+// taskPinsRuntime reports whether a queued candidate carries a runtime the
+// agent is not bound to BY DESIGN — a benchmark replay (JEF-276) pinned to
+// the candidate it measures, or a pool failover (K28) that moved the task to
+// another runtime the owner listed. This is only the cheap Go pre-filter: the
+// SQL fence checks pool membership per row and the claim handler rechecks the
+// freshly loaded agent, so a wrong value here can never dispatch a task the
+// SQL would refuse. A confidence-cascade hop (JEF-272) no longer needs a pin:
+// only an auto-routed agent cascades, and auto routing already passes.
+func taskPinsRuntime(candidate db.AgentTaskQueue) bool {
+	return candidate.LegRole == LegRoleBenchmark || len(candidate.FailoverHistory) > 0
+}
+
+// runtimePinned says the candidate that led here carries a runtime the agent
+// is not bound to BY DESIGN (a benchmark leg, JEF-276), which relaxes only the
+// cheap pre-filter below. ClaimAgentTask re-verifies the fence per row and the
+// claim handler rechecks the freshly loaded agent, so a wrong value here can
+// never dispatch a task the SQL would refuse.
+func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.UUID, runtimePinned bool) (*db.AgentTaskQueue, error) {
 	start := time.Now()
 	outcome := "unknown"
 	var getAgentMs, countRunningMs, claimAgentMs, reanchorMs, updateStatusMs, dispatchMs int64
@@ -3750,7 +3984,9 @@ func (s *TaskService) claimTask(ctx context.Context, agentID, runtimeID pgtype.U
 		// Auto-routed agents (JEF-237) are exempt: the router stamped their task
 		// with a CHOSEN runtime that legitimately differs from the bound fallback
 		// runtime, and ClaimAgentTask re-verifies the authorization fence in SQL.
-		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto {
+		// A benchmark replay (JEF-276) is exempt for the same reason: its runtime
+		// is the candidate under measurement, pinned at enqueue.
+		if runtimeID.Valid && agent.RuntimeID != runtimeID && agent.RuntimeRouting != RoutingModeAuto && !runtimePinned {
 			outcome = "runtime_mismatch"
 			return nil
 		}
@@ -4044,7 +4280,7 @@ func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.
 		triedAgents[agentKey] = struct{}{}
 		tried++
 
-		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID)
+		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID, taskPinsRuntime(candidate))
 		if err != nil {
 			loopMs = time.Since(loopStart).Milliseconds()
 			outcome = "error_claim"
@@ -4329,7 +4565,7 @@ func (s *TaskService) ClaimTasksForRuntimes(ctx context.Context, runtimeIDs []pg
 		}
 		triedAgents[agentKey] = struct{}{}
 
-		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID)
+		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID, taskPinsRuntime(candidates[i]))
 		if err != nil {
 			// Each scoped claim commits in its own transaction, so earlier
 			// iterations (and step-2 reclaims) are already dispatched
@@ -5136,6 +5372,15 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			failureReason = ReasonRuntimePoolExhausted
 			wantRetry = false
 		}
+		// BYOK (K48): a vendor authentication or quota failure retires the
+		// key and retries once on the next one, bypassing the reason gate.
+		if !wantRetry && s.ModelKeyFailover != nil && s.ModelKeyFailover(ctx, parent, failureReason) {
+			wantRetry = true
+			retryFireAt = pgtype.Timestamptz{}
+			if !retryMaxAttempts.Valid || retryMaxAttempts.Int32 < parent.Attempt+2 {
+				retryMaxAttempts = pgtype.Int4{Int32: parent.Attempt + 2, Valid: true}
+			}
+		}
 		// Checkpoints (K20): an interruption resumes from the checkpoint a
 		// bounded number of times, then fails distinctly.
 		if attempts, exhausted := checkpointResume(parent, failureReason); exhausted {
@@ -5143,6 +5388,15 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			wantRetry = false
 		} else if attempts.Valid && wantRetry {
 			checkpointAttempts = attempts
+		}
+		// Bounded workflows (JEF-275): max_attempts bounds one run's retries,
+		// this bounds the workflow they belong to — a retry inside a review
+		// loop that already spent its budget is not queued at all.
+		if wantRetry {
+			if ok, _ := s.WorkflowAllowsLeg(ctx, parent, RetryLegRole(failover.History)); !ok {
+				failureReason = ReasonWorkflowLimit
+				wantRetry = false
+			}
 		}
 	}
 
@@ -5283,6 +5537,13 @@ func (s *TaskService) FailTask(ctx context.Context, taskID pgtype.UUID, errMsg, 
 			})
 			switch {
 			case cerr == nil:
+				// Per-leg accounting (JEF-274): stamp inside this transaction
+				// so the leg commits with the parent's failed status.
+				stamped, serr := stampLeg(ctx, qtx, child, RetryLegRole(failover.History), t)
+				if serr != nil {
+					return fmt.Errorf("stamp retry leg: %w", serr)
+				}
+				child = stamped
 				if checkpointAttempts.Valid {
 					s.recordCheckpointResume(ctx, t, child, failureReason)
 				}
@@ -5719,6 +5980,14 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 	if !failover.OK && !retryEligible(reason, parent) {
 		return nil, nil
 	}
+	// Bounded workflows (JEF-275): the same ceiling FailTask applies, so the
+	// sweeper cannot restart a workflow the in-tx path already refused to grow.
+	if ok, _ := s.WorkflowAllowsLeg(ctx, parent, RetryLegRole(failover.History)); !ok {
+		if err := s.Queries.SetTaskFailureReason(ctx, db.SetTaskFailureReasonParams{ID: parent.ID, FailureReason: pgtype.Text{String: ReasonWorkflowLimit, Valid: true}}); err != nil {
+			slog.Warn("workflow limits: mark refused failed", "task_id", util.UUIDToString(parent.ID), "error", err)
+		}
+		return nil, nil
+	}
 
 	var runtimeMCPOverlay runtimeMCPOverlayData
 	agent, agentErr := s.Queries.GetAgent(ctx, parent.AgentID)
@@ -5798,6 +6067,12 @@ func (s *TaskService) MaybeRetryFailedTask(ctx context.Context, parent db.AgentT
 		)
 		return nil, err
 	}
+	// Per-leg accounting (JEF-274), inside the same transaction as the child.
+	stamped, serr := stampLeg(ctx, qtx, child, RetryLegRole(failover.History), parent)
+	if serr != nil {
+		return nil, fmt.Errorf("task auto-retry: stamp leg: %w", serr)
+	}
+	child = stamped
 	if checkpointAttempts.Valid {
 		s.recordCheckpointResume(ctx, parent, child, reason)
 	}
@@ -6135,11 +6410,30 @@ func (s *TaskService) promoteNewestSurvivingComment(ctx context.Context, ids []p
 // (rerun_of_task_id) to reuse its workdir and, when the failure did not poison
 // the conversation, resume its session (MUL-4869).
 func (s *TaskService) enqueueRerunTask(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
+	var task db.AgentTaskQueue
+	var err error
 	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid &&
 		util.UUIDToString(issue.AssigneeID) == util.UUIDToString(agentID) {
-		return s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{})
+		task, err = s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{}, pgtype.UUID{}, nil)
+	} else {
+		task, err = s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID, RunGroupAttempt{})
 	}
-	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID)
+	if err != nil {
+		return task, err
+	}
+	// Per-leg accounting (JEF-274): the rerun joins the workflow of the run it
+	// re-ran. Best-effort — losing the leg stamp must not lose the rerun.
+	source, serr := s.Queries.GetAgentTask(ctx, rerunOfTaskID)
+	if serr != nil {
+		slog.Warn("rerun leg: source task not found", "task_id", util.UUIDToString(task.ID), "rerun_of_task_id", util.UUIDToString(rerunOfTaskID), "error", serr)
+		return task, nil
+	}
+	stamped, serr := s.StampLeg(ctx, task, LegRoleRerun, source)
+	if serr != nil {
+		slog.Warn("rerun leg: stamp failed", "task_id", util.UUIDToString(task.ID), "error", serr)
+		return task, nil
+	}
+	return stamped, nil
 }
 
 // The bulk terminal writes below are the sweeper, archive and daemon-recovery
@@ -6195,13 +6489,27 @@ func (s *TaskService) RecoverOrphanedTasksForRuntime(ctx context.Context, runtim
 // CancelTasksForArchivedAgent cancels every active task belonging to an agent
 // being archived and settles their recovery receipts in the same transaction.
 //
-// Unlike CancelTasksForAgent it emits no per-task task:cancelled event: the
-// agent:archived event the caller publishes already invalidates every client's
-// active-task view, so per-row events would be redundant noise.
+// After commit, cancellation side effects are captured before chat tasks emit
+// task:cancelled so existing consumers can clear processing indicators, release
+// streams, and refresh chat state. The caller still publishes agent:archived;
+// non-chat tasks keep their existing behavior.
 func (s *TaskService) CancelTasksForArchivedAgent(ctx context.Context, agentID pgtype.UUID) ([]db.AgentTaskQueue, error) {
-	return s.terminateTasksInTx(ctx, func(qtx *db.Queries) ([]db.AgentTaskQueue, error) {
+	cancelled, err := s.terminateTasksInTx(ctx, func(qtx *db.Queries) ([]db.AgentTaskQueue, error) {
 		return qtx.CancelAgentTasksByAgent(ctx, agentID)
 	})
+	if err != nil {
+		return nil, err
+	}
+	// CaptureCancelledTasks also runs the terminal cleanup every other cancel
+	// path gives a run (JEF-275): held writes are dropped and the replay chain
+	// is sealed even when the agent goes away. Only chat tasks get an event.
+	s.CaptureCancelledTasks(ctx, cancelled)
+	for _, task := range cancelled {
+		if task.ChatSessionID.Valid {
+			s.broadcastTaskEvent(ctx, protocol.EventTaskCancelled, task)
+		}
+	}
+	return cancelled, nil
 }
 
 func (s *TaskService) terminateTasksInTx(ctx context.Context, fail func(*db.Queries) ([]db.AgentTaskQueue, error)) ([]db.AgentTaskQueue, error) {
@@ -6805,7 +7113,13 @@ func (s *TaskService) dispatchDelegatedFailureRecovery(ctx context.Context, targ
 			RuleVersionID:        ruleVersionID,
 			TriggerEvidenceKind:  pgtype.Text{String: string(attribution.EvidenceDelegatedFailure), Valid: true},
 			TriggerEvidenceRefID: target.failed.ID,
-			HeadSha:              headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
+			// A2A hop distance (F19). Carried over from the DELEGATING run, not
+			// recomputed: the trigger here is a system-authored recovery comment
+			// with no a2a_intent, so deriving it would reset an A2A chain to 0 and
+			// hide the recovery run from the per-issue budget. Same depth rather
+			// than +1 — this re-runs the hop that failed, it is not a new one.
+			A2aDepth: pgtype.Int4{Int32: target.source.A2aDepth, Valid: true},
+			HeadSha:  headShaText(s.ResolveIssueReviewSHA(ctx, target.issue.ID)),
 		})
 		if err == nil {
 			slog.Info("delegated failure recovery task enqueued",
@@ -7016,13 +7330,14 @@ func (s *TaskService) LoadAgentSkills(ctx context.Context, agentID pgtype.UUID) 
 // predictably past it.
 const AgentMemoryBriefCharBudget = 40000
 
-// AgentMemoryFact is the (content, source) pair the brief budget reasons
-// about, so the selection is shared by the claim path (db.AgentMemory rows)
-// and the list endpoint (db.ListAgentMemoriesRow rows) without either owning
-// the rule.
+// AgentMemoryFact is one durable agent memory fact: the (content, source)
+// pair the brief budget reasons about, plus the governance state (JEF-269)
+// the daemon needs to render approved facts apart from unverified drafts.
+// The json tags are the claim-wire shape (TaskAgentData.Memories).
 type AgentMemoryFact struct {
-	Content string
-	Source  string
+	Content string `json:"content"`
+	Source  string `json:"source,omitempty"`
+	State   string `json:"state"`
 }
 
 // SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
@@ -7043,16 +7358,17 @@ func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
 	return kept
 }
 
-// LoadAgentMemories returns the contents of an agent's memory facts (JEF-236),
-// in chronological order for the brief. SQL returns them newest-first, capped
-// at the same 200 the write path enforces; SelectBriefedAgentMemories then
-// applies the character budget and the reverse happens here so the prompt
-// reads oldest → newest, matching how the facts were learned.
+// LoadAgentMemories returns an agent's memory facts (JEF-236) with their
+// governance state (JEF-269), in chronological order for the brief. SQL
+// returns them newest-first, capped at the same 200 the write path enforces;
+// SelectBriefedAgentMemories then applies the character budget and the
+// reverse happens here so the prompt reads oldest → newest, matching how the
+// facts were learned.
 //
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
 // the brief and the claim continues without it (see buildClaimedTaskResponse).
-func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]string, error) {
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]AgentMemoryFact, error) {
 	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
 		AgentID:     agentID,
 		WorkspaceID: workspaceID,
@@ -7062,14 +7378,14 @@ func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceI
 	}
 	facts := make([]AgentMemoryFact, len(rows))
 	for i, row := range rows {
-		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source}
+		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source, State: row.State}
 	}
 	briefed := SelectBriefedAgentMemories(facts)
-	contents := make([]string, 0, len(briefed))
+	ordered := make([]AgentMemoryFact, 0, len(briefed))
 	for i := len(briefed) - 1; i >= 0; i-- {
-		contents = append(contents, briefed[i].Content)
+		ordered = append(ordered, briefed[i])
 	}
-	return contents, nil
+	return ordered, nil
 }
 
 // workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with
@@ -7152,12 +7468,12 @@ func (s *TaskService) skillsWithFiles(ctx context.Context, skills []db.Skill) ([
 // It fails closed on a workspace-skill read error for the reason in
 // LoadAgentSkills: a bundle set built from a partial read is indistinguishable
 // from a correct one.
-func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID) ([]AgentSkillData, []AgentSkillRefData, error) {
+func (s *TaskService) LoadAgentSkillBundles(ctx context.Context, agentID pgtype.UUID, agentSystemKey string, legacyRedirects bool) ([]AgentSkillData, []AgentSkillRefData, error) {
 	skills, err := s.LoadAgentSkills(ctx, agentID)
 	if err != nil {
 		return nil, nil, err
 	}
-	skills = append(skills, s.BuiltinSkills()...)
+	skills = append(skills, s.BuiltinSkills(agentSystemKey, legacyRedirects)...)
 	bundles, refs := BuildAgentSkillBundles(skills)
 	return bundles, refs, nil
 }
@@ -7238,7 +7554,8 @@ func (s *TaskService) LoadRequestedAgentSkillBundles(ctx context.Context, agentI
 		}
 	}
 	if len(wantBuiltin) > 0 {
-		for _, builtin := range s.BuiltinSkills() {
+		// Every built-in, not the agent-scoped subset — see AllBuiltinSkills.
+		for _, builtin := range s.AllBuiltinSkills() {
 			if _, ok := wantBuiltin[BuiltinSkillID(builtin.Name)]; ok {
 				requested = append(requested, builtin)
 			}
@@ -7397,6 +7714,16 @@ func priorityToInt(p string) int32 {
 func (s *TaskService) NotifyTaskEnqueued(ctx context.Context, task db.AgentTaskQueue) {
 	s.captureTaskQueued(ctx, task)
 	s.notifyTaskAvailable(task)
+}
+
+// NotifyRuntimeMayHaveWork invalidates a runtime's empty-claim verdict and
+// wakes it. It is the shim for callers that re-point an ALREADY enqueued task
+// at another runtime (the benchmark pin, JEF-276): the enqueue woke the
+// runtime the task was created on, and without this the runtime that must
+// actually run it would sit on a cached "nothing queued" verdict for up to
+// EmptyClaimCacheTTL.
+func (s *TaskService) NotifyRuntimeMayHaveWork(runtimeID pgtype.UUID) {
+	s.notifyRuntimeMayHaveWork(runtimeID, "")
 }
 
 // NotifyTaskFinished invalidates a runtime's empty-claim verdict and emits a
@@ -7884,15 +8211,25 @@ func IssueToMap(issue db.Issue, issuePrefix string) map[string]any {
 		// — clients localize those from the key — and a CUSTOM one is filled in
 		// by IssueToMapResolved, which has the catalog. Emitted unconditionally
 		// so this rendering cannot lose a key the HTTP one carries. (MUL-6749)
-		"status_name":     "",
-		"priority":        issue.Priority,
-		"assignee_type":   util.TextToPtr(issue.AssigneeType),
-		"assignee_id":     util.UUIDToPtr(issue.AssigneeID),
+		"status_name":   "",
+		"priority":      issue.Priority,
+		"assignee_type": util.TextToPtr(issue.AssigneeType),
+		"assignee_id":   util.UUIDToPtr(issue.AssigneeID),
+		// Mirrors handler.IssueResponse.DelegateType / DelegateID (F01).
+		"delegate_type":   util.TextToPtr(issue.DelegateType),
+		"delegate_id":     util.UUIDToPtr(issue.DelegateID),
 		"creator_type":    issue.CreatorType,
 		"creator_id":      util.UUIDToString(issue.CreatorID),
 		"parent_issue_id": util.UUIDToPtr(issue.ParentIssueID),
 		"project_id":      util.UUIDToPtr(issue.ProjectID),
 		"goal_id":         util.UUIDToPtr(issue.GoalID),
+		// F29: the dated cycle the issue is planned into. Emitted here too, so
+		// this rendering cannot lose a key the HTTP one carries.
+		"cycle_id": util.UUIDToPtr(issue.CycleID),
+		// F30: the work item type key, an open catalogue key like status.
+		// Emitted here too, so this rendering cannot lose a key the HTTP one
+		// carries.
+		"issue_type": util.TextToPtr(issue.IssueType),
 		// Mirrors handler.IssueResponse.OriginType / OriginID: what produced
 		// the issue when it was not typed by hand. Emitted unconditionally
 		// here, like status_name, so this rendering cannot lose a key the

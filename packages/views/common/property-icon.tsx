@@ -102,9 +102,14 @@ function findPropertyIcon(value: string | undefined) {
 export function PropertyIconGlyph({
   icon,
   className,
+  style,
 }: {
   icon: string;
   className?: string;
+  /** Inline style, for the one caller that paints the glyph in a catalogue
+   *  colour (F30 work item types). Properties themselves have no colour and
+   *  pass nothing. */
+  style?: React.CSSProperties;
 }) {
   const Glyph = findPropertyIcon(icon)?.Icon ?? Shapes;
 
@@ -112,6 +117,7 @@ export function PropertyIconGlyph({
     <Glyph
       aria-hidden="true"
       data-property-icon={icon}
+      style={style}
       className={cn("size-4 shrink-0", className)}
     />
   );

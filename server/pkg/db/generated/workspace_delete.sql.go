@@ -143,11 +143,17 @@ deleted_triggers AS (
     WHERE autopilot_id IN (
         SELECT id FROM autopilot WHERE autopilot.workspace_id = $1
     )
+),
+deleted_autopilot_memories AS (
+    DELETE FROM autopilot_memory
+    WHERE autopilot_memory.workspace_id = $1
 )
 DELETE FROM autopilot_rule_version
 WHERE autopilot_rule_version.workspace_id = $1
 `
 
+// Daemon execution memory (F24). Denormalized workspace_id, so it purges
+// directly rather than through the autopilot id set.
 func (q *Queries) DeleteWorkspaceAutopilotChildren(ctx context.Context, workspaceID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deleteWorkspaceAutopilotChildren, workspaceID)
 	return err
@@ -295,6 +301,32 @@ func (q *Queries) DeleteWorkspaceConnections(ctx context.Context, workspaceID pg
 	return err
 }
 
+const deleteWorkspaceEpicArtifacts = `-- name: DeleteWorkspaceEpicArtifacts :exec
+DELETE FROM epic_artifact
+WHERE epic_artifact.workspace_id = $1
+`
+
+func (q *Queries) DeleteWorkspaceEpicArtifacts(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceEpicArtifacts, workspaceID)
+	return err
+}
+
+const deleteWorkspaceInsights = `-- name: DeleteWorkspaceInsights :exec
+WITH deleted_widgets AS (
+    DELETE FROM insight_widget
+    WHERE insight_widget.workspace_id = $1
+)
+DELETE FROM insight_query_log
+WHERE insight_query_log.workspace_id = $1
+`
+
+// F27: pinned insight widgets and the translation-quality log. Both carry
+// workspace_id directly and neither has a FK, so they purge in one statement.
+func (q *Queries) DeleteWorkspaceInsights(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceInsights, workspaceID)
+	return err
+}
+
 const deleteWorkspaceIssueDecisions = `-- name: DeleteWorkspaceIssueDecisions :exec
 DELETE FROM issue_decision
 WHERE issue_decision.workspace_id = $1
@@ -413,6 +445,10 @@ deleted_draft_restores AS (
     DELETE FROM chat_draft_restore
     WHERE chat_session_id IN (SELECT id FROM ws_sessions)
 ),
+deleted_chat_participants AS (
+    DELETE FROM chat_session_participant
+    WHERE chat_session_id IN (SELECT id FROM ws_sessions)
+),
 deleted_agent_builder_drafts AS (
     DELETE FROM agent_builder_draft WHERE workspace_id = $1
 ),
@@ -488,6 +524,12 @@ deleted_squad_members AS (
 ),
 deleted_project_resources AS (
     DELETE FROM project_resource WHERE workspace_id = $1
+),
+deleted_code_wiki_pages AS (
+    DELETE FROM code_wiki_page WHERE workspace_id = $1
+),
+deleted_code_wiki_snapshots AS (
+    DELETE FROM code_wiki_snapshot WHERE workspace_id = $1
 ),
 deleted_autopilot_collaborators AS (
     DELETE FROM autopilot_collaborator
@@ -589,6 +631,8 @@ WHERE channel_media_pending_object.workspace_id = $1
 // here is still removed by this teardown rather than by the FK cascade. The
 // former single statement combined all three with OR, which cost a full scan of
 // task_token (MUL-5999); split, each path is an index scan.
+// Multiplayer chat participants (K31). No FK to chat_session, so teardown
+// removes them here while ws_sessions is still readable.
 // Same no-FK chore as chat_draft_restore above. Matched on workspace_id rather
 // than the session set because that column exists precisely so this statement
 // does not have to join through chat_session, which it deletes in this same CTE.
@@ -713,6 +757,12 @@ deleted_goals AS (
 ),
 deleted_project_goals AS (
     DELETE FROM project_goal WHERE project_goal.workspace_id = $1
+),
+deleted_cycle_snapshots AS (
+    DELETE FROM cycle_snapshot WHERE cycle_snapshot.workspace_id = $1
+),
+deleted_cycles AS (
+    DELETE FROM cycle WHERE cycle.workspace_id = $1
 )
 DELETE FROM project WHERE project.workspace_id = $1
 `

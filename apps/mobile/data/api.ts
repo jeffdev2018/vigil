@@ -21,6 +21,7 @@ import type {
   ChatPendingTask,
   ChatSession,
   Comment,
+  CreateCommentSubIssueManualRequest,
   CreateIssueRequest,
   CreateLabelRequest,
   CreateProjectRequest,
@@ -30,6 +31,7 @@ import type {
   IssueLabelsResponse,
   Label,
   IssueReaction,
+  SourceContextPreview,
   ListIssuesParams,
   ListIssuesResponse,
   ListLabelsResponse,
@@ -78,6 +80,7 @@ import {
   EMPTY_LIST_ISSUES_RESPONSE,
   EMPTY_TIMELINE_ENTRIES,
   IssueSchema,
+  SourceContextPreviewSchema,
   ListIssuesResponseSchema,
   ListIssueStatusesResponseSchema,
   TimelineEntriesSchema,
@@ -99,6 +102,8 @@ import {
   MeetingSchema,
   AgentEffectListSchema,
   UndoReportSchema,
+  TaskActivityResponseSchema,
+  EMPTY_TASK_ACTIVITY,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -122,6 +127,7 @@ import {
   EMPTY_COMMENT,
   EMPTY_INBOX_LIST,
   EMPTY_ISSUE_FALLBACK,
+  EMPTY_SOURCE_CONTEXT_PREVIEW,
   EMPTY_LIST_LABELS_RESPONSE,
   EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
   EMPTY_LIST_GOALS_RESPONSE,
@@ -154,8 +160,6 @@ import {
   SearchProjectsResponseSchema,
   SendChatMessageResponseSchema,
   SquadListSchema,
-  TaskMessageListSchema,
-  EMPTY_TASK_MESSAGE_LIST,
   UserSchema,
   WorkspaceListSchema,
 } from "./schemas";
@@ -163,6 +167,11 @@ import type { ZodType } from "zod";
 import { getCurrentSlug } from "./workspace-store";
 import { parseWithFallback } from "@/lib/parse-response";
 import { InboxDecisionsSchema, type InboxDecisions } from "./schemas";
+import {
+  EMPTY_VOICE_ISSUE_DRAFT,
+  VoiceIssueDraftSchema,
+  type VoiceIssueDraft,
+} from "./schemas";
 import { RunReplaySchema, type RunReplay } from "./schemas";
 import {
   EMPTY_AGENT_EFFECT_LIST,
@@ -963,6 +972,18 @@ class ApiClient {
   // (server/cmd/server/router.go:320, server/internal/handler/issue.go
   // CreateIssue). Mobile sends only the fields the form fills in; backend
   // applies its own defaults for anything omitted.
+  // Voice-dictated issue draft (K36): a transcript in, an editable draft
+  // out. Creates nothing — the draft screen calls createIssue afterwards.
+  async issueDraftFromVoice(transcript: string): Promise<VoiceIssueDraft> {
+    return this.fetchValidatedWith(
+      "/api/issues/from-voice-transcript",
+      VoiceIssueDraftSchema,
+      EMPTY_VOICE_ISSUE_DRAFT,
+      { method: "POST", body: JSON.stringify({ transcript }) },
+      { endpoint: "issueDraftFromVoice" },
+    );
+  }
+
   async createIssue(body: CreateIssueRequest): Promise<Issue> {
     return this.fetch<Issue>("/api/issues", {
       method: "POST",
@@ -1110,6 +1131,52 @@ class ApiClient {
       { method: "DELETE" },
       { endpoint: "unresolveComment" },
     );
+  }
+
+  // GET /api/comments/:id/sub-issue-preview — captures the source issue +
+  // comment thread as of now and returns a short-lived `capture_token` the
+  // create call below must echo back. Mirrors
+  // packages/core/api/client.ts:1544 getCommentSubIssuePreview. Mobile does
+  // not render the snapshot (no source-context comparison UI, see
+  // comment-context-menu.tsx) — only `capture_token` is read — but the full
+  // response still goes through the shared schema so a drifted response
+  // shape degrades to the sentinel below instead of an `as` cast.
+  async getCommentSubIssuePreview(
+    anchorCommentId: string,
+  ): Promise<SourceContextPreview> {
+    const preview = await this.fetchValidated(
+      `/api/comments/${anchorCommentId}/sub-issue-preview`,
+      SourceContextPreviewSchema,
+      EMPTY_SOURCE_CONTEXT_PREVIEW,
+      { endpoint: "GET /api/comments/:id/sub-issue-preview" },
+    );
+    if (!preview.capture_token) {
+      throw new Error("Invalid source context preview response");
+    }
+    return preview;
+  }
+
+  // POST /api/comments/:id/sub-issues — creates a sub-issue anchored on
+  // this comment, with the captured thread attached as source context.
+  // Manual mode only: mobile's create-issue form (new-issue.tsx) has no
+  // agent-quick-create panel, so it doesn't gain one here either — same
+  // divergence, same reason (see apps/mobile/CLAUDE.md UI waterfall: no
+  // new surface without an existing pattern to extend). Mirrors
+  // packages/core/api/client.ts:1556 createCommentSubIssue (manual overload
+  // only).
+  async createCommentSubIssue(
+    anchorCommentId: string,
+    data: CreateCommentSubIssueManualRequest,
+  ): Promise<Issue> {
+    const issue = await this.fetchValidatedWith(
+      `/api/comments/${anchorCommentId}/sub-issues`,
+      IssueSchema,
+      EMPTY_ISSUE_FALLBACK,
+      { method: "POST", body: JSON.stringify(data) },
+      { endpoint: "POST /api/comments/:id/sub-issues" },
+    );
+    if (!issue.id) throw new Error("Invalid sub-issue response");
+    return issue;
   }
 
   // --- Reactions ---
@@ -1498,6 +1565,18 @@ class ApiClient {
     await this.fetch<void>(`/api/tasks/${taskId}/cancel`, { method: "POST" });
   }
 
+  // POST /api/issues/:id/rerun — re-runs the named failed task. The
+  // response (AgentTask) isn't rendered anywhere on mobile (same as web's
+  // TaskCommentRetryButton, which only reacts to success/failure) so this
+  // stays an unconsumed write per the ApiClient helper rules. Mirrors
+  // packages/core/api/client.ts:5122 rerunIssue.
+  async rerunIssue(issueId: string, taskId: string): Promise<void> {
+    await this.fetch<void>(`/api/issues/${issueId}/rerun`, {
+      method: "POST",
+      body: JSON.stringify({ task_id: taskId }),
+    });
+  }
+
   /** Live execution timeline for a task — used by the chat screen to
    *  render the "thinking → tool_use → tool_result → final text" trace
    *  beneath an in-flight assistant bubble. `task:message` WS events
@@ -1507,12 +1586,19 @@ class ApiClient {
     taskId: string,
     opts?: { signal?: AbortSignal },
   ): Promise<TaskMessagePayload[]> {
-    return this.fetchValidated(
+    // The endpoint now answers `{ messages, actions }`; a server that predates
+    // that still answers the bare array. The shared schema accepts both, so an
+    // installed app renders its trace against either — parsing only the old
+    // shape would blank the timeline the moment the backend upgraded. Mobile
+    // has no run-action lane yet, so the actions half is read and dropped;
+    // taking it is a UI decision, not a data one.
+    const activity = await this.fetchValidated(
       `/api/tasks/${taskId}/messages`,
-      TaskMessageListSchema,
-      EMPTY_TASK_MESSAGE_LIST,
+      TaskActivityResponseSchema,
+      EMPTY_TASK_ACTIVITY,
       { ...opts, endpoint: "GET /api/tasks/:id/messages" },
     );
+    return activity.messages;
   }
 
   // --- Pins ---

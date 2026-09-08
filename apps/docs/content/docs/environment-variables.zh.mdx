@@ -33,6 +33,7 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `DATABASE_URL` | 本地 `multica` 数据库 | PostgreSQL 连接地址 |
 | `DATABASE_MAX_CONNS` | `25` | 单个 API 进程的最大数据库连接数 |
 | `DATABASE_MIN_CONNS` | `5` | 单个 API 进程保留的最小连接数 |
+| `DATABASE_SEARCH_WORK_MEM_MB` | `64` | 每个搜索计划算子的 PostgreSQL `work_mem` 上限（MB）；设为 `1`–`64` 可调低，设为 `0` 则沿用数据库/会话默认值 |
 | `DATABASE_REPLICA_URL` | 空 | 可选的 PostgreSQL 只读从库连接地址；新连接会强制校验只读状态，业务仍需在代码中显式选择最终一致读取 |
 | `DATABASE_REPLICA_MAX_CONNS` | `10` | 单个 API 进程的最大从库连接数 |
 | `DATABASE_REPLICA_MIN_CONNS` | `0` | 单个 API 进程保留的最小从库连接数 |
@@ -42,9 +43,11 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `JWT_SECRET` | 生产环境必填 | 登录 JWT、部分签名流程使用的密钥；生产环境对空值或已知占位值拒绝启动 |
 | `APP_ENV` | 空 | 生产环境设为 `production` |
 | `AUTH_TOKEN_TTL` | `720h`（30 天） | 浏览器 JWT 与 cookie 有效期；接受 Go duration 或正整数秒数 |
-| `LOG_LEVEL` | 应用默认 | 日志级别 |
+| `LOG_LEVEL` | `debug` | 日志级别：`debug`、`info`、`warn` 或 `error`（大小写不敏感）；无法识别的值同样回退到 `debug` |
 | `MULTICA_SHUTDOWN_HOLD_DURATION` | `0` | 收到终止信号后，开始优雅退出前等待多久 |
 | `MULTICA_RUNTIME_RECONNECT_GRACE` | `3h` | 运行时离线后可重新连接且不终止在途运行的宽限时间；低于 `150s` 时按 `150s` 处理 |
+| `MULTICA_RUN_UNRESPONSIVE_AFTER` | `90`（秒） | 一次活跃运行可以保持多久沉默才会被显示为无响应；这只是一个读取时的判断，不会让运行失败或被取消 |
+| `MULTICA_BUDGET_MIN_ESTIMATE_USD_TICKS` | `1000000000`（0.10 美元） | 运行预算估算的下限，单位为 USD tick（1 美元 = 10,000,000,000 tick）；仅在已完成运行数量不足以从历史数据中平均出真实成本之前使用 |
 
 在 Kubernetes 中设置 shutdown hold 时，`terminationGracePeriodSeconds` 要大于 hold 与实际退出所需时间之和。
 
@@ -61,6 +64,8 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `CORS_ALLOWED_ORIGINS` | 空 | 额外允许的 HTTP origin，逗号分隔 |
 | `ALLOWED_ORIGINS` | 回退到 CORS / 前端地址 | WebSocket origin 白名单，逗号分隔 |
 | `COOKIE_DOMAIN` | 空 | 前后端不同 host 且浏览器直接访问 API 域时必须设置；单域部署保持为空 |
+| `NEXT_PUBLIC_API_URL` | 根据页面 origin 自动推导 | 浏览器和 Next.js SSR 代理调用的后端 origin（scheme + host，不含路径）；结尾的 `/api` 会被去掉，其他任何路径都会在每个请求里重复出现 |
+| `NEXT_PUBLIC_WS_URL` | 根据页面 origin 自动推导 | 浏览器连接的 WebSocket 地址 |
 
 <Callout type="warning">
 `MULTICA_DAEMON_SERVER_URL` 会由无需认证的 `/api/config` 接口返回，客户端可以读取。请将它视为公开配置，切勿填入凭据、令牌或其他密钥。
@@ -162,12 +167,50 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `RATE_LIMIT_INVITATION_ACTOR_10M` | `10` | 每位邀请人在 10 分钟滑动窗口内可创建的工作区邀请数；设为 `0` 可关闭此项限流 |
 | `RATE_LIMIT_INVITATION_WORKSPACE_24H` | `50` | 同一工作区内所有管理员在 24 小时滑动窗口内可创建的邀请总数；设为 `0` 可关闭此项限流 |
 | `RATE_LIMIT_INVITATION_RECIPIENT_24H` | `6` | 同一规范化收件邮箱跨工作区在 24 小时滑动窗口内可收到的邀请数；设为 `0` 可关闭此项限流 |
+| `RATE_LIMIT_CONTACT_SALES` | `5` | 单 IP 每小时请求 `/contact-sales` 的最大次数 |
+| `RATE_LIMIT_PLUGIN_API` | `120` | 单 IP 每分钟请求插件 Public API 的最大次数 |
 | `RATE_LIMIT_TRUSTED_PROXIES` | 空 | 允许提供 `X-Forwarded-For` 的代理 CIDR，逗号分隔 |
 | `MULTICA_TRUSTED_PROXIES` | 空 | 自动化 webhook 与实时连接使用的可信代理 CIDR |
 
 反向代理后的部署需要填写真实代理网段。不要直接信任所有来源，否则客户端可以伪造转发 IP。
 
 认证限流需要配置 `REDIS_URL`；未配置时，启动日志会提示认证限流已关闭。邀请限流在没有 Redis 时仍使用进程内存，配置 Redis 后则在多个副本间共享额度。如果已配置的 Redis 临时不可用，认证限流仍选择放行，而邀请创建会返回可重试的 `503`，不会在失去防护时发送邮件。
+
+### 实时中继
+
+Redis 也为实时事件（推送到打开的浏览器标签页的任务和对话更新）的扇出提供支持。这部分与 `REDIS_URL` 相互独立，在生产环境中值得与请求路径的缓存分开部署。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `REALTIME_RELAY_REDIS_URL` | 回退到 `REDIS_URL` | 专用于实时流的 Redis/Valkey；要求支持 XTRIM MINID（Redis 6.2+） |
+| `REALTIME_RELAY_MODE` | `sharded` | `sharded`、`dual`（双写、按分片读取——用于迁移过渡）或 `legacy`（单一 stream）；无法识别的值会回退到 `sharded` 并给出警告 |
+| `REALTIME_RELAY_SHARDS` | `8` | 分片中继的分片数量；无效值或 0 会回退到默认值 |
+| `REALTIME_RELAY_XREAD_COUNT` | `128` | 每次轮询各分片 stream 时的 `XREAD COUNT` |
+| `REALTIME_RELAY_XREAD_BLOCK` | `5s` | 每次轮询各分片 stream 时的 `XREAD BLOCK` 时长 |
+| `REALTIME_RELAY_STREAM_MAXLEN` | `2000` | 每个分片保留的条目数；请结合观测到的单条大小、事件速率和 Redis 内存预算来设定 |
+| `REALTIME_RELAY_REPLAY_GRACE` | `5m` | 分片读取端的重放宽限期 |
+| `REALTIME_RELAY_TRIM_HORIZON` | `10m` | 精确按时间裁剪的时间线，在 `REALTIME_RELAY_STREAM_MAXLEN` 之后应用 |
+| `REALTIME_RELAY_STREAM_TTL_ENABLED` | `false` | 一项需要主动开启的分阶段兜底方案，会在过期时清空整个 stream；开启前请先查看 `.env.example` 中的上线/回滚步骤 |
+| `REALTIME_RELAY_STREAM_TTL` | `15m` | stream 的 TTL，只有在 `REALTIME_RELAY_STREAM_TTL_ENABLED=true` 时才生效 |
+| `REALTIME_RELAY_TTL_REFRESH_INTERVAL` | `30s` | 活跃 stream 刷新 TTL 的频率 |
+| `REALTIME_RELAY_MAINTENANCE_INTERVAL` | `1m` | 后台维护清理的执行间隔 |
+
+### 频道 WebSocket 租约
+
+多副本部署需要基于 Redis 的租约，确保同一时间只有一个 API 副本持有某个频道的入站 WebSocket 连接（企业微信等长连接的频道）。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `CHANNEL_WS_LEASE_BACKEND` | PostgreSQL | 多副本生产环境请设为 `redis`；启动时如果 Redis、`Ping` 或原子租约脚本不可用，supervisor 会直接拒绝启动。要切换就所有副本一起切——没有双锁模式 |
+| `CHANNEL_WS_LEASE_REDIS_URL` | 回退到 `REDIS_URL` | 强烈建议使用一个专用于租约的 Redis/Valkey 实例，并配置 `maxmemory-policy noeviction` |
+| `CHANNEL_WS_LEASE_NAMESPACE` | 无（Redis 模式下必填） | 稳定的部署标识符，避免共享同一个 Redis 数据库的多个环境互相争抢对方的安装 ID；只能使用字母、数字、点、下划线和连字符 |
+| `CHANNEL_WS_LEASE_TTL` | `180s` | 租约 TTL；时长需满足 `0 < poll <= renew < TTL` |
+| `CHANNEL_WS_LEASE_RENEW_INTERVAL` | `60s` | 租约续期间隔 |
+| `CHANNEL_WS_LEASE_POLL_INTERVAL` | `30s` | 获取租约的轮询间隔 |
+| `CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL` | `5s` | Redis 出错后的重试间隔 |
+| `CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN` | `5s` | 持有者会在最后一次确认的 TTL 到期前这么久主动断开，以防止脑裂 |
+
+租约 key 被静默驱逐会中断频道连接——请对该租约实例的内存/容量、驱逐次数（必须保持为零）、可用性和命令延迟设置告警。
 
 ## 外部集成
 
@@ -177,18 +220,30 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | GitHub | `GITHUB_WEBHOOK_SECRET` | Webhook HMAC 与连接 state 签名密钥 |
 | GitHub | `GITHUB_APP_ID` | PR 卡片的 CI 状态、可合并性和"从 GitHub 选择"仓库都需要它 |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | 与 App ID 配套的完整 PEM 私钥，用途同上 |
+| GitHub | `GITHUB_TOKEN` | 从 GitHub URL 导入 skill 时，未认证的 `api.github.com` 请求所附带的 Bearer 个人访问令牌；把单 IP 限流从 60/小时提升到 5000/小时。与上面的 GitHub App 无关 |
 | 飞书 | `MULTICA_LARK_SECRET_KEY` | base64 编码的 32 字节凭据加密密钥 |
+| 飞书 | `MULTICA_LARK_HTTP_BASE_URL` / `MULTICA_LARK_CALLBACK_BASE_URL` | 部署级覆盖，强制所有安装实例使用同一个飞书/Lark host（代理、测试 mock 或单云 staging 环境）；正常使用请两者都留空——区域会按每个安装实例自动检测 |
+| 飞书 | `MULTICA_LARK_WS_PROXY_URL` | WebSocket 长连接握手可选的固定 HTTP CONNECT 代理；留空则使用标准的 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | base64 编码的 32 字节 token 加密密钥 |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | base64 编码的 32 字节 Bot token 加密密钥 |
+| 钉钉 | `MULTICA_DINGTALK_SECRET_KEY` | base64 编码的 32 字节 AppSecret 加密密钥 |
+| 企业微信 | `MULTICA_WECOM_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个安装实例的智能机器人 secret；留空会禁用该集成及其 Web UI 接口（503） |
+| 企业微信 | `MULTICA_WECOM_MEDIA_ALLOW_CIDRS` | 逗号分隔的网段，媒体抓取器即使识别为保留地址也允许拨号；除非部署在伪 IP 代理之后，否则留空 |
+| 企业微信 | `MULTICA_WECOM_TRACE` | 设为 `1` 会记录企业微信适配器读写的每一帧，包括消息内容（前 120 个字符）；仅用于调试，会话结束后请取消设置 |
 | Composio | `COMPOSIO_API_KEY` | 启用 Composio 工具连接 |
 | Composio | `COMPOSIO_CALLBACK_BASE_URL` | 回调 API 地址；可回退到 `MULTICA_PUBLIC_URL` |
 | Composio | `COMPOSIO_STATE_SECRET` | OAuth state 签名密钥；可从 `JWT_SECRET` 派生 |
 | 自托管 Git | `MULTICA_VCS_INTEGRATION_ENABLED` | Forgejo/Gitea/GitLab 集成开关，compose 默认开启 |
 | 自托管 Git | `MULTICA_VCS_SECRET_KEY` | base64 编码的 32 字节加密密钥（`openssl rand -base64 32`）；未配置时该功能整体不可用 |
+| Linear Bridge | `MULTICA_LINEAR_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 Linear OAuth token 和 webhook secret；未设置会整体禁用该集成 |
+| Linear Bridge | `MULTICA_LINEAR_CLIENT_ID` / `MULTICA_LINEAR_CLIENT_SECRET` | 来自 `linear.app/settings/api/applications` 的 OAuth 应用凭据；未设置时已有安装实例仍会同步，但会阻止新增安装 |
+| Linear Bridge | `MULTICA_LINEAR_STATE_SECRET` | 可选的 OAuth state 签名密钥；未设置时用从 `JWT_SECRET` 派生的密钥签名 state |
 | 插件 | `MULTICA_PLUGIN_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密已存 secret 和 surface 启动 URL |
 | 插件 | `MULTICA_PLUGIN_SURFACE_ORIGIN` | 路由到后端的独立无 Cookie 浏览器 origin；必须不同于 app/API origin，并保留 `Host` |
 | 插件 | `MULTICA_PLUGIN_API_URL` | 带版本的插件 Public API 完整 Base URL，例如 `https://plugin-api.example.com/v1`；未设置时使用 `MULTICA_PUBLIC_URL` + `/v1` |
 | 插件 | `MULTICA_PLUGIN_DIR` | 开发时用于发布本地插件包的可选绝对目录 |
+| 模型密钥（BYOK） | `MULTICA_MODEL_KEY_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密工作区和项目在「设置 → 模型密钥」中填写的服务商 API key；未设置时显示为"未配置"，并拒绝保存密钥 |
+| SSO | `MULTICA_SSO_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 OIDC client secret；未设置时"安全"标签页显示为"未配置" |
 
 不配置 `GITHUB_APP_ID` 和私钥时，PR 仍会正常关联、镜像和触发合并转 done，但卡片上不显示 CI 与可合并状态，"从 GitHub 选择"仓库入口也会禁用。
 
@@ -203,20 +258,95 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `MULTICA_LLM_API_KEY` | 空 | OpenAI 兼容 API key |
 | `MULTICA_LLM_BASE_URL` | 空 | OpenAI 兼容 endpoint |
 | `MULTICA_LLM_DEFAULT_MODEL` | `gpt-5.6-luna` | 请求未指定模型时使用 |
+| `MULTICA_LLM_ROUTING_MODEL` | 回退到 `MULTICA_LLM_DEFAULT_MODEL` | 用于判断一次 webhook 投递是否符合自动化自然语言路由规则的小型快速模型 |
+| `MULTICA_LLM_EMBEDDING_MODEL` | 空 | 为共享仓库索引启用语义排序。模型必须产生 1536 维向量；留空则索引只按关键词工作 |
 | `MULTICA_LLM_MAX_RETRIES` | `2` | 单次调用的重试上限；`0` 表示禁用重试，`1`–`5` 表示最多重试 N 次 |
 
 `MULTICA_LLM_MAX_RETRIES` 是重试策略的唯一配置源。不设置时使用默认的 2 次；设为 `0` 表示每次调用只发一个请求；设为 1–5 表示最多重试这么多次。它是上限而不是配额：只有可重试的失败才会消耗它，请求成功或调用方自身的超时都会让调用提前结束。其它取值（负数、非数字、大于 5）会让服务启动失败，而不是被静默纠正。上限是一个延迟预算：退避从 0.5s 开始翻倍，上限 8s，更大的预算会超出调用方自身的超时，把可重试的失败变成超时失败。重试覆盖连接失败以及 HTTP 408、409、429 和 5xx；其余 4xx 直接返回。服务启动时会以 `llm retry policy` 打印生效策略，其中不包含任何凭据。
 
-有两个功能会使用这一层，它们都会把聊天内容发送到你配置的 endpoint：
+以下功能会使用这一层，它们都会把内容发送到你配置的 endpoint：
 
 - **对话标题自动生成** —— 发送新对话中用户的第一条消息，原文发送。附件不会包含在内。
 - **后续提问建议**（智能体回复下方的按钮）—— 发送对话末尾的内容：最多 6 条消息，其中被追问的那条回复上限 3000 字符，更早的每条上限 800 字符。
+- **共享语义仓库索引** —— 发送工作区显式开启的仓库（设置 → 代码仓库 → 语义索引）的代码片段正文，以及作为检索词的任务标题和描述前 500 个字符。只有设置了 `MULTICA_LLM_EMBEDDING_MODEL` 才会启用；留空时索引仍按关键词排序正常工作，仓库代码不会离开你的部署。
+- **Issue scoping assistant**（创建任务对话框中的"用几句话生成草稿"）—— 发送成员输入的文本，上限 8000 字符，以及目标项目的标题和描述。
+- **[原生运行时](/native-runtime)** —— 以无守护进程方式运行的智能体，其工具调用循环会把任务和评论内容发送给同一个客户端。这里不使用 `MULTICA_LLM_ROUTING_MODEL`；原生运行时调用使用的是 `MULTICA_LLM_DEFAULT_MODEL`。
 
 API key 与 base URL 都为空时，这一层关闭，不会发出任何上游请求——上面两个功能都不再发送内容。如果你的政策不允许这一层把聊天内容发到部署之外，这就是受支持的配置方式：对话继续使用客户端根据第一条消息生成的标题，后续提问按钮不再出现，其余功能不受影响。
 
 <Callout type="info">
 这只覆盖辅助生成这一层。智能体执行是另一条数据路径：智能体回复对话时，由你的守护进程调用该智能体的 AI 编程工具，用的是那个工具自己的凭据，守护进程不会把上面的 `MULTICA_LLM_*` 配置传给它。（智能体自身需要的运行级 Multica 连接变量由守护进程单独注入。）把上面的变量留空不影响这条路径——它由智能体的运行时配置决定。
 </Callout>
+
+## 语音：语音转文字与文字转语音
+
+两者都是可选功能，且各自独立开关；不设置对应服务商时，相关功能会被隐藏而不是报错。
+
+### 语音转文字（语音备忘录、会议转录）
+
+任何实现了 OpenAI 兼容的 `POST {base}/v1/audio/transcriptions` 接口的服务商均可：Mistral Voxtral、OpenAI、Groq，或部署在 vLLM 之后自托管的 Qwen3-ASR / Whisper。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_STT_BASE_URL` | 空 | STT endpoint；留空此项或模型会禁用 STT——相关接口返回 `409`，UI 隐藏该功能 |
+| `MULTICA_STT_API_KEY` | 空 | STT 服务商 API key |
+| `MULTICA_STT_MODEL` | 空 | STT 模型名称 |
+| `MULTICA_STT_LANGUAGE` | 服务商自动检测 | 以 `language` 字段发送的 ISO 639-1 语言提示（例如 `fr`） |
+| `MULTICA_STT_DIARIZE` | `false` | 设为 `true` 会要求支持该功能的服务商（Voxtral）标注说话人 |
+| `MULTICA_STT_REALTIME_MODEL` | 空 | 启用会议录制中的实时逐词转录；浏览器会用服务端签发的短期 token 打开服务商的实时 WebSocket |
+
+音频转录完成后即被丢弃——不会被保存。
+
+### 文字转语音（智能体消息的"朗读"功能）
+
+任何实现了 OpenAI 兼容的 `POST {base}/v1/audio/speech` 接口的服务商均可：OpenAI、Groq，或自托管的 Kokoro-FastAPI / openedai-speech。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_TTS_BASE_URL` | 空 | TTS endpoint；留空此项或模型会禁用 TTS——`/api/voice/speak` 返回 `409`，客户端会回退到浏览器自带的 `speechSynthesis` |
+| `MULTICA_TTS_API_KEY` | 空 | TTS 服务商 API key |
+| `MULTICA_TTS_MODEL` | 空 | TTS 模型名称 |
+| `MULTICA_TTS_VOICE` | 服务商默认值 | 服务商的语音 id（OpenAI：`alloy`、`nova` 等）；留空则由服务商自行选择，部分服务商会拒绝这种情况 |
+
+音频按请求实时合成，不会被保存。
+
+## 移动推送
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_PUSH_DISABLED` | 空 | 设为 `1` 可完全禁止发送推送通知 |
+| `MULTICA_EXPO_PUSH_ENDPOINT` | Expo 的默认值（`https://exp.host/--/api/v2/push/send`） | 可选，用于覆盖 Expo 推送 API 的 endpoint |
+
+Expo 推送不需要任何凭据即可工作。
+
+## 功能开关
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_FEATURE_FLAGS_FILE` | 空 | 声明功能开关规则的 YAML 文件路径；未设置时每个开关都会回退到调用方自己的默认值，因此在编写任何开关配置之前服务器也能正常启动。已设置的文件如果解析或 IO 出错，会导致启动失败，与 `DATABASE_URL` 或 `JWT_SECRET` 配置错误的处理方式相同 |
+
+单个开关也可以通过 `FF_<FLAG_KEY>` 环境变量覆盖，而不必改动 YAML（例如 `FF_BILLING_NEW_INVOICE_EMAIL=false`、一个百分比，或任意变体字符串）。环境变量覆盖优先于 YAML——这是运维层面的一键开关路径：设置好环境变量后重启进程，无需重新部署即可翻转某个开关。完整的 YAML schema 见 `server/pkg/featureflag`。
+
+## 自动化失败监控
+
+定期暂停最近运行记录以失败为主的自动化，避免配置错误的定时自动化在死循环中无限消耗运行次数和 token。
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `AUTOPILOT_FAIL_MONITOR_INTERVAL` | `24h` | 扫描的执行频率；设为 `0` 会完全禁用该监控 |
+| `AUTOPILOT_FAIL_MONITOR_LOOKBACK` | `168h` | 扫描统计运行次数时回溯的时间范围 |
+| `AUTOPILOT_FAIL_MONITOR_STARTUP_DELAY` | `1m` | 进程启动后到第一次扫描之间的延迟 |
+| `AUTOPILOT_FAIL_MONITOR_MIN_RUNS` | `50` | 回溯窗口内至少需要多少次运行，失败率才会被认为在统计上有意义；必须是正整数 |
+| `AUTOPILOT_FAIL_MONITOR_FAIL_RATIO` | `0.9` | 触发自动暂停的失败率区间 (0, 1] |
+
+## 自托管部署
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MULTICA_CLOUD_URL` | 空 | 连接到托管的 multica-cloud 服务；自托管时留空。连接后，Fleet、账单、权益策略和预购席位容量都会使用这项服务 |
+| `MULTICA_IMAGE_TAG` | `latest` | 自托管发布渠道；固定到某个具体版本（例如 `v0.2.4`）可以锁定在该版本上 |
+| `MULTICA_BACKEND_IMAGE` | `ghcr.io/multica-ai/multica-backend` | 后端镜像仓库 |
+| `MULTICA_WEB_IMAGE` | `ghcr.io/multica-ai/multica-web` | Web 镜像仓库 |
 
 ## 守护进程配置
 
@@ -228,6 +358,7 @@ API key 与 base URL 都为空时，这一层关闭，不会发出任何上游�
 | `MULTICA_DAEMON_DEVICE_NAME` | 主机名 | 运行时列表中的设备名 |
 | `MULTICA_AGENT_RUNTIME_NAME` | `Local Agent` | 运行时显示名 |
 | `MULTICA_DAEMON_POLL_INTERVAL` | `30s` | 没有唤醒事件时的运行轮询间隔 |
+| `MULTICA_DAEMON_WS_CLAIM_POLL_INTERVAL` | `3m` | 健康 WebSocket 下 claim 安全轮询的上限，与 `MULTICA_DAEMON_POLL_INTERVAL` 独立配置；向下抖动后默认实际为 `2m30s`–`2m45s`，旧 Server 或结果不确定的 claim 仍使用普通轮询间隔 |
 | `MULTICA_DAEMON_HEARTBEAT_INTERVAL` | `15s` | 心跳间隔 |
 | `MULTICA_DAEMON_MAX_CONCURRENT_TASKS` | `20` | 单个守护进程的并发运行上限 |
 | `MULTICA_AGENT_TIMEOUT` | `0` | 单次执行的绝对时限；`0` 表示不设置 |
@@ -276,6 +407,7 @@ multica config show
 | `workspaces_root` | `~` 下按 profile 区分的路径 | 执行工作目录的根目录 |
 | `max_concurrent_tasks` | `20` | 并发运行上限；`0` 或留空表示未设置 |
 | `poll_interval` | `30s` | 运行轮询间隔 |
+| `ws_claim_poll_interval` | `3m` | 健康 WebSocket 下 claim 安全轮询的上限，与 `poll_interval` 独立配置；Daemon 会应用向下抖动 |
 | `heartbeat_interval` | `15s` | 心跳间隔 |
 | `agent_timeout` | 不限制 | 单次执行的绝对时限 |
 | `codex_semantic_inactivity_timeout` | 派生 | Codex 语义静默阈值。未设置时取 idle 与 tool watchdog 预算中较大的那个；tool 预算为 `0` 时回落到 idle 预算；只有整套 watchdog 关闭时才保留 Codex 自己的 `10m` |

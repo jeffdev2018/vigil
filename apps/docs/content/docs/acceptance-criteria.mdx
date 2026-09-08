@@ -1,0 +1,101 @@
+---
+title: Acceptance criteria
+description: Each acceptance criterion carries its own proof, and an issue cannot reach done while one still lacks it.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+A description says what an issue wants; acceptance criteria say how anyone —
+human or agent — checks it actually happened. Each criterion carries its own
+proof, and the server refuses to move an issue to `done` while one still
+lacks a satisfied proof — an outcome contract the issue holds itself to
+instead of a checklist someone has to remember to read.
+
+## Proof types
+
+| Type | What it names | Reaches `satisfied` when |
+| --- | --- | --- |
+| `test` | A test command | The command is recorded (its result isn't re-run by the server) |
+| `file` | A path | The path is recorded |
+| `screenshot` | A path or URL to an image | The reference is recorded |
+| `url` | A link | The link is recorded |
+| `human_validation` | Nothing — a person's own click | A member clicks "Validate myself" |
+
+`test`, `file`, `screenshot`, and `url` all work the same way: whoever attaches
+them — usually the agent that did the work — is trusted on the reference
+itself; the server doesn't execute the test or fetch the URL. `human_validation`
+is different by design: an agent can request it, but that only reaches
+`pending_human` — the proof exists only once a member clicks it themselves, so
+a criterion nobody but a machine has ever looked at can't claim to be proven.
+
+## Proof states
+
+| State | Meaning |
+| --- | --- |
+| `missing` | No proof attached yet. |
+| `pending_human` | A `human_validation` proof is requested; no member has clicked yet. |
+| `satisfied` | The criterion has a proof that counts. |
+
+## Where you manage it
+
+The issue's **Acceptance criteria** section lists every criterion with its
+state (a dot, a clock, or a check) and the proof behind it once there is one.
+From there you:
+
+- **Add** a criterion — typed inline, one at a time.
+- **Attach a proof** — pick a type (`test`, `file`, `screenshot`, `url`) and
+  give the reference.
+- **Validate myself** — the `human_validation` shortcut; only a member can
+  click it, and it both requests and satisfies the proof in one action.
+- **Remove** a criterion.
+
+<Callout type="info">
+Rewording a criterion resets it: it keeps its proof only when the id matches
+(or, without one, the exact text is unchanged). Change the text and it starts
+back at `missing` — a promise that reads differently is a new promise.
+</Callout>
+
+## Blocking `done`
+
+Moving an issue — one at a time or in a batch — into a status whose category
+is `done` is refused with `409 unsatisfied_acceptance_criteria` while any
+criterion still lacks a satisfied proof. This applies to every status in the
+`done` category, built-in or custom (see [Custom statuses](/issues#custom-statuses)),
+not only the built-in `done`. The refusal names every criterion still short a
+proof, so the response is enough to see what's missing without a second call.
+
+An agent whose trust mode is Observer cannot attach or claim a proof — only
+comment and suggest, the same limit Observer mode puts on the rest of the
+issue.
+
+## CLI
+
+```bash
+multica criteria list <issue-id>
+multica criteria set <issue-id> --text "Checkout succeeds on Safari" --text "No new console errors"
+multica criteria prove <issue-id> <criterion-id> --type test --ref "go test ./checkout/..."
+multica criteria prove <issue-id> <criterion-id> --type human_validation
+```
+
+`criteria set` replaces the full list — `--text` is repeatable, one per
+criterion, in order. A criterion whose text is unchanged keeps its proof; a
+reworded one starts without proof, per the rule above.
+
+## API
+
+| Method | Route | Actor | Body |
+| --- | --- | --- | --- |
+| `GET` | `/api/issues/{id}/acceptance-criteria` | member | — |
+| `PUT` | `/api/issues/{id}/acceptance-criteria` | member | `{criteria: [{id?, text}]}` |
+| `PATCH` | `/api/issues/{id}/acceptance-criteria/{criterionId}/proof` | agent or member | `{proof_type, proof_ref?}` — empty `proof_type` clears the proof |
+
+## Limits
+
+- At most 50 criteria per issue; each criterion's text at most 2 KB.
+- A proof's reference (`proof_ref`) is at most 2 KB; required for every
+  `proof_type` except `human_validation`.
+
+## Next steps
+
+- [Issues](/issues) — statuses, categories, and what `done` means.
+- [Decisions](/decisions) — the typed question an agent asks when it needs a call, not a check.

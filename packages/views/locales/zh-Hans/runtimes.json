@@ -142,6 +142,57 @@
     },
     "visibility_toast_updated": "可见性已设为\"{{visibility}}\"",
     "visibility_toast_failed": "更新可见性失败",
+    "sandbox": {
+      "title": "沙箱",
+      "mode": {
+        "none": "无",
+        "sandbox": "沙箱",
+        "container": "容器"
+      },
+      "hint": {
+        "none": "在主机上运行，拥有对机器的完整访问权限。",
+        "sandbox": "将文件系统限制在工作目录内（Linux bubblewrap），网络仍然共享。",
+        "container": "在仅挂载工作目录的 Docker 容器中运行 CLI。不直接联网：白名单代理仅放行模型 API、包注册表、GitHub、Multica 服务器以及此处列出的额外主机。"
+      },
+      "unavailable": {
+        "sandbox": "未检测到 bubblewrap（仅限 Linux）",
+        "container": "此机器上未检测到 Docker"
+      },
+      "capabilities_unknown": "守护进程尚未上报此机器可运行的模式。",
+      "image_label": "镜像",
+      "image_placeholder": "node:22-bookworm-slim",
+      "image_help": "默认为 node:22-bookworm-slim，首次启动时会安装 Claude 与 Codex CLI。其他提供商需要预装 CLI 的自定义镜像。",
+      "hosts_label": "额外允许的主机",
+      "hosts_placeholder": "registry.example.com\napi.example.com",
+      "hosts_help": "每行一个主机。模型 API、包注册表、GitHub 和 Multica 服务器始终允许。",
+      "save": "保存",
+      "saving": "保存中...",
+      "toast_updated": "沙箱模式已设为{{mode}}",
+      "toast_failed": "更新沙箱模式失败",
+      "last_run": "上次运行：{{mode}}",
+      "last_run_none": "尚未上报运行。",
+      "degraded": "请求了{{requested}}，但此机器无法运行，上次运行已降级为{{effective}}。运行回放已记录此事。"
+    },
+    "compliance": {
+      "title": "数据驻留",
+      "region_label": "声明区域",
+      "region_placeholder": "eu-west-1",
+      "on_prem_label": "本地部署机器",
+      "on_prem_yes": "是",
+      "on_prem_no": "否",
+      "save": "声明",
+      "saving": "正在声明…",
+      "clear": "清除",
+      "failed": "保存声明失败",
+      "undeclared": "尚未声明。在数据驻留策略下，该运行时不会接受任何工作。",
+      "no_policy": "本工作区没有数据驻留策略，所有运行时都可用。声明会保留，以备后续启用策略。",
+      "eligible": "符合本工作区的数据驻留策略。",
+      "rejected": {
+        "banned_provider": "该运行时的提供方被数据驻留策略禁用，因此不会接受任何工作。",
+        "not_on_prem": "策略要求本地部署的运行时。请将该机器声明为本地部署，否则它不会接受任何工作。",
+        "region_not_allowed": "该运行时声明的区域不在允许列表中，因此不会接受任何工作。"
+      }
+    },
     "delete_dialog": {
       "self_heal_notice": "该运行时由正在运行的本地守护进程托管。删除会成功，但守护进程会在数秒内重新注册一个新的运行时——若想彻底移除，请先停止守护进程。",
       "profile_backed_notice": "该运行时来自自定义运行时配置。删除它只会移除当前运行时实例；只要配置仍存在，运行中的守护进程就可以再次注册它。若要彻底移除，请在“自定义运行时”中删除对应配置。",

@@ -7,6 +7,9 @@ export type InboxItemType =
   | "issue_subscribed"
   | "unassigned"
   | "assignee_changed"
+  // Named as the assignee's partner (F01). Info severity, not
+  // action_required: a delegate is not the issue's owner.
+  | "delegate_assigned"
   | "status_changed"
   | "priority_changed"
   | "start_date_changed"
@@ -41,14 +44,43 @@ export type InboxItemType =
   // A postmortem was drafted after a failed run and waits for review.
   | "postmortem_ready"
   | "watchdog_escalation"
+  // Code health autopilot (K22): a scheduled maintenance scan opened issues,
+  // or failed.
+  | "code_health_report"
+  | "doc_drift_report"
   | "contest_ready"
   | "org_alert"
   // The MCP gateway (K77): a high-risk tool ran, or a monthly review proposes unused tools for removal.
   | "mcp_alert"
+  // BYOK (K48): a model key was retired after a vendor auth or quota failure.
+  | "model_key_alert"
+  // Validated routing (JEF-275): a trigger was refused because the agent is
+  // pointed at nothing that could ever claim its work.
+  | "routing_alert"
+  // Data residency (K46): a run was refused because the workspace's residency
+  // policy leaves the agent nowhere compliant to run. Distinct from
+  // routing_alert: the fix is declaring a runtime or relaxing the policy, not
+  // rebinding the agent.
+  | "residency_policy_blocked"
+  // Linear Bridge (K21): Linear stopped accepting the workspace's token, so
+  // the mirror is frozen until someone reconnects it.
+  | "linear_alert"
   | "decision_auto_decided"
   // The triage queue has items nobody has decided on for two days. Filed for
   // the workspace's admins/owners, at most once a day per workspace.
-  | "triage_stale";
+  | "triage_stale"
+  // Transition rules (F28): a status change is held for an approver. Filed for
+  // every member holding a role the rule accepts as an approver.
+  | "transition_approval_requested"
+  // Adversarial critic (F25): the policy could not be honoured (no critic on
+  // another provider, or the critic run could not be started), or the loop
+  // stopped on its round / cost budget. Both are cases where a policy quietly
+  // stopped doing what it promised, so a human is told.
+  | "critic_degraded"
+  | "critic_budget"
+  // Dated cycles (F29): a cycle ended with unfinished work and no next cycle
+  // to roll it into, so it is now planned nowhere. Filed for the project lead.
+  | "cycle_rollover_orphaned";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

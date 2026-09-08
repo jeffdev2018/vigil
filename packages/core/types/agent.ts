@@ -50,6 +50,46 @@ export interface RuntimeRoutingDecision {
 }
 
 /**
+ * The scorer's confidence record for a task run (JEF-240). Absent until the
+ * run has been scored; `below_threshold` is the backend's verdict against
+ * the workspace threshold — when omitted, derive it from `score` and
+ * `threshold`. `rationale` is the scorer's ≤280-char explanation.
+ */
+export interface TaskConfidence {
+  score: number;
+  rationale: string;
+  model?: string;
+  threshold?: number;
+  below_threshold?: boolean;
+  /** The model that produced the scored run; absent when it was never recorded. */
+  producer_model?: string;
+  /**
+   * How the scoring model relates to the producing one: `"independent"` (the
+   * two are named and differ), `"self"` (the same model scored its own
+   * delivery) or `"unknown"` (a model was not recorded, so independence
+   * cannot be claimed). Absent on older backends. Treat any unrecognised
+   * value as unknown — never as independent.
+   */
+  judge_independence?: string;
+}
+
+/**
+ * The escalation record carried by the child task a confidence escalation
+ * created (JEF-272): when a run scores under the workspace review threshold,
+ * the backend re-dispatches the work to a stronger runtime and stamps the
+ * new task with its origin. Absent on ordinary runs and older backends —
+ * render conditionally. `reason` is the backend's escalation cause ("below_threshold"
+ * today); `attempt` is the 1-based escalation count toward the workspace's
+ * `max_escalations` cap.
+ */
+export interface TaskEscalation {
+  from_task_id: string;
+  reason: string;
+  attempt: number;
+  from_runtime_id: string;
+}
+
+/**
  * One (runtime, provider, model, task_class) row of the 90-day routing-stats
  * rollup behind `GET /api/runtimes/routing-stats`. `avg_cost_usd` /
  * `avg_duration_secs` are null when the rollup has no priced / timed samples.
@@ -61,6 +101,11 @@ export interface RuntimeRoutingStats {
   model: string;
   task_class: string;
   samples: number;
+  /**
+   * How many of `samples` came from a deliberate benchmark replay (JEF-276)
+   * rather than from ordinary work. 0 on a backend that predates the field.
+   */
+  benchmark_samples: number;
   success_rate: number;
   avg_cost_usd: number | null;
   avg_duration_secs: number | null;
@@ -71,6 +116,35 @@ export interface RuntimeRoutingStats {
 export interface RuntimeRoutingStatsResponse {
   window_days: number;
   rows: RuntimeRoutingStats[];
+}
+
+/**
+ * The execution strategy the workflow selector (JEF-273) picked for a task:
+ * `single` (one agent run), `cascade` (sequential legs) or `critique`
+ * (draft then review legs).
+ */
+export type TaskWorkflow = "single" | "cascade" | "critique";
+
+/**
+ * One (task_class, workflow) row of the 90-day workflow-stats rollup behind
+ * `GET /api/runtimes/workflow-stats`. `avg_cost_usd` / `avg_duration_secs`
+ * are null when the rollup has no priced / timed samples. `workflow` is an
+ * open string so an installed client survives a newer backend's strategies.
+ */
+export interface WorkflowStats {
+  task_class: string;
+  workflow: TaskWorkflow | (string & {});
+  samples: number;
+  success_rate: number;
+  avg_cost_usd: number | null;
+  avg_duration_secs: number | null;
+}
+
+// Envelope of GET /api/runtimes/workflow-stats: the window is stated
+// explicitly so the UI displays the exact range the numbers cover.
+export interface WorkflowStatsResponse {
+  window_days: number;
+  rows: WorkflowStats[];
 }
 
 export type AgentVisibility = "workspace" | "private";
@@ -125,6 +199,27 @@ export interface AgentInvocationTargetInput {
 // the fallback.
 export type RuntimeVisibility = "private" | "public";
 
+/** Confinement a run gets (K10): none, an OS sandbox, or a Docker container. */
+export type SandboxMode = "none" | "sandbox" | "container";
+
+/**
+ * One runtime's data residency declaration (K46). Operator-supplied and
+ * unverified — it is a routing input, not a proof.
+ */
+export interface RuntimeCompliance {
+  region: string;
+  on_prem: boolean;
+}
+
+/** What the daemon reported its machine can do. */
+export interface SandboxCapabilities {
+  os?: string;
+  docker?: boolean;
+  docker_version?: string;
+  bwrap?: boolean;
+  modes?: SandboxMode[];
+}
+
 export interface RuntimeDevice {
   id: string;
   workspace_id: string;
@@ -154,6 +249,19 @@ export interface RuntimeDevice {
    * a missing value as `null` (built-in).
    */
   profile_id?: string | null;
+  /** Sandbox mode (K10); older backends omit these — treat missing as "none". */
+  sandbox_mode?: SandboxMode;
+  sandbox_image?: string;
+  sandbox_allowed_hosts?: string[];
+  sandbox_capabilities?: SandboxCapabilities;
+  sandbox_effective?: SandboxMode;
+  /**
+   * Data residency declaration (K46): where this runtime claims to run, or
+   * null when nobody declared anything. Older backends omit the field, and an
+   * undeclared runtime is ineligible under any restrictive policy — so a
+   * missing value and an explicit null mean the same thing.
+   */
+  compliance?: RuntimeCompliance | null;
   last_seen_at: string | null;
   created_at: string;
   updated_at: string;
@@ -503,6 +611,21 @@ export interface AgentTask {
    */
   branch_name?: string;
   /**
+   * Turn checkpoint (F09): the git commit recording what this worktree run
+   * delivered, and this run's position among its conversation's checkpointed
+   * turns. Absent on every run that is not a worktree run on a conversation,
+   * and on servers that predate the feature.
+   */
+  checkpoint_sha?: string;
+  turn_seq?: number;
+  /**
+   * Whether this run may be reverted to (F09). Server-derived: it needs a
+   * checkpoint AND a terminal status, and a server that never sets it looks
+   * exactly like a run that cannot be reverted. The UI leaves the action out
+   * rather than disabling it, so absence and `false` mean the same thing.
+   */
+  revertable?: boolean;
+  /**
    * Resolved accountable-human provenance of this run (MUL-4302 §9): who it ran
    * "on behalf of", how that was resolved, and the evidence/lineage. Present on
    * user-facing task surfaces; older backends omit it — render conditionally.
@@ -510,8 +633,8 @@ export interface AgentTask {
   attribution?: TaskAttribution;
   /**
    * This run's own token consumption, one entry per (provider, model) it used.
-   * Present on the issue execution-log endpoint only; the daemon claim path
-   * omits it.
+   * Present on issue execution logs and explicit agent-history accounting
+   * requests; normal UI history and daemon claims omit it.
    *
    * `undefined` (old backend, or a surface that doesn't hydrate it) and `[]`
    * (backend hydrated, this run has no recorded usage) both mean "no number to
@@ -530,6 +653,70 @@ export interface AgentTask {
    * conditionally.
    */
   routing?: RuntimeRoutingDecision | null;
+  /**
+   * The dispatch lane this run was queued in (K45). `"batch"` means the
+   * scheduler deferred it to the workspace's off-peak window, where the claim
+   * order serves it only after every synchronous task of the same agent and
+   * runtime. Absent on older backends and on rows that predate the column —
+   * read as `"sync"` and render the badge conditionally.
+   */
+  dispatch_lane?: string;
+  /**
+   * This run's confidence score (JEF-240). `null`/absent until the scorer has
+   * scored the run and on older backends — render conditionally.
+   */
+  confidence?: TaskConfidence | null;
+  /**
+   * The execution strategy the workflow selector (JEF-273) picked for this
+   * run. Absent on tasks that predate the selector and on older backends —
+   * render conditionally. The selection reason rides only the
+   * `task:workflow-selected` event, not this payload.
+   */
+  workflow?: TaskWorkflow;
+  /**
+   * Per-leg accounting (JEF-274). What this run is inside its workflow —
+   * `review`, `revision`, `retry`, `fallback`, … — and the primary run every
+   * leg of that workflow points at.
+   *
+   * Empty / absent `leg_role` is the primary (draft/single) leg; absent
+   * `workflow_root_task_id` means the run IS the root. A run with neither is
+   * a plain single-leg run, which is also what an older backend reports for
+   * every run — render the badge conditionally.
+   */
+  leg_role?: string;
+  workflow_root_task_id?: string;
+  /**
+   * The escalation origin of this run (JEF-272): set on the child task a
+   * confidence escalation created, `null`/absent on ordinary runs and older
+   * backends — render conditionally.
+   */
+  escalation?: TaskEscalation | null;
+  /**
+   * The living run plan (F04): the checklist the run last published, and the
+   * seq of the message carrying it so a client can tell a newer plan from the
+   * one it already renders. Absent on runs that published none and on older
+   * backends — render the block conditionally.
+   */
+  plan?: RunPlan | null;
+}
+
+/**
+ * One entry of a run's plan.
+ *
+ * `status` is an open string on purpose. The write side is closed — the server
+ * rejects anything but pending / in_progress / done — so only a NEWER server
+ * can produce a value this build does not know, and the renderer gives it a
+ * neutral bullet rather than dropping the item.
+ */
+export interface RunPlanItem {
+  text: string;
+  status: "pending" | "in_progress" | "done" | (string & {});
+}
+
+export interface RunPlan {
+  items: RunPlanItem[];
+  /** seq of the task_message carrying this plan; higher is newer. */
+  seq: number;
 }
 
 /**
@@ -580,6 +767,8 @@ export interface Agent {
   runtime_id: string;
   /** False exactly when the agent has no runtime. Older backends omit it. */
   runtime_bound?: boolean;
+  /** Privacy-safe coarse liveness for a runtime hidden from the runtime list. */
+  runtime_availability?: "online" | "unstable" | "offline";
   name: string;
   description: string;
   /** What this agent's owner wrote. For a system agent this holds only the
@@ -1486,6 +1675,26 @@ export interface DashboardCostPerDeliverable {
   pull_requests: DeliverableCostStats;
 }
 
+// ROI per agent (JEF-252).
+export interface AgentRoiRow {
+  agent_id: string;
+  agent_name: string;
+  provider: string;
+  issues_closed: number;
+  prs_merged: number;
+  cost_usd_ticks: number;
+  uncosted_runs: number;
+  /** null when the agent closed nothing to divide by — not zero. */
+  cost_per_issue_usd_ticks: number | null;
+  cost_per_pr_usd_ticks: number | null;
+  prev_cost_per_issue_usd_ticks: number | null;
+}
+
+export interface DashboardAgentRoi {
+  days: number;
+  agents: AgentRoiRow[];
+}
+
 // Scorecards (K25).
 export interface ScorecardTotals {
   runs_total: number;
@@ -1536,6 +1745,13 @@ export interface AgentVersionDiff {
 export type AgentMemorySource = "manual" | "run" | "postmortem";
 
 /**
+ * Governance state of a memory fact (JEF-269): "draft" facts were learned
+ * automatically and await human review; "approved" ones were written or
+ * vetted by a human.
+ */
+export type AgentMemoryState = "draft" | "approved";
+
+/**
  * One persistent memory fact an agent carries across runs. `source` tells
  * whether a human pinned it ("manual") or a run wrote it back ("run");
  * `source_task_id` links a run-sourced memory to the task that produced it.
@@ -1545,6 +1761,7 @@ export interface AgentMemory {
   agent_id: string;
   content: string;
   source: AgentMemorySource;
+  state: AgentMemoryState;
   source_task_id: string | null;
   /** Issue the source task worked on, so a run-sourced fact links back to it.
    *  Null for manual facts and for runs that carried no issue (chat, duel). */

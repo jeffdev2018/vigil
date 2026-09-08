@@ -191,6 +191,74 @@ Pausing manually stops schedules, webhooks, and **Run now**. Deletion is actuall
 - collaborators can edit, run, and manage triggers, but can't grant access to others;
 - being able to manage an autopilot doesn't guarantee being able to run its agent — agent Access still applies.
 
+## Declare a daemon in Markdown
+
+An autopilot can also be written as a file. A `DAEMON.md` declares the whole
+thing — name, role, agent, triggers, and the skill the agent reads on every run
+— so it can live in a repository and be reviewed like code.
+
+```markdown
+---
+name: Nightly triage
+role: |
+  Sort yesterday's inbound issues and label them.
+agent: Nova
+outputs: issue                 # issue | run_only
+issue_title_template: "Triage {{date}}"
+triggers:
+  - kind: schedule             # schedule | webhook
+    cron: "0 9 * * *"
+    timezone: Europe/Paris
+    label: Morning
+budget:
+  runs_per_day: 3
+---
+
+Everything below the closing `---` becomes the skill the agent reads.
+```
+
+**Import** from the Autopilot page: drop the file or paste it, check the parsed
+preview, then import. The frontmatter is validated strictly — an unknown key is
+refused with the line it appears on, so a typo can never silently ship a daemon
+that never fires. Importing the same file twice changes nothing at all, so a
+repository can re-apply its declarations on every deploy.
+
+A declaration **replaces** what it declares. A trigger you delete from the file
+stops firing after the next import; nothing is merged. If a daemon of that name
+already exists, choose whether to stop, replace it, or keep both.
+
+`budget` is stored and comes back on export, but nothing enforces it yet: run
+limits are per workspace, not per autopilot.
+
+**Export** with the button on the autopilot's detail page, or:
+
+```bash
+multica autopilot export <autopilot-id> --out DAEMON.md
+```
+
+A daemon that was imported exports its source file verbatim, so your comments
+survive the round-trip. An autopilot created in the UI gets one rendered from
+its current configuration.
+
+## Daemon memory
+
+Every autopilot keeps one memory document: what its last run wants the next one
+to know. It is scoped to the autopilot, not to the agent — the same agent can
+serve several autopilots without their notes mixing.
+
+The **Memory** card on the autopilot page shows it, read-only. Only the
+autopilot's own runs write it, over the CLI:
+
+```bash
+multica autopilot memory get <autopilot-id>
+multica autopilot memory set <autopilot-id> --content "..."
+```
+
+The next run reads the note as data, not as instructions: the brief tells the
+agent it is a report from the previous run, so a memory cannot hand out tasks
+or grant permissions. It is capped at 8 KiB, cut on a line boundary if a run
+writes more.
+
 ## Use the CLI
 
 ```bash
@@ -201,6 +269,8 @@ multica autopilot trigger-rotate-url <autopilot-id> <trigger-id>
 multica autopilot trigger-add <autopilot-id> --kind webhook --event-match-criteria "only production incidents"
 multica autopilot trigger-update <autopilot-id> <trigger-id> --window-minutes 120
 multica autopilot trigger-dry-run <autopilot-id> <trigger-id> --payload-file event.json
+multica autopilot export <autopilot-id> --out DAEMON.md
+multica autopilot memory get <autopilot-id>
 ```
 
 `trigger-dry-run` takes `--payload-file` for a webhook trigger and nothing at all for a schedule one, which previews its next runs instead.

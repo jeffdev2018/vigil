@@ -479,7 +479,7 @@ vi.mock("../issues/components", () => ({
       onClick={() => onOpenChange?.(false)}
     />
   ),
-  // Labels can now be hidden via Settings → Issue and revealed from the
+  // Labels can now be hidden via Settings → Preferences → Issue creation and revealed from the
   // overflow, so surface open/onOpenChange like the date pickers.
   LabelPicker: ({ open, onOpenChange }: { open?: boolean; onOpenChange?: (v: boolean) => void }) => (
     <div
@@ -624,10 +624,45 @@ vi.mock("sonner", () => ({
 }));
 
 import { configStore } from "@multica/core/config";
+import { Dialog, DialogContent } from "@multica/ui/components/ui/dialog";
 import {
-  CreateIssueModal,
   ManualCreatePanel,
+  manualDialogContentClass,
 } from "./create-issue";
+
+/**
+ * Test-only shell around `ManualCreatePanel`.
+ *
+ * Production mounts the panel through `CreateIssueDialog`, which owns the one
+ * `<Dialog>` + `<DialogContent>` for both create modes and lifts `isExpanded`
+ * so mode switching never replays the open animation. `create-issue.tsx` used
+ * to export an equivalent standalone wrapper whose only remaining caller was
+ * this file; it lived on as production code purely to serve these tests, so it
+ * moved here. It mirrors the shell's manual-mode composition — same
+ * DialogContent props, same expanded className source — so the assertions
+ * below still exercise the panel in the shape it really renders in.
+ */
+function CreateIssueModal(props: {
+  onClose: () => void;
+  data?: Record<string, unknown> | null;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <Dialog open onOpenChange={(v: boolean) => { if (!v) props.onClose(); }}>
+      <DialogContent
+        finalFocus={false}
+        showCloseButton={false}
+        className={manualDialogContentClass(isExpanded)}
+      >
+        <ManualCreatePanel
+          {...props}
+          isExpanded={isExpanded}
+          setIsExpanded={setIsExpanded}
+        />
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function renderModal(element: React.ReactElement) {
   const qc = new QueryClient({
@@ -1444,7 +1479,7 @@ describe("CreateIssueModal", () => {
     expect(screen.queryByTestId("due-date-picker")).not.toBeInTheDocument();
   });
 
-  it("hides toolbar fields turned off in Settings → Issue and re-reveals them from the overflow", async () => {
+  it("hides toolbar fields turned off in Settings → Preferences → Issue creation and re-reveals them from the overflow", async () => {
     const user = userEvent.setup();
     mockCreateSettingsStore.manualCreateFields = ["status", "priority", "assignee", "project"];
 
@@ -1472,7 +1507,7 @@ describe("CreateIssueModal", () => {
     expect(screen.queryByRole("button", { name: /Set labels/i })).not.toBeInTheDocument();
   });
 
-  it("renders due date inline when enabled in Settings → Issue", () => {
+  it("renders due date inline when enabled in Settings → Preferences → Issue creation", () => {
     mockCreateSettingsStore.manualCreateFields = [...DEFAULT_MANUAL_FIELDS, "due_date"];
 
     renderModal(<CreateIssueModal onClose={vi.fn()} />);
@@ -1481,7 +1516,7 @@ describe("CreateIssueModal", () => {
     expect(screen.queryByRole("button", { name: /Set due date/i })).not.toBeInTheDocument();
   });
 
-  it("routes Customize fields to Settings → Issue and closes the dialog", async () => {
+  it("routes Customize fields to Settings → Preferences → Issue creation and closes the dialog", async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
 
@@ -1490,7 +1525,7 @@ describe("CreateIssueModal", () => {
     await user.click(screen.getByRole("button", { name: /Customize fields/i }));
 
     expect(onClose).toHaveBeenCalled();
-    expect(mockPush).toHaveBeenCalledWith("/ws-test/settings?tab=issue");
+    expect(mockPush).toHaveBeenCalledWith("/ws-test/settings?tab=preferences&section=issue");
   });
 
   // MUL-5181: switching to agent must PRESERVE the manual draft. The agent

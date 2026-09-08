@@ -216,6 +216,15 @@ SET status = 'online', last_seen_at = now(), updated_at = now()
 WHERE id = $1
 RETURNING *;
 
+-- name: MarkAgentRuntimeOnlineIfOffline :execrows
+-- Reports whether this heartbeat performed an offline -> online transition.
+-- The conditional update prevents concurrent stale heartbeat snapshots from
+-- publishing duplicate lifecycle refresh events after another beat already
+-- recovered the runtime.
+UPDATE agent_runtime
+SET status = 'online', last_seen_at = now(), updated_at = now()
+WHERE id = $1 AND status <> 'online';
+
 -- name: SetAgentRuntimeOffline :exec
 UPDATE agent_runtime
 SET status = 'offline', updated_at = now()
@@ -564,3 +573,22 @@ UPDATE agent_runtime
 SET metadata = metadata || jsonb_build_object('skipped_agents', @skipped_agents::jsonb),
     updated_at = now()
 WHERE id = $1;
+
+-- K10 · sandbox mode. Separate from the registration upserts so the
+-- daemon's heartbeat never clobbers what a user set.
+
+-- name: UpdateAgentRuntimeSandbox :one
+UPDATE agent_runtime
+SET sandbox_mode = @sandbox_mode, sandbox_image = @sandbox_image, sandbox_allowed_hosts = @sandbox_allowed_hosts, updated_at = now()
+WHERE id = @id
+RETURNING *;
+
+-- name: UpdateAgentRuntimeSandboxCapabilities :exec
+UPDATE agent_runtime
+SET sandbox_capabilities = @sandbox_capabilities, updated_at = now()
+WHERE id = @id;
+
+-- name: UpdateAgentRuntimeSandboxEffective :exec
+UPDATE agent_runtime
+SET sandbox_effective = @sandbox_effective, updated_at = now()
+WHERE id = @id;

@@ -29,11 +29,11 @@ describe("org client and helpers", () => {
   });
 
   it("renders a mermaid graph and labels models", () => {
-    const src = orgMermaid({ units: [{ id: "a b", name: 'Le "chef"', autonomy: "draft", excludes: [], allow: [], deny: [], escalation_quota_per_day: 5, members: [{ type: "member", id: "m" }], roles: [] }, { id: "c", name: "C", autonomy: "draft", excludes: [], allow: [], deny: [], escalation_quota_per_day: 5, members: [], roles: [] }], edges: [{ from: "c", to: "a b", kind: "reports_to" }], rules: [], committees: [], market: { price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 } }, ["c"]);
+    const src = orgMermaid({ units: [{ id: "a b", name: 'Le "chef"', autonomy: "draft", excludes: [], allow: [], deny: [], escalation_quota_per_day: 5, members: [{ type: "member", id: "m" }], roles: [] }, { id: "c", name: "C", model: "owner_network", autonomy: "draft", excludes: [], allow: [], deny: [], escalation_quota_per_day: 5, members: [], roles: [] }], edges: [{ from: "c", to: "a b", kind: "reports_to" }], rules: [], committees: [], market: { price_cap_usd_ticks: 0, offers_per_agent_per_day: 5, min_offers: 2 } }, ["c"]);
     expect(src).toContain("graph TD");
     expect(src).toContain(`u_a_b["Le 'chef' (1)"]`);
     expect(src).toContain("u_c -->|reports to| u_a_b");
-    expect(src).toContain("⏸");
+    expect(src).toContain(`u_c["C ⟨owner network⟩ ⏸"]`);
     expect(orgModelLabel("market")).toBe("Internal market");
     expect(orgIsLive({ status: "paused" })).toBe(false);
   });

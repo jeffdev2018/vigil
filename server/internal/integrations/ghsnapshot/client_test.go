@@ -6,8 +6,10 @@ import (
 	"crypto/rsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -202,4 +204,60 @@ func TestNewClientFromEnv(t *testing.T) {
 			t.Fatalf("got (%v, %v), want enabled client", c, err)
 		}
 	})
+}
+
+// TestPullRequestDiffReportsRateLimit: a throttled diff fetch is "come back
+// later", not a dead pull request. Both callers (cross review K15 and the PR
+// walkthrough F05) branch on RateLimitError to retry instead of recording a
+// permanent failure, so a bare status here would strand them.
+func TestPullRequestDiffReportsRateLimit(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusTooManyRequests} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if strings.HasSuffix(r.URL.Path, "/access_tokens") {
+					w.WriteHeader(http.StatusCreated)
+					_, _ = w.Write([]byte(`{"token":"ghs_secret"}`))
+					return
+				}
+				w.Header().Set("Retry-After", "42")
+				w.WriteHeader(status)
+			}))
+			defer srv.Close()
+
+			_, err := newTestClient(t, srv.URL).PullRequestDiff(context.Background(), 1, "acme", "app", 7)
+			var rl *RateLimitError
+			if !errors.As(err, &rl) {
+				t.Fatalf("err = %v, want RateLimitError", err)
+			}
+			if rl.RetryAfter != 42*time.Second {
+				t.Errorf("retry after = %v, want 42s", rl.RetryAfter)
+			}
+		})
+	}
+}
+
+// A diff fetch that succeeds returns the body verbatim — the walkthrough
+// parser is the only thing allowed to interpret it.
+func TestPullRequestDiffReturnsBodyVerbatim(t *testing.T) {
+	const body = "diff --git a/x.go b/x.go\n@@ -1 +1 @@\n-a\n+b\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/access_tokens") {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"token":"ghs_secret"}`))
+			return
+		}
+		if got := r.Header.Get("Accept"); got != "application/vnd.github.diff" {
+			t.Errorf("Accept = %q, want the diff media type", got)
+		}
+		_, _ = w.Write([]byte(body))
+	}))
+	defer srv.Close()
+
+	got, err := newTestClient(t, srv.URL).PullRequestDiff(context.Background(), 1, "acme", "app", 7)
+	if err != nil {
+		t.Fatalf("PullRequestDiff: %v", err)
+	}
+	if got != body {
+		t.Errorf("diff = %q, want %q", got, body)
+	}
 }

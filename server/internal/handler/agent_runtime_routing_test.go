@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/multica-ai/multica/server/internal/testutil"
@@ -110,6 +112,56 @@ func TestGetRuntimeRoutingStats(t *testing.T) {
 	}
 	if row.AvgDurationSecs == nil || *row.AvgDurationSecs != 60 {
 		t.Errorf("avg_duration_secs = %v, want 60", row.AvgDurationSecs)
+	}
+}
+
+// TestCreateAgentRuntimeRouting pins the create-path half of JEF-237: the
+// runtime_routing opt-in is accepted on POST /api/agents, defaults to "fixed"
+// when absent, and rejects unknown values with a 400.
+func TestCreateAgentRuntimeRouting(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+
+	t.Cleanup(func() {
+		testPool.Exec(context.Background(),
+			`DELETE FROM agent WHERE workspace_id = $1 AND name LIKE 'create-routing-%'`,
+			testWorkspaceID,
+		)
+	})
+
+	base := func(name string) map[string]any {
+		return map[string]any{
+			"name":       name,
+			"runtime_id": testRuntimeID,
+			"visibility": "private",
+		}
+	}
+
+	// Invalid value → 400.
+	badBody := base("create-routing-invalid")
+	badBody["runtime_routing"] = "smart"
+	w := httptest.NewRecorder()
+	testHandler.CreateAgent(w, newRequest(http.MethodPost, "/api/agents", badBody))
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("invalid runtime_routing: expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// Explicit "auto" → 201 and serialized back.
+	autoBody := base("create-routing-auto")
+	autoBody["runtime_routing"] = "auto"
+	resp := testutil.Decode[AgentResponse](t, testHandler.CreateAgent,
+		newRequest(http.MethodPost, "/api/agents", autoBody), http.StatusCreated)
+	if resp.RuntimeRouting != "auto" {
+		t.Errorf("runtime_routing = %q, want auto", resp.RuntimeRouting)
+	}
+
+	// Absent → 201, defaults to "fixed".
+	defaultBody := base("create-routing-default")
+	resp = testutil.Decode[AgentResponse](t, testHandler.CreateAgent,
+		newRequest(http.MethodPost, "/api/agents", defaultBody), http.StatusCreated)
+	if resp.RuntimeRouting != "fixed" {
+		t.Errorf("runtime_routing = %q, want default fixed", resp.RuntimeRouting)
 	}
 }
 

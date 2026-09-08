@@ -79,6 +79,10 @@ type Command struct {
 	// logger reports prefix/argument conflicts at the moment a process is
 	// built. Optional: a zero Command logs nothing.
 	logger *slog.Logger
+	// sandbox, when set, wraps the final argv in the confinement shim (K10).
+	// Carried by Config.commandAt so task launches are confined while bare
+	// NewCommand probes stay on the host.
+	sandbox *SandboxLaunch
 }
 
 // NewCommand builds a Command from a resolved executable path and a launch
@@ -111,7 +115,8 @@ func (c Command) Argv(args ...string) []string {
 // reintroduce GH #7046. TestOnlyLaunchGoSpawnsRuntimeProcesses enforces it.
 func (c Command) exec(ctx context.Context, args ...string) *exec.Cmd {
 	warnLaunchPrefixOverlap(c.Prefix, args, c.logger)
-	return newRuntimeCmd(exec.CommandContext(ctx, c.Path, c.Argv(args...)...))
+	argv0, cmdArgs := wrapSandboxArgv(c.sandbox, c.Path, c.Argv(args...))
+	return newRuntimeCmd(exec.CommandContext(ctx, argv0, cmdArgs...))
 }
 
 // newRuntimeCmd applies the process-lifecycle defaults every runtime process in
@@ -267,6 +272,7 @@ type invocationChooser func(execName, lookedUp string, args []string, logger *sl
 func (c Command) execVia(ctx context.Context, choose invocationChooser, lookedUp string, args []string, logger *slog.Logger) (*exec.Cmd, string, []string) {
 	warnLaunchPrefixOverlap(c.Prefix, args, logger)
 	argv0, cmdArgs := choose(c.Path, lookedUp, c.Argv(args...), logger)
+	argv0, cmdArgs = wrapSandboxArgv(c.sandbox, argv0, cmdArgs)
 	return newRuntimeCmd(exec.CommandContext(ctx, argv0, cmdArgs...)), argv0, cmdArgs
 }
 
@@ -310,7 +316,7 @@ func (c Command) String() string {
 // fallback, which is why the path is a parameter rather than read from
 // Config.ExecutablePath.
 func (c Config) commandAt(path string) Command {
-	return Command{Path: path, Prefix: c.LaunchPrefix, logger: c.Logger}
+	return Command{Path: path, Prefix: c.LaunchPrefix, logger: c.Logger, sandbox: c.Sandbox}
 }
 
 // logAgentCommand is the only boundary allowed to record runtime process

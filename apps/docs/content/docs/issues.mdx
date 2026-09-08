@@ -94,6 +94,26 @@ Built-in statuses are translated into the interface language; a custom status al
 
 An issue is the persistent record of a piece of work; a [run](/tasks) is one concrete run by an agent. One issue can produce several runs over time — a first implementation, follow-up changes, another check. A completed run only means that run ended; whether the issue is finished is determined by the issue's status.
 
+## Racing attempts
+
+When an issue has several plausible approaches, run them at the same time and keep one. Every attempt is an ordinary run on its own branch — a race of four costs four runs — and the same agent can appear twice on two different models.
+
+```bash
+multica issue race start ENG-42 --attempt "Backend Dev" --attempt "Backend Dev:opus" --attempt "Refactor Bot"
+multica issue race list ENG-42
+```
+
+`--attempt` takes `<agent>[:<model>]` and repeats between 2 and 5 times. One race runs per issue at a time: starting another is refused until the current one ends.
+
+Picking the winner is a human decision. The winning run is left exactly as it is; every other attempt still open is cancelled, which is what makes the daemon drop its branch and worktree.
+
+```bash
+multica issue race settle ENG-42 --group <race-id> --winner <run-id>
+multica issue race abandon ENG-42 --group <race-id>
+```
+
+`race list` shows each attempt's diff. `stat only (too large)` means the patch exceeded the size the server stores — the changes exist, read the branch.
+
 ## Projects and sub-issues
 
 An issue belongs to at most one [project](/projects); the project provides shared instructions and resources for runs inside it. Moving an issue to another project does not create a copy.
@@ -102,9 +122,19 @@ Larger work can be split into sub-issues: the parent issue keeps the overall goa
 
 Sub-issues can be given a **stage** to advance in batches — 1, 2, 3. When every sub-issue in the earliest unfinished stage reaches `done` or `cancelled`, the parent issue receives a "sub-issues completed" notification; when the parent's assignee is an agent, it wakes up and decides whether to start the next stage. Sub-issues without a stage count as one batch and notify once when they all finish.
 
+## Work item types
+
+A **work item type** says what an issue is — bug, story, epic, task, or a type your workspace defines. Every workspace starts with those four; owners and admins add, rename, recolour and reorder them under **Settings → Work item types**.
+
+A type carries no behaviour: it starts no run, changes no status, and blocks nothing. It groups work, it filters, and it decides which custom properties apply.
+
+An issue with no type is **untyped**, which is a normal state — every issue created before types existed is untyped, and nothing stops working. Set a type when you actually know the classification.
+
+A custom property can be **scoped** to one or more types, so a bug-only field does not clutter every story. A property with no scope applies everywhere, including to untyped issues. Changing an issue's type never deletes a value: values the new type does not cover are folded away, stay readable, and come back if you switch the type back.
+
 ## Switch views
 
-The Issues page offers five views — list, board, table, Gantt, and swimlane — filterable and sortable by status, assignee, project, and other properties. They all show the same issues.
+The Issues page offers six views — list, board, table, Gantt, swimlane, and calendar — filterable and sortable by status, assignee, project, work item type, and other properties. They all show the same issues; the calendar places each issue on its due date.
 
 ## Delete an issue
 

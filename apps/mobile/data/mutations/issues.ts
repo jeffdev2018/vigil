@@ -659,12 +659,59 @@ export function useDetachLabel(issueId: string) {
  *  - inboxKeys.all(wsId)          inbox (assignment notification if any) —
  *                                 prefix-matches the inbox list key
  */
+/**
+ * Voice-dictated issue draft (K36). A mutation rather than a direct
+ * `api.*` call from the screen (root CLAUDE.md: only auth/workspace stores
+ * call the client directly). Nothing is cached: the draft is a one-shot
+ * transformation the user then edits, so there is no key to invalidate.
+ */
+export function useIssueDraftFromVoice() {
+  return useMutation({
+    mutationFn: (transcript: string) => api.issueDraftFromVoice(transcript),
+  });
+}
+
 export function useCreateIssue() {
   const qc = useQueryClient();
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
 
   return useMutation({
     mutationFn: (body: CreateIssueRequest) => api.createIssue(body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: issueKeys.myAll(wsId) });
+      qc.invalidateQueries({ queryKey: inboxKeys.all(wsId) });
+    },
+  });
+}
+
+/**
+ * Create a sub-issue anchored on a comment (web parity: `onCreateSubIssue`
+ * in packages/views/issues/components/comment-card.tsx, which opens the
+ * `quick-create-issue` modal in "source context" mode). Two-step server
+ * contract: capture a `capture_token` snapshot of the thread, then submit
+ * it with the new issue's fields — see
+ * server/internal/handler/source_context.go CreateCommentSubIssue. The
+ * token is captured right before submit rather than when the sheet opens
+ * (mobile shows no thread-changed preview to refresh against, so there is
+ * nothing gained by capturing earlier — see new-sub-issue.tsx).
+ *
+ * Same cache invalidation as useCreateIssue: mobile has no sub-issue /
+ * children cache to patch (apps/mobile/CLAUDE.md "Mobile-owned updaters" —
+ * mobile's issue caches are flatter than web's).
+ */
+export function useCreateCommentSubIssue(anchorCommentId: string) {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
+
+  return useMutation({
+    mutationFn: async (issue: CreateIssueRequest) => {
+      const preview = await api.getCommentSubIssuePreview(anchorCommentId);
+      return api.createCommentSubIssue(anchorCommentId, {
+        mode: "manual",
+        capture_token: preview.capture_token,
+        issue,
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: issueKeys.myAll(wsId) });
       qc.invalidateQueries({ queryKey: inboxKeys.all(wsId) });
@@ -765,5 +812,22 @@ export function useCancelTask(issueId: string) {
       qc.invalidateQueries({ queryKey: issueKeys.activeTasks(wsId, issueId) });
       qc.invalidateQueries({ queryKey: issueKeys.tasks(wsId, issueId) });
     },
+  });
+}
+
+/**
+ * Retry a failed agent run from its "system" failure comment (web parity:
+ * `TaskCommentRetryButton` in
+ * packages/views/issues/components/comment-card.tsx:251-302). No cache
+ * side effects here — like web, the re-run's own `task:*` WS events
+ * (use-issue-realtime.ts) drive the active-tasks / timeline UI; this
+ * mutation only owns the request itself. The caller distinguishes a
+ * permission-revoked rejection from a generic failure via
+ * `dispatchReasonCode` (apps/mobile/lib/dispatch-reason.ts), same as web's
+ * `dispatchReasonCode(e) === "invocation_not_allowed"` check.
+ */
+export function useRerunIssueTask(issueId: string) {
+  return useMutation({
+    mutationFn: (taskId: string) => api.rerunIssue(issueId, taskId),
   });
 }

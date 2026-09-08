@@ -255,7 +255,7 @@ func (b *zeroclawBackend) Execute(ctx context.Context, prompt string, opts ExecO
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	cmd.Env = buildEnv(b.cfg)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {

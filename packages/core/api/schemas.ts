@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type {
   AgentBuilderRuntimeSwitch,
+  AnchoredThreads,
   AgentBuilderSession,
   AgentBuilderSessionSummary,
   Attachment,
@@ -13,11 +14,13 @@ import type {
   BillingTransactionsPage,
   CancelTaskResponse,
   ChatMessage,
+  ChatParticipantList,
   ChatDraftRestoresResponse,
   ChatPendingTask,
   ChatSession,
   PrioritizeQueuedChatTaskResponse,
   SendChatMessageResponse,
+  TaskActivityResponse,
   StartMikaOnboardingResponse,
   Comment,
   CreateBillingCheckoutSessionResponse,
@@ -67,6 +70,16 @@ import type {
   AgentMemory,
   AgentMemoryList,
   MemberWithUser,
+  Invitation,
+  SkillSummary,
+  CreatePersonalAccessTokenResponse,
+  ChatPinnedAgent,
+  PendingChatTasksResponse,
+  HasPendingChatTasksResponse,
+  Project,
+  ListProjectsResponse,
+  ProjectResource,
+  ListProjectResourcesResponse,
   IssueProperty,
   ListPropertiesResponse,
   QuickAction,
@@ -83,6 +96,9 @@ import type {
   ListWebhookDeliveriesResponse,
   IssueStatusEntry,
   ListIssueStatusesResponse,
+  IssueTypeEntry,
+  ListIssueTypesResponse,
+  IssueDependencyEdge,
   NotificationPreferenceResponse,
   PluginInstallation,
   PluginInstallationListResponse,
@@ -100,6 +116,7 @@ import type {
   SkillImportResult,
   Squad,
   RuntimeRoutingStatsResponse,
+  WorkflowStatsResponse,
   TimelineEntry,
   User,
   WebhookDelivery,
@@ -109,6 +126,32 @@ import type {
   MergeReadiness,
   PRStack,
   IssuePlanEnvelope,
+  RuntimeProfile,
+  Agent,
+  IssueReaction,
+  Reaction,
+  // JEF-321 batch B
+  Workspace,
+  IssueUsageSummary,
+  AgentActivityBucket,
+  AgentRunCount,
+  WorkspaceWorkingAgent,
+  RuntimeUpdate,
+  RuntimeLocalSkillListRequest,
+  RuntimeLocalSkillImportRequest,
+  AgentTask,
+  // JEF-321 batch D
+  PinnedItem,
+  SquadMember,
+  Autopilot,
+  AutopilotCollaboratorsResponse,
+  AutopilotTrigger,
+  ListAutopilotRunsResponse,
+  ListVCSConnectionsResponse,
+  ListLarkInstallationsResponse,
+  ComposioToolkit,
+  ComposioConnection,
+  ListSlackInstallationsResponse,
 } from "../types";
 import type {
   CloudRuntimeNode,
@@ -608,6 +651,74 @@ export const EMPTY_LIST_ISSUE_STATUSES_RESPONSE: ListIssueStatusesResponse = {
   total: 0,
 };
 
+// Work item type catalogue (F30). Every field a client renders is lenient for
+// the same reason the status catalogue's are: a newer server can add a type
+// this build has never heard of, and failing the whole catalogue parse would
+// leave the UI with no types at all — including the four it does know.
+export const IssueTypeEntrySchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  key: z.string(),
+  name: z.string(),
+  description: z.string().optional().default(""),
+  color: z.string().optional().default("#6b7280"),
+  icon: z.string().optional().default(""),
+  is_system: z.boolean().optional().default(false),
+  position: z.number().optional().default(0),
+  archived_at: z.string().nullable().optional().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const EMPTY_ISSUE_TYPE_ENTRY: IssueTypeEntry = {
+  id: "",
+  workspace_id: "",
+  key: "",
+  name: "",
+  description: "",
+  color: "#6b7280",
+  icon: "",
+  is_system: false,
+  position: 0,
+  archived_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+export const ListIssueTypesResponseSchema = z.object({
+  types: z.array(IssueTypeEntrySchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+// Empty rather than the four seeded keys: unlike a status category, a type key
+// is not a constant of the product — a workspace can rename all four — so a
+// client that cannot reach the endpoint must render "no type", not four
+// invented rows.
+export const EMPTY_LIST_ISSUE_TYPES_RESPONSE: ListIssueTypesResponse = {
+  types: [],
+  total: 0,
+};
+
+// One dependency edge (F30 Gantt arrows). `type` stays a plain string: the
+// server may add a relation kind, and the arrow layer draws only the ones it
+// recognizes rather than dropping the whole graph.
+export const IssueDependencyEdgeSchema = z.object({
+  id: z.string(),
+  from: z.string(),
+  to: z.string(),
+  type: z.string(),
+}).loose();
+
+export const ListIssueDependencyEdgesResponseSchema = z.object({
+  dependencies: z.array(IssueDependencyEdgeSchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+export const EMPTY_LIST_ISSUE_DEPENDENCY_EDGES_RESPONSE: {
+  dependencies: IssueDependencyEdge[];
+  total: number;
+} = { dependencies: [], total: 0 };
+
 export const ResourceLabelsResponseSchema = z.object({
   labels: z.array(LabelSchema).default([]),
   issue_revision: z.number().int().positive().optional(),
@@ -693,6 +804,9 @@ export const IssuePropertySchema = z.object({
   archived: z.boolean().optional().default(false),
   archived_at: z.string().nullable().optional(),
   usage_count: z.number().optional().default(0),
+  // F30 type scope. Absent on an older backend, which is also its product
+  // meaning: nothing is scoped, so every property is global.
+  type_keys: z.array(z.string()).optional().default([]),
   created_at: z.string(),
   updated_at: z.string(),
 }).loose();
@@ -708,6 +822,7 @@ export const EMPTY_ISSUE_PROPERTY: IssueProperty = {
   position: 0,
   archived: false,
   usage_count: 0,
+  type_keys: [],
   created_at: "",
   updated_at: "",
 };
@@ -880,14 +995,26 @@ export interface AppConfigResponse {
 // type still flows out at the call site; the schema only guards shape.
 // ---------------------------------------------------------------------------
 
-const ReactionSchema = z.object({
+// Exported (JEF-321 batch A) so a standalone POST /comments/:id/reactions
+// response can be validated the same way it is when embedded in a comment.
+export const ReactionSchema = z.object({
   id: z.string(),
   comment_id: z.string(),
   actor_type: z.string(),
   actor_id: z.string(),
   emoji: z.string(),
   created_at: z.string(),
+  comment_revision: z.number().int().positive().optional(),
 });
+
+export const EMPTY_REACTION: Reaction = {
+  id: "",
+  comment_id: "",
+  actor_type: "",
+  actor_id: "",
+  emoji: "",
+  created_at: "",
+};
 
 // Nested attachments embedded in timeline/comment responses stay lenient on
 // purpose: a single malformed attachment must not knock the whole timeline
@@ -919,6 +1046,9 @@ export const ChatMessageSchema = z.object({
   // Optional additive data degrades independently: a malformed suggestion
   // must not hide the assistant reply that contains it.
   quick_actions: z.array(ChatQuickActionSchema).catch([]).optional().default([]),
+  // Multiplayer attribution (K31): the human who sent a user message. Null on
+  // assistant rows and on messages written before the column existed.
+  author_user_id: z.string().nullable().optional(),
 }).loose();
 
 export const ChatMessageListSchema = z.array(ChatMessageSchema).default([]);
@@ -986,6 +1116,28 @@ export const EMPTY_ATTACHMENT: Attachment = {
 // wasn't updated in lock-step. `.loose()` removes that synchronisation
 // hazard — the schema validates the shape it knows about and leaves the
 // rest alone.
+/**
+ * Diff anchor of a comment thread (F07 / JEF-21).
+ *
+ * `kind` is deliberately an open string: a newer server may add one. A thread
+ * whose kind this build does not recognise renders WITHOUT its anchor rather
+ * than disappearing — losing a discussion is far worse than losing a chip.
+ *
+ * `.catch()` on every field means a partially malformed anchor still yields a
+ * usable object; the UI checks `file_path` before drawing anything.
+ */
+export const CommentAnchorSchema = z.object({
+  kind: z.string().catch(""),
+  pr_source: z.string().catch(""),
+  pr_id: z.string().catch(""),
+  head_sha: z.string().catch(""),
+  file_path: z.string().catch(""),
+  line_start: z.number().catch(0).default(0),
+  line_end: z.number().catch(0).default(0),
+  side: z.string().catch("new"),
+  review_flag_id: z.string().nullish().catch(null),
+}).loose();
+
 const TimelineEntrySchema = z.object({
   type: z.string(),
   id: z.string(),
@@ -1001,10 +1153,17 @@ const TimelineEntrySchema = z.object({
   updated_at: z.string().optional(),
   revision: z.number().int().positive().optional(),
   comment_type: z.string().optional(),
+  // Agent-to-agent message intent (F19). Same free-string contract as
+  // CommentSchema.a2a_intent.
+  a2a_intent: z.string().nullish(),
   reactions: z.array(ReactionSchema).optional(),
   attachments: z.array(AttachmentSchema).optional(),
   source_task_id: z.string().nullable().optional(),
   coalesced_count: z.number().optional(),
+  // Diff anchor of the thread (F07). Absent on activity rows, on unanchored
+  // comments, and on a backend that predates the feature.
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
 }).loose();
 
 // /timeline returns a flat array of TimelineEntry, oldest first. The
@@ -1110,9 +1269,37 @@ export const CommentSchema = z.object({
   source_task_id: z.string().nullable().optional(),
   // Set only on comments a quick action produced (MUL-5465). Server-only.
   quick_action_id: z.string().nullable().optional(),
+  // Agent-to-agent message intent (F19): question | review | handoff. Server-only
+  // — POST /comments has no field for it, which is what makes the chip
+  // unforgeable. A FREE STRING with a `default` branch downstream, not an enum:
+  // the column has no CHECK, so a value this build cannot label must render as
+  // an ordinary comment rather than fail the whole comment's parse.
+  a2a_intent: z.string().nullish(),
+  // Diff anchor (F07). `nullish` rather than required: a backend that predates
+  // the feature omits it entirely, and the thread must still render.
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
 }).loose();
 
 export const CommentsListSchema = z.array(CommentSchema);
+
+/**
+ * One anchored discussion as the walkthrough reads it: the root, its replies,
+ * and the anchor resolved once for the whole thread.
+ */
+export const AnchoredThreadSchema = z.object({
+  root: CommentSchema,
+  replies: z.array(CommentSchema).catch([]).default([]),
+  anchor: CommentAnchorSchema.nullish().catch(null),
+  anchor_stale: z.boolean().catch(false).default(false),
+}).loose();
+
+export const AnchoredThreadsSchema = z.object({
+  threads: z.array(AnchoredThreadSchema).catch([]).default([]),
+}).loose();
+
+/** A response this build cannot read hides the threads, never the diff. */
+export const EMPTY_ANCHORED_THREADS: AnchoredThreads = { threads: [] };
 
 // Degraded placeholder for a comment response that failed schema validation.
 // The empty id is the caller's signal that nothing usable came back — the run
@@ -1322,12 +1509,26 @@ export const IssueSchema = z.object({
   priority: z.string(),
   assignee_type: z.string().nullable(),
   assignee_id: z.string().nullable(),
+  // The delegate — the assignee's partner (F01). Optional + defaulted rather
+  // than a bare .nullable() like the assignee pair: a server that predates the
+  // field sends nothing, and IssueSchema parse failures take the WHOLE list
+  // response to its fallback, so one older backend would blank every issue.
+  // Absent therefore parses to null, which is also its product meaning: no
+  // delegate.
+  delegate_type: z.string().nullable().optional().default(null),
+  delegate_id: z.string().nullable().optional().default(null),
   creator_type: z.string(),
   creator_id: z.string(),
   parent_issue_id: z.string().nullable(),
   project_id: z.string().nullable(),
   // Goals (K74) predate older backends; absent parses to null.
   goal_id: z.string().nullable().optional().default(null),
+  // Work item type key (F30), or null for an UNTYPED issue. Optional +
+  // defaulted rather than a bare .nullable(): a server that predates the field
+  // sends nothing, and an IssueSchema parse failure takes the WHOLE list
+  // response to its fallback, so one older backend would blank every issue.
+  // Absent therefore parses to null, which is also its product meaning.
+  issue_type: z.string().nullable().optional().default(null),
   // Detail-only, and absent on an older backend. Absent means "not resolved
   // here", so consumers must not read it as "no origin".
   origin_type: z.string().nullish(),
@@ -1795,15 +1996,16 @@ const SearchIssueResultSchema = IssueSchema.extend({
 
 export const SearchIssuesResponseSchema = z.object({
   issues: z.array(SearchIssueResultSchema).default([]),
-  total: z.number().default(0),
 }).loose();
 
 export const EMPTY_SEARCH_ISSUES_RESPONSE: SearchIssuesResponse = {
   issues: [],
-  total: 0,
 };
 
-const ProjectSchema = z.object({
+// Exported (was module-private, used only by SearchProjectResultSchema below)
+// so JEF-321 batch C can reuse it for the plain project CRUD endpoints
+// instead of a near-duplicate schema.
+export const ProjectSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
   title: z.string(),
@@ -1833,12 +2035,10 @@ const SearchProjectResultSchema = ProjectSchema.extend({
 
 export const SearchProjectsResponseSchema = z.object({
   projects: z.array(SearchProjectResultSchema).default([]),
-  total: z.number().default(0),
 }).loose();
 
 export const EMPTY_SEARCH_PROJECTS_RESPONSE: SearchProjectsResponse = {
   projects: [],
-  total: 0,
 };
 
 const IssueAssigneeGroupSchema = z.object({
@@ -1872,7 +2072,13 @@ const IssueTableParentRefSchema = z.object({
   status: z.string(),
 }).loose();
 
-const IssueTableGroupValueSchema = z.discriminatedUnion("kind", [
+// The group kind is server-driven and the catalogue is open (the facet list
+// below already knows dimensions this union does not). A discriminated union
+// with no fallback would fail one element, then the array, then the whole
+// response through parseWithFallback — an empty grouped board on a client one
+// release behind. The unknown branch keeps the row addressable instead.
+const IssueTableGroupValueSchema = z.union([
+  z.discriminatedUnion("kind", [
   z.object({
     kind: z.literal("status"),
     status: z.string(),
@@ -1895,8 +2101,13 @@ const IssueTableGroupValueSchema = z.discriminatedUnion("kind", [
     kind: z.literal("property"),
     property_id: z.string(),
     value: z.union([z.string(), z.boolean(), z.null()]).optional(),
-    value_state: z.enum(["value", "unavailable", "unset"]),
+    value_state: z.enum(["value", "unavailable", "unset"]).catch("value"),
   }).loose(),
+  ]),
+  // A kind this build does not know yet. Normalised to a literal so the union
+  // stays discriminable on the client; the group keeps its key and count, so
+  // the lane renders with a neutral label instead of the board going empty.
+  z.object({ kind: z.string() }).loose().transform(() => ({ kind: "unknown" as const })),
 ]);
 
 const IssueTableGroupDescriptorSchema: z.ZodType<IssueTableGroupDescriptor> = z.lazy(() => z.object({
@@ -1945,13 +2156,38 @@ export const EMPTY_ISSUE_TABLE_ROWS_RESPONSE: IssueTableRowsResponse = {
   next_cursor: null,
 };
 
+/**
+ * A per-issue refusal from a batch update. The endpoint answers 200 with the
+ * applied count and this list, so a caller that reads only `updated` reports a
+ * partial refusal as a clean success. `code` and `reason` are server-driven and
+ * kept lenient on purpose: a refusal reason this build does not know must still
+ * name the issue it refused.
+ */
+export const BatchUpdateRefusalSchema = z.object({
+  issue_id: z.string(),
+  code: z.string().default(""),
+  reason: z.string().default(""),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  rule_id: z.string().optional(),
+  requires_approval: z.boolean().default(false),
+}).loose();
+
+export const BatchUpdateIssuesResponseSchema = z.object({
+  updated: z.number().default(0),
+  refused: z.array(BatchUpdateRefusalSchema).default([]),
+}).loose();
+
+export type BatchUpdateRefusal = z.infer<typeof BatchUpdateRefusalSchema>;
+export type BatchUpdateIssuesResponse = z.infer<typeof BatchUpdateIssuesResponseSchema>;
+
 const IssueTableFacetValueSchema = z.object({
   key: z.string(),
   count: z.number(),
 }).loose();
 
 const IssueTableFacetSchema = z.object({
-  kind: z.enum(["status", "priority", "assignee", "creator", "project", "label", "property", "working_agents"]),
+  kind: z.enum(["status", "priority", "assignee", "creator", "project", "label", "property", "working_agents"]).catch("status"),
   property_id: z.string().optional(),
   values: z.array(IssueTableFacetValueSchema).default([]),
 }).loose();
@@ -2293,6 +2529,40 @@ const RuntimeRoutingDecisionSchema = z.object({
   candidates: z.array(RoutingCandidateSchema).optional(),
 }).loose();
 
+// ---------------------------------------------------------------------------
+// Run confidence scoring (JEF-240). The scorer's record rides on the task
+// payload; `score` is the one field that defines the record, so a row without
+// it degrades the whole record to "absent" rather than inventing a number.
+// ---------------------------------------------------------------------------
+
+const TaskConfidenceSchema = z.object({
+  score: z.number(),
+  rationale: z.string().default(""),
+  model: z.string().optional(),
+  threshold: z.number().optional(),
+  below_threshold: z.boolean().optional(),
+  producer_model: z.string().optional(),
+  // Left as a plain string on purpose: a newer backend may name a relation
+  // this build has never heard of, and coercing it to "independent" would be
+  // the one wrong answer. Render an unrecognised value as unknown.
+  judge_independence: z.string().optional(),
+}).loose();
+
+// ---------------------------------------------------------------------------
+// Run escalation (JEF-272). When a below-threshold run is re-dispatched to a
+// stronger runtime, the record rides on the NEW task the escalation created.
+// `from_task_id` is the one field that defines the record — without it there
+// is no origin to point at — so a row missing it degrades the whole record
+// to "absent", same rule as the confidence record above.
+// ---------------------------------------------------------------------------
+
+const TaskEscalationSchema = z.object({
+  from_task_id: z.string(),
+  reason: z.string().default(""),
+  attempt: z.number().int().default(1),
+  from_runtime_id: z.string().default(""),
+}).loose();
+
 export const RuntimeRoutingStatsSchema = z.object({
   runtime_id: z.string().default(""),
   runtime_name: z.string().default(""),
@@ -2300,6 +2570,7 @@ export const RuntimeRoutingStatsSchema = z.object({
   model: z.string().default(""),
   task_class: z.string().default(""),
   samples: z.number().default(0),
+  benchmark_samples: z.number().default(0),
   success_rate: z.number().default(0),
   avg_cost_usd: z.number().nullable().default(null),
   avg_duration_secs: z.number().nullable().default(null),
@@ -2314,6 +2585,61 @@ export const EMPTY_ROUTING_STATS_RESPONSE: RuntimeRoutingStatsResponse = {
   window_days: 90,
   rows: [],
 };
+
+// ---------------------------------------------------------------------------
+// Workflow selector (JEF-273). The backend picks an execution strategy per
+// task (single / cascade / critique), learned from the 90-day run history.
+// ---------------------------------------------------------------------------
+
+export const TaskWorkflowSchema = z.enum(["single", "cascade", "critique"]);
+
+// Workflow policy (GET/PUT /api/workflow-policy-settings): "auto" learns the
+// workflow from history, "off" always runs single. A malformed payload falls
+// back to the safe default rather than breaking the settings screen.
+export const WorkflowPolicySettingsSchema = z.object({
+  mode: z.enum(["off", "auto"]).catch("off").default("off"),
+}).loose();
+
+// One (task_class, workflow) row of the workflow-stats rollup. `workflow`
+// stays an open string so an installed client survives a newer backend's
+// strategies; `avg_*` are null when the rollup has no priced / timed samples.
+export const WorkflowStatsSchema = z.object({
+  task_class: z.string().default(""),
+  workflow: z.string().default(""),
+  samples: z.number().default(0),
+  success_rate: z.number().default(0),
+  avg_cost_usd: z.number().nullable().default(null),
+  avg_duration_secs: z.number().nullable().default(null),
+}).loose();
+
+export const WorkflowStatsResponseSchema = z.object({
+  window_days: z.number().default(90),
+  rows: z.array(WorkflowStatsSchema).default([]),
+}).loose();
+
+export const EMPTY_WORKFLOW_STATS_RESPONSE: WorkflowStatsResponse = {
+  window_days: 90,
+  rows: [],
+};
+
+// ---------------------------------------------------------------------------
+// Living run plan (F04). The run publishes the checklist it is working
+// through; the newest one replaces the last.
+// ---------------------------------------------------------------------------
+
+// `status` stays an OPEN string, not the three-value enum the server accepts
+// today. The write side is closed (a POST with an unknown status is a 400), so
+// only a NEWER server can produce one — and an installed desktop build meeting
+// it must render the item with a neutral bullet, not drop the whole plan.
+export const RunPlanItemSchema = z.object({
+  text: z.string().default(""),
+  status: z.string().default(""),
+}).loose();
+
+export const RunPlanSchema = z.object({
+  items: z.array(RunPlanItemSchema).default([]),
+  seq: z.number().default(0),
+}).loose();
 
 export const AgentTaskSchema = z.object({
   id: z.string(),
@@ -2359,9 +2685,55 @@ export const AgentTaskSchema = z.object({
   // not the whole execution log.
   task_class: z.string().optional().catch(undefined),
   routing: RuntimeRoutingDecisionSchema.nullable().optional().catch(undefined),
+  // Off-peak batch lane (K45). Absent on older backends and on rows written
+  // before the column, which read as the sync lane — so a missing value must
+  // never render the off-peak badge.
+  dispatch_lane: z.string().optional().catch(undefined),
+  // Per-run confidence score (JEF-240). Same independent-degradation rule as
+  // `routing`: a malformed record costs the row its confidence display, not
+  // the whole execution log. Absent until the scorer has scored the run.
+  confidence: TaskConfidenceSchema.nullable().optional().catch(undefined),
+  // Workflow selector (JEF-273). Same independent-degradation rule: an
+  // unknown strategy token costs the row its workflow display, not the whole
+  // execution log. Absent on tasks that predate the selector.
+  workflow: TaskWorkflowSchema.optional().catch(undefined),
+  // Per-leg accounting (JEF-274). Both default to "" rather than undefined:
+  // an empty role is the primary leg and an empty root means the run is its
+  // own root, which is exactly what an older backend omitting them describes.
+  leg_role: z.string().catch("").default(""),
+  workflow_root_task_id: z.string().catch("").default(""),
+  // Escalation origin (JEF-272): present on the child task a confidence
+  // escalation created, absent on ordinary runs. Same independent-degradation
+  // rule as `confidence` — a malformed record costs the row its escalation
+  // display, not the whole execution log.
+  escalation: TaskEscalationSchema.nullable().optional().catch(undefined),
+  // Living run plan (F04). Same independent-degradation rule as `usage` and
+  // `routing`: a malformed checklist costs the row its plan block, not the
+  // whole execution log. Absent on runs that published none and on servers
+  // that predate the feature, which the UI renders as no block at all.
+  plan: RunPlanSchema.nullish().catch(undefined),
+  // Turn checkpoints (F09). Same independent-degradation rule as `usage`: a
+  // malformed value costs the row its revert action, not the whole execution
+  // log. `revertable` is the affordance and it fails CLOSED — anything that is
+  // not literally `true` reads as "not revertible", which is what a server
+  // predating the feature produces and what the UI renders as no action at all.
+  checkpoint_sha: z.string().optional().catch(undefined),
+  turn_seq: z.number().optional().catch(undefined),
+  revertable: z.boolean().optional().catch(undefined),
 }).loose();
 
 export const AgentTaskListSchema = z.array(AgentTaskSchema);
+
+// Worktree revert (F09). The response the enqueue endpoint and its poll
+// endpoint return. `status` is a server-driven enum, so consumers switch on it
+// with a default branch; the schema keeps it a plain string for that reason.
+export const WorktreeRevertRequestSchema = z.object({
+  request_id: z.string().default(""),
+  status: z.string().default("failed"),
+  error: z.string().optional().catch(undefined),
+}).loose();
+
+export type WorktreeRevertRequestResponse = z.infer<typeof WorktreeRevertRequestSchema>;
 
 // Task cancellation (`POST /api/tasks/:id/cancel`) is consumed directly by
 // chat recovery. Its optional message payload must be well-formed before the
@@ -2800,6 +3172,9 @@ const AutopilotListItemSchema = z.object({
   assignee_id: z.string(),
   status: z.string(),
   execution_mode: z.string(),
+  // Off-peak batch lane (K45). Absent on older servers; false is the safe read
+  // — an autopilot nobody opted in is never deferred.
+  batch_eligible: z.boolean().catch(false).optional(),
   issue_title_template: z.string().nullable().optional(),
   created_by_type: z.string(),
   created_by_id: z.string(),
@@ -2843,6 +3218,9 @@ export const AutopilotRunSchema = z.object({
   completed_at: z.string().nullable().default(null),
   failure_reason: z.string().nullable().default(null),
   reason_code: z.string().optional(),
+  // Off-peak batch lane (K45): the lane of the run's linked task. Absent on
+  // older servers and on runs with no task; the badge simply does not render.
+  dispatch_lane: z.string().optional(),
   trigger_payload: z.unknown().default(null),
   result: z.unknown().default(null),
   created_at: z.string().default(""),
@@ -3896,7 +4274,7 @@ export const SkillImportExistingSkillSchema = z.object({
  * backend still parses and its `reason` survives to the user. `z.enum` here
  * would fail the whole envelope on an unknown value, drop the server's reason
  * and leave only a generic "Import failed" — the server field is a bare
- * `string`, so it is free to grow. `skillFromImportResult` has the default
+ * `string`, so it is free to grow. `parseSkillImportResult` has the default
  * branch: anything outside created/updated is treated as a failure.
  */
 export const SkillImportResultSchema = z.object({
@@ -3920,6 +4298,9 @@ export const AgentMemorySchema = z.object({
   agent_id: z.string(),
   content: z.string().optional().default(""),
   source: z.string().optional().default("manual"),
+  // Governance state (JEF-269). Tolerant default: a pre-governance server
+  // omits the field, and every fact it stored was human-approved.
+  state: z.enum(["draft", "approved"]).optional().default("approved"),
   source_task_id: z.string().nullable().optional().default(null),
   source_issue_id: z.string().nullable().optional().default(null),
   created_at: z.string().optional().default(""),
@@ -3931,6 +4312,7 @@ export const EMPTY_AGENT_MEMORY: AgentMemory = {
   agent_id: "",
   content: "",
   source: "manual",
+  state: "approved",
   source_task_id: null,
   source_issue_id: null,
   created_at: "",
@@ -4141,6 +4523,27 @@ export const DashboardCostPerDeliverableSchema = z.object({
   days: z.number().default(30),
   issues: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
   pull_requests: DeliverableCostStatsSchema.catch({ count: 0, mean_usd_ticks: 0, median_usd_ticks: 0, total_usd_ticks: 0, uncosted_count: 0, trend_pct: null }),
+}).loose();
+
+// ROI per agent (JEF-252). Ratios stay nullable all the way through: an agent
+// that closed nothing has no cost per issue, and defaulting that to 0 would
+// rank it as the cheapest agent in the workspace.
+const AgentRoiRowSchema = z.object({
+  agent_id: z.string().catch(""),
+  agent_name: z.string().catch(""),
+  provider: z.string().catch(""),
+  issues_closed: z.number().catch(0),
+  prs_merged: z.number().catch(0),
+  cost_usd_ticks: z.number().catch(0),
+  uncosted_runs: z.number().catch(0),
+  cost_per_issue_usd_ticks: z.number().nullable().catch(null),
+  cost_per_pr_usd_ticks: z.number().nullable().catch(null),
+  prev_cost_per_issue_usd_ticks: z.number().nullable().catch(null),
+}).loose();
+
+export const DashboardAgentRoiSchema = z.object({
+  days: z.number().catch(30),
+  agents: z.array(AgentRoiRowSchema).catch([]).default([]),
 }).loose();
 
 // Module ownership (K33).
@@ -4487,6 +4890,8 @@ export const BlastRadiusRulesSchema = z.object({
   rules: z.array(BlastRadiusRuleSchema).catch([]).default([]),
   levels: z.array(z.string()).catch([]).default([]),
 }).loose();
+
+export const BlastRadiusRuleEnvelopeSchema = z.object({ rule: BlastRadiusRuleSchema }).loose();
 
 export const BlastRadiusPreviewSchema = z.object({
   path: z.string().default(""),
@@ -4945,6 +5350,51 @@ export const AgentDuelEnvelopeSchema = z.object({
   duel: AgentDuelSchema.nullable().catch(null).default(null),
 }).loose();
 
+// Racing attempts (F11 / JEF-6): N attempts on one issue, the human keeps one.
+// diff_unified is null both when nothing was recorded and when the patch was
+// too large to store — diff_truncated is what tells those apart, so the UI can
+// say "too large, read the branch" instead of "no changes".
+export const RunGroupAttemptSchema = z.object({
+  task_id: z.string().default(""),
+  agent_id: z.string().default(""),
+  status: z.string().catch("").default(""),
+  model: z.string().catch("").default(""),
+  diff_stat: z.unknown().nullable().catch(null).default(null),
+  diff_unified: z.string().nullable().catch(null).default(null),
+  diff_truncated: z.boolean().catch(false).default(false),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RunGroupSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["running", "settled", "abandoned"]).catch("running").default("running"),
+  attempt_count: z.number().int().catch(0).default(0),
+  winner_task_id: z.string().nullable().catch(null).default(null),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  settled_at: z.string().nullable().catch(null).default(null),
+  attempts: z.array(RunGroupAttemptSchema).catch([]).default([]),
+}).loose();
+
+export const RunGroupEnvelopeSchema = z.object({
+  group: RunGroupSchema.nullable().catch(null).default(null),
+}).loose();
+
+export const RunGroupListEnvelopeSchema = z.object({
+  groups: z.array(RunGroupSchema).catch([]).default([]),
+}).loose();
+
+export type RunGroup = z.infer<typeof RunGroupSchema>;
+export type RunGroupAttempt = z.infer<typeof RunGroupAttemptSchema>;
+
+/** Body of POST /api/issues/:id/run-groups. The server caps attempts at 5. */
+export interface StartRunGroupInput {
+  attempts: Array<{ agent_id: string; model?: string }>;
+  note?: string;
+}
+
 // Refactoring campaigns (K42).
 export const CampaignBlockerSchema = z.object({
   kind: z.string().default(""),
@@ -5007,12 +5457,21 @@ export const AgentCompetencySchema = z.object({
 }).loose();
 
 // Cross-provider self-review (K15).
+export const CrossReviewChecklistResultSchema = z.object({
+  item: z.string().catch("").default(""),
+  pass: z.boolean().catch(false).default(false),
+  note: z.string().catch("").default(""),
+}).loose();
+
 export const CrossReviewReportSchema = z.object({
   verdict: z.enum(["approve", "request_changes", "comment"]).catch("comment").default("comment"),
   risks: z.array(z.string()).catch([]).default([]),
   questions: z.array(z.string()).catch([]).default([]),
   suggestions: z.array(z.string()).catch([]).default([]),
   summary: z.string().catch("").default(""),
+  // Per-item verdicts against the project's review checklist (JEF-238).
+  // Optional: absent on reports produced before the checklist existed.
+  checklist_results: z.array(CrossReviewChecklistResultSchema).optional().catch(undefined),
 }).loose();
 
 export const CrossReviewSchema = z.object({
@@ -5063,6 +5522,19 @@ export const CrossReviewSettingsSchema = z.object({
   opt_out_project_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+// Confidence review (JEF-240): the workspace gate that routes low-confidence
+// runs to human review. The 0 < threshold ≤ 1 bound is enforced server-side;
+// a malformed payload falls back to the product defaults rather than
+// breaking the settings screen.
+export const ConfidenceReviewSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  threshold: z.number().catch(0.5).default(0.5),
+  // Cascade escalations (JEF-272): how many times a below-threshold run may
+  // be re-dispatched to a stronger runtime. Server-side contract is an
+  // integer in [0, 3]; anything else falls back to the product default.
+  max_escalations: z.number().int().min(0).max(3).catch(2).default(2),
+}).loose();
+
 export const CrossReviewListSchema = z.object({
   reviews: z.array(CrossReviewSchema).catch([]).default([]),
 }).loose();
@@ -5108,15 +5580,78 @@ export const UndoSettingsSchema = z.object({
   breaker_threshold: z.number().int().catch(5).default(5),
 }).loose();
 
+// Per-project review configuration (JEF-238): the checklist a reviewer agent
+// checks each diff against, an optional fixed reviewer, the done-gate, and the
+// rework-cycle cap. GET always answers 200 with these defaults when the
+// project has no saved config.
+export const ProjectReviewConfigSchema = z.object({
+  project_id: z.string().default(""),
+  checklist: z.array(z.string()).catch([]).default([]),
+  reviewer_agent_id: z.string().nullable().catch(null).default(null),
+  gate_enabled: z.boolean().catch(false).default(false),
+  max_cycles: z.number().int().catch(3).default(3),
+}).loose();
+
 export const CompetencySettingsSchema = z.object({
   min_sample: z.number().int().catch(5).default(5),
 }).loose();
+
+// Workflow execution safety (JEF-275).
+export const RoutingProblemSchema = z.object({
+  code: z.string().catch("").default(""),
+  message: z.string().catch("").default(""),
+  fatal: z.boolean().catch(false).default(false),
+}).loose();
+
+export const RoutingCheckSchema = z.object({
+  agent_id: z.string().catch("").default(""),
+  ok: z.boolean().catch(true).default(true),
+  fatal: z.boolean().catch(false).default(false),
+  problems: z.array(RoutingProblemSchema).catch([]).default([]),
+}).loose();
+
+export const WorkflowLimitsSchema = z.object({
+  max_legs: z.number().int().catch(8).default(8),
+  max_cost_usd_ticks: z.number().int().catch(0).default(0),
+  min_legs: z.number().int().catch(1).default(1),
+  max_legs_allowed: z.number().int().catch(50).default(50),
+}).loose();
+
+// Data residency (K46). Declared in packages/core/residency/schemas.ts and
+// re-exported here so the API client imports every response schema from one
+// module, like WorkflowLimitsSchema above.
+export { DataResidencyPolicySchema } from "../residency/schemas";
 
 export const AssigneeSuggestionSchema = z.object({
   domain_key: z.string().default(""),
   min_sample: z.number().int().catch(5).default(5),
   candidates: z.array(CompetencyRowSchema).catch([]).default([]),
   ownership: OwnershipSuggestionSchema.nullable().catch(null).default(null),
+}).loose();
+
+// What-if estimate (K44). Every measurement is nullable: the server sends
+// null rather than a guess below min_sample, and a drifted backend that
+// sends something else must degrade to "no estimate", never to a number.
+const EstimateNumberSchema = z.number().nullable().catch(null).default(null);
+
+export const IssueEstimateCandidateSchema = z.object({
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  sample_size: z.number().catch(0).default(0),
+  insufficient_history: z.boolean().catch(true).default(true),
+  median_cost_usd_ticks: EstimateNumberSchema,
+  cost_range_low_usd_ticks: EstimateNumberSchema,
+  cost_range_high_usd_ticks: EstimateNumberSchema,
+  median_duration_seconds: EstimateNumberSchema,
+  duration_range_low_seconds: EstimateNumberSchema,
+  duration_range_high_seconds: EstimateNumberSchema,
+  exceeds_budget: z.boolean().catch(false).default(false),
+}).loose();
+
+export const IssueEstimateSchema = z.object({
+  domain_key: z.string().catch("").default(""),
+  min_sample: z.number().int().catch(5).default(5),
+  candidates: z.array(IssueEstimateCandidateSchema).catch([]).default([]),
 }).loose();
 
 // Run replay (K70): one hash-chained event stream per run.
@@ -5199,6 +5734,41 @@ export const ReplayResumeResultSchema = z.object({
 export const ReplaySimulateResultSchema = z.object({
   task_id: z.string().default(""),
   safe_mode: z.boolean().catch(true).default(true),
+}).loose();
+
+// Per-leg accounting (JEF-274). Every field is defaulted: a leg with a
+// malformed figure still belongs to the workflow, and a workflow that lost one
+// leg's cost is better than a panel that renders nothing. `legs: []` collapses
+// a malformed array so the caller sees "no legs" and hides the summary.
+export const WorkflowLegSchema = z.object({
+  task_id: z.string().catch("").default(""),
+  leg_role: z.string().catch("").default(""),
+  status: z.string().catch("").default(""),
+  agent_id: z.string().catch("").default(""),
+  agent_name: z.string().catch("").default(""),
+  runtime_id: z.string().catch("").default(""),
+  runtime_name: z.string().catch("").default(""),
+  provider: z.string().catch("").default(""),
+  model: z.string().catch("").default(""),
+  input_tokens: z.number().catch(0).default(0),
+  output_tokens: z.number().catch(0).default(0),
+  cost_usd_ticks: z.number().catch(0).default(0),
+  duration_seconds: z.number().catch(0).default(0),
+  created_at: z.string().nullable().catch(null).default(null),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const WorkflowLegsSchema = z.object({
+  root_task_id: z.string().catch("").default(""),
+  legs: z.array(WorkflowLegSchema).catch([]).default([]),
+  totals: z.object({
+    legs: z.number().catch(0).default(0),
+    cost_usd_ticks: z.number().catch(0).default(0),
+    input_tokens: z.number().catch(0).default(0),
+    output_tokens: z.number().catch(0).default(0),
+    duration_seconds: z.number().catch(0).default(0),
+  }).loose().catch({ legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 })
+    .default({ legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 }),
 }).loose();
 
 // Task watchdog (K73).
@@ -5303,6 +5873,74 @@ export const ProjectGoalsResponseSchema = z.object({
   goal_ids: z.array(z.string()).catch([]).default([]),
 }).loose();
 
+// Dated cycles (F29). Lenient like every other boundary schema: an unknown
+// status or load unit still parses, and the UI's switches carry a default.
+const CycleCapacitySideSchema = z.object({
+  capacity: z.number().nullable().catch(null).default(null),
+  load: z.number().catch(0).default(0),
+}).loose();
+export const CycleSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  project_id: z.string().catch(""),
+  name: z.string().catch(""),
+  description: z.string().catch("").default(""),
+  start_date: z.string().catch(""),
+  end_date: z.string().catch(""),
+  rollover: z.boolean().catch(true).default(true),
+  closed_at: z.string().nullable().catch(null).default(null),
+  status: z.enum(["upcoming", "active", "closed"]).catch("active").default("active"),
+  late: z.boolean().catch(false).default(false),
+  load_unit: z.enum(["issues", "property"]).catch("issues").default("issues"),
+  load_property_id: z.string().nullable().catch(null).default(null),
+  issue_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+  capacity: z.object({
+    human: CycleCapacitySideSchema,
+    agent: CycleCapacitySideSchema,
+    unassigned_load: z.number().catch(0).default(0),
+  }).loose().catch({
+    human: { capacity: null, load: 0 },
+    agent: { capacity: null, load: 0 },
+    unassigned_load: 0,
+  }),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+export const ListCyclesResponseSchema = z.object({
+  cycles: z.array(CycleSchema).catch([]).default([]),
+  total: z.number().catch(0).default(0),
+}).loose();
+export const CycleBurndownSchema = z.object({
+  days: z.array(z.object({
+    date: z.string().catch(""),
+    remaining_count: z.number().nullable().catch(null).default(null),
+    remaining_load: z.number().nullable().catch(null).default(null),
+    ideal_count: z.number().catch(0).default(0),
+    ideal_load: z.number().catch(0).default(0),
+    human_load: z.number().nullable().catch(null).default(null),
+    agent_load: z.number().nullable().catch(null).default(null),
+  }).loose()).catch([]).default([]),
+  capacity: z.object({
+    human: z.number().nullable().catch(null).default(null),
+    agent: z.number().nullable().catch(null).default(null),
+  }).loose().catch({ human: null, agent: null }),
+  load_unit: z.enum(["issues", "property"]).catch("issues").default("issues"),
+  load_property_id: z.string().nullable().catch(null).default(null),
+  approximate_before: z.string().nullable().catch(null).default(null),
+}).loose();
+export const GoalProgressSchema = z.object({
+  goal_id: z.string().catch(""),
+  projects: z.array(z.object({
+    project_id: z.string().catch(""),
+    name: z.string().catch(""),
+    total_count: z.number().catch(0).default(0),
+    done_count: z.number().catch(0).default(0),
+  }).loose()).catch([]).default([]),
+  total_count: z.number().catch(0).default(0),
+  done_count: z.number().catch(0).default(0),
+}).loose();
+
 // Contest (K72): a rival model's objections, the author's answers, the human verdict.
 const ContestObjectionSchema = z.object({
   n: z.number().catch(0).default(0),
@@ -5383,6 +6021,7 @@ const OrgUnitSchema = z.object({
   id: z.string().catch(""),
   name: z.string().catch(""),
   kind: z.string().optional(),
+  model: z.enum(["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"]).optional().catch(undefined),
   owner_id: z.string().optional(),
   squad_id: z.string().optional(),
   mission_goal_id: z.string().optional(),
@@ -5433,7 +6072,7 @@ export const OrgStructureDetailSchema = z.object({
   revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgTemplateListSchema = z.object({
-  templates: z.array(z.object({ model: z.string(), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
+  templates: z.array(z.object({ model: z.string(), composite: z.boolean().optional().catch(undefined), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
 }).loose();
 export const OrgHealthSchema = z.object({
   structure_id: z.string().catch(""),
@@ -5514,3 +6153,1148 @@ export const WorkspaceTemplateListSchema = z.object({
     created_at: z.string().catch(""),
   }).loose()).catch([]).default([]),
 }).loose();
+
+// ---------------------------------------------------------------------------
+// Multiplayer chat participants (K31 / JEF-181)
+// ---------------------------------------------------------------------------
+
+export const ChatParticipantSchema = z.object({
+  user_id: z.string(),
+  name: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  // Server-driven enum: an unknown role degrades to the least-privileged one
+  // so a future value can never grant a remove button by accident.
+  role: z.enum(["owner", "participant"]).catch("participant"),
+  joined_at: z.string().default(""),
+  online: z.boolean().default(false),
+}).loose();
+
+export const ChatParticipantListSchema = z.object({
+  participants: z.array(ChatParticipantSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_CHAT_PARTICIPANT_LIST: ChatParticipantList = { participants: [] };
+
+// ---------------------------------------------------------------------------
+// Run transcript: task messages + the issue changes the run made (F03 / JEF-11)
+// ---------------------------------------------------------------------------
+
+export const TaskMessageSchema = z.object({
+  task_id: z.string().default(""),
+  issue_id: z.string().default(""),
+  chat_session_id: z.string().optional(),
+  seq: z.number().default(0),
+  // Never a closed enum. The server writes eight types today and validates none
+  // of them on ingest, so an installed build meets values it predates on every
+  // backend upgrade. Coercing an unknown type to "text" would silently relabel
+  // a future kind as agent prose; keeping it raw lets the presenter render it
+  // as a neutral note that names itself.
+  type: z.string().default("text"),
+  tool: z.string().optional(),
+  content: z.string().optional(),
+  input: z.record(z.string(), z.unknown()).optional(),
+  output: z.string().optional(),
+  created_at: z.string().optional(),
+}).loose();
+
+export const RunActionSchema = z.object({
+  kind: z.literal("action").catch("action"),
+  action: z.string().default(""),
+  // Either side may legitimately be empty — an issue created by a run has no
+  // "before". The UI renders the missing half as a dash rather than dropping
+  // the entry.
+  before: z.string().default(""),
+  after: z.string().default(""),
+  at: z.string().default(""),
+}).loose();
+
+/**
+ * `GET /api/tasks/:id/messages`.
+ *
+ * Two shapes are accepted on purpose. A server that predates F03 returns the
+ * bare message array, and installed desktop builds outlive their backend in
+ * both directions — so the old shape is normalised into the new one with an
+ * empty action list rather than failing the whole transcript. This is the
+ * one boundary where the tolerance is worth its weight: the alternative is a
+ * blank transcript on every mismatched pair.
+ */
+export const TaskActivityResponseSchema = z.union([
+  z.object({
+    messages: z.array(TaskMessageSchema).catch([]).default([]),
+    // Actions degrade independently: a malformed action list must not hide the
+    // transcript it accompanies.
+    actions: z.array(RunActionSchema).catch([]).default([]),
+  }).loose(),
+  z.array(TaskMessageSchema).transform((messages) => ({ messages, actions: [] })),
+]);
+
+export const EMPTY_TASK_ACTIVITY: TaskActivityResponse = { messages: [], actions: [] };
+// Custom runtime profiles (MUL-3284). `protocol_family` is left as a bare
+// string (not the closed union) so an unrecognized family from a newer
+// server still parses instead of falling back to EMPTY_RUNTIME_PROFILE.
+export const RuntimeProfileSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  display_name: z.string().catch(""),
+  protocol_family: z.string().catch(""),
+  command_name: z.string().catch(""),
+  description: z.string().nullable().catch(null),
+  fixed_args: z.array(z.string()).catch([]).default([]),
+  visibility: z.enum(["workspace", "private"]).catch("workspace"),
+  created_by: z.string().nullable().catch(null),
+  enabled: z.boolean().catch(false),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const EMPTY_RUNTIME_PROFILE: RuntimeProfile = {
+  id: "",
+  workspace_id: "",
+  display_name: "",
+  protocol_family: "claude",
+  command_name: "",
+  description: null,
+  fixed_args: [],
+  visibility: "workspace",
+  created_by: null,
+  enabled: false,
+  created_at: "",
+  updated_at: "",
+};
+
+export const RuntimeProfileListSchema = z.object({
+  runtime_profiles: z.array(RuntimeProfileSchema).catch([]).default([]),
+}).loose();
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch A — auth, issue writes, comments/reactions, agents, runtimes
+// ---------------------------------------------------------------------------
+
+// POST /auth/verify-code, POST /auth/google. No EMPTY_ fallback: an empty
+// token would look like a successful login with no way to detect failure, so
+// client.ts parses to null and throws — caught by the existing login-page
+// try/catch, same path as any other login error.
+export const LoginResponseSchema = z.object({
+  token: z.string(),
+  user: UserSchema,
+}).loose();
+
+// Standalone issue-level reaction (POST /api/issues/:id/reactions). Mirrors
+// ReactionSchema's comment-level shape; issue_revision is additive so a
+// caller on an older backend still gets a usable reaction.
+export const IssueReactionSchema = z.object({
+  id: z.string(),
+  issue_id: z.string(),
+  actor_type: z.string(),
+  actor_id: z.string(),
+  emoji: z.string(),
+  created_at: z.string(),
+  issue_revision: z.number().int().positive().optional(),
+}).loose();
+
+export const EMPTY_ISSUE_REACTION: IssueReaction = {
+  id: "",
+  issue_id: "",
+  actor_type: "",
+  actor_id: "",
+  emoji: "",
+  created_at: "",
+};
+
+export const AssigneeFrequencyEntrySchema = z.object({
+  assignee_type: z.string(),
+  assignee_id: z.string(),
+  frequency: z.number().catch(0),
+}).loose();
+
+export const AssigneeFrequencyListSchema = z.array(AssigneeFrequencyEntrySchema);
+
+const AgentConversationStarterSchema = z.object({
+  label: z.string(),
+  prompt: z.string(),
+}).loose();
+
+const AgentSkillSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  enabled: z.boolean().optional(),
+}).loose();
+
+const AgentInvocationTargetSchema = z.object({
+  target_type: z.string(),
+  target_id: z.string().nullable(),
+}).loose();
+
+// Agent (GET/POST/PUT /api/agents...). Kept lenient the same way IssueSchema
+// is: enum-shaped fields stay z.string()/z.enum().catch(...) so an unknown
+// value from a newer backend degrades instead of failing the whole object,
+// and nested arrays default to [] so a malformed skill/invocation-target list
+// doesn't blank the agent that carries it.
+export const AgentSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  runtime_id: z.string().catch(""),
+  runtime_bound: z.boolean().optional(),
+  runtime_availability: z.enum(["online", "unstable", "offline"]).optional().catch(undefined),
+  name: z.string().catch(""),
+  description: z.string().catch(""),
+  instructions: z.string().catch(""),
+  conversation_starters: z.array(AgentConversationStarterSchema).optional().catch(undefined),
+  system_key: z.string().optional(),
+  system_instructions: z.string().optional(),
+  avatar_url: z.string().nullable().catch(null),
+  runtime_mode: z.string().catch("local"),
+  runtime_config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  custom_args: z.array(z.string()).catch([]).default([]),
+  has_custom_env: z.boolean().optional(),
+  custom_env_key_count: z.number().optional(),
+  mcp_config: z.unknown().nullish(),
+  mcp_config_redacted: z.boolean().optional(),
+  composio_toolkit_allowlist: z.array(z.string()).optional().catch(undefined),
+  composio_toolkit_allowlist_redacted: z.boolean().optional(),
+  visibility: z.enum(["workspace", "private"]).catch("private"),
+  permission_mode: z.enum(["private", "public_to"]).catch("private"),
+  invocation_targets: z.array(AgentInvocationTargetSchema).catch([]).default([]),
+  status: z.enum(["idle", "working", "blocked", "error", "offline"]).catch("offline"),
+  max_concurrent_tasks: z.number().catch(1),
+  trust_mode: z.string().optional(),
+  effect_mode: z.string().optional(),
+  permission_profile_id: z.string().nullable().optional(),
+  runtime_pool_id: z.string().nullable().optional(),
+  model: z.string().catch(""),
+  thinking_level: z.string().optional(),
+  service_tier: z.string().optional(),
+  runtime_routing: z.string().optional(),
+  owner_id: z.string().nullable().catch(null),
+  skills: z.array(AgentSkillSummarySchema).catch([]).default([]),
+  disabled_runtime_skills: z.array(z.unknown()).optional().catch(undefined),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  archived_at: z.string().nullable().catch(null),
+  archived_by: z.string().nullable().catch(null),
+}).loose();
+
+export const EMPTY_AGENT: Agent = {
+  id: "",
+  workspace_id: "",
+  runtime_id: "",
+  name: "",
+  description: "",
+  instructions: "",
+  avatar_url: null,
+  runtime_mode: "local",
+  runtime_config: {},
+  custom_args: [],
+  visibility: "private",
+  permission_mode: "private",
+  invocation_targets: [],
+  status: "offline",
+  max_concurrent_tasks: 0,
+  model: "",
+  owner_id: null,
+  skills: [],
+  created_at: "",
+  updated_at: "",
+  archived_at: null,
+  archived_by: null,
+};
+
+export const AgentListSchema = z.array(AgentSchema);
+
+// POST /api/agents/mika — the workspace's Mika plus its onboarding session,
+// resolved together server-side. `onboarding_session` is validated loosely
+// (not required) because the caller (bootstrapMika) already throws its own
+// "session was not returned" error when it is absent.
+export const MikaBootstrapResponseSchema = AgentSchema.extend({
+  onboarding_session: ChatSessionSchema.optional(),
+});
+
+// GET/PUT /api/agents/:id/env. Deliberately no EMPTY_ fallback: a malformed
+// response here must not present as "this agent has no custom env" (env-tab.tsx
+// throws through its try/catch instead, same as a network failure).
+export const AgentEnvResponseSchema = z.object({
+  agent_id: z.string(),
+  custom_env: z.record(z.string(), z.string()).catch({}).default({}),
+  scoped_keys: z.array(z.string()).optional().catch(undefined),
+}).loose();
+
+const SandboxCapabilitiesSchema = z.object({
+  os: z.string().optional(),
+  docker: z.boolean().optional(),
+  docker_version: z.string().optional(),
+  bwrap: z.boolean().optional(),
+  modes: z.array(z.string()).optional(),
+}).loose();
+
+// GET /api/runtimes. RuntimeDevice's optional K10/K46 fields (sandbox_*,
+// compliance) stay lenient — additive metadata a malformed value must not
+// take the whole runtime down with it.
+export const AgentRuntimeSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  daemon_id: z.string().nullable().catch(null),
+  name: z.string().catch(""),
+  custom_name: z.string().nullable().optional(),
+  runtime_mode: z.string().catch("local"),
+  provider: z.string().catch(""),
+  launch_header: z.string().catch(""),
+  status: z.enum(["online", "offline"]).catch("offline"),
+  device_info: z.string().catch(""),
+  metadata: z.record(z.string(), z.unknown()).catch({}).default({}),
+  owner_id: z.string().nullable().catch(null),
+  visibility: z.enum(["private", "public"]).catch("private"),
+  profile_id: z.string().nullable().optional(),
+  sandbox_mode: z.string().optional(),
+  sandbox_image: z.string().optional(),
+  sandbox_allowed_hosts: z.array(z.string()).optional().catch(undefined),
+  sandbox_capabilities: SandboxCapabilitiesSchema.optional().catch(undefined),
+  sandbox_effective: z.string().optional(),
+  compliance: z.object({
+    region: z.string(),
+    on_prem: z.boolean(),
+  }).loose().nullable().optional().catch(null),
+  last_seen_at: z.string().nullable().catch(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const AgentRuntimeListSchema = z.array(AgentRuntimeSchema);
+// ---------------------------------------------------------------------------
+// JEF-321 batch B — runtime updates, local-skill discovery/import, working
+// agents, agent-activity/run-count projections, issue usage, single-item
+// inbox mutations, and workspaces.
+// ---------------------------------------------------------------------------
+
+// CLI/runtime version updates (`POST /api/runtimes/:id/update`, its poll
+// endpoint). Same poll-while-pending state machine as the CLI auth / model
+// discovery requests above, so a malformed body degrades to an explicit
+// "failed" record instead of a fabricated "completed" or an endless spinner.
+export const RuntimeUpdateSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  status: z.string().default("failed"),
+  target_version: z.string().default(""),
+  output: z.string().optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_UPDATE: RuntimeUpdate = {
+  id: "",
+  runtime_id: "",
+  status: "failed",
+  target_version: "",
+  error: "invalid update response",
+  created_at: "",
+  updated_at: "",
+};
+
+const RuntimeLocalMcpServerSummarySchema = z.object({
+  name: z.string(),
+  transport: z.enum(["stdio", "http", "sse", "unknown"]).optional(),
+  source: z.string().optional(),
+  enabled: z.boolean().default(false),
+}).loose();
+
+const RuntimeLocalSkillSummarySchema = z.object({
+  key: z.string(),
+  name: z.string().default(""),
+  description: z.string().optional(),
+  source_path: z.string().default(""),
+  provider: z.string().default(""),
+  root: z.enum(["provider", "universal", "plugin"]).optional(),
+  plugin: z.string().optional(),
+  can_disable: z.boolean().optional(),
+  file_count: z.number().default(0),
+}).loose();
+
+export const RuntimeLocalSkillListRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  status: z.string().default("failed"),
+  skills: z.array(RuntimeLocalSkillSummarySchema).optional(),
+  supported: z.boolean().default(true),
+  mcp_servers: z.array(RuntimeLocalMcpServerSummarySchema).optional(),
+  mcp_supported: z.boolean().optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_LOCAL_SKILL_LIST_REQUEST: RuntimeLocalSkillListRequest = {
+  id: "",
+  runtime_id: "",
+  status: "failed",
+  supported: true,
+  error: "invalid local-skill discovery response",
+  created_at: "",
+  updated_at: "",
+};
+
+const RuntimeLocalSkillImportConflictSchema = z.object({
+  existing_skill_id: z.string().default(""),
+  existing_created_by: z.string().optional(),
+  can_overwrite: z.boolean().default(false),
+}).loose();
+
+// `skill` reuses SkillSchema (defined above) rather than a parallel shape —
+// the import response embeds the same skill row the Skills API returns.
+export const RuntimeLocalSkillImportRequestSchema = z.object({
+  id: z.string(),
+  runtime_id: z.string().default(""),
+  skill_key: z.string().default(""),
+  name: z.string().optional(),
+  description: z.string().optional(),
+  action: z.literal("overwrite").optional(),
+  target_skill_id: z.string().optional(),
+  supports_conflict: z.boolean().optional(),
+  status: z.string().default("failed"),
+  skill: SkillSchema.optional(),
+  conflict: RuntimeLocalSkillImportConflictSchema.optional(),
+  error: z.string().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const MALFORMED_RUNTIME_LOCAL_SKILL_IMPORT_REQUEST: RuntimeLocalSkillImportRequest = {
+  id: "",
+  runtime_id: "",
+  skill_key: "",
+  status: "failed",
+  error: "invalid local-skill import response",
+  created_at: "",
+  updated_at: "",
+};
+
+// Workspace-level working-agent projection backing the Agents-list presence
+// dots and the sub-issue header. `issue_ids` degrades independently since a
+// malformed entry there should not drop the whole agent row.
+export const WorkspaceWorkingAgentSchema = z.object({
+  id: z.string(),
+  name: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  running_task_count: z.number().default(0),
+  issue_ids: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const WorkspaceWorkingAgentListSchema = z.array(WorkspaceWorkingAgentSchema);
+export const EMPTY_WORKSPACE_WORKING_AGENTS: WorkspaceWorkingAgent[] = [];
+
+// Per-agent 30-day daily activity buckets, backing the Agents-list sparkline
+// and the agent detail "Last 30 days" panel.
+export const AgentActivityBucketSchema = z.object({
+  agent_id: z.string(),
+  bucket_at: z.string().default(""),
+  task_count: z.number().default(0),
+  failed_count: z.number().default(0),
+}).loose();
+
+export const AgentActivityBucketListSchema = z.array(AgentActivityBucketSchema);
+export const EMPTY_AGENT_ACTIVITY_BUCKETS: AgentActivityBucket[] = [];
+
+// Per-agent 30-day total run count, backing the Agents-list RUNS column.
+export const AgentRunCountSchema = z.object({
+  agent_id: z.string(),
+  run_count: z.number().default(0),
+}).loose();
+
+export const AgentRunCountListSchema = z.array(AgentRunCountSchema);
+export const EMPTY_AGENT_RUN_COUNTS: AgentRunCount[] = [];
+
+// `GET /api/issues/:id/usage`. `uncosted_*` and `cost_usd_ticks` stay
+// optional (not defaulted) — undefined there means "estimate from the full
+// token counts", distinct from a real 0, same convention as the per-task
+// usage rows (see RuntimeUsage / TaskUsageSchema above).
+export const IssueUsageSummarySchema = z.object({
+  total_input_tokens: z.number().default(0),
+  total_output_tokens: z.number().default(0),
+  total_cache_read_tokens: z.number().default(0),
+  total_cache_write_tokens: z.number().default(0),
+  cost_usd_ticks: z.number().optional(),
+  uncosted_input_tokens: z.number().optional(),
+  uncosted_output_tokens: z.number().optional(),
+  uncosted_cache_read_tokens: z.number().optional(),
+  uncosted_cache_write_tokens: z.number().optional(),
+  task_count: z.number().default(0),
+}).loose();
+
+export const EMPTY_ISSUE_USAGE_SUMMARY: IssueUsageSummary = {
+  total_input_tokens: 0,
+  total_output_tokens: 0,
+  total_cache_read_tokens: 0,
+  total_cache_write_tokens: 0,
+  task_count: 0,
+};
+
+// Fallback for cancelTask / rerunIssue, which return a single AgentTask.
+// `status: "failed"` is the honest read for an unparseable response — it
+// neither claims the cancel/rerun succeeded nor leaves the run mid-flight.
+export const EMPTY_AGENT_TASK: AgentTask = {
+  id: "",
+  agent_id: "",
+  runtime_id: "",
+  issue_id: "",
+  status: "failed",
+  priority: 0,
+  dispatched_at: null,
+  started_at: null,
+  completed_at: null,
+  result: null,
+  error: null,
+  created_at: "",
+};
+
+// Single-item inbox mutations (read/unread/archive/unarchive) return the same
+// row shape as the list endpoints, so the schema is just the list's element.
+export const InboxItemSchema = InboxItemListSchema.element;
+
+export const EMPTY_INBOX_ITEM: InboxItem = {
+  id: "",
+  workspace_id: "",
+  recipient_type: "member",
+  recipient_id: "",
+  actor_type: null,
+  actor_id: null,
+  type: "mentioned",
+  severity: "info",
+  issue_id: null,
+  title: "",
+  body: null,
+  issue_status: null,
+  issue_priority: null,
+  read: false,
+  archived: false,
+  created_at: "",
+  details: null,
+};
+
+export const WorkspaceRepoSchema = z.object({
+  url: z.string(),
+  description: z.string().optional(),
+}).loose();
+
+export const WorkspaceSchema = z.object({
+  id: z.string(),
+  name: z.string().default(""),
+  slug: z.string(),
+  description: z.string().nullable().default(null),
+  context: z.string().nullable().default(null),
+  settings: z.record(z.string(), z.unknown()).catch({}).default({}),
+  repos: z.array(WorkspaceRepoSchema).catch([]).default([]),
+  issue_prefix: z.string().default(""),
+  avatar_url: z.string().nullable().default(null),
+  postmortem_cost_threshold_usd_ticks: z.number().nullable().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const WorkspaceListSchema = z.array(WorkspaceSchema);
+export const EMPTY_WORKSPACES: Workspace[] = [];
+
+export const EMPTY_WORKSPACE: Workspace = {
+  id: "",
+  name: "",
+  slug: "",
+  description: null,
+  context: null,
+  settings: {},
+  repos: [],
+  issue_prefix: "",
+  avatar_url: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// -----------------------------------------------------------------------
+// JEF-321 batch C — members, invitations, skills, personal access tokens,
+// chat sessions/pinned agents, attachments, projects.
+// -----------------------------------------------------------------------
+
+// Members. Reuses MemberWithUserSchema (defined above, next to ShareLink)
+// for the list/patch/accept endpoints instead of a second definition.
+export const MemberWithUserListSchema = z.array(MemberWithUserSchema).catch([]).default([]);
+
+export const EMPTY_MEMBER_WITH_USER: MemberWithUser = {
+  id: "",
+  workspace_id: "",
+  user_id: "",
+  role: "member",
+  created_at: "",
+  name: "",
+  email: "",
+  avatar_url: null,
+};
+
+// Invitations. `role`/`status` stay lenient strings-with-catch so an
+// unrecognized server value degrades to a safe default instead of failing
+// the whole row.
+export const InvitationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().optional().default(""),
+  inviter_id: z.string().optional().default(""),
+  invitee_email: z.string().optional().default(""),
+  invitee_user_id: z.string().nullable().optional().default(null),
+  role: z.string().optional().default("member"),
+  status: z.enum(["pending", "accepted", "declined", "expired"]).catch("pending"),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+  expires_at: z.string().optional().default(""),
+  inviter_name: z.string().optional(),
+  inviter_email: z.string().optional(),
+  workspace_name: z.string().optional(),
+}).loose();
+
+export const EMPTY_INVITATION: Invitation = {
+  id: "",
+  workspace_id: "",
+  inviter_id: "",
+  invitee_email: "",
+  invitee_user_id: null,
+  role: "member",
+  status: "pending",
+  created_at: "",
+  updated_at: "",
+  expires_at: "",
+};
+
+export const InvitationListSchema = z.array(InvitationSchema).catch([]).default([]);
+
+// Skill summaries omit `content`/`files`; SkillSchema already defaults both,
+// so it doubles as the summary shape without a second, near-identical schema.
+export const SkillSummaryListSchema = z.array(SkillSchema).catch([]).default([]);
+export const EMPTY_SKILL_SUMMARY_LIST: SkillSummary[] = [];
+
+// Personal Access Tokens.
+export const PersonalAccessTokenSchema = z.object({
+  id: z.string(),
+  name: z.string().optional().default(""),
+  token_prefix: z.string().optional().default(""),
+  expires_at: z.string().nullable().optional().default(null),
+  last_used_at: z.string().nullable().optional().default(null),
+  created_at: z.string().optional().default(""),
+}).loose();
+
+export const PersonalAccessTokenListSchema = z.array(PersonalAccessTokenSchema).catch([]).default([]);
+
+// `token` only appears on the create response and is shown to the user
+// exactly once — required (no default) so a response missing it fails the
+// whole parse. client.ts feeds this to parseWithFallback<T | null>(..., null,
+// ...) and throws on null, same null+throw convention as verifyCode /
+// googleLogin: a silently blank secret would be worse than a loud failure.
+export const CreatePersonalAccessTokenResponseSchema: z.ZodType<CreatePersonalAccessTokenResponse> = PersonalAccessTokenSchema.extend({
+  token: z.string(),
+}).loose();
+
+// Chat sessions reuse ChatSessionSchema/EMPTY_CHAT_SESSION (defined above)
+// for create/update/pin/archive — same shape as GET /api/chat/sessions/:id.
+
+export const ChatPinnedAgentSchema = z.object({
+  agent_id: z.string(),
+  position: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_CHAT_PINNED_AGENT: ChatPinnedAgent = { agent_id: "", position: 0 };
+
+export const ChatPinnedAgentListSchema = z.array(ChatPinnedAgentSchema).catch([]).default([]);
+
+const PendingChatTaskItemSchema = z.object({
+  task_id: z.string().optional().default(""),
+  status: z.string().optional().default(""),
+  chat_session_id: z.string().optional().default(""),
+}).loose();
+
+export const PendingChatTasksResponseSchema = z.object({
+  tasks: z.array(PendingChatTaskItemSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_PENDING_CHAT_TASKS_RESPONSE: PendingChatTasksResponse = { tasks: [] };
+
+export const HasPendingChatTasksResponseSchema = z.object({
+  has_pending: z.boolean().catch(false).default(false),
+}).loose();
+
+export const EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE: HasPendingChatTasksResponse = { has_pending: false };
+
+// Issue attachments list reuses AttachmentResponseSchema (defined above,
+// next to getAttachment/uploadFile) — same lenient shape, just wrapped.
+export const AttachmentListSchema = z.array(AttachmentResponseSchema).catch([]).default([]);
+export const EMPTY_ATTACHMENT_LIST: Attachment[] = [];
+
+// Projects. Reuses the ProjectSchema defined above (next to
+// SearchProjectResultSchema) for the plain project CRUD endpoints.
+export const EMPTY_PROJECT: Project = {
+  id: "",
+  workspace_id: "",
+  title: "",
+  description: null,
+  icon: null,
+  status: "planned",
+  priority: "none",
+  lead_type: null,
+  lead_id: null,
+  start_date: null,
+  due_date: null,
+  created_at: "",
+  updated_at: "",
+  issue_count: 0,
+  done_count: 0,
+  resource_count: 0,
+};
+
+export const ListProjectsResponseSchema = z.object({
+  projects: z.array(ProjectSchema).catch([]).default([]),
+  total: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_LIST_PROJECTS_RESPONSE: ListProjectsResponse = { projects: [], total: 0 };
+
+export const ProjectResourceSchema = z.object({
+  id: z.string(),
+  project_id: z.string().optional().default(""),
+  workspace_id: z.string().optional().default(""),
+  resource_type: z.enum(["github_repo", "local_directory"]).catch("github_repo"),
+  resource_ref: z.record(z.string(), z.unknown()).catch({}).default({}),
+  label: z.string().nullable().optional().default(null),
+  position: z.number().optional().default(0),
+  created_at: z.string().optional().default(""),
+  created_by: z.string().nullable().optional().default(null),
+}).loose();
+
+export const EMPTY_PROJECT_RESOURCE: ProjectResource = {
+  id: "",
+  project_id: "",
+  workspace_id: "",
+  resource_type: "github_repo",
+  resource_ref: {},
+  label: null,
+  position: 0,
+  created_at: "",
+  created_by: null,
+};
+
+export const ListProjectResourcesResponseSchema = z.object({
+  resources: z.array(ProjectResourceSchema).catch([]).default([]),
+  total: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_LIST_PROJECT_RESOURCES_RESPONSE: ListProjectResourcesResponse = { resources: [], total: 0 };
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch D — pins, squad members, autopilots, VCS/Lark/Composio/Slack
+// integrations (client.ts lines ~6900-7900)
+// ---------------------------------------------------------------------------
+
+// Pins (GET/POST /api/pins). Lists fall back to []; createPin throws on a
+// malformed body rather than optimistically inserting a blank pin row into
+// the sidebar cache (same "create is a failed mutation" rule as createIssue).
+export const PinnedItemSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  user_id: z.string(),
+  item_type: z.string(),
+  item_id: z.string(),
+  position: z.number().default(0),
+  created_at: z.string(),
+}).loose();
+
+export const PinnedItemListSchema = z.array(PinnedItemSchema);
+export const EMPTY_PINNED_ITEM_LIST: PinnedItem[] = [];
+
+// Squad members. listSquadMembers/addSquadMember/updateSquadMemberRole mirror
+// the existing SquadSchema/getSquad convention already in this file (EMPTY_*
+// fallback, not throw) — every caller (squad-detail-page.tsx) discards the
+// mutation's return value and refetches the member list on success, so an
+// EMPTY_SQUAD_MEMBER placeholder is never rendered.
+export const SquadMemberSchema = z.object({
+  id: z.string(),
+  squad_id: z.string(),
+  member_type: z.string(),
+  member_id: z.string(),
+  role: z.string().default(""),
+  created_at: z.string(),
+}).loose();
+
+export const SquadMemberListSchema = z.array(SquadMemberSchema);
+export const EMPTY_SQUAD_MEMBER_LIST: SquadMember[] = [];
+export const EMPTY_SQUAD_MEMBER: SquadMember = {
+  id: "",
+  squad_id: "",
+  member_type: "agent",
+  member_id: "",
+  role: "",
+  created_at: "",
+};
+
+// Autopilots. AutopilotSchema mirrors the Autopilot interface (superset of
+// the private AutopilotListItemSchema used by listAutopilots, plus the
+// detail-only subscribers/pause_reason fields) so getAutopilot/createAutopilot
+// share one definition with GetAutopilotResponseSchema.
+const AutopilotSubscriberSchema = z.object({
+  user_type: z.string().default("member"),
+  user_id: z.string(),
+  created_at: z.string(),
+}).loose();
+
+export const AutopilotSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  title: z.string(),
+  description: z.string().nullable().default(null),
+  project_id: z.string().nullable().optional(),
+  assignee_type: z.string().default("agent"),
+  assignee_id: z.string(),
+  status: z.string(),
+  pause_reason: z.string().nullable().optional(),
+  execution_mode: z.string(),
+  batch_eligible: z.boolean().catch(false).optional(),
+  issue_title_template: z.string().nullable().default(null),
+  created_by_type: z.string(),
+  created_by_id: z.string(),
+  last_run_at: z.string().nullable().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+  trigger_kinds: z.array(z.string()).optional(),
+  next_run_at: z.string().nullable().optional(),
+  last_run_status: z.string().nullable().optional(),
+  subscribers: z.array(AutopilotSubscriberSchema).optional(),
+  can_write: z.boolean().optional(),
+  can_manage_access: z.boolean().optional(),
+}).loose();
+
+// Update is a patch response the caller never reads (useUpdateAutopilot's
+// optimistic cache write comes from the request variables, not the mutation
+// result) — falling back here must NOT throw, or a malformed-but-successful
+// server response would trip onError and roll back an edit that actually saved.
+export const EMPTY_AUTOPILOT: Autopilot = {
+  id: "",
+  workspace_id: "",
+  title: "",
+  description: null,
+  assignee_type: "agent",
+  assignee_id: "",
+  status: "paused",
+  execution_mode: "create_issue",
+  issue_title_template: null,
+  created_by_type: "",
+  created_by_id: "",
+  last_run_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+export const AutopilotCollaboratorSchema = z.object({
+  user_type: z.string().default("member"),
+  user_id: z.string(),
+  granted_by: z.string(),
+  created_at: z.string(),
+}).loose();
+
+export const AutopilotCollaboratorsResponseSchema = z.object({
+  collaborators: z.array(AutopilotCollaboratorSchema).default([]),
+}).loose();
+
+export const EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE: AutopilotCollaboratorsResponse = {
+  collaborators: [],
+};
+
+export const AutopilotTriggerSchema = z.object({
+  id: z.string(),
+  autopilot_id: z.string(),
+  kind: z.string(),
+  enabled: z.boolean().default(false),
+  cron_expression: z.string().nullable().default(null),
+  timezone: z.string().nullable().default(null),
+  next_run_at: z.string().nullable().default(null),
+  window_minutes: z.number().optional(),
+  webhook_token: z.string().nullable().default(null),
+  webhook_path: z.string().nullable().optional(),
+  webhook_url: z.string().nullable().optional(),
+  label: z.string().nullable().default(null),
+  event_filters: z.array(
+    z.object({ event: z.string(), actions: z.array(z.string()).optional() }).loose(),
+  ).nullable().optional(),
+  event_match_criteria: z.string().optional(),
+  provider: z.string().nullable().optional(),
+  has_signing_secret: z.boolean().optional(),
+  signing_secret_hint: z.string().nullable().optional(),
+  last_fired_at: z.string().nullable().default(null),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+// createAutopilotTrigger/updateAutopilotTrigger callers (autopilots/mutations.ts)
+// discard the mutation result and invalidate the autopilot detail query, so
+// EMPTY_AUTOPILOT_TRIGGER is safe here — never rendered directly. Secret-bearing
+// trigger writes (rotateAutopilotTriggerWebhookToken, setAutopilotTriggerSigningSecret)
+// are handled separately below with a throw, since those responses ARE read
+// directly by trigger-row.tsx / signing-secret-section.tsx.
+export const EMPTY_AUTOPILOT_TRIGGER: AutopilotTrigger = {
+  id: "",
+  autopilot_id: "",
+  kind: "schedule",
+  enabled: false,
+  cron_expression: null,
+  timezone: null,
+  next_run_at: null,
+  webhook_token: null,
+  label: null,
+  last_fired_at: null,
+  created_at: "",
+  updated_at: "",
+};
+
+// getAutopilot (GET /api/autopilots/:id). Read directly by autopilot-detail-page.tsx
+// (`const { autopilot, triggers } = data`); a malformed body must not render a
+// blank autopilot, so this throws on failure like getIssue — the page's
+// `if (!data)` branch already renders a "not found" state for that case.
+export const GetAutopilotResponseSchema = z.object({
+  autopilot: AutopilotSchema,
+  triggers: z.array(AutopilotTriggerSchema).default([]),
+  collaborators: z.array(AutopilotCollaboratorSchema).optional(),
+}).loose();
+
+export const ListAutopilotRunsResponseSchema = z.object({
+  runs: z.array(AutopilotRunSchema).default([]),
+  total: z.number().default(0),
+}).loose();
+
+export const EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE: ListAutopilotRunsResponse = {
+  runs: [],
+  total: 0,
+};
+
+// VCS integration (Forgejo/Gitea/GitLab). webhook_url/webhook_path are
+// legitimately empty when the server has no public URL configured (see
+// VCSConnection doc comment), so they default rather than fail the parse.
+export const VCSConnectionSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  provider: z.string(),
+  instance_url: z.string(),
+  account_login: z.string(),
+  webhook_url: z.string().default(""),
+  webhook_path: z.string().default(""),
+  created_at: z.string(),
+}).loose();
+
+export const ListVCSConnectionsResponseSchema = z.object({
+  connections: z.array(VCSConnectionSchema).default([]),
+  available: z.boolean().default(true),
+  configured: z.boolean().default(false),
+  can_manage: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_LIST_VCS_CONNECTIONS_RESPONSE: ListVCSConnectionsResponse = {
+  connections: [],
+  available: true,
+  configured: false,
+  can_manage: false,
+};
+
+// connectVCS / rotateVCSWebhook return the one-time plaintext webhook_secret
+// (never retrievable afterwards) directly rendered by vcs-tab.tsx. No
+// EMPTY_* fallback: an unreadable response must throw rather than hand the
+// UI an invented empty secret.
+export const ConnectVCSResponseSchema = VCSConnectionSchema.extend({
+  webhook_secret: z.string(),
+});
+
+// Lark integration.
+export const LarkInstallationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  agent_id: z.string(),
+  app_id: z.string(),
+  tenant_key: z.string().nullable().optional(),
+  bot_open_id: z.string(),
+  installer_user_id: z.string(),
+  status: z.string(),
+  region: z.string().optional(),
+  installed_at: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const ListLarkInstallationsResponseSchema = z.object({
+  installations: z.array(LarkInstallationSchema).default([]),
+  configured: z.boolean().default(false),
+  install_supported: z.boolean().optional(),
+}).loose();
+
+export const EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE: ListLarkInstallationsResponse = {
+  installations: [],
+  configured: false,
+};
+
+// beginLarkInstall / getLarkInstallStatus / redeemLarkBindingToken responses
+// are read directly (QR url, polled status, redemption ids) by lark-tab.tsx /
+// bind-page.tsx. No EMPTY_* fallback: throw on a malformed body rather than
+// invent an empty QR url or a false "success".
+export const BeginLarkInstallResponseSchema = z.object({
+  session_id: z.string(),
+  qr_code_url: z.string(),
+  expires_in_seconds: z.number(),
+  poll_interval_seconds: z.number(),
+}).loose();
+
+export const LarkInstallStatusResponseSchema = z.object({
+  status: z.string(),
+  installation_id: z.string().optional(),
+  error_reason: z.string().optional(),
+  error_message: z.string().optional(),
+}).loose();
+
+export const RedeemLarkBindingTokenResponseSchema = z.object({
+  workspace_id: z.string(),
+  installation_id: z.string(),
+  lark_open_id: z.string(),
+}).loose();
+
+// Composio integration. Toolkit/connection lists fall back to []; the connect
+// redirect_url is navigated to directly (`window.location.href = redirect_url`)
+// so beginComposioConnect throws rather than invent an empty redirect target.
+export const ComposioToolkitSchema = z.object({
+  slug: z.string(),
+  name: z.string(),
+  logo: z.string().optional(),
+  category: z.string().optional(),
+  connectable: z.boolean().default(false),
+}).loose();
+
+export const ComposioToolkitListSchema = z.array(ComposioToolkitSchema);
+export const EMPTY_COMPOSIO_TOOLKIT_LIST: ComposioToolkit[] = [];
+
+export const ComposioConnectionSchema = z.object({
+  id: z.string(),
+  toolkit_slug: z.string(),
+  status: z.string(),
+  connected_at: z.string(),
+  last_used_at: z.string().nullable().optional(),
+}).loose();
+
+export const ComposioConnectionListSchema = z.array(ComposioConnectionSchema);
+export const EMPTY_COMPOSIO_CONNECTION_LIST: ComposioConnection[] = [];
+
+export const ComposioConnectInitResponseSchema = z.object({
+  redirect_url: z.string(),
+}).loose();
+
+// Slack integration (bring-your-own-app install, MUL-3666).
+export const SlackInstallationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  agent_id: z.string(),
+  team_id: z.string(),
+  bot_user_id: z.string(),
+  installer_user_id: z.string(),
+  status: z.string(),
+  installed_at: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+}).loose();
+
+export const ListSlackInstallationsResponseSchema = z.object({
+  installations: z.array(SlackInstallationSchema).default([]),
+  configured: z.boolean().default(false),
+  install_supported: z.boolean().optional(),
+}).loose();
+
+export const EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE: ListSlackInstallationsResponse = {
+  installations: [],
+  configured: false,
+};
+
+// registerSlackBYO reuses SlackInstallationSchema and throws on a malformed
+// body (no EMPTY_* fallback) — listed alongside the other one-time/write-only
+// integration flows per JEF-321: never invent placeholder installation data.
+export const RedeemSlackBindingTokenResponseSchema = z.object({
+  workspace_id: z.string(),
+  installation_id: z.string(),
+  slack_user_id: z.string(),
+}).loose();
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch E — inbox bulk actions, issue batch-delete, agent task
+// cancellation, OIDC login completion, CLI token issuance, quick-create,
+// runtime unbind-and-delete (client-parse-guard.test.ts ALLOW_LIST closeout)
+// ---------------------------------------------------------------------------
+
+// markAllInboxRead / archiveAllInbox / archiveAllReadInbox / archiveCompletedInbox
+// (inbox/mutations.ts) all share this shape and are all "count is only used
+// to invalidate, never rendered" mutations — a malformed body must not throw,
+// or a bulk action that actually succeeded server-side would surface as a
+// failed mutation. Falls back to 0.
+export const InboxBulkActionResponseSchema = z.object({
+  count: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_INBOX_BULK_ACTION_RESPONSE: { count: number } = { count: 0 };
+
+// batchDeleteIssues (POST /api/issues/batch-delete). useBatchDeleteIssues
+// already removes the rows optimistically in onMutate and never reads the
+// mutation result, so a malformed body falls back to 0 rather than throwing
+// past a delete that already applied server-side.
+export const BatchDeleteIssuesResponseSchema = z.object({
+  deleted: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_BATCH_DELETE_ISSUES_RESPONSE: { deleted: number } = { deleted: 0 };
+
+// cancelAgentTasks (POST /api/agents/:id/cancel-tasks). agent-row-actions.tsx
+// reads `cancelled` only to word a toast ("no tasks to cancel" vs "cancelled
+// N tasks") inside its own try/catch, so a fallback of 0 degrades to the more
+// conservative message rather than throwing past a cancellation that already
+// applied.
+export const CancelAgentTasksResponseSchema = z.object({
+  cancelled: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_CANCEL_AGENT_TASKS_RESPONSE: { cancelled: number } = { cancelled: 0 };
+
+// completeOIDCLogin (POST /auth/oidc/callback). Extends LoginResponseSchema
+// (batch A, above) with the workspace to land on. Same "no EMPTY_* fallback"
+// rule as LoginResponseSchema: a malformed body must not look like a
+// successful login with nowhere to go — sso-callback-page.tsx's catch already
+// handles the throw.
+export const OIDCLoginResponseSchema = LoginResponseSchema.extend({
+  workspace_slug: z.string(),
+});
+
+// issueCliToken (POST /api/cli-token). login-page.tsx redirects the CLI
+// callback with the token directly; an invented empty token would silently
+// hand the CLI an unusable session instead of surfacing the existing
+// try/catch failure state. No EMPTY_* fallback — throw.
+export const IssueCliTokenResponseSchema = z.object({
+  token: z.string(),
+}).loose();
+
+// quickCreateIssue (POST /api/issues/quick-create). Same "create is a failed
+// mutation, not a safe-empty read" rule as createIssue/createComment above:
+// an invented empty task_id would report success on a modal submission that
+// actually failed to enqueue anything. No EMPTY_* fallback — throw.
+export const QuickCreateIssueResponseSchema = z.object({
+  task_id: z.string(),
+}).loose();
+
+// unbindAgentsAndDeleteRuntime (POST /api/runtimes/:id/unbind-agents-and-delete).
+// delete-runtime-dialog.tsx discards the result and invalidates on success, so
+// a malformed body falls back rather than throws past a delete that already
+// applied. `agents_archived` is the server's deprecated mirror of
+// `agents_unbound`, kept for installed clients (see client.ts doc comment).
+export const UnbindAgentsAndDeleteRuntimeResponseSchema = z.object({
+  status: z.string().catch(""),
+  agents_unbound: z.number().optional(),
+  agents_archived: z.number().optional(),
+  tasks_cancelled: z.number().catch(0).default(0),
+  autopilots_paused: z.number().optional(),
+}).loose();
+
+export const EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE: {
+  status: string;
+  agents_unbound?: number;
+  agents_archived?: number;
+  tasks_cancelled: number;
+  autopilots_paused?: number;
+} = { status: "", tasks_cancelled: 0 };

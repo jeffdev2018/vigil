@@ -39,6 +39,9 @@ type AgentMemoryResponse struct {
 	AgentID     string `json:"agent_id"`
 	Content     string `json:"content"`
 	Source      string `json:"source"`
+	// State is the governance state (JEF-269): "draft" for auto-extracted
+	// facts awaiting human review, "approved" for human-written or vetted ones.
+	State string `json:"state"`
 	// SourceTaskID is the run that wrote the fact; SourceIssueID is the issue
 	// that run worked on, resolved by the list query's join so the UI can link
 	// a run-sourced fact back to its origin. Both are null for manual facts,
@@ -69,6 +72,9 @@ type CreateAgentMemoryRequest struct {
 
 type UpdateAgentMemoryRequest struct {
 	Content *string `json:"content"`
+	// State is the human approval action (JEF-269): "approved" promotes a
+	// draft extraction fact, "draft" sends it back to review.
+	State *string `json:"state"`
 }
 
 func agentMemoryToResponse(m db.AgentMemory) AgentMemoryResponse {
@@ -78,6 +84,7 @@ func agentMemoryToResponse(m db.AgentMemory) AgentMemoryResponse {
 		AgentID:      uuidToString(m.AgentID),
 		Content:      m.Content,
 		Source:       m.Source,
+		State:        m.State,
 		SourceTaskID: uuidToPtr(m.SourceTaskID),
 		CreatedAt:    timestampToString(m.CreatedAt),
 		UpdatedAt:    timestampToString(m.UpdatedAt),
@@ -91,6 +98,7 @@ func agentMemoryRowToResponse(m db.ListAgentMemoriesRow) AgentMemoryResponse {
 		AgentID:       uuidToString(m.AgentID),
 		Content:       m.Content,
 		Source:        m.Source,
+		State:         m.State,
 		SourceTaskID:  uuidToPtr(m.SourceTaskID),
 		SourceIssueID: uuidToPtr(m.SourceIssueID),
 		CreatedAt:     timestampToString(m.CreatedAt),
@@ -135,7 +143,7 @@ func (h *Handler) ListAgentMemories(w http.ResponseWriter, r *http.Request) {
 		resp.Memories[i] = agentMemoryRowToResponse(m)
 	}
 	for i := len(memories) - 1; i >= 0; i-- {
-		facts = append(facts, service.AgentMemoryFact{Content: memories[i].Content, Source: memories[i].Source})
+		facts = append(facts, service.AgentMemoryFact{Content: memories[i].Content, Source: memories[i].Source, State: memories[i].State})
 	}
 	resp.BriefedCount = len(service.SelectBriefedAgentMemories(facts))
 	writeJSON(w, http.StatusOK, resp)
@@ -188,6 +196,8 @@ func (h *Handler) CreateAgentMemory(w http.ResponseWriter, r *http.Request) {
 		AgentID:     agent.ID,
 		Content:     content,
 		Source:      "manual",
+		// A human wrote this fact, so it is approved at write time (JEF-269).
+		State: "approved",
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create agent memory: "+err.Error())
@@ -245,27 +255,66 @@ func (h *Handler) UpdateAgentMemory(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Content == nil {
-		writeError(w, http.StatusBadRequest, "content is required")
+	if req.Content == nil && req.State == nil {
+		writeError(w, http.StatusBadRequest, "content or state is required")
 		return
 	}
-	content, ok := validateAgentMemoryContent(*req.Content)
-	if !ok {
-		writeError(w, http.StatusBadRequest, "content is required and must be at most 500 characters")
+	var content string
+	if req.Content != nil {
+		var ok bool
+		content, ok = validateAgentMemoryContent(*req.Content)
+		if !ok {
+			writeError(w, http.StatusBadRequest, "content is required and must be at most 500 characters")
+			return
+		}
+	}
+	if req.State != nil && *req.State != "draft" && *req.State != "approved" {
+		writeError(w, http.StatusBadRequest, "state must be \"draft\" or \"approved\"")
 		return
 	}
 
-	updated, err := h.Queries.UpdateAgentMemoryContent(r.Context(), db.UpdateAgentMemoryContentParams{
-		ID:          memory.ID,
-		WorkspaceID: agent.WorkspaceID,
-		Content:     pgtype.Text{String: content, Valid: true},
-	})
+	// Both edits land in one transaction so a content+state update is atomic.
+	tx, err := h.TxStarter.Begin(r.Context())
 	if err != nil {
-		if errors.Is(err, pgx.ErrNoRows) {
-			writeError(w, http.StatusNotFound, "agent memory not found")
+		writeError(w, http.StatusInternalServerError, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+	qtx := h.Queries.WithTx(tx)
+
+	updated := memory
+	if req.Content != nil {
+		updated, err = qtx.UpdateAgentMemoryContent(r.Context(), db.UpdateAgentMemoryContentParams{
+			ID:          memory.ID,
+			WorkspaceID: agent.WorkspaceID,
+			Content:     pgtype.Text{String: content, Valid: true},
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "agent memory not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to update agent memory: "+err.Error())
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "failed to update agent memory: "+err.Error())
+	}
+	if req.State != nil {
+		updated, err = qtx.SetAgentMemoryState(r.Context(), db.SetAgentMemoryStateParams{
+			ID:          memory.ID,
+			WorkspaceID: agent.WorkspaceID,
+			State:       *req.State,
+		})
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				writeError(w, http.StatusNotFound, "agent memory not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "failed to update agent memory: "+err.Error())
+			return
+		}
+	}
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to commit")
 		return
 	}
 

@@ -41,7 +41,7 @@
     "actions_title": "アクションアイテム",
     "actions_empty": "アクションアイテムは抽出されませんでした",
     "actions_open_triage": "トリアージで確認",
-    "actions_open_issue": "タスクを開く",
+    "actions_open_issue": "課題を開く",
     "transcript_title": "文字起こし",
     "transcript_empty": "まだ文字起こしはありません",
     "transcript_show": "文字起こしを表示",

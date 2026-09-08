@@ -302,6 +302,14 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed issue statuses: "+err.Error())
 		return
 	}
+	// Same transaction, same reason: the four work item types are what a
+	// property scope references and what the type picker offers, so a workspace
+	// must never be visible without them. Idempotent, so the read-path
+	// self-heal in ListIssueTypes stays a no-op here. (F30)
+	if err := qtx.SeedIssueTypeEntries(r.Context(), ws.ID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to seed issue types: "+err.Error())
+		return
+	}
 	// Org chart (K75): a new workspace starts as an owner network.
 	if err := h.seedDefaultOrg(r.Context(), qtx, ws.ID, parseUUID(userID)); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
@@ -1309,12 +1317,94 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceCIAutoFixRuns(ctx, requester.WorkspaceID) },
 		},
 		{
+			// project_review_config carries no FK; sweep it before the project
+			// rows it logically hangs off.
+			name: "purge project review configs",
+			run:  func() error { return qtx.PurgeWorkspaceProjectReviewConfigs(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge agent competency",
 			run:  func() error { return qtx.PurgeWorkspaceAgentDomainCompetency(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge agent duels",
 			run:  func() error { return qtx.PurgeWorkspaceAgentDuels(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Eval Lab (K24): run cases hang off runs, so they go first.
+			name: "purge eval run cases",
+			run:  func() error { return qtx.PurgeWorkspaceEvalRunCases(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval runs",
+			run:  func() error { return qtx.PurgeWorkspaceEvalRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval suites",
+			run:  func() error { return qtx.PurgeWorkspaceEvalSuites(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge eval cases",
+			run:  func() error { return qtx.PurgeWorkspaceEvalCases(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Linear Bridge (K21): comment links hang off the installation, so
+			// they go before it; issue links carry their own workspace_id.
+			name: "purge linear comment links",
+			run:  func() error { return qtx.PurgeWorkspaceLinearCommentLinks(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge linear issue links",
+			run:  func() error { return qtx.PurgeWorkspaceLinearIssueLinks(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge linear installations",
+			run:  func() error { return qtx.PurgeWorkspaceLinearInstallations(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Code health autopilot (K22).
+			name: "purge code health scans",
+			run:  func() error { return qtx.PurgeWorkspaceCodeHealthScans(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Agent context drift (K56).
+			name: "purge doc drift proposals",
+			run:  func() error { return qtx.PurgeWorkspaceDocDriftProposals(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Narrative PR walkthrough (F05).
+			name: "purge pr walkthroughs",
+			run:  func() error { return qtx.PurgeWorkspacePrWalkthroughs(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Review flags by severity (F06).
+			name: "purge review flags",
+			run:  func() error { return qtx.PurgeWorkspaceReviewFlags(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Shared semantic repo index (K47). Stores repository source text,
+			// so teardown must remove it with the rest of the workspace.
+			name: "purge repo index chunks",
+			run:  func() error { return qtx.PurgeWorkspaceRepoIndexChunks(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Cross-repo mirrors (K54). The mirror records go before the issues
+			// they point at; the links are pure configuration.
+			name: "purge issue mirrors",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceIssueMirrors(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceProjectMirrorLinks(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			// Data residency (K46): the declarations hang off this
+			// workspace's runtimes, so they go before agent_runtime does.
+			name: "purge runtime compliance profiles",
+			run: func() error {
+				return qtx.PurgeWorkspaceRuntimeComplianceProfiles(ctx, requester.WorkspaceID)
+			},
 		},
 		{
 			name: "purge contests",
@@ -1327,6 +1417,22 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge transfer runs",
 			run:  func() error { return qtx.PurgeWorkspaceTransferRuns(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge model keys",
+			run:  func() error { return qtx.PurgeWorkspaceModelKeys(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge sso, scim and project roles",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceSSOConnections(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				if err := qtx.PurgeWorkspaceScimTokens(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceProjectMemberRoles(ctx, requester.WorkspaceID)
+			},
 		},
 		{
 			name: "purge pipeline runs",
@@ -1343,6 +1449,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge traffic conflicts",
 			run:  func() error { return qtx.PurgeWorkspaceTrafficConflicts(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge run groups",
+			run:  func() error { return qtx.PurgeWorkspaceRunGroups(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge run limit events",
@@ -1375,6 +1485,44 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge approval gate events",
 			run:  func() error { return qtx.PurgeWorkspaceApprovalGateEvents(ctx, requester.WorkspaceID) },
+		},
+		{
+			// Grants first: they are keyed by rule_id, so deleting the rules
+			// before them would strand rows nothing can reach.
+			name: "purge issue transition rules",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceIssueTransitionRuleActors(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				if err := qtx.PurgeWorkspaceIssueTransitionRules(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceIssueTransitionRequests(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			// Verdicts first: they are the record of what the policies did, so
+			// dropping the policies before them would strand rows nothing can
+			// explain.
+			name: "purge critic policies",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceCriticVerdicts(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceCriticPolicies(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			// Links first: they are the credential pointing at the previews, so
+			// dropping the previews before them would leave codes that resolve
+			// to nothing for as long as the transaction runs.
+			name: "purge run previews",
+			run: func() error {
+				if err := qtx.PurgeWorkspaceTaskShareLinks(ctx, requester.WorkspaceID); err != nil {
+					return err
+				}
+				return qtx.PurgeWorkspaceRunPreviews(ctx, requester.WorkspaceID)
+			},
 		},
 		{
 			name: "purge trust mode changes",
@@ -1426,6 +1574,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceIssueDecisions(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete epic artifacts",
+			run:  func() error { return qtx.DeleteWorkspaceEpicArtifacts(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete chat messages",
 			run:  func() error { return qtx.DeleteWorkspaceChatMessages(ctx, requester.WorkspaceID) },
 		},
@@ -1452,6 +1604,13 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "delete watchdogs",
 			run:  func() error { return qtx.DeleteWorkspaceWatchdogs(ctx, requester.WorkspaceID) },
+		},
+		{
+			// F09: before the runs they target. Nothing outside the workspace
+			// reads them, and a pending one names a branch in a repository this
+			// teardown has no say over anyway.
+			name: "delete worktree revert requests",
+			run:  func() error { return qtx.DeleteWorkspaceWorktreeRevertRequests(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete comments",
@@ -1487,6 +1646,28 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run: func() error {
 				return qtx.DeleteIssueStatusEntriesForWorkspace(ctx, requester.WorkspaceID)
 			},
+		},
+		{
+			// issue_type and issue_property_type carry no foreign key by
+			// project rule, so their rows are swept explicitly. After the issue
+			// deletes, so no issue row outlives the catalogue its type key
+			// resolves against. (F30)
+			name: "delete issue types",
+			run: func() error {
+				return qtx.DeleteIssueTypeEntriesForWorkspace(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			name: "delete issue property type scopes",
+			run: func() error {
+				return qtx.DeleteIssuePropertyTypesForWorkspace(ctx, requester.WorkspaceID)
+			},
+		},
+		{
+			// insight_widget / insight_query_log carry no FK; both are keyed
+			// on workspace_id and sweep in one statement. (F27)
+			name: "delete insights",
+			run:  func() error { return qtx.DeleteWorkspaceInsights(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "delete autopilot children",

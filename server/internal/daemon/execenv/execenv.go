@@ -68,6 +68,7 @@ type OrgContextForEnv struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
 	Deny           []string `json:"deny,omitempty"`
@@ -85,6 +86,29 @@ type WorkspaceNoteForEnv struct {
 	Pinned  bool     `json:"pinned,omitempty"`
 	Source  string   `json:"source,omitempty"`
 	Updated string   `json:"updated_at,omitempty"`
+}
+
+// RepoIndexHintForEnv is one hit from the workspace's shared repo index (K47)
+// as the run receives it. It is the wire shape too (json tags mirror
+// handler.RepoIndexHintContext), so the daemon decodes straight into it.
+type RepoIndexHintForEnv struct {
+	RepoIdentifier string  `json:"repo_identifier"`
+	FilePath       string  `json:"file_path"`
+	Symbol         string  `json:"symbol,omitempty"`
+	StartLine      int     `json:"start_line"`
+	EndLine        int     `json:"end_line"`
+	Snippet        string  `json:"snippet"`
+	Score          float64 `json:"score"`
+	Stale          bool    `json:"stale,omitempty"`
+}
+
+// AgentMemoryForEnv is one durable agent memory fact as the brief renders it:
+// the fact text plus its governance state (JEF-269). State values are "draft"
+// and "approved"; an empty state (a pre-governance daemon or caller) is
+// treated as approved by writeAgentMemory.
+type AgentMemoryForEnv struct {
+	Content string
+	State   string
 }
 
 // PrepareParams holds all inputs needed to set up an execution environment.
@@ -107,7 +131,11 @@ type PrepareParams struct {
 	// Profile is the daemon's profile name (empty = default). It namespaces the
 	// per-issue Codex session store so a second profile-daemon sharing the same
 	// ~/.codex cannot see or GC this daemon's stores (MUL-4424).
-	Profile      string
+	Profile string
+	// ShellHook registers the PreToolUse hook that decides this run's command
+	// allowlist. Nil when the run declares none, or when the provider has no
+	// hook Multica knows how to register.
+	ShellHook    *ClaudeShellHook
 	Provider     string // agent provider (determines runtime config and skill injection paths)
 	CodexVersion string // detected Codex CLI version (only used when Provider == "codex")
 	OpenclawBin  string // resolved openclaw CLI path (only used when Provider == "openclaw"); empty = look up on PATH
@@ -209,14 +237,31 @@ type TaskContextForEnv struct {
 	// AgentMemories are the agent's durable learned facts (JEF-236), rendered
 	// as the brief's Memory section. They are per-agent stable state (they
 	// change only between runs, never mid-run), so unlike per-turn values they
-	// belong in the brief rather than the per-turn prompt.
-	AgentMemories []string
+	// belong in the brief rather than the per-turn prompt. Each fact carries
+	// its governance state (JEF-269): approved facts list under the Memory
+	// heading, drafts apart under an "unverified" sub-heading.
+	AgentMemories []AgentMemoryForEnv
 	// WorkspaceNotes are the workspace Brain notes injected into this run:
 	// every pinned note plus the most recently updated ones. They are written
 	// as files under .multica/knowledge/ and announced by the brief's
 	// Workspace Knowledge section. Workspace-scoped, so unlike AgentMemories
 	// they are shared by every agent in the workspace.
-	WorkspaceNotes        []WorkspaceNoteForEnv
+	WorkspaceNotes []WorkspaceNoteForEnv
+	// AutopilotMemory is the execution memory of the daemon that started this
+	// run (F24 / JEF-15): what a previous run of the SAME autopilot left for
+	// the next one. Autopilot-scoped, so unlike AgentMemories it never
+	// follows the agent into another daemon's run. Rendered under a heading
+	// that states it is data the run reads, never instructions it obeys —
+	// unlike agent memory, a run writes this file itself, so a compromised or
+	// merely confused run could otherwise escalate its own notes into orders
+	// for every run that follows. Empty renders the brief byte-identical.
+	AutopilotMemory string
+	// RepoIndexHints are the shared repo index's best matches for this issue
+	// (K47), already ranked and capped by the server. They are ORIENTATION: the
+	// section they render tells the run to open the real file before editing,
+	// because a chunk can be older than the working tree. Empty — including on
+	// servers that never send the field — renders the brief byte-identical.
+	RepoIndexHints        []RepoIndexHintForEnv
 	AgentSkills           []SkillContextForEnv
 	DisabledRuntimeSkills []RuntimeSkillRefForEnv
 	Repos                 []RepoContextForEnv     // workspace repos available for checkout
@@ -372,6 +417,11 @@ type Environment struct {
 	// ClaudeSettingsPath is a task-local --settings JSON file that applies
 	// disabled runtime-skill policy without mutating the user's Claude config.
 	ClaudeSettingsPath string
+	// ClaudeHookMarkerPath is the file the PreToolUse hook touches. Empty when
+	// no hook was registered. Its absence after a run that declared an
+	// allowlist means the hook never ran, which is not the same as a run that
+	// executed no shell command — and only one of those enforced anything.
+	ClaudeHookMarkerPath string
 	// OpenclawConfigPath is the path to the per-task synthesized OpenClaw
 	// config (set only for openclaw provider). The daemon exports this as
 	// OPENCLAW_CONFIG_PATH on the openclaw subprocess so its native skill
@@ -718,11 +768,15 @@ func Prepare(params PrepareParams, logger *slog.Logger) (*Environment, error) {
 	}
 
 	if params.Provider == "claude" {
-		settingsPath, err := prepareClaudeSkillSettings(envRoot, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills)
+		hook := claudeShellHookFor(envRoot, params.ShellHook)
+		settingsPath, err := prepareClaudeSkillSettings(envRoot, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills, hook)
 		if err != nil {
 			return nil, fmt.Errorf("execenv: prepare claude skill settings: %w", err)
 		}
 		env.ClaudeSettingsPath = settingsPath
+		if hook != nil && settingsPath != "" {
+			env.ClaudeHookMarkerPath = hook.MarkerPath
+		}
 	}
 
 	// For Hermes, redirect HERMES_HOME to a per-task compatibility overlay ONLY
@@ -831,7 +885,12 @@ type ReuseParams struct {
 	WorkspacesRoot string
 	WorkDir        string
 	Provider       string
-	CodexVersion   string // only used when Provider == "codex"
+	// ShellHook registers this run's PreToolUse command gate, same contract as
+	// PrepareParams.ShellHook. A reused environment re-registers it: the
+	// settings file is rewritten on reuse, so leaving it out would silently
+	// drop the gate on the second task of a session.
+	ShellHook    *ClaudeShellHook
+	CodexVersion string // only used when Provider == "codex"
 	// ResumeSessionID is the prior Codex thread/session ID this reused task
 	// intends to resume, when any. Only consulted when Provider == "codex" and
 	// only used while migrating a legacy per-task home whose sessions/ still
@@ -1000,11 +1059,15 @@ func Reuse(params ReuseParams, logger *slog.Logger) *Environment {
 	}
 
 	if params.Provider == "claude" && env.RootDir != "" {
-		settingsPath, err := prepareClaudeSkillSettings(env.RootDir, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills)
+		hook := claudeShellHookFor(env.RootDir, params.ShellHook)
+		settingsPath, err := prepareClaudeSkillSettings(env.RootDir, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills, hook)
 		if err != nil {
 			logger.Warn("execenv: refresh claude skill settings failed", "error", err)
 		} else {
 			env.ClaudeSettingsPath = settingsPath
+			if hook != nil && settingsPath != "" {
+				env.ClaudeHookMarkerPath = hook.MarkerPath
+			}
 		}
 	}
 

@@ -39,6 +39,7 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   issue_subscribed: "Subscribed",
   unassigned: "Unassigned",
   assignee_changed: "Reassigned",
+  delegate_assigned: "Delegated",
   status_changed: "Status changed",
   priority_changed: "Priority changed",
   start_date_changed: "Start date changed",
@@ -67,10 +68,20 @@ const TYPE_LABEL: Record<InboxItemType, string> = {
   budget_exceeded: "Budget exceeded",
   postmortem_ready: "Postmortem ready",
   triage_stale: "Triage is stalling",
+  transition_approval_requested: "Approval needed",
+  critic_degraded: "Adversarial review skipped",
+  critic_budget: "Adversarial review stopped",
+  cycle_rollover_orphaned: "Work left a cycle with nowhere to go",
   watchdog_escalation: "Watchdog escalation",
+  code_health_report: "Code health report",
+  doc_drift_report: "Agent context drift",
   contest_ready: "Contest ready for your verdict",
   org_alert: "Organisation alert",
   mcp_alert: "MCP gateway alert",
+  model_key_alert: "Model key retired",
+  routing_alert: "Agent cannot be routed",
+  residency_policy_blocked: "Blocked by data residency",
+  linear_alert: "Linear is disconnected",
   decision_auto_decided: "Decided for you",
 };
 
@@ -139,6 +150,15 @@ export function InboxDetailLabel({
             details.new_assignee_id,
           );
           return `Assigned to ${name}`;
+        }
+        return TYPE_LABEL[item.type];
+      case "delegate_assigned":
+        if (details.new_delegate_id) {
+          const name = getName(
+            (details.new_delegate_type ?? "member") as "member" | "agent",
+            details.new_delegate_id,
+          );
+          return `Delegated to ${name}`;
         }
         return TYPE_LABEL[item.type];
       case "unassigned":

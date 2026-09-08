@@ -24,15 +24,18 @@ import {
   dashboardFailuresDailyOptions,
   dashboardFailuresByAgentOptions,
   routingStatsOptions,
+  workflowStatsOptions,
 } from "@multica/core/dashboard";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { useViewingTimezone } from "../../common/use-viewing-timezone";
 import { PAGE_GUTTER } from "../../layout/page-header";
 import { CollectionPageHeader } from "../../layout/collection-page";
 import { KpiCard } from "../../runtimes/components/shared";
+import { AgentRoiCard } from "./agent-roi-card";
 import { CostPerDeliverableCard } from "./cost-per-deliverable-card";
 import { AgentScorecardsCard } from "./agent-scorecards-card";
 import { AutopilotQuotaCard } from "./autopilot-quota-card";
+import { InsightsTab } from "../../insights";
 import { useNavigation } from "../../navigation";
 import {
   addDaysIso,
@@ -71,6 +74,7 @@ import { ProjectFilter, TimeRangeFilter } from "./dashboard-filters";
 import { UsageTrendCard } from "./usage-trend-card";
 import { Leaderboard } from "./leaderboard";
 import { RoutingBenchmarksCard } from "./routing-benchmarks-card";
+import { WorkflowOutcomesCard } from "./workflow-outcomes-card";
 import { ErrorsTab } from "./errors-tab";
 import { cn } from "@multica/ui/lib/utils";
 import { BudgetNotice } from "./budget-notice";
@@ -87,9 +91,11 @@ const EMPTY_FAILURE_BY_AGENT: import("@multica/core/types").DashboardFailureByAg
   [];
 const EMPTY_ROUTING_STATS_ROWS: import("@multica/core/types").RuntimeRoutingStats[] =
   [];
+const EMPTY_WORKFLOW_STATS_ROWS: import("@multica/core/types").WorkflowStats[] =
+  [];
 const EMPTY_AGENTS: Agent[] = [];
 
-type DashboardTab = "usage" | "errors";
+type DashboardTab = "usage" | "errors" | "insights";
 const TAB_QUERY_KEY = "tab";
 const DEFAULT_TAB: DashboardTab = "usage";
 
@@ -170,7 +176,8 @@ export function DashboardPage() {
   // flipping tabs does not stack up history entries. An unknown ?tab= value
   // falls back to Usage rather than rendering nothing.
   const tabFromUrl = navigation.searchParams.get(TAB_QUERY_KEY);
-  const tab: DashboardTab = tabFromUrl === "errors" ? "errors" : DEFAULT_TAB;
+  const tab: DashboardTab =
+    tabFromUrl === "errors" || tabFromUrl === "insights" ? tabFromUrl : DEFAULT_TAB;
   const handleTabChange = (next: string) => {
     const params = new URLSearchParams(navigation.searchParams);
     if (next === DEFAULT_TAB) params.delete(TAB_QUERY_KEY);
@@ -241,6 +248,9 @@ export function DashboardPage() {
   // Smart-router benchmarks (JEF-237): fixed 90-day server-side window, so
   // this query deliberately ignores the page's days/project/tz scope.
   const routingStatsQuery = useQuery(routingStatsOptions(wsId));
+  // Workflow-selector outcomes (JEF-273): same fixed 90-day server-side
+  // window, same deliberate independence from the page scope.
+  const workflowStatsQuery = useQuery(workflowStatsOptions(wsId));
 
   const dailyUsage = dailyQuery.data ?? EMPTY_DAILY;
   const byAgentUsage = byAgentQuery.data ?? EMPTY_BY_AGENT;
@@ -249,6 +259,7 @@ export function DashboardPage() {
   const failureDailyRows = failuresDailyQuery.data ?? EMPTY_FAILURE_DAILY;
   const failureByAgentRows = failuresByAgentQuery.data ?? EMPTY_FAILURE_BY_AGENT;
   const routingStats = routingStatsQuery.data?.rows ?? EMPTY_ROUTING_STATS_ROWS;
+  const workflowStats = workflowStatsQuery.data?.rows ?? EMPTY_WORKFLOW_STATS_ROWS;
 
   const queryClient = useQueryClient();
   // "Refreshing" covers any of the six rollups being in flight, whichever
@@ -524,6 +535,12 @@ export function DashboardPage() {
             >
               {t(($) => $.errors.title)}
             </TabsTrigger>
+            <TabsTrigger
+              value="insights"
+              className="h-full rounded-none px-2.5 text-label group-data-horizontal/tabs:after:bottom-0"
+            >
+              {t(($) => $.insights.title)}
+            </TabsTrigger>
           </TabsList>
           <div className="flex shrink-0 items-center gap-2">
             <TimeRangeFilter days={days} onChange={setDays} />
@@ -614,6 +631,10 @@ export function DashboardPage() {
                     merged PR cost, against the previous period. */}
                 <CostPerDeliverableCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
 
+                {/* ROI per agent (JEF-252): the same money, split per agent,
+                    so the buy/keep decision is one line. */}
+                <AgentRoiCard wsId={wsId} days={days} projectId={projectId} tz={viewTZ} locales={locales} />
+
                 {/* Scorecards (K25): which agent works, one row per agent. */}
                 <AgentScorecardsCard wsId={wsId} days={days} />
 
@@ -651,6 +672,13 @@ export function DashboardPage() {
               loading={routingStatsQuery.isLoading}
               lessThanMinuteLabel={lessThanMinuteLabel}
             />
+            {/* Same placement rationale as the benchmarks card: the card
+                carries its own loading and empty states. */}
+            <WorkflowOutcomesCard
+              rows={workflowStats}
+              loading={workflowStatsQuery.isLoading}
+              lessThanMinuteLabel={lessThanMinuteLabel}
+            />
           </TabsContent>
 
           <TabsContent value="errors">
@@ -670,6 +698,13 @@ export function DashboardPage() {
                 locales={locales}
               />
             )}
+          </TabsContent>
+
+          {/* Insights (F27). Mounted only on its own tab: every pinned card
+              issues its own /run, so prefetching them all would cost a query
+              per widget for a tab nobody opened. */}
+          <TabsContent value="insights">
+            {tab === "insights" ? <InsightsTab wsId={wsId} /> : null}
           </TabsContent>
         </div>
       </div>

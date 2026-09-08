@@ -1,0 +1,40 @@
+{
+  "section": {
+    "title": "对抗式评审",
+    "description": "由另一家供应商的评审代理复核该代理交付的每一次变更，并记录结论。",
+    "description_squad": "由另一家供应商的评审代理复核该小队交付的每一次变更，并记录结论。",
+    "enabled": "启用对抗式评审",
+    "critic": "评审代理",
+    "critic_placeholder": "选择代理",
+    "require_distinct_provider": "要求不同供应商",
+    "require_distinct_provider_hint": "若没有其他供应商的评审代理，则跳过评审并如实记录。",
+    "blocking": "在得出结论前保留该议题",
+    "blocking_hint": "议题会停在评审中。成员仍可随时移动它。",
+    "max_rounds": "轮次",
+    "max_rounds_hint": "被拦下的变更最多可返工几次。",
+    "budget": "成本预算",
+    "budget_placeholder": "不限",
+    "budget_hint": "该议题的累计花费（美元）。超出后循环停止。",
+    "save": "保存",
+    "saving": "保存中…",
+    "error_critic_required": "启用对抗式评审前请先选择评审代理。",
+    "error_critic_is_author": "代理不能评审自己。",
+    "error_save": "无法保存该策略。"
+  },
+  "card": {
+    "title": "对抗式评审",
+    "round": "第 {{round}} 轮",
+    "verdict_pass": "通过",
+    "verdict_concerns": "有保留",
+    "verdict_block": "已拦下",
+    "reason_no_distinct_provider": "已跳过：没有其他供应商的评审代理",
+    "reason_max_rounds": "已停止：达到轮次上限",
+    "reason_max_cost": "已停止：达到成本上限",
+    "reason_no_verdict": "评审代理结束时没有给出可读的结论",
+    "findings": "问题（{{count}}）",
+    "hide_findings": "隐藏问题",
+    "cost": "成本 {{cost}}",
+    "open_run": "打开评审运行",
+    "empty": "该议题还没有对抗式评审。"
+  }
+}

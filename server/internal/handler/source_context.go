@@ -665,6 +665,11 @@ func (h *Handler) createManualCommentSubIssue(w http.ResponseWriter, r *http.Req
 		}
 		projectID = parsed
 	}
+	// Transition rules (F28): same gate as POST /issues — a sub-issue filed
+	// straight into a governed category goes through the rules too.
+	if !h.transitionAllowsCreate(w, r, workspaceID, projectID, status) {
+		return errSourceContextResponseWritten
+	}
 	attachmentIDs, ok := parseUUIDSliceOrBadRequest(w, input.AttachmentIDs, "attachment_ids")
 	if !ok {
 		return errSourceContextResponseWritten

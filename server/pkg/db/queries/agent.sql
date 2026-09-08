@@ -321,7 +321,8 @@ INSERT INTO agent_task_queue (
     coalesced_comment_ids, trigger_summary, force_fresh_session, is_leader_task, handoff_note,
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
-    task_class, routing,
+    task_class, routing, a2a_depth,
+    run_group_id, model_override,
     id
 )
 SELECT
@@ -332,11 +333,21 @@ SELECT
     COALESCE(sqlc.narg('is_leader_task')::boolean, FALSE),
     sqlc.narg(handoff_note),
     sqlc.narg(squad_id),
-    CASE
-        WHEN COALESCE(sqlc.narg('head_sha')::text, '') <> ''
-        THEN jsonb_build_object('head_sha', sqlc.narg('head_sha')::text)
-        ELSE NULL
-    END,
+    -- Cascade escalation (JEF-272): a below-threshold run re-enqueues on a
+    -- stronger runtime and records {from_task_id, reason, attempt,
+    -- from_runtime_id} under context.escalation. strip_nulls drops both keys
+    -- when absent and NULLIF keeps the column NULL in that case, preserving
+    -- the pre-TEN-356 behavior for ordinary enqueues.
+    -- Workflow selector (JEF-273): every issue task carries its workflow in
+    -- the context stamp ('single' when the caller passes nothing, so the
+    -- historical derivation never has to guess), and a critique workflow adds
+    -- force_review for the cross-review trigger.
+    NULLIF(jsonb_strip_nulls(jsonb_build_object(
+        'head_sha', NULLIF(COALESCE(sqlc.narg('head_sha')::text, ''), ''),
+        'escalation', sqlc.narg('escalation')::jsonb,
+        'workflow', COALESCE(NULLIF(sqlc.narg('workflow')::text, ''), 'single'),
+        'force_review', CASE WHEN sqlc.narg('force_review')::boolean IS TRUE THEN TRUE ELSE NULL END
+    ))::text, '{}')::jsonb,
     sqlc.narg(originator_user_id),
     sqlc.narg(accountable_user_id),
     sqlc.narg(runtime_mcp_overlay),
@@ -349,6 +360,13 @@ SELECT
     sqlc.narg(trigger_evidence_ref_id),
     COALESCE(sqlc.narg('task_class')::text, 'general'),
     sqlc.narg('routing')::jsonb,
+    -- Agent-to-agent hop distance (F19). 0 unless the trigger comment carried
+    -- an a2a_intent, in which case the caller passes parent.a2a_depth + 1.
+    COALESCE(sqlc.narg('a2a_depth')::integer, 0),
+    -- Racing attempts (F11). Both NULL for every run outside a group, which is
+    -- what keeps this INSERT's behaviour identical to its pre-F11 self.
+    sqlc.narg('run_group_id')::uuid,
+    NULLIF(COALESCE(sqlc.narg('model_override')::text, ''), ''),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -380,6 +398,8 @@ SELECT
     sqlc.narg(squad_id),
     jsonb_strip_nulls(jsonb_build_object(
         'head_sha', NULLIF(COALESCE(sqlc.narg('head_sha')::text, ''), ''),
+        'workflow', COALESCE(NULLIF(sqlc.narg('workflow')::text, ''), 'single'),
+        'force_review', CASE WHEN sqlc.narg('force_review')::boolean IS TRUE THEN TRUE ELSE NULL END,
         'channel_issue_media_pending', TRUE
     )),
     sqlc.narg(originator_user_id),
@@ -592,7 +612,7 @@ INSERT INTO agent_task_queue (
     trigger_evidence_kind, trigger_evidence_ref_id, retry_of_task_id,
     chat_input_task_id, fire_at,
     channel_context_revision, failover_history, checkpoint_attempts, last_checkpoint_seq,
-    task_class, routing, id
+    task_class, routing, run_group_id, model_override, id
 )
 SELECT
     p.agent_id, COALESCE(sqlc.narg('runtime_id')::uuid, p.runtime_id), p.issue_id, p.chat_session_id, p.autopilot_run_id,
@@ -625,13 +645,24 @@ SELECT
     -- the runtime_id arg above), and the child carries the parent's session_id /
     -- work_dir, which only resume on the runtime that produced them.
     p.task_class, p.routing,
+    -- Racing attempts (F11): a retry is the SAME attempt trying again, so it
+    -- stays inside its group and keeps its model. Dropping either would quietly
+    -- take that attempt out of the race — its diff would never reach the
+    -- comparison, and it would be serialized against its own siblings.
+    p.run_group_id, p.model_override,
     -- Named new_task_id, not id: $1 above is the PARENT task's id.
     COALESCE(sqlc.narg('new_task_id')::uuid, gen_random_uuid())
 FROM agent_task_queue p
 WHERE p.id = $1
   AND lock_task_owner_rows(p.agent_id, p.issue_id, p.runtime_id)
-ON CONFLICT (issue_id, agent_id) WHERE status IN ('queued', 'dispatched')
-       OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+-- Arbiter for idx_one_pending_task_per_issue_agent_v3 (migration 835). The
+-- run_group_id predicate is part of the index and so must be part of the
+-- arbiter: without it PostgreSQL finds no matching index and raises 42P10.
+-- Grouped rows have no pending-slot rule to conflict with, which is why this
+-- clause simply does not apply to them.
+ON CONFLICT (issue_id, agent_id) WHERE run_group_id IS NULL
+       AND (status IN ('queued', 'dispatched')
+            OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true'))
 DO NOTHING
 RETURNING *;
 
@@ -797,6 +828,9 @@ WHERE atq.id = $1 AND a.workspace_id = $2;
 -- "any other quick-create-shaped task" (all four FKs NULL) for the same agent —
 -- otherwise a user mashing the create button could fire concurrent quick-creates
 -- whose completion lookup would race over "most recent issue by this agent".
+-- Racing attempts (F11) are the one documented exception: two rows of the same
+-- run_group are meant to execute together, so they do not exclude each other.
+-- Everything outside a group is serialized exactly as it was.
 UPDATE agent_task_queue
 SET status = 'dispatched',
     dispatched_at = now(),
@@ -817,7 +851,20 @@ WHERE id = (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark'
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -854,8 +901,29 @@ WHERE id = (
                 AND active.autopilot_run_id IS NULL
               )
             )
+            -- Racing attempts (F11): two runs of the SAME group are concurrent
+            -- by construction, so a sibling attempt is not a reason to hold
+            -- this one back. Everything else about the exclusion is unchanged.
+            --
+            -- Guarded on atq.run_group_id IS NOT NULL, which is false for every
+            -- row that exists today and for every run enqueued outside a group.
+            -- AND short-circuits to FALSE there whatever the right operand is,
+            -- so the conjunct is TRUE and the NOT EXISTS matches exactly the
+            -- rows it matched before F11 existed.
+            --
+            -- IS NOT DISTINCT FROM, not `=`: with `=`, a grouped candidate
+            -- compared against an UNGROUPED active run yields NULL, the
+            -- subquery row is not selected, and the exclusion silently
+            -- disappears — an attempt would run alongside an ordinary run of
+            -- the same agent on the same issue, which is the case this feature
+            -- must NOT relax. IS NOT DISTINCT FROM returns FALSE there, so the
+            -- exclusion holds; two runs of two DIFFERENT groups likewise.
+            AND NOT (atq.run_group_id IS NOT NULL AND active.run_group_id IS NOT DISTINCT FROM atq.run_group_id)
       )
-    ORDER BY atq.priority DESC, atq.created_at ASC, atq.id ASC
+    -- Off-peak batch lane (K45): a task the scheduler stamped 'batch' is
+    -- non-urgent autopilot work, so it is only served after every 'sync' task
+    -- this runtime could claim — ahead of priority, which orders WITHIN a lane.
+    ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC, atq.id ASC
     LIMIT 1
     FOR UPDATE SKIP LOCKED
 )
@@ -930,7 +998,20 @@ WHERE id = (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark'
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             AND (
                 r.visibility = 'public'
                 OR (
@@ -980,7 +1061,20 @@ WHERE id IN (
             -- Auto-routed agents (runtime_routing = 'auto', JEF-237) are the
             -- exception: the router stamps their task with the CHOSEN runtime,
             -- which legitimately differs from the bound fallback runtime.
-            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+            -- A benchmark replay (JEF-276) is stamped with the candidate
+            -- runtime it exists to measure, for the same reason: the pin IS
+            -- the experiment, so the agent's binding is not authority.
+            AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+                 OR atq.leg_role = 'benchmark'
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             AND (
                 r.visibility = 'public'
                 OR (
@@ -1817,6 +1911,25 @@ WHERE issue_id = $1 AND status IN ('queued', 'dispatched', 'running', 'waiting_l
 SELECT count(*) > 0 AS has_pending FROM agent_task_queue
 WHERE issue_id = $1 AND status IN ('queued', 'dispatched');
 
+-- name: CountA2ARunsForIssueSince :one
+-- Per-issue agent-to-agent budget (F19 / JEF-32): how many A2A-triggered runs
+-- this issue has accumulated since `since`.
+--
+-- A COUNTER, not a reservation. The autopilot quota machinery
+-- (autopilot_quota_period / autopilot_quota_reservation) was considered and
+-- rejected: its limits come from Cloud through entitlement.GateAutopilotRuns,
+-- its tables are keyed by (workspace_id, period_start, period_end) with no
+-- issue dimension, and there is nothing here to bill. A racing pair can both
+-- read 20 and both enqueue; the breaker is a circuit breaker on a runaway
+-- fan-out, and being off by one on the boundary costs nothing worth a lock.
+--
+-- a2a_depth > 0 is exactly the A2A subset and matches the partial index
+-- idx_agent_task_issue_a2a_created (migration 830).
+SELECT count(*) FROM agent_task_queue
+WHERE issue_id = $1
+  AND a2a_depth > 0
+  AND created_at >= sqlc.arg(since);
+
 -- name: HasPendingTaskForIssueAndAgent :one
 -- Returns true if a specific agent already has a queued or dispatched task
 -- for the given issue, or the explicitly-marked deferred task whose channel
@@ -2252,7 +2365,19 @@ WHERE atq.runtime_id = $1
       WHERE a.id = atq.agent_id
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
-        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+        -- A benchmark replay (JEF-276) is stamped with the candidate runtime
+        -- it exists to measure, for the same reason.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+             OR atq.leg_role = 'benchmark'
+             -- Runtime pool failover (K28): the owner listed this runtime in the
+             -- agent's pool, so a task moved there is where the owner said it
+             -- may run. Membership is checked per row — a runtime dropped from
+             -- the pool stops matching the moment the pool changes.
+             OR EXISTS (
+                 SELECT 1 FROM runtime_pool p
+                 WHERE p.id = a.runtime_pool_id
+                   AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+             ))
         AND (
             r.visibility = 'public'
             OR (
@@ -2265,7 +2390,9 @@ WHERE atq.runtime_id = $1
             )
         )
   )
-ORDER BY atq.priority DESC, atq.created_at ASC;
+-- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
+-- runtime walks matches the order the claim itself will honour.
+ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC;
 
 -- name: CancelSupersededDeferredRetriesForRuntimes :many
 -- Cancels deferred auto-retry rows that a newer active task has already
@@ -2382,7 +2509,19 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
       WHERE a.id = atq.agent_id
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
-        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto')
+        -- A benchmark replay (JEF-276) is stamped with the candidate runtime
+        -- it exists to measure, for the same reason.
+        AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
+             OR atq.leg_role = 'benchmark'
+             -- Runtime pool failover (K28): the owner listed this runtime in the
+             -- agent's pool, so a task moved there is where the owner said it
+             -- may run. Membership is checked per row — a runtime dropped from
+             -- the pool stops matching the moment the pool changes.
+             OR EXISTS (
+                 SELECT 1 FROM runtime_pool p
+                 WHERE p.id = a.runtime_pool_id
+                   AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+             ))
         AND (
             r.visibility = 'public'
             OR (
@@ -2395,7 +2534,43 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
             )
         )
   )
-ORDER BY atq.priority DESC, atq.created_at ASC;
+-- Same lane-first ordering as ClaimAgentTask (K45), so the candidate list a
+-- runtime walks matches the order the claim itself will honour.
+ORDER BY CASE atq.dispatch_lane WHEN 'sync' THEN 0 ELSE 1 END, atq.priority DESC, atq.created_at ASC;
+
+-- name: NextDeferredTaskFireAtForRuntimes :one
+-- Returns the next future deferred task for a daemon's authorized runtime set,
+-- or an eligible task that crossed fire_at during this claim. Overdue tasks
+-- whose runtime is offline/stale or that are blocked by an existing issue+agent
+-- occupant are omitted so they cannot cause a tight poll loop. Keep both fences
+-- in sync with PromoteDueDeferredTasksForRuntimes: a task that cannot be
+-- promoted must not advertise an immediate follow-up claim. The response
+-- converts the timestamp to a relative delay, avoiding any dependency on
+-- daemon/server clock synchronization.
+SELECT MIN(fire_at)::timestamptz
+FROM agent_task_queue t
+WHERE t.runtime_id = ANY(@runtime_ids::uuid[])
+  AND t.status = 'deferred'
+  AND EXISTS (
+    SELECT 1 FROM agent_runtime r
+    WHERE r.id = t.runtime_id
+      AND r.status = 'online'
+      AND COALESCE(r.last_seen_at, r.updated_at) >=
+          now() - make_interval(secs => @runtime_stale_secs::double precision)
+  )
+  AND (
+    t.fire_at > now()
+    OR NOT EXISTS (
+      SELECT 1 FROM agent_task_queue occupant
+      WHERE occupant.issue_id = t.issue_id
+        AND occupant.agent_id = t.agent_id
+        AND occupant.id <> t.id
+        AND (
+          occupant.status IN ('queued', 'dispatched')
+          OR (occupant.status = 'deferred' AND occupant.context->>'channel_issue_media_pending' = 'true')
+        )
+    )
+  );
 
 -- name: PromoteDueDeferredTasksForRuntimes :many
 -- Batch variant of PromoteDueDeferredTasksForRuntime (MUL-4257): promotes all
@@ -2791,3 +2966,93 @@ INSERT INTO agent (
     @owner_id, '', '{}'::jsonb, '[]'::jsonb, 'user', @system_key
 )
 RETURNING *;
+
+-- name: GetPendingTaskForIssueAndAgent :one
+-- Returns the task occupying the pending slot (the same predicate as
+-- idx_one_pending_task_per_issue_agent_v2). Used by the handoff coalescing
+-- path (JEF-241): when an interview answer / review rework / resume arrives
+-- while a run is already queued, its note merges into that task instead of
+-- failing the enqueue on the unique index.
+SELECT * FROM agent_task_queue
+WHERE issue_id = $1 AND agent_id = $2
+  AND (
+    status IN ('queued', 'dispatched')
+    OR (status = 'deferred' AND context->>'channel_issue_media_pending' = 'true')
+  );
+
+-- name: AppendTaskHandoffNote :one
+-- Appends a handoff note to the task's existing one (JEF-241 coalescing).
+-- The separator keeps successive notes readable as distinct blocks.
+UPDATE agent_task_queue
+SET handoff_note = CASE
+    WHEN handoff_note IS NULL OR handoff_note = '' THEN $2
+    ELSE handoff_note || E'\n\n---\n\n' || $2
+  END
+WHERE id = $1
+RETURNING *;
+
+-- name: StampTaskDispatchLane :exec
+-- Off-peak batch lane (K45). Moves a freshly enqueued task to the batch lane.
+-- Applied after enqueue rather than threaded through every Enqueue* entry
+-- point: the lane is an autopilot-scheduler decision, and only a task nobody
+-- has claimed yet may still change lanes — a running task's lane is history.
+UPDATE agent_task_queue
+SET dispatch_lane = @dispatch_lane
+WHERE id = @task_id
+  AND status = 'queued';
+
+-- name: GetTaskDispatchLanes :many
+-- Lanes for a page of tasks, so an autopilot run list can label its rows
+-- without one query per run.
+SELECT id, dispatch_lane FROM agent_task_queue
+WHERE id = ANY(@task_ids::uuid[]);
+
+-- name: RecordTaskTurnCheckpoint :one
+-- F09: pin what a worktree run delivered, and where it sits in its
+-- conversation.
+--
+-- Deliberately separate from CompleteAgentTask / FailAgentTask rather than two
+-- more columns on those UPDATEs. The checkpoint is an affordance, not part of
+-- the terminal transition: if this statement fails, the run is still correctly
+-- completed and the only loss is a revert button. Folding it into the terminal
+-- write would make a repo-side detail able to fail the report of work that
+-- actually happened.
+--
+-- turn_seq is assigned here because only the server can see the conversation's
+-- other runs. MAX+1 over the already-checkpointed turns of the same issue or
+-- chat session: a terminal report is written once per run, so the sequence is
+-- dense and monotonic without a counter of its own.
+UPDATE agent_task_queue
+SET checkpoint_sha = sqlc.arg('checkpoint_sha'),
+    turn_seq = (
+        SELECT COALESCE(MAX(q.turn_seq), 0) + 1
+        FROM agent_task_queue q
+        WHERE q.turn_seq IS NOT NULL
+          AND q.id <> agent_task_queue.id
+          AND (
+              (agent_task_queue.issue_id IS NOT NULL AND q.issue_id = agent_task_queue.issue_id)
+              OR (agent_task_queue.chat_session_id IS NOT NULL AND q.chat_session_id = agent_task_queue.chat_session_id)
+          )
+    )
+WHERE agent_task_queue.id = sqlc.arg('id') AND agent_task_queue.checkpoint_sha IS NULL
+RETURNING *;
+
+-- name: ListTaskTurnsAfter :many
+-- F09: the runs a revert to target_task_id would remove — every checkpointed
+-- turn of the same conversation that came after it.
+--
+-- Ordered newest-first so the caller deletes leaves before their ancestors when
+-- a turn was retried into a child task.
+SELECT * FROM agent_task_queue
+WHERE turn_seq IS NOT NULL
+  AND turn_seq > sqlc.arg('after_turn_seq')::int
+  AND (
+      (sqlc.narg('issue_id')::uuid IS NOT NULL AND issue_id = sqlc.narg('issue_id')::uuid)
+      OR (sqlc.narg('chat_session_id')::uuid IS NOT NULL AND chat_session_id = sqlc.narg('chat_session_id')::uuid)
+  )
+ORDER BY turn_seq DESC;
+
+-- name: DeleteAgentTasksByID :exec
+-- F09: drop the runs a revert removed. Their task_message rows follow through
+-- the FK inherited from migration 026; nothing new is added here.
+DELETE FROM agent_task_queue WHERE id = ANY(sqlc.arg('ids')::uuid[]);

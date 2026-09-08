@@ -68,6 +68,15 @@ type IssueStatusData struct {
 	Description string `json:"description,omitempty"`
 }
 
+// SandboxSpec is the claim payload's confinement request (K10). Mode is
+// "none" | "sandbox" | "container"; the daemon degrades it to what the
+// machine supports and reports the effective mode on StartTask.
+type SandboxSpec struct {
+	Mode         string   `json:"mode"`
+	Image        string   `json:"image,omitempty"`
+	AllowedHosts []string `json:"allowed_hosts,omitempty"`
+}
+
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
@@ -83,6 +92,27 @@ type Task struct {
 	// server of the run. Nil on a server too old to send it: the daemon then
 	// classifies each tool itself and caps it with the agent's trust dial.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// SensitiveTools (K05) is the workspace's pattern for the MCP tools that
+	// pause for a human, sent with the claim. Empty means the compiled
+	// default: a daemon serves several workspaces, so this cannot come from
+	// the daemon's own environment.
+	SensitiveTools string `json:"sensitive_tools,omitempty"`
+	// Sandbox (K10) is the confinement the server requested for this run.
+	// Nil or mode "none" runs the CLI directly on the host, as before.
+	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
+	// RunGroupID (F11) is set when this task is one attempt of a race: several
+	// agents working the same issue in parallel so the user can pick a winner.
+	// It is the daemon's only signal to measure and report the run's diff, so
+	// an ordinary run never pays for the git work. Empty on a server predating
+	// the field, which reads as "not an attempt".
+	RunGroupID string `json:"run_group_id,omitempty"`
+	// DispatchLane (K45) mirrors handler.AgentTaskResponse.DispatchLane: "batch"
+	// when the server deferred this run to the workspace's off-peak window,
+	// "sync" otherwise. Exported to the agent process as MULTICA_DISPATCH_LANE
+	// so a runtime or CLI wrapper with a cheaper off-peak path can honour it;
+	// the daemon itself runs a batch task exactly like a sync one. Empty on a
+	// server predating the field, which reads as "sync".
+	DispatchLane string `json:"dispatch_lane,omitempty"`
 	// RemoteMCPDaemonToken stays inside the daemon and authenticates the local
 	// broker's credential-resolution calls. It must never enter agent env/config.
 	RemoteMCPDaemonToken string `json:"remote_mcp_daemon_token,omitempty"`
@@ -121,7 +151,19 @@ type Task struct {
 	// WorkspaceNotes mirrors handler.AgentTaskResponse.WorkspaceNotes: the
 	// workspace Brain notes this run gets, written to .multica/knowledge by
 	// execenv. Absent from older servers and when the Brain is empty.
-	WorkspaceNotes                []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	WorkspaceNotes []execenv.WorkspaceNoteForEnv `json:"workspace_notes,omitempty"`
+	// AutopilotMemory mirrors handler.AgentTaskResponse.AutopilotMemory: the
+	// execution memory of the daemon that started this run (F24 / JEF-15).
+	// Empty when the run has no autopilot, when the memory is empty, and on
+	// older servers.
+	AutopilotMemory string `json:"autopilot_memory,omitempty"`
+	// RepoIndexHints mirrors handler.AgentTaskResponse.RepoIndexHints (K47):
+	// the shared repo index's best matches for this issue, rendered into the
+	// brief's orientation section. RepoIndexEnabled names the repositories the
+	// workspace opted in to, which is what gates the post-run indexing pass —
+	// the daemon never indexes a repo the server did not list here.
+	RepoIndexHints                []execenv.RepoIndexHintForEnv `json:"repo_index_hints,omitempty"`
+	RepoIndexEnabled              []string                      `json:"repo_index_enabled,omitempty"`
 	IsLeaderTask                  bool                          `json:"is_leader_task,omitempty"`                   // true when executing in the squad-leader coordinator role
 	LeaderRoleResolved            bool                          `json:"leader_role_resolved,omitempty"`             // server capability: IsLeaderTask/SquadID authoritatively answer "is this a leader run". Absent on servers predating it — those before #4951 never sent is_leader_task at all, later ones send it without this guarantee — so taskIsSquadLeader falls back to the briefing marker for both (MUL-5811)
 	PriorSessionID                string                        `json:"prior_session_id,omitempty"`                 // Claude session ID from a previous task on this issue
@@ -136,6 +178,7 @@ type Task struct {
 	TriggerAuthorName             string                        `json:"trigger_author_name,omitempty"`              // display name of the triggering comment author
 	NewCommentCount               int                           `json:"new_comment_count,omitempty"`                // issue-wide comments since this agent's last run (excludes its own and the injected trigger); 0/omitted for old daemons or cold start
 	NewCommentsSince              string                        `json:"new_comments_since,omitempty"`               // RFC3339 anchor (last run's started_at) the count is measured from; empty on cold start
+	NewCommentsDeltaKnown         bool                          `json:"new_comments_delta_known,omitempty"`         // the server actually computed the issue-wide delta this claim (both reads succeeded). A zero NewCommentCount means "nothing was said" only when this is true; otherwise the zero is a failed read, a cold start, or an old server, and the prompt must not present it as the comment scan's answer (MUL-6984)
 	ChatSessionID                 string                        `json:"chat_session_id,omitempty"`                  // non-empty for chat tasks
 	ChatChannelType               string                        `json:"chat_channel_type,omitempty"`                // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Drives the channel-awareness block in the prompt
 	ChatChannelDeliversFiles      bool                          `json:"chat_channel_delivers_files,omitempty"`      // server capability: this deployment carries a file the agent produces the last hop into this conversation. Absent on a server predating it, which reads as false — the run is told to describe its file in words, and the worst case is a delivery that could have happened did not. Must never be re-derived from chat_channel_type: whether the hop exists depends on the SERVER's storage and adapter wiring, which no daemon can see (MUL-4899)
@@ -250,6 +293,12 @@ type AgentData struct {
 	// into the brief's Memory section by execenv. Absent on older servers
 	// and when the agent has none.
 	Memories []string `json:"memories,omitempty"`
+	// MemoryStates carries the governance state of each Memories entry by
+	// index ("draft" | "approved", JEF-269): drafts render apart, under an
+	// "unverified" heading. Parallel array so the Memories wire shape never
+	// changes; absent or short on older servers, and every missing entry is
+	// treated as approved.
+	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
 // DisabledRuntimeSkillData is the task-wire identity of one runtime-local
@@ -337,8 +386,16 @@ type TaskResult struct {
 	// abandoned as unresumable (GH #6066). Forwarded on every terminal path,
 	// including the completed one: a fresh-session retry that SUCCEEDS is
 	// precisely when the abandoned id would otherwise stay selectable.
-	RetiredSessionID string           `json:"-"`
-	Usage            []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
+	RetiredSessionID string `json:"-"`
+	// CheckpointSHA is the turn record a worktree run delivered (F09). Reported
+	// on the completed AND the failed path: a run that died partway is exactly
+	// the one a user wants to roll back, and Finalize records it either way.
+	CheckpointSHA string `json:"-"`
+	// Diff is what a racing attempt (F11) delivered on its branch, measured at
+	// Finalize against the commit the worktree started from. Nil for every task
+	// that is not an attempt, and for an attempt whose diff could not be read.
+	Diff  *runDiff         `json:"-"`
+	Usage []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
 }
 
 // PluginHookTool is one agent-trigger plugin hook, as the agent will see it.

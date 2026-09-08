@@ -1,4 +1,4 @@
-import type { Issue, IssueMetadata, IssueStatus, IssueStatusCategory, IssuePriority, IssueAssigneeType } from "./issue";
+import type { Issue, IssueMetadata, IssueStatus, IssueStatusCategory, IssuePriority, IssueAssigneeType, IssueDelegateType } from "./issue";
 import type { PropertyFilterValue } from "./property";
 import type { MemberRole } from "./workspace";
 import type { Project } from "./project";
@@ -11,10 +11,17 @@ export interface CreateIssueRequest {
   priority?: IssuePriority;
   assignee_type?: IssueAssigneeType;
   assignee_id?: string;
+  /** The assignee's partner (F01); both halves must be sent together. */
+  delegate_type?: IssueDelegateType;
+  delegate_id?: string;
   parent_issue_id?: string;
   project_id?: string;
   /** Goal the issue names (K74); absent means it inherits its project's goals. */
   goal_id?: string;
+  /** Cycle to plan the issue into (F29). Must be a cycle of `project_id`. */
+  cycle_id?: string;
+  /** Work item type key (F30). Omitted creates an UNTYPED issue. */
+  issue_type?: string;
   /** Ordered stage (>= 1) grouping this sub-issue under its parent. */
   stage?: number;
   start_date?: string;
@@ -23,6 +30,10 @@ export interface CreateIssueRequest {
   /** Issue-scoped label IDs to attach in the same transaction as the create.
    *  Unknown or non-issue ids are rejected by the server with 400. */
   label_ids?: string[];
+  /** How the issue was captured (K36). The only value a human caller may
+   *  set; it carries no origin_id because a transcript is not a stored row.
+   *  Every other origin_type is server- or daemon-stamped. */
+  origin_type?: "voice_mobile";
 }
 
 export interface CreateCommentSubIssueManualRequest {
@@ -64,6 +75,10 @@ export interface UpdateIssueRequest {
   priority?: IssuePriority;
   assignee_type?: IssueAssigneeType | null;
   assignee_id?: string | null;
+  /** The assignee's partner (F01). Both halves must be sent together; null on
+   *  both clears it. Rejected with 400 when it equals the assignee. */
+  delegate_type?: IssueDelegateType | null;
+  delegate_id?: string | null;
   position?: number;
   start_date?: string | null;
   due_date?: string | null;
@@ -71,6 +86,12 @@ export interface UpdateIssueRequest {
   project_id?: string | null;
   /** Goal the issue names (K74); null clears it (inherits the project's). */
   goal_id?: string | null;
+  /** Cycle the issue is planned into (F29); null takes it out of every cycle.
+   *  A cycle of another project is refused with 409 cycle_project_mismatch. */
+  cycle_id?: string | null;
+  /** Work item type key (F30); null clears it back to untyped. An unknown or
+   *  archived key is refused with 400. */
+  issue_type?: string | null;
   /** Ordered stage (>= 1); null clears it (unstaged). */
   stage?: number | null;
   /** Attachment IDs to bind to this issue alongside the description update.
@@ -158,11 +179,20 @@ export interface ListIssuesParams {
   /** Actor-aware table facets. OR within each field. */
   assignee_filters?: IssueActorRef[];
   include_no_assignee?: boolean;
+  /** Same shape and semantics for the delegate (F01): OR within the list,
+   *  and OR'd with `include_no_delegate` when both are present. */
+  delegate_filters?: IssueActorRef[];
+  include_no_delegate?: boolean;
   creator_filters?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
   /** Issues serving a goal (K74): named directly or inherited from the project. */
   goal_id?: string;
+  /** Issues planned into a dated cycle (F29). Exact membership, no inheritance. */
+  cycle_id?: string;
+  /** Work item type keys (F30). Comma-joined into `?issue_type=` by the client;
+   *  an unknown key simply matches nothing rather than failing the request. */
+  issue_type?: string[];
   label_ids?: string[];
   /** Restrict the window to root issues instead of filtering loaded pages. */
   top_level_only?: boolean;
@@ -240,6 +270,10 @@ export interface ListGroupedIssuesParams {
   properties?: Record<string, PropertyFilterValue[]>;
   assignee_filters?: IssueActorRef[];
   include_no_assignee?: boolean;
+  /** Same shape and semantics for the delegate (F01): OR within the list,
+   *  and OR'd with `include_no_delegate` when both are present. */
+  delegate_filters?: IssueActorRef[];
+  include_no_delegate?: boolean;
   creator_filters?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
@@ -288,6 +322,8 @@ export interface GroupedIssuesResponse {
 export type IssueTableScope =
   | { kind: "workspace"; assignee_types?: IssueAssigneeType[] }
   | { kind: "project"; project_id: string; assignee_types?: IssueAssigneeType[] }
+  /** Dated cycles (F29). Exact membership; no project predicate beside it. */
+  | { kind: "cycle"; cycle_id: string; assignee_types?: IssueAssigneeType[] }
   | { kind: "assignee"; actor: IssueActorRef }
   | { kind: "creator"; actor: IssueActorRef }
   | { kind: "my"; relation: "assigned" | "created" | "involved" | "any" };
@@ -300,6 +336,10 @@ export interface IssueTableFilters {
   creators?: IssueActorRef[];
   project_ids?: string[];
   include_no_project?: boolean;
+  /** Cycle ids (F29). OR within the field, like project_ids. */
+  cycle_ids?: string[];
+  /** Work item type KEYS (F30), not ids. */
+  issue_types?: string[];
   label_ids?: string[];
   /** Same shape as `ListIssuesParams.properties`: bare strings are exact
    *  equality / "No value", operator objects narrow scalar matches. */
@@ -384,6 +424,11 @@ export interface IssueTableParentRef {
 }
 
 export type IssueTableGroupValue =
+  // A kind this build does not know. The schema maps it here rather than
+  // failing the row, which would fail the array and blank the whole board
+  // (see schemas.ts). A literal keeps the union discriminable, so every
+  // consumer's switch still narrows and its default branch handles this.
+  | { kind: "unknown" }
   | { kind: "status"; status: string }
   | { kind: "assignee"; actor: IssueTableActorRef | null }
   | { kind: "project"; project_id: string | null }
@@ -522,7 +567,6 @@ export interface SearchIssueResult extends Issue {
 
 export interface SearchIssuesResponse {
   issues: SearchIssueResult[];
-  total: number;
 }
 
 export interface SearchProjectResult extends Project {
@@ -532,7 +576,6 @@ export interface SearchProjectResult extends Project {
 
 export interface SearchProjectsResponse {
   projects: SearchProjectResult[];
-  total: number;
 }
 
 export interface UpdateMeRequest {

@@ -7,6 +7,13 @@ export type {
   UpdateIssueStatusRequest,
 } from "./issue-status";
 export type {
+  IssueTypeEntry,
+  ListIssueTypesResponse,
+  CreateIssueTypeRequest,
+  UpdateIssueTypeRequest,
+  IssueDependencyEdge,
+} from "./issue-type";
+export type {
   Agent,
   AgentConversationStarter,
   AgentStatus,
@@ -16,6 +23,8 @@ export type {
   AgentInvocationTarget,
   AgentInvocationTargetInput,
   AgentTask,
+  RunPlan,
+  RunPlanItem,
   TaskUsage,
   TaskAttribution,
   AttributionUser,
@@ -45,6 +54,10 @@ export type {
   RuntimeRoutingDecision,
   RuntimeRoutingStats,
   RuntimeRoutingStatsResponse,
+  TaskConfidence,
+  TaskWorkflow,
+  WorkflowStats,
+  WorkflowStatsResponse,
   AgentEnvResponse,
   UpdateAgentEnvRequest,
   Skill,
@@ -91,9 +104,12 @@ export type {
   AgentMemory,
   AgentMemoryList,
   AgentMemorySource,
+  AgentMemoryState,
   IssueUsageSummary,
   MikaBootstrapResponse,
   TaskStatus,
+  SandboxMode,
+  SandboxCapabilities,
 } from "./agent";
 export { RUNTIME_PROFILE_PROTOCOL_FAMILIES } from "./agent";
 export type { Workspace, WorkspaceRepo, WorkspaceMcpServer, Member, MemberRole, User, MemberWithUser, Invitation, ShareLink, ShareLinkInfo, McpToolRisk, McpToolClass, McpCatalogTool, McpToolPolicy, McpServerToolCatalog } from "./workspace";
@@ -163,7 +179,7 @@ export type {
   UpdateWorkspaceNoteInput,
 } from "./workspace-note";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
-export type { Comment, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
+export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";
 export type { IssueProperty, IssuePropertyType, ScalarIssuePropertyType, IssuePropertyOption, IssuePropertyConfig, IssuePropertyValue, IssuePropertyValues, CreatePropertyRequest, UpdatePropertyRequest, ListPropertiesResponse, IssuePropertiesResponse, IssuePropertyActorKind, IssuePropertyActorRef, PropertyFilterOp, PropertyOperatorFilter, PropertyFilterValue } from "./property";
 export { ISSUE_PROPERTY_TYPES, isKnownPropertyType, ISSUE_PROPERTY_ACTOR_KINDS, MAX_ISSUE_PROPERTY_ACTOR_VALUES, isActorPropertyType, isFilterablePropertyType, isScalarPropertyType, formatActorRef, parseActorRef, actorRefsFromValue, actorRefValuesFromValue, hasUnknownActorRef, isPropertyOperatorFilter, isKnownPropertyFilterOp, propertyFilterValueKey, PROPERTY_FILTER_OP_SYMBOLS, PROPERTY_FILTER_OPS_BY_TYPE } from "./property";
@@ -216,9 +232,24 @@ export type {
   CancelTaskResponse,
   ChatDraftRestore,
   ChatDraftRestoresResponse,
+  ChatParticipant,
+  ChatParticipantList,
 } from "./chat";
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
+export type {
+  Cycle,
+  CycleBurndown,
+  CycleBurndownDay,
+  CycleCapacity,
+  CycleCapacitySide,
+  CycleLoadUnit,
+  CycleStatus,
+  CycleWriteRequest,
+  GoalProgress,
+  GoalProjectProgress,
+  ListCyclesResponse,
+} from "./cycle";
 export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
@@ -230,10 +261,13 @@ export type {
   CreateProjectRequest,
   UpdateProjectRequest,
   ListProjectsResponse,
+  ProjectReviewConfig,
+  UpdateProjectReviewConfigRequest,
   ProjectResource,
   ProjectResourceType,
   ProjectResourceRef,
   GithubRepoResourceRef,
+  LocalDirectoryLifecycle,
   LocalDirectoryResourceRef,
   LocalDirectoryExecutionMode,
   CreateProjectResourceRequest,
@@ -397,6 +431,7 @@ export type {
 } from "./billing";
 export type { ReviewCockpit, ReviewCockpitRun, ReviewCockpitUsage } from "./review-cockpit";
 export type { DashboardCostPerDeliverable, DeliverableCostStats } from "./agent";
+export type { AgentRoiRow, DashboardAgentRoi } from "./agent";
 export type { ModuleOwnershipRule, OwnershipSuggestion } from "./label";
 export type { BriefingItem, MorningBriefing, RetroRun, RetroAgent, WeeklyRetro } from "./inbox";
 export type { AgentScorecard, ScorecardTotals, WorkspaceScorecardRow } from "./agent";

@@ -25,13 +25,25 @@ SELECT * FROM agent_memory
 WHERE id = $1 AND workspace_id = $2;
 
 -- name: CreateAgentMemory :one
-INSERT INTO agent_memory (workspace_id, agent_id, content, source, source_task_id)
-VALUES ($1, $2, $3, $4, $5)
+-- state is explicit at every call site (JEF-269): 'manual' and 'postmortem'
+-- rows are human-approved at write time, 'run' extraction rows land as
+-- 'draft' until a human approves them.
+INSERT INTO agent_memory (workspace_id, agent_id, content, source, source_task_id, state)
+VALUES ($1, $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateAgentMemoryContent :one
 UPDATE agent_memory SET
     content = COALESCE(sqlc.narg('content'), content),
+    updated_at = now()
+WHERE id = $1 AND workspace_id = $2
+RETURNING *;
+
+-- name: SetAgentMemoryState :one
+-- The human approval action (JEF-269): flip a 'draft' extraction fact to
+-- 'approved' (or back). Validated to ('draft','approved') by the handler.
+UPDATE agent_memory SET
+    state = sqlc.arg('state'),
     updated_at = now()
 WHERE id = $1 AND workspace_id = $2
 RETURNING *;

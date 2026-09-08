@@ -62,16 +62,32 @@ type IssueResponse struct {
 	// field at all: with omitempty a built-in fixture hides it from BOTH
 	// renderings, and the drift guard goes green on a payload that has drifted.
 	// (MUL-6749)
-	StatusName    string  `json:"status_name"`
-	Priority      string  `json:"priority"`
-	AssigneeType  *string `json:"assignee_type"`
-	AssigneeID    *string `json:"assignee_id"`
+	StatusName   string  `json:"status_name"`
+	Priority     string  `json:"priority"`
+	AssigneeType *string `json:"assignee_type"`
+	AssigneeID   *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Always
+	// emitted, like the assignee pair, so a client can tell "no delegate"
+	// from "this endpoint did not resolve it". The delegate is inert: it
+	// triggers no run and carries no status.
+	DelegateType  *string `json:"delegate_type"`
+	DelegateID    *string `json:"delegate_id"`
 	CreatorType   string  `json:"creator_type"`
 	CreatorID     string  `json:"creator_id"`
 	ParentIssueID *string `json:"parent_issue_id"`
 	ProjectID     *string `json:"project_id"`
 	// GoalID (K74) is the goal the issue names itself; absent means it inherits its project's.
 	GoalID *string `json:"goal_id"`
+	// CycleID (F29) is the dated cycle the issue is planned into. Always a
+	// cycle of the issue's own project — a write naming another project's
+	// cycle is refused with 409 cycle_project_mismatch.
+	CycleID *string `json:"cycle_id"`
+	// IssueType (F30) is the work item type key from the workspace catalogue,
+	// or null for an UNTYPED issue. Always emitted, like the assignee pair, so
+	// a client can tell "untyped" from "this endpoint did not resolve it".
+	// Carries no platform behavior: it groups, it filters, and it decides which
+	// custom properties apply.
+	IssueType *string `json:"issue_type"`
 	// OriginType / OriginID record what produced the issue when it was not
 	// typed by hand — today "meeting" (accepting an action item a recording
 	// extracted) and the other triage origins. Omitted, like status_category,
@@ -322,11 +338,15 @@ func issueToResponse(i db.Issue, issuePrefix string) IssueResponse {
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		OriginType:     textToPtr(i.OriginType),
 		OriginID:       uuidToPtr(i.OriginID),
 		Position:       i.Position,
@@ -362,11 +382,15 @@ func issueListRowToResponse(i db.ListIssuesRow, issuePrefix string) IssueRespons
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -432,11 +456,15 @@ func openIssueRowToResponse(i db.ListOpenIssuesRow, issuePrefix string) IssueRes
 		Priority:       i.Priority,
 		AssigneeType:   textToPtr(i.AssigneeType),
 		AssigneeID:     uuidToPtr(i.AssigneeID),
+		DelegateType:   textToPtr(i.DelegateType),
+		DelegateID:     uuidToPtr(i.DelegateID),
 		CreatorType:    i.CreatorType,
 		CreatorID:      uuidToString(i.CreatorID),
 		ParentIssueID:  uuidToPtr(i.ParentIssueID),
 		ProjectID:      uuidToPtr(i.ProjectID),
 		GoalID:         uuidToPtr(i.GoalID),
+		CycleID:        uuidToPtr(i.CycleID),
+		IssueType:      textToPtr(i.IssueType),
 		Position:       i.Position,
 		Stage:          int4ToPtr(i.Stage),
 		StartDate:      dateToPtr(i.StartDate),
@@ -626,159 +654,211 @@ func parseQueryNumber(q string) (int, bool) {
 // searchResult holds a raw row from the dynamic search query.
 type searchResult struct {
 	issue                 db.Issue
-	totalCount            int64
 	matchSource           string
 	matchedCommentContent string
 }
 
-// buildSearchQuery builds a dynamic SQL query for issue search.
-// It uses LOWER(column) LIKE for case-insensitive matching compatible with pg_bigm 1.2 GIN indexes.
-// Search patterns are lowercased in Go to avoid redundant LOWER() on the pattern side in SQL.
-// LIKE patterns are pre-built in Go (e.g. "%html%") so pg_bigm can extract bigrams from a single parameter value.
+// buildSearchQuery builds a two-stage, workspace-scoped candidate pipeline for issue search.
+// Search patterns are lowercased and escaped in Go so every flag uses the same
+// case-insensitive LIKE semantics as the legacy query. The pipeline deliberately
+// trades the title, description, and comment content GIN fast paths for one
+// predictable pass over each relation within the selected workspace.
 func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, includeClosed bool, terminalStatusKeys []string) (string, []any) {
 	// Lowercase in Go so SQL only needs LOWER() on the column side.
 	phrase = strings.ToLower(phrase)
-	for i, t := range terms {
-		terms[i] = strings.ToLower(t)
+	for i, term := range terms {
+		terms[i] = strings.ToLower(term)
 	}
 
-	// Parameter index tracker
-	argIdx := 1
 	args := []any{}
-	nextArg := func(val any) string {
-		args = append(args, val)
-		s := fmt.Sprintf("$%d", argIdx)
-		argIdx++
-		return s
+	nextArg := func(value any) string {
+		args = append(args, value)
+		return fmt.Sprintf("$%d", len(args))
 	}
 
 	escapedPhrase := escapeLike(phrase)
-	// $1: exact phrase (for exact title match)
-	phraseParam := nextArg(escapedPhrase)
-	// $2: "%phrase%" (contains pattern — pre-built for pg_bigm index usage)
-	phraseContainsParam := nextArg("%" + escapedPhrase + "%")
-	// $3: "phrase%" (starts-with pattern)
-	phraseStartsWithParam := nextArg(escapedPhrase + "%")
+	phraseParam := nextArg(escapedPhrase)                     // $1: exact title
+	phraseContainsParam := nextArg("%" + escapedPhrase + "%") // $2: contains
+	phraseStartsWithParam := nextArg(escapedPhrase + "%")     // $3: starts with
+	wsParam := nextArg(nil)                                   // $4: workspace_id, filled by caller
 
-	wsParam := nextArg(nil) // $4 — workspace_id, will be filled by caller position
-
-	// Build per-term LIKE conditions only for multi-word search.
 	var termContainsParams []string
 	if len(terms) > 1 {
-		for _, t := range terms {
-			et := escapeLike(t)
-			termContainsParams = append(termContainsParams, nextArg("%"+et+"%"))
+		for _, term := range terms {
+			termContainsParams = append(termContainsParams, nextArg("%"+escapeLike(term)+"%"))
 		}
 	}
 
-	// --- WHERE clause ---
-	var whereParts []string
-
-	// Full phrase match: title, description, or comment.
-	//
-	// The comment EXISTS subquery is deliberately correlated on BOTH
-	// c.issue_id = i.id AND c.workspace_id = wsParam. The workspace_id
-	// filter is not strictly necessary for correctness (comment.workspace_id
-	// is FK-consistent with its issue's workspace), but it is critical for
-	// the planner. Without it, Postgres rewrites the correlated EXISTS
-	// into a hashed subplan that materializes every comment in the entire
-	// `comment` table matching the LIKE — for common tokens like "search"
-	// this can be hundreds of thousands of rows, blowing out work_mem into
-	// a lossy bitmap and taking 30+ seconds. With the workspace_id
-	// constant duplicated into the subquery, the hashed set collapses to
-	// this workspace's comments and the plan uses the supporting
-	// idx_comment_workspace (migration 135). See MUL-4059 EXPLAIN reports.
-	phraseMatch := fmt.Sprintf(
-		"(LOWER(i.title) LIKE %s OR LOWER(COALESCE(i.description, '')) LIKE %s OR EXISTS (SELECT 1 FROM comment c WHERE c.issue_id = i.id AND c.workspace_id = %s AND LOWER(c.content) LIKE %s))",
-		phraseContainsParam, phraseContainsParam, wsParam, phraseContainsParam,
-	)
-	whereParts = append(whereParts, phraseMatch)
-
-	// Multi-word AND match (each term must appear somewhere). Same
-	// workspace_id-in-subquery contract as above.
-	if len(termContainsParams) > 1 {
-		var termConditions []string
-		for _, tp := range termContainsParams {
-			termConditions = append(termConditions, fmt.Sprintf(
-				"(LOWER(i.title) LIKE %s OR LOWER(COALESCE(i.description, '')) LIKE %s OR EXISTS (SELECT 1 FROM comment c WHERE c.issue_id = i.id AND c.workspace_id = %s AND LOWER(c.content) LIKE %s))",
-				tp, tp, wsParam, tp,
-			))
-		}
-		whereParts = append(whereParts, "("+strings.Join(termConditions, " AND ")+")")
-	}
-
-	// Number match
 	numParam := ""
 	if hasNum {
 		numParam = nextArg(queryNum)
-		whereParts = append(whereParts, fmt.Sprintf("i.number = %s", numParam))
 	}
 
-	whereClause := "(" + strings.Join(whereParts, " OR ") + ")"
-
+	terminalStatusesParam := ""
 	if !includeClosed {
 		// Negate only known terminal keys so an unknown legacy key remains
 		// searchable instead of disappearing from the default result set.
-		terminalStatusesParam := nextArg(terminalStatusKeys)
-		whereClause += fmt.Sprintf(" AND NOT (i.status = ANY(%s::text[]))", terminalStatusesParam)
+		terminalStatusesParam = nextArg(terminalStatusKeys)
 	}
 
-	// --- ORDER BY clause ---
-	// Build ranking CASE with fine-grained tiers.
-	var rankCases []string
+	limitParam := nextArg(nil)
+	offsetParam := nextArg(nil)
 
-	// Tier 0: Identifier exact match
+	// Stage one scans this workspace's issues once and retains only the narrow
+	// flags and sort fields needed to choose a page. Do not force this CTE to be
+	// MATERIALIZED: production EXPLAIN showed 28-68% lower execution time after
+	// removing that fence. Full issue rows are hydrated after LIMIT/OFFSET below.
+	issueFlagColumns := []string{
+		"i.id AS issue_id",
+		"i.status",
+		"i.updated_at",
+		fmt.Sprintf("LOWER(i.title) = %s AS title_exact", phraseParam),
+		fmt.Sprintf("LOWER(i.title) LIKE %s AS title_starts_with", phraseStartsWithParam),
+		fmt.Sprintf("LOWER(i.title) LIKE %s AS title_phrase", phraseContainsParam),
+		fmt.Sprintf("LOWER(COALESCE(i.description, '')) LIKE %s AS description_phrase", phraseContainsParam),
+	}
 	if hasNum {
-		rankCases = append(rankCases, fmt.Sprintf("WHEN i.number = %s THEN 0", numParam))
+		issueFlagColumns = append(issueFlagColumns, fmt.Sprintf("i.number = %s AS number_exact", numParam))
+	}
+	for index, termParam := range termContainsParams {
+		issueFlagColumns = append(issueFlagColumns,
+			fmt.Sprintf("LOWER(i.title) LIKE %s AS title_term_%d", termParam, index),
+			fmt.Sprintf("LOWER(COALESCE(i.description, '')) LIKE %s AS description_term_%d", termParam, index),
+		)
 	}
 
-	// Tier 1: Exact title match
-	rankCases = append(rankCases, fmt.Sprintf("WHEN LOWER(i.title) = %s THEN 1", phraseParam))
+	issueWhere := "i.workspace_id = " + wsParam
+	if terminalStatusesParam != "" {
+		issueWhere += fmt.Sprintf(" AND NOT (i.status = ANY(%s::text[]))", terminalStatusesParam)
+	}
+	issueMatchesCTE := fmt.Sprintf(`issue_matches AS (
+		SELECT %s
+		FROM issue i
+		WHERE %s
+	)`, strings.Join(issueFlagColumns, ",\n\t\t\t"), issueWhere)
 
-	// Tier 2: Title starts with phrase
-	rankCases = append(rankCases, fmt.Sprintf("WHEN LOWER(i.title) LIKE %s THEN 2", phraseStartsWithParam))
+	// Comments are also scanned once, workspace-first. This intentionally avoids
+	// the legacy planner choice between global content GIN postings and repeated
+	// correlated/hashed subplans (MUL-4059); idx_comment_workspace bounds the
+	// candidate scan instead. Aggregation retains only per-issue flags plus the
+	// latest matching comment ID, and content is fetched by primary key after the
+	// final page is known. Per-term BOOL_OR flags keep the legacy eligibility rule
+	// where terms may be spread across comments, while comment_all_terms keeps
+	// ranking/snippet tied to one comment.
+	commentFlagColumns := []string{
+		"c.issue_id",
+		fmt.Sprintf("BOOL_OR(LOWER(c.content) LIKE %s) AS comment_phrase", phraseContainsParam),
+	}
+	commentCandidateFlags := []string{"aggregated_comments.comment_phrase"}
+	commentTerms := make([]string, 0, len(termContainsParams))
+	for index, termParam := range termContainsParams {
+		alias := fmt.Sprintf("comment_term_%d", index)
+		commentFlagColumns = append(commentFlagColumns,
+			fmt.Sprintf("BOOL_OR(LOWER(c.content) LIKE %s) AS %s", termParam, alias),
+		)
+		commentCandidateFlags = append(commentCandidateFlags, "aggregated_comments."+alias)
+		commentTerms = append(commentTerms, fmt.Sprintf("LOWER(c.content) LIKE %s", termParam))
+	}
 
-	// Tier 3: Title contains phrase
-	rankCases = append(rankCases, fmt.Sprintf("WHEN LOWER(i.title) LIKE %s THEN 3", phraseContainsParam))
+	commentSnippetPredicate := fmt.Sprintf("LOWER(c.content) LIKE %s", phraseContainsParam)
+	if len(commentTerms) > 1 {
+		commentAllTerms := "(" + strings.Join(commentTerms, " AND ") + ")"
+		commentFlagColumns = append(commentFlagColumns,
+			fmt.Sprintf("BOOL_OR(%s) AS comment_all_terms", commentAllTerms),
+		)
+		commentSnippetPredicate += " OR " + commentAllTerms
+	}
+	// Keep the ordered aggregate in the measured single comment pass. Replacing
+	// it with DISTINCT ON/window ranking changes that production-tested plan;
+	// looking the ID up later would repeat text predicates after pagination.
+	// The aggregate stores matching UUIDs per issue (not content), and the ID
+	// tie-break makes equal created_at values deterministic.
+	commentFlagColumns = append(commentFlagColumns, fmt.Sprintf(
+		"(ARRAY_AGG(c.id ORDER BY c.created_at DESC, c.id DESC) FILTER (WHERE %s))[1] AS snippet_comment_id",
+		commentSnippetPredicate,
+	))
 
-	// Tier 4: Title matches all words (multi-word only)
+	commentMatchesCTE := fmt.Sprintf(`comment_matches AS MATERIALIZED (
+		SELECT *
+		FROM (
+			SELECT %s
+			FROM comment c
+			WHERE c.workspace_id = %s
+			GROUP BY c.issue_id
+		) aggregated_comments
+		WHERE %s
+	)`,
+		strings.Join(commentFlagColumns, ",\n\t\t\t\t"),
+		wsParam,
+		strings.Join(commentCandidateFlags, " OR "),
+	)
+
+	// Stage two combines the two narrow sources, applies the legacy eligibility
+	// and ranking rules once, and materializes only the requested page.
+	eligibleParts := []string{
+		"im.title_phrase",
+		"im.description_phrase",
+		"COALESCE(cm.comment_phrase, FALSE)",
+	}
+	if len(termContainsParams) > 1 {
+		var allTerms []string
+		for index := range termContainsParams {
+			allTerms = append(allTerms, fmt.Sprintf(
+				"(im.title_term_%[1]d OR im.description_term_%[1]d OR COALESCE(cm.comment_term_%[1]d, FALSE))",
+				index,
+			))
+		}
+		eligibleParts = append(eligibleParts, "("+strings.Join(allTerms, " AND ")+")")
+	}
+	if hasNum {
+		eligibleParts = append(eligibleParts, "im.number_exact")
+	}
+	eligibleExpr := "(" + strings.Join(eligibleParts, " OR ") + ")"
+
+	rankCases := []string{}
+	if hasNum {
+		rankCases = append(rankCases, "WHEN im.number_exact THEN 0")
+	}
+	rankCases = append(rankCases,
+		"WHEN im.title_exact THEN 1",
+		"WHEN im.title_starts_with THEN 2",
+		"WHEN im.title_phrase THEN 3",
+	)
 	if len(termContainsParams) > 1 {
 		var titleTerms []string
-		for _, tp := range termContainsParams {
-			titleTerms = append(titleTerms, fmt.Sprintf("LOWER(i.title) LIKE %s", tp))
+		for index := range termContainsParams {
+			titleTerms = append(titleTerms, fmt.Sprintf("im.title_term_%d", index))
 		}
-		rankCases = append(rankCases, fmt.Sprintf("WHEN (%s) THEN 4", strings.Join(titleTerms, " AND ")))
+		rankCases = append(rankCases, "WHEN ("+strings.Join(titleTerms, " AND ")+") THEN 4")
 	}
-
-	// Tier 5: Description contains phrase
-	rankCases = append(rankCases, fmt.Sprintf("WHEN LOWER(COALESCE(i.description, '')) LIKE %s THEN 5", phraseContainsParam))
-
-	// Tier 6: Description matches all words (multi-word only)
+	rankCases = append(rankCases, "WHEN im.description_phrase THEN 5")
 	if len(termContainsParams) > 1 {
-		var descTerms []string
-		for _, tp := range termContainsParams {
-			descTerms = append(descTerms, fmt.Sprintf("LOWER(COALESCE(i.description, '')) LIKE %s", tp))
+		var descriptionTerms []string
+		for index := range termContainsParams {
+			descriptionTerms = append(descriptionTerms, fmt.Sprintf("im.description_term_%d", index))
 		}
-		rankCases = append(rankCases, fmt.Sprintf("WHEN (%s) THEN 6", strings.Join(descTerms, " AND ")))
+		rankCases = append(rankCases, "WHEN ("+strings.Join(descriptionTerms, " AND ")+") THEN 6")
 	}
-
-	// Tier 7: Comment contains phrase. Same workspace_id-in-subquery
-	// contract as the WHERE clause; see the phraseMatch comment above.
-	rankCases = append(rankCases, fmt.Sprintf("WHEN EXISTS (SELECT 1 FROM comment c WHERE c.issue_id = i.id AND c.workspace_id = %s AND LOWER(c.content) LIKE %s) THEN 7", wsParam, phraseContainsParam))
-
-	// Tier 8: Comment matches all words (multi-word only)
+	rankCases = append(rankCases, "WHEN COALESCE(cm.comment_phrase, FALSE) THEN 7")
 	if len(termContainsParams) > 1 {
-		var commentTerms []string
-		for _, tp := range termContainsParams {
-			commentTerms = append(commentTerms, fmt.Sprintf("LOWER(c.content) LIKE %s", tp))
-		}
-		rankCases = append(rankCases, fmt.Sprintf("WHEN EXISTS (SELECT 1 FROM comment c WHERE c.issue_id = i.id AND c.workspace_id = %s AND (%s)) THEN 8", wsParam, strings.Join(commentTerms, " AND ")))
+		rankCases = append(rankCases, "WHEN COALESCE(cm.comment_all_terms, FALSE) THEN 8")
 	}
-
 	rankExpr := "CASE " + strings.Join(rankCases, " ") + " ELSE 9 END"
 
-	// Status priority: active issues first
-	statusRank := `CASE i.status
+	// title_exact deliberately preserves the legacy escapeLike quirk: a title
+	// containing _, %, or \\ is still searchable, but the escaped phrase does
+	// not compare equal and therefore is not treated as a cancelled direct hit.
+	directHitParts := []string{"im.title_exact"}
+	if hasNum {
+		directHitParts = append(directHitParts, "im.number_exact")
+	}
+	// Cancelled issues sort behind every live match unless an exact title or
+	// identifier shows that the user is targeting that specific issue.
+	cancelledRank := fmt.Sprintf(
+		"CASE WHEN im.status = 'cancelled' AND NOT (%s) THEN 1 ELSE 0 END",
+		strings.Join(directHitParts, " OR "),
+	)
+	statusRank := `CASE im.status
 		WHEN 'in_progress' THEN 0
 		WHEN 'in_review' THEN 1
 		WHEN 'todo' THEN 2
@@ -789,109 +869,63 @@ func buildSearchQuery(phrase string, terms []string, queryNum int, hasNum bool, 
 		ELSE 7
 	END`
 
-	// Cancelled issues are abandoned work. statusRank alone cannot keep them
-	// down because it is only a tie-breaker within one relevance tier: a
-	// cancelled issue whose title matches the phrase exactly (tier 1) still
-	// outranks an in_progress issue that merely contains it (tier 3), and a
-	// workspace with many cancelled issues can fill the whole LIMIT window and
-	// push live work off the page entirely. So demote cancelled ahead of
-	// rankExpr — they sort after every other match and are the first rows the
-	// LIMIT drops. Unlike 'done', which is finished work worth referencing,
-	// cancelled work was thrown away. The exception is a direct hit: an exact
-	// identifier or exact title means the user is targeting that one issue and
-	// knows what they asked for.
-	//
-	// The title half reuses tier 1's predicate verbatim, including its quirk:
-	// phraseParam is escapeLike'd, so a title containing _ or % never compares
-	// equal and is not treated as a direct hit. Such an issue is still returned
-	// by number; keeping the two predicates identical matters more than working
-	// around an escaping bug that belongs with tier 1.
-	directHitParts := []string{fmt.Sprintf("LOWER(i.title) = %s", phraseParam)}
-	if hasNum {
-		directHitParts = append(directHitParts, fmt.Sprintf("i.number = %s", numParam))
-	}
-	cancelledRank := fmt.Sprintf(
-		"CASE WHEN i.status = 'cancelled' AND NOT (%s) THEN 1 ELSE 0 END",
-		strings.Join(directHitParts, " OR "),
-	)
-
-	// --- match_source expression ---
-	matchSourceExpr := fmt.Sprintf(`CASE
-		WHEN LOWER(i.title) LIKE %s THEN 'title'
-		WHEN LOWER(COALESCE(i.description, '')) LIKE %s THEN 'description'
-		ELSE 'comment'
-	END`, phraseContainsParam, phraseContainsParam)
-
-	// For multi-word: also check if all terms match in title/description
+	matchSourceParts := []string{"WHEN im.title_phrase THEN 'title'"}
 	if len(termContainsParams) > 1 {
 		var titleTerms []string
-		var descTerms []string
-		for _, tp := range termContainsParams {
-			titleTerms = append(titleTerms, fmt.Sprintf("LOWER(i.title) LIKE %s", tp))
-			descTerms = append(descTerms, fmt.Sprintf("LOWER(COALESCE(i.description, '')) LIKE %s", tp))
+		for index := range termContainsParams {
+			titleTerms = append(titleTerms, fmt.Sprintf("im.title_term_%d", index))
 		}
-		matchSourceExpr = fmt.Sprintf(`CASE
-			WHEN LOWER(i.title) LIKE %s THEN 'title'
-			WHEN (%s) THEN 'title'
-			WHEN LOWER(COALESCE(i.description, '')) LIKE %s THEN 'description'
-			WHEN (%s) THEN 'description'
-			ELSE 'comment'
-		END`,
-			phraseContainsParam, strings.Join(titleTerms, " AND "),
-			phraseContainsParam, strings.Join(descTerms, " AND "),
-		)
+		matchSourceParts = append(matchSourceParts, "WHEN ("+strings.Join(titleTerms, " AND ")+") THEN 'title'")
 	}
-
-	// --- matched_comment_content subquery ---
-	// Always return matching comment content regardless of match_source,
-	// so frontend can display comment snippet alongside title/description matches.
-	// The c.workspace_id filter mirrors the WHERE clause: without it,
-	// the planner can pick a global comment scan that ignores workspace
-	// scoping.
-	commentSubquery := fmt.Sprintf(`COALESCE(
-		(SELECT c.content FROM comment c
-		 WHERE c.issue_id = i.id AND c.workspace_id = %s AND LOWER(c.content) LIKE %s
-		 ORDER BY c.created_at DESC LIMIT 1),
-		''
-	)`, wsParam, phraseContainsParam)
-
+	matchSourceParts = append(matchSourceParts, "WHEN im.description_phrase THEN 'description'")
 	if len(termContainsParams) > 1 {
-		var commentTerms []string
-		for _, tp := range termContainsParams {
-			commentTerms = append(commentTerms, fmt.Sprintf("LOWER(c.content) LIKE %s", tp))
+		var descriptionTerms []string
+		for index := range termContainsParams {
+			descriptionTerms = append(descriptionTerms, fmt.Sprintf("im.description_term_%d", index))
 		}
-		commentSubquery = fmt.Sprintf(`COALESCE(
-			(SELECT c.content FROM comment c
-			 WHERE c.issue_id = i.id AND c.workspace_id = %s AND (LOWER(c.content) LIKE %s OR (%s))
-			 ORDER BY c.created_at DESC LIMIT 1),
-			''
-		)`, wsParam, phraseContainsParam, strings.Join(commentTerms, " AND "))
+		matchSourceParts = append(matchSourceParts, "WHEN ("+strings.Join(descriptionTerms, " AND ")+") THEN 'description'")
 	}
+	matchSourceExpr := "CASE " + strings.Join(matchSourceParts, " ") + " ELSE 'comment' END"
 
-	limitParam := nextArg(nil)  // placeholder
-	offsetParam := nextArg(nil) // placeholder
+	rankedCandidatesCTE := fmt.Sprintf(`ranked_candidates AS (
+		SELECT im.issue_id, im.updated_at, cm.snippet_comment_id,
+			%s AS cancelled_rank,
+			%s AS relevance_rank,
+			%s AS status_rank,
+			%s AS match_source
+		FROM issue_matches im
+		LEFT JOIN comment_matches cm ON cm.issue_id = im.issue_id
+		WHERE %s
+	)`, cancelledRank, rankExpr, statusRank, matchSourceExpr, eligibleExpr)
 
-	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
+	pageCandidatesCTE := fmt.Sprintf(`page_candidates AS MATERIALIZED (
+		SELECT issue_id, updated_at, snippet_comment_id, cancelled_rank, relevance_rank, status_rank, match_source
+		FROM ranked_candidates
+		ORDER BY cancelled_rank, relevance_rank, status_rank, updated_at DESC, issue_id ASC
+		LIMIT %s OFFSET %s
+	)`, limitParam, offsetParam)
+
+	query := fmt.Sprintf(`WITH %s,
+	%s,
+	%s,
+	%s
+	SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position,
 		i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id,
-		i.revision, i.goal_id,
-		COUNT(*) OVER() AS total_count,
-		%s AS match_source,
-		%s AS matched_comment_content
-	FROM issue i
-	WHERE i.workspace_id = %s AND %s
-	ORDER BY %s, %s, %s, i.updated_at DESC
-	LIMIT %s OFFSET %s`,
-		matchSourceExpr,
-		commentSubquery,
+		i.revision, i.goal_id, i.cycle_id,
+		pc.match_source,
+		COALESCE(c.content, '') AS matched_comment_content
+	FROM page_candidates pc
+	JOIN issue i ON i.id = pc.issue_id AND i.workspace_id = %s
+	LEFT JOIN comment c ON c.id = pc.snippet_comment_id AND c.workspace_id = %s
+	ORDER BY pc.cancelled_rank, pc.relevance_rank, pc.status_rank, pc.updated_at DESC, pc.issue_id ASC`,
+		issueMatchesCTE,
+		commentMatchesCTE,
+		rankedCandidatesCTE,
+		pageCandidatesCTE,
 		wsParam,
-		whereClause,
-		cancelledRank,
-		rankExpr,
-		statusRank,
-		limitParam,
-		offsetParam,
+		wsParam,
 	)
 
 	return query, args
@@ -976,7 +1010,7 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 				&sr.issue.ProjectID,
 				&sr.issue.Revision,
 				&sr.issue.GoalID,
-				&sr.totalCount,
+				&sr.issue.CycleID,
 				&sr.matchSource,
 				&sr.matchedCommentContent,
 			); err != nil {
@@ -1003,11 +1037,6 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("search issues failed", "error", err, "workspace_id", workspaceID, "query", q)
 		writeError(w, http.StatusInternalServerError, "failed to search issues")
 		return
-	}
-
-	var total int64
-	if len(results) > 0 {
-		total = results[0].totalCount
 	}
 
 	prefix := h.getIssuePrefix(ctx, wsUUID)
@@ -1038,10 +1067,8 @@ func (h *Handler) SearchIssues(w http.ResponseWriter, r *http.Request) {
 		resp[i] = sir
 	}
 
-	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"issues": resp,
-		"total":  total,
 	})
 }
 
@@ -1125,6 +1152,21 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		goalFilter = id
 	}
+	// Dated cycles (F29): the cycle page's surface filters on this.
+	var cycleFilter pgtype.UUID
+	if c := r.URL.Query().Get("cycle_id"); c != "" {
+		id, ok := parseUUIDOrBadRequest(w, c, "cycle_id")
+		if !ok {
+			return
+		}
+		cycleFilter = id
+	}
+	// Work item types (F30). Comma-separated so one request can ask for
+	// "bugs and stories"; a single value is the common case. Values are NOT
+	// checked against the catalogue: an unknown key simply matches nothing,
+	// which is the honest answer for a filter and is what keeps a saved view
+	// holding a since-archived type from 400-ing the whole list.
+	issueTypeFilters := splitCommaParam(r.URL.Query().Get("issue_type"))
 	// involves_user_id widens the assignee filter to surface issues where the
 	// user is the indirect assignee (their owned agent, or a squad they belong
 	// to / lead / have an agent inside). Direct member-assignment is excluded
@@ -1179,6 +1221,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 			CreatorID:          creatorFilter,
 			ProjectID:          projectFilter,
 			GoalID:             goalFilter,
+			CycleID:            cycleFilter,
 			InvolvesUserID:     involvesUserFilter,
 			MetadataFilter:     metadataFilter,
 			PropertiesFilter:   openPropertiesFilter,
@@ -1373,6 +1416,12 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	if goalFilter.Valid {
 		where = append(where, goalFilterSQL(addArg(goalFilter)))
 	}
+	if cycleFilter.Valid {
+		where = append(where, fmt.Sprintf("i.cycle_id = %s::uuid", addArg(cycleFilter)))
+	}
+	if len(issueTypeFilters) > 0 {
+		where = append(where, fmt.Sprintf("i.issue_type = ANY(%s::text[])", addArg(issueTypeFilters)))
+	}
 
 	// Table facets must be part of the server window. Applying them after
 	// LIMIT/OFFSET hides matches that live on later pages and makes `total`
@@ -1393,6 +1442,28 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		if includeNoAssignee {
 			ors = append(ors, "(i.assignee_type IS NULL AND i.assignee_id IS NULL)")
+		}
+		where = append(where, "("+strings.Join(ors, " OR ")+")")
+	}
+
+	// F01 delegate — same wire format and same "no value" semantics as
+	// assignee_filters / include_no_assignee.
+	delegateFilters, ok := parseActorFilterList(w, r.URL.Query().Get("delegate_filters"), "delegate_filters")
+	if !ok {
+		return
+	}
+	includeNoDelegate := r.URL.Query().Get("include_no_delegate") == "true"
+	if len(delegateFilters) > 0 || includeNoDelegate {
+		ors := make([]string, 0, len(delegateFilters)+1)
+		for _, filter := range delegateFilters {
+			ors = append(ors, fmt.Sprintf(
+				"(i.delegate_type = %s::text AND i.delegate_id = %s::uuid)",
+				addArg(filter.actorType),
+				addArg(filter.actorID),
+			))
+		}
+		if includeNoDelegate {
+			ors = append(ors, "(i.delegate_type IS NULL AND i.delegate_id IS NULL)")
 		}
 		where = append(where, "("+strings.Join(ors, " OR ")+")")
 	}
@@ -1499,6 +1570,12 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
           AND a.workspace_id = $1
           AND a.owner_id     = %[1]s::uuid
     ))
+    OR (i.delegate_type = 'member' AND i.delegate_id = %[1]s::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+       SELECT a.id FROM agent a
+        WHERE a.workspace_id = $1
+          AND a.owner_id     = %[1]s::uuid
+    ))
 )`, ref))
 	}
 
@@ -1530,7 +1607,7 @@ func (h *Handler) ListIssues(w http.ResponseWriter, r *http.Request) {
 	query := fmt.Sprintf(`SELECT i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
        i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
        i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at, i.number, i.project_id, i.metadata, i.stage, i.properties,
-	   i.revision, i.goal_id
+	   i.revision, i.goal_id, i.cycle_id, i.issue_type
 FROM issue i
 WHERE %s
 ORDER BY %s
@@ -1572,6 +1649,8 @@ LIMIT %s OFFSET %s`, whereSql, orderBy, limitRef, offsetRef)
 			&row.Properties,
 			&row.Revision,
 			&row.GoalID,
+			&row.CycleID,
+			&row.IssueType,
 		); err != nil {
 			slog.Warn("ListIssues scan failed", "error", err)
 			writeError(w, http.StatusInternalServerError, "failed to list issues")
@@ -1950,6 +2029,12 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
           AND a.workspace_id = $1
           AND a.owner_id     = %[1]s::uuid
     ))
+    OR (i.delegate_type = 'member' AND i.delegate_id = %[1]s::uuid)
+    OR (i.delegate_type = 'agent' AND i.delegate_id IN (
+       SELECT a.id FROM agent a
+        WHERE a.workspace_id = $1
+          AND a.owner_id     = %[1]s::uuid
+    ))
 )`, ref))
 	}
 
@@ -1969,6 +2054,28 @@ func (h *Handler) ListGroupedIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		if includeNoAssignee {
 			ors = append(ors, "(i.assignee_type IS NULL AND i.assignee_id IS NULL)")
+		}
+		where = append(where, "("+strings.Join(ors, " OR ")+")")
+	}
+
+	// F01 delegate — same wire format and same "no value" semantics as
+	// assignee_filters / include_no_assignee.
+	delegateFilters, ok := parseActorFilterList(w, r.URL.Query().Get("delegate_filters"), "delegate_filters")
+	if !ok {
+		return
+	}
+	includeNoDelegate := r.URL.Query().Get("include_no_delegate") == "true"
+	if len(delegateFilters) > 0 || includeNoDelegate {
+		ors := make([]string, 0, len(delegateFilters)+1)
+		for _, filter := range delegateFilters {
+			ors = append(ors, fmt.Sprintf(
+				"(i.delegate_type = %s::text AND i.delegate_id = %s::uuid)",
+				addArg(filter.actorType),
+				addArg(filter.actorID),
+			))
+		}
+		if includeNoDelegate {
+			ors = append(ors, "(i.delegate_type IS NULL AND i.delegate_id IS NULL)")
 		}
 		where = append(where, "("+strings.Join(ors, " OR ")+")")
 	}
@@ -2129,7 +2236,7 @@ WITH ranked AS (
 		i.id, i.workspace_id, i.title, i.description, i.status, i.priority,
 		i.assignee_type, i.assignee_id, i.creator_type, i.creator_id,
 		i.parent_issue_id, i.position, i.start_date, i.due_date, i.created_at, i.updated_at, i.last_activity_at,
-		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id,
+		i.number, i.project_id, i.metadata, i.stage, i.properties, i.revision, i.goal_id, i.cycle_id, i.issue_type,
 		COUNT(*) OVER (PARTITION BY i.assignee_type, i.assignee_id) AS group_total,
 		ROW_NUMBER() OVER (
 			PARTITION BY i.assignee_type, i.assignee_id
@@ -2142,7 +2249,7 @@ SELECT
 	id, workspace_id, title, description, status, priority,
 	assignee_type, assignee_id, creator_type, creator_id,
 	parent_issue_id, position, start_date, due_date, created_at, updated_at, last_activity_at,
-	number, project_id, metadata, stage, properties, revision, goal_id, group_total
+	number, project_id, metadata, stage, properties, revision, goal_id, cycle_id, issue_type, group_total
 FROM ranked
 WHERE rn > %s AND rn <= %s + %s
 ORDER BY
@@ -2192,6 +2299,8 @@ ORDER BY
 			&row.Properties,
 			&row.Revision,
 			&row.GoalID,
+			&row.CycleID,
+			&row.IssueType,
 			&row.GroupTotal,
 		); err != nil {
 			slog.Warn("ListGroupedIssues scan failed", "error", err)
@@ -2667,6 +2776,10 @@ func (h *Handler) QuickCreateIssue(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		projectUUID = pid
+		// Project roles (K60): creating in a project needs a contributor.
+		if !h.requireProjectWrite(w, r, projectUUID) {
+			return
+		}
 	}
 
 	// Optional parent_issue_id — validate same-workspace membership just like
@@ -2752,6 +2865,11 @@ func (h *Handler) checkQuickCreateDaemonVersion(ctx context.Context, source stri
 	return h.checkQuickCreateDaemonVersionAtLeast(ctx, source, runtimeID, agentpkg.MinQuickCreateCLIVersion)
 }
 
+// nativeRuntimeMode is agent_runtime.runtime_mode for the in-server runtime.
+// Kept next to the gate that has to know about it rather than imported from
+// the service layer, which the handler does not depend on for this.
+const nativeRuntimeMode = "native"
+
 func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, source string, runtimeID pgtype.UUID, minimum string) (int, map[string]any) {
 	rt, err := h.getAgentRuntime(ctx, source, runtimeID)
 	if err != nil {
@@ -2761,6 +2879,15 @@ func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, sour
 			"code":   "agent_unavailable",
 			"reason": "agent's runtime is no longer registered",
 		}
+	}
+	// A native runtime has no daemon and no CLI. This gate exists because an
+	// older daemon cannot be trusted with the flow; the native runtime runs the
+	// flow in this very binary, so there is no version to check and nothing
+	// that could be out of date. Refusing it reported
+	// daemon_version_unsupported with an empty current_version, which is the
+	// gate answering a question that was never asked of it.
+	if rt.RuntimeMode == nativeRuntimeMode {
+		return 0, nil
 	}
 	current := readRuntimeCLIVersion(rt.Metadata)
 	switch err := agentpkg.CheckMinCLIVersionFor(current, minimum); {
@@ -2804,15 +2931,26 @@ func readRuntimeCLIVersion(metadata []byte) string {
 }
 
 type CreateIssueRequest struct {
-	Title         string   `json:"title"`
-	Description   *string  `json:"description"`
-	Status        string   `json:"status"`
-	Priority      string   `json:"priority"`
-	AssigneeType  *string  `json:"assignee_type"`
-	AssigneeID    *string  `json:"assignee_id"`
-	ParentIssueID *string  `json:"parent_issue_id"`
-	ProjectID     *string  `json:"project_id"`
-	GoalID        *string  `json:"goal_id"`
+	Title        string  `json:"title"`
+	Description  *string `json:"description"`
+	Status       string  `json:"status"`
+	Priority     string  `json:"priority"`
+	AssigneeType *string `json:"assignee_type"`
+	AssigneeID   *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Both halves
+	// must be sent together; 'squad' is refused.
+	DelegateType  *string `json:"delegate_type"`
+	DelegateID    *string `json:"delegate_id"`
+	ParentIssueID *string `json:"parent_issue_id"`
+	ProjectID     *string `json:"project_id"`
+	GoalID        *string `json:"goal_id"`
+	// CycleID (F29): the dated cycle to plan the new issue into. Must be a
+	// cycle of ProjectID; anything else is refused with 409.
+	CycleID *string `json:"cycle_id"`
+	// IssueType (F30): a work item type key from the workspace catalogue.
+	// Omitted or null creates an UNTYPED issue, which is what every caller that
+	// predates F30 does.
+	IssueType     *string  `json:"issue_type"`
 	Stage         *int32   `json:"stage,omitempty"`
 	StartDate     *string  `json:"start_date"`
 	DueDate       *string  `json:"due_date"`
@@ -2923,12 +3061,41 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// F01 delegate — the assignee's partner. Parsed and validated after the
+	// assignee so the "must differ" rule sees the pair this create persists.
+	var delegateType pgtype.Text
+	var delegateID pgtype.UUID
+	if req.DelegateType != nil {
+		delegateType = pgtype.Text{String: *req.DelegateType, Valid: true}
+	}
+	if req.DelegateID != nil {
+		id, ok := parseUUIDOrBadRequest(w, *req.DelegateID, "delegate_id")
+		if !ok {
+			return
+		}
+		delegateID = id
+	}
+	if status, msg := h.validateDelegatePair(r.Context(), r, workspaceID, delegateType, delegateID, assigneeType, assigneeID); status != 0 {
+		writeError(w, status, msg)
+		return
+	}
+
 	if req.ProjectID != nil {
 		id, ok := parseUUIDOrBadRequest(w, *req.ProjectID, "project_id")
 		if !ok {
 			return
 		}
 		projectID = id
+		// Project roles (K60): creating in a project needs a contributor.
+		if !h.requireProjectWrite(w, r, projectID) {
+			return
+		}
+	}
+	// Transition rules (F28): a create landing outside the default category is
+	// governed by the any-origin rules, so filing an issue straight into
+	// `done` cannot bypass the rule that governs moving one there.
+	if !h.transitionAllowsCreate(w, r, wsUUID, projectID, status) {
+		return
 	}
 	var goalUUID pgtype.UUID
 	if req.GoalID != nil {
@@ -2982,7 +3149,17 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	// be provided together.
 	var originType pgtype.Text
 	var originID pgtype.UUID
-	if req.OriginType != nil || req.OriginID != nil {
+	if req.OriginType != nil && *req.OriginType == IssueOriginVoiceMobile {
+		// Voice draft (K36): the only human-settable origin, and the only one
+		// with nothing to pair with — a transcript is not a stored row. A
+		// supplied origin_id is rejected rather than ignored so a caller
+		// cannot smuggle an unrelated id in under this label.
+		if req.OriginID != nil {
+			writeError(w, http.StatusBadRequest, "origin_type "+IssueOriginVoiceMobile+" takes no origin_id")
+			return
+		}
+		originType = pgtype.Text{String: IssueOriginVoiceMobile, Valid: true}
+	} else if req.OriginType != nil || req.OriginID != nil {
 		if req.OriginType == nil || req.OriginID == nil {
 			writeError(w, http.StatusBadRequest, "origin_type and origin_id must be provided together")
 			return
@@ -3010,13 +3187,13 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		// so resolveOriginatorForIssueTask can inherit its originator — the
 		// same trick CreateComment uses with comment.source_task_id (MUL-4015).
 		//
-		// The task id is taken from the SERVER-trusted X-Task-ID: resolveActor
-		// only returns creatorType=="agent" when either X-Actor-Source=task_token
-		// (the auth middleware bound X-Agent-ID/X-Task-ID from the mat_ token and
-		// stripped any client value) or the X-Agent-ID/X-Task-ID pair was
-		// validated against the DB. A member-forged X-Task-ID never reaches here
-		// because it would have resolved to creatorType=="member". We still
-		// re-check the task belongs to the acting agent before trusting it.
+		// The task id is taken from the SERVER-trusted X-Task-ID: the auth
+		// middleware deletes whatever the client sent and re-stamps
+		// X-Agent-ID / X-Task-ID only from a validated mat_ token (MUL-3428), so
+		// a member-forged pair never reaches here — it is gone before
+		// resolveActor runs, and the request resolves to creatorType=="member".
+		// We still re-check the task belongs to the acting agent before trusting
+		// it.
 		if taskIDHeader := r.Header.Get("X-Task-ID"); taskIDHeader != "" {
 			if taskUUID, perr := util.ParseUUID(taskIDHeader); perr == nil {
 				if task, terr := h.Queries.GetAgentTask(r.Context(), taskUUID); terr == nil && uuidToString(task.AgentID) == actualCreatorID {
@@ -3088,6 +3265,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 		Priority:       priority,
 		AssigneeType:   assigneeType,
 		AssigneeID:     assigneeID,
+		DelegateType:   delegateType,
+		DelegateID:     delegateID,
 		CreatorType:    creatorType,
 		CreatorID:      parseUUID(actualCreatorID),
 		ParentIssueID:  parentIssueID,
@@ -3119,7 +3298,8 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 			// issue_labels:changed broadcast is gone.
 			labelResponses := labelsToResponse(labels)
 			payload.Labels = &labelResponses
-			return map[string]any{"issue": payload}
+			// See UpdateIssue: run lineage for the action lane (F03).
+			return map[string]any{"issue": payload, "acting_task_id": uuidToString(h.actingTaskID(r))}
 		},
 	})
 
@@ -3162,6 +3342,22 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 
 	issue := res.Issue
 	slog.Info("issue created", append(logger.RequestAttrs(r), "issue_id", uuidToString(issue.ID), "title", issue.Title, "status", issue.Status, "workspace_id", workspaceID)...)
+	// Dated cycles (F29): membership is written after the create transaction,
+	// like the goal. A cycle of another project is refused rather than
+	// silently dropped — the caller asked for a plan that cannot exist.
+	if req.CycleID != nil && strings.TrimSpace(*req.CycleID) != "" {
+		if !h.applyIssueCycleWrite(w, wsUUID, &issue, req.CycleID, r.Context()) {
+			return
+		}
+	}
+	// Work item type (F30): same post-transaction write as the cycle above. An
+	// unknown or archived key is a 400 here rather than silently dropped — the
+	// caller classified the issue and has to learn the classification failed.
+	if req.IssueType != nil && strings.TrimSpace(*req.IssueType) != "" {
+		if !h.applyIssueTypeWrite(w, r, wsUUID, &issue, req.IssueType) {
+			return
+		}
+	}
 	// Goals (K74): the goal an issue names is set after the create transaction.
 	if goalUUID.Valid {
 		if err := h.Queries.SetIssueGoal(r.Context(), db.SetIssueGoalParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, GoalID: goalUUID}); err != nil {
@@ -3176,6 +3372,9 @@ func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	h.suggestOwnership(r.Context(), issue, creatorType, actualCreatorID)
 	// Org chart (K75): the structure in force routes the new issue.
 	issue = h.orgRouteIssue(r.Context(), issue, creatorType, actualCreatorID)
+	// Cross-repo mirrors (K54): a create that already carries a trigger label
+	// mirrors immediately, exactly like a later attach.
+	h.mirrorIssueForLabels(r.Context(), issue, res.Labels)
 
 	resp := issueToResponse(issue, prefix)
 	fillCreated(&resp)
@@ -3200,18 +3399,29 @@ type UpdateIssueRequest struct {
 	// that landed asynchronously after that base without making media already
 	// present in the base impossible for the user to delete. Older clients omit
 	// it and receive conservative channel-media preservation.
-	DescriptionBase *string  `json:"description_base,omitempty"`
-	Status          *string  `json:"status"`
-	Priority        *string  `json:"priority"`
-	AssigneeType    *string  `json:"assignee_type"`
-	AssigneeID      *string  `json:"assignee_id"`
-	Position        *float64 `json:"position"`
-	StartDate       *string  `json:"start_date"`
-	DueDate         *string  `json:"due_date"`
-	ParentIssueID   *string  `json:"parent_issue_id"`
-	ProjectID       *string  `json:"project_id"`
-	GoalID          *string  `json:"goal_id"`
-	Stage           *int32   `json:"stage"`
+	DescriptionBase *string `json:"description_base,omitempty"`
+	Status          *string `json:"status"`
+	Priority        *string `json:"priority"`
+	AssigneeType    *string `json:"assignee_type"`
+	AssigneeID      *string `json:"assignee_id"`
+	// DelegateType / DelegateID name the assignee's partner (F01). Nullable
+	// like the assignee pair: sending an explicit null on both clears it.
+	DelegateType  *string  `json:"delegate_type"`
+	DelegateID    *string  `json:"delegate_id"`
+	Position      *float64 `json:"position"`
+	StartDate     *string  `json:"start_date"`
+	DueDate       *string  `json:"due_date"`
+	ParentIssueID *string  `json:"parent_issue_id"`
+	ProjectID     *string  `json:"project_id"`
+	GoalID        *string  `json:"goal_id"`
+	// CycleID (F29): the dated cycle this issue is planned into. An explicit
+	// null clears it; a cycle of another project is refused with 409.
+	CycleID *string `json:"cycle_id"`
+	// IssueType (F30): the work item type key. An explicit null CLEARS it back
+	// to untyped; omitting the field leaves it alone. Validated against the
+	// workspace catalogue — an unknown key is 400, an archived one is 400.
+	IssueType *string `json:"issue_type"`
+	Stage     *int32  `json:"stage"`
 	// AttachmentIDs lets the description editor bind newly uploaded files to
 	// this issue so they surface in `GET /api/issues/:id/attachments` and the
 	// editor's preview Eye keeps working past a refresh. Existing bindings
@@ -3288,6 +3498,13 @@ func refreshUntouchedNullableIssueParams(params *db.UpdateIssueParams, current d
 	if !assigneeTypeTouched && !assigneeIDTouched {
 		params.AssigneeType = current.AssigneeType
 		params.AssigneeID = current.AssigneeID
+	}
+	// The delegate pair (F01) is one validated value in exactly the same way.
+	_, delegateTypeTouched := rawFields["delegate_type"]
+	_, delegateIDTouched := rawFields["delegate_id"]
+	if !delegateTypeTouched && !delegateIDTouched {
+		params.DelegateType = current.DelegateType
+		params.DelegateID = current.DelegateID
 	}
 	if _, touched := rawFields["start_date"]; !touched {
 		params.StartDate = current.StartDate
@@ -3419,6 +3636,10 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, prevIssue.ProjectID) {
+		return
+	}
 	userID := requestUserID(r)
 	workspaceID := uuidToString(prevIssue.WorkspaceID)
 
@@ -3444,6 +3665,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		ID:            prevIssue.ID,
 		AssigneeType:  prevIssue.AssigneeType,
 		AssigneeID:    prevIssue.AssigneeID,
+		DelegateType:  prevIssue.DelegateType,
+		DelegateID:    prevIssue.DelegateID,
 		StartDate:     prevIssue.StartDate,
 		DueDate:       prevIssue.DueDate,
 		ParentIssueID: prevIssue.ParentIssueID,
@@ -3486,8 +3709,21 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	if statusKeyForGuard != "" && !h.planVerificationAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
+	// Review gate (JEF-238): a gated project needs an approving cross-review.
+	if statusKeyForGuard != "" && !h.reviewGateAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Adversarial critic (F25): a blocking policy holds the issue until its
+	// critic answers. Agents only — a member always decides for themselves.
+	if !h.criticHoldAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
 	// Outcome Contract (K12): a criterion without proof keeps the issue out of done.
 	if statusKeyForGuard != "" && !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Cross-repo mirrors (K54): an open mirror keeps its source out of done.
+	if statusKeyForGuard != "" && !h.mirrorsAllowStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
 	// Business rules (K53): entering review must satisfy the active rules.
@@ -3496,6 +3732,12 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	}
 	// Trust Dial (K26): an observer never moves an issue; propose needs an approved plan.
 	if !h.trustModeAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
+		return
+	}
+	// Transition rules (F28): who may make this move, and whether it waits for
+	// an approver. Answers 403 or holds the write with 202 — either way the
+	// caller returns here, so nothing below runs and no run is enqueued.
+	if !h.transitionAllowsStatus(w, r, prevIssue, statusKeyForGuard) {
 		return
 	}
 	if req.Priority != nil {
@@ -3524,6 +3766,24 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 			params.AssigneeID = id
 		} else {
 			params.AssigneeID = pgtype.UUID{Valid: false} // explicit null = unassign
+		}
+	}
+	if _, ok := rawFields["delegate_type"]; ok {
+		if req.DelegateType != nil {
+			params.DelegateType = pgtype.Text{String: *req.DelegateType, Valid: true}
+		} else {
+			params.DelegateType = pgtype.Text{Valid: false} // explicit null = clear delegate
+		}
+	}
+	if _, ok := rawFields["delegate_id"]; ok {
+		if req.DelegateID != nil {
+			id, ok := parseUUIDOrBadRequest(w, *req.DelegateID, "delegate_id")
+			if !ok {
+				return
+			}
+			params.DelegateID = id
+		} else {
+			params.DelegateID = pgtype.UUID{Valid: false} // explicit null = clear delegate
 		}
 	}
 	if _, ok := rawFields["start_date"]; ok {
@@ -3643,6 +3903,22 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// F01 delegate. Re-validated whenever EITHER pair is touched, not just the
+	// delegate one: moving the assignee onto the current delegate would
+	// otherwise slip a self-delegation past the "must differ" rule.
+	_, touchedDelegateType := rawFields["delegate_type"]
+	_, touchedDelegateID := rawFields["delegate_id"]
+	if touchedDelegateType || touchedDelegateID || touchedType || touchedID {
+		if status, msg := h.validateDelegatePair(
+			r.Context(), r, workspaceID,
+			params.DelegateType, params.DelegateID,
+			params.AssigneeType, params.AssigneeID,
+		); status != 0 {
+			writeError(w, status, msg)
+			return
+		}
+	}
+
 	attachmentIDs, ok := parseUUIDSliceOrBadRequest(w, req.AttachmentIDs, "attachment_ids")
 	if !ok {
 		return
@@ -3697,6 +3973,26 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 
 	// Determine actor identity: agent (via X-Agent-ID header) or member.
 	actorType, actorID := h.resolveActor(r, userID, workspaceID)
+	// Dated cycles (F29). Unlike the goal, an agent may set this: planning an
+	// issue into the cycle it is already working under is bookkeeping, not a
+	// change of intent, and the project check inside bounds what it can do.
+	if _, touched := rawFields["cycle_id"]; touched {
+		if !h.applyIssueCycleWrite(w, prevIssue.WorkspaceID, &issue, req.CycleID, r.Context()) {
+			return
+		}
+	}
+	// Work item type (F30). Presence in rawFields, not a non-nil pointer: an
+	// explicit `"issue_type": null` is how a caller clears a classification,
+	// and a nil-check alone cannot tell that from an omitted field.
+	//
+	// An agent may set it, like the cycle: classifying an issue changes no
+	// platform behavior, it only decides which properties apply and how the
+	// issue groups.
+	if _, touched := rawFields["issue_type"]; touched {
+		if !h.applyIssueTypeWrite(w, r, prevIssue.WorkspaceID, &issue, req.IssueType) {
+			return
+		}
+	}
 	// Goals (K74): members set the goal; an agent proposes it through a decision.
 	if _, touched := rawFields["goal_id"]; touched && actorType == "member" {
 		goalUUID := pgtype.UUID{}
@@ -3733,6 +4029,12 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	h.fillStatusCategory(r.Context(), issue.WorkspaceID, &resp)
 	assigneeChanged := (req.AssigneeType != nil || req.AssigneeID != nil) &&
 		(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
+	// delegate_changed drives the delegate's subscription and inbox item, the
+	// same way assignee_changed drives the assignee's. Computed from the
+	// PERSISTED before/after rather than from the request so a no-op write
+	// (re-sending the delegate the issue already has) raises nothing.
+	delegateChanged := (touchedDelegateType || touchedDelegateID) &&
+		(prevIssue.DelegateType.String != issue.DelegateType.String || uuidToString(prevIssue.DelegateID) != uuidToString(issue.DelegateID))
 	statusChanged := req.Status != nil && prevIssue.Status != issue.Status
 	priorityChanged := req.Priority != nil && prevIssue.Priority != issue.Priority
 	// project_changed gates the client's per-project issue-list refetch the way
@@ -3750,8 +4052,13 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		(prevDueDate != nil && resp.DueDate != nil && *prevDueDate != *resp.DueDate)
 
 	h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
-		"issue":               resp,
+		"issue": resp,
+		// Run lineage for the activity listeners: an update made under an
+		// agent run stamps details.task_id so the change joins that run's
+		// action lane. Empty for a human edit, which keeps it out (F03).
+		"acting_task_id":      uuidToString(h.actingTaskID(r)),
 		"assignee_changed":    assigneeChanged,
+		"delegate_changed":    delegateChanged,
 		"status_changed":      statusChanged,
 		"priority_changed":    priorityChanged,
 		"project_changed":     projectChanged,
@@ -3762,6 +4069,8 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 		"prev_title":          prevIssue.Title,
 		"prev_assignee_type":  textToPtr(prevIssue.AssigneeType),
 		"prev_assignee_id":    uuidToPtr(prevIssue.AssigneeID),
+		"prev_delegate_type":  textToPtr(prevIssue.DelegateType),
+		"prev_delegate_id":    uuidToPtr(prevIssue.DelegateID),
 		"prev_status":         prevIssue.Status,
 		"prev_priority":       prevIssue.Priority,
 		"prev_start_date":     prevStartDate,
@@ -3841,13 +4150,50 @@ func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 // callers should treat any non-zero status as a rejection and surface it back
 // to the client.
 func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, workspaceID string, assigneeType pgtype.Text, assigneeID pgtype.UUID) (int, string) {
-	// Both unset → unassigned issue, valid.
+	return h.validateActorPair(ctx, r, workspaceID, actorPairAssignee, assigneeType, assigneeID)
+}
+
+// actorPairKind names which of an issue's two actor pairs is being validated.
+// The two differ in exactly two ways — the field names their errors quote, and
+// whether 'squad' is an allowed target — so they share one implementation
+// rather than growing a second copy of the workspace / archived / invoke-gate
+// rules that would drift the first time one of them changed.
+type actorPairKind struct {
+	// field is the request field prefix: "assignee" or "delegate".
+	field string
+	// allowSquad is true only for the assignee. A squad is a routing object
+	// whose work runs through its leader; it is not a partner and has no
+	// inbox, so it cannot be a delegate.
+	allowSquad bool
+	// noun is how the error phrases the relationship ("assign work to" /
+	// "delegate work to").
+	noun string
+}
+
+var (
+	actorPairAssignee = actorPairKind{field: "assignee", allowSquad: true, noun: "assign work to"}
+	actorPairDelegate = actorPairKind{field: "delegate", allowSquad: false, noun: "name as delegate on this issue"}
+)
+
+// validateActorPair is validateAssigneePair generalised over the issue's two
+// actor pairs. See validateAssigneePair for the security rationale of each
+// branch; the delegate reuses ALL of it, including the canInvokeAgent gate.
+//
+// The delegate starts no run, so the invoke gate is not protecting an
+// execution here — it is protecting the DISCLOSURE that gate also buys. A
+// private agent named as delegate is welded onto the issue and its name and
+// avatar become visible to everyone who can view it, which is the same leak
+// #3300 closed on the assignee side. Judging both pairs by one predicate is
+// therefore both the smaller change and the stricter one.
+func (h *Handler) validateActorPair(ctx context.Context, r *http.Request, workspaceID string, kind actorPairKind, actorType pgtype.Text, actorID pgtype.UUID) (int, string) {
+	assigneeType, assigneeID := actorType, actorID
+	// Both unset → no actor of this kind, valid.
 	if !assigneeType.Valid && !assigneeID.Valid {
 		return 0, ""
 	}
 	// Exactly one of type/id provided → callers must always pair them.
 	if assigneeType.Valid != assigneeID.Valid {
-		return http.StatusBadRequest, "assignee_type and assignee_id must be provided together"
+		return http.StatusBadRequest, kind.field + "_type and " + kind.field + "_id must be provided together"
 	}
 	wsUUID, err := util.ParseUUID(workspaceID)
 	if err != nil {
@@ -3859,7 +4205,7 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			UserID:      assigneeID,
 			WorkspaceID: wsUUID,
 		}); err != nil {
-			return http.StatusBadRequest, "assignee_id does not refer to a member of this workspace"
+			return http.StatusBadRequest, kind.field + "_id does not refer to a member of this workspace"
 		}
 		return 0, ""
 	case "agent":
@@ -3868,10 +4214,10 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			WorkspaceID: wsUUID,
 		})
 		if err != nil {
-			return http.StatusBadRequest, "assignee_id does not refer to an agent of this workspace"
+			return http.StatusBadRequest, kind.field + "_id does not refer to an agent of this workspace"
 		}
 		if agent.ArchivedAt.Valid {
-			return http.StatusBadRequest, "cannot assign to archived agent"
+			return http.StatusBadRequest, "cannot " + kind.noun + " archived agent"
 		}
 		actorType, actorID := h.resolveActor(r, requestUserID(r), workspaceID)
 		effectiveInvoker := h.invokeOriginatorFromRequest(r, actorType, actorID)
@@ -3884,10 +4230,16 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 			// answers 403, so existence remains observable; the guarantee here
 			// is only that the reason no longer names the target's permission
 			// mode (MUL-6380 / GH #7180).
-			return http.StatusForbidden, "you do not have permission to assign work to this agent"
+			return http.StatusForbidden, "you do not have permission to " + kind.noun + " this agent"
 		}
 		return 0, ""
 	case "squad":
+		if !kind.allowSquad {
+			// Reported as an unsupported value rather than "squads are not
+			// delegatable": the delegate simply has no squad variant, and the
+			// message must list what IS allowed so a caller can fix it.
+			return http.StatusBadRequest, kind.field + "_type must be 'member' or 'agent'"
+		}
 		squad, err := h.Queries.GetSquadInWorkspace(ctx, db.GetSquadInWorkspaceParams{
 			ID:          assigneeID,
 			WorkspaceID: wsUUID,
@@ -3911,8 +4263,31 @@ func (h *Handler) validateAssigneePair(ctx context.Context, r *http.Request, wor
 		}
 		return 0, ""
 	default:
-		return http.StatusBadRequest, "assignee_type must be 'member', 'agent', or 'squad'"
+		if !kind.allowSquad {
+			return http.StatusBadRequest, kind.field + "_type must be 'member' or 'agent'"
+		}
+		return http.StatusBadRequest, kind.field + "_type must be 'member', 'agent', or 'squad'"
 	}
+}
+
+// validateDelegatePair validates the (delegate_type, delegate_id) pair and the
+// one rule the assignee has no counterpart for: a delegate names the
+// assignee's PARTNER, so it may not be the assignee itself. `assignee` is the
+// pair this same write is about to persist, not the row's current value, so a
+// request that sets both halves at once is judged on its own result.
+func (h *Handler) validateDelegatePair(
+	ctx context.Context, r *http.Request, workspaceID string,
+	delegateType pgtype.Text, delegateID pgtype.UUID,
+	assigneeType pgtype.Text, assigneeID pgtype.UUID,
+) (int, string) {
+	if status, msg := h.validateActorPair(ctx, r, workspaceID, actorPairDelegate, delegateType, delegateID); status != 0 {
+		return status, msg
+	}
+	if delegateType.Valid && assigneeType.Valid &&
+		delegateType.String == assigneeType.String && delegateID == assigneeID {
+		return http.StatusBadRequest, "delegate must differ from the assignee"
+	}
+	return 0, ""
 }
 
 // shouldEnqueueAgentTask returns true when an issue creation or assignment
@@ -4032,6 +4407,10 @@ func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	issue, ok := h.loadIssueForUser(w, r, id)
 	if !ok {
+		return
+	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
 		return
 	}
 
@@ -4211,7 +4590,7 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		req.Updates.Priority != nil ||
 		req.Updates.Position != nil
 	if !hasMutation {
-		for _, k := range []string{"assignee_type", "assignee_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage"} {
+		for _, k := range []string{"assignee_type", "assignee_id", "delegate_type", "delegate_id", "start_date", "due_date", "parent_issue_id", "project_id", "stage", "cycle_id", "issue_type"} {
 			if _, ok := rawUpdates[k]; ok {
 				hasMutation = true
 				break
@@ -4268,8 +4647,50 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		}
 		batchProjectID = projectUUID
 	}
+	// Dated cycles (F29). The cycle row is resolved once — the batch shares one
+	// cycle_id — but the project match is judged PER ISSUE, like a transition
+	// rule and unlike the project check above: a batch can legitimately span
+	// two projects, and only the issues outside the cycle's project are wrong.
+	batchCycleTouched := false
+	batchCycle := db.Cycle{}
+	batchCycleClears := false
+	if _, ok := rawUpdates["cycle_id"]; ok {
+		batchCycleTouched = true
+		if req.Updates.CycleID == nil || strings.TrimSpace(*req.Updates.CycleID) == "" {
+			batchCycleClears = true
+		} else {
+			cycleUUID, ok := parseUUIDOrBadRequest(w, *req.Updates.CycleID, "cycle_id")
+			if !ok {
+				return
+			}
+			cycle, err := h.Queries.GetCycleInWorkspace(r.Context(), db.GetCycleInWorkspaceParams{ID: cycleUUID, WorkspaceID: wsUUID})
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "cycle not found in this workspace")
+				return
+			}
+			batchCycle = cycle
+		}
+	}
+	// Work item type (F30). Resolved ONCE for the whole batch: the catalogue is
+	// per workspace, not per issue, so an unknown key is wrong for every item
+	// and must fail the request rather than be reported as N per-issue skips.
+	batchTypeTouched := false
+	batchType := pgtype.Text{}
+	if _, ok := rawUpdates["issue_type"]; ok {
+		batchTypeTouched = true
+		if req.Updates.IssueType != nil && strings.TrimSpace(*req.Updates.IssueType) != "" {
+			key, ok := h.resolveIssueTypeKey(w, r, wsUUID, *req.Updates.IssueType)
+			if !ok {
+				return
+			}
+			batchType = pgtype.Text{String: key, Valid: true}
+		}
+	}
 
 	updated := 0
+	// Issues the transition gate (F28) refused, reported alongside the count
+	// so a partial batch says which items did not move and why.
+	refused := []map[string]any{}
 	// One Resolver for the whole batch — a per-issue filler would query the
 	// catalog once per custom-status row. (MUL-6243)
 	fillBatch := h.newStatusCategoryFiller(r.Context(), wsUUID)
@@ -4294,6 +4715,8 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			ID:            prevIssue.ID,
 			AssigneeType:  prevIssue.AssigneeType,
 			AssigneeID:    prevIssue.AssigneeID,
+			DelegateType:  prevIssue.DelegateType,
+			DelegateID:    prevIssue.DelegateID,
 			StartDate:     prevIssue.StartDate,
 			DueDate:       prevIssue.DueDate,
 			ParentIssueID: prevIssue.ParentIssueID,
@@ -4312,8 +4735,57 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			if !h.planVerificationAllowsStatus(w, r, prevIssue, batchStatusKey) {
 				return
 			}
+			// Review gate (JEF-238): same for a project gating on the review.
+			if !h.reviewGateAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			// Adversarial critic (F25): same for an issue still waiting for
+			// its critic's verdict.
+			if !h.criticHoldAllowsStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
 			if !h.acceptanceCriteriaAllowStatus(w, r, prevIssue, batchStatusKey) {
 				return
+			}
+			// Cross-repo mirrors (K54): one source with an open mirror refuses the batch.
+			if !h.mirrorsAllowStatus(w, r, prevIssue, batchStatusKey) {
+				return
+			}
+			// Transition rules (F28) refuse PER ISSUE, unlike the five gates
+			// above. Those describe a property of the batch's shared target
+			// status, so one failure means every item would fail the same way.
+			// A transition rule is about the ISSUE — its project, its origin
+			// category — so a batch can legitimately be half-allowed, and
+			// aborting the whole thing would refuse work the actor may do.
+			// The refused items come back in `refused` with their reason.
+			decision, decideErr := h.decideTransition(r, prevIssue.WorkspaceID, prevIssue.ProjectID, prevIssue.Status, batchStatusKey)
+			if decideErr != nil {
+				slog.Warn("batch update: transition gate failed",
+					append(logger.RequestAttrs(r), "error", decideErr, "issue_id", issueID)...)
+				writeError(w, http.StatusInternalServerError, "failed to evaluate transition rules")
+				return
+			}
+			if decision.Outcome != issuestatus.TransitionAllow {
+				entry := map[string]any{
+					"issue_id": uuidToString(prevIssue.ID),
+					"code":     ErrCodeTransitionNotAllowed,
+					"from":     prevIssue.Status,
+					"to":       batchStatusKey,
+					"reason":   decision.Reason,
+				}
+				if decision.Outcome == issuestatus.TransitionNeedsApproval {
+					// A batch does not open approval requests: the actor asked
+					// for N moves at once, and silently queueing some of them
+					// would report neither an applied change nor a refusal.
+					// Report it as refused with the approval reason so the
+					// caller can retry that issue on its own and get its 202.
+					entry["requires_approval"] = true
+				}
+				if decision.Rule != nil {
+					entry["rule_id"] = decision.Rule.ID
+				}
+				refused = append(refused, entry)
+				continue
 			}
 			params.Status = pgtype.Text{String: batchStatusKey, Valid: true}
 		}
@@ -4339,6 +4811,24 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 				params.AssigneeID = assigneeUUID
 			} else {
 				params.AssigneeID = pgtype.UUID{Valid: false}
+			}
+		}
+		if _, ok := rawUpdates["delegate_type"]; ok {
+			if req.Updates.DelegateType != nil {
+				params.DelegateType = pgtype.Text{String: *req.Updates.DelegateType, Valid: true}
+			} else {
+				params.DelegateType = pgtype.Text{Valid: false}
+			}
+		}
+		if _, ok := rawUpdates["delegate_id"]; ok {
+			if req.Updates.DelegateID != nil {
+				delegateUUID, err := util.ParseUUID(*req.Updates.DelegateID)
+				if err != nil {
+					continue
+				}
+				params.DelegateID = delegateUUID
+			} else {
+				params.DelegateID = pgtype.UUID{Valid: false}
 			}
 		}
 		if _, ok := rawUpdates["start_date"]; ok {
@@ -4435,6 +4925,33 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Same per-issue scoping for the delegate pair (F01). "Must differ"
+		// is judged against THIS issue's resulting assignee, which is why it
+		// cannot be hoisted out of the loop like the batch's project check.
+		_, batchTouchedDelegateType := rawUpdates["delegate_type"]
+		_, batchTouchedDelegateID := rawUpdates["delegate_id"]
+		if batchTouchedDelegateType || batchTouchedDelegateID || batchTouchedType || batchTouchedID {
+			if status, _ := h.validateDelegatePair(
+				r.Context(), r, workspaceID,
+				params.DelegateType, params.DelegateID,
+				params.AssigneeType, params.AssigneeID,
+			); status != 0 {
+				continue
+			}
+		}
+
+		// The cycle's project is checked against the project this issue ENDS UP
+		// in, so a batch that moves issues into a project and into one of its
+		// cycles in the same call is accepted.
+		if batchCycleTouched && !batchCycleClears && batchCycle.ProjectID != params.ProjectID {
+			refused = append(refused, map[string]any{
+				"issue_id": uuidToString(prevIssue.ID),
+				"code":     ErrCodeCycleProjectMismatch,
+				"reason":   "the cycle belongs to another project",
+			})
+			continue
+		}
+
 		var issue db.Issue
 		if req.Updates.Description != nil {
 			// One batch-level base cannot describe multiple issue documents.
@@ -4465,6 +4982,29 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
+		if batchCycleTouched {
+			target := pgtype.UUID{}
+			if !batchCycleClears {
+				target = batchCycle.ID
+			}
+			if err := h.Queries.SetIssueCycle(r.Context(), db.SetIssueCycleParams{ID: issue.ID, WorkspaceID: issue.WorkspaceID, CycleID: target}); err != nil {
+				slog.Warn("batch update: set cycle failed", "issue_id", issueID, "error", err)
+			} else {
+				issue.CycleID = target
+			}
+		}
+		if batchTypeTouched {
+			if err := h.Queries.SetIssueIssueType(r.Context(), db.SetIssueIssueTypeParams{
+				ID:          issue.ID,
+				WorkspaceID: issue.WorkspaceID,
+				IssueType:   batchType,
+			}); err != nil {
+				slog.Warn("batch update: set issue type failed", "issue_id", issueID, "error", err)
+			} else {
+				issue.IssueType = batchType
+			}
+		}
+
 		prefix := h.getIssuePrefix(r.Context(), issue.WorkspaceID)
 		resp := issueToResponse(issue, prefix)
 		actorType, actorID := h.resolveActor(r, userID, workspaceID)
@@ -4472,16 +5012,23 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 		fillBatch(&resp)
 		assigneeChanged := (req.Updates.AssigneeType != nil || req.Updates.AssigneeID != nil) &&
 			(prevIssue.AssigneeType.String != issue.AssigneeType.String || uuidToString(prevIssue.AssigneeID) != uuidToString(issue.AssigneeID))
+		delegateChanged := (batchTouchedDelegateType || batchTouchedDelegateID) &&
+			(prevIssue.DelegateType.String != issue.DelegateType.String || uuidToString(prevIssue.DelegateID) != uuidToString(issue.DelegateID))
 		statusChanged := req.Updates.Status != nil && prevIssue.Status != issue.Status
 		priorityChanged := req.Updates.Priority != nil && prevIssue.Priority != issue.Priority
 		projectChanged := req.Updates.ProjectID != nil && uuidToString(prevIssue.ProjectID) != uuidToString(issue.ProjectID)
 
 		h.publish(protocol.EventIssueUpdated, workspaceID, actorType, actorID, map[string]any{
-			"issue":            resp,
-			"assignee_changed": assigneeChanged,
-			"status_changed":   statusChanged,
-			"priority_changed": priorityChanged,
-			"project_changed":  projectChanged,
+			"issue": resp,
+			// See UpdateIssue: run lineage for the action lane (F03).
+			"acting_task_id":     uuidToString(h.actingTaskID(r)),
+			"assignee_changed":   assigneeChanged,
+			"delegate_changed":   delegateChanged,
+			"prev_delegate_type": textToPtr(prevIssue.DelegateType),
+			"prev_delegate_id":   uuidToPtr(prevIssue.DelegateID),
+			"status_changed":     statusChanged,
+			"priority_changed":   priorityChanged,
+			"project_changed":    projectChanged,
 		})
 
 		// Reassignment does not cancel existing tasks (#4963 / MUL-4113) —
@@ -4537,8 +5084,8 @@ func (h *Handler) BatchUpdateIssues(w http.ResponseWriter, r *http.Request) {
 	// batch. Single-issue UpdateIssue is unchanged and still notifies inline.
 	h.notifyParentsOfBatchChildDone(r.Context(), childDoneCompleted)
 
-	slog.Info("batch update issues", append(logger.RequestAttrs(r), "count", updated)...)
-	writeJSON(w, http.StatusOK, map[string]any{"updated": updated})
+	slog.Info("batch update issues", append(logger.RequestAttrs(r), "count", updated, "refused", len(refused))...)
+	writeJSON(w, http.StatusOK, map[string]any{"updated": updated, "refused": refused})
 }
 
 type BatchDeleteIssuesRequest struct {

@@ -117,16 +117,19 @@
     "no_results": "Aucun résultat",
     "no_labels": "Aucun libellé",
     "no_assignee": "Aucun responsable",
+    "no_delegate": "Aucun délégué",
     "no_project": "Aucun projet",
     "section_status": "Statut",
     "section_priority": "Priorité",
     "section_assignee": "Assigné à",
+    "section_delegate": "Délégué",
     "section_creator": "Créateur",
     "chip_op_contains": "contient {{value}}",
     "chip_op_before": "avant le {{value}}",
     "chip_op_after": "après le {{value}}",
     "section_project": "Projet",
     "section_goal": "Objectif",
+    "section_cycle": "Cycle",
     "section_label": "Étiquette",
     "section_date": "Date",
     "date_field": "Champ",
@@ -153,7 +156,8 @@
     "active_count_other": "{{count}} filtres",
     "in_view": "Déjà dans cette vue",
     "chip_edit": "Modifier",
-    "chip_save_as": "Enregistrer sous"
+    "chip_save_as": "Enregistrer sous",
+    "section_type": "Type"
   },
   "display": {
     "tooltip": "Paramètres d'affichage",
@@ -196,7 +200,9 @@
     "list": "Liste",
     "table": "Tableau",
     "gantt": "Gantt",
-    "swimlane": "Couloirs"
+    "swimlane": "Couloirs",
+    "calendar": "Calendrier",
+    "tooltip_calendar": "Vue Calendrier"
   },
   "table": {
     "select_all": "Sélectionner toutes les issues visibles",
@@ -253,7 +259,8 @@
       "created_at": "Création",
       "updated_at": "Mise à jour",
       "child_progress": "Progression des sous-issues",
-      "creator": "Créé par"
+      "creator": "Créé par",
+      "issue_type": "Type"
     },
     "calculation": {
       "label": "Calculer",
@@ -378,10 +385,12 @@
     "prop_priority": "Priorité",
     "prop_stage": "Étape",
     "prop_assignee": "Responsable",
+    "prop_delegate": "Délégué",
     "prop_start_date": "Date de début",
     "prop_due_date": "Date d'échéance",
     "prop_project": "Projet",
     "prop_goal": "Objectif",
+    "prop_cycle": "Cycle",
     "goal_inherited": "Hérité du projet",
     "prop_labels": "Labels",
     "add_property_action": "Ajouter une propriété",
@@ -409,26 +418,6 @@
     "unpin_tooltip": "Désépingler de la barre latérale",
     "thread_nav_label": "Accéder au fil de commentaires",
     "thread_nav_resolved_label": "{{title}} (résolu)",
-    "thread_nav": {
-      "button_label_one": "Fils de commentaires ({{count}})",
-      "button_label_other": "Fils de commentaires ({{count}})",
-      "search_placeholder": "Rechercher des fils ou des auteurs",
-      "match_count_one": "{{count}} correspondance",
-      "match_count_other": "{{count}} correspondances",
-      "filter_all": "Tous",
-      "filter_unresolved": "Non résolus",
-      "filter_resolved": "Résolus",
-      "filter_mine": "@moi",
-      "group": {
-        "today": "Aujourd'hui",
-        "yesterday": "Hier",
-        "earlier": "Plus tôt"
-      },
-      "empty": "Aucun fil ne correspond",
-      "hint_select": "sélectionner",
-      "hint_jump": "accéder",
-      "hint_close": "fermer"
-    },
     "sidebar_tooltip": "Afficher/masquer la barre latérale droite",
     "find": {
       "placeholder": "Rechercher dans l'issue...",
@@ -465,7 +454,11 @@
     "pr_stack_truncated": "Stack tronqué après {{depth}} niveaux",
     "pr_stack_cyclic": "Cycle de dépendances : certains niveaux sont masqués",
     "blocker_adr_required": "Document de décision d'architecture requis ({{count}} fichiers modifiés)",
-    "from_meeting": "Depuis la réunion"
+    "from_meeting": "Depuis la réunion",
+    "hidden_properties_one": "Propriété masquée ({{count}})",
+    "hidden_properties_other": "Propriétés masquées ({{count}})",
+    "hidden_properties_hint": "Ces valeurs ont été saisies sous un autre type. Elles sont conservées et reviennent si vous remettez ce type.",
+    "prop_issue_type": "Type"
   },
   "timeline": {
     "loading": "Chargement..."
@@ -534,6 +527,13 @@
     "trigger_blocked_short_agent_runtime_required": "Nécessite un runtime",
     "trigger_blocked_short_budget_exceeded": "Budget atteint",
     "trigger_blocked_short_generic": "Ne démarrera pas",
+    "a2a_question": "Question à",
+    "a2a_review": "Revue demandée à",
+    "a2a_handoff": "Transfert vers",
+    "trigger_blocked_a2a_depth_exceeded": "Cette chaîne entre agents est trop éloignée de la personne qui l'a lancée",
+    "trigger_blocked_a2a_budget_exceeded": "Cette issue a atteint son quota de messages entre agents pour le moment",
+    "trigger_blocked_short_a2a_depth_exceeded": "Chaîne trop longue",
+    "trigger_blocked_short_a2a_budget_exceeded": "Trop de messages entre agents",
     "send_reply_failed": "Échec de l'envoi de la réponse",
     "delete_failed": "Échec de la suppression du commentaire",
     "reply_count_one": "{{count}} réponse",
@@ -662,7 +662,44 @@
     "status_deferred": "Différé",
     "status_paused": "En pause",
     "unresponsive": "Ne répond pas",
-    "unresponsive_tooltip": "Aucune activité depuis {{duration}}"
+    "unresponsive_tooltip": "Aucune activité depuis {{duration}}",
+    "off_peak": "Heures creuses",
+    "off_peak_hint": "Placée dans la file heures creuses : servie après toutes les exécutions urgentes, elle démarre donc plus tard que prévu.",
+    "revert_tooltip": "Revenir à ce tour",
+    "revert_aria": "Ramener la branche à cette exécution",
+    "revert_dialog_title": "Revenir à ce tour ?",
+    "revert_dialog_body_one": "La branche revient là où cette exécution l'a laissée. {{count}} exécution ultérieure et ses messages seront supprimés.",
+    "revert_dialog_body_other": "La branche revient là où cette exécution l'a laissée. {{count}} exécutions ultérieures et leurs messages seront supprimés.",
+    "revert_dialog_body_none": "La branche revient là où cette exécution l'a laissée. Aucune exécution ultérieure ne sera supprimée.",
+    "revert_dialog_note": "Votre copie de travail, votre index et votre remise ne sont pas touchés.",
+    "revert_dialog_keep": "Laisser tel quel",
+    "revert_dialog_confirm": "Revenir en arrière",
+    "revert_pending": "Retour en cours…",
+    "revert_done": "Revenu à ce tour",
+    "revert_failed": "Le retour en arrière n'a pas abouti"
+  },
+  "legs": {
+    "workflow": "Workflow",
+    "count_one": "{{count}} exécution",
+    "count_other": "{{count}} exécutions",
+    "total": "{{cost}} au total",
+    "role": {
+      "draft": "Initiale",
+      "retry": "Nouvel essai",
+      "fallback": "Repli",
+      "rerun": "Relance",
+      "review": "Revue",
+      "critique": "Critique",
+      "answer": "Réponse",
+      "revision": "Révision",
+      "watchdog": "Surveillance",
+      "duel": "Duel",
+      "fanout": "Répartition",
+      "shard": "Fragment",
+      "eval": "Évaluation",
+      "escalation": "Escalade",
+      "other": "Étape"
+    }
   },
   "usage_detail": {
     "title": "Détail de l'utilisation",
@@ -705,6 +742,7 @@
     "status": "Statut",
     "priority": "Priorité",
     "assignee": "Assigné",
+    "cycle": "Cycle",
     "delete": "Supprimer",
     "update_success_one": "{{count}} issue mise à jour",
     "update_success_other": "{{count}} issues mises à jour",
@@ -785,6 +823,12 @@
       "squads_group": "Squads",
       "agent_runtime_required": "Associez un runtime avant d'assigner du travail à cet agent",
       "squad_runtime_required": "Associez un runtime au leader de cette squad avant d'assigner du travail"
+    },
+    "delegate": {
+      "trigger_none": "Aucun délégué",
+      "search_placeholder": "Déléguer à...",
+      "members_group": "Membres",
+      "agents_group": "Agents"
     },
     "start_date": {
       "trigger_label": "Date de début",
@@ -1241,6 +1285,49 @@
     "failed": "La demande de duel a échoué",
     "identical": "Choisissez deux agents différents"
   },
+  "race": {
+    "section": "Courses",
+    "status": {
+      "running": "en cours",
+      "settled": "réglée",
+      "abandoned": "abandonnée"
+    },
+    "attempts": "{{n}} tentatives",
+    "loading": "Chargement des courses…",
+    "load_failed": "Impossible de charger les courses de cette issue.",
+    "empty": "Aucune course n'a encore été lancée sur cette issue.",
+    "start": "Lancer une course",
+    "start_title": "Lancer une course",
+    "start_desc": "De 2 à 5 tentatives s'exécutent en parallèle, chacune sur sa branche. Vous en gardez une ; les autres sont annulées.",
+    "start_confirm": "Lancer la course",
+    "attempt_agent": "Tentative {{index}} — agent",
+    "attempt_model": "Tentative {{index}} — modèle",
+    "remove_attempt": "Retirer la tentative {{index}}",
+    "add_attempt": "Ajouter une tentative",
+    "pick_agent": "Choisissez un agent…",
+    "model_placeholder": "Modèle (facultatif)",
+    "note": "Note",
+    "note_placeholder": "Note pour toutes les tentatives (facultatif)",
+    "model": "Modèle",
+    "default_model": "modèle de l'agent",
+    "run_status": "Exécution",
+    "diff_stat": "Diff",
+    "diff_truncated": "Diff trop volumineux pour être stocké — stat seulement ; lisez la branche.",
+    "diff_none": "Aucun diff enregistré.",
+    "keep": "Garder {{agent}}",
+    "kept": "gardée",
+    "keep_title": "Garder la tentative de {{agent}} ?",
+    "keep_desc": "Les autres tentatives seront annulées et leurs branches nettoyées. C'est irréversible.",
+    "keep_confirm": "Garder cette tentative",
+    "abandon": "Abandonner la course",
+    "abandon_title": "Abandonner cette course ?",
+    "abandon_desc": "Toutes les tentatives encore ouvertes seront annulées et leurs branches nettoyées. Rien n'est gardé.",
+    "abandon_confirm": "Abandonner",
+    "cancel": "Annuler",
+    "failed": "La demande de course a échoué",
+    "error_already_active": "Une course est déjà en cours sur cette issue.",
+    "error_already_settled": "Cette course n'est plus en cours."
+  },
   "campaign": {
     "section": "Campagne de refactorisation",
     "target": "vers {{branch}}",
@@ -1284,7 +1371,10 @@
     "row": "{{name}} : {{rate}} ({{count}} issues)",
     "duels": "{{wins}} duels gagnés / {{losses}} perdus",
     "low_sample": "pas assez de données pour le moment ({{count}}/{{min}})",
-    "empty": "Aucun agent n'a encore d'historique pour ce type de tâche."
+    "empty": "Aucun agent n'a encore d'historique pour ce type de tâche.",
+    "estimate_range": "{{duration}} · {{cost}}",
+    "estimate_empty": "pas assez d'historique pour estimer",
+    "estimate_over_budget": "hors budget"
   },
   "cross_review": {
     "section": "Revue cross-provider",
@@ -1301,7 +1391,10 @@
     "suggestions": "Suggestions",
     "retry": "Relancer la revue",
     "retry_failed": "La relance a échoué",
-    "previous": "{{count}} tentative(s) précédente(s)"
+    "previous": "{{count}} tentative(s) précédente(s)",
+    "checklist": "Checklist",
+    "rework": "renvoyée au worker · cycle {{cycle}}",
+    "escalated": "escaladée après {{cycles}} cycles — intervention humaine requise"
   },
   "agent_effects": {
     "section": "Modifications de l'agent",
@@ -1406,5 +1499,138 @@
       "ask_proof": "demander une preuve",
       "none": "aucune action"
     }
+  },
+  "eval_promote": {
+    "promote": "Promouvoir en cas d'évaluation",
+    "added": "Ajouté au labo d'évaluation",
+    "open_eval_lab": "Ouvrir le labo d'évaluation",
+    "failed": "Impossible de promouvoir ce ticket"
+  },
+  "mirrors": {
+    "generated_from": "Généré depuis {{identifier}} ({{project}})",
+    "open_source": "Ouvrir l'issue source",
+    "mirror_in": "Miroir dans {{project}}",
+    "types_synced": "types synchronisés",
+    "sync_failed": "Échec de la mise à jour de ce miroir",
+    "unknown_project": "Projet supprimé"
+  },
+  "walkthrough": {
+    "section": "Parcours",
+    "refresh": "Régénérer",
+    "pending": "Rédaction du parcours…",
+    "failed": "Le parcours n'a pas pu être généré.",
+    "empty": "Pas encore de parcours pour cette révision.",
+    "truncated_one": "{{count}} fichier omis — cette pull request dépasse la limite du parcours.",
+    "truncated_other": "{{count}} fichiers omis — cette pull request dépasse la limite du parcours.",
+    "hunk_count_one": "{{count}} bloc",
+    "hunk_count_other": "{{count}} blocs",
+    "moved_from": "Déplacé depuis {{path}}",
+    "kind": {
+      "core": "Cœur",
+      "test": "Tests",
+      "generated": "Généré",
+      "noise": "Bruit"
+    }
+  },
+  "review_flags": {
+    "section": "Signalements de revue",
+    "empty": "Rien n'est signalé sur cette pull request.",
+    "error": "Impossible de charger les signalements de revue.",
+    "retry": "Réessayer",
+    "actions": "Actions du signalement",
+    "resolve": "Résoudre",
+    "dismiss": "Écarter",
+    "reopen": "Rouvrir",
+    "stale": "code modifié",
+    "confidence": "sûr à {{value}} %",
+    "filter": {
+      "open": "Ouverts",
+      "all": "Tous"
+    },
+    "severity": {
+      "bug": "Bug",
+      "warning": "Avertissement",
+      "info": "Info"
+    }
+  },
+  "anchor": {
+    "section": "Discussion ancrée",
+    "ask_line": "Poser une question sur cette ligne",
+    "ask_flag": "Poser une question sur ce signalement",
+    "ask_placeholder": "Question sur {{location}}…",
+    "cancel": "Annuler",
+    "stale": "code modifié depuis",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_one": "Afficher {{count}} réponse précédente",
+    "show_replies_other": "Afficher {{count}} réponses précédentes",
+    "hide_replies": "Masquer les réponses précédentes",
+    "reply_placeholder": "Répondre à ce fil…",
+    "empty": "Aucune discussion ancrée à ce bloc.",
+    "go_to_hunk": "Aller à cette ligne dans le récit"
+  },
+  "transitions": {
+    "not_allowed": "Une règle de l'espace de travail interdit ce déplacement.",
+    "needs_approval": "Approbation requise",
+    "banner_title": "En attente d'approbation",
+    "banner_body": "Un changement de statut vers {{status}} a été demandé et attend un approbateur.",
+    "approve": "Approuver",
+    "reject": "Refuser",
+    "note_placeholder": "Note (facultative)",
+    "decide_failed": "Impossible d'enregistrer la décision.",
+    "pending_toast": "Envoyé pour approbation. Le statut n'a pas encore changé."
+  },
+  "run_preview": {
+    "chip_starting": "Aperçu en cours de démarrage",
+    "chip_ready": "Aperçu",
+    "chip_stopped": "Aperçu terminé",
+    "chip_stale": "Aperçu perdu",
+    "chip_error": "Échec de l'aperçu",
+    "chip_local": "Aperçu local",
+    "card_title": "Aperçu",
+    "card_starting": "En attente de la réponse du serveur de développement sur le port {{port}}.",
+    "card_stopped": "Le run est terminé, son aperçu a été arrêté.",
+    "card_stale": "La machine qui exécutait cet aperçu s'est déconnectée.",
+    "card_error": "Le script run n'a jamais répondu.",
+    "card_local": "Cet aperçu tourne sur {{machine}} et n'est accessible que depuis cette machine.",
+    "card_local_no_machine": "Cet aperçu est local à la machine qui a exécuté le run.",
+    "card_needs_link": "Créez un lien pour ouvrir cet aperçu depuis un navigateur.",
+    "card_no_run_script": "Le répertoire local de ce projet n'a pas de script run : ses runs ne démarrent aucun serveur de développement.",
+    "open": "Ouvrir",
+    "copy": "Copier le lien",
+    "copied": "Lien copié",
+    "copy_failed": "Impossible de copier le lien",
+    "stop": "Arrêter l'aperçu",
+    "stop_failed": "Impossible d'arrêter l'aperçu",
+    "create_link": "Créer un lien",
+    "create_link_failed": "Impossible de créer le lien",
+    "revoke": "Révoquer",
+    "revoke_failed": "Impossible de révoquer le lien",
+    "revoked": "Lien révoqué",
+    "expires_in": "Expire {{when}}",
+    "expiry_label": "Le lien expire après",
+    "expiry_hours_one": "{{count}} heure",
+    "expiry_hours_other": "{{count}} heures",
+    "links_title": "Liens de partage",
+    "links_empty": "Aucun lien pour l'instant.",
+    "uses_one": "{{count}} utilisation",
+    "uses_other": "{{count}} utilisations"
+  },
+  "calendar": {
+    "due_date_hint": "Les tickets sont placés à leur date d'échéance",
+    "empty_month": "Aucun ticket à échéance ce mois-ci.",
+    "more_one": "+{{count}} autre",
+    "more_other": "+{{count}} autres",
+    "next_month": "Mois suivant",
+    "previous_month": "Mois précédent",
+    "today": "Aujourd'hui"
+  },
+  "issue_types": {
+    "archived_badge": "Archivé",
+    "clear": "Retirer le type",
+    "label": "Type",
+    "none": "Sans type",
+    "search": "Rechercher un type...",
+    "section": "Type"
   }
 }

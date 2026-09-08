@@ -242,3 +242,21 @@ func streamProcessExitCode(err error) int {
 	}
 	return -1
 }
+
+// emitFinalResponse publishes a run's deliverable answer as a distinct
+// transcript message, once, at the end of a successful run.
+//
+// It is deliberately not called from finalizeStreamResult: not every backend
+// that shares the terminal contract can identify its final answer, and one that
+// cannot must keep emitting plain MessageText rather than mislabel an
+// intermediate turn as the deliverable. Callers that CAN name it (Claude Code's
+// `result` event, Codex's `phase: "final_answer"`) opt in.
+//
+// A non-completed run emits nothing: its output is empty by contract, and an
+// error string is not an answer.
+func emitFinalResponse(ch chan<- Message, status, output string) {
+	if status != "completed" || output == "" {
+		return
+	}
+	trySend(ch, Message{Type: MessageResponse, Content: output})
+}

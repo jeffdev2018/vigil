@@ -48,6 +48,12 @@
 //     Sends the raw text a member typed to draft an issue (capped at 8000
 //     runes) and the target project's title and description. Nothing else
 //     from the workspace.
+//   - Shared semantic repo index — server/internal/service/repo_index.go (K47).
+//     The only consumer of the /embeddings surface. Sends the body of code
+//     chunks the daemon extracted from repositories the workspace explicitly
+//     opted in to, plus the issue title/description excerpt used as the search
+//     query at claim time. Off unless MULTICA_LLM_EMBEDDING_MODEL is set — with
+//     it empty the index is lexical and this layer sends no code anywhere.
 //   - Agent memory extraction — server/internal/service/agent_memory_extract.go.
 //     Sends a completed run's issue title and final output (bounded at 6000
 //     runes, head+tail) plus the agent's existing memory facts, and asks for
@@ -124,6 +130,12 @@ type Config struct {
 	// DefaultModel is used when a request omits the model. Maps to
 	// MULTICA_LLM_DEFAULT_MODEL. When empty, FallbackModel is used.
 	DefaultModel string
+	// EmbeddingModel enables the /embeddings surface. Maps to
+	// MULTICA_LLM_EMBEDDING_MODEL. Unlike DefaultModel it has NO built-in
+	// fallback: empty means Embed refuses with ErrEmbeddingsNotConfigured and
+	// the shared repo index stays lexical. See embedding.go for why guessing a
+	// model here would be worse than doing nothing.
+	EmbeddingModel string
 	// MaxRetries is the transport-level retry budget applied to every request
 	// this client makes. Maps to MULTICA_LLM_MAX_RETRIES. Build one with
 	// Retries; nil means unset, and DefaultMaxRetries applies.
@@ -224,10 +236,11 @@ type RetryBudget struct {
 // Client is a configured, reusable LLM caller. It is safe for concurrent use;
 // the underlying SDK client holds no per-request state.
 type Client struct {
-	sdk          openai.Client
-	defaultModel string
-	enabled      bool
-	retry        RetryBudget
+	sdk            openai.Client
+	defaultModel   string
+	embeddingModel string
+	enabled        bool
+	retry          RetryBudget
 }
 
 // New builds a Client from cfg. It never returns an error: an unconfigured
@@ -267,8 +280,9 @@ func New(cfg Config) *Client {
 	}
 
 	return &Client{
-		sdk:          openai.NewClient(opts...),
-		defaultModel: defaultModel,
+		sdk:            openai.NewClient(opts...),
+		defaultModel:   defaultModel,
+		embeddingModel: strings.TrimSpace(cfg.EmbeddingModel),
 		// A deployment is "configured" if it gave us either a key or a base
 		// URL. A bare base URL (no key) is valid for keyless local gateways.
 		enabled: strings.TrimSpace(cfg.APIKey) != "" || strings.TrimSpace(cfg.BaseURL) != "",

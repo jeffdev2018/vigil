@@ -53,7 +53,9 @@
     "runs_per_issue_other": "{{count}} runs de coordination par tâche",
     "loading": "Chargement des modèles…",
     "cancel": "Annuler",
-    "error": "Impossible de créer la structure"
+    "error": "Impossible de créer la structure",
+    "replaces_existing": "Choisir un modèle remplace la structure actuelle « {{name}} » par une nouvelle révision.",
+    "composite_title": "Hiérarchie d'équipes"
   },
   "form": {
     "name": "Nom",

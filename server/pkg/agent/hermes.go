@@ -303,7 +303,7 @@ func (b *hermesBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		b.cfg.Logger.Debug("hermes ignoring ExecOptions.SystemPrompt; using cwd-scoped context files", "cwd", opts.Cwd)
 	}
 
-	env := buildEnv(b.cfg.Env)
+	env := buildEnv(b.cfg)
 	// Enable yolo mode so Hermes auto-approves all tool executions.
 	env = append(env, "HERMES_YOLO_MODE=1")
 	cmd.Env = env

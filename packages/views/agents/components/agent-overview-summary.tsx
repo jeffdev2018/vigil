@@ -13,22 +13,31 @@ import { VisibilityBadge } from "./visibility-badge";
 import { AgentPerformanceSummary } from "./tabs/activity-tab";
 import { AgentScorecardSection } from "./agent-scorecard-section";
 import { AgentCompetencySection } from "./agent-competency-section";
+import { AgentRoutingCheck } from "./agent-routing-check";
+import { SkillAttach } from "./inspector/skill-attach";
 
 interface AgentOverviewSummaryProps {
   agent: Agent;
   runtime: AgentRuntime | null;
   owner: MemberWithUser | null;
+  /** Gates the Skills row's inline "+ Attach" chip — the one control on this
+   *  otherwise read-only surface. */
+  canEdit?: boolean;
 }
 
 /**
- * Read-only context for the workbench Overview. Editing lives under Settings;
- * keeping this surface non-interactive lets users scan identity, execution,
- * and capability context without mistaking every value for a control.
+ * Context for the workbench Overview. Editing lives under Settings, so every
+ * value here is read-only and users can scan identity, execution, and
+ * capability context without mistaking a value for a control. The single
+ * exception is the Skills row's "+ Attach" chip: attaching a skill is the one
+ * action the capability list itself invites, and routing it through Settings
+ * costs a page change to add a chip that is already on screen.
  */
 export function AgentOverviewSummary({
   agent,
   runtime,
   owner,
+  canEdit = false,
 }: AgentOverviewSummaryProps) {
   const { t } = useT("agents");
   const runtimeOnline = runtime?.status === "online";
@@ -96,28 +105,32 @@ export function AgentOverviewSummary({
             {agent.skills.length}
           </span>
         </div>
-        {agent.skills.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {agent.skills.map((skill) => (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {agent.skills.length > 0 ? (
+            agent.skills.map((skill) => (
               <span
                 key={skill.id}
                 className="max-w-full truncate rounded-md border border-surface-border bg-surface-hover px-2 py-1 text-caption text-muted-foreground"
               >
                 {skill.name}
               </span>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-3 text-caption text-muted-foreground">
-            {t(($) => $.tab_body.skills.empty_title)}
-          </p>
-        )}
+            ))
+          ) : (
+            <p className="text-caption text-muted-foreground">
+              {t(($) => $.tab_body.skills.empty_title)}
+            </p>
+          )}
+          {/* Renders nothing when the viewer cannot edit or every workspace
+              skill is already attached — see SkillAttach. */}
+          <SkillAttach agent={agent} canEdit={canEdit} />
+        </div>
       </section>
 
       <AgentPerformanceSummary agent={agent} />
       {/* Scorecard (K25): the rates behind "does this agent work on my code". */}
       <AgentScorecardSection agentId={agent.id} />
       {/* Learned competency (K43): success per domain, duels counted apart. */}
+      <AgentRoutingCheck agentId={agent.id} />
       <AgentCompetencySection agentId={agent.id} />
     </aside>
   );

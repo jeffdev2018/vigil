@@ -103,3 +103,113 @@ describe("task transcript timeline", () => {
     expect(items[0]?.created_at).toBe("2026-06-09T09:00:00.000Z");
   });
 });
+
+// ─── F03 · run actions folded into the timeline ─────────────────────────────
+
+describe("buildTimeline with run actions", () => {
+  const T0 = Date.parse("2026-08-15T10:00:00.000Z");
+  const at = (s: number) => new Date(T0 + s * 1000).toISOString();
+  const msg = (seq: number, seconds: number): TaskMessagePayload => ({
+    task_id: "task-1",
+    issue_id: "issue-1",
+    seq,
+    type: "text",
+    content: `m${seq}`,
+    created_at: at(seconds),
+  });
+  const action = (name: string, seconds: number) => ({
+    kind: "action" as const,
+    action: name,
+    before: "todo",
+    after: "done",
+    at: at(seconds),
+  });
+
+  it("places an action after the message it followed in time", () => {
+    const items = buildTimeline([msg(1, 0), msg(2, 10)], [action("status_changed", 5)]);
+    expect(items.map((i) => i.type)).toEqual(["text", "action", "text"]);
+  });
+
+  it("keeps two actions sharing an anchor in server order", () => {
+    const items = buildTimeline(
+      [msg(1, 0), msg(2, 10)],
+      [action("status_changed", 5), action("assignee_changed", 6)],
+    );
+    expect(items.map((i) => i.content)).toEqual(["m1", "status_changed", "assignee_changed", "m2"]);
+  });
+
+  it("carries before/after so the presenter can render the pair", () => {
+    const items = buildTimeline([], [action("status_changed", 1)]);
+    expect(items[0]!.input).toEqual({ action: "status_changed", before: "todo", after: "done" });
+  });
+
+  // An action with an unusable timestamp still happened. Showing it last beats
+  // hiding a change the run made.
+  it("appends an action with no usable timestamp rather than dropping it", () => {
+    const items = buildTimeline(
+      [msg(1, 0)],
+      [{ kind: "action", action: "created", before: "", after: "", at: "" }],
+    );
+    expect(items.map((i) => i.type)).toEqual(["text", "action"]);
+  });
+
+  it("changes nothing when the run made no issue changes", () => {
+    // Two adjacent text fragments still coalesce into one item, exactly as
+    // before the actions argument existed.
+    const withNone = buildTimeline([msg(1, 0), msg(2, 1)], []);
+    expect(withNone.map((i) => i.type)).toEqual(["text"]);
+    expect(buildTimeline([msg(1, 0), msg(2, 1)])).toEqual(withNone);
+  });
+
+  // The text/thinking coalescer keys on adjacency, and an action is not text,
+  // so it both stays its own row AND stops the two fragments it sits between
+  // from merging — which is what keeps the change readable in its place.
+  it("never coalesces an action with the prose around it", () => {
+    const items = buildTimeline([msg(1, 0), msg(2, 10)], [action("status_changed", 5)]);
+    expect(items).toHaveLength(3);
+    expect(items.map((i) => i.content)).toEqual(["m1", "status_changed", "m2"]);
+  });
+});
+
+// ─── Living run plan (F04) ──────────────────────────────────────────────────
+
+describe("plan messages in the timeline", () => {
+  it("places a plan by the time it was published, not by its reserved seq", () => {
+    const items = buildTimeline([
+      { task_id: "t", seq: 1, type: "text", content: "starting", created_at: "2026-01-01T00:00:00Z" },
+      // Server-allocated from a band far above the daemon's counter, so
+      // sorting on it would pin the plan to the end of the transcript.
+      {
+        task_id: "t",
+        seq: 1_000_001,
+        type: "plan",
+        content: "0/2 done",
+        input: { items: [{ text: "a", status: "in_progress" }, { text: "b", status: "pending" }] },
+        created_at: "2026-01-01T00:00:10Z",
+      },
+      { task_id: "t", seq: 2, type: "text", content: "later", created_at: "2026-01-01T00:00:20Z" },
+    ] as never);
+
+    expect(items.map((i) => i.type)).toEqual(["text", "plan", "text"]);
+    // The checklist survives the trip: it is what the plan block renders.
+    expect((items[1]?.input as { items: unknown[] }).items).toHaveLength(2);
+  });
+
+  it("does not let a plan's seq push a timestamp-less action past it", () => {
+    const items = buildTimeline(
+      [
+        { task_id: "t", seq: 1, type: "text", content: "hello", created_at: "2026-01-01T00:00:00Z" },
+        { task_id: "t", seq: 1_000_001, type: "plan", content: "0/1 done", created_at: "2026-01-01T00:00:05Z" },
+      ] as never,
+      [{ kind: "action", action: "status_changed", before: "todo", after: "in_progress", at: "" }],
+    );
+
+    // Both are slotted against the message stream, whose last seq is 1 — the
+    // plan's 1,000,001 must never become the stream's maximum, or every
+    // timestamp-less action would be dragged past it.
+    expect(items.map((i) => i.type)).toEqual(["text", "plan", "action"]);
+    for (const item of items) {
+      expect(item.seq).toBeLessThan(3);
+    }
+  });
+});

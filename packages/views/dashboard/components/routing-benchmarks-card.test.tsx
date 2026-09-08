@@ -14,6 +14,7 @@ const ROWS: RuntimeRoutingStats[] = [
     model: "gpt-5",
     task_class: "review",
     samples: 3,
+    benchmark_samples: 0,
     success_rate: 0.67,
     avg_cost_usd: null,
     avg_duration_secs: null,
@@ -25,6 +26,7 @@ const ROWS: RuntimeRoutingStats[] = [
     model: "claude-sonnet-4-6",
     task_class: "bugfix",
     samples: 42,
+    benchmark_samples: 12,
     success_rate: 0.93,
     avg_cost_usd: 0.12,
     avg_duration_secs: 95,
@@ -45,6 +47,16 @@ function renderCard(
 
 describe("RoutingBenchmarksCard", () => {
   afterEach(() => cleanup());
+
+  // Where the evidence comes from (JEF-276): a pair measured by a deliberate
+  // benchmark is a different claim than one that accrued from ordinary work,
+  // and a row with none must not carry the note at all.
+  it("names the share of samples that came from benchmarks", () => {
+    renderCard();
+
+    expect(screen.getByText("12 from benchmarks")).toBeInTheDocument();
+    expect(screen.queryByText("0 from benchmarks")).not.toBeInTheDocument();
+  });
 
   it("renders the 90-day stats per runtime, model and task class", () => {
     renderCard();

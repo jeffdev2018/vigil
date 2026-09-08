@@ -15,6 +15,55 @@ export interface Reaction {
   comment_revision?: number;
 }
 
+/**
+ * Where a comment thread is pinned in a pull request's diff (F07 / JEF-21).
+ *
+ * The anchor belongs to the thread ROOT; a reply carries the same object,
+ * resolved by the server at read time. `kind` is an open string — a thread
+ * whose kind this build does not know renders without its anchor rather than
+ * disappearing from the timeline.
+ */
+export interface CommentAnchor {
+  kind: string;
+  pr_source: string;
+  pr_id: string;
+  /** The revision the line range belongs to. Part of the anchor's meaning. */
+  head_sha: string;
+  file_path: string;
+  line_start: number;
+  line_end: number;
+  /** "new" is the changed code; "old" points at a deletion. */
+  side: string;
+  review_flag_id?: string | null;
+}
+
+/**
+ * What the client sends to pin a NEW thread. `head_sha` is optional: omitted,
+ * the server uses the pull request's current head, which is what the reviewer
+ * is looking at when they click a line.
+ */
+export interface CreateCommentAnchor {
+  pr_id: string;
+  file_path: string;
+  line_start: number;
+  line_end?: number;
+  side?: string;
+  head_sha?: string;
+  review_flag_id?: string;
+}
+
+/** One anchored discussion: the root, its replies, and the shared anchor. */
+export interface AnchoredThread {
+  root: Comment;
+  replies: Comment[];
+  anchor?: CommentAnchor | null;
+  anchor_stale: boolean;
+}
+
+export interface AnchoredThreads {
+  threads: AnchoredThread[];
+}
+
 export interface Comment {
   id: string;
   issue_id: string;
@@ -40,9 +89,19 @@ export interface Comment {
   // keys off the id rather than a dedicated `type`, because `type` is
   // client-supplied on the generic comment endpoint and would be forgeable.
   quick_action_id?: string | null;
+  // Agent-to-agent message intent (F19): question | review | handoff. Written
+  // only by POST /issues/{id}/agent-messages — the generic comment endpoint has
+  // no field for it — so the chip it drives cannot be forged. A free string: an
+  // intent this build cannot label renders as an ordinary comment.
+  a2a_intent?: string | null;
   // Per-target result of every explicit @agent / @squad mention in this comment
   // (MUL-4525 §2). Present only on create/edit responses; older servers omit it.
   trigger_outcomes?: CommentTriggerOutcome[];
+  // Diff anchor (F07). Absent on a backend that predates the feature, and null
+  // on every ordinary comment. A reply carries its thread root's anchor.
+  anchor?: CommentAnchor | null;
+  /** The anchored head is no longer the pull request's head: code has moved. */
+  anchor_stale?: boolean;
 }
 
 // The domain result of one explicitly-mentioned trigger target. Success-shaped

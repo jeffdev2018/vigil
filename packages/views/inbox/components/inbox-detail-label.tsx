@@ -20,6 +20,7 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     issue_subscribed: t(($) => $.types.issue_subscribed),
     unassigned: t(($) => $.types.unassigned),
     assignee_changed: t(($) => $.types.assignee_changed),
+    delegate_assigned: t(($) => $.types.delegate_assigned),
     status_changed: t(($) => $.types.status_changed),
     priority_changed: t(($) => $.types.priority_changed),
     start_date_changed: t(($) => $.types.start_date_changed),
@@ -48,11 +49,21 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     budget_exceeded: t(($) => $.types.budget_exceeded),
     postmortem_ready: t(($) => $.types.postmortem_ready),
     watchdog_escalation: t(($) => $.types.watchdog_escalation),
+    code_health_report: t(($) => $.types.code_health_report),
+    doc_drift_report: t(($) => $.types.doc_drift_report),
     contest_ready: t(($) => $.types.contest_ready),
     org_alert: t(($) => $.types.org_alert),
     mcp_alert: t(($) => $.types.mcp_alert),
+    model_key_alert: t(($) => $.types.model_key_alert),
+    routing_alert: t(($) => $.types.routing_alert),
+    residency_policy_blocked: t(($) => $.types.residency_policy_blocked),
+    linear_alert: t(($) => $.types.linear_alert),
     decision_auto_decided: t(($) => $.types.decision_auto_decided),
     triage_stale: t(($) => $.types.triage_stale),
+    transition_approval_requested: t(($) => $.types.transition_approval_requested),
+    critic_degraded: t(($) => $.types.critic_degraded),
+    critic_budget: t(($) => $.types.critic_budget),
+    cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
   };
 }
 
@@ -109,6 +120,12 @@ export function InboxDetailLabel({ item }: { item: InboxItem }) {
     }
     case "unassigned":
       return <span>{t(($) => $.labels.removed_assignee)}</span>;
+    case "delegate_assigned": {
+      if (details.new_delegate_id) {
+        return <span>{t(($) => $.labels.delegated_to, { name: getActorName(details.new_delegate_type ?? "member", details.new_delegate_id) })}</span>;
+      }
+      return <span>{typeLabels[item.type]}</span>;
+    }
     case "assignee_changed": {
       if (details.new_assignee_id) {
         return <span>{t(($) => $.labels.assigned_to, { name: getActorName(details.new_assignee_type ?? "member", details.new_assignee_id) })}</span>;

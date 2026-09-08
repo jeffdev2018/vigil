@@ -87,6 +87,22 @@ scripts/check.sh
 
 只有有权修改该智能体的成员，才能为它添加、移除或停用 skill。
 
+## 从运行中提炼 skill
+
+运行成功完成后，Multica 可以把它提炼成一份可复用的 skill 草稿——把让这次运行成功的工作方法保存下来供复用，而不是下次再重新摸索一遍。提炼只考虑以 `completed` 结束、结果非空、且来自智能体（而非系统）的运行，一旦某个智能体已经有 30 个提炼出的 skill，就不再继续提炼。
+
+提炼需要与对话自动生成标题、后续提问相同的[服务端 LLM](/environment-variables#服务端-llm)。当 `MULTICA_LLM_API_KEY` 和 `MULTICA_LLM_DEFAULT_MODEL` 都未设置时，不会提炼任何 skill——这里没有更弱的兜底方案，因为一个没有真正提炼出来的 skill 不值得添加。
+
+<Callout type="info">
+提炼出的 skill 总是以**草稿**形式创建，绝不会自动添加给产生它的智能体。请先审查，再像添加其他 skill 一样把它添加给应该使用它的智能体。
+</Callout>
+
+如果工作区中已经存在同名 skill，该次运行的提炼会被跳过，而不会覆盖已有内容。
+
+### 来源
+
+提炼出的 skill 的详情页和 skill 列表都会显示它的来源——源运行、智能体和任务——并带有独立的图标和"提炼"来源标签。与从 GitHub、ClawHub 或 Skills.sh 导入的 skill 不同，提炼出的 skill 没有可供刷新的托管来源；请直接编辑它。
+
 ## 工作区 skill 和仓库中的 skill
 
 工作区 skill 保存在 Multica 中，适合由团队共同维护，并添加给不同智能体。

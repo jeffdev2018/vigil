@@ -59,5 +59,13 @@
     "link": "Link goals",
     "no_goals": "Create a goal first.",
     "error": "Could not update the project's goals"
+  },
+  "progress_section": {
+    "header": "Projects",
+    "empty": "No project serves this goal yet.",
+    "cta": "Link a project",
+    "progress": "{{done}} / {{total}} done",
+    "loading": "Loading progress",
+    "total": "Across every project"
   }
 }

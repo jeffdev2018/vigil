@@ -56,11 +56,11 @@ FOR UPDATE;
 INSERT INTO autopilot (
     workspace_id, title, description, assignee_type, assignee_id,
     status, execution_mode, issue_title_template, project_id,
-    created_by_type, created_by_id
+    created_by_type, created_by_id, batch_eligible
 ) VALUES (
     $1, $2, sqlc.narg('description'), $3, $4,
     $5, $6, sqlc.narg('issue_title_template'), sqlc.narg('project_id'),
-    $7, $8
+    $7, $8, $9
 ) RETURNING *;
 
 -- name: UpdateAutopilot :one
@@ -75,8 +75,24 @@ UPDATE autopilot SET
       ELSE pause_reason
     END,
     execution_mode = COALESCE(sqlc.narg('execution_mode'), execution_mode),
+    -- Off-peak batch lane (K45). COALESCE, not a plain assignment: omitting the
+    -- field must leave the flag alone, the way every other optional field here
+    -- behaves. issue_title_template / project_id below are the two deliberate
+    -- exceptions, where NULL means "clear it".
+    batch_eligible = COALESCE(sqlc.narg('batch_eligible'), batch_eligible),
     issue_title_template = sqlc.narg('issue_title_template'),
     project_id = sqlc.narg('project_id'),
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: SetAutopilotSource :one
+-- Records the DAEMON.md an autopilot was imported from and its digest. Called
+-- only when the import actually changed something: an identical re-import is
+-- short-circuited on the digest before any write, so updated_at stays put.
+UPDATE autopilot SET
+    source_markdown = $2,
+    source_digest = $3,
     updated_at = now()
 WHERE id = $1
 RETURNING *;

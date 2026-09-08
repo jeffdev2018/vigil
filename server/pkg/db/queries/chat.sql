@@ -38,10 +38,13 @@ WHERE cs.id = $1
     )
   );
 
--- name: ListChatSessionsByCreator :many
+-- name: ListChatSessionsForUser :many
 -- IM-style list: each active session with its unread *count* (assistant
 -- messages after the read cursor), a preview of the latest message, and
 -- ordered by most-recent activity so a new reply bumps a session to the top.
+-- Multiplayer (K31): a session the caller was added to appears in their list
+-- exactly like one they created. last_read_at stays session-level, so unread
+-- is shared by every participant rather than per-person.
 SELECT cs.*,
        (SELECT count(*) FROM chat_message m
           WHERE m.chat_session_id = cs.id
@@ -61,7 +64,14 @@ LEFT JOIN LATERAL (
    ORDER BY m.created_at DESC
    LIMIT 1
 ) lm ON true
-WHERE cs.workspace_id = $1 AND cs.creator_id = $2 AND cs.status = 'active'
+WHERE cs.workspace_id = @workspace_id AND cs.status = 'active'
+  AND (
+    cs.creator_id = @user_id
+    OR EXISTS (
+      SELECT 1 FROM chat_session_participant p
+       WHERE p.chat_session_id = cs.id AND p.user_id = @user_id
+    )
+  )
   AND (
     cs.explicitly_created_at IS NOT NULL
     OR
@@ -69,8 +79,8 @@ WHERE cs.workspace_id = $1 AND cs.creator_id = $2 AND cs.status = 'active'
   )
 ORDER BY (cs.pinned_at IS NOT NULL) DESC, cs.pinned_at DESC, COALESCE(lm.created_at, cs.updated_at) DESC;
 
--- name: ListAllChatSessionsByCreator :many
--- Unlike ListChatSessionsByCreator this returns archived sessions too (for the
+-- name: ListAllChatSessionsForUser :many
+-- Unlike ListChatSessionsForUser this returns archived sessions too (for the
 -- "Archived" view), so unread must be forced to 0 for archived rows: archiving
 -- deliberately does NOT advance last_read_at (so unarchive can restore the true
 -- unread state), but an archived session is read-only and hidden from history,
@@ -98,7 +108,14 @@ LEFT JOIN LATERAL (
    ORDER BY m.created_at DESC
    LIMIT 1
 ) lm ON true
-WHERE cs.workspace_id = $1 AND cs.creator_id = $2
+WHERE cs.workspace_id = @workspace_id
+  AND (
+    cs.creator_id = @user_id
+    OR EXISTS (
+      SELECT 1 FROM chat_session_participant p
+       WHERE p.chat_session_id = cs.id AND p.user_id = @user_id
+    )
+  )
   AND (
     cs.explicitly_created_at IS NOT NULL
     OR
@@ -479,7 +496,7 @@ WHERE id = $1;
 INSERT INTO chat_message (
     chat_session_id, role, content, task_id, failure_reason, elapsed_ms,
     message_kind, quick_actions, channel_media_pending_until, channel_ingested,
-    channel_context_revision, id
+    channel_context_revision, author_user_id, id
 )
 VALUES (
     $1, $2, $3, sqlc.narg(task_id), sqlc.narg(failure_reason), sqlc.narg(elapsed_ms),
@@ -495,6 +512,9 @@ VALUES (
          ELSE now() + make_interval(secs => sqlc.narg(channel_media_pending_secs)::float8) END,
     COALESCE(sqlc.narg(channel_ingested)::boolean, FALSE),
     sqlc.narg(channel_context_revision),
+    -- Multiplayer attribution (K31): the human who sent this message. NULL for
+    -- assistant rows and for messages produced by non-human ingress paths.
+    sqlc.narg(author_user_id),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 )
 RETURNING *;

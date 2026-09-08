@@ -6,6 +6,8 @@ import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
 import { issueKeys } from "@multica/core/issues/queries";
+import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
+import { useWorkspaceId } from "@multica/core/hooks";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask, TaskStatus } from "@multica/core/types";
 import { useConfigStore } from "@multica/core/config";
@@ -23,7 +25,7 @@ import {
 } from "@multica/ui/components/ui/tooltip";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { formatDuration } from "../../agents/components/agent-activity-hover-content";
-import { ReplayButton, TranscriptButton } from "../../common/task-transcript";
+import { ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../common/task-transcript";
 import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
@@ -37,6 +39,8 @@ import { TerminateTaskConfirmDialog } from "./terminate-task-confirm-dialog";
 import { RunControls } from "./run-controls";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TaskStatusIcon } from "./task-status-icon";
+import { RunPreviewChip } from "../../runs/components/run-preview-chip";
+import { RunRevertAction } from "./run-revert-action";
 import { useStatusLabel, useTriggerText } from "./task-run-labels";
 
 // Right-panel section that lists every agent run for this issue. Active
@@ -119,6 +123,22 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
     });
   }, [tasks]);
 
+  // How many checkpointed turns come after each one (F09). Computed here from
+  // the list already loaded rather than fetched per row: the revert
+  // confirmation has to name what disappears, and the count is a property of
+  // the conversation, not of the row.
+  const laterTurnCounts = useMemo(() => {
+    const seqs = tasks
+      .map((t) => t.turn_seq)
+      .filter((seq): seq is number => typeof seq === "number");
+    const counts: Record<string, number> = {};
+    for (const task of tasks) {
+      if (typeof task.turn_seq !== "number") continue;
+      counts[task.id] = seqs.filter((seq) => seq > task.turn_seq!).length;
+    }
+    return counts;
+  }, [tasks]);
+
   if (activeTasks.length === 0 && pastTasks.length === 0) return null;
 
   return (
@@ -193,12 +213,18 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
               {showPast && (
                 <div className="mt-0.5 space-y-0.5">
                   {pastTasks.map((task) => (
-                    <PastRow key={task.id} task={task} issueId={issueId} />
+                    <PastRow
+                      key={task.id}
+                      task={task}
+                      issueId={issueId}
+                      laterRunCount={laterTurnCounts[task.id] ?? 0}
+                    />
                   ))}
                 </div>
               )}
             </>
           )}
+          <WorkflowSummary tasks={tasks} />
         </div>
       )}
       <IssueUsageDialog
@@ -238,13 +264,12 @@ export function IssueUsageTotal({
   onOpen: () => void;
 }) {
   const { t } = useT("issues");
-  // Custom rates are read imperatively inside `estimateCost`, so a saved rate
-  // change does not re-render this on its own — subscribe and make the memo
-  // depend on the snapshot, or the header total keeps quoting the old price
-  // until the task list refetches.
+  // Subscribed and passed into summarizeTaskUsageAcross below so a saved
+  // custom rate re-renders this instead of quoting the old price until the
+  // task list happens to refetch.
   const pricings = useCustomPricingStore((s) => s.pricings);
   const total = useMemo(
-    () => summarizeTaskUsageAcross(tasks.map((task) => task.usage)),
+    () => summarizeTaskUsageAcross(tasks.map((task) => task.usage), pricings),
     [tasks, pricings],
   );
   if (!total) return null;
@@ -372,81 +397,123 @@ export function ActiveTaskRow({
   // test that asserts a scenario production cannot produce. Restore it in the
   // same change that adds incremental reporting + cache invalidation.
   return (
-    <RowShell task={task}>
-      <TriggerText text={trigger} />
-      <TaskCommentCoverage task={task} />
-      <RowStatus title={label}>
-        {task.status === "running" ? (
-          <>
-            <span className="text-info tabular-nums">{elapsed}</span>
-            <span className="sr-only">{label}</span>
-          </>
-        ) : (
-          <span className={`${tone} min-w-0 truncate`}>{label}</span>
-        )}
-        {unresponsive && (
-          <span
-            data-testid="run-unresponsive"
-            className="text-muted-foreground shrink-0"
-            title={t(($) => $.execution_log.unresponsive_tooltip, {
-              duration: formatDuration(new Date(now - (silence ?? 0)).toISOString(), now),
-            })}
-          >
-            {t(($) => $.execution_log.unresponsive)}
-          </span>
-        )}
-      </RowStatus>
-      <RowActions>
-        <RunControls issueId={issueId} task={task} />
-        {showTranscript && (
-          <TranscriptButton
-            task={task}
-            agentName=""
-            isLive={task.status === "running"}
-            title={t(($) => $.execution_log.transcript_tooltip)}
-            onOpenChange={onTranscriptOpenChange}
-          />
-        )}
-        <ReplayButton task={task} />
-        {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                onClick={requestCancel}
-                disabled={cancelling}
-                aria-label={t(($) => $.execution_log.cancel_task_aria)}
-              />
-            }
-            className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {cancelling ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Square className="h-3.5 w-3.5" />
-            )}
-          </TooltipTrigger>
-          <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
-        </Tooltip>
-      </RowActions>
-      <TerminateTaskConfirmDialog
-        open={confirmOpen}
-        onOpenChange={setConfirmOpen}
-        onConfirm={() => void handleCancel()}
-        showRunningNote={
-          task.status === "running" ||
-          task.status === "dispatched" ||
-          task.status === "waiting_local_directory"
-        }
-      />
-    </RowShell>
+    <>
+      <RowShell task={task}>
+        <TriggerText text={trigger} />
+        <RunPlanCounter task={task} />
+        <TaskCommentCoverage task={task} />
+        <RowStatus title={label}>
+          {task.status === "running" ? (
+            <>
+              <span className="text-info tabular-nums">{elapsed}</span>
+              <span className="sr-only">{label}</span>
+            </>
+          ) : (
+            <span className={`${tone} min-w-0 truncate`}>{label}</span>
+          )}
+          {unresponsive && (
+            <span
+              data-testid="run-unresponsive"
+              className="text-muted-foreground shrink-0"
+              title={t(($) => $.execution_log.unresponsive_tooltip, {
+                duration: formatDuration(new Date(now - (silence ?? 0)).toISOString(), now),
+              })}
+            >
+              {t(($) => $.execution_log.unresponsive)}
+            </span>
+          )}
+        </RowStatus>
+        <RowActions>
+          <RunPreviewChip taskId={task.id} />
+          <RunControls issueId={issueId} task={task} />
+          {showTranscript && (
+            <TranscriptButton
+              task={task}
+              agentName=""
+              isLive={task.status === "running"}
+              title={t(($) => $.execution_log.transcript_tooltip)}
+              onOpenChange={onTranscriptOpenChange}
+            />
+          )}
+          <ReplayButton task={task} />
+          {task.status === "completed" && <ContestButton targetType="task_result" targetId={task.id} variant="icon" />}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  onClick={requestCancel}
+                  disabled={cancelling}
+                  aria-label={t(($) => $.execution_log.cancel_task_aria)}
+                />
+              }
+              className="flex items-center justify-center rounded p-1 text-destructive transition-colors hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {cancelling ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Square className="h-3.5 w-3.5" />
+              )}
+            </TooltipTrigger>
+            <TooltipContent>{t(($) => $.execution_log.cancel_task_tooltip)}</TooltipContent>
+          </Tooltip>
+        </RowActions>
+        <TerminateTaskConfirmDialog
+          open={confirmOpen}
+          onOpenChange={setConfirmOpen}
+          onConfirm={() => void handleCancel()}
+          showRunningNote={
+            task.status === "running" ||
+            task.status === "dispatched" ||
+            task.status === "waiting_local_directory"
+          }
+        />
+      </RowShell>
+      <RunPlanBlock task={task} />
+    </>
+  );
+}
+
+// The living run plan (F04). The counter rides the row so the checklist's state
+// is readable without expanding anything; the block sits under it, indented to
+// the row's text column so it reads as this run's detail rather than a sibling.
+//
+// Both render nothing when the run published no plan — which is every run that
+// predates the feature, and every run whose agent does not use it.
+
+function RunPlanCounter({ task }: { task: AgentTask }) {
+  if (!task.plan || task.plan.items.length === 0) return null;
+  const { done, total } = runPlanProgress(task.plan);
+  return (
+    <span className="shrink-0 font-mono text-micro tabular-nums text-muted-foreground">
+      {done}/{total}
+    </span>
+  );
+}
+
+function RunPlanBlock({ task }: { task: AgentTask }) {
+  if (!task.plan || task.plan.items.length === 0) return null;
+  // A settled run's last plan is a record of what it was doing, not live
+  // progress — shown, but visually stepped back.
+  return (
+    <div className="pl-8 pr-1 pb-1">
+      <RunPlan plan={task.plan} muted={isRunSettled(runStateOf(task.status))} />
+    </div>
   );
 }
 
 // ─── Past row ──────────────────────────────────────────────────────────────
 
-function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
+function PastRow({
+  task,
+  issueId,
+  laterRunCount,
+}: {
+  task: AgentTask;
+  issueId: string;
+  /** Checkpointed turns after this one — what a revert to it removes (F09). */
+  laterRunCount: number;
+}) {
   const { t } = useT("issues");
   const { t: tAgents } = useT("agents");
   const timeAgo = useTimeAgo();
@@ -525,47 +592,53 @@ function PastRow({ task, issueId }: { task: AgentTask; issueId: string }) {
   };
 
   return (
-    <RowShell task={task} title={rowTitle}>
-      <TriggerText text={trigger} />
-      <TaskCommentCoverage task={task} />
-      <RowStatus title={statusTitle}>
-        <TaskStatusIcon status={task.status} />
-        <span className="sr-only">
-          {[failureLabel ?? label, time].filter(Boolean).join(" · ")}
-        </span>
-        {usage ? (
-          <span className="tabular-nums">{formatTokens(usage.tokens)}</span>
-        ) : (
-          <span className="text-faint-foreground">—</span>
-        )}
-      </RowStatus>
-      <RowActions>
-        <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
-        <ReplayButton task={task} />
-        {canRetry && (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  onClick={handleRetry}
-                  disabled={retrying}
-                  aria-label={t(($) => $.execution_log.retry_task_aria)}
-                />
-              }
-              className="flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {retrying ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <RotateCcw className="h-3.5 w-3.5" />
-              )}
-            </TooltipTrigger>
-            <TooltipContent>{t(($) => $.execution_log.retry_task_tooltip)}</TooltipContent>
-          </Tooltip>
-        )}
-      </RowActions>
-    </RowShell>
+    <>
+      <RowShell task={task} title={rowTitle}>
+        <TriggerText text={trigger} />
+        <RunPlanCounter task={task} />
+        <TaskCommentCoverage task={task} />
+        <RowStatus title={statusTitle}>
+          <TaskStatusIcon status={task.status} />
+          <span className="sr-only">
+            {[failureLabel ?? label, time].filter(Boolean).join(" · ")}
+          </span>
+          {usage ? (
+            <span className="tabular-nums">{formatTokens(usage.tokens)}</span>
+          ) : (
+            <span className="text-faint-foreground">—</span>
+          )}
+        </RowStatus>
+        <RowActions>
+          <RunPreviewChip taskId={task.id} />
+          <TranscriptButton task={task} agentName="" title={t(($) => $.execution_log.transcript_tooltip)} />
+          <ReplayButton task={task} />
+          <RunRevertAction task={task} issueId={issueId} laterRunCount={laterRunCount} />
+          {canRetry && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    onClick={handleRetry}
+                    disabled={retrying}
+                    aria-label={t(($) => $.execution_log.retry_task_aria)}
+                  />
+                }
+                className="flex items-center justify-center rounded p-1 text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {retrying ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RotateCcw className="h-3.5 w-3.5" />
+                )}
+              </TooltipTrigger>
+              <TooltipContent>{t(($) => $.execution_log.retry_task_tooltip)}</TooltipContent>
+            </Tooltip>
+          )}
+        </RowActions>
+      </RowShell>
+      <RunPlanBlock task={task} />
+    </>
   );
 }
 
@@ -599,7 +672,93 @@ function RowShell({
       ) : (
         <span className="inline-block h-5 w-5 shrink-0 rounded-full bg-muted" />
       )}
+      <LegBadge task={task} />
+      <OffPeakBadge task={task} />
       {children}
+    </div>
+  );
+}
+
+// Per-leg accounting (JEF-274): what this run is inside its workflow. The
+// primary leg carries no role and gets no badge — a list where every row is
+// labelled "draft" says nothing. An unknown role (a newer backend added a
+// producer) reads as a generic "leg" rather than a raw server token.
+function LegBadge({ task }: { task: AgentTask }) {
+  const { t } = useT("issues");
+  if (!task.leg_role) return null;
+  return (
+    <span className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground">
+      {t(($) => $.legs.role[legRoleLabelKey(task.leg_role ?? "") as "other"])}
+    </span>
+  );
+}
+
+// Off-peak batch lane (K45): this run was queued behind everything synchronous,
+// so a start time later than the schedule is the lane working rather than a
+// stall. Explicit === "batch": every other value, including the absence an
+// older backend sends, is the ordinary lane and carries no badge.
+function OffPeakBadge({ task }: { task: AgentTask }) {
+  const { t } = useT("issues");
+  if (task.dispatch_lane !== "batch") return null;
+  return (
+    <span
+      className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground"
+      title={t(($) => $.execution_log.off_peak_hint)}
+    >
+      {t(($) => $.execution_log.off_peak)}
+    </span>
+  );
+}
+
+// Reuses the run-duration formatter by expressing N seconds as a span from the
+// epoch, so "how long" reads the same here as it does on a single run.
+function formatSeconds(seconds: number): string {
+  return formatDuration(new Date(0).toISOString(), Math.max(0, seconds) * 1000);
+}
+
+// What the whole workflow cost — every leg counted. A review, a revision and a
+// retry are spend the primary run's own usage never shows, which is the point
+// of the aggregate.
+//
+// Only rendered when a run on this issue actually carries a leg role, so an
+// issue with plain single-leg runs is unchanged and the query never fires.
+// Lazy on top of that: it is inside the `open` branch, so a collapsed section
+// costs nothing.
+function WorkflowSummary({ tasks }: { tasks: AgentTask[] }) {
+  // The issue's most recent workflow. An issue can carry several over its
+  // life (a first delivery reviewed and revised, then a second one), and the
+  // one being worked on now is the one worth totalling — picking by recency
+  // also keeps the choice stable across refetches, which the list's own order
+  // does not guarantee.
+  const root = useMemo(() => {
+    let newest: AgentTask | undefined;
+    for (const task of tasks) {
+      if (!workflowRootOf(task)) continue;
+      if (!newest || new Date(task.created_at).getTime() > new Date(newest.created_at).getTime()) {
+        newest = task;
+      }
+    }
+    return newest ? workflowRootOf(newest) : "";
+  }, [tasks]);
+  if (!root) return null;
+  return <WorkflowSummaryLine rootTaskId={root} />;
+}
+
+function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const { data } = useQuery(taskLegsOptions(wsId, rootTaskId));
+  const totals = data?.totals;
+  if (!totals || totals.legs < 2) return null;
+  const parts = [
+    t(($) => $.legs.count, { count: totals.legs }),
+    t(($) => $.legs.total, { cost: formatUsd(totals.cost_usd_ticks * 1e-10) }),
+    formatSeconds(totals.duration_seconds),
+  ].filter(Boolean);
+  return (
+    <div className="mt-1.5 flex items-center gap-1.5 px-1 text-caption text-muted-foreground">
+      <span className="font-medium text-foreground">{t(($) => $.legs.workflow)}</span>
+      <span className="truncate tabular-nums">{parts.join(" \u00b7 ")}</span>
     </div>
   );
 }

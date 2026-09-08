@@ -73,6 +73,19 @@ LEFT JOIN agent_runtime r ON r.id = a.runtime_id
 WHERE a.workspace_id = $1 AND a.kind = 'user' AND a.archived_at IS NULL AND a.id <> sqlc.arg('author_agent_id')::uuid
 ORDER BY last_contest_at NULLS FIRST, a.created_at;
 
+-- name: ListContestChallengerCandidates :many
+-- Strict other-provider agents, least recently used as a reviewer first.
+-- ListCrossReviewCandidates used to play this role but JEF-238 turned it
+-- into prefer-another-provider (same vendor allowed with a different
+-- runtime/model pair); the K72 challenger must stay strict so the same-vendor
+-- flag and its fallback keep meaning what they did.
+SELECT a.id, a.name, r.provider,
+       (SELECT MAX(t.created_at) FROM agent_task_queue t WHERE t.agent_id = a.id AND t.review_of_task_id IS NOT NULL) AS last_review_at
+FROM agent a
+JOIN agent_runtime r ON r.id = a.runtime_id
+WHERE a.workspace_id = $1 AND a.kind = 'user' AND a.archived_at IS NULL AND r.provider <> '' AND r.provider <> sqlc.arg(author_provider)::text
+ORDER BY last_review_at NULLS FIRST, a.created_at;
+
 -- name: AvgAgentRecentTaskCostTicks :one
 -- The pre-launch cost figure: the mean of the agent's five latest run costs.
 SELECT COALESCE(AVG(t.cost), 0)::bigint FROM (

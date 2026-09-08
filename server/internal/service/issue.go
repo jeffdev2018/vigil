@@ -60,13 +60,18 @@ func NewIssueService(q *db.Queries, tx TxStarter, bus *events.Bus, ac analytics.
 // to IssueService.Create. The handler owns the parsing step that turns its
 // request payload into this struct; the service stays transport-agnostic.
 type IssueCreateParams struct {
-	WorkspaceID   pgtype.UUID
-	Title         string
-	Description   pgtype.Text
-	Status        string
-	Priority      string
-	AssigneeType  pgtype.Text
-	AssigneeID    pgtype.UUID
+	WorkspaceID  pgtype.UUID
+	Title        string
+	Description  pgtype.Text
+	Status       string
+	Priority     string
+	AssigneeType pgtype.Text
+	AssigneeID   pgtype.UUID
+	// DelegateType / DelegateID name the assignee's partner (F01). Inert:
+	// nothing in the create path reads them, so a delegate never produces a
+	// run — see WillEnqueueRun, which keys only on the assignee.
+	DelegateType  pgtype.Text
+	DelegateID    pgtype.UUID
 	CreatorType   string // "agent" or "member"
 	CreatorID     pgtype.UUID
 	ParentIssueID pgtype.UUID
@@ -131,6 +136,14 @@ type IssueCreateOpts struct {
 	// still resolving, then promotes the returned task after attachment binding.
 	// Zero preserves the ordinary immediate enqueue path.
 	AssignedAgentRunFireAt time.Time
+
+	// SuppressRun files the issue with its assignee but starts no agent run,
+	// the create-side counterpart of the `suppress_run` field on issue update.
+	// An agent filing an issue on itself uses this: without it the create
+	// immediately spawns a second run of the same agent on its own filing, and
+	// nothing bounds that recursion. Meaningless together with
+	// AssignedAgentRunFireAt, which exists to create a run.
+	SuppressRun bool
 }
 
 // ErrActiveDuplicate signals that the duplicate guard found an active
@@ -346,6 +359,8 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 			Priority:      p.Priority,
 			AssigneeType:  p.AssigneeType,
 			AssigneeID:    p.AssigneeID,
+			DelegateType:  p.DelegateType,
+			DelegateID:    p.DelegateID,
 			CreatorType:   p.CreatorType,
 			CreatorID:     p.CreatorID,
 			ParentIssueID: p.ParentIssueID,
@@ -368,6 +383,8 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 			Priority:      p.Priority,
 			AssigneeType:  p.AssigneeType,
 			AssigneeID:    p.AssigneeID,
+			DelegateType:  p.DelegateType,
+			DelegateID:    p.DelegateID,
 			CreatorType:   p.CreatorType,
 			CreatorID:     p.CreatorID,
 			ParentIssueID: p.ParentIssueID,
@@ -482,6 +499,9 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 	if !opts.AssignedAgentRunFireAt.IsZero() {
 		assignedTaskID = assignedTask.ID
 		if assignedTaskID.Valid {
+			// The deferred task became durable with the issue at commit. Refresh the
+			// daemon's schedule only now so a wakeup can never race uncommitted data.
+			s.TaskService.notifyRuntimeMayHaveWork(assignedTask.RuntimeID, "")
 			if err := s.TaskService.hydrateDeferredChannelIssueTaskOverlay(ctx, assignedTask); err != nil {
 				// Runtime overlays are best-effort on every enqueue path. The task is
 				// already durable and safely deferred, so an optional integration
@@ -501,7 +521,7 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 
 	s.publishIssueCreated(issue, attachments, labels, p.CreatorType, actorID, opts)
 	s.captureCreatedAnalytics(issue, p.CreatorType, actorID, opts)
-	if opts.AssignedAgentRunFireAt.IsZero() {
+	if opts.AssignedAgentRunFireAt.IsZero() && !opts.SuppressRun {
 		assignedTaskID = s.maybeEnqueueOnAssign(ctx, issue, p.CreatorType, actorID, opts.AssignedAgentRunFireAt)
 	}
 
@@ -715,6 +735,32 @@ func classifyOrigin(issue db.Issue, opts IssueCreateOpts) (source, taskID, autop
 	case "meeting":
 		// Accepted from a meeting's action items (origin_id = meeting.id):
 		// a human decision in the triage queue, so the manual source label.
+		return analytics.SourceManual, "", ""
+	case "code_health":
+		// Housekeeping opened by the code health autopilot (K22, origin_id =
+		// code_health_scan.id). Not an autopilot rule run, so it keeps the
+		// manual source label rather than inventing an analytics dimension.
+		return analytics.SourceManual, "", ""
+	case "doc_drift":
+		// Housekeeping for the agent context drift check (K56). Carries the
+		// scan and pull-request runs; nothing is worked on it directly, so it
+		// keeps the manual source label.
+		return analytics.SourceManual, "", ""
+	case "voice_mobile":
+		// Dictated on a phone and reviewed as a draft before creation (K36).
+		// A human wrote it, so it keeps the manual source label; the origin
+		// only records how the words were captured and carries no id.
+		return analytics.SourceManual, "", ""
+	case "epic":
+		// Epic Mode (F18): the host issue a project's epic runs hang off, and
+		// the child tickets its approved breakdown created (origin_id = the
+		// project). A human approved the step that produced them, so they keep
+		// the manual source label and carry no task.
+		return analytics.SourceManual, "", ""
+	case IssueOriginMirror:
+		// Cross-repo mirror (K54, origin_id = the source issue). Generated by
+		// the label trigger, but it stands for a human's decision to label the
+		// source, so it keeps the manual source label.
 		return analytics.SourceManual, "", ""
 	default:
 		slog.Warn("analytics: unknown issue origin type",

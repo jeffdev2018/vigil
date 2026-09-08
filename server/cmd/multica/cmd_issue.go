@@ -343,6 +343,28 @@ var issueRunMessagesCmd = &cobra.Command{
 	RunE:  runIssueRunMessages,
 }
 
+// The living run plan (F04) is a per-RUN checklist, distinct from `issue plan`,
+// which is the issue's durable plan artifact (F17). A run publishes what it is
+// working through right now; publishing again replaces it.
+var issueRunPlanCmd = &cobra.Command{
+	Use:   "run-plan",
+	Short: "Publish the checklist a run is working through",
+}
+
+var issueRunPlanSetCmd = &cobra.Command{
+	Use:   "set <run-id>",
+	Short: "Publish (and replace) a run's plan",
+	Long: "Publish the checklist this run is working through. Publishing again replaces\n" +
+		"the previous plan; every version stays in the run transcript.\n\n" +
+		"Items come either from repeated --item \"<text>:<status>\" flags (the LAST colon\n" +
+		"separates the status, so the text may contain colons) or, with no --item, from\n" +
+		"a JSON object on stdin: {\"items\":[{\"text\":\"...\",\"status\":\"pending\"}]}.\n\n" +
+		"Status is pending, in_progress or done, and at most one item may be in_progress.\n" +
+		"Only the run itself can publish its plan, using the token it already runs with.",
+	Args: exactArgs(1),
+	RunE: runIssueRunPlanSet,
+}
+
 var issueUsageCmd = &cobra.Command{
 	Use:   "usage <issue-id>",
 	Short: "Show aggregated token usage for an issue",
@@ -403,6 +425,28 @@ var validIssuePriorities = []string{
 // only meaningful for the other columns.
 var validIssueSortColumns = []string{
 	"position", "title", "created_at", "start_date", "due_date", "priority",
+}
+
+// validIssueFields are the top-level keys /api/issues actually emits for
+// `issue list` — i.e. the JSON tags of handler.IssueResponse
+// (server/internal/handler/issue.go), minus reactions/attachments/
+// source_context, which are omitempty and never set by the list endpoint
+// (detail-only). TestValidIssueFieldsMatchListEndpointShape guards this
+// against drifting from that struct. There is no plain "assignee" field —
+// it is split into assignee_type/assignee_id — so that name is rejected
+// rather than silently ignored.
+var validIssueFields = []string{
+	"id", "workspace_id", "number", "identifier", "title", "description",
+	"status", "status_category", "status_name", "priority", "assignee_type",
+	"assignee_id", "creator_type", "creator_id", "parent_issue_id",
+	"project_id", "position", "stage", "start_date", "due_date", "created_at",
+	"updated_at", "revision", "last_activity_at", "metadata", "properties",
+	"labels",
+	// Our planning and routing fields: the delegate an issue is routed to
+	// (F01), the goal and dated cycle it belongs to (K74 / F29), and its work
+	// item type (F30). TestValidIssueFieldsMatchListEndpointShape fails when
+	// this list drifts from what the endpoint actually emits.
+	"delegate_type", "delegate_id", "goal_id", "cycle_id", "issue_type",
 }
 
 // directionalIssueSortColumns are the sort keys for which --direction is
@@ -470,6 +514,8 @@ func init() {
 	issueCmd.AddCommand(issueSubscriberCmd)
 	issueCmd.AddCommand(issueRunsCmd)
 	issueCmd.AddCommand(issueRunMessagesCmd)
+	issueCmd.AddCommand(issueRunPlanCmd)
+	issueRunPlanCmd.AddCommand(issueRunPlanSetCmd)
 	issueCmd.AddCommand(issueUsageCmd)
 	issueCmd.AddCommand(issueRerunCmd)
 	issueCmd.AddCommand(issueCancelTaskCmd)
@@ -499,9 +545,12 @@ func init() {
 	issueListCmd.Flags().Int("offset", 0, "Number of issues to skip (for pagination)")
 	issueListCmd.Flags().String("sort", "", "Sort column: position (default, manual board order), title, created_at, start_date, due_date, priority, or property:<name-or-id> to sort by a custom property (select properties sort by option order)")
 	issueListCmd.Flags().String("direction", "", "Sort direction (asc or desc); requires --sort to be a non-position column or a property sort (position is always ascending)")
+	issueListCmd.Flags().String("fields", "", "JSON output only: comma-separated list of issue fields to include (e.g. id,title,status,priority). Filtering happens client-side after the full response is fetched, so this shrinks CLI output size and agent context cost, not network/server-side cost. Omit for the full issue object (default, unchanged). Valid fields: "+strings.Join(validIssueFields, ", "))
+	issueListCmd.Flags().Bool("resolve-properties", false, resolvePropertiesHelp)
 
 	// issue get
 	issueGetCmd.Flags().String("output", "json", "Output format: table or json")
+	issueGetCmd.Flags().Bool("resolve-properties", false, resolvePropertiesHelp)
 
 	// issue pull-requests
 	issuePullRequestsCmd.Flags().String("output", "table", "Output format: table or json")
@@ -519,6 +568,8 @@ func init() {
 	issueCreateCmd.Flags().String("priority", "", "Issue priority")
 	issueCreateCmd.Flags().String("assignee", "", "Assignee name (member, agent, or squad; fuzzy match)")
 	issueCreateCmd.Flags().String("assignee-id", "", "Assignee UUID — member, agent, or squad (mutually exclusive with --assignee)")
+	issueCreateCmd.Flags().String("delegate", "", "Delegate name — the assignee's partner (member or agent; fuzzy match). Starts no run.")
+	issueCreateCmd.Flags().String("delegate-id", "", "Delegate UUID — member or agent (mutually exclusive with --delegate)")
 	issueCreateCmd.Flags().String("parent", "", "Parent issue ID")
 	issueCreateCmd.Flags().Int("stage", 0, "Stage ordinal (>=1) grouping this sub-issue into an ordered barrier group under its parent; omit for unstaged. The parent assignee is woken only when every sub-issue in a stage finishes.")
 	issueCreateCmd.Flags().String("project", "", "Project ID")
@@ -539,7 +590,10 @@ func init() {
 	issueUpdateCmd.Flags().String("priority", "", "New priority")
 	issueUpdateCmd.Flags().String("assignee", "", "New assignee name (member, agent, or squad; fuzzy match)")
 	issueUpdateCmd.Flags().String("assignee-id", "", "New assignee UUID — member, agent, or squad (mutually exclusive with --assignee)")
+	issueUpdateCmd.Flags().String("delegate", "", "New delegate name — the assignee's partner (member or agent; fuzzy match). Starts no run.")
+	issueUpdateCmd.Flags().String("delegate-id", "", "New delegate UUID — member or agent (mutually exclusive with --delegate)")
 	issueUpdateCmd.Flags().String("project", "", "Project ID")
+	issueUpdateCmd.Flags().String("type", "", "Work item type KEY from the workspace catalogue (bug, story, epic, task, or a custom one). Pass an empty string to clear it back to untyped. Classification only: it starts no run and changes no status.")
 	issueUpdateCmd.Flags().String("start-date", "", "New start date (calendar day, YYYY-MM-DD; pass empty string to clear)")
 	issueUpdateCmd.Flags().String("due-date", "", "New due date (calendar day, YYYY-MM-DD)")
 	issueUpdateCmd.Flags().String("parent", "", "Parent issue ID (use --parent \"\" to clear)")
@@ -593,6 +647,11 @@ func init() {
 	issueRunMessagesCmd.Flags().String("output", "json", "Output format: table or json")
 	issueRunMessagesCmd.Flags().Int("since", 0, "Only return messages after this sequence number")
 	issueRunMessagesCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
+
+	// issue run-plan set
+	issueRunPlanSetCmd.Flags().StringArray("item", nil, `Checklist item as "<text>:<status>", repeatable. The LAST colon separates the status (pending|in_progress|done), so the text may contain colons. With no --item, the plan is read as JSON from stdin.`)
+	issueRunPlanSetCmd.Flags().String("issue", "", "Issue ID/key to scope short run ID prefix resolution")
+	issueRunPlanSetCmd.Flags().String("output", "json", "Output format: json")
 
 	// issue comment add
 	issueCommentAddCmd.Flags().String("content", "", "Comment content (decodes \\n, \\r, \\t, \\\\; pipe via --content-stdin for multi-line bodies or to preserve literal backslashes)")
@@ -681,11 +740,13 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		params.Set("metadata", filter)
 	}
 	// --property filtering and property:<ref> sorting both address definitions
-	// by name or UUID, so they share a single catalog fetch.
+	// by name or UUID, so they share a single catalog fetch. An actor filter
+	// and --resolve-properties share one member request the same way.
 	const propertySortPrefix = "property:"
 	propertyFlags, _ := cmd.Flags().GetStringArray("property")
 	sortVal, _ := cmd.Flags().GetString("sort")
 	var properties []propertyDTO
+	var members memberDirectory
 	if len(propertyFlags) > 0 || strings.HasPrefix(sortVal, propertySortPrefix) {
 		var err error
 		if properties, err = fetchProperties(ctx, client); err != nil {
@@ -693,7 +754,7 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	if len(propertyFlags) > 0 {
-		filter, err := buildPropertiesFilterQueryParam(ctx, client, properties, propertyFlags)
+		filter, err := buildPropertiesFilterQueryParam(ctx, client, &members, properties, propertyFlags)
 		if err != nil {
 			return err
 		}
@@ -733,6 +794,40 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 		params.Set("direction", d)
 	}
 
+	var fields []string
+	if v, _ := cmd.Flags().GetString("fields"); v != "" {
+		valid := make(map[string]bool, len(validIssueFields))
+		for _, f := range validIssueFields {
+			valid[f] = true
+		}
+		keepsProperties := false
+		for _, f := range strings.Split(v, ",") {
+			f = strings.TrimSpace(f)
+			if !valid[f] {
+				return fmt.Errorf("invalid --fields value %q; valid values: %s", f, strings.Join(validIssueFields, ", "))
+			}
+			if f == "properties" {
+				keepsProperties = true
+			}
+			fields = append(fields, f)
+		}
+		// --fields without `properties` deletes the very key
+		// --resolve-properties rewrites, so the pair would either cost two
+		// requests for output nobody sees or leave the flag silently doing
+		// nothing. A passed-but-ignored flag is a footgun in scripts (the
+		// same reason --fields rejects "assignee" instead of dropping it),
+		// so say so instead of picking one of those.
+		//
+		// Only in JSON mode, though: both flags document themselves as having
+		// no effect on --output table, so a table reader who leaves them on
+		// the command line must still get their table.
+		outputFormat, _ := cmd.Flags().GetString("output")
+		resolve, _ := cmd.Flags().GetBool("resolve-properties")
+		if outputFormat == "json" && resolve && !keepsProperties {
+			return fmt.Errorf("--resolve-properties needs the properties field, but --fields does not include it; add properties to --fields or drop --resolve-properties")
+		}
+	}
+
 	path := "/api/issues"
 	if len(params) > 0 {
 		path += "?" + params.Encode()
@@ -747,6 +842,18 @@ func runIssueList(cmd *cobra.Command, _ []string) error {
 
 	output, _ := cmd.Flags().GetString("output")
 	if output == "json" {
+		// --fields runs first so a page that drops `properties` never pays for
+		// the catalog and member requests resolving it would need. Combining
+		// the two with `properties` filtered out is rejected above, so nothing
+		// resolvable is deleted before it is resolved.
+		if len(fields) > 0 {
+			filterIssueFields(issuesRaw, fields)
+		}
+		if resolve, _ := cmd.Flags().GetBool("resolve-properties"); resolve {
+			if err := resolveIssueProperties(ctx, client, properties, &members, issuesRaw); err != nil {
+				return err
+			}
+		}
 		total, _ := result["total"].(float64)
 		limit, _ := cmd.Flags().GetInt("limit")
 		offset, _ := cmd.Flags().GetInt("offset")
@@ -917,6 +1024,11 @@ func runIssueGet(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	if resolve, _ := cmd.Flags().GetBool("resolve-properties"); resolve {
+		if err := resolveIssueProperties(ctx, client, nil, &memberDirectory{}, []any{issue}); err != nil {
+			return err
+		}
+	}
 	return cli.PrintJSON(os.Stdout, issue)
 }
 
@@ -1236,6 +1348,14 @@ func runIssueCreate(cmd *cobra.Command, _ []string) error {
 		body["assignee_type"] = aType
 		body["assignee_id"] = aID
 	}
+	dType, dID, hasDelegate, delegateErr := pickAssigneeFromFlags(ctx, client, cmd, "delegate", "delegate-id", memberOrAgentKinds)
+	if delegateErr != nil {
+		return fmt.Errorf("resolve delegate: %w", delegateErr)
+	}
+	if hasDelegate {
+		body["delegate_type"] = dType
+		body["delegate_id"] = dID
+	}
 
 	// Quick-create stamp: when the daemon sets MULTICA_QUICK_CREATE_TASK_ID
 	// before invoking the agent, the agent's `multica issue create` call
@@ -1380,6 +1500,17 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 	if priorityChanged {
 		body["priority"] = priorityFlag
 	}
+	if cmd.Flags().Changed("type") {
+		v, _ := cmd.Flags().GetString("type")
+		// Empty CLEARS: `--type ""` is how the CLI expresses "untyped", the
+		// same way `--project ""` and `--parent ""` clear theirs. Sending the
+		// empty string through would be refused by the server's blank check.
+		if strings.TrimSpace(v) == "" {
+			body["issue_type"] = nil
+		} else {
+			body["issue_type"] = v
+		}
+	}
 	if cmd.Flags().Changed("project") {
 		v, _ := cmd.Flags().GetString("project")
 		if v == "" {
@@ -1410,6 +1541,18 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 			body["assignee_id"] = aID
 		}
 	}
+	// The delegate (F01) is the assignee's partner: member or agent only, and
+	// it starts no run, so --no-start has nothing to suppress here.
+	if cmd.Flags().Changed("delegate") || cmd.Flags().Changed("delegate-id") {
+		dType, dID, hasDelegate, resolveErr := pickAssigneeFromFlags(ctx, client, cmd, "delegate", "delegate-id", memberOrAgentKinds)
+		if resolveErr != nil {
+			return fmt.Errorf("resolve delegate: %w", resolveErr)
+		}
+		if hasDelegate {
+			body["delegate_type"] = dType
+			body["delegate_id"] = dID
+		}
+	}
 	if cmd.Flags().Changed("parent") {
 		v, _ := cmd.Flags().GetString("parent")
 		if v == "" {
@@ -1435,7 +1578,7 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(body) == 0 {
-		return fmt.Errorf("no fields to update; use flags like --title, --status, --priority, --assignee, etc.")
+		return fmt.Errorf("no fields to update; use flags like --title, --status, --priority, --assignee, --delegate, etc.")
 	}
 	if noStart {
 		body["suppress_run"] = true
@@ -1443,7 +1586,13 @@ func runIssueUpdate(cmd *cobra.Command, args []string) error {
 
 	var result map[string]any
 	if err := client.PutJSON(ctx, "/api/issues/"+issueRef.ID, body, &result); err != nil {
+		if tErr := transitionRefusal(err); tErr != nil {
+			return tErr
+		}
 		return fmt.Errorf("update issue: %w", err)
+	}
+	if tErr := transitionHeld(result); tErr != nil {
+		return tErr
 	}
 
 	output, _ := cmd.Flags().GetString("output")
@@ -1558,7 +1707,13 @@ func runIssueStatus(cmd *cobra.Command, args []string) error {
 	}
 	var result map[string]any
 	if err := client.PutJSON(ctx, "/api/issues/"+issueRef.ID, body, &result); err != nil {
+		if tErr := transitionRefusal(err); tErr != nil {
+			return tErr
+		}
 		return fmt.Errorf("update status: %w", err)
+	}
+	if tErr := transitionHeld(result); tErr != nil {
+		return tErr
 	}
 
 	fmt.Fprintf(os.Stderr, "Issue %s status changed to %s.\n", issueDisplayKey(result), status)
@@ -2380,6 +2535,97 @@ func runIssueRunMessages(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// parseRunPlanItem splits one --item value into its text and status. The LAST
+// colon separates them, because a checklist line legitimately contains colons
+// ("fix: the parser") while a status never does.
+func parseRunPlanItem(raw string) (map[string]any, error) {
+	cut := strings.LastIndex(raw, ":")
+	if cut < 0 {
+		return nil, fmt.Errorf("--item %q has no status; use \"<text>:<status>\" with status pending, in_progress or done", raw)
+	}
+	text := strings.TrimSpace(raw[:cut])
+	status := strings.TrimSpace(raw[cut+1:])
+	if text == "" {
+		return nil, fmt.Errorf("--item %q has no text before its status", raw)
+	}
+	if status == "" {
+		return nil, fmt.Errorf("--item %q has no status after its last colon", raw)
+	}
+	return map[string]any{"text": text, "status": status}, nil
+}
+
+// runPlanBody assembles the request body from --item flags, or from the JSON
+// object on stdin when none were given. The server owns validation (item count,
+// text length, status vocabulary, one in_progress); this only rejects what it
+// cannot turn into a body at all, so the run gets ONE authoritative answer
+// about what a valid plan is rather than two that can drift.
+func runPlanBody(cmd *cobra.Command) (map[string]any, error) {
+	items, _ := cmd.Flags().GetStringArray("item")
+	if len(items) > 0 {
+		parsed := make([]any, 0, len(items))
+		for _, raw := range items {
+			item, err := parseRunPlanItem(raw)
+			if err != nil {
+				return nil, err
+			}
+			parsed = append(parsed, item)
+		}
+		return map[string]any{"items": parsed}, nil
+	}
+
+	raw, err := readAllStdin()
+	if err != nil {
+		return nil, fmt.Errorf("read plan: %w", err)
+	}
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil, fmt.Errorf("no plan given: pass --item \"<text>:<status>\" (repeatable) or pipe {\"items\":[...]} on stdin")
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		return nil, fmt.Errorf("plan must be a JSON object with an items array: %w", err)
+	}
+	if _, ok := body["items"]; !ok {
+		return nil, fmt.Errorf("plan is missing the items array")
+	}
+	return body, nil
+}
+
+func runIssueRunPlanSet(cmd *cobra.Command, args []string) error {
+	// Body first: a malformed --item must fail before the network round trips
+	// that resolve the run.
+	body, err := runPlanBody(cmd)
+	if err != nil {
+		return err
+	}
+
+	client, err := newAPIClient(cmd)
+	if err != nil {
+		return err
+	}
+
+	ctx, cancel := cli.APIContext(context.Background())
+	defer cancel()
+
+	issueID := ""
+	if issueInput, _ := cmd.Flags().GetString("issue"); issueInput != "" {
+		issueRef, err := resolveIssueRef(ctx, client, issueInput)
+		if err != nil {
+			return fmt.Errorf("resolve issue: %w", err)
+		}
+		issueID = issueRef.ID
+	}
+	taskRef, err := resolveTaskRunID(ctx, client, issueID, args[0])
+	if err != nil {
+		return fmt.Errorf("resolve run: %w", err)
+	}
+
+	var result map[string]any
+	if err := client.PostJSON(ctx, "/api/tasks/"+url.PathEscape(taskRef.ID)+"/plan", body, &result); err != nil {
+		return fmt.Errorf("set run plan: %w", err)
+	}
+	return cli.PrintJSON(os.Stdout, result)
+}
+
 // ---------------------------------------------------------------------------
 // Search command
 // ---------------------------------------------------------------------------
@@ -2703,51 +2949,47 @@ func (k assigneeKinds) describe() string {
 	}
 }
 
+// assigneeCandidate is one directory entry matchAssignee ranks. aliases are
+// additional unique identifiers that select a candidate outright, ranked with
+// id matches rather than name matches — a member's email is as unambiguous as
+// their id, and is what people actually have to hand. Without it,
+// `--value bohan@example.com` fails to resolve.
+type assigneeCandidate struct {
+	assigneeMatch
+	aliases []string
+}
+
+func (c assigneeCandidate) matchesAlias(input string) bool {
+	for _, alias := range c.aliases {
+		if alias != "" && strings.EqualFold(alias, input) {
+			return true
+		}
+	}
+	return false
+}
+
+func memberCandidates(members []map[string]any) []assigneeCandidate {
+	candidates := make([]assigneeCandidate, 0, len(members))
+	for _, m := range members {
+		candidates = append(candidates, assigneeCandidate{
+			assigneeMatch: assigneeMatch{Type: "member", ID: strVal(m, "user_id"), Name: strVal(m, "name")},
+			aliases:       []string{strVal(m, "email")},
+		})
+	}
+	return candidates
+}
+
 func resolveAssignee(ctx context.Context, client *cli.APIClient, name string, kinds assigneeKinds) (string, string, error) {
 	if client.WorkspaceID == "" {
 		return "", "", fmt.Errorf("workspace ID is required to resolve assignees; use --workspace-id or set MULTICA_WORKSPACE_ID")
 	}
-
-	input := normalizeAssigneeLookupInput(name)
-	if input == "" {
+	if normalizeAssigneeLookupInput(name) == "" {
 		return "", "", fmt.Errorf("no %s found matching %q", kinds.describe(), name)
 	}
-	inputLower := strings.ToLower(input)
 
-	// Matches are collected into three priority buckets. Higher-priority buckets
-	// short-circuit lower-priority matching so that, e.g., an exact name match
-	// always wins over a substring collision with another candidate.
-	//   1. idMatches        — full UUID or 8-char ShortID (as shown by `truncateID`).
-	//   2. exactMatches     — case-insensitive full name equality.
-	//   3. substringMatches — preserves the existing partial-name UX.
-	var idMatches, exactMatches, substringMatches []assigneeMatch
+	var candidates []assigneeCandidate
 	var errs []error
 	var fetchAttempts int
-
-	// exactAliases are additional unique identifiers that select a candidate
-	// outright, ranked with id matches rather than name matches — a member's
-	// email is as unambiguous as their id, and is what people actually have to
-	// hand. Without it, `--value bohan@example.com` fails to resolve.
-	classify := func(entityType, id, displayName string, exactAliases ...string) {
-		match := assigneeMatch{Type: entityType, ID: id, Name: displayName}
-		if id != "" && (strings.EqualFold(id, input) || strings.EqualFold(truncateID(id), input)) {
-			idMatches = append(idMatches, match)
-			return
-		}
-		for _, alias := range exactAliases {
-			if alias != "" && strings.EqualFold(alias, input) {
-				idMatches = append(idMatches, match)
-				return
-			}
-		}
-		if strings.EqualFold(displayName, input) {
-			exactMatches = append(exactMatches, match)
-			return
-		}
-		if strings.Contains(strings.ToLower(displayName), inputLower) {
-			substringMatches = append(substringMatches, match)
-		}
-	}
 
 	// Search members.
 	if kinds.member {
@@ -2756,9 +2998,7 @@ func resolveAssignee(ctx context.Context, client *cli.APIClient, name string, ki
 		if err := getAssigneeJSON(ctx, client, "/api/workspaces/"+client.WorkspaceID+"/members", &members); err != nil {
 			errs = append(errs, fmt.Errorf("fetch members: %w", err))
 		} else {
-			for _, m := range members {
-				classify("member", strVal(m, "user_id"), strVal(m, "name"), strVal(m, "email"))
-			}
+			candidates = append(candidates, memberCandidates(members)...)
 		}
 	}
 
@@ -2771,7 +3011,7 @@ func resolveAssignee(ctx context.Context, client *cli.APIClient, name string, ki
 			errs = append(errs, fmt.Errorf("fetch agents: %w", err))
 		} else {
 			for _, a := range agents {
-				classify("agent", strVal(a, "id"), strVal(a, "name"))
+				candidates = append(candidates, assigneeCandidate{assigneeMatch: assigneeMatch{Type: "agent", ID: strVal(a, "id"), Name: strVal(a, "name")}})
 			}
 		}
 	}
@@ -2793,7 +3033,7 @@ func resolveAssignee(ctx context.Context, client *cli.APIClient, name string, ki
 				if strVal(s, "archived_at") != "" {
 					continue
 				}
-				classify("squad", strVal(s, "id"), strVal(s, "name"))
+				candidates = append(candidates, assigneeCandidate{assigneeMatch: assigneeMatch{Type: "squad", ID: strVal(s, "id"), Name: strVal(s, "name")}})
 			}
 		}
 	}
@@ -2805,6 +3045,37 @@ func resolveAssignee(ctx context.Context, client *cli.APIClient, name string, ki
 			msgs[i] = e.Error()
 		}
 		return "", "", fmt.Errorf("failed to resolve assignee: %s", strings.Join(msgs, "; "))
+	}
+
+	return matchAssignee(name, kinds, candidates)
+}
+
+// matchAssignee resolves name against candidates a caller already fetched.
+// Matches are collected into three priority buckets. Higher-priority buckets
+// short-circuit lower-priority matching so that, e.g., an exact name match
+// always wins over a substring collision with another candidate.
+//  1. idMatches        — full UUID or 8-char ShortID (as shown by `truncateID`), or an alias.
+//  2. exactMatches     — case-insensitive full name equality.
+//  3. substringMatches — preserves the existing partial-name UX.
+func matchAssignee(name string, kinds assigneeKinds, candidates []assigneeCandidate) (string, string, error) {
+	input := normalizeAssigneeLookupInput(name)
+	if input == "" {
+		return "", "", fmt.Errorf("no %s found matching %q", kinds.describe(), name)
+	}
+	inputLower := strings.ToLower(input)
+
+	var idMatches, exactMatches, substringMatches []assigneeMatch
+	for _, c := range candidates {
+		switch {
+		case c.ID != "" && (strings.EqualFold(c.ID, input) || strings.EqualFold(truncateID(c.ID), input)):
+			idMatches = append(idMatches, c.assigneeMatch)
+		case c.matchesAlias(input):
+			idMatches = append(idMatches, c.assigneeMatch)
+		case strings.EqualFold(c.Name, input):
+			exactMatches = append(exactMatches, c.assigneeMatch)
+		case strings.Contains(strings.ToLower(c.Name), inputLower):
+			substringMatches = append(substringMatches, c.assigneeMatch)
+		}
 	}
 
 	for _, bucket := range [][]assigneeMatch{idMatches, exactMatches, substringMatches} {
@@ -2961,6 +3232,27 @@ func formatAssignee(issue map[string]any, actors actorDisplayLookup) string {
 	return actors.actor(aType, aID)
 }
 
+// filterIssueFields keeps only the requested top-level keys on each issue,
+// dropping everything else — including description, which makes up most of
+// a typical issue payload. Opt-in via --fields on JSON output only.
+func filterIssueFields(issuesRaw []any, fields []string) {
+	keep := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		keep[f] = true
+	}
+	for _, raw := range issuesRaw {
+		issue, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		for k := range issue {
+			if !keep[k] {
+				delete(issue, k)
+			}
+		}
+	}
+}
+
 func truncateID(id string) string {
 	if utf8.RuneCountInString(id) > 8 {
 		runes := []rune(id)
@@ -2996,5 +3288,54 @@ func compactComments(comments []map[string]any) {
 				}
 			}
 		}
+	}
+}
+
+// Transition rules (F28). Two answers a status write can get that are neither
+// a plain success nor a plain HTTP failure, and both have to leave a non-zero
+// exit code so a script — or an agent — does not read them as "done".
+//
+// transitionRefusal recognises the 403 the gate writes and replaces the raw
+// "PUT /api/issues/x returned 403: {json}" line with the reason. Returns nil
+// for any other error so the caller falls through to its own wrapping.
+func transitionRefusal(err error) error {
+	var httpErr *cli.HTTPError
+	if !errors.As(err, &httpErr) || httpErr.StatusCode != http.StatusForbidden {
+		return nil
+	}
+	var body struct {
+		Code   string `json:"code"`
+		Error  string `json:"error"`
+		From   string `json:"from"`
+		To     string `json:"to"`
+		RuleID string `json:"rule_id"`
+	}
+	if json.Unmarshal([]byte(httpErr.Body), &body) != nil || body.Code != "transition_not_allowed" {
+		return nil
+	}
+	msg := body.Error
+	if msg == "" {
+		msg = "a transition rule does not allow this status change"
+	}
+	if body.From != "" && body.To != "" {
+		msg = fmt.Sprintf("%s (%s -> %s)", msg, body.From, body.To)
+	}
+	if body.RuleID != "" {
+		msg += " [rule " + body.RuleID + "]"
+	}
+	return cli.WithUserMessage("transition not allowed: "+msg, err)
+}
+
+// transitionHeld recognises the 202 the approval gate writes. PutJSON treats
+// 202 as success, so without this the CLI would print "status changed to done"
+// for a write that has not been applied.
+func transitionHeld(result map[string]any) error {
+	if status, _ := result["status"].(string); status != "pending_approval" {
+		return nil
+	}
+	requestID, _ := result["request_id"].(string)
+	return &cli.UserMessageError{
+		Msg: fmt.Sprintf("pending approval (request %s): the status change was recorded but not applied. "+
+			"Do not retry it; an approver decides.", requestID),
 	}
 }

@@ -63,6 +63,9 @@ vi.mock("@multica/core/api", () => ({
     listWorkspaces: apiListWorkspaces,
     listQuickActions: apiListQuickActions,
     renderQuickAction: apiRenderQuickAction,
+    // The participant bar pings typing state through the api; without this
+    // stub every keystroke logs "sendChatTyping is not a function" to stderr.
+    sendChatTyping: vi.fn(async () => {}),
   },
 }));
 

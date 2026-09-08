@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   Play, Clock, Plus, Trash2, CheckCircle2, XCircle, Loader2, Pencil,
-  Ban, ChevronDown, ChevronRight, Server, AlertTriangle,
+  Ban, ChevronDown, ChevronRight, Server, AlertTriangle, MoonStar,
 } from "lucide-react";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { autopilotDetailOptions, autopilotRunsOptions, autopilotRunOptions } from "@multica/core/autopilots/queries";
@@ -18,6 +18,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useActorName } from "@multica/core/workspace/hooks";
 import { useNavigation, AppLink } from "../../navigation";
+import { AutopilotMemoryCard } from "./autopilot-memory-card";
 import { BreadcrumbHeader } from "../../layout/breadcrumb-header";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
@@ -127,6 +128,18 @@ function RunRow({ run, agentId, agentName }: { run: AutopilotRun; agentId: strin
       <span className="w-20 shrink-0 text-caption text-muted-foreground">
         {t(($) => $.run_source[run.source as "schedule" | "manual" | "webhook" | "api"]) ?? run.source}
       </span>
+      {/* Off-peak batch lane (K45). Explicit === "batch": every other value,
+          including the absence an older server sends, is the ordinary lane and
+          must not be labelled. */}
+      {run.dispatch_lane === "batch" && (
+        <span
+          className="shrink-0 inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-micro font-medium text-muted-foreground"
+          title={t(($) => $.run.off_peak_hint)}
+        >
+          <MoonStar className="h-3 w-3" />
+          {t(($) => $.run.off_peak)}
+        </span>
+      )}
       <span className="flex-1 min-w-0 text-caption text-muted-foreground truncate">
         {run.issue_id ? (
           t(($) => $.run.issue_linked)
@@ -631,6 +644,12 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
             hasWebhookTrigger={triggers.some((trig) => trig.kind === "webhook")}
           />
 
+          {/* Daemon memory (F24): what the last run left for the next one. */}
+          <AutopilotMemoryCard
+            autopilotId={autopilotId}
+            lastRunAt={autopilot.last_run_at}
+          />
+
           {/* Run History */}
           <section className="space-y-3">
             <div className="flex items-baseline justify-between gap-3">
@@ -720,6 +739,7 @@ export function AutopilotDetailPage({ autopilotId }: { autopilotId: string }) {
             assignee_type: autopilot.assignee_type,
             assignee_id: autopilot.assignee_id,
             execution_mode: autopilot.execution_mode as AutopilotExecutionMode,
+            batch_eligible: autopilot.batch_eligible === true,
             subscriber_user_ids:
               autopilot.subscribers
                 ?.filter((s) => s.user_type === "member")

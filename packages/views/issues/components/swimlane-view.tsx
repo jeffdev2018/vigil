@@ -955,7 +955,7 @@ function SwimLaneViewImpl({
       totals.set(category, (totals.get(category) ?? 0) + 1);
     }
     return totals;
-  }, [groupBranches, laneSourceIssues, headerIssueIds]);
+  }, [groupBranches, laneSourceIssues, headerIssueIds, categoryOf]);
 
   // Collapsed swimlanes — persisted per-grouping via the view store. The
   // store keys are raw lane ids (or sentinel `NONE_LANE_ID` / `ORPHAN_LANE_ID`

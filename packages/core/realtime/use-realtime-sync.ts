@@ -10,8 +10,14 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
+import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
 import { projectKeys } from "../projects/queries";
+import { cycleKeys } from "../cycles/queries";
+import { orgKeys } from "../org/queries";
+import { issueTransitionKeys } from "../issue-transitions/queries";
+import { docDriftKeys } from "../doc-drift/queries";
 import { pinKeys } from "../pins/queries";
 import { autopilotKeys } from "../autopilots/queries";
 import { budgetKeys } from "../budgets/queries";
@@ -19,6 +25,7 @@ import { runtimeKeys } from "../runtimes/queries";
 import { labelKeys } from "../labels/queries";
 import { propertyKeys } from "../properties/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
+import { issueTypeKeys } from "../issue-types/queries";
 import {
   agentTaskSnapshotKeys,
   workspaceWorkingAgentsKeys,
@@ -29,6 +36,9 @@ import {
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { githubKeys } from "../github/queries";
+import { prWalkthroughKeys } from "../pr-walkthrough/queries";
+import { epicKeys } from "../projects/epic";
+import { reviewFlagKeys } from "../review-flags/queries";
 import { larkKeys } from "../lark/queries";
 import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
@@ -72,6 +82,7 @@ import {
   QUICK_ACTIONS_PENDING_TIMEOUT_MS,
 } from "../chat/queries";
 import { useChatStore } from "../chat";
+import { applyChatParticipantEvent } from "../chat/participants";
 import { upsertChatMessageToCaches } from "../chat/message-cache";
 import {
   promotePendingChatTask,
@@ -98,6 +109,8 @@ import type {
   CommentDeletedPayload,
   CommentResolvedPayload,
   CommentUnresolvedPayload,
+  CrossReviewReworkPayload,
+  CrossReviewEscalatedPayload,
   ActivityCreatedPayload,
   ReactionAddedPayload,
   ReactionRemovedPayload,
@@ -113,6 +126,9 @@ import type {
   TaskCompletedPayload,
   TaskFailedPayload,
   TaskCancelledPayload,
+  TaskScoredPayload,
+  TaskEscalatedPayload,
+  TaskWorkflowSelectedPayload,
   ChatDonePayload,
   ChatQuickActionsPayload,
   ChatQuickActionsPendingState,
@@ -124,6 +140,7 @@ import type {
   ChatMessagesPage,
   ChatSession,
   ChatSessionCreatedPayload,
+  ChatParticipantEventPayload,
   InvitationCreatedPayload,
   AgentMemoryEventPayload,
   MeetingEventPayload,
@@ -678,6 +695,10 @@ function invalidateWorkspaceScopedQueries(qc: QueryClient): void {
     // 5-minute staleTime — long enough to offer a status the server already
     // archived, or to keep painting its old name.
     qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
+    // Same reason for the type catalogue: a rename missed while disconnected
+    // would sit behind the 5-minute staleTime, long enough to keep painting a
+    // stale badge or to offer a type the server already archived. (F30)
+    qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
   }
   // Cross-workspace, so outside the wsId guard: a reconnect may have missed
   // inbox events from any workspace, so re-pull the switcher-dot summary.
@@ -763,6 +784,40 @@ function touchCachedRunActivity(qc: QueryClient, taskId: string) {
   }
 }
 
+/**
+ * The living run plan (F04). A `plan` message replaces the run's checklist, so
+ * the cached run rows that carry `plan` are patched in place — the block
+ * updates without the execution log refetching the whole issue's history.
+ *
+ * Same shape and same caches as touchCachedRunActivity above. Nothing is
+ * invalidated: the message payload IS the new plan, so a refetch would only
+ * re-fetch what already arrived.
+ */
+function patchCachedRunPlan(qc: QueryClient, payload: TaskMessagePayload) {
+  const raw = payload.input?.items;
+  if (!Array.isArray(raw)) return;
+  const items = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { text, status } = entry as { text?: unknown; status?: unknown };
+    if (typeof text !== "string" || text === "") return [];
+    return [{ text, status: typeof status === "string" ? status : "" }];
+  });
+  if (items.length === 0) return;
+
+  for (const [key, tasks] of qc.getQueriesData<AgentTask[]>({ queryKey: issueKeys.tasksAll() })) {
+    if (!Array.isArray(tasks)) continue;
+    const idx = tasks.findIndex((t) => t?.id === payload.task_id);
+    if (idx === -1) continue;
+    // Out-of-order delivery is possible; the newest plan is the one with the
+    // highest seq, exactly as the server resolves it.
+    const current = tasks[idx]?.plan;
+    if (current && current.seq >= payload.seq) continue;
+    const next = tasks.slice();
+    next[idx] = { ...tasks[idx]!, plan: { items, seq: payload.seq } };
+    qc.setQueryData<AgentTask[]>(key, next);
+  }
+}
+
 export function useRealtimeSync(
   ws: WSClient | null,
   stores: RealtimeSyncStores,
@@ -826,6 +881,58 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: projectKeys.all(wsId) });
       },
+      // Dated cycles (F29). A cycle write can also move issues between cycles
+      // (close runs the rollover), so the issue tree is stale too.
+      cycle: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) {
+          qc.invalidateQueries({ queryKey: cycleKeys.all(wsId) });
+          qc.invalidateQueries({ queryKey: issueKeys.all(wsId) });
+        }
+      },
+      // org:updated (K75) covers every write to an org structure: create,
+      // revise, activate, pause, dissolve, and the routing an active structure
+      // applies. The payload names the structure, but the page reads a list, a
+      // detail, a health and a preflight query per structure, so the prefix is
+      // invalidated wholesale — a handful of small queries against one open
+      // page. Without this the Organisation page never learns about a
+      // structure written anywhere but in this client, which is exactly what a
+      // desktop tab left open does not survive.
+      org: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: orgKeys.all(wsId) });
+      },
+      // issue_transition:requested|approved|rejected (F28). The approval gate is
+      // a two-person flow: one member requests, another decides. The approver's
+      // banner reads a per-issue query whose key starts with "issue" (singular)
+      // while issueKeys uses "issues" (plural), so the issue-detail invalidation
+      // can never reach it, and staleTime: Infinity means navigating away and
+      // back does not heal it either. Without this the banner never appears for
+      // the approver, and never clears for the requester.
+      issue_transition: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: issueTransitionKeys.rules(wsId) });
+        // The payload names one request; the open surfaces are keyed per issue,
+        // so the two per-issue families are invalidated by their suffix.
+        qc.invalidateQueries({
+          predicate: (q) => {
+            const k = q.queryKey;
+            const last = k[k.length - 1];
+            return k[0] === "issue" && (last === "transition-requests" || last === "transition-effective");
+          },
+        });
+      },
+      // doc_drift:proposed|pr_opened|dismissed (K56). A drift check starts a run
+      // whose proposal lands later, so the mutation's own invalidation fires too
+      // early and the proposals list has no poll of its own. Without this the
+      // admin watches the scan finish and the list stays empty.
+      doc_drift: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: docDriftKeys.settings(wsId) });
+        qc.invalidateQueries({ queryKey: docDriftKeys.proposals(wsId) });
+      },
       squad: () => {
         const wsId = getCurrentWsId();
         if (wsId) {
@@ -862,6 +969,24 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: issueStatusKeys.all(wsId) });
       },
+      // The work item type catalogue (F30). Invalidate only, exactly like the
+      // status catalogue above: an issue row stores the type KEY, and its name
+      // and colour are resolved from this catalogue at render time, so
+      // refetching the catalogue is what repaints every badge. Dragging the
+      // issue caches along would turn one admin rename into a workspace-wide
+      // refetch storm on every connected client.
+      issue_type: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: issueTypeKeys.all(wsId) });
+      },
+      // A dependency edge moved (F30). The two affected issues get their own
+      // issue:updated, which refreshes their detail panels; this refreshes the
+      // Gantt's arrow layer, which is a bulk query keyed by the visible row set
+      // and so has no issue row to hang an invalidation off.
+      issue_dependencies: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["issue-dependency-edges", wsId] });
+      },
       pin: () => {
         const wsId = getCurrentWsId();
         const userId = authStore.getState().user?.id;
@@ -871,6 +996,10 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) {
           qc.invalidateQueries({ queryKey: runtimeKeys.all(wsId) });
+          // Shared agents may carry a redacted runtime liveness projection;
+          // refetch it when a daemon changes state even if its private runtime
+          // is absent from this member's runtime list.
+          qc.invalidateQueries({ queryKey: workspaceKeys.agents(wsId) });
           // Runtime online/offline transitions move the derived status
           // for every agent that hosts on this runtime, which shifts the
           // working/idle/offline pill on the squad page.
@@ -905,6 +1034,27 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) onWorkspaceNoteInvalidate(qc, wsId);
       },
+      // cross_review:queued / cross_review:report refresh the issue's review
+      // list; rework / escalated carry a notice and are handled below.
+      cross_review: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["cross-reviews", wsId] });
+      },
+      // critic_verdict:created / :relaunch (F25) refresh the issue's verdict
+      // list. The issue itself is not dragged along: a verdict that moves the
+      // issue also publishes issue:updated, which is what repaints the row.
+      critic_verdict: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["critic-verdicts", wsId] });
+      },
+      // run_preview:updated (F12) repaints the run's preview chip and card.
+      // Prefix-invalidated: the payload names the run, but the chip is keyed
+      // per task and a workspace-wide refetch of a handful of tiny queries is
+      // cheaper than threading the id through.
+      run_preview: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: ["run-preview", wsId] });
+      },
       github_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: githubKeys.installations(wsId) });
@@ -932,6 +1082,25 @@ export function useRealtimeSync(
       telegram_installation: () => {
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: telegramKeys.installations(wsId) });
+      },
+      // Narrative PR walkthrough (F05). Keyed by (issue, pr), so invalidate the
+      // whole prefix and let the open panel refetch the one it is showing.
+      pr_walkthrough: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: prWalkthroughKeys.all(wsId) });
+      },
+      // Epic Mode (F18). Keyed by project, so invalidate the whole prefix and
+      // let the open project panel refetch the pipeline it is showing.
+      epic_artifact: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: epicKeys.all(wsId) });
+      },
+      // Review flags (F06). A head move can restate flags on several linked
+      // issues at once, so the event carries no issue id and the whole prefix
+      // is invalidated; the open panel refetches the list it is showing.
+      review_flag: () => {
+        const wsId = getCurrentWsId();
+        if (wsId) qc.invalidateQueries({ queryKey: reviewFlagKeys.all(wsId) });
       },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all
@@ -1014,7 +1183,7 @@ export function useRealtimeSync(
     // Event types handled by specific handlers below -- skip generic refresh
     const specificEvents = new Set([
       "workspace:updated",
-      "issue:updated", "issue:created", "issue:deleted", "issue_attachments:changed", "issue_labels:changed", "issue_metadata:changed", "issue_properties:changed", "property:created", "property:updated", "inbox:new",
+      "issue:updated", "issue:created", "issue:deleted", "issue:aux_changed", "issue_attachments:changed", "issue_labels:changed", "issue_metadata:changed", "issue_properties:changed", "property:created", "property:updated", "inbox:new",
       "comment:created", "comment:updated", "comment:deleted",
       "comment:resolved", "comment:unresolved",
       "activity:created",
@@ -1025,6 +1194,8 @@ export function useRealtimeSync(
       // Chat events are handled explicitly below; do not double-invalidate.
       "chat:message", "chat:done", "chat:quick_actions", "chat:cancel_finalized", "chat:session_read",
       "chat:session_created", "chat:session_deleted", "chat:session_updated",
+      // Multiplayer roster + typing (K31) have dedicated handlers below.
+      "chat:participant_added", "chat:participant_removed", "chat:typing",
       // task:message stays out of the prefix path because it fires per
       // streamed message during a long run — invalidating the snapshot on
       // every message would flood the network. Specific chat handlers below
@@ -1036,6 +1207,11 @@ export function useRealtimeSync(
       "agent_memory:created",
       "agent_memory:updated",
       "agent_memory:deleted",
+      // cross_review:rework / escalated raise a notice signal in addition to
+      // the invalidation, so they skip the prefix path to avoid handling the
+      // same frame twice.
+      "cross_review:rework",
+      "cross_review:escalated",
       // task:completed / task:failed deliberately NOT here. They go through
       // both the task-prefix invalidate (refreshes the agent-task-snapshot
       // cache) AND the chat-specific ws.on() handlers below. The two
@@ -1065,6 +1241,7 @@ export function useRealtimeSync(
           assigneeChanged: payload.assignee_changed,
           statusChanged: payload.status_changed,
           projectChanged: payload.project_changed,
+          delegateChanged: payload.delegate_changed,
         });
         if (issue.status) {
           onInboxIssueStatusChanged(qc, wsId, issue.id, issue.status);
@@ -1077,6 +1254,19 @@ export function useRealtimeSync(
       if (!issue) return;
       const wsId = getCurrentWsId();
       if (wsId) onIssueCreated(qc, wsId, issue);
+    });
+
+    // issue:aux_changed carries an answer given outside the web app — a decision
+    // card answered from Slack, say. Only the issue's decision list is stale;
+    // the issue row itself is not, so this is a targeted invalidation rather
+    // than a prefix entry, which would also swallow every future issue:* event
+    // that has no specific handler.
+    const unsubIssueAuxChanged = ws.on("issue:aux_changed", (p) => {
+      const { issue_id } = p as { issue_id?: string };
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      if (issue_id) qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
+      else qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {
@@ -1183,6 +1373,33 @@ export function useRealtimeSync(
     const unsubMeetingUpdated = ws.on("meeting:updated", handleMeetingEvent);
     const unsubMeetingDeleted = ws.on("meeting:deleted", handleMeetingEvent);
 
+    // Review rework loop (JEF-238): a request_changes verdict sent the task
+    // back to the worker, or the cycle cap escalated to a human. Refresh the
+    // issue's review list and raise a client-only signal the cross-review
+    // section renders as a notice (same pattern as the quick-actions failure
+    // signal — the event is workspace fanout, so the list itself refetches
+    // rather than trusting the payload).
+    const unsubCrossReviewRework = ws.on("cross_review:rework", (p) => {
+      const payload = (p ?? {}) as CrossReviewReworkPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId || !payload.issue_id) return;
+      qc.setQueryData<CrossReviewSignal>(
+        crossReviewKeys.signal(wsId, payload.issue_id),
+        { kind: "rework", cycle: payload.cycle, at: Date.now() },
+      );
+      qc.invalidateQueries({ queryKey: crossReviewKeys.issue(wsId, payload.issue_id) });
+    });
+    const unsubCrossReviewEscalated = ws.on("cross_review:escalated", (p) => {
+      const payload = (p ?? {}) as CrossReviewEscalatedPayload;
+      const wsId = getCurrentWsId();
+      if (!wsId || !payload.issue_id) return;
+      qc.setQueryData<CrossReviewSignal>(
+        crossReviewKeys.signal(wsId, payload.issue_id),
+        { kind: "escalated", cycles: payload.cycles, at: Date.now() },
+      );
+      qc.invalidateQueries({ queryKey: crossReviewKeys.issue(wsId, payload.issue_id) });
+    });
+
     // --- Timeline event handlers (global fallback) ---
     // These events are also handled granularly by useIssueTimeline when
     // IssueDetail is mounted. This global handler exists to mark the
@@ -1282,6 +1499,11 @@ export function useRealtimeSync(
     const unsubActivityCreated = ws.on("activity:created", (p) => {
       const { issue_id } = p as ActivityCreatedPayload;
       if (issue_id) invalidateTimeline(issue_id);
+      // An activity may be an issue change a run made, which belongs in that
+      // run's action lane (F03). The payload names only the issue, so the whole
+      // prefix is invalidated rather than one task's key — the query is only
+      // mounted while a transcript is open, so at most a handful exist.
+      qc.invalidateQueries({ queryKey: chatKeys.taskActionsAll() });
     });
 
     const unsubReactionAdded = ws.on("reaction:added", (p) => {
@@ -1487,6 +1709,9 @@ export function useRealtimeSync(
       // last_activity_at in the issue run lists so an "unresponsive" badge
       // clears without a refetch. Throttled per run inside the helper.
       touchCachedRunActivity(qc, payload.task_id);
+      // The run's living plan (F04) rides the same event: patch the run rows
+      // that carry it so the checklist updates without a refetch.
+      if (payload.type === "plan") patchCachedRunPlan(qc, payload);
       // Cheap Map lookup, and it runs before anything allocates — this is the
       // hot path for every run in the workspace, not just the visible ones.
       if (!isTaskMessageTimelineHeld(qc, payload.task_id)) return;
@@ -1756,6 +1981,49 @@ export function useRealtimeSync(
       invalidateSessionLists();
     });
 
+    // task:scored (JEF-240) fires once the scorer has persisted the run's
+    // confidence record — after completion, never instead of it. The task
+    // prefix path above already refreshes every list-of-tasks query (the
+    // execution log the transcript dialog reads); a below-threshold score
+    // additionally flips the issue into review, so refresh that issue's
+    // detail row too. The inbox item the backend raises on below-threshold
+    // runs arrives through its own inbox:new event.
+    const unsubTaskScored = ws.on("task:scored", (p) => {
+      const payload = p as TaskScoredPayload;
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
+    // task:escalated (JEF-272) fires when a below-threshold run is
+    // re-dispatched to a stronger runtime. The task prefix path above already
+    // refreshes every list-of-tasks query (the execution log that gains the
+    // new child task); the escalation can also move the issue (review state,
+    // assignee back to the router), so refresh that issue's detail row too,
+    // mirroring the task:scored handler.
+    const unsubTaskEscalated = ws.on("task:escalated", (p) => {
+      const payload = p as TaskEscalatedPayload;
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
+    // task:workflow-selected (JEF-273) fires once the selector has persisted
+    // the task's execution strategy. The task prefix path already refreshes
+    // every list-of-tasks query; the issue detail carries the workflow on its
+    // execution-log rows, so refresh it too. The reason rides only this
+    // event — remember it for the run-info popover before the refetch lands.
+    const unsubTaskWorkflowSelected = ws.on("task:workflow-selected", (p) => {
+      const payload = p as TaskWorkflowSelectedPayload;
+      rememberWorkflowSelection(payload.task_id, payload.reason);
+      if (!payload.issue_id) return;
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: issueKeys.detail(wsId, payload.issue_id) });
+    });
+
     const unsubChatSessionRead = ws.on("chat:session_read", (p) => {
       const payload = p as { chat_session_id: string };
       chatWsLogger.info("chat:session_read (global)", payload);
@@ -1780,6 +2048,31 @@ export function useRealtimeSync(
       if (!id) return;
       applyChatSessionUpdatedToCache(qc, id, payload);
     });
+
+    // Multiplayer roster changes (K31 / JEF-181). Broadcast to the whole
+    // workspace, so this fires for members who are not in the session either;
+    // applyChatParticipantEvent only touches caches keyed by the session it
+    // names, and acts on the session list only when the event is about this
+    // viewer. A removal must also drop the active-session pointer, or the
+    // window keeps rendering a conversation every read now 403s on.
+    const onParticipantEvent = (kind: "added" | "removed") => (p: unknown) => {
+      const payload = p as ChatParticipantEventPayload;
+      chatWsLogger.info(`chat:participant_${kind} (global)`, payload);
+      const id = getCurrentWsId();
+      if (!id || !payload?.session_id) return;
+      const selfId = authStore.getState().user?.id ?? "";
+      const lostAccess = applyChatParticipantEvent(qc, id, selfId, payload, kind);
+      if (!lostAccess) return;
+      const chatState = useChatStore.getState?.();
+      if (chatState && chatState.activeSessionId === payload.session_id) {
+        chatState.setActiveSession(null);
+      }
+    };
+    const unsubChatParticipantAdded = ws.on("chat:participant_added", onParticipantEvent("added"));
+    const unsubChatParticipantRemoved = ws.on(
+      "chat:participant_removed",
+      onParticipantEvent("removed"),
+    );
 
     // chat:session_deleted fires after a hard delete. The originating tab has
     // already optimistically dropped the row via useDeleteChatSession; this
@@ -1810,6 +2103,7 @@ export function useRealtimeSync(
       unsubIssueUpdated();
       unsubIssueCreated();
       unsubIssueDeleted();
+      unsubIssueAuxChanged();
       unsubIssueAttachmentsChanged();
       unsubIssueLabelsChanged();
       unsubIssueMetadataChanged();
@@ -1822,6 +2116,8 @@ export function useRealtimeSync(
       unsubMeetingCreated();
       unsubMeetingUpdated();
       unsubMeetingDeleted();
+      unsubCrossReviewRework();
+      unsubCrossReviewEscalated();
       unsubCommentCreated();
       unsubCommentUpdated();
       unsubCommentDeleted();
@@ -1854,10 +2150,15 @@ export function useRealtimeSync(
       unsubTaskCancelled();
       unsubTaskCompleted();
       unsubTaskFailed();
+      unsubTaskScored();
+      unsubTaskEscalated();
+      unsubTaskWorkflowSelected();
       unsubChatSessionRead();
       unsubChatSessionCreated();
       unsubChatSessionDeleted();
       unsubChatSessionUpdated();
+      unsubChatParticipantAdded();
+      unsubChatParticipantRemoved();
       if (taskMessageFlushTimer) clearTimeout(taskMessageFlushTimer);
       if (aggregateRefreshTimer) clearTimeout(aggregateRefreshTimer);
       timers.forEach(clearTimeout);

@@ -72,6 +72,7 @@ type MemoryRow = {
   agent_id: string;
   content: string;
   source: string;
+  state?: "draft" | "approved";
   source_task_id: string | null;
   source_issue_id?: string | null;
   created_at: string;
@@ -295,6 +296,74 @@ describe("MemoryTab", () => {
     );
 
     expect(mockDeleteAgentMemory).toHaveBeenCalledWith("agent-1", "mem-1");
+  });
+
+  it("shows the draft badge and approves a draft memory", async () => {
+    const user = userEvent.setup();
+    mockListAgentMemories.mockResolvedValue(
+      memoryList([
+        {
+          id: "mem-1",
+          agent_id: "agent-1",
+          content: "Human-pinned fact",
+          source: "manual",
+          state: "approved",
+          source_task_id: null,
+          created_at: "2026-09-01T00:00:00Z",
+          updated_at: "2026-09-01T00:00:00Z",
+        },
+        {
+          id: "mem-2",
+          agent_id: "agent-1",
+          content: "Auto-learned hypothesis",
+          source: "run",
+          state: "draft",
+          source_task_id: "task-9",
+          created_at: "2026-09-02T00:00:00Z",
+          updated_at: "2026-09-02T00:00:00Z",
+        },
+      ]),
+    );
+    mockUpdateAgentMemory.mockResolvedValue({});
+
+    renderMemoryTab();
+
+    expect(await screen.findByText("Auto-learned hypothesis")).toBeInTheDocument();
+    // Exactly one Draft badge: the approved memory carries none.
+    expect(screen.getAllByText("Draft")).toHaveLength(1);
+
+    await user.click(screen.getByRole("button", { name: /^Approve$/i }));
+
+    expect(mockUpdateAgentMemory).toHaveBeenCalledWith(
+      "agent-1",
+      "mem-2",
+      { content: undefined, state: "approved" },
+    );
+  });
+
+  it("hides the approve button when canEdit is false", async () => {
+    mockListAgentMemories.mockResolvedValue(
+      memoryList([
+        {
+          id: "mem-2",
+          agent_id: "agent-1",
+          content: "Auto-learned hypothesis",
+          source: "run",
+          state: "draft",
+          source_task_id: "task-9",
+          created_at: "2026-09-02T00:00:00Z",
+          updated_at: "2026-09-02T00:00:00Z",
+        },
+      ]),
+    );
+
+    renderMemoryTab(false);
+
+    expect(await screen.findByText("Auto-learned hypothesis")).toBeInTheDocument();
+    expect(screen.getByText("Draft")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^Approve$/i }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides the add button and row actions when canEdit is false", async () => {

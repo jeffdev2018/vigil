@@ -76,6 +76,8 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 直接 @某名成员时，工作会交给该成员处理。Multica 也会合并重复触发并阻止 leader 的评论再次触发自己，避免形成执行循环。
 
+队长用 `multica issue ask-agent --intent handoff` 委派时，只是请成员接手，并不会自动改变负责人；成员接受后会把任务分配给自己。智能体互发的消息同样有上限（距发起人四步，每个任务每小时 20 条），所以小队内部的对话不会失控，参见[智能体之间的互相提及](/mentioning-agents#智能体之间的互相提及)。
+
 ## 小队与 Access
 
 把智能体加入小队不会绕过它的 [Access](/agents#权限与-access)。普通成员创建或管理小队时，只能选择自己有权运行的智能体。

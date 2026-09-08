@@ -48,6 +48,9 @@ func rejectTemporarilyDisabledUser(w http.ResponseWriter, r *http.Request, userI
 // local DB. When nil (Fleet URL unset) mcn_ tokens are rejected at the
 // prefix branch — we don't fall through to the mul_ / JWT paths, since
 // an mcn_ string is by construction not a valid mul_ PAT or JWT.
+// Revocations (K60) is the per-user session revocation check; nil skips it.
+var Revocations *auth.SessionRevocations
+
 func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATVerifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -59,6 +62,21 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 			// to convince a downstream handler that its request came
 			// from a non-task-token path.
 			r.Header.Del("X-Actor-Source")
+
+			// Agent identity is server-set for exactly the same reason,
+			// and the rest of the codebase already assumes it (see
+			// resolveActor, actor_guards.go, CreateIssue). Only the mat_
+			// branch below re-stamps these from the token row.
+			//
+			// Without the strip, resolveActor's pair requirement was not a
+			// boundary: BOTH ids are readable by any workspace member
+			// (GET /api/issues/{id}/task-runs returns agent_id + task_id),
+			// so a member could replay a live pair on their own JWT/PAT and
+			// be resolved as that agent — and, since MUL-6951, act with the
+			// authority of that run's originator. MUL-3428, reported and
+			// fixed in #4313.
+			r.Header.Del("X-Agent-ID")
+			r.Header.Del("X-Task-ID")
 
 			tokenString, fromCookie := extractToken(r)
 			if tokenString == "" {
@@ -255,6 +273,18 @@ func Auth(queries *db.Queries, patCache *auth.PATCache, cloudPAT *auth.CloudPATV
 			email, _ := claims["email"].(string)
 			if rejectTemporarilyDisabledUser(w, r, sub, email, "jwt") {
 				return
+			}
+			// Session revocation (K60): a token minted before the user's
+			// sessions were invalidated is refused, whatever its exp.
+			if Revocations != nil {
+				iat := time.Time{}
+				if v, ok := claims["iat"].(float64); ok {
+					iat = time.Unix(int64(v), 0)
+				}
+				if Revocations.RefusesTokenIssuedAt(r.Context(), sub, iat) {
+					http.Error(w, `{"error":"session revoked"}`, http.StatusUnauthorized)
+					return
+				}
 			}
 			r.Header.Set("X-User-ID", sub)
 			if email != "" {

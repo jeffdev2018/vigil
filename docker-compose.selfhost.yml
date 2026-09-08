@@ -62,10 +62,15 @@ services:
     volumes:
       - backend_uploads:/app/data/uploads
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-multica}:${POSTGRES_PASSWORD:-multica}@postgres:5432/${POSTGRES_DB:-multica}?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER:-multica}:${POSTGRES_PASSWORD:-multica}@postgres:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-multica}?sslmode=disable
+      DATABASE_SEARCH_WORK_MEM_MB: ${DATABASE_SEARCH_WORK_MEM_MB:-64}
       DATABASE_REPLICA_URL: ${DATABASE_REPLICA_URL:-}
       DATABASE_REPLICA_MAX_CONNS: ${DATABASE_REPLICA_MAX_CONNS:-}
       DATABASE_REPLICA_MIN_CONNS: ${DATABASE_REPLICA_MIN_CONNS:-}
+      # Primary pgxpool sizing. Defaults are 25 / 5 and are usually fine; see
+      # .env.example.
+      DATABASE_MAX_CONNS: ${DATABASE_MAX_CONNS:-}
+      DATABASE_MIN_CONNS: ${DATABASE_MIN_CONNS:-}
       PORT: "8080"
       METRICS_ADDR: ${METRICS_ADDR:-}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set to a strong random value — generate one with 'openssl rand -hex 32'}
@@ -95,7 +100,11 @@ services:
       CLOUDFRONT_DOMAIN: ${CLOUDFRONT_DOMAIN:-}
       CLOUDFRONT_KEY_PAIR_ID: ${CLOUDFRONT_KEY_PAIR_ID:-}
       CLOUDFRONT_PRIVATE_KEY: ${CLOUDFRONT_PRIVATE_KEY:-}
+      # AWS Secrets Manager secret name/ARN alternative to CLOUDFRONT_PRIVATE_KEY.
+      CLOUDFRONT_PRIVATE_KEY_SECRET: ${CLOUDFRONT_PRIVATE_KEY_SECRET:-}
       COOKIE_DOMAIN: ${COOKIE_DOMAIN:-}
+      # Auth token lifetime (Go duration or integer seconds). Default 30 days.
+      AUTH_TOKEN_TTL: ${AUTH_TOKEN_TTL:-}
       APP_ENV: ${APP_ENV:-production}
       MULTICA_DEV_VERIFICATION_CODE: ${MULTICA_DEV_VERIFICATION_CODE:-}
       MULTICA_APP_URL: ${MULTICA_APP_URL:-http://localhost:3000}
@@ -146,6 +155,12 @@ services:
       # Empty default = headers ignored, RemoteAddr used. Set e.g.
       # "127.0.0.1/32" when running behind a same-host reverse proxy.
       MULTICA_TRUSTED_PROXIES: ${MULTICA_TRUSTED_PROXIES:-}
+      # Separate CIDR list (same shape) trusted for X-Forwarded-For on the
+      # public auth rate limiter (/auth/send-code, /auth/verify-code, ...).
+      RATE_LIMIT_TRUSTED_PROXIES: ${RATE_LIMIT_TRUSTED_PROXIES:-}
+      # Bearer token required by /health/realtime behind a reverse proxy.
+      # Unset restricts the endpoint to direct loopback callers. See .env.example.
+      REALTIME_METRICS_TOKEN: ${REALTIME_METRICS_TOKEN:-}
       # Server-side LLM layer, backing internal helpers such as chat title
       # generation. Both the API key and the base URL empty = layer disabled,
       # and callers fall back silently rather than failing. MULTICA_LLM_MAX_RETRIES
@@ -155,7 +170,22 @@ services:
       MULTICA_LLM_BASE_URL: ${MULTICA_LLM_BASE_URL:-}
       MULTICA_LLM_DEFAULT_MODEL: ${MULTICA_LLM_DEFAULT_MODEL:-}
       MULTICA_LLM_ROUTING_MODEL: ${MULTICA_LLM_ROUTING_MODEL:-}
+      MULTICA_LLM_EMBEDDING_MODEL: ${MULTICA_LLM_EMBEDDING_MODEL:-}
       MULTICA_LLM_MAX_RETRIES: ${MULTICA_LLM_MAX_RETRIES:-}
+      # Speech-to-text (voice memos, meeting transcription). Any OpenAI-compatible
+      # provider. Empty base URL or model disables the feature. See .env.example.
+      MULTICA_STT_BASE_URL: ${MULTICA_STT_BASE_URL:-}
+      MULTICA_STT_API_KEY: ${MULTICA_STT_API_KEY:-}
+      MULTICA_STT_MODEL: ${MULTICA_STT_MODEL:-}
+      MULTICA_STT_LANGUAGE: ${MULTICA_STT_LANGUAGE:-}
+      MULTICA_STT_DIARIZE: ${MULTICA_STT_DIARIZE:-false}
+      MULTICA_STT_REALTIME_MODEL: ${MULTICA_STT_REALTIME_MODEL:-}
+      # Text-to-speech ("read this aloud"). Any OpenAI-compatible provider.
+      # Empty base URL or model disables the feature. See .env.example.
+      MULTICA_TTS_BASE_URL: ${MULTICA_TTS_BASE_URL:-}
+      MULTICA_TTS_API_KEY: ${MULTICA_TTS_API_KEY:-}
+      MULTICA_TTS_MODEL: ${MULTICA_TTS_MODEL:-}
+      MULTICA_TTS_VOICE: ${MULTICA_TTS_VOICE:-}
       # Lark / Feishu bot integration. MULTICA_LARK_SECRET_KEY is the
       # opt-in: unset = integration disabled. Mainland 飞书 and international
       # Lark are auto-detected per installation and served side by side, so
@@ -168,6 +198,9 @@ services:
       MULTICA_LARK_SECRET_KEY: ${MULTICA_LARK_SECRET_KEY:-}
       MULTICA_LARK_HTTP_BASE_URL: ${MULTICA_LARK_HTTP_BASE_URL:-}
       MULTICA_LARK_CALLBACK_BASE_URL: ${MULTICA_LARK_CALLBACK_BASE_URL:-}
+      # Optional fixed HTTP CONNECT proxy for Lark/Feishu WebSocket long-conn
+      # handshakes. Leave empty to use standard HTTP_PROXY/HTTPS_PROXY/NO_PROXY.
+      MULTICA_LARK_WS_PROXY_URL: ${MULTICA_LARK_WS_PROXY_URL:-}
       # Slack bot integration. MULTICA_SLACK_SECRET_KEY is the opt-in: unset =
       # integration disabled. It decrypts the per-installation bot/app tokens,
       # which are brought by each workspace via OAuth/BYO and stored encrypted
@@ -181,6 +214,21 @@ services:
       MULTICA_VCS_INTEGRATION_ENABLED: ${MULTICA_VCS_INTEGRATION_ENABLED:-true}
       # VCS integration at-rest encryption key for token-based providers
       MULTICA_VCS_SECRET_KEY: ${MULTICA_VCS_SECRET_KEY:-}
+      # BYOK model keys (K48) at-rest encryption key
+      MULTICA_MODEL_KEY_SECRET_KEY: ${MULTICA_MODEL_KEY_SECRET_KEY:-}
+      # SSO (K60) at-rest encryption key for OIDC client secrets
+      MULTICA_SSO_SECRET_KEY: ${MULTICA_SSO_SECRET_KEY:-}
+      # Linear Bridge (K21). MULTICA_LINEAR_SECRET_KEY is the opt-in: unset =
+      # integration disabled. It encrypts each workspace's Linear OAuth token
+      # and webhook secret at rest. The CLIENT_ID / CLIENT_SECRET pair is the
+      # deployment's own Linear OAuth application; without it existing
+      # installations keep syncing but no new one can be connected. The
+      # callback and the webhook are served on MULTICA_PUBLIC_URL, which Linear
+      # must be able to reach.
+      MULTICA_LINEAR_SECRET_KEY: ${MULTICA_LINEAR_SECRET_KEY:-}
+      MULTICA_LINEAR_CLIENT_ID: ${MULTICA_LINEAR_CLIENT_ID:-}
+      MULTICA_LINEAR_CLIENT_SECRET: ${MULTICA_LINEAR_CLIENT_SECRET:-}
+      MULTICA_LINEAR_STATE_SECRET: ${MULTICA_LINEAR_STATE_SECRET:-}
       # WeCom smart-bot integration. MULTICA_WECOM_SECRET_KEY is the
       # opt-in: unset = integration disabled. It encrypts each installation's
       # smart-bot secret at rest. The server needs it to unseal a bot's
@@ -198,6 +246,47 @@ services:
       # for a debugging session and unset it when that session ends, because
       # what it records is user message content.
       MULTICA_WECOM_TRACE: ${MULTICA_WECOM_TRACE:-}
+      # Shared Redis instance backing the auth rate limiter, PAT cache, and
+      # daemon-token cache, and the default the realtime relay and channel WS
+      # lease fall back to when their own dedicated URL is unset. Unset =
+      # those features are no-ops / use the PostgreSQL lease backend. See
+      # .env.example.
+      REDIS_URL: ${REDIS_URL:-}
+      # Skip the CLIENT SETNAME handshake on every Redis connection. Needed
+      # for managed Redis providers that block the CLIENT command.
+      REDIS_DISABLE_CLIENT_NAME: ${REDIS_DISABLE_CLIENT_NAME:-}
+      # Realtime fan-out relay tuning. Falls back to REDIS_URL above when
+      # REALTIME_RELAY_REDIS_URL is unset. See .env.example for defaults.
+      REALTIME_RELAY_REDIS_URL: ${REALTIME_RELAY_REDIS_URL:-}
+      REALTIME_RELAY_MODE: ${REALTIME_RELAY_MODE:-}
+      REALTIME_RELAY_SHARDS: ${REALTIME_RELAY_SHARDS:-}
+      REALTIME_RELAY_XREAD_COUNT: ${REALTIME_RELAY_XREAD_COUNT:-}
+      REALTIME_RELAY_XREAD_BLOCK: ${REALTIME_RELAY_XREAD_BLOCK:-}
+      REALTIME_RELAY_STREAM_MAXLEN: ${REALTIME_RELAY_STREAM_MAXLEN:-}
+      REALTIME_RELAY_REPLAY_GRACE: ${REALTIME_RELAY_REPLAY_GRACE:-}
+      REALTIME_RELAY_TRIM_HORIZON: ${REALTIME_RELAY_TRIM_HORIZON:-}
+      REALTIME_RELAY_STREAM_TTL_ENABLED: ${REALTIME_RELAY_STREAM_TTL_ENABLED:-}
+      REALTIME_RELAY_STREAM_TTL: ${REALTIME_RELAY_STREAM_TTL:-}
+      REALTIME_RELAY_TTL_REFRESH_INTERVAL: ${REALTIME_RELAY_TTL_REFRESH_INTERVAL:-}
+      REALTIME_RELAY_MAINTENANCE_INTERVAL: ${REALTIME_RELAY_MAINTENANCE_INTERVAL:-}
+      # Channel WebSocket leases. Defaults to the PostgreSQL backend, which is
+      # fine for self-hosted single-node use; set to "redis" for multi-replica
+      # production (requires REDIS_URL or a dedicated lease Redis below).
+      CHANNEL_WS_LEASE_BACKEND: ${CHANNEL_WS_LEASE_BACKEND:-}
+      CHANNEL_WS_LEASE_NAMESPACE: ${CHANNEL_WS_LEASE_NAMESPACE:-}
+      CHANNEL_WS_LEASE_REDIS_URL: ${CHANNEL_WS_LEASE_REDIS_URL:-}
+      # Lease timing: 0 < poll <= renew < TTL. See .env.example.
+      CHANNEL_WS_LEASE_TTL: ${CHANNEL_WS_LEASE_TTL:-}
+      CHANNEL_WS_LEASE_RENEW_INTERVAL: ${CHANNEL_WS_LEASE_RENEW_INTERVAL:-}
+      CHANNEL_WS_LEASE_POLL_INTERVAL: ${CHANNEL_WS_LEASE_POLL_INTERVAL:-}
+      CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL: ${CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL:-}
+      CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN: ${CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN:-}
+      # Product analytics (PostHog). Empty POSTHOG_API_KEY runs a no-op
+      # analytics client and ships nothing. See .env.example.
+      POSTHOG_API_KEY: ${POSTHOG_API_KEY:-}
+      POSTHOG_HOST: ${POSTHOG_HOST:-}
+      ANALYTICS_ENVIRONMENT: ${ANALYTICS_ENVIRONMENT:-}
+      ANALYTICS_DISABLED: ${ANALYTICS_DISABLED:-}
     restart: unless-stopped
 
   frontend:

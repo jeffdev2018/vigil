@@ -36,7 +36,6 @@ import type {
   SearchProjectsResponse,
   SendChatMessageResponse,
   Squad,
-  TaskMessagePayload,
   User,
   Workspace,
 } from "@multica/core/types";
@@ -496,31 +495,12 @@ export const SendChatMessageResponseSchema: z.ZodType<SendChatMessageResponse> =
   created_at: z.string().default(""),
 }).loose();
 
-// Live timeline emitted by the agent runtime while a task is running. Each
-// row is one execution step (thinking / tool_use / tool_result / text /
-// error). Mirrors web's TaskMessagePayload type and the WS `task:message`
-// payload so the mobile cache shape stays interchangeable with web's.
-export const TaskMessagePayloadSchema: z.ZodType<TaskMessagePayload> = z.object({
-  task_id: z.string(),
-  issue_id: z.string().default(""),
-  chat_session_id: z.string().optional(),
-  seq: z.number().default(0),
-  // Enum drift defense: unknown server-side types fall back to "text" so
-  // the row still renders (as a plain markdown chunk) instead of crashing
-  // the timeline. Matches root CLAUDE.md "Enum drift downgrades, not crashes".
-  type: z
-    .enum(["text", "thinking", "tool_use", "tool_result", "error"])
-    .catch("text"),
-  tool: z.string().optional(),
-  content: z.string().optional(),
-  input: z.record(z.string(), z.unknown()).optional(),
-  output: z.string().optional(),
-  created_at: z.string().optional(),
-}).loose();
-
-export const TaskMessageListSchema = z.array(TaskMessagePayloadSchema).default([]);
-
-export const EMPTY_TASK_MESSAGE_LIST: TaskMessagePayload[] = [];
+// The live task timeline moved to the shared TaskActivityResponseSchema in
+// packages/core/api/schemas.ts, which accepts both the wrapped
+// `{ messages, actions }` response and the bare array an older server returns.
+// The mobile-only copy is gone rather than kept alongside it: two schemas for
+// one endpoint is exactly how the enum drift they both guard against gets
+// handled two different ways.
 
 // =====================================================
 // Search (issues + projects)
@@ -541,12 +521,10 @@ const SearchIssueResultSchema = IssueSchema.safeExtend({
 
 export const SearchIssuesResponseSchema = z.object({
   issues: z.array(SearchIssueResultSchema).default([]),
-  total: z.number().default(0),
 }).loose();
 
 export const EMPTY_SEARCH_ISSUES_RESPONSE: SearchIssuesResponse = {
   issues: [],
-  total: 0,
 };
 
 const SearchProjectResultSchema = ProjectSchema.safeExtend({
@@ -556,12 +534,10 @@ const SearchProjectResultSchema = ProjectSchema.safeExtend({
 
 export const SearchProjectsResponseSchema = z.object({
   projects: z.array(SearchProjectResultSchema).default([]),
-  total: z.number().default(0),
 }).loose();
 
 export const EMPTY_SEARCH_PROJECTS_RESPONSE: SearchProjectsResponse = {
   projects: [],
-  total: 0,
 };
 
 // =====================================================
@@ -931,6 +907,35 @@ export const EMPTY_ISSUE_FALLBACK: import("@multica/core/types").Issue = {
   updated_at: "",
 };
 
+// Sub-issue-from-comment preview fallback (mirrors EMPTY_ISSUE_FALLBACK's
+// sentinel pattern above). Mobile reuses SourceContextPreviewSchema from
+// core for parsing. `capture_token: ""` never validates on the server
+// (ParseSourceContextToken rejects an empty token), so
+// api.getCommentSubIssuePreview treats this sentinel as a failure and
+// throws rather than silently proceeding with an unusable token.
+export const EMPTY_SOURCE_CONTEXT_PREVIEW: import("@multica/core/types").SourceContextPreview = {
+  source_issue: {
+    id: "",
+    identifier: "",
+    number: 0,
+    title: "",
+    description: null,
+    created_at: "",
+    updated_at: "",
+    revision: 0,
+    attachments: [],
+  },
+  comment_thread: [],
+  anchor_comment_id: "",
+  capture_token: "",
+  limits: {
+    comment_count: 0,
+    text_bytes: 0,
+    attachment_count: 0,
+    attachment_bytes: 0,
+  },
+};
+
 // Helpers re-exported for ergonomic single-import at the call site.
 export type { Label, Project, ProjectResource };
 
@@ -1038,3 +1043,22 @@ export const RunReplaySchema = z.looseObject({
 export type RunReplayEvent = z.infer<typeof RunReplayEventSchema>;
 export type RunReplayLink = z.infer<typeof RunReplayLinkSchema>;
 export type RunReplay = z.infer<typeof RunReplaySchema>;
+
+// Voice-dictated issue draft (K36): POST /api/issues/from-voice-transcript
+// answers with an editable draft, never an issue. Server shape:
+// server/internal/handler/issue_from_voice.go `VoiceIssueDraft`. Every field
+// tolerates drift because the draft screen renders it straight into inputs —
+// a partial value there would be an uneditable form, not a caught error.
+export const VoiceIssueDraftSchema = z.object({
+  title: z.string().catch("").default(""),
+  description: z.string().catch("").default(""),
+  suggested_labels: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export type VoiceIssueDraft = z.infer<typeof VoiceIssueDraftSchema>;
+
+export const EMPTY_VOICE_ISSUE_DRAFT: VoiceIssueDraft = {
+  title: "",
+  description: "",
+  suggested_labels: [],
+};

@@ -491,7 +491,8 @@ func TestDeferredChannelIssueTaskPromotesAfterMediaSettlement(t *testing.T) {
 	bus := events.New()
 	queued := 0
 	bus.Subscribe(protocol.EventTaskQueued, func(events.Event) { queued++ })
-	svc := &TaskService{Queries: q, TxStarter: pool, Bus: bus}
+	wakeup := &stubWakeup{}
+	svc := &TaskService{Queries: q, TxStarter: pool, Bus: bus, Wakeup: wakeup}
 	deadline := time.Now().Add(time.Minute)
 	task, err := svc.EnqueueDeferredChannelIssueTask(ctx, db.Issue{
 		ID:           issueID,
@@ -507,6 +508,9 @@ func TestDeferredChannelIssueTaskPromotesAfterMediaSettlement(t *testing.T) {
 	}
 	if task.Status != "deferred" || !task.FireAt.Valid {
 		t.Fatalf("task = status %q fire_at %v, want deferred", task.Status, task.FireAt)
+	}
+	if len(wakeup.calls) != 1 || wakeup.calls[0].runtimeID != util.UUIDToString(task.RuntimeID) || wakeup.calls[0].taskID != "" {
+		t.Fatalf("deferred schedule wakeups = %+v, want one runtime wakeup without a ready task id", wakeup.calls)
 	}
 	if queued != 0 {
 		t.Fatalf("queued events before media settlement = %d, want 0", queued)
@@ -551,6 +555,9 @@ func TestDeferredChannelIssueTaskPromotesAfterMediaSettlement(t *testing.T) {
 	if queued != 1 {
 		t.Fatalf("queued events after promotion = %d, want 1", queued)
 	}
+	if len(wakeup.calls) != 2 || wakeup.calls[1].taskID != util.UUIDToString(task.ID) {
+		t.Fatalf("promotion wakeups = %+v, want schedule refresh then ready task", wakeup.calls)
+	}
 	var status string
 	var fireAt pgtype.Timestamptz
 	if err := pool.QueryRow(ctx, `SELECT status, fire_at FROM agent_task_queue WHERE id = $1`, task.ID).Scan(&status, &fireAt); err != nil {
@@ -572,7 +579,7 @@ func TestDeferredChannelIssueTaskConflictsWithQueuedSiblingAtDatabase(t *testing
 	ctx := context.Background()
 
 	var indexDefinition string
-	if err := pool.QueryRow(ctx, `SELECT pg_get_indexdef('idx_one_pending_task_per_issue_agent_v2'::regclass)`).Scan(&indexDefinition); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT pg_get_indexdef('idx_one_pending_task_per_issue_agent_v3'::regclass)`).Scan(&indexDefinition); err != nil {
 		t.Fatalf("load pending-task index: %v", err)
 	}
 	if !strings.Contains(indexDefinition, "channel_issue_media_pending") {
@@ -607,7 +614,7 @@ func TestDeferredChannelIssueTaskConflictsWithQueuedSiblingAtDatabase(t *testing
 		INSERT INTO agent_task_queue (agent_id, runtime_id, issue_id, status, priority)
 		VALUES ($1, $2, $3, 'queued', 0)`, task.AgentID, task.RuntimeID, issueID)
 	var pgErr *pgconn.PgError
-	if !errors.As(err, &pgErr) || pgErr.Code != "23505" || pgErr.ConstraintName != "idx_one_pending_task_per_issue_agent_v2" {
+	if !errors.As(err, &pgErr) || pgErr.Code != "23505" || pgErr.ConstraintName != "idx_one_pending_task_per_issue_agent_v3" {
 		t.Fatalf("queued sibling insert error = %v, want unique violation on pending-task index", err)
 	}
 }

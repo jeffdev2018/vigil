@@ -249,12 +249,23 @@ func TestClaimTaskRejectsMismatchedAgentRuntime(t *testing.T) {
 	fixture := newRuntimeClaimAccessFixture(t, "public", false, false, "queued")
 	svc := NewTaskService(db.New(fixture.pool), fixture.pool, nil, events.New())
 
-	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID)
+	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
 	if err != nil {
 		t.Fatalf("claim task: %v", err)
 	}
 	if claimed != nil {
 		t.Fatalf("claimed mismatched task %s", util.UUIDToString(claimed.ID))
+	}
+
+	// The runtimePinned flag (JEF-276) relaxes only the cheap Go pre-filter.
+	// This task is not a benchmark leg, so ClaimAgentTask's own fence still
+	// refuses it — the flag can never dispatch what the SQL would reject.
+	pinned, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
+	if err != nil {
+		t.Fatalf("claim task with the pin flag: %v", err)
+	}
+	if pinned != nil {
+		t.Fatalf("the SQL fence let a mismatched non-benchmark task through: %s", util.UUIDToString(pinned.ID))
 	}
 
 	var status string
@@ -277,6 +288,70 @@ func TestClaimTaskUsesCurrentAgentRuntimeWhenRuntimeIDIsOmitted(t *testing.T) {
 	}
 	if claimed == nil {
 		t.Fatal("ClaimTask returned nil, want task from the agent's current runtime")
+	}
+	if util.UUIDToString(claimed.ID) != fixture.taskID {
+		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), fixture.taskID)
+	}
+}
+
+// A runtime pool failover (K28) moves a task to another runtime the owner
+// listed in the agent's pool, deliberately different from the agent's binding.
+// Without the fence exemption the moved task is claimable by nobody: the target
+// runtime's fence fails the agent-binding check and the agent's own runtime
+// never sees the row. Membership is read per row, so dropping the runtime from
+// the pool closes the exemption again.
+func TestClaimTaskHonorsRuntimePoolMembership(t *testing.T) {
+	ctx := context.Background()
+	fixture := newRuntimeClaimAccessFixture(t, "public", true, false, "queued")
+	q := db.New(fixture.pool)
+	svc := NewTaskService(q, fixture.pool, nil, events.New())
+
+	// Control: without a pool the mismatched task stays unclaimable (the fence
+	// TestClaimTaskRejectsMismatchedAgentRuntime covers from the other side).
+	refused, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, false)
+	if err != nil {
+		t.Fatalf("claim mismatched task: %v", err)
+	}
+	if refused != nil {
+		t.Fatal("the fence let a plain mismatched task through")
+	}
+
+	var poolID pgtype.UUID
+	if err := fixture.pool.QueryRow(ctx, `
+		INSERT INTO runtime_pool (workspace_id, name, runtime_ids)
+		SELECT workspace_id, 'claim-pool', jsonb_build_array($2::text) FROM agent WHERE id = $1
+		RETURNING id`, fixture.agentID, util.UUIDToString(fixture.runtimeID)).Scan(&poolID); err != nil {
+		t.Fatalf("create pool: %v", err)
+	}
+	t.Cleanup(func() { fixture.pool.Exec(context.Background(), `DELETE FROM runtime_pool WHERE id = $1`, poolID) })
+	if _, err := fixture.pool.Exec(ctx, `UPDATE agent SET runtime_pool_id = $2 WHERE id = $1`, fixture.agentID, poolID); err != nil {
+		t.Fatalf("attach pool: %v", err)
+	}
+	// The failover marker the K28 mover writes; the cheap Go pre-filter keys on it.
+	if _, err := fixture.pool.Exec(ctx, `UPDATE agent_task_queue SET failover_history = '[{"reason":"runtime_offline"}]'::jsonb WHERE id = $1`, fixture.taskID); err != nil {
+		t.Fatalf("stamp failover: %v", err)
+	}
+
+	candidates, err := q.ListQueuedClaimCandidatesByRuntime(ctx, fixture.runtimeID)
+	if err != nil {
+		t.Fatalf("list candidates: %v", err)
+	}
+	found := false
+	for _, c := range candidates {
+		if util.UUIDToString(c.ID) == fixture.taskID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the pool-moved task is missing from the runtime's candidate list")
+	}
+
+	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
+	if err != nil {
+		t.Fatalf("claim pool-moved task: %v", err)
+	}
+	if claimed == nil {
+		t.Fatal("the fence refused a runtime the owner listed in the agent's pool — the task is claimable by nobody")
 	}
 	if util.UUIDToString(claimed.ID) != fixture.taskID {
 		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), fixture.taskID)

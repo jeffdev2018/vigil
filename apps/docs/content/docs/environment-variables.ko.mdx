@@ -33,6 +33,7 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `DATABASE_URL` | 로컬 `multica` 데이터베이스 | PostgreSQL 연결 주소 |
 | `DATABASE_MAX_CONNS` | `25` | API 프로세스 하나의 최대 데이터베이스 연결 수 |
 | `DATABASE_MIN_CONNS` | `5` | API 프로세스 하나가 유지하는 최소 연결 수 |
+| `DATABASE_SEARCH_WORK_MEM_MB` | `64` | 검색 계획의 각 노드에 적용되는 PostgreSQL `work_mem` 상한(MB). `1`~`64`로 낮추거나 `0`으로 데이터베이스/세션 기본값 사용 |
 | `DATABASE_REPLICA_URL` | 비어 있음 | 선택적 PostgreSQL 읽기 전용 복제본 연결 주소. 새 연결은 읽기 전용 상태를 검증하며 각 기능은 코드에서 최종 일관성 읽기를 명시적으로 선택해야 함 |
 | `DATABASE_REPLICA_MAX_CONNS` | `10` | API 프로세스당 최대 복제본 연결 수 |
 | `DATABASE_REPLICA_MIN_CONNS` | `0` | API 프로세스가 유지하는 최소 복제본 연결 수 |
@@ -42,9 +43,11 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `JWT_SECRET` | 프로덕션에서 필수 | 로그인 JWT와 일부 서명 절차에서 사용하는 키. 프로덕션에서는 비어 있거나 알려진 자리표시자 값으로 부팅 거부 |
 | `APP_ENV` | 비어 있음 | 프로덕션 환경에서는 `production`으로 설정 |
 | `AUTH_TOKEN_TTL` | `720h`(30일) | 브라우저 JWT와 cookie 유효 기간. Go duration 또는 양의 정수 초 허용 |
-| `LOG_LEVEL` | 앱 기본값 | 로그 수준 |
+| `LOG_LEVEL` | `debug` | 로그 상세도: `debug`, `info`, `warn`, `error` 중 하나(대소문자 구분 없음). 인식할 수 없는 값도 `debug`로 대체됨 |
 | `MULTICA_SHUTDOWN_HOLD_DURATION` | `0` | 종료 신호를 받은 뒤 graceful shutdown을 시작하기 전 대기 시간 |
 | `MULTICA_RUNTIME_RECONNECT_GRACE` | `3h` | 오프라인 런타임이 진행 중인 실행을 실패시키지 않고 재연결할 수 있는 유예 시간. `150s` 미만은 `150s`로 조정됨 |
+| `MULTICA_RUN_UNRESPONSIVE_AFTER` | `90`(초) | 진행 중인 실행이 무응답으로 표시되기까지 침묵할 수 있는 시간. 읽기 시점의 판정일 뿐이며 실행을 실패시키거나 취소하지 않음 |
+| `MULTICA_BUDGET_MIN_ESTIMATE_USD_TICKS` | `1000000000`($0.10) | 실행 예산 추정치의 하한값(USD tick 단위, 1 USD = 10,000,000,000 tick). 과거 완료된 실행이 충분히 쌓여 실제 비용을 평균 낼 수 있을 때까지만 사용됨 |
 
 Kubernetes에서 shutdown hold를 설정하면 `terminationGracePeriodSeconds`가 hold와 실제 종료에 필요한 시간의 합보다 커야 합니다.
 
@@ -61,6 +64,8 @@ primary와 복제본의 연결 한도는 서로 독립적입니다. 모든 API �
 | `CORS_ALLOWED_ORIGINS` | 비어 있음 | 추가로 허용할 HTTP origin, 쉼표로 구분 |
 | `ALLOWED_ORIGINS` | CORS 또는 프런트엔드 주소로 fallback | WebSocket origin allowlist, 쉼표로 구분 |
 | `COOKIE_DOMAIN` | 비어 있음 | 프런트엔드와 backend의 host가 다르고 브라우저가 API 도메인에 직접 접근할 때 필수. 단일 도메인 배포에서는 비워 둠 |
+| `NEXT_PUBLIC_API_URL` | 페이지 origin에서 자동 유도 | 브라우저와 Next.js SSR 프록시가 호출하는 backend origin(scheme + host, 경로 없음). 끝의 `/api`는 제거되며, 그 외 경로가 붙으면 모든 요청에 이중으로 붙음 |
+| `NEXT_PUBLIC_WS_URL` | 페이지 origin에서 자동 유도 | 브라우저가 연결하는 WebSocket 주소 |
 
 <Callout type="warning">
 `MULTICA_DAEMON_SERVER_URL`은 인증이 필요 없는 `/api/config` 엔드포인트에서 반환되며 클라이언트가 읽을 수 있습니다. 공개 설정으로 취급하고 자격 증명, 토큰 또는 기타 비밀을 절대 포함하지 마세요.
@@ -162,6 +167,8 @@ allowlist의 정확한 판단 순서는 [로그인과 가입](/auth-setup#가입
 | `RATE_LIMIT_INVITATION_ACTOR_10M` | `10` | 초대자별 10분 슬라이딩 윈도 내 워크스페이스 초대 생성 횟수. `0`이면 이 제한을 비활성화 |
 | `RATE_LIMIT_INVITATION_WORKSPACE_24H` | `50` | 워크스페이스의 모든 관리자가 24시간 슬라이딩 윈도 내 생성할 수 있는 총 초대 수. `0`이면 이 제한을 비활성화 |
 | `RATE_LIMIT_INVITATION_RECIPIENT_24H` | `6` | 정규화된 동일 수신 이메일이 워크스페이스 전체에서 24시간 슬라이딩 윈도 내 받을 수 있는 초대 수. `0`이면 이 제한을 비활성화 |
+| `RATE_LIMIT_CONTACT_SALES` | `5` | IP당 시간당 `/contact-sales` 요청 최대 횟수 |
+| `RATE_LIMIT_PLUGIN_API` | `120` | IP당 분당 plugin Public API 요청 최대 횟수 |
 | `RATE_LIMIT_TRUSTED_PROXIES` | 비어 있음 | `X-Forwarded-For`를 제공하도록 허용할 proxy CIDR, 쉼표로 구분 |
 | `MULTICA_TRUSTED_PROXIES` | 비어 있음 | 자동화 webhook과 실시간 연결에서 사용할 신뢰 proxy CIDR |
 
@@ -169,26 +176,74 @@ reverse proxy 뒤에 배포한다면 실제 proxy 네트워크를 입력해야 �
 
 인증 rate limit에는 `REDIS_URL`이 필요하며, 설정하지 않으면 시작 로그에 인증 rate limit이 비활성화되었다고 표시됩니다. 초대 제한은 Redis 없이도 프로세스 메모리에서 동작하고, Redis를 설정하면 여러 replica가 할당량을 공유합니다. 설정된 Redis를 일시적으로 사용할 수 없으면 인증 rate limit은 fail-open하지만, 초대 생성은 보호 없이 이메일을 보내지 않고 재시도 가능한 `503`을 반환합니다.
 
+### 실시간 중계(Realtime relay)
+
+Redis는 실시간 이벤트(열려 있는 브라우저 탭으로 푸시되는 이슈와 채팅 업데이트)의 fan-out도 지원합니다. 이는 `REDIS_URL`과 독립적이며 프로덕션에서는 요청 경로 캐시와 분리해 두는 것이 좋습니다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `REALTIME_RELAY_REDIS_URL` | `REDIS_URL`로 fallback | 실시간 스트림 전용 Redis/Valkey. XTRIM MINID 지원 필요(Redis 6.2+) |
+| `REALTIME_RELAY_MODE` | `sharded` | `sharded`, `dual`(양쪽에 쓰고 sharded로 읽음 — 마이그레이션용), `legacy`(단일 stream) 중 하나. 인식할 수 없는 값은 경고와 함께 `sharded`로 대체됨 |
+| `REALTIME_RELAY_SHARDS` | `8` | sharded relay의 shard 개수. 잘못되었거나 0이면 기본값으로 대체됨 |
+| `REALTIME_RELAY_XREAD_COUNT` | `128` | 각 shard의 stream에 대한 poll 1회당 `XREAD COUNT` |
+| `REALTIME_RELAY_XREAD_BLOCK` | `5s` | 각 shard의 stream에 대한 poll 1회당 `XREAD BLOCK` 지속 시간 |
+| `REALTIME_RELAY_STREAM_MAXLEN` | `2000` | shard당 유지할 항목 수. 관측된 항목 크기, 이벤트 발생률, Redis 메모리 예산을 기준으로 산정 |
+| `REALTIME_RELAY_REPLAY_GRACE` | `5m` | sharded reader의 replay 유예 시간 |
+| `REALTIME_RELAY_TRIM_HORIZON` | `10m` | 정확한 시간 기준 trim 한계. `REALTIME_RELAY_STREAM_MAXLEN` 이후에 적용됨 |
+| `REALTIME_RELAY_STREAM_TTL_ENABLED` | `false` | 만료 시 stream 전체를 제거하는 단계적 opt-in fallback. 전환하기 전에 `.env.example`의 rollout/rollback 절차를 확인하세요 |
+| `REALTIME_RELAY_STREAM_TTL` | `15m` | stream TTL. `REALTIME_RELAY_STREAM_TTL_ENABLED=true`일 때만 의미가 있음 |
+| `REALTIME_RELAY_TTL_REFRESH_INTERVAL` | `30s` | 활성 stream의 TTL을 갱신하는 주기 |
+| `REALTIME_RELAY_MAINTENANCE_INTERVAL` | `1m` | 백그라운드 유지 관리 sweep 주기 |
+
+### 채널 WebSocket lease
+
+Multi-replica 배포에서는 특정 시점에 하나의 API replica만 채널의 inbound WebSocket 연결(WeCom 및 그 외 장기 연결 채널)을 소유하도록 Redis 기반 lease가 필요합니다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `CHANNEL_WS_LEASE_BACKEND` | PostgreSQL | multi-replica 프로덕션에서는 `redis`로 설정. Redis, `Ping`, atomic lease script를 사용할 수 없으면 supervisor가 시작 시 fail closed됨. 모든 replica를 함께 전환하세요 — dual-lock 모드는 없음 |
+| `CHANNEL_WS_LEASE_REDIS_URL` | `REDIS_URL`로 fallback | lease 전용 Redis/Valkey 인스턴스를 따로 두는 것을 강력히 권장하며 `maxmemory-policy noeviction`으로 설정 |
+| `CHANNEL_WS_LEASE_NAMESPACE` | 없음(Redis 모드에서 필수) | 하나의 Redis 데이터베이스를 공유하는 환경끼리 설치 ID가 충돌하지 않도록 하는 안정적인 배포 식별자. 영문자, 숫자, 점, 밑줄, 하이픈 사용 가능 |
+| `CHANNEL_WS_LEASE_TTL` | `180s` | lease TTL. `0 < poll <= renew < TTL`을 만족해야 함 |
+| `CHANNEL_WS_LEASE_RENEW_INTERVAL` | `60s` | lease 갱신 간격 |
+| `CHANNEL_WS_LEASE_POLL_INTERVAL` | `30s` | lease 획득을 위한 polling 간격 |
+| `CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL` | `5s` | Redis 오류 발생 후 재시도 간격 |
+| `CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN` | `5s` | split-brain을 방지하기 위해 owner가 마지막으로 확인된 TTL 만료보다 이만큼 일찍 연결을 끊음 |
+
+lease key가 조용히 축출(eviction)되면 채널 연결이 끊길 수 있습니다 — lease 인스턴스의 메모리/용량, eviction(항상 0이어야 함), 가용성, 명령 지연 시간에 대해 알림을 설정하세요.
+
 ## 외부 연동
 
 | 연동 | 변수 | 설명 |
 |---|---|---|
 | GitHub | `GITHUB_APP_SLUG` | GitHub App slug |
 | GitHub | `GITHUB_WEBHOOK_SECRET` | Webhook HMAC 및 연결 state 서명 키 |
-| GitHub | `GITHUB_APP_ID` | PR 카드의 CI 상태, merge 가능 여부, "GitHub에서 선택" 저장소에 필요 |
+| GitHub | `GITHUB_APP_ID` | PR 카드의 CI 상태, merge 가능 여부, "GitHub에서 선택" 저장소 선택기에 필요 |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | App ID와 짝을 이루는 전체 PEM private key. 용도는 위와 같음 |
+| GitHub | `GITHUB_TOKEN` | GitHub URL에서 스킬을 가져올 때 인증되지 않은 `api.github.com` 호출에 Bearer 헤더로 첨부되는 개인 access token. IP당 rate limit을 시간당 60회에서 5000회로 올림. 위의 GitHub App과는 무관 |
 | Feishu | `MULTICA_LARK_SECRET_KEY` | base64로 인코딩한 32바이트 자격 증명 암호화 키 |
+| Feishu | `MULTICA_LARK_HTTP_BASE_URL` / `MULTICA_LARK_CALLBACK_BASE_URL` | 모든 설치를 하나의 Lark/Feishu host(프록시, 테스트 mock, 단일 클라우드 스테이징 등)로 강제하는 배포 전체 재정의. 일반적인 사용에서는 둘 다 비워 두세요 — region은 설치별로 자동 감지됩니다 |
+| Feishu | `MULTICA_LARK_WS_PROXY_URL` | WebSocket 장기 연결 handshake용 선택적 고정 HTTP CONNECT proxy. 비어 있으면 표준 `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY`를 사용 |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | base64로 인코딩한 32바이트 token 암호화 키 |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | base64로 인코딩한 32바이트 Bot token 암호화 키 |
+| DingTalk | `MULTICA_DINGTALK_SECRET_KEY` | base64로 인코딩한 32바이트 AppSecret 암호화 키 |
+| WeCom | `MULTICA_WECOM_SECRET_KEY` | 각 설치의 스마트봇 secret을 저장 시 암호화하는 base64 인코딩 32바이트 키. 비어 있으면 연동과 해당 Web UI 엔드포인트가 비활성화됨(503) |
+| WeCom | `MULTICA_WECOM_MEDIA_ALLOW_CIDRS` | 예약된 주소처럼 보이더라도 media fetcher가 접근할 수 있도록 허용할 범위, 쉼표로 구분. fake-IP proxy 구성 뒤가 아니면 비워 두세요 |
+| WeCom | `MULTICA_WECOM_TRACE` | `1`로 설정하면 WeCom adapter가 읽고 쓰는 모든 frame을 메시지 내용(처음 120자)까지 포함해 기록함. 디버깅 전용이며 세션이 끝나면 해제하세요 |
 | Composio | `COMPOSIO_API_KEY` | Composio 도구 연결 활성화 |
 | Composio | `COMPOSIO_CALLBACK_BASE_URL` | callback API 주소. `MULTICA_PUBLIC_URL`로 fallback 가능 |
 | Composio | `COMPOSIO_STATE_SECRET` | OAuth state 서명 키. `JWT_SECRET`에서 파생 가능 |
 | 자체 호스팅 Git | `MULTICA_VCS_INTEGRATION_ENABLED` | Forgejo/Gitea/GitLab 연동 스위치. compose에서는 기본 활성화 |
 | 자체 호스팅 Git | `MULTICA_VCS_SECRET_KEY` | base64로 인코딩한 32바이트 암호화 키(`openssl rand -base64 32`). 없으면 전체 기능을 사용할 수 없음 |
+| Linear Bridge | `MULTICA_LINEAR_SECRET_KEY` | 각 워크스페이스의 Linear OAuth token과 webhook secret을 저장 시 암호화하는 base64 인코딩 32바이트 키. 설정하지 않으면 연동이 완전히 비활성화됨 |
+| Linear Bridge | `MULTICA_LINEAR_CLIENT_ID` / `MULTICA_LINEAR_CLIENT_SECRET` | `linear.app/settings/api/applications`에서 발급받는 OAuth application 자격 증명. 설정하지 않으면 기존 설치는 계속 동기화되지만 새 설치는 막힘 |
+| Linear Bridge | `MULTICA_LINEAR_STATE_SECRET` | 선택적 OAuth state 서명 키. 없으면 `JWT_SECRET`에서 파생한 키로 state를 서명함 |
 | Plugins | `MULTICA_PLUGIN_SECRET_KEY` | 저장된 secret과 surface 실행 URL을 암호화하는 base64 인코딩 32바이트 키 |
 | Plugins | `MULTICA_PLUGIN_SURFACE_ORIGIN` | 백엔드로 라우팅되는 쿠키 없는 전용 origin. app/API origin과 달라야 하며 `Host`를 보존해야 함 |
-| Plugins | `MULTICA_PLUGIN_API_URL` | 버전을 포함한 Plugin Public API의 전체 Base URL(예: `https://plugin-api.example.com/v1`). 설정하지 않으면 `MULTICA_PUBLIC_URL` + `/v1` 사용 |
+| Plugins | `MULTICA_PLUGIN_API_URL` | 버전을 포함한 Plugin Public API의 전체 base URL(예: `https://plugin-api.example.com/v1`). 설정하지 않으면 `MULTICA_PUBLIC_URL` + `/v1` 사용 |
 | Plugins | `MULTICA_PLUGIN_DIR` | 개발 중 로컬 plugin bundle을 게시하는 선택적 절대 디렉터리 |
+| Model keys(BYOK) | `MULTICA_MODEL_KEY_SECRET_KEY` | 워크스페이스와 프로젝트가 설정 → Model keys에서 등록하는 공급자 API key를 암호화하는 base64 인코딩 32바이트 키. 설정하지 않으면 "설정되지 않음"으로 표시되고 key 저장을 거부함 |
+| SSO | `MULTICA_SSO_SECRET_KEY` | 각 워크스페이스의 OIDC client secret을 저장 시 암호화하는 base64 인코딩 32바이트 키. 설정하지 않으면 Security 탭에 "설정되지 않음"으로 표시됨 |
 
 `GITHUB_APP_ID`와 private key를 설정하지 않아도 PR 연결, 미러링, merge 시 done 전환은 정상적으로 작동합니다. 다만 카드에 CI와 merge 가능 상태가 표시되지 않고 "GitHub에서 선택" 저장소 메뉴도 비활성화됩니다.
 
@@ -203,20 +258,95 @@ reverse proxy 뒤에 배포한다면 실제 proxy 네트워크를 입력해야 �
 | `MULTICA_LLM_API_KEY` | 비어 있음 | OpenAI 호환 API key |
 | `MULTICA_LLM_BASE_URL` | 비어 있음 | OpenAI 호환 endpoint |
 | `MULTICA_LLM_DEFAULT_MODEL` | `gpt-5.6-luna` | 요청에 모델이 지정되지 않았을 때 사용 |
+| `MULTICA_LLM_ROUTING_MODEL` | `MULTICA_LLM_DEFAULT_MODEL`로 fallback | webhook 전달을 autopilot의 자연어 라우팅 규칙과 대조해 판단하는 작고 빠른 모델 |
+| `MULTICA_LLM_EMBEDDING_MODEL` | 비어 있음 | 공유 저장소 인덱스의 의미 기반 순위를 활성화합니다. 1536차원 벡터를 만드는 모델이어야 하며, 비워 두면 인덱스는 키워드만으로 동작합니다 |
 | `MULTICA_LLM_MAX_RETRIES` | `2` | 호출당 재시도 상한. `0`은 재시도 비활성화, `1`–`5`는 최대 N회 |
 
 `MULTICA_LLM_MAX_RETRIES`는 재시도 정책의 유일한 설정 소스입니다. 설정하지 않으면 기본값 2회, `0`이면 호출당 요청을 정확히 한 번만 보내고, 1–5면 재시도를 최대 그 횟수까지만 합니다. 할당량이 아니라 상한입니다. 재시도 대상 실패만 이를 소모하며, 성공하거나 호출자 자신의 데드라인에 걸리면 더 일찍 끝납니다. 그 밖의 값(음수, 숫자가 아닌 값, 5 초과)은 조용히 보정되지 않고 시작에 실패합니다. 상한은 지연 예산입니다. 백오프는 0.5초에서 시작해 8초 상한까지 두 배씩 늘어나므로, 더 큰 예산은 호출자 자신의 타임아웃을 넘겨 재시도 가능한 실패를 타임아웃으로 바꿉니다. 재시도는 연결 실패와 HTTP 408, 409, 429, 5xx를 대상으로 하며 그 외 4xx는 그대로 반환됩니다. 서버는 시작 시 유효한 정책을 `llm retry policy`로 기록하며 해당 줄에는 자격 증명이 포함되지 않습니다.
 
-이 레이어를 사용하는 기능은 두 가지이며, 둘 다 설정한 endpoint로 채팅 내용을 전송합니다.
+이 레이어를 사용하는 기능은 다음과 같으며, 모두 설정한 endpoint로 내용을 전송합니다.
 
 - **대화 제목 자동 생성** — 새 채팅 세션에서 사용자가 보낸 첫 메시지를 그대로 전송합니다. 첨부 파일은 포함되지 않습니다.
 - **후속 질문**(에이전트 답변 아래의 버튼) — 대화의 마지막 부분을 전송합니다. 최대 6개 메시지이며, 대상 답변은 3000자, 그보다 오래된 메시지는 각각 800자로 제한됩니다.
+- **공유 시맨틱 저장소 인덱스** — 워크스페이스가 명시적으로 켠 저장소(설정 → 저장소 → 시맨틱 인덱스)의 코드 청크 본문과, 검색어로 쓰이는 이슈 제목 및 설명의 앞 500자를 전송합니다. `MULTICA_LLM_EMBEDDING_MODEL`을 설정한 경우에만 동작하며, 비워 두면 인덱스는 키워드로 순위를 매겨 그대로 동작하고 저장소 코드는 배포 환경 밖으로 나가지 않습니다.
+- **이슈 범위 지정 도우미**(이슈 생성 대화상자의 "몇 문장으로 초안 작성") — 멤버가 입력한 텍스트(최대 8000자)와 대상 프로젝트의 제목 및 설명을 전송합니다.
+- **[네이티브 런타임](/native-runtime)** — 데몬 없이 실행되는 에이전트의 도구 호출 루프가 이슈와 댓글 내용을 이 client로 전송합니다. 여기서는 `MULTICA_LLM_ROUTING_MODEL`을 사용하지 않으며, 네이티브 런타임 호출은 `MULTICA_LLM_DEFAULT_MODEL`을 사용합니다.
 
 API key와 base URL이 모두 비어 있으면 이 레이어가 꺼지고 업스트림 요청을 전혀 보내지 않습니다. 위 두 기능 모두 아무것도 전송하지 않습니다. 이 레이어가 채팅 내용을 배포 환경 밖으로 보내면 안 되는 정책이라면 이것이 지원되는 구성입니다. 세션은 클라이언트가 첫 메시지에서 만든 제목을 그대로 사용하고, 후속 질문 버튼은 표시되지 않으며, 나머지 기능은 영향을 받지 않습니다.
 
 <Callout type="info">
 이는 보조 생성 레이어에만 해당합니다. 에이전트 실행은 별도의 데이터 경로입니다. 에이전트가 채팅에 답변할 때 데몬은 해당 에이전트의 AI 코딩 도구를 그 도구 자체의 자격 증명으로 실행하며, 위의 `MULTICA_LLM_*` 설정을 도구에 전달하지 않습니다. (에이전트 자체에 필요한 실행 범위의 Multica 연결 변수는 데몬이 별도로 주입합니다.) 위 변수를 비워 두어도 이 경로에는 영향이 없으므로, 에이전트의 런타임 설정에서 관리하세요.
 </Callout>
+
+## 음성: 음성-텍스트 변환과 텍스트-음성 변환
+
+둘 다 선택 사항이며 서로 독립적으로 켜고 끌 수 있습니다. 공급자를 설정하지 않으면 오류가 아니라 해당 기능이 UI에서 숨겨집니다.
+
+### 음성-텍스트 변환(음성 메모, 회의 전사)
+
+OpenAI 호환 `POST {base}/v1/audio/transcriptions` 규격을 따르는 공급자라면 어느 것이든 사용할 수 있습니다: Mistral Voxtral, OpenAI, Groq, 또는 vLLM 위에서 자체 호스팅하는 Qwen3-ASR / Whisper.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MULTICA_STT_BASE_URL` | 비어 있음 | STT endpoint. 이 값이나 모델을 비워 두면 STT가 비활성화되어 endpoint가 `409`를 반환하고 UI에서 기능이 숨겨짐 |
+| `MULTICA_STT_API_KEY` | 비어 있음 | STT 공급자 API key |
+| `MULTICA_STT_MODEL` | 비어 있음 | STT 모델 이름 |
+| `MULTICA_STT_LANGUAGE` | 공급자 자동 감지 | `language`로 전달되는 ISO 639-1 힌트(예: `fr`) |
+| `MULTICA_STT_DIARIZE` | `false` | `true`로 설정하면 지원하는 공급자(Voxtral)에게 화자 분리를 요청함 |
+| `MULTICA_STT_REALTIME_MODEL` | 비어 있음 | 회의 녹음기에서 단어 단위 실시간 전사를 활성화함. 브라우저는 서버가 발급한 단기 token으로 공급자의 실시간 WebSocket을 엽니다 |
+
+오디오는 전사된 뒤 즉시 폐기되며 저장되지 않습니다.
+
+### 텍스트-음성 변환(에이전트 메시지의 "소리 내어 읽기")
+
+OpenAI 호환 `POST {base}/v1/audio/speech` 규격을 따르는 공급자라면 어느 것이든 사용할 수 있습니다: OpenAI, Groq, 또는 자체 호스팅하는 Kokoro-FastAPI / openedai-speech.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MULTICA_TTS_BASE_URL` | 비어 있음 | TTS endpoint. 이 값이나 모델을 비워 두면 TTS가 비활성화되어 `/api/voice/speak`가 `409`를 반환하고 client는 브라우저 자체의 `speechSynthesis`로 대체됨 |
+| `MULTICA_TTS_API_KEY` | 비어 있음 | TTS 공급자 API key |
+| `MULTICA_TTS_MODEL` | 비어 있음 | TTS 모델 이름 |
+| `MULTICA_TTS_VOICE` | 공급자 기본값 | 공급자 음성 id(OpenAI: `alloy`, `nova` 등). 비워 두면 공급자가 선택하며 일부는 이를 거부함 |
+
+오디오는 요청마다 합성되며 저장되지 않습니다.
+
+## 모바일 푸시
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MULTICA_PUSH_DISABLED` | 비어 있음 | `1`로 설정하면 push 알림 전송을 완전히 비활성화 |
+| `MULTICA_EXPO_PUSH_ENDPOINT` | Expo 기본값(`https://exp.host/--/api/v2/push/send`) | Expo push API endpoint의 선택적 재정의 |
+
+Expo push는 자격 증명 없이도 동작합니다.
+
+## Feature flag
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MULTICA_FEATURE_FLAGS_FILE` | 비어 있음 | feature flag 규칙을 선언하는 YAML 파일 경로. 설정하지 않으면 모든 flag가 호출자의 기본값으로 대체되므로 flag 설정을 작성하기 전에도 서버가 부팅됩니다. 지정한 파일의 parse 또는 IO 오류는 `DATABASE_URL`이나 `JWT_SECRET` 설정 오류와 마찬가지로 시작을 실패시킵니다 |
+
+개별 flag는 YAML을 건드리지 않고도 `FF_<FLAG_KEY>` 환경 변수로 재정의할 수 있습니다(예: `FF_BILLING_NEW_INVOICE_EMAIL=false`, 백분율, 기타 변형 문자열). 환경 변수 재정의가 YAML보다 우선합니다 — 이것이 운영상의 kill-switch 경로입니다. 환경 변수를 설정한 채 프로세스를 재시작하면 재배포 없이 flag를 바로 전환할 수 있습니다. 전체 YAML schema는 `server/pkg/featureflag`를 참고하세요.
+
+## 오토파일럿 실패 모니터
+
+최근 실행 기록이 실패로 가득한 오토파일럿을 주기적으로 일시 중지시켜, 잘못 설정된 예약 오토파일럿이 실행과 token을 끝없이 소모하는 것을 막습니다.
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `AUTOPILOT_FAIL_MONITOR_INTERVAL` | `24h` | sweep 실행 주기. `0`이면 모니터를 완전히 비활성화 |
+| `AUTOPILOT_FAIL_MONITOR_LOOKBACK` | `168h` | sweep이 실행 횟수를 셀 때 되짚어보는 기간 |
+| `AUTOPILOT_FAIL_MONITOR_STARTUP_DELAY` | `1m` | 프로세스 시작 후 첫 sweep까지의 지연 시간 |
+| `AUTOPILOT_FAIL_MONITOR_MIN_RUNS` | `50` | 실패율을 통계적으로 의미 있다고 판단하기 위한 lookback 기간 내 최소 실행 횟수. 양의 정수여야 함 |
+| `AUTOPILOT_FAIL_MONITOR_FAIL_RATIO` | `0.9` | 자동 일시 중지를 트리거하는 실패율(0, 1] |
+
+## 자체 호스팅 배포
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `MULTICA_CLOUD_URL` | 비어 있음 | 관리형 multica-cloud 연결. 자체 호스팅에서는 비워 두세요. 연결되면 Fleet, Billing, 자격 정책, 사전 구매한 seat 용량이 이 서비스를 사용함 |
+| `MULTICA_IMAGE_TAG` | `latest` | 자체 호스팅 릴리스 채널. 특정 버전에 고정하려면 정확한 릴리스(예: `v0.2.4`)를 지정 |
+| `MULTICA_BACKEND_IMAGE` | `ghcr.io/multica-ai/multica-backend` | Backend 이미지 저장소 |
+| `MULTICA_WEB_IMAGE` | `ghcr.io/multica-ai/multica-web` | Web 이미지 저장소 |
 
 ## 데몬 설정
 
@@ -228,6 +358,7 @@ API key와 base URL이 모두 비어 있으면 이 레이어가 꺼지고 업스
 | `MULTICA_DAEMON_DEVICE_NAME` | host 이름 | 런타임 목록의 기기 이름 |
 | `MULTICA_AGENT_RUNTIME_NAME` | `Local Agent` | 런타임 표시 이름 |
 | `MULTICA_DAEMON_POLL_INTERVAL` | `30s` | wakeup 이벤트가 없을 때 실행 polling 간격 |
+| `MULTICA_DAEMON_WS_CLAIM_POLL_INTERVAL` | `3m` | 정상 WebSocket에서 claim 안전 polling의 상한. `MULTICA_DAEMON_POLL_INTERVAL`과 독립적으로 설정되며, 하향 jitter를 적용한 기본 실제 간격은 `2m30s`–`2m45s`이고 구형 Server 또는 결과가 불확실한 claim은 일반 polling 간격을 유지합니다 |
 | `MULTICA_DAEMON_HEARTBEAT_INTERVAL` | `15s` | heartbeat 간격 |
 | `MULTICA_DAEMON_MAX_CONCURRENT_TASKS` | `20` | 데몬 하나의 동시 실행 상한 |
 | `MULTICA_AGENT_TIMEOUT` | `0` | 단일 실행의 절대 시간 제한. `0`은 제한 없음 |
@@ -276,6 +407,7 @@ multica config show
 | `workspaces_root` | `~` 아래 profile별 경로 | 실행용 작업 디렉터리의 루트 |
 | `max_concurrent_tasks` | `20` | 동시 실행 상한. `0` 또는 빈 값은 설정되지 않음을 의미 |
 | `poll_interval` | `30s` | 실행 polling 간격 |
+| `ws_claim_poll_interval` | `3m` | 정상 WebSocket에서 claim 안전 polling의 상한. `poll_interval`과 독립적으로 설정되며 Daemon은 하향 jitter를 적용합니다 |
 | `heartbeat_interval` | `15s` | heartbeat 간격 |
 | `agent_timeout` | 제한 없음 | 단일 실행의 절대 시간 제한 |
 | `codex_semantic_inactivity_timeout` | 파생 | Codex 의미 활동 없음 기준값. 설정하지 않으면 idle과 tool watchdog 예산 중 큰 값을 따르고, tool 예산이 `0`이면 idle 예산으로 되돌아갑니다. Codex 자체의 `10m`은 watchdog 전체를 비활성화했을 때만 유지됩니다 |

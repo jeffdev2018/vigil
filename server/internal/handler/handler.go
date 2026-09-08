@@ -30,6 +30,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/dingtalk"
 	"github.com/multica-ai/multica/server/internal/integrations/ghsnapshot"
 	"github.com/multica-ai/multica/server/internal/integrations/lark"
+	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
@@ -137,6 +138,7 @@ type Config struct {
 	//   - LLMAPIKey       -> MULTICA_LLM_API_KEY
 	//   - LLMBaseURL       -> MULTICA_LLM_BASE_URL (OpenAI or any compatible gateway)
 	//   - LLMDefaultModel  -> MULTICA_LLM_DEFAULT_MODEL (used when a request omits `model`)
+	//   - LLMEmbeddingModel -> MULTICA_LLM_EMBEDDING_MODEL (enables /embeddings; empty keeps the shared repo index lexical)
 	//   - LLMMaxRetries    -> MULTICA_LLM_MAX_RETRIES (transport retry budget)
 	//   - STTBaseURL       -> MULTICA_STT_BASE_URL (OpenAI-compatible /v1/audio/transcriptions)
 	//   - STTAPIKey        -> MULTICA_STT_API_KEY
@@ -152,6 +154,10 @@ type Config struct {
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
+	// LLMEmbeddingModel enables the embeddings surface (K47). Empty is the
+	// default and a supported steady state: the shared repo index then ranks
+	// lexically and no code text is ever sent to the embeddings upstream.
+	LLMEmbeddingModel string
 	// LLMMaxRetries is the parsed MULTICA_LLM_MAX_RETRIES budget. nil means
 	// unset (llm.DefaultMaxRetries applies); llm.Retries(0) disables retries.
 	// The type carries the validation: it can only be built through llm.Retries,
@@ -211,6 +217,14 @@ type RuntimeGoneNotifier interface {
 	NotifyRuntimeGone(runtimeID string)
 }
 
+// RuntimeRecoveryNotifier republishes the daemon:register lifecycle refresh
+// after a heartbeat actually flipped an offline runtime row back online
+// (sweeper-race fallback, batch-receipt reconciliation). Recovery paths already
+// know the workspace, so publishing never needs a follow-up database lookup.
+type RuntimeRecoveryNotifier interface {
+	NotifyRuntimeRecovered(ctx context.Context, workspaceID string)
+}
+
 type Handler struct {
 	Queries                *db.Queries
 	ReadSelector           *dbreader.Selector
@@ -227,6 +241,9 @@ type Handler struct {
 	PluginService          *service.PluginService
 	IssueService           *service.IssueService
 	AutopilotService       *service.AutopilotService
+	// NativeAgents runs the in-server agent runtime (tool-calling loop over
+	// the internal LLM layer). Driven by the native_agent_tick scheduler job.
+	NativeAgents *service.NativeAgentService
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
@@ -435,6 +452,30 @@ type Handler struct {
 	// error rather than silently storing plaintext. Wired in
 	// cmd/server/router.go after New.
 	VCSSecretBox *secretbox.Box
+	// ModelKeySecretBox (K48) encrypts BYOK model keys at rest; nil disables
+	// the feature (reads work, writes answer 409).
+	ModelKeySecretBox *secretbox.Box
+	// SSOSecretBox (K60) encrypts OIDC client secrets at rest; nil disables SSO.
+	SSOSecretBox *secretbox.Box
+
+	// Linear Bridge (K21). The bridge itself is nil when
+	// MULTICA_LINEAR_SECRET_KEY is unset — there is nowhere safe to keep the
+	// OAuth token, so every endpoint answers "not configured" rather than
+	// storing plaintext. LinearOAuth carries the deployment-level app
+	// credentials (empty when MULTICA_LINEAR_CLIENT_ID / _SECRET are unset, in
+	// which case an existing installation keeps syncing but no new one can be
+	// connected). LinearStateSecret signs the OAuth state; LinearPublicURL is
+	// the address Linear delivers webhooks to and LinearAppURL is where the
+	// callback sends the browser back to. All wired in cmd/server/router.go.
+	Linear            *linear.Bridge
+	LinearSecretBox   *secretbox.Box
+	LinearOAuth       linear.OAuthConfig
+	LinearStateSecret []byte
+	LinearPublicURL   string
+	LinearAppURL      string
+	// LinearClientFactory overrides how the handler builds a Linear API client.
+	// Tests point it at an httptest server; production leaves it nil.
+	LinearClientFactory func(token string) linear.API
 	// PluginSurfaceTokens seal short-lived launch claims. Nil disables surface
 	// launches; wired from a domain-separated MULTICA_PLUGIN_SECRET_KEY at boot.
 	PluginSurfaceTokens *secretbox.Box
@@ -481,10 +522,11 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	}
 
 	llmClient := llm.New(llm.Config{
-		APIKey:       cfg.LLMAPIKey,
-		BaseURL:      cfg.LLMBaseURL,
-		DefaultModel: cfg.LLMDefaultModel,
-		MaxRetries:   cfg.LLMMaxRetries,
+		APIKey:         cfg.LLMAPIKey,
+		BaseURL:        cfg.LLMBaseURL,
+		DefaultModel:   cfg.LLMDefaultModel,
+		EmbeddingModel: cfg.LLMEmbeddingModel,
+		MaxRetries:     cfg.LLMMaxRetries,
 	})
 	// Report the effective retry policy so an operator can confirm from the
 	// boot log alone what a misbehaving upstream will cost, instead of inferring
@@ -501,6 +543,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	)
 
 	taskSvc := service.NewTaskService(queries, txStarter, hub, bus, daemonHub)
+	issueSvc := service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc)
 	budgetSvc := service.NewBudgetService(queries, txStarter, bus)
 	taskSvc.Budget = budgetSvc
 	taskSvc.Analytics = analyticsClient
@@ -521,12 +564,16 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	// a disabled client simply turns the pass off (a skill is only worth
 	// storing when genuinely distilled).
 	taskSvc.SkillDistillation = llmClient
+	// Post-success run confidence scoring (JEF-240) uses the same internal LLM
+	// layer; a disabled client simply turns the pass off (a score is only
+	// worth storing when genuinely assessed).
+	taskSvc.RunConfidence = llmClient
 	// Daily workspace Brain curation uses the same internal LLM layer; a
 	// disabled client turns the pass into a logged no-op.
 	taskSvc.BrainCuration = llmClient
 	h := &Handler{
 		Queries:                      queries,
-		ReadSelector:                 dbreader.NewPrimaryOnly(queries),
+		ReadSelector:                 newPrimaryReadSelector(queries, txStarter),
 		DB:                           executor,
 		TxStarter:                    txStarter,
 		Hub:                          hub,
@@ -538,7 +585,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		TaskService:                  taskSvc,
 		BudgetService:                budgetSvc,
 		PluginService:                service.NewPluginService(queries, txStarter),
-		IssueService:                 service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc),
+		IssueService:                 issueSvc,
+		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, llmClient, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),
@@ -566,6 +614,11 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		cfg: cfg,
 	}
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
+	// The default passthrough scheduler reports sweeper-race recoveries so the
+	// daemon:register refresh fires even without the production batched wiring.
+	if passthrough, ok := h.HeartbeatScheduler.(*PassthroughHeartbeatScheduler); ok {
+		passthrough.RecoveryNotifier = h
+	}
 
 	// GitHub API snapshot pipeline for PR cards (MUL-5265). Built
 	// unconditionally but inert (every trigger no-ops) when the App private key
@@ -580,6 +633,13 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 
 	// Triage rules (K62): rules run on parked deliveries.
 	h.AutopilotService.OnTriageParked = h.onTriageParked
+	// BYOK (K48): the failure path retires a bad key and retries on the next.
+	taskSvc.ModelKeyFailover = h.modelKeyFailover
+	// Fail-safe cancellation (JEF-275): a cancelled run is settled like a
+	// failed one instead of leaving held writes and barriers hanging.
+	taskSvc.OnTaskCancelled = h.afterTaskCancelled
+	// Validated routing (JEF-275): a refused trigger reaches a human.
+	taskSvc.OnRoutingBlocked = h.onRoutingBlocked
 	return h
 }
 
@@ -819,6 +879,16 @@ func (h *Handler) NotifyRuntimeGone(runtimeID string) {
 	h.DaemonRuntimeGone.NotifyRuntimeGone(runtimeID)
 }
 
+// NotifyRuntimeRecovered republishes the workspace-scoped daemon:register
+// lifecycle event after a heartbeat restored a runtime from offline. Runtime
+// details are intentionally omitted from the payload.
+func (h *Handler) NotifyRuntimeRecovered(_ context.Context, workspaceID string) {
+	if h == nil || workspaceID == "" {
+		return
+	}
+	h.PublishRuntimeRefresh(workspaceID, "system", "", "heartbeat_recovery")
+}
+
 // publishTask is publish() plus a TaskID hint so the realtime layer can route
 // the event to the per-task scope rather than the whole workspace.
 func (h *Handler) publishTask(eventType, workspaceID, actorType, actorID, taskID string, payload any) {
@@ -875,21 +945,25 @@ func requestUserID(r *http.Request) string {
 // stripped by the agent process. This is the path MUL-2600 relies on to
 // reject agent-process traffic on owner-only endpoints.
 //
-// Fallback signal (legacy CLI / member-token paths): the request MUST
-// carry both X-Agent-ID and a valid X-Task-ID, and the task must belong
-// to the claimed agent. Otherwise we fall back to "member".
+// Fallback signal: the request MUST carry both X-Agent-ID and a valid
+// X-Task-ID, and the task must belong to the claimed agent. Otherwise we
+// fall back to "member".
 //
-// X-Agent-ID alone is not trusted: any workspace member can guess or observe
-// an agent's UUID, and a member-supplied X-Agent-ID would otherwise let that
-// member impersonate the agent and bypass the private-agent gate (#2359
-// review). The daemon always pairs the two headers, so requiring both has
-// no effect on legitimate agent callers but closes the impersonation path.
+// This fallback is NOT a security boundary and must not be read as one. Both
+// ids are observable by any workspace member (GET /api/issues/{id}/task-runs
+// returns the pair), so requiring both proves nothing on its own — the older
+// comment here claimed it "closes the impersonation path", and it did not.
+// What closes it is the Auth / DaemonAuth middleware stripping both headers
+// from every client, leaving the mat_ branch as the only writer (MUL-3428).
+// The fallback survives that strip only for in-process callers and handler
+// unit tests, which set the headers directly.
 //
 // Returns ("agent", agentID) on success, ("member", userID) otherwise.
 func (h *Handler) resolveActor(r *http.Request, userID, workspaceID string) (actorType, actorID string) {
 	if r.Header.Get("X-Actor-Source") == "task_token" {
-		// Server-set header — auth middleware also forced X-Agent-ID
-		// from the token row. Trust it directly without re-querying.
+		// Server-set header — the auth middleware stripped whatever the
+		// client sent and re-stamped X-Agent-ID from the token row. Trust
+		// it directly without re-querying.
 		return "agent", r.Header.Get("X-Agent-ID")
 	}
 	agentID := r.Header.Get("X-Agent-ID")
@@ -973,6 +1047,19 @@ func (h *Handler) workspaceMember(w http.ResponseWriter, r *http.Request, worksp
 		return m, true
 	}
 	return h.requireWorkspaceMember(w, r, workspaceID, "workspace not found")
+}
+
+// newPrimaryReadSelector builds the default primary-only selector and attaches
+// the pool behind it, so raw-SQL reads work before cmd/server upgrades the
+// selector with a replica. Without the tx starter every insight read would
+// return ErrNoTxStarter in any deployment (and every test) that does not run
+// the full boot path.
+func newPrimaryReadSelector(queries *db.Queries, txStarter txStarter) *dbreader.Selector {
+	selector := dbreader.NewPrimaryOnly(queries)
+	if starter, ok := txStarter.(dbreader.TxStarter); ok {
+		selector.SetTxStarters(starter, nil)
+	}
+	return selector
 }
 
 func roleAllowed(role string, roles ...string) bool {

@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -129,22 +130,15 @@ func (h *Handler) CreateIssueDependency(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if storedType == dependencyBlocks {
-		// "from blocks to" closes a loop when `to` already blocks `from`,
-		// directly or through the chain below it.
-		stack, err := h.Queries.ListIssueDependencyStack(ctx, db.ListIssueDependencyStackParams{
-			IssueID:  to.ID,
-			MaxDepth: issueDependencyStackDepth,
-		})
+		cycles, err := h.blockingEdgeWouldCycle(ctx, from.ID, to.ID)
 		if err != nil {
 			slog.Warn("issue dependency cycle check failed", append(logger.RequestAttrs(r), "error", err)...)
 			writeError(w, http.StatusInternalServerError, "failed to check dependency cycle")
 			return
 		}
-		for _, s := range stack {
-			if s.IssueID == from.ID {
-				writeError(w, http.StatusConflict, "dependency would create a cycle")
-				return
-			}
+		if cycles {
+			writeError(w, http.StatusConflict, "dependency would create a cycle")
+			return
 		}
 	}
 
@@ -204,6 +198,31 @@ func (h *Handler) DeleteIssueDependency(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// blockingEdgeWouldCycle reports whether adding "from blocks to" closes a loop:
+// it does when `to` already blocks `from`, directly or through the chain below
+// it. Shared by the dependency endpoint and by Epic Mode's ticket apply (F18),
+// which links generated tickets with the same edge type and must refuse the
+// same cycles — a check that lived only in the handler body would have let the
+// second caller create what the first one rejects.
+func (h *Handler) blockingEdgeWouldCycle(ctx context.Context, from, to pgtype.UUID) (bool, error) {
+	if from == to {
+		return true, nil
+	}
+	stack, err := h.Queries.ListIssueDependencyStack(ctx, db.ListIssueDependencyStackParams{
+		IssueID:  to,
+		MaxDepth: issueDependencyStackDepth,
+	})
+	if err != nil {
+		return false, err
+	}
+	for _, s := range stack {
+		if s.IssueID == from {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 func (h *Handler) issueDependencyExists(ctx context.Context, from, to pgtype.UUID, depType string) bool {
 	_, err := h.Queries.GetIssueDependency(ctx, db.GetIssueDependencyParams{
 		IssueID:          from,
@@ -222,6 +241,10 @@ func (h *Handler) publishIssueDependencyChange(r *http.Request, actorType, actor
 		slog.Warn("bump issue revisions failed", append(logger.RequestAttrs(r), "error", err)...)
 		return
 	}
+	// The Gantt's arrow layer is a BULK query keyed by the whole visible row
+	// set, so it has no issue row to hang an invalidation off — hence a second,
+	// graph-level event beside the per-issue ones below. (F30)
+	h.publish(protocol.EventIssueDependenciesChanged, uuidToString(wsID), actorType, actorID, map[string]any{})
 	prefix := h.getIssuePrefix(ctx, wsID)
 	fill := h.newStatusCategoryFiller(ctx, wsID)
 	for _, id := range ids {
@@ -234,4 +257,90 @@ func (h *Handler) publishIssueDependencyChange(r *http.Request, actorType, actor
 		fill(&resp)
 		h.publish(protocol.EventIssueUpdated, uuidToString(wsID), actorType, actorID, map[string]any{"issue": resp})
 	}
+}
+
+// IssueDependencyEdge is one stored edge, flattened to ids. The Gantt draws
+// arrows between bars it already holds, so it needs the graph, not the issues:
+// embedding an IssueResponse per edge would re-send every row the canvas is
+// already rendering.
+type IssueDependencyEdge struct {
+	ID   string `json:"id"`
+	From string `json:"from"`
+	To   string `json:"to"`
+	Type string `json:"type"`
+}
+
+// BulkIssueDependenciesRequest carries the issue ids currently on screen.
+type BulkIssueDependenciesRequest struct {
+	IssueIDs []string `json:"issue_ids"`
+}
+
+// maxBulkDependencyIssues bounds one request. The Gantt canvas is capped by
+// what a person can read, not by this number; it exists so a malformed client
+// cannot ask for an unbounded array literal.
+const maxBulkDependencyIssues = 2000
+
+// ListIssueDependenciesBulk returns every edge whose BOTH ends are in the
+// requested set (F30).
+//
+// POST for a read, like POST /api/issues/table: 500 issue ids do not fit in a
+// query string, and splitting the canvas into pages of ids would make the arrow
+// layer depend on how the request was chunked.
+//
+// Both ends, not either: an arrow needs two bars, so an edge pointing outside
+// the canvas has nothing to connect to. Filtering server-side keeps the payload
+// proportional to what is drawn.
+func (h *Handler) ListIssueDependenciesBulk(w http.ResponseWriter, r *http.Request) {
+	workspaceID := h.resolveWorkspaceID(r)
+	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
+	if !ok {
+		return
+	}
+	if _, ok := h.requireWorkspaceMember(w, r, workspaceID, "workspace not found"); !ok {
+		return
+	}
+	var req BulkIssueDependenciesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if len(req.IssueIDs) > maxBulkDependencyIssues {
+		writeError(w, http.StatusBadRequest, "too many issue_ids")
+		return
+	}
+	ids := make([]pgtype.UUID, 0, len(req.IssueIDs))
+	for _, raw := range req.IssueIDs {
+		id, err := util.ParseUUID(raw)
+		if err != nil {
+			// Skipped, not rejected: the canvas hands over whatever it is
+			// drawing, and one unparseable id must not cost the whole arrow
+			// layer. An id that is not an issue of this workspace simply
+			// matches no edge.
+			continue
+		}
+		ids = append(ids, id)
+	}
+	edges := []IssueDependencyEdge{}
+	if len(ids) > 0 {
+		// Workspace scoping rides on the ids: every one of them was resolved by
+		// the caller's own scoped issue query, and an id from another workspace
+		// cannot appear on both ends of an edge whose issues this member can
+		// already see. Re-joining `issue` here to re-check would double the
+		// cost of the hottest query on the canvas.
+		rows, err := h.Queries.ListDependenciesForIssues(r.Context(), ids)
+		if err != nil {
+			slog.Warn("bulk issue dependencies failed", append(logger.RequestAttrs(r), "error", err, "workspace_id", uuidToString(wsUUID))...)
+			writeError(w, http.StatusInternalServerError, "failed to list dependencies")
+			return
+		}
+		for _, row := range rows {
+			edges = append(edges, IssueDependencyEdge{
+				ID:   uuidToString(row.ID),
+				From: uuidToString(row.IssueID),
+				To:   uuidToString(row.DependsOnIssueID),
+				Type: row.Type,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"dependencies": edges, "total": len(edges)})
 }

@@ -21,6 +21,7 @@ import { issueBehavesAs } from "@multica/core/issues";
 import { useBatchUpdateIssues, useBatchDeleteIssues } from "@multica/core/issues/mutations";
 import { useModalStore } from "@multica/core/modals";
 import { StatusPicker, PriorityPicker, AssigneePicker } from "./pickers";
+import { CyclePicker } from "../../cycles/components/cycle-picker";
 import { useT } from "../../i18n";
 import { cn } from "@multica/ui/lib/utils";
 import {
@@ -77,6 +78,7 @@ export function BatchActionToolbar({
   const [statusOpen, setStatusOpen] = useState(false);
   const [priorityOpen, setPriorityOpen] = useState(false);
   const [assigneeOpen, setAssigneeOpen] = useState(false);
+  const [cycleOpen, setCycleOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const surfaceActions = useIssueSurfaceActionsOptional();
   const batchUpdate = useBatchUpdateIssues();
@@ -91,6 +93,7 @@ export function BatchActionToolbar({
     setStatusOpen(false);
     setPriorityOpen(false);
     setAssigneeOpen(false);
+    setCycleOpen(false);
     setDeleteOpen(false);
   }, [count]);
 
@@ -255,6 +258,22 @@ export function BatchActionToolbar({
           trigger={t(($) => $.batch.assignee)}
           align="center"
         />
+
+        {/* Cycle (F29). Shown only for a single-project selection: a cycle
+            accepts its own project's issues, so a mixed-project batch has no
+            legal cycle and the server would refuse most of it item by item. */}
+        {common.projectId && (
+          <CyclePicker
+            cycleId={common.cycleId}
+            projectId={common.projectId}
+            onUpdate={handleBatchUpdate}
+            open={cycleOpen}
+            onOpenChange={setCycleOpen}
+            triggerRender={<Button variant="ghost" size="sm" disabled={loading} />}
+            trigger={t(($) => $.batch.cycle)}
+            align="center"
+          />
+        )}
 
         {/* Delete */}
         <Button

@@ -99,7 +99,8 @@ export function orgMermaid(def: OrgDefinition, pausedUnits: string[] = []): stri
   for (const u of def.units) {
     const badge = pausedUnits.includes(u.id) ? " ⏸" : "";
     const members = u.members.length ? ` (${u.members.length})` : "";
-    lines.push(`  ${id(u.id)}["${esc(u.name)}${members}${badge}"]`);
+    const model = u.model ? ` ⟨${u.model.replace("_", " ")}⟩` : "";
+    lines.push(`  ${id(u.id)}["${esc(u.name)}${members}${model}${badge}"]`);
   }
   for (const e of def.edges) {
     const arrow = e.kind === "reports_to" ? "-->" : e.kind === "escalates_to" ? "==>" : "-.->";

@@ -25,7 +25,7 @@ const createIssueDependency = `-- name: CreateIssueDependency :one
 
 INSERT INTO issue_dependency (issue_id, depends_on_issue_id, type)
 VALUES ($1, $2, $3)
-RETURNING id, issue_id, depends_on_issue_id, type
+RETURNING id, issue_id, depends_on_issue_id, type, created_at
 `
 
 type CreateIssueDependencyParams struct {
@@ -50,6 +50,7 @@ func (q *Queries) CreateIssueDependency(ctx context.Context, arg CreateIssueDepe
 		&i.IssueID,
 		&i.DependsOnIssueID,
 		&i.Type,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -58,7 +59,7 @@ const deleteIssueDependency = `-- name: DeleteIssueDependency :one
 DELETE FROM issue_dependency
 WHERE id = $1
   AND (issue_id = $2 OR depends_on_issue_id = $2)
-RETURNING id, issue_id, depends_on_issue_id, type
+RETURNING id, issue_id, depends_on_issue_id, type, created_at
 `
 
 type DeleteIssueDependencyParams struct {
@@ -74,12 +75,13 @@ func (q *Queries) DeleteIssueDependency(ctx context.Context, arg DeleteIssueDepe
 		&i.IssueID,
 		&i.DependsOnIssueID,
 		&i.Type,
+		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getIssueDependency = `-- name: GetIssueDependency :one
-SELECT id, issue_id, depends_on_issue_id, type FROM issue_dependency
+SELECT id, issue_id, depends_on_issue_id, type, created_at FROM issue_dependency
 WHERE issue_id = $1 AND depends_on_issue_id = $2 AND type = $3
 `
 
@@ -97,8 +99,55 @@ func (q *Queries) GetIssueDependency(ctx context.Context, arg GetIssueDependency
 		&i.IssueID,
 		&i.DependsOnIssueID,
 		&i.Type,
+		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listDependenciesForIssues = `-- name: ListDependenciesForIssues :many
+SELECT d.id, d.issue_id, d.depends_on_issue_id, d.type
+FROM issue_dependency d
+WHERE d.issue_id = ANY($1::uuid[])
+  AND d.depends_on_issue_id = ANY($1::uuid[])
+ORDER BY d.issue_id, d.depends_on_issue_id, d.type
+`
+
+type ListDependenciesForIssuesRow struct {
+	ID               pgtype.UUID `json:"id"`
+	IssueID          pgtype.UUID `json:"issue_id"`
+	DependsOnIssueID pgtype.UUID `json:"depends_on_issue_id"`
+	Type             string      `json:"type"`
+}
+
+// Bulk variant for the Gantt (F30): every edge whose BOTH ends are in the
+// requested set, in one round-trip. Modelled on ListLabelsForIssues.
+//
+// Both ends, not either: an arrow needs two bars to connect, so an edge
+// pointing at an issue the canvas does not draw has nothing to render against.
+// Filtering it here keeps the payload proportional to what is on screen.
+func (q *Queries) ListDependenciesForIssues(ctx context.Context, issueIds []pgtype.UUID) ([]ListDependenciesForIssuesRow, error) {
+	rows, err := q.db.Query(ctx, listDependenciesForIssues, issueIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListDependenciesForIssuesRow{}
+	for rows.Next() {
+		var i ListDependenciesForIssuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.IssueID,
+			&i.DependsOnIssueID,
+			&i.Type,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listIssueBlockerStack = `-- name: ListIssueBlockerStack :many
@@ -112,7 +161,7 @@ WITH RECURSIVE blockers AS (
     JOIN blockers b ON d.depends_on_issue_id = b.issue_id
     WHERE d.type = 'blocks' AND b.depth < $2::int
 )
-SELECT MIN(b.depth)::int AS depth, i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id
+SELECT MIN(b.depth)::int AS depth, i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id, i.cycle_id, i.issue_type
 FROM blockers b
 JOIN issue i ON i.id = b.issue_id
 GROUP BY i.id
@@ -177,6 +226,10 @@ func (q *Queries) ListIssueBlockerStack(ctx context.Context, arg ListIssueBlocke
 			&i.Issue.ContractRisk,
 			&i.Issue.ContractRevision,
 			&i.Issue.GoalID,
+			&i.Issue.DelegateType,
+			&i.Issue.DelegateID,
+			&i.Issue.CycleID,
+			&i.Issue.IssueType,
 		); err != nil {
 			return nil, err
 		}
@@ -195,7 +248,7 @@ SELECT d.id, d.type,
          WHEN d.issue_id = $1 THEN 'blocks'
          ELSE 'blocked_by'
        END::text AS direction,
-       i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id
+       i.id, i.workspace_id, i.title, i.description, i.status, i.priority, i.assignee_type, i.assignee_id, i.creator_type, i.creator_id, i.parent_issue_id, i.acceptance_criteria, i.context_refs, i.position, i.due_date, i.created_at, i.updated_at, i.number, i.project_id, i.origin_type, i.origin_id, i.first_executed_at, i.start_date, i.metadata, i.stage, i.properties, i.revision, i.last_activity_at, i.reopen_count, i.completed_at, i.contract_risk, i.contract_revision, i.goal_id, i.delegate_type, i.delegate_id, i.cycle_id, i.issue_type
 FROM issue_dependency d
 JOIN issue i ON i.id = CASE WHEN d.issue_id = $1 THEN d.depends_on_issue_id ELSE d.issue_id END
 WHERE d.issue_id = $1 OR d.depends_on_issue_id = $1
@@ -258,6 +311,10 @@ func (q *Queries) ListIssueDependenciesForIssue(ctx context.Context, issueID pgt
 			&i.Issue.ContractRisk,
 			&i.Issue.ContractRevision,
 			&i.Issue.GoalID,
+			&i.Issue.DelegateType,
+			&i.Issue.DelegateID,
+			&i.Issue.CycleID,
+			&i.Issue.IssueType,
 		); err != nil {
 			return nil, err
 		}

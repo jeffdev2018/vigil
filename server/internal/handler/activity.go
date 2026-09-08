@@ -39,13 +39,22 @@ type TimelineEntry struct {
 	CommentType *string `json:"comment_type,omitempty"`
 	// Set only on comments produced by a quick action run. Unforgeable: there
 	// is no request field for it on the generic comment endpoint.
-	QuickActionID  *string              `json:"quick_action_id,omitempty"`
+	QuickActionID *string `json:"quick_action_id,omitempty"`
+	// Agent-to-agent message intent (F19), so the timeline chips it without a
+	// second fetch. Omitted on activity rows and on ordinary comments.
+	A2aIntent      *string              `json:"a2a_intent,omitempty"`
 	Reactions      []ReactionResponse   `json:"reactions,omitempty"`
 	Attachments    []AttachmentResponse `json:"attachments,omitempty"`
 	ResolvedAt     *string              `json:"resolved_at,omitempty"`
 	ResolvedByType *string              `json:"resolved_by_type,omitempty"`
 	ResolvedByID   *string              `json:"resolved_by_id,omitempty"`
 	SourceTaskID   *string              `json:"source_task_id,omitempty"`
+	// Diff anchor of the thread this comment belongs to (F07 / JEF-21). Set on
+	// the root AND on every reply, so a timeline reader sees where the
+	// discussion is pinned without opening the walkthrough. Omitted entirely
+	// on an unanchored comment and on activity rows.
+	Anchor      *CommentAnchorResponse `json:"anchor,omitempty"`
+	AnchorStale bool                   `json:"anchor_stale,omitempty"`
 }
 
 // timelineHardCap bounds the per-issue timeline payload. Sized as a defensive
@@ -295,6 +304,7 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			Content:        &content,
 			CommentType:    &commentType,
 			QuickActionID:  uuidToPtr(c.QuickActionID),
+			A2aIntent:      textToPtr(c.A2aIntent),
 			ParentID:       uuidToPtr(c.ParentID),
 			CreatedAt:      timestampToString(c.CreatedAt),
 			UpdatedAt:      &updatedAt,
@@ -306,6 +316,16 @@ func (h *Handler) commentsToEntries(r *http.Request, comments []db.Comment) []Ti
 			ResolvedByID:   uuidToPtr(c.ResolvedByID),
 			SourceTaskID:   uuidToPtr(c.SourceTaskID),
 		}
+	}
+	// Diff anchors (F07): resolved for the whole timeline at once, so a reply
+	// gets its thread root's anchor without a per-comment lookup.
+	anchors, stale := h.resolveCommentAnchors(r.Context(), comments[0].WorkspaceID, comments)
+	for i := range anchors {
+		if anchors[i] == nil {
+			continue
+		}
+		out[i].Anchor = anchors[i]
+		out[i].AnchorStale = stale[i]
 	}
 	return out
 }
@@ -454,4 +474,21 @@ func (h *Handler) GetAssigneeFrequency(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+// actingTaskID returns the agent run this request is being made under, read
+// from the server-trusted X-Task-ID header the CLI sets on every request.
+// Invalid (zero) when no live run is named — a human editing an issue, or an
+// agent acting outside a run. That is the whole point: only activity stamped
+// with a task id joins into that run's action lane
+// (ListTaskMessagesByUser), so human actions can never appear there.
+//
+// Same resolution as commentSourceTaskID: both answer "which run wrote this",
+// one for comment lineage and one for activity lineage.
+func (h *Handler) actingTaskID(r *http.Request) pgtype.UUID {
+	task, ok := h.taskFromRequestHeader(r)
+	if !ok {
+		return pgtype.UUID{}
+	}
+	return task.ID
 }

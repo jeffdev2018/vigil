@@ -6,6 +6,7 @@ import type { Comment, Reaction } from "./comment";
 import type { TimelineEntry } from "./activity";
 import type { Workspace, MemberWithUser, Invitation } from "./workspace";
 import type { Project } from "./project";
+import type { Cycle } from "./cycle";
 import type { Label } from "./label";
 import type { Postmortem } from "./postmortem";
 
@@ -15,6 +16,7 @@ export type WSEventType =
   | "issue:updated"
   | "issue_attachments:changed"
   | "issue:deleted"
+  | "issue:aux_changed"
   | "comment:created"
   | "comment:updated"
   | "comment:deleted"
@@ -33,6 +35,9 @@ export type WSEventType =
   | "task:failed"
   | "task:message"
   | "task:cancelled"
+  | "task:scored"
+  | "task:escalated"
+  | "task:workflow-selected"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -65,9 +70,15 @@ export type WSEventType =
   | "chat:session_read"
   | "chat:session_deleted"
   | "chat:session_updated"
+  | "chat:participant_added"
+  | "chat:participant_removed"
+  | "chat:typing"
   | "project:created"
   | "project:updated"
   | "project:deleted"
+  | "cycle:created"
+  | "cycle:updated"
+  | "cycle:deleted"
   | "squad:created"
   | "squad:updated"
   | "squad:deleted"
@@ -83,6 +94,8 @@ export type WSEventType =
   | "property:created"
   | "property:updated"
   | "issue_status:changed"
+  | "issue_type:changed"
+  | "issue_dependencies:changed"
   | "budget:updated"
   | "pin:created"
   | "pin:deleted"
@@ -96,6 +109,11 @@ export type WSEventType =
   | "pull_request:linked"
   | "pull_request:updated"
   | "pull_request:unlinked"
+  | "pr_walkthrough:updated"
+  | "epic_artifact:updated"
+  | "epic_artifact:approved"
+  | "epic_artifact:failed"
+  | "review_flag:changed"
   | "meeting:created"
   | "meeting:updated"
   | "meeting:deleted"
@@ -106,7 +124,14 @@ export type WSEventType =
   | "postmortem:resolved"
   | "workspace_note:created"
   | "workspace_note:updated"
-  | "workspace_note:deleted";
+  | "workspace_note:deleted"
+  | "cross_review:queued"
+  | "cross_review:report"
+  | "cross_review:rework"
+  | "cross_review:escalated"
+  | "critic_verdict:created"
+  | "critic_verdict:relaunch"
+  | "run_preview:updated";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -133,6 +158,11 @@ export interface IssueUpdatedPayload {
   assignee_changed?: boolean;
   status_changed?: boolean;
   project_changed?: boolean;
+  // delegate_changed (F01) plays the same role for the delegate pair: it
+  // reconciles the delegate facets and, because involves_user_id covers
+  // delegates server-side, the involved list. Absent on an older backend,
+  // which has no delegates to move anything.
+  delegate_changed?: boolean;
 }
 
 export interface IssueDeletedPayload {
@@ -179,6 +209,13 @@ export interface PropertyChangedPayload {
  * refreshes the catalog correctly.
  */
 export interface IssueStatusChangedPayload {
+  action?: "created" | "updated" | "archived" | "reordered";
+}
+
+/** The work item type catalogue moved (F30). `action` is advisory — it makes a
+ *  frame self-describing in devtools; nothing routes on it, so a future write
+ *  verb this client has never heard of still refreshes the catalogue. */
+export interface IssueTypeChangedPayload {
   action?: "created" | "updated" | "archived" | "reordered";
 }
 
@@ -275,6 +312,45 @@ export interface PostmortemResolvedPayload {
   postmortem: Postmortem;
 }
 
+/** Cross-provider review lifecycle (K15): a review was queued or reported. */
+/**
+ * Adversarial critic (F25). Deliberately carries only the issue: a verdict is
+ * read from the list endpoint, so a client that missed an event catches up by
+ * re-reading rather than by reconstructing state from payloads.
+ */
+export interface CriticVerdictEventPayload {
+  issue_id: string;
+}
+
+/**
+ * A run's dev server changed state (F12). Carries only the run and the new
+ * status: the preview is read back from its endpoint, so a client that missed
+ * an event catches up by re-reading rather than by reconstructing state.
+ */
+export interface RunPreviewUpdatedPayload {
+  task_id: string;
+  status: string;
+}
+
+export interface CrossReviewEventPayload {
+  issue_id: string;
+  review_task_id?: string;
+  verdict?: string;
+}
+
+/** A request_changes verdict sent the task back to the worker (JEF-238). */
+export interface CrossReviewReworkPayload {
+  issue_id: string;
+  task_id: string;
+  cycle: number;
+}
+
+/** The rework-cycle cap was reached; a human must decide (JEF-238). */
+export interface CrossReviewEscalatedPayload {
+  issue_id: string;
+  cycles: number;
+}
+
 export interface CommentCreatedPayload {
   comment: Comment;
   issue_revision?: number;
@@ -346,12 +422,52 @@ export interface TaskMessagePayload {
   issue_id: string;
   chat_session_id?: string;
   seq: number;
-  type: "text" | "thinking" | "tool_use" | "tool_result" | "error";
+  /**
+   * Open on the wire, never validated against an allow-list by the server, so
+   * an installed build will meet types it predates. The named values keep
+   * autocomplete useful; `string & {}` admits the rest without collapsing the
+   * hints. Every consumer must have a neutral branch for an unrecognised value.
+   *
+   * `action` is never a stored message — the server synthesizes it from the
+   * issue activity a run caused. `elicitation` is accepted and rendered but has
+   * NO producer: nothing in this repository writes one yet.
+   */
+  type:
+    | "text"
+    | "thinking"
+    | "tool_use"
+    | "tool_result"
+    | "error"
+    | "response"
+    | "action"
+    | "elicitation"
+    | (string & {});
   tool?: string;
   content?: string;
   input?: Record<string, unknown>;
   output?: string;
   created_at?: string;
+}
+
+/**
+ * One issue change a run made, projected out of activity_log by
+ * `GET /api/tasks/:id/messages`. Before/After are plain text and either may be
+ * empty: the writers that record no such pair (issue created, description
+ * updated, run finished) still produce an entry, because the fact that the run
+ * made the change is the point.
+ */
+export interface RunAction {
+  kind: "action";
+  action: string;
+  before: string;
+  after: string;
+  at: string;
+}
+
+/** A run's transcript: its own messages plus the issue changes it made. */
+export interface TaskActivityResponse {
+  messages: TaskMessagePayload[];
+  actions: RunAction[];
 }
 
 export interface TaskQueuedPayload {
@@ -421,6 +537,45 @@ export interface TaskCancelledPayload {
   status: string;
 }
 
+// task:scored (JEF-240) fires once the run's confidence score is persisted —
+// after task:completed, never instead of it. `below_threshold` is the
+// backend's verdict against the workspace threshold; when true the issue has
+// also moved into review, so consumers refresh the issue row alongside the
+// task lists.
+export interface TaskScoredPayload {
+  task_id: string;
+  issue_id: string;
+  score: number;
+  threshold: number;
+  below_threshold: boolean;
+}
+
+// task:escalated (JEF-272) fires when a below-threshold run is re-dispatched
+// to a stronger runtime: `task_id` is the NEW child task, `from_task_id` the
+// escalated run, `attempt` the 1-based count toward the workspace's
+// max_escalations cap. The child task appears in the issue's execution log,
+// so consumers refresh the issue detail alongside the task lists (the task:
+// prefix path already covers the latter).
+export interface TaskEscalatedPayload {
+  task_id: string;
+  from_task_id: string;
+  issue_id: string;
+  from_runtime_id: string;
+  to_runtime_id: string;
+  attempt: number;
+}
+
+// task:workflow-selected (JEF-273) fires once the selector has persisted the
+// task's execution strategy — before dispatch, never instead of it. `reason`
+// is one of "policy:auto" | "policy:off-default" | "auto:insufficient-data"
+// today but stays an open string so an installed client survives new reasons.
+export interface TaskWorkflowSelectedPayload {
+  task_id: string;
+  issue_id: string;
+  workflow: string;
+  reason: string;
+}
+
 export interface ReactionAddedPayload {
   reaction: Reaction;
   issue_id: string;
@@ -457,6 +612,25 @@ export interface ChatMessageEventPayload {
   content: string;
   task_id?: string;
   created_at: string;
+  /** Sender of a user message in a multiplayer session (K31). */
+  author_user_id?: string;
+}
+
+/**
+ * A member joined or left a multiplayer chat session (K31 / JEF-181). Carries
+ * identity only: receivers refetch the roster, which is the only source that
+ * also knows join order and online state.
+ */
+export interface ChatParticipantEventPayload {
+  session_id: string;
+  user_id: string;
+}
+
+/** Ephemeral typing ping. Never persisted; receivers expire it locally. */
+export interface ChatTypingPayload {
+  session_id: string;
+  user_id: string;
+  at: string;
 }
 
 export interface ChatDonePayload {
@@ -561,6 +735,26 @@ export interface ProjectDeletedPayload {
 }
 
 /**
+ * Dated cycles (F29). `cycle:updated` is emitted both for an edit and for the
+ * rollover sweep, which carries counts instead of the cycle — the client
+ * invalidates either way, so the payload is deliberately loose.
+ */
+export interface CycleCreatedPayload {
+  cycle: Cycle;
+}
+
+export interface CycleUpdatedPayload {
+  cycle?: Cycle;
+  cycle_id?: string;
+  rolled_over?: number;
+  orphaned?: number;
+}
+
+export interface CycleDeletedPayload {
+  cycle_id: string;
+}
+
+/**
  * Agent persistent-memory events (JEF-236). The server only needs to tell us
  * WHICH agent's memory list changed — both identifiers are optional because
  * the wire contract is still settling; a payload without `agent_id` falls
@@ -624,12 +818,18 @@ export interface WSEventPayloadMap {
   "issue:created": IssueCreatedPayload;
   "issue:updated": IssueUpdatedPayload;
   "issue:deleted": IssueDeletedPayload;
+  /** An answer given outside the web app (a decision card answered from Slack). */
+  "issue:aux_changed": { issue_id?: string };
   "issue_attachments:changed": IssueAttachmentsChangedPayload;
   "issue_labels:changed": IssueLabelsChangedPayload;
   "issue_properties:changed": IssuePropertiesChangedPayload;
   "property:created": PropertyChangedPayload;
   "property:updated": PropertyChangedPayload;
   "issue_status:changed": IssueStatusChangedPayload;
+  "issue_type:changed": IssueTypeChangedPayload;
+  // No payload: the Gantt re-reads the edges for the rows it is drawing, so
+  // there is nothing useful a frame could carry that would not go stale.
+  "issue_dependencies:changed": Record<string, never>;
   "budget:updated": unknown;
   "issue_reaction:added": IssueReactionAddedPayload;
   "issue_reaction:removed": IssueReactionRemovedPayload;
@@ -652,6 +852,9 @@ export interface WSEventPayloadMap {
   "task:failed": TaskFailedPayload;
   "task:message": TaskMessagePayload;
   "task:cancelled": TaskCancelledPayload;
+  "task:scored": TaskScoredPayload;
+  "task:escalated": TaskEscalatedPayload;
+  "task:workflow-selected": TaskWorkflowSelectedPayload;
   "task:progress": unknown;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;
@@ -676,9 +879,15 @@ export interface WSEventPayloadMap {
   "chat:session_read": ChatSessionReadPayload;
   "chat:session_deleted": ChatSessionDeletedPayload;
   "chat:session_updated": unknown;
+  "chat:participant_added": ChatParticipantEventPayload;
+  "chat:participant_removed": ChatParticipantEventPayload;
+  "chat:typing": ChatTypingPayload;
   "project:created": ProjectCreatedPayload;
   "project:updated": ProjectUpdatedPayload;
   "project:deleted": ProjectDeletedPayload;
+  "cycle:created": CycleCreatedPayload;
+  "cycle:updated": CycleUpdatedPayload;
+  "cycle:deleted": CycleDeletedPayload;
   "invitation:created": InvitationCreatedPayload;
   "invitation:accepted": InvitationAcceptedPayload;
   "invitation:declined": InvitationDeclinedPayload;
@@ -707,6 +916,11 @@ export interface WSEventPayloadMap {
   "pull_request:linked": unknown;
   "pull_request:updated": unknown;
   "pull_request:unlinked": unknown;
+  "pr_walkthrough:updated": unknown;
+  "epic_artifact:updated": unknown;
+  "epic_artifact:approved": unknown;
+  "epic_artifact:failed": unknown;
+  "review_flag:changed": unknown;
   "meeting:created": MeetingEventPayload;
   "meeting:updated": MeetingEventPayload;
   "meeting:deleted": MeetingEventPayload;
@@ -715,6 +929,13 @@ export interface WSEventPayloadMap {
   "triage:updated": TriageUpdatedPayload;
   "postmortem:created": PostmortemCreatedPayload;
   "postmortem:resolved": PostmortemResolvedPayload;
+  "cross_review:queued": CrossReviewEventPayload;
+  "cross_review:report": CrossReviewEventPayload;
+  "cross_review:rework": CrossReviewReworkPayload;
+  "cross_review:escalated": CrossReviewEscalatedPayload;
+  "critic_verdict:created": CriticVerdictEventPayload;
+  "critic_verdict:relaunch": CriticVerdictEventPayload;
+  "run_preview:updated": RunPreviewUpdatedPayload;
 }
 
 /**

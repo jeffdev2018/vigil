@@ -217,6 +217,14 @@ describe("RuntimeDetail visibility section", () => {
     expect(screen.getByText("Public")).toBeInTheDocument();
   });
 
+  // The full sandbox matrix lives in sandbox-editor.test.tsx; this only pins
+  // that the detail page mounts the editor under the owner gate (K10).
+  it("renders the sandbox editor for the runtime owner", () => {
+    renderDetail(makeRuntime({ owner_id: "user-me" }));
+    expect(screen.getByRole("radiogroup")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Container" })).toBeInTheDocument();
+  });
+
   it("keeps daemon CLI version details without rendering update controls", () => {
     renderDetail(
       makeRuntime({

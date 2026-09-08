@@ -25,11 +25,52 @@ const (
 	// from immutable historical source context.
 	DaemonCapabilitySourceContextQuickCreateV1 = "source_context_quick_create_v1"
 
+	// DaemonCapabilityWorktreeRevertV1 advertises that the daemon can put a
+	// conversation branch back to an earlier turn's checkpoint (F09).
+	//
+	// A capability rather than a version check, for the same reason as
+	// local-worktree-v1 and with a worse failure mode: a daemon that does not
+	// implement it json-skips pending_worktree_revert and never reports, so the
+	// request sits claimed until the stale sweeper releases it and the user
+	// watches a spinner that can never finish. The server does not enqueue at
+	// all without this string, and the UI leaves the action out.
+	DaemonCapabilityWorktreeRevertV1 = "worktree-revert-v1"
+
 	// DaemonCapabilityRPCV1 advertises that the daemon can carry
 	// request/response RPCs over the WebSocket control connection (MUL-4257).
 	// Gated so only daemons+servers that both support it route claim over WS;
 	// everyone else keeps using the HTTP claim endpoint.
 	DaemonCapabilityRPCV1 = "rpc-v1"
+	// DaemonCapabilityClaimPollHintsV1 advertises that the daemon understands
+	// the batch-claim response's safety-poll metadata. The server only performs
+	// the extra deferred-task lookup for clients that opt in, and an older
+	// server's missing fields make a newer daemon retain its short fallback.
+	DaemonCapabilityClaimPollHintsV1 = "claim-poll-hints-v1"
+
+	// DaemonCapabilityPlatformSkillV1 advertises that the daemon's runtime
+	// brief names the merged `multica-platform` skill instead of the
+	// per-domain built-ins it replaced (MUL-6986).
+	//
+	// The brief is assembled by the daemon, so a backend upgrade does not
+	// rewrite it: a daemon released before that merge still tells the agent to
+	// "read the `multica-working-on-issues` skill", a name this server no
+	// longer ships. Without this gate the pointer dangles and the agent is left
+	// hunting for a skill that is not installed. When it is absent the server
+	// ships a redirect stub under the old name; when it is present it ships
+	// nothing extra, so the stub retires itself as daemons update.
+	DaemonCapabilityPlatformSkillV1 = "platform-skill-v1"
+
+	// DaemonCapabilityRunPreviewV1 advertises that the daemon can start a run's
+	// `run` lifecycle script, probe its port, and answer the server→daemon
+	// `preview.fetch` RPC (F12).
+	//
+	// A capability rather than a version check, for the reason every other one
+	// here is: a daemon without the implementation ignores the reverse RPC
+	// frame entirely, so the relay would hang until its timeout on every single
+	// request. When it is absent the server declares the preview `loopback` —
+	// the URL is only reachable on the machine that ran it, and the web UI says
+	// so instead of handing out a link that cannot work.
+	DaemonCapabilityRunPreviewV1 = "run-preview-v1"
 
 	// AppCapabilityChatDraftRestoreV1 is advertised (X-Client-Capabilities) by
 	// app clients that understand the durable draft-restore recovery path:
@@ -77,6 +118,33 @@ type RPCResponsePayload struct {
 	Error     string          `json:"error,omitempty"`
 }
 
+// PreviewFetchRequest is the body of the server→daemon `preview.fetch` RPC
+// (F12). The server has already resolved the share link and the run; the daemon
+// only has to reach 127.0.0.1 on the run's port and hand back what it got.
+//
+// Headers are the allow-listed subset the proxy forwards — the daemon does not
+// re-filter them, because the filter that matters is the one applied before the
+// request left the server.
+type PreviewFetchRequest struct {
+	TaskID  string              `json:"task_id"`
+	Method  string              `json:"method"`
+	Path    string              `json:"path"`
+	Query   string              `json:"query,omitempty"`
+	Headers map[string][]string `json:"headers,omitempty"`
+	// Body is base64 so the JSON envelope stays valid for any byte sequence.
+	Body string `json:"body,omitempty"`
+}
+
+// PreviewFetchResponse is what the daemon read back off the local port.
+// Truncated is set when the body hit the cap: the visitor gets what fits rather
+// than nothing, and the flag is what lets the proxy say why.
+type PreviewFetchResponse struct {
+	Status    int                 `json:"status"`
+	Headers   map[string][]string `json:"headers,omitempty"`
+	Body      string              `json:"body,omitempty"`
+	Truncated bool                `json:"truncated,omitempty"`
+}
+
 // Message is the envelope for all WebSocket messages.
 type Message struct {
 	Type    string          `json:"type"`
@@ -121,6 +189,7 @@ const (
 	PendingWorkKindCliAuth          = "cli_auth"
 	PendingWorkKindLocalSkills      = "local_skills"
 	PendingWorkKindLocalSkillImport = "local_skill_import"
+	PendingWorkKindWorktreeRevert   = "worktree_revert"
 )
 
 // PendingWorkPayload is sent from server to daemon as a wakeup hint when a
@@ -142,11 +211,32 @@ type TaskProgressPayload struct {
 	Total   int    `json:"total,omitempty"`
 }
 
+// TaskDiffStat summarises what one run changed, as `git diff --numstat`
+// reports it. Its shape is read verbatim by the run-comparison UI (F11), so the
+// three field names are part of the contract and must not be renamed. Binary
+// files count toward Files and contribute no lines.
+type TaskDiffStat struct {
+	Files      int `json:"files"`
+	Insertions int `json:"insertions"`
+	Deletions  int `json:"deletions"`
+}
+
 // TaskCompletedPayload is sent from daemon to server when a task finishes.
 type TaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	PRURL  string `json:"pr_url,omitempty"`
 	Output string `json:"output,omitempty"`
+	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered on
+	// its branch, measured against the commit its worktree started from. Sent
+	// only for a task the claim marked as an attempt, so an ordinary run pays
+	// nothing for them.
+	//
+	// DiffUnified is omitted when the patch exceeded the daemon's byte bound:
+	// the stat alone then tells the UI the diff exists and was truncated. The
+	// server stores these on the task row and does NOT keep DiffUnified in the
+	// task result, so the patch is persisted once.
+	DiffStat    *TaskDiffStat `json:"diff_stat,omitempty"`
+	DiffUnified string        `json:"diff_unified,omitempty"`
 }
 
 // ChatQuickActionsPayload supplements one completed chat turn with the
@@ -169,10 +259,27 @@ type ChatQuickActionsPayload struct {
 
 // TaskMessagePayload represents a single agent execution message (tool call, text, etc.)
 type TaskMessagePayload struct {
-	TaskID    string         `json:"task_id"`
-	IssueID   string         `json:"issue_id,omitempty"`
-	Seq       int            `json:"seq"`
-	Type      string         `json:"type"`              // "text", "tool_use", "tool_result", "error"
+	TaskID  string `json:"task_id"`
+	IssueID string `json:"issue_id,omitempty"`
+	Seq     int    `json:"seq"`
+	// Type is open on the wire, never validated against an allow-list on
+	// ingest. Eight values are produced or accepted today:
+	//
+	//	thinking, text, tool_use, tool_result, error  — written by the daemon
+	//	response                                      — the run's final answer
+	//	action                                        — issue changes, never
+	//	                                                written as a message;
+	//	                                                joined from activity_log
+	//	                                                by ListTaskMessagesByUser
+	//	elicitation                                   — accepted and rendered,
+	//	                                                but NO producer exists
+	//	                                                yet: nothing in this
+	//	                                                repository writes it.
+	//
+	// A client must treat an unrecognised value as a neutral note rather than
+	// dropping it — a newer daemon may report a type an installed build
+	// predates.
+	Type      string         `json:"type"`
 	Tool      string         `json:"tool,omitempty"`    // tool name for tool_use/tool_result
 	Content   string         `json:"content,omitempty"` // text content
 	Input     map[string]any `json:"input,omitempty"`   // tool input (tool_use only)
@@ -202,6 +309,9 @@ type ChatMessagePayload struct {
 	Content       string `json:"content"`
 	TaskID        string `json:"task_id,omitempty"`
 	CreatedAt     string `json:"created_at"`
+	// AuthorUserID is the human who sent a user message in a multiplayer
+	// session (K31). Empty on assistant turns and on non-web ingress.
+	AuthorUserID string `json:"author_user_id,omitempty"`
 }
 
 // Chat message kinds (chat_message.message_kind). Additive: unknown values
@@ -321,6 +431,23 @@ type ChatSessionDeletedPayload struct {
 	ChatSessionID string `json:"chat_session_id"`
 }
 
+// ChatParticipantPayload is broadcast when a member is added to or removed
+// from a multiplayer chat session (K31 / JEF-181). Carries identity only —
+// receivers refetch the roster, which is the only thing that also knows the
+// joined_at ordering and online state.
+type ChatParticipantPayload struct {
+	ChatSessionID string `json:"session_id"`
+	UserID        string `json:"user_id"`
+}
+
+// ChatTypingPayload is an ephemeral "X is typing" ping. Nothing persists it;
+// receivers show the indicator and expire it locally after a few seconds.
+type ChatTypingPayload struct {
+	ChatSessionID string `json:"session_id"`
+	UserID        string `json:"user_id"`
+	At            string `json:"at"`
+}
+
 // ChatSessionUpdatedPayload is broadcast when a user-editable field on a
 // chat session changes (today: title via inline rename). Other tabs/devices
 // patch the session row in their cached list so the dropdown stays in sync
@@ -376,6 +503,11 @@ type DaemonHeartbeatAckPayload struct {
 	// that don't know this field silently ignore it (standard JSON behavior)
 	// and fall back to the singular PendingLocalSkillImport above.
 	PendingLocalSkillImports []DaemonHeartbeatPendingLocalSkillImport `json:"pending_local_skill_imports,omitempty"`
+	// PendingWorktreeRevert carries a claimed revert request (F09). Only ever
+	// set for a daemon advertising DaemonCapabilityWorktreeRevertV1: the claim
+	// is destructive and a daemon that silently ignores the field would strand
+	// the request in 'claimed'.
+	PendingWorktreeRevert *DaemonHeartbeatPendingWorktreeRevert `json:"pending_worktree_revert,omitempty"`
 }
 
 // HeartbeatStatusRuntimeGone is the ack Status used when the runtime row no
@@ -414,4 +546,20 @@ type DaemonHeartbeatPendingLocalSkills struct {
 type DaemonHeartbeatPendingLocalSkillImport struct {
 	ID       string `json:"id"`
 	SkillKey string `json:"skill_key"`
+}
+
+// DaemonHeartbeatPendingWorktreeRevert describes a request to put a
+// conversation branch back to the turn Checkpoint recorded (F09).
+//
+// Everything the daemon needs is here, so the work never depends on a second
+// round trip that could see a different state: the repository (LocalPath), the
+// branch, the target turn's record, and the runs whose turn refs go with it.
+type DaemonHeartbeatPendingWorktreeRevert struct {
+	ID         string `json:"id"`
+	LocalPath  string `json:"local_path"`
+	Branch     string `json:"branch"`
+	Checkpoint string `json:"checkpoint"`
+	// LaterTaskIDs are the runs after the target turn, whose turn refs the
+	// daemon drops once the branch is back.
+	LaterTaskIDs []string `json:"later_task_ids,omitempty"`
 }

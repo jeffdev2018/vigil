@@ -83,3 +83,80 @@ func TestProviderArgs(t *testing.T) {
 		t.Fatal("nothing to append when the provider cannot enforce anything")
 	}
 }
+
+// AllowedCommands is told to the model and nothing checks it. That is not an
+// oversight to fix here: an allowlist has to say "only these", and the
+// provider surfaces this package drives are deny lists with prefix matching.
+// This pins the boundary so a later reader does not mistake the prompt
+// paragraph for a control, and so a change that starts emitting deny rules
+// from an allowlist has to say what it means.
+func TestAllowedCommandsProducesNoProviderRule(t *testing.T) {
+	restricted := Profile{Name: "narrow", AllowedCommands: []string{"git status", "make test"}}
+
+	if got := restricted.ClaudeSettingsJSON(); got != "" {
+		t.Errorf("ClaudeSettingsJSON = %q: an allowlist cannot be expressed as deny rules, and pretending otherwise would refuse the wrong things", got)
+	}
+	if got := restricted.CodexArgs(); got != nil {
+		t.Errorf("CodexArgs = %v, want none: Codex exposes read-only, not a command allowlist", got)
+	}
+	if got := restricted.ProviderArgs("claude"); got != nil {
+		t.Errorf("ProviderArgs(claude) = %v, want none", got)
+	}
+	if restricted.AllowsAnyCommand() {
+		t.Error("a narrow list must still read as narrow: the prompt paragraph depends on it")
+	}
+	// The one place it does appear, so the model at least reads it.
+	if section := restricted.PromptSection(); !strings.Contains(section, "git status, make test") {
+		t.Errorf("prompt section must list the commands, got %q", section)
+	}
+
+	// And the fields that ARE enforced still produce their rules, so this test
+	// fails if someone silences the whole payload rather than just the
+	// allowlist.
+	enforced := Profile{Name: "code", ReadOnly: true, DeniedPaths: []string{".env"}}
+	if enforced.ClaudeSettingsJSON() == "" {
+		t.Error("read_only and denied_paths must still reach Claude's deny rules")
+	}
+	if len(enforced.CodexArgs()) == 0 {
+		t.Error("read_only must still reach Codex")
+	}
+}
+
+// HidesSecretNamed separates "withhold the workspace's secrets" from "withhold
+// this variable". Only the second may stop the run's own model credential from
+// being delivered: a profile whose HiddenSecrets is "*" that also withheld the
+// key paying for the run would not be restrictive, it would be broken.
+func TestHidesSecretNamed(t *testing.T) {
+	blanket := Profile{Name: "read_only", HiddenSecrets: []string{"*"}}
+	if !blanket.HidesSecret("ANTHROPIC_API_KEY") {
+		t.Fatal("the blanket glob still hides workspace secrets")
+	}
+	if blanket.HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error(`"*" says nothing about this variable in particular`)
+	}
+
+	named := Profile{Name: "gateway", HiddenSecrets: []string{"ANTHROPIC_API_KEY"}}
+	if !named.HidesSecretNamed("anthropic_api_key") {
+		t.Error("naming the variable is an instruction about it, case aside")
+	}
+
+	pattern := Profile{Name: "no-keys", HiddenSecrets: []string{"*_API_KEY"}}
+	if !pattern.HidesSecretNamed("OPENAI_API_KEY") {
+		t.Error("a pattern that says something about API keys is deliberate too")
+	}
+	if pattern.HidesSecretNamed("DATABASE_URL") {
+		t.Error("a pattern that does not match must not withhold")
+	}
+
+	mixed := Profile{Name: "mixed", HiddenSecrets: []string{"*", "*_TOKEN"}}
+	if mixed.HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error("the blanket is ignored and the other pattern does not match")
+	}
+	if !mixed.HidesSecretNamed("GITHUB_TOKEN") {
+		t.Error("a deliberate pattern beside the blanket still counts")
+	}
+
+	if (Profile{Name: "open"}).HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error("no hidden secrets, nothing named")
+	}
+}

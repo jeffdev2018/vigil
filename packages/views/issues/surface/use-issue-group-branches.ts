@@ -129,6 +129,11 @@ function issueMatchesDescriptor(
     }
     case "status":
       return issue.status === owner.status;
+    default:
+      // A group kind this build does not know. Claiming the issue belongs to
+      // the lane would put every issue in it; claiming it does not is the
+      // honest answer for a dimension we cannot evaluate.
+      return false;
   }
 }
 
@@ -335,6 +340,7 @@ export function useIssueGroupBranches({
     pageResults,
     pageTargets,
     primaryByBranch,
+    secondaryIsCategory,
   ]);
 
   const headRevisionRef = useRef<{

@@ -125,6 +125,14 @@ func (h *Handler) openGate(ctx context.Context, task db.AgentTaskQueue, gateType
 	if err != nil {
 		return db.ApprovalGateEvent{}, fmt.Errorf("load workspace: %w", err)
 	}
+	// A halt reaches the runs already in flight here. They keep their tools
+	// and their config — those were resolved at claim and cannot be taken
+	// back — but every action that asks first is refused, which is every
+	// action the product calls consequential. The caller treats an error as a
+	// refusal, so this is the existing fail-closed path, not a new one.
+	if halt := service.RunHaltFromSettings(ws.Settings); halt.Halted {
+		return db.ApprovalGateEvent{}, errors.New(halt.Message())
+	}
 	cfg := service.ApprovalGatesSettings(ws.Settings)
 	label := map[string]string{GateGitPush: "git push", GateMCPToolCall: "tool call", GateSpend: "spend"}[gateType]
 	options, _ := json.Marshal([]DecisionOption{
@@ -241,7 +249,20 @@ func (h *Handler) gateDualApproval(ctx context.Context, gate db.ApprovalGateEven
 		Required  int      `json:"required_approvals"`
 		Approvers []string `json:"approvers"`
 	}
-	if json.Unmarshal(gate.Details, &d) != nil || d.Required < 2 {
+	if err := json.Unmarshal(gate.Details, &d); err != nil {
+		// Unreadable details cannot prove a second approver is NOT required, and
+		// this is the one gate where getting that wrong lets an irreversible
+		// action through on a single approval. The column is JSONB NOT NULL
+		// DEFAULT '{}', so an empty gate parses fine and lands on the
+		// `Required < 2` branch below; reaching here means the shape itself is
+		// wrong — a value of an unexpected type, most likely written by a
+		// `details || extra` merge. Require the second approver instead of
+		// settling: the worst case becomes one extra human, and the next
+		// approval re-writes `approvers` in a readable shape.
+		slog.Warn("approval gate: unreadable details, requiring a second approver",
+			"gate_id", uuidToString(gate.ID), "gate_type", gate.GateType, "error", err)
+		d.Required, d.Approvers = 2, nil
+	} else if d.Required < 2 {
 		return true
 	}
 	seen := false

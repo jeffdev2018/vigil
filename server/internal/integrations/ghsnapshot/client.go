@@ -43,6 +43,9 @@ const (
 	// in-flight request never races the expiry boundary. GitHub tokens live
 	// one hour.
 	tokenRenewSkew = 5 * time.Minute
+	// maxDiffFetchBytes bounds one PullRequestDiff read. The walkthrough caps
+	// the diff again (ghdiff.Cap) after parsing; this is only the wire ceiling.
+	maxDiffFetchBytes = 8 << 20
 )
 
 // RateLimitError signals that GitHub asked us to back off. RetryAfter is how
@@ -318,10 +321,16 @@ func (c *Client) PullRequestDiff(ctx context.Context, installationID int64, owne
 		return "", err
 	}
 	defer resp.Body.Close()
+	// A throttled diff fetch is a "come back later", not a permanent failure.
+	// Reporting it as a bare status made every caller — cross review and the
+	// PR walkthrough alike — treat a rate limit as a dead PR.
+	if resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests {
+		return "", rateLimitFromResponse(resp, c.now())
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("github diff: status %d", resp.StatusCode)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxDiffFetchBytes))
 	if err != nil {
 		return "", err
 	}

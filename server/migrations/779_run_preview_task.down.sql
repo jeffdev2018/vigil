@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS uq_run_preview_task;

@@ -26,6 +26,15 @@ import {
   Info,
   Coins,
   GitBranch,
+  Zap,
+  Layers,
+  Scale,
+  GitCommitHorizontal,
+  MessageSquare,
+  MessageCircleQuestion,
+  RefreshCw,
+  Settings,
+  Download,
 } from "lucide-react";
 import { cn } from "@multica/ui/lib/utils";
 import { copyText } from "@multica/ui/lib/clipboard";
@@ -43,6 +52,7 @@ import {
 import { ActorAvatar } from "../actor-avatar";
 import { AttributionBadge } from "../../issues/components/attribution-badge";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
+import type { useT as useTypedT } from "../../i18n";
 import { RichContent } from "../../rich-content";
 import { api } from "@multica/core/api";
 import {
@@ -50,8 +60,9 @@ import {
   type TranscriptFilterKey,
   type TranscriptSortDirection,
 } from "@multica/core/agents/stores";
-import type { AgentTask, Agent, AgentRuntime } from "@multica/core/types/agent";
+import type { AgentTask, Agent, AgentRuntime, RunPlan as RunPlanData } from "@multica/core/types/agent";
 import { resolveWorkdirCopyTarget } from "@multica/core/issues";
+import { workflowSelectionReason } from "@multica/core/issues/workflow-policy";
 import { runtimeDisplayName, providerDisplayName } from "@multica/core/runtimes";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { redactSecrets } from "./redact";
@@ -60,7 +71,8 @@ import {
   FOLLOW_EDGE_THRESHOLD,
   LINE_SCROLL_PX,
 } from "./transcript-follow";
-import type { TimelineItem } from "./build-timeline";
+import { PLAN_MESSAGE_TYPE, type TimelineItem } from "./build-timeline";
+import { RunPlan } from "./run-plan";
 import {
   buildLanes,
   buildSteps,
@@ -83,6 +95,7 @@ import {
   readImageResult,
   traceEventCopyText,
   traceEventDetail,
+  traceActionSummary,
   traceEventLabel,
   traceEventSummary,
   traceToolArgSummary,
@@ -95,6 +108,9 @@ import {
   ToolDetailSurface,
 } from "./detail-surfaces";
 import { languageForPath } from "./diff-highlight";
+import { toast } from "sonner";
+import { useOptionalNavigation } from "../../navigation";
+import { paths as buildPaths, useWorkspaceSlug } from "@multica/core/paths";
 import { useLocale, useT } from "../../i18n";
 import {
   formatTokens,
@@ -191,6 +207,12 @@ function StepIcon({ step, className }: { step: TraceStep; className?: string }) 
   if (!isCallStep(step)) {
     if (step.kind === "thinking") return <Brain className={className} />;
     if (step.kind === "error") return <CircleAlert className={className} />;
+    if (step.kind === "response") return <MessageSquare className={className} />;
+    if (step.kind === "action") return <GitCommitHorizontal className={className} />;
+    if (step.kind === "elicitation") return <MessageCircleQuestion className={className} />;
+    // `note` and anything else: a kind this build does not know renders as a
+    // neutral marker rather than borrowing another kind's glyph.
+    if (step.kind === "note") return <Info className={className} />;
     return <Bot className={className} />;
   }
 
@@ -307,6 +329,12 @@ export function AgentTranscriptDialog({
   headerSlot,
 }: AgentTranscriptDialogProps) {
   const { t } = useT("agents");
+  // Optional on purpose: the transcript is rendered from issue cards, agent
+  // tabs and chat, and nothing guarantees a NavigationProvider or a
+  // workspace-scoped route above every one of them. A remediation that needs
+  // routing is offered only where routing exists — never as a dead button.
+  const navigate = useOptionalNavigation();
+  const workspaceSlug = useWorkspaceSlug();
   const locale = useLocale();
   const [selectedSeq, setSelectedSeq] = useState<number | null>(null);
   const [expandedGroups, setExpandedGroups] = useState<Set<number>>(() => new Set());
@@ -321,6 +349,9 @@ export function AgentTranscriptDialog({
   // router actually chose (which may differ from task.runtime_id on older
   // backends) and resolve candidate names in the ⓘ popover.
   const [runtimes, setRuntimes] = useState<AgentRuntime[]>([]);
+  // The workspace's escalation cap (JEF-272), fetched only when this run is
+  // an escalation child so the ⓘ popover can show "attempt N/max".
+  const [maxEscalations, setMaxEscalations] = useState<number | null>(null);
   const workdirCopyTarget = useMemo(
     () => resolveWorkdirCopyTarget([task]),
     [task],
@@ -458,7 +489,42 @@ export function AgentTranscriptDialog({
 
   // One step per tool call, with its result folded in — see build-steps.ts for
   // why the pairing is positional.
-  const steps = useMemo(() => buildSteps(items), [items]);
+  // The suggested fix for a remediable error. Rerun targets THIS run's agent
+  // (see execution-log-section: without the task id the endpoint falls back to
+  // the issue's current assignee, which is the wrong agent whenever the run's
+  // agent has since been displaced). The two configuration remediations leave
+  // the transcript for the runtimes page, where both credentials and CLI
+  // installation live.
+  const handleRemediate = useCallback(
+    (key: RemediationKey) => {
+      if (key === "rerun") {
+        if (!task.issue_id) return;
+        void api.rerunIssue(task.issue_id, task.id).catch((e) => {
+          toast.error(e instanceof Error ? e.message : t(($) => $.transcript.remediation_failed));
+        });
+        return;
+      }
+      if (!navigate || !workspaceSlug) return;
+      onOpenChange(false);
+      navigate.push(buildPaths.workspace(workspaceSlug).runtimes());
+    },
+    [navigate, onOpenChange, t, task.id, task.issue_id, workspaceSlug],
+  );
+
+  // Which remediations this mount can actually perform. Rerun needs an issue;
+  // the configuration ones need somewhere to navigate to.
+  const availableRemediations = useMemo<RemediationKey[]>(() => {
+    const out: RemediationKey[] = [];
+    if (task.issue_id) out.push("rerun");
+    if (navigate && workspaceSlug) out.push("runtime_settings", "install_cli");
+    return out;
+  }, [navigate, task.issue_id, workspaceSlug]);
+
+  const steps = useMemo(() => {
+    const built = buildSteps(items);
+    if (task.status !== "failed") return built;
+    return built.filter((step) => step.kind !== "response");
+  }, [items, task.status]);
 
   // A facet reads as what its rows look like: the glyph the rows carry, and the
   // name the rows print. The first step of a kind stands in for the glyph. The
@@ -473,7 +539,7 @@ export function AgentTranscriptDialog({
         label:
           step.kind === "call"
             ? step.tool || t(($) => $.transcript.kind_tool)
-            : traceEventLabel({ type: step.item.type, tool: step.item.tool }),
+            : messageStepLabel(step, t),
         step,
       });
     }
@@ -615,10 +681,22 @@ export function AgentTranscriptDialog({
       api.listRuntimes().then((list) => {
         if (!cancelled) setRuntimes(list);
       }).catch(() => {});
+    } else if (task.escalation?.from_runtime_id) {
+      // Escalated child runs (JEF-272) need the list too, to name the
+      // runtime the origin run escalated away from.
+      api.listRuntimes().then((list) => {
+        if (!cancelled) setRuntimes(list);
+      }).catch(() => {});
+    }
+
+    if (task.escalation) {
+      api.getConfidenceReviewSettings().then((s) => {
+        if (!cancelled) setMaxEscalations(s.max_escalations);
+      }).catch(() => {});
     }
 
     return () => { cancelled = true; };
-  }, [open, task.agent_id, task.runtime_id, task.routing?.chosen_runtime_id]);
+  }, [open, task.agent_id, task.runtime_id, task.routing?.chosen_runtime_id, task.escalation]);
 
   // Elapsed time for live tasks
   useEffect(() => {
@@ -828,6 +906,43 @@ export function AgentTranscriptDialog({
     const found = runtimes.find((r) => r.id === runtimeId);
     return found ? runtimeDisplayName(found) : runtimeId;
   };
+  // Confidence score (JEF-240): the header chip carries the percentage, the
+  // ⓘ popover the rationale / model / threshold. `below_threshold` is the
+  // backend's verdict; fall back to comparing against the record's own
+  // threshold when the field predates it.
+  const confidence = task.confidence ?? null;
+  const confidenceBelowThreshold = confidence
+    ? (confidence.below_threshold ??
+      (confidence.threshold != null && confidence.score < confidence.threshold))
+    : false;
+  // Escalation (JEF-272): when set, this run is the child a below-threshold
+  // run was re-dispatched as. The header chip names the runtime it escalated
+  // from; the ⓘ popover carries the reason and the attempt count.
+  const escalation = task.escalation ?? null;
+  // Workflow selector (JEF-273): which strategy this run executed under. The
+  // header chip names it; the ⓘ popover adds the selection reason when this
+  // session saw the task:workflow-selected event (the reason rides only that
+  // event, not the task payload).
+  const workflow = task.workflow ?? null;
+  const workflowLabel =
+    workflow === "single"
+      ? t(($) => $.transcript.workflow_single)
+      : workflow === "cascade"
+        ? t(($) => $.transcript.workflow_cascade)
+        : workflow === "critique"
+          ? t(($) => $.transcript.workflow_critique)
+          : null;
+  const WorkflowIcon =
+    workflow === "cascade" ? Layers : workflow === "critique" ? Scale : Zap;
+  const workflowReason = workflow ? workflowSelectionReason(task.id) : undefined;
+  const workflowReasonLabel =
+    workflowReason === "policy:auto"
+      ? t(($) => $.transcript.workflow_reason_policy_auto)
+      : workflowReason === "policy:off-default"
+        ? t(($) => $.transcript.workflow_reason_policy_off_default)
+        : workflowReason === "auto:insufficient-data"
+          ? t(($) => $.transcript.workflow_reason_insufficient_data)
+          : (workflowReason ?? null);
   const createdLabel = task.created_at ? formatRunTime(task.created_at, locale) : null;
   const startedLabel = task.started_at ? formatRunTime(task.started_at, locale) : null;
   const completedLabel = task.completed_at ? formatRunTime(task.completed_at, locale) : null;
@@ -856,6 +971,9 @@ export function AgentTranscriptDialog({
   const hasRunDetails =
     !!runtimeInfo ||
     !!routing ||
+    !!confidence ||
+    !!escalation ||
+    !!workflow ||
     !!workdirCopyTarget?.relativePath ||
     !!task.branch_name ||
     !!reasonLabel ||
@@ -933,6 +1051,63 @@ export function AgentTranscriptDialog({
                       : t(($) => $.transcript.routed_to, {
                           name: routingRuntimeName(routing.chosen_runtime_id),
                         })}
+                  </span>
+                </>
+              )}
+              {confidence && (
+                <>
+                  <FactDot />
+                  {/* How much the scorer trusts this run's output. Green at or
+                      above the review threshold, amber under it — the color is
+                      the signal, the number the detail. */}
+                  <span
+                    data-testid="confidence-chip"
+                    title={t(($) => $.transcript.confidence_chip_title)}
+                    className={cn(
+                      "shrink-0 rounded-full border px-1.5 py-px text-micro font-medium tabular-nums",
+                      confidenceBelowThreshold
+                        ? "border-warning/30 bg-warning/10 text-warning"
+                        : "border-success/30 bg-success/10 text-success",
+                    )}
+                  >
+                    {t(($) => $.transcript.confidence_chip, {
+                      score: Math.round(confidence.score * 100),
+                    })}
+                  </span>
+                </>
+              )}
+              {escalation && (
+                <>
+                  <FactDot />
+                  {/* This run exists because a previous run scored under the
+                      review threshold and was re-dispatched to a stronger
+                      runtime — the chip names where it came from. */}
+                  <span
+                    data-testid="escalation-chip"
+                    title={t(($) => $.transcript.escalation_chip_title)}
+                    className="shrink-0 rounded-full border border-info/30 bg-info/10 px-1.5 py-px text-micro font-medium tabular-nums text-info"
+                  >
+                    {t(($) => $.transcript.escalation_chip, {
+                      name: routingRuntimeName(escalation.from_runtime_id),
+                      attempt: escalation.attempt,
+                    })}
+                  </span>
+                </>
+              )}
+              {workflow && workflowLabel && (
+                <>
+                  <FactDot />
+                  {/* Which execution strategy the selector picked for this run
+                      (JEF-273). The icon is the at-a-glance distinction, the
+                      word the accessible one; the reason lives in the ⓘ
+                      popover. */}
+                  <span
+                    data-testid="workflow-chip"
+                    title={t(($) => $.transcript.workflow_chip_title)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-info/30 bg-info/10 px-1.5 py-px text-micro font-medium text-info"
+                  >
+                    <WorkflowIcon aria-hidden="true" className="h-3 w-3" />
+                    {workflowLabel}
                   </span>
                 </>
               )}
@@ -1052,6 +1227,78 @@ export function AgentTranscriptDialog({
                             })}
                           </ul>
                         </div>
+                      )}
+                      {confidence && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_confidence_score)}
+                            value={t(($) => $.transcript.details_confidence_score_value, {
+                              score: Math.round(confidence.score * 100),
+                            })}
+                          />
+                          {confidence.model && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_model)}
+                              value={confidence.model}
+                            />
+                          )}
+                          {confidence.threshold != null && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_threshold)}
+                              value={t(
+                                ($) => $.transcript.details_confidence_threshold_value,
+                                { threshold: Math.round(confidence.threshold * 100) },
+                              )}
+                            />
+                          )}
+                          {confidence.rationale && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_confidence_rationale)}
+                              value={confidence.rationale}
+                            />
+                          )}
+                        </>
+                      )}
+                      {escalation && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_from)}
+                            value={routingRuntimeName(escalation.from_runtime_id)}
+                          />
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_reason)}
+                            value={
+                              escalation.reason === "below_threshold"
+                                ? t(($) => $.transcript.details_escalation_reason_below_threshold)
+                                : escalation.reason
+                            }
+                          />
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_escalation_attempt)}
+                            value={
+                              maxEscalations != null
+                                ? t(($) => $.transcript.details_escalation_attempt_value, {
+                                    attempt: escalation.attempt,
+                                    max: maxEscalations,
+                                  })
+                                : String(escalation.attempt)
+                            }
+                          />
+                        </>
+                      )}
+                      {workflow && workflowLabel && (
+                        <>
+                          <RunDetailRow
+                            label={t(($) => $.transcript.details_workflow)}
+                            value={workflowLabel}
+                          />
+                          {workflowReasonLabel && (
+                            <RunDetailRow
+                              label={t(($) => $.transcript.details_workflow_reason)}
+                              value={workflowReasonLabel}
+                            />
+                          )}
+                        </>
                       )}
                       {workdirCopyTarget?.relativePath && (
                         <RunDetailRow
@@ -1364,6 +1611,8 @@ export function AgentTranscriptDialog({
               step={selectedStep}
               runStartMs={runStartMs}
               onClose={() => setSelectedSeq(null)}
+              onRemediate={handleRemediate}
+              availableRemediations={availableRemediations}
             />
           )}
         </div>
@@ -1546,6 +1795,36 @@ function ProseRow({ row, runStartMs }: TranscriptRowProps & { row: TraceMessageS
 
 /** One call, one thinking block, or one error: a line, with its detail one
  *  click away in the inspector. */
+/**
+ * The row label for a message step.
+ *
+ * An action prints its own action name verbatim, the way a tool row prints its
+ * tool name — translating `status_changed` would hide which writer produced the
+ * row. A kind this build does not know prints its raw wire type for the same
+ * reason: a neutral note that names itself beats a plausible-looking lie.
+ */
+type AgentsT = ReturnType<typeof useTypedT<"agents">>["t"];
+
+function messageStepLabel(step: TraceMessageStep, t: AgentsT): string {
+  switch (step.kind) {
+    case "thinking":
+      return t(($) => $.transcript.kind_thinking);
+    case "error":
+      return t(($) => $.transcript.kind_error);
+    case "response":
+      return t(($) => $.transcript.kind_response);
+    case "elicitation":
+      return t(($) => $.transcript.kind_elicitation);
+    case "action":
+      return step.item.content || t(($) => $.transcript.kind_action);
+    default:
+      // "text" and any kind this build does not know: the presenter already
+      // names both — "Agent" for prose, the raw wire type otherwise — and the
+      // filter facet has printed exactly that since before F03.
+      return traceEventLabel({ type: step.item.type, tool: step.item.tool });
+  }
+}
+
 function StepRow({
   row,
   runStartMs,
@@ -1563,14 +1842,13 @@ function StepRow({
   );
 
   const call = isCallStep(row) ? row : null;
-  const label = call
-    ? call.tool || t(($) => $.transcript.kind_tool)
-    : row.kind === "thinking"
-      ? t(($) => $.transcript.kind_thinking)
-      : t(($) => $.transcript.kind_error);
+  const message = call ? null : (row as TraceMessageStep);
+  const label = call ? call.tool || t(($) => $.transcript.kind_tool) : messageStepLabel(message!, t);
   const summary = call
     ? callSummary(call, summaryLabels)
-    : firstLineOf((row as TraceMessageStep).item.content);
+    : message!.kind === "action"
+      ? traceActionSummary(message!.item.input)
+      : firstLineOf(message!.item.content);
   const pending = call !== null && isLive && !call.result;
   const selected = selectedSeq === row.seq;
 
@@ -1730,10 +2008,14 @@ function StepInspector({
   step,
   runStartMs,
   onClose,
+  onRemediate,
+  availableRemediations,
 }: {
   step: TraceStep;
   runStartMs?: number;
   onClose: () => void;
+  onRemediate: (key: RemediationKey) => void;
+  availableRemediations: RemediationKey[];
 }) {
   const { t } = useT("agents");
   const [copied, showCopied] = useCopyFeedback();
@@ -1814,12 +2096,79 @@ function StepInspector({
             )}
           </>
         ) : (
-          <InspectorSection label={title}>
-            <ToolDetailSurface text={redactSecrets(message?.item.content ?? "")} />
-          </InspectorSection>
+          <>
+            <InspectorSection label={title}>
+              <ToolDetailSurface text={redactSecrets(message?.item.content ?? "")} />
+            </InspectorSection>
+            {message && (
+              <StepRemediation
+                item={message.item}
+                onRemediate={onRemediate}
+                available={availableRemediations}
+              />
+            )}
+          </>
         )}
       </div>
     </aside>
+  );
+}
+
+/**
+ * The three remediations the daemon can name. Anything else — including a key
+ * a newer daemon added — renders no button rather than a dead one.
+ */
+const REMEDIATION_ACTIONS = {
+  rerun: { icon: RefreshCw, labelKey: "remediation_rerun" },
+  runtime_settings: { icon: Settings, labelKey: "remediation_runtime_settings" },
+  install_cli: { icon: Download, labelKey: "remediation_install_cli" },
+} as const;
+
+export type RemediationKey = keyof typeof REMEDIATION_ACTIONS;
+
+function remediationKeyOf(item: TimelineItem): RemediationKey | null {
+  const key = item.input?.remediation;
+  return typeof key === "string" && key in REMEDIATION_ACTIONS ? (key as RemediationKey) : null;
+}
+
+/**
+ * The suggested fix for a remediable error, sitting under the error text.
+ *
+ * It lives in the inspector rather than beside the row because the row is
+ * itself a button (selecting the step) and a nested button is invalid markup.
+ * The reason label reuses failureReasonLabel so the transcript names a failure
+ * with exactly the words the run header uses.
+ */
+function StepRemediation({
+  item,
+  onRemediate,
+  available,
+}: {
+  item: TimelineItem;
+  onRemediate: (key: RemediationKey) => void;
+  available: RemediationKey[];
+}) {
+  const { t } = useT("agents");
+  const suggested = remediationKeyOf(item);
+  const key = suggested && available.includes(suggested) ? suggested : null;
+  const reason = typeof item.input?.reason === "string" ? item.input.reason : null;
+  const reasonLabel = failureReasonLabel(reason, t);
+  if (!key && !reasonLabel) return null;
+
+  const action = key ? REMEDIATION_ACTIONS[key] : null;
+  const Icon = action?.icon;
+  return (
+    <InspectorSection label={t(($) => $.transcript.remediation_label)}>
+      <div className="flex flex-wrap items-center gap-2 px-2 py-1">
+        {reasonLabel && <span className="text-caption text-muted-foreground">{reasonLabel}</span>}
+        {action && Icon && (
+          <Button size="sm" variant="outline" onClick={() => onRemediate(key!)}>
+            <Icon className="h-3.5 w-3.5" />
+            {t(($) => $.transcript[action.labelKey])}
+          </Button>
+        )}
+      </div>
+    </InspectorSection>
   );
 }
 
@@ -1839,6 +2188,18 @@ function StepBody({ item }: { item: TimelineItem }) {
   const { t } = useT("agents");
   const detail = useMemo(() => traceEventDetail(item), [item]);
   const image = useMemo(() => readImageResult(item.output), [item.output]);
+  const plan = useMemo(() => readRunPlanItem(item), [item]);
+
+  // A plan is a checklist, not a JSON blob: render the version the run
+  // published at this point in the transcript, expanded, since the reader
+  // opened the row precisely to see it.
+  if (plan) {
+    return (
+      <div className="px-2 py-1">
+        <RunPlan plan={plan} />
+      </div>
+    );
+  }
 
   // A screenshot is a picture, not a 200KB base64 string in a <pre>.
   if (image) {
@@ -1873,6 +2234,25 @@ function StepBody({ item }: { item: TimelineItem }) {
       return <ToolDetailSurface text={clipped} language={path ? languageForPath(path) : undefined} />;
     }
   }
+}
+
+/**
+ * Read a plan message's checklist back out of its input, or null when the item
+ * is not a plan (or carries no usable one). Defensive by design: the payload
+ * comes off the wire, and a malformed one must cost the row its checklist, not
+ * the whole transcript.
+ */
+function readRunPlanItem(item: TimelineItem): RunPlanData | null {
+  if (item.type !== PLAN_MESSAGE_TYPE) return null;
+  const raw = item.input?.items;
+  if (!Array.isArray(raw)) return null;
+  const items = raw.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const { text, status } = entry as { text?: unknown; status?: unknown };
+    if (typeof text !== "string" || text === "") return [];
+    return [{ text, status: typeof status === "string" ? status : "" }];
+  });
+  return items.length > 0 ? { items, seq: item.seq } : null;
 }
 
 function readPathFromInput(input: Record<string, unknown> | undefined): string | undefined {

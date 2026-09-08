@@ -48,13 +48,19 @@ import { PermissionProfilesSetting } from "./permission-profiles-setting";
 import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
+import { WorkflowLimitsSetting } from "./workflow-limits-setting";
+import { DataResidencySetting } from "./data-residency-setting";
+import { BatchWindowSetting } from "./batch-window-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
 import { ContestSetting } from "./contest-setting";
 import { ExportImportSetting } from "./export-import-setting";
+import { ConfidenceReviewSetting } from "./confidence-review-setting";
+import { WorkflowPolicySetting } from "./workflow-policy-setting";
 import { CIAutoFixSetting } from "./ci-auto-fix-setting";
 import { UndoSetting } from "./undo-setting";
 import { TrafficControlSetting } from "./traffic-control-setting";
 import { DriftDetectionSetting } from "./drift-detection-setting";
+import { PrWalkthroughSetting } from "./pr-walkthrough-setting";
 import { PostmortemCostSetting } from "./postmortem-cost-setting";
 import { PipelinesSetting } from "./pipelines-setting";
 import { ModuleOwnershipSetting } from "./module-ownership-setting";
@@ -509,13 +515,19 @@ export function WorkspaceTab() {
       {workspace && <RuntimePoolsSetting canEdit={canManageWorkspace} />}
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
+      {workspace && <WorkflowLimitsSetting canEdit={canManageWorkspace} />}
+      {workspace && <DataResidencySetting canEdit={canManageWorkspace} />}
+      {workspace && <BatchWindowSetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
       {workspace && <ContestSetting canEdit={canManageWorkspace} />}
       {workspace && <ExportImportSetting canEdit={canManageWorkspace} />}
+      {workspace && <ConfidenceReviewSetting canEdit={canManageWorkspace} />}
+      {workspace && <WorkflowPolicySetting canEdit={canManageWorkspace} />}
       {workspace && <CIAutoFixSetting canEdit={canManageWorkspace} />}
       {workspace && <UndoSetting canEdit={canManageWorkspace} />}
       {workspace && <TrafficControlSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <DriftDetectionSetting canEdit={canManageWorkspace} />}
+      {workspace && <PrWalkthroughSetting canEdit={canManageWorkspace} />}
       {workspace && <PostmortemCostSetting workspace={workspace} canEdit={canManageWorkspace} />}
       {workspace && <PipelinesSetting canManage={canManageWorkspace} />}
 

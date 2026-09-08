@@ -74,6 +74,7 @@ import { cn } from "@multica/ui/lib/utils";
 import { ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
+import { issueTypeListOptions } from "@multica/core/issue-types/queries";
 import { useModalStore } from "@multica/core/modals";
 import {
   issueKeys,
@@ -137,6 +138,7 @@ import {
   PriorityPicker,
   StartDatePicker,
   StatusPicker,
+  TypePicker,
 } from "./pickers";
 import { CustomPropertyValueEditor } from "./pickers/custom-property-picker";
 import {
@@ -282,7 +284,8 @@ type ColumnLabelKey =
   | "created_at"
   | "updated_at"
   | "child_progress"
-  | "creator";
+  | "creator"
+  | "issue_type";
 
 const SORTABLE_COLUMNS: Partial<Record<TableSystemColumnKey, SortField>> = {
   title: "title",
@@ -1161,6 +1164,7 @@ function IssueTableBodyCell({
             align="start"
             open={editorOpen}
             onOpenChange={setEditorOpen}
+            issueId={issue.id}
           />
         </div>
       );
@@ -1196,6 +1200,18 @@ function IssueTableBodyCell({
           open={editorOpen}
           onOpenChange={setEditorOpen}
         />
+      );
+    case "issue_type":
+      return (
+        <div onClick={stopRowNavigation} onAuxClick={stopRowNavigation}>
+          <TypePicker
+            issueType={issue.issue_type ?? null}
+            onUpdate={onUpdate}
+            align="start"
+            open={editorOpen}
+            onOpenChange={setEditorOpen}
+          />
+        </div>
       );
     case "project":
       return (
@@ -1805,6 +1821,10 @@ export function TableView({
         }
         return value.parent?.title ?? t(($) => $.table.value_unavailable);
       }
+      // A group kind this build does not know (the schema normalises it rather
+      // than failing the row, MUL-6243). It keeps its key and count, so the
+      // lane renders with a neutral label instead of the board going empty.
+      if (value.kind !== "property") return t(($) => $.table.value_unavailable);
       if (value.value_state === "unset") return t(($) => $.table.no_value);
       if (value.value_state === "unavailable") {
         return t(($) => $.table.value_unavailable);
@@ -1820,7 +1840,7 @@ export function TableView({
           ?.name ?? String(value.value ?? "")
       );
     },
-    [getActorName, groupProjectMap, propertyById, t],
+    [getActorName, groupProjectMap, propertyById, resolveStatusLabel, t],
   );
 
   const serverDisplayRows = useMemo<IssueTableDisplayRow[]>(() => {
@@ -2306,7 +2326,10 @@ export function TableView({
         const property = propertyId ? exportPropertyById.get(propertyId) : undefined;
         return property ? isActorPropertyType(property.type) : false;
       });
-      const [rows, exportLookups, exportActorName] = await Promise.all([
+      // The type catalogue is AWAITED like every other lookup rather than read
+      // from render-time hook state: a cold catalogue would export every typed
+      // issue as its raw key, which is not what the column shows on screen.
+      const [rows, exportLookups, exportActorName, exportIssueTypeLabel] = await Promise.all([
         mode === "all" ? exportIssues() : Promise.resolve(selectedIssues),
         resolveExportLookups({
           projects: csvColumns.some((column) => column.key === "project"),
@@ -2323,6 +2346,16 @@ export function TableView({
               buildActorNameResolver({ members, agents, squads }),
             )
           : Promise.resolve(getActorName),
+        csvColumns.some((column) => column.key === "issue_type")
+          ? queryClient
+              .fetchQuery(issueTypeListOptions(wsId))
+              .then((data) => {
+                // fetchQuery returns the RAW response, not the `select`ed
+                // projection — the option's select only applies to useQuery.
+                const byKey = new Map(data.types.map((entry) => [entry.key, entry.name]));
+                return (key: string) => byKey.get(key) ?? key;
+              })
+          : Promise.resolve((key: string) => key),
       ]);
       const headers = csvColumns.map((column) => {
         const propertyId = propertyIdFromViewKey(column.key);
@@ -2373,6 +2406,10 @@ export function TableView({
             }
             case "creator":
               return exportActorName(issue.creator_type, issue.creator_id);
+            case "issue_type":
+              // The exported cell carries the LABEL, like status does: a csv is
+              // read by a person, and the key is an internal handle.
+              return issue.issue_type ? exportIssueTypeLabel(issue.issue_type) : "";
           }
           return "";
         }),

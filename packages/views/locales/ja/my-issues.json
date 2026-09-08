@@ -1,25 +1,25 @@
 {
   "page": {
-    "breadcrumb": "マイタスク",
+    "breadcrumb": "マイ課題",
     "workspace_fallback": "ワークスペース",
-    "empty_title": "あなたに割り当てられたタスクはありません",
-    "empty_description": "あなたが作成したタスクや割り当てられたタスクがここに表示されます。"
+    "empty_title": "あなたに割り当てられた課題はありません",
+    "empty_description": "あなたが作成した課題や割り当てられた課題がここに表示されます。"
   },
   "header": {
     "scope": {
       "all_label": "すべて",
-      "all_description": "自分に割り当て、自分が作成、または自分のエージェントやスクワッドが関わるタスク",
+      "all_description": "自分に割り当て、自分が作成、または自分のエージェントやスクワッドが関わる課題",
       "assigned_label": "割り当て済み",
-      "assigned_description": "自分に割り当てられたタスク",
+      "assigned_description": "自分に割り当てられた課題",
       "created_label": "作成済み",
-      "created_description": "自分が作成したタスク",
+      "created_description": "自分が作成した課題",
       "agents_label": "自分のエージェントとスクワッド",
-      "agents_description": "自分のエージェントに割り当てられたタスク"
+      "agents_description": "自分のエージェントに割り当てられた課題"
     },
     "filter_button": "フィルター",
     "filter_status": "ステータス",
     "filter_priority": "優先度",
-    "issue_count_other": "{{count}} 件のタスク",
+    "issue_count_other": "{{count}} 件の課題",
     "reset_filters": "すべてのフィルターをリセット",
     "display_settings": "表示設定",
     "grouping": "グループ化",
@@ -39,6 +39,6 @@
     "sort_manual": "手動"
   },
   "errors": {
-    "move_failed": "タスクを移動できませんでした"
+    "move_failed": "課題を移動できませんでした"
   }
 }

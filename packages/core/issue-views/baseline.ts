@@ -21,6 +21,9 @@ export interface IssueViewBaseline {
   creator: Set<string>;
   project: Set<string>;
   includeNoProject: boolean;
+  cycle: Set<string>;
+  /** Work item type keys (F30). */
+  type: Set<string>;
   label: Set<string>;
   /** Property definition id → fixed member keys (`propertyFilterValueKey`). */
   property: Map<string, Set<string>>;
@@ -78,6 +81,16 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
   const assigneeFilters = actorArray(query.assigneeFilters);
   const creatorFilters = actorArray(query.creatorFilters);
   const projectFilters = stringArray(query.projectFilters);
+  // Views saved before F29 carry no cycleFilters key. stringArray answers []
+  // for an absent one, so an older view stays valid rather than failing to
+  // parse — the same tolerance every other dimension already has.
+  const cycleFilters = stringArray(query.cycleFilters);
+  // Views saved before F30 carry no typeFilters key, and stringArray answers []
+  // for an absent one — the same tolerance every other dimension has. Values
+  // are NOT checked against a constant: a type key is workspace-defined, so
+  // filtering against one here would silently delete every custom-type filter
+  // the moment a saved view was reopened (the bug MUL-6243 fixed for statuses).
+  const typeFilters = stringArray(query.typeFilters).filter((k) => k.length > 0);
   const labelFilters = stringArray(query.labelFilters);
   const includeNoAssignee = query.includeNoAssignee === true;
   const includeNoProject = query.includeNoProject === true;
@@ -104,6 +117,8 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
     creator: new Set(creatorFilters.map(actorFilterKey)),
     project: new Set(projectFilters),
     includeNoProject,
+    cycle: new Set(cycleFilters),
+    type: new Set(typeFilters),
     label: new Set(labelFilters),
     property,
     raw: {
@@ -114,6 +129,8 @@ export function baselineFromQuery(query: Record<string, unknown>): IssueViewBase
       creatorFilters,
       projectFilters,
       includeNoProject,
+      cycleFilters,
+      typeFilters,
       labelFilters,
       propertyFilters,
     },

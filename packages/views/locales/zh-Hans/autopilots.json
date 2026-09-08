@@ -151,7 +151,9 @@
     "skipped_group": {
       "label": "已跳过",
       "summary": "{{count}} 条跳过的运行"
-    }
+    },
+    "off_peak": "闲时",
+    "off_peak_hint": "已进入闲时队列：所有紧急运行之后才会被处理。"
   },
   "webhook_payload": {
     "label": "Webhook 事件：",
@@ -401,7 +403,11 @@
     },
     "event_criteria_label": "仅在以下情况运行…",
     "event_criteria_placeholder": "例如：生产环境部署失败，或涉及计费的拉取请求",
-    "event_criteria_hint": "用你自己的话描述哪些事件应触发此自动驾驶。每次投递都会据此宽松判断，拿不准时会运行。留空则仅依据事件过滤器。"
+    "event_criteria_hint": "用你自己的话描述哪些事件应触发此自动驾驶。每次投递都会据此宽松判断，拿不准时会运行。留空则仅依据事件过滤器。",
+    "section_off_peak": "闲时",
+    "off_peak_label": "可以等到闲时再跑",
+    "off_peak_hint": "在工作区闲时时段触发的定时运行会排在所有紧急工作之后：更省钱，但开始时间不固定。手动立即运行不会被延迟。",
+    "off_peak_unavailable": "本工作区还没有闲时时段。管理员可在 设置 → 工作区 中设置。"
   },
   "schedule_editor": {
     "time_label": "时间",
@@ -535,5 +541,52 @@
       "confirm": "永久删除",
       "deleting": "删除中…"
     }
+  },
+  "daemon_import": {
+    "open": "导入 DAEMON.md",
+    "title": "导入守护任务",
+    "description": "DAEMON.md 用一个文件声明自动驾驶：由谁执行、何时触发、每次运行读取哪个技能。重复导入同一个文件不会有任何改动。",
+    "drop_hint": "把 DAEMON.md 拖到这里，或粘贴到下方",
+    "choose_file": "选择文件",
+    "placeholder": "---\nname: 夜间分诊\nrole: 整理并标注收件队列。\nagent: Nova\ntriggers:\n  - kind: schedule\n    cron: \"0 9 * * *\"\n---\n",
+    "textarea_label": "DAEMON.md 内容",
+    "checking": "正在检查声明...",
+    "errors_title": "该声明有 {{count}} 处问题",
+    "line_prefix": "第 {{line}} 行",
+    "field_name": "名称",
+    "field_agent": "智能体",
+    "field_outputs": "产出",
+    "field_role": "职责",
+    "agent_unknown": "该工作区没有同名智能体",
+    "triggers_title": "触发器",
+    "next_runs_title": "接下来的执行",
+    "next_runs_unknown": "无法预览",
+    "body_title": "智能体将读取的技能",
+    "unchanged": "该守护任务已与此文件一致，导入不会有任何改动。",
+    "strategy_title": "已存在同名的守护任务",
+    "strategy": {
+      "fail": "停止",
+      "overwrite": "替换它",
+      "rename": "两个都保留"
+    },
+    "strategy_hint": {
+      "fail": "不会写入任何内容。请在文件中改名，或选择其他方式。",
+      "overwrite": "现有守护任务改用此文件的配置。文件中不再声明的触发器将停止触发。",
+      "rename": "以带后缀的名称新建第二个守护任务，现有的保持不变。"
+    },
+    "cancel": "取消",
+    "submit": "导入",
+    "preview_failed": "无法检查该声明。",
+    "import_failed": "无法导入该守护任务。",
+    "read_failed": "无法读取该文件。"
+  },
+  "memory": {
+    "section_title": "记忆",
+    "export_button": "导出 DAEMON.md",
+    "empty_title": "还没有记忆",
+    "empty_hint": "该守护任务的每次运行会写下一次运行需要知道的内容。",
+    "updated_at": "更新于 {{at}}",
+    "last_run": "上次运行 {{at}}",
+    "read_only": "由运行写入，此处不可编辑"
   }
 }

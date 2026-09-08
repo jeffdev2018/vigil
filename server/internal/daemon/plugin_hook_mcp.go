@@ -71,7 +71,7 @@ func (set *pluginHookMCPSet) Close() {
 //
 // Returns the MCP config fragment to merge into the agent's, exactly like the
 // Remote MCP broker, so the two arrive at the agent through one path.
-func startTaskPluginHookMCP(lifetimeCtx context.Context, taskID string, tools []PluginHookTool, invoke pluginHookInvoker, logger *slog.Logger) (json.RawMessage, *pluginHookMCPSet, error) {
+func startTaskPluginHookMCP(lifetimeCtx context.Context, taskID, advertiseHost string, tools []PluginHookTool, invoke pluginHookInvoker, logger *slog.Logger) (json.RawMessage, *pluginHookMCPSet, error) {
 	if len(tools) == 0 || invoke == nil {
 		return nil, nil, nil
 	}
@@ -89,7 +89,7 @@ func startTaskPluginHookMCP(lifetimeCtx context.Context, taskID string, tools []
 		byName[tool.Name] = tool
 	}
 
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, advertised, err := listenForRun(advertiseHost)
 	if err != nil {
 		return nil, nil, fmt.Errorf("listen for plugin hook MCP server: %w", err)
 	}
@@ -119,7 +119,7 @@ func startTaskPluginHookMCP(lifetimeCtx context.Context, taskID string, tools []
 	raw, err := json.Marshal(map[string]any{"mcpServers": map[string]any{
 		"multica-plugins": map[string]any{
 			"type": "http",
-			"url":  "http://" + listener.Addr().String() + handler.path,
+			"url":  "http://" + advertised + handler.path,
 		},
 	}})
 	if err != nil {

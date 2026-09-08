@@ -18,6 +18,7 @@ vi.mock("@multica/core/api", () => ({
   api: {
     getAgent: vi.fn().mockResolvedValue(null),
     listRuntimes: vi.fn().mockResolvedValue([]),
+    getConfidenceReviewSettings: vi.fn().mockResolvedValue({ enabled: true, threshold: 0.5, max_escalations: 2 }),
   },
 }));
 
@@ -147,6 +148,15 @@ vi.mock("../../rich-content", () => ({
   ),
 }));
 
+// The workflow selection reason lives in an in-memory map fed by the WS
+// handler; stub the read so tests seed it directly.
+const workflowReasonMock = vi.hoisted(() =>
+  vi.fn<(taskId: string) => string | undefined>().mockReturnValue(undefined),
+);
+vi.mock("@multica/core/issues/workflow-policy", () => ({
+  workflowSelectionReason: workflowReasonMock,
+}));
+
 const baseTask: AgentTask = {
   id: "task-1",
   agent_id: "",
@@ -232,6 +242,7 @@ function renderDialog(
 beforeEach(() => {
   cleanup();
   copyTextMock.mockClear();
+  workflowReasonMock.mockReset().mockReturnValue(undefined);
   vi.mocked(api.listRuntimes).mockResolvedValue([]);
   useTranscriptViewStore.setState({
     sortDirection: "chronological",
@@ -765,6 +776,178 @@ describe("AgentTranscriptDialog — smart routing", () => {
   });
 });
 
+describe("AgentTranscriptDialog — confidence score", () => {
+  const scoredTask: AgentTask = {
+    ...baseTask,
+    confidence: {
+      score: 0.85,
+      rationale: "Tests and diff look consistent",
+      model: "claude-sonnet-4-6",
+      threshold: 0.5,
+      below_threshold: false,
+    },
+  };
+
+  it("shows the score as a green chip at or above the threshold", async () => {
+    renderDialog(items, { task: scoredTask });
+
+    const chip = await screen.findByTestId("confidence-chip");
+    expect(chip).toHaveTextContent("85% confidence");
+    expect(chip.className).toContain("text-success");
+    expect(chip.className).not.toContain("text-warning");
+  });
+
+  it("shows the score as an amber chip under the threshold", async () => {
+    renderDialog(items, {
+      task: {
+        ...scoredTask,
+        confidence: {
+          score: 0.3,
+          rationale: "No tests were run",
+          threshold: 0.5,
+          below_threshold: true,
+        },
+      },
+    });
+
+    const chip = await screen.findByTestId("confidence-chip");
+    expect(chip).toHaveTextContent("30% confidence");
+    expect(chip.className).toContain("text-warning");
+  });
+
+  it("carries the rationale, model and threshold in the run details popover", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: scoredTask });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Confidence")).toBeInTheDocument();
+    expect(screen.getByText("85%")).toBeInTheDocument();
+    expect(screen.getByText("Scored by")).toBeInTheDocument();
+    expect(screen.getByText("claude-sonnet-4-6")).toBeInTheDocument();
+    expect(screen.getByText("Review threshold")).toBeInTheDocument();
+    expect(screen.getByText("50%")).toBeInTheDocument();
+    expect(screen.getByText("Rationale")).toBeInTheDocument();
+    expect(screen.getByText("Tests and diff look consistent")).toBeInTheDocument();
+  });
+
+  it("renders no chip for an unscored run", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("confidence-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — escalation", () => {
+  const escalatedTask: AgentTask = {
+    ...baseTask,
+    escalation: {
+      from_task_id: "task-0",
+      reason: "below_threshold",
+      attempt: 1,
+      from_runtime_id: "runtime-1",
+    },
+  };
+
+  it("names the origin runtime and the attempt in a header chip", async () => {
+    vi.mocked(api.listRuntimes).mockResolvedValue([runtimeFor("claude")]);
+
+    renderDialog(items, { task: escalatedTask });
+
+    const chip = await screen.findByTestId("escalation-chip");
+    expect(chip).toHaveTextContent("Escalated from claude runtime · attempt 1");
+  });
+
+  it("falls back to the raw runtime id while the runtime list loads", async () => {
+    renderDialog(items, { task: escalatedTask });
+
+    const chip = await screen.findByTestId("escalation-chip");
+    expect(chip).toHaveTextContent("Escalated from runtime-1 · attempt 1");
+  });
+
+  it("carries the reason and the attempt count in the run details popover", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: escalatedTask });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Escalated from")).toBeInTheDocument();
+    expect(screen.getByText("runtime-1")).toBeInTheDocument();
+    expect(screen.getByText("Escalation reason")).toBeInTheDocument();
+    expect(
+      screen.getByText("Confidence score below the review threshold"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Escalation attempt")).toBeInTheDocument();
+    expect(await screen.findByText("1 / 2")).toBeInTheDocument();
+  });
+
+  it("renders no chip for a run that was not escalated", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("escalation-chip")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — workflow selection", () => {
+  it("shows a distinct chip label per workflow strategy", async () => {
+    renderDialog(items, { task: { ...baseTask, workflow: "cascade" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Cascade",
+    );
+    cleanup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "critique" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Critique",
+    );
+    cleanup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+    expect(await screen.findByTestId("workflow-chip")).toHaveTextContent(
+      "Single",
+    );
+  });
+
+  it("carries the workflow and its selection reason in the run details popover", async () => {
+    const user = userEvent.setup();
+    workflowReasonMock.mockReturnValue("policy:auto");
+
+    renderDialog(items, { task: { ...baseTask, workflow: "critique" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    // The chip and the popover row both carry the strategy name.
+    expect(screen.getAllByText("Critique").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Selection reason")).toBeInTheDocument();
+    expect(
+      screen.getByText("Picked automatically from run history"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a newer backend's reason token readable in the popover", async () => {
+    const user = userEvent.setup();
+    workflowReasonMock.mockReturnValue("auto:budget-cap");
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("auto:budget-cap")).toBeInTheDocument();
+  });
+
+  it("omits the reason row when this session never saw the event", async () => {
+    const user = userEvent.setup();
+
+    renderDialog(items, { task: { ...baseTask, workflow: "single" } });
+
+    await user.click(await screen.findByRole("button", { name: "Run details" }));
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    expect(screen.queryByText("Selection reason")).not.toBeInTheDocument();
+  });
+
+  it("renders no chip for a run that predates the selector", () => {
+    renderDialog(items, { task: baseTask });
+    expect(screen.queryByTestId("workflow-chip")).not.toBeInTheDocument();
+  });
+});
+
 describe("AgentTranscriptDialog — work directory handoff", () => {
   it("shows and copies the durable project directory after worktree cleanup", async () => {
     renderDialog(items, {
@@ -974,5 +1157,134 @@ describe("AgentTranscriptDialog — reason vs raw diagnostics", () => {
 
     expect(screen.queryByText("Technical details")).not.toBeInTheDocument();
     expect(screen.queryByText("Reason")).not.toBeInTheDocument();
+  });
+});
+
+// ─── F03 · typed run activity lanes ─────────────────────────────────────────
+// The type→kind→label matrix is pinned in trace-event-presenter.test.ts and the
+// step/lane matrix in build-steps.test.ts. This suite covers only the wiring:
+// which rows appear, which facets they produce, and the remediation affordance.
+
+describe("AgentTranscriptDialog — run activity types", () => {
+  const typedItems: TimelineItem[] = [
+    { seq: 1, type: "thinking", content: "Thinking summary", created_at: "2026-06-08T08:00:01Z" },
+    {
+      seq: 2,
+      type: "action",
+      content: "status_changed",
+      input: { action: "status_changed", before: "todo", after: "in_progress" },
+      created_at: "2026-06-08T08:00:02Z",
+    },
+    { seq: 3, type: "response", content: "Fixed the redirect.", created_at: "2026-06-08T08:00:03Z" },
+    { seq: 4, type: "elicitation", content: "Which branch?", created_at: "2026-06-08T08:00:04Z" },
+  ];
+
+  it("renders an action as its own row showing before → after", () => {
+    renderDialog(typedItems);
+    // The action name appears twice by design: once as the row label, once as
+    // the filter facet that names the same thing.
+    expect(screen.getAllByText("status_changed").length).toBeGreaterThan(0);
+    expect(screen.getByText("todo → in_progress")).toBeInTheDocument();
+  });
+
+  it("shows a dash for the side of an action that has no value", () => {
+    renderDialog([
+      {
+        seq: 1,
+        type: "action",
+        content: "assignee_changed",
+        input: { action: "assignee_changed", before: "", after: "agent:a1" },
+        created_at: "2026-06-08T08:00:01Z",
+      },
+    ]);
+    expect(screen.getByText("— → agent:a1")).toBeInTheDocument();
+  });
+
+  it("offers one filter facet per kind present, and none for a kind that is absent", () => {
+    renderDialog(typedItems);
+    for (const name of ["Thinking", "status_changed", "Response", "Elicitation"]) {
+      expect(screen.getByRole("menuitemcheckbox", { name })).toBeInTheDocument();
+    }
+    // No tool ran, so there is no tool facet — a filter never offers an empty
+    // lane.
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Tool" })).not.toBeInTheDocument();
+  });
+
+  it("filters to one kind without refetching anything", () => {
+    renderDialog(typedItems);
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Response" }));
+
+    expect(screen.getByText("Fixed the redirect.")).toBeInTheDocument();
+    // The facet keeps naming the hidden kind; only its ROW is gone.
+    expect(screen.queryByText("todo → in_progress")).not.toBeInTheDocument();
+    expect(screen.queryByText("Which branch?")).not.toBeInTheDocument();
+  });
+
+  // A failed run produced no deliverable, so the transcript must not present
+  // leftover response text as this run's answer.
+  it("hides the response lane on a failed run", () => {
+    renderDialog(typedItems, { task: { ...baseTask, status: "failed" } });
+    expect(screen.queryByText("Fixed the redirect.")).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Response" })).not.toBeInTheDocument();
+    // Everything else still renders.
+    expect(screen.getByText("todo → in_progress")).toBeInTheDocument();
+  });
+
+  it("renders a type this build does not know as a neutral note naming itself", () => {
+    renderDialog([
+      { seq: 1, type: "some_future_kind", content: "evidence", created_at: "2026-06-08T08:00:01Z" },
+    ]);
+    expect(screen.getAllByText("some_future_kind").length).toBeGreaterThan(0);
+    expect(screen.getByText("evidence")).toBeInTheDocument();
+    // It gets a facet like any other kind, and no ghost lane appears for a kind
+    // that is not present.
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "some_future_kind" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("menuitemcheckbox", { name: "Response" })).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentTranscriptDialog — error remediation", () => {
+  function errorItem(input: Record<string, unknown>): TimelineItem {
+    return { seq: 1, type: "error", content: "API Error: 401", input, created_at: "2026-06-08T08:00:01Z" };
+  }
+
+  it("offers the rerun action for a remediable error", async () => {
+    const user = userEvent.setup();
+    renderDialog([errorItem({ reason: "agent_error.provider_auth_or_access", remediation: "rerun" })]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    const button = await screen.findByRole("button", { name: "Run again" });
+    expect(button).toBeInTheDocument();
+    // The classified reason is named with the same words the run header uses.
+    expect(screen.getByText("Provider auth failed")).toBeInTheDocument();
+  });
+
+  // No navigation provider is mounted here, which is the case for at least one
+  // real mount point: a remediation that cannot be performed must not render as
+  // a dead button.
+  it("omits a routing remediation when there is nowhere to route to", async () => {
+    const user = userEvent.setup();
+    renderDialog([
+      errorItem({ reason: "agent_error.missing_config", remediation: "runtime_settings" }),
+    ]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    expect(screen.queryByRole("button", { name: "Open runtime settings" })).not.toBeInTheDocument();
+    // The reason is still named — the user learns what went wrong even without
+    // a one-click fix.
+    expect(await screen.findByText("Missing API key or configuration")).toBeInTheDocument();
+  });
+
+  it("renders no remediation section for an error the daemon could not classify", async () => {
+    const user = userEvent.setup();
+    renderDialog([errorItem({})]);
+
+    await user.click(screen.getByRole("button", { name: /Error/ }));
+
+    expect(screen.queryByText("Suggested fix")).not.toBeInTheDocument();
   });
 });

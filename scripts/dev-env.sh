@@ -802,6 +802,9 @@ stop_component() {
           status="$("${CLEAN_ENV[@]}" MULTICA_WORKSPACES_ROOT="$WORKSPACES_ROOT" \
             "$MULTICA_BIN" daemon status --profile "$PROFILE" --output json 2>/dev/null || true)"
           state="$(json_field "$status" status || echo stopped)"
+          # A profile that was never created reports unknown_profile
+          # (MUL-5974); nothing runs under it, so it reads as stopped here.
+          [ "$state" = unknown_profile ] && state=stopped
           if [ "$state" = running ]; then
             warn "daemon for profile $PROFILE is still running"
             return 1
@@ -912,6 +915,9 @@ component_state() {
         status="$("${CLEAN_ENV[@]}" MULTICA_WORKSPACES_ROOT="$WORKSPACES_ROOT" \
           "$MULTICA_BIN" daemon status --profile "$PROFILE" --output json 2>/dev/null || true)"
         state="$(json_field "$status" status || echo stopped)"
+        # A profile that was never created reports unknown_profile
+        # (MUL-5974); nothing runs under it, so it reads as stopped here.
+        [ "$state" = unknown_profile ] && state=stopped
         printf '%s|%s|pid %s' "$state" "$PROFILE" "$(json_field "$status" pid || echo '-')"
       else
         printf 'stopped|%s|not built' "$PROFILE"

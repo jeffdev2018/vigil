@@ -42,6 +42,8 @@ export const dashboardKeys = {
     [...dashboardKeys.all(wsId), "failures-by-agent", days, projectId, tz] as const,
   routingStats: (wsId: string) =>
     [...dashboardKeys.all(wsId), "routing-stats"] as const,
+  workflowStats: (wsId: string) =>
+    [...dashboardKeys.all(wsId), "workflow-stats"] as const,
 };
 
 // The server materializes these rollups on a 5-minute cadence, so a mounted
@@ -112,6 +114,35 @@ export function dashboardCostPerDeliverableOptions(
       }),
     staleTime: 60_000,
   });
+}
+
+// ROI per agent (JEF-252).
+export function dashboardAgentRoiOptions(
+  wsId: string,
+  days: number,
+  projectId: string | null,
+  tz: string,
+) {
+  return queryOptions({
+    queryKey: [...dashboardKeys.all(wsId), "roi-by-agent", days, projectId, tz] as const,
+    queryFn: () =>
+      api.getDashboardAgentRoi({
+        days,
+        project_id: projectId ?? undefined,
+        tz,
+      }),
+    staleTime: 60_000,
+  });
+}
+
+/**
+ * Percentage change of a cost ratio against the previous period, negative when
+ * the agent got cheaper. null when either side is missing or the previous
+ * period was zero — there is no percentage change from nothing.
+ */
+export function roiTrendPct(current: number | null, previous: number | null): number | null {
+  if (current === null || previous === null || previous === 0) return null;
+  return ((current - previous) / previous) * 100;
 }
 
 export function dashboardUsageByAgentOptions(
@@ -248,6 +279,21 @@ export function routingStatsOptions(wsId: string) {
   return queryOptions({
     queryKey: dashboardKeys.routingStats(wsId),
     queryFn: () => api.listRoutingStats(),
+    enabled: !!wsId,
+    staleTime: STALE_TIME,
+    refetchInterval: REFETCH_INTERVAL,
+  });
+}
+
+/**
+ * Workflow-selector outcomes (JEF-273): the 90-day per-(task class, workflow)
+ * rollup the selector learns from. The window is fixed server-side, so the
+ * key carries no days/project/tz — same convention as `routingStatsOptions`.
+ */
+export function workflowStatsOptions(wsId: string) {
+  return queryOptions({
+    queryKey: dashboardKeys.workflowStats(wsId),
+    queryFn: () => api.listWorkflowStats(),
     enabled: !!wsId,
     staleTime: STALE_TIME,
     refetchInterval: REFETCH_INTERVAL,

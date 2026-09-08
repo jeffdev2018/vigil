@@ -1,11 +1,14 @@
 "use client";
 
 import { useIssueStatuses } from "@multica/core/issue-statuses/hooks";
+import { useIssueTypes } from "@multica/core/issue-types/hooks";
 import { useStatusLabel } from "../utils/status-label";
 import { NO_PROPERTY_VALUE } from "../utils/filter";
 import { useMemo, type ReactNode } from "react";
 import {
   CalendarDays,
+  CalendarRange,
+  Shapes,
   CircleDot,
   FolderKanban,
   Target,
@@ -21,6 +24,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { memberListOptions, agentListOptions, squadListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { goalListOptions } from "@multica/core/goals";
+import { cycleListOptions } from "@multica/core/cycles";
 import { labelListOptions } from "@multica/core/labels/queries";
 import { propertyListOptions } from "@multica/core/properties";
 import { isActorPropertyType, isScalarPropertyType, parseActorRef, propertyFilterValueKey, PROPERTY_FILTER_OP_SYMBOLS, type PropertyFilterValue } from "@multica/core/types";
@@ -185,6 +189,7 @@ function useFilterChips(
   const wsId = useWorkspaceId();
   const resolveStatusLabel = useStatusLabel(wsId);
   const { categoryOf, colorOf } = useIssueStatuses(wsId);
+  const issueTypeCatalog = useIssueTypes(wsId);
 
   const statusFilters = useViewStore((s) => s.statusFilters);
   const priorityFilters = useViewStore((s) => s.priorityFilters);
@@ -194,6 +199,8 @@ function useFilterChips(
   const projectFilters = useViewStore((s) => s.projectFilters);
   const includeNoProject = useViewStore((s) => s.includeNoProject);
   const goalFilters = useViewStore((s) => s.goalFilters);
+  const cycleFilters = useViewStore((s) => s.cycleFilters);
+  const typeFilters = useViewStore((s) => s.typeFilters);
   const labelFilters = useViewStore((s) => s.labelFilters);
   const propertyFilters = useViewStore((s) => s.propertyFilters);
   const store = useViewStoreApi();
@@ -207,6 +214,8 @@ function useFilterChips(
     projectFilters.length > 0 ||
     includeNoProject ||
     goalFilters.length > 0 ||
+    cycleFilters.length > 0 ||
+    typeFilters.length > 0 ||
     labelFilters.length > 0 ||
     Object.values(propertyFilters).some((selected) => selected.length > 0);
   const showDateChip = !!onDateFilterChange && !!dateFilter;
@@ -249,6 +258,10 @@ function useFilterChips(
     ...goalListOptions(wsId),
     enabled: enabled && goalFilters.length > 0,
   });
+  const { data: cycles = [] } = useQuery({
+    ...cycleListOptions(wsId),
+    enabled: enabled && cycleFilters.length > 0,
+  });
   const actorName = useMemo(
     () => buildChipActorNames(members, agents, squads),
     [members, agents, squads],
@@ -272,6 +285,8 @@ function useFilterChips(
       creatorFilters: s.creatorFilters,
       projectFilters: s.projectFilters,
       includeNoProject: s.includeNoProject,
+      cycleFilters: s.cycleFilters,
+      typeFilters: s.typeFilters,
       labelFilters: s.labelFilters,
       propertyFilters: s.propertyFilters,
     };
@@ -301,6 +316,12 @@ function useFilterChips(
         break;
       case "label":
         s.resetFiltersTo({ ...current, labelFilters: raw.labelFilters });
+        break;
+      case "cycle":
+        s.resetFiltersTo({ ...current, cycleFilters: raw.cycleFilters });
+        break;
+      case "type":
+        s.resetFiltersTo({ ...current, typeFilters: raw.typeFilters });
         break;
       case "goal":
         // Saved views never fix a goal, so there is nothing to fall back to.
@@ -442,6 +463,35 @@ function useFilterChips(
         ) : undefined,
       value: summarize(names),
       onRemove: () => clearDimension("project"),
+    });
+  }
+  // A view can fix a cycle, so the chip shows only what the user added on top.
+  const deltaCycles = baseline
+    ? cycleFilters.filter((id) => !baseline.cycle.has(id))
+    : cycleFilters;
+  if (deltaCycles.length > 0) {
+    const cycleById = new Map(cycles.map((c) => [c.id, c]));
+    chips.push({
+      key: "cycle",
+      icon: <CalendarRange className={CHIP_ICON_CLASS} />,
+      label: t(($) => $.filters.section_cycle),
+      value: summarize(deltaCycles.map((id) => cycleById.get(id)?.name)),
+      onRemove: () => clearDimension("cycle"),
+    });
+  }
+  // A view can fix a type, so the chip shows only what the user added on top.
+  const deltaTypes = baseline
+    ? typeFilters.filter((key) => !baseline.type.has(key))
+    : typeFilters;
+  if (deltaTypes.length > 0) {
+    chips.push({
+      key: "type",
+      icon: <Shapes className={CHIP_ICON_CLASS} />,
+      label: t(($) => $.filters.section_type),
+      // labelOf falls back to the raw key, so a type this client has not
+      // resolved yet still reads as something rather than blank.
+      value: summarize(deltaTypes.map((key) => issueTypeCatalog.labelOf(key))),
+      onRemove: () => clearDimension("type"),
     });
   }
   if (goalFilters.length > 0) {

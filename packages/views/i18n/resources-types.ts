@@ -25,6 +25,7 @@ import type projects from "../locales/en/projects.json";
 import type autopilots from "../locales/en/autopilots.json";
 import type skills from "../locales/en/skills.json";
 import type goals from "../locales/en/goals.json";
+import type cycles from "../locales/en/cycles.json";
 import type org from "../locales/en/org.json";
 import type contests from "../locales/en/contests.json";
 import type chat from "../locales/en/chat.json";
@@ -34,6 +35,7 @@ import type layout from "../locales/en/layout.json";
 import type usage from "../locales/en/usage.json";
 import type squads from "../locales/en/squads.json";
 import type billing from "../locales/en/billing.json";
+import type critic from "../locales/en/critic.json";
 
 // Module augmentation enables i18next v26 selector API across the monorepo:
 // `t($ => $.signin.title)` resolves to the value in en/auth.json.
@@ -73,6 +75,7 @@ declare global {
     autopilots: typeof autopilots;
     skills: typeof skills;
     goals: typeof goals;
+    cycles: typeof cycles;
     org: typeof org;
     contests: typeof contests;
     chat: typeof chat;
@@ -82,6 +85,7 @@ declare global {
     usage: typeof usage;
     squads: typeof squads;
     billing: typeof billing;
+    critic: typeof critic;
   }
 }
 

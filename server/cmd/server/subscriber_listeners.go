@@ -52,6 +52,16 @@ func registerSubscriberListeners(bus *events.Bus, pool *pgxpool.Pool) {
 			addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.AssigneeType, *issue.AssigneeID, "assignee")
 		}
 
+		// Subscribe the delegate (F01) when it is a direct recipient. Same
+		// creator/assignee de-duplication as above: AddIssueSubscriber's
+		// ON CONFLICT makes a repeat a no-op anyway, but skipping the call
+		// keeps subscriber:added from being published twice for one person.
+		if issue.DelegateType != nil && issue.DelegateID != nil &&
+			isAssignmentRecipientType(*issue.DelegateType) &&
+			!(*issue.DelegateType == issue.CreatorType && *issue.DelegateID == issue.CreatorID) {
+			addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.DelegateType, *issue.DelegateID, "delegate")
+		}
+
 		// Subscribe @mentioned users in description
 		if issue.Description != nil && *issue.Description != "" {
 			for _, m := range parseMentions(*issue.Description) {
@@ -82,6 +92,15 @@ func registerSubscriberListeners(bus *events.Bus, pool *pgxpool.Pool) {
 		if assigneeChanged, _ := payload["assignee_changed"].(bool); assigneeChanged {
 			if issue.AssigneeType != nil && issue.AssigneeID != nil && isAssignmentRecipientType(*issue.AssigneeType) {
 				addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.AssigneeType, *issue.AssigneeID, "assignee")
+			}
+		}
+
+		// Subscribe the new delegate when the delegate changed (F01). Symmetric
+		// with the assignee branch above; reason 'delegate' (not 'delegated',
+		// which is the narrower agent-filed-on-your-behalf tier from MUL-5483).
+		if delegateChanged, _ := payload["delegate_changed"].(bool); delegateChanged {
+			if issue.DelegateType != nil && issue.DelegateID != nil && isAssignmentRecipientType(*issue.DelegateType) {
+				addSubscriber(bus, queries, e.WorkspaceID, issue.ID, *issue.DelegateType, *issue.DelegateID, "delegate")
 			}
 		}
 
@@ -152,6 +171,12 @@ func registerSubscriberListeners(bus *events.Bus, pool *pgxpool.Pool) {
 // rule is the point: the defect being fixed is attribution and notification
 // disagreeing about whose behalf an issue exists on.
 //
+// Attribution answers "whose authority does this run carry", which since MUL-6951
+// is a broader population than "who asked for this work" — an armed autopilot
+// trigger carries its creator's. Visibility follows the narrower one, so the read
+// also walks the chain back to the run that resolved the human and hands the rule
+// that root's label (MUL-7051).
+//
 // Everything is best-effort and logged, never fatal — the issue is already
 // committed and a subscription hiccup must not look like a creation failure.
 func subscribeDelegatedHuman(bus *events.Bus, pool *pgxpool.Pool, queries *db.Queries, workspaceID, issueID string) {
@@ -169,11 +194,13 @@ func subscribeDelegatedHuman(bus *events.Bus, pool *pgxpool.Pool, queries *db.Qu
 		return
 	}
 
-	// Workspace-scoped so a foreign origin id can never resolve a human from
-	// another tenant (the MUL-4252 guard the comment chain already applies).
-	originTask, err := queries.GetAgentTaskInWorkspace(ctx, db.GetAgentTaskInWorkspaceParams{
-		ID:          issue.OriginID,
-		WorkspaceID: parseUUID(workspaceID),
+	// The origin run's human, plus how the chain it belongs to acquired that
+	// human — one walk, workspace-scoped at every hop so a foreign origin id can
+	// never resolve someone from another tenant (the MUL-4252 guard the comment
+	// chain already applies).
+	facts, err := queries.GetDelegatedSubscriptionFacts(ctx, db.GetDelegatedSubscriptionFactsParams{
+		OriginTaskID: issue.OriginID,
+		WorkspaceID:  parseUUID(workspaceID),
 	})
 	if err != nil {
 		// A missing origin task is normal (cancelled/reaped run), not an error
@@ -186,7 +213,8 @@ func subscribeDelegatedHuman(bus *events.Bus, pool *pgxpool.Pool, queries *db.Qu
 	human, reason, ok := attribution.DelegatedSubscriber(attribution.SubscriptionFacts{
 		CreatorType:      issue.CreatorType,
 		OriginType:       issue.OriginType.String,
-		OriginOriginator: originTask.OriginatorUserID,
+		OriginOriginator: facts.OriginatorUserID,
+		OriginRootSource: attribution.Source(facts.RootSource.String),
 	})
 	if !ok {
 		return
@@ -266,6 +294,8 @@ func extractIssueFields(v any) (handler.IssueResponse, bool) {
 	issue.CreatorID, _ = m["creator_id"].(string)
 	issue.AssigneeType, _ = m["assignee_type"].(*string)
 	issue.AssigneeID, _ = m["assignee_id"].(*string)
+	issue.DelegateType, _ = m["delegate_type"].(*string)
+	issue.DelegateID, _ = m["delegate_id"].(*string)
 	issue.Description, _ = m["description"].(*string)
 	if issue.ID == "" || issue.CreatorID == "" {
 		return handler.IssueResponse{}, false

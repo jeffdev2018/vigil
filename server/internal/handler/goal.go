@@ -46,11 +46,16 @@ type GoalResponse struct {
 	Title          string  `json:"title"`
 	Description    string  `json:"description"`
 	SuccessMeasure string  `json:"success_measure"`
-	DueDate        *string `json:"due_date"`
-	OwnerID        *string `json:"owner_id"`
-	Status         string  `json:"status"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
+	// StartDate (F29) is when the goal was committed to. A goal used as a
+	// cross-project initiative needs a beginning as well as a deadline for its
+	// aggregated progress to be readable.
+	StartDate string  `json:"start_date"`
+	DueDate   *string `json:"due_date"`
+	// Kept as a pointer for the same reason DueDate is: absent is not "today".
+	OwnerID   *string `json:"owner_id"`
+	Status    string  `json:"status"`
+	CreatedAt string  `json:"created_at"`
+	UpdatedAt string  `json:"updated_at"`
 	// IssueCount / DoneCount roll up the goal and every goal under it: an
 	// issue counts when it names the goal or inherits it from its project.
 	IssueCount int64    `json:"issue_count"`
@@ -62,7 +67,8 @@ func goalToResponse(g db.Goal) GoalResponse {
 	return GoalResponse{
 		ID: uuidToString(g.ID), WorkspaceID: uuidToString(g.WorkspaceID), ParentGoalID: uuidToPtr(g.ParentGoalID),
 		Title: g.Title, Description: g.Description, SuccessMeasure: g.SuccessMeasure, DueDate: dateToPtr(g.DueDate),
-		OwnerID: uuidToPtr(g.OwnerID), Status: g.Status, CreatedAt: timestampToString(g.CreatedAt), UpdatedAt: timestampToString(g.UpdatedAt),
+		StartDate: startDateString(g.StartDate),
+		OwnerID:   uuidToPtr(g.OwnerID), Status: g.Status, CreatedAt: timestampToString(g.CreatedAt), UpdatedAt: timestampToString(g.UpdatedAt),
 		ProjectIDs: []string{},
 	}
 }
@@ -74,6 +80,7 @@ type goalWriteRequest struct {
 	Title          *string `json:"title"`
 	Description    *string `json:"description"`
 	SuccessMeasure *string `json:"success_measure"`
+	StartDate      *string `json:"start_date"`
 	DueDate        *string `json:"due_date"`
 	OwnerID        *string `json:"owner_id"`
 	Status         *string `json:"status"`
@@ -329,6 +336,17 @@ func applyGoalRequest(w http.ResponseWriter, req goalWriteRequest, raw map[strin
 			params.OwnerID = id
 		}
 	}
+	if _, touched := raw["start_date"]; touched {
+		params.StartDate = pgtype.Date{}
+		if req.StartDate != nil && *req.StartDate != "" {
+			d, err := util.ParseCalendarDate(*req.StartDate)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid start_date format, expected YYYY-MM-DD")
+				return false
+			}
+			params.StartDate = d
+		}
+	}
 	if _, touched := raw["due_date"]; touched {
 		params.DueDate = pgtype.Date{}
 		if req.DueDate != nil && *req.DueDate != "" {
@@ -387,6 +405,7 @@ func (h *Handler) CreateGoal(w http.ResponseWriter, r *http.Request) {
 	goal, err := h.Queries.CreateGoal(r.Context(), db.CreateGoalParams{
 		ID: dbid.NewV7(), WorkspaceID: wsUUID, ParentGoalID: params.ParentGoalID, Title: params.Title, Description: params.Description,
 		SuccessMeasure: params.SuccessMeasure, DueDate: params.DueDate, OwnerID: params.OwnerID, Status: params.Status,
+		StartDate: params.StartDate,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to create goal")
@@ -444,6 +463,7 @@ func (h *Handler) UpdateGoal(w http.ResponseWriter, r *http.Request) {
 	params := db.UpdateGoalParams{
 		ID: prev.ID, WorkspaceID: wsUUID, ParentGoalID: prev.ParentGoalID, Title: prev.Title, Description: prev.Description,
 		SuccessMeasure: prev.SuccessMeasure, DueDate: prev.DueDate, OwnerID: prev.OwnerID, Status: prev.Status,
+		StartDate: prev.StartDate,
 	}
 	if !applyGoalRequest(w, req, raw, &params) || !h.validateGoalWrite(w, r, wsUUID, tree, uuidToString(prev.ID), &params) {
 		return
@@ -848,4 +868,15 @@ func (h *Handler) briefingGoals(ctx context.Context, wsID pgtype.UUID) []Briefin
 		out = out[:5]
 	}
 	return out
+}
+
+// startDateString renders a nullable calendar day as "" rather than null. A
+// goal without a start is the common case; an empty string keeps the field
+// present in every payload so a client never has to distinguish "absent" from
+// "not set".
+func startDateString(d pgtype.Date) string {
+	if p := dateToPtr(d); p != nil {
+		return *p
+	}
+	return ""
 }

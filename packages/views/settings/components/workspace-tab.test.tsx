@@ -83,9 +83,14 @@ vi.mock("../../navigation", () => ({
 vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => null }));
 vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
 vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
+vi.mock("./workflow-limits-setting", () => ({ WorkflowLimitsSetting: () => null }));
+vi.mock("./data-residency-setting", () => ({ DataResidencySetting: () => null }));
+vi.mock("./batch-window-setting", () => ({ BatchWindowSetting: () => null }));
+vi.mock("./workflow-policy-setting", () => ({ WorkflowPolicySetting: () => null }));
 vi.mock("./cross-review-setting", () => ({ CrossReviewSetting: () => null }));
 vi.mock("./contest-setting", () => ({ ContestSetting: () => null }));
 vi.mock("./export-import-setting", () => ({ ExportImportSetting: () => null }));
+vi.mock("./confidence-review-setting", () => ({ ConfidenceReviewSetting: () => null }));
 vi.mock("./ci-auto-fix-setting", () => ({ CIAutoFixSetting: () => null }));
 vi.mock("./undo-setting", () => ({ UndoSetting: () => null }));
 vi.mock("./adr-gate-setting", () => ({ AdrGateSetting: () => null }));
@@ -99,6 +104,7 @@ vi.mock("./runtime-pools-setting", () => ({ RuntimePoolsSetting: () => null }));
 vi.mock("./issue-routing-setting", () => ({ IssueRoutingSetting: () => null }));
 vi.mock("./traffic-control-setting", () => ({ TrafficControlSetting: () => null }));
 vi.mock("./drift-detection-setting", () => ({ DriftDetectionSetting: () => null }));
+vi.mock("./pr-walkthrough-setting", () => ({ PrWalkthroughSetting: () => null }));
 vi.mock("./pipelines-setting", () => ({ PipelinesSetting: () => null }));
 
 vi.mock("./delete-workspace-dialog", () => ({

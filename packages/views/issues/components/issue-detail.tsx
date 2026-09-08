@@ -31,6 +31,7 @@ import {
   SlidersHorizontal,
   Tag,
   Unlink,
+  UserPlus,
   Users,
 } from "lucide-react";
 import { BreadcrumbHeader, type BreadcrumbSegment } from "../../layout/breadcrumb-header";
@@ -61,14 +62,14 @@ import { AvatarGroup, AvatarGroupCount } from "@multica/ui/components/ui/avatar"
 import { ActorAvatar } from "../../common/actor-avatar";
 import { PropRow } from "../../common/prop-row";
 import { PropertyIcon } from "../../common/property-icon";
-import type { Attachment, Issue, IssueProperty, IssueStatus, IssueStatusCategory, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@multica/core/types";
+import type { Attachment, Issue, IssueProperty, IssuePropertyValue, IssueStatus, IssueStatusCategory, IssuePriority, TimelineEntry, UpdateIssueRequest } from "@multica/core/types";
 import { contentReferencesAttachment } from "@multica/core/types";
 import { STATUS_CONFIG } from "@multica/core/issues/config";
 import { formatDateOnly, isPastDateOnly } from "@multica/core/issues/date";
 import { useUpdateIssue } from "@multica/core/issues/mutations";
 import { toast } from "sonner";
 import { errorCode } from "@multica/core/api";
-import { StatusIcon, PriorityIcon, StatusPicker, PriorityPicker, StagePicker, StartDatePicker, DueDatePicker, AssigneePicker, LabelPicker } from ".";
+import { StatusIcon, PriorityIcon, StatusPicker, PriorityPicker, StagePicker, StartDatePicker, DueDatePicker, AssigneePicker, LabelPicker, TypePicker } from ".";
 import { maxSiblingStage } from "./pickers/stage-picker";
 import { CustomPropertyValueEditor, CustomPropertyValueDisplay } from "./pickers/custom-property-picker";
 import { Switch } from "@multica/ui/components/ui/switch";
@@ -78,6 +79,7 @@ import { IssueAgentActivityIndicator } from "./issue-agent-activity-indicator";
 import { SubIssuesAgentWorkingChip } from "./sub-issues-agent-working-chip";
 import { ProjectPicker } from "../../projects/components/project-picker";
 import { GoalPicker } from "../../goals/components/goal-picker";
+import { CyclePicker } from "../../cycles/components/cycle-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
 import { CommentCard } from "./comment-card";
 import { MeetingOriginLink } from "./meeting-origin-link";
@@ -86,11 +88,8 @@ import { RevisionConflictCompare } from "./revision-conflict-compare";
 import { CommentInput } from "./comment-input";
 import { CurrentIssueRenderContextProvider } from "../current-issue-render-context";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
-import { getShortcut, shortcutMatchesEvent } from "@multica/core/shortcuts";
-import { isImeComposing } from "@multica/core/utils";
-import { ThreadMinimap } from "./thread-minimap";
-import { ThreadNavPanel, mentionsUser, type ThreadNavThread } from "./thread-nav-panel";
-import { collectThreadReplies, deriveThreadResolution } from "./thread-utils";
+import { ThreadMinimap, type ThreadMinimapThread } from "./thread-minimap";
+import { collectThreadParticipants, collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { PlanVerificationSection } from "./plan-verification-section";
@@ -100,6 +99,7 @@ import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
 import { HandoffPacketCard } from "./handoff-packet-card";
 import { CrossReviewSection } from "./cross-review-section";
+import { CriticVerdictCard } from "./critic-verdict-card";
 import { ContestsSection } from "../../contests/components/contests-section";
 import { IssueOrgSection } from "../../org/components/issue-org-section";
 import { AgentEffectsSection } from "./agent-effects-section";
@@ -107,11 +107,16 @@ import { WatchdogSection } from "./watchdog-section";
 import { RunLimitBadge } from "./run-limit-badge";
 import { RunInterruptedBanner } from "./run-interrupted-banner";
 import { TrafficConflictBanner } from "./traffic-conflict-banner";
+import { TransitionApprovalBanner } from "./transition-approval-banner";
 import { DriftBadge } from "./drift-badge";
 import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
 import { FanoutSection } from "./fanout-section";
 import { DuelSection } from "./duel-section";
+import { RunGroupSection } from "./run-group-section";
+import { LinearLinkBadge } from "./linear-link-badge";
+import { EvalPromoteSection } from "./eval-promote-section";
+import { IssueMirrorsSection } from "./issue-mirrors-section";
 import { CampaignBoard } from "./campaign-board";
 import { RoleView, RoleViewTabs } from "./role-view";
 import { useIssueRoleViewStore } from "@multica/core/issues/role-view-store";
@@ -121,6 +126,8 @@ import { CompetencySuggestion } from "./competency-suggestion";
 import { QuickActionsSection } from "./quick-actions-section";
 import { PluginPanelSection } from "../../plugins";
 import { PullRequestList } from "./pull-request-list";
+import { PrWalkthroughSection } from "./pr-walkthrough-section";
+import { ReviewFlagsSection } from "./review-flags-section";
 import { MergeReadinessPanel } from "./merge-readiness-panel";
 import { PRStackList } from "./pr-stack-list";
 import { useGitHubSettings } from "@multica/core/github";
@@ -422,7 +429,12 @@ const EMPTY_REPLIES: TimelineEntry[] = [];
 // its row and add-property entry are gated on `issue.parent_issue_id` at the
 // render site below — it stays in this list so seeding/visibility flow through
 // the same machinery as the other optional props.
-const OPTIONAL_PROP_KEYS = ["priority", "stage", "start_date", "due_date", "labels"] as const;
+// `delegate` (F01) is optional-but-rendered-beside-the-assignee: it flows
+// through this list for seeding, visibility and the "+ Add property" menu, but
+// its ROW is placed directly under the assignee rather than in the optional
+// block below, because the two halves of one relationship reading apart is a
+// worse outcome than the row order being uniform.
+const OPTIONAL_PROP_KEYS = ["delegate", "priority", "stage", "start_date", "due_date", "labels"] as const;
 type OptionalPropKey = (typeof OPTIONAL_PROP_KEYS)[number];
 
 function isOptionalPropSet(
@@ -431,6 +443,8 @@ function isOptionalPropSet(
   attachedLabelsCount: number,
 ): boolean {
   switch (key) {
+    case "delegate":
+      return !!issue.delegate_type && !!issue.delegate_id;
     case "priority":
       return issue.priority !== "none";
     case "stage":
@@ -805,6 +819,7 @@ function SubIssueRow({
           status={child.status}
           onUpdate={handleUpdate}
           align="start"
+          issueId={child.id}
           trigger={
             <StatusIcon
               status={child.status}
@@ -1240,6 +1255,10 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // Same progressive-disclosure machinery for custom properties, keyed by
   // property definition id instead of a static key union.
   const [visibleCustomProps, setVisibleCustomProps] = useState<Set<string>>(() => new Set());
+  // Collapsed by default: out-of-scope values are context, not the issue's
+  // current shape, and expanding them by default would make every reclassified
+  // issue read as if it still carried the old type's fields.
+  const [showHiddenProps, setShowHiddenProps] = useState(false);
   const [autoOpenCustomProp, setAutoOpenCustomProp] = useState<string | null>(null);
   // Optional property to auto-open as soon as it's mounted (the user just
   // picked it from "+ Add property" and we want them dropped straight into
@@ -1626,42 +1645,27 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
   // One entry per comment thread (folded resolved bars included), activity
   // groups skipped. Derived from the same flat `items` array Virtuoso renders
-  // so the order always matches the page. Feeds both thread navigators — the
-  // right-edge rail and the header panel — from one derivation, so they can
-  // never disagree about what the threads are or what order they are in.
+  // so the right-edge outline always matches the page order.
   //
   // The resolved flag comes from `deriveThreadResolution`, not from the
   // `resolved-bar` kind: that kind only covers root resolutions that are
   // currently folded, so it would miss reply resolutions and would flip off
   // as soon as the user expanded a resolved thread.
-  const minimapThreads = useMemo<ThreadNavThread[]>(
+  const minimapThreads = useMemo<ThreadMinimapThread[]>(
     () =>
       items.flatMap((it) => {
         if (it.kind !== "comment" && it.kind !== "resolved-bar") return [];
         const replies = timelineView.threadReplies.get(it.id) ?? EMPTY_REPLIES;
-        const currentUserId = user?.id ?? "";
-        // "@me" means the thread concerns this reader: they started it,
-        // answered in it, or were @mentioned anywhere in it. Authorship counts
-        // because a thread you spoke in is one you are expected to follow —
-        // narrowing to literal mentions would drop most of them.
-        const involvesMe =
-          currentUserId !== "" &&
-          ([it.entry, ...replies].some(
-            (entry) =>
-              (entry.actor_type === "member" && entry.actor_id === currentUserId) ||
-              mentionsUser(entry.content, currentUserId),
-          ));
         return [
           {
             id: it.id,
             entry: it.entry,
             resolved: deriveThreadResolution(it.entry, replies).kind !== "none",
-            replyCount: replies.length,
-            involvesMe,
+            participants: collectThreadParticipants(it.entry, replies),
           },
         ];
       }),
-    [items, timelineView.threadReplies, user?.id],
+    [items, timelineView.threadReplies],
   );
 
   // When the timeline renders flat (deep-link or in-page find), there is no
@@ -1770,49 +1774,6 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
     },
     [isFlatTimeline, items, scrollContainerEl],
   );
-
-  // Header thread navigator. `open` and `pinned` live here rather than inside
-  // the panel because the global shortcut has to be able to open it already
-  // pinned, and because the rail needs `threadNavHoverId` to light the tick
-  // the panel's pointer is resting on — the two navigators share one
-  // coordinate system (MUL-5755).
-  const [threadNavOpen, setThreadNavOpen] = useState(false);
-  const [threadNavPinned, setThreadNavPinned] = useState(false);
-  const [threadNavHoverId, setThreadNavHoverId] = useState<string | null>(null);
-  const handleThreadNavOpenChange = useCallback((open: boolean, pinned: boolean) => {
-    setThreadNavOpen(open);
-    setThreadNavPinned(pinned);
-    if (!open) setThreadNavHoverId(null);
-  }, []);
-
-  // Global Mod+Shift+O. Scoped to the mounted issue detail and gated on
-  // visibility the same way Cmd+F is, so on desktop only the visible tab
-  // intercepts the key.
-  useEffect(() => {
-    if (minimapThreads.length === 0) return;
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.defaultPrevented || e.repeat || isImeComposing(e)) return;
-      if (!shortcutMatchesEvent(getShortcut("openThreadNav"), e)) return;
-      if (!scrollContainerEl || scrollContainerEl.getClientRects().length === 0) return;
-      e.preventDefault();
-      // The shortcut is a deliberate act, so it opens the pinned state
-      // directly. Pressing it again over a hover preview pins that preview
-      // rather than closing it, matching what pressing the button does.
-      if (threadNavOpen && threadNavPinned) {
-        handleThreadNavOpenChange(false, false);
-      } else {
-        handleThreadNavOpenChange(true, true);
-      }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [
-    handleThreadNavOpenChange,
-    minimapThreads.length,
-    scrollContainerEl,
-    threadNavOpen,
-    threadNavPinned,
-  ]);
 
   const {
     reactions: issueReactions,
@@ -2145,6 +2106,49 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // renderable (read-only) until someone clears it.
   const { data: workspaceProperties = [] } = useQuery(propertyListOptions(wsId, true));
 
+  // Applicability (F30). A property scoped to some work item types applies to
+  // an issue only when the issue carries one of them; an UNTYPED issue carries
+  // only global properties, because "no type" matches no type list. `type_keys`
+  // absent (an older backend) reads as global, which is what every property was
+  // before F30 — so nothing changed for a workspace that never scopes.
+  const appliesToThisIssue = useCallback(
+    (property: IssueProperty) =>
+      propertyAppliesToIssueType(property.type_keys, issue?.issue_type ?? null),
+    [issue?.issue_type],
+  );
+  // Rows the sidebar renders as editable: same progressive-disclosure rule as
+  // before (a value is set, or the user added the row this session), narrowed
+  // to what applies.
+  const applicableCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) =>
+          appliesToThisIssue(p) &&
+          (issue?.properties?.[p.id] !== undefined ||
+            (!p.archived && visibleCustomProps.has(p.id))),
+      ),
+    [appliesToThisIssue, issue?.properties, visibleCustomProps, workspaceProperties],
+  );
+  // Values that exist but no longer apply. Never dropped — see the fold below.
+  const hiddenCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) => !appliesToThisIssue(p) && issue?.properties?.[p.id] !== undefined,
+      ),
+    [appliesToThisIssue, issue?.properties, workspaceProperties],
+  );
+  const addableCustomProps = useMemo(
+    () =>
+      workspaceProperties.filter(
+        (p) =>
+          !p.archived &&
+          appliesToThisIssue(p) &&
+          !visibleCustomProps.has(p.id) &&
+          issue?.properties?.[p.id] === undefined,
+      ),
+    [appliesToThisIssue, issue?.properties, visibleCustomProps, workspaceProperties],
+  );
+
   // Sub-issue rows only surface live definitions: the display picker offers
   // non-archived properties, and chips render only ids that resolve here.
   const activeWorkspaceProperties = useMemo(
@@ -2356,10 +2360,31 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         {propertiesOpen && <div className="grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5 pl-2">
           {/* Core props — always rendered. */}
           <PropRow label={t(($) => $.detail.prop_status)}>
-            <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" />
+            <StatusPicker status={issue.status} onUpdate={handleUpdateField} align="start" issueId={issue.id} />
           </PropRow>
           <PropRow label={t(($) => $.detail.prop_assignee)}>
             <AssigneePicker assigneeType={issue.assignee_type} assigneeId={issue.assignee_id} onUpdate={handleUpdateField} align="start" />
+          </PropRow>
+          {/* The delegate (F01) reads directly under the assignee it partners,
+              but is optional: no delegate means no row until the user adds one
+              from "+ Add property". */}
+          {visibleOptionalProps.has("delegate") && (
+            <PropRow label={t(($) => $.detail.prop_delegate)}>
+              <AssigneePicker
+                kind="delegate"
+                assigneeType={issue.delegate_type ?? null}
+                assigneeId={issue.delegate_id ?? null}
+                onUpdate={handleUpdateField}
+                align="start"
+              />
+            </PropRow>
+          )}
+          {/* Work item type (F30). Always visible, like status and project: it
+              is what decides which of the rows below apply, so hiding it
+              behind "+ Add property" would leave the folded-properties note
+              pointing at a control the user cannot see. */}
+          <PropRow label={t(($) => $.detail.prop_issue_type)}>
+            <TypePicker issueType={issue.issue_type ?? null} onUpdate={handleUpdateField} align="start" />
           </PropRow>
           <PropRow label={t(($) => $.detail.prop_project)}>
             <ProjectPicker
@@ -2374,6 +2399,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 <span className="text-caption text-muted-foreground">{t(($) => $.detail.goal_inherited)}</span>
               )}
             </div>
+          </PropRow>
+          <PropRow label={t(($) => $.detail.prop_cycle)}>
+            <CyclePicker
+              cycleId={issue.cycle_id ?? null}
+              projectId={issue.project_id}
+              onUpdate={handleUpdateField}
+            />
           </PropRow>
 
           {/* Optional props — rendered only when set on the issue OR added
@@ -2432,36 +2464,43 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               built-in optional props: a row renders when the issue has a
               value OR the user added the property this session. Archived
               definitions render read-only until their value is cleared. */}
-          {workspaceProperties
-            .filter(
-              (p) =>
-                issue.properties?.[p.id] !== undefined ||
-                (!p.archived && visibleCustomProps.has(p.id)),
-            )
-            .map((p) => (
-              <PropRow
-                key={p.id}
-                label={
-                  <>
-                    <PropertyIcon property={p} className="size-3.5 text-caption" />
-                    <span className="truncate">{p.name}</span>
-                  </>
-                }
-              >
-                <CustomPropertyValueEditor
-                  issue={issue}
-                  property={p}
-                  defaultOpen={autoOpenCustomProp === p.id}
-                />
-              </PropRow>
-            ))}
+          {applicableCustomProps.map((p) => (
+            <PropRow
+              key={p.id}
+              label={
+                <>
+                  <PropertyIcon property={p} className="size-3.5 text-caption" />
+                  <span className="truncate">{p.name}</span>
+                </>
+              }
+            >
+              <CustomPropertyValueEditor
+                issue={issue}
+                property={p}
+                defaultOpen={autoOpenCustomProp === p.id}
+              />
+            </PropRow>
+          ))}
+
+          {/* Out-of-scope values (F30). A property scoped to another work item
+              type is NOT applicable to this issue, but its value is never
+              deleted — reclassifying an issue must not destroy data. So the
+              rows fold instead of vanishing: visible on demand, read-only
+              (the server refuses a write with property_not_applicable), and
+              back to normal the moment the type is switched back. */}
+          <HiddenPropertiesFold
+            properties={hiddenCustomProps}
+            values={issue.properties ?? {}}
+            open={showHiddenProps}
+            onToggle={() => setShowHiddenProps((v) => !v)}
+          />
 
           {/* "+ Add property" — opens a Popover listing optional fields
               not yet displayed. Hidden once every optional field is on
               screen. Sits inside the same grid as a full-row, with its
               own padding so the visual rhythm follows the rows above. */}
           {(OPTIONAL_PROP_KEYS.some((k) => !visibleOptionalProps.has(k) && (k !== "stage" || issue.parent_issue_id != null)) ||
-            workspaceProperties.some((p) => !p.archived && !visibleCustomProps.has(p.id) && issue.properties?.[p.id] === undefined)) && (
+            addableCustomProps.length > 0) && (
             <div className="col-span-2 mt-1">
               <Popover open={addPropPopoverOpen} onOpenChange={setAddPropPopoverOpen}>
                 <PopoverTrigger
@@ -2482,6 +2521,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                       onClick={() => addOptionalProp(k)}
                       className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-caption text-foreground transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                     >
+                      {k === "delegate" && (
+                        <UserPlus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
                       {k === "priority" && (
                         <PriorityIcon priority="medium" inheritColor className="text-muted-foreground" />
                       )}
@@ -2498,6 +2540,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                         <Tag className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                       )}
                       <span className="truncate">
+                        {k === "delegate" && t(($) => $.detail.prop_delegate)}
                         {k === "priority" && t(($) => $.detail.prop_priority)}
                         {k === "stage" && t(($) => $.detail.prop_stage)}
                         {k === "start_date" && t(($) => $.detail.prop_start_date)}
@@ -2507,12 +2550,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                     </button>
                   ))}
                   {(() => {
-                    const addable = workspaceProperties.filter(
-                      (p) =>
-                        !p.archived &&
-                        !visibleCustomProps.has(p.id) &&
-                        issue.properties?.[p.id] === undefined,
-                    );
+                    const addable = addableCustomProps;
                     if (addable.length === 0) return null;
                     return (
                       <>
@@ -2612,6 +2650,14 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             <MergeReadinessPanel issueId={id} />
             <PRStackList issueId={id} />
             <PullRequestList issueId={id} />
+            {/* Anchored discussions (F07) live inside these two sections, so
+                both need who is reading in order to compose one. */}
+            <PrWalkthroughSection
+              issueId={id}
+              currentUserId={user?.id}
+              canModerate={canModerateComments}
+            />
+            <ReviewFlagsSection issueId={id} currentUserId={user?.id} />
           </div>}
         </div>
       )}
@@ -2643,11 +2689,19 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Cross-provider self-review (K15): another provider's report on the last diff, before the human review. */}
       <CrossReviewSection issueId={id} />
 
+      {/* Adversarial review (F25): the critic's verdicts on this issue's deliveries. */}
+      <CriticVerdictCard issueId={id} />
+
       {/* Contest (K72): rival-model objections on this issue's outputs, and the human verdict. */}
       <ContestsSection issueId={id} />
 
       {/* Org chart (K75): market offers on this issue, escalate and route-now. */}
       <IssueOrgSection issueId={id} issue={issue} />
+
+      {/* Transition rules (F28): a status change held for an approver. First in
+          the stack because it is the one banner that says the issue is NOT in
+          the state someone just asked for. */}
+      <TransitionApprovalBanner issueId={id} />
 
       {/* Undo for agent actions (K69): what each run changed here, and the button to take it back. */}
       <AgentEffectsSection issueId={id} />
@@ -2676,6 +2730,18 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
       <DuelSection issueId={id} />
+
+      {/* Racing attempts (F11): N attempts side by side, the human keeps one. */}
+      <RunGroupSection issueId={id} />
+
+      {/* Linear Bridge (K21): this issue mirrors a Linear issue — identifier, link out, sync state. */}
+      <LinearLinkBadge issueId={id} />
+
+      {/* Cross-repo mirrors (K54): the mirrors this issue generated, or the source it came from. */}
+      <IssueMirrorsSection issueId={id} />
+
+      {/* Eval Lab (K24): freeze this proved issue as a reusable eval case. */}
+      <EvalPromoteSection issueId={id} />
 
       {/* Refactoring campaigns (K42): sharded fan-out with a sequential merge queue. */}
       <CampaignBoard issueId={id} />
@@ -2902,21 +2968,6 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
                 it never overlaps the title (which truncates to make room).
                 It self-hides when no agent is active. */}
             <IssueAgentHeaderChip issueId={id} />
-            {/* Thread navigator. Leftmost of the action buttons because it
-                navigates the document, while everything to its right acts on
-                the issue. Hidden on mobile with the rail: the panel would work
-                there, but it needs a sheet rather than a popover to be usable
-                one-handed, which is its own change. */}
-            {!isMobile && (
-              <ThreadNavPanel
-                threads={minimapThreads}
-                onJump={jumpToThread}
-                onHoverThread={setThreadNavHoverId}
-                open={threadNavOpen}
-                pinned={threadNavPinned}
-                onOpenChange={handleThreadNavOpenChange}
-              />
-            )}
             {onDone && !issueBehavesAsAny(issue, ["done", "cancelled"]) && (
               <Tooltip>
                 <TooltipTrigger
@@ -3610,7 +3661,6 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             threads={minimapThreads}
             scrollContainerEl={scrollContainerEl}
             onJump={jumpToThread}
-            highlightedThreadId={threadNavHoverId}
             className="absolute bottom-0 right-3 top-12"
           />
         )}
@@ -3655,5 +3705,108 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
         </AnimatedRightSidebar>
       </ResizablePanel>
     </ResizablePanelGroup>
+  );
+}
+
+/**
+ * Whether a property applies to an issue of `issueType` (F30).
+ *
+ * `scope` empty or absent means GLOBAL — every type plus untyped issues — which
+ * is what every property created before F30 carries, so the migration changed
+ * nothing. A scoped property never applies to an UNTYPED issue: "no type"
+ * matches no type list, and pretending otherwise would put a bug-only field on
+ * every unclassified issue in the workspace.
+ *
+ * Mirrors `propertyAppliesToType` in the server's property_type_scope.go — the
+ * server is the authority (it answers 409 property_not_applicable), this is the
+ * client's rendering of the same rule.
+ */
+export function propertyAppliesToIssueType(
+  scope: string[] | undefined,
+  issueType: string | null | undefined,
+): boolean {
+  if (!scope || scope.length === 0) return true;
+  if (!issueType) return false;
+  return scope.includes(issueType);
+}
+
+/**
+ * A folded-away property value as one line of text. Read-only by construction:
+ * an out-of-scope value cannot be edited (the server refuses the write), so
+ * this renders rather than offering a control that can only fail.
+ */
+export function formatHiddenPropertyValue(
+  property: IssueProperty,
+  value: IssuePropertyValue | undefined,
+): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value === "boolean") return value ? "\u2713" : "\u2014";
+  if (Array.isArray(value)) {
+    const options = property.config?.options ?? [];
+    return value
+      .map((entry) => options.find((option) => option.id === entry)?.name ?? entry)
+      .join(", ");
+  }
+  const option = (property.config?.options ?? []).find((o) => o.id === value);
+  return option?.name ?? String(value);
+}
+
+/**
+ * The out-of-scope property values, folded (F30).
+ *
+ * Extracted from the sidebar so it can be mounted on its own in a test: the
+ * whole point of this block is a behaviour — values SURVIVE a type change and
+ * stay readable — and proving it through the full issue-detail mount would
+ * cost a page of unrelated fixtures to assert one paragraph.
+ *
+ * Read-only by construction: an out-of-scope value cannot be written (the
+ * server answers `property_not_applicable`), so this renders text rather than
+ * offering an editor that can only fail.
+ */
+export function HiddenPropertiesFold({
+  properties,
+  values,
+  open,
+  onToggle,
+}: {
+  properties: IssueProperty[];
+  values: Record<string, IssuePropertyValue>;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const { t } = useT("issues");
+  if (properties.length === 0) return null;
+  return (
+    <div className="col-span-2 mt-1">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 -mx-2 text-caption text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+      >
+        <ChevronRight
+          className={cn("h-3 w-3 shrink-0 transition-transform", open && "rotate-90")}
+        />
+        <span>{t(($) => $.detail.hidden_properties, { count: properties.length })}</span>
+      </button>
+      {open && (
+        <div className="mt-1 space-y-1 pl-2">
+          <p className="text-caption text-muted-foreground">
+            {t(($) => $.detail.hidden_properties_hint)}
+          </p>
+          {properties.map((property) => (
+            <div key={property.id} className="flex min-w-0 items-center gap-2 py-0.5">
+              <PropertyIcon property={property} className="size-3.5 shrink-0 text-caption" />
+              <span className="w-28 shrink-0 truncate text-caption text-muted-foreground">
+                {property.name}
+              </span>
+              <span className="truncate text-caption">
+                {formatHiddenPropertyValue(property, values[property.id])}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

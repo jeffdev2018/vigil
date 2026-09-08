@@ -14,6 +14,10 @@ Multica records and coordinates the work; connected computers execute it. The **
 
 For example, a computer has both Claude Code and Codex installed and is connected to two workspaces. The daemon registers Claude Code and Codex runtimes for each workspace. Restarting the daemon updates the existing records; it does not keep creating new runtimes for the same combination.
 
+<Callout type="info">
+Every workspace also has one runtime with no daemon at all: the [native runtime](/native-runtime) runs a small, closed set of issue tools directly inside the Multica server. It has no filesystem or shell access — use it for lightweight triage work, not coding.
+</Callout>
+
 ## Execution location and data boundaries
 
 The AI coding tools a local runtime invokes, those tools' own login credentials, and your local code directories all stay on the connected computer. The Multica server does not execute commands on behalf of local tools, and it does not automatically upload your entire working directory.
@@ -103,6 +107,8 @@ The table lists the variables that custom runtimes can use today. It is intentio
 | `MULTICA_AGENT_NAME` | Display name of the assigned agent | Informational |
 | `MULTICA_DAEMON_PORT` | Local daemon health/API port used by task-only commands such as `multica repo checkout` | Informational |
 | `MULTICA_TASK_SLOT` | Slot in the daemon-wide concurrency pool; useful for slot-indexed resources such as GPUs | Informational |
+| `MULTICA_PORT_BASE` | First port of a block reserved for this run; disjoint from every other run active on the machine. Set only in worktree mode | **Integration contract** |
+| `MULTICA_PORT_COUNT` | How many consecutive ports the block holds, starting at `MULTICA_PORT_BASE` | **Integration contract** |
 | `TMPDIR` | Private temporary directory for the active task; also supplied as `TMP` and `TEMP` for cross-platform tools | Informational |
 
 The server determines authorship for requests made with `MULTICA_TOKEN`; writes such as issue comments are attributed to the assigned agent and active task. For the token's complete binding, permissions, attribution, 24-hour maximum lifetime, and cleanup behavior, see [Temporary tokens for agent runs](/auth-tokens#temporary-tokens-for-agent-runs).
@@ -154,6 +160,62 @@ multica runtime profile unset-path <profile-id>
 ```
 
 Editing a profile only affects runs claimed afterwards. Before deleting a profile, deal with the active agents still bound to its runtimes. Deleting only the runtime instance on one computer does not delete the profile — a running daemon will re-register it.
+
+## Turn checkpoints, revert and lifecycle scripts
+
+These apply to a project resource in **worktree** mode, where each run delivers its work as a branch in your own repository rather than editing your working copy.
+
+### Turn checkpoints
+
+Every run records where it left the branch, under `refs/multica/turn/<run>` in your repository. The record holds two things: the commit the run delivered, and your working directory as the branch then carried it. A run that failed partway records one too — that is the run you are most likely to want back.
+
+Checkpoints are yours to delete. They are ordinary refs, they are pruned automatically once their branch is gone, and nothing in Multica breaks if you remove one; the run simply stops offering a revert.
+
+### Reverting to a turn
+
+A finished run that carries a checkpoint offers **Revert to this turn**. Confirming it moves the conversation's branch back to where that run left it, and removes the runs and messages that came after it.
+
+It never touches your working copy, your index or your stash. Only the branch pointer moves, so if you have the branch checked out, `git status` afterwards shows the difference and you decide what to do with it.
+
+Two cases are refused rather than forced, each naming its cause:
+
+- **The branch moved off that run's checkpoint.** Something rebased, reset or force-moved it since the run. Reverting would discard work that is not Multica's, so nothing is changed.
+- **A revert is already in progress** for that conversation. Two reverts racing on one branch is the case that loses work.
+
+The revert runs on the machine that owns the repository, so its daemon must be online and recent enough to support it. The action is not offered otherwise.
+
+### Lifecycle scripts
+
+A worktree is a checkout, and a checkout usually needs something done to it before it is useful. A local directory resource in worktree mode can carry up to three commands:
+
+| Script | When it runs | If it fails |
+| --- | --- | --- |
+| Setup | Once the worktree exists, before the agent starts | The run fails, with the script's output as the reason |
+| Run | After Setup, alongside the agent, and stopped when the run ends | The preview is marked failed; the run continues |
+| Archive | Before the branch is delivered | Logged; delivery continues |
+
+Each is a command, not a shell line: the first word is the program and the rest are its arguments. Nothing is interpreted by a shell, so a value containing `;` or `&&` is a literal argument rather than a second command. If you need a pipeline, a variable or a conditional, write a script file and name it here.
+
+Setup and Archive are bounded at five minutes. Run is long-lived by design and is killed, with its whole process group, when the run ends. All three keep their full output in the run's `logs/` directory.
+
+### Run previews
+
+When a resource declares a Run script, the daemon starts it after Setup and probes `MULTICA_PORT_BASE` on `127.0.0.1` for up to 90 seconds. Once something answers, the run gets a **preview**: a chip on the run row and a panel on the run's detail showing where the app is.
+
+Bind `MULTICA_PORT_BASE`, not a fixed port. A dev server on a hardcoded port gets no preview and collides with the next concurrent run.
+
+How the preview is reachable depends on the daemon:
+
+- **Relayed.** The server proxies requests to your machine over the connection the daemon already holds open, behind a scoped link that expires and can be revoked. Nothing listens on your machine's network interfaces and no inbound port is opened. Revoking a link stops it serving on the next request.
+- **Local.** When the daemon is too old to relay, or the deployment sets `MULTICA_PREVIEW_RELAY=off`, the address is `http://127.0.0.1:<port>` and only means something on the machine that ran the task. The desktop app opens it; the web app says it is local rather than offering a link that cannot work.
+
+The preview dies with its run: the process group is killed and an open link answers "gone". WebSockets are not relayed, so hot module reload does not survive a relayed preview — reload the page.
+
+### Ports
+
+Two runs on the same machine starting the same dev server is the first thing that breaks when they overlap, so every run gets its own block of ports. `MULTICA_PORT_BASE` is the first port of the block and `MULTICA_PORT_COUNT` is how many it holds. Bind inside that range instead of a fixed port, and concurrent runs stay out of each other's way.
+
+The block is probed before the run starts and shifted if something on the machine already holds it. Change the range with `MULTICA_DAEMON_TASK_PORT_BASE` (default 21000) and `MULTICA_DAEMON_TASK_PORT_COUNT` (default 10) in the daemon's environment.
 
 ## CLI authentication
 
@@ -220,6 +282,7 @@ If the problem persists, see [Troubleshooting](/troubleshooting).
 
 ## Next steps
 
+- [Native runtime](/native-runtime) — the daemon-free alternative for lightweight issue work.
 - [Install AI coding tools](/install-agent-runtime) — install and verify a supported AI coding tool.
 - [AI coding tools comparison](/providers) — compare models, session resumption, MCP, and skill support.
 - [Runs](/tasks) — queueing, stopping, and retries.

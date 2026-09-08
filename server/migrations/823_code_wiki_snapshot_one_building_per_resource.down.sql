@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY IF EXISTS code_wiki_snapshot_one_building_per_resource;

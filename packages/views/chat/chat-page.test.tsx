@@ -3,7 +3,7 @@
 import { StrictMode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { Agent } from "@multica/core/types";
 import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../locales/en/common.json";
@@ -50,6 +50,13 @@ vi.mock("./components/chat-empty-state", () => ({
 vi.mock("./components/new-chat-button", () => ({
   NewChatButton: () => <div>new-chat-button</div>,
 }));
+// Stubbed like the other list children so the mount assertion below stays
+// about ChatPage's composition, not the bar's own pinned-agent queries.
+vi.mock("./components/quick-agent-bar", () => ({
+  QuickAgentBar: ({ agents }: { agents: Array<{ id: string }> }) => (
+    <div data-testid="quick-agent-bar">{agents.length}</div>
+  ),
+}));
 vi.mock("./components/offline-banner", () => ({
   OfflineBanner: () => null,
 }));
@@ -84,6 +91,10 @@ vi.mock("@multica/ui/hooks/use-mobile", () => ({
 }));
 vi.mock("@multica/core/paths", () => ({
   useWorkspacePaths: () => ({ chat: () => "/acme/chat" }),
+  // ChatPage reads the workspace id for the multiplayer roster (K31). These
+  // suites are about routing, not the roster, so a null workspace is enough:
+  // the roster query is disabled on an empty id.
+  useCurrentWorkspace: () => null,
 }));
 
 // The store mock is REACTIVE like real Zustand: setActiveSession replaces the
@@ -239,6 +250,25 @@ beforeEach(() => {
   availableAgentsRef.current = [agent];
   agentsSettledRef.current = true;
   layout.width = DESKTOP;
+});
+
+describe("ChatPage list composition", () => {
+  // Regression guard for the class of rot this component was in: QuickAgentBar
+  // shipped complete with `chat_pinned_agent` wiring and was never mounted, so
+  // the table stayed empty and nothing failed. A test of the bar alone would
+  // have passed the whole time — only the parent can prove it renders.
+  it("renders the pinned-agent bar above the conversation list, on both layouts", () => {
+    layout.width = DESKTOP;
+    renderPage("");
+    expect(screen.getByTestId("quick-agent-bar")).toBeInTheDocument();
+    // Fed from the permission-filtered agent list, same source as ⊕.
+    expect(screen.getByTestId("quick-agent-bar").textContent).toBe("1");
+
+    cleanup();
+    layout.width = 500; // mobile: the list is the whole screen
+    renderPage("");
+    expect(screen.getByTestId("quick-agent-bar")).toBeInTheDocument();
+  });
 });
 
 describe("ChatPage ?agent= deep link", () => {

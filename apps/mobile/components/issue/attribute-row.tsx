@@ -11,6 +11,7 @@
  *   status    →  issue/[id]/picker/status
  *   priority  →  issue/[id]/picker/priority
  *   assignee  →  issue/[id]/picker/assignee
+ *   delegate  →  issue/[id]/picker/delegate  (F01; chip shown only when set)
  *   labels    →  issue/[id]/picker/label   (multi-select, stays open)
  *   project   →  issue/[id]/picker/project
  *   due_date  →  issue/[id]/picker/due-date
@@ -53,6 +54,7 @@ type IssuePickerField =
   | "status"
   | "priority"
   | "assignee"
+  | "delegate"
   | "label"
   | "project"
   | "due-date";
@@ -61,6 +63,7 @@ const ISSUE_PICKER_PATHNAMES = {
   status: "/[workspace]/issue/[id]/picker/status",
   priority: "/[workspace]/issue/[id]/picker/priority",
   assignee: "/[workspace]/issue/[id]/picker/assignee",
+  delegate: "/[workspace]/issue/[id]/picker/delegate",
   label: "/[workspace]/issue/[id]/picker/label",
   project: "/[workspace]/issue/[id]/picker/project",
   "due-date": "/[workspace]/issue/[id]/picker/due-date",
@@ -99,6 +102,18 @@ export function AttributeRow({ issue }: { issue: Issue }) {
 
   const assigneeName = assigneeValue
     ? getName(assigneeValue.type, assigneeValue.id)
+    : null;
+
+  // The delegate (F01) is the assignee's partner. Unlike the assignee it has
+  // no placeholder chip: an issue with no delegate shows no delegate row, so
+  // the row stays about the relationships that exist. Matches web, where the
+  // delegate is an optional property.
+  const delegateValue =
+    issue.delegate_type && issue.delegate_id
+      ? { type: issue.delegate_type, id: issue.delegate_id }
+      : null;
+  const delegateName = delegateValue
+    ? getName(delegateValue.type, delegateValue.id)
     : null;
   const dueLabel = formatDueDate(issue.due_date);
 
@@ -158,6 +173,25 @@ export function AttributeRow({ issue }: { issue: Issue }) {
           label="Assignee"
           variant="dimmed"
           onPress={() => openPicker("assignee")}
+        />
+      )}
+
+      {/* Delegate (F01) — directly after the assignee it partners. Rendered
+          only when set: there is no dimmed placeholder, because a delegate is
+          the exception rather than a field every issue is expected to fill. */}
+      {delegateValue && (
+        <AttributeChip
+          icon={
+            <ActorAvatar
+              type={delegateValue.type}
+              id={delegateValue.id}
+              size={16}
+              showPresence
+            />
+          }
+          label={delegateName ?? "Unknown"}
+          variant="filled"
+          onPress={() => openPicker("delegate")}
         />
       )}
 

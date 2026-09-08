@@ -13,7 +13,8 @@ import (
 // Run limits (K03), DB path: CRUD with scope validation and one policy per
 // scope, warn once at the threshold, observe records without stopping,
 // enforce stops the run with its own reason and one event, the duration
-// cap moves with the sweeper, status is readable per run and per issue.
+// cap moves with the sweeper, status is readable per run and per issue and
+// reports every gate — the two declared here plus the built-in wall.
 
 func TestRunLimitPoliciesCRUD(t *testing.T) {
 	agent := dbfx.Agent(t, "limit crud agent", handlerTestRuntimeID(t))
@@ -89,7 +90,7 @@ func TestRunLimitsWarnObserveAndStop(t *testing.T) {
 		Events []RunLimitEventResponse `json:"events"`
 	}
 	gateCall(t, testHandler.GetTaskBudgetStatus, http.MethodGet, "/api/tasks/"+task+"/budget-status", nil, gateHeaders(task, agent), "taskId", task).Want(http.StatusOK).JSON(&status)
-	if status.Usage.Turns != 12 || status.Usage.CostUsdTicks != 6000000000 || len(status.Gates) != 2 || len(status.Events) != 2 {
+	if status.Usage.Turns != 12 || status.Usage.CostUsdTicks != 6000000000 || len(status.Gates) != 4 || len(status.Events) != 2 {
 		t.Fatalf("status = %+v", status)
 	}
 	// $1.20: the enforced cap stops the run with its own reason, once.

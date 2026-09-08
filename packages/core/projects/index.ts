@@ -19,3 +19,21 @@ export {
   useUpdateProjectResource,
   useDeleteProjectResource,
 } from "./resource-queries";
+export {
+  codeWikiKeys,
+  projectCodeWikiOptions,
+  projectCodeWikiPageOptions,
+  useRefreshProjectCodeWiki,
+  formatCitation,
+  citationUrl,
+  repoUrlFromResource,
+  EMPTY_CODE_WIKI,
+  CodeWikiSchema,
+  CodeWikiPageSchema,
+  CodeWikiSnapshotSchema,
+  type CodeWiki,
+  type CodeWikiPage,
+  type CodeWikiPageSummary,
+  type CodeWikiSnapshot,
+  type CodeWikiCitation,
+} from "./wiki";

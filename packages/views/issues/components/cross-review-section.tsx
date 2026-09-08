@@ -1,10 +1,10 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ShieldCheck } from "lucide-react";
+import { Check, ShieldCheck, X } from "lucide-react";
 import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
-import { crossReviewState, issueCrossReviewsOptions, useRetryCrossReview } from "@multica/core/issues/cross-review";
+import { crossReviewSignalOptions, crossReviewState, issueCrossReviewsOptions, useRetryCrossReview } from "@multica/core/issues/cross-review";
 import { Button } from "@multica/ui/components/ui/button";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
@@ -20,6 +20,7 @@ export function CrossReviewSection({ issueId, canManage = true }: { issueId: str
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
   const { data: reviews = [] } = useQuery(issueCrossReviewsOptions(wsId, issueId));
+  const { data: signal = null } = useQuery(crossReviewSignalOptions(wsId, issueId));
   const retry = useRetryCrossReview(wsId, issueId);
   const latest = reviews[0];
   if (!latest) return null;
@@ -37,9 +38,33 @@ export function CrossReviewSection({ issueId, canManage = true }: { issueId: str
           <span className={cn("ml-auto rounded px-1", report.verdict === "approve" ? "bg-success/15 text-success" : report.verdict === "request_changes" ? "bg-warning/20 text-warning" : "bg-muted text-muted-foreground")}>{t(($) => $.cross_review.verdict[report.verdict])}</span>
         )}
       </div>
+      {signal?.kind === "rework" && (
+        <p data-testid="cross-review-rework" className="rounded bg-warning/20 px-1.5 py-0.5 text-warning">{t(($) => $.cross_review.rework, { cycle: signal.cycle ?? 0 })}</p>
+      )}
+      {signal?.kind === "escalated" && (
+        <p data-testid="cross-review-escalated" className="rounded bg-destructive/15 px-1.5 py-0.5 text-destructive">{t(($) => $.cross_review.escalated, { cycles: signal.cycles ?? 0 })}</p>
+      )}
       {state === "done" && report && (
         <div className="flex flex-col gap-1">
           {report.summary && <p className="text-muted-foreground">{report.summary}</p>}
+          {(report.checklist_results?.length ?? 0) > 0 && (
+            <div data-testid="cross-review-checklist">
+              <div className="font-medium">{t(($) => $.cross_review.checklist)}</div>
+              <ul className="flex flex-col gap-0.5">
+                {(report.checklist_results ?? []).map((r, i) => (
+                  <li key={i} data-pass={r.pass} className="flex items-start gap-1.5">
+                    {r.pass
+                      ? <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" aria-hidden="true" />
+                      : <X className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" aria-hidden="true" />}
+                    <span className="min-w-0">
+                      {r.item}
+                      {r.note && <span className="text-muted-foreground"> — {r.note}</span>}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {([["risks", report.risks], ["questions", report.questions], ["suggestions", report.suggestions]] as const).map(([key, items]) => items.length > 0 && (
             <div key={key} data-testid={`cross-review-${key}`}>
               <div className="font-medium">{t(($) => $.cross_review[key])}</div>

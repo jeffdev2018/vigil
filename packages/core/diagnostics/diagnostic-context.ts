@@ -61,6 +61,9 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   ["projects", ":id"],
   // Goals with ancestry (K74).
   ["goals"],
+  // Dated cycles (F29).
+  ["cycles"],
+  ["cycles", ":id"],
   // Executable org chart (K75).
   ["org"],
   ["autopilots"],

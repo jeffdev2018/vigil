@@ -32,7 +32,7 @@ Save:
 - A decision and the reason behind it ("we dropped the queue table because the scheduler already leases; see MUL-2957").
 - A convention nobody wrote down ("migrations run outside a transaction so CONCURRENTLY works").
 - A hard fact about the codebase or the infrastructure ("the daemon reaches Postgres through pgbouncer on 6432").
-- Ownership and contacts ("the release tag is cut by whoever owns `server/cmd/release`").
+- Ownership and contacts ("the release tag is cut by whoever owns the deploy pipeline").
 
 Do not save:
 

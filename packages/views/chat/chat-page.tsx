@@ -11,7 +11,7 @@ import {
   ResizableHandle,
 } from "@multica/ui/components/ui/resizable";
 import { useIsCompact } from "@multica/ui/hooks/use-mobile";
-import { useWorkspacePaths } from "@multica/core/paths";
+import { useWorkspacePaths, useCurrentWorkspace } from "@multica/core/paths";
 import { useChatStore } from "@multica/core/chat";
 import { chatQuickActionsPendingOptions } from "@multica/core/chat/queries";
 import { useRegenerateChatQuickActions } from "@multica/core/chat/mutations";
@@ -27,8 +27,10 @@ import { ChatInput } from "./components/chat-input";
 import { ChatQueue } from "./components/chat-queue";
 import { ChatThreadList } from "./components/chat-thread-list";
 import { ChatSessionHeader } from "./components/chat-session-header";
+import { ParticipantBar, useChatAuthorNames } from "./components/participant-bar";
 import { EmptyState } from "./components/chat-empty-state";
 import { NewChatButton } from "./components/new-chat-button";
+import { QuickAgentBar } from "./components/quick-agent-bar";
 import { useChatController } from "./components/use-chat-controller";
 import { OfflineBanner } from "./components/offline-banner";
 import { NoAgentBanner } from "./components/no-agent-banner";
@@ -59,6 +61,10 @@ export function ChatPage() {
   const { t } = useT("chat");
   const { searchParams, replace } = useNavigation();
   const wsPaths = useWorkspacePaths();
+  // Non-throwing accessor on purpose: ChatPage is also mounted outside a
+  // workspace route (deep-link tests, transition shells), and the roster
+  // queries below are simply disabled on an empty id.
+  const wsId = useCurrentWorkspace()?.id ?? "";
   const isCompact = useIsCompact();
 
   const c = useChatController({ isActive: true });
@@ -223,16 +229,26 @@ export function ChatPage() {
     </PageHeader>
   );
 
+  // One body for both layouts (mobile full-width list, desktop left panel), so
+  // the pinned-agent strip cannot end up on only one of them. The bar sits
+  // above the conversation list and hides itself when there is nothing to pin.
   const listBody = (
-    <div className="px-2 py-1">
-      <ChatThreadList
-        sessions={c.sessions}
-        agents={c.agents}
-        activeSessionId={c.activeSessionId}
-        onSelectSession={handleSelect}
-        onArchive={handleArchive}
+    <>
+      <QuickAgentBar
+        agents={c.availableAgents}
+        userId={c.user?.id}
+        onStartNewChat={startNewChat}
       />
-    </div>
+      <div className="px-2 py-1">
+        <ChatThreadList
+          sessions={c.sessions}
+          agents={c.agents}
+          activeSessionId={c.activeSessionId}
+          onSelectSession={handleSelect}
+          onArchive={handleArchive}
+        />
+      </div>
+    </>
   );
 
   // The conversation pane: message list / skeleton / empty above a persistent
@@ -242,14 +258,21 @@ export function ChatPage() {
   // `@container`: the conversation column's gutter (CHAT_GUTTER) widens with
   // THIS pane, which the user resizes independently of the browser window.
   const queuedTasks = c.pendingTask?.queued_tasks ?? [];
+  // Undefined in a solo chat — the bubbles then render exactly as before K31.
+  const resolveAuthorName = useChatAuthorNames(wsId, c.activeSessionId);
   const conversation = (
     <div className="flex flex-1 flex-col min-h-0 @container">
       {c.currentSession && (
-        <ChatSessionHeader
-          session={c.currentSession}
-          agent={c.activeAgent}
-          onArchive={handleArchive}
-        />
+        <>
+          <ChatSessionHeader
+            session={c.currentSession}
+            agent={c.activeAgent}
+            onArchive={handleArchive}
+          />
+          {/* Multiplayer roster (K31). Renders nothing for a solo session
+              the viewer did not create, so single-player chat is unchanged. */}
+          <ParticipantBar session={c.currentSession} wsId={wsId} />
+        </>
       )}
       {c.showSkeleton ? (
         <ChatMessageSkeleton />
@@ -281,6 +304,7 @@ export function ChatPage() {
               : undefined
           }
           quickActionsPendingMessageId={quickActionsPending?.message_id ?? null}
+          resolveAuthorName={resolveAuthorName}
         />
       ) : (
         <EmptyState

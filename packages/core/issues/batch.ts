@@ -26,6 +26,16 @@ export interface CommonIssueFields {
   status: IssueStatus | null;
   priority: IssuePriority | null;
   assignee: CommonAssignee | null;
+  /**
+   * The project every selected issue is in, or null when they disagree or
+   * none is set. Batch cycle assignment reads it: a cycle only accepts its
+   * OWN project's issues, so a mixed-project selection has no cycle it could
+   * legally be planned into and the picker stays hidden rather than offering
+   * a move the server would refuse item by item.
+   */
+  projectId: string | null;
+  /** The cycle every selected issue is planned into, or null when mixed. */
+  cycleId: string | null;
 }
 
 /**
@@ -68,5 +78,14 @@ export function commonIssueFields(issues: readonly Issue[]): CommonIssueFields {
       ? { type: issues[0]!.assignee_type, id: issues[0]!.assignee_id }
       : null;
 
-  return { status, priority, assignee };
+  const projectId = sharedValue(issues.map((i) => i.project_id ?? ""));
+  const cycleId = sharedValue(issues.map((i) => i.cycle_id ?? ""));
+
+  return {
+    status,
+    priority,
+    assignee,
+    projectId: projectId ? projectId : null,
+    cycleId: cycleId ? cycleId : null,
+  };
 }

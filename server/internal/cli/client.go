@@ -50,9 +50,15 @@ type APIClient struct {
 	BaseURL     string
 	WorkspaceID string
 	Token       string
-	AgentID     string // When set, requests are attributed to this agent instead of the user.
-	TaskID      string // When set, sent as X-Task-ID for agent-task validation.
-	HTTPClient  *http.Client
+	// AgentID / TaskID travel as X-Agent-ID / X-Task-ID execution context.
+	// They are NOT what makes the server treat a request as the agent's: the
+	// server strips both headers on entry and re-stamps them from the bound
+	// mat_ task token, so attribution follows the token, not these fields
+	// (MUL-3428). The CLI only sets them inside a daemon-managed task, where
+	// MULTICA_TOKEN is that mat_ token.
+	AgentID    string
+	TaskID     string
+	HTTPClient *http.Client
 
 	// Identity overrides. Empty values fall back to the package-level
 	// ClientPlatform / ClientVersion / ClientOS.
@@ -417,6 +423,66 @@ func (c *APIClient) PutJSON(ctx context.Context, path string, body any, out any)
 		return nil
 	}
 	return wrapBodyRead(req, json.NewDecoder(resp.Body).Decode(out))
+}
+
+// PutJSONWithHeaders is PutJSON plus caller-supplied request headers, for the
+// conditional writes that carry an If-Match precondition.
+func (c *APIClient) PutJSONWithHeaders(ctx context.Context, path string, body any, out any, headers map[string]string) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, c.BaseURL+path, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	c.setHeaders(req)
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+
+	resp, err := c.HTTPClient.Do(req)
+	err = wrapTransport(req, err)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return newHTTPError(http.MethodPut, path, resp)
+	}
+	if out == nil {
+		return nil
+	}
+	return wrapBodyRead(req, json.NewDecoder(resp.Body).Decode(out))
+}
+
+// GetText performs a GET and returns the raw body, for endpoints that answer
+// with something other than JSON (the DAEMON.md export is text/markdown).
+func (c *APIClient) GetText(ctx context.Context, path string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+path, nil)
+	if err != nil {
+		return "", err
+	}
+	c.setHeaders(req)
+
+	resp, err := c.HTTPClient.Do(req)
+	err = wrapTransport(req, err)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return "", newHTTPError(http.MethodGet, path, resp)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", wrapBodyRead(req, err)
+	}
+	return string(body), nil
 }
 
 // PatchJSON performs a PATCH request with a JSON body.

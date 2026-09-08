@@ -50,7 +50,9 @@
     "runs_per_issue_other": "每个任务 {{count}} 次协调运行",
     "loading": "加载模板中…",
     "cancel": "取消",
-    "error": "无法创建结构"
+    "error": "无法创建结构",
+    "replaces_existing": "选择模板会以新修订版替换当前结构“{{name}}”。",
+    "composite_title": "团队层级"
   },
   "form": {
     "name": "名称",

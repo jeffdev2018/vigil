@@ -26,10 +26,15 @@ import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
 import { ProjectResourcesSection } from "./project-resources-section";
+import { WikiPanel } from "./wiki-panel";
 import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectOrgSection } from "./project-org-section";
+import { ProjectMembersSection } from "./project-members-section";
+import { EpicPanel } from "./epic-panel";
+import { ProjectMirrorsSection } from "./project-mirrors-section";
 import { ProjectDecisionsSection } from "./project-decisions-section";
 import { ProjectBlastRadiusSection } from "./project-blast-radius-section";
+import { ProjectReviewSection } from "./project-review-section";
 import { ProjectStartDatePicker } from "./project-start-date-picker";
 import { ProjectDueDatePicker } from "./project-due-date-picker";
 import { IssueSurface } from "../../issues/surface/issue-surface";
@@ -124,6 +129,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         projectStatus: project.status,
       });
     }
+    // Field-level deps on purpose: the recent-context entry only carries these
+    // five fields, so no other `project` change should re-record a visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, project?.title, project?.description, project?.icon, project?.status, recordRecentContext, wsId]);
   const issueTab = useIssuesScope(`project:${projectId}`);
   const issueScope = useMemo(
@@ -478,14 +486,29 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
       {/* Org structure in force (K75) */}
       <ProjectOrgSection projectId={projectId} />
 
+      {/* Members and project roles (K60) */}
+      <ProjectMembersSection projectId={projectId} />
+
+      {/* Epic Mode (F18): PRD -> tech plan -> wireframe -> tickets, gated. */}
+      <EpicPanel projectId={projectId} />
+
+      {/* Cross-repo mirrors (K54): trigger label -> mirror issue in a target project. */}
+      <ProjectMirrorsSection projectId={projectId} />
+
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+
+      {/* Generated code wiki (F26) */}
+      <WikiPanel projectId={projectId} />
 
       {/* Decision memory (K29) */}
       <ProjectDecisionsSection projectId={projectId} />
 
       {/* Blast radius (K07) */}
       <ProjectBlastRadiusSection projectId={projectId} />
+
+      {/* Agent review checklist + gate (JEF-238) */}
+      <ProjectReviewSection projectId={projectId} />
     </div>
   );
 
@@ -566,7 +589,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
           <IssueSurface
             scope={issueScope}
-            modes={["board", "list", "table", "swimlane", "gantt"]}
+            modes={["board", "list", "table", "swimlane", "gantt", "calendar"]}
           />
           </div>
         </ResizablePanel>

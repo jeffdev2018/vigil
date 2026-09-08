@@ -24,6 +24,14 @@ WHERE workspace_id = @workspace_id
   )
 ORDER BY created_at ASC;
 
+-- name: ListDistinctTaskRuntimesForIssue :many
+-- Cascade escalation (JEF-272): every runtime already tried on this issue, so
+-- the escalator never re-enqueues on a runtime that already had its chance.
+SELECT DISTINCT runtime_id
+FROM agent_task_queue
+WHERE issue_id = @issue_id
+  AND runtime_id IS NOT NULL;
+
 -- name: GetRoutingStats :many
 -- Per-(runtime, provider, model, task_class) run statistics over the trailing
 -- window (90 days at the call site), feeding both the runtime router's
@@ -47,6 +55,10 @@ SELECT
     atq.task_class,
     COUNT(*)::int AS samples,
     COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    -- How much of this bucket came from a deliberate benchmark (JEF-276)
+    -- rather than from ordinary work, so the dashboard can say where the
+    -- evidence for a pair comes from.
+    COUNT(*) FILTER (WHERE atq.leg_role = 'benchmark')::int AS benchmark_samples,
     COUNT(tu.cost_usd_ticks)::int AS cost_samples,
     COALESCE(SUM(tu.cost_usd_ticks) FILTER (WHERE tu.cost_usd_ticks IS NOT NULL), 0)::float8
         AS total_cost_usd_ticks,
@@ -75,5 +87,53 @@ WHERE a.workspace_id = @workspace_id
   AND atq.status IN ('completed', 'failed')
   AND atq.completed_at IS NOT NULL
   AND atq.completed_at >= @since::timestamptz
+  -- Per-leg accounting (JEF-274): a review-like leg judges someone else's
+  -- work, so counting it as a sample of the worker's task class measures the
+  -- wrong job — a reviewer's cost, duration and success rate say nothing
+  -- about how a runtime performs on a bugfix. Retry, fallback, revision and
+  -- escalation legs DO count: they are real attempts at the class.
+  -- A benchmark leg (JEF-276) is deliberately absent from that list: it is
+  -- the same exam, pinned to one (runtime, model) candidate so its outcome is
+  -- evidence about that pair. Excluding it would throw away the only runs
+  -- deliberately produced to measure a policy.
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough', 'epic_step')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class;
+
+-- name: GetWorkflowStats :many
+-- Per-(task_class, workflow) run statistics over the trailing window (90 days
+-- at the call site), feeding the workflow selector (JEF-273) and the
+-- /api/runtimes/workflow-stats endpoint. The workflow is derived from the
+-- task's context stamp (context->>'workflow'), defaulting to 'single' for
+-- rows that predate the selector — those runs WERE the single workflow.
+-- Only terminal runs count; success_count counts 'completed', samples both.
+-- Unlike GetRoutingStats no provider/model attribution is needed, so a run
+-- without any task_usage row still counts as a sample; its cost simply does
+-- not contribute (cost_samples = 0 distinguishes "no priced run" from a
+-- genuine zero average). The leg filter mirrors GetRoutingStats: review-like
+-- legs judge someone else's work and are not samples of their task class.
+SELECT
+    atq.task_class,
+    COALESCE(atq.context->>'workflow', 'single')::text AS workflow,
+    COUNT(*)::int AS samples,
+    COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    COUNT(tu.cost_usd_ticks)::int AS cost_samples,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::float8 AS total_cost_usd_ticks,
+    COUNT(atq.started_at)::int AS duration_samples,
+    COALESCE(SUM(EXTRACT(EPOCH FROM (atq.completed_at - atq.started_at))) FILTER (
+        WHERE atq.started_at IS NOT NULL
+    ), 0)::float8 AS total_duration_secs
+FROM agent_task_queue atq
+JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN LATERAL (
+    SELECT SUM(u.cost_usd_ticks)::float8 AS cost_usd_ticks
+    FROM task_usage u
+    WHERE u.task_id = atq.id
+) tu ON TRUE
+WHERE a.workspace_id = @workspace_id
+  AND atq.status IN ('completed', 'failed')
+  AND atq.completed_at IS NOT NULL
+  AND atq.completed_at >= @since::timestamptz
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough', 'epic_step')
+GROUP BY atq.task_class, COALESCE(atq.context->>'workflow', 'single')
+ORDER BY atq.task_class, workflow;

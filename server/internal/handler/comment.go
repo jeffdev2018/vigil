@@ -46,9 +46,16 @@ type CommentResponse struct {
 	// raw prompt body. It is NOT settable through this endpoint — there is no
 	// request field for it — which is exactly why the card keys off this id
 	// rather than a `type` value the client controls.
-	QuickActionID *string              `json:"quick_action_id,omitempty"`
-	Reactions     []ReactionResponse   `json:"reactions"`
-	Attachments   []AttachmentResponse `json:"attachments"`
+	QuickActionID *string `json:"quick_action_id,omitempty"`
+	// A2aIntent marks an agent-to-agent message (F19): question | review |
+	// handoff. Like QuickActionID it is NOT settable through POST /comments —
+	// only POST /issues/{id}/agent-messages writes it — which is why the chip
+	// keys off this column rather than a `type` value the client controls.
+	// A free string on the wire: a value this client does not know renders as an
+	// ordinary comment, so a newer backend never blanks an older UI.
+	A2aIntent   *string              `json:"a2a_intent,omitempty"`
+	Reactions   []ReactionResponse   `json:"reactions"`
+	Attachments []AttachmentResponse `json:"attachments"`
 	// Orientation stats — populated only on the roots_only path and omitted in
 	// every other mode, so the default response shape stays byte-identical for
 	// existing callers. ReplyCount is the number of descendants in the thread;
@@ -78,6 +85,13 @@ type CommentResponse struct {
 	// reports that here instead of silently dropping the trigger, so the client
 	// can show "comment posted, but N targets were not triggered".
 	TriggerOutcomes []CommentTriggerOutcome `json:"trigger_outcomes,omitempty"`
+	// Diff anchor (F07 / JEF-21). Nullable on every response: an ordinary
+	// comment has none. A REPLY carries its thread root's anchor, resolved at
+	// read time — nothing is copied onto the reply row. AnchorStale is true
+	// when the anchored head is not the pull request's current head, so the
+	// reader knows the code the thread is about has since been pushed over.
+	Anchor      *CommentAnchorResponse `json:"anchor"`
+	AnchorStale bool                   `json:"anchor_stale"`
 }
 
 // CommentTriggerOutcome is the per-target result of an explicit @agent / @squad
@@ -115,6 +129,7 @@ func commentToResponse(c db.Comment, reactions []ReactionResponse, attachments [
 		ResolvedByID:   uuidToPtr(c.ResolvedByID),
 		SourceTaskID:   uuidToPtr(c.SourceTaskID),
 		QuickActionID:  uuidToPtr(c.QuickActionID),
+		A2aIntent:      textToPtr(c.A2aIntent),
 		Reactions:      reactions,
 		Attachments:    attachments,
 	}
@@ -665,6 +680,10 @@ func (h *Handler) ListComments(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Diff anchors (F07): resolved for the whole page at once, so a reply gets
+	// its thread root's anchor without a per-comment lookup.
+	h.applyCommentAnchors(r.Context(), issue.WorkspaceID, result.Comments, resp)
+
 	// Emit the next cursor as response headers when the page is likely not
 	// the last one. The cursor's meaning is context-dependent: under recent
 	// it points at the oldest thread in the page (next page = older threads);
@@ -803,6 +822,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 					ResolvedByID:   r.ResolvedByID,
 					SourceTaskID:   r.SourceTaskID,
 					QuickActionID:  r.QuickActionID,
+					A2aIntent:      r.A2aIntent,
 					Revision:       r.Revision,
 				}
 				if !r.ParentID.Valid {
@@ -897,6 +917,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				ResolvedByID:   r.ResolvedByID,
 				SourceTaskID:   r.SourceTaskID,
 				QuickActionID:  r.QuickActionID,
+				A2aIntent:      r.A2aIntent,
 				Revision:       r.Revision,
 			}
 			if !r.ParentID.Valid {
@@ -985,6 +1006,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				ResolvedByID:   r.ResolvedByID,
 				SourceTaskID:   r.SourceTaskID,
 				QuickActionID:  r.QuickActionID,
+				A2aIntent:      r.A2aIntent,
 				Revision:       r.Revision,
 			})
 		}
@@ -1044,7 +1066,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 					Content: r.Content, Type: r.Type, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 					ParentID: r.ParentID, WorkspaceID: r.WorkspaceID, ResolvedAt: r.ResolvedAt,
 					ResolvedByType: r.ResolvedByType, ResolvedByID: r.ResolvedByID,
-					SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, Revision: r.Revision,
+					SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, Revision: r.Revision,
 				}
 				stats[uuidToString(r.ID)] = rootStat{ReplyCount: int(r.ReplyCount), LastActivityAt: r.LastActivityAt}
 			}
@@ -1074,7 +1096,7 @@ func (h *Handler) fetchCommentsForList(ctx context.Context, args fetchCommentsAr
 				Content: r.Content, Type: r.Type, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 				ParentID: r.ParentID, WorkspaceID: r.WorkspaceID, ResolvedAt: r.ResolvedAt,
 				ResolvedByType: r.ResolvedByType, ResolvedByID: r.ResolvedByID,
-				SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, Revision: r.Revision,
+				SourceTaskID: r.SourceTaskID, QuickActionID: r.QuickActionID, A2aIntent: r.A2aIntent, Revision: r.Revision,
 			}
 			stats[uuidToString(r.ID)] = rootStat{ReplyCount: int(r.ReplyCount), LastActivityAt: r.LastActivityAt}
 		}
@@ -1464,6 +1486,9 @@ type CreateCommentRequest struct {
 	ParentID         *string  `json:"parent_id"`
 	AttachmentIDs    []string `json:"attachment_ids"`
 	SuppressAgentIDs []string `json:"suppress_agent_ids"`
+	// Anchor pins the new thread to a point of a linked pull request's diff
+	// (F07 / JEF-21). Only valid on a thread root — see validateCommentAnchor.
+	Anchor *CommentAnchorRequest `json:"anchor"`
 }
 
 type CommentTriggerPreviewRequest struct {
@@ -1536,6 +1561,12 @@ type commentAgentTrigger struct {
 
 type commentTriggerComputeOptions struct {
 	ExcludeTriggerCommentID pgtype.UUID
+	// AnchorHeadSha is the head of the anchored thread this trigger belongs to
+	// (F07). When set it REPLACES the issue's current review head for dedup:
+	// a question about code a later push has replaced must not be answered by
+	// merging into the run that is reviewing the current head. Invalid for an
+	// unanchored thread, which keeps the existing behaviour exactly.
+	AnchorHeadSha pgtype.Text
 	// OriginatorUserID is the top-of-chain human user id for this trigger
 	// (MUL-3963). Only consulted for AGENT actors — canInvokeAgent judges A2A
 	// by the originator, not the immediate agent principal. Members are their
@@ -1690,6 +1721,10 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, issue.ProjectID) {
+		return
+	}
 
 	userID, ok := requireUserID(w, r)
 	if !ok {
@@ -1754,6 +1789,15 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Diff anchor (F07). Validated before anything is written, so a rejected
+	// anchor never leaves an unanchored comment behind as a side effect.
+	var anchor anchorColumns
+	if req.Anchor != nil {
+		anchor, ok = h.validateCommentAnchor(w, r, issue, req.Anchor, parentID)
+		if !ok {
+			return
+		}
+	}
 
 	// Determine author identity: agent (via X-Agent-ID header) or member.
 	authorType, authorID := h.resolveActor(r, userID, uuidToString(issue.WorkspaceID))
@@ -1768,10 +1812,10 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	// task originator is unattributed, effectiveUser resolves to "", and the
 	// private-agent gate denies the wake (MUL-4015).
 	//
-	// The header is NOT client-chosen: the task token forces X-Task-ID and
-	// X-Agent-ID from its own row, and resolveActor rejects the JWT path unless
-	// the named task belongs to the named agent. So the stamp always records the
-	// authoring agent's own run.
+	// The header is NOT client-chosen: the auth middleware deletes any
+	// client-supplied X-Agent-ID / X-Task-ID and re-stamps both from the mat_
+	// token's own row (MUL-3428). So the stamp always records the authoring
+	// agent's own run.
 	//
 	// It is deliberately NOT scoped to that run's own issue (MUL-6490 / GH
 	// #7328). A run that legitimately comments on ANOTHER issue — the ordinary
@@ -1878,6 +1922,16 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		Type:         req.Type,
 		ParentID:     parentID,
 		SourceTaskID: sourceTaskID,
+
+		AnchorKind:         anchor.Kind,
+		AnchorPrSource:     anchor.PrSource,
+		AnchorPrID:         anchor.PrID,
+		AnchorHeadSha:      anchor.HeadSha,
+		AnchorFilePath:     anchor.FilePath,
+		AnchorLineStart:    anchor.LineStart,
+		AnchorLineEnd:      anchor.LineEnd,
+		AnchorSide:         anchor.Side,
+		AnchorReviewFlagID: anchor.ReviewFlagID,
 	})
 	if err != nil {
 		slog.Warn("create comment failed", append(logger.RequestAttrs(r), "error", err, "issue_id", issueID)...)
@@ -1899,6 +1953,16 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{comment.ID})
 	resp := commentToResponse(comment, nil, groupedAtt[uuidToString(comment.ID)])
 	resp.IssueRevision = created.IssueRevision
+	// A reply inherits the thread root's anchor; rootComment is already loaded
+	// above for the auto-unresolve path, so this costs no extra query.
+	anchorSource := comment
+	if rootComment != nil {
+		anchorSource = *rootComment
+	}
+	if a := commentAnchorFromRow(anchorSource); a != nil {
+		resp.Anchor = a
+		resp.AnchorStale = h.newHeadCache().stale(r.Context(), a)
+	}
 	slog.Info("comment created", append(logger.RequestAttrs(r), "comment_id", uuidToString(comment.ID), "issue_id", issueID)...)
 	// Skill Miner (K58): a human speaking right after an agent may be correcting it.
 	h.detectCorrectionSignal(r.Context(), issue, comment, authorType)
@@ -1969,9 +2033,11 @@ func (h *Handler) triggerTasksForComment(ctx context.Context, issue db.Issue, co
 	if isNoteComment(comment.Content) {
 		return nil
 	}
+	anchorHead := h.commentThreadAnchorHead(ctx, issue.WorkspaceID, comment.ID)
 	triggers, targets := h.computeCommentAgentTriggers(ctx, issue, comment.Content, parentComment, actorType, actorID, commentTriggerComputeOptions{
 		ExcludeTriggerCommentID: comment.ID,
 		OriginatorUserID:        originatorUserID,
+		AnchorHeadSha:           anchorHead,
 	})
 	triggers = filterSuppressedCommentAgentTriggers(triggers, suppressAgentIDs)
 	h.noteBlockedRuntimeTargets(ctx, issue, targets)
@@ -2117,7 +2183,13 @@ func (h *Handler) resolveCommentTriggerEnqueue(ctx context.Context, issue db.Iss
 	headShaLoaded := false
 	getHeadSha := func() pgtype.Text {
 		if !headShaLoaded {
-			headSha = h.TaskService.ResolveIssueReviewSHAParam(ctx, issue.ID)
+			// An anchored thread (F07) merges only into a run for its OWN
+			// head. Resolved from the trigger comment so every enqueue path
+			// through here — create, reconcile, replay — inherits the rule.
+			headSha = h.commentThreadAnchorHead(ctx, issue.WorkspaceID, triggerCommentID)
+			if !headSha.Valid {
+				headSha = h.TaskService.ResolveIssueReviewSHAParam(ctx, issue.ID)
+			}
 			headShaLoaded = true
 		}
 		return headSha
@@ -2190,6 +2262,16 @@ func (h *Handler) resolveCommentTriggerEnqueue(ctx context.Context, issue db.Iss
 				// enqueue creates the covering task. (The occupant's own completion
 				// reconcile still replays this comment best-effort in the common
 				// no-blocker case; we simply never PROMISE it.)
+			}
+		}
+		// A2A circuit breakers (F19). A mention link written into a comment is
+		// the hand-off the agent's own brief documents, and it stamps a2a_depth
+		// on the run it creates exactly like the agent-messages endpoint does —
+		// but only the endpoint checked it, so this was the unguarded path.
+		// Depth 0 is a human's mention and is never refused.
+		if depth := h.TaskService.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID); depth.Valid && depth.Int32 > 0 {
+			if reason := h.a2aBreakerBlocked(ctx, issue.ID, depth.Int32); reason != "" {
+				return DispatchBlocked, reason
 			}
 		}
 		if err := h.enqueueSingleCommentTrigger(ctx, issue, triggerCommentID, trigger, getEscalationDelay); err != nil {
@@ -3006,7 +3088,12 @@ func (h *Handler) routeAssignedSquadLeaderFallback(ctx context.Context, issue db
 func (h *Handler) hasPendingTaskForIssueAndAgent(ctx context.Context, issueID, agentID pgtype.UUID, opts commentTriggerComputeOptions) (bool, error) {
 	// Key dedup on the reviewed head so re-pushing to the PR mid-review
 	// invalidates dedup and a fresh run enqueues against the new HEAD (TEN-356).
-	headSha := h.TaskService.ResolveIssueReviewSHAParam(ctx, issueID)
+	// An anchored thread (F07) keys on its OWN head instead: the question is
+	// about the revision it was anchored to, not about whatever is current.
+	headSha := opts.AnchorHeadSha
+	if !headSha.Valid {
+		headSha = h.TaskService.ResolveIssueReviewSHAParam(ctx, issueID)
+	}
 	if opts.ExcludeTriggerCommentID.Valid {
 		return h.Queries.HasPendingTaskForIssueAndAgentExcludingTriggerComment(ctx, db.HasPendingTaskForIssueAndAgentExcludingTriggerCommentParams{
 			IssueID:                 issueID,
@@ -3498,6 +3585,7 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	cid := uuidToString(comment.ID)
 	resp := commentToResponse(comment, grouped[cid], groupedAtt[cid])
 	resp.IssueRevision = issueRevision
+	h.applyCommentAnchor(r.Context(), existing.WorkspaceID, comment, &resp)
 	slog.Info("comment updated", append(logger.RequestAttrs(r), "comment_id", commentId)...)
 	if oldContent != req.Content {
 		// Undo (K69): the previous text comes back on reversal.
@@ -3837,6 +3925,7 @@ func (h *Handler) ResolveComment(w http.ResponseWriter, r *http.Request) {
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{updated.ID})
 	cid := uuidToString(updated.ID)
 	resp := commentToResponse(updated, grouped[cid], groupedAtt[cid])
+	h.applyCommentAnchor(r.Context(), updated.WorkspaceID, updated, &resp)
 
 	// Suppress the target event on a re-resolve no-op so consumers do not
 	// re-process an unchanged thread (notifications, log spam). Cleared siblings
@@ -3866,6 +3955,7 @@ func (h *Handler) UnresolveComment(w http.ResponseWriter, r *http.Request) {
 	groupedAtt := h.groupAttachments(r, []pgtype.UUID{updated.ID})
 	cid := uuidToString(updated.ID)
 	resp := commentToResponse(updated, grouped[cid], groupedAtt[cid])
+	h.applyCommentAnchor(r.Context(), updated.WorkspaceID, updated, &resp)
 
 	if wasResolved {
 		slog.Info("comment unresolved", append(logger.RequestAttrs(r), "comment_id", cid)...)

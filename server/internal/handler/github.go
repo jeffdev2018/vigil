@@ -1016,6 +1016,15 @@ func (h *Handler) broadcastPRSnapshotApplied(ctx context.Context, prID pgtype.UU
 	if pr.ChecksRollupState.String == "failure" {
 		h.autoFixGitHubPR(ctx, pr)
 	}
+	// PR walkthrough (F05): the snapshot pipeline is where the server learns a
+	// GitHub PR's head moved, so it is where a walkthrough of the new head is
+	// started. Idempotent per head — the unique index refuses a second claim,
+	// so a re-applied snapshot for an unchanged head enqueues nothing.
+	h.maybeEnqueuePrWalkthrough(ctx, pr.WorkspaceID, prWalkthroughSourceGitHub, pr.ID, pr.HeadSha)
+	// Review flags (F06): the same signal in the other direction — flags
+	// written against a head this PR has moved past stop claiming to describe
+	// the current code.
+	h.staleReviewFlagsForHead(ctx, pr.WorkspaceID, pr.ID, pr.HeadSha)
 	issueIDs, err := h.Queries.ListIssueIDsForPullRequest(ctx, prID)
 	if err != nil {
 		return
@@ -1234,6 +1243,7 @@ type ghPullRequestPayload struct {
 		CreatedAt      string `json:"created_at"`
 		UpdatedAt      string `json:"updated_at"`
 		MergeableState string `json:"mergeable_state"`
+		MergeCommitSHA string `json:"merge_commit_sha"`
 		Additions      int32  `json:"additions"`
 		Deletions      int32  `json:"deletions"`
 		ChangedFiles   int32  `json:"changed_files"`
@@ -1698,6 +1708,16 @@ func (h *Handler) mirrorPullRequestForWorkspace(ctx context.Context, wsID pgtype
 		"pull_request":     resp,
 		"linked_issue_ids": linkedIssueIDs,
 	})
+
+	// F26: a merge is the moment the repository's documentation went stale.
+	// Regenerating it is opt-in per project (the wiki daemon's trigger label)
+	// and collapses a burst of merges into one run — see
+	// triggerCodeWikiForMergedPR.
+	if state == "merged" {
+		h.triggerCodeWikiForMergedPR(ctx, wsID,
+			p.Repository.Owner.Login, p.Repository.Name,
+			coalesce(p.PullRequest.MergeCommitSHA, p.PullRequest.Head.SHA))
+	}
 }
 
 // derivePRMergeableState resolves the upsert behaviour for the PR row's

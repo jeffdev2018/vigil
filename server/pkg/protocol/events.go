@@ -3,9 +3,13 @@ package protocol
 // Event types for WebSocket communication between server, web clients, and daemon.
 const (
 	// Issue events
-	EventIssueCreated            = "issue:created"
-	EventIssueUpdated            = "issue:updated"
-	EventIssueDeleted            = "issue:deleted"
+	EventIssueCreated = "issue:created"
+	EventIssueUpdated = "issue:updated"
+	EventIssueDeleted = "issue:deleted"
+	// EventIssueAuxChanged marks an issue's projections stale so open clients
+	// refetch — the nudge for writes that happen outside the web app (digest
+	// actions, the native agent runtime). No full issue snapshot on the wire.
+	EventIssueAuxChanged         = "issue:aux_changed"
 	EventIssueMetadataChanged    = "issue_metadata:changed"
 	EventIssueAttachmentsChanged = "issue_attachments:changed"
 
@@ -40,6 +44,24 @@ const (
 	EventTaskFailed                = "task:failed"    // running → failed
 	EventTaskMessage               = "task:message"
 	EventTaskCancelled             = "task:cancelled" // * → cancelled
+	// EventTaskScored (JEF-240) fires when a completed run's confidence score
+	// has been persisted — it is not a status transition, it is the signal
+	// that the task's confidence column changed.
+	EventTaskScored = "task:scored"
+	// EventTaskEscalated (JEF-272) fires when a below-threshold run cascades:
+	// a fresh task for the same issue was enqueued on a stronger runtime. Not
+	// a status transition either — the signal that the cascade retried.
+	EventTaskEscalated = "task:escalated"
+	// EventTaskWorkflowSelected (JEF-273) fires at enqueue with the workflow
+	// the selector stamped on the task (single / cascade / critique) and the
+	// reason of the decision.
+	EventTaskWorkflowSelected = "task:workflow-selected"
+	// EventTaskReverted (F09) fires when a conversation branch was put back to
+	// an earlier turn and the runs after it were removed. Not a status
+	// transition — the rows are gone. Under the `task:` prefix on purpose: the
+	// client already invalidates every run list on that prefix, which is
+	// exactly the refresh this needs.
+	EventTaskReverted = "task:reverted"
 
 	// Postmortem events (k68). postmortem:created fires when a failed run gets
 	// a drafted postmortem; postmortem:resolved fires on approve/discard.
@@ -125,11 +147,24 @@ const (
 	EventChatSessionRead     = "chat:session_read"
 	EventChatSessionDeleted  = "chat:session_deleted"
 	EventChatSessionUpdated  = "chat:session_updated"
+	// Multiplayer chat roster events (K31 / JEF-181). Broadcast to the
+	// workspace, like chat:message: the added member must learn the session
+	// now exists for them, and the removed one must drop it, so neither can
+	// be addressed by a per-session scope they are (or are no longer) in.
+	EventChatParticipantAdded   = "chat:participant_added"
+	EventChatParticipantRemoved = "chat:participant_removed"
+	// EventChatTyping is ephemeral and never persisted. Receivers expire it
+	// on their own timer; no "stopped typing" event is ever sent.
+	EventChatTyping = "chat:typing"
 
 	// Project events
-	EventProjectCreated         = "project:created"
-	EventProjectUpdated         = "project:updated"
-	EventProjectDeleted         = "project:deleted"
+	EventProjectCreated = "project:created"
+	EventProjectUpdated = "project:updated"
+	EventProjectDeleted = "project:deleted"
+	// Dated cycles (F29): workspace-scoped, like the project events above.
+	EventCycleCreated           = "cycle:created"
+	EventCycleUpdated           = "cycle:updated"
+	EventCycleDeleted           = "cycle:deleted"
 	EventProjectResourceCreated = "project_resource:created"
 	EventProjectResourceUpdated = "project_resource:updated"
 	EventProjectResourceDeleted = "project_resource:deleted"
@@ -154,6 +189,18 @@ const (
 	// The `action` in the payload is advisory (it makes a frame in devtools
 	// self-describing); nothing routes on it.
 	EventIssueStatusChanged = "issue_status:changed"
+
+	// The work item type catalogue moved (F30). One event for every write, like
+	// the status catalogue above and for the same reason: clients re-read the
+	// catalogue rather than merge a row out of a frame. The `action` is advisory.
+	EventIssueTypeChanged = "issue_type:changed"
+
+	// A dependency edge was created or deleted (F30). The two affected issues
+	// already get their own issue:updated, which is what refreshes their detail
+	// panels; this second event exists for the Gantt, whose arrow layer is a
+	// BULK query keyed by the whole visible row set and therefore has no issue
+	// row to hang an invalidation off.
+	EventIssueDependenciesChanged = "issue_dependencies:changed"
 
 	// Pin events
 	EventPinCreated   = "pin:created"
@@ -202,6 +249,17 @@ const (
 	// HTTP fallback) and any future daemon→server RPC.
 	EventDaemonRPCRequest  = "daemon:rpc_request"
 	EventDaemonRPCResponse = "daemon:rpc_response"
+	// The reverse direction (F12): the SERVER asks the daemon for something and
+	// waits for the answer on the same socket. Same envelopes, opposite roles —
+	// EventServerRPCRequest carries a correlation id + method + body from the
+	// server, EventServerRPCResponse carries the daemon's answer back.
+	//
+	// It exists because the preview relay has no other route: the daemon lives
+	// on a laptop behind NAT with no inbound port, and the control connection it
+	// already holds open is the only path a browser request can take to reach
+	// the dev server running in a worktree.
+	EventServerRPCRequest  = "server:rpc_request"
+	EventServerRPCResponse = "server:rpc_response"
 
 	// GitHub integration events
 	EventGitHubInstallationCreated = "github_installation:created"
@@ -252,4 +310,12 @@ const (
 	// front-ends invalidate the Telegram installations query on either.
 	EventTelegramInstallationCreated = "telegram_installation:created"
 	EventTelegramInstallationRevoked = "telegram_installation:revoked"
+
+	// Transition approvals (F28). Workspace-scoped: a held status change is
+	// filed for approvers, then approved or rejected. The issue itself only
+	// moves on approval, which publishes the usual issue:updated with
+	// status_changed — these three carry the REQUEST, not the issue.
+	EventIssueTransitionRequested = "issue_transition:requested"
+	EventIssueTransitionApproved  = "issue_transition:approved"
+	EventIssueTransitionRejected  = "issue_transition:rejected"
 )

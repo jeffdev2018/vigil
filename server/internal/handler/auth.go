@@ -18,6 +18,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
@@ -410,6 +411,18 @@ func (h *Handler) VerifyCode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains.
+	{
+		var uid pgtype.UUID
+		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
+			uid = existing.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
+	}
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if errors.Is(err, auth.ErrTemporarilyDisabledUser) {
@@ -465,8 +478,14 @@ func (h *Handler) GetMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user, err := h.Queries.GetUser(r.Context(), parseUUID(userID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		// The credential no longer identifies an existing user. Return the
+		// same terminal status as an expired token so clients can sign in again.
+		writeError(w, http.StatusUnauthorized, "user not found")
+		return
+	}
 	if err != nil {
-		writeError(w, http.StatusNotFound, "user not found")
+		writeError(w, http.StatusInternalServerError, "failed to load user")
 		return
 	}
 
@@ -646,6 +665,18 @@ func (h *Handler) GoogleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SSO enforcement (K60): a workspace that enforces its identity provider
+	// closes this door for its members and its email domains.
+	{
+		var uid pgtype.UUID
+		if existing, lookupErr := h.Queries.GetUserByEmail(r.Context(), email); lookupErr == nil {
+			uid = existing.ID
+		}
+		if slug, required := h.ssoRequiredFor(r.Context(), uid, email); required {
+			writeJSON(w, http.StatusForbidden, map[string]any{"error": "sso_required", "workspace_slug": slug})
+			return
+		}
+	}
 	user, isNew, err := h.findOrCreateUser(r.Context(), email)
 	if err != nil {
 		if writeGoogleLoginActionableError(w, err) {

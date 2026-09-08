@@ -152,7 +152,7 @@ func (b *grokBackend) Execute(ctx context.Context, prompt string, opts ExecOptio
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-	childEnv := buildEnv(b.cfg.Env)
+	childEnv := buildEnv(b.cfg)
 	cmd.Env = childEnv
 
 	stdout, err := cmd.StdoutPipe()

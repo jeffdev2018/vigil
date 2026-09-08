@@ -1697,3 +1697,72 @@ func TestProjectResourceLegacyRenameSkipsWorktreeGate(t *testing.T) {
 		t.Fatalf("switching to in_place needs no capability: %d %s", w.Code, w.Body.String())
 	}
 }
+
+// F09: lifecycle argvs on a local_directory resource. The validator round-trips
+// the ref through localDirectoryRef, so a field it does not know is dropped on
+// every save — which is why these assertions are about what comes BACK out.
+func TestValidateLocalDirectoryRefLifecycle(t *testing.T) {
+	base := `"local_path":"/tmp/repo","daemon_id":"d1","execution_mode":"worktree"`
+
+	t.Run("survives the round trip", func(t *testing.T) {
+		out, err := validateLocalDirectoryRef(json.RawMessage(
+			`{` + base + `,"lifecycle":{"setup":["pnpm","install"],"run":["pnpm","dev"],"archive":["./teardown.sh"]}}`))
+		if err != nil {
+			t.Fatalf("validateLocalDirectoryRef: %v", err)
+		}
+		var got localDirectoryRef
+		if err := json.Unmarshal(out, &got); err != nil {
+			t.Fatalf("unmarshal normalized ref: %v", err)
+		}
+		if got.Lifecycle == nil {
+			t.Fatal("the lifecycle was dropped by the validator's round trip")
+		}
+		if len(got.Lifecycle.Setup) != 2 || got.Lifecycle.Setup[0] != "pnpm" {
+			t.Fatalf("setup = %v", got.Lifecycle.Setup)
+		}
+		// `run` is stored but never started (F12 owns exposing it). Storing it
+		// now is what keeps a user's saved value from being erased when it does.
+		if len(got.Lifecycle.Run) != 2 {
+			t.Fatalf("run = %v, want the configured argv kept", got.Lifecycle.Run)
+		}
+	})
+
+	t.Run("an all-empty lifecycle is dropped", func(t *testing.T) {
+		out, err := validateLocalDirectoryRef(json.RawMessage(`{` + base + `,"lifecycle":{"setup":[]}}`))
+		if err != nil {
+			t.Fatalf("validateLocalDirectoryRef: %v", err)
+		}
+		var got localDirectoryRef
+		_ = json.Unmarshal(out, &got)
+		if got.Lifecycle != nil {
+			t.Fatalf("an empty lifecycle was stored as %+v; a cleared field must leave nothing to re-read", got.Lifecycle)
+		}
+	})
+
+	t.Run("rejects an argv with no executable", func(t *testing.T) {
+		if _, err := validateLocalDirectoryRef(json.RawMessage(
+			`{` + base + `,"lifecycle":{"setup":["   ","install"]}}`)); err == nil {
+			t.Fatal("expected a blank argv[0] to be rejected")
+		}
+	})
+
+	t.Run("rejects too many arguments", func(t *testing.T) {
+		argv := make([]string, 0, lifecycleMaxArgs+1)
+		for i := 0; i <= lifecycleMaxArgs; i++ {
+			argv = append(argv, "a")
+		}
+		raw, _ := json.Marshal(map[string]any{"setup": argv})
+		if _, err := validateLocalDirectoryRef(json.RawMessage(
+			`{` + base + `,"lifecycle":` + string(raw) + `}`)); err == nil {
+			t.Fatalf("expected %d arguments to be rejected", len(argv))
+		}
+	})
+
+	t.Run("rejects an oversized argv", func(t *testing.T) {
+		raw, _ := json.Marshal(map[string]any{"archive": []string{strings.Repeat("x", lifecycleMaxBytes+1)}})
+		if _, err := validateLocalDirectoryRef(json.RawMessage(
+			`{` + base + `,"lifecycle":` + string(raw) + `}`)); err == nil {
+			t.Fatal("expected an oversized argv to be rejected")
+		}
+	})
+}

@@ -118,6 +118,7 @@
       "chore": "잡무"
     },
     "col_samples": "샘플",
+    "from_benchmarks": "그중 {{n}}건은 벤치마크",
     "col_success": "성공률",
     "col_avg_cost": "평균 비용",
     "col_avg_duration": "평균 소요 시간",
@@ -135,6 +136,19 @@
     "none": "이 기간에는 없음",
     "empty": "지난 {{days}}일 동안 실행이 있는 완료 이슈나 병합된 PR이 없습니다."
   },
+  "agent_roi": {
+    "title": "에이전트별 ROI · {{days}}일",
+    "headline": "{{best}}이(가) 이슈 {{count}}건을 건당 {{cost}}에 완료 (vs {{second}} {{cost2}})",
+    "headline_single": "{{best}}이(가) 이슈 {{count}}건을 건당 {{cost}}에 완료",
+    "empty": "최근 {{days}}일 동안 에이전트 활동이 없습니다.",
+    "agent": "에이전트",
+    "issues": "완료한 이슈",
+    "prs": "머지된 PR",
+    "cost": "비용",
+    "cost_per_issue": "이슈당 비용",
+    "none": "완료한 이슈 없음",
+    "floor": "최소값"
+  },
   "scorecards": {
     "title": "에이전트 스코어카드 · {{days}}일",
     "scope_note": "워크스페이스 전체, 모든 프로젝트 · UTC 기준 일자",
@@ -151,5 +165,41 @@
     "title": "이번 기간 오토파일럿 실행: {{used}} / {{limit}}",
     "near_limit": "한도에 근접했습니다. 한도에 도달하면 오토파일럿이 실행되지 않습니다.",
     "reached": "한도에 도달했습니다. 기간이 초기화될 때까지 오토파일럿이 실행되지 않습니다."
+  },
+  "workflow_outcomes": {
+    "title": "워크플로별 결과",
+    "subtitle": "최근 90일 · 작업 클래스 및 워크플로별",
+    "col_class": "작업 클래스",
+    "col_workflow": "워크플로",
+    "col_samples": "샘플",
+    "col_success": "성공률",
+    "col_avg_cost": "평균 비용",
+    "col_avg_duration": "평균 소요 시간",
+    "workflow": {
+      "single": "싱글",
+      "cascade": "캐스케이드",
+      "critique": "크리티크"
+    },
+    "empty_title": "아직 워크플로 데이터가 없습니다",
+    "empty_body": "워크플로는 실행이 쌓이면서 학습됩니다 — 셀렉터에 기록이 쌓이면 여기에 결과가 표시됩니다."
+  },
+  "insights": {
+    "title": "인사이트",
+    "ask": "질문",
+    "asking": "읽는 중…",
+    "ask_label": "이 워크스페이스에 대해 질문하기",
+    "ask_placeholder": "5일 넘게 차단된 이슈는 몇 개인가요?",
+    "pin": "고정",
+    "retry": "다시 시도",
+    "value": "값",
+    "no_rows": "이 질문에 해당하는 행이 없습니다.",
+    "no_widgets": "아직 고정된 항목이 없습니다. 위에서 질문한 뒤 답변을 고정하세요.",
+    "no_question": "기록된 질문이 없습니다.",
+    "error_failed": "이 질문을 쿼리로 변환하지 못했습니다. 다시 표현한 뒤 시도하세요.",
+    "error_timeout": "이 질문은 응답에 너무 오래 걸렸습니다. 기간이나 그룹화를 좁혀 보세요.",
+    "too_many_series": "카테고리 {{count}}개 — 표로 표시합니다.",
+    "move_up": "위로 이동",
+    "move_down": "아래로 이동",
+    "remove": "삭제"
   }
 }

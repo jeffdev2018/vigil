@@ -60,7 +60,7 @@ func (q *Queries) GetIssueUsageSummary(ctx context.Context, issueID pgtype.UUID)
 }
 
 const getTaskUsage = `-- name: GetTaskUsage :many
-SELECT id, task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, created_at, updated_at, cost_usd_ticks FROM task_usage
+SELECT id, task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, created_at, updated_at, cost_usd_ticks, model_key_id FROM task_usage
 WHERE task_id = $1
 ORDER BY model
 `
@@ -85,6 +85,73 @@ func (q *Queries) GetTaskUsage(ctx context.Context, taskID pgtype.UUID) ([]TaskU
 			&i.CacheWriteTokens,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CostUsdTicks,
+			&i.ModelKeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAgentTaskUsage = `-- name: ListAgentTaskUsage :many
+SELECT
+    tu.task_id,
+    tu.provider,
+    tu.model,
+    tu.input_tokens,
+    tu.output_tokens,
+    tu.cache_read_tokens,
+    tu.cache_write_tokens,
+    tu.cost_usd_ticks
+FROM task_usage tu
+JOIN agent_task_queue atq ON atq.id = tu.task_id
+WHERE atq.agent_id = $1
+  AND tu.task_id = ANY($2::uuid[])
+ORDER BY tu.task_id, tu.model
+`
+
+type ListAgentTaskUsageParams struct {
+	AgentID pgtype.UUID   `json:"agent_id"`
+	TaskIds []pgtype.UUID `json:"task_ids"`
+}
+
+type ListAgentTaskUsageRow struct {
+	TaskID           pgtype.UUID `json:"task_id"`
+	Provider         string      `json:"provider"`
+	Model            string      `json:"model"`
+	InputTokens      int64       `json:"input_tokens"`
+	OutputTokens     int64       `json:"output_tokens"`
+	CacheReadTokens  int64       `json:"cache_read_tokens"`
+	CacheWriteTokens int64       `json:"cache_write_tokens"`
+	CostUsdTicks     pgtype.Int8 `json:"cost_usd_ticks"`
+}
+
+// Per-(task, provider, model) usage rows for one agent's explicitly requested
+// task history. ListAgentTasks is already access-gated before this query runs;
+// the agent predicate preserves that authorization boundary, while task_ids
+// keeps hydration aligned with the exact response without an N+1 query.
+func (q *Queries) ListAgentTaskUsage(ctx context.Context, arg ListAgentTaskUsageParams) ([]ListAgentTaskUsageRow, error) {
+	rows, err := q.db.Query(ctx, listAgentTaskUsage, arg.AgentID, arg.TaskIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAgentTaskUsageRow{}
+	for rows.Next() {
+		var i ListAgentTaskUsageRow
+		if err := rows.Scan(
+			&i.TaskID,
+			&i.Provider,
+			&i.Model,
+			&i.InputTokens,
+			&i.OutputTokens,
+			&i.CacheReadTokens,
+			&i.CacheWriteTokens,
 			&i.CostUsdTicks,
 		); err != nil {
 			return nil, err
@@ -667,10 +734,11 @@ func (q *Queries) ListIssueTaskUsage(ctx context.Context, issueID pgtype.UUID) (
 }
 
 const upsertTaskUsage = `-- name: UpsertTaskUsage :exec
-INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, model_key_id, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, now())
 ON CONFLICT (task_id, provider, model)
 DO UPDATE SET
+    model_key_id = COALESCE(EXCLUDED.model_key_id, task_usage.model_key_id),
     input_tokens = EXCLUDED.input_tokens,
     output_tokens = EXCLUDED.output_tokens,
     cache_read_tokens = EXCLUDED.cache_read_tokens,
@@ -688,6 +756,7 @@ type UpsertTaskUsageParams struct {
 	CacheReadTokens  int64       `json:"cache_read_tokens"`
 	CacheWriteTokens int64       `json:"cache_write_tokens"`
 	CostUsdTicks     pgtype.Int8 `json:"cost_usd_ticks"`
+	ModelKeyID       pgtype.UUID `json:"model_key_id"`
 }
 
 // Bumps `updated_at` on INSERT and on conflict so the hourly-rollup worker
@@ -707,6 +776,7 @@ func (q *Queries) UpsertTaskUsage(ctx context.Context, arg UpsertTaskUsageParams
 		arg.CacheReadTokens,
 		arg.CacheWriteTokens,
 		arg.CostUsdTicks,
+		arg.ModelKeyID,
 	)
 	return err
 }

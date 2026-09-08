@@ -331,6 +331,11 @@ func (h *Handler) startFanoutSynthesis(ctx context.Context, batch db.FanoutBatch
 		slog.Warn("fanout: synthesis enqueue failed", "batch_id", uuidToString(batch.ID), "error", err)
 		return pgtype.UUID{}
 	}
+	// Per-leg accounting (JEF-274): the synthesis reads the whole batch rather
+	// than deriving from one run, so it is its own root.
+	if _, serr := h.TaskService.StampLeg(ctx, task, service.LegRoleFanout, db.AgentTaskQueue{}); serr != nil {
+		slog.Warn("fanout: stamp leg failed", "task_id", uuidToString(task.ID), "error", serr)
+	}
 	return task.ID
 }
 

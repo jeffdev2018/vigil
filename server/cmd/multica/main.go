@@ -52,6 +52,12 @@ func init() {
 	agentCmd.GroupID = groupCore
 	autopilotCmd.GroupID = groupCore
 	triageCmd.GroupID = groupCore
+	brainCmd.GroupID = groupCore
+	wikiCmd.GroupID = groupCore
+	criteriaCmd.GroupID = groupCore
+	decisionCmd.GroupID = groupCore
+	interviewCmd.GroupID = groupCore
+	reviewCmd.GroupID = groupCore
 	workspaceCmd.GroupID = groupCore
 	repoCmd.GroupID = groupCore
 	skillCmd.GroupID = groupCore
@@ -80,6 +86,7 @@ func init() {
 	rootCmd.AddCommand(autopilotCmd)
 	rootCmd.AddCommand(triageCmd)
 	rootCmd.AddCommand(brainCmd)
+	rootCmd.AddCommand(wikiCmd)
 	rootCmd.AddCommand(workspaceCmd)
 	rootCmd.AddCommand(repoCmd)
 	rootCmd.AddCommand(skillCmd)
@@ -95,6 +102,8 @@ func init() {
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
+	rootCmd.AddCommand(sandboxRunCmd)
+	rootCmd.AddCommand(hookCmd)
 
 	initHelp(rootCmd)
 }

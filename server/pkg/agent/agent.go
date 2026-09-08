@@ -159,6 +159,14 @@ const (
 	MessageStatus     MessageType = "status"
 	MessageError      MessageType = "error"
 	MessageLog        MessageType = "log"
+	// MessageResponse is the run's final deliverable answer, emitted once at
+	// the end of a successful run by the backends that can identify it
+	// (Claude Code and Codex both label their terminal answer). It is the same
+	// text the run reports as Result.Output; separating it from the streamed
+	// MessageText turns lets a transcript distinguish the answer from the
+	// narration that led to it. Backends that cannot tell the two apart emit
+	// only MessageText and lose nothing.
+	MessageResponse MessageType = "response"
 )
 
 // Message is a unified event emitted by an agent during execution.
@@ -287,6 +295,9 @@ type Config struct {
 	// Command boundary applies it to every process the package spawns, task
 	// launches and CLI probes alike. Backends never read it directly.
 	LaunchPrefix []string
+	// Sandbox (K10) routes every runtime process of this run through the
+	// daemon's confinement shim. Nil runs the CLI directly on the host.
+	Sandbox *SandboxLaunch
 }
 
 // New creates a Backend for the given agent type.

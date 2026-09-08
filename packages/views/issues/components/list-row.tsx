@@ -72,6 +72,13 @@ function ListRowContent({
   const showProject = storeProperties.project && project;
   const showChildProgress = storeProperties.childProgress && childProgress;
   const showAssignee = storeProperties.assignee && issue.assignee_type && issue.assignee_id;
+  // The delegate (F01) rides in the assignee's slot as a secondary,
+  // overlapped avatar — never a second column. The row's trailing run is a
+  // flex of shrink-0 spans, so a new column here would push the title's
+  // truncation point on every issue whether or not it has a delegate. Gated
+  // on the same `assignee` display property: it is one relationship.
+  const showDelegate =
+    storeProperties.assignee && issue.delegate_type && issue.delegate_id;
   const showStartDate = storeProperties.startDate && issue.start_date;
   const showDueDate = storeProperties.dueDate && issue.due_date;
   const showLabels = storeProperties.labels && labels.length > 0;
@@ -170,13 +177,31 @@ function ListRowContent({
               {formatDate(issue.due_date!, locale)}
             </span>
           )}
-          {showAssignee && (
-            <ActorAvatar
-              actorType={issue.assignee_type!}
-              actorId={issue.assignee_id!}
-              size="sm"
-              enableHoverCard
-            />
+          {(showAssignee || showDelegate) && (
+            <span className="flex shrink-0 items-center -space-x-1">
+              {showAssignee && (
+                // z-10 keeps the assignee painting over the delegate that
+                // overlaps it: the assignee still owns the row.
+                <ActorAvatar
+                  actorType={issue.assignee_type!}
+                  actorId={issue.assignee_id!}
+                  size="sm"
+                  enableHoverCard
+                  className="relative z-10"
+                />
+              )}
+              {showDelegate && (
+                // Ringed so the overlap reads as two actors rather than one
+                // clipped avatar.
+                <ActorAvatar
+                  actorType={issue.delegate_type!}
+                  actorId={issue.delegate_id!}
+                  size="sm"
+                  enableHoverCard
+                  className="ring-1 ring-background"
+                />
+              )}
+            </span>
           )}
         </AppLink>
       </div>

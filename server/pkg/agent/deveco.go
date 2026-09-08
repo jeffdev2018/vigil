@@ -133,7 +133,7 @@ func (b *devecoBackend) Execute(ctx context.Context, prompt string, opts ExecOpt
 		cmd.Dir = opts.Cwd
 	}
 
-	env := buildEnv(b.cfg.Env)
+	env := buildEnv(b.cfg)
 	// Override PWD so the child DevEco process resolves its discovery root to
 	// the task workdir. cmd.Dir alone is not enough: DevEco reads PWD
 	// (inherited from the parent daemon) before falling back to process.cwd()

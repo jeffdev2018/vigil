@@ -588,6 +588,9 @@ func (s *TaskService) ApplyPostmortemRules(ctx context.Context, pm db.Postmortem
 			Content:      util.SanitizeTextForPostgres(rule),
 			Source:       "postmortem",
 			SourceTaskID: pm.SourceTaskID,
+			// The postmortem was already approved by a human, so its rules
+			// are approved at write time (JEF-269).
+			State: "approved",
 		})
 		if err != nil {
 			return inserted, fmt.Errorf("store postmortem rule as agent memory: %w", err)

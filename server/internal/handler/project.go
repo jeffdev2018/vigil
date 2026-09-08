@@ -506,6 +506,10 @@ func (h *Handler) UpdateProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "project not found")
 		return
 	}
+	// Project roles (K60): editing a project needs a contributor.
+	if !h.requireProjectWrite(w, r, prevProject.ID) {
+		return
+	}
 	userID, ok := requireUserID(w, r)
 	if !ok {
 		return
@@ -679,6 +683,27 @@ func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to detach project goals")
 		return
 	}
+	// Dated cycles (F29) plan THIS project's work; nothing about them survives
+	// it. Cycle-scoped saved views are unreachable once their cycle is gone,
+	// so they go in the same transaction as the project-scoped ones above.
+	if err := qtx.DeleteIssueViewsByCycleScopeOfProject(r.Context(), db.DeleteIssueViewsByCycleScopeOfProjectParams{
+		WorkspaceID: project.WorkspaceID, ProjectID: project.ID,
+	}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete cycle views")
+		return
+	}
+	if err := qtx.ClearIssueCycleByProject(r.Context(), db.ClearIssueCycleByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to detach project cycles")
+		return
+	}
+	if err := qtx.DeleteCycleSnapshotsByProject(r.Context(), db.DeleteCycleSnapshotsByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete cycle history")
+		return
+	}
+	if err := qtx.DeleteCyclesByProject(r.Context(), db.DeleteCyclesByProjectParams{ProjectID: project.ID, WorkspaceID: project.WorkspaceID}); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete project cycles")
+		return
+	}
 	if err := qtx.DeleteProject(r.Context(), db.DeleteProjectParams{
 		ID:          project.ID,
 		WorkspaceID: project.WorkspaceID,
@@ -825,7 +850,6 @@ func buildProjectSearchQuery(phrase string, terms []string, includeClosed bool) 
 		p.status, p.priority, p.lead_type, p.lead_id,
 		p.start_date, p.due_date,
 		p.created_at, p.updated_at,
-		COUNT(*) OVER() AS total_count,
 		%s AS match_source
 	FROM project p
 	WHERE p.workspace_id = %s AND %s
@@ -884,7 +908,6 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 
 	type projectSearchRow struct {
 		project     db.Project
-		totalCount  int64
 		matchSource string
 	}
 
@@ -906,7 +929,6 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 				&row.project.DueDate,
 				&row.project.CreatedAt,
 				&row.project.UpdatedAt,
-				&row.totalCount,
 				&row.matchSource,
 			); err != nil {
 				return fmt.Errorf("scan: %w", err)
@@ -929,11 +951,6 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 		slog.Warn("search projects failed", "error", err, "workspace_id", workspaceID, "query", q)
 		writeError(w, http.StatusInternalServerError, "failed to search projects")
 		return
-	}
-
-	var total int64
-	if len(results) > 0 {
-		total = results[0].totalCount
 	}
 
 	// Batch-fetch issue stats and resource counts
@@ -988,9 +1005,7 @@ func (h *Handler) SearchProjects(w http.ResponseWriter, r *http.Request) {
 		resp[i] = spr
 	}
 
-	w.Header().Set("X-Total-Count", strconv.FormatInt(total, 10))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"projects": resp,
-		"total":    total,
 	})
 }

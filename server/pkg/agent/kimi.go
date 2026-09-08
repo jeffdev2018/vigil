@@ -71,7 +71,7 @@ func (b *kimiBackend) Execute(ctx context.Context, prompt string, opts ExecOptio
 	if opts.Cwd != "" {
 		cmd.Dir = opts.Cwd
 	}
-	cmd.Env = buildEnv(b.cfg.Env)
+	cmd.Env = buildEnv(b.cfg)
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -142,7 +142,7 @@ func (b *kimiBackend) Execute(ctx context.Context, prompt string, opts ExecOptio
 		terminalEnabled: true,
 		terminalCtx:     runCtx,
 		terminalCwd:     opts.Cwd,
-		terminalEnv:     buildEnv(b.cfg.Env),
+		terminalEnv:     buildEnv(b.cfg),
 		terminals:       make(map[string]*acpTerminal),
 		acceptNotification: func(string) bool {
 			return streamingCurrentTurn.Load()

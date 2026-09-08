@@ -671,7 +671,7 @@ func TestMergeEnvFiltersClaudeCodeVars(t *testing.T) {
 func TestBuildEnvAppendsExtras(t *testing.T) {
 	t.Parallel()
 
-	env := buildEnv(map[string]string{"FOO": "bar", "BAZ": "qux"})
+	env := buildEnv(Config{Env: map[string]string{"FOO": "bar", "BAZ": "qux"}})
 	found := 0
 	for _, e := range env {
 		if e == "FOO=bar" || e == "BAZ=qux" {
@@ -686,7 +686,7 @@ func TestBuildEnvAppendsExtras(t *testing.T) {
 func TestBuildEnvNilExtras(t *testing.T) {
 	t.Parallel()
 
-	env := buildEnv(nil)
+	env := buildEnv(Config{})
 	if len(env) == 0 {
 		t.Fatal("expected at least system env vars")
 	}
@@ -1319,5 +1319,47 @@ func TestBuildClaudeArgsManagedSkillSettingsWins(t *testing.T) {
 	}
 	if !strings.Contains(joined, "--max-turns 7") {
 		t.Fatalf("unrelated custom arg was dropped: %v", args)
+	}
+}
+
+// A single-vendor CLI keeps the key it spends and loses every other vendor's:
+// a claude run has no use for the OpenAI or DeepSeek key that happens to sit
+// in the daemon's environment, and inheriting them hands a prompt injection a
+// third-party credential. A CLI that fronts several vendors keeps them all,
+// because there is no single key it is entitled to.
+func TestDropForeignVendorKeys(t *testing.T) {
+	t.Parallel()
+
+	base := []string{
+		"PATH=/usr/bin",
+		"ANTHROPIC_API_KEY=sk-ant",
+		"OPENAI_API_KEY=sk-oai",
+		"DEEPSEEK_API_KEY=sk-ds",
+		"GITHUB_TOKEN=ghp",
+	}
+	has := func(env []string, entry string) bool {
+		for _, e := range env {
+			if e == entry {
+				return true
+			}
+		}
+		return false
+	}
+
+	claude := dropForeignVendorKeys(base, "claude")
+	if !has(claude, "ANTHROPIC_API_KEY=sk-ant") {
+		t.Error("claude must keep the vendor key it spends: dropping it breaks a workspace that authenticates through the ambient environment")
+	}
+	if has(claude, "OPENAI_API_KEY=sk-oai") || has(claude, "DEEPSEEK_API_KEY=sk-ds") {
+		t.Errorf("claude must not inherit another vendor's key: %v", claude)
+	}
+	if !has(claude, "PATH=/usr/bin") || !has(claude, "GITHUB_TOKEN=ghp") {
+		t.Errorf("only known model vendor keys are dropped, nothing else: %v", claude)
+	}
+
+	for _, provider := range []string{"opencode", "pi", "cursor", ""} {
+		if got := dropForeignVendorKeys(base, provider); len(got) != len(base) {
+			t.Errorf("provider %q fronts no single vendor, so nothing may be dropped: %v", provider, got)
+		}
 	}
 }

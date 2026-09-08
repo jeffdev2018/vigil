@@ -178,16 +178,29 @@ func (c *Client) setIdentityHeaders(req *http.Request) {
 	if c.os != "" {
 		req.Header.Set("X-Client-OS", c.os)
 	}
-	req.Header.Set("X-Client-Capabilities", daemonClientCapabilities())
+	req.Header.Set("X-Client-Capabilities", daemonHTTPClientCapabilities())
 }
 
 // daemonClientCapabilities is the X-Client-Capabilities value the daemon
-// advertises on BOTH the HTTP control-plane requests and the WS handshake, so a
-// claim built over WS gets the same capability gating (skill refs,
-// coalesced-comments) as the HTTP path. rpc-v1 advertises WS request/response
-// support (MUL-4257).
+// advertises on the WS handshake. A claim built over WS gets the common
+// capability gating plus WS-only scheduling metadata. rpc-v1 advertises WS
+// request/response support (MUL-4257).
 func daemonClientCapabilities() string {
-	return strings.Join([]string{
+	return strings.Join(append(daemonCommonCapabilities(),
+		protocol.DaemonCapabilityClaimPollHintsV1,
+	), ",")
+}
+
+// daemonHTTPClientCapabilities omits claim-poll-hints-v1 because HTTP fallback
+// responses cannot drive the healthy-WS scheduler. Advertising it there would
+// make the server run the deferred-task hint query only for the daemon to ignore
+// the result.
+func daemonHTTPClientCapabilities() string {
+	return strings.Join(daemonCommonCapabilities(), ",")
+}
+
+func daemonCommonCapabilities() []string {
+	return []string{
 		protocol.DaemonCapabilitySkillBundlesV1,
 		protocol.DaemonCapabilityCoalescedCommentsV1,
 		protocol.DaemonCapabilityExecutionManifestV1,
@@ -196,7 +209,10 @@ func daemonClientCapabilities() string {
 		protocol.DaemonCapabilityLocalWorktreeV1,
 		protocol.DaemonCapabilitySourceContextQuickCreateV1,
 		protocol.DaemonCapabilityRPCV1,
-	}, ",")
+		protocol.DaemonCapabilityPlatformSkillV1,
+		protocol.DaemonCapabilityWorktreeRevertV1,
+		protocol.DaemonCapabilityRunPreviewV1,
+	}
 }
 
 // SetToken sets the auth token for authenticated requests.
@@ -255,6 +271,17 @@ func (c *Client) ResolveRemoteMCPCredential(ctx context.Context, daemonToken, ta
 // comfortably above p99 claim latency so recovery stays the exception.
 const batchClaimRequestTimeout = 5 * time.Second
 
+// claimTasksResult carries optional scheduling metadata understood only by
+// daemons advertising claim-poll-hints-v1. A zero-value result is deliberately
+// conservative: it makes the poller retain PollInterval, which protects new
+// daemons talking to old servers and claims whose WS outcome was uncertain.
+type claimTasksResult struct {
+	Tasks                       []*Task `json:"tasks"`
+	ClaimPollHintSupported      bool    `json:"claim_poll_hint_supported,omitempty"`
+	NextDeferredTaskAfterMillis int64   `json:"next_deferred_task_after_ms,omitempty"`
+	ClaimedOverWS               bool    `json:"-"`
+}
+
 // ClaimTasks is the machine-level (MUL-4257) batch counterpart of ClaimTask:
 // it asks the server, in a single request, to claim up to maxTasks tasks across
 // every runtime the daemon hosts. daemonID scopes the request to this machine —
@@ -266,19 +293,22 @@ const batchClaimRequestTimeout = 5 * time.Second
 // one slow claim cannot stall the whole batch; the deadline propagates to the
 // server and cancels the in-flight query there too.
 func (c *Client) ClaimTasks(ctx context.Context, daemonID string, runtimeIDs []string, maxTasks int) ([]*Task, error) {
+	result, err := c.claimTasksWithHints(ctx, daemonID, runtimeIDs, maxTasks)
+	return result.Tasks, err
+}
+
+func (c *Client) claimTasksWithHints(ctx context.Context, daemonID string, runtimeIDs []string, maxTasks int) (claimTasksResult, error) {
 	reqCtx, cancel := context.WithTimeout(ctx, batchClaimRequestTimeout)
 	defer cancel()
-	var resp struct {
-		Tasks []*Task `json:"tasks"`
-	}
+	var resp claimTasksResult
 	if err := c.postJSON(reqCtx, "/api/daemon/tasks/claim", map[string]any{
 		"daemon_id":   daemonID,
 		"runtime_ids": runtimeIDs,
 		"max_tasks":   maxTasks,
 	}, &resp); err != nil {
-		return nil, err
+		return claimTasksResult{}, err
 	}
-	return resp.Tasks, nil
+	return resp, nil
 }
 
 // isBatchClaimUnsupported reports whether err is a 404 from the batch claim
@@ -405,8 +435,21 @@ func (c *Client) ExtendTaskPrepareLease(ctx context.Context, runtimeID, taskID s
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/tasks/%s/prepare-lease", runtimeID, taskID), map[string]any{}, nil)
 }
 
-func (c *Client) StartTask(ctx context.Context, taskID string) error {
-	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/start", taskID), map[string]any{}, nil)
+// StartTask transitions the task to running and reports the confinement
+// decision (K10): the mode the claim requested, the mode actually in effect
+// and, when they differ, why the daemon degraded it.
+func (c *Client) StartTask(ctx context.Context, taskID, sandboxRequested, sandboxMode, sandboxReason string) error {
+	if sandboxRequested == "" {
+		sandboxRequested = "none"
+	}
+	if sandboxMode == "" {
+		sandboxMode = "none"
+	}
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/start", taskID), map[string]any{
+		"sandbox_requested": sandboxRequested,
+		"sandbox_mode":      sandboxMode,
+		"sandbox_reason":    sandboxReason,
+	}, nil)
 }
 
 // MarkTaskWaitingLocalDirectory parks a freshly-dispatched task in the
@@ -418,6 +461,47 @@ func (c *Client) StartTask(ctx context.Context, taskID string) error {
 // reason is a no-op once the row is already waiting_local_directory (the
 // underlying SQL filters on status='dispatched', so the second call is a
 // 400 the daemon swallows and proceeds to wait).
+// RunPreviewReport is what the daemon tells the server about a run's dev
+// server (F12). Error carries the reason a preview could not start, tail of the
+// run script's log included — it is the only thing that says what to fix.
+type RunPreviewReport struct {
+	Port       int    `json:"port"`
+	Scheme     string `json:"scheme"`
+	Status     string `json:"status"`
+	HealthPath string `json:"health_path,omitempty"`
+	Error      string `json:"error,omitempty"`
+}
+
+// ReportRunPreview declares (or re-declares) this run's preview.
+func (c *Client) ReportRunPreview(ctx context.Context, taskID string, report RunPreviewReport) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/preview", taskID), report, nil)
+}
+
+// DeleteRunPreview marks this run's preview stopped. A 404 from a server that
+// predates F12 is not an error worth surfacing: the daemon still killed the
+// process, which is the part that matters.
+func (c *Client) DeleteRunPreview(ctx context.Context, taskID string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.baseURL+fmt.Sprintf("/api/daemon/tasks/%s/preview", taskID), nil)
+	if err != nil {
+		return err
+	}
+	if c.token != "" {
+		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	c.setIdentityHeaders(req)
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode == http.StatusNotFound || (resp.StatusCode >= 200 && resp.StatusCode < 300) {
+		return nil
+	}
+	return fmt.Errorf("delete run preview: server returned %d", resp.StatusCode)
+}
+
 func (c *Client) MarkTaskWaitingLocalDirectory(ctx context.Context, taskID, reason string) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/tasks/%s/wait-local-directory", taskID), map[string]any{
 		"reason": reason,
@@ -494,8 +578,24 @@ func (c *Client) ReportTaskMessages(ctx context.Context, taskID string, messages
 	}, nil)
 }
 
-func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir string) error {
+// addDiffFields adds a racing attempt's diff (F11) to a terminal-callback
+// body. Shared by CompleteTask and FailTask: a losing attempt routinely still
+// delivered a branch, so both callbacks can carry one. Only the stat is
+// guaranteed — an over-the-bound patch is deliberately not sent, which is
+// what the compare view renders as "truncated".
+func addDiffFields(body map[string]any, diff *runDiff) {
+	if diff == nil {
+		return
+	}
+	body["diff_stat"] = diff.Stat
+	if diff.Unified != "" {
+		body["diff_unified"] = diff.Unified
+	}
+}
+
+func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
 	body := map[string]any{"output": output}
+	addDiffFields(body, diff)
 	if branchName != "" {
 		body["branch_name"] = branchName
 	}
@@ -514,6 +614,9 @@ func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, s
 	if retiredSessionID != "" {
 		body["retired_session_id"] = retiredSessionID
 	}
+	if checkpointSHA != "" {
+		body["checkpoint_sha"] = checkpointSHA
+	}
 	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/complete", taskID), body, nil, defaultTerminalRetrySchedule)
 }
 
@@ -526,8 +629,9 @@ func (c *Client) ReportTaskUsage(ctx context.Context, taskID string, usage []Tas
 	}, nil)
 }
 
-func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir string) error {
+func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
 	body := map[string]any{"error": errMsg}
+	addDiffFields(body, diff)
 	if sessionID != "" {
 		body["session_id"] = sessionID
 	}
@@ -551,6 +655,11 @@ func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDi
 	}
 	if retiredSessionID != "" {
 		body["retired_session_id"] = retiredSessionID
+	}
+	// A failed run still carries a turn checkpoint, for the same reason it
+	// carries a branch: Finalize committed and recorded whatever it got to.
+	if checkpointSHA != "" {
+		body["checkpoint_sha"] = checkpointSHA
 	}
 	return c.postJSONWithRetry(ctx, fmt.Sprintf("/api/daemon/tasks/%s/fail", taskID), body, nil, defaultTerminalRetrySchedule)
 }
@@ -615,13 +724,17 @@ type (
 	PendingCliAuth          = protocol.DaemonHeartbeatPendingCliAuth
 	PendingLocalSkills      = protocol.DaemonHeartbeatPendingLocalSkills
 	PendingLocalSkillImport = protocol.DaemonHeartbeatPendingLocalSkillImport
+	PendingWorktreeRevert   = protocol.DaemonHeartbeatPendingWorktreeRevert
 )
 
 // SendHeartbeat beats for one runtime. `skipped` is the machine's
 // discovered-but-not-registered diagnostic (MUL-5439), sent ONLY on the beats
 // where it changed since the server last accepted it — a nil map leaves the
 // stored set alone, an empty map clears it.
-func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string) (*HeartbeatResponse, error) {
+//
+// `sandboxCapabilities` (K10) is what this machine can confine a run with;
+// like skipped it is sent on the first beat and whenever it changes.
+func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []DirtyCheckout, skipped map[string]string, sandboxCapabilities *SandboxCapabilities) (*HeartbeatResponse, error) {
 	var resp HeartbeatResponse
 	body := map[string]any{
 		"runtime_id":            runtimeID,
@@ -634,10 +747,24 @@ func (c *Client) SendHeartbeat(ctx context.Context, runtimeID string, dirty []Di
 	if skipped != nil {
 		body["skipped_agents"] = skipped
 	}
+	if sandboxCapabilities != nil {
+		body["sandbox_capabilities"] = sandboxCapabilities
+	}
 	if err := c.postJSON(ctx, "/api/daemon/heartbeat", body, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil
+}
+
+// SandboxCapabilities (K10) describes the confinement modes this machine can
+// run. Modes always holds "none"; "container" needs a reachable Docker
+// daemon, "sandbox" needs bubblewrap on a Linux host.
+type SandboxCapabilities struct {
+	OS            string   `json:"os"`
+	Docker        bool     `json:"docker"`
+	DockerVersion string   `json:"docker_version,omitempty"`
+	Bwrap         bool     `json:"bwrap"`
+	Modes         []string `json:"modes"`
 }
 
 // ReportUpdateResult sends the CLI update result back to the server.
@@ -659,6 +786,11 @@ func (c *Client) ReportCliAuthResult(ctx context.Context, runtimeID, requestID s
 // ReportLocalSkillListResult sends the runtime-local-skill inventory back to the server.
 func (c *Client) ReportLocalSkillListResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
 	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/local-skills/%s/result", runtimeID, requestID), result, nil)
+}
+
+// ReportWorktreeRevertResult tells the server whether the branch went back.
+func (c *Client) ReportWorktreeRevertResult(ctx context.Context, runtimeID, requestID string, result map[string]any) error {
+	return c.postJSON(ctx, fmt.Sprintf("/api/daemon/runtimes/%s/worktree-revert/%s/result", runtimeID, requestID), result, nil)
 }
 
 // ReportLocalSkillImportResult sends a runtime-local-skill bundle back to the server.

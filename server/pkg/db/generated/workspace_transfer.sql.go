@@ -249,7 +249,7 @@ func (q *Queries) GetAgentByNameForImport(ctx context.Context, arg GetAgentByNam
 }
 
 const getAutopilotByTitleForImport = `-- name: GetAutopilotByTitleForImport :one
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason FROM autopilot WHERE workspace_id = $1 AND title = $2 AND status <> 'archived' LIMIT 1
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot WHERE workspace_id = $1 AND title = $2 AND status <> 'archived' LIMIT 1
 `
 
 type GetAutopilotByTitleForImportParams struct {
@@ -277,12 +277,15 @@ func (q *Queries) GetAutopilotByTitleForImport(ctx context.Context, arg GetAutop
 		&i.AssigneeType,
 		&i.ProjectID,
 		&i.PauseReason,
+		&i.BatchEligible,
+		&i.SourceMarkdown,
+		&i.SourceDigest,
 	)
 	return i, err
 }
 
 const getGoalByTitleForImport = `-- name: GetGoalByTitleForImport :one
-SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at FROM goal WHERE workspace_id = $1 AND title = $2 AND status <> 'dropped' LIMIT 1
+SELECT id, workspace_id, parent_goal_id, title, description, success_measure, due_date, owner_id, status, created_at, updated_at, start_date FROM goal WHERE workspace_id = $1 AND title = $2 AND status <> 'dropped' LIMIT 1
 `
 
 type GetGoalByTitleForImportParams struct {
@@ -305,6 +308,7 @@ func (q *Queries) GetGoalByTitleForImport(ctx context.Context, arg GetGoalByTitl
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StartDate,
 	)
 	return i, err
 }
@@ -479,7 +483,7 @@ func (q *Queries) GetWorkspaceTransferRun(ctx context.Context, id pgtype.UUID) (
 }
 
 const listAutopilotsForExport = `-- name: ListAutopilotsForExport :many
-SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason FROM autopilot WHERE workspace_id = $1 AND status <> 'archived' ORDER BY created_at ASC
+SELECT id, workspace_id, title, description, assignee_id, status, execution_mode, issue_title_template, created_by_type, created_by_id, last_run_at, created_at, updated_at, assignee_type, project_id, pause_reason, batch_eligible, source_markdown, source_digest FROM autopilot WHERE workspace_id = $1 AND status <> 'archived' ORDER BY created_at ASC
 `
 
 func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtype.UUID) ([]Autopilot, error) {
@@ -508,6 +512,9 @@ func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtyp
 			&i.AssigneeType,
 			&i.ProjectID,
 			&i.PauseReason,
+			&i.BatchEligible,
+			&i.SourceMarkdown,
+			&i.SourceDigest,
 		); err != nil {
 			return nil, err
 		}
@@ -520,7 +527,7 @@ func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtyp
 }
 
 const listIssuesForExport = `-- name: ListIssuesForExport :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
 `
 
 func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UUID) ([]Issue, error) {
@@ -566,6 +573,10 @@ func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UU
 			&i.ContractRisk,
 			&i.ContractRevision,
 			&i.GoalID,
+			&i.DelegateType,
+			&i.DelegateID,
+			&i.CycleID,
+			&i.IssueType,
 		); err != nil {
 			return nil, err
 		}

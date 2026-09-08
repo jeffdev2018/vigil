@@ -6,10 +6,11 @@
 -- cost_usd_ticks is the provider's own price for this usage (1e-10 USD), NULL
 -- when it reports none. It is overwritten like the token counters so a
 -- corrected report replaces the previous figure rather than accumulating.
-INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, updated_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, sqlc.narg('cost_usd_ticks'), now())
+INSERT INTO task_usage (task_id, provider, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_usd_ticks, model_key_id, updated_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, sqlc.narg('cost_usd_ticks'), sqlc.narg('model_key_id'), now())
 ON CONFLICT (task_id, provider, model)
 DO UPDATE SET
+    model_key_id = COALESCE(EXCLUDED.model_key_id, task_usage.model_key_id),
     input_tokens = EXCLUDED.input_tokens,
     output_tokens = EXCLUDED.output_tokens,
     cache_read_tokens = EXCLUDED.cache_read_tokens,
@@ -47,6 +48,26 @@ SELECT
 FROM task_usage tu
 JOIN agent_task_queue atq ON atq.id = tu.task_id
 WHERE atq.issue_id = $1
+ORDER BY tu.task_id, tu.model;
+
+-- name: ListAgentTaskUsage :many
+-- Per-(task, provider, model) usage rows for one agent's explicitly requested
+-- task history. ListAgentTasks is already access-gated before this query runs;
+-- the agent predicate preserves that authorization boundary, while task_ids
+-- keeps hydration aligned with the exact response without an N+1 query.
+SELECT
+    tu.task_id,
+    tu.provider,
+    tu.model,
+    tu.input_tokens,
+    tu.output_tokens,
+    tu.cache_read_tokens,
+    tu.cache_write_tokens,
+    tu.cost_usd_ticks
+FROM task_usage tu
+JOIN agent_task_queue atq ON atq.id = tu.task_id
+WHERE atq.agent_id = sqlc.arg('agent_id')
+  AND tu.task_id = ANY(sqlc.arg('task_ids')::uuid[])
 ORDER BY tu.task_id, tu.model;
 
 -- name: GetIssueUsageSummary :one

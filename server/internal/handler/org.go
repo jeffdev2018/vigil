@@ -106,9 +106,13 @@ type OrgRole struct {
 }
 
 type OrgUnit struct {
-	ID                    string            `json:"id"`
-	Name                  string            `json:"name"`
-	Kind                  string            `json:"kind,omitempty"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Kind string `json:"kind,omitempty"`
+	// Model is how this unit takes an issue once routed to it. Empty inherits
+	// the parent's (via reports_to) and finally the structure's model, so a
+	// hierarchy can hold a market team next to a squad next to a pool.
+	Model                 string            `json:"model,omitempty"`
 	OwnerID               string            `json:"owner_id,omitempty"`
 	SquadID               string            `json:"squad_id,omitempty"`
 	MissionGoalID         string            `json:"mission_goal_id,omitempty"`
@@ -169,6 +173,30 @@ func (d *OrgDefinition) unit(id string) *OrgUnit {
 		}
 	}
 	return nil
+}
+
+// parent is the unit u reports to, nil at a root.
+func (d *OrgDefinition) parent(unitID string) *OrgUnit {
+	for _, e := range d.Edges {
+		if e.From == unitID && e.Kind == "reports_to" {
+			return d.unit(e.To)
+		}
+	}
+	return nil
+}
+
+// orgEffectiveModel is the model a unit operates under: its own, else the
+// nearest ancestor's along reports_to, else the structure's. Composition
+// over a global choice: any node may run another pattern inside.
+func orgEffectiveModel(d *OrgDefinition, unitID, structureModel string) string {
+	seen := map[string]bool{}
+	for u := d.unit(unitID); u != nil && !seen[u.ID]; u = d.parent(u.ID) {
+		seen[u.ID] = true
+		if u.Model != "" {
+			return u.Model
+		}
+	}
+	return structureModel
 }
 
 func (u OrgUnit) properties() map[string]bool {
@@ -268,6 +296,8 @@ func (h *Handler) orgToResponse(ctx context.Context, s db.OrgStructure) OrgStruc
 // --- templates ---------------------------------------------------------------
 
 type OrgTemplate struct {
+	// Composite marks a template whose units carry their own models.
+	Composite                bool          `json:"composite,omitempty"`
 	Model                    string        `json:"model"`
 	Name                     string        `json:"name"`
 	Pattern                  string        `json:"pattern"`
@@ -331,6 +361,37 @@ func orgTemplate(model, ownerID string, agentIDs []string) OrgTemplate {
 	return t
 }
 
+// orgCompositeTemplate: a hierarchy whose teams each run their own model —
+// a lead on top, an internal market, a competence pool and an autonomous
+// squad below. Rules route to a team; the lead takes what no rule names.
+func orgCompositeTemplate(ownerID string, agentIDs []string) OrgTemplate {
+	t := orgTemplate(OrgModelHierarchy, ownerID, agentIDs)
+	t.Composite = true
+	t.Name, t.Pattern, t.CoordinationRunsPerIssue = "Hierarchy of teams", "supervisor over composed teams", 0.5
+	t.Description = "A lead on top; below it, teams that each run their own model: an internal market, a competence pool, an autonomous squad. Add a rule per team; the lead takes what no rule names."
+	lead := t.Definition.Units[0]
+	unit := func(id, name, kind, model string) OrgUnit {
+		u := orgTemplate(OrgModelSquads, ownerID, agentIDs).Definition.Units[0]
+		u.ID, u.Name, u.Kind, u.Model = id, name, kind, model
+		return u
+	}
+	market := unit("market-team", "Market team", "market", OrgModelMarket)
+	pool := unit("pool", "Competence pool", "pool", OrgModelMatrix)
+	squad := unit("squad-1", "Squad 1", "unit", OrgModelSquads)
+	t.Definition.Units = []OrgUnit{lead, market, pool, squad}
+	t.Definition.Edges = []OrgEdge{}
+	for _, u := range []OrgUnit{market, pool, squad} {
+		t.Definition.Edges = append(t.Definition.Edges, OrgEdge{From: u.ID, To: lead.ID, Kind: "reports_to"}, OrgEdge{From: u.ID, To: lead.ID, Kind: "escalates_to"})
+	}
+	t.Definition.Rules = []OrgRule{
+		{ID: "r-market", Keywords: []string{}, TargetUnit: market.ID, Priority: 1},
+		{ID: "r-pool", Keywords: []string{}, TargetUnit: pool.ID, Priority: 1},
+		{ID: "r-squad", Keywords: []string{}, TargetUnit: squad.ID, Priority: 1},
+	}
+	t.Definition.Market = OrgMarket{PriceCapUsdTicks: 5_000_000, OffersPerAgentPerDay: orgDefaultOffersPerDay, MinOffers: orgDefaultMinOffers}
+	return t
+}
+
 // GET /api/org/templates
 func (h *Handler) ListOrgTemplates(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUserID(w, r)
@@ -347,10 +408,11 @@ func (h *Handler) ListOrgTemplates(w http.ResponseWriter, r *http.Request) {
 			agentIDs = append(agentIDs, uuidToString(a.ID))
 		}
 	}
-	out := make([]OrgTemplate, 0, len(orgModels))
+	out := make([]OrgTemplate, 0, len(orgModels)+1)
 	for _, m := range orgModels {
 		out = append(out, orgTemplate(m, userID, agentIDs))
 	}
+	out = append(out, orgCompositeTemplate(userID, agentIDs))
 	writeJSON(w, http.StatusOK, map[string]any{"templates": out})
 }
 
@@ -406,6 +468,16 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		}
 		if _, ok := orgAutonomyRank[u.Autonomy]; !ok {
 			return orgErrorf("unit %q: autonomy must be read_only, draft, approve_payload or auto", u.Name)
+		}
+		if u.Model != "" {
+			if !containsStr(orgModels, u.Model) {
+				return orgErrorf("unit %q: model must be one of: %s", u.Name, strings.Join(orgModels, ", "))
+			}
+			// A task force declares its termination on the structure; a unit
+			// has no dissolution date or end condition of its own.
+			if u.Model == OrgModelTaskforce {
+				return orgErrorf("unit %q: taskforce is a structure model, not a unit model", u.Name)
+			}
 		}
 		for _, e := range u.Excludes {
 			if !containsStr(orgProperties, e) {
@@ -527,36 +599,34 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 			return orgErrorf("committee %q: termination is mandatory (quorum between 1 and %d, max_rounds ≥ 1)", c.DecisionType, len(c.UnitIDs))
 		}
 	}
-	switch model {
-	case OrgModelHierarchy:
+	if model == OrgModelHierarchy {
 		roots := 0
 		for _, u := range d.Units {
-			has := false
-			for _, e := range d.Edges {
-				if e.From == u.ID && e.Kind == "reports_to" {
-					has = true
-				}
-			}
-			if !has {
+			if d.parent(u.ID) == nil {
 				roots++
 			}
 		}
 		if roots != 1 {
 			return orgErrorf("hierarchy: exactly one unit reports to nobody (found %d)", roots)
 		}
-	case OrgModelSquads:
-		for _, u := range d.Units {
+	}
+	// Per-model constraints apply to the model each unit actually runs under.
+	marketUnits := 0
+	for _, u := range d.Units {
+		switch orgEffectiveModel(d, u.ID, model) {
+		case OrgModelSquads:
 			if u.SquadID == "" && len(u.memberIDs("agent")) == 0 {
 				return orgErrorf("squads: unit %q needs a squad or agent members", u.Name)
 			}
-		}
-	case OrgModelCircles:
-		for _, u := range d.Units {
+		case OrgModelCircles:
 			if len(u.Roles) == 0 {
 				return orgErrorf("circles: unit %q needs at least one role", u.Name)
 			}
+		case OrgModelMarket:
+			marketUnits++
 		}
-	case OrgModelMarket:
+	}
+	if marketUnits > 0 {
 		if d.Market.PriceCapUsdTicks <= 0 {
 			return orgErrorf("market: the human price cap (price_cap_usd_ticks) is required")
 		}
@@ -1016,6 +1086,17 @@ func (h *Handler) PreflightOrgStructure(w http.ResponseWriter, r *http.Request) 
 	}
 	def := decodeOrgDefinition(s.Definition)
 	tpl := orgTemplate(s.Model, "", nil)
+	// Coordination runs and human review load are per unit: a hierarchy with
+	// a market team pays the market's runs on that team's issues only.
+	runsPerIssue, reviewPerIssue := 0.0, 0.0
+	for _, u := range def.Units {
+		m := orgEffectiveModel(&def, u.ID, s.Model)
+		runsPerIssue += orgTemplate(m, "", nil).CoordinationRunsPerIssue
+		reviewPerIssue += orgReviewItemsPerIssue(m)
+	}
+	if n := float64(len(def.Units)); n > 0 {
+		runsPerIssue, reviewPerIssue = runsPerIssue/n, reviewPerIssue/n
+	}
 	var avgCost int64
 	agents := 0
 	for _, u := range def.Units {
@@ -1029,17 +1110,6 @@ func (h *Handler) PreflightOrgStructure(w http.ResponseWriter, r *http.Request) 
 	if agents > 0 {
 		avgCost /= int64(agents)
 	}
-	// Human review load: the items a person reads per issue — escalations and
-	// approvals for the models that produce them.
-	reviewPerIssue := 0.0
-	switch s.Model {
-	case OrgModelHierarchy, OrgModelCircles:
-		reviewPerIssue = 0.5
-	case OrgModelMarket, OrgModelTaskforce:
-		reviewPerIssue = 0.3
-	default:
-		reviewPerIssue = 0.1
-	}
 	unowned := 0
 	for _, u := range def.Units {
 		if u.OwnerID == "" {
@@ -1048,13 +1118,26 @@ func (h *Handler) PreflightOrgStructure(w http.ResponseWriter, r *http.Request) 
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"model": s.Model, "pattern": tpl.Pattern,
-		"coordination_runs_per_issue":           tpl.CoordinationRunsPerIssue,
-		"coordination_cost_usd_ticks_per_issue": int64(tpl.CoordinationRunsPerIssue * float64(avgCost)),
+		"coordination_runs_per_issue":           runsPerIssue,
+		"coordination_cost_usd_ticks_per_issue": int64(runsPerIssue * float64(avgCost)),
 		"human_review_items_per_issue":          reviewPerIssue,
 		"human_review_seconds_per_issue":        int(reviewPerIssue * orgLLMReviewSecondsPerItem),
 		"units":                                 len(def.Units), "units_without_owner": unowned, "agents": agents,
 		"activation_requirements": []string{"human owner", "eval attestation (30 cases)", "termination for task force, committee and market"},
 	})
+}
+
+// orgReviewItemsPerIssue: the items a person reads per issue under a model —
+// escalations and approvals for the models that produce them.
+func orgReviewItemsPerIssue(model string) float64 {
+	switch model {
+	case OrgModelHierarchy, OrgModelCircles:
+		return 0.5
+	case OrgModelMarket, OrgModelTaskforce:
+		return 0.3
+	default:
+		return 0.1
+	}
 }
 
 // --- routing on new issues ----------------------------------------------------------
@@ -1122,27 +1205,24 @@ func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDe
 	if best != nil {
 		return def.unit(best.TargetUnit)
 	}
+	// A circle anywhere in the structure claims an issue its roles' keywords name.
+	for i := range def.Units {
+		if orgEffectiveModel(&def, def.Units[i].ID, s.Model) != OrgModelCircles {
+			continue
+		}
+		for _, role := range def.Units[i].Roles {
+			for _, k := range role.Keywords {
+				if k != "" && strings.Contains(text, strings.ToLower(k)) && active(&def.Units[i]) {
+					return &def.Units[i]
+				}
+			}
+		}
+	}
 	switch s.Model {
 	case OrgModelHierarchy:
 		for i := range def.Units {
-			isRoot := true
-			for _, e := range def.Edges {
-				if e.From == def.Units[i].ID && e.Kind == "reports_to" {
-					isRoot = false
-				}
-			}
-			if isRoot && active(&def.Units[i]) {
+			if def.parent(def.Units[i].ID) == nil && active(&def.Units[i]) {
 				return &def.Units[i]
-			}
-		}
-	case OrgModelCircles:
-		for i := range def.Units {
-			for _, role := range def.Units[i].Roles {
-				for _, k := range role.Keywords {
-					if k != "" && strings.Contains(text, strings.ToLower(k)) && active(&def.Units[i]) {
-						return &def.Units[i]
-					}
-				}
 			}
 		}
 	case OrgModelMatrix, OrgModelTaskforce, OrgModelMarket:
@@ -1154,14 +1234,15 @@ func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDe
 }
 
 // orgTargetForUnit is who takes an issue routed to a unit: the unit's squad,
-// its lead agent, any agent member, else its owner (a human). For the matrix
-// model the most competent member for the issue's domain wins.
-func (h *Handler) orgTargetForUnit(ctx context.Context, s db.OrgStructure, u *OrgUnit, issue db.Issue) (string, pgtype.UUID) {
+// its lead agent, any agent member, else its owner (a human). Under the
+// matrix model (the unit's effective one) the most competent member for the
+// issue's domain wins.
+func (h *Handler) orgTargetForUnit(ctx context.Context, model string, u *OrgUnit, issue db.Issue) (string, pgtype.UUID) {
 	if u.SquadID != "" {
 		return "squad", parseUUID(u.SquadID)
 	}
 	agents := u.memberIDs("agent")
-	if s.Model == OrgModelMatrix && len(agents) > 1 {
+	if model == OrgModelMatrix && len(agents) > 1 {
 		domain := h.issueDomainKey(ctx, issue)
 		rows, _ := h.Queries.ListDomainCompetency(ctx, db.ListDomainCompetencyParams{WorkspaceID: issue.WorkspaceID, DomainKey: domain})
 		bestScore, best := -1.0, ""
@@ -1234,22 +1315,29 @@ func (h *Handler) orgRouteIssue(ctx context.Context, issue db.Issue, actorType, 
 		h.orgFlow(ctx, s, "", orgFlowUnrouted, issue.ID, actorType, actor, map[string]any{"reason": "no rule matched and the model has no fallback unit"})
 		return issue
 	}
-	if s.Model == OrgModelMarket {
+	// The unit's effective model decides how it takes the issue; the
+	// structure's model only decided which unit.
+	model := orgEffectiveModel(&def, unit.ID, s.Model)
+	if model == OrgModelMarket {
 		return h.orgMarketRound(ctx, s, def, unit, issue, actor)
 	}
-	targetType, targetID := h.orgTargetForUnit(ctx, s, unit, issue)
+	targetType, targetID := h.orgTargetForUnit(ctx, model, unit, issue)
 	if targetType == "" {
 		h.orgFlow(ctx, s, unit.ID, orgFlowUnrouted, issue.ID, actorType, actor, map[string]any{"reason": "unit has nobody to take the issue"})
 		return issue
 	}
-	// Hierarchy: above the risk threshold, the superior approves before the unit takes it.
-	if s.Model == OrgModelHierarchy && unit.ApprovalRisk != "" && issue.ContractRisk == unit.ApprovalRisk {
-		if superior := orgSuperior(def, unit.ID); superior != nil && superior.OwnerID != "" {
+	// A unit with a risk threshold and a superior waits for that superior's
+	// approval above the threshold, whatever model the unit runs inside.
+	if unit.ApprovalRisk != "" && issue.ContractRisk == unit.ApprovalRisk {
+		if superior := def.parent(unit.ID); superior != nil && superior.OwnerID != "" {
 			h.orgAskApproval(ctx, s, unit, superior, issue, targetType, targetID)
 			return issue
 		}
 	}
 	note := fmt.Sprintf("Routed by the %s structure %q to unit %q.", s.Model, s.Name, unit.Name)
+	if model != s.Model {
+		note = fmt.Sprintf("Routed by the %s structure %q to unit %q (operating as %s).", s.Model, s.Name, unit.Name, model)
+	}
 	updated, err := h.orgAssign(ctx, issue, targetType, targetID, note, actor)
 	if err != nil {
 		slog.Warn("org: assign failed", "error", err, "issue_id", uuidToString(issue.ID))
@@ -1258,15 +1346,6 @@ func (h *Handler) orgRouteIssue(ctx context.Context, issue db.Issue, actorType, 
 	h.orgFlow(ctx, s, unit.ID, orgFlowRouting, issue.ID, actorType, actor, map[string]any{"assignee_type": targetType, "assignee_id": uuidToString(targetID)})
 	h.audit(ctx, issue.WorkspaceID, "system", "", AuditOrgRouted, "issue", issue.ID, map[string]any{"structure_id": uuidToString(s.ID), "revision_id": uuidToString(s.RevisionID), "unit": unit.ID, "assignee_type": targetType, "assignee_id": uuidToString(targetID)}, nil)
 	return updated
-}
-
-func orgSuperior(def OrgDefinition, unitID string) *OrgUnit {
-	for _, e := range def.Edges {
-		if e.From == unitID && e.Kind == "reports_to" {
-			return def.unit(e.To)
-		}
-	}
-	return nil
 }
 
 // orgAskApproval files the superior's decision; the answer assigns or holds.

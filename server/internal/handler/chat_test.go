@@ -888,7 +888,7 @@ VALUES ($1, $2, 'feishu', $3, 'p2p')
 }
 
 // TestListChatSessions_ArchivedSessionReportsZeroUnread pins the MUL-4360 fix:
-// ListAllChatSessionsByCreator forces unread_count/has_unread to 0 for archived
+// ListAllChatSessionsForUser forces unread_count/has_unread to 0 for archived
 // rows even when assistant messages sit past the read cursor, so a stuck unread
 // badge cannot survive on any surface (FAB, sidebar Chat tab, chat-window
 // header). Because archiving deliberately does NOT advance last_read_at,

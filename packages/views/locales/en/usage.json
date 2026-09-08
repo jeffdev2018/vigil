@@ -118,6 +118,7 @@
       "chore": "Chore"
     },
     "col_samples": "Samples",
+    "from_benchmarks": "{{n}} from benchmarks",
     "col_success": "Success",
     "col_avg_cost": "Avg cost",
     "col_avg_duration": "Avg duration",
@@ -135,6 +136,19 @@
     "none": "None in this period",
     "empty": "No issue closed or pull request merged with a run in the last {{days}} days."
   },
+  "agent_roi": {
+    "title": "ROI per agent · {{days}}D",
+    "headline": "{{best}} closed {{count}} issues at {{cost}}/issue vs {{cost2}} for {{second}}",
+    "headline_single": "{{best}} closed {{count}} issues at {{cost}}/issue",
+    "empty": "No agent activity in the last {{days}} days.",
+    "agent": "Agent",
+    "issues": "Issues closed",
+    "prs": "PRs merged",
+    "cost": "Cost",
+    "cost_per_issue": "Cost / issue",
+    "none": "no issue closed",
+    "floor": "floor"
+  },
   "scorecards": {
     "title": "Agent scorecards · {{days}}D",
     "scope_note": "Workspace-wide, all projects · UTC days",
@@ -151,5 +165,41 @@
     "title": "Autopilot runs this period: {{used}} / {{limit}}",
     "near_limit": "Close to the limit — autopilots stop firing once it is reached.",
     "reached": "Limit reached — autopilots will not fire until the period resets."
+  },
+  "workflow_outcomes": {
+    "title": "Workflow outcomes",
+    "subtitle": "Last 90 days · per task class and workflow",
+    "col_class": "Task class",
+    "col_workflow": "Workflow",
+    "col_samples": "Samples",
+    "col_success": "Success",
+    "col_avg_cost": "Avg cost",
+    "col_avg_duration": "Avg duration",
+    "workflow": {
+      "single": "Single",
+      "cascade": "Cascade",
+      "critique": "Critique"
+    },
+    "empty_title": "No workflow data yet",
+    "empty_body": "Workflows are learned as runs complete — outcomes show up here once the selector has history to work with."
+  },
+  "insights": {
+    "title": "Insights",
+    "ask": "Ask",
+    "asking": "Reading…",
+    "ask_label": "Ask a question about this workspace",
+    "ask_placeholder": "How many issues have been blocked for more than 5 days?",
+    "pin": "Pin",
+    "retry": "Try again",
+    "value": "Value",
+    "no_rows": "No row matches this question.",
+    "no_widgets": "Nothing pinned yet. Ask a question above, then pin the answer.",
+    "no_question": "No question recorded.",
+    "error_failed": "Could not turn this question into a query. Rephrase it and try again.",
+    "error_timeout": "This question took too long to answer. Narrow the time range or the grouping.",
+    "too_many_series": "{{count}} categories — shown as a table.",
+    "move_up": "Move up",
+    "move_down": "Move down",
+    "remove": "Remove"
   }
 }

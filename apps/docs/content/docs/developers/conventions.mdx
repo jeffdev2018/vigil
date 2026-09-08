@@ -122,7 +122,7 @@ The Chinese pages under `apps/docs/content/docs/*.zh.mdx` are the de facto voice
 
 | Entity | en | zh-Hans | ja | ko |
 | --- | --- | --- | --- | --- |
-| the tracked unit of work (`issue`) | Issue | **任务** | **タスク** | **태스크** |
+| the tracked unit of work (`issue`) | Issue | **任务** | **課題** | **이슈** |
 | one agent execution record (`task` in API / DB) | **Run** | **运行** | **実行** | **실행** |
 
 Both concepts are user-visible and they are **not** the same thing — an issue can carry many runs. Never let one locale spell both with the same word. `Task` is no longer a user-facing product noun for an agent run; it remains only as the established internal identifier.
@@ -134,7 +134,7 @@ What does not move:
 - **`skill`** keeps lowercase English in Chinese text — a Multica-specific concept with no established Chinese term; titles may capitalize as `Skills`.
 - **`issue` in the "problem" sense** (runtime health) is a plain noun, not the entity: `{{count}} issues` on a machine card is `{{count}} 个异常` / `問題 {{count}} 件` / `문제 {{count}}개`, never the entity word.
 
-**Why `issue` is translated while `skill` is not**: users file and read issues all day, and "issue" has no meaning in Chinese, Japanese, or Korean outside of dev jargon. The everyday task word is what people already say for this. `skill` is a Multica-specific concept where no local word carries the meaning.
+**Why `issue` is translated while `skill` is not**: users file and read issues all day, and "issue" has no meaning in Chinese or Japanese outside of dev jargon. Chinese uses the everyday task word (任务), Japanese the word for a matter to be handled (課題), and Korean the loanword 이슈, which Korean product UI already uses. This is what every locale file and every localized doc page actually says; an earlier row of this table (タスク / 태스크) had been reverted in the strings the same day it landed and never in the glossary. `skill` is a Multica-specific concept where no local word carries the meaning.
 
 Other product nouns follow the same "translate what has a settled local word" test:
 

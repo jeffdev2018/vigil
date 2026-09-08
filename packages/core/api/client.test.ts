@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createAuthStore } from "../auth";
 import { configStore } from "../config";
+import type { StorageAdapter, User } from "../types";
 import { ApiClient, ApiError, CHAT_DRAFT_RESTORE_CAPABILITY, clientErrorMessage } from "./client";
 import { EMPTY_PLUGIN_PACKAGE_LIST, EMPTY_PLUGIN_PREVIEW, EMPTY_PLUGIN_SURFACE_LAUNCH } from "./schemas";
 
@@ -42,9 +44,36 @@ describe("ApiClient agent conversation-starter compatibility", () => {
 
   it("allows declared-capability create and update writes through", async () => {
     configStore.getState().setAgentConversationStartersSupported(true);
+    // JEF-321: createAgent/updateAgent now validate the response through
+    // AgentSchema, so the stub must return a minimally valid Agent — this
+    // test only cares about the outgoing request body below.
+    const validAgent = {
+      id: "agent-1",
+      workspace_id: "ws-1",
+      runtime_id: "runtime-1",
+      name: "Reviewer",
+      description: "",
+      instructions: "",
+      avatar_url: null,
+      runtime_mode: "local",
+      runtime_config: {},
+      custom_args: [],
+      visibility: "workspace",
+      permission_mode: "private",
+      invocation_targets: [],
+      status: "idle",
+      max_concurrent_tasks: 1,
+      model: "opus",
+      owner_id: null,
+      skills: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      archived_at: null,
+      archived_by: null,
+    };
     const fetchMock = vi.fn().mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ id: "agent-1" }), {
+        new Response(JSON.stringify(validAgent), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -75,8 +104,33 @@ describe("ApiClient agent conversation-starter compatibility", () => {
 
 describe("ApiClient edit guards", () => {
   it("serializes field baselines for issue and comment writes", async () => {
+    // JEF-321: updateIssue now validates the response through IssueSchema, so
+    // the stub must return a minimally valid Issue — this test only cares
+    // about the outgoing request bodies below. updateComment still tolerates
+    // "{}" via its EMPTY_COMMENT fallback, so one fixture covers both calls.
+    const validIssue = {
+      id: "issue-1",
+      workspace_id: "ws-1",
+      number: 1,
+      identifier: "MUL-1",
+      title: "Latest",
+      description: null,
+      status: "todo",
+      priority: "none",
+      assignee_type: null,
+      assignee_id: null,
+      creator_type: "member",
+      creator_id: "user-1",
+      parent_issue_id: null,
+      project_id: null,
+      position: 0,
+      start_date: null,
+      due_date: null,
+      created_at: "2026-08-16T00:00:00Z",
+      updated_at: "2026-08-16T00:00:00Z",
+    };
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      new Response("{}", {
+      new Response(JSON.stringify(validIssue), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -603,8 +657,32 @@ describe("ApiClient server Table query", () => {
 
 describe("ApiClient issue move intent", () => {
   it("posts relative anchors without a client-authored position", async () => {
+    // JEF-321: moveIssue now validates the response through IssueSchema, so
+    // the stub must return a minimally valid Issue — this test only cares
+    // about the outgoing request body below.
+    const validIssue = {
+      id: "issue-1",
+      workspace_id: "ws-1",
+      number: 1,
+      identifier: "MUL-1",
+      title: "Latest",
+      description: null,
+      status: "in_progress",
+      priority: "none",
+      assignee_type: null,
+      assignee_id: null,
+      creator_type: "member",
+      creator_id: "user-1",
+      parent_issue_id: null,
+      project_id: null,
+      position: 15,
+      start_date: null,
+      due_date: null,
+      created_at: "2026-08-16T00:00:00Z",
+      updated_at: "2026-08-16T00:00:00Z",
+    };
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "issue-1", position: 15 }), {
+      new Response(JSON.stringify(validIssue), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -1072,12 +1150,78 @@ describe("ApiClient", () => {
     expect(tasks[2]?.usage?.[0]?.output_tokens).toBe(0);
   });
 
-  it("uses the expected HTTP contract for autopilot endpoints", async () => {
-    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      new Response(JSON.stringify({ autopilots: [], runs: [], total: 0 }), {
+  it("keeps agent detail task history on the lightweight endpoint", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { id: "task-1", status: "completed", created_at: "2026-08-27T03:00:00Z" },
+          { id: "task-2", status: "completed", created_at: "2026-08-27T02:00:00Z" },
+        ]),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new ApiClient("https://api.example.test");
+    const tasks = await client.listAgentTasks("agent-1");
+
+    expect(tasks.map((task) => task.id)).toEqual(["task-1", "task-2"]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://api.example.test/api/agents/agent-1/tasks",
+    );
+  });
+
+  it("falls back to an empty agent task history for a malformed response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ tasks: "not-an-array" }), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.listAgentTasks("agent-1")).resolves.toEqual([]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the expected HTTP contract for autopilot endpoints", async () => {
+    // This test only asserts the HTTP contract (method/url/body), not the
+    // parsed response shape — so one mock body is shared across every call.
+    // It must satisfy every schema in the sequence: GetAutopilotResponseSchema
+    // (`autopilot`), AutopilotSchema (top-level, createAutopilot),
+    // AutopilotTriggerSchema (top-level, rotateAutopilotTriggerWebhookToken) —
+    // getAutopilot/createAutopilot/rotateAutopilotTriggerWebhookToken throw on
+    // a malformed body (JEF-321), so an empty `{}` would break this test.
+    const autopilotFields = {
+      id: "ap-1",
+      workspace_id: "ws-1",
+      title: "Daily triage",
+      assignee_id: "agent-1",
+      status: "active",
+      execution_mode: "create_issue",
+      created_by_type: "member",
+      created_by_id: "member-1",
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
+      new Response(
+        JSON.stringify({
+          autopilots: [],
+          runs: [],
+          total: 0,
+          autopilot: autopilotFields,
+          autopilot_id: "ap-1",
+          kind: "schedule",
+          ...autopilotFields,
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      ),
     ));
     vi.stubGlobal("fetch", fetchMock);
 
@@ -2046,7 +2190,33 @@ describe("ApiClient explicit workspace targeting", () => {
   }
 
   it("sends the given slug on Mika creation", async () => {
-    const fetchMock = stubOk({ id: "agent-1" });
+    // JEF-321: createMikaAgent now validates the response through
+    // MikaBootstrapResponseSchema (an Agent), so the stub must return a
+    // minimally valid one — this test only cares about the request header.
+    const fetchMock = stubOk({
+      id: "agent-1",
+      workspace_id: "ws-1",
+      runtime_id: "runtime-1",
+      name: "Mika",
+      description: "",
+      instructions: "",
+      avatar_url: null,
+      runtime_mode: "local",
+      runtime_config: {},
+      custom_args: [],
+      visibility: "private",
+      permission_mode: "private",
+      invocation_targets: [],
+      status: "idle",
+      max_concurrent_tasks: 1,
+      model: "opus",
+      owner_id: null,
+      skills: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      archived_at: null,
+      archived_by: null,
+    });
     await new ApiClient("https://api.example.test").createMikaAgent(
       { runtime_id: "runtime-1", language: "en" },
       "proxima-centauri",
@@ -2626,5 +2796,182 @@ describe("clientErrorMessage", () => {
   it("withholds a transport failure, whose message says nothing actionable", () => {
     expect(clientErrorMessage(new TypeError("Failed to fetch"))).toBeUndefined();
     expect(clientErrorMessage(undefined)).toBeUndefined();
+  });
+});
+
+// The wiring this exercises is the one CoreProvider installs: the client's
+// 401 hook drives the auth store's session teardown. Before MUL-7028 the hook
+// only dropped the stored token, so the shell stayed mounted with a live
+// `user` and every following request came back "missing authorization" with
+// no way for the user to get to the login page.
+describe("ApiClient session expiry", () => {
+  function makeStorage(
+    initial: Record<string, string> = {},
+  ): StorageAdapter {
+    const values = { ...initial };
+    return {
+      getItem: (key) => values[key] ?? null,
+      setItem: (key, value) => {
+        values[key] = value;
+      },
+      removeItem: (key) => {
+        delete values[key];
+      },
+    };
+  }
+
+  it("ends the session when the server rejects the credential mid-flight", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: "missing authorization" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const storage = makeStorage({ multica_token: "live-token" });
+    // The client is constructed before the store it notifies, exactly as
+    // CoreProvider's initCore does; the hook only ever runs from a request.
+    const session: { store?: ReturnType<typeof createAuthStore> } = {};
+    const client = new ApiClient("https://api.example.test", {
+      onUnauthorized: () => session.store?.getState().sessionExpired(),
+    });
+    const store = createAuthStore({ api: client, storage });
+    session.store = store;
+    store.setState({
+      user: { id: "u1", email: "a@example.com" } as User,
+      isLoading: false,
+      status: "authenticated",
+    });
+    client.setToken("live-token");
+
+    await expect(client.listProjects()).rejects.toBeInstanceOf(ApiError);
+
+    expect(store.getState().user).toBeNull();
+    expect(store.getState().status).toBe("unauthenticated");
+    expect(store.getState().expired).toBe(true);
+    expect(storage.getItem("multica_token")).toBeNull();
+  });
+});
+
+describe("ApiClient run transcript (F03)", () => {
+  function stubJSON(body: unknown) {
+    // A fresh Response per call: a Response body can only be read once, and
+    // these tests hit the endpoint twice.
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const message = { task_id: "t1", issue_id: "i1", seq: 1, type: "response", content: "done" };
+
+  it("splits the wrapped response into messages and actions", async () => {
+    stubJSON({
+      messages: [message],
+      actions: [{ kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" }],
+    });
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([message]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([
+      { kind: "action", action: "status_changed", before: "todo", after: "done", at: "2026-01-01T00:00:00Z" },
+    ]);
+  });
+
+  // An installed build talking to a server that predates the wrapper must show
+  // the same transcript it always did, with no action lane.
+  it("still reads a backend that returns the bare message array", async () => {
+    stubJSON([message]);
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([message]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([]);
+  });
+
+  it("degrades to an empty transcript on a malformed response", async () => {
+    stubJSON("not-a-transcript");
+    const client = new ApiClient("https://api.example.test");
+
+    await expect(client.listTaskMessages("t1")).resolves.toEqual([]);
+    await expect(client.listTaskActions("t1")).resolves.toEqual([]);
+  });
+});
+
+describe("ApiClient batch update refusals", () => {
+  // The endpoint answers 200 even when it applied only part of the batch: the
+  // transition rules (F28) and the cycle guard (F29) refuse per issue. A client
+  // that reads only `updated` reports a partial refusal as a clean success and
+  // leaves the optimistic patch standing on rows the server never moved.
+  const respond = (body: unknown) =>
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+  it("surfaces the per-issue refusals the server reports alongside the applied count", async () => {
+    respond({
+      updated: 7,
+      refused: [
+        {
+          issue_id: "issue-1",
+          code: "transition_not_allowed",
+          from: "in_progress",
+          to: "done",
+          reason: "no_grant",
+          rule_id: "rule-1",
+        },
+        { issue_id: "issue-2", code: "transition_not_allowed", requires_approval: true },
+      ],
+    });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(
+      ["issue-1", "issue-2"],
+      { status: "done" },
+    );
+
+    expect(result.updated).toBe(7);
+    expect(result.refused).toHaveLength(2);
+    expect(result.refused[0]).toMatchObject({ issue_id: "issue-1", code: "transition_not_allowed" });
+    // requires_approval tells the caller this one would succeed on its own, as a
+    // single update that opens the 202 approval flow a batch deliberately skips.
+    expect(result.refused[1]?.requires_approval).toBe(true);
+    expect(result.refused[0]?.requires_approval).toBe(false);
+  });
+
+  it("defaults refused to empty when an older backend omits it", async () => {
+    respond({ updated: 3 });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(["a"], {
+      status: "done",
+    });
+
+    expect(result).toEqual({ updated: 3, refused: [] });
+  });
+
+  it("keeps a refusal whose code this build does not know", async () => {
+    respond({ updated: 0, refused: [{ issue_id: "issue-9", code: "some_future_guard" }] });
+
+    const result = await new ApiClient("https://api.example.test").batchUpdateIssues(["issue-9"], {
+      status: "done",
+    });
+
+    // The row must survive: naming the refused issue matters more than
+    // recognising why, and a strict code would have dropped the whole list.
+    expect(result.refused).toEqual([
+      { issue_id: "issue-9", code: "some_future_guard", reason: "", requires_approval: false },
+    ]);
   });
 });

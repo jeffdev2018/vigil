@@ -10,6 +10,16 @@ export type IssueScope =
       userId: string;
     }
   | { type: "project"; projectId: string; actorKind?: WorkspaceIssueActorKind }
+  // Dated cycles (F29). projectId travels with the scope because a cycle
+  // belongs to exactly one project, and every consumer that gates on "is this
+  // a project-shaped surface" (gantt, create defaults) needs it without a
+  // second fetch.
+  | {
+      type: "cycle";
+      cycleId: string;
+      projectId: string;
+      actorKind?: WorkspaceIssueActorKind;
+    }
   | {
       type: "actor";
       actorType: Extract<IssueAssigneeType, "member" | "agent">;
@@ -73,6 +83,10 @@ export function issueScopeKey(scope: IssueScope): string {
       return scope.actorKind === "members" || scope.actorKind === "agents"
         ? `project:${scope.projectId}:${scope.actorKind}`
         : `project:${scope.projectId}`;
+    case "cycle":
+      return scope.actorKind === "members" || scope.actorKind === "agents"
+        ? `cycle:${scope.cycleId}:${scope.actorKind}`
+        : `cycle:${scope.cycleId}`;
     case "actor":
       return `actor:${scope.actorType}:${scope.actorId}:${scope.relation}`;
     case "team":

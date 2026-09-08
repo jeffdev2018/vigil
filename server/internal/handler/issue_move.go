@@ -37,6 +37,10 @@ func (h *Handler) MoveIssue(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	// Project roles (K60): a viewer reads, a contributor writes.
+	if !h.requireProjectWrite(w, r, current.ProjectID) {
+		return
+	}
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {

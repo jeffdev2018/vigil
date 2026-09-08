@@ -118,6 +118,7 @@
       "chore": "雑務"
     },
     "col_samples": "サンプル数",
+    "from_benchmarks": "うち {{n}} 件はベンチマーク",
     "col_success": "成功率",
     "col_avg_cost": "平均コスト",
     "col_avg_duration": "平均時間",
@@ -135,6 +136,19 @@
     "none": "この期間はなし",
     "empty": "過去 {{days}} 日間に、実行を伴って完了したイシューやマージされた PR はありません。"
   },
+  "agent_roi": {
+    "title": "エージェント別 ROI · {{days}}日",
+    "headline": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ（{{second}} は {{cost2}}）",
+    "headline_single": "{{best}} は {{count}} 件のイシューを 1 件あたり {{cost}} でクローズ",
+    "empty": "過去 {{days}} 日間にエージェントの稼働はありません。",
+    "agent": "エージェント",
+    "issues": "クローズしたイシュー",
+    "prs": "マージした PR",
+    "cost": "コスト",
+    "cost_per_issue": "イシューあたりコスト",
+    "none": "クローズしたイシューなし",
+    "floor": "下限値"
+  },
   "scorecards": {
     "title": "エージェントのスコアカード · {{days}}日",
     "scope_note": "ワークスペース全体・全プロジェクト · UTC 日次",
@@ -151,5 +165,41 @@
     "title": "今期のオートパイロット実行: {{used}} / {{limit}}",
     "near_limit": "上限が近づいています。上限に達するとオートパイロットは起動しません。",
     "reached": "上限に達しました。期間がリセットされるまでオートパイロットは起動しません。"
+  },
+  "workflow_outcomes": {
+    "title": "ワークフロー別の結果",
+    "subtitle": "過去90日 · タスククラスとワークフロー別",
+    "col_class": "タスククラス",
+    "col_workflow": "ワークフロー",
+    "col_samples": "サンプル数",
+    "col_success": "成功率",
+    "col_avg_cost": "平均コスト",
+    "col_avg_duration": "平均時間",
+    "workflow": {
+      "single": "シングル",
+      "cascade": "カスケード",
+      "critique": "クリティーク"
+    },
+    "empty_title": "ワークフローのデータはまだありません",
+    "empty_body": "ワークフローはランを重ねるほど学習されます — セレクターに履歴がたまると、ここに結果が表示されます。"
+  },
+  "insights": {
+    "title": "インサイト",
+    "ask": "質問",
+    "asking": "読み取り中…",
+    "ask_label": "このワークスペースについて質問する",
+    "ask_placeholder": "5日以上ブロックされている課題はいくつありますか？",
+    "pin": "ピン留め",
+    "retry": "再試行",
+    "value": "値",
+    "no_rows": "この質問に一致する行はありません。",
+    "no_widgets": "まだ何もピン留めされていません。上で質問し、回答をピン留めしてください。",
+    "no_question": "質問が記録されていません。",
+    "error_failed": "この質問をクエリに変換できませんでした。言い換えて再試行してください。",
+    "error_timeout": "この質問は回答に時間がかかりすぎました。期間またはグループ化を絞り込んでください。",
+    "too_many_series": "{{count}} 件のカテゴリ — 表として表示します。",
+    "move_up": "上へ移動",
+    "move_down": "下へ移動",
+    "remove": "削除"
   }
 }

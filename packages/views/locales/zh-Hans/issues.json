@@ -116,16 +116,19 @@
     "no_results": "无结果",
     "no_labels": "还没有标签",
     "no_assignee": "无负责人",
+    "no_delegate": "无协作人",
     "no_project": "无项目",
     "section_status": "状态",
     "section_priority": "优先级",
     "section_assignee": "负责人",
+    "section_delegate": "协作人",
     "section_creator": "创建者",
     "chip_op_contains": "包含 {{value}}",
     "chip_op_before": "早于 {{value}}",
     "chip_op_after": "晚于 {{value}}",
     "section_project": "项目",
     "section_goal": "目标",
+    "section_cycle": "周期",
     "section_label": "标签",
     "section_date": "日期",
     "date_field": "字段",
@@ -150,7 +153,8 @@
     "active_count_other": "{{count}} 个筛选",
     "in_view": "已包含在视图中",
     "chip_edit": "编辑",
-    "chip_save_as": "另存"
+    "chip_save_as": "另存",
+    "section_type": "类型"
   },
   "display": {
     "tooltip": "显示设置",
@@ -193,7 +197,9 @@
     "list": "列表",
     "table": "表格",
     "gantt": "甘特图",
-    "swimlane": "泳道"
+    "swimlane": "泳道",
+    "calendar": "日历",
+    "tooltip_calendar": "日历视图"
   },
   "table": {
     "select_all": "选择所有可见任务",
@@ -250,7 +256,8 @@
       "created_at": "创建时间",
       "updated_at": "更新时间",
       "child_progress": "子任务进度",
-      "creator": "创建者"
+      "creator": "创建者",
+      "issue_type": "类型"
     },
     "calculation": {
       "label": "计算",
@@ -374,10 +381,12 @@
     "prop_priority": "优先级",
     "prop_stage": "阶段",
     "prop_assignee": "负责人",
+    "prop_delegate": "协作人",
     "prop_start_date": "开始日期",
     "prop_due_date": "截止日期",
     "prop_project": "项目",
     "prop_goal": "目标",
+    "prop_cycle": "周期",
     "goal_inherited": "继承自项目",
     "prop_labels": "标签",
     "add_property_action": "添加字段",
@@ -403,24 +412,6 @@
     "unpin_tooltip": "从侧边栏取消固定",
     "thread_nav_label": "快速跳转到讨论",
     "thread_nav_resolved_label": "{{title}}（已解决）",
-    "thread_nav": {
-      "button_label_other": "讨论（{{count}}）",
-      "search_placeholder": "搜索讨论或作者",
-      "match_count_other": "{{count}} 条命中",
-      "filter_all": "全部",
-      "filter_unresolved": "未解决",
-      "filter_resolved": "已解决",
-      "filter_mine": "@我",
-      "group": {
-        "today": "今天",
-        "yesterday": "昨天",
-        "earlier": "更早"
-      },
-      "empty": "没有匹配的讨论",
-      "hint_select": "选择",
-      "hint_jump": "跳转",
-      "hint_close": "关闭"
-    },
     "sidebar_tooltip": "切换右侧边栏",
     "find": {
       "placeholder": "在任务中查找...",
@@ -459,7 +450,10 @@
     "pr_stack_truncated": "在 {{depth}} 层处截断",
     "pr_stack_cyclic": "依赖循环：部分层级已隐藏",
     "blocker_adr_required": "需要架构决策记录（编辑了 {{count}} 个文件）",
-    "from_meeting": "来自会议"
+    "from_meeting": "来自会议",
+    "hidden_properties_other": "隐藏的属性（{{count}}）",
+    "hidden_properties_hint": "这些值是在其他工作项类型下填写的。它们会被保留，切回该类型即可重新显示。",
+    "prop_issue_type": "类型"
   },
   "timeline": {
     "loading": "加载中…"
@@ -523,6 +517,13 @@
     "trigger_blocked_short_agent_runtime_required": "需绑定运行时",
     "trigger_blocked_short_budget_exceeded": "预算已达上限",
     "trigger_blocked_short_generic": "不会触发",
+    "a2a_question": "提问给",
+    "a2a_review": "请求评审",
+    "a2a_handoff": "移交给",
+    "trigger_blocked_a2a_depth_exceeded": "该智能体调用链距离发起人已经太远",
+    "trigger_blocked_a2a_budget_exceeded": "此议题的智能体互发消息数量暂时已达上限",
+    "trigger_blocked_short_a2a_depth_exceeded": "调用链过长",
+    "trigger_blocked_short_a2a_budget_exceeded": "智能体消息过多",
     "send_reply_failed": "发送回复失败",
     "delete_failed": "删除评论失败",
     "reply_count_other": "{{count}} 条回复",
@@ -638,7 +639,42 @@
     "status_deferred": "已延期",
     "status_paused": "已暂停",
     "unresponsive": "无响应",
-    "unresponsive_tooltip": "已 {{duration}} 无活动"
+    "unresponsive_tooltip": "已 {{duration}} 无活动",
+    "off_peak": "闲时",
+    "off_peak_hint": "已进入闲时队列：所有紧急运行之后才会被处理，因此开始时间晚于计划。",
+    "revert_tooltip": "回退到这一轮",
+    "revert_aria": "把分支回退到这次运行",
+    "revert_dialog_title": "回退到这一轮？",
+    "revert_dialog_body_other": "分支将回到这次运行留下的位置，之后的 {{count}} 次运行及其消息会被删除。",
+    "revert_dialog_body_none": "分支将回到这次运行留下的位置，之后没有需要删除的运行。",
+    "revert_dialog_note": "不会改动你的工作区、暂存区和贮藏。",
+    "revert_dialog_keep": "保持不变",
+    "revert_dialog_confirm": "回退分支",
+    "revert_pending": "正在回退…",
+    "revert_done": "已回退到这一轮",
+    "revert_failed": "回退未完成"
+  },
+  "legs": {
+    "workflow": "工作流",
+    "count_other": "{{count}} 次运行",
+    "total": "共 {{cost}}",
+    "role": {
+      "draft": "首次",
+      "retry": "重试",
+      "fallback": "回退",
+      "rerun": "重新运行",
+      "review": "评审",
+      "critique": "质疑",
+      "answer": "答复",
+      "revision": "修订",
+      "watchdog": "看护",
+      "duel": "对决",
+      "fanout": "分发",
+      "shard": "分片",
+      "eval": "评测",
+      "escalation": "升级",
+      "other": "环节"
+    }
   },
   "usage_detail": {
     "title": "用量明细",
@@ -678,6 +714,7 @@
     "status": "状态",
     "priority": "优先级",
     "assignee": "负责人",
+    "cycle": "周期",
     "delete": "删除",
     "update_success_other": "已更新 {{count}} 个任务",
     "update_failed": "更新任务失败",
@@ -754,6 +791,12 @@
       "squads_group": "小队",
       "agent_runtime_required": "请先为该智能体绑定运行时，再分配工作",
       "squad_runtime_required": "请先为该小队的负责人绑定运行时，再分配工作"
+    },
+    "delegate": {
+      "trigger_none": "无协作人",
+      "search_placeholder": "指定协作人...",
+      "members_group": "成员",
+      "agents_group": "智能体"
     },
     "start_date": {
       "trigger_label": "开始日期",
@@ -1208,6 +1251,49 @@
     "failed": "对决请求失败",
     "identical": "请选择两个不同的智能体"
   },
+  "race": {
+    "section": "竞速",
+    "status": {
+      "running": "进行中",
+      "settled": "已确定",
+      "abandoned": "已放弃"
+    },
+    "attempts": "{{n}} 次尝试",
+    "loading": "正在加载竞速…",
+    "load_failed": "无法加载该任务的竞速。",
+    "empty": "该任务还没有跑过竞速。",
+    "start": "发起竞速",
+    "start_title": "发起竞速",
+    "start_desc": "2 到 5 次尝试同时运行，各自使用独立分支。你保留一次，其余的会被取消。",
+    "start_confirm": "发起竞速",
+    "attempt_agent": "尝试 {{index}} — 智能体",
+    "attempt_model": "尝试 {{index}} — 模型",
+    "remove_attempt": "移除尝试 {{index}}",
+    "add_attempt": "添加尝试",
+    "pick_agent": "选择智能体…",
+    "model_placeholder": "模型（可选）",
+    "note": "备注",
+    "note_placeholder": "给所有尝试的备注（可选）",
+    "model": "模型",
+    "default_model": "智能体默认",
+    "run_status": "运行",
+    "diff_stat": "差异",
+    "diff_truncated": "差异过大，未能存储 —— 仅有统计，请查看分支。",
+    "diff_none": "没有记录差异。",
+    "keep": "保留 {{agent}}",
+    "kept": "已保留",
+    "keep_title": "保留 {{agent}} 的尝试？",
+    "keep_desc": "其余尝试会被取消，分支也会清理。此操作不可撤销。",
+    "keep_confirm": "保留这次尝试",
+    "abandon": "放弃竞速",
+    "abandon_title": "放弃这次竞速？",
+    "abandon_desc": "所有仍在进行的尝试都会被取消，分支也会清理。不保留任何结果。",
+    "abandon_confirm": "放弃",
+    "cancel": "取消",
+    "failed": "竞速请求失败",
+    "error_already_active": "该任务已有一场竞速在进行中。",
+    "error_already_settled": "这场竞速已经结束。"
+  },
   "campaign": {
     "section": "重构战役",
     "target": "合入 {{branch}}",
@@ -1251,7 +1337,10 @@
     "row": "{{name}}：{{rate}}（{{count}} 个 issue）",
     "duels": "对决 {{wins}} 胜 / {{losses}} 负",
     "low_sample": "数据不足（{{count}}/{{min}}）",
-    "empty": "尚无智能体在此类任务上有历史记录。"
+    "empty": "尚无智能体在此类任务上有历史记录。",
+    "estimate_range": "{{duration}} · {{cost}}",
+    "estimate_empty": "历史记录不足，无法估算",
+    "estimate_over_budget": "超出预算"
   },
   "cross_review": {
     "section": "跨供应商评审",
@@ -1268,7 +1357,10 @@
     "suggestions": "建议",
     "retry": "重新评审",
     "retry_failed": "重试失败",
-    "previous": "{{count}} 次早先尝试"
+    "previous": "{{count}} 次早先尝试",
+    "checklist": "检查清单",
+    "rework": "已退回给执行智能体 · 第 {{cycle}} 轮",
+    "escalated": "{{cycles}} 轮后已升级 — 需要人工处理"
   },
   "agent_effects": {
     "section": "智能体的改动",
@@ -1373,5 +1465,132 @@
       "ask_proof": "要求证据",
       "none": "无操作"
     }
+  },
+  "eval_promote": {
+    "promote": "提升为评测用例",
+    "added": "已加入评测实验室",
+    "open_eval_lab": "打开评测实验室",
+    "failed": "无法提升该问题"
+  },
+  "mirrors": {
+    "generated_from": "由 {{identifier}}（{{project}}）生成",
+    "open_source": "打开源问题",
+    "mirror_in": "{{project}} 中的镜像",
+    "types_synced": "类型已同步",
+    "sync_failed": "更新此镜像失败",
+    "unknown_project": "已删除的项目"
+  },
+  "walkthrough": {
+    "section": "导读",
+    "refresh": "重新生成",
+    "pending": "正在生成导读…",
+    "failed": "无法生成导读。",
+    "empty": "此版本还没有导读。",
+    "truncated_other": "已省略 {{count}} 个文件 — 该合并请求超出导读上限。",
+    "hunk_count_other": "{{count}} 处改动",
+    "moved_from": "移动自 {{path}}",
+    "kind": {
+      "core": "核心",
+      "test": "测试",
+      "generated": "生成",
+      "noise": "杂项"
+    }
+  },
+  "review_flags": {
+    "section": "评审标记",
+    "empty": "此拉取请求没有标记。",
+    "error": "无法加载评审标记。",
+    "retry": "重试",
+    "actions": "标记操作",
+    "resolve": "解决",
+    "dismiss": "忽略",
+    "reopen": "重新打开",
+    "stale": "代码已变更",
+    "confidence": "把握 {{value}}%",
+    "filter": {
+      "open": "未解决",
+      "all": "全部"
+    },
+    "severity": {
+      "bug": "缺陷",
+      "warning": "警告",
+      "info": "提示"
+    }
+  },
+  "anchor": {
+    "section": "定位讨论",
+    "ask_line": "就这一行提问",
+    "ask_flag": "就这条标记提问",
+    "ask_placeholder": "就 {{location}} 提问…",
+    "cancel": "取消",
+    "stale": "代码此后已变更",
+    "at": "{{path}}:{{line}}",
+    "at_range": "{{path}}:{{start}}-{{end}}",
+    "show_replies_other": "显示之前的 {{count}} 条回复",
+    "hide_replies": "隐藏之前的回复",
+    "reply_placeholder": "回复此讨论…",
+    "empty": "此代码块还没有定位讨论。",
+    "go_to_hunk": "跳转到讲解中的这一行"
+  },
+  "transitions": {
+    "not_allowed": "工作区规则不允许这样流转。",
+    "needs_approval": "需要审批",
+    "banner_title": "等待审批",
+    "banner_body": "已申请将状态改为 {{status}}，正在等待审批人处理。",
+    "approve": "通过",
+    "reject": "驳回",
+    "note_placeholder": "备注（可选）",
+    "decide_failed": "无法记录审批结果。",
+    "pending_toast": "已提交审批，状态尚未变更。"
+  },
+  "run_preview": {
+    "chip_starting": "预览启动中",
+    "chip_ready": "预览",
+    "chip_stopped": "预览已结束",
+    "chip_stale": "预览已断开",
+    "chip_error": "预览失败",
+    "chip_local": "本地预览",
+    "card_title": "预览",
+    "card_starting": "正在等待端口 {{port}} 上的开发服务器响应。",
+    "card_stopped": "运行已结束，预览已停止。",
+    "card_stale": "运行该预览的机器已离线。",
+    "card_error": "run 脚本没有响应。",
+    "card_local": "该预览运行在 {{machine}} 上，只能从这台机器访问。",
+    "card_local_no_machine": "该预览只能从运行它的机器访问。",
+    "card_needs_link": "创建链接即可在浏览器中打开该预览。",
+    "card_no_run_script": "该项目的本地目录没有 run 脚本，运行时不会启动开发服务器。",
+    "open": "打开",
+    "copy": "复制链接",
+    "copied": "已复制链接",
+    "copy_failed": "无法复制链接",
+    "stop": "停止预览",
+    "stop_failed": "无法停止预览",
+    "create_link": "创建链接",
+    "create_link_failed": "无法创建链接",
+    "revoke": "吊销",
+    "revoke_failed": "无法吊销链接",
+    "revoked": "链接已吊销",
+    "expires_in": "{{when}}过期",
+    "expiry_label": "链接有效期",
+    "expiry_hours_other": "{{count}} 小时",
+    "links_title": "共享链接",
+    "links_empty": "还没有链接。",
+    "uses_other": "使用 {{count}} 次"
+  },
+  "calendar": {
+    "due_date_hint": "议题按截止日期显示",
+    "empty_month": "本月没有到期的议题。",
+    "more_other": "还有 {{count}} 个",
+    "next_month": "下个月",
+    "previous_month": "上个月",
+    "today": "今天"
+  },
+  "issue_types": {
+    "archived_badge": "已归档",
+    "clear": "清除类型",
+    "label": "类型",
+    "none": "无类型",
+    "search": "搜索类型...",
+    "section": "类型"
   }
 }

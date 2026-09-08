@@ -12,7 +12,7 @@ func TestPrepareClaudeSkillSettings(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	path, err := prepareClaudeSkillSettings(root, []RuntimeSkillRefForEnv{
+	path, err := prepareClaudeSkillSettingsForTest(root, []RuntimeSkillRefForEnv{
 		{Root: "provider", Key: "review-dir", Name: "review"},
 		{Root: "plugin", Key: "paper:design-to-code", Plugin: "paper@market"},
 	}, nil)
@@ -56,7 +56,7 @@ func TestPrepareClaudeSkillSettings(t *testing.T) {
 		}
 	}
 
-	cleared, err := prepareClaudeSkillSettings(root, nil, nil)
+	cleared, err := prepareClaudeSkillSettingsForTest(root, nil, nil)
 	if err != nil {
 		t.Fatalf("clear settings: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestRuntimeSkillPoliciesYieldToWorkspaceSkills(t *testing.T) {
 
 	root := t.TempDir()
 	workspaceSkills := []SkillContextForEnv{{Name: "Review"}}
-	settingsPath, err := prepareClaudeSkillSettings(root, []RuntimeSkillRefForEnv{
+	settingsPath, err := prepareClaudeSkillSettingsForTest(root, []RuntimeSkillRefForEnv{
 		{Root: "provider", Key: "review-dir", Name: "review"},
 	}, workspaceSkills)
 	if err != nil {
@@ -125,5 +125,88 @@ func TestRuntimeSkillPoliciesYieldToWorkspaceSkills(t *testing.T) {
 		t.Fatalf("workspace-owned Codex skill was disabled:\n%s", data)
 	} else if err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
+	}
+}
+
+// prepareClaudeSkillSettingsForTest keeps the skill-policy cases reading as
+// they did before the shell hook joined this file: those cases are about
+// disabled runtime skills and say nothing about a command gate.
+func prepareClaudeSkillSettingsForTest(envRoot string, disabled []RuntimeSkillRefForEnv, workspaceSkills []SkillContextForEnv) (string, error) {
+	return prepareClaudeSkillSettings(envRoot, disabled, workspaceSkills, nil)
+}
+
+// The PreToolUse hook is registered in the settings file Multica already owns,
+// so no file is written into the user's repository. It has to appear even when
+// no runtime skill is disabled — that was the old reason for this file to
+// exist, and a run that declares a command allowlist needs the file whether or
+// not it also disables a skill.
+func TestPrepareClaudeSkillSettingsRegistersTheShellHook(t *testing.T) {
+	root := t.TempDir()
+	hook := &ClaudeShellHook{Command: "/opt/multica/bin/multica", MarkerPath: filepath.Join(root, ClaudeHookMarkerFile)}
+
+	path, err := prepareClaudeSkillSettings(root, nil, nil, hook)
+	if err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if path == "" {
+		t.Fatal("a run with a hook and no disabled skill still needs the settings file")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read settings: %v", err)
+	}
+	var payload struct {
+		SkillOverrides map[string]string `json:"skillOverrides"`
+		Hooks          struct {
+			PreToolUse []struct {
+				Matcher string `json:"matcher"`
+				Hooks   []struct {
+					Type    string `json:"type"`
+					Command string `json:"command"`
+				} `json:"hooks"`
+			} `json:"PreToolUse"`
+		} `json:"hooks"`
+	}
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatalf("settings are not readable JSON: %v (%s)", err, raw)
+	}
+	if len(payload.Hooks.PreToolUse) != 1 || payload.Hooks.PreToolUse[0].Matcher != "Bash" {
+		t.Fatalf("hook = %+v, want one PreToolUse group matching Bash", payload.Hooks.PreToolUse)
+	}
+	handler := payload.Hooks.PreToolUse[0].Hooks
+	if len(handler) != 1 || handler[0].Type != "command" || handler[0].Command != "/opt/multica/bin/multica hook pre-tool-use" {
+		t.Fatalf("handler = %+v, want the multica binary the daemon resolved", handler)
+	}
+	// A run with no skill policy must not carry an empty one: the keys that
+	// mean something are the ones that are there.
+	if payload.SkillOverrides != nil {
+		t.Errorf("skillOverrides = %v, want absent when no skill is disabled", payload.SkillOverrides)
+	}
+
+	// And no hook means the file goes away, as before.
+	cleared, err := prepareClaudeSkillSettings(root, nil, nil, nil)
+	if err != nil || cleared != "" {
+		t.Fatalf("cleared = %q, err=%v; want no settings file", cleared, err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Errorf("the settings file must be removed when nothing needs it: %v", err)
+	}
+}
+
+// claudeShellHookFor is what puts the marker beside the settings file that
+// registered the hook, so the two can never point at different runs.
+func TestClaudeShellHookFor(t *testing.T) {
+	if got := claudeShellHookFor("/env/root", nil); got != nil {
+		t.Errorf("no request, no hook: %+v", got)
+	}
+	if got := claudeShellHookFor("/env/root", &ClaudeShellHook{Command: "  "}); got != nil {
+		t.Errorf("a blank binary is no hook: %+v", got)
+	}
+	if got := claudeShellHookFor("", &ClaudeShellHook{Command: "/bin/multica"}); got != nil {
+		t.Errorf("no environment root, nowhere to put the marker: %+v", got)
+	}
+	got := claudeShellHookFor("/env/root", &ClaudeShellHook{Command: "/bin/multica"})
+	if got == nil || got.Command != "/bin/multica" || got.MarkerPath != filepath.Join("/env/root", ClaudeHookMarkerFile) {
+		t.Fatalf("hook = %+v, want the marker inside this run's environment root", got)
 	}
 }

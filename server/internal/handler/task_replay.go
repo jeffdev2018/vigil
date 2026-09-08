@@ -34,6 +34,7 @@ import (
 const (
 	AuditRunSealed            = "run.sealed"
 	AuditRunResumedFromReplay = "run.resumed_from_replay"
+	AuditRunSandboxDegraded   = "run.sandbox_degraded"
 	AuditRunStarted           = "run.started"
 	AuditRunReplayedSafe      = "run.replayed_safe"
 	replayPageMax             = 500
@@ -95,7 +96,11 @@ type ReplaySnapshot struct {
 	// McpBindings (K77): the MCP servers the run could reach and their tool
 	// policy default, as bound when the run started.
 	McpBindings []ReplayMcpBinding `json:"mcp_bindings,omitempty"`
-	RecordedAt  string             `json:"recorded_at"`
+	// Sandbox (K10): the confinement asked for and the one the run got.
+	SandboxRequested string `json:"sandbox_requested,omitempty"`
+	SandboxMode      string `json:"sandbox_mode,omitempty"`
+	SandboxReason    string `json:"sandbox_reason,omitempty"`
+	RecordedAt       string `json:"recorded_at"`
 }
 
 type ReplayMcpBinding struct {
@@ -623,7 +628,7 @@ func tsPtr(ts pgtype.Timestamptz) *time.Time {
 
 // recordRunSnapshot audits what the run starts with (K70): trust mode,
 // effect mode, model, permission profile, runtime, safe mode, plan version.
-func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue, wsIDStr string) {
+func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue, wsIDStr string, extras ...func(*ReplaySnapshot)) {
 	wsID, err := util.ParseUUID(wsIDStr)
 	if err != nil {
 		return
@@ -647,6 +652,9 @@ func (h *Handler) recordRunSnapshot(ctx context.Context, task db.AgentTaskQueue,
 			}
 			snap.McpBindings = append(snap.McpBindings, ReplayMcpBinding{Server: row.Name, Default: def, Tools: len(mcpCatalog(row.Tools))})
 		}
+	}
+	for _, extra := range extras {
+		extra(&snap)
 	}
 	h.audit(ctx, wsID, "system", "", AuditRunStarted, "task", task.ID, snap, nil)
 }

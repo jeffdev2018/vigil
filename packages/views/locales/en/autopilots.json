@@ -151,7 +151,9 @@
     "skipped_group": {
       "label": "Skipped",
       "summary": "{{count}} skipped runs"
-    }
+    },
+    "off_peak": "Off-peak",
+    "off_peak_hint": "Queued in the off-peak lane: served after every urgent run."
   },
   "webhook_payload": {
     "label": "Webhook event:",
@@ -401,7 +403,11 @@
     },
     "event_criteria_label": "Only run when…",
     "event_criteria_placeholder": "e.g. production deployment failures, or pull requests that touch billing",
-    "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone."
+    "event_criteria_hint": "Describe in your own words which events should run this autopilot. Each delivery is judged against this, liberally: when in doubt, it runs. Leave empty to rely on the event filters alone.",
+    "section_off_peak": "Off-peak",
+    "off_peak_label": "Can wait for off-peak hours",
+    "off_peak_hint": "Scheduled runs that fire inside the workspace's off-peak window queue behind everything urgent: cheaper, but the start time varies. Running it now is never delayed.",
+    "off_peak_unavailable": "This workspace has no off-peak window yet. An admin sets one in Settings → Workspace."
   },
   "schedule_editor": {
     "time_label": "Time",
@@ -538,5 +544,52 @@
       "confirm": "Delete permanently",
       "deleting": "Deleting…"
     }
+  },
+  "daemon_import": {
+    "open": "Import DAEMON.md",
+    "title": "Import a daemon",
+    "description": "A DAEMON.md declares an autopilot as a file: who runs it, when it fires, and the skill it reads on every run. Importing the same file twice changes nothing.",
+    "drop_hint": "Drop a DAEMON.md here, or paste it below",
+    "choose_file": "Choose file",
+    "placeholder": "---\nname: Nightly triage\nrole: Sort the inbound queue and label it.\nagent: Nova\ntriggers:\n  - kind: schedule\n    cron: \"0 9 * * *\"\n---\n",
+    "textarea_label": "DAEMON.md contents",
+    "checking": "Checking the declaration...",
+    "errors_title": "{{count}} problem(s) in this declaration",
+    "line_prefix": "line {{line}}",
+    "field_name": "Name",
+    "field_agent": "Agent",
+    "field_outputs": "Outputs",
+    "field_role": "Role",
+    "agent_unknown": "no agent by that name in this workspace",
+    "triggers_title": "Triggers",
+    "next_runs_title": "Next runs",
+    "next_runs_unknown": "could not be previewed",
+    "body_title": "Skill the agent will read",
+    "unchanged": "This daemon already matches this file. Importing it would change nothing.",
+    "strategy_title": "A daemon of this name already exists",
+    "strategy": {
+      "fail": "Stop",
+      "overwrite": "Replace it",
+      "rename": "Keep both"
+    },
+    "strategy_hint": {
+      "fail": "Nothing is written. Rename the daemon in the file, or pick another option.",
+      "overwrite": "The existing daemon takes this file's configuration. Triggers it no longer declares stop firing.",
+      "rename": "A second daemon is created under a suffixed name. The existing one is untouched."
+    },
+    "cancel": "Cancel",
+    "submit": "Import",
+    "preview_failed": "The declaration could not be checked.",
+    "import_failed": "The daemon could not be imported.",
+    "read_failed": "That file could not be read."
+  },
+  "memory": {
+    "section_title": "Memory",
+    "export_button": "Export DAEMON.md",
+    "empty_title": "No memory yet",
+    "empty_hint": "Runs of this daemon write what the next run needs to know.",
+    "updated_at": "Updated {{at}}",
+    "last_run": "Last run {{at}}",
+    "read_only": "Written by runs, not editable here"
   }
 }

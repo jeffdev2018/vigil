@@ -138,13 +138,20 @@ func (s *AutopilotService) DispatchAutopilot(
 	return run, err
 }
 
-// DispatchAutopilotManual is the "run now" entry point for a member manually
-// triggering an autopilot. Scheduled / webhook / api dispatch acts as the firing
-// trigger's creator (MUL-6951); a manual trigger is a direct human action by the
-// CLICKER instead, so it need not consult the trigger at all: the run is
-// attributed direct_human to actorUserID, which becomes BOTH its originator
-// (authorization) and accountable human (MUL-4302 §4), across both execution modes.
-// An invalid actorUserID behaves exactly like DispatchAutopilot(source="manual").
+// DispatchAutopilotManual is the "run now" entry point for a manual trigger.
+// Scheduled / webhook / api dispatch acts as the firing trigger's creator
+// (MUL-6951); a manual trigger is a direct human action by the human who ORDERED
+// it instead, so it need not consult the trigger at all: the run is attributed
+// direct_human to actorUserID, which becomes BOTH its originator (authorization)
+// and accountable human (MUL-4302 §4), across both execution modes.
+//
+// actorUserID is that ordering human — the clicking member, or, when an agent
+// triggers on someone's behalf, the originator it acts for. The HTTP entry point
+// resolves and authorizes it (handler.requireAutopilotTriggerInvoker) and refuses
+// the request outright when no human resolves, so a manual dispatch reaching here
+// with an invalid actorUserID has no principal at all. It then behaves exactly
+// like DispatchAutopilot(source="manual") and, having no trigger to fall back to,
+// is refused by the admission gate (#8078).
 func (s *AutopilotService) DispatchAutopilotManual(
 	ctx context.Context,
 	autopilot db.Autopilot,
@@ -839,6 +846,7 @@ func (s *AutopilotService) dispatchCreateIssueDirect(ctx context.Context, ap db.
 	// webhook dispatch has no actor and takes the plain entry points, where the
 	// autopilot-origin issue resolves to the trigger's creator (MUL-6951). The
 	// *ByActor variants are the actor-carrying enqueue methods.
+	var enqueued db.AgentTaskQueue
 	if ap.AssigneeType == "squad" {
 		// Fail-closed invocation gate: verify the admission principal (manual
 		// clicker, else creator — see autopilotAdmitInvoke) may still invoke the
@@ -848,19 +856,20 @@ func (s *AutopilotService) dispatchCreateIssueDirect(ctx context.Context, ap db.
 			return fmt.Errorf("not allowed to invoke private squad leader")
 		}
 		if actorUserID.Valid {
-			if _, err := s.TaskSvc.EnqueueTaskForSquadLeaderByActor(ctx, issue, leader.ID, ap.AssigneeID, actorUserID); err != nil {
+			if enqueued, err = s.TaskSvc.EnqueueTaskForSquadLeaderByActor(ctx, issue, leader.ID, ap.AssigneeID, actorUserID); err != nil {
 				return fmt.Errorf("enqueue squad leader task: %w", err)
 			}
-		} else if _, err := s.TaskSvc.EnqueueTaskForSquadLeader(ctx, issue, leader.ID, ap.AssigneeID, pgtype.UUID{}); err != nil {
+		} else if enqueued, err = s.TaskSvc.EnqueueTaskForSquadLeader(ctx, issue, leader.ID, ap.AssigneeID, pgtype.UUID{}); err != nil {
 			return fmt.Errorf("enqueue squad leader task: %w", err)
 		}
 	} else if actorUserID.Valid {
-		if _, err := s.TaskSvc.EnqueueTaskForIssueByActor(ctx, issue, actorUserID); err != nil {
+		if enqueued, err = s.TaskSvc.EnqueueTaskForIssueByActor(ctx, issue, actorUserID); err != nil {
 			return fmt.Errorf("enqueue task for issue: %w", err)
 		}
-	} else if _, err := s.TaskSvc.EnqueueTaskForIssue(ctx, issue); err != nil {
+	} else if enqueued, err = s.TaskSvc.EnqueueTaskForIssue(ctx, issue); err != nil {
 		return fmt.Errorf("enqueue task for issue: %w", err)
 	}
+	s.stampDispatchLane(ctx, ap, *run, enqueued.ID)
 
 	slog.Info("autopilot dispatched (create_issue)",
 		"autopilot_id", util.UUIDToString(ap.ID),
@@ -1081,6 +1090,10 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		*run = updatedRun
 	}
 
+	// Stamp the lane before the wakeup below, so a runtime that claims on the
+	// notification already sees the final lane (K45).
+	s.stampDispatchLane(ctx, ap, *run, task.ID)
+
 	// Drop the empty-claim cache and wake the daemon. dispatchRunOnly
 	// inserts the task row directly via Queries.CreateAutopilotTask
 	// (bypassing TaskService.Enqueue*), so without this the runtime
@@ -1094,6 +1107,48 @@ func (s *AutopilotService) dispatchRunOnly(ctx context.Context, ap db.Autopilot,
 		"run_id", util.UUIDToString(run.ID),
 	)
 	return nil
+}
+
+// stampDispatchLane moves a freshly enqueued autopilot task to the off-peak
+// batch lane (K45).
+//
+// Three conditions, all required. The autopilot must have declared its work
+// non-urgent (batch_eligible). The run must have come from a SCHEDULE — a
+// human clicking "run now", a webhook delivery and an API call are all
+// requests for work now, and deferring one would be a bug the user cannot
+// explain. And "now" must fall inside the workspace's off-peak window.
+//
+// Best effort by construction: the task is already queued and correct in the
+// sync lane, so a settings read or an UPDATE that fails leaves an ordinary
+// run rather than a broken one. The query's own `status = 'queued'` guard
+// closes the enqueue/claim race the same way — a task a runtime already took
+// keeps the lane it was claimed under, because its lane is now history.
+func (s *AutopilotService) stampDispatchLane(ctx context.Context, ap db.Autopilot, run db.AutopilotRun, taskID pgtype.UUID) {
+	if !ap.BatchEligible || run.Source != "schedule" || !taskID.Valid {
+		return
+	}
+	ws, err := s.Queries.GetWorkspace(ctx, ap.WorkspaceID)
+	if err != nil {
+		slog.Warn("batch lane: workspace settings unreadable, task stays in the sync lane",
+			"error", err, "autopilot_id", util.UUIDToString(ap.ID), "task_id", util.UUIDToString(taskID))
+		return
+	}
+	if !InBatchWindow(BatchWindowFromSettings(ws.Settings), time.Now()) {
+		return
+	}
+	if err := s.Queries.StampTaskDispatchLane(ctx, db.StampTaskDispatchLaneParams{
+		TaskID:       taskID,
+		DispatchLane: DispatchLaneBatch,
+	}); err != nil {
+		slog.Warn("batch lane: stamp failed, task stays in the sync lane",
+			"error", err, "autopilot_id", util.UUIDToString(ap.ID), "task_id", util.UUIDToString(taskID))
+		return
+	}
+	slog.Info("autopilot task moved to the off-peak batch lane",
+		"autopilot_id", util.UUIDToString(ap.ID),
+		"run_id", util.UUIDToString(run.ID),
+		"task_id", util.UUIDToString(taskID),
+	)
 }
 
 // SyncRunFromIssue updates the autopilot run when its linked issue reaches a terminal status.
@@ -1410,17 +1465,25 @@ func (s *AutopilotService) shouldSkipDispatch(ctx context.Context, ap db.Autopil
 	}
 	// Invocation gate at the autopilot layer (MUL-3963 / MUL-4525). The
 	// admission principal depends on how the dispatch was triggered: a MANUAL
-	// "run now" (actorUserID valid) is a direct human action gated by the
-	// current CLICKER's access — not the autopilot creator's — so admission and
-	// attribution credit the same member and never fork. Automation (schedule /
-	// webhook / api, actorUserID invalid) preserves that same property by
-	// resolving the trigger's creator, which is also the human the run will act
-	// as (MUL-6951). Admins do NOT bypass a private agent they do not own;
-	// agent-created autopilots are judged as workspace principals. For squad
+	// "run now" (actorUserID valid) is a direct human action gated by the human
+	// who ORDERED it — the clicking member, or the originator an agent acts for,
+	// resolved by the handler (requireAutopilotTriggerInvoker) — not the
+	// autopilot creator's, so admission and attribution credit the same human and
+	// never fork. Automation (schedule / webhook, actorUserID invalid) preserves
+	// that same property by resolving the trigger's creator, which is also the
+	// human the run will act as (MUL-6951). Admins do NOT bypass a private agent
+	// they do not own, and no branch admits a principal-less dispatch. For squad
 	// autopilots the gate runs against the resolved leader.
 	if !s.autopilotAdmitInvoke(ctx, ap, agent, actorUserID, triggerID) {
 		if actorUserID.Valid {
 			return "you are not allowed to trigger this autopilot's assignee agent", dispatch.ReasonInvocationNotAllowed, true
+		}
+		if !triggerID.Valid {
+			// No actor AND no trigger: there is no trigger row whose owner could be
+			// at fault, so the trigger phrasing below would name a thing that does
+			// not exist. That message on the manual path is what sent #8078 hunting
+			// for a broken trigger owner for a day.
+			return "this dispatch resolved no authorizing human and carries no trigger to resolve one from", dispatch.ReasonInvocationNotAllowed, true
 		}
 		return "this trigger's owner lacks access to the private assignee agent, or the trigger records no owner", dispatch.ReasonInvocationNotAllowed, true
 	}

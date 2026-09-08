@@ -147,6 +147,42 @@ func (q *Queries) DeleteRunLimitPolicy(ctx context.Context, id pgtype.UUID) erro
 	return err
 }
 
+const endTasksOnTerminalIssues = `-- name: EndTasksOnTerminalIssues :many
+UPDATE agent_task_queue
+SET status = 'failed',
+    completed_at = now(),
+    error = 'The issue was closed while this run was still going, so there is nothing left for it to deliver.',
+    failure_reason = 'issue_terminal',
+    prepare_lease_expires_at = NULL
+WHERE id = ANY($1::uuid[])
+  AND status IN ('queued', 'running')
+RETURNING id
+`
+
+// Ends the runs the caller judged orphaned. The terminal decision is made in
+// Go (issuestatus.Effective, because a workspace can name its own statuses)
+// and only the ids arrive here, so this is the write half of a two-step sweep
+// and re-checks the status it is allowed to end from.
+func (q *Queries) EndTasksOnTerminalIssues(ctx context.Context, ids []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, endTasksOnTerminalIssues, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRunLimitPolicy = `-- name: GetRunLimitPolicy :one
 SELECT id, workspace_id, scope_type, scope_id, max_cost_usd_ticks, max_duration_seconds, max_turns, max_tool_calls, warn_bps, action, created_by, created_at, updated_at FROM run_limit_policy WHERE id = $1
 `
@@ -326,14 +362,20 @@ func (q *Queries) ListRunLimitPoliciesForRun(ctx context.Context, arg ListRunLim
 }
 
 const listRunningTasksForLimits = `-- name: ListRunningTasksForLimits :many
-SELECT t.id, t.agent_id, t.issue_id, t.status, t.priority, t.dispatched_at, t.started_at, t.completed_at, t.result, t.error, t.created_at, t.context, t.runtime_id, t.session_id, t.work_dir, t.trigger_comment_id, t.chat_session_id, t.autopilot_run_id, t.attempt, t.max_attempts, t.parent_task_id, t.failure_reason, t.trigger_summary, t.force_fresh_session, t.is_leader_task, t.wait_reason, t.initiator_user_id, t.handoff_note, t.prepare_lease_expires_at, t.squad_id, t.runtime_mcp_overlay, t.escalation_for_task_id, t.fire_at, t.originator_user_id, t.runtime_connected_apps, t.coalesced_comment_ids, t.delivered_comment_ids, t.chat_input_task_id, t.chat_finalize_deferred_at, t.originator_source, t.delegated_from_task_id, t.retry_of_task_id, t.rerun_of_task_id, t.rule_version_id, t.trigger_evidence_kind, t.trigger_evidence_ref_id, t.accountable_user_id, t.session_rollout_missing, t.retired_session_id, t.quick_actions_disabled, t.regenerate_quick_actions_for, t.branch_name, t.durable_work_dir, t.channel_context_revision, t.last_activity_at, t.permission_profile_id, t.failover_history, t.routing_decision, t.pause_requested_at, t.resumed_by_task_id, t.last_checkpoint_seq, t.checkpoint_attempts, t.checkpointed_at, t.touched_paths, t.drift_reason, t.preempted_at, t.preempted_by_task_id, t.review_of_task_id, t.task_class, t.routing, t.safe_mode FROM agent_task_queue t
-JOIN agent a ON a.id = t.agent_id
+SELECT t.id, t.agent_id, t.issue_id, t.status, t.priority, t.dispatched_at, t.started_at, t.completed_at, t.result, t.error, t.created_at, t.context, t.runtime_id, t.session_id, t.work_dir, t.trigger_comment_id, t.chat_session_id, t.autopilot_run_id, t.attempt, t.max_attempts, t.parent_task_id, t.failure_reason, t.trigger_summary, t.force_fresh_session, t.is_leader_task, t.wait_reason, t.initiator_user_id, t.handoff_note, t.prepare_lease_expires_at, t.squad_id, t.runtime_mcp_overlay, t.escalation_for_task_id, t.fire_at, t.originator_user_id, t.runtime_connected_apps, t.coalesced_comment_ids, t.delivered_comment_ids, t.chat_input_task_id, t.chat_finalize_deferred_at, t.originator_source, t.delegated_from_task_id, t.retry_of_task_id, t.rerun_of_task_id, t.rule_version_id, t.trigger_evidence_kind, t.trigger_evidence_ref_id, t.accountable_user_id, t.session_rollout_missing, t.retired_session_id, t.quick_actions_disabled, t.regenerate_quick_actions_for, t.branch_name, t.durable_work_dir, t.channel_context_revision, t.last_activity_at, t.permission_profile_id, t.failover_history, t.routing_decision, t.pause_requested_at, t.resumed_by_task_id, t.last_checkpoint_seq, t.checkpoint_attempts, t.checkpointed_at, t.touched_paths, t.drift_reason, t.preempted_at, t.preempted_by_task_id, t.review_of_task_id, t.task_class, t.routing, t.safe_mode, t.model_key_id, t.confidence, t.leg_role, t.workflow_root_task_id, t.dispatch_lane, t.checkpoint_sha, t.turn_seq, t.a2a_depth, t.run_group_id, t.model_override, t.diff_stat, t.diff_unified FROM agent_task_queue t
 WHERE t.status = 'running' AND t.started_at IS NOT NULL
-  AND EXISTS (SELECT 1 FROM run_limit_policy p WHERE p.workspace_id = a.workspace_id)
 ORDER BY t.started_at
 LIMIT $1
 `
 
+// Every running run, not only those in a workspace that configured a policy.
+// The duration gate is the one cap that can only move with the clock, so it
+// fires here or nowhere; cost, turns and tool calls are also evaluated when the
+// run reports usage. Filtering on an existing run_limit_policy row used to be
+// correct, because a workspace without one had no caps at all — since the
+// built-in wall (EffectiveRunLimits) it is not, and it left the default
+// duration cap unable to fire for exactly the workspaces that never configured
+// anything.
 func (q *Queries) ListRunningTasksForLimits(ctx context.Context, limit int32) ([]AgentTaskQueue, error) {
 	rows, err := q.db.Query(ctx, listRunningTasksForLimits, limit)
 	if err != nil {
@@ -415,6 +457,66 @@ func (q *Queries) ListRunningTasksForLimits(ctx context.Context, limit int32) ([
 			&i.TaskClass,
 			&i.Routing,
 			&i.SafeMode,
+			&i.ModelKeyID,
+			&i.Confidence,
+			&i.LegRole,
+			&i.WorkflowRootTaskID,
+			&i.DispatchLane,
+			&i.CheckpointSha,
+			&i.TurnSeq,
+			&i.A2aDepth,
+			&i.RunGroupID,
+			&i.ModelOverride,
+			&i.DiffStat,
+			&i.DiffUnified,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTasksOnTerminalIssues = `-- name: ListTasksOnTerminalIssues :many
+SELECT t.id, t.agent_id, t.issue_id, i.workspace_id, i.status AS issue_status
+FROM agent_task_queue t
+JOIN issue i ON i.id = t.issue_id
+WHERE t.status IN ('queued', 'running')
+  AND i.status IS NOT NULL AND i.status <> ''
+ORDER BY t.created_at
+LIMIT $1
+`
+
+type ListTasksOnTerminalIssuesRow struct {
+	ID          pgtype.UUID `json:"id"`
+	AgentID     pgtype.UUID `json:"agent_id"`
+	IssueID     pgtype.UUID `json:"issue_id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	IssueStatus string      `json:"issue_status"`
+}
+
+// Runs whose issue has been closed or cancelled under them. The status is
+// returned rather than filtered in SQL because a workspace can define its own
+// statuses: only issuestatus.Effective knows which category a custom key maps
+// to, so the decision belongs in Go and this query only narrows the candidates.
+func (q *Queries) ListTasksOnTerminalIssues(ctx context.Context, limit int32) ([]ListTasksOnTerminalIssuesRow, error) {
+	rows, err := q.db.Query(ctx, listTasksOnTerminalIssues, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTasksOnTerminalIssuesRow{}
+	for rows.Next() {
+		var i ListTasksOnTerminalIssuesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.AgentID,
+			&i.IssueID,
+			&i.WorkspaceID,
+			&i.IssueStatus,
 		); err != nil {
 			return nil, err
 		}

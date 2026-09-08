@@ -666,6 +666,55 @@ describe("onIssueUpdated — position move is surgical, not a list refetch", () 
     expectInvalidated(qc, myAllListKey);
   });
 
+  // F01: naming a delegate must reconcile the surfaces that filter on it, and
+  // leave every other loaded list alone. The delegate is not the assignee, so
+  // an assignee-filtered list must NOT move.
+  it("flags an involved list stale on a delegate change but leaves an assignee-filtered list in place", () => {
+    const involvedKey = issueKeys.myListSorted(
+      WS_ID,
+      "involved",
+      { involves_user_id: "user-9" },
+      undefined,
+    );
+    const assignedKey = issueKeys.myListSorted(
+      WS_ID,
+      "assigned",
+      { assignee_id: "user-1" },
+      undefined,
+    );
+    const mine: Issue = { ...issueA, assignee_type: "member", assignee_id: "user-1" };
+    qc.setQueryData<ListIssuesCache>(involvedKey, makeListCache(mine));
+    qc.setQueryData<ListIssuesCache>(assignedKey, makeListCache(mine));
+
+    onIssueUpdated(
+      qc,
+      WS_ID,
+      { ...mine, delegate_type: "member", delegate_id: "user-9" },
+      { delegateChanged: true },
+    );
+
+    // involves_user_id covers delegates server-side, so this list's membership
+    // may have changed and only the server can say.
+    expectInvalidated(qc, involvedKey);
+    // The assignee did not move, so this one is reconciled in place.
+    const assigned = qc.getQueryData<ListIssuesCache>(assignedKey);
+    expect(assigned?.byStatus.todo?.issues[0]?.delegate_id).toBe("user-9");
+    expect(qc.getQueryState(assignedKey)?.isInvalidated).toBe(false);
+  });
+
+  it("patches the detail cache with the delegate without refetching it", () => {
+    qc.setQueryData<Issue>(issueKeys.detail(WS_ID, ISSUE_ID), issueA);
+    onIssueUpdated(
+      qc,
+      WS_ID,
+      { id: ISSUE_ID, delegate_type: "agent", delegate_id: "agent-3" },
+      { delegateChanged: true },
+    );
+    const detail = qc.getQueryData<Issue>(issueKeys.detail(WS_ID, ISSUE_ID));
+    expect(detail?.delegate_type).toBe("agent");
+    expect(detail?.delegate_id).toBe("agent-3");
+  });
+
   it("moves the card out of the old project's list and flags the loaded target list (legacy diff fallback, no server flag)", () => {
     // issueA.project_id is null; moving it into project-9 must reconcile both
     // ends. No server flag here — this exercises the legacy cache-diff

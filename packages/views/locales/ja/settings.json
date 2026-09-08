@@ -1,12 +1,12 @@
 {
   "issue_statuses": {
-    "title": "タスクステータス",
-    "description": "タスクが辿るワークフローを定義します。各ステータスの挙動は所属するカテゴリが決めます。",
+    "title": "課題ステータス",
+    "description": "課題が辿るワークフローを定義します。各ステータスの挙動は所属するカテゴリが決めます。",
     "loading": "ステータスを読み込み中…",
     "add": "ステータスを追加",
     "show_archived": "アーカイブ済みを表示（{{count}}）",
     "archived_badge": "アーカイブ済み",
-    "archived_hint": "新規の割り当てには使えません。すでにこのステータスのタスクはそのままです。",
+    "archived_hint": "新規の割り当てには使えません。すでにこのステータスの課題はそのままです。",
     "reorder_failed": "並び順を保存できませんでした。",
     "actions": {
       "open": "{{name}} の操作",
@@ -23,7 +23,7 @@
       "key_hint": "API と CLI では {{key}} として参照されます。",
       "created": "ステータスを作成しました。API と CLI では {{key}} として参照されます。",
       "category": "カテゴリ",
-      "category_locked": "カテゴリは変更できません。すでにこのステータスのタスクが依存しています。",
+      "category_locked": "カテゴリは変更できません。すでにこのステータスの課題が依存しています。",
       "description": "説明",
       "description_placeholder": "チームにとってこのステータスが意味すること",
       "color": "色",
@@ -34,7 +34,7 @@
     },
     "archive_dialog": {
       "title": "このステータスをアーカイブしますか？",
-      "description": "「{{name}}」は新しいタスクに割り当てられなくなります。すでにこのステータスのタスクはそのまま残り、挙動も変わりません。",
+      "description": "「{{name}}」は新しい課題に割り当てられなくなります。すでにこのステータスの課題はそのまま残り、挙動も変わりません。",
       "cancel": "キャンセル",
       "confirm": "アーカイブ",
       "failed": "アーカイブできませんでした。"
@@ -49,76 +49,9 @@
       "cancelled": "見送り。"
     }
   },
-  "run_limits": {
-    "title": "実行上限",
-    "intro": "1 回の実行に対する上限：コスト、時間、ターン数、ツール呼び出し数。ワークスペース・プロジェクト・エージェントのうち最も厳しい上限が適用されます。enforce は 100% で実行を停止し、observe は記録のみ。どちらも閾値で警告します。",
-    "empty": "実行上限はまだありません。実行は上の期間予算でのみ制限されます。",
-    "add": "新しい実行上限",
-    "edit": "編集",
-    "delete": "{{scope}} の実行上限を削除",
-    "save": "実行上限を保存",
-    "save_failed": "実行上限を保存できませんでした",
-    "warn_at": "{{percent}}% で警告",
-    "cost_usd": "コスト（$）",
-    "duration_min": "時間（分）",
-    "gates": {
-      "cost": "コスト",
-      "duration": "時間",
-      "turns": "ターン",
-      "tool_calls": "ツール呼び出し"
-    }
-  },
-  "budgets": {
-    "title": "実行予算",
-    "description": "エージェントの作業開始前に USD 上限を設定します。強制上限は新規実行を一時停止し、監視モードは計測のみ行います。",
-    "add": "予算を追加",
-    "loading": "予算を読み込み中…",
-    "load_failed": "予算状況を更新できませんでした。",
-    "retry": "再試行",
-    "empty": "実行予算はありません",
-    "empty_hint": "ワークスペース、プロジェクト、またはエージェントの上限を追加します。",
-    "scope": "範囲",
-    "target": "対象を選択",
-    "limit": "上限（USD）",
-    "period": "リセット期間",
-    "warning": "警告しきい値（%）",
-    "action": "上限到達時",
-    "create_title": "新しい予算",
-    "edit_title": "予算を編集",
-    "editor_hint": "使用量には完了コストと待機中作業の予約額が含まれます。",
-    "save": "保存",
-    "saving": "保存中…",
-    "cancel": "キャンセル",
-    "save_failed": "予算を保存できませんでした。",
-    "edit": "予算を編集",
-    "delete": "予算を削除",
-    "delete_confirm": "この予算と現在期間の使用量を削除しますか？",
-    "override": "一時上書きを許可",
-    "override_reason": "上書きの理由（最大24時間）",
-    "override_created": "24時間の上書きを許可しました",
-    "override_active": "上書き中",
-    "reserved": "待機中の作業に {{amount}} を予約済み",
-    "notice_warning": "実行予算が上限に近づいています。",
-    "notice_blocked": "予算が上限に達したため、新しい実行は一時停止中です。",
-    "manage": "予算を管理",
-    "scopes": {
-      "workspace": "ワークスペース",
-      "project": "プロジェクト",
-      "agent": "エージェント"
-    },
-    "periods": {
-      "daily": "毎日",
-      "weekly": "毎週",
-      "monthly": "毎月"
-    },
-    "actions": {
-      "enforce": "上限で一時停止",
-      "observe": "監視のみ"
-    }
-  },
   "quick_actions": {
     "title": "クイックアクション",
-    "description": "実行するエージェントとプロンプトを事前に設定し、任意のタスクのサイドバーからワンクリックで実行します。",
+    "description": "実行するエージェントとプロンプトを事前に設定し、任意の課題のサイドバーからワンクリックで実行します。",
     "add": "クイックアクションを作成",
     "search_placeholder": "クイックアクションを検索",
     "loading": "クイックアクションを読み込んでいます…",
@@ -152,16 +85,16 @@
     "used_count": "{{count}} 回使用",
     "create_title": "クイックアクションを作成",
     "edit_title": "クイックアクションを編集",
-    "dialog_description": "@メンションと同じく、タスクのコメントとして実行されます。",
+    "dialog_description": "@メンションと同じく、課題のコメントとして実行されます。",
     "field_name": "名前",
     "field_name_placeholder": "コードレビュー",
     "field_target": "実行者",
     "field_prompt": "プロンプト",
-    "field_prompt_placeholder": "このタスクに関連するコードをレビューし、正確性とエッジケースを重点的に確認してください。",
-    "prompt_hint": "そのまま送られます。タスクの内容は既に読めます。",
-    "template_not_supported": "変数はまだサポートされていません。{{token}} を削除してください。エージェントはこのタスクを既に読めます。",
+    "field_prompt_placeholder": "この課題に関連するコードをレビューし、正確性とエッジケースを重点的に確認してください。",
+    "prompt_hint": "そのまま送られます。課題の内容は既に読めます。",
+    "template_not_supported": "変数はまだサポートされていません。{{token}} を削除してください。エージェントはこの課題を既に読めます。",
     "delete_title": "このクイックアクションを削除しますか？",
-    "delete_description": "すべてのタスクのサイドバーから消えます。過去の記録は実行ログに残ります。後で使う可能性があればアーカイブを選んでください。"
+    "delete_description": "すべての課題のサイドバーから消えます。過去の記録は実行ログに残ります。後で使う可能性があればアーカイブを選んでください。"
   },
   "auto_save": {
     "saving": "保存中…",
@@ -194,8 +127,13 @@
     },
     "sticky_comment_bar": {
       "title": "コメントバーを固定",
-      "hint": "タスクのページをスクロールしても、コメントバーを常に下部に固定します。"
+      "hint": "課題のページをスクロールしても、コメントバーを常に下部に固定します。"
     },
+    "description": "Multica の使い方をカスタマイズします。",
+    "issue_title": "課題作成",
+    "comments_title": "コメント",
+    "device_hint": "このデバイスに保存されます。",
+    "issue_scope": "この設定は、このデバイスの現在のワークスペースに適用され、課題作成時に表示するフィールドのみを変更します。",
     "meetings_title": "ミーティング",
     "meeting_detection": {
       "title": "ミーティングを自動検出",
@@ -249,8 +187,8 @@
         "description": "どこからでも検索やコマンドを実行します。"
       },
       "createIssue": {
-        "label": "タスクを作成",
-        "description": "優先するタスク作成フローを開きます。"
+        "label": "課題を作成",
+        "description": "優先する課題作成フローを開きます。"
       },
       "toggleSidebar": {
         "label": "左サイドバーを切り替え",
@@ -265,48 +203,16 @@
         "description": "フローティングチャットを開閉します。開いたときは入力欄にフォーカスします。"
       },
       "findInIssue": {
-        "label": "タスク内を検索",
-        "description": "開いているタスクの詳細を検索します。"
-      },
-      "openThreadNav": {
-        "label": "スレッドナビゲーターを開く",
-        "description": "開いているタスクのコメントスレッドを一覧・検索して移動します。"
+        "label": "課題内を検索",
+        "description": "開いている課題の詳細を検索します。"
       },
       "archiveInboxItem": {
         "label": "通知をアーカイブ",
         "description": "開いているインボックス通知をアーカイブします。アーカイブ表示中はアーカイブを解除します。"
       },
-      "triageNextItem": {
-        "label": "トリアージ: 次の項目",
-        "description": "トリアージキューの次の項目に移動します。"
-      },
-      "triagePrevItem": {
-        "label": "トリアージ: 前の項目",
-        "description": "トリアージキューの前の項目に移動します。"
-      },
-      "triageAccept": {
-        "label": "トリアージ: 受理",
-        "description": "開いているトリアージ項目を受理し、Issue を作成します。"
-      },
-      "triageDismiss": {
-        "label": "トリアージ: 却下",
-        "description": "開いているトリアージ項目を却下します。"
-      },
-      "triageSnooze": {
-        "label": "トリアージ: スヌーズ",
-        "description": "開いているトリアージ項目のスヌーズメニューを開きます。"
-      },
-      "triageMerge": {
-        "label": "トリアージ: マージ",
-        "description": "開いているトリアージ項目を既存の Issue にマージします。"
-      },
-      "triageReopen": {
-        "label": "トリアージ: 再開",
-        "description": "却下したトリアージ項目を保留中に戻します。"
-      },
       "send": {
         "label": "送信",
-        "description": "チャット、コメント、返信、フィードバック、プロンプトを送信し、作成ダイアログでタスクを作成します。"
+        "description": "チャット、コメント、返信、フィードバック、プロンプトを送信し、作成ダイアログで課題を作成します。"
       },
       "goBack": {
         "label": "戻る",
@@ -320,21 +226,17 @@
         "label": "受信トレイへ移動",
         "description": "ワークスペースの受信トレイを開きます。"
       },
-      "goTriage": {
-        "label": "トリアージへ移動",
-        "description": "トリアージキューを開きます。"
-      },
       "goChat": {
         "label": "チャットへ移動",
         "description": "ワークスペースのチャットを開きます。"
       },
       "goMyIssues": {
-        "label": "自分のタスクへ移動",
-        "description": "自分に割り当てられたタスクを開きます。"
+        "label": "自分の課題へ移動",
+        "description": "自分に割り当てられた課題を開きます。"
       },
       "goIssues": {
-        "label": "タスクへ移動",
-        "description": "タスク一覧を開きます。"
+        "label": "課題へ移動",
+        "description": "課題一覧を開きます。"
       },
       "goProjects": {
         "label": "プロジェクトへ移動",
@@ -367,6 +269,42 @@
       "goSettings": {
         "label": "設定へ移動",
         "description": "ワークスペース設定を開きます。"
+      },
+      "openThreadNav": {
+        "label": "スレッドナビゲーターを開く",
+        "description": "開いている課題のコメントスレッドを一覧・検索して移動します。"
+      },
+      "triageNextItem": {
+        "label": "トリアージ: 次の項目",
+        "description": "トリアージキューの次の項目に移動します。"
+      },
+      "triagePrevItem": {
+        "label": "トリアージ: 前の項目",
+        "description": "トリアージキューの前の項目に移動します。"
+      },
+      "triageAccept": {
+        "label": "トリアージ: 受理",
+        "description": "開いているトリアージ項目を受理し、Issue を作成します。"
+      },
+      "triageDismiss": {
+        "label": "トリアージ: 却下",
+        "description": "開いているトリアージ項目を却下します。"
+      },
+      "triageSnooze": {
+        "label": "トリアージ: スヌーズ",
+        "description": "開いているトリアージ項目のスヌーズメニューを開きます。"
+      },
+      "triageMerge": {
+        "label": "トリアージ: マージ",
+        "description": "開いているトリアージ項目を既存の Issue にマージします。"
+      },
+      "triageReopen": {
+        "label": "トリアージ: 再開",
+        "description": "却下したトリアージ項目を保留中に戻します。"
+      },
+      "goTriage": {
+        "label": "トリアージへ移動",
+        "description": "トリアージキューを開きます。"
       }
     },
     "fixed": {
@@ -420,10 +358,18 @@
     "title": "MCP",
     "description": "このワークスペースの MCP サーバーライブラリ。ここに追加してもどのエージェントにも割り当てられません。エージェントの所有者が各エージェントの MCP タブで割り当て、エージェントごとにオン/オフを切り替えます。",
     "servers_title": "共有サーバー",
-    "write_only_note": "保存された設定は書き込み専用です — url、コマンド、ヘッダー、環境変数は二度と表示されないため、サーバーの編集は設定の置き換えになります。名前の変更は安全です。割り当ては維持されます。",
+    "write_only_note": "機密情報を保護するため、保存した URL、コマンド、ヘッダー、環境変数は再表示されません。変更する場合は、新しい設定をすべて入力してください。名前だけを変更しても、現在の設定とエージェントへの割り当ては維持されます。",
     "add_server": "サーバーを追加",
-    "edit_server": "サーバーを編集",
+    "rename_server": "サーバー名を変更",
+    "rename_action": "名前を変更",
+    "replace_config": "設定を置き換え",
+    "rename_save": "名前を保存",
+    "rename_cancel": "名前の変更をキャンセル",
+    "rename_required": "サーバー名を入力してください。",
+    "rename_invalid": "英字、数字、ハイフン、アンダースコアのみ使用できます。",
+    "rename_duplicate": "同じ名前のサーバーがすでに存在します。",
     "remove_server": "サーバーを削除",
+    "remove_action": "削除",
     "empty_title": "共有 MCP サーバーはありません",
     "empty_description": "まずここにサーバーを追加し、使用するエージェントの MCP タブから割り当ててください。",
     "disabled_badge": "無効",
@@ -434,8 +380,10 @@
     "cancel": "キャンセル",
     "added_toast": "共有 MCP サーバーを追加しました",
     "updated_toast": "共有 MCP サーバーを更新しました",
+    "renamed_toast": "共有 MCP サーバーの名前を変更しました",
     "removed_toast": "共有 MCP サーバーを削除しました",
     "save_failed_toast": "共有 MCP サーバーを保存できませんでした",
+    "rename_failed_toast": "共有 MCP サーバーの名前を変更できませんでした",
     "remove_failed_toast": "共有 MCP サーバーを削除できませんでした",
     "tools": {
       "toggle": "ツール",
@@ -470,7 +418,7 @@
       "profile": "プロフィール",
       "preferences": "環境設定",
       "shortcuts": "ショートカット",
-      "issue": "タスク",
+      "issue": "課題",
       "chat": "チャット",
       "notifications": "通知",
       "tokens": "API トークン",
@@ -481,16 +429,32 @@
       "labs": "ラボ",
       "members": "メンバー",
       "labels": "ラベル",
-      "issue_statuses": "タスクステータス",
+      "issue_statuses": "課題ステータス",
       "properties": "プロパティ",
       "quick_actions": "クイックアクション",
       "plugins": "Plugins",
       "mcp": "MCP",
       "billing": "請求とプラン",
+      "transitions": "遷移ルール",
+      "model_keys": "モデルキー",
+      "security": "セキュリティ",
       "audit_log": "監査ログ",
       "budgets": "予算",
-      "learning": "Vigil が知っていること"
-    }
+      "learning": "Vigil が知っていること",
+      "eval_lab": "評価ラボ",
+      "code_health": "コードヘルス",
+      "doc_drift": "エージェントコンテキストのずれ",
+      "issue_types": "作業アイテムタイプ"
+    },
+    "groups": {
+      "personal": "個人設定",
+      "workspace": "ワークスペース管理",
+      "issues": "課題設定",
+      "connections": "接続と拡張機能",
+      "device": "デスクトップアプリ"
+    },
+    "navigate": "設定ページへ移動",
+    "device_scope": "このデバイス"
   },
   "plugins": {
     "title": "Plugins",
@@ -547,8 +511,8 @@
       "secret_set": "保存済み — 新しい値を入力すると置き換わります"
     },
     "scopes": {
-      "issues_read": "タスクを読み取る",
-      "issues_write": "タスクを作成・編集する",
+      "issues_read": "課題を読み取る",
+      "issues_write": "課題を作成・編集する",
       "comments_read": "コメントを読み取る",
       "comments_write": "コメントを投稿する",
       "tasks_read": "エージェントの実行を読み取る",
@@ -588,7 +552,7 @@
   },
   "properties": {
     "title": "プロパティ",
-    "description": "このワークスペースのタスクに型付きカスタムプロパティを定義します。値は各タスクに設定され、エージェントが読み書きできます。",
+    "description": "このワークスペースの課題に型付きカスタムプロパティを定義します。値は各課題に設定され、エージェントが読み書きできます。",
     "search_placeholder": "名前で絞り込み...",
     "new_property": "新規プロパティ",
     "show_archived": "アーカイブ済みを表示",
@@ -599,7 +563,7 @@
       "usage": "使用数",
       "updated": "更新日時"
     },
-    "usage_count_other": "{{count}} 件のタスク",
+    "usage_count_other": "{{count}} 件の課題",
     "loading": "プロパティを読み込み中...",
     "empty": "プロパティはまだありません",
     "empty_hint": "Severity や Environment のような型付きフィールドを作成できます。エージェントはバリデーション付きで読み書きします。",
@@ -647,17 +611,22 @@
     },
     "archive_dialog": {
       "title": "プロパティをアーカイブしますか？",
-      "description": "「{{name}}」はピッカーとフィルターから非表示になります。タスク上の既存の値は保持され、後で復元できます。",
+      "description": "「{{name}}」はピッカーとフィルターから非表示になります。課題上の既存の値は保持され、後で復元できます。",
       "cancel": "キャンセル",
       "confirm": "プロパティをアーカイブ",
       "failed": "プロパティをアーカイブできませんでした"
-    }
+    },
+    "types_label": "適用先",
+    "types_all": "すべての作業アイテムタイプ",
+    "types_hint": "空のままにすると、タイプなしの課題も含めてすべてに適用されます。",
+    "types_count": "{{count}} 件のタイプ",
+    "types_failed": "適用範囲を保存できませんでした。"
   },
   "labels": {
     "title": "ラベル",
-    "description": "このワークスペースのタスク、Skill 用ラベルを個別に管理します。",
+    "description": "このワークスペースの課題、Skill 用ラベルを個別に管理します。",
     "scopes": {
-      "issue": "タスク",
+      "issue": "課題",
       "skill": "Skill"
     },
     "search_placeholder": "名前または説明で絞り込み...",
@@ -717,20 +686,20 @@
   },
   "notifications": {
     "title": "インボックス通知",
-    "description": "どのイベントがインボックス通知を生成するかを制御します。ミュートしたイベントタイプは静かにフィルタされますが、タスクを直接開けば引き続き確認できます。",
+    "description": "どのイベントがインボックス通知を生成するかを制御します。ミュートしたイベントタイプは静かにフィルタされますが、課題を直接開けば引き続き確認できます。",
     "toast_failed": "通知設定を更新できませんでした",
     "groups": {
       "assignments": {
         "label": "担当の割り当て",
-        "description": "タスクの担当者に割り当てられたとき、または解除されたとき"
+        "description": "課題の担当者に割り当てられたとき、または解除されたとき"
       },
       "status_changes": {
         "label": "ステータス変更",
-        "description": "フォロー中のタスクのステータスが変わったとき（例: todo、in progress、done）"
+        "description": "フォロー中の課題のステータスが変わったとき（例: todo、in progress、done）"
       },
       "comments": {
         "label": "コメント",
-        "description": "フォロー中のタスクに新しいコメントが付いたとき"
+        "description": "フォロー中の課題に新しいコメントが付いたとき"
       },
       "mentions": {
         "label": "メンション",
@@ -738,7 +707,7 @@
       },
       "updates": {
         "label": "優先度と期限",
-        "description": "フォロー中のタスクの優先度や期限が変わったとき"
+        "description": "フォロー中の課題の優先度や期限が変わったとき"
       },
       "agent_activity": {
         "label": "エージェントのアクティビティ",
@@ -812,10 +781,10 @@
     "context_label": "コンテキスト",
     "context_placeholder": "このワークスペースで作業する AI エージェント向けの背景情報とコンテキスト",
     "slug_label": "スラッグ",
-    "issue_prefix_label": "タスク接頭辞",
-    "issue_prefix_hint": "{{example}} のようなタスク番号に使用されます。",
-    "prefix_confirm_title": "タスク接頭辞を変更しますか？",
-    "prefix_confirm_description": "すべてのタスク番号が {{oldPrefix}}-N から {{newPrefix}}-N に振り直されます。Pull request のタイトル、ブランチ名、ドキュメントやチャットのリンクなど、{{oldPrefix}}-N を使用している外部参照は解決されなくなります。",
+    "issue_prefix_label": "課題接頭辞",
+    "issue_prefix_hint": "{{example}} のような課題番号に使用されます。",
+    "prefix_confirm_title": "課題接頭辞を変更しますか？",
+    "prefix_confirm_description": "すべての課題番号が {{oldPrefix}}-N から {{newPrefix}}-N に振り直されます。Pull request のタイトル、ブランチ名、ドキュメントやチャットのリンクなど、{{oldPrefix}}-N を使用している外部参照は解決されなくなります。",
     "save": "保存",
     "saving": "保存中...",
     "manage_hint": "ワークスペース設定を更新できるのは admin と owner のみです。",
@@ -843,8 +812,8 @@
     "toast_logo_updated": "ワークスペースのロゴを更新しました",
     "toast_logo_failed": "ワークスペースのロゴをアップロードできませんでした",
     "plan_verification_section": "計画の検証",
-    "plan_verification_label": "タスクの計画に対して実行を検証する",
-    "plan_verification_description": "計画のあるタスクで実行が完了したら検証の実行をキューに入れ、重大な差異が報告されている間はタスクを完了にしません。",
+    "plan_verification_label": "課題の計画に対して実行を検証する",
+    "plan_verification_description": "計画のある課題で実行が完了したら検証の実行をキューに入れ、重大な差異が報告されている間は課題を完了にしません。",
     "plan_verification_failed": "計画の検証設定を更新できませんでした",
     "decision_sla_section": "判断の期限",
     "decision_sla_deadline_label": "回答期限（分）",
@@ -949,7 +918,7 @@
     "profiles_denied_paths": "禁止パス",
     "profiles_denied_paths_description": "実行が読み取り・編集・push できないグロブ（カンマ区切り）。例: .env, infra/**",
     "profiles_allowed_commands": "許可コマンド",
-    "profiles_allowed_commands_description": "モデルに実行を許可すると伝えるコマンド。* は何でも可。",
+    "profiles_allowed_commands_description": "モデルに実行を許可すると伝えるコマンド。強制はされません。* は何でも可。",
     "profiles_hidden_secrets": "秘匿シークレット",
     "profiles_hidden_secrets_description": "実行に渡さない環境変数キー（グロブ）。例: *PROD*, *_PASSWORD",
     "profiles_failed": "権限プロファイルを更新できませんでした",
@@ -998,6 +967,13 @@
     "drift_repeated_description": "実行を停止するまでの同一の連続ツール呼び出し数（同じツール、同じ引数）。",
     "drift_reread": "ファイル再読込の閾値",
     "drift_reread_description": "実行を停止するまでの、書き込みを挟まない同一ファイルの読み込み回数。",
+    "pr_walkthrough_section": "プルリクエストのウォークスルー",
+    "pr_walkthrough_enabled": "ウォークスルーを生成する",
+    "pr_walkthrough_intro": "リンクされたプルリクエストが更新されると、エージェントが差分を読み、レビュー担当者向けに順序立てたウォークスルーを書きます。",
+    "pr_walkthrough_agent": "ウォークスルー担当エージェント",
+    "pr_walkthrough_agent_description": "差分を読むエージェント。ウォークスルーを有効にする前に指定が必要です。",
+    "pr_walkthrough_pick_agent": "エージェントを選択",
+    "pr_walkthrough_failed": "プルリクエストのウォークスルー設定を保存できませんでした",
     "drift_failed": "逸脱ポリシーを保存できませんでした",
     "postmortem_cost_section": "高コスト実行のポストモーテム",
     "postmortem_cost_enabled": "高コストの実行にポストモーテムを作成",
@@ -1036,6 +1012,27 @@
     "competency_section": "学習された能力",
     "competency_min_sample": "最小サンプル数",
     "competency_min_sample_description": "この件数（完了した課題＋対決）未満では、成功率は数値ではなく「データ不足」として表示されます。",
+    "data_residency_section": "データ所在地",
+    "data_residency_description": "このワークスペースの作業を実行できる場所です。実行は以下のすべての条件を満たすランタイムにのみ割り当てられます。",
+    "data_residency_regions": "許可するリージョン",
+    "data_residency_regions_description": "これらのリージョンで申告されたランタイムだけが作業を受け取れます。空のままにするとすべてのリージョンを許可します。",
+    "data_residency_regions_placeholder": "eu-west-1",
+    "data_residency_providers": "禁止するプロバイダー",
+    "data_residency_providers_description": "これらのプロバイダーのランタイムは、申告内容にかかわらず作業を受け取りません。",
+    "data_residency_providers_placeholder": "codex",
+    "data_residency_on_prem": "オンプレミスのランタイムのみ許可",
+    "data_residency_on_prem_description": "オンプレミスと申告されたランタイムだけが作業を受け取れます。クラウドランタイムはこの条件を満たせません。",
+    "data_residency_add": "追加",
+    "data_residency_remove": "{{token}} を削除",
+    "data_residency_empty": "制約なし: このワークスペースのすべてのランタイムが対象です。",
+    "data_residency_unverified": "ランタイムの申告は申告者が入力したもので、検証されることはありません。このポリシーが制御するのは作業の送り先であり、マシンの実際の所在地ではありません。申告のないランタイムは作業を受け取りません。",
+    "data_residency_failed": "データ所在地ポリシーの保存に失敗しました",
+    "workflow_limits_section": "ワークフローの上限",
+    "workflow_limits_failed": "ワークフローの上限を保存できませんでした",
+    "workflow_max_legs": "ワークフローあたりの最大実行数",
+    "workflow_max_cost": "ワークフローあたりの最大コスト",
+    "workflow_max_legs_description": "変更を求めるレビューは修正実行を生み、それが再度レビューされます。1 つのワークフローが連鎖できる実行数の上限です（最初の 1 件を含む）。超えた分は拒否され記録されます。",
+    "workflow_max_cost_description": "全実行を合算したワークフロー全体の上限（1e-10 USD）。0 なら実行数だけで制限します。",
     "competency_failed": "能力設定を保存できませんでした",
     "cross_review_section": "別プロバイダーによるレビュー",
     "cross_review_enabled": "納品された差分を別プロバイダーでレビュー",
@@ -1052,6 +1049,18 @@
     "contest_opt_out": "異議申し立てをしないプロジェクト",
     "contest_opt_out_description": "これらのプロジェクトの出力には異議を申し立てられません。",
     "contest_failed": "異議申し立て設定を保存できませんでした",
+    "confidence_review_section": "信頼度レビュー",
+    "confidence_review_enabled": "信頼度の低い実行をレビューに送る",
+    "confidence_review_enabled_description": "実行の信頼度スコアがしきい値を下回ると、課題がレビュー状態に移行し、confidence_review の受信トレイ項目が作成されます。",
+    "confidence_review_threshold": "信頼度しきい値",
+    "confidence_review_threshold_description": "この値を下回るスコアの実行は、人によるレビュー対象としてフラグされます。0 から 1 の間。",
+    "confidence_review_max_escalations": "最大エスカレーション数",
+    "confidence_review_max_escalations_description": "しきい値を下回った実行は、より強力なランタイムへ最大この回数まで再ディスパッチされます。0 から 3 の間。0 でエスカレーションを無効化します。",
+    "confidence_review_failed": "信頼度レビュー設定を保存できませんでした",
+    "workflow_policy_section": "ワークフローポリシー",
+    "workflow_policy_auto": "実行履歴からワークフローを学習",
+    "workflow_policy_auto_description": "オンの場合、タスクごとに過去の実績から single・cascade・critique を選びます。オフの場合は常に1つのエージェントで実行します。",
+    "workflow_policy_failed": "ワークフローポリシー設定の保存に失敗しました",
     "ci_auto_fix_section": "CI 自動修正",
     "ci_auto_fix_enabled": "エージェントの PR で赤い CI を修正",
     "ci_auto_fix_enabled_description": "エージェントの実行に属するブランチの PR でチェックが赤になると、そのブランチで制限付きの修正実行を 1 回行います。人のブランチには触れません。",
@@ -1065,11 +1074,27 @@
     "undo_window_description": "エージェントの実行による変更を Issue ページから取り消せる期間。",
     "undo_breaker": "ブレーカーしきい値（1 日あたりの実行数）",
     "undo_breaker_description": "同じエージェントの実行がこの数だけ 24 時間以内に取り消されると、信頼モードが 1 段階下がり、管理者に受信トレイ項目が届きます。0 で無効。",
-    "undo_failed": "取り消し設定を保存できませんでした"
+    "undo_failed": "取り消し設定を保存できませんでした",
+    "batch_window_section": "オフピーク時間帯",
+    "batch_window_description": "緊急でないオートパイロットの実行を待たせてよい 1 日 1 つの時間帯です。待てると指定された実行は、それまで他のすべての後ろに並びます。",
+    "batch_window_enabled": "オフピーク時間帯を有効にする",
+    "batch_window_enabled_description": "無効の場合は何も待ちません。すべての実行は発火した時点で割り当てられます。",
+    "batch_window_hours": "時間帯",
+    "batch_window_hours_description": "現地時刻です。終了が開始より前の場合は日をまたぎます。",
+    "batch_window_start": "開始時刻",
+    "batch_window_end": "終了時刻",
+    "batch_window_to": "〜",
+    "batch_window_timezone": "タイムゾーン",
+    "batch_window_timezone_description": "上の時間帯を読み取る時計です。",
+    "batch_window_active_note": "対象は、待てると指定されたオートパイロットのスケジュール実行だけです。今すぐ実行した場合は遅延しません。",
+    "batch_window_empty": "オフピーク時間帯なし: すべての実行は発火した時点で割り当てられます。",
+    "batch_window_invalid_time": "開始時刻と終了時刻の両方を入力してください。",
+    "batch_window_equal_bounds": "時間帯の開始と終了は異なる必要があります。",
+    "batch_window_failed": "オフピーク時間帯の保存に失敗しました。"
   },
   "delete_workspace_dialog": {
     "title": "ワークスペースを削除",
-    "description": "この操作は元に戻せません。すべてのタスク、エージェント、チャット、実行履歴が完全に削除されます。",
+    "description": "この操作は元に戻せません。すべての課題、エージェント、チャット、実行履歴が完全に削除されます。",
     "type_to_confirm_prefix": "確認するには、下に",
     "type_to_confirm_suffix": " と入力してください。",
     "cancel": "キャンセル",
@@ -1088,8 +1113,8 @@
     "master_description_off": "GitHub 機能はオフです。PR サイドバー、Co-authored-by トレーラー、自動リンクが一時停止されています。バックエンドのデータは削除されません。",
     "section_connection": "接続",
     "connection_title": "GitHub App",
-    "connection_description_prefix": "タスクを Pull request に自動でリンクします。ブランチ、タイトル、または本文に",
-    "connection_description_suffix": "を含む PR がマージされると、対応するタスクが次のステータスに移動します:",
+    "connection_description_prefix": "課題を Pull request に自動でリンクします。ブランチ、タイトル、または本文に",
+    "connection_description_suffix": "を含む PR がマージされると、対応する課題が次のステータスに移動します:",
     "connection_description_done": "完了",
     "connection_identifier_example": "MUL-123",
     "connected_to": "{{login}} に接続済み",
@@ -1113,12 +1138,12 @@
     "toast_disconnected": "GitHub App の接続を解除しました",
     "section_features": "機能",
     "feature_pr_sidebar_label": "Pull request サイドバー",
-    "feature_pr_sidebar_description": "リンクされた Pull request をタスク詳細サイドバーに表示します。",
+    "feature_pr_sidebar_description": "リンクされた Pull request を課題詳細サイドバーに表示します。",
     "feature_co_author_label": "Co-authored-by トレーラー",
     "feature_co_author_description_prefix": "エージェントが作成したコミットに",
     "feature_co_author_description_suffix": "を追加します。",
-    "feature_auto_link_label": "タスクと PR を自動リンク",
-    "feature_auto_link_description": "PR のタイトル、本文、ブランチ名をタスク識別子と照合し、自動でリンクを作成します。",
+    "feature_auto_link_label": "課題と PR を自動リンク",
+    "feature_auto_link_description": "PR のタイトル、本文、ブランチ名を課題識別子と照合し、自動でリンクを作成します。",
     "section_repositories": "リポジトリ",
     "repositories_shortcut_label": "リポジトリ URL はリポジトリタブにあります",
     "repositories_shortcut_link": "リポジトリを管理 →",
@@ -1126,7 +1151,7 @@
   },
   "vcs": {
     "section_title": "Git providers (self-hosted)",
-    "page_description": "セルフホストの Forgejo、Gitea、GitLab インスタンスを接続し、Pull request をタスクにミラーリングします。接続ごとにアクセストークンを使用し、エージェントはランタイム自身の Git 認証情報でブランチを push して PR を作成します。",
+    "page_description": "セルフホストの Forgejo、Gitea、GitLab インスタンスを接続し、Pull request を課題にミラーリングします。接続ごとにアクセストークンを使用し、エージェントはランタイム自身の Git 認証情報でブランチを push して PR を作成します。",
     "connect_title": "Connect a provider instance",
     "connected_as": "Connected as {{login}}",
     "form_provider_label": "Provider",
@@ -1149,7 +1174,7 @@
     "copied": "Copied to clipboard",
     "copy_failed": "Could not copy",
     "disconnect_confirm_title": "Disconnect this provider?",
-    "disconnect_confirm_description": "この接続でミラーリングされた Pull request と、そのタスクへのリンクが削除されます。この操作は元に戻せません。",
+    "disconnect_confirm_description": "この接続でミラーリングされた Pull request と、その課題へのリンクが削除されます。この操作は元に戻せません。",
     "disconnect_confirm_cancel": "Cancel",
     "disconnect_confirm_action": "Disconnect",
     "toast_connected": "Provider connected",
@@ -1167,7 +1192,7 @@
   },
   "lark": {
     "section_title": "Lark",
-    "page_description": "各 Multica エージェントを Lark (飞书) PersonalAgent ボットに接続します。メンバーはボットに DM したり、グループで @ メンションしたり、/issue と入力して新しい Multica タスクを起こすことができます。",
+    "page_description": "各 Multica エージェントを Lark (飞书) PersonalAgent ボットに接続します。メンバーはボットに DM したり、グループで @ メンションしたり、/issue と入力して新しい Multica 課題を起こすことができます。",
     "not_enabled_title": "Lark 連携が有効化されていません",
     "not_enabled_description_prefix": "Lark ボットの設置を有効化するにはサーバーに",
     "not_enabled_description_suffix": "を設定してください。",
@@ -1272,7 +1297,7 @@
   },
   "slack": {
     "section_title": "Slack",
-    "page_description": "各 Multica エージェントを専用の Slack ボットに接続します。メンバーはボットに DM したり、チャンネルで @メンションしたり、/issue と入力して新しい Multica タスクを起こすことができます。",
+    "page_description": "各 Multica エージェントを専用の Slack ボットに接続します。メンバーはボットに DM したり、チャンネルで @メンションしたり、/issue と入力して新しい Multica 課題を起こすことができます。",
     "not_enabled_title": "Slack 連携が有効になっていません",
     "not_enabled_description_prefix": "サーバーで",
     "not_enabled_description_suffix": "を設定すると Slack ボットのインストールが有効になります。",
@@ -1315,8 +1340,8 @@
   },
   "dingtalk": {
     "section_title": "DingTalk",
-    "page_description": "各 Multica エージェントを専用の DingTalk ロボットに接続します。メンバーはボットに DM したり、グループで @メンションしたり、/issue と入力して新しい Multica タスクを作成できます。",
-    "agent_page_description": "専用の DingTalk ロボットを使って、このエージェントに DM を送ったり、グループで @メンションしたり、/issue から Multica タスクを作成したりできます。",
+    "page_description": "各 Multica エージェントを専用の DingTalk ロボットに接続します。メンバーはボットに DM したり、グループで @メンションしたり、/issue と入力して新しい Multica 課題を作成できます。",
+    "agent_page_description": "専用の DingTalk ロボットを使って、このエージェントに DM を送ったり、グループで @メンションしたり、/issue から Multica 課題を作成したりできます。",
     "groups_title": "最近のグループ",
     "groups_description": "ワークスペースのメンバーが DingTalk アカウントを連携し、グループでこのボットを @メンションすると表示されます。通常は直近 90 日間に利用されたグループだけを表示します。",
     "groups_overview_description": "各接続に、エージェント、DingTalk ロボット、最近やり取りしたグループを表示します。",
@@ -1379,7 +1404,7 @@
   },
   "wecom": {
     "section_title": "WeCom",
-    "page_description": "各 Multica エージェントを専用の WeCom (企业微信) スマートボットに接続します。メンバーはボットに DM を送り、グループで @ メンションし、/issue と入力して Multica タスクを作成できます。WebSocket ロングコネクションで応答するため、公開コールバック URL は不要です。",
+    "page_description": "各 Multica エージェントを専用の WeCom (企业微信) スマートボットに接続します。メンバーはボットに DM を送り、グループで @ メンションし、/issue と入力して Multica 課題を作成できます。WebSocket ロングコネクションで応答するため、公開コールバック URL は不要です。",
     "not_enabled_title": "WeCom 連携が有効化されていません",
     "not_enabled_description_prefix": "サーバー側で",
     "not_enabled_description_suffix": "を設定すると WeCom スマートボットのインストールが有効になります。",
@@ -1429,7 +1454,7 @@
   },
   "telegram": {
     "section_title": "Telegram",
-    "page_description": "各 Multica エージェントを専用の Telegram ボットに接続します。メンバーはボットに DM を送ったり、グループで @メンションしたり、/issue と入力して Multica タスクを作成したり、エージェントの返信をリアルタイムで確認できます。",
+    "page_description": "各 Multica エージェントを専用の Telegram ボットに接続します。メンバーはボットに DM を送ったり、グループで @メンションしたり、/issue と入力して Multica 課題を作成したり、エージェントの返信をリアルタイムで確認できます。",
     "not_enabled_title": "Telegram 連携が有効になっていません",
     "not_enabled_description_prefix": "サーバーで",
     "not_enabled_description_suffix": "を設定すると Telegram ボットのインストールが有効になります。",
@@ -1652,7 +1677,7 @@
       },
       "member": {
         "label": "メンバー",
-        "description": "タスクの作成と作業"
+        "description": "課題の作成と作業"
       }
     },
     "share_links_title": "共有リンク",
@@ -1675,6 +1700,302 @@
     "expiry_7d": "7日",
     "expiry_30d": "30日",
     "expiry_never": "無期限"
+  },
+  "integrations": {
+    "description": "ツールを接続して、各連携を管理します。",
+    "code_title": "コードとリポジトリ",
+    "messaging_title": "メッセージチャネル",
+    "apps_title": "自分のアプリ接続",
+    "apps_scope": "これらのアプリ接続はあなたのアカウントに属します。ワークスペースのチャネル接続は上で管理します。",
+    "github_hint": "GitHub を接続し、プルリクエストの関連付けを設定します。",
+    "vcs_hint": "GitLab、Gitea、Forgejo を接続します。",
+    "apps_hint": "Composio 経由でエージェント用のアプリを認可します。",
+    "back": "すべての連携",
+    "status_connected": "接続済み",
+    "status_not_connected": "未接続",
+    "status_loading": "確認中...",
+    "status_unknown": "状態を取得できません",
+    "channel_hint": "{{channel}} でエージェントと会話し、課題を作成します。"
+  },
+  "transitions": {
+    "title": "遷移ルール",
+    "description": "誰がイシューをステータスカテゴリ間で移動できるか、どの移動が承認を待つかを定めます。",
+    "loading": "ルールを読み込み中…",
+    "empty": "ルールはまだありません。すべての遷移は自由で、イシューを編集できる人は任意のステータスに変更できます。",
+    "add": "ルールを追加",
+    "edit": "ルールを編集",
+    "delete": "ルールを削除",
+    "delete_failed": "ルールを削除できませんでした。",
+    "save_failed": "ルールを保存できませんでした。",
+    "any_origin": "任意のステータス",
+    "grants": "許可: {{list}}",
+    "no_grants": "許可: なし",
+    "named_actors": "指定 {{count}} 件",
+    "needs_approval": "承認が必要",
+    "disabled": "無効",
+    "editor": {
+      "create_title": "新しい遷移ルール",
+      "edit_title": "遷移ルールを編集",
+      "hint": "ルールはステータスカテゴリに対して定義されるため、ステータス名を変更しても機能し続けます。",
+      "from": "移動元",
+      "to": "移動先",
+      "roles": "許可するロール",
+      "actor_types": "許可するアクター種別",
+      "requires_approval": "承認を待つ",
+      "approver_roles": "承認者のロール",
+      "enabled": "有効",
+      "save": "保存",
+      "cancel": "キャンセル"
+    }
+  },
+  "linear": {
+    "section_title": "Linear",
+    "page_description": "Multica を Linear アプリとしてインストールします。Multica ユーザーに割り当てられた Linear の課題は、担当エージェントを持つ Multica の課題としてミラーされ、以降はコメントとステータスが双方向に同期されます。",
+    "not_enabled_title": "Linear 連携が有効化されていません",
+    "not_enabled_description": "このデプロイには Linear アプリが設定されていません。サーバーで MULTICA_LINEAR_SECRET_KEY、MULTICA_LINEAR_CLIENT_ID、MULTICA_LINEAR_CLIENT_SECRET を設定してください。",
+    "connect_hint": "ミラーされた Linear の課題を割り当てるエージェントを選び、Linear でアプリを承認してください。",
+    "agent_label": "エージェント",
+    "agent_placeholder": "エージェントを選択",
+    "connect": "Linear を接続",
+    "connecting": "Linear を開いています…",
+    "reconnect": "再接続",
+    "admin_only": "Linear を接続できるのはワークスペースのオーナーと管理者のみです。",
+    "loading": "読み込み中…",
+    "load_failed": "Linear 接続の読み込みに失敗しました",
+    "org_label": "Linear 組織",
+    "broken_title": "Linear がこの接続を受け付けなくなりました",
+    "broken_description": "再接続すると、課題・コメント・ステータスの同期が再開します。",
+    "status_map_title": "ステータスのマッピング",
+    "status_map_description": "各 Linear ワークフロー状態がどの Multica ステータスに対応するか。双方向で使用されます。",
+    "status_placeholder": "ステータスを選択",
+    "save_status_map": "マッピングを保存",
+    "saving": "保存中…",
+    "cancel": "キャンセル",
+    "disconnect": "切断",
+    "disconnecting": "切断中…",
+    "disconnect_confirm_title": "Linear を切断しますか？",
+    "disconnect_confirm_description": "ミラーされた課題とコメントは Multica に残りますが、Linear との同期は停止します。後で再接続できます。",
+    "toast_connect_failed": "Linear 接続を開始できませんでした",
+    "toast_disconnected": "Linear を切断しました",
+    "toast_disconnect_failed": "Linear を切断できませんでした",
+    "toast_status_map_saved": "ステータスのマッピングを保存しました",
+    "toast_status_map_failed": "ステータスのマッピングを保存できませんでした",
+    "badge_title": "Linear",
+    "badge_synced": "Linear と同期済み",
+    "badge_paused": "一時停止 — この課題は Linear で Multica に割り当てられていません",
+    "badge_broken": "同期に失敗しました — Linear を再接続するか再試行してください",
+    "badge_resync": "再同期",
+    "badge_resyncing": "再同期中…",
+    "toast_resynced": "Linear と再同期しました",
+    "toast_resync_failed": "Linear と再同期できませんでした"
+  },
+  "repo_index": {
+    "section": "セマンティックインデックス",
+    "description_semantic": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。意味とキーワードの両方でランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存され、この環境の埋め込みプロバイダーに送信されます。",
+    "description_lexical": "リポジトリのコードをインデックス化し、各実行が一から探さずに関係のあるファイルから始められるようにします。この環境には埋め込みモデルが設定されていないため、キーワードでランク付けします。有効にすると、そのリポジトリのソースコードが Multica に保存されます。",
+    "empty": "このワークスペースにもそのプロジェクトにも、まだリポジトリが関連付けられていません。",
+    "status_indexed": "コミット {{commit}} 時点で最新 · {{files}} ファイル / {{chunks}} チャンク",
+    "status_waiting": "このリポジトリでの次回の実行後にインデックス化されます",
+    "status_disabled": "未インデックス",
+    "save_failed": "セマンティックインデックスの設定を保存できませんでした。"
+  },
+  "run_limits": {
+    "title": "実行上限",
+    "intro": "1 回の実行に対する上限：コスト、時間、ターン数、ツール呼び出し数。ワークスペース・プロジェクト・エージェントのうち最も厳しい上限が適用されます。enforce は 100% で実行を停止し、observe は記録のみ。どちらも閾値で警告します。",
+    "empty": "実行上限はまだありません。実行は上の期間予算でのみ制限されます。",
+    "add": "新しい実行上限",
+    "edit": "編集",
+    "delete": "{{scope}} の実行上限を削除",
+    "save": "実行上限を保存",
+    "save_failed": "実行上限を保存できませんでした",
+    "warn_at": "{{percent}}% で警告",
+    "cost_usd": "コスト（$）",
+    "duration_min": "時間（分）",
+    "gates": {
+      "cost": "コスト",
+      "duration": "時間",
+      "turns": "ターン",
+      "tool_calls": "ツール呼び出し"
+    }
+  },
+  "budgets": {
+    "title": "実行予算",
+    "description": "エージェントの作業開始前に USD 上限を設定します。強制上限は新規実行を一時停止し、監視モードは計測のみ行います。",
+    "add": "予算を追加",
+    "loading": "予算を読み込み中…",
+    "load_failed": "予算状況を更新できませんでした。",
+    "retry": "再試行",
+    "empty": "実行予算はありません",
+    "empty_hint": "ワークスペース、プロジェクト、またはエージェントの上限を追加します。",
+    "scope": "範囲",
+    "target": "対象を選択",
+    "limit": "上限（USD）",
+    "period": "リセット期間",
+    "warning": "警告しきい値（%）",
+    "action": "上限到達時",
+    "create_title": "新しい予算",
+    "edit_title": "予算を編集",
+    "editor_hint": "使用量には完了コストと待機中作業の予約額が含まれます。",
+    "save": "保存",
+    "saving": "保存中…",
+    "cancel": "キャンセル",
+    "save_failed": "予算を保存できませんでした。",
+    "edit": "予算を編集",
+    "delete": "予算を削除",
+    "delete_confirm": "この予算と現在期間の使用量を削除しますか？",
+    "override": "一時上書きを許可",
+    "override_reason": "上書きの理由（最大24時間）",
+    "override_created": "24時間の上書きを許可しました",
+    "override_active": "上書き中",
+    "reserved": "待機中の作業に {{amount}} を予約済み",
+    "notice_warning": "実行予算が上限に近づいています。",
+    "notice_blocked": "予算が上限に達したため、新しい実行は一時停止中です。",
+    "manage": "予算を管理",
+    "scopes": {
+      "workspace": "ワークスペース",
+      "project": "プロジェクト",
+      "agent": "エージェント"
+    },
+    "periods": {
+      "daily": "毎日",
+      "weekly": "毎週",
+      "monthly": "毎月"
+    },
+    "actions": {
+      "enforce": "上限で一時停止",
+      "observe": "監視のみ"
+    }
+  },
+  "model_keys": {
+    "title": "モデルキー",
+    "description": "ベンダーの API キーを自分で持ち込みます。このワークスペースの実行は CLI 自身の認証情報ではなく、ここで宣言したキーを使い、コストはそのキーに計上されます。",
+    "not_configured_title": "キーの保存が設定されていません",
+    "not_configured_description": "サーバーに MULTICA_MODEL_KEY_SECRET_KEY がないため、運用者が設定するまでキーを保存できません。",
+    "failover_title": "キーが自動的に無効化されました",
+    "failover_description": "実行がベンダーの認証またはクォータで失敗したため、キーを無効化しました。以降の実行は次のキー、または CLI 自身の認証情報にフォールバックします。",
+    "failover_auth": "{{vendor}} · {{key}} — 認証エラーにより {{when}} に無効化",
+    "failover_quota": "{{vendor}} · {{key}} — クォータ超過により {{when}} に無効化",
+    "keys_title": "キー",
+    "write_only_note": "キーは書き込み専用です。再表示されるのはヒントだけです。変更するにはローテーションしてください。古いキーはコスト履歴のため無効化状態で残ります。",
+    "empty_title": "BYOK キーはありません",
+    "empty_description": "実行は CLI 自身の認証情報を使います。キーを追加すると、代わりにそのキーを使います。",
+    "admin_only_note": "モデルキーを管理できるのはワークスペースのオーナーと管理者だけです。",
+    "columns": {
+      "scope": "スコープ",
+      "vendor": "ベンダー",
+      "label": "ラベル",
+      "key": "キー",
+      "status": "状態",
+      "priority": "優先度",
+      "usage": "使用量"
+    },
+    "scope_workspace": "ワークスペース",
+    "scope_project": "プロジェクト",
+    "status_active": "有効",
+    "status_retired": "無効",
+    "reason_rotated": "ローテーション済み",
+    "reason_retired": "手動で無効化",
+    "reason_auth": "認証エラーにより自動で無効化",
+    "reason_quota": "クォータ超過により自動で無効化",
+    "usage": "{{tasks}} タスク · {{tokens}} トークン · {{cost}}",
+    "rotate": "キーをローテーション",
+    "retire": "キーを無効化",
+    "add_title": "キーを追加",
+    "add_description": "プロジェクトのキーは同じベンダーのワークスペースキーより優先されます。同じスコープ内では優先度の数値が小さいものから試されます。",
+    "field_scope": "スコープ",
+    "field_project": "プロジェクト",
+    "field_project_placeholder": "プロジェクトを選択",
+    "field_vendor": "ベンダー",
+    "field_vendor_placeholder": "ベンダーを選択",
+    "field_label": "ラベル",
+    "field_label_placeholder": "チームキー、トライアル…",
+    "field_key": "API キー",
+    "field_key_placeholder": "sk-…",
+    "field_new_key": "新しい API キー",
+    "field_priority": "優先度",
+    "field_priority_hint": "小さいほど先に試されます。",
+    "submit": "キーを追加",
+    "conflict": "このベンダーとスコープには既に有効なキーがあります。",
+    "conflict_hint": "追加する代わりに既存のキーをローテーションしてください。",
+    "added_toast": "モデルキーを追加しました",
+    "add_failed_toast": "モデルキーを追加できませんでした",
+    "rotated_toast": "モデルキーをローテーションしました",
+    "rotate_failed_toast": "モデルキーをローテーションできませんでした",
+    "retired_toast": "モデルキーを無効化しました",
+    "retire_failed_toast": "モデルキーを無効化できませんでした",
+    "rotate_title": "キーをローテーション",
+    "rotate_description": "新しい値が {{vendor}} の {{hint}} を置き換えます。古いキーはコスト履歴のため無効化状態で残ります。",
+    "rotate_confirm": "ローテーション",
+    "retire_title": "キーを無効化しますか？",
+    "retire_description": "{{vendor}} の実行は次のキー、または CLI 自身の認証情報にフォールバックします。",
+    "retire_confirm": "無効化",
+    "cancel": "キャンセル"
+  },
+  "security": {
+    "title": "セキュリティ",
+    "description": "ID プロバイダーによるシングルサインオンと、メンバーの SCIM プロビジョニング。",
+    "owner_only_note": "これらの設定を変更できるのはワークスペースのオーナーだけです。管理者は閲覧できます。",
+    "cancel": "キャンセル",
+    "sso": {
+      "not_configured_title": "このサーバーでは SSO が設定されていません",
+      "not_configured_description": "サーバーに MULTICA_SSO_SECRET_KEY がないため、運用者が設定するまで OIDC 接続を保存できません。",
+      "title": "シングルサインオン (OIDC)",
+      "description": "メンバーは ID プロバイダー経由でサインインします。クライアントシークレットは書き込み専用です。空のままにすると保存済みの値を維持します。",
+      "field_issuer": "発行者 URL",
+      "field_issuer_hint": "OIDC の発行者。ディスカバリードキュメントは /.well-known/openid-configuration から読み込まれます。",
+      "field_client_id": "クライアント ID",
+      "field_client_secret": "クライアントシークレット",
+      "field_client_secret_unchanged": "変更なし",
+      "field_client_secret_hint": "保存後は二度と表示されません。",
+      "field_domains": "許可するメールドメイン",
+      "field_domains_hint": "1 行に 1 つ。空のままにするとプロバイダーが返すすべてのドメインを受け入れます。",
+      "field_auto_provision": "メンバーを自動作成",
+      "field_auto_provision_hint": "プロバイダー経由の初回サインイン時にワークスペースのメンバーを作成します。",
+      "save": "保存",
+      "saved_toast": "SSO 接続を保存しました",
+      "save_failed_toast": "SSO 接続の保存に失敗しました",
+      "remove": "接続を削除",
+      "remove_confirm_title": "SSO 接続を削除しますか？",
+      "remove_confirm_description": "メンバーは再びメールコードまたは Google でサインインするようになり、強制は解除されます。",
+      "remove_confirm": "削除",
+      "removed_toast": "SSO 接続を削除しました",
+      "enforce": "SSO を強制",
+      "enforce_hint": "強制すると、このワークスペースではメールコードと Google でのサインインが拒否されます。",
+      "enforce_confirm_title": "このワークスペースで SSO を強制しますか？",
+      "enforce_confirm_description": "メンバーはプロバイダー経由でしかサインインできなくなります。まず自分のアカウントがプロバイダー経由で動作することを確認してください。",
+      "enforce_confirm": "強制する",
+      "enforced_toast": "SSO が強制されました",
+      "unenforced_toast": "SSO の強制を解除しました"
+    },
+    "scim": {
+      "title": "SCIM プロビジョニング",
+      "description": "ID プロバイダーにメンバーの作成・更新・無効化を任せます。新しいトークンを生成すると前のトークンは無効になります。",
+      "endpoint_label": "SCIM エンドポイント",
+      "endpoint_hint": "この URL とベアラートークンを ID プロバイダーの SCIM 設定に貼り付けてください。",
+      "generate": "トークンを生成",
+      "new_token_label": "新しいトークン",
+      "shown_once": "このトークンは一度しか表示されません。今すぐコピーしてください。再表示はできません。",
+      "copy": "コピー",
+      "copied": "コピーしました",
+      "copy_failed": "コピーに失敗しました",
+      "empty": "SCIM トークンはまだありません。",
+      "columns": {
+        "token": "トークン",
+        "status": "状態",
+        "created": "作成",
+        "last_used": "最終使用"
+      },
+      "status_active": "有効",
+      "status_revoked": "失効",
+      "never_used": "未使用",
+      "revoke": "失効させる",
+      "revoked_toast": "トークンを失効させました",
+      "revoke_failed_toast": "トークンの失効に失敗しました",
+      "created_toast": "トークンを生成しました",
+      "create_failed_toast": "トークンの生成に失敗しました",
+      "rotate_confirm_title": "有効なトークンを置き換えますか？",
+      "rotate_confirm_description": "現在のトークンは直ちに使えなくなります。ID プロバイダーを新しいトークンで更新してください。"
+    }
   },
   "audit": {
     "description": "このワークスペースの重要な操作を新しい順に記録します：判断の依頼と回答、プランの承認、ステータス変更、証拠、エージェントのロールバック、担当ルール、ブリーフィング、設定。エントリは編集も削除もされません。",
@@ -1788,5 +2109,240 @@
     "status_completed": "完了",
     "status_failed": "失敗",
     "template_badge": "テンプレート"
+  },
+  "eval_lab": {
+    "title": "評価ラボ",
+    "description": "証明済みの課題をエージェントのバージョンで再実行し、今も合格するかを確認します。受け入れ基準がすべて証明された解決済みの課題は、その課題から評価ケースに昇格できます。",
+    "suites_title": "スイート",
+    "suites_description": "スイートは評価ケースをまとめたものです。実行すると、各ケースを 1 つのエージェントバージョンで再実行します。",
+    "suites_empty_title": "スイートがありません",
+    "suites_empty_hint": "昇格したケースから下で作成してください。",
+    "cases_empty_title": "評価ケースがありません",
+    "cases_empty_hint": "受け入れ基準がすべて証明された解決済みの課題を昇格して、最初のケースを作成してください。",
+    "case_count": "{{n}} 件のケース",
+    "case_meta": "課題 #{{number}} · 基準 {{criteria}} 件",
+    "last_run": "{{agent}} による直近の実行:",
+    "never_run": "未実行",
+    "run": "実行",
+    "cancel": "キャンセル",
+    "agent": "エージェント",
+    "version": "バージョン",
+    "pick_agent": "エージェントを選択",
+    "pick_version": "バージョンを選択",
+    "version_label": "v{{number}}",
+    "new_suite_title": "新しいスイート",
+    "new_suite_description": "スイートに名前を付け、再実行するケースを選択します。",
+    "name_label": "名前",
+    "name_placeholder": "リグレッション",
+    "select_cases": "ケース",
+    "create": "スイートを作成",
+    "created_toast": "スイートを作成しました",
+    "create_failed": "スイートを作成できませんでした",
+    "run_failed": "実行を開始できませんでした",
+    "history_title": "実行履歴",
+    "history_description": "すべての再実行を新しい順に表示します。スイート名をクリックすると、ケースごとの判定が表示されます。",
+    "history_empty": "実行履歴はありません",
+    "col_suite": "スイート",
+    "col_agent": "エージェント",
+    "col_version": "バージョン",
+    "col_status": "ステータス",
+    "col_score": "スコア",
+    "col_started": "開始",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗"
+    },
+    "status_unknown": "不明",
+    "case_status": {
+      "pending": "保留中",
+      "passed": "合格",
+      "failed": "不合格",
+      "infra_failed": "インフラ障害"
+    },
+    "score_value": "{{score}}/100",
+    "no_score": "—",
+    "no_cases": "この実行にはケースが記録されていません",
+    "benchmark": "ベンチマーク",
+    "benchmark_title": "ベンチマーク",
+    "benchmark_description": "どの候補も同じスイートを再実行するため、スコアの違いはランタイムとモデルだけです。",
+    "benchmark_empty": "ベンチマークはまだありません",
+    "benchmark_failed": "ベンチマークを開始できませんでした",
+    "candidates": "候補",
+    "add_candidate": "候補を追加",
+    "remove": "削除",
+    "remove_candidate": "候補 {{n}} を削除",
+    "candidate_runtime": "ランタイム {{n}}",
+    "candidate_model": "モデル {{n}}",
+    "pick_runtime": "ランタイムを選択",
+    "model_placeholder": "既定のモデル",
+    "default_model": "既定",
+    "baseline": "基準",
+    "no_baseline": "基準なし",
+    "baseline_option": "{{runtime}} · {{model}} · {{score}}/100",
+    "corpus_label": "構成:",
+    "corpus_class": "{{class}} {{count}} 件（{{percent}}%）",
+    "corpus_balanced": "均衡",
+    "corpus_skewed": "偏り",
+    "col_runtime": "ランタイム",
+    "col_model": "モデル",
+    "col_classes": "クラス別",
+    "col_delta": "基準との差",
+    "class_chip": "{{class}} {{passed}}/{{cases}}",
+    "class": {
+      "general": "一般",
+      "bugfix": "バグ修正",
+      "feature": "機能",
+      "refactor": "リファクタリング",
+      "docs": "ドキュメント",
+      "tests": "テスト",
+      "chore": "雑務"
+    }
+  },
+  "code_health": {
+    "title": "コードヘルス",
+    "description": "メンテナンスエージェントがスケジュールに従ってリポジトリを読み、誰も計画していない作業（技術的負債、古い依存関係や脆弱な依存関係、テストのないコード）を報告します。確信のある指摘は、そのエージェントに割り当てられた通常の課題になります。",
+    "onboarding_title": "メンテナンスエージェントを選ぶまでは何も実行されません",
+    "onboarding_body": "スキャンは読み取り専用です。エージェントは読んで報告するだけで、決して編集しません。確信のある指摘はそれぞれ 1 件の課題になり、同じエージェントに割り当てられます。1 回のスキャンあたりの上限があり、対象の予算ポリシーの範囲に収まります。",
+    "config_title": "スケジュール",
+    "config_description": "誰が、どのくらいの頻度でスキャンし、1 回のスキャンでどれだけの保守作業をボードに載せられるか。",
+    "loading": "設定を読み込んでいます…",
+    "enabled_label": "スケジュールに従ってスキャン",
+    "enabled_hint": "既定ではオフです。オフのままでも手動でスキャンできます。",
+    "agent_label": "メンテナンスエージェント",
+    "pick_agent": "エージェントを選択",
+    "project_label": "対象範囲",
+    "whole_workspace": "ワークスペース全体",
+    "cron_label": "Cron 式",
+    "cron_hint": "標準の 5 フィールド cron で、下のタイムゾーンで解釈されます。通常は週 1 回で十分です。",
+    "timezone_label": "タイムゾーン",
+    "max_issues_label": "1 回のスキャンあたりの課題数",
+    "min_confidence_label": "最低確信度",
+    "save": "保存",
+    "saved_toast": "コードヘルスの設定を保存しました",
+    "save_failed": "設定を保存できませんでした",
+    "scan_now": "今すぐスキャン",
+    "scan_started_toast": "スキャンを開始しました",
+    "scan_failed": "スキャンを開始できませんでした",
+    "history_title": "スキャン履歴",
+    "history_description": "報告されたすべての指摘。課題にならなかったものとその理由も含みます。",
+    "history_empty": "スキャン履歴はありません",
+    "col_date": "日時",
+    "col_status": "ステータス",
+    "col_findings": "指摘",
+    "col_issues": "作成された課題",
+    "no_findings": "指摘なし",
+    "finding_meta": "（{{kind}}、確信度 {{confidence}}%）",
+    "status_unknown": "不明",
+    "skipped_unknown": "スキップ",
+    "status": {
+      "running": "実行中",
+      "completed": "完了",
+      "failed": "失敗",
+      "empty": "指摘なし"
+    },
+    "skipped": {
+      "low_confidence": "確信度のしきい値未満",
+      "duplicate": "すでに未解決の課題あり",
+      "cap": "1 回のスキャンの上限超過",
+      "budget": "予算により拒否",
+      "error": "作成できませんでした"
+    }
+  },
+  "doc_drift": {
+    "title": "エージェントコンテキストのずれ",
+    "description": "エージェントコンテキスト文書は、すべての実行が動く前に読むファイルであり、静かに正しくなくなるファイルでもあります。デフォルトブランチが動いた後、読み取り専用の実行がリポジトリの実際の宣言と突き合わせ、再び正しくするための最小の修正を提案します。直接コミットではなく、必ずドラフトのプルリクエストとしてです。",
+    "onboarding_title": "エージェントを選ぶまで何も実行されません",
+    "onboarding_body": "スキャンは読み取り専用です。文書とリポジトリを読み、ずれた箇所を報告します。別の実行がその差分だけを専用ブランチに適用し、レビュー用のドラフトプルリクエストを開きます。",
+    "config_title": "設定",
+    "config_description": "誰が確認するか、どの文書か、提案を自動でドラフトプルリクエストにするか。",
+    "loading": "設定を読み込み中…",
+    "enabled_label": "デフォルトブランチが動いたら確認する",
+    "enabled_hint": "既定はオフです。オフでも手動での確認はできます。",
+    "agent_label": "エージェント",
+    "pick_agent": "エージェントを選択",
+    "docs_label": "文書",
+    "docs_hint": "リポジトリ相対パスを1行に1つ。存在しない文書はスキップされます。",
+    "open_pr_label": "ドラフトプルリクエストを開く",
+    "open_pr_hint": "オフにすると、ボタンを押すまで提案はここに残ります。",
+    "save": "保存",
+    "saved_toast": "エージェントコンテキストのずれ設定を保存しました",
+    "save_failed": "設定を保存できませんでした",
+    "repos_title": "リポジトリ",
+    "repos_description": "共有インデックスが有効なリポジトリのみ確認されます。そのコミットがデフォルトブランチの移動を知る手がかりです。",
+    "repos_empty": "インデックス済みのリポジトリがありません。「リポジトリ」で共有リポジトリインデックスを有効にしてください。",
+    "check_now": "今すぐ確認",
+    "check_started_toast": "ずれの確認を開始しました",
+    "check_failed": "確認を開始できませんでした",
+    "repo_due": "前回の確認以降にブランチが動きました",
+    "repo_scanning": "確認中…",
+    "repo_up_to_date": "このコミットで確認済み",
+    "repo_never_indexed": "未インデックス",
+    "proposals_title": "提案",
+    "proposals_description": "文書ごとに1つの提案です。後続の確認は、二つ目を作らず既存の提案に追記します。",
+    "proposals_empty": "ずれは検出されていません。文書は最新です",
+    "col_document": "文書",
+    "col_repository": "リポジトリ",
+    "col_drift": "ずれた内容",
+    "col_status": "ステータス",
+    "view_pr": "ドラフトプルリクエスト",
+    "dismiss": "見送る",
+    "dismissed_toast": "提案を見送りました",
+    "dismiss_failed": "提案を見送れませんでした",
+    "open_pr": "ドラフトPRを開く",
+    "open_pr_started_toast": "プルリクエストの実行をキューに入れました",
+    "open_pr_failed": "プルリクエストの実行を開始できませんでした",
+    "status_unknown": "不明",
+    "status": {
+      "draft": "下書き",
+      "opened_pr": "レビュー中",
+      "dismissed": "見送り",
+      "merged": "マージ済み"
+    }
+  },
+  "issue_types": {
+    "title": "作業アイテムタイプ",
+    "description": "課題が「何であるか」— バグ、ストーリー、エピック、タスク、または独自のもの。タイプは動作を変えず、作業の分類と適用プロパティを決めます。",
+    "loading": "タイプを読み込み中…",
+    "add": "タイプを追加",
+    "show_archived": "アーカイブ済みを表示 ({{count}})",
+    "archived_badge": "アーカイブ済み",
+    "archived_hint": "新規割り当てから外れます。すでに設定されている課題はそのまま保持します。",
+    "system_badge": "標準",
+    "system_hint": "標準タイプは名前と色を変更できますが、アーカイブはできません。",
+    "reorder_failed": "新しい並び順を保存できませんでした。",
+    "empty": "作業アイテムタイプがまだありません。",
+    "actions": {
+      "open": "{{name}} の操作",
+      "edit": "編集",
+      "archive": "アーカイブ",
+      "reorder": "{{name}} を並べ替え"
+    },
+    "editor": {
+      "create_title": "新しい作業アイテムタイプ",
+      "edit_title": "作業アイテムタイプを編集",
+      "hint": "タイプは課題が何であるかを示します。実行を開始せず、ステータスも変えません。",
+      "name": "名前",
+      "name_placeholder": "例: Spike",
+      "key_hint": "API では {{key}} として参照されます。",
+      "created": "タイプを作成しました。API では {{key}} として参照されます。",
+      "description": "説明",
+      "description_placeholder": "このタイプがチームにとって何を意味するか",
+      "color": "色",
+      "icon": "アイコン",
+      "choose_icon": "アイコンを選択",
+      "remove_icon": "アイコンを削除",
+      "cancel": "キャンセル",
+      "save": "保存",
+      "saving": "保存中…",
+      "save_failed": "タイプを保存できませんでした。"
+    },
+    "archive_dialog": {
+      "title": "このタイプをアーカイブしますか？",
+      "description": "「{{name}}」は新しい課題で選べなくなります。すでに設定されている課題はそのまま保持し、プロパティの値もすべて残ります。",
+      "cancel": "キャンセル",
+      "confirm": "アーカイブ",
+      "failed": "タイプをアーカイブできませんでした。"
+    }
   }
 }

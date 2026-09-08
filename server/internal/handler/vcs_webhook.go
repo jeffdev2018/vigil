@@ -276,6 +276,11 @@ func (h *Handler) mirrorVCSPullRequest(ctx context.Context, conn db.VcsConnectio
 		}
 	}
 
+	// PR walkthrough (F05): after the links are written, so a PR that just
+	// became linked gets a walkthrough on the same event. Idempotent per head.
+	h.maybeEnqueuePrWalkthrough(ctx, conn.WorkspaceID, prWalkthroughSourceVCS, pr.ID, pr.HeadSha)
+	h.staleReviewFlagsForHead(ctx, conn.WorkspaceID, pr.ID, pr.HeadSha)
+
 	h.publish(protocol.EventPullRequestUpdated, workspaceID, "system", "", map[string]any{
 		"pull_request":     resp,
 		"linked_issue_ids": linkedIssueIDs,

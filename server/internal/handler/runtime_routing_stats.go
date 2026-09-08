@@ -21,15 +21,18 @@ const costTicksPerUSD = 1e-10
 // null when no run in the bucket carried a cost / a start time, distinct from
 // a genuine zero.
 type RuntimeRoutingStatsRow struct {
-	RuntimeID       string   `json:"runtime_id"`
-	RuntimeName     string   `json:"runtime_name"`
-	Provider        string   `json:"provider"`
-	Model           string   `json:"model"`
-	TaskClass       string   `json:"task_class"`
-	Samples         int32    `json:"samples"`
-	SuccessRate     float64  `json:"success_rate"`
-	AvgCostUSD      *float64 `json:"avg_cost_usd"`
-	AvgDurationSecs *float64 `json:"avg_duration_secs"`
+	RuntimeID   string `json:"runtime_id"`
+	RuntimeName string `json:"runtime_name"`
+	Provider    string `json:"provider"`
+	Model       string `json:"model"`
+	TaskClass   string `json:"task_class"`
+	Samples     int32  `json:"samples"`
+	// BenchmarkSamples is how many of those samples came from a benchmark
+	// replay rather than from ordinary work.
+	BenchmarkSamples int32    `json:"benchmark_samples"`
+	SuccessRate      float64  `json:"success_rate"`
+	AvgCostUSD       *float64 `json:"avg_cost_usd"`
+	AvgDurationSecs  *float64 `json:"avg_duration_secs"`
 }
 
 // RuntimeRoutingStatsResponse wraps the rows with the window they were
@@ -63,12 +66,13 @@ func (h *Handler) GetRuntimeRoutingStats(w http.ResponseWriter, r *http.Request)
 	}
 	for _, row := range rows {
 		out := RuntimeRoutingStatsRow{
-			RuntimeID:   uuidToString(row.RuntimeID),
-			RuntimeName: row.RuntimeName,
-			Provider:    row.Provider,
-			Model:       row.Model,
-			TaskClass:   row.TaskClass,
-			Samples:     row.Samples,
+			RuntimeID:        uuidToString(row.RuntimeID),
+			RuntimeName:      row.RuntimeName,
+			Provider:         row.Provider,
+			Model:            row.Model,
+			TaskClass:        row.TaskClass,
+			Samples:          row.Samples,
+			BenchmarkSamples: row.BenchmarkSamples,
 		}
 		if row.Samples > 0 {
 			out.SuccessRate = float64(row.SuccessCount) / float64(row.Samples)

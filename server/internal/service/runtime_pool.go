@@ -30,6 +30,7 @@ var failoverReasons = map[string]bool{
 	string(taskfailure.ReasonRuntimeReconnectTimeout):          true,
 	string(taskfailure.ReasonRuntimeCLITimeout):                true,
 	string(taskfailure.ReasonEnvironmentPrepareFailed):         true,
+	string(taskfailure.ReasonSandboxUnavailable):               true,
 	string(taskfailure.ReasonAgentProviderAuthOrAccess):        true,
 	string(taskfailure.ReasonAgentProviderQuotaLimit):          true,
 	string(taskfailure.ReasonAgentProviderCapacityOrRateLimit): true,
@@ -71,7 +72,11 @@ func TaskDegraded(raw []byte) bool {
 // poolFailoverTarget picks the next online runtime of the agent's pool the
 // task has not tried yet. hasPool is false when the agent has no pool at
 // all, so callers can tell "nothing to do" from "pool exhausted".
-func (s *TaskService) poolFailoverTarget(ctx context.Context, agent db.Agent, task db.AgentTaskQueue, reason string) (target FailoverTarget, hasPool bool) {
+//
+// filter is the data residency gate (K46), nil when the workspace declares no
+// policy. A pool member the policy rejects is skipped exactly like an offline
+// one: a failover must never be the way a run escapes the policy.
+func (s *TaskService) poolFailoverTarget(ctx context.Context, agent db.Agent, task db.AgentTaskQueue, reason string, filter runtimeComplianceFilter) (target FailoverTarget, hasPool bool) {
 	if !agent.RuntimePoolID.Valid {
 		return FailoverTarget{}, false
 	}
@@ -113,6 +118,11 @@ func (s *TaskService) poolFailoverTarget(ctx context.Context, agent db.Agent, ta
 		if err != nil || rt.Status != "online" {
 			continue
 		}
+		if ok, denyReason := residencyAllows(filter, rt); !ok {
+			slog.Info("runtime pool: skipping a runtime the residency policy rejects",
+				"runtime_id", id, "reason", denyReason)
+			continue
+		}
 		entry := FailoverEntry{From: util.UUIDToString(task.RuntimeID), To: id, Reason: reason, Degraded: id == degraded, At: time.Now().UTC().Format(time.RFC3339)}
 		raw, _ := json.Marshal(append(history, entry))
 		return FailoverTarget{OK: true, RuntimeID: rt.ID, Degraded: entry.Degraded, History: raw}, true
@@ -131,7 +141,7 @@ func (s *TaskService) failoverForFailedTask(ctx context.Context, task db.AgentTa
 	if err != nil {
 		return FailoverTarget{}, false
 	}
-	target, hasPool := s.poolFailoverTarget(ctx, agent, task, reason)
+	target, hasPool := s.poolFailoverTarget(ctx, agent, task, reason, s.compliantRuntimeFilter(ctx, agent.WorkspaceID))
 	if target.OK {
 		slog.Info("runtime pool: failing over", "task_id", util.UUIDToString(task.ID), "reason", reason, "to_runtime_id", util.UUIDToString(target.RuntimeID), "degraded", target.Degraded)
 	}
@@ -141,15 +151,25 @@ func (s *TaskService) failoverForFailedTask(ctx context.Context, task db.AgentTa
 // enqueueRuntimeForAgent (K28) answers "where does a new task go": the
 // agent's runtime when it is online (or the agent has no pool), else the
 // first online runtime of the pool. history is nil when nothing moved.
-func (s *TaskService) enqueueRuntimeForAgent(ctx context.Context, agent db.Agent) (runtimeID pgtype.UUID, history []byte) {
+//
+// Data residency (K46) is a second reason to leave the bound runtime: a
+// machine the workspace's policy rejects is as unusable as an offline one, so
+// it sends the task to the pool with the same failover reason.
+func (s *TaskService) enqueueRuntimeForAgent(ctx context.Context, agent db.Agent, filter runtimeComplianceFilter) (runtimeID pgtype.UUID, history []byte) {
 	if !agent.RuntimePoolID.Valid || !agent.RuntimeID.Valid {
 		return agent.RuntimeID, nil
 	}
+	reason := string(taskfailure.ReasonRuntimeOffline)
 	rt, err := s.Queries.GetAgentRuntimeForWorkspace(ctx, db.GetAgentRuntimeForWorkspaceParams{ID: agent.RuntimeID, WorkspaceID: agent.WorkspaceID})
 	if err == nil && rt.Status == "online" {
-		return agent.RuntimeID, nil
+		if ok, _ := residencyAllows(filter, rt); ok {
+			return agent.RuntimeID, nil
+		}
+		// Online but non-compliant: the move is a residency one, not an
+		// availability one, and the failover history says which.
+		reason = "data_residency"
 	}
-	target, _ := s.poolFailoverTarget(ctx, agent, db.AgentTaskQueue{RuntimeID: agent.RuntimeID}, string(taskfailure.ReasonRuntimeOffline))
+	target, _ := s.poolFailoverTarget(ctx, agent, db.AgentTaskQueue{RuntimeID: agent.RuntimeID}, reason, filter)
 	if !target.OK {
 		return agent.RuntimeID, nil
 	}
@@ -171,7 +191,7 @@ func (s *TaskService) MoveWaitingTasksOffOfflineRuntimes(ctx context.Context, re
 		if err != nil {
 			continue
 		}
-		target, _ := s.poolFailoverTarget(ctx, agent, task, string(taskfailure.ReasonRuntimeOffline))
+		target, _ := s.poolFailoverTarget(ctx, agent, task, string(taskfailure.ReasonRuntimeOffline), s.compliantRuntimeFilter(ctx, agent.WorkspaceID))
 		if !target.OK {
 			continue
 		}

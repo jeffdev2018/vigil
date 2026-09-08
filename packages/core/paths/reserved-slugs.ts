@@ -36,7 +36,9 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // `multica` is reserved as the brand name to block impersonation workspaces.
   // `www`, `new`, `home`, `homepage`, `dashboard` are confusables or
   // likely-future global landing/entry routes; `homepage` matches the existing
-  // `/homepage` landing variant in apps/web.
+  // `/homepage` landing variant in apps/web. `preview` is the public run-preview
+  // route (F12): `/preview/{code}` is served by the API for share links, so a
+  // workspace by that name would be ambiguous.
   "api",
   "admin",
   "multica",
@@ -50,6 +52,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   "pricing",
   "changelog",
   "docs",
+  "preview",
   "support",
   "status",
   "legal",
@@ -79,6 +82,7 @@ export const RESERVED_SLUGS: ReadonlySet<string> = new Set([
   // page; `teams` is reserved for future team management.
   "issues",
   "projects",
+  "cycles",
   "goals",
   "autopilots",
   "agents",

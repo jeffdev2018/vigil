@@ -52,6 +52,7 @@ import { ActorAvatar as ActorAvatarBase } from "@multica/ui/components/common/ac
 import { ActorAvatar } from "../../common/actor-avatar";
 import { AvatarUploadControl } from "../../common/avatar-upload-control";
 import { ContentEditor } from "../../editor/content-editor";
+import { CriticPolicySection } from "../../critic";
 import {
   PickerItem,
   PickerSection,
@@ -1046,6 +1047,8 @@ function SquadOverviewPane({
               onSave={onSaveInstructions}
               onDirtyChange={setActiveDirty}
             />
+            {/* Adversarial review (F25): who checks what this squad delivers. */}
+            <CriticPolicySection subjectType="squad" subjectId={squad.id} canManage={canManage} />
           </div>
         )}
       </div>

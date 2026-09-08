@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { useWorkspaceId } from "../hooks";
+import type { AgentMemoryState } from "../types";
 
 export const agentMemoryKeys = {
   all: (wsId: string) => ["agent-memories", wsId] as const,
@@ -33,8 +34,15 @@ export function useUpdateAgentMemory(agentId: string) {
   const qc = useQueryClient();
   const wsId = useWorkspaceId();
   return useMutation({
-    mutationFn: ({ memoryId, content }: { memoryId: string; content: string }) =>
-      api.updateAgentMemory(agentId, memoryId, content),
+    mutationFn: ({
+      memoryId,
+      content,
+      state,
+    }: {
+      memoryId: string;
+      content?: string;
+      state?: AgentMemoryState;
+    }) => api.updateAgentMemory(agentId, memoryId, { content, state }),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: agentMemoryKeys.list(wsId, agentId) });
     },

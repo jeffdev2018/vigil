@@ -77,8 +77,18 @@ func TestHandleCliAuthReportsDeviceCodeAndNeverReportsOrLogsSecret(t *testing.T)
 	if len(reports) < 2 {
 		t.Fatalf("reports = %#v, want progress and completion", reports)
 	}
-	if reports[0]["verification_url"] != "https://auth.openai.com/codex/device" || reports[0]["user_code"] != "ABCD-EFGH" {
-		t.Fatalf("progress report = %#v", reports[0])
+	// The writer reports on every change, so when the CLI's output arrives in
+	// more than one chunk the first progress report legitimately carries the
+	// URL alone and the code follows in the next one. The contract is that
+	// the LAST running report holds both, not that the first one does.
+	var progress map[string]any
+	for _, report := range reports {
+		if report["status"] == "running" {
+			progress = report
+		}
+	}
+	if progress == nil || progress["verification_url"] != "https://auth.openai.com/codex/device" || progress["user_code"] != "ABCD-EFGH" {
+		t.Fatalf("last progress report = %#v (all reports %#v)", progress, reports)
 	}
 	last := reports[len(reports)-1]
 	if last["status"] != "completed" || last["authenticated"] != true {

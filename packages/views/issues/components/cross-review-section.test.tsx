@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { CrossReview } from "@multica/core/issues/cross-review";
+import { crossReviewKeys } from "@multica/core/issues/cross-review";
 import { renderWithI18n } from "../../test/i18n";
 
 // Parsing and state derivation: packages/core/issues/cross-review.test.ts.
@@ -68,5 +69,31 @@ describe("CrossReviewSection", () => {
     expect((await screen.findByTestId("cross-review")).getAttribute("data-state")).toBe("failed");
     fireEvent.click(screen.getByRole("button", { name: "Retry the review" }));
     expect(state.retry).toHaveBeenCalled();
+  });
+
+  it("shows checklist results with pass/fail icons and notes (JEF-238)", async () => {
+    state.reviews = [review({ report: { verdict: "request_changes", risks: [], questions: [], suggestions: [], summary: "", checklist_results: [
+      { item: "no foreign keys in migrations", pass: false, note: "adds REFERENCES" },
+      { item: "tests added", pass: true, note: "" },
+    ] } })];
+    render();
+    const list = await screen.findByTestId("cross-review-checklist");
+    expect(list.textContent).toContain("no foreign keys in migrations");
+    expect(list.textContent).toContain("adds REFERENCES");
+    const items = list.querySelectorAll("li");
+    expect(items[0]?.getAttribute("data-pass")).toBe("false");
+    expect(items[1]?.getAttribute("data-pass")).toBe("true");
+  });
+
+  it("shows a notice when the review sent the task back to the worker (JEF-238)", async () => {
+    state.reviews = [review({ report: { verdict: "request_changes", risks: [], questions: [], suggestions: [], summary: "" } })];
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(crossReviewKeys.signal("ws-1", "i1"), { kind: "rework", cycle: 2, at: 1 });
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <CrossReviewSection issueId="i1" />
+      </QueryClientProvider>,
+    );
+    expect((await screen.findByTestId("cross-review-rework")).textContent).toContain("cycle 2");
   });
 });

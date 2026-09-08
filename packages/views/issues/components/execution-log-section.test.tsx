@@ -17,14 +17,31 @@ vi.mock("../../common/actor-avatar", () => ({
   ActorAvatar: () => <span data-testid="actor-avatar" />,
 }));
 
-vi.mock("../../common/task-transcript", () => ({
+// The transcript buttons are stubbed (they fetch); the run plan is NOT — the
+// counter and the block are part of what this section renders, and the plan
+// component is a pure renderer with nothing to stub away.
+vi.mock("../../common/task-transcript", async () => ({
+  ...(await vi.importActual<Record<string, unknown>>(
+    "../../common/task-transcript/run-plan",
+  )),
   TranscriptButton: ({ title }: { title?: string }) => (
     <button type="button">{title ?? "Transcript"}</button>
   ),
   ReplayButton: () => null,
 }));
 
+vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
+
 vi.mock("./run-controls", () => ({ RunControls: () => null }));
+// The preview chip (F12) queries the run's preview; its own states live in
+// packages/views/runs/components/run-preview-card.test.tsx. Here it stands in
+// as a marker so the row's wiring is still asserted without dragging a query
+// client into every row test.
+vi.mock("../../runs/components/run-preview-chip", () => ({
+  RunPreviewChip: ({ taskId }: { taskId: string }) => (
+    <span data-testid="run-preview-chip" data-task={taskId} />
+  ),
+}));
 vi.mock("./terminate-task-confirm-dialog", () => ({
   TerminateTaskConfirmDialog: () => null,
 }));
@@ -40,6 +57,7 @@ import { act, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
+import { legKeys, type WorkflowLegs } from "@multica/core/issues/legs";
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -69,6 +87,39 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("ActiveTaskRow run plan (F04)", () => {
+  const plan = {
+    seq: 1_000_002,
+    items: [
+      { text: "Read the failing test", status: "done" },
+      { text: "Fix the parser", status: "in_progress" },
+      { text: "Update the docs", status: "pending" },
+    ],
+  };
+
+  it("shows the progress counter and the checklist under the row", () => {
+    renderWithI18n(
+      <ActiveTaskRow task={makeTask({ plan })} issueId="issue-1" />,
+    );
+
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("list", { name: "Run plan: 1 of 3 steps done" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Fix the parser")).toBeInTheDocument();
+  });
+
+  it("renders no counter and no block for a run that published no plan", () => {
+    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("carries the run's preview chip (F12) so a reviewer can reach the dev server", () => {
+    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    expect(screen.getByTestId("run-preview-chip").getAttribute("data-task")).toBe("task-1");
+  });
 });
 
 describe("ActiveTaskRow", () => {
@@ -489,5 +540,67 @@ describe("execution log run states", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+// Per-leg accounting (JEF-274). The role matrix and the endpoint's tolerance
+// are pinned in packages/core/issues/legs.test.ts; this suite covers the
+// wiring: the badge on a stamped run, the workflow line reading its totals,
+// and the two cases where nothing must render.
+describe("workflow legs", () => {
+  const REVIEW_TASK = "task-review";
+
+  function legs(over: Partial<WorkflowLegs["totals"]> = {}): WorkflowLegs {
+    return {
+      root_task_id: "task-1",
+      legs: [],
+      totals: { legs: 3, cost_usd_ticks: 42_000_000_000, input_tokens: 0, output_tokens: 0, duration_seconds: 125, ...over },
+    };
+  }
+
+  function renderLog(workflow?: WorkflowLegs) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+      makeTask({
+        id: REVIEW_TASK,
+        status: "completed",
+        completed_at: "2026-06-08T08:04:30Z",
+        leg_role: "review",
+        workflow_root_task_id: "task-1",
+      }),
+    ]);
+    if (workflow) qc.setQueryData(legKeys.workflow("ws-1", "task-1"), workflow);
+    return renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("badges a stamped leg and never the primary run", () => {
+    renderLog(legs());
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (2)" }));
+    expect(screen.getByText("Review")).toBeInTheDocument();
+    // The primary leg carries no role: a list where every row says "Draft"
+    // says nothing.
+    expect(screen.queryByText("Draft")).toBeNull();
+  });
+
+  it("totals the whole workflow, every leg counted", () => {
+    renderLog(legs());
+    expect(screen.getByText("Workflow")).toBeInTheDocument();
+    expect(screen.getByText("3 runs · $4.20 total · 2m 05s")).toBeInTheDocument();
+  });
+
+  it("renders no summary from a malformed or single-leg response", () => {
+    // What parseWithFallback yields for garbage: an empty workflow.
+    renderLog({ root_task_id: "task-1", legs: [], totals: { legs: 0, cost_usd_ticks: 0, input_tokens: 0, output_tokens: 0, duration_seconds: 0 } });
+    expect(screen.queryByText("Workflow")).toBeNull();
+  });
+
+  it("renders no summary before the workflow has loaded", () => {
+    renderLog();
+    expect(screen.queryByText("Workflow")).toBeNull();
   });
 });

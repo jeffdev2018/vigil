@@ -23,7 +23,7 @@
     },
     {
       "label": "Platform / marketing routes (current + likely-future)",
-      "description": "`multica` is reserved as the brand name to block impersonation workspaces. `www`, `new`, `home`, `homepage`, `dashboard` are confusables or likely-future global landing/entry routes; `homepage` matches the existing `/homepage` landing variant in apps/web.",
+      "description": "`multica` is reserved as the brand name to block impersonation workspaces. `www`, `new`, `home`, `homepage`, `dashboard` are confusables or likely-future global landing/entry routes; `homepage` matches the existing `/homepage` landing variant in apps/web. `preview` is the public run-preview route (F12): `/preview/{code}` is served by the API for share links, so a workspace by that name would be ambiguous.",
       "slugs": [
         "api",
         "admin",
@@ -38,6 +38,7 @@
         "pricing",
         "changelog",
         "docs",
+        "preview",
         "support",
         "status",
         "legal",
@@ -70,6 +71,7 @@
       "slugs": [
         "issues",
         "projects",
+        "cycles",
         "goals",
         "autopilots",
         "agents",

@@ -365,6 +365,57 @@ func (q *Queries) GetTriageItemForContest(ctx context.Context, arg GetTriageItem
 	return i, err
 }
 
+const listContestChallengerCandidates = `-- name: ListContestChallengerCandidates :many
+SELECT a.id, a.name, r.provider,
+       (SELECT MAX(t.created_at) FROM agent_task_queue t WHERE t.agent_id = a.id AND t.review_of_task_id IS NOT NULL) AS last_review_at
+FROM agent a
+JOIN agent_runtime r ON r.id = a.runtime_id
+WHERE a.workspace_id = $1 AND a.kind = 'user' AND a.archived_at IS NULL AND r.provider <> '' AND r.provider <> $2::text
+ORDER BY last_review_at NULLS FIRST, a.created_at
+`
+
+type ListContestChallengerCandidatesParams struct {
+	WorkspaceID    pgtype.UUID `json:"workspace_id"`
+	AuthorProvider string      `json:"author_provider"`
+}
+
+type ListContestChallengerCandidatesRow struct {
+	ID           pgtype.UUID `json:"id"`
+	Name         string      `json:"name"`
+	Provider     string      `json:"provider"`
+	LastReviewAt interface{} `json:"last_review_at"`
+}
+
+// Strict other-provider agents, least recently used as a reviewer first.
+// ListCrossReviewCandidates used to play this role but JEF-238 turned it
+// into prefer-another-provider (same vendor allowed with a different
+// runtime/model pair); the K72 challenger must stay strict so the same-vendor
+// flag and its fallback keep meaning what they did.
+func (q *Queries) ListContestChallengerCandidates(ctx context.Context, arg ListContestChallengerCandidatesParams) ([]ListContestChallengerCandidatesRow, error) {
+	rows, err := q.db.Query(ctx, listContestChallengerCandidates, arg.WorkspaceID, arg.AuthorProvider)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListContestChallengerCandidatesRow{}
+	for rows.Next() {
+		var i ListContestChallengerCandidatesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Provider,
+			&i.LastReviewAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listContestFallbackCandidates = `-- name: ListContestFallbackCandidates :many
 SELECT a.id, a.name, COALESCE(r.provider, '')::text AS provider,
        (SELECT MAX(c.created_at) FROM contest c WHERE c.challenger_agent_id = a.id) AS last_contest_at

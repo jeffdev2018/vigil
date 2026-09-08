@@ -1,0 +1,40 @@
+{
+  "section": {
+    "title": "Revue adverse",
+    "description": "Un critique sur un autre fournisseur relit chaque changement livré par cet agent et enregistre un verdict.",
+    "description_squad": "Un critique sur un autre fournisseur relit chaque changement livré par cette escouade et enregistre un verdict.",
+    "enabled": "Activer la revue adverse",
+    "critic": "Critique",
+    "critic_placeholder": "Choisir un agent",
+    "require_distinct_provider": "Exiger un fournisseur différent",
+    "require_distinct_provider_hint": "Sans critique sur un autre fournisseur, la revue est ignorée et signalée.",
+    "blocking": "Retenir le ticket jusqu'au verdict",
+    "blocking_hint": "Le ticket attend en revue. Un membre peut toujours le déplacer.",
+    "max_rounds": "Tours",
+    "max_rounds_hint": "Combien de fois un changement bloqué peut revenir.",
+    "budget": "Budget de coût",
+    "budget_placeholder": "Sans plafond",
+    "budget_hint": "Total dépensé sur le ticket, en dollars. Au-delà, la boucle s'arrête.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "error_critic_required": "Choisissez un critique avant d'activer la revue adverse.",
+    "error_critic_is_author": "Un agent ne peut pas être son propre critique.",
+    "error_save": "Impossible d'enregistrer la politique."
+  },
+  "card": {
+    "title": "Revue adverse",
+    "round": "Tour {{round}}",
+    "verdict_pass": "Validé",
+    "verdict_concerns": "Réserves",
+    "verdict_block": "Bloqué",
+    "reason_no_distinct_provider": "Ignorée : aucun critique sur un autre fournisseur",
+    "reason_max_rounds": "Arrêtée : limite de tours atteinte",
+    "reason_max_cost": "Arrêtée : limite de coût atteinte",
+    "reason_no_verdict": "Le critique a terminé sans verdict lisible",
+    "findings": "Constats ({{count}})",
+    "hide_findings": "Masquer les constats",
+    "cost": "Coût {{cost}}",
+    "open_run": "Ouvrir l'exécution du critique",
+    "empty": "Aucune revue adverse sur ce ticket."
+  }
+}

@@ -128,5 +128,13 @@
   },
   "navigation": {
     "open_in_new_tab": "새 탭에서 열기"
+  },
+  "run_plan": {
+    "progress_aria": "실행 계획: {{total}}단계 중 {{done}}단계 완료",
+    "show_all": "{{count}}단계 모두 보기",
+    "show_less": "접기",
+    "status_pending": "예정",
+    "status_in_progress": "진행 중",
+    "status_done": "완료"
   }
 }

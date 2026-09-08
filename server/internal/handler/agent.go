@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/go-chi/chi/v5"
@@ -66,9 +67,14 @@ type AgentResponse struct {
 	// branch on this rather than on RuntimeID being falsy, and must not confuse
 	// it with a bound-but-offline runtime (a different user story: reconnect the
 	// machine vs. pick a new one).
-	RuntimeBound bool   `json:"runtime_bound"`
-	Name         string `json:"name"`
-	Description  string `json:"description"`
+	RuntimeBound bool `json:"runtime_bound"`
+	// RuntimeAvailability is the coarse liveness projection for a runtime that
+	// may be hidden from the caller's runtime list. It deliberately carries no
+	// timestamp, device, owner, configuration, or credential fields; clients
+	// use it only when the full runtime row is unavailable.
+	RuntimeAvailability string `json:"runtime_availability,omitempty"`
+	Name                string `json:"name"`
+	Description         string `json:"description"`
 	// Instructions is what this agent's owner wrote. For a system agent it
 	// holds only the workspace's own notes — the product half lives in
 	// SystemInstructions and is never stored on the row.
@@ -368,6 +374,15 @@ type AgentTaskResponse struct {
 	// McpGateway (K77): the effective class of every catalogued tool of the
 	// agent's bound workspace servers, enforced by the daemon's local gateway.
 	McpGateway *mcpgov.Gateway `json:"mcp_gateway,omitempty"`
+	// SensitiveTools (K05) is the workspace's own pattern for the MCP tools
+	// that pause for a human. It travels with the claim because one daemon
+	// serves several workspaces and cannot read a workspace's settings from
+	// its own process environment. Empty means the daemon keeps its compiled
+	// default, which is also what an older server sends.
+	SensitiveTools string `json:"sensitive_tools,omitempty"`
+	// Sandbox (K10): the confinement the claiming runtime asks for; the
+	// daemon decides what the machine can honour and reports it at start.
+	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
 	// PluginHookTools are the workspace's agent-trigger plugin hooks, which the
 	// daemon renders as MCP tools for this task. Resolved at claim time so
 	// disabling or uninstalling a plugin takes effect on the next task rather
@@ -422,6 +437,34 @@ type AgentTaskResponse struct {
 	// predate the router, so the UI renders the block conditionally.
 	TaskClass string          `json:"task_class,omitempty"`
 	Routing   json.RawMessage `json:"routing,omitempty"`
+	// DispatchLane (K45) is "sync" for ordinary work and "batch" for off-peak
+	// autopilot work the claim ordering serves last. Empty on rows written by a
+	// server predating the column, which clients read as "sync".
+	DispatchLane string `json:"dispatch_lane,omitempty"`
+	// RunGroupID (F11) is set when this task is one attempt of a race. The
+	// daemon reads it off the claim to decide whether to measure the run's
+	// diff; empty for every ordinary run.
+	RunGroupID string `json:"run_group_id,omitempty"`
+	// Run confidence (JEF-240): the self-assessed score persisted after a
+	// successful run — score, rationale, model, the threshold that applied and
+	// whether the run landed below it. Empty for unscored runs (disabled LLM,
+	// non-completed status, review runs, rows that predate the feature), so
+	// the UI renders the block conditionally.
+	Confidence json.RawMessage `json:"confidence,omitempty"`
+	// Workflow selector (JEF-273): the workflow stamped on the task's context
+	// at enqueue — "single", "cascade" or "critique". Empty on rows that
+	// predate the selector, so the UI renders the badge conditionally.
+	Workflow string `json:"workflow,omitempty"`
+	// Per-leg accounting (JEF-274): what this run is inside its workflow, and
+	// the primary run every leg of that workflow points at. LegRole is empty
+	// on the primary (draft/single) leg; WorkflowRootTaskID is empty on the
+	// root itself, so a run with neither is a plain single-leg run.
+	LegRole            string `json:"leg_role,omitempty"`
+	WorkflowRootTaskID string `json:"workflow_root_task_id,omitempty"`
+	// Cascade escalation (JEF-272): the escalation record persisted under
+	// context.escalation when this task is a cascade retry — from_task_id,
+	// reason, attempt, from_runtime_id. Empty for first-attempt runs.
+	Escalation json.RawMessage `json:"escalation,omitempty"`
 	// Pause, steer, resume (K19).
 	PauseRequestedAt *string `json:"pause_requested_at"`
 	ResumedByTaskID  *string `json:"resumed_by_task_id"`
@@ -465,9 +508,24 @@ type AgentTaskResponse struct {
 	// memories they are shared by every agent in the workspace. Omitted when
 	// the Brain is empty and by older servers.
 	WorkspaceNotes []WorkspaceNoteContext `json:"workspace_notes,omitempty"`
-	CreatedAt      string                 `json:"created_at"`
-	PriorSessionID string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
-	PriorWorkDir   string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
+	// AutopilotMemory is the execution memory of the daemon that started this
+	// run (F24 / JEF-15) — notes a previous run of THIS autopilot left for the
+	// next one. Autopilot-scoped, not agent-scoped: the same agent serving
+	// another daemon never sees it. Omitted when the run has no autopilot,
+	// when the memory is empty, and by older servers.
+	AutopilotMemory string `json:"autopilot_memory,omitempty"`
+	// RepoIndexHints (K47) are the shared repo index's most relevant chunks for
+	// this issue: file, line range and a short excerpt, so the run starts from a
+	// place instead of a grep. They ORIENT — the brief tells the run to read the
+	// real file before editing, because a chunk can predate the working tree.
+	// Omitted when no repo is indexed, when nothing matched, and by older
+	// servers. RepoIndexEnabled names the repos the workspace opted in to, so a
+	// daemon knows which ones to re-index after the run without asking again.
+	RepoIndexHints   []RepoIndexHintContext `json:"repo_index_hints,omitempty"`
+	RepoIndexEnabled []string               `json:"repo_index_enabled,omitempty"`
+	CreatedAt        string                 `json:"created_at"`
+	PriorSessionID   string                 `json:"prior_session_id,omitempty"` // session ID from a previous task on same issue
+	PriorWorkDir     string                 `json:"prior_work_dir,omitempty"`   // work_dir from a previous task on same issue
 	// PriorSessionResumeUnavailable is set when a more recent Codex session was
 	// withheld because its rollout was missing (MUL-5305); PriorSessionID (if
 	// any) is then an older fallback. The daemon surfaces the continuity gap in
@@ -498,38 +556,56 @@ type AgentTaskResponse struct {
 	// verbatim: it is a ref inside the user's own repo, not a filesystem path.
 	// Populated on both terminal paths — a failed run can still have committed
 	// partial work, and that is when the pointer matters most.
-	BranchName               string                 `json:"branch_name,omitempty"`
-	TriggerCommentID         *string                `json:"trigger_comment_id,omitempty"`          // comment that triggered this task
-	CoalescedCommentIDs      []string               `json:"coalesced_comment_ids,omitempty"`       // MUL-4195: earlier comments folded into this run when it had not yet started, so a single run still covers every deliberate comment; trigger_comment_id is the newest. Surfaced so the UI can show which comments a run covered. omitempty so old clients ignore it
-	CoalescedComments        []CoalescedCommentData `json:"coalesced_comments,omitempty"`          // MUL-4195: full detail (thread_id/author/created_at/content) of the folded comments, so the daemon prompt can address each without assuming they share the triggering thread. omitempty so old clients ignore it
-	DeliveredCommentIDs      []string               `json:"delivered_comment_ids"`                 // always present: [] is an authoritative empty receipt, while field absence identifies responses from legacy servers
-	TriggerThreadID          string                 `json:"trigger_thread_id,omitempty"`           // root comment ID for the triggering thread
-	TriggerCommentContent    string                 `json:"trigger_comment_content,omitempty"`     // content of the triggering comment
-	TriggerSummary           *string                `json:"trigger_summary,omitempty"`             // canonical short description snapshot — comment text / autopilot title — taken at task creation; survives source edits/deletes
-	TriggerAuthorType        string                 `json:"trigger_author_type,omitempty"`         // "agent" or "member" — author kind of the triggering comment
-	TriggerAuthorName        string                 `json:"trigger_author_name,omitempty"`         // display name of the triggering comment author
-	NewCommentCount          int                    `json:"new_comment_count,omitempty"`           // trigger-thread comments since last run; excludes injected trigger + own comments; omitempty so old daemons ignore it
-	NewCommentsSince         string                 `json:"new_comments_since,omitempty"`          // RFC3339 anchor (last run's started_at) the count is measured from; omitempty so old daemons ignore it
-	ChatSessionID            string                 `json:"chat_session_id,omitempty"`             // non-empty for chat tasks
-	ChatChannelType          string                 `json:"chat_channel_type,omitempty"`           // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Makes the agent channel-aware (read history from the channel, not Multica)
-	ChatChannelDeliversFiles bool                   `json:"chat_channel_delivers_files,omitempty"` // server capability: THIS deployment can put a file the agent produced into THIS conversation — the adapter goes back for the bound attachment AND object storage exists to go back to. Absent/false on a server predating it, which is the safe reading: the agent is told to describe its file in words. Never inferred daemon-side from chat_channel_type; see handler.Handler.channelDeliversFiles
-	ChatType                 string                 `json:"chat_type,omitempty"`                   // channel_chat_session_binding.chat_type — "group" for a shared room, "p2p" for a 1:1 with the bot. Lets the per-turn prompt tell the agent who else can read its replies; empty for a web-only chat
-	ChatInThread             bool                   `json:"chat_in_thread,omitempty"`              // true when the latest @mention was a thread reply; tells the agent to start with `multica chat thread` vs `multica chat history`
-	ChatMessage              string                 `json:"chat_message,omitempty"`                // user message for chat tasks
-	ChatMessageAttachments   []ChatAttachmentMeta   `json:"chat_message_attachments,omitempty"`    // attachments on the user message — agent calls `multica attachment download <id>` per entry
-	ChatIntro                bool                   `json:"chat_intro,omitempty"`                  // legacy compatibility for historical is_agent_intro sessions; new agent creation no longer creates these chats
-	AutopilotRunID           string                 `json:"autopilot_run_id,omitempty"`            // non-empty for autopilot-spawned tasks
-	AutopilotID              string                 `json:"autopilot_id,omitempty"`                // autopilot that spawned this task
-	AutopilotTitle           string                 `json:"autopilot_title,omitempty"`             // autopilot title used as task context
-	AutopilotDescription     string                 `json:"autopilot_description,omitempty"`       // autopilot description used as task prompt
-	AutopilotSource          string                 `json:"autopilot_source,omitempty"`            // manual, schedule, webhook, or api
-	AutopilotTriggerPayload  json.RawMessage        `json:"autopilot_trigger_payload,omitempty"`   // optional trigger payload for webhook/api runs
-	QuickCreatePrompt        string                 `json:"quick_create_prompt,omitempty"`         // user's natural-language input for quick-create tasks
-	QuickCreatePriority      string                 `json:"quick_create_priority,omitempty"`       // explicit priority selected in quick-create
-	QuickCreateDueDate       string                 `json:"quick_create_due_date,omitempty"`       // explicit calendar due date selected in quick-create
-	QuickCreateAttachmentIDs []string               `json:"quick_create_attachment_ids,omitempty"` // attachment ids uploaded in the quick-create prompt and bound on issue create
-	QuickCreateSourceContext json.RawMessage        `json:"quick_create_source_context,omitempty"` // immutable historical context for source-context quick-create
-	HandoffNote              string                 `json:"handoff_note,omitempty"`                // legacy assignment handoff instruction retained for installed clients; rendered by the daemon only in the per-turn prompt
+	BranchName string `json:"branch_name,omitempty"`
+	// Turn checkpoints (F09). CheckpointSHA is the git commit recording what
+	// this worktree run delivered; TurnSeq is its position among the
+	// conversation's checkpointed turns. Revertable is the derived affordance:
+	// absent means the UI leaves the action out entirely rather than showing a
+	// disabled one, so a server that never sets these looks the same as a run
+	// that cannot be reverted.
+	CheckpointSHA         string                 `json:"checkpoint_sha,omitempty"`
+	TurnSeq               *int32                 `json:"turn_seq,omitempty"`
+	Revertable            bool                   `json:"revertable,omitempty"`
+	TriggerCommentID      *string                `json:"trigger_comment_id,omitempty"`      // comment that triggered this task
+	CoalescedCommentIDs   []string               `json:"coalesced_comment_ids,omitempty"`   // MUL-4195: earlier comments folded into this run when it had not yet started, so a single run still covers every deliberate comment; trigger_comment_id is the newest. Surfaced so the UI can show which comments a run covered. omitempty so old clients ignore it
+	CoalescedComments     []CoalescedCommentData `json:"coalesced_comments,omitempty"`      // MUL-4195: full detail (thread_id/author/created_at/content) of the folded comments, so the daemon prompt can address each without assuming they share the triggering thread. omitempty so old clients ignore it
+	DeliveredCommentIDs   []string               `json:"delivered_comment_ids"`             // always present: [] is an authoritative empty receipt, while field absence identifies responses from legacy servers
+	TriggerThreadID       string                 `json:"trigger_thread_id,omitempty"`       // root comment ID for the triggering thread
+	TriggerCommentContent string                 `json:"trigger_comment_content,omitempty"` // content of the triggering comment
+	TriggerSummary        *string                `json:"trigger_summary,omitempty"`         // canonical short description snapshot — comment text / autopilot title — taken at task creation; survives source edits/deletes
+	TriggerAuthorType     string                 `json:"trigger_author_type,omitempty"`     // "agent" or "member" — author kind of the triggering comment
+	TriggerAuthorName     string                 `json:"trigger_author_name,omitempty"`     // display name of the triggering comment author
+	NewCommentCount       int                    `json:"new_comment_count,omitempty"`       // ISSUE-WIDE comments since this agent's last run — every thread, not just the triggering one (CountNewCommentsSince); excludes the injected trigger and the agent's own comments; omitempty so old daemons ignore it
+	NewCommentsSince      string                 `json:"new_comments_since,omitempty"`      // RFC3339 anchor (last run's started_at) the count is measured from; omitempty so old daemons ignore it. Suppressed with the count when the delta is zero — NewCommentsDeltaKnown, not this field, is what says the server looked
+	// NewCommentsDeltaKnown reports that the issue-wide delta above was
+	// actually COMPUTED this claim — both the anchor lookup and the count
+	// query succeeded. Without it, NewCommentCount == 0 is ambiguous: a true
+	// zero, a failed anchor read, a failed count read, a cold start with no
+	// prior run, and an old server that never sends these fields all produce
+	// the same zero. Only the first of those answers "has anything else been
+	// said on this issue", so only the first may waive the workflow's comment
+	// scan. Absent on old servers, which is the safe reading (MUL-6984).
+	NewCommentsDeltaKnown    bool                 `json:"new_comments_delta_known,omitempty"`
+	ChatSessionID            string               `json:"chat_session_id,omitempty"`             // non-empty for chat tasks
+	ChatChannelType          string               `json:"chat_channel_type,omitempty"`           // "slack" when the chat session is backed by an IM channel; empty for a web-only chat. Makes the agent channel-aware (read history from the channel, not Multica)
+	ChatChannelDeliversFiles bool                 `json:"chat_channel_delivers_files,omitempty"` // server capability: THIS deployment can put a file the agent produced into THIS conversation — the adapter goes back for the bound attachment AND object storage exists to go back to. Absent/false on a server predating it, which is the safe reading: the agent is told to describe its file in words. Never inferred daemon-side from chat_channel_type; see handler.Handler.channelDeliversFiles
+	ChatType                 string               `json:"chat_type,omitempty"`                   // channel_chat_session_binding.chat_type — "group" for a shared room, "p2p" for a 1:1 with the bot. Lets the per-turn prompt tell the agent who else can read its replies; empty for a web-only chat
+	ChatInThread             bool                 `json:"chat_in_thread,omitempty"`              // true when the latest @mention was a thread reply; tells the agent to start with `multica chat thread` vs `multica chat history`
+	ChatMessage              string               `json:"chat_message,omitempty"`                // user message for chat tasks
+	ChatMessageAttachments   []ChatAttachmentMeta `json:"chat_message_attachments,omitempty"`    // attachments on the user message — agent calls `multica attachment download <id>` per entry
+	ChatIntro                bool                 `json:"chat_intro,omitempty"`                  // legacy compatibility for historical is_agent_intro sessions; new agent creation no longer creates these chats
+	AutopilotRunID           string               `json:"autopilot_run_id,omitempty"`            // non-empty for autopilot-spawned tasks
+	AutopilotID              string               `json:"autopilot_id,omitempty"`                // autopilot that spawned this task
+	AutopilotTitle           string               `json:"autopilot_title,omitempty"`             // autopilot title used as task context
+	AutopilotDescription     string               `json:"autopilot_description,omitempty"`       // autopilot description used as task prompt
+	AutopilotSource          string               `json:"autopilot_source,omitempty"`            // manual, schedule, webhook, or api
+	AutopilotTriggerPayload  json.RawMessage      `json:"autopilot_trigger_payload,omitempty"`   // optional trigger payload for webhook/api runs
+	QuickCreatePrompt        string               `json:"quick_create_prompt,omitempty"`         // user's natural-language input for quick-create tasks
+	QuickCreatePriority      string               `json:"quick_create_priority,omitempty"`       // explicit priority selected in quick-create
+	QuickCreateDueDate       string               `json:"quick_create_due_date,omitempty"`       // explicit calendar due date selected in quick-create
+	QuickCreateAttachmentIDs []string             `json:"quick_create_attachment_ids,omitempty"` // attachment ids uploaded in the quick-create prompt and bound on issue create
+	QuickCreateSourceContext json.RawMessage      `json:"quick_create_source_context,omitempty"` // immutable historical context for source-context quick-create
+	HandoffNote              string               `json:"handoff_note,omitempty"`                // legacy assignment handoff instruction retained for installed clients; rendered by the daemon only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue, for the resuming agent.
 	HandoffPacket         *HandoffPacketResponse `json:"handoff_packet,omitempty"`
 	SquadID               string                 `json:"squad_id,omitempty"`                // for quick-create tasks where the picker was a squad; Agent is still the resolved leader
@@ -570,15 +646,23 @@ type AgentTaskResponse struct {
 	Attribution *TaskAttribution `json:"attribution,omitempty"`
 	// Usage is this run's own token consumption, one entry per (provider, model)
 	// it used — the same grain `task_usage` stores and the same grain the client
-	// prices at. Hydrated only on the issue-facing execution-log endpoint
-	// (ListTasksByIssue); the daemon claim path leaves it nil so the claim
-	// payload does not carry accounting the agent has no use for.
+	// prices at. Hydrated on issue execution logs and explicit agent-history
+	// accounting requests; normal UI history and daemon claims leave it nil so
+	// those payloads do not carry accounting they do not use.
 	//
 	// nil and [] are both "no usage recorded" and the UI renders an em dash for
 	// them — a run that predates usage reporting, or one that died before any
 	// model call, genuinely has no number, and showing 0 would assert it was
 	// free. omitempty keeps both off the wire.
 	Usage []TaskUsageData `json:"usage,omitempty"`
+	// Plan is the run's living checklist (F04) — the newest 'plan' task_message
+	// it published. Hydrated only on the issue-facing surfaces (the execution
+	// log and the active-task read); the daemon claim path leaves it nil, since
+	// the run is the thing that writes it.
+	//
+	// Absent when the run never published one, which the UI renders as no plan
+	// block at all — an empty checklist would assert the run has nothing to do.
+	Plan *RunPlan `json:"plan,omitempty"`
 	// AuthToken is the task-scoped `mat_` token the daemon must inject as
 	// MULTICA_TOKEN in the agent process environment. The server binds it to
 	// this (agent_id, task_id) pair at claim time and treats any request
@@ -808,6 +892,12 @@ type TaskAgentData struct {
 	// claim time and rendered by the daemon as the brief's Memory section.
 	// Omitted when the agent has none.
 	Memories []string `json:"memories,omitempty"`
+	// MemoryStates carries the governance state of each Memories entry by
+	// index ("draft" | "approved", JEF-269). Kept as a parallel array so the
+	// wire shape of Memories never changes: daemons and servers of any age
+	// decode claims in both skew directions. Absent entries (older server)
+	// are treated as approved by the daemon.
+	MemoryStates []string `json:"memory_states,omitempty"`
 }
 
 // taskToResponse maps a queue row to its wire shape. workspaceID is threaded
@@ -841,6 +931,14 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	if t.HandoffNote.Valid {
 		handoffNote = t.HandoffNote.String
 	}
+	// Cascade escalation (JEF-272) lives in the context JSONB, not a column.
+	var escalation json.RawMessage
+	if len(t.Context) > 0 {
+		var ctxMap map[string]json.RawMessage
+		if err := json.Unmarshal(t.Context, &ctxMap); err == nil {
+			escalation = ctxMap["escalation"]
+		}
+	}
 	return AgentTaskResponse{
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),
@@ -861,6 +959,13 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		RoutingDecision:        json.RawMessage(t.RoutingDecision),
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
+		DispatchLane:           t.DispatchLane,
+		RunGroupID:             uuidToString(t.RunGroupID),
+		LegRole:                t.LegRole,
+		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
+		Confidence:             json.RawMessage(t.Confidence),
+		Escalation:             escalation,
+		Workflow:               service.TaskWorkflow(t.Context),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
 		LastCheckpointSeq:      int8ToPtr(t.LastCheckpointSeq),
@@ -870,6 +975,9 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		PreemptedAt:            timestampToPtr(t.PreemptedAt),
 		PreemptedByTaskID:      uuidToPtr(t.PreemptedByTaskID),
 		BranchName:             branchName,
+		CheckpointSHA:          t.CheckpointSha.String,
+		TurnSeq:                int4ToPtr(t.TurnSeq),
+		Revertable:             taskRevertable(t),
 		Attempt:                t.Attempt,
 		MaxAttempts:            t.MaxAttempts,
 		ParentTaskID:           uuidToPtr(t.ParentTaskID),
@@ -1055,6 +1163,58 @@ func computeTaskKind(t db.AgentTaskQueue) string {
 	return "direct"
 }
 
+// loadAgentRuntimeAvailability returns only a coarse liveness bucket for
+// agent presence. Runtime rows are loaded internally even when the caller is
+// not allowed to list or inspect the private runtime; no runtime fields are
+// copied onto an agent response. The existing runtime-list visibility contract
+// is mirrored so the bucket is only copied when the full row is hidden.
+func (h *Handler) loadAgentRuntimeAvailability(ctx context.Context, agents []db.Agent, workspaceID, viewerID, viewerRole string, now time.Time) (map[string]string, error) {
+	// Owner/admin runtime lists already contain every row, so their normal
+	// client-side derivation is authoritative and no projection query is needed.
+	if roleAllowed(viewerRole, "owner", "admin") {
+		return map[string]string{}, nil
+	}
+
+	runtimeIDs := make([]pgtype.UUID, 0, len(agents))
+	for _, agent := range agents {
+		// Archived presence always resolves to "archived", so its runtime state
+		// is neither user-visible nor a reason for clients to keep polling.
+		if !agent.ArchivedAt.Valid && agent.RuntimeID.Valid {
+			runtimeIDs = append(runtimeIDs, agent.RuntimeID)
+		}
+	}
+	result := make(map[string]string, len(runtimeIDs))
+	if len(runtimeIDs) == 0 {
+		return result, nil
+	}
+
+	runtimes, err := h.Queries.GetAgentRuntimes(ctx, runtimeIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, runtime := range runtimes {
+		// Agent/runtime workspace consistency is normally enforced at bind time;
+		// keep the projection fail-closed if a legacy row violates it.
+		if uuidToString(runtime.WorkspaceID) != workspaceID {
+			continue
+		}
+		// ListAgentRuntimes exposes every row to workspace owner/admin and only
+		// owner/public rows to regular members. Keep the coarse bridge for the
+		// rows that the viewer's runtime list cannot carry.
+		if runtime.Visibility == "public" ||
+			(runtime.OwnerID.Valid && uuidToString(runtime.OwnerID) == viewerID) {
+			continue
+		}
+		result[uuidToString(runtime.ID)] = deriveAgentRuntimeAvailability(runtime, now)
+	}
+	return result, nil
+}
+
+func deriveAgentRuntimeAvailability(runtime db.AgentRuntime, now time.Time) string {
+	status := pgtype.Text{String: runtime.Status, Valid: runtime.Status != ""}
+	return deriveRuntimeAvailability(status, runtime.LastSeenAt, now)
+}
+
 func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 	workspaceID := h.resolveWorkspaceID(r)
 	member, ok := h.workspaceMember(w, r, workspaceID)
@@ -1072,6 +1232,11 @@ func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list agents")
+		return
+	}
+	runtimeAvailabilityByID, err := h.loadAgentRuntimeAvailability(r.Context(), agents, workspaceID, userID, member.Role, time.Now())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load agent runtime availability")
 		return
 	}
 
@@ -1125,6 +1290,12 @@ func (h *Handler) ListAgents(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		resp := h.agentToResponse(a)
+		// The map is keyed by runtime, and active + archived agents may share one.
+		// Keep the archived guard here as well as in the loader so an active sibling
+		// cannot leak its projection onto an archived response.
+		if availability, ok := runtimeAvailabilityByID[resp.RuntimeID]; ok && !a.ArchivedAt.Valid {
+			resp.RuntimeAvailability = availability
+		}
 		applyInvocationTargetsToResponse(&resp, targets)
 		if skills, ok := skillMap[resp.ID]; ok {
 			resp.Skills = skills
@@ -1168,12 +1339,25 @@ func (h *Handler) GetAgent(w http.ResponseWriter, r *http.Request) {
 	// render an explicit "no access" placeholder instead of a 404 — see
 	// agent-detail-page.tsx.
 	workspaceID := uuidToString(agent.WorkspaceID)
-	actorType, actorID := h.resolveActor(r, requestUserID(r), workspaceID)
+	userID := requestUserID(r)
+	actorType, actorID := h.resolveActor(r, userID, workspaceID)
 	if !h.canAccessPrivateAgent(r.Context(), agent, actorType, actorID, workspaceID) {
 		writeError(w, http.StatusForbidden, "you do not have access to this agent")
 		return
 	}
 	resp := h.agentToResponse(agent)
+	viewerRole := ""
+	if member, ok := ctxMember(r.Context()); ok {
+		viewerRole = member.Role
+	}
+	runtimeAvailability, err := h.loadAgentRuntimeAvailability(r.Context(), []db.Agent{agent}, workspaceID, userID, viewerRole, time.Now())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load agent runtime availability")
+		return
+	}
+	if availability, ok := runtimeAvailability[resp.RuntimeID]; ok {
+		resp.RuntimeAvailability = availability
+	}
 	if !h.enrichAgentResponseWithTargetsHTTP(w, r, &resp, agent.ID) {
 		return
 	}
@@ -1188,7 +1372,6 @@ func (h *Handler) GetAgent(w http.ResponseWriter, r *http.Request) {
 
 	// mcp_config redaction (custom_env was removed from this response shape
 	// in MUL-2600; secrets are now fetched via GET /api/agents/{id}/env).
-	userID := requestUserID(r)
 	ws, err := h.Queries.GetWorkspace(r.Context(), agent.WorkspaceID)
 	if err != nil {
 		slog.Warn("GetWorkspace failed for redact check", "workspace_id", uuidToString(agent.WorkspaceID), "error", err)
@@ -2463,13 +2646,11 @@ func (h *Handler) ArchiveAgent(w http.ResponseWriter, r *http.Request) {
 
 	// Cancel all pending/active tasks for this agent. The cancel and its
 	// delegated-failure settlement commit together — a settlement issued after
-	// the cancel committed could never be repaired. Per-task task:cancelled
-	// events are still skipped: the agent:archived event below already triggers
-	// a full active-tasks invalidation on every connected client.
-	if cancelled, err := h.TaskService.CancelTasksForArchivedAgent(r.Context(), agent.ID); err != nil {
+	// the cancel committed could never be repaired. Chat tasks publish
+	// task:cancelled after commit for chat lifecycle consumers; the aggregate
+	// agent:archived event below remains unchanged.
+	if _, err := h.TaskService.CancelTasksForArchivedAgent(r.Context(), agent.ID); err != nil {
 		slog.Warn("cancel agent tasks on archive failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
-	} else {
-		h.TaskService.CaptureCancelledTasks(r.Context(), cancelled)
 	}
 
 	wsID := uuidToString(archived.WorkspaceID)
@@ -2575,6 +2756,16 @@ func (h *Handler) ListAgentTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	includeUsage := false
+	switch raw := strings.TrimSpace(r.URL.Query().Get("include_usage")); raw {
+	case "", "false":
+	case "true":
+		includeUsage = true
+	default:
+		writeError(w, http.StatusBadRequest, "include_usage must be true or false")
+		return
+	}
+
 	tasks, err := h.Queries.ListAgentTasks(r.Context(), agent.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to list agent tasks")
@@ -2582,10 +2773,24 @@ func (h *Handler) ListAgentTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := make([]AgentTaskResponse, len(tasks))
+	var taskIDs []pgtype.UUID
+	if includeUsage {
+		taskIDs = make([]pgtype.UUID, len(tasks))
+	}
 	for i, t := range tasks {
 		resp[i] = taskToResponse(t, workspaceID)
+		if includeUsage {
+			taskIDs[i] = t.ID
+		}
 	}
 	h.hydrateTaskAttributions(r.Context(), attributionsOf(resp))
+	if includeUsage {
+		if err := h.hydrateAgentTaskUsage(r.Context(), agent.ID, taskIDs, resp); err != nil {
+			slog.Warn("list agent task usage failed", append(logger.RequestAttrs(r), "error", err, "agent_id", id)...)
+			writeError(w, http.StatusInternalServerError, "failed to list agent task usage")
+			return
+		}
+	}
 
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -2864,4 +3069,11 @@ func (h *Handler) ListWorkspaceAgentTaskSnapshot(w http.ResponseWriter, r *http.
 	h.hydrateTaskAttributions(r.Context(), attributionsOf(resp))
 
 	writeJSON(w, http.StatusOK, resp)
+}
+
+// SandboxSpec (K10) mirrors internal/daemon.SandboxSpec.
+type SandboxSpec struct {
+	Mode         string   `json:"mode"`
+	Image        string   `json:"image,omitempty"`
+	AllowedHosts []string `json:"allowed_hosts,omitempty"`
 }

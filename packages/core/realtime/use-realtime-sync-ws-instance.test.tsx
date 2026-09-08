@@ -9,6 +9,7 @@ import type { WSClient } from "../api/ws-client";
 import { defaultStorage } from "../platform/storage";
 import { issueKeys } from "../issues/queries";
 import { chatKeys } from "../chat/queries";
+import { runtimeKeys } from "../runtimes/queries";
 import { workspaceWorkingAgentsKeys } from "../agents/queries";
 import { workspaceKeys } from "../workspace/queries";
 import { issueStatusKeys } from "../issue-statuses/queries";
@@ -117,12 +118,12 @@ describe("useRealtimeSync — ws instance change", () => {
     rerender({ ws: ws2 });
 
     // Should have called invalidateQueries for all workspace-scoped keys
-    // (18 workspace-scoped [incl. property definitions, agent memories and
-    // meetings] + 6 per-issue prefixes + the workspace working-agents
-    // projection + 5 per-chat prefixes + 1 workspaceKeys.list() + 1
-    // cross-workspace inbox unread summary + budget policy/status scope
-    // = 34 calls)
-    expect(invalidateSpy).toHaveBeenCalledTimes(34);
+    // (19 workspace-scoped [incl. property definitions, agent memories,
+    // meetings and the F30 work item type catalogue] + 6 per-issue prefixes +
+    // the workspace working-agents projection + 5 per-chat prefixes + 1
+    // workspaceKeys.list() + 1 cross-workspace inbox unread summary + budget
+    // policy/status scope = 35 calls)
+    expect(invalidateSpy).toHaveBeenCalledTimes(35);
   });
 
   it("does not re-invalidate when rerendered with the same ws instance", () => {
@@ -159,6 +160,31 @@ describe("useRealtimeSync — ws instance change", () => {
     // A catalog edit made while this client was disconnected is otherwise
     // invisible for the query's whole 5-minute staleTime.
     expect(calls).toContainEqual(issueStatusKeys.all("ws-1"));
+  });
+
+  it("invalidates agent projections when a daemon changes liveness", () => {
+    vi.useFakeTimers();
+    try {
+      const ws = createMockWs();
+      renderHook(() => useRealtimeSync(ws, stores), {
+        wrapper: createWrapper(qc),
+      });
+      const onAny = vi.mocked(ws.onAny).mock.calls[0]?.[0];
+      expect(onAny).toBeDefined();
+
+      invalidateSpy.mockClear();
+      onAny!({ type: "daemon:register", payload: {} } as never);
+      vi.advanceTimersByTime(100);
+
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: runtimeKeys.all("ws-1"),
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: workspaceKeys.agents("ws-1"),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("invalidates per-issue caches (no wsId in key) on ws instance change", () => {

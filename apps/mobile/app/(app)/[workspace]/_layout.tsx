@@ -210,6 +210,17 @@ export default function WorkspaceLayout() {
             title: "Assignee",
           }}
         />
+        {/* Delegate (F01) — same native-header + search experiment as the
+            assignee sheet above; the two sit next to each other in the
+            attribute row, so they must feel identical. */}
+        <Stack.Screen
+          name="issue/[id]/picker/delegate"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Delegate",
+          }}
+        />
         <Stack.Screen
           name="issue/[id]/picker/label"
           options={SHEET_OPTIONS}
@@ -244,6 +255,21 @@ export default function WorkspaceLayout() {
         <Stack.Screen
           name="issue/[id]/comment/[commentId]/emoji-picker"
           options={SHEET_OPTIONS}
+        />
+        {/* Sub-issue creation anchored on a comment. Pushed from the
+            "Create Sub-issue" item in the comment long-press menu — see
+            components/issue/comment-context-menu.tsx. formSheet (not
+            "modal" like new-issue.tsx) per the container-selection table
+            in apps/mobile/CLAUDE.md Lesson 5: this is a form with a
+            keyboard nested under the issue-detail context, not a
+            route-level top-level flow. */}
+        <Stack.Screen
+          name="issue/[id]/comment/[commentId]/new-sub-issue"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Sub-issue",
+          }}
         />
         {/* Project-detail formSheet pickers. */}
         <Stack.Screen
@@ -387,6 +413,16 @@ export default function WorkspaceLayout() {
           name="new-issue"
           options={{
             title: "New Issue",
+            presentation: "modal",
+            headerLeft: () => <ModalCloseButton />,
+          }}
+        />
+        {/* Voice-dictated issue draft (K36). A modal like new-issue: it is a
+            two-step flow with its own keyboard, not a picker sheet. */}
+        <Stack.Screen
+          name="new-issue-voice"
+          options={{
+            title: "Dictate an issue",
             presentation: "modal",
             headerLeft: () => <ModalCloseButton />,
           }}

@@ -59,3 +59,55 @@ describe("baselineFromQuery property filters", () => {
     expect(baseline.property.size).toBe(0);
   });
 });
+
+// Dated cycles (F29) added `cycleFilters` to the saved-view query. A view
+// saved before it must still open — the whole point of a tolerant parse.
+describe("baselineFromQuery cycle filters", () => {
+  it("reads a cycle filter into both the membership set and the reset snapshot", () => {
+    const baseline = baselineFromQuery({ cycleFilters: ["cycle-1", "cycle-2"] });
+    expect([...baseline.cycle]).toEqual(["cycle-1", "cycle-2"]);
+    expect(baseline.raw.cycleFilters).toEqual(["cycle-1", "cycle-2"]);
+  });
+
+  it("keeps a view saved before cycles valid, with no cycle fixed", () => {
+    const baseline = baselineFromQuery({ statusFilters: ["todo"], projectFilters: ["p1"] });
+    expect(baseline.cycle.size).toBe(0);
+    expect(baseline.raw.cycleFilters).toEqual([]);
+    // The rest of the view is untouched: an added dimension must not cost the
+    // dimensions the view already had.
+    expect(baseline.raw.statusFilters).toEqual(["todo"]);
+    expect([...baseline.project]).toEqual(["p1"]);
+  });
+
+  it("drops a non-string member a hand-edited query smuggled in", () => {
+    const baseline = baselineFromQuery({ cycleFilters: ["cycle-1", 7, null] });
+    expect(baseline.raw.cycleFilters).toEqual(["cycle-1"]);
+  });
+});
+
+// Work item types (F30) added `typeFilters` the same way cycles added theirs.
+describe("baselineFromQuery type filters", () => {
+  it("reads a type filter into both the membership set and the reset snapshot", () => {
+    const baseline = baselineFromQuery({ typeFilters: ["bug", "story"] });
+    expect([...baseline.type]).toEqual(["bug", "story"]);
+    expect(baseline.raw.typeFilters).toEqual(["bug", "story"]);
+  });
+
+  // Acceptance 13 (second half): a view saved before F30 must still open.
+  it("keeps a view saved before work item types valid, with no type fixed", () => {
+    const baseline = baselineFromQuery({ statusFilters: ["todo"], cycleFilters: ["c1"] });
+    expect(baseline.type.size).toBe(0);
+    expect(baseline.raw.typeFilters).toEqual([]);
+    expect(baseline.raw.statusFilters).toEqual(["todo"]);
+    expect(baseline.raw.cycleFilters).toEqual(["c1"]);
+  });
+
+  // A type key is WORKSPACE-defined, so there is no constant to validate it
+  // against. Filtering here against a fixed list is exactly what deleted every
+  // custom status filter on reopen before MUL-6243 — only unrepresentable
+  // members (non-strings, empty strings) are dropped.
+  it("keeps a custom type key it has never heard of", () => {
+    const baseline = baselineFromQuery({ typeFilters: ["spike", 7, "", null] });
+    expect(baseline.raw.typeFilters).toEqual(["spike"]);
+  });
+});

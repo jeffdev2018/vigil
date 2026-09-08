@@ -20,6 +20,10 @@ SELECT
     atq.task_class,
     COUNT(*)::int AS samples,
     COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    -- How much of this bucket came from a deliberate benchmark (JEF-276)
+    -- rather than from ordinary work, so the dashboard can say where the
+    -- evidence for a pair comes from.
+    COUNT(*) FILTER (WHERE atq.leg_role = 'benchmark')::int AS benchmark_samples,
     COUNT(tu.cost_usd_ticks)::int AS cost_samples,
     COALESCE(SUM(tu.cost_usd_ticks) FILTER (WHERE tu.cost_usd_ticks IS NOT NULL), 0)::float8
         AS total_cost_usd_ticks,
@@ -48,6 +52,16 @@ WHERE a.workspace_id = $1
   AND atq.status IN ('completed', 'failed')
   AND atq.completed_at IS NOT NULL
   AND atq.completed_at >= $2::timestamptz
+  -- Per-leg accounting (JEF-274): a review-like leg judges someone else's
+  -- work, so counting it as a sample of the worker's task class measures the
+  -- wrong job — a reviewer's cost, duration and success rate say nothing
+  -- about how a runtime performs on a bugfix. Retry, fallback, revision and
+  -- escalation legs DO count: they are real attempts at the class.
+  -- A benchmark leg (JEF-276) is deliberately absent from that list: it is
+  -- the same exam, pinned to one (runtime, model) candidate so its outcome is
+  -- evidence about that pair. Excluding it would throw away the only runs
+  -- deliberately produced to measure a policy.
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough', 'epic_step')
 GROUP BY atq.runtime_id, r.name, LOWER(tu.provider), tu.model, atq.task_class
 ORDER BY atq.runtime_id, LOWER(tu.provider), tu.model, atq.task_class
 `
@@ -65,6 +79,7 @@ type GetRoutingStatsRow struct {
 	TaskClass         string      `json:"task_class"`
 	Samples           int32       `json:"samples"`
 	SuccessCount      int32       `json:"success_count"`
+	BenchmarkSamples  int32       `json:"benchmark_samples"`
 	CostSamples       int32       `json:"cost_samples"`
 	TotalCostUsdTicks float64     `json:"total_cost_usd_ticks"`
 	DurationSamples   int32       `json:"duration_samples"`
@@ -102,6 +117,7 @@ func (q *Queries) GetRoutingStats(ctx context.Context, arg GetRoutingStatsParams
 			&i.TaskClass,
 			&i.Samples,
 			&i.SuccessCount,
+			&i.BenchmarkSamples,
 			&i.CostSamples,
 			&i.TotalCostUsdTicks,
 			&i.DurationSamples,
@@ -117,8 +133,121 @@ func (q *Queries) GetRoutingStats(ctx context.Context, arg GetRoutingStatsParams
 	return items, nil
 }
 
+const getWorkflowStats = `-- name: GetWorkflowStats :many
+SELECT
+    atq.task_class,
+    COALESCE(atq.context->>'workflow', 'single')::text AS workflow,
+    COUNT(*)::int AS samples,
+    COUNT(*) FILTER (WHERE atq.status = 'completed')::int AS success_count,
+    COUNT(tu.cost_usd_ticks)::int AS cost_samples,
+    COALESCE(SUM(tu.cost_usd_ticks), 0)::float8 AS total_cost_usd_ticks,
+    COUNT(atq.started_at)::int AS duration_samples,
+    COALESCE(SUM(EXTRACT(EPOCH FROM (atq.completed_at - atq.started_at))) FILTER (
+        WHERE atq.started_at IS NOT NULL
+    ), 0)::float8 AS total_duration_secs
+FROM agent_task_queue atq
+JOIN agent a ON a.id = atq.agent_id
+LEFT JOIN LATERAL (
+    SELECT SUM(u.cost_usd_ticks)::float8 AS cost_usd_ticks
+    FROM task_usage u
+    WHERE u.task_id = atq.id
+) tu ON TRUE
+WHERE a.workspace_id = $1
+  AND atq.status IN ('completed', 'failed')
+  AND atq.completed_at IS NOT NULL
+  AND atq.completed_at >= $2::timestamptz
+  AND atq.leg_role NOT IN ('review', 'critique', 'answer', 'watchdog', 'eval', 'pr_walkthrough', 'epic_step')
+GROUP BY atq.task_class, COALESCE(atq.context->>'workflow', 'single')
+ORDER BY atq.task_class, workflow
+`
+
+type GetWorkflowStatsParams struct {
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Since       pgtype.Timestamptz `json:"since"`
+}
+
+type GetWorkflowStatsRow struct {
+	TaskClass         string  `json:"task_class"`
+	Workflow          string  `json:"workflow"`
+	Samples           int32   `json:"samples"`
+	SuccessCount      int32   `json:"success_count"`
+	CostSamples       int32   `json:"cost_samples"`
+	TotalCostUsdTicks float64 `json:"total_cost_usd_ticks"`
+	DurationSamples   int32   `json:"duration_samples"`
+	TotalDurationSecs float64 `json:"total_duration_secs"`
+}
+
+// Per-(task_class, workflow) run statistics over the trailing window (90 days
+// at the call site), feeding the workflow selector (JEF-273) and the
+// /api/runtimes/workflow-stats endpoint. The workflow is derived from the
+// task's context stamp (context->>'workflow'), defaulting to 'single' for
+// rows that predate the selector — those runs WERE the single workflow.
+// Only terminal runs count; success_count counts 'completed', samples both.
+// Unlike GetRoutingStats no provider/model attribution is needed, so a run
+// without any task_usage row still counts as a sample; its cost simply does
+// not contribute (cost_samples = 0 distinguishes "no priced run" from a
+// genuine zero average). The leg filter mirrors GetRoutingStats: review-like
+// legs judge someone else's work and are not samples of their task class.
+func (q *Queries) GetWorkflowStats(ctx context.Context, arg GetWorkflowStatsParams) ([]GetWorkflowStatsRow, error) {
+	rows, err := q.db.Query(ctx, getWorkflowStats, arg.WorkspaceID, arg.Since)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetWorkflowStatsRow{}
+	for rows.Next() {
+		var i GetWorkflowStatsRow
+		if err := rows.Scan(
+			&i.TaskClass,
+			&i.Workflow,
+			&i.Samples,
+			&i.SuccessCount,
+			&i.CostSamples,
+			&i.TotalCostUsdTicks,
+			&i.DurationSamples,
+			&i.TotalDurationSecs,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDistinctTaskRuntimesForIssue = `-- name: ListDistinctTaskRuntimesForIssue :many
+SELECT DISTINCT runtime_id
+FROM agent_task_queue
+WHERE issue_id = $1
+  AND runtime_id IS NOT NULL
+`
+
+// Cascade escalation (JEF-272): every runtime already tried on this issue, so
+// the escalator never re-enqueues on a runtime that already had its chance.
+func (q *Queries) ListDistinctTaskRuntimesForIssue(ctx context.Context, issueID pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listDistinctTaskRuntimesForIssue, issueID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var runtime_id pgtype.UUID
+		if err := rows.Scan(&runtime_id); err != nil {
+			return nil, err
+		}
+		items = append(items, runtime_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRoutingCandidateRuntimes = `-- name: ListRoutingCandidateRuntimes :many
-SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name FROM agent_runtime
+SELECT id, workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, metadata, last_seen_at, created_at, updated_at, owner_id, legacy_daemon_id, visibility, profile_id, custom_name, sandbox_mode, sandbox_image, sandbox_allowed_hosts, sandbox_capabilities, sandbox_effective FROM agent_runtime
 WHERE workspace_id = $1
   AND status = 'online'
   AND COALESCE(last_seen_at, updated_at) >=
@@ -177,6 +306,11 @@ func (q *Queries) ListRoutingCandidateRuntimes(ctx context.Context, arg ListRout
 			&i.Visibility,
 			&i.ProfileID,
 			&i.CustomName,
+			&i.SandboxMode,
+			&i.SandboxImage,
+			&i.SandboxAllowedHosts,
+			&i.SandboxCapabilities,
+			&i.SandboxEffective,
 		); err != nil {
 			return nil, err
 		}

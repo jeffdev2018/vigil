@@ -306,6 +306,8 @@ const mockViewState = {
   projectFilters: [] as string[],
   includeNoProject: false,
   goalFilters: [] as string[],
+  cycleFilters: [] as string[],
+  typeFilters: [] as string[],
   labelFilters: [] as string[],
   propertyFilters: {} as Record<string, string[]>,
   cardPropertyIds: [] as string[],

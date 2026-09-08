@@ -10,6 +10,7 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Switch } from "@multica/ui/components/ui/switch";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
+import { CriticPolicySection } from "../../../critic";
 import { useT, useTimeAgo } from "../../../i18n";
 
 /**
@@ -144,6 +145,11 @@ export function TrustTab({ agent, canEdit }: { agent: Agent; canEdit: boolean })
           </ul>
         )}
       </div>
+
+      {/* Adversarial review (F25): who checks this agent's deliveries. It sits
+          with the trust dial because it answers the same question — how much
+          of this agent's output goes out unchecked. */}
+      <CriticPolicySection subjectType="agent" subjectId={agent.id} canManage={canEdit} />
     </div>
   );
 }

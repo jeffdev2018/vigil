@@ -125,11 +125,14 @@ export const issueKeys = {
     wsId: string,
     projectId: string,
     assigneeTypes?: IssueAssigneeType[],
+    /** Narrows the gantt to one dated cycle of the project (F29). */
+    cycleId?: string,
   ) =>
     [
       ...issueKeys.projectGanttAll(wsId),
       projectId,
       assigneeTypes ?? null,
+      cycleId ?? null,
     ] as const,
   detail: (wsId: string, id: string) =>
     [...issueKeys.all(wsId), "detail", id] as const,
@@ -216,6 +219,7 @@ export type MyIssuesFilter = Pick<
   | "assignee_types"
   | "creator_id"
   | "project_id"
+  | "cycle_id"
   | "involves_user_id"
 >;
 
@@ -230,6 +234,8 @@ export type IssueFlatFilter = MyIssuesFilter &
     | "priorities"
     | "assignee_filters"
     | "include_no_assignee"
+    | "delegate_filters"
+    | "include_no_delegate"
     | "creator_filters"
     | "project_ids"
     | "include_no_project"
@@ -394,13 +400,18 @@ export const PROJECT_GANTT_MAX_ISSUES = 10_000;
 async function fetchProjectGanttIssues(
   projectId: string,
   assigneeTypes?: IssueAssigneeType[],
+  cycleId?: string,
 ) {
   const issues = [];
   let offset = 0;
   while (offset < PROJECT_GANTT_MAX_ISSUES) {
     const res = await api.listIssues({
-      project_id: projectId,
+      // Empty projectId means the WORKSPACE gantt (F30): the timeline is no
+      // longer a project-only surface, so an omitted project_id fetches every
+      // scheduled issue the caller can see rather than none.
+      ...(projectId ? { project_id: projectId } : {}),
       scheduled: true,
+      ...(cycleId ? { cycle_id: cycleId } : {}),
       ...(assigneeTypes?.length ? { assignee_types: assigneeTypes } : {}),
       limit: PROJECT_GANTT_PAGE_LIMIT,
       offset,
@@ -432,10 +443,13 @@ export function projectGanttIssuesOptions(
   // The page's assignee-type tab narrows the Gantt exactly like every
   // other mode — same scope, same single mapping upstream.
   assigneeTypes?: IssueAssigneeType[],
+  // A cycle surface narrows it further to that cycle's issues (F29), so the
+  // timeline shows the iteration rather than the whole project around it.
+  cycleId?: string,
 ) {
   return queryOptions({
-    queryKey: issueKeys.projectGantt(wsId, projectId, assigneeTypes),
-    queryFn: () => fetchProjectGanttIssues(projectId, assigneeTypes),
+    queryKey: issueKeys.projectGantt(wsId, projectId, assigneeTypes, cycleId),
+    queryFn: () => fetchProjectGanttIssues(projectId, assigneeTypes, cycleId),
   });
 }
 
@@ -458,9 +472,9 @@ export function issueDetailOptions(wsId: string, id: string) {
  *
  * It deliberately does NOT use `/api/issues/search`: that endpoint runs the
  * workspace-wide full-text query (title/description/comment `LIKE`, ranking,
- * snippet subquery, `COUNT(*) OVER()`) which is orders of magnitude more
- * expensive than a point read, and autolink resolution was the dominant
- * caller of it (MUL-6268).
+ * and snippet subqueries) which is orders of magnitude more expensive than a
+ * point read, and autolink resolution was the dominant caller of it
+ * (MUL-6268).
  *
  * Server state → TanStack Query; the key includes `wsId` and the identifier,
  * so identical identifiers across the app share one request. Caller gates

@@ -72,8 +72,26 @@ export function MemoryTab({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<AgentMemory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentMemory | null>(null);
+  const approve = useUpdateAgentMemory(agent.id);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const atLimit = memories.length >= MEMORY_LIMIT;
+
+  const approveMemory = (memory: AgentMemory) => {
+    setApprovingId(memory.id);
+    approve.mutate(
+      { memoryId: memory.id, state: "approved" },
+      {
+        onSettled: () => setApprovingId(null),
+        onError: (error) =>
+          toast.error(
+            error instanceof Error
+              ? error.message
+              : t(($) => $.tab_body.memory.save_failed_toast),
+          ),
+      },
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -149,6 +167,11 @@ export function MemoryTab({
                           ? t(($) => $.tab_body.memory.source_postmortem)
                           : t(($) => $.tab_body.memory.source_manual)}
                     </Badge>
+                    {memory.state === "draft" && (
+                      <Badge variant="outline" className="border-dashed">
+                        {t(($) => $.tab_body.memory.state_draft)}
+                      </Badge>
+                    )}
                     {memory.updated_at && <span>{timeAgo(memory.updated_at)}</span>}
                     {memory.source_issue_id && (
                       <AppLink
@@ -160,6 +183,18 @@ export function MemoryTab({
                     )}
                   </span>
                 </span>
+                {canEdit && memory.state === "draft" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={approvingId === memory.id && approve.isPending}
+                    onClick={() => approveMemory(memory)}
+                  >
+                    {approvingId === memory.id && approve.isPending
+                      ? t(($) => $.tab_body.memory.approve_pending)
+                      : t(($) => $.tab_body.memory.approve_action)}
+                  </Button>
+                )}
                 {canEdit && (
                   <DropdownMenu>
                     <DropdownMenuTrigger

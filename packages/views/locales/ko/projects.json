@@ -25,7 +25,7 @@
     "progress": "진행률",
     "lead": "리드",
     "created": "생성일",
-    "issues": "태스크 수"
+    "issues": "이슈 수"
   },
   "status": {
     "planned": "계획됨",
@@ -73,13 +73,13 @@
     "no_due_date": "마감일 없음",
     "description_placeholder": "설명 추가...",
     "description_hint": "이 프로젝트의 모든 실행에서 컨텍스트로 에이전트에게 공유됩니다.",
-    "empty_issues_title": "연결된 태스크가 없습니다",
-    "empty_issues_hint": "새 태스크를 만들거나 기존 태스크를 이 프로젝트에 할당하세요.",
-    "empty_issues_new_button": "새 태스크",
-    "no_issues_yet": "아직 태스크가 없습니다",
+    "empty_issues_title": "연결된 이슈가 없습니다",
+    "empty_issues_hint": "새 이슈를 만들거나 기존 이슈를 이 프로젝트에 할당하세요.",
+    "empty_issues_new_button": "새 이슈",
+    "no_issues_yet": "아직 이슈가 없습니다",
     "toast_link_copied": "링크를 복사했습니다",
     "toast_project_deleted": "프로젝트를 삭제했습니다",
-    "toast_move_issue_failed": "태스크를 이동하지 못했습니다"
+    "toast_move_issue_failed": "이슈를 이동하지 못했습니다"
   },
   "resources": {
     "section_header": "리소스",
@@ -135,11 +135,19 @@
     "mode_badge_worktree_tooltip": "실행이 각자의 git 워크트리에서 동시에 진행되고 브랜치로 결과를 돌려줍니다. 작업 사본은 변경되지 않습니다.",
     "toast_local_mode_updated": "실행 모드를 업데이트했습니다",
     "toast_local_mode_update_failed": "실행 모드를 업데이트하지 못했습니다",
-    "mode_badge_in_place": "직접"
+    "mode_badge_in_place": "직접",
+    "lifecycle_description": "이 워크트리에서 실행할 선택적 명령입니다. 셸을 거치지 않고 바로 실행되므로 첫 단어가 프로그램이고 나머지는 인자입니다.",
+    "lifecycle_setup_label": "셋업",
+    "lifecycle_setup_hint": "pnpm install",
+    "lifecycle_run_label": "Run (개발 서버)",
+    "lifecycle_run_hint": "pnpm dev -- --port $MULTICA_PORT_BASE",
+    "lifecycle_archive_label": "아카이브",
+    "lifecycle_archive_hint": "./scripts/teardown.sh",
+    "lifecycle_run_help": "Setup 이후에 시작되고 실행이 끝나면 중지됩니다. 미리보기 링크를 받으려면 127.0.0.1의 MULTICA_PORT_BASE에 바인딩하세요."
   },
   "delete_dialog": {
     "title": "프로젝트 삭제",
-    "description": "프로젝트가 삭제됩니다. 태스크는 삭제되지 않지만 프로젝트 연결은 해제됩니다.",
+    "description": "프로젝트가 삭제됩니다. 이슈는 삭제되지 않지만 프로젝트 연결은 해제됩니다.",
     "confirm": "삭제",
     "cancel": "취소"
   },
@@ -174,7 +182,27 @@
     "author_agent": "에이전트",
     "author_member": "멤버",
     "empty": "아직 기록된 결정이 없습니다. 수락된 실행이 여기에 추가합니다.",
-    "source": "실행 메시지 #{{seq}}"
+    "source": "실행 메시지 #{{seq}}",
+    "record": {
+      "trigger": "기록",
+      "title": "결정 기록",
+      "description": "결정 기록은 이슈에 연결되며, 마지막으로 완료된 실행의 메시지 하나를 인용합니다. 이 인용이 기록을 추적 가능하게 만듭니다.",
+      "issue_label": "이슈",
+      "issue_placeholder": "이슈 선택…",
+      "source_label": "인용할 실행 메시지",
+      "source_placeholder": "해당 결정을 서술한 메시지 선택…",
+      "source_loading": "이슈의 마지막 완료 실행을 불러오는 중…",
+      "no_run": "이 이슈에는 아직 인용할 완료된 실행이 없습니다.",
+      "title_label": "제목",
+      "context_label": "배경",
+      "decision_label": "결정",
+      "consequences_label": "영향",
+      "cancel": "취소",
+      "save": "기록",
+      "saving": "기록 중…",
+      "toast_saved": "결정을 기록했습니다.",
+      "toast_failed": "결정 기록에 실패했습니다."
+    }
   },
   "blast_radius": {
     "section": "영향 범위",
@@ -192,5 +220,117 @@
     "preview": "경로 시험",
     "preview_placeholder": "server/migrations/500_x.up.sql",
     "failed": "규칙을 저장하지 못했습니다"
+  },
+  "members": {
+    "section": "멤버와 역할",
+    "description": "여기의 역할은 제한만 합니다. 멤버나 에이전트가 이 프로젝트에서 워크스페이스 역할이 허용하는 것보다 더 많은 권한을 얻지는 않습니다.",
+    "empty": "아직 멤버가 없습니다.",
+    "columns": {
+      "name": "이름",
+      "workspace_role": "워크스페이스 역할",
+      "role": "프로젝트 역할"
+    },
+    "inherited": "상속됨",
+    "override": "재정의",
+    "inherit_option": "상속 ({{role}})",
+    "agent": "에이전트",
+    "updated": "역할을 갱신했습니다",
+    "update_failed": "역할 갱신에 실패했습니다",
+    "read_only": "워크스페이스 소유자, 관리자, 프로젝트 admin만 역할을 바꿀 수 있습니다."
+  },
+  "review": {
+    "section": "에이전트 리뷰",
+    "description": "이 프로젝트에서 에이전트가 작업을 전달하면 다른 에이전트가 아래 체크리스트에 따라 리뷰합니다.",
+    "checklist": "체크리스트",
+    "checklist_empty": "아직 체크리스트 항목이 없습니다.",
+    "item_placeholder": "예: 마이그레이션에 외래 키 추가 금지",
+    "add": "항목 추가",
+    "remove": "항목 삭제",
+    "reviewer": "리뷰어 에이전트",
+    "reviewer_auto": "자동",
+    "gate": "승인 필수",
+    "gate_description": "켜져 있으면 최신 리뷰가 작업을 승인하기 전까지 이슈를 done으로 옮길 수 없습니다.",
+    "max_cycles": "최대 사이클",
+    "save": "리뷰 설정 저장",
+    "failed": "리뷰 설정을 저장하지 못했습니다"
+  },
+  "mirrors": {
+    "section": "저장소 간 미러",
+    "description": "이 프로젝트의 이슈에 트리거 레이블이 붙으면 대상 프로젝트에 사본이 생성되며, 사본이 완료될 때까지 원본을 차단합니다.",
+    "empty": "아직 미러 링크가 없습니다.",
+    "target": "대상 프로젝트",
+    "target_placeholder": "대상 프로젝트 선택",
+    "trigger_label": "트리거 레이블",
+    "trigger_placeholder": "레이블 이름",
+    "add": "링크 추가",
+    "added": "미러 링크를 추가했습니다",
+    "add_failed": "미러 링크 추가에 실패했습니다",
+    "remove": "이 링크 삭제",
+    "removed": "미러 링크를 삭제했습니다. 기존 미러는 유지됩니다.",
+    "remove_failed": "미러 링크 삭제에 실패했습니다",
+    "unknown_project": "삭제된 프로젝트"
+  },
+  "epic": {
+    "section": "에픽",
+    "description": "PRD, 기술 계획, 와이어프레임, 티켓 분해 순으로 작성합니다. 각 단계는 승인되어야 다음 단계가 열립니다.",
+    "no_repo_warning": "이 프로젝트에는 저장소 리소스가 없어 생성된 계획이 읽을 코드가 없습니다. 추가하면 결과가 좋아집니다.",
+    "steps": {
+      "prd": "PRD",
+      "tech_plan": "기술 계획",
+      "wireframe": "와이어프레임",
+      "tickets": "티켓"
+    },
+    "state": {
+      "empty": "시작 전",
+      "generating": "작성 중",
+      "draft": "초안",
+      "approved": "승인됨",
+      "superseded": "대체됨",
+      "unknown": "알 수 없는 상태"
+    },
+    "locked_explanation": "{{step}} 단계를 먼저 승인하세요.",
+    "empty": "아직 작성된 내용이 없습니다.",
+    "generating_hint": "에이전트가 이 단계를 작성하고 있습니다.",
+    "generate": "생성",
+    "regenerate": "다시 생성",
+    "generation_started": "실행을 시작했습니다",
+    "generate_failed": "실행 시작에 실패했습니다",
+    "edit": "편집",
+    "edit_label": "단계 내용",
+    "save": "새 초안으로 저장",
+    "cancel": "취소",
+    "saved": "새 초안으로 저장했습니다",
+    "saved_reopened": "새 초안으로 저장했습니다. 이후 {{count}}개 단계가 대체됨으로 돌아갔습니다.",
+    "save_failed": "단계 저장에 실패했습니다",
+    "approve": "승인",
+    "approved": "단계를 승인했습니다",
+    "approve_failed": "단계 승인에 실패했습니다",
+    "apply": "티켓 적용",
+    "applied": "이슈 {{count}}개를 생성했습니다",
+    "apply_failed": "티켓 적용에 실패했습니다",
+    "all_applied": "이 분해의 티켓은 모두 이슈로 만들어졌습니다.",
+    "ticket_title": "제목",
+    "ticket_description": "설명",
+    "ticket_depends_on": "선행 티켓",
+    "version_badge": "v{{version}}"
+  },
+  "wiki": {
+    "section": "코드 wiki",
+    "description": "이 프로젝트 저장소를 위해 생성된 문서입니다. 에이전트가 작성한 참고 자료이며 진실의 원천이 아닙니다.",
+    "no_repo": "코드 wiki를 생성하려면 이 프로젝트에 저장소 리소스를 추가하세요.",
+    "empty": "이 저장소의 wiki가 아직 생성되지 않았습니다.",
+    "generate": "생성",
+    "regenerate": "다시 생성",
+    "building": "생성 중...",
+    "started": "wiki 생성을 시작했습니다.",
+    "not_started": "생성이 시작되지 않았습니다.",
+    "failed": "코드 wiki를 불러오지 못했습니다.",
+    "banner": "자동 생성 - commit {{commit}} - {{date}}",
+    "stale": "이 wiki는 저장소 HEAD보다 오래된 commit을 설명합니다.",
+    "pages": "페이지",
+    "citations": "인용",
+    "no_citations": "이 페이지는 어떤 파일도 인용하지 않았습니다. 출처 없음으로 다루세요.",
+    "select_page": "읽을 페이지를 선택하세요.",
+    "page_failed": "이 페이지를 불러오지 못했습니다."
   }
 }

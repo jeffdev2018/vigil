@@ -9,6 +9,7 @@ import {
   useUpdateIssue,
 } from "@multica/core/issues/mutations";
 import { errorCode } from "@multica/core/api";
+import { isTransitionPending } from "@multica/core/issue-transitions";
 import { useModalStore } from "@multica/core/modals";
 import {
   type IssueSurfaceActions,
@@ -62,6 +63,14 @@ export function useIssueSurfaceActions({
         {
           onSuccess: (issue) => options?.onSuccess?.(issue),
           onError: (err) => {
+            // F28: a held transition arrives here so the optimistic patch is
+            // rolled back, but it is not a failure — the write was accepted
+            // and is waiting for an approver.
+            if (isTransitionPending(err)) {
+              toast.info(tIssues(($) => $.transitions.pending_toast));
+              options?.onError?.(err);
+              return;
+            }
             toast.error(
               errorCode(err) === "revision_conflict"
                 ? tIssues(($) => $.revision.conflict)

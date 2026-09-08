@@ -3,7 +3,7 @@
     "title": "組織",
     "new_structure": "新しい構造",
     "empty": "構造はまだありません",
-    "empty_description": "構造は誰が何を担当するかを決めます。タスクをユニットへルーティングし、エスカレーション、承認、予算消費を行います。7つのモデルから1つ選んで始めましょう。",
+    "empty_description": "構造は誰が何を担当するかを決めます。課題をユニットへルーティングし、エスカレーション、承認、予算消費を行います。7つのモデルから1つ選んで始めましょう。",
     "workspace_default": "ワークスペース既定",
     "unknown_project": "不明なプロジェクト",
     "revision": "第{{n}}版",
@@ -47,10 +47,12 @@
     "description": "適用範囲を選び、次に従うモデルを選びます。定義は後から編集できます。",
     "project": "適用先",
     "workspace_default": "ワークスペース既定（独自の構造を持たないすべてのプロジェクト）",
-    "runs_per_issue_other": "タスクごとに{{count}}回の調整実行",
+    "runs_per_issue_other": "課題ごとに{{count}}回の調整実行",
     "loading": "テンプレートを読み込み中…",
     "cancel": "キャンセル",
-    "error": "構造を作成できませんでした"
+    "error": "構造を作成できませんでした",
+    "replaces_existing": "テンプレートを選ぶと、現在の構造「{{name}}」が新しいリビジョンとして置き換えられます。",
+    "composite_title": "チームの階層"
   },
   "form": {
     "name": "名前",
@@ -59,7 +61,7 @@
     "dissolve_at": "解散日時",
     "end_condition": "終了条件",
     "end_none": "なし",
-    "end_all_issues_done": "すべてのタスクが完了",
+    "end_all_issues_done": "すべての課題が完了",
     "end_budget_spent": "予算を使い切った",
     "budget": "予算（USD ticks）",
     "definition": "定義（JSON）",
@@ -86,9 +88,9 @@
     "attestation_placeholder": "{{date}}に30ケースを実行: …",
     "loading": "プリフライト中…",
     "pattern": "パターン",
-    "runs": "タスクごとの調整実行数",
-    "cost": "タスクごとの調整コスト",
-    "review_seconds": "タスクごとの人間のレビュー時間",
+    "runs": "課題ごとの調整実行数",
+    "cost": "課題ごとの調整コスト",
+    "review_seconds": "課題ごとの人間のレビュー時間",
     "seconds": "{{count}}秒",
     "units": "ユニット",
     "units_without_owner": "オーナーのいないユニット",
@@ -98,7 +100,7 @@
   },
   "pause": {
     "title": "構造を一時停止",
-    "description": "再開するまでルーティングは停止します。割り当て済みのタスクは担当者を維持します。",
+    "description": "再開するまでルーティングは停止します。割り当て済みの課題は担当者を維持します。",
     "submit": "一時停止"
   },
   "dissolve": {
@@ -154,14 +156,14 @@
     "status": "ステータス",
     "escalate": "エスカレーション",
     "route_now": "今すぐルーティング",
-    "escalate_title": "このタスクをエスカレーション",
+    "escalate_title": "この課題をエスカレーション",
     "escalate_description": "構造がエスカレーションのエッジに沿って上位へ渡します。理由を書いてください。",
     "reason": "理由",
     "reason_placeholder": "何が止まっていますか？",
     "submit": "エスカレーション",
     "cancel": "キャンセル",
-    "escalated": "タスクをエスカレーションしました",
-    "routed": "タスクをルーティングしました",
+    "escalated": "課題をエスカレーションしました",
+    "routed": "課題をルーティングしました",
     "error": "操作に失敗しました"
   },
   "offer_status": {

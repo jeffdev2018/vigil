@@ -25,8 +25,12 @@ import (
 //   - spend: the run requests a short-lived token from the server.
 // The run never decides for itself whether to wait: the server does.
 
-// DefaultGateSensitiveTools mirrors the server default; the server setting
-// wins when it answers the gate, this only decides what is asked.
+// DefaultGateSensitiveTools mirrors the server default and applies when the
+// claim carries no pattern of its own — an older server, or a workspace read
+// that failed. What is asked is decided by the workspace's own
+// approval_gates.sensitive_tools, which travels on the claim: until it did,
+// widening the pattern in workspace settings changed nothing, because the
+// server was never asked about the tools it added.
 const DefaultGateSensitiveTools = `(?i)merge|delete|remove|drop|destroy|pay|charge|transfer|refund|purchase`
 
 const gateDefaultTimeout = 30 * time.Minute

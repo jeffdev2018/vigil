@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLanes,
+  isMessageStep,
   buildSteps,
   groupSteps,
   laneSegmentPosition,
@@ -332,5 +333,55 @@ describe("shouldShowTimeline", () => {
 
   it("hides when lanes could not be built", () => {
     expect(shouldShowTimeline(longRun(10, 600), null)).toBe(false);
+  });
+});
+
+// ─── F03 · typed run activity ───────────────────────────────────────────────
+
+describe("buildSteps with the F03 kinds", () => {
+  function message(type: string, seconds: number, extra: Partial<TimelineItem> = {}): TimelineItem {
+    return { seq: ++seq, type, created_at: at(seconds), ...extra };
+  }
+
+  it("gives each known kind its own step kind", () => {
+    const steps = buildSteps([
+      message("response", 0, { content: "Fixed it." }),
+      message("action", 1, { content: "status_changed", input: { before: "todo", after: "done" } }),
+      message("elicitation", 2, { content: "Which branch?" }),
+    ]);
+    expect(steps.map((s) => s.kind)).toEqual(["response", "action", "elicitation"]);
+  });
+
+  // A wire type this build predates becomes a neutral note rather than being
+  // dropped or borrowing another kind's rendering.
+  it("folds an unrecognised type into a neutral note that keeps its raw type", () => {
+    const steps = buildSteps([message("something_new", 0, { content: "evidence" })]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0]!.kind).toBe("note");
+    expect(isMessageStep(steps[0]!)).toBe(true);
+    // The raw type survives on the item, which is what the presenter labels it
+    // with — the reader sees what the server actually said.
+    expect((steps[0] as { item: TimelineItem }).item.type).toBe("something_new");
+  });
+
+  it("still routes tool traffic to call steps, never to a message kind", () => {
+    const steps = buildSteps([call("Bash", 0), result("Bash", 1)]);
+    expect(steps.map((s) => s.kind)).toEqual(["call"]);
+  });
+});
+
+describe("buildLanes with a response", () => {
+  it("counts the final response as report time, not thinking time", () => {
+    // The model lane is the complement of the tool lane, and a gap containing
+    // the run's deliverable reads as reporting.
+    const items: TimelineItem[] = [
+      { seq: ++seq, type: "tool_use", tool: "Bash", created_at: at(0) },
+      { seq: ++seq, type: "tool_result", tool: "Bash", output: "ok", created_at: at(2) },
+      { seq: ++seq, type: "response", content: "Fixed it.", created_at: at(3) },
+    ];
+    const lanes = buildLanes(buildSteps(items), at(0), at(4));
+    expect(lanes).not.toBeNull();
+    expect(lanes!.model.some((segment) => segment.kind === "report")).toBe(true);
+    expect(lanes!.model.some((segment) => segment.kind === "think")).toBe(false);
   });
 });
