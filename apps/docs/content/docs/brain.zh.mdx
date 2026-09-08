@@ -1,0 +1,93 @@
+---
+title: Brain
+description: 由人与智能体共同撰写、注入每次运行的工作区共享知识库。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+Brain 是工作区共享的一组简短笔记：你做过的决定及原因、没人写下来的约定、关于代码库的确凿事实、谁负责什么。
+
+其中的一切都会交给每一次智能体运行。这正是它的意义所在——已经知道你部署流程的智能体不必重新摸索一遍，下周也不必再被告知一次。
+
+## 该写什么
+
+一条笔记值得被记录，前提是它到下一次运行时依然为真、依然有用。
+
+好的笔记：
+
+- "部署走发布标签：在 `main` 上 push `v0.x.x`；`release.yml` 会发布二进制文件和 Homebrew tap。"
+- "迁移在事务之外执行，这样 `CREATE INDEX CONCURRENTLY` 才能生效。"
+- "守护进程通过 6432 端口的 pgbouncer 连接 Postgres，而不是 5432。"
+
+不该写的：
+
+- 运行做了什么。那是运行的输出。
+- 下周就会失真的内容：分支名、进行中的 PR 编号、"构建挂了"之类。
+- 仓库里已经有的内容——留两份只会让它们渐行渐远。
+- 密钥、令牌、凭证。
+
+一条笔记只讲一件事。标题写的是事实本身（`Deploys go through the release tag`），而不是话题（`Deploys`）——标题是所有人在列表里扫一眼就能看到的内容，也是智能体决定是否打开这条笔记之前会读到的内容。
+
+## 在应用中使用
+
+在侧边栏打开 **Brain**。
+
+- **搜索**在服务端执行，同时匹配标题和正文。
+- **标签**是筛选用的小标签。它们会被统一转成小写并去重，所以 `Deploy` 和 `deploy` 会归为同一个标签。
+- **置顶**一条笔记后，无论它多旧都会发给每一次运行。请节制使用：置顶的笔记会挤占最近笔记的位置。
+- 对不再为真的笔记执行**归档**。它会退出运行和默认列表，但仍然可读。
+- **删除**是永久性的，只有工作区管理员和笔记本人的作者才能操作。
+
+编辑使用乐观并发控制。如果在你打开笔记期间，别人——或者夜间整理流程——修改了它，保存会被拒绝，系统会要求你重新加载，而不是悄悄覆盖对方的修改。
+
+## 运行会收到什么
+
+每次运行都会拿到所有置顶笔记，加上最近更新的另外 20 条，写入它的工作目录：
+
+```
+.multica/knowledge/README.md        索引：标题、标签、id、文件名
+.multica/knowledge/<slug>-<id8>.md  单条笔记
+```
+
+运行的简报只指向这个目录，而不是把笔记内嵌进去，所以即使 Brain 很大，占用提示词的也只是几行，而不是全部内容。总量上限是 200 KB；如果有笔记因此被省略，索引会写明省略了多少条。
+
+## 智能体也会写入
+
+智能体通过 CLI 保存它们学到的东西，内置的 `multica-workspace-brain` skill 会告诉它们什么时候该保存。
+
+```bash
+multica brain list --search "release" --output json
+multica brain show <note-id>
+
+multica brain save \
+  --title "Deploys go through the release tag" \
+  --tags deploy,release \
+  --content "Push v0.x.x on main; release.yml publishes the binaries."
+
+# longer bodies come from a file (or from stdin with -)
+multica brain save --title "Scheduler leasing model" --tags backend --content-file ./note.md
+
+# update instead of duplicating
+multica brain save --id <note-id> --content-file ./note.md
+
+multica brain archive <note-id>
+```
+
+运行中保存的笔记会归属到保存它的智能体名下，并链接回该次运行，所以看到一条意外的笔记，点一下就能追到写下它的那次运行。
+
+<Callout>
+这个 skill 会告诉智能体：保存前先搜索 Brain，更新已有的对应笔记，而不是添加一条几乎重复的笔记。知识库的衰败，没有什么比重复更快。
+</Callout>
+
+## 夜间整理
+
+每天一次，Brain 确实发生过变化的工作区会经历一轮整理。它会读完全部内容，并执行一套计划：
+
+- **合并（merge）**：把几乎重复的笔记合并进已经覆盖同一内容的笔记；
+- **改标题（retitle）**：给标题没有说清事实的笔记重新拟题；
+- **打标签（tag）**：让同一个主题在各处都带着同一个标签；
+- **归档（archive）**：归档那些已经失真、被取代，或者原本就不是持久知识的笔记。
+
+合并会保留历史：源笔记不会被删除，而是被归档，并带上指向合并目标的指针，所以一次错误的合并也能恢复。这个流程从不改写笔记正文，也从不凭空编造事实。
+
+整理需要一个 assist 层 LLM（`MULTICA_LLM_*`）。没有配置时它什么也不做，Brain 的其余功能照常工作。
