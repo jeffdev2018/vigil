@@ -6211,6 +6211,25 @@ export const OrgOfferListSchema = z.object({
   offers: z.array(z.object({ id: z.string(), agent_id: z.string().catch(""), agent_name: z.string().catch(""), confidence: z.number().catch(0), cost_usd_ticks: z.number().catch(0), eta_hours: z.number().catch(0), status: z.enum(["pending", "won", "lost", "over_cap"]).catch("pending"), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgResolveSchema = z.object({ structure: OrgStructureSchema.nullable().catch(null) }).loose();
+const OrgSimulationRefSchema = z.object({ unit_id: z.string().catch(""), unit_name: z.string().catch("") }).loose();
+const OrgSimulationActorSchema = z.object({ kind: z.enum(["agent", "member", "squad", "none"]).catch("none"), id: z.string().catch(""), name: z.string().catch("") }).loose();
+// A simulation is shown as an answer, not merged into a list, so the three
+// fields that carry its meaning stay required: a payload missing them is
+// rejected outright (client.ts throws) rather than rendered as a confident
+// "nobody prepares this, against no basis".
+export const OrgSimulationSchema = z.object({
+  basis: z.enum(["draft", "revision"]),
+  structure_id: z.string().catch(""),
+  revision: z.number().catch(0),
+  unit: z.object({ id: z.string().catch(""), name: z.string().catch(""), model: z.string().catch(""), autonomy: z.string().catch("") }).loose().nullable().catch(null).default(null),
+  receives: OrgSimulationRefSchema.nullable().catch(null).default(null),
+  prepares: OrgSimulationActorSchema,
+  decides: OrgSimulationActorSchema,
+  escalation_path: z.array(OrgSimulationRefSchema).catch([]).default([]),
+  blocking_denies: z.array(z.string()).catch([]).default([]),
+  cost_estimate_usd_ticks: z.number().catch(0),
+  notes: z.array(z.string()).catch([]).default([]),
+}).loose();
 export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();
 
 // Workspace export / import (K76).

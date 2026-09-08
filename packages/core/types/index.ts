@@ -260,6 +260,7 @@ export type {
 export type {
   OrgModel, OrgStatus, OrgAutonomy, OrgProperty, OrgEdgeKind, OrgMember, OrgRole, OrgUnit, OrgEdge, OrgRule, OrgCommittee, OrgMarket,
   OrgDefinition, OrgStructure, OrgRevision, OrgTemplate, OrgWriteRequest, OrgUnitHealth, OrgProposal, OrgHealth, OrgPreflight, OrgOffer,
+  OrgSimulationUnit, OrgSimulationRef, OrgSimulationActor, OrgSimulationRequest, OrgSimulation,
 } from "./org";
 export type {
   Project,

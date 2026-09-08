@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { OrgSimulation } from "../types";
 import {
+  OrgSimulationSchema,
   AppConfigSchema,
   ProjectMemoryHistorySchema,
   CommentAnchorSchema,
@@ -5831,6 +5833,60 @@ describe("ProjectMemoryHistorySchema", () => {
   it("falls back to null on a malformed payload", () => {
     for (const malformed of [null, "oops", 42, [1, 2], {}, { versions: [{ revision: 1 }], next_before_revision: null }]) {
       expect(parseWithFallback(malformed, ProjectMemoryHistorySchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+// POST /api/org/simulate — the org page's "test a request" answer. Parsed
+// with a null fallback because client.ts throws on it: an empty simulation
+// would be displayed as a real verdict ("no unit takes this, nobody
+// decides"), which is a lie a person would act on.
+describe("OrgSimulationSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/org/simulate" };
+  const simulation = {
+    basis: "draft" as const,
+    structure_id: "struct-1",
+    revision: 3,
+    unit: { id: "team", name: "Team", model: "hierarchy", autonomy: "draft" },
+    receives: { unit_id: "team", unit_name: "Team" },
+    prepares: { kind: "agent" as const, id: "agent-1", name: "Ada" },
+    decides: { kind: "member" as const, id: "user-1", name: "Jeff" },
+    escalation_path: [{ unit_id: "lead", unit_name: "Lead" }],
+    blocking_denies: ["rembourser"],
+    cost_estimate_usd_ticks: 4200,
+    notes: [],
+  };
+
+  it("keeps a valid simulation intact", () => {
+    expect(parseWithFallback(simulation, OrgSimulationSchema, null, ENDPOINT)).toEqual(simulation);
+  });
+
+  it("keeps an unrouted simulation, where no unit takes the request", () => {
+    const unrouted = { ...simulation, unit: null, receives: null, prepares: { kind: "none" as const, id: "", name: "" } };
+    expect(parseWithFallback(unrouted, OrgSimulationSchema, null, ENDPOINT)).toEqual(unrouted);
+  });
+
+  it("defaults an unknown actor kind rather than dropping the answer", () => {
+    const parsed = parseWithFallback<OrgSimulation | null>(
+      { ...simulation, prepares: { kind: "robot", id: "x", name: "X" } },
+      OrgSimulationSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.prepares.kind).toBe("none");
+  });
+
+  it("falls back to null on a malformed payload", () => {
+    for (const malformed of [
+      null,
+      "oops",
+      42,
+      [1, 2],
+      {},
+      { ...simulation, basis: "guess" },
+      { ...simulation, prepares: undefined },
+    ]) {
+      expect(parseWithFallback(malformed, OrgSimulationSchema, null, ENDPOINT)).toBeNull();
     }
   });
 });

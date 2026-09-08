@@ -469,6 +469,7 @@ import {
   OrgPreflightSchema,
   OrgOfferListSchema,
   OrgResolveSchema,
+  OrgSimulationSchema,
   TransferPreviewSchema,
   TransferImportResultSchema,
   TransferRunListSchema,
@@ -4937,6 +4938,19 @@ export class ApiClient {
   async setOrgStructureStatus(id: string, action: "activate" | "pause" | "resume" | "dissolve", body: { eval_attestation?: string; reason?: string } = {}): Promise<import("../types").OrgStructure | null> {
     const raw = await this.fetch<unknown>(`/api/org/${encodeURIComponent(id)}/${action}`, { method: "POST", body: JSON.stringify(body) });
     return parseWithFallback(raw, OrgStructureSchema.nullable(), null, { endpoint: "POST /api/org/:id/:action" }) as import("../types").OrgStructure | null;
+  }
+
+  // Simulate a request against a draft definition (or the revision in force)
+  // without routing anything: same matching, same target, no side effect.
+  async simulateOrg(body: import("../types").OrgSimulationRequest): Promise<import("../types").OrgSimulation> {
+    const raw = await this.fetch<unknown>("/api/org/simulate", { method: "POST", body: JSON.stringify(body) });
+    const parsed = parseWithFallback<import("../types").OrgSimulation | null>(raw, OrgSimulationSchema, null, {
+      endpoint: "POST /api/org/simulate",
+    });
+    // An empty fallback would read as a real answer ("nobody takes this"),
+    // which is worse than no answer: this result is shown to a person.
+    if (!parsed) throw new Error("POST /api/org/simulate returned a malformed simulation");
+    return parsed;
   }
 
   async deleteOrgStructure(id: string): Promise<void> {
