@@ -389,6 +389,19 @@ var concurrentIndexCleanups = map[string]string{
 	"667_workspace_transfer_run_index":                          "idx_workspace_transfer_run_workspace",
 	"669_issue_completed_at_index_after_column":                 "idx_issue_completed_at",
 	"611_triage_source_token_hash_index":                        "uq_triage_source_token_hash",
+	"672_issue_delivery_contract_identity":                      "issue_delivery_contract_identity",
+	"673_issue_delivery_review_identity":                        "issue_delivery_review_identity",
+	"674_issue_delivery_review_history":                         "issue_delivery_review_history",
+	"677_project_memory_version_identity":                       "project_memory_version_identity",
+	"680_project_memory_correction_identity":                    "project_memory_correction_identity",
+	"683_task_memory_usage_window":                              "idx_agent_task_memory_usage_window",
+	"687_agent_memory_version_identity":                         "agent_memory_version_identity",
+	"689_agent_memory_correction_identity":                      "agent_memory_correction_identity",
+	"691_agent_memory_evaluation_identity":                      "agent_memory_evaluation_identity",
+	"692_agent_memory_evaluation_receipt":                       "agent_memory_evaluation_receipt",
+	"693_agent_memory_evaluation_history":                       "agent_memory_evaluation_history",
+	"695_memory_evaluation_execution_request":                   "agent_memory_evaluation_execution_request",
+	"696_memory_evaluation_execution_queue":                     "agent_memory_evaluation_execution_queue",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

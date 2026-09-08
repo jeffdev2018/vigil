@@ -38,6 +38,17 @@ vi.mock("@tanstack/react-query", () => ({
         return { data: undefined, isLoading: false };
     }
   },
+  useInfiniteQuery: () => ({ data: undefined, isPending: false, isError: false }),
+}));
+
+// The memory section reads through `@multica/core/projects`, whose factories
+// call `queryOptions`; stub the module like the goals/org sections below.
+vi.mock("@multica/core/projects", () => ({
+  projectMemoryOptions: () => ({ queryKey: ["project-memory"] }),
+  projectMemoryHistoryOptions: () => ({ queryKey: ["project-memory-history"] }),
+  projectMemoryUsageOptions: () => ({ queryKey: ["project-memory-usage"] }),
+  useUpdateProjectMemory: () => ({ isPending: false, mutate: vi.fn() }),
+  useRestoreProjectMemory: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
 vi.mock("@multica/core/projects/queries", () => ({
