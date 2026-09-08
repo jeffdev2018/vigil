@@ -1,4 +1,7 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   extensionToLanguage,
@@ -99,5 +102,38 @@ describe("extensionToLanguage", () => {
   it("returns undefined for unknown extensions", () => {
     expect(extensionToLanguage("blob.bin")).toBeUndefined();
     expect(extensionToLanguage("noextension")).toBeUndefined();
+  });
+});
+
+// The proxy (server/internal/handler/file.go, isTextPreviewable) and this
+// module each keep their own extension list; the comment above
+// TEXT_EXTENSIONS asks for them to be kept in sync by hand. This is the check
+// that hand forgot: read both sources and diff the sets, so a drift fails
+// here instead of as a 415 in the preview modal or a missing Eye button.
+describe("text extensions stay in sync with the Go proxy", () => {
+  const read = (rel: string) => readFileSync(join(dirname(fileURLToPath(import.meta.url)), rel), "utf8");
+  const goSource = read("../../../../server/internal/handler/file.go");
+  const tsSource = read("./preview.ts");
+
+  const goExtensions = (() => {
+    const m = /ext := strings\.ToLower\(path\.Ext\(filename\)\)\s*switch ext \{\s*case ([\s\S]*?):\s*return true/.exec(goSource);
+    if (!m) throw new Error("extension switch not found in file.go");
+    return new Set([...m[1].matchAll(/"\.([a-z0-9]+)"/g)].map((x) => x[1]));
+  })();
+  const tsExtensions = (() => {
+    const m = /const TEXT_EXTENSIONS = new Set<string>\(\[([\s\S]*?)\]\)/.exec(tsSource);
+    if (!m) throw new Error("TEXT_EXTENSIONS not found in preview.ts");
+    return new Set([...m[1].matchAll(/"([a-z0-9]+)"/g)].map((x) => x[1]));
+  })();
+
+  it("both lists were found and are non-trivial", () => {
+    expect(goExtensions.size).toBeGreaterThan(20);
+    expect(tsExtensions.size).toBeGreaterThan(20);
+  });
+
+  it("every extension the proxy serves is previewable here, and vice versa", () => {
+    const onlyGo = [...goExtensions].filter((e) => !tsExtensions.has(e));
+    const onlyTs = [...tsExtensions].filter((e) => !goExtensions.has(e));
+    expect({ onlyGo, onlyTs }).toEqual({ onlyGo: [], onlyTs: [] });
   });
 });
