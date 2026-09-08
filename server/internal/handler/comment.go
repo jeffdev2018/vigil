@@ -2264,6 +2264,16 @@ func (h *Handler) resolveCommentTriggerEnqueue(ctx context.Context, issue db.Iss
 				// no-blocker case; we simply never PROMISE it.)
 			}
 		}
+		// A2A circuit breakers (F19). A mention link written into a comment is
+		// the hand-off the agent's own brief documents, and it stamps a2a_depth
+		// on the run it creates exactly like the agent-messages endpoint does —
+		// but only the endpoint checked it, so this was the unguarded path.
+		// Depth 0 is a human's mention and is never refused.
+		if depth := h.TaskService.A2ADepthForTriggerComment(ctx, issue.WorkspaceID, triggerCommentID); depth.Valid && depth.Int32 > 0 {
+			if reason := h.a2aBreakerBlocked(ctx, issue.ID, depth.Int32); reason != "" {
+				return DispatchBlocked, reason
+			}
+		}
 		if err := h.enqueueSingleCommentTrigger(ctx, issue, triggerCommentID, trigger, getEscalationDelay); err != nil {
 			// Lost the enqueue race: a sibling task for this (issue, agent) now
 			// exists. Re-resolve as pending so the next attempt folds this
