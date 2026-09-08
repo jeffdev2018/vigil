@@ -254,7 +254,10 @@
     "error_not_configured": "이 서버에는 전사가 설정되어 있지 않습니다.",
     "error_failed": "녹음을 전사할 수 없습니다.",
     "listen": "듣기",
-    "stop_listening": "듣기 중지"
+    "stop_listening": "듣기 중지",
+    "conversation_start": "대화 모드",
+    "conversation_stop": "대화 종료",
+    "conversation_transcribing": "전사 중…"
   },
   "participants": {
     "add": "멤버 추가",

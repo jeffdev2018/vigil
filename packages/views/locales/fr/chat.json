@@ -258,7 +258,10 @@
     "error_not_configured": "La transcription n'est pas configurée sur ce serveur.",
     "error_failed": "L'enregistrement n'a pas pu être transcrit.",
     "listen": "Écouter",
-    "stop_listening": "Arrêter l'écoute"
+    "stop_listening": "Arrêter l'écoute",
+    "conversation_start": "Mode conversation",
+    "conversation_stop": "Arrêter la conversation",
+    "conversation_transcribing": "Transcription…"
   },
   "participants": {
     "add": "Ajouter un membre",
