@@ -1288,17 +1288,34 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		slog.Info("linear integration disabled (MULTICA_LINEAR_SECRET_KEY not set)")
 	}
 	// Session revocation (K60): SCIM deprovisioning refuses older JWTs at once.
-	middleware.Revocations = auth.NewSessionRevocations(rdb, func(ctx context.Context, userID string) (time.Time, bool, error) {
-		id, err := util.ParseUUID(userID)
-		if err != nil {
-			return time.Time{}, false, nil
-		}
-		at, err := queries.GetUserSessionsInvalidatedAt(ctx, id)
-		if err != nil {
-			return time.Time{}, false, err
-		}
-		return at.Time, at.Valid, nil
-	})
+	//
+	// Only installed when there is a database to consult. A nil pool cannot
+	// answer "was this session revoked", and a checker that panics on every
+	// authenticated request is strictly worse than none: handler/scim.go
+	// already treats a nil Revocations as a supported state.
+	//
+	// This matters beyond the nil case because Revocations is a package
+	// global that constructing a router assigns. Several routers in one
+	// process therefore share the last one's closure — which is exactly how a
+	// test router built with no pool made every authenticated request in the
+	// package panic into a recovered 500, including in the router that had a
+	// real pool. The global should become an option on the router; until then,
+	// not overwriting it with something unusable is the guard.
+	if pool == nil {
+		slog.Info("session revocation disabled: no database pool")
+	} else {
+		middleware.Revocations = auth.NewSessionRevocations(rdb, func(ctx context.Context, userID string) (time.Time, bool, error) {
+			id, err := util.ParseUUID(userID)
+			if err != nil {
+				return time.Time{}, false, nil
+			}
+			at, err := queries.GetUserSessionsInvalidatedAt(ctx, id)
+			if err != nil {
+				return time.Time{}, false, err
+			}
+			return at.Time, at.Valid, nil
+		})
+	}
 	if vcsKey, err := secretbox.LoadKey("MULTICA_VCS_SECRET_KEY"); err == nil {
 		box, err := secretbox.New(vcsKey)
 		if err != nil {
