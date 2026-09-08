@@ -109,7 +109,10 @@ export function McpConfigTab({
     () => new Set(managedServers.map((server) => server.name)),
     [managedServers],
   );
-  const assignedServers = assignedQuery.data ?? [];
+  const assignedServers = useMemo(
+    () => assignedQuery.data ?? [],
+    [assignedQuery.data],
+  );
   const assignedIds = useMemo(
     () => new Set(assignedServers.map((server) => server.id)),
     [assignedServers],

@@ -340,6 +340,7 @@ export function useIssueGroupBranches({
     pageResults,
     pageTargets,
     primaryByBranch,
+    secondaryIsCategory,
   ]);
 
   const headRevisionRef = useRef<{

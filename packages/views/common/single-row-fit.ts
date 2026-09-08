@@ -61,7 +61,6 @@ export function useSingleRowFit({
   }, [gap, reserve]);
 
   // After every commit: the mirror just re-rendered with current labels.
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberate every-commit measure; the setState inside is change-guarded
   useLayoutEffect(() => {
     recompute();
   });

@@ -186,7 +186,7 @@ export function DiffAnchorThread({
   const resolveComment = useResolveComment(issueId);
   const toggleReaction = useToggleCommentReaction(issueId);
 
-  const replies = thread.replies ?? [];
+  const replies = useMemo(() => thread.replies ?? [], [thread.replies]);
   const hidden = Math.max(0, replies.length - VISIBLE_REPLIES);
   const shown = useMemo(
     () => (expanded || hidden === 0 ? replies : replies.slice(hidden)),
