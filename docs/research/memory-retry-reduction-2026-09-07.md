@@ -41,12 +41,24 @@ Commentaires observés :
 
 Preuves : [evidence/memory-retry-reduction-2026-09-07-wave2/](evidence/memory-retry-reduction-2026-09-07-wave2/)
 
-## Cumul vagues 1+2
+## Vague 3 — `rift-2` (n=2+2)
+
+Nouveau token ; baseline sans règle → miss (agent explique l’absence) ; traitement rev **6** → `rift-2` exact.
 
 | Métrique | Baseline | Traitement |
 | --- | --- | --- |
-| n | **6** | **6** |
-| correction_needed | **6** | **0** |
+| n | 2 | 2 |
+| correction_needed | **2** | **0** |
+| Relative reduction | — | **100 %** |
+
+Preuves : [evidence/memory-retry-reduction-2026-09-07-wave3/](evidence/memory-retry-reduction-2026-09-07-wave3/)
+
+## Cumul vagues 1+2+3
+
+| Métrique | Baseline | Traitement |
+| --- | --- | --- |
+| n | **8** | **8** |
+| correction_needed | **8** | **0** |
 | Relative reduction | — | **100 %** |
 
 ## Limites

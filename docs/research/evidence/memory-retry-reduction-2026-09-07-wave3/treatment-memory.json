@@ -1,0 +1,14 @@
+{
+  "rules": [
+    "Always run npm test after changing broken.js.",
+    "Mention DEV issue key in PR titles.",
+    "Project Northline dock code is keel-4. When asked for the project dock code, reply with only keel-4. Do not use tools.",
+    "Project warehouse bay code is mast-9. When asked for the project warehouse bay code, reply with only mast-9. Do not use tools.",
+    "Project rift code is rift-2. When asked for the project rift code, reply with only rift-2. Do not use tools."
+  ],
+  "revision": 6,
+  "reviewed_by": "354ec51b-e486-4fe2-99e7-066c4035d0a2",
+  "reviewed_at": "2026-09-07T21:27:48-04:00",
+  "expires_at": null,
+  "expired": false
+}
