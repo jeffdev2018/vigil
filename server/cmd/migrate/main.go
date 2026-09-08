@@ -446,6 +446,12 @@ var concurrentIndexCleanups = map[string]string{
 	"815_insight_widget_owner_index":                            "idx_insight_widget_workspace_owner",
 	"816_insight_widget_shared_index":                           "idx_insight_widget_workspace_shared",
 	"818_insight_query_log_recent_index":                        "idx_insight_query_log_workspace_recent",
+	"821_code_wiki_page_snapshot_slug_unique":                   "code_wiki_page_snapshot_slug_key",
+	"822_code_wiki_snapshot_resource_published_index":           "idx_code_wiki_snapshot_resource_published",
+	"823_code_wiki_snapshot_one_building_per_resource":          "code_wiki_snapshot_one_building_per_resource",
+	"824_code_wiki_snapshot_workspace_index":                    "idx_code_wiki_snapshot_workspace",
+	"825_code_wiki_page_workspace_index":                        "idx_code_wiki_page_workspace",
+	"830_task_a2a_budget_index":                                 "idx_agent_task_issue_a2a_created",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
