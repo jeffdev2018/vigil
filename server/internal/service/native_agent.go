@@ -222,8 +222,37 @@ func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx nat
 	if merr != nil {
 		raw = []byte(`{"error":"tool result could not be serialised"}`)
 	}
-	s.writeNativeMessage(ctx, tctx.task.ID, "tool_result", name, string(raw), nil)
+	s.writeToolResult(ctx, tctx.task.ID, name, string(raw))
 	return string(raw)
+}
+
+// writeToolResult appends the transcript row for a finished tool call.
+//
+// A tool result belongs in the `output` column, not `content`: that is where
+// the daemon path puts it (TaskMessageRequest.Output) and where every reader
+// looks for it. The native runtime wrote it to `content`, so its tool results
+// came back from the transcript API with an empty `output` — the row existed,
+// carried the tool name, and told the reader nothing about what the tool
+// answered. An agent reading its own transcript learned nothing either.
+func (s *NativeAgentService) writeToolResult(ctx context.Context, taskID pgtype.UUID, tool, output string) {
+	if output != "" {
+		output = util.SanitizeTextForPostgres(output)
+	}
+	seq, err := s.Queries.NextTaskMessageSeq(ctx, taskID)
+	if err != nil {
+		slog.Warn("native run: seq lookup failed", "task_id", util.UUIDToString(taskID), "error", err)
+		return
+	}
+	if _, err := s.Queries.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+		ID:     dbid.NewV7(),
+		TaskID: taskID,
+		Seq:    int32(seq),
+		Type:   "tool_result",
+		Tool:   textOrNull(tool),
+		Output: textOrNull(output),
+	}); err != nil {
+		slog.Warn("native run: tool result write failed", "task_id", util.UUIDToString(taskID), "error", err)
+	}
 }
 
 // writeNativeMessage appends one transcript row. Failures are logged, not
