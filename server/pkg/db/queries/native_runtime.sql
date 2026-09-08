@@ -29,3 +29,15 @@ WHERE runtime_mode = 'native' AND daemon_id = 'native';
 SELECT * FROM agent_runtime
 WHERE runtime_mode = 'native' AND daemon_id = 'native'
 ORDER BY created_at;
+
+-- name: ListRecentRunSummariesForIssue :many
+-- Continuity (N03): the summaries of the last terminated runs on an issue,
+-- newest first, so a follow-up run opens already knowing what its predecessors
+-- did instead of starting from zero. Failed runs count too — their result is
+-- empty but their presence is context; the caller filters what it renders.
+SELECT id, result FROM agent_task_queue
+WHERE issue_id = $1
+  AND id <> $2
+  AND status IN ('completed', 'failed')
+ORDER BY completed_at DESC NULLS LAST
+LIMIT $3;

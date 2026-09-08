@@ -1003,3 +1003,82 @@ func TestNativeHeadTailKeepsShortRecords(t *testing.T) {
 		t.Fatal("marker missing on a genuinely truncated record")
 	}
 }
+
+// N03 — run continuity. A follow-up run on the same issue opens already
+// knowing what its predecessors concluded: the brief carries the last
+// summaries as fenced records, and only for THAT issue. The budget from N02
+// still holds with the history aboard.
+func TestNativeAgentBriefCarriesRunContinuity(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+
+	// A terminated predecessor run on the issue, with a recognizable summary.
+	issueID := fx.Issue(t, "Follow-up")
+	priorResult := `{"summary":"J'ai analysé le rapport et posé trois questions ouvertes."}`
+	priorTaskID := fx.Task(t, agentID, testutil.Cols{
+		"issue_id":     issueID,
+		"runtime_id":   runtimeID,
+		"status":       "completed",
+		"completed_at": testutil.Raw("now() - interval '5 minutes'"),
+		"result":       testutil.Raw("'" + strings.ReplaceAll(priorResult, "'", "''") + "'::jsonb"),
+	})
+	_ = priorTaskID
+
+	// The follow-up run's brief.
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	taskRow, err := db.New(pool).GetAgentTask(ctx, util.MustParseUUID(taskID))
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, &scriptedNativeLLM{}, events.New())
+
+	brief, _, err := svc.nativeBriefForTask(ctx, taskRow, agent)
+	if err != nil {
+		t.Fatalf("brief: %v", err)
+	}
+	if !strings.Contains(brief, "What previous runs on this issue concluded") {
+		t.Fatal("brief does not carry the predecessor section")
+	}
+	if !strings.Contains(brief, "trois questions ouvertes") {
+		t.Fatal("predecessor summary missing from the brief")
+	}
+	if !strings.Contains(brief, "<data previous run summary>") {
+		t.Fatal("predecessor summary is not fenced as a record")
+	}
+	if len(brief) > nativeBriefBudget {
+		t.Fatalf("brief = %d bytes, budget still binding", len(brief))
+	}
+
+	// Another issue's brief must NOT see it.
+	otherID := fx.Issue(t, "Unrelated")
+	otherTask := fx.Task(t, agentID, testutil.Cols{"issue_id": otherID, "runtime_id": runtimeID})
+	otherRow, err := db.New(pool).GetAgentTask(ctx, util.MustParseUUID(otherTask))
+	if err != nil {
+		t.Fatalf("get other task: %v", err)
+	}
+	otherBrief, _, err := svc.nativeBriefForTask(ctx, otherRow, agent)
+	if err != nil {
+		t.Fatalf("other brief: %v", err)
+	}
+	if strings.Contains(otherBrief, "trois questions ouvertes") {
+		t.Fatal("continuity leaked into an unrelated issue's brief")
+	}
+}
