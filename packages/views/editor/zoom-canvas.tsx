@@ -158,6 +158,8 @@ export function ZoomCanvas({
       canvas.setViewportNode(node);
       if (node && autoFocus) node.focus({ preventScroll: true });
     },
+    // The method, not the whole `canvas` object: only setViewportNode is read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [canvasRef, canvas.setViewportNode, autoFocus],
   );
 

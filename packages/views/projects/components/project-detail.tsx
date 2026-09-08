@@ -129,6 +129,9 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
         projectStatus: project.status,
       });
     }
+    // Field-level deps on purpose: the recent-context entry only carries these
+    // five fields, so no other `project` change should re-record a visit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project?.id, project?.title, project?.description, project?.icon, project?.status, recordRecentContext, wsId]);
   const issueTab = useIssuesScope(`project:${projectId}`);
   const issueScope = useMemo(
