@@ -23,21 +23,6 @@ import (
 
 const projectMemoryMaxRules = 20
 
-// Immutable human evidence from a delivery correction, kept even when the
-// issue or source run is deleted. Explains the publication; not a replay proof.
-type AgentMemoryCorrectionSource struct {
-	ReviewID      string               `json:"review_id"`
-	IssueID       string               `json:"issue_id"`
-	TaskID        string               `json:"task_id"`
-	Feedback      string               `json:"feedback"`
-	Criteria      []string             `json:"criteria"`
-	Assessments   []DeliveryAssessment `json:"assessments"`
-	SnapshotToken string               `json:"snapshot_token"`
-	ReviewedBy    string               `json:"reviewed_by"`
-	ReviewedAt    string               `json:"reviewed_at"`
-	InputHash     string               `json:"input_hash"`
-}
-
 type ProjectMemoryResponse struct {
 	Rules                []string          `json:"rules"`
 	Revision             int32             `json:"revision"`

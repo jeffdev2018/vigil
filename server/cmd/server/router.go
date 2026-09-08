@@ -1515,6 +1515,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		r.Get("/tasks/{id}/plugin-mcp/{contributionId}/credential", h.ResolvePluginMCPCredential)
 
 		r.Post("/runtimes/{runtimeId}/tasks/claim", h.ClaimTaskByRuntime)
+		r.Post("/runtimes/{runtimeId}/memory-evaluations/{evaluationId}/claim", h.ClaimMemoryExecution)
+		r.Post("/runtimes/{runtimeId}/memory-evaluations/{evaluationId}/report", h.ReportMemoryExecution)
 		// Canonical machine-level batch claim (MUL-4257). `/claim` is a
 		// transitional alias; the daemon coordinator targets the canonical
 		// path.
@@ -2558,9 +2560,19 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 					r.Delete("/skills/{skillId}", h.RemoveAgentSkill)
 					// Durable per-agent memory facts (JEF-236), injected into
 					// every run's brief. Same permission model as the agent's
-					// skill bindings above.
+					// skill bindings above. Review / history / evaluation
+					// extend the base CRUD.
 					r.Get("/memories", h.ListAgentMemories)
+					r.Get("/memories/usage", h.GetAgentMemoryUsage)
 					r.Post("/memories", h.CreateAgentMemory)
+					r.Get("/memories/{memoryId}/history", h.ListAgentMemoryHistory)
+					r.Get("/memories/{memoryId}/evaluations", h.ListAgentMemoryEvaluations)
+					r.Post("/memories/{memoryId}/evaluations", h.CreateAgentMemoryEvaluation)
+					r.Get("/memories/{memoryId}/evaluations/runtime", h.GetMemoryExecutionConfig)
+					r.Post("/memories/{memoryId}/evaluations/run", h.StartMemoryExecution)
+					r.Post("/memories/{memoryId}/evaluations/{evaluationId}/cancel", h.CancelMemoryExecution)
+					r.Get("/memories/{memoryId}/evaluations/{evaluationId}", h.GetAgentMemoryEvaluation)
+					r.Delete("/memories/{memoryId}/evaluations/{evaluationId}", h.DeleteAgentMemoryEvaluation)
 					r.Put("/memories/{memoryId}", h.UpdateAgentMemory)
 					r.Delete("/memories/{memoryId}", h.DeleteAgentMemory)
 					// Workspace MCP servers assigned to this agent. Mirrors

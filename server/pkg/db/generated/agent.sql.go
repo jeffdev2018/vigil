@@ -9321,6 +9321,43 @@ func (q *Queries) SetTaskDeliveredCommentIDs(ctx context.Context, arg SetTaskDel
 	return delivered_comment_ids, err
 }
 
+const setTaskMemoryContext = `-- name: SetTaskMemoryContext :execrows
+UPDATE agent_task_queue SET memory_context = CASE
+    WHEN $1::jsonb IS NULL THEN NULL
+    ELSE $1::jsonb || jsonb_build_object(
+        'is_chat', chat_session_id IS NOT NULL OR COALESCE(trigger_evidence_kind = 'chat', false)
+    )
+END
+WHERE id = $2 AND runtime_id = $3
+  AND status = 'dispatched' AND started_at IS NULL
+  AND dispatched_at = $4
+`
+
+type SetTaskMemoryContextParams struct {
+	MemoryContext []byte             `json:"memory_context"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	RuntimeID     pgtype.UUID        `json:"runtime_id"`
+	DispatchedAt  pgtype.Timestamptz `json:"dispatched_at"`
+}
+
+// Latest finalized claim only, matching the comment receipt semantics. An
+// earlier payload must never replace the context of a newer claim or a run
+// which already started. NULL means unrecorded, never an empty memory set.
+// Stamp privacy from the locked task, never from caller-supplied JSON. The chat
+// FK is SET NULL on deletion, so this marker must survive with the receipt.
+func (q *Queries) SetTaskMemoryContext(ctx context.Context, arg SetTaskMemoryContextParams) (int64, error) {
+	result, err := q.db.Exec(ctx, setTaskMemoryContext,
+		arg.MemoryContext,
+		arg.TaskID,
+		arg.RuntimeID,
+		arg.DispatchedAt,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const settleDelegatedFailureRecoveriesForTask = `-- name: SettleDelegatedFailureRecoveriesForTask :execrows
 UPDATE comment recovery
 SET recovery_settled_at = now()

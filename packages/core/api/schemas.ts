@@ -2316,7 +2316,23 @@ export const EMPTY_ROUTING_STATS_RESPONSE: RuntimeRoutingStatsResponse = {
   rows: [],
 };
 
+const TaskMemoryVersionSchema = z.object({
+  id: z.string().uuid(),
+  revision: z.number().int().min(1).max(2147483647),
+});
+const TaskMemoryContextSchema = z.object({
+  dispatched_at: z.string().datetime({ offset: true }),
+  agent_status: z.enum(["loaded", "unavailable"]),
+  agent_versions: z.array(TaskMemoryVersionSchema).max(50),
+  project_version: TaskMemoryVersionSchema.nullable(),
+}).refine((value) =>
+  (value.agent_status === "loaded" || value.agent_versions.length === 0) &&
+  new Set(value.agent_versions.map((version) => version.id)).size === value.agent_versions.length,
+);
+
 export const AgentTaskSchema = z.object({
+  // Invalid optional audit data is unknown, never a fabricated empty set.
+  memory_context: TaskMemoryContextSchema.optional().catch(undefined),
   id: z.string(),
   agent_id: z.string().default(""),
   runtime_id: z.string().default(""),
@@ -3917,14 +3933,27 @@ export const EMPTY_SKILL_IMPORT_RESULT: SkillImportResult = {
 // default-bearing branch. Fields default so a partial payload degrades to a
 // renderable row rather than dropping the whole list.
 export const AgentMemorySchema = z.object({
+  source_review: z.object({
+    review_id: z.string().uuid(), issue_id: z.string().uuid(), task_id: z.string().uuid(),
+    feedback: z.string(), criteria: z.array(z.string()).max(20),
+    assessments: z.array(z.object({ passed: z.boolean(), evidence: z.string() })).max(20),
+    snapshot_token: z.string().regex(/^[a-f0-9]{64}$/),
+    reviewed_by: z.string().uuid(), reviewed_at: z.iso.datetime({ offset: true }),
+  }).nullable().optional(),
   id: z.string(),
   agent_id: z.string(),
   content: z.string().optional().default(""),
   source: z.string().optional().default("manual"),
   source_task_id: z.string().nullable().optional().default(null),
   source_issue_id: z.string().nullable().optional().default(null),
+  status: z.string().catch("unknown").default("unknown"),
+  revision: z.number().int().positive().catch(0).default(0),
+  reviewed_by: z.string().nullable().catch(null).default(null),
+  reviewed_at: z.string().nullable().catch(null).default(null),
   created_at: z.string().optional().default(""),
   updated_at: z.string().optional().default(""),
+  expires_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  expired: z.boolean().default(false),
 }).loose();
 
 export const EMPTY_AGENT_MEMORY: AgentMemory = {
@@ -3936,6 +3965,12 @@ export const EMPTY_AGENT_MEMORY: AgentMemory = {
   source_issue_id: null,
   created_at: "",
   updated_at: "",
+  status: "active",
+  revision: 1,
+  reviewed_by: null,
+  reviewed_at: null,
+  expires_at: null,
+  expired: false,
 };
 
 // The list endpoint wraps the rows so it can report how many of them a run
@@ -3952,6 +3987,84 @@ export const EMPTY_AGENT_MEMORY_LIST: AgentMemoryList = {
   briefed_count: 0,
   extraction_enabled: false,
 };
+
+const MemoryEvaluationOutcomeSchema = z.object({
+  status: z.string(), duration_ms: z.number().int().nonnegative(), artifact: z.string(), diagnostic: z.string(),
+  cost_usd: z.number().finite().nonnegative().nullable().optional(),
+  cost_source: z.literal("catalog_estimate").optional(),
+  runtime: z.object({
+    provider: z.string(), requested_model: z.string(), requested_effort: z.string(), status: z.string(),
+    executable_hash: z.string().regex(/^[a-f0-9]{64}$/), prompt_hash: z.string().regex(/^[a-f0-9]{64}$/), brief_hash: z.string().regex(/^[a-f0-9]{64}$/),
+    tool_calls: z.number().int().nonnegative(),
+    usage: z.record(z.string(), z.object({ input_tokens: z.number().int().nonnegative(), output_tokens: z.number().int().nonnegative(), cache_read_tokens: z.number().int().nonnegative(), cache_write_tokens: z.number().int().nonnegative() }).passthrough()).nullable(),
+  }).passthrough().optional(),
+}).passthrough().refine((o) => (o.cost_usd == null) === (o.cost_source === undefined), "cost_usd requires catalog_estimate source");
+
+export const AgentMemoryEvaluationSchema = z.object({
+  execution_status: z.string().optional(), execution_runtime_id: z.string().optional(),
+  id: z.string().uuid(), memory_id: z.string().uuid(), revision: z.number().int().positive(),
+  uploaded_by: z.string().uuid(), created_at: z.string().datetime({ offset: true }),
+  adopted_revision: z.number().int().positive().nullable(), eligible: z.boolean(), reason: z.string(),
+  report_hash: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+  cost_status: z.enum(["unavailable", "estimated", "partial"]).optional(),
+  estimated_cost_usd: z.number().finite().nonnegative().optional(),
+  total: z.number().int().min(2).max(16), baseline_passed: z.number().int().nonnegative(),
+  candidate_passed: z.number().int().nonnegative(), regressions: z.number().int().nonnegative(), errors: z.number().int().nonnegative(),
+  report: z.object({
+    candidate: z.object({ content: z.string(), revision: z.number().int().positive() }).passthrough(),
+    suite: z.object({ image: z.string(), worker: z.array(z.string()), verifier: z.array(z.string()) }).passthrough(),
+    cases: z.array(z.object({ id: z.string(), split: z.string(), input_hash: z.string(), checks_hash: z.string(), baseline: MemoryEvaluationOutcomeSchema, candidate: MemoryEvaluationOutcomeSchema }).passthrough()).nullable().transform((cases) => cases ?? []),
+  }).passthrough().optional(),
+}).refine((item) => item.baseline_passed <= item.total && item.candidate_passed <= item.total && item.regressions <= item.total && item.errors <= item.total && (!item.eligible || (item.candidate_passed === item.total && item.regressions === 0 && item.errors === 0)), "Invalid evaluation counts")
+  .refine((item) => !item.report || (item.report.candidate.revision === item.revision && item.report.cases.length <= item.total && (!item.eligible || item.report.cases.length === item.total)), "Invalid evaluation detail")
+  .refine((item) => item.estimated_cost_usd === undefined || item.cost_status === "estimated" || item.cost_status === "partial", "estimated_cost_usd requires cost_status");
+export const AgentMemoryEvaluationListSchema = z.array(AgentMemoryEvaluationSchema).max(10);
+
+export const AgentMemoryHistorySchema = z.object({
+  versions: z.array(AgentMemorySchema.extend({
+    content: z.string().min(1),
+    revision: z.number().int().positive(),
+    restored_from_revision: z.number().int().positive().optional(),
+  })),
+  next_before_revision: z.number().int().positive().nullable(),
+});
+
+const MemoryUsageCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const AgentMemoryUsageSchema = z.object({
+  since: z.string().datetime({ offset: true }),
+  until: z.string().datetime({ offset: true }),
+  started_runs: MemoryUsageCountSchema,
+  recorded_runs: MemoryUsageCountSchema,
+  unrecorded_runs: MemoryUsageCountSchema,
+  load_failed_runs: MemoryUsageCountSchema,
+  runs_with_agent_memory: MemoryUsageCountSchema,
+  versions: z.array(z.object({
+    memory_id: z.string().uuid(),
+    revision: z.number().int().min(1).max(2147483647),
+    prepared_runs: MemoryUsageCountSchema.refine((count) => count > 0),
+    last_started_at: z.string().datetime({ offset: true }),
+  })),
+}).refine((value) => {
+  const since = Date.parse(value.since), until = Date.parse(value.until);
+  return until - since === 30 * 24 * 60 * 60 * 1000 &&
+    value.started_runs === value.recorded_runs + value.unrecorded_runs &&
+    value.recorded_runs >= value.load_failed_runs + value.runs_with_agent_memory &&
+    (value.versions.length > 0) === (value.runs_with_agent_memory > 0) &&
+    new Set(value.versions.map((version) => `${version.memory_id}:${version.revision}`)).size === value.versions.length &&
+    value.versions.every((version) => version.prepared_runs <= value.runs_with_agent_memory &&
+      Date.parse(version.last_started_at) >= since && Date.parse(version.last_started_at) < until);
+});
+
+export const MemoryExecutionConfigSchema = z.object({
+  runtime_id: z.string().uuid(),
+  provider: z.string(),
+  model: z.string().min(1),
+  effort: z.string(),
+  config_hash: z.string().regex(/^[a-f0-9]{64}$/),
+  max_cases: z.number().int().min(2).max(8),
+  timeout_seconds: z.number().int().positive().max(60),
+  check_modes: z.array(z.enum(["exact", "json", "javascript"])).catch(["exact"]).default(["exact"]),
+});
 
 /**
  * Read shape of one workspace MCP server.
@@ -5649,7 +5762,6 @@ export const DeliveryHistorySchema = z.object({ reviews: z.array(DeliveryReviewS
   .transform(({ reviews, next_before_id }) => ({ reviews, nextBeforeId: next_before_id }));
 export type DeliveryHistory = z.infer<typeof DeliveryHistorySchema>;
 
-const MemoryUsageCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 export const ProjectMemoryUsageSchema = z.object({
   since: z.string().datetime({ offset: true }),
   until: z.string().datetime({ offset: true }),

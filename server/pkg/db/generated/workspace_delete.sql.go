@@ -117,6 +117,8 @@ func (q *Queries) DeleteWorkspaceAgentEffects(ctx context.Context, workspaceID p
 }
 
 const deleteWorkspaceAgentMemories = `-- name: DeleteWorkspaceAgentMemories :exec
+WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
+cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
 DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1
 `
 

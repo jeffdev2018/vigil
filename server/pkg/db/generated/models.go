@@ -166,6 +166,48 @@ type AgentMemory struct {
 	SourceTaskID pgtype.UUID        `json:"source_task_id"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	Status       string             `json:"status"`
+	Revision     int32              `json:"revision"`
+	ReviewedBy   pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt   pgtype.Timestamptz `json:"reviewed_at"`
+	ExpiresAt    pgtype.Timestamptz `json:"expires_at"`
+	SourceReview []byte             `json:"source_review"`
+}
+
+type AgentMemoryEvaluation struct {
+	ID                 pgtype.UUID        `json:"id"`
+	WorkspaceID        pgtype.UUID        `json:"workspace_id"`
+	AgentID            pgtype.UUID        `json:"agent_id"`
+	MemoryID           pgtype.UUID        `json:"memory_id"`
+	Revision           int32              `json:"revision"`
+	MemoryIds          []pgtype.UUID      `json:"memory_ids"`
+	Report             []byte             `json:"report"`
+	ReportHash         string             `json:"report_hash"`
+	UploadedBy         pgtype.UUID        `json:"uploaded_by"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	AdoptedRevision    pgtype.Int4        `json:"adopted_revision"`
+	ExecutionStatus    string             `json:"execution_status"`
+	ExecutionRuntimeID pgtype.UUID        `json:"execution_runtime_id"`
+	ExecutionRequestID pgtype.UUID        `json:"execution_request_id"`
+	ExecutionDeadline  pgtype.Timestamptz `json:"execution_deadline"`
+}
+
+type AgentMemoryVersion struct {
+	MemoryID             pgtype.UUID        `json:"memory_id"`
+	WorkspaceID          pgtype.UUID        `json:"workspace_id"`
+	AgentID              pgtype.UUID        `json:"agent_id"`
+	Revision             int32              `json:"revision"`
+	Content              string             `json:"content"`
+	Status               string             `json:"status"`
+	Source               string             `json:"source"`
+	SourceTaskID         pgtype.UUID        `json:"source_task_id"`
+	ReviewedBy           pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	RestoredFromRevision pgtype.Int4        `json:"restored_from_revision"`
+	SourceReview         []byte             `json:"source_review"`
 }
 
 type AgentPermissionProfile struct {

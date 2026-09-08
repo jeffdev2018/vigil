@@ -14,6 +14,7 @@ import { useT } from "../../i18n";
 import { collectUnmappedModels, formatUsd, summarizeTaskUsageAcross } from "../../runtimes/utils";
 import { IssueUsageDialog } from "./issue-usage-dialog";
 import { TranscriptButton } from "../../common/task-transcript";
+import { TeachFromReviewButton } from "../../agents/components/tabs/memory-tab";
 import { TeachProjectFromReviewButton } from "../../projects/components/project-memory-section";
 
 type ReviewDraft = ReviewDeliveryInput & { criteria: string[]; startedAtMs: number };
@@ -209,6 +210,15 @@ export function IssueDeliverySection({
         })}</p>
         <DeliveryUsageAtReview review={data.latestReview} />
         {data.latestReview.feedback && <p className="whitespace-pre-wrap break-words">{data.latestReview.feedback}</p>}
+        {data.latestReview.decision === "changes_requested" && reviewedTask?.agent_id && (
+          <TeachFromReviewButton
+            key={data.latestReview.id}
+            wsId={wsId}
+            agentId={reviewedTask.agent_id}
+            sourceTaskId={reviewedTask.id}
+            review={data.latestReview}
+          />
+        )}
         {data.latestReview.decision === "changes_requested" && projectId && (
           <TeachProjectFromReviewButton key={`project-${data.latestReview.id}`} wsId={wsId} projectId={projectId} review={data.latestReview} />
         )}
@@ -250,6 +260,9 @@ export function IssueDeliverySection({
               <p className="font-medium">{review.decision === "accepted" ? t(($) => $.delivery.accepted) : t(($) => $.delivery.changes_requested)}</p>
               <p className="break-words text-muted-foreground">{t(($) => $.delivery.reviewed_by, { name: getActorName?.("member", review.reviewedBy) || review.reviewedBy, date: new Date(review.createdAt).toLocaleString() })}</p>
               {review.feedback && <p className="whitespace-pre-wrap break-words">{review.feedback}</p>}
+              {review.decision === "changes_requested" && historicalTask?.agent_id && (
+                <TeachFromReviewButton wsId={wsId} agentId={historicalTask.agent_id} sourceTaskId={historicalTask.id} review={review} />
+              )}
               {review.decision === "changes_requested" && projectId && (
                 <TeachProjectFromReviewButton wsId={wsId} projectId={projectId} review={review} />
               )}

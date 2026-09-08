@@ -30,6 +30,9 @@ const (
 	// Gated so only daemons+servers that both support it route claim over WS;
 	// everyone else keeps using the HTTP claim endpoint.
 	DaemonCapabilityRPCV1 = "rpc-v1"
+	// DaemonCapabilityMemoryEvaluationV1 advertises support for in-daemon
+	// paired memory evaluation runs claimed via heartbeat.
+	DaemonCapabilityMemoryEvaluationV1 = "memory-evaluation-v1"
 
 	// AppCapabilityChatDraftRestoreV1 is advertised (X-Client-Capabilities) by
 	// app clients that understand the durable draft-restore recovery path:
@@ -121,6 +124,7 @@ const (
 	PendingWorkKindCliAuth          = "cli_auth"
 	PendingWorkKindLocalSkills      = "local_skills"
 	PendingWorkKindLocalSkillImport = "local_skill_import"
+	PendingWorkKindMemoryEvaluation = "memory_evaluation"
 )
 
 // PendingWorkPayload is sent from server to daemon as a wakeup hint when a
@@ -368,6 +372,7 @@ type DaemonHeartbeatAckPayload struct {
 	RuntimeGone             bool                                    `json:"runtime_gone,omitempty"`
 	PendingUpdate           *DaemonHeartbeatPendingUpdate           `json:"pending_update,omitempty"`
 	PendingModelList        *DaemonHeartbeatPendingModelList        `json:"pending_model_list,omitempty"`
+	PendingMemoryEvaluation string                                  `json:"pending_memory_evaluation,omitempty"`
 	PendingCliAuth          *DaemonHeartbeatPendingCliAuth          `json:"pending_cli_auth,omitempty"`
 	PendingLocalSkills      *DaemonHeartbeatPendingLocalSkills      `json:"pending_local_skills,omitempty"`
 	PendingLocalSkillImport *DaemonHeartbeatPendingLocalSkillImport `json:"pending_local_skill_import,omitempty"`

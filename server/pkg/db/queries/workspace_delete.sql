@@ -638,6 +638,8 @@ WITH deleted_squads AS (
 DELETE FROM skill WHERE skill.workspace_id = $1;
 
 -- name: DeleteWorkspaceAgentMemories :exec
+WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
+cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
 -- agent_memory carries no FK by repo rule; sweep it before the agent rows it
 -- logically hangs off.
 DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
