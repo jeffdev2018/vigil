@@ -44,10 +44,16 @@ SELECT * FROM run_limit_event WHERE task_id = $1 ORDER BY created_at;
 SELECT e.* FROM run_limit_event e JOIN agent_task_queue t ON t.id = e.task_id WHERE t.issue_id = $1 ORDER BY e.created_at DESC LIMIT 50;
 
 -- name: ListRunningTasksForLimits :many
+-- Every running run, not only those in a workspace that configured a policy.
+-- The duration gate is the one cap that can only move with the clock, so it
+-- fires here or nowhere; cost, turns and tool calls are also evaluated when the
+-- run reports usage. Filtering on an existing run_limit_policy row used to be
+-- correct, because a workspace without one had no caps at all — since the
+-- built-in wall (EffectiveRunLimits) it is not, and it left the default
+-- duration cap unable to fire for exactly the workspaces that never configured
+-- anything.
 SELECT t.* FROM agent_task_queue t
-JOIN agent a ON a.id = t.agent_id
 WHERE t.status = 'running' AND t.started_at IS NOT NULL
-  AND EXISTS (SELECT 1 FROM run_limit_policy p WHERE p.workspace_id = a.workspace_id)
 ORDER BY t.started_at
 LIMIT $1;
 
@@ -56,3 +62,31 @@ DELETE FROM run_limit_policy WHERE workspace_id = $1;
 
 -- name: PurgeWorkspaceRunLimitEvents :exec
 DELETE FROM run_limit_event WHERE workspace_id = $1;
+
+-- name: ListTasksOnTerminalIssues :many
+-- Runs whose issue has been closed or cancelled under them. The status is
+-- returned rather than filtered in SQL because a workspace can define its own
+-- statuses: only issuestatus.Effective knows which category a custom key maps
+-- to, so the decision belongs in Go and this query only narrows the candidates.
+SELECT t.id, t.agent_id, t.issue_id, i.workspace_id, i.status AS issue_status
+FROM agent_task_queue t
+JOIN issue i ON i.id = t.issue_id
+WHERE t.status IN ('queued', 'running')
+  AND i.status IS NOT NULL AND i.status <> ''
+ORDER BY t.created_at
+LIMIT $1;
+
+-- name: EndTasksOnTerminalIssues :many
+-- Ends the runs the caller judged orphaned. The terminal decision is made in
+-- Go (issuestatus.Effective, because a workspace can name its own statuses)
+-- and only the ids arrive here, so this is the write half of a two-step sweep
+-- and re-checks the status it is allowed to end from.
+UPDATE agent_task_queue
+SET status = 'failed',
+    completed_at = now(),
+    error = 'The issue was closed while this run was still going, so there is nothing left for it to deliver.',
+    failure_reason = 'issue_terminal',
+    prepare_lease_expires_at = NULL
+WHERE id = ANY(sqlc.arg('ids')::uuid[])
+  AND status IN ('queued', 'running')
+RETURNING id;

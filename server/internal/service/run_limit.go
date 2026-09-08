@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -327,3 +328,44 @@ func (s *TaskService) publishRunLimitInbox(item db.InboxItem) {
 		Payload:     map[string]any{"item_id": util.UUIDToString(item.ID), "recipient_type": item.RecipientType, "recipient_id": util.UUIDToString(item.RecipientID)},
 	})
 }
+
+// SweepTasksOnTerminalIssues ends runs whose issue was closed or cancelled
+// under them. It is the second authority on an orphan: the daemon already
+// recovers a run whose PROCESS died, through the stale window and
+// /recover-orphans, but a live process working on a closed issue looks healthy
+// from every angle and keeps its slot, its budget and its tokens until it
+// finishes on its own.
+//
+// The status is judged with issuestatus.Effective rather than compared to a
+// literal, because a workspace can name its own statuses and only the category
+// says whether one is terminal.
+func (s *TaskService) SweepTasksOnTerminalIssues(ctx context.Context, maxPerTick int32) int {
+	rows, err := s.Queries.ListTasksOnTerminalIssues(ctx, maxPerTick)
+	if err != nil {
+		slog.Warn("terminal-issue sweep: list failed", "error", err)
+		return 0
+	}
+	var victims []pgtype.UUID
+	for _, row := range rows {
+		category := issuestatus.Effective(ctx, s.Queries, row.WorkspaceID, row.IssueStatus)
+		if category != issuestatus.Done && category != issuestatus.Cancelled {
+			continue
+		}
+		victims = append(victims, row.ID)
+	}
+	if len(victims) == 0 {
+		return 0
+	}
+	ended, err := s.Queries.EndTasksOnTerminalIssues(ctx, victims)
+	if err != nil {
+		slog.Warn("terminal-issue sweep: end failed", "candidates", len(victims), "error", err)
+		return 0
+	}
+	if len(ended) > 0 {
+		slog.Info("terminal-issue sweep: runs ended", "count", len(ended))
+	}
+	return len(ended)
+}
+
+// ReasonIssueTerminal is the failure reason the sweep writes.
+const ReasonIssueTerminal = "issue_terminal"

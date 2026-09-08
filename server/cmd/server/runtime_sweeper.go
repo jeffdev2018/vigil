@@ -167,6 +167,9 @@ func runRuntimeSweeper(ctx context.Context, queries *db.Queries, liveness handle
 		taskSvc.MoveWaitingTasksOffOfflineRuntimes(ctx, reconnectGrace, offlineTaskFailBatchSize)
 		// Run limits (K03): the duration cap only moves with the clock.
 		taskSvc.SweepRunLimits(ctx, offlineTaskFailBatchSize)
+		// Orphans, second authority: the daemon recovers a run whose PROCESS
+		// died; this ends a live run whose ISSUE was closed under it.
+		taskSvc.SweepTasksOnTerminalIssues(ctx, offlineTaskFailBatchSize)
 		// Preemption (K41): suspended runs come back when capacity frees.
 		taskSvc.ResumePreemptedTasks(ctx, offlineTaskFailBatchSize)
 		sweepExpiredRuntimeReconnectRetries(ctx, queries, taskSvc, reconnectGrace)
