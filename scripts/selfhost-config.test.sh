@@ -73,13 +73,24 @@ require_config "$config" 'MULTICA_LLM_BASE_URL: http://gateway.example/v1'
 require_config "$config" 'MULTICA_LLM_DEFAULT_MODEL: model-from-env'
 require_config "$config" 'MULTICA_LLM_MAX_RETRIES: "3"'
 
-while IFS= read -r llm_var; do
-  if ! grep -Eq "^[[:space:]]+${llm_var}: \\\$\{${llm_var}:-" docker-compose.selfhost.yml; then
-    echo "$llm_var is documented in .env.example but not mapped into the backend"
-    echo "service in docker-compose.selfhost.yml, so self-hosted deployments cannot set it."
-    exit 1
-  fi
-done < <(grep -oE '^MULTICA_LLM_[A-Z_]+' .env.example)
+# Same allowlist-drift guard, generalized to every prefix whose knobs are
+# fully wired into the backend service today. Extend this list only after
+# mapping every var under a new prefix into docker-compose.selfhost.yml,
+# or the guard itself will fail.
+for knob_prefix in \
+  MULTICA_LLM_ \
+  MULTICA_STT_ \
+  MULTICA_TTS_ \
+  REALTIME_RELAY_ \
+  CHANNEL_WS_LEASE_; do
+  while IFS= read -r knob_var; do
+    if ! grep -Eq "^[[:space:]]+${knob_var}: \\\$\{${knob_var}:-" docker-compose.selfhost.yml; then
+      echo "$knob_var is documented in .env.example but not mapped into the backend"
+      echo "service in docker-compose.selfhost.yml, so self-hosted deployments cannot set it."
+      exit 1
+    fi
+  done < <(grep -oE "^#?[[:space:]]*${knob_prefix}[A-Z_]+=" .env.example | sed -E 's/^#[[:space:]]*//; s/=$//' | sort -u)
+done
 
 for script in scripts/dev.sh scripts/check.sh; do
   if ! grep -Fq '. scripts/local-env.sh' "$script"; then
