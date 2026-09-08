@@ -37,6 +37,7 @@ import { TranscriptButton } from "../../../common/task-transcript";
 import { AttributionBadge } from "../../../issues/components/attribution-badge";
 import { taskStatusConfig } from "../../config";
 import { cancelReasonLabel, failureReasonLabel } from "./task-failure";
+import { TeachFromRunButton } from "./memory-tab";
 import { Sparkline } from "../sparkline";
 import { useT, useTimeAgo } from "../../../i18n";
 
@@ -746,6 +747,11 @@ function TaskRow({
             isLive={isRunning}
             title={t(($) => $.tab_body.activity.transcript_tooltip)}
           />
+        )}
+        {/* Terminal rows only — TeachFromRunButton itself re-checks status,
+            chat session and edit permission and renders nothing otherwise. */}
+        {timeMode === "completed" && (
+          <TeachFromRunButton agent={agent} task={task} />
         )}
         {showCancel && (
           <Tooltip>
