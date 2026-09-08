@@ -64,3 +64,8 @@ RETURNING *;
 -- sets of attempts of possibly the same agents on one issue, and the losing
 -- side of one race could delete a branch the other race is still writing to.
 SELECT count(*) FROM run_group WHERE issue_id = $1 AND status = 'running';
+
+-- name: PurgeWorkspaceRunGroups :exec
+-- Workspace teardown. Attempts themselves live on agent_task_queue and are
+-- purged by the task sweep; this drops the group rows that scoped them.
+DELETE FROM run_group WHERE workspace_id = $1;

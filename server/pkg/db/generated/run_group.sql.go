@@ -398,6 +398,17 @@ func (q *Queries) ListRunGroupsForIssue(ctx context.Context, issueID pgtype.UUID
 	return items, nil
 }
 
+const purgeWorkspaceRunGroups = `-- name: PurgeWorkspaceRunGroups :exec
+DELETE FROM run_group WHERE workspace_id = $1
+`
+
+// Workspace teardown. Attempts themselves live on agent_task_queue and are
+// purged by the task sweep; this drops the group rows that scoped them.
+func (q *Queries) PurgeWorkspaceRunGroups(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, purgeWorkspaceRunGroups, workspaceID)
+	return err
+}
+
 const recordTaskDiff = `-- name: RecordTaskDiff :one
 UPDATE agent_task_queue
 SET diff_stat = $2::jsonb,
