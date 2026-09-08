@@ -74,6 +74,8 @@
     "./goals": "./goals/queries.ts",
     "./cycles": "./cycles/queries.ts",
     "./org": "./org/queries.ts",
+    "./org/validate": "./org/validate.ts",
+    "./org/layout": "./org/layout.ts",
     "./skills/drafts": "./skills/drafts.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",
     "./runtimes/pools": "./runtimes/pools.ts",
