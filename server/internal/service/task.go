@@ -3931,6 +3931,15 @@ func (s *TaskService) ClaimTask(ctx context.Context, agentID pgtype.UUID) (*db.A
 // offline candidate on runtime A from causing the same agent's task on runtime
 // B to be dispatched and then dropped by the caller's runtime guard.
 //
+// taskPinsRuntime reports whether a queued candidate carries a runtime the
+// SERVER chose on the agent's behalf — a benchmark replay (JEF-276) or a
+// confidence-cascade hop (JEF-272). The claim's cheap Go pre-filter and its
+// SQL fence both honour it: the pin is the point, so the agent's binding is
+// not authority over the row's runtime.
+func taskPinsRuntime(candidate db.AgentTaskQueue) bool {
+	return candidate.LegRole == LegRoleBenchmark || TaskContextHasEscalation(candidate.Context)
+}
+
 // runtimePinned says the candidate that led here carries a runtime the agent
 // is not bound to BY DESIGN (a benchmark leg, JEF-276), which relaxes only the
 // cheap pre-filter below. ClaimAgentTask re-verifies the fence per row and the
@@ -4268,7 +4277,7 @@ func (s *TaskService) ClaimTaskForRuntime(ctx context.Context, runtimeID pgtype.
 		triedAgents[agentKey] = struct{}{}
 		tried++
 
-		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID, candidate.LegRole == LegRoleBenchmark)
+		task, err := s.claimTask(ctx, candidate.AgentID, runtimeID, taskPinsRuntime(candidate))
 		if err != nil {
 			loopMs = time.Since(loopStart).Milliseconds()
 			outcome = "error_claim"
@@ -4553,7 +4562,7 @@ func (s *TaskService) ClaimTasksForRuntimes(ctx context.Context, runtimeIDs []pg
 		}
 		triedAgents[agentKey] = struct{}{}
 
-		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID, candidates[i].LegRole == LegRoleBenchmark)
+		task, err := s.claimTask(ctx, candidates[i].AgentID, candidates[i].RuntimeID, taskPinsRuntime(candidates[i]))
 		if err != nil {
 			// Each scoped claim commits in its own transaction, so earlier
 			// iterations (and step-2 reclaims) are already dispatched
