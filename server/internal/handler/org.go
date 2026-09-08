@@ -1348,8 +1348,6 @@ func (h *Handler) orgRouteIssue(ctx context.Context, issue db.Issue, actorType, 
 	return updated
 }
 
-func orgSuperior(def OrgDefinition, unitID string) *OrgUnit { return def.parent(unitID) }
-
 // orgAskApproval files the superior's decision; the answer assigns or holds.
 func (h *Handler) orgAskApproval(ctx context.Context, s db.OrgStructure, unit, superior *OrgUnit, issue db.Issue, targetType string, targetID pgtype.UUID) {
 	question := fmt.Sprintf("Hierarchy · %q is about to take %q (risk %s). Approve the assignment?", unit.Name, truncate(issue.Title, 120), issue.ContractRisk)
