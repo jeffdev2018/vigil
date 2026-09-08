@@ -81,8 +81,6 @@ const ALLOWED: Record<string, string> = {
     "Chip form of the thinking-level control; the inspector rebuild moved to ThinkingSettingField from the same file, which is live.",
   "agents/components/inspector/visibility-picker.tsx:VisibilityPicker":
     "Interactive visibility control; the agent detail page renders the read-only VisibilityBadge instead, whose comment still points at this picker.",
-  "agents/components/tabs/memory-tab.tsx:TeachFromRunButton":
-    "Run-sourced twin of TeachFromReviewButton, which the issue delivery section does render; #192 shipped it with its test but never mounted it on a run surface.",
   "runtimes/components/shared.tsx:TokenCard":
     "Runtime-detail KPI tile superseded by KpiCard in the same file; its only mention outside the file is a comment in the web landing page.",
 };
