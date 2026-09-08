@@ -2865,6 +2865,11 @@ func (h *Handler) checkQuickCreateDaemonVersion(ctx context.Context, source stri
 	return h.checkQuickCreateDaemonVersionAtLeast(ctx, source, runtimeID, agentpkg.MinQuickCreateCLIVersion)
 }
 
+// nativeRuntimeMode is agent_runtime.runtime_mode for the in-server runtime.
+// Kept next to the gate that has to know about it rather than imported from
+// the service layer, which the handler does not depend on for this.
+const nativeRuntimeMode = "native"
+
 func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, source string, runtimeID pgtype.UUID, minimum string) (int, map[string]any) {
 	rt, err := h.getAgentRuntime(ctx, source, runtimeID)
 	if err != nil {
@@ -2874,6 +2879,15 @@ func (h *Handler) checkQuickCreateDaemonVersionAtLeast(ctx context.Context, sour
 			"code":   "agent_unavailable",
 			"reason": "agent's runtime is no longer registered",
 		}
+	}
+	// A native runtime has no daemon and no CLI. This gate exists because an
+	// older daemon cannot be trusted with the flow; the native runtime runs the
+	// flow in this very binary, so there is no version to check and nothing
+	// that could be out of date. Refusing it reported
+	// daemon_version_unsupported with an empty current_version, which is the
+	// gate answering a question that was never asked of it.
+	if rt.RuntimeMode == nativeRuntimeMode {
+		return 0, nil
 	}
 	current := readRuntimeCLIVersion(rt.Metadata)
 	switch err := agentpkg.CheckMinCLIVersionFor(current, minimum); {
