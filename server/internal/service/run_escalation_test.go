@@ -388,3 +388,42 @@ func TestRunConfidenceCascadeResidencyBlocksEscalationToHumanReview(t *testing.T
 		t.Error("no confidence_review inbox item when the policy blocks every hop")
 	}
 }
+
+// The cascade stamps its retry with a runtime the agent is not bound to, and
+// the claim fence only lets an auto-routed agent execute there. For a fixed
+// agent the escalation would sit queued forever — observed in vigil-int: ten
+// below_threshold escalations, leg_role 'escalation', runtime_routing 'fixed',
+// none ever dispatched — and the human review it replaced would never happen.
+func TestRunConfidenceCascadeFixedRoutingGoesToHumanReview(t *testing.T) {
+	fx, dbfx, issueID := cascadeFixture(t)
+	// Same seed as the escalating case: runtime B is strictly stronger, so
+	// only the routing mode decides between a cascade and a human.
+	seedRoutingRuns(t, dbfx, fx.agentID, fx.runtimeB, TaskClassGeneral, "openai", "m-b", 20, 19)
+	if _, err := fx.pool.Exec(context.Background(),
+		`UPDATE agent SET runtime_routing = 'fixed' WHERE id = $1`, fx.agentID); err != nil {
+		t.Fatalf("pin the agent to its runtime: %v", err)
+	}
+	taskID := seedCascadeTask(t, fx.pool, fx.agentID, fx.runtimeA, issueID, fx.user, TaskClassGeneral, nil)
+
+	bus := events.New()
+	escalated := collectEvents(bus, protocol.EventTaskEscalated)
+	svc := runConfidenceService(fx.pool, bus, stubMemoryLLM(t, `{"score":0.2,"rationale":"doubtful"}`))
+
+	if err := svc.ScoreRunConfidence(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatalf("score: %v", err)
+	}
+
+	if newTaskID, runtimeID, status, _, _ := escalatedTaskForIssue(t, fx.pool, issueID, taskID); newTaskID != "" {
+		t.Errorf("escalation task %s enqueued for a fixed agent on runtime %s (status %q); no daemon may claim it",
+			newTaskID, runtimeID, status)
+	}
+	if len(*escalated) != 0 {
+		t.Errorf("task:escalated events = %d, want 0 for a fixed agent", len(*escalated))
+	}
+	if status := cascadeIssueStatus(t, fx.pool, issueID); status != "in_review" {
+		t.Errorf("issue status = %q, want in_review", status)
+	}
+	if n := cascadeInboxCount(t, fx.pool, issueID); n == 0 {
+		t.Error("no confidence_review inbox item")
+	}
+}
