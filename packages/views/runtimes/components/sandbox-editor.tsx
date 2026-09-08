@@ -123,10 +123,14 @@ export function SandboxEditor({
                       onClick={() => choose(mode)}
                       disabled={!runnable || updateRuntime.isPending}
                       className={`inline-flex items-center gap-1.5 rounded px-2 py-1 text-caption font-medium transition-colors ${
-                        selected === mode
-                          ? "bg-background text-foreground shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
-                      } ${!runnable || updateRuntime.isPending ? "cursor-not-allowed opacity-60" : ""}`}
+                        selected === mode ? "bg-background shadow-sm" : ""
+                      } ${
+                        !runnable || updateRuntime.isPending
+                          ? "cursor-not-allowed text-muted-foreground"
+                          : selected === mode
+                            ? "text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                      }`}
                     >
                       <Icon className="h-3 w-3 shrink-0" />
                       <span>{t(($) => $.detail.sandbox.mode[mode])}</span>

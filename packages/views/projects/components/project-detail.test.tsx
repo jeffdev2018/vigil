@@ -21,7 +21,12 @@ vi.mock("@multica/ui/lib/clipboard", () => ({
   copyText: mocks.copyText,
 }));
 
-vi.mock("@tanstack/react-query", () => ({
+// Spread the real module and override only the hooks that need a
+// QueryClientProvider. A whitelist mock breaks every time this page's
+// dependency graph reaches one more react-query export — which is how it
+// broke twice: first on `queryOptions`, then on `useQueryClient`.
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@tanstack/react-query")>()),
   useQuery: (options: { queryKey?: readonly unknown[] }) => {
     switch (options.queryKey?.[0]) {
       case "project-detail":
@@ -38,6 +43,12 @@ vi.mock("@tanstack/react-query", () => ({
         return { data: undefined, isLoading: false };
     }
   },
+  useQueryClient: () => ({ invalidateQueries: vi.fn(), setQueryData: vi.fn(), removeQueries: vi.fn() }),
+  // The real useMutation reaches useQueryClient inside the module, where the
+  // override above does not apply, so it needs its own stub. The page's own
+  // mutations are mocked at their module below; this covers the ones it pulls
+  // in transitively, such as the code wiki refresh.
+  useMutation: () => ({ mutate: vi.fn(), mutateAsync: vi.fn(), isPending: false, isError: false }),
 }));
 
 vi.mock("@multica/core/projects/queries", () => ({
@@ -49,8 +60,8 @@ vi.mock("@multica/core/projects/mutations", () => ({
   useDeleteProject: () => ({ mutate: mocks.deleteProject }),
 }));
 
-// The goals section (K74) reads the goal list through its own module; the
-// react-query mock above has no `queryOptions`, so stub the module here.
+// The goals section (K74) reads the goal list through its own module, and this
+// stub also supplies goalProgress / goalChildren, which the section renders.
 vi.mock("@multica/core/goals", () => ({
   goalListOptions: () => ({ queryKey: ["goals"] }),
   goalProgress: () => 0,
