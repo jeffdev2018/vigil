@@ -2586,6 +2586,13 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/issues/{id}/duel", h.GetIssueAgentDuel)
 			r.Get("/api/duels/{id}", h.GetAgentDuel)
 			r.Post("/api/duels/{id}/confirm", h.ConfirmAgentDuel)
+			// Racing attempts (F11 / JEF-6): N attempts on one issue, the human
+			// keeps one. Settling and abandoning cancel other people's runs and
+			// are a human arbitration, so they are human-only.
+			r.Post("/api/issues/{id}/run-groups", h.StartRunGroup)
+			r.Get("/api/issues/{id}/run-groups", h.ListIssueRunGroups)
+			r.With(handler.RequireHumanActor).Post("/api/run-groups/{id}/settle", h.SettleRunGroup)
+			r.With(handler.RequireHumanActor).Post("/api/run-groups/{id}/abandon", h.AbandonRunGroup)
 
 			// Cross-repo mirror issues (K54).
 			r.Get("/api/issues/{id}/mirrors", h.GetIssueMirrors)
