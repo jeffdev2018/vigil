@@ -247,6 +247,7 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 | | `children <id>` | 단계별로 묶은 하위 태스크 목록 | |
 | | `pull-requests <id>` | 연결된 PR 목록 | |
 | | `comment list/add/delete/resolve/unresolve` | 댓글 관리 | `add`: `--content` / `--content-stdin` / `--content-file`, `--parent`, `--attachment`. `list`: `--since`, `--thread`, `--tail` |
+| | `ask-agent <issue-id>` | 이 태스크에서 다른 에이전트에게 메시지 전송 | `--to`, `--intent`(`question`, `review`, `handoff`), `--body` / `--body-stdin` / `--body-file` |
 | | `subscriber list/add/remove <issue-id>` | 구독자 관리 | `--user`, `--user-id`(생략하면 현재 사용자) |
 | | `label list/add/remove <issue-id>` | 태스크 라벨 관리 | |
 | | `metadata list/get/set/delete <issue-id>` | 태스크 수준 key-value metadata 관리 | |
@@ -255,6 +256,9 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 | | `run-messages <task-id>` | 단일 실행 메시지 확인 | `--since`, `--issue` |
 | | `run-plan set <task-id>` | 실행 자신의 계획 게시(교체) | `--item "<텍스트>:<상태>"`(반복 가능, 없으면 표준 입력의 JSON), `--issue` |
 | | `usage <issue-id>` | 집계 token 사용량 확인 | |
+| | `spend-token request <run-id>` | spend token 요청, 또는 이미 승인된 spend gate에서 토큰 수령 | `--amount`, `--purpose`, `--gate`, `--wait`, `--issue` |
+| | `spend-token verify <run-id>` | 토큰 사용: 해당 지출 내용을 선언 | `--token`, `--amount`, `--issue` |
+| | `budget-status <run-id>` | 실행의 사용량과 한도, 도달한 제한을 확인 | `--issue` |
 | | `rerun <id>` | 현재 할당을 기준으로 다시 큐에 넣어 실행 | |
 | | `cancel-task <task-id>` | 진행 중 또는 큐 대기 중인 실행 취소 | `--issue` |
 | `project` | `list/get/create/update/delete` | 프로젝트 관리 | |
@@ -276,6 +280,8 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 | `workspace` | `list/get/create/update/switch` | 워크스페이스 관리. `switch`는 현재 profile의 기본 워크스페이스 설정 | |
 | | `mcp list/add/update/remove` | 워크스페이스의 MCP 서버 라이브러리를 관리 | 쓰기는 owner/admin 전용. 여기에 추가한 서버는 어떤 에이전트에도 할당되지 않으며 `multica agent mcp add`로 할당합니다. `list`는 이름과 transport만 표시하고, 저장된 항목은 쓰기 전용이라 어떤 역할에도 반환되지 않습니다. `--server-config-file` / `--server-config-stdin`은 토큰이 셸 기록에 남지 않게 합니다 |
 | | `member list/invite <email>` | 멤버 확인 및 초대 전송 | `invite`: `--role`(member 또는 admin, 기본 member) |
+| | `halt` | 이 워크스페이스의 모든 에이전트를 정지(owner/admin 전용) | `--reason` |
+| | `resume` | 워크스페이스의 정지를 해제(owner/admin 전용) | |
 | `repo` | `list/add/remove/checkout` | 워크스페이스 저장소 관리 및 로컬 checkout | `--url`(반복 가능). `checkout`: `--ref` |
 | `skill` | `list/get/create/update/delete` | 스킬 관리 | |
 | | `import` | URL 또는 로컬 파일에서 스킬 가져오기 | `--url` / `--file`, `--on-conflict`(`fail`, `overwrite`, `rename`, `skip`, 기본 `fail`) |
@@ -285,6 +291,23 @@ CLI 설정 파일에는 사용자를 대신해 Multica에 접근할 수 있는 t
 | | `member list/add/set-role/remove` | 스쿼드 멤버 관리 | |
 | | `activity <issue-id> <outcome>` | 리더 평가 기록 | |
 | `chat` | `history`, `thread [id]` | 에이전트가 현재 처리 중인 외부 채팅 대화 읽기 | `--limit`, `--before` |
+| `triage` | `list` | 트리아지 큐 목록(기본값: 대기 중인 큐) | `--pending`, `--state`, `--include-snoozed`, `--limit`, `--full-id` |
+| | `verdict <item-id>` | 대기 중인 트리아지 항목에 accept/dismiss 제안(에이전트 전용) | `--accept` / `--dismiss`, `--reason` |
+| `brain` | `list` | 검색어나 태그로 워크스페이스 노트 목록 확인 | `--search`, `--tag`, `--archived`, `--limit`, `--full-id` |
+| | `show <id>` | 워크스페이스 노트 하나 확인 | |
+| | `save` | 지속적인 워크스페이스 지식을 노트로 저장 | `--title`, `--tags`, `--content` / `--content-file`, `--pinned`, `--id` |
+| | `archive <id>` | 노트를 보관하여 실행에 더 이상 주입되지 않게 함 | |
+| `wiki` | `start` | wiki 스냅샷을 시작하고 저장소 파일 목록을 알림 | `--project`, `--resource`, `--commit`, `--paths-from` |
+| | `page set` | wiki 스냅샷에 페이지 하나 작성 | `--project`, `--snapshot`, `--slug`, `--title`, `--content-file`, `--citations-file`, `--cite`(반복 가능) |
+| | `publish` | wiki 스냅샷을 게시하여 이전 버전을 한 번에 교체 | `--project`, `--snapshot` |
+| `criteria` | `list <issue-id>` | 증빙 상태와 함께 태스크의 acceptance criteria 목록 확인 | |
+| | `set <issue-id>` | acceptance criteria 교체(기준마다 `--text` 하나) | `--text`(반복 가능) |
+| | `prove <issue-id> <criterion-id>` | 기준 하나에 증빙 첨부 | `--type`(`test`, `file`, `screenshot`, `url`, `human_validation`), `--ref` |
+| `decision` | `ask <issue-id>` | Decision Card 작성: 옵션, 추천안, 긴급도가 있는 질문 | `--question`, `--option`(반복 가능, `"id=Label"` 또는 `"id=Label\|impact"`), `--recommend`, `--urgency` |
+| `interview` | `ask <issue-id>` | JSON 파일 또는 표준 입력으로 요구사항 인터뷰(최대 3개 객관식 질문) 작성 | `--file` |
+| `review` | `flag add` | 연결된 PR의 특정 라인 범위에 finding 하나 기록 | `--issue`, `--pr`, `--sha`, `--file`, `--line`, `--side`, `--severity`, `--confidence`, `--title`, `--body` |
+| | `flag list` | 태스크의 review flag를 심각도 순으로 목록 확인 | `--issue`, `--state` |
+| | `verdict` | 이 critic 실행이 내린 판정(`pass`, `concerns`, `block`)을 기록 | `--issue`, `--task`, `--verdict`, `--summary`, `--findings-file` |
 
 ### Runtime
 

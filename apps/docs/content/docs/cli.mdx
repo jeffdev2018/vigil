@@ -255,6 +255,7 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `children <id>` | List sub-issues grouped by stage | |
 | | `pull-requests <id>` | List linked PRs | |
 | | `comment list/add/delete/resolve/unresolve` | Manage comments | `add`: `--content` / `--content-stdin` / `--content-file`, `--parent`, `--attachment`; `list`: `--since`, `--thread`, `--tail` |
+| | `ask-agent <issue-id>` | Send an agent-to-agent message on an issue | `--to`, `--intent` (`question`, `review`, `handoff`), `--body` / `--body-stdin` / `--body-file` |
 | | `subscriber list/add/remove <issue-id>` | Manage subscribers | `--user`, `--user-id` (defaults to the current user) |
 | | `label list/add/remove <issue-id>` | Manage labels on an issue | |
 | | `metadata list/get/set/delete <issue-id>` | Manage issue-level key-value metadata | |
@@ -263,6 +264,9 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `run-messages <task-id>` | View the messages of a single run | `--since`, `--issue` |
 | | `run-plan set <task-id>` | Publish (and replace) the run's own plan | `--item "<text>:<status>"` (repeatable; JSON on stdin otherwise), `--issue` |
 | | `usage <issue-id>` | View aggregated token usage | |
+| | `spend-token request <run-id>` | Ask for a spend token, or collect one for an already-approved spend gate | `--amount`, `--purpose`, `--gate`, `--wait`, `--issue` |
+| | `spend-token verify <run-id>` | Spend a token: declare the charge it is covering | `--token`, `--amount`, `--issue` |
+| | `budget-status <run-id>` | Show a run's usage against its limits, and the limits it has hit | `--issue` |
 | | `rerun <id>` | Re-enqueue a run for the current assignee | |
 | | `cancel-task <task-id>` | Cancel a running or queued run | `--issue` |
 | `project` | `list/get/create/update/delete` | Manage projects | |
@@ -284,6 +288,8 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | `workspace` | `list/get/create/update/switch` | Manage workspaces; `switch` sets the current profile's default workspace | |
 | | `mcp list/add/update/remove` | Manage the workspace's MCP server library | Writes are owner/admin. A server added here is assigned to no agent — give it to one with `multica agent mcp add`. `list` shows names and transports only; the stored entry is write-only and never returned. `--server-config-file` / `--server-config-stdin` keep tokens out of shell history |
 | | `member list/invite <email>` | View members, send invites | `invite`: `--role` (member or admin, default member) |
+| | `halt` | Hold every agent in this workspace (owner/admin only) | `--reason` |
+| | `resume` | Lift the hold on this workspace's agents (owner/admin only) | |
 | `repo` | `list/add/remove/checkout` | Manage workspace repositories and check them out locally | `--url` (repeatable); `checkout`: `--ref` |
 | `skill` | `list/get/create/update/delete` | Manage skills | |
 | | `import` | Import a skill from a URL or local file | `--url` / `--file`, `--on-conflict` (`fail`, `overwrite`, `rename`, `skip`; default `fail`) |
@@ -293,6 +299,23 @@ The tables below cover every current top-level command, grouped the way the CLI 
 | | `member list/add/set-role/remove` | Manage squad members | |
 | | `activity <issue-id> <outcome>` | Record a leader evaluation | |
 | `chat` | `history`, `thread [id]` | Read the external chat session an agent is currently handling | `--limit`, `--before` |
+| `triage` | `list` | List triage items (default: the pending queue) | `--pending`, `--state`, `--include-snoozed`, `--limit`, `--full-id` |
+| | `verdict <item-id>` | Suggest accept or dismiss on a pending triage item (agents only) | `--accept` / `--dismiss`, `--reason` |
+| `brain` | `list` | List workspace notes, optionally filtered by search text or tag | `--search`, `--tag`, `--archived`, `--limit`, `--full-id` |
+| | `show <id>` | Print one workspace note | |
+| | `save` | Save a durable piece of workspace knowledge as a note | `--title`, `--tags`, `--content` / `--content-file`, `--pinned`, `--id` |
+| | `archive <id>` | Archive a note so it stops being injected into runs | |
+| `wiki` | `start` | Start a wiki snapshot and announce the repository's file inventory | `--project`, `--resource`, `--commit`, `--paths-from` |
+| | `page set` | Write one page into a wiki snapshot | `--project`, `--snapshot`, `--slug`, `--title`, `--content-file`, `--citations-file`, `--cite` (repeatable) |
+| | `publish` | Publish a wiki snapshot, replacing the previous one in one step | `--project`, `--snapshot` |
+| `criteria` | `list <issue-id>` | List an issue's acceptance criteria with their proof state | |
+| | `set <issue-id>` | Replace the acceptance criteria (one `--text` per criterion) | `--text` (repeatable) |
+| | `prove <issue-id> <criterion-id>` | Attach a proof to one criterion | `--type` (`test`, `file`, `screenshot`, `url`, `human_validation`), `--ref` |
+| `decision` | `ask <issue-id>` | File a Decision Card: a question with options, a recommendation and an urgency | `--question`, `--option` (repeatable, `"id=Label"` or `"id=Label\|impact"`), `--recommend`, `--urgency` |
+| `interview` | `ask <issue-id>` | File a requirement interview (up to three multiple-choice questions) from a JSON file or stdin | `--file` |
+| `review` | `flag add` | Record one finding on a line range of a linked pull request | `--issue`, `--pr`, `--sha`, `--file`, `--line`, `--side`, `--severity`, `--confidence`, `--title`, `--body` |
+| | `flag list` | List an issue's review flags, most severe first | `--issue`, `--state` |
+| | `verdict` | Record this critic run's verdict (`pass`, `concerns`, `block`) on the change it reviewed | `--issue`, `--task`, `--verdict`, `--summary`, `--findings-file` |
 
 ### Runtime
 

@@ -247,6 +247,7 @@ CLI 配置文件包含可代表你访问 Multica 的令牌。不要提交到仓�
 | | `children <id>` | 按阶段分组列出子任务 | |
 | | `pull-requests <id>` | 列出关联的 PR | |
 | | `comment list/add/delete/resolve/unresolve` | 管理评论 | `add`：`--content` / `--content-stdin` / `--content-file`、`--parent`、`--attachment`；`list`：`--since`、`--thread`、`--tail` |
+| | `ask-agent <issue-id>` | 在任务上向另一个智能体发送消息 | `--to`、`--intent`（`question`、`review`、`handoff`）、`--body` / `--body-stdin` / `--body-file` |
 | | `subscriber list/add/remove <issue-id>` | 管理订阅者 | `--user`、`--user-id`（缺省为当前用户） |
 | | `label list/add/remove <issue-id>` | 管理任务上的标签 | |
 | | `metadata list/get/set/delete <issue-id>` | 管理任务级键值元数据 | |
@@ -255,6 +256,9 @@ CLI 配置文件包含可代表你访问 Multica 的令牌。不要提交到仓�
 | | `run-messages <task-id>` | 查看单次执行的消息 | `--since`、`--issue` |
 | | `run-plan set <task-id>` | 发布（并替换）本次执行自己的计划 | `--item "<文本>:<状态>"`（可重复；否则从标准输入读 JSON）、`--issue` |
 | | `usage <issue-id>` | 查看聚合 token 用量 | |
+| | `spend-token request <run-id>` | 申请 spend token，或为已批准的 spend gate 领取 token | `--amount`、`--purpose`、`--gate`、`--wait`、`--issue` |
+| | `spend-token verify <run-id>` | 消费一个 token：声明它覆盖的支出 | `--token`、`--amount`、`--issue` |
+| | `budget-status <run-id>` | 查看某次执行的用量、上限及已触及的限制 | `--issue` |
 | | `rerun <id>` | 按当前指派重新入队执行 | |
 | | `cancel-task <task-id>` | 取消进行中或排队中的运行 | `--issue` |
 | `project` | `list/get/create/update/delete` | 管理项目 | |
@@ -276,6 +280,8 @@ CLI 配置文件包含可代表你访问 Multica 的令牌。不要提交到仓�
 | `workspace` | `list/get/create/update/switch` | 管理工作区；`switch` 设置当前 profile 的默认工作区 | |
 | | `mcp list/add/update/remove` | 管理工作区的 MCP 服务库 | 写操作需要 owner/admin。这里添加的服务不会分配给任何 agent——用 `multica agent mcp add` 分配给某个 agent。`list` 只列出名称与 transport；存储的条目是只写的，任何角色都读不回。`--server-config-file` / `--server-config-stdin` 避免 token 进入 shell 历史 |
 | | `member list/invite <email>` | 查看成员、发出邀请 | `invite`：`--role`（member 或 admin，默认 member） |
+| | `halt` | 暂停该工作区的所有智能体（仅 owner/admin） | `--reason` |
+| | `resume` | 解除工作区的暂停（仅 owner/admin） | |
 | `repo` | `list/add/remove/checkout` | 管理工作区仓库并检出到本机 | `--url`（可重复）；`checkout`：`--ref` |
 | `skill` | `list/get/create/update/delete` | 管理 skill | |
 | | `import` | 从 URL 或本地文件导入 skill | `--url` / `--file`、`--on-conflict`（`fail`、`overwrite`、`rename`、`skip`，默认 `fail`） |
@@ -285,6 +291,23 @@ CLI 配置文件包含可代表你访问 Multica 的令牌。不要提交到仓�
 | | `member list/add/set-role/remove` | 管理小队成员 | |
 | | `activity <issue-id> <outcome>` | 记录队长评价 | |
 | `chat` | `history`、`thread [id]` | 读取智能体当前正在处理的外部聊天会话 | `--limit`、`--before` |
+| `triage` | `list` | 列出分诊队列（默认：待处理队列） | `--pending`、`--state`、`--include-snoozed`、`--limit`、`--full-id` |
+| | `verdict <item-id>` | 对待处理的分诊项建议 accept 或 dismiss（仅限智能体） | `--accept` / `--dismiss`、`--reason` |
+| `brain` | `list` | 列出工作区笔记，可按搜索文本或标签过滤 | `--search`、`--tag`、`--archived`、`--limit`、`--full-id` |
+| | `show <id>` | 查看单条工作区笔记 | |
+| | `save` | 将一条可长期保留的工作区知识保存为笔记 | `--title`、`--tags`、`--content` / `--content-file`、`--pinned`、`--id` |
+| | `archive <id>` | 归档笔记，使其不再注入到执行中 | |
+| `wiki` | `start` | 开始一次 wiki 快照，并公布仓库的文件清单 | `--project`、`--resource`、`--commit`、`--paths-from` |
+| | `page set` | 向 wiki 快照写入一个页面 | `--project`、`--snapshot`、`--slug`、`--title`、`--content-file`、`--citations-file`、`--cite`（可重复） |
+| | `publish` | 发布 wiki 快照，一次性替换上一版 | `--project`、`--snapshot` |
+| `criteria` | `list <issue-id>` | 列出任务的验收标准及其证明状态 | |
+| | `set <issue-id>` | 替换验收标准（每条标准一个 `--text`） | `--text`（可重复） |
+| | `prove <issue-id> <criterion-id>` | 为一条标准附加证明 | `--type`（`test`、`file`、`screenshot`、`url`、`human_validation`）、`--ref` |
+| `decision` | `ask <issue-id>` | 提交一张 Decision Card：带选项、推荐项与紧急度的问题 | `--question`、`--option`（可重复，`"id=Label"` 或 `"id=Label\|impact"`）、`--recommend`、`--urgency` |
+| `interview` | `ask <issue-id>` | 从 JSON 文件或标准输入提交需求访谈（最多三道选择题） | `--file` |
+| `review` | `flag add` | 在关联 PR 的某个行范围记录一条发现 | `--issue`、`--pr`、`--sha`、`--file`、`--line`、`--side`、`--severity`、`--confidence`、`--title`、`--body` |
+| | `flag list` | 按严重程度列出任务的 review flag | `--issue`、`--state` |
+| | `verdict` | 记录本次 critic 执行的判定（`pass`、`concerns`、`block`） | `--issue`、`--task`、`--verdict`、`--summary`、`--findings-file` |
 
 ### Runtime
 
