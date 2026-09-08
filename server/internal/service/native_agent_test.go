@@ -646,3 +646,71 @@ func TestNativeAgentLLMFuse(t *testing.T) {
 		t.Fatal("fuse stayed open after a success")
 	}
 }
+
+// The Brain tools (JEF-316 slice 1): an agent saves a note under its own
+// authorship, finds it back through full-text search, and edits it with the
+// row's optimistic revision — the same rows the /brain page renders.
+func TestNativeAgentBrainTools(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	taskID := fx.Task(t, agentID, testutil.Cols{"runtime_id": runtimeID})
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, workspaceID: agent.WorkspaceID}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+
+	out, err := svc.callNativeTool(ctx, tctx, "save_note", map[string]any{
+		"title":   "Procédure remboursement",
+		"content": "Toute demande de remboursement passe par le formulaire, puis validation du responsable.",
+		"tags":    []any{"helpdesk", "finance"},
+	})
+	if err != nil {
+		t.Fatalf("save_note: %v", err)
+	}
+	saved := out.(map[string]any)
+	noteID, _ := saved["id"].(string)
+
+	var source string
+	var srcTask, srcAgent, createdBy string
+	if err := pool.QueryRow(ctx, `SELECT source, source_task_id::text, source_agent_id::text, created_by_type FROM workspace_note WHERE id = $1`, noteID).
+		Scan(&source, &srcTask, &srcAgent, &createdBy); err != nil {
+		t.Fatalf("read saved note: %v", err)
+	}
+	if source != "agent" || srcTask != taskID || srcAgent != agentID || createdBy != "agent" {
+		t.Fatalf("note provenance = (%q,%s,%s,%q), want the run and the agent on every field", source, srcTask, srcAgent, createdBy)
+	}
+
+	out, err = svc.callNativeTool(ctx, tctx, "search_notes", map[string]any{"query": "remboursement"})
+	if err != nil {
+		t.Fatalf("search_notes: %v", err)
+	}
+	results := out.([]map[string]any)
+	if len(results) != 1 || results[0]["id"] != noteID {
+		t.Fatalf("search results = %v, want the saved note", results)
+	}
+
+	out, err = svc.callNativeTool(ctx, tctx, "update_note", map[string]any{
+		"note_id": noteID,
+		"content": "Mis à jour : validation par le responsable PUIS remboursement sous 5 jours.",
+	})
+	if err != nil {
+		t.Fatalf("update_note: %v", err)
+	}
+	if rev := out.(map[string]any)["revision"]; rev != int64(2) {
+		t.Fatalf("revision after edit = %v, want 2", rev)
+	}
+}

@@ -113,6 +113,56 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "search_notes",
+			Description: openai.String("Search the workspace's shared knowledge (notes): full-text query and/or a single tag. This is where procedures, decisions and know-how live — check it before answering or filing."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"query": shared.FunctionParameters{"type": "string"},
+					"tag":   shared.FunctionParameters{"type": "string"},
+					"limit": shared.FunctionParameters{"type": "integer"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "get_note",
+			Description: openai.String("Read one knowledge note in full, by id."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"note_id"},
+				"properties": shared.FunctionParameters{
+					"note_id": shared.FunctionParameters{"type": "string"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "save_note",
+			Description: openai.String("Save a note into the workspace's shared knowledge — a procedure, an answer worth keeping, a decision. Keep the title short and specific."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"title"},
+				"properties": shared.FunctionParameters{
+					"title":   shared.FunctionParameters{"type": "string"},
+					"content": shared.FunctionParameters{"type": "string"},
+					"tags":    shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "update_note",
+			Description: openai.String("Edit an existing knowledge note (title, content, or tags) by id."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"note_id"},
+				"properties": shared.FunctionParameters{
+					"note_id": shared.FunctionParameters{"type": "string"},
+					"title":   shared.FunctionParameters{"type": "string"},
+					"content": shared.FunctionParameters{"type": "string"},
+					"tags":    shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -141,7 +191,7 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeIssueSnapshot(ctx, tctx, issue)
 	case "list_issues":
 		return s.nativeListIssues(ctx, tctx, args)
-	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue":
+	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note":
 		// Rule-of-Many: one run may only change workspace state so many
 		// times. Read-only tools stay free; a refusal tells the model to
 		// wrap up instead of looping.
@@ -158,9 +208,17 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return s.nativeTransitionIssue(ctx, tctx, args)
 		case "create_sub_issue":
 			return s.nativeCreateSubIssue(ctx, tctx, args)
+		case "save_note":
+			return s.nativeSaveNote(ctx, tctx, args)
+		case "update_note":
+			return s.nativeUpdateNote(ctx, tctx, args)
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
+	case "search_notes":
+		return s.nativeSearchNotes(ctx, tctx, args)
+	case "get_note":
+		return s.nativeGetNote(ctx, tctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool %q", name)
 	}
@@ -480,6 +538,177 @@ func (s *NativeAgentService) publishNativeIssueChanged(tctx *nativeToolContext, 
 	s.publishNative(protocol.EventIssueAuxChanged, tctx, map[string]any{
 		"issue_id": util.UUIDToString(issueID),
 	})
+}
+
+// ---- Workspace Brain tools (JEF-316 office runtime, slice 1) -------------
+
+const (
+	nativeNoteTitleMax = 200
+	nativeNoteBodyMax  = 20000
+	nativeNoteTagsMax  = 8
+	nativeNoteTagMax   = 32
+)
+
+func nativeNoteTags(raw []any) ([]string, error) {
+	if len(raw) > nativeNoteTagsMax {
+		return nil, fmt.Errorf("at most %d tags per note", nativeNoteTagsMax)
+	}
+	out := make([]string, 0, len(raw))
+	for _, t := range raw {
+		s, ok := t.(string)
+		if !ok || s == "" {
+			return nil, errors.New("tags must be non-empty strings")
+		}
+		if len(s) > nativeNoteTagMax {
+			s = s[:nativeNoteTagMax]
+		}
+		out = append(out, util.SanitizeTextForPostgres(s))
+	}
+	return out, nil
+}
+
+func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	params := db.ListWorkspaceNotesParams{
+		WorkspaceID:     tctx.workspaceID,
+		IncludeArchived: false,
+		PageLimit:       10,
+	}
+	if q, ok := args["query"].(string); ok && strings.TrimSpace(q) != "" {
+		params.Search = pgtype.Text{String: strings.TrimSpace(q), Valid: true}
+	}
+	if tag, ok := args["tag"].(string); ok && strings.TrimSpace(tag) != "" {
+		params.Tag = pgtype.Text{String: strings.TrimSpace(tag), Valid: true}
+	}
+	if lim, ok := args["limit"].(float64); ok && lim >= 1 {
+		params.PageLimit = int32(min(int(lim), 20))
+	}
+	if !params.Search.Valid && !params.Tag.Valid {
+		// No filter: the freshest notes, so "what do we know" has an answer.
+	}
+	notes, err := s.Queries.ListWorkspaceNotes(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("note search failed: %w", err)
+	}
+	out := make([]map[string]any, 0, len(notes))
+	for _, n := range notes {
+		out = append(out, map[string]any{
+			"id":      util.UUIDToString(n.ID),
+			"title":   n.Title,
+			"tags":    n.Tags,
+			"pinned":  n.Pinned,
+			"excerpt": clampString(n.Content, 300),
+		})
+	}
+	return out, nil
+}
+
+func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	raw, _ := args["note_id"].(string)
+	id, err := util.ParseUUID(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, errors.New("note_id is not a valid uuid")
+	}
+	note, err := s.Queries.GetWorkspaceNote(ctx, db.GetWorkspaceNoteParams{ID: id, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, errors.New("note not found in this workspace")
+	}
+	return map[string]any{
+		"id": util.UUIDToString(note.ID), "title": note.Title,
+		"content": note.Content, "tags": note.Tags, "pinned": note.Pinned,
+		"revision": note.Revision,
+	}, nil
+}
+
+func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	title, _ := args["title"].(string)
+	title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
+	if title == "" {
+		return nil, errors.New("title is required")
+	}
+	if len(title) > nativeNoteTitleMax {
+		title = title[:nativeNoteTitleMax]
+	}
+	content, _ := args["content"].(string)
+	content = util.SanitizeTextForPostgres(content)
+	if len(content) > nativeNoteBodyMax {
+		return nil, fmt.Errorf("content exceeds %d characters — split the note", nativeNoteBodyMax)
+	}
+	rawTags, _ := args["tags"].([]any)
+	tags, err := nativeNoteTags(rawTags)
+	if err != nil {
+		return nil, err
+	}
+	note, err := s.Queries.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{
+		ID:            dbid.NewV7(),
+		WorkspaceID:   tctx.workspaceID,
+		Title:         title,
+		Content:       content,
+		Tags:          tags,
+		Source:        "agent",
+		SourceTaskID:  pgtype.UUID(tctx.task.ID),
+		SourceAgentID: pgtype.UUID(tctx.agent.ID),
+		CreatedByType: "agent",
+		CreatedByID:   pgtype.UUID(tctx.agent.ID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("note save failed: %w", err)
+	}
+	s.publishNative(protocol.EventWorkspaceNoteCreated, tctx, map[string]any{
+		"note": map[string]any{"id": util.UUIDToString(note.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},
+	})
+	return map[string]any{"id": util.UUIDToString(note.ID), "title": note.Title}, nil
+}
+
+func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	raw, _ := args["note_id"].(string)
+	id, err := util.ParseUUID(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, errors.New("note_id is not a valid uuid")
+	}
+	note, err := s.Queries.GetWorkspaceNote(ctx, db.GetWorkspaceNoteParams{ID: id, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, errors.New("note not found in this workspace")
+	}
+	params := db.UpdateWorkspaceNoteParams{
+		ID: note.ID, WorkspaceID: tctx.workspaceID,
+		ExpectedRevision: note.Revision,
+	}
+	hasChange := false
+	if title, ok := args["title"].(string); ok && strings.TrimSpace(title) != "" {
+		title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
+		if len(title) > nativeNoteTitleMax {
+			title = title[:nativeNoteTitleMax]
+		}
+		params.Title = pgtype.Text{String: title, Valid: true}
+		hasChange = true
+	}
+	if content, ok := args["content"].(string); ok {
+		content = util.SanitizeTextForPostgres(content)
+		if len(content) > nativeNoteBodyMax {
+			return nil, fmt.Errorf("content exceeds %d characters — split the note", nativeNoteBodyMax)
+		}
+		params.Content = pgtype.Text{String: content, Valid: true}
+		hasChange = true
+	}
+	if rawTags, ok := args["tags"].([]any); ok {
+		tags, err := nativeNoteTags(rawTags)
+		if err != nil {
+			return nil, err
+		}
+		params.Tags = tags
+		hasChange = true
+	}
+	if !hasChange {
+		return nil, errors.New("nothing to update: provide title, content, or tags")
+	}
+	updated, err := s.Queries.UpdateWorkspaceNote(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("note update failed (concurrent edit?): %w", err)
+	}
+	s.publishNative(protocol.EventWorkspaceNoteUpdated, tctx, map[string]any{
+		"note": map[string]any{"id": util.UUIDToString(updated.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},
+	})
+	return map[string]any{"id": util.UUIDToString(updated.ID), "revision": updated.Revision}, nil
 }
 
 // nativeCreateIssue files a top-level issue — the quick-create path. The

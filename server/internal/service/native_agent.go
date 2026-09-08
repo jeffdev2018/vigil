@@ -394,6 +394,7 @@ func nativeSystemPrompt(agent db.Agent) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "You are %s, an agent working inside a task management workspace.\n", agent.Name)
 	b.WriteString("You operate on issues through the provided tools only. Do not invent issue ids, numbers, or names — look them up.\n")
+	b.WriteString("The workspace's shared knowledge lives in notes: search them before answering a question people may have asked before, and save what is worth keeping.\n")
 	b.WriteString("When you have done what the task asked, reply with a short final answer in the task's language; it becomes the run summary.\n")
 	if strings.TrimSpace(agent.Instructions) != "" {
 		b.WriteString("\nWorkspace instructions for you:\n" + agent.Instructions + "\n")
