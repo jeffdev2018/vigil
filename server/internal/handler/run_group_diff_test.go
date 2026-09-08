@@ -25,6 +25,18 @@ func completeWithDiff(t *testing.T, taskID string, body map[string]any) {
 	testutil.Call(t, testHandler.CompleteTask, req).Want(http.StatusOK)
 }
 
+// failWithDiff drives the real /fail handler for taskID with an optional
+// diff payload — the losing-attempt half of F11: a run that failed can still
+// have delivered a branch, and its diff travels on this callback too.
+func failWithDiff(t *testing.T, taskID string, body map[string]any) {
+	t.Helper()
+	req := newDaemonTokenRequest("POST", "/api/daemon/tasks/"+taskID+"/fail", body, testWorkspaceID, "run-group-diff-daemon")
+	rctx := chi.NewRouteContext()
+	rctx.URLParams.Add("taskId", taskID)
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	testutil.Call(t, testHandler.FailTask, req).Want(http.StatusOK)
+}
+
 // readTaskDiff returns the two diff columns of one task row.
 func readTaskDiff(t *testing.T, fx *testutil.Fixture, taskID string) (stat []byte, unified *string) {
 	t.Helper()
@@ -130,6 +142,58 @@ func TestCompleteTaskIgnoresDiffOutsideARunGroup(t *testing.T) {
 
 	completeWithDiff(t, taskID, map[string]any{
 		"output":       "done",
+		"diff_stat":    map[string]any{"files": 1, "insertions": 1, "deletions": 0},
+		"diff_unified": "diff --git a/a.txt b/a.txt\n",
+	})
+
+	stat, unified := readTaskDiff(t, fx, taskID)
+	if len(stat) != 0 || unified != nil {
+		t.Errorf("ungrouped task got diff_stat=%q diff_unified=%v, want both untouched", stat, unified)
+	}
+}
+
+// A losing attempt that still delivered a branch reports its diff on the
+// /fail callback exactly like a winner does on /complete (F11 fail path).
+func TestFailTaskRecordsRunGroupAttemptDiff(t *testing.T) {
+	fx := testutil.New(testPool, testWorkspaceID, testUserID)
+	issueID := fx.Issue(t, "failed attempt diff lands on the row")
+	groupID := fx.Insert(t, "run_group", testutil.Cols{
+		"workspace_id":  testWorkspaceID,
+		"issue_id":      issueID,
+		"created_by":    testUserID,
+		"attempt_count": 2,
+	})
+	taskID := seedAttempt(t, fx, "diff-recorded-on-fail", groupID, issueID)
+
+	patch := "diff --git a/a.txt b/a.txt\n+partial\n"
+	failWithDiff(t, taskID, map[string]any{
+		"error":        "agent crashed mid-run",
+		"diff_stat":    map[string]any{"files": 1, "insertions": 4, "deletions": 0},
+		"diff_unified": patch,
+	})
+
+	stat, unified := readTaskDiff(t, fx, taskID)
+	var got map[string]int
+	if err := json.Unmarshal(stat, &got); err != nil {
+		t.Fatalf("decode diff_stat %q: %v", stat, err)
+	}
+	if got["files"] != 1 || got["insertions"] != 4 || got["deletions"] != 0 {
+		t.Errorf("diff_stat = %v, want files 1 / insertions 4 / deletions 0", got)
+	}
+	if unified == nil || *unified != patch {
+		t.Errorf("diff_unified = %v, want the patch verbatim", unified)
+	}
+}
+
+// A run outside a group has no compare-view column, so a diff on its /fail
+// callback is ignored rather than written — same rule as /complete.
+func TestFailTaskIgnoresDiffOutsideARunGroup(t *testing.T) {
+	fx := testutil.New(testPool, testWorkspaceID, testUserID)
+	issueID := fx.Issue(t, "ordinary failed run sending a diff")
+	taskID := seedAttempt(t, fx, "diff-ungrouped-fail", "", issueID)
+
+	failWithDiff(t, taskID, map[string]any{
+		"error":        "agent crashed mid-run",
 		"diff_stat":    map[string]any{"files": 1, "insertions": 1, "deletions": 0},
 		"diff_unified": "diff --git a/a.txt b/a.txt\n",
 	})

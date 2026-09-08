@@ -299,9 +299,10 @@ type terminalTaskReport struct {
 	// checkpointSHA is the turn record a worktree run delivered (F09), the
 	// handle a later revert of this conversation resets the branch to.
 	checkpointSHA string
-	// diff is what a racing attempt (F11) changed. Complete-only: the compare
-	// view's columns are the attempts that produced a result, and the fail
-	// callback has no field for it.
+	// diff is what a racing attempt (F11) changed. A failed attempt that still
+	// delivered a branch carries one too — Finalize commits before either
+	// callback fires, so the compare view shows what a losing attempt produced
+	// on both the complete and the fail path.
 	diff *runDiff
 }
 
@@ -6181,6 +6182,7 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
 			checkpointSHA:         result.CheckpointSHA,
+			diff:                  result.Diff,
 		}); failErr != nil {
 			taskLog.Error("fail task fallback also failed", "error", failErr)
 		}
@@ -6220,6 +6222,10 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
 			checkpointSHA:         result.CheckpointSHA,
+			// Racing (F11): a losing attempt often still delivered a branch, and
+			// this is the diff Finalize measured for it — same computation, same
+			// bound as the winning path (see the Finalize defer above).
+			diff: result.Diff,
 		}); err != nil {
 			taskLog.Error("report failed task failed", "error", err)
 		}
@@ -6239,7 +6245,7 @@ func (d *Daemon) reportTerminalTask(parentCtx context.Context, report terminalTa
 	case terminalTaskReportComplete:
 		return d.client.CompleteTask(ctx, report.taskID, report.output, report.branchName, report.sessionID, report.workDir, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA, report.diff)
 	case terminalTaskReportFail:
-		return d.client.FailTask(ctx, report.taskID, report.errorMessage, report.sessionID, report.workDir, report.branchName, report.failureReason, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA)
+		return d.client.FailTask(ctx, report.taskID, report.errorMessage, report.sessionID, report.workDir, report.branchName, report.failureReason, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA, report.diff)
 	default:
 		return fmt.Errorf("unsupported terminal task report kind %d", report.kind)
 	}

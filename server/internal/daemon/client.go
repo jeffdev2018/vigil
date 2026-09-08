@@ -578,17 +578,24 @@ func (c *Client) ReportTaskMessages(ctx context.Context, taskID string, messages
 	}, nil)
 }
 
+// addDiffFields adds a racing attempt's diff (F11) to a terminal-callback
+// body. Shared by CompleteTask and FailTask: a losing attempt routinely still
+// delivered a branch, so both callbacks can carry one. Only the stat is
+// guaranteed — an over-the-bound patch is deliberately not sent, which is
+// what the compare view renders as "truncated".
+func addDiffFields(body map[string]any, diff *runDiff) {
+	if diff == nil {
+		return
+	}
+	body["diff_stat"] = diff.Stat
+	if diff.Unified != "" {
+		body["diff_unified"] = diff.Unified
+	}
+}
+
 func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
 	body := map[string]any{"output": output}
-	// F11: only a racing attempt carries a diff, and only its stat is
-	// guaranteed — an over-the-bound patch is deliberately not sent, which is
-	// what the compare view renders as "truncated".
-	if diff != nil {
-		body["diff_stat"] = diff.Stat
-		if diff.Unified != "" {
-			body["diff_unified"] = diff.Unified
-		}
-	}
+	addDiffFields(body, diff)
 	if branchName != "" {
 		body["branch_name"] = branchName
 	}
@@ -622,8 +629,9 @@ func (c *Client) ReportTaskUsage(ctx context.Context, taskID string, usage []Tas
 	}, nil)
 }
 
-func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string) error {
+func (c *Client) FailTask(ctx context.Context, taskID, errMsg, sessionID, workDir, branchName, failureReason string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
 	body := map[string]any{"error": errMsg}
+	addDiffFields(body, diff)
 	if sessionID != "" {
 		body["session_id"] = sessionID
 	}
