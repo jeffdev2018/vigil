@@ -299,6 +299,10 @@ type terminalTaskReport struct {
 	// checkpointSHA is the turn record a worktree run delivered (F09), the
 	// handle a later revert of this conversation resets the branch to.
 	checkpointSHA string
+	// diff is what a racing attempt (F11) changed. Complete-only: the compare
+	// view's columns are the attempts that produced a result, and the fail
+	// callback has no field for it.
+	diff *runDiff
 }
 
 type executionEnvironmentCommand func() ([]string, error)
@@ -6132,6 +6136,7 @@ func (d *Daemon) reportTaskResult(ctx context.Context, taskID string, result Tas
 			sessionRolloutMissing: result.SessionRolloutMissing,
 			retiredSessionID:      result.RetiredSessionID,
 			checkpointSHA:         result.CheckpointSHA,
+			diff:                  result.Diff,
 		})
 		if err == nil {
 			return
@@ -6232,7 +6237,7 @@ func (d *Daemon) reportTerminalTask(parentCtx context.Context, report terminalTa
 
 	switch report.kind {
 	case terminalTaskReportComplete:
-		return d.client.CompleteTask(ctx, report.taskID, report.output, report.branchName, report.sessionID, report.workDir, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA)
+		return d.client.CompleteTask(ctx, report.taskID, report.output, report.branchName, report.sessionID, report.workDir, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA, report.diff)
 	case terminalTaskReportFail:
 		return d.client.FailTask(ctx, report.taskID, report.errorMessage, report.sessionID, report.workDir, report.branchName, report.failureReason, report.sessionRolloutMissing, report.retiredSessionID, report.durableWorkDir, report.checkpointSHA)
 	default:
@@ -8152,6 +8157,21 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 			}
 			if outcome.CheckpointSHA != "" {
 				taskResult.CheckpointSHA = outcome.CheckpointSHA
+			}
+			// Racing attempts (F11) only. Measured here because Finalize has
+			// just committed the agent's leftovers, so the branch tip is the
+			// whole deliverable — and because the worktree is about to be gone,
+			// leaving the user's repository as the only place the branch lives.
+			// An attempt that changed nothing has no branch and reports a zero
+			// stat, which is a real answer rather than a missing one.
+			if task.RunGroupID != "" {
+				if outcome.Branch == "" {
+					taskResult.Diff = &runDiff{}
+				} else {
+					taskResult.Diff = computeRunDiff(context.WithoutCancel(ctx),
+						env.LocalWorktree.GitRoot, env.LocalWorktree.BaseCommit, outcome.Branch,
+						maxRunDiffBytes, taskLog)
+				}
 			}
 			if finalizeErr == nil {
 				// The configured local_directory becomes authoritative only after

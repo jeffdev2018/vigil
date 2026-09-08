@@ -100,6 +100,12 @@ type Task struct {
 	// Sandbox (K10) is the confinement the server requested for this run.
 	// Nil or mode "none" runs the CLI directly on the host, as before.
 	Sandbox *SandboxSpec `json:"sandbox,omitempty"`
+	// RunGroupID (F11) is set when this task is one attempt of a race: several
+	// agents working the same issue in parallel so the user can pick a winner.
+	// It is the daemon's only signal to measure and report the run's diff, so
+	// an ordinary run never pays for the git work. Empty on a server predating
+	// the field, which reads as "not an attempt".
+	RunGroupID string `json:"run_group_id,omitempty"`
 	// DispatchLane (K45) mirrors handler.AgentTaskResponse.DispatchLane: "batch"
 	// when the server deferred this run to the workspace's off-peak window,
 	// "sync" otherwise. Exported to the agent process as MULTICA_DISPATCH_LANE
@@ -384,8 +390,12 @@ type TaskResult struct {
 	// CheckpointSHA is the turn record a worktree run delivered (F09). Reported
 	// on the completed AND the failed path: a run that died partway is exactly
 	// the one a user wants to roll back, and Finalize records it either way.
-	CheckpointSHA string           `json:"-"`
-	Usage         []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
+	CheckpointSHA string `json:"-"`
+	// Diff is what a racing attempt (F11) delivered on its branch, measured at
+	// Finalize against the commit the worktree started from. Nil for every task
+	// that is not an attempt, and for an attempt whose diff could not be read.
+	Diff  *runDiff         `json:"-"`
+	Usage []TaskUsageEntry `json:"usage,omitempty"` // per-model token usage
 }
 
 // PluginHookTool is one agent-trigger plugin hook, as the agent will see it.

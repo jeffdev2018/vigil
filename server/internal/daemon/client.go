@@ -578,8 +578,17 @@ func (c *Client) ReportTaskMessages(ctx context.Context, taskID string, messages
 	}, nil)
 }
 
-func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string) error {
+func (c *Client) CompleteTask(ctx context.Context, taskID, output, branchName, sessionID, workDir string, sessionRolloutMissing bool, retiredSessionID, durableWorkDir, checkpointSHA string, diff *runDiff) error {
 	body := map[string]any{"output": output}
+	// F11: only a racing attempt carries a diff, and only its stat is
+	// guaranteed — an over-the-bound patch is deliberately not sent, which is
+	// what the compare view renders as "truncated".
+	if diff != nil {
+		body["diff_stat"] = diff.Stat
+		if diff.Unified != "" {
+			body["diff_unified"] = diff.Unified
+		}
+	}
 	if branchName != "" {
 		body["branch_name"] = branchName
 	}
