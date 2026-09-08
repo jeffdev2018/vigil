@@ -72,11 +72,6 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/service/issue_public.go": statusWriterDownstream,
 
 	// --- Cannot move a status ----------------------------------------------
-	// The native runtime's update tool edits title, description and priority.
-	// It has to pass Status to UpdateIssue because the query nulls unset
-	// columns, so it pins the value it just read: "the native runtime does not
-	// move statuses in this iteration". The pin is asserted below.
-	"internal/service/native_agent_tools.go": statusWriterPinned,
 
 	// --- System writers ----------------------------------------------------
 	// The stuck-issue sweeper returns an in_progress issue with no live task to
@@ -105,6 +100,13 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/handler/critic.go": statusWriterSystem,
 	// The Linear bridge (K21) mirrors a state change made in Linear.
 	"internal/integrations/linear/sync.go": statusWriterSystem,
+	// The native agent runtime (rowboat lot B). transition_issue runs the
+	// shared gate (service.DecideIssueTransition) with the AGENT as actor
+	// before writing; update_issue pins the status to the current value and
+	// never moves it (the pin pattern below still matches the file); both
+	// create tools file on the default status, which the create gate
+	// deliberately never gates.
+	"internal/service/native_agent_tools.go": statusWriterGated,
 	// A low-confidence run is sent back for review by the platform.
 	"internal/service/run_confidence.go": statusWriterSystem,
 	// An autopilot creates the issue its schedule or webhook asked for.

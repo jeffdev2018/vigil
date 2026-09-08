@@ -422,7 +422,7 @@ func (h *Handler) EffectiveIssueTransitions(w http.ResponseWriter, r *http.Reque
 		}
 	}
 	actor := h.transitionActor(r, issue.WorkspaceID)
-	if transitionRulesNeedSquads(rules) {
+	if service.TransitionRulesNeedSquads(rules) {
 		h.loadActorSquads(ctx, issue.WorkspaceID, &actor)
 	}
 	from := issuestatus.Effective(ctx, h.Queries, issue.WorkspaceID, issue.Status)
