@@ -88,7 +88,7 @@ func TestRequirementInterviewParksAndResumesAsOne(t *testing.T) {
 		t.Fatalf("runs after partial answers = %d, want %d", n, runsBefore)
 	}
 
-// The last answer restores the status and queues one run with every
+	// The last answer restores the status and queues one run with every
 	// answer in order.
 	var last decisionEnvelope
 	respondDecision(t, issue, out.Decisions[1].ID, map[string]any{"option_id": "a"}).Want(http.StatusOK).JSON(&last)

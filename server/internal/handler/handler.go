@@ -243,7 +243,7 @@ type Handler struct {
 	AutopilotService       *service.AutopilotService
 	// NativeAgents runs the in-server agent runtime (tool-calling loop over
 	// the internal LLM layer). Driven by the native_agent_tick scheduler job.
-	NativeAgents           *service.NativeAgentService
+	NativeAgents *service.NativeAgentService
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
