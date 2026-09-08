@@ -189,6 +189,7 @@ const (
 	// The `action` in the payload is advisory (it makes a frame in devtools
 	// self-describing); nothing routes on it.
 	EventIssueStatusChanged = "issue_status:changed"
+	EventDeliveryChanged    = "delivery:changed"
 
 	// The work item type catalogue moved (F30). One event for every write, like
 	// the status catalogue above and for the same reason: clients re-read the

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AppConfigSchema,
+  ProjectMemoryHistorySchema,
   CommentAnchorSchema,
   CommentSchema,
   AnchoredThreadsSchema,
@@ -5799,6 +5800,37 @@ describe("UnbindAgentsAndDeleteRuntimeResponseSchema", () => {
       expect(
         parseWithFallback(malformed, UnbindAgentsAndDeleteRuntimeResponseSchema, EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE, ENDPOINT),
       ).toEqual(EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE);
+    }
+  });
+});
+
+// #192 merge — getProjectMemoryHistory now parses through parseWithFallback
+// with a null fallback (client.ts throws on it) instead of a bare safeParse.
+// A malformed page must never read as "no earlier versions": the pager would
+// stop and the restore list would silently lose revisions.
+describe("ProjectMemoryHistorySchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/projects/{id}/memory/history" };
+  const history = {
+    versions: [
+      {
+        rules: ["no foreign keys"],
+        revision: 2,
+        reviewed_by: "user-1",
+        reviewed_at: "2026-09-01T00:00:00Z",
+        expires_at: null,
+        expired: false,
+      },
+    ],
+    next_before_revision: 2,
+  };
+
+  it("keeps a valid history intact", () => {
+    expect(parseWithFallback(history, ProjectMemoryHistorySchema, null, ENDPOINT)).toEqual(history);
+  });
+
+  it("falls back to null on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}, { versions: [{ revision: 1 }], next_before_revision: null }]) {
+      expect(parseWithFallback(malformed, ProjectMemoryHistorySchema, null, ENDPOINT)).toBeNull();
     }
   });
 });

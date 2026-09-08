@@ -1,0 +1,15 @@
+{
+  "n_attempted": 14,
+  "accepted": 9,
+  "changes_requested": 5,
+  "skipped": 0,
+  "errors": 0,
+  "effort_seconds": {
+    "min": 1,
+    "max": 2,
+    "sum": 19,
+    "avg": 1.3571428571428572
+  },
+  "accept_effort_avg": 1.0,
+  "correct_effort_avg": 2.0
+}

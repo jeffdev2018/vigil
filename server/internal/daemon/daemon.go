@@ -452,11 +452,12 @@ type repoCacheBackend interface {
 
 // Daemon is the local agent runtime that polls for and executes tasks.
 type Daemon struct {
-	cfg        Config
-	client     *Client
-	repoCache  repoCacheBackend
-	skillCache *SkillBundleCache
-	logger     *slog.Logger
+	memoryEvaluationActive sync.Mutex
+	cfg                    Config
+	client                 *Client
+	repoCache              repoCacheBackend
+	skillCache             *SkillBundleCache
+	logger                 *slog.Logger
 
 	mu           sync.Mutex
 	workspaces   map[string]*workspaceState
@@ -4389,6 +4390,11 @@ func (d *Daemon) handleHeartbeatActions(ctx context.Context, runtimeID string, r
 	if resp.PendingModelList != nil {
 		if rt := d.findRuntime(runtimeID); rt != nil {
 			go d.handleModelList(ctx, *rt, resp.PendingModelList.ID)
+		}
+	}
+	if resp.PendingMemoryEvaluation != "" {
+		if rt := d.findRuntime(runtimeID); rt != nil {
+			go d.handleMemoryEvaluation(context.WithoutCancel(ctx), *rt, resp.PendingMemoryEvaluation)
 		}
 	}
 	if resp.PendingCliAuth != nil {

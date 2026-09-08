@@ -1,3 +1,4 @@
+export * from "./delivery";
 export * from "./store";
 export * from "./canonical-id";
 export * from "./queries";

@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY agent_memory_version_identity;

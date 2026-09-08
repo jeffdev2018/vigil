@@ -1,0 +1,20 @@
+[
+  {
+    "issue": "DEV-21",
+    "bodies": [
+      "rift-2"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment"
+  },
+  {
+    "issue": "DEV-22",
+    "bodies": [
+      "rift-2"
+    ],
+    "hit": true,
+    "correction_needed": false,
+    "arm": "treatment"
+  }
+]

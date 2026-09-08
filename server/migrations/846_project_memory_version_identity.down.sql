@@ -1,0 +1,1 @@
+DROP INDEX CONCURRENTLY project_memory_version_identity;

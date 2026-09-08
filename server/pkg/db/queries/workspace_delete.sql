@@ -545,6 +545,15 @@ DELETE FROM comment WHERE comment.workspace_id = $1;
 
 -- name: DeleteWorkspaceIssueRoots :exec
 WITH
+deleted_delivery_reviews AS (
+    DELETE FROM issue_delivery_review WHERE workspace_id = $1
+),
+deleted_delivery_contracts AS (
+    DELETE FROM issue_delivery_contract WHERE workspace_id = $1
+),
+deleted_project_memory_versions AS (
+    DELETE FROM project_memory_version WHERE workspace_id = $1
+),
 deleted_issues AS (
     DELETE FROM issue WHERE issue.workspace_id = $1
 ),
@@ -657,6 +666,8 @@ WITH deleted_squads AS (
 DELETE FROM skill WHERE skill.workspace_id = $1;
 
 -- name: DeleteWorkspaceAgentMemories :exec
+WITH cleared_evaluations AS (DELETE FROM agent_memory_evaluation WHERE workspace_id = $1),
+cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
 -- agent_memory carries no FK by repo rule; sweep it before the agent rows it
 -- logically hangs off.
 DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
