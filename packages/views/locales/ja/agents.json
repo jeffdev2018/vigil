@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "エージェント",
-    "tagline": "タスクを引き受け、コメントし、ステータスを更新する AI チームメイトです。",
+    "tagline": "課題を引き受け、コメントし、ステータスを更新する AI チームメイトです。",
     "learn_more": "詳細はこちら →",
     "new_agent": "新規エージェント",
     "search_placeholder": "エージェントを検索...",
@@ -44,7 +44,7 @@
   },
   "empty": {
     "title": "まだエージェントがいません",
-    "description": "チームメイトと同じように、エージェントを作成してタスクを割り当てましょう。ローカルエージェントは自分のマシンで、クラウドエージェントは Multica のランタイムで実行されます。"
+    "description": "チームメイトと同じように、エージェントを作成して課題を割り当てましょう。ローカルエージェントは自分のマシンで、クラウドエージェントは Multica のランタイムで実行されます。"
   },
   "no_matches": {
     "title": "一致する結果なし",
@@ -385,7 +385,7 @@
       "system_layer_hide": "隠す",
       "workspace_notes_label": "ワークスペースの補足",
       "workspace_notes_intro": "チームのコンテキストや好みを下に追加してください。Multica がこのエージェント向けに管理している指示の上に適用されます。Markdown が使えます。",
-      "workspace_notes_placeholder": "このエージェントが常に知っておくべきことを書きます。\n\n# 例\nメインリポジトリは github.com/acme/platform です。\nチャットが日本語でも、タスクは英語で書いてください。\n金曜日はデプロイしません。"
+      "workspace_notes_placeholder": "このエージェントが常に知っておくべきことを書きます。\n\n# 例\nメインリポジトリは github.com/acme/platform です。\nチャットが日本語でも、課題は英語で書いてください。\n金曜日はデプロイしません。"
     },
     "env": {
       "intro_readonly": "エージェントプロセスの起動時に注入されます。値の読み取りや編集ができるのはワークスペースのオーナーと admin のみで、すべての表示と編集はワークスペースの監査ログに記録されます。",
@@ -716,19 +716,19 @@
       "avg_duration_label": "平均時間",
       "failed_count": "{{count}} 回失敗",
       "failed_label": "失敗",
-      "source_issue": "タスク",
+      "source_issue": "課題",
       "source_chat": "チャット",
       "source_autopilot": "オートパイロット",
       "source_untracked": "未追跡",
       "routing_auto_badge": "自動",
       "source_quick_create": "クイック作成",
-      "source_creating_issue": "タスクを作成中",
+      "source_creating_issue": "課題を作成中",
       "source_chat_session": "チャットセッション",
       "source_autopilot_run": "オートパイロット実行",
-      "issue_short_fallback": "タスク {{prefix}}...",
+      "issue_short_fallback": "課題 {{prefix}}...",
       "triggered_by": "トリガーした人",
-      "open_issue_aria": "タスクを開く",
-      "open_issue_tooltip": "タスクを開く",
+      "open_issue_aria": "課題を開く",
+      "open_issue_tooltip": "課題を開く",
       "transcript_tooltip": "トランスクリプトを表示",
       "cancel_task_aria": "実行をキャンセル",
       "cancel_task_tooltip": "実行をキャンセル",
@@ -798,7 +798,7 @@
   },
   "live_peek": {
     "current_issue_label": "現在の作業",
-    "no_current_issue": "タスクなし",
+    "no_current_issue": "課題なし",
     "last_activity_label": "最終アクセス",
     "no_recent_activity": "最近のアクティビティなし",
     "failed_indicator": "失敗"

@@ -25,7 +25,7 @@
     "progress": "進捗",
     "lead": "リード",
     "created": "作成日",
-    "issues": "タスク数"
+    "issues": "課題数"
   },
   "status": {
     "planned": "計画中",
@@ -73,13 +73,13 @@
     "no_due_date": "期限なし",
     "description_placeholder": "説明を追加...",
     "description_hint": "このプロジェクトのすべての実行で、コンテキストとしてエージェントに共有されます。",
-    "empty_issues_title": "リンクされたタスクはありません",
-    "empty_issues_hint": "新しいタスクを作成するか、既存のタスクをこのプロジェクトに割り当ててください。",
-    "empty_issues_new_button": "新規タスク",
-    "no_issues_yet": "タスクはまだありません",
+    "empty_issues_title": "リンクされた課題はありません",
+    "empty_issues_hint": "新しい課題を作成するか、既存の課題をこのプロジェクトに割り当ててください。",
+    "empty_issues_new_button": "新規課題",
+    "no_issues_yet": "課題はまだありません",
     "toast_link_copied": "リンクをコピーしました",
     "toast_project_deleted": "プロジェクトを削除しました",
-    "toast_move_issue_failed": "タスクを移動できませんでした"
+    "toast_move_issue_failed": "課題を移動できませんでした"
   },
   "resources": {
     "section_header": "リソース",
@@ -147,7 +147,7 @@
   },
   "delete_dialog": {
     "title": "プロジェクトを削除",
-    "description": "プロジェクトが削除されます。タスクは削除されませんが、リンクが解除されます。",
+    "description": "プロジェクトが削除されます。課題は削除されませんが、リンクが解除されます。",
     "confirm": "削除",
     "cancel": "キャンセル"
   },
@@ -249,7 +249,7 @@
     "reviewer": "レビュアーエージェント",
     "reviewer_auto": "自動",
     "gate": "承認を必須にする",
-    "gate_description": "オンの場合、最新のレビューが作業を承認するまでタスクを done に移動できません。",
+    "gate_description": "オンの場合、最新のレビューが作業を承認するまで課題を done に移動できません。",
     "max_cycles": "最大サイクル数",
     "save": "レビュー設定を保存",
     "failed": "レビュー設定を保存できませんでした"
