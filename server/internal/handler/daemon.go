@@ -2298,15 +2298,30 @@ func benchmarkTaskPinsRuntime(task *db.AgentTaskQueue) bool {
 	return task.LegRole == service.LegRoleBenchmark
 }
 
-// escalatedTaskPinsRuntime reports whether a task stamped with a runtime
-// other than the agent's bound one is a confidence-cascade hop (JEF-272).
-// The server pinned the stronger runtime at enqueue; the agent's binding
-// stays where the owner put it and is not authority over the hop — the same
-// exemption a benchmark replay gets, for the same reason. Without it the
-// escalated task matches neither the agent's runtime fence nor this recheck,
-// and nobody can ever claim it.
-func escalatedTaskPinsRuntime(task *db.AgentTaskQueue) bool {
-	return service.TaskContextHasEscalation(task.Context)
+// poolTaskPinsRuntime reports whether the task's runtime is one the owner
+// listed in the agent's runtime pool (K28): a failover moved it there, and
+// the binding is not authority over a runtime the owner explicitly allowed.
+// Membership is read now, not at enqueue, so a runtime dropped from the pool
+// since then fails closed like any other mismatch.
+func (h *Handler) poolTaskPinsRuntime(ctx context.Context, agent db.Agent, task *db.AgentTaskQueue) bool {
+	if !agent.RuntimePoolID.Valid {
+		return false
+	}
+	pool, err := h.Queries.GetRuntimePool(ctx, agent.RuntimePoolID)
+	if err != nil {
+		return false
+	}
+	var ids []string
+	if err := json.Unmarshal(pool.RuntimeIds, &ids); err != nil {
+		return false
+	}
+	want := uuidToString(task.RuntimeID)
+	for _, id := range ids {
+		if id == want {
+			return true
+		}
+	}
+	return false
 }
 
 // buildClaimedTaskResponse assembles the full daemon claim payload for a
@@ -2430,10 +2445,9 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// exactly the one stamped on the row — an agent flipped back to fixed
 	// mode, or a task whose runtime no longer matches its trace, fails closed.
 	// A benchmark replay (JEF-276) is exempt too: its runtime is the candidate
-	// under measurement, pinned at enqueue. So is a confidence-cascade hop
-	// (JEF-272): the escalation pinned a stronger runtime at enqueue, and the
-	// binding must not strand the server's own retry.
-	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) && !benchmarkTaskPinsRuntime(task) && !escalatedTaskPinsRuntime(task) {
+	// under measurement, pinned at enqueue. So is a task a pool failover (K28)
+	// moved to another runtime the owner listed in the agent's pool.
+	if agent.RuntimeID != task.RuntimeID && !routedTaskMatchesClaimedRuntime(agent, task) && !benchmarkTaskPinsRuntime(task) && !h.poolTaskPinsRuntime(r.Context(), agent, task) {
 		slog.Warn("daemon claim: agent runtime changed before delivery; refusing dispatch",
 			"task_id", uuidToString(task.ID),
 			"agent_id", uuidToString(task.AgentID),
