@@ -21,7 +21,9 @@
     "revisions": "Revisions",
     "no_revisions": "No revision yet.",
     "revision_row": "rev. {{n}} · {{status}} · {{model}}",
-    "read_only": "Dissolved structures are read-only."
+    "read_only": "Dissolved structures are read-only.",
+    "structure": "Structure",
+    "settings": "Structure settings"
   },
   "status": {
     "draft": "Draft",
@@ -352,5 +354,35 @@
     "members": "Members",
     "no_members": "No member yet.",
     "move_to": "Move {{name}} to another unit"
+  },
+  "people": {
+    "view_people": "People",
+    "view_units": "Teams",
+    "add": "Add a teammate",
+    "hint": "Click a card to open its record. Drag nothing: the chart is read off who reports to whom.",
+    "zoom_in": "Zoom in",
+    "zoom_out": "Zoom out",
+    "fit": "Fit",
+    "human": "human",
+    "agent": "agent",
+    "active": "Active",
+    "empty": "Nobody yet. Add a first teammate: they become the head of the chart.",
+    "no_selection": "Pick a person to open their record.",
+    "reports_to": "Reports to",
+    "root": "Nobody — head of the chart",
+    "team": "Their team",
+    "team_none": "Nobody yet",
+    "unit": "Team",
+    "advanced": "Advanced — what the team decides alone, never does, its autonomy",
+    "dialog_description": "Who joins the chart, and who they report to.",
+    "who": "Who",
+    "kind_agent": "An agent",
+    "kind_human": "A human",
+    "pick": "Choose…",
+    "title": "Title",
+    "title_placeholder": "Support lead, Billing…",
+    "manager_none": "Nobody — head of the chart",
+    "cancel": "Cancel",
+    "confirm": "Add"
   }
 }

@@ -77,6 +77,7 @@
     "./org/tester": "./org/tester.ts",
     "./org/templates": "./org/templates.ts",
     "./org/validate": "./org/validate.ts",
+    "./org/people": "./org/people.ts",
     "./org/layout": "./org/layout.ts",
     "./skills/drafts": "./skills/drafts.ts",
     "./budgets/run-limits": "./budgets/run-limits.ts",

@@ -19,6 +19,9 @@ vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/auth", () => ({ useAuthStore: (sel: (s: unknown) => unknown) => sel({ user: { id: "u-1" } }) }));
 vi.mock("@multica/core/workspace/queries", () => ({ memberListOptions: () => ({ queryKey: ["members"] }), agentListOptions: () => ({ queryKey: ["agents"] }) }));
 vi.mock("@multica/core/goals", () => ({ goalListOptions: () => ({ queryKey: ["goals"] }) }));
+vi.mock("@multica/core/runtimes/queries", () => ({ runtimeListOptions: () => ({ queryKey: ["runtimes"] }) }));
+// The people chart's presence dots have their own suite (org-people-chart.test.tsx).
+vi.mock("@multica/core/agents", () => ({ useWorkspacePresenceMap: () => ({ byAgent: new Map(), loading: false }) }));
 vi.mock("@multica/core/projects/queries", () => ({ projectListOptions: () => ({ queryKey: ["projects"] }) }));
 vi.mock("sonner", () => ({ toast: { error: state.toastError, success: vi.fn() } }));
 vi.mock("../../editor/mermaid-diagram", () => ({ MermaidDiagram: ({ chart }: { chart: string }) => <pre data-testid="mermaid">{chart}</pre> }));
@@ -35,6 +38,7 @@ vi.mock("@tanstack/react-query", () => ({
     if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner", avatar_url: null }], isLoading: false };
     if (key === "agents") return { data: [{ id: "a-1", name: "Mika", avatar_url: null, trust_mode: "autonomous" }, { id: "a-2", name: "Nia", avatar_url: null, trust_mode: "autonomous" }], isLoading: false };
     if (key === "goals") return { data: [], isLoading: false };
+    if (key === "runtimes") return { data: [], isLoading: false };
     if (key === "projects") return { data: [{ id: "p-1", title: "Apollo" }], isLoading: false };
     return { data: undefined, isLoading: false, isPending: true };
   },
@@ -82,19 +86,21 @@ beforeEach(() => {
 });
 
 describe("OrgPage", () => {
-  it("lists structures, the workspace default first, with model labels and project titles", () => {
+  it("opens the live structure's people chart directly, with the others one pick away", () => {
     state.structures = [
       structure({ id: "proj", project_id: "p-1", model: "market", name: "Apollo market", status: "active", paused_units: ["dev"] }),
       structure({ id: "def", name: "Default org" }),
     ];
     renderWithI18n(<OrgPage />);
-    const cards = screen.getAllByTestId("org-structure");
-    expect(cards[0]?.textContent).toContain("Workspace default");
-    expect(cards[0]?.textContent).toContain("Hierarchy");
-    expect(cards[0]?.textContent).toContain("Ada");
-    expect(cards[1]?.textContent).toContain("Apollo");
-    expect(cards[1]?.textContent).toContain("Internal market");
-    expect(cards[1]?.textContent).toContain("1 paused unit");
+    const picker = screen.getByTestId("org-structure-picker") as HTMLSelectElement;
+    expect(picker.value).toBe("proj");
+    expect([...picker.options].map((o) => o.textContent)).toEqual(["Default org · Workspace default · Draft", "Apollo market · Apollo · Active"]);
+    // People first: Ada leads, the two agents report to her.
+    expect(screen.getAllByTestId("org-person").map((c) => c.getAttribute("data-person-key"))).toEqual(["lead/member:u-1", "dev/agent:a-1", "dev/agent:a-2"]);
+    expect(screen.getAllByTestId("org-person-edge")).toHaveLength(2);
+    fireEvent.change(picker, { target: { value: "def" } });
+    expect((screen.getByTestId("org-structure-picker") as HTMLSelectElement).value).toBe("def");
+    expect(screen.getByRole("button", { name: "Activate" })).toBeTruthy();
   });
 
   // The create flow is the four-step wizard: org-wizard.test.tsx.
@@ -102,7 +108,7 @@ describe("OrgPage", () => {
   it("opens the detail with the chart, blocks save on invalid JSON, and saves the parsed definition", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
+    fireEvent.click(screen.getByRole("tab", { name: "Teams" }));
     expect(screen.getAllByTestId("org-unit-card").map((c) => c.getAttribute("data-unit-id"))).toEqual(["lead", "dev"]);
     expect(screen.getAllByTestId("org-unit").map((u) => u.textContent)).toEqual(["LeadAda · Approve payload · 1 member", "DevNo owner · Draft · 2 members"]);
     fireEvent.click(screen.getByText("Advanced (JSON)"));
@@ -120,7 +126,7 @@ describe("OrgPage", () => {
   it("keeps the canvas and the advanced JSON on the same definition, and undoes canvas edits", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
+    fireEvent.click(screen.getByRole("tab", { name: "Teams" }));
     fireEvent.click(screen.getByText("Advanced (JSON)"));
 
     // Canvas -> JSON: renaming from the unit record rewrites the textarea.
@@ -146,7 +152,7 @@ describe("OrgPage", () => {
     try {
       state.structures = [structure({ id: "s", status: "active" })];
       const active = renderWithI18n(<OrgPage />);
-      fireEvent.click(screen.getByTestId("org-structure"));
+      fireEvent.click(screen.getByRole("tab", { name: "Teams" }));
       fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
       fireEvent.change(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name"), { target: { value: "Captain" } });
       vi.advanceTimersByTime(5000);
@@ -155,7 +161,7 @@ describe("OrgPage", () => {
 
       state.structures = [structure({ id: "s" })];
       renderWithI18n(<OrgPage />);
-      fireEvent.click(screen.getByTestId("org-structure"));
+      fireEvent.click(screen.getByRole("tab", { name: "Teams" }));
       fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
       fireEvent.change(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name"), { target: { value: "Captain" } });
       expect(state.updated).toHaveLength(0);
@@ -169,7 +175,6 @@ describe("OrgPage", () => {
   it("activates with the attestation after showing the preflight numbers", async () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
     fireEvent.click(screen.getByRole("button", { name: "Activate" }));
     const dialog = await screen.findByRole("dialog");
     const pre = within(dialog).getByTestId("org-preflight").textContent;
@@ -191,7 +196,6 @@ describe("OrgPage", () => {
       proposals: [{ key: "vacant-dev", unit_id: "dev", title: "Fill the reviewer role", body: "Dev has had no reviewer for 7 days.", measure: "vacant_roles = 0" }],
     };
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
     const health = screen.getByTestId("org-health").textContent;
     expect(health).toContain("Drift rate25%");
     expect(screen.getByTestId("org-health-unit").textContent).toContain("reviewer");

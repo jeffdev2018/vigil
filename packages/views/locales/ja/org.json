@@ -19,7 +19,9 @@
     "revisions": "改訂履歴",
     "no_revisions": "改訂はまだありません。",
     "revision_row": "第{{n}}版 · {{status}} · {{model}}",
-    "read_only": "解散した構造は読み取り専用です。"
+    "read_only": "解散した構造は読み取り専用です。",
+    "structure": "構成",
+    "settings": "構成の設定"
   },
   "status": {
     "draft": "下書き",
@@ -347,5 +349,35 @@
     "members": "メンバー",
     "no_members": "メンバーがまだいません。",
     "move_to": "{{name}} を別のユニットへ移す"
+  },
+  "people": {
+    "view_people": "メンバー",
+    "view_units": "チーム",
+    "add": "メンバーを追加",
+    "hint": "カードをクリックすると詳細が開きます。組織図は「誰が誰に報告するか」から描かれます。",
+    "zoom_in": "拡大",
+    "zoom_out": "縮小",
+    "fit": "全体表示",
+    "human": "人間",
+    "agent": "エージェント",
+    "active": "稼働中",
+    "empty": "まだ誰もいません。最初のメンバーを追加すると組織図の頂点になります。",
+    "no_selection": "人を選ぶと詳細が開きます。",
+    "reports_to": "報告先",
+    "root": "なし — 組織図の頂点",
+    "team": "チーム",
+    "team_none": "まだいません",
+    "unit": "チーム",
+    "advanced": "詳細 — チームが単独で決めること、決してしないこと、自律度",
+    "dialog_description": "誰が組織図に加わり、誰に報告するかを選びます。",
+    "who": "誰",
+    "kind_agent": "エージェント",
+    "kind_human": "人間",
+    "pick": "選択…",
+    "title": "役職",
+    "title_placeholder": "サポート責任者、請求…",
+    "manager_none": "なし — 組織図の頂点",
+    "cancel": "キャンセル",
+    "confirm": "追加"
   }
 }

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Network, Plus } from "lucide-react";
+import { Network, Plus } from "lucide-react";
 import { toast } from "sonner";
 import {
   orgDetailOptions,
@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@multica/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
 import { OrgCanvas } from "./org-canvas";
+import { OrgPeopleChart } from "./org-people-chart";
 import { OrgTemplateCards } from "./org-template-cards";
 import { OrgTester } from "./org-tester";
 import { OrgWizard } from "./org-wizard";
@@ -256,7 +257,7 @@ function OrgHealthSection({ structureId }: { structureId: string }) {
   );
 }
 
-function OrgDetail({ id, onBack, onDeleted }: { id: string; onBack: () => void; onDeleted: () => void }) {
+function OrgDetail({ id, picker, onDeleted }: { id: string; picker: ReactNode; onDeleted: () => void }) {
   const { t } = useT("org");
   const wsId = useWorkspaceId();
   const { data, isPending } = useQuery(orgDetailOptions(wsId, id));
@@ -264,10 +265,10 @@ function OrgDetail({ id, onBack, onDeleted }: { id: string; onBack: () => void; 
   // Keyed on identity only, not on the revision: the draft autosave bumps the
   // revision on its own and remounting there would drop the undo stack and the
   // open unit sheet every two seconds.
-  return <OrgDetailBody key={data.structure.id} structure={data.structure} revisions={data.revisions} onBack={onBack} onDeleted={onDeleted} />;
+  return <OrgDetailBody key={data.structure.id} structure={data.structure} revisions={data.revisions} picker={picker} onDeleted={onDeleted} />;
 }
 
-function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure: OrgStructure; revisions: { id: string; revision: number; status: string; model: string; created_at: string }[]; onBack: () => void; onDeleted: () => void }) {
+function OrgDetailBody({ structure, revisions, picker, onDeleted }: { structure: OrgStructure; revisions: { id: string; revision: number; status: string; model: string; created_at: string }[]; picker: ReactNode; onDeleted: () => void }) {
   const { t } = useT("org");
   const wsId = useWorkspaceId();
   const currentUser = useAuthStore((s) => s.user);
@@ -288,6 +289,8 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   const [undoStack, setUndoStack] = useState<string[]>([]);
   // Selection lives here so the tester's answer can point at a unit in the canvas.
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  // People first; the unit canvas stays one click away for whoever wants the teams.
+  const [view, setView] = useState<"people" | "units">("people");
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const parsed = useMemo(() => parseDefinition(form.definition), [form.definition]);
@@ -387,11 +390,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   return (
     <div className="flex-1 overflow-y-auto px-4 py-2">
       <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" className="gap-1 px-2" onClick={onBack}>
-          <ArrowLeft className="size-3.5" />
-          {t(($) => $.page.back)}
-        </Button>
-        <h2 className="text-title font-medium">{structure.name}</h2>
+        {picker}
         <Badge variant="outline">{t(($) => $.model[structure.model])}</Badge>
         <Badge className={STATUS_BADGE[structure.status]}>{t(($) => $.status[structure.status])}</Badge>
         <span className="text-caption text-muted-foreground">{t(($) => $.page.revision, { n: structure.revision })}</span>
@@ -411,11 +410,43 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       {readOnly && <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.page.read_only)}</p>}
 
       <section className="mt-4">
-        <h3 className="mb-1 text-caption font-medium">{t(($) => $.page.chart)}</h3>
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <h3 className="text-caption font-medium">{t(($) => $.page.chart)}</h3>
+          <div className="ml-auto flex rounded-md border p-0.5" role="tablist">
+            {(["people", "units"] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={cn("rounded px-2 py-0.5 text-caption", view === v ? "bg-accent font-medium text-foreground" : "text-muted-foreground hover:text-foreground")}
+              >
+                {t(($) => (v === "people" ? $.people.view_people : $.people.view_units))}
+              </button>
+            ))}
+          </div>
+        </div>
         {structure.status === "draft" && structure.revision > 1 && (
           <p className="mb-1 text-caption text-muted-foreground">{t(($) => $.canvas.draft_recovered, { n: structure.revision })}</p>
         )}
-        {"def" in parsed ? (
+        {"def" in parsed && view === "people" ? (
+          <OrgPeopleChart
+            wsId={wsId}
+            definition={parsed.def}
+            pausedUnits={structure.paused_units}
+            problems={problems}
+            members={members}
+            agents={agents}
+            goals={goals}
+            readOnly={readOnly}
+            onChange={editDefinition}
+            undoDepth={undoStack.length}
+            onUndo={undo}
+            selectedUnitId={selectedUnitId}
+            onSelectUnit={setSelectedUnitId}
+          />
+        ) : "def" in parsed ? (
           <OrgCanvas
             definition={parsed.def}
             model={structure.model}
@@ -452,7 +483,9 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
         </section>
       )}
 
-      <section className="mt-4 grid gap-3 lg:grid-cols-[1fr_18rem]">
+      <details className="mt-4 pb-4">
+        <summary className="cursor-pointer text-caption font-medium text-muted-foreground">{t(($) => $.page.settings)}</summary>
+      <section className="mt-2 grid gap-3 lg:grid-cols-[1fr_18rem]">
         <div className="flex flex-col gap-3">
           <h3 className="text-caption font-medium">{t(($) => $.page.editor)}</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -532,7 +565,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
         <OrgHealthSection structureId={structure.id} />
       </section>
 
-      <section className="mt-4 pb-4">
+      <section className="mt-4">
         <h3 className="mb-1 text-caption font-medium">{t(($) => $.page.revisions)}</h3>
         {revisions.length === 0 ? (
           <p className="text-caption text-muted-foreground">{t(($) => $.page.no_revisions)}</p>
@@ -547,6 +580,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
           </ul>
         )}
       </section>
+      </details>
 
       {dialog === "activate" && <ActivateDialog structure={structure} onClose={() => setDialog(null)} />}
       {dialog && dialog !== "activate" && (
@@ -565,25 +599,35 @@ export function OrgPage() {
   const wsId = useWorkspaceId();
   const { data: structures = [], isLoading } = useQuery(orgListOptions(wsId));
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
-  const { data: members = [] } = useQuery(memberListOptions(wsId));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
 
   const projectTitle = useMemo(() => new Map(projects.map((p) => [p.id, p.title])), [projects]);
-  const memberName = useMemo(() => new Map(members.map((m) => [m.user_id, m.name])), [members]);
   const sorted = useMemo(
     () => [...structures].sort((a, b) => Number(a.project_id !== null) - Number(b.project_id !== null) || a.created_at.localeCompare(b.created_at)),
     [structures],
   );
+  // The chart is the page: land on the live structure, else the first one.
+  const current = sorted.find((s) => s.id === selectedId) ?? sorted.find((s) => s.status === "active") ?? sorted[0] ?? null;
 
-  if (selectedId) {
-    return (
-      <div className="relative flex flex-1 min-h-0 flex-col">
-        <CollectionPageHeader icon={Network} title={t(($) => $.page.title)} />
-        <OrgDetail id={selectedId} onBack={() => setSelectedId(null)} onDeleted={() => setSelectedId(null)} />
-      </div>
-    );
-  }
+  const picker = (
+    <label className="flex items-center gap-2 text-caption text-muted-foreground">
+      {t(($) => $.page.structure)}
+      <select
+        aria-label={t(($) => $.page.structure)}
+        data-testid="org-structure-picker"
+        className="h-8 rounded-md border bg-background px-2 text-body font-medium text-foreground"
+        value={current?.id ?? ""}
+        onChange={(e) => setSelectedId(e.target.value)}
+      >
+        {sorted.map((s) => (
+          <option key={s.id} value={s.id}>
+            {s.name} · {s.project_id === null ? t(($) => $.page.workspace_default) : projectTitle.get(s.project_id) ?? t(($) => $.page.unknown_project)} · {t(($) => $.status[s.status])}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
 
   return (
     <div className="relative flex flex-1 min-h-0 flex-col">
@@ -593,42 +637,16 @@ export function OrgPage() {
         count={structures.length}
         actions={<CollectionPageHeaderAction icon={Plus} label={t(($) => $.wizard.title)} onClick={() => setCreating(true)} />}
       />
-      {!isLoading && structures.length === 0 ? (
+      {!isLoading && current === null ? (
         <CollectionPageState
           icon={Network}
           title={t(($) => $.page.empty)}
           description={t(($) => $.page.empty_description)}
           actions={<Button size="sm" variant="outline" onClick={() => setCreating(true)}>{t(($) => $.wizard.title)}</Button>}
         />
-      ) : (
-        <div className="flex-1 overflow-y-auto px-4 py-2">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {sorted.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                data-testid="org-structure"
-                onClick={() => setSelectedId(s.id)}
-                className="flex flex-col items-start gap-1 rounded-md border p-3 text-left hover:bg-accent/70"
-              >
-                <span className="text-caption text-muted-foreground">
-                  {s.project_id === null ? t(($) => $.page.workspace_default) : projectTitle.get(s.project_id) ?? t(($) => $.page.unknown_project)}
-                </span>
-                <span className="text-body font-medium">{s.name}</span>
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline">{t(($) => $.model[s.model])}</Badge>
-                  <Badge className={STATUS_BADGE[s.status]}>{t(($) => $.status[s.status])}</Badge>
-                  <span className="text-caption text-muted-foreground">{t(($) => $.page.revision, { n: s.revision })}</span>
-                </span>
-                <span className="text-caption text-muted-foreground">
-                  {s.owner_id ? memberName.get(s.owner_id) ?? s.owner_id : t(($) => $.page.no_owner)}
-                  {s.paused_units.length > 0 && ` · ${t(($) => $.page.paused_units, { count: s.paused_units.length })}`}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      ) : current !== null ? (
+        <OrgDetail id={current.id} picker={picker} onDeleted={() => setSelectedId(null)} />
+      ) : null}
       {creating && <OrgWizard onClose={() => setCreating(false)} onCreated={setSelectedId} />}
     </div>
   );

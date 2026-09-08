@@ -21,7 +21,9 @@
     "revisions": "Révisions",
     "no_revisions": "Aucune révision pour l'instant.",
     "revision_row": "rév. {{n}} · {{status}} · {{model}}",
-    "read_only": "Une structure dissoute est en lecture seule."
+    "read_only": "Une structure dissoute est en lecture seule.",
+    "structure": "Structure",
+    "settings": "Réglages de la structure"
   },
   "status": {
     "draft": "Brouillon",
@@ -351,5 +353,35 @@
     "members": "Membres",
     "no_members": "Aucun membre pour l'instant.",
     "move_to": "Déplacer {{name}} vers une autre unité"
+  },
+  "people": {
+    "view_people": "Personnes",
+    "view_units": "Équipes",
+    "add": "Ajouter un équipier",
+    "hint": "Cliquez une carte pour ouvrir sa fiche. L'organigramme se lit sur qui rend compte à qui.",
+    "zoom_in": "Agrandir",
+    "zoom_out": "Réduire",
+    "fit": "Ajuster",
+    "human": "humain",
+    "agent": "agent",
+    "active": "En activité",
+    "empty": "Personne pour l'instant. Ajoutez un premier équipier : il devient la tête de l'organigramme.",
+    "no_selection": "Choisissez une personne pour ouvrir sa fiche.",
+    "reports_to": "Rend compte à",
+    "root": "Personne — tête de l'organigramme",
+    "team": "Son équipe",
+    "team_none": "Personne pour l'instant",
+    "unit": "Équipe",
+    "advanced": "Avancé — ce que l'équipe décide seule, ne fait jamais, son autonomie",
+    "dialog_description": "Qui rejoint l'organigramme, et à qui cette personne rend compte.",
+    "who": "Qui",
+    "kind_agent": "Un agent",
+    "kind_human": "Un humain",
+    "pick": "Choisir…",
+    "title": "Titre",
+    "title_placeholder": "Responsable support, Facturation…",
+    "manager_none": "Personne — tête de l'organigramme",
+    "cancel": "Annuler",
+    "confirm": "Ajouter"
   }
 }

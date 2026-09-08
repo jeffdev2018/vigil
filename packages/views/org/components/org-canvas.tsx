@@ -28,11 +28,11 @@ const initialsOf = (name: string): string =>
 // Every canvas gesture goes through one of these, so the advanced JSON editor
 // and the canvas always describe the same object.
 
-function patchUnit(def: OrgDefinition, id: string, patch: Partial<OrgUnit>): OrgDefinition {
+export function patchUnit(def: OrgDefinition, id: string, patch: Partial<OrgUnit>): OrgDefinition {
   return { ...def, units: def.units.map((u) => (u.id === id ? { ...u, ...patch } : u)) };
 }
 
-function moveMember(def: OrgDefinition, fromId: string, index: number, toId: string): OrgDefinition {
+export function moveMember(def: OrgDefinition, fromId: string, index: number, toId: string): OrgDefinition {
   if (fromId === toId) return def;
   const from = def.units.find((u) => u.id === fromId);
   const member: OrgMember | undefined = from?.members?.[index];
@@ -88,7 +88,7 @@ function addUnit(def: OrgDefinition, name: string): { def: OrgDefinition; id: st
   return { def: { ...def, units: [...def.units, unit] }, id };
 }
 
-function removeUnit(def: OrgDefinition, id: string): OrgDefinition {
+export function removeUnit(def: OrgDefinition, id: string): OrgDefinition {
   return {
     ...def,
     units: def.units.filter((u) => u.id !== id),

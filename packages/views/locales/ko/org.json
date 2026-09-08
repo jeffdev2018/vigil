@@ -19,7 +19,9 @@
     "revisions": "개정 이력",
     "no_revisions": "아직 개정이 없습니다.",
     "revision_row": "{{n}}판 · {{status}} · {{model}}",
-    "read_only": "해산된 구조는 읽기 전용입니다."
+    "read_only": "해산된 구조는 읽기 전용입니다.",
+    "structure": "구조",
+    "settings": "구조 설정"
   },
   "status": {
     "draft": "초안",
@@ -347,5 +349,35 @@
     "members": "구성원",
     "no_members": "아직 구성원이 없습니다.",
     "move_to": "{{name}}을(를) 다른 유닛으로 옮기기"
+  },
+  "people": {
+    "view_people": "구성원",
+    "view_units": "팀",
+    "add": "구성원 추가",
+    "hint": "카드를 클릭하면 상세가 열립니다. 조직도는 누가 누구에게 보고하는지로 그려집니다.",
+    "zoom_in": "확대",
+    "zoom_out": "축소",
+    "fit": "맞춤",
+    "human": "사람",
+    "agent": "에이전트",
+    "active": "활동 중",
+    "empty": "아직 아무도 없습니다. 첫 구성원을 추가하면 조직도의 최상위가 됩니다.",
+    "no_selection": "사람을 선택하면 상세가 열립니다.",
+    "reports_to": "보고 대상",
+    "root": "없음 — 조직도의 최상위",
+    "team": "팀원",
+    "team_none": "아직 없음",
+    "unit": "팀",
+    "advanced": "고급 — 팀이 단독으로 결정하는 것, 절대 하지 않는 것, 자율 수준",
+    "dialog_description": "누가 조직도에 합류하고 누구에게 보고하는지 선택합니다.",
+    "who": "누구",
+    "kind_agent": "에이전트",
+    "kind_human": "사람",
+    "pick": "선택…",
+    "title": "직함",
+    "title_placeholder": "지원 책임자, 청구…",
+    "manager_none": "없음 — 조직도의 최상위",
+    "cancel": "취소",
+    "confirm": "추가"
   }
 }
