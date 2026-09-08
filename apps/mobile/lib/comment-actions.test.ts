@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { TimelineEntry } from "@multica/core/types";
 
-import { retryableAgentFailureComment } from "./comment-actions";
+import {
+  canCreateSubIssueFromComment,
+  retryableAgentFailureComment,
+} from "./comment-actions";
 
 function entry(overrides: Partial<TimelineEntry> = {}): TimelineEntry {
   return {
@@ -67,5 +70,17 @@ describe("retryableAgentFailureComment", () => {
         }),
       ),
     ).toBe(false);
+  });
+});
+
+describe("canCreateSubIssueFromComment", () => {
+  it("allows an ordinary comment", () => {
+    expect(canCreateSubIssueFromComment(entry({ comment_type: "comment" })))
+      .toBe(true);
+  });
+
+  it("rejects a system comment", () => {
+    expect(canCreateSubIssueFromComment(entry({ comment_type: "system" })))
+      .toBe(false);
   });
 });

@@ -907,6 +907,35 @@ export const EMPTY_ISSUE_FALLBACK: import("@multica/core/types").Issue = {
   updated_at: "",
 };
 
+// Sub-issue-from-comment preview fallback (mirrors EMPTY_ISSUE_FALLBACK's
+// sentinel pattern above). Mobile reuses SourceContextPreviewSchema from
+// core for parsing. `capture_token: ""` never validates on the server
+// (ParseSourceContextToken rejects an empty token), so
+// api.getCommentSubIssuePreview treats this sentinel as a failure and
+// throws rather than silently proceeding with an unusable token.
+export const EMPTY_SOURCE_CONTEXT_PREVIEW: import("@multica/core/types").SourceContextPreview = {
+  source_issue: {
+    id: "",
+    identifier: "",
+    number: 0,
+    title: "",
+    description: null,
+    created_at: "",
+    updated_at: "",
+    revision: 0,
+    attachments: [],
+  },
+  comment_thread: [],
+  anchor_comment_id: "",
+  capture_token: "",
+  limits: {
+    comment_count: 0,
+    text_bytes: 0,
+    attachment_count: 0,
+    attachment_bytes: 0,
+  },
+};
+
 // Helpers re-exported for ergonomic single-import at the call site.
 export type { Label, Project, ProjectResource };
 
