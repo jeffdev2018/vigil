@@ -238,13 +238,62 @@ func orgDeciderFor(d *OrgDefinition, unit *OrgUnit) (string, string) {
 // plus any verb the unit added, matched literally.
 func orgBlockingDenies(deny []string, text string) []string {
 	lower := strings.ToLower(text)
+	words := orgSimWords(lower)
 	out := []string{}
 	for _, verb := range deny {
-		if v := strings.ToLower(strings.TrimSpace(verb)); v != "" && (mcpgov.OrgDenyClass(verb, lower, "") != "" || strings.Contains(lower, v)) {
+		v := strings.ToLower(strings.TrimSpace(verb))
+		if v == "" {
+			continue
+		}
+		if mcpgov.OrgDenyClass(verb, lower, "") != "" || strings.Contains(lower, v) || orgDenyTouches(v, words) {
 			out = append(out, verb)
 		}
 	}
 	return out
+}
+
+// orgDenyTouches matches a refusal against the request by word stem: a unit
+// that refuses "rembourser" must be flagged on "demande le remboursement", and
+// "envoyer e-mail externe" on "envoyer un email à un client externe". Every
+// significant word of the refusal (four letters or more) must share a stem
+// with some word of the request. A stem is the first five letters, or the
+// whole word when shorter — crude, but it errs towards flagging, which is the
+// right side for a preview whose job is to warn.
+func orgDenyTouches(deny string, words []string) bool {
+	significant := 0
+	for _, dw := range orgSimWords(deny) {
+		if len([]rune(dw)) < 4 {
+			continue
+		}
+		significant++
+		found := false
+		ds := orgSimStem(dw)
+		for _, w := range words {
+			if orgSimStem(w) == ds {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return significant > 0
+}
+
+func orgSimWords(text string) []string {
+	text = strings.ReplaceAll(strings.ToLower(text), "-", "")
+	return strings.FieldsFunc(text, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r >= 0x00C0 && r <= 0x024F)
+	})
+}
+
+func orgSimStem(word string) string {
+	r := []rune(word)
+	if len(r) > 5 {
+		r = r[:5]
+	}
+	return string(r)
 }
 
 // orgUnitCostPerRun is what one routed issue cost this unit on average over

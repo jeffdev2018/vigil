@@ -250,3 +250,20 @@ func TestOrgSimulateWritesNothing(t *testing.T) {
 		t.Fatalf("queued runs %d -> %d", queued, n)
 	}
 }
+
+// A refusal is matched by stem, not by exact substring: French inflects
+// ("rembourser" / "remboursement"), and hyphens vary ("e-mail" / "email").
+func TestOrgBlockingDeniesMatchByStem(t *testing.T) {
+	deny := []string{"rembourser", "envoyer e-mail externe", "virement"}
+	got := orgBlockingDenies(deny, "Un client demande le remboursement de sa commande 4512\nreçue abîmée")
+	if len(got) != 1 || got[0] != "rembourser" {
+		t.Fatalf("blocking denies = %v, want [rembourser]", got)
+	}
+	got = orgBlockingDenies(deny, "Envoyer un email à un client externe pour confirmer")
+	if len(got) != 1 || got[0] != "envoyer e-mail externe" {
+		t.Fatalf("blocking denies = %v, want [envoyer e-mail externe]", got)
+	}
+	if got = orgBlockingDenies(deny, "Préparer la relance de la facture 88"); len(got) != 0 {
+		t.Fatalf("blocking denies = %v, want none", got)
+	}
+}
