@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { configStore } from "../config";
-import type { ProjectMemory, ProjectMemoryUsage } from "../types/project";
+import type { ProjectMemory, ProjectMemoryHistory, ProjectMemoryUsage } from "../types/project";
 import type { ReviewDeliveryInput } from "../issues/delivery";
 import {
   IssueDeliverySchema,
@@ -7097,12 +7097,16 @@ export class ApiClient {
     return saved;
   }
 
-  async getProjectMemoryHistory(id: string, beforeRevision?: number) {
+  async getProjectMemoryHistory(id: string, beforeRevision?: number): Promise<ProjectMemoryHistory> {
     const suffix = beforeRevision === undefined ? "" : `?before_revision=${beforeRevision}`;
     const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory/history${suffix}`);
-    const parsed = ProjectMemoryHistorySchema.safeParse(raw);
-    if (!parsed.success) throw new Error("Invalid project memory history");
-    return parsed.data;
+    // A malformed history must not read as "no earlier versions": the pager
+    // would stop and the restore list would silently lose revisions.
+    const parsed = parseWithFallback<ProjectMemoryHistory | null>(raw, ProjectMemoryHistorySchema, null, {
+      endpoint: "GET /api/projects/{id}/memory/history",
+    });
+    if (!parsed) throw new Error("Invalid project memory history");
+    return parsed;
   }
 
   // Unreadable usage must be an error, never an empty prepared-context claim.
