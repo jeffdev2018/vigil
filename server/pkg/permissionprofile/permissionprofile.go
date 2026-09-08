@@ -149,6 +149,28 @@ func (p Profile) HidesSecret(key string) bool {
 	return false
 }
 
+// HidesSecretNamed reports a key the profile withholds by a pattern that says
+// something about it, as opposed to the catch-all "*".
+//
+// The distinction exists for one caller: the run's own model credential. A
+// profile with HiddenSecrets ["*"] means "withhold the workspace's secrets",
+// and the key that pays for the run is not one of those — withholding it would
+// simply stop the run. A profile that writes ANTHROPIC_API_KEY, or *_API_KEY,
+// is saying something about that variable, and a caller that puts it back is
+// overriding an instruction rather than completing one.
+func (p Profile) HidesSecretNamed(key string) bool {
+	upper := strings.ToUpper(key)
+	for _, g := range p.HiddenSecrets {
+		if strings.TrimSpace(g) == "*" {
+			continue
+		}
+		if ok, _ := filepath.Match(strings.ToUpper(g), upper); ok {
+			return true
+		}
+	}
+	return false
+}
+
 // FilterSecrets drops the hidden keys and names them, sorted, for the log.
 func (p Profile) FilterSecrets(env map[string]string) (map[string]string, []string) {
 	if len(p.HiddenSecrets) == 0 || len(env) == 0 {
