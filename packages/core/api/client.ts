@@ -843,7 +843,6 @@ import {
   SkillSummaryListSchema,
   PersonalAccessTokenListSchema,
   CreatePersonalAccessTokenResponseSchema,
-  EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE,
   ChatPinnedAgentSchema,
   ChatPinnedAgentListSchema,
   EMPTY_CHAT_PINNED_AGENT,
@@ -6226,17 +6225,21 @@ export class ApiClient {
     });
   }
 
-  // `token` is shown to the user exactly once; a malformed response falls
-  // back to `token: ""` rather than a fabricated secret. Callers must treat
-  // an empty token as failure, not as "no token needed" — see tokens-tab.tsx.
+  // `token` is shown to the user exactly once; a silently empty fallback
+  // would render a blank secret with no error, worse than failing loudly.
+  // Same null+throw convention as verifyCode/googleLogin.
   async createPersonalAccessToken(data: CreatePersonalAccessTokenRequest): Promise<CreatePersonalAccessTokenResponse> {
     const raw = await this.fetch<unknown>("/api/tokens", {
       method: "POST",
       body: JSON.stringify(data),
     });
-    return parseWithFallback(raw, CreatePersonalAccessTokenResponseSchema, EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE, {
+    const token = parseWithFallback<CreatePersonalAccessTokenResponse | null>(raw, CreatePersonalAccessTokenResponseSchema, null, {
       endpoint: "POST /api/tokens",
     });
+    if (!token) {
+      throw new Error("POST /api/tokens returned a malformed personal access token response");
+    }
+    return token;
   }
 
   async revokePersonalAccessToken(id: string): Promise<void> {

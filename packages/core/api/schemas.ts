@@ -6754,10 +6754,7 @@ export const InvitationListSchema = z.array(InvitationSchema).catch([]).default(
 export const SkillSummaryListSchema = z.array(SkillSchema).catch([]).default([]);
 export const EMPTY_SKILL_SUMMARY_LIST: SkillSummary[] = [];
 
-// Personal Access Tokens. `token` only appears on the create response and is
-// shown to the user exactly once — an empty-string fallback is intentional
-// (a swallowed secret would be worse than a visibly blank field) and callers
-// must treat "" as "could not read the token" rather than a real value.
+// Personal Access Tokens.
 export const PersonalAccessTokenSchema = z.object({
   id: z.string(),
   name: z.string().optional().default(""),
@@ -6769,19 +6766,14 @@ export const PersonalAccessTokenSchema = z.object({
 
 export const PersonalAccessTokenListSchema = z.array(PersonalAccessTokenSchema).catch([]).default([]);
 
-export const CreatePersonalAccessTokenResponseSchema = PersonalAccessTokenSchema.extend({
-  token: z.string().optional().default(""),
+// `token` only appears on the create response and is shown to the user
+// exactly once — required (no default) so a response missing it fails the
+// whole parse. client.ts feeds this to parseWithFallback<T | null>(..., null,
+// ...) and throws on null, same null+throw convention as verifyCode /
+// googleLogin: a silently blank secret would be worse than a loud failure.
+export const CreatePersonalAccessTokenResponseSchema: z.ZodType<CreatePersonalAccessTokenResponse> = PersonalAccessTokenSchema.extend({
+  token: z.string(),
 }).loose();
-
-export const EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE: CreatePersonalAccessTokenResponse = {
-  id: "",
-  name: "",
-  token_prefix: "",
-  expires_at: null,
-  last_used_at: null,
-  created_at: "",
-  token: "",
-};
 
 // Chat sessions reuse ChatSessionSchema/EMPTY_CHAT_SESSION (defined above)
 // for create/update/pin/archive — same shape as GET /api/chat/sessions/:id.
