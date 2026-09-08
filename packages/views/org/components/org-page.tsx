@@ -31,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@multica/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
 import { OrgCanvas } from "./org-canvas";
+import { OrgTester } from "./org-tester";
 import { useT } from "../../i18n";
 
 const STATUS_BADGE: Record<OrgStatus, string> = {
@@ -387,10 +388,15 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   });
   const [dialog, setDialog] = useState<"activate" | ReasonAction | null>(null);
   const [undoStack, setUndoStack] = useState<string[]>([]);
+  // Selection lives here so the tester's answer can point at a unit in the canvas.
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const parsed = useMemo(() => parseDefinition(form.definition), [form.definition]);
   const readOnly = structure.status === "dissolved";
+  // The canvas holds edits the server has not stored yet: the tester says so
+  // rather than letting the answer read as if it came from the saved revision.
+  const dirty = form.definition !== JSON.stringify(structure.definition, null, 2);
 
   /** Canvas gestures are the undoable steps; typing in the JSON editor is not,
    *  or every keystroke would be its own step. */
@@ -524,11 +530,29 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
             onChange={editDefinition}
             undoDepth={undoStack.length}
             onUndo={undo}
+            selectedUnitId={selectedUnitId}
+            onSelectUnit={setSelectedUnitId}
           />
         ) : (
           <p className="text-caption text-muted-foreground">{t(($) => $.canvas.json_broken)}</p>
         )}
       </section>
+
+      {"def" in parsed && (
+        <section className="mt-4">
+          <h3 className="mb-1 text-caption font-medium">{t(($) => $.tester.title)}</h3>
+          <OrgTester
+            structureId={structure.id}
+            definition={parsed.def}
+            model={structure.model}
+            status={structure.status}
+            revision={structure.revision}
+            dirty={dirty}
+            goals={goals}
+            onSelectUnit={setSelectedUnitId}
+          />
+        </section>
+      )}
 
       <section className="mt-4 grid gap-3 lg:grid-cols-[1fr_18rem]">
         <div className="flex flex-col gap-3">

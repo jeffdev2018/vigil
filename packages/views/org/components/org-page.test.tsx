@@ -52,6 +52,8 @@ vi.mock("@multica/core/org", async (importOriginal) => ({
   useUpdateOrgStructure: () => ({ isPending: false, mutate: (v: unknown, o: { onSuccess: () => void }) => { state.updated.push(v); o.onSuccess(); } }),
   useSetOrgStructureStatus: () => ({ isPending: false, mutate: (v: unknown, o: { onSuccess: () => void }) => { state.status.push(v); o.onSuccess(); } }),
   useDeleteOrgStructure: () => ({ isPending: false, mutate: vi.fn() }),
+  // The tester panel has its own suite; here it only has to mount.
+  useSimulateOrg: () => ({ isPending: false, mutate: vi.fn(), data: undefined, error: null }),
 }));
 
 import { OrgPage } from "./org-page";

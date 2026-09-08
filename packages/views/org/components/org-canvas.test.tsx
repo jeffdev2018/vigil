@@ -54,6 +54,7 @@ function Harness({
   onChange?: (d: OrgDefinition) => void;
 }) {
   const [def, setDef] = useState(initial);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
   return (
     <OrgCanvas
       definition={def}
@@ -70,6 +71,8 @@ function Harness({
       }}
       undoDepth={0}
       onUndo={() => {}}
+      selectedUnitId={selectedUnitId}
+      onSelectUnit={setSelectedUnitId}
     />
   );
 }
