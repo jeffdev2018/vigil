@@ -107,3 +107,42 @@ func TestAgentToolDescriptionIsTheManifestText(t *testing.T) {
 		t.Fatalf("description = %q, want the manifest text verbatim", got)
 	}
 }
+
+// The manifest validator accepts an agent trigger on an MCP-transport hook, but
+// InvokeHook refuses every transport except HTTP. Such a hook must not be
+// offered to the agent as a tool: it would be visible and fail on every call.
+func TestAgentHookToolsSkipsTransportsInvokeHookRefuses(t *testing.T) {
+	installation := db.PluginInstallation{
+		ID:      testInstallationID(t),
+		Enabled: true,
+		Manifest: []byte(`{
+			"manifest_version": 1,
+			"key": "com.example.transports",
+			"name": "Transports",
+			"description": "d",
+			"version": "1.0.0",
+			"author": {"name": "example"},
+			"scopes": ["net:example.com"],
+			"contributes": {"hooks": [
+				{"key": "over_http", "name": "HTTP", "description": "Callable.",
+				 "triggers": ["agent"], "transport": {"type": "http", "url": "https://example.com/a"}},
+				{"key": "over_mcp", "name": "MCP", "description": "Not yet callable.",
+				 "triggers": ["agent"], "transport": {"type": "mcp", "url": "https://example.com/mcp"}}
+			]}
+		}`),
+	}
+	manifest, err := ParseInstallationManifest(installation)
+	if err != nil {
+		t.Fatalf("parse manifest: %v", err)
+	}
+	offered := map[string]bool{}
+	for _, hook := range manifest.Contributes.Hooks {
+		offered[hook.Key] = HookIsAgentTool(hook)
+	}
+	if !offered["over_http"] {
+		t.Fatal("the HTTP agent hook is not offered as a tool")
+	}
+	if offered["over_mcp"] {
+		t.Fatal("the MCP agent hook is offered as a tool although InvokeHook refuses MCP transports")
+	}
+}

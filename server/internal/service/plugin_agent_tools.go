@@ -101,7 +101,7 @@ func (s *PluginService) AgentHookTools(ctx context.Context, workspaceID pgtype.U
 			continue
 		}
 		for _, hook := range manifest.Contributes.Hooks {
-			if !HookAllowsTrigger(hook, plugincontract.TriggerAgent) {
+			if !HookIsAgentTool(hook) {
 				continue
 			}
 			tools = append(tools, PluginHookTool{
@@ -149,4 +149,13 @@ func rawInputOrNil(raw json.RawMessage) any {
 		return nil
 	}
 	return raw
+}
+
+// HookIsAgentTool reports whether a hook can be offered to the agent as a
+// tool: it declares the agent trigger AND InvokeHook can actually run it.
+// InvokeHook refuses every transport but HTTP, and the manifest validator does
+// not forbid an agent trigger on an MCP hook, so a tool the agent can see must
+// be filtered on the same rule — or every call fails with "not supported yet".
+func HookIsAgentTool(hook plugincontract.Hook) bool {
+	return HookAllowsTrigger(hook, plugincontract.TriggerAgent) && hook.Transport.Type == plugincontract.TransportHTTP
 }
