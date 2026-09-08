@@ -362,6 +362,13 @@ type AgentTaskQueue struct {
 	TurnSeq pgtype.Int4 `json:"turn_seq"`
 	// Agent-to-agent hop count from the human originator (F19). 0 = human-triggered. Circuit breaker only, never an authorization signal.
 	A2aDepth int32 `json:"a2a_depth"`
+	// The racing group this attempt belongs to (F11), NULL for every ordinary run.
+	RunGroupID pgtype.UUID `json:"run_group_id"`
+	// Model this attempt runs with instead of agent.model (F11), NULL to use the agent's own.
+	ModelOverride pgtype.Text `json:"model_override"`
+	DiffStat      []byte      `json:"diff_stat"`
+	// Consolidated unified diff of the delivered branch (F11), NULL past the 256 KiB bound — diff_stat still holds the shape.
+	DiffUnified pgtype.Text `json:"diff_unified"`
 }
 
 type AgentToLabel struct {
@@ -2409,6 +2416,19 @@ type ReviewFlag struct {
 	ResolvedAt     pgtype.Timestamptz `json:"resolved_at"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+// A set of attempts racing on one issue (F11). Attempts are agent_task_queue rows carrying run_group_id.
+type RunGroup struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	IssueID      pgtype.UUID        `json:"issue_id"`
+	CreatedBy    pgtype.UUID        `json:"created_by"`
+	Status       string             `json:"status"`
+	WinnerTaskID pgtype.UUID        `json:"winner_task_id"`
+	AttemptCount int32              `json:"attempt_count"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	SettledAt    pgtype.Timestamptz `json:"settled_at"`
 }
 
 type RunLimitEvent struct {

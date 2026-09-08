@@ -852,7 +852,11 @@ func isDuplicatePendingTaskErr(err error) bool {
 		return false
 	}
 	switch pgErr.ConstraintName {
-	case "idx_one_pending_task_per_issue_agent", "idx_one_pending_task_per_issue_agent_v2":
+	case "idx_one_pending_task_per_issue_agent",
+		"idx_one_pending_task_per_issue_agent_v2",
+		// v3 (migration 835) is the one in force; v1/v2 stay listed because a
+		// rolling deploy can still be running against either.
+		"idx_one_pending_task_per_issue_agent_v3":
 		return true
 	default:
 		return false
@@ -1703,10 +1707,39 @@ func (s *TaskService) EnqueueTaskForSquadLeaderWithHandoff(ctx context.Context, 
 }
 
 func (s *TaskService) enqueueMentionTask(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
-	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, nil, isLeader, squadID, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID)
+	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, nil, isLeader, squadID, forceFreshSession, handoffNote, actorUserID, rerunOfTaskID, RunGroupAttempt{})
 }
 
-func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID) (db.AgentTaskQueue, error) {
+// RunGroupAttempt is what makes an enqueue one attempt of a race (F11 / JEF-6)
+// instead of an ordinary run. Its zero value is "not an attempt", which is what
+// every pre-existing caller passes, so the enqueue path is unchanged for them.
+type RunGroupAttempt struct {
+	// GroupID is the run_group this attempt belongs to. Invalid for an
+	// ordinary run — and that NULL is what keeps the claim's exclusion and the
+	// pending-slot index behaving exactly as they did before F11.
+	GroupID pgtype.UUID
+	// ModelOverride is the model this attempt runs with instead of agent.model.
+	// Empty means "the agent's own", which is also the only possibility outside
+	// a group. Validated against the daemon-discovered catalogue by the caller,
+	// which is the only layer that can see it.
+	ModelOverride string
+}
+
+// EnqueueRunGroupAttempt queues one attempt of a racing group (F11 / JEF-6).
+//
+// Deliberately the ordinary mention-enqueue path with two extra columns: an
+// attempt is a normal run — same claim, heartbeat, task_usage, transcript — and
+// a second enqueue path would be a second set of rules to keep in sync with
+// attribution, budget, routing and MCP overlay.
+//
+// forceFreshSession is true because attempts must not resume one another's
+// session: the whole point is N independent tries at the same problem.
+func (s *TaskService) EnqueueRunGroupAttempt(ctx context.Context, issue db.Issue, agentID pgtype.UUID, groupID pgtype.UUID, modelOverride string, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{},
+		RunGroupAttempt{GroupID: groupID, ModelOverride: modelOverride})
+}
+
+func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, attempt RunGroupAttempt) (db.AgentTaskQueue, error) {
 	agent, err := s.Queries.GetAgent(ctx, agentID)
 	if err != nil {
 		slog.Error("mention task enqueue failed: agent not found", "issue_id", util.UUIDToString(issue.ID), "agent_id", util.UUIDToString(agentID), "error", err)
@@ -1790,6 +1823,9 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 			// Stamp the reviewed head so dedup can distinguish this run's target
 			// from a later request against a new HEAD (TEN-356).
 			HeadSha: headShaText(s.ResolveIssueReviewSHA(ctx, issue.ID)),
+			// Racing attempts (F11). Both zero for every other caller.
+			RunGroupID:    attempt.GroupID,
+			ModelOverride: pgtype.Text{String: attempt.ModelOverride, Valid: attempt.ModelOverride != ""},
 		})
 	})
 	if err != nil {
@@ -6368,7 +6404,7 @@ func (s *TaskService) enqueueRerunTask(ctx context.Context, issue db.Issue, agen
 		util.UUIDToString(issue.AssigneeID) == util.UUIDToString(agentID) {
 		task, err = s.enqueueIssueTaskWithCommentPlan(ctx, issue, triggerCommentID, coalescedCommentIDs, true, "", actorUserID, rerunOfTaskID, pgtype.Timestamptz{}, pgtype.UUID{}, nil)
 	} else {
-		task, err = s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID)
+		task, err = s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, triggerCommentID, coalescedCommentIDs, isLeader, squadID, true, "", actorUserID, rerunOfTaskID, RunGroupAttempt{})
 	}
 	if err != nil {
 		return task, err

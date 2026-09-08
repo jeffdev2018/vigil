@@ -430,3 +430,68 @@ func TestNativeAgentQuickCreateRun(t *testing.T) {
 		t.Fatalf("created issue = (%q, %q, %s), want the scripted issue assigned to the agent in todo", title, issueStatus, assigneeID)
 	}
 }
+
+// internal/handler/issue_transition_writers_test.go classifies this file
+// "gated" (transition_issue runs the shared gate); update_issue's pin claim
+// is still worth proving against the database: the model asks for a status
+// change outright, and the row must ignore it while still applying the edits
+// the tool does own. If that ever stops holding, a native agent can move an
+// issue without meeting the F28 transition gate. (Adapted from PR #181 to
+// the lot B service signature.)
+func TestNativeUpdateIssueCannotMoveStatus(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-pin-%d", suffix), fmt.Sprintf("native-pin-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-pin-ws-%d", suffix), fmt.Sprintf("native-pin-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Pinned status")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
+		nativeToolCallTurn("call_1", "update_issue",
+			`{"title":"Retitled by the agent","priority":"high","status":"done"}`),
+		nativeTextTurn("Fait."),
+	}}
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil {
+		t.Fatalf("claim task: %v", err)
+	}
+	if claimed == nil {
+		t.Fatal("task was not claimable on the native runtime")
+	}
+	if util.UUIDToString(claimed.ID) != taskID {
+		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), taskID)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var status, title, priority string
+	if err := pool.QueryRow(ctx,
+		`SELECT status, title, priority FROM issue WHERE id = $1`, issueID,
+	).Scan(&status, &title, &priority); err != nil {
+		t.Fatalf("reload issue: %v", err)
+	}
+	if status != "todo" {
+		t.Errorf("status = %q, want todo — update_issue moved a status without the F28 gate", status)
+	}
+	// The edits the tool does own still landed, so a green test means the pin
+	// held, not that the whole call failed.
+	if title != "Retitled by the agent" {
+		t.Errorf("title = %q, want the agent's new title", title)
+	}
+	if priority != "high" {
+		t.Errorf("priority = %q, want high", priority)
+	}
+}
