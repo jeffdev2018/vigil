@@ -48,6 +48,26 @@ Project resources tell agents which code and working directories to use:
 
 See [Project resources](/project-resources) for how to choose and for the safety boundaries.
 
+## Blast radius: autonomy by path
+
+A project can layer per-path autonomy rules on top of an agent's own permissions. Each rule matches a path pattern (`.gitignore`-style: `**` spans directories, `*` and `?` stay inside one segment) to one of three levels:
+
+| Level | What it does |
+|---|---|
+| **Autonomous** | The action passes automatically — no approval gate opens for paths at this level. |
+| **Read-only** | Any write to a matching path is refused before a gate is even opened. |
+| **Dual approval** | The action needs two different humans to approve, not one — a first approval opens a second Decision Card addressed to someone else. |
+
+A path with no matching rule falls back to the agent's own permissions, exactly as if blast radius were not configured.
+
+When several rules could match the same path, the most specific one wins — literal characters count toward specificity, wildcards do not. Two rules of equal specificity and different levels cannot both exist: creating one that conflicts this way is refused, naming the rule it collides with, rather than leaving the outcome to insertion order.
+
+Blast radius rules are visible to every project member and editable only by workspace `owner`s and `admin`s, from the project detail page. A preview box resolves any path against the current rules, so you can check which level would apply before an agent acts on it.
+
+<Callout type="info">
+Blast radius decides the outcome of the approval gates that ask before a git push, a sensitive MCP tool call, or a spend — it settles the path before a gate would otherwise open, rather than adding a new kind of gate. A dual-approval decision reaches you the same way any other approval request does: as a Decision Card on the issue.
+</Callout>
+
 ## Epic mode
 
 A project can carry an **epic**: four artifacts written in order, each one approved before the next opens.

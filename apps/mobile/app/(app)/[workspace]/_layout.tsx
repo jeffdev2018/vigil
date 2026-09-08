@@ -256,6 +256,21 @@ export default function WorkspaceLayout() {
           name="issue/[id]/comment/[commentId]/emoji-picker"
           options={SHEET_OPTIONS}
         />
+        {/* Sub-issue creation anchored on a comment. Pushed from the
+            "Create Sub-issue" item in the comment long-press menu — see
+            components/issue/comment-context-menu.tsx. formSheet (not
+            "modal" like new-issue.tsx) per the container-selection table
+            in apps/mobile/CLAUDE.md Lesson 5: this is a form with a
+            keyboard nested under the issue-detail context, not a
+            route-level top-level flow. */}
+        <Stack.Screen
+          name="issue/[id]/comment/[commentId]/new-sub-issue"
+          options={{
+            ...SHEET_OPTIONS,
+            headerShown: true,
+            title: "Sub-issue",
+          }}
+        />
         {/* Project-detail formSheet pickers. */}
         <Stack.Screen
           name="project/[id]/picker/status"

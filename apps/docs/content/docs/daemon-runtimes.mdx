@@ -14,6 +14,10 @@ Multica records and coordinates the work; connected computers execute it. The **
 
 For example, a computer has both Claude Code and Codex installed and is connected to two workspaces. The daemon registers Claude Code and Codex runtimes for each workspace. Restarting the daemon updates the existing records; it does not keep creating new runtimes for the same combination.
 
+<Callout type="info">
+Every workspace also has one runtime with no daemon at all: the [native runtime](/native-runtime) runs a small, closed set of issue tools directly inside the Multica server. It has no filesystem or shell access — use it for lightweight triage work, not coding.
+</Callout>
+
 ## Execution location and data boundaries
 
 The AI coding tools a local runtime invokes, those tools' own login credentials, and your local code directories all stay on the connected computer. The Multica server does not execute commands on behalf of local tools, and it does not automatically upload your entire working directory.
@@ -278,6 +282,7 @@ If the problem persists, see [Troubleshooting](/troubleshooting).
 
 ## Next steps
 
+- [Native runtime](/native-runtime) — the daemon-free alternative for lightweight issue work.
 - [Install AI coding tools](/install-agent-runtime) — install and verify a supported AI coding tool.
 - [AI coding tools comparison](/providers) — compare models, session resumption, MCP, and skill support.
 - [Runs](/tasks) — queueing, stopping, and retries.
