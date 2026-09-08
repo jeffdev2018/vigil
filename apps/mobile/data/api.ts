@@ -1515,6 +1515,18 @@ class ApiClient {
     await this.fetch<void>(`/api/tasks/${taskId}/cancel`, { method: "POST" });
   }
 
+  // POST /api/issues/:id/rerun — re-runs the named failed task. The
+  // response (AgentTask) isn't rendered anywhere on mobile (same as web's
+  // TaskCommentRetryButton, which only reacts to success/failure) so this
+  // stays an unconsumed write per the ApiClient helper rules. Mirrors
+  // packages/core/api/client.ts:5122 rerunIssue.
+  async rerunIssue(issueId: string, taskId: string): Promise<void> {
+    await this.fetch<void>(`/api/issues/${issueId}/rerun`, {
+      method: "POST",
+      body: JSON.stringify({ task_id: taskId }),
+    });
+  }
+
   /** Live execution timeline for a task — used by the chat screen to
    *  render the "thinking → tool_use → tool_result → final text" trace
    *  beneath an in-flight assistant bubble. `task:message` WS events

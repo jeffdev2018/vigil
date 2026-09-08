@@ -779,3 +779,20 @@ export function useCancelTask(issueId: string) {
     },
   });
 }
+
+/**
+ * Retry a failed agent run from its "system" failure comment (web parity:
+ * `TaskCommentRetryButton` in
+ * packages/views/issues/components/comment-card.tsx:251-302). No cache
+ * side effects here — like web, the re-run's own `task:*` WS events
+ * (use-issue-realtime.ts) drive the active-tasks / timeline UI; this
+ * mutation only owns the request itself. The caller distinguishes a
+ * permission-revoked rejection from a generic failure via
+ * `dispatchReasonCode` (apps/mobile/lib/dispatch-reason.ts), same as web's
+ * `dispatchReasonCode(e) === "invocation_not_allowed"` check.
+ */
+export function useRerunIssueTask(issueId: string) {
+  return useMutation({
+    mutationFn: (taskId: string) => api.rerunIssue(issueId, taskId),
+  });
+}
