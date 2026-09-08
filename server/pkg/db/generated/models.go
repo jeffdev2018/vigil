@@ -395,7 +395,6 @@ type AgentTaskQueue struct {
 	SafeMode            bool               `json:"safe_mode"`
 	ModelKeyID          pgtype.UUID        `json:"model_key_id"`
 	Confidence          []byte             `json:"confidence"`
-	MemoryContext       []byte             `json:"memory_context"`
 	LegRole             string             `json:"leg_role"`
 	WorkflowRootTaskID  pgtype.UUID        `json:"workflow_root_task_id"`
 	DispatchLane        string             `json:"dispatch_lane"`
@@ -411,7 +410,8 @@ type AgentTaskQueue struct {
 	ModelOverride pgtype.Text `json:"model_override"`
 	DiffStat      []byte      `json:"diff_stat"`
 	// Consolidated unified diff of the delivered branch (F11), NULL past the 256 KiB bound — diff_stat still holds the shape.
-	DiffUnified pgtype.Text `json:"diff_unified"`
+	DiffUnified   pgtype.Text `json:"diff_unified"`
+	MemoryContext []byte      `json:"memory_context"`
 }
 
 type AgentToLabel struct {
