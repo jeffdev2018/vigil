@@ -51,6 +51,17 @@ const (
 	nativeToolResultCap = 8 * 1024
 	// nativeCommentMaxLen bounds an agent-authored comment (characters).
 	nativeCommentMaxLen = 30000
+	// Brief budget (N02): the whole user message the loop sends is bounded so
+	// an issue-document cannot burn the model's context (and the run's cost)
+	// before the first turn. The header always survives; the description is
+	// head+tail clamped; comments are taken newest-first until the budget is
+	// spent, with an honest count of what was left out.
+	nativeBriefBudget = 16 * 1024
+	// nativeBriefDescriptionCap bounds the description alone inside that
+	// budget, keeping room for comments.
+	nativeBriefDescriptionCap = 6 * 1024
+	// nativeBriefChatCap bounds each archived chat message in the chat brief.
+	nativeBriefChatCap = 2000
 	// nativeMaxEffectfulActions bounds how many state-changing tool calls one
 	// run may perform (comments, issue writes, creates). A confused model
 	// loops; the workspace must not eat the loop.
@@ -401,6 +412,19 @@ func nativeFencePattern() (open, close string) {
 	return "<data ", "</data "
 }
 
+// nativeHeadTail clamps a long record to a budget keeping BOTH ends: the head
+// carries the framing, the tail carries the latest state — the middle of a
+// giant description is the least informative part. The marker says so
+// honestly instead of pretending the record was whole.
+func nativeHeadTail(content string, cap int) string {
+	if len(content) <= cap {
+		return content
+	}
+	half := cap / 2
+	marker := "\n…[middle truncated — record is longer than the brief budget]…\n"
+	return content[:half] + marker + content[len(content)-half:]
+}
+
 // nativeSystemPrompt states the agent's contract. Instructions from the agent
 // row ride along so a workspace's custom agent keeps its voice.
 func nativeSystemPrompt(agent db.Agent) string {
@@ -440,7 +464,7 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 			kept = kept[len(kept)-30:]
 		}
 		for _, m := range kept {
-			fmt.Fprintf(&b, "- [%s] %s\n", m.Role, nativeDataFence("chat message", clampString(m.Content, 2000)))
+			fmt.Fprintf(&b, "- [%s] %s\n", m.Role, nativeDataFence("chat message", clampString(m.Content, nativeBriefChatCap)))
 		}
 		return b.String(), nil, nil
 
@@ -499,16 +523,21 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext)
 		fmt.Fprintf(&b, "Priority: %s\n", issue.Priority)
 	}
 	if issue.Description.Valid && strings.TrimSpace(issue.Description.String) != "" {
-		b.WriteString("\nDescription:\n" + nativeDataFence("issue description", issue.Description.String) + "\n")
+		b.WriteString("\nDescription:\n" + nativeDataFence("issue description", nativeHeadTail(issue.Description.String, nativeBriefDescriptionCap)) + "\n")
 	}
+	// Comments newest-first into the remaining budget; the loop reads the
+	// oldest-first slice, so walk it backwards and print the kept ones in
+	// chronological order.
 	comments, err := q.ListCommentsForIssue(ctx, db.ListCommentsForIssueParams{
 		IssueID:     issue.ID,
 		WorkspaceID: tctx.workspaceID,
 		Limit:       nativeBriefComments,
 	})
 	if err == nil && len(comments) > 0 {
-		b.WriteString("\nRecent comments (oldest first), each fenced as a record:\n")
-		for _, c := range comments {
+		remaining := nativeBriefBudget - b.Len() - len(taskPromptText(tctx.task)) - 128
+		kept := make([]string, 0, len(comments))
+		for i := len(comments) - 1; i >= 0; i-- {
+			c := comments[i]
 			author := c.AuthorType
 			if c.AuthorID.Valid {
 				author += " " + util.UUIDToString(c.AuthorID)
@@ -517,7 +546,21 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext)
 			if len(content) > 2000 {
 				content = content[:2000] + "…"
 			}
-			fmt.Fprintf(&b, "- [%s] %s\n", author, nativeDataFence("comment", content))
+			entry := fmt.Sprintf("- [%s] %s\n", author, nativeDataFence("comment", content))
+			if len(entry) > remaining {
+				break
+			}
+			remaining -= len(entry)
+			kept = append(kept, entry)
+		}
+		if len(kept) > 0 {
+			b.WriteString("\nRecent comments (oldest first), each fenced as a record:\n")
+			for i := len(kept) - 1; i >= 0; i-- {
+				b.WriteString(kept[i])
+			}
+		}
+		if omitted := len(comments) - len(kept); omitted > 0 {
+			fmt.Fprintf(&b, "\n(%d older comment(s) not included — the brief is capped at %d bytes; use the tools to read them.)\n", omitted, nativeBriefBudget)
 		}
 	}
 	if taskText := taskPromptText(tctx.task); taskText != "" {
