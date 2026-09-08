@@ -1,11 +1,11 @@
 ---
 title: CLI を使う
-description: Multica CLI をインストールしてサインインし、ターミナルからワークスペース、タスク、エージェント、ランタイムを管理します。
+description: Multica CLI をインストールしてサインインし、ターミナルからワークスペース、課題、エージェント、ランタイムを管理します。
 ---
 
 import { Callout } from "fumadocs-ui/components/callout";
 
-Multica CLI は、ローカルのランタイムを接続する役割と、ターミナルからワークスペース、タスク、エージェント、オートパイロットを管理する役割の両方を担います。このページではよく使う操作の流れを紹介します。現在のバージョンがサポートするフラグは、常に各コマンド自身の `--help` が正です。
+Multica CLI は、ローカルのランタイムを接続する役割と、ターミナルからワークスペース、課題、エージェント、オートパイロットを管理する役割の両方を担います。このページではよく使う操作の流れを紹介します。現在のバージョンがサポートするフラグは、常に各コマンド自身の `--help` が正です。
 
 ## インストール
 
@@ -82,7 +82,7 @@ multica workspace member invite teammate@example.com
 multica workspace member invite admin@example.com --role admin
 ```
 
-## よく使うタスク操作
+## よく使う課題操作
 
 ```bash
 # 表示と検索
@@ -174,7 +174,7 @@ multica runtime activity <runtime-id>
 
 | コマンド | 用途 |
 | --- | --- |
-| `issue` | タスクの作成、更新、割り当て、検索。コメント、購読者、ラベル、プロパティ、実行履歴の管理 |
+| `issue` | 課題の作成、更新、割り当て、検索。コメント、購読者、ラベル、プロパティ、実行履歴の管理 |
 | `project` | プロジェクトとそのリソースを管理 |
 | `label`、`property` | ワークスペースのラベルとカスタムプロパティを管理 |
 | `agent`、`skill`、`squad` | エージェント、スキル、スクワッドを管理 |
@@ -192,9 +192,9 @@ multica runtime activity <runtime-id>
 
 ## ID と出力形式
 
-タスクには `MUL-123` のようなキーまたは完全な UUID を使います。UUID の短いプレフィックスは受け付けません。
+課題には `MUL-123` のようなキーまたは完全な UUID を使います。UUID の短いプレフィックスは受け付けません。
 
-その他のリソースの `list` コマンドは通常、コピーできる短い ID を表示し、`--full-id` で完全な UUID を出力できます。短い ID が一意に定まらない場合、CLI は文字の追加か完全な UUID への切り替えを求めます。実行の短い ID は、所属するタスクを `--issue` で指定する必要もあります。
+その他のリソースの `list` コマンドは通常、コピーできる短い ID を表示し、`--full-id` で完全な UUID を出力できます。短い ID が一意に定まらない場合、CLI は文字の追加か完全な UUID への切り替えを求めます。実行の短い ID は、所属する課題を `--issue` で指定する必要もあります。
 
 多くのコマンドが構造化出力をサポートします:
 
@@ -236,21 +236,21 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 
 | コマンド | サブコマンド | 用途 | 主なフラグ |
 | --- | --- | --- | --- |
-| `issue` | `list` | タスクを一覧 | `--status`、`--priority`、`--assignee`、`--project`、`--metadata`（繰り返し可）、`--property`（繰り返し可、`"名前=値"`；`__none__` は未設定に一致）、`--limit`、`--offset`、`--sort`（`property:<名前または id>` に対応）、`--full-id`、`--resolve-properties`（JSON のみ；保存された id に加えてプロパティ名・選択肢名・メンバー名を返します） |
-| | `get <id>` | 単一のタスクを表示 | `--resolve-properties`（JSON のみ；保存された id に加えてプロパティ名・選択肢名・メンバー名を返します） |
-| | `create` | タスクを作成 | `--title`（必須）、`--description` / `--description-stdin` / `--description-file`、`--status`、`--priority`、`--assignee`、`--parent`、`--stage`、`--project`、`--start-date`、`--due-date`、`--attachment`（繰り返し可） |
-| | `update <id>` | タスクのフィールドを更新 | `create` と同系のフィールドに加え `--position`、`--no-start` |
+| `issue` | `list` | 課題を一覧 | `--status`、`--priority`、`--assignee`、`--project`、`--metadata`（繰り返し可）、`--property`（繰り返し可、`"名前=値"`；`__none__` は未設定に一致）、`--limit`、`--offset`、`--sort`（`property:<名前または id>` に対応）、`--full-id`、`--resolve-properties`（JSON のみ；保存された id に加えてプロパティ名・選択肢名・メンバー名を返します） |
+| | `get <id>` | 単一の課題を表示 | `--resolve-properties`（JSON のみ；保存された id に加えてプロパティ名・選択肢名・メンバー名を返します） |
+| | `create` | 課題を作成 | `--title`（必須）、`--description` / `--description-stdin` / `--description-file`、`--status`、`--priority`、`--assignee`、`--parent`、`--stage`、`--project`、`--start-date`、`--due-date`、`--attachment`（繰り返し可） |
+| | `update <id>` | 課題のフィールドを更新 | `create` と同系のフィールドに加え `--position`、`--no-start` |
 | | `assign <id>` | 割り当てまたは割り当て解除 | `--to`（メンバー、エージェント、スクワッドを名前であいまいマッチ）、`--to-id`、`--unassign`、`--no-start` |
 | | `status <id> <status>` | ステータスを変更 | `--no-start` |
 | | `reorder <id>` | カラム内で移動 | |
-| | `search <query>` | タスクを検索 | `--limit`、`--include-closed` |
-| | `children <id>` | サブタスクをステージごとに一覧 | |
+| | `search <query>` | 課題を検索 | `--limit`、`--include-closed` |
+| | `children <id>` | サブ課題をステージごとに一覧 | |
 | | `pull-requests <id>` | 関連付けられた PR を一覧 | |
 | | `comment list/add/delete/resolve/unresolve` | コメントを管理 | `add`: `--content` / `--content-stdin` / `--content-file`、`--parent`、`--attachment`；`list`: `--since`、`--thread`、`--tail` |
-| | `ask-agent <issue-id>` | エージェント間でこのタスクにメッセージを送信 | `--to`、`--intent`（`question`、`review`、`handoff`）、`--body` / `--body-stdin` / `--body-file` |
+| | `ask-agent <issue-id>` | エージェント間でこの課題にメッセージを送信 | `--to`、`--intent`（`question`、`review`、`handoff`）、`--body` / `--body-stdin` / `--body-file` |
 | | `subscriber list/add/remove <issue-id>` | 購読者を管理 | `--user`、`--user-id`（省略時は現在のユーザー） |
-| | `label list/add/remove <issue-id>` | タスクのラベルを管理 | |
-| | `metadata list/get/set/delete <issue-id>` | タスクレベルのキー・バリューメタデータを管理 | |
+| | `label list/add/remove <issue-id>` | 課題のラベルを管理 | |
+| | `metadata list/get/set/delete <issue-id>` | 課題レベルのキー・バリューメタデータを管理 | |
 | | `property list/set/unset <issue-id>` | カスタムプロパティの値を設定 | `set`: `--name`、`--value`（`actor` / `multi_actor` はメンバーの名前・メール・id を受け付けます） |
 | | `runs <issue-id>` | 実行履歴を表示 | `--full-id` |
 | | `run-messages <task-id>` | 1 回の実行のメッセージを表示 | `--since`、`--issue` |
@@ -300,13 +300,13 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | `wiki` | `start` | wiki スナップショットを開始し、リポジトリのファイル一覧を通知 | `--project`、`--resource`、`--commit`、`--paths-from` |
 | | `page set` | wiki スナップショットに 1 ページを書き込む | `--project`、`--snapshot`、`--slug`、`--title`、`--content-file`、`--citations-file`、`--cite`（繰り返し可） |
 | | `publish` | wiki スナップショットを公開し、直前の版を一括で置き換え | `--project`、`--snapshot` |
-| `criteria` | `list <issue-id>` | 証跡状態付きでタスクの受け入れ基準を一覧 | |
+| `criteria` | `list <issue-id>` | 証跡状態付きで課題の受け入れ基準を一覧 | |
 | | `set <issue-id>` | 受け入れ基準を置き換え（基準ごとに `--text` を1つ） | `--text`（繰り返し可） |
 | | `prove <issue-id> <criterion-id>` | 1件の基準に証跡を添付 | `--type`（`test`、`file`、`screenshot`、`url`、`human_validation`）、`--ref` |
 | `decision` | `ask <issue-id>` | Decision Card を作成：選択肢、推奨案、緊急度を伴う質問 | `--question`、`--option`（繰り返し可、`"id=Label"` または `"id=Label\|impact"`）、`--recommend`、`--urgency` |
 | `interview` | `ask <issue-id>` | JSON ファイルまたは標準入力から要件インタビュー（最大3問の多肢選択）を作成 | `--file` |
 | `review` | `flag add` | 関連付けられた PR の行範囲に1件の指摘を記録 | `--issue`、`--pr`、`--sha`、`--file`、`--line`、`--side`、`--severity`、`--confidence`、`--title`、`--body` |
-| | `flag list` | タスクのレビューフラグを深刻度順に一覧 | `--issue`、`--state` |
+| | `flag list` | 課題のレビューフラグを深刻度順に一覧 | `--issue`、`--state` |
 | | `verdict` | このクリティックの実行が下した判定（`pass`、`concerns`、`block`）を記録 | `--issue`、`--task`、`--verdict`、`--summary`、`--findings-file` |
 
 ### Runtime
@@ -338,7 +338,7 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 
 作業の多くを Codex、Claude Code、Cursor の中で進めているなら、ターミナルに切り替えず
 そこから Multica を操作できます。[Multica CLI skill](https://github.com/multica-ai/multica-cli)
-は、このページのコマンドを安全に扱う方法をそれらのエージェントに教えます。タスクと
+は、このページのコマンドを安全に扱う方法をそれらのエージェントに教えます。課題と
 コメントスレッドをトークンを浪費せずに読み、コメントはファイル経由で書き、メンション・
 ステータス変更・アサインが伴う副作用を正しく扱います。
 
