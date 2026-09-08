@@ -491,6 +491,8 @@ import {
   PipelineRunEnvelopeSchema,
   FanoutEnvelopeSchema,
   AgentDuelEnvelopeSchema,
+  RunGroupEnvelopeSchema,
+  RunGroupListEnvelopeSchema,
   RefactorCampaignEnvelopeSchema,
   AgentCompetencySchema,
   AssigneeSuggestionSchema,
@@ -4141,6 +4143,27 @@ export class ApiClient {
   async confirmDuel(duelId: string, winner: import("../issues/duel").DuelWinner): Promise<import("../issues/duel").AgentDuel | null> {
     const raw = await this.fetch<unknown>(`/api/duels/${encodeURIComponent(duelId)}/confirm`, { method: "POST", body: JSON.stringify({ winner }) });
     return parseWithFallback(raw, AgentDuelEnvelopeSchema, { duel: null }, { endpoint: "POST /api/duels/:id/confirm" }).duel;
+  }
+
+  // Racing attempts (F11 / JEF-6).
+  async listRunGroups(issueId: string): Promise<import("./schemas").RunGroup[]> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-groups`);
+    return parseWithFallback(raw, RunGroupListEnvelopeSchema, { groups: [] }, { endpoint: "GET /api/issues/:id/run-groups" }).groups;
+  }
+
+  async startRunGroup(issueId: string, input: import("./schemas").StartRunGroupInput): Promise<import("./schemas").RunGroup | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/run-groups`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, RunGroupEnvelopeSchema, { group: null }, { endpoint: "POST /api/issues/:id/run-groups" }).group;
+  }
+
+  async settleRunGroup(groupId: string, winnerTaskId: string): Promise<import("./schemas").RunGroup | null> {
+    const raw = await this.fetch<unknown>(`/api/run-groups/${encodeURIComponent(groupId)}/settle`, { method: "POST", body: JSON.stringify({ winner_task_id: winnerTaskId }) });
+    return parseWithFallback(raw, RunGroupEnvelopeSchema, { group: null }, { endpoint: "POST /api/run-groups/:id/settle" }).group;
+  }
+
+  async abandonRunGroup(groupId: string): Promise<import("./schemas").RunGroup | null> {
+    const raw = await this.fetch<unknown>(`/api/run-groups/${encodeURIComponent(groupId)}/abandon`, { method: "POST" });
+    return parseWithFallback(raw, RunGroupEnvelopeSchema, { group: null }, { endpoint: "POST /api/run-groups/:id/abandon" }).group;
   }
 
   // Learned competency (K43).
