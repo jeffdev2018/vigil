@@ -29,6 +29,8 @@ const initialsOf = (name: string): string =>
 
 const ZOOM_STEP = 0.15;
 const ZOOM_MIN = 0.4;
+/** "Fit" never goes below what a name stays readable at; past that, scroll. */
+const FIT_MIN = 0.6;
 const ZOOM_MAX = 1.6;
 const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
 
@@ -102,7 +104,7 @@ export function OrgPeopleChart({
     const box = scrollRef.current;
     // Before the box has a width (first paint, jsdom) there is nothing to fit to.
     if (box === null || box.clientWidth === 0 || layout.width === 0) return;
-    setZoom(Math.min(1, Math.max(ZOOM_MIN, (box.clientWidth - 24) / layout.width)));
+    setZoom(Math.min(1, Math.max(FIT_MIN, (box.clientWidth - 24) / layout.width)));
   };
   // Fit once the chart has a size; a later edit keeps the zoom the user chose.
   const fitted = useRef(false);
