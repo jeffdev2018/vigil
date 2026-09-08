@@ -68,7 +68,8 @@
     "invalid_json": "JSON 无效：{{error}}",
     "save": "保存",
     "saved": "结构已保存",
-    "error": "无法保存结构"
+    "error": "无法保存结构",
+    "advanced_json": "高级（JSON）"
   },
   "actions": {
     "activate": "启用",
@@ -171,5 +172,71 @@
     "won": "中标",
     "lost": "落选",
     "over_cap": "超出上限"
+  },
+  "canvas": {
+    "add_unit": "添加单元",
+    "new_unit_name": "新单元",
+    "undo": "撤销（{{count}}）",
+    "hint": "把成员拖到另一个单元，或把一个单元拖到它汇报的单元上。",
+    "empty": "还没有单元。先添加一个。",
+    "layout_soon": "{{model}} 的专属布局正在开发中，暂时用图表代替。",
+    "more_members": "+{{count}}",
+    "problem_count_other": "{{count}} 项待处理",
+    "no_selection": "选择一个单元即可打开它的档案。",
+    "json_broken": "下面的 JSON 已无法解析，修好后画布会回来。",
+    "draft_recovered": "已恢复草稿 rev. {{n}}。"
+  },
+  "problem": {
+    "unit_name_required": "每个单元都需要 id 和名称。",
+    "duplicate_unit_id": "id“{{id}}”被两个单元同时使用。",
+    "taskforce_unit_model": "“{{unit}}”：taskforce 是结构的模型，不是单元的模型。",
+    "hierarchy_roots": "层级结构中不向任何人汇报的单元只能有一个，现在有 {{count}} 个。",
+    "autonomy_over_trust": "“{{unit}}”授予 {{autonomy}}，但 {{agent}} 的信任档位只到 {{trust}}。",
+    "rule_of_two_unit": "“{{unit}}”同时持有不可信输入、敏感数据和外部影响：将需要人工审批。",
+    "rule_of_two_edge": "{{from}} → {{to}} 累计了三种暴露：该链路将需要人工审批。",
+    "deciders_missing": "“{{unit}}”具有外部影响：请指定 {{classes}} 的决策人。",
+    "committee_termination": "委员会“{{decision}}”：法定人数请设在 1 到 {{max}} 之间，轮次至少 1 轮。",
+    "market_price_cap": "内部市场需要由人设定价格上限。",
+    "squads_needs_agents": "“{{unit}}”以 squads 运行：请为它指定 squad 或智能体成员。",
+    "circles_needs_role": "“{{unit}}”以 circles 运行：请至少指定一个角色。"
+  },
+  "unit": {
+    "title": "单元档案",
+    "close": "关闭档案",
+    "remove_unit": "删除该单元",
+    "name": "名称",
+    "mission": "使命",
+    "mission_none": "无目标",
+    "trust": "信任档位",
+    "trust_level": {
+      "read_only": "只读取",
+      "draft": "只准备草稿",
+      "approve_payload": "经批准后行动",
+      "auto": "在限定范围内自行行动"
+    },
+    "allow": "可自行决定",
+    "deny": "绝不做的事",
+    "verb_placeholder": "一个动词，例如 merge",
+    "add": "添加",
+    "remove": "移除 {{item}}",
+    "locked_reason": "Multica 在任何地方都拒绝它，结构无法授予。",
+    "properties": "它处理什么",
+    "property": {
+      "untrusted_input": "不可信输入",
+      "sensitive_data": "敏感数据与密钥",
+      "external_effects": "外部影响"
+    },
+    "human_approval": "行动前由人审批",
+    "deciders": "谁来决定",
+    "decider": {
+      "money": "资金",
+      "outbound_data": "外发数据",
+      "external_message": "外部消息"
+    },
+    "decider_none": "暂无",
+    "budget": "预算（USD ticks）",
+    "members": "成员",
+    "no_members": "还没有成员。",
+    "move_to": "把 {{name}} 移到其他单元"
   }
 }

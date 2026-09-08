@@ -68,7 +68,8 @@
     "invalid_json": "JSONが無効です: {{error}}",
     "save": "保存",
     "saved": "構造を保存しました",
-    "error": "構造を保存できませんでした"
+    "error": "構造を保存できませんでした",
+    "advanced_json": "詳細設定（JSON）"
   },
   "actions": {
     "activate": "有効化",
@@ -171,5 +172,71 @@
     "won": "落札",
     "lost": "不落札",
     "over_cap": "上限超過"
+  },
+  "canvas": {
+    "add_unit": "ユニットを追加",
+    "new_unit_name": "新しいユニット",
+    "undo": "元に戻す ({{count}})",
+    "hint": "メンバーを別のユニットへ、ユニットを報告先のユニットへドラッグします。",
+    "empty": "ユニットがまだありません。まず 1 つ追加してください。",
+    "layout_soon": "{{model}} 専用のレイアウトは準備中です。それまでは図で代用します。",
+    "more_members": "+{{count}}",
+    "problem_count_other": "未解決 {{count}} 件",
+    "no_selection": "ユニットを選ぶとカルテが開きます。",
+    "json_broken": "下の JSON を解析できません。修正するとキャンバスに戻ります。",
+    "draft_recovered": "下書き rev. {{n}} を復元しました。"
+  },
+  "problem": {
+    "unit_name_required": "すべてのユニットに id と名前が必要です。",
+    "duplicate_unit_id": "id「{{id}}」が 2 つのユニットで使われています。",
+    "taskforce_unit_model": "「{{unit}}」: taskforce は構造のモデルであり、ユニットのモデルではありません。",
+    "hierarchy_roots": "階層では誰にも報告しないユニットはちょうど 1 つです。現在は {{count}} 個あります。",
+    "autonomy_over_trust": "「{{unit}}」は {{autonomy}} を与えていますが、{{agent}} のトラストダイヤルは {{trust}} までです。",
+    "rule_of_two_unit": "「{{unit}}」は信頼できない入力・機微データ・外部作用を同時に持っています。人間の承認が必要になります。",
+    "rule_of_two_edge": "{{from}} → {{to}} が 3 つの露出を合算しています。この経路には人間の承認が必要になります。",
+    "deciders_missing": "「{{unit}}」には外部作用があります。{{classes}} の決裁者を指定してください。",
+    "committee_termination": "委員会「{{decision}}」: 定足数を 1〜{{max}} に、ラウンド数を 1 以上に設定してください。",
+    "market_price_cap": "マーケットには人間が定める価格上限が必要です。",
+    "squads_needs_agents": "「{{unit}}」は squads で動きます。squad またはエージェントのメンバーを割り当ててください。",
+    "circles_needs_role": "「{{unit}}」は circles で動きます。ロールを少なくとも 1 つ設定してください。"
+  },
+  "unit": {
+    "title": "ユニットのカルテ",
+    "close": "カルテを閉じる",
+    "remove_unit": "このユニットを削除",
+    "name": "名前",
+    "mission": "ミッション",
+    "mission_none": "目標なし",
+    "trust": "トラストダイヤル",
+    "trust_level": {
+      "read_only": "読むだけ",
+      "draft": "下書きを用意する",
+      "approve_payload": "承認を得てから動く",
+      "auto": "決められた範囲で単独に動く"
+    },
+    "allow": "単独で決めてよいこと",
+    "deny": "決してしないこと",
+    "verb_placeholder": "動詞（例: merge）",
+    "add": "追加",
+    "remove": "{{item}} を外す",
+    "locked_reason": "Multica はこれをどこでも拒否します。構造から与えることはできません。",
+    "properties": "扱うもの",
+    "property": {
+      "untrusted_input": "信頼できない入力",
+      "sensitive_data": "機微データとシークレット",
+      "external_effects": "外部作用"
+    },
+    "human_approval": "動く前に人間が承認する",
+    "deciders": "決裁者",
+    "decider": {
+      "money": "お金",
+      "outbound_data": "外部へのデータ送信",
+      "external_message": "外部へのメッセージ"
+    },
+    "decider_none": "まだ未定",
+    "budget": "予算（USD ticks）",
+    "members": "メンバー",
+    "no_members": "メンバーがまだいません。",
+    "move_to": "{{name}} を別のユニットへ移す"
   }
 }

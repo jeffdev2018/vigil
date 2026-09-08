@@ -71,7 +71,8 @@
     "invalid_json": "JSON invalide : {{error}}",
     "save": "Enregistrer",
     "saved": "Structure enregistrée",
-    "error": "Impossible d'enregistrer la structure"
+    "error": "Impossible d'enregistrer la structure",
+    "advanced_json": "Avancé (JSON)"
   },
   "actions": {
     "activate": "Activer",
@@ -174,5 +175,72 @@
     "won": "Remportée",
     "lost": "Perdue",
     "over_cap": "Hors plafond"
+  },
+  "canvas": {
+    "add_unit": "Ajouter une unité",
+    "new_unit_name": "Nouvelle unité",
+    "undo": "Annuler ({{count}})",
+    "hint": "Faites glisser un membre sur une autre unité, ou une unité sur celle à qui elle rend compte.",
+    "empty": "Aucune unité pour l'instant. Ajoutez-en une pour commencer.",
+    "layout_soon": "Une mise en page dédiée à {{model}} arrive ; le diagramme tient lieu de vue en attendant.",
+    "more_members": "+{{count}}",
+    "problem_count_one": "{{count}} point à régler",
+    "problem_count_other": "{{count}} points à régler",
+    "no_selection": "Choisissez une unité pour ouvrir sa fiche.",
+    "json_broken": "Le JSON ci-dessous ne se lit plus ; corrigez-le pour retrouver le canevas.",
+    "draft_recovered": "Brouillon rév. {{n}} retrouvé."
+  },
+  "problem": {
+    "unit_name_required": "Chaque unité a besoin d'un identifiant et d'un nom.",
+    "duplicate_unit_id": "L'identifiant « {{id}} » est utilisé par deux unités.",
+    "taskforce_unit_model": "« {{unit}} » : une task force est une structure, pas une unité.",
+    "hierarchy_roots": "Une hiérarchie a exactement une unité qui ne rend compte à personne ; il y en a {{count}}.",
+    "autonomy_over_trust": "« {{unit}} » accorde {{autonomy}} alors que le cadran de confiance de {{agent}} s'arrête à {{trust}}.",
+    "rule_of_two_unit": "« {{unit}} » cumule entrée non fiable, données sensibles et effets externes : une approbation humaine sera exigée.",
+    "rule_of_two_edge": "{{from}} → {{to}} cumule les trois expositions : une approbation humaine sera exigée sur ce lien.",
+    "deciders_missing": "« {{unit}} » a des effets externes : nommez qui décide pour {{classes}}.",
+    "committee_termination": "Comité « {{decision}} » : fixez un quorum entre 1 et {{max}} et au moins un tour.",
+    "market_price_cap": "Un marché a besoin du plafond de prix humain.",
+    "squads_needs_agents": "« {{unit}} » fonctionne en squad : donnez-lui une squad ou des agents.",
+    "circles_needs_role": "« {{unit}} » fonctionne en cercles : donnez-lui au moins un rôle."
+  },
+  "unit": {
+    "title": "Fiche d'unité",
+    "close": "Fermer la fiche",
+    "remove_unit": "Supprimer cette unité",
+    "name": "Nom",
+    "mission": "Mission",
+    "mission_none": "Aucun objectif",
+    "trust": "Cadran de confiance",
+    "trust_level": {
+      "read_only": "Lit seulement",
+      "draft": "Prépare des brouillons",
+      "approve_payload": "Agit après validation",
+      "auto": "Agit seule dans ses limites"
+    },
+    "allow": "Décide seule",
+    "deny": "Ne fait jamais",
+    "verb_placeholder": "Un verbe, par ex. merge",
+    "add": "Ajouter",
+    "remove": "Retirer {{item}}",
+    "locked_reason": "Multica le refuse partout ; une structure ne peut pas l'accorder.",
+    "properties": "Ce qu'elle manipule",
+    "property": {
+      "untrusted_input": "Entrée non fiable",
+      "sensitive_data": "Données sensibles et secrets",
+      "external_effects": "Effets externes"
+    },
+    "human_approval": "Un humain valide avant qu'elle agisse",
+    "deciders": "Qui décide",
+    "decider": {
+      "money": "Argent",
+      "outbound_data": "Données sortantes",
+      "external_message": "Message externe"
+    },
+    "decider_none": "Personne pour l'instant",
+    "budget": "Budget (ticks USD)",
+    "members": "Membres",
+    "no_members": "Aucun membre pour l'instant.",
+    "move_to": "Déplacer {{name}} vers une autre unité"
   }
 }

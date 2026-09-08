@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Network, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -8,7 +8,6 @@ import {
   orgDetailOptions,
   orgHealthOptions,
   orgListOptions,
-  orgMermaid,
   orgPreflightOptions,
   orgTemplatesOptions,
   useCreateOrgStructure,
@@ -17,10 +16,12 @@ import {
   useUpdateOrgStructure,
 } from "@multica/core/org";
 import { contestCostUsd } from "@multica/core/issues/contest";
+import { validateOrgDefinition } from "@multica/core/org/validate";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useAuthStore } from "@multica/core/auth";
-import { memberListOptions } from "@multica/core/workspace/queries";
+import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
+import { goalListOptions } from "@multica/core/goals";
 import type { OrgDefinition, OrgModel, OrgStatus, OrgStructure, OrgTemplate } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
@@ -29,7 +30,7 @@ import { Textarea } from "@multica/ui/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { cn } from "@multica/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
-import { MermaidDiagram } from "../../editor/mermaid-diagram";
+import { OrgCanvas } from "./org-canvas";
 import { useT } from "../../i18n";
 
 const STATUS_BADGE: Record<OrgStatus, string> = {
@@ -361,7 +362,10 @@ function OrgDetail({ id, onBack, onDeleted }: { id: string; onBack: () => void; 
   const wsId = useWorkspaceId();
   const { data, isPending } = useQuery(orgDetailOptions(wsId, id));
   if (isPending || !data) return <p className="px-4 py-2 text-caption text-muted-foreground">{t(($) => $.page.loading)}</p>;
-  return <OrgDetailBody key={`${data.structure.id}:${data.structure.revision}`} structure={data.structure} revisions={data.revisions} onBack={onBack} onDeleted={onDeleted} />;
+  // Keyed on identity only, not on the revision: the draft autosave bumps the
+  // revision on its own and remounting there would drop the undo stack and the
+  // open unit sheet every two seconds.
+  return <OrgDetailBody key={data.structure.id} structure={data.structure} revisions={data.revisions} onBack={onBack} onDeleted={onDeleted} />;
 }
 
 function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure: OrgStructure; revisions: { id: string; revision: number; status: string; model: string; created_at: string }[]; onBack: () => void; onDeleted: () => void }) {
@@ -369,6 +373,8 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   const wsId = useWorkspaceId();
   const currentUser = useAuthStore((s) => s.user);
   const { data: members = [] } = useQuery(memberListOptions(wsId));
+  const { data: agents = [] } = useQuery(agentListOptions(wsId));
+  const { data: goals = [] } = useQuery(goalListOptions(wsId));
   const update = useUpdateOrgStructure(wsId);
   const setStatus = useSetOrgStructureStatus(wsId);
   const [form, setForm] = useState({
@@ -380,17 +386,43 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
     definition: JSON.stringify(structure.definition, null, 2),
   });
   const [dialog, setDialog] = useState<"activate" | ReasonAction | null>(null);
+  const [undoStack, setUndoStack] = useState<string[]>([]);
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((f) => ({ ...f, [key]: value }));
 
   const parsed = useMemo(() => parseDefinition(form.definition), [form.definition]);
   const readOnly = structure.status === "dissolved";
+
+  /** Canvas gestures are the undoable steps; typing in the JSON editor is not,
+   *  or every keystroke would be its own step. */
+  const editDefinition = (next: OrgDefinition) => {
+    setUndoStack((s) => [...s, form.definition]);
+    set("definition", JSON.stringify(next, null, 2));
+  };
+  const undo = () =>
+    setUndoStack((s) => {
+      const previous = s[s.length - 1];
+      if (previous === undefined) return s;
+      set("definition", previous);
+      return s.slice(0, -1);
+    });
   const memberName = useMemo(() => new Map(members.map((m) => [m.user_id, m.name])), [members]);
+  const problems = useMemo(
+    () =>
+      "def" in parsed
+        ? validateOrgDefinition(parsed.def, {
+            model: structure.model,
+            agentTrust: Object.fromEntries(agents.map((a) => [a.id, a.trust_mode ?? ""])),
+            agentName: Object.fromEntries(agents.map((a) => [a.id, a.name])),
+          })
+        : [],
+    [parsed, structure.model, agents],
+  );
   const canDelete = useMemo(() => {
     const me = members.find((m) => m.user_id === currentUser?.id);
     return structure.owner_id === currentUser?.id || me?.role === "owner" || me?.role === "admin";
   }, [members, currentUser?.id, structure.owner_id]);
 
-  const save = () => {
+  const save = (silent = false) => {
     if ("error" in parsed) return;
     update.mutate(
       {
@@ -405,14 +437,48 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
         },
       },
       {
-        onSuccess: () => toast.success(t(($) => $.form.saved)),
+        onSuccess: () => { if (!silent) toast.success(t(($) => $.form.saved)); },
         onError: (e) => toast.error(errorMessage(e, t(($) => $.form.error))),
       },
     );
   };
 
+  // A draft is the user's scratch space, so the canvas writes it back through
+  // the existing PUT once the gestures stop. An active structure is never
+  // autosaved: there, a save is a new revision the user asks for explicitly.
+  const saveRef = useRef(save);
+  const undoRef = useRef(undo);
+  useEffect(() => {
+    saveRef.current = save;
+    undoRef.current = undo;
+  });
+  const savedDefinition = useRef(form.definition);
+  useEffect(() => {
+    if (readOnly || structure.status !== "draft") return;
+    if (form.definition === savedDefinition.current) return;
+    if ("error" in parseDefinition(form.definition)) return;
+    const timer = setTimeout(() => {
+      savedDefinition.current = form.definition;
+      saveRef.current(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [form.definition, readOnly, structure.status]);
+
+  useEffect(() => {
+    if (readOnly) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+      // Inside a text field the native undo is the one the user means.
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      e.preventDefault();
+      undoRef.current();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [readOnly]);
+
   const resume = () => setStatus.mutate({ id: structure.id, action: "resume" }, { onError: (e) => toast.error(errorMessage(e, t(($) => $.actions.error))) });
-  const chart = useMemo(() => orgMermaid(structure.definition, structure.paused_units), [structure.definition, structure.paused_units]);
 
   return (
     <div className="flex-1 overflow-y-auto px-4 py-2">
@@ -442,7 +508,26 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
 
       <section className="mt-4">
         <h3 className="mb-1 text-caption font-medium">{t(($) => $.page.chart)}</h3>
-        <MermaidDiagram chart={chart} />
+        {structure.status === "draft" && structure.revision > 1 && (
+          <p className="mb-1 text-caption text-muted-foreground">{t(($) => $.canvas.draft_recovered, { n: structure.revision })}</p>
+        )}
+        {"def" in parsed ? (
+          <OrgCanvas
+            definition={parsed.def}
+            model={structure.model}
+            pausedUnits={structure.paused_units}
+            problems={problems}
+            members={members}
+            agents={agents}
+            goals={goals}
+            readOnly={readOnly}
+            onChange={editDefinition}
+            undoDepth={undoStack.length}
+            onUndo={undo}
+          />
+        ) : (
+          <p className="text-caption text-muted-foreground">{t(($) => $.canvas.json_broken)}</p>
+        )}
       </section>
 
       <section className="mt-4 grid gap-3 lg:grid-cols-[1fr_18rem]">
@@ -479,14 +564,17 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
               <Input type="number" min={0} value={form.budget} onChange={(e) => set("budget", e.target.value)} disabled={readOnly} />
             </label>
           </div>
-          <label className="flex flex-col gap-1 text-caption text-muted-foreground">
-            {t(($) => $.form.definition)}
-            <Textarea value={form.definition} onChange={(e) => set("definition", e.target.value)} rows={16} spellCheck={false} className="font-mono text-caption" disabled={readOnly} />
-          </label>
+          <details className="rounded-md border p-2">
+            <summary className="cursor-pointer text-caption text-muted-foreground">{t(($) => $.form.advanced_json)}</summary>
+            <label className="mt-2 flex flex-col gap-1 text-caption text-muted-foreground">
+              {t(($) => $.form.definition)}
+              <Textarea value={form.definition} onChange={(e) => set("definition", e.target.value)} rows={16} spellCheck={false} className="font-mono text-caption" disabled={readOnly} />
+            </label>
+          </details>
           {"error" in parsed && <p role="alert" className="text-caption text-destructive">{t(($) => $.form.invalid_json, { error: parsed.error })}</p>}
           {!readOnly && (
             <div>
-              <Button type="button" size="sm" disabled={update.isPending || "error" in parsed || !form.name.trim()} onClick={save}>{t(($) => $.form.save)}</Button>
+              <Button type="button" size="sm" disabled={update.isPending || "error" in parsed || !form.name.trim()} onClick={() => save()}>{t(($) => $.form.save)}</Button>
             </div>
           )}
         </div>
