@@ -3743,6 +3743,23 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 	runtimeWorkspaceID := uuidToString(runtime.WorkspaceID)
 	authMs = time.Since(start).Milliseconds()
 
+	// Fleet halt (K05). Answered before the claim, so a held workspace never
+	// takes a task off its own queue: the work stays queued and resumes when
+	// the halt lifts. Refusing after the claim would have meant failing tasks
+	// to stop them, which is the opposite of buying time to look.
+	if ws, err := h.Queries.GetWorkspace(r.Context(), runtime.WorkspaceID); err != nil {
+		slog.Warn("claim: could not read the workspace halt; holding this claim",
+			"runtime_id", runtimeID, "error", err)
+		payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
+		outcome = "halt_unreadable"
+		return
+	} else if halt := service.RunHaltFromSettings(ws.Settings); halt.Halted {
+		slog.Info("claim: workspace halted, no task dispatched", "runtime_id", runtimeID, "reason", halt.Reason)
+		payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
+		outcome = "halted"
+		return
+	}
+
 	claimStart := time.Now()
 	task, err := h.TaskService.ClaimTaskForRuntime(r.Context(), parseUUID(runtimeID))
 	claimMs = time.Since(claimStart).Milliseconds()
