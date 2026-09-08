@@ -94,6 +94,26 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 任务是持续存在的工作记录；[运行](/tasks)是智能体的一次具体执行。一个任务可以先后产生多次运行——第一次实现、补充修改、再次检查。运行“已完成”只表示这一次执行结束；任务是否完成，以任务的状态为准。
 
+## 竞速尝试
+
+当一个任务有多种可行方案时，可以同时运行它们，最后只保留一个。每次尝试都是各自分支上的一次普通运行——四路竞速就要消耗四次运行——同一个智能体也可以用两个不同的模型分别出场。
+
+```bash
+multica issue race start ENG-42 --attempt "Backend Dev" --attempt "Backend Dev:opus" --attempt "Refactor Bot"
+multica issue race list ENG-42
+```
+
+`--attempt` 接受 `<agent>[:<model>]`，可重复 2 到 5 次。同一时间每个任务只能有一场竞速：在当前竞速结束前，再次发起会被拒绝。
+
+选出获胜者是人的决定。获胜的运行原样保留；其余仍在进行的尝试都会被取消，这也是守护进程清理其分支和 worktree 的原因。
+
+```bash
+multica issue race settle ENG-42 --group <race-id> --winner <run-id>
+multica issue race abandon ENG-42 --group <race-id>
+```
+
+`race list` 会显示每次尝试的差异。`stat only (too large)` 表示补丁超出了服务器存储的大小上限——改动依然存在，去分支里查看。
+
 ## 项目和子任务
 
 一个任务最多属于一个[项目](/projects)，项目为其中的执行提供共享说明和资源；移到另一个项目不会产生副本。
