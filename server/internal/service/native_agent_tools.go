@@ -509,7 +509,14 @@ func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx nativeT
 		params.AssigneeType = pgtype.Text{String: "agent", Valid: true}
 		params.AssigneeID = tctx.agent.ID
 	}
-	res, err := s.Issues.Create(ctx, params, IssueCreateOpts{ActorID: util.UUIDToString(tctx.agent.ID), Platform: "daemon"})
+	res, err := s.Issues.Create(ctx, params, IssueCreateOpts{
+		ActorID:  util.UUIDToString(tctx.agent.ID),
+		Platform: "daemon",
+		// Filing is not taking the work. The agent is mid-run; starting a
+		// second run of itself on its own filing burns a run and can recurse,
+		// since that run reaches this same tool.
+		SuppressRun: true,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("issue creation failed: %w", err)
 	}
