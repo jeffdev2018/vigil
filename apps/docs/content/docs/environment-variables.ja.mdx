@@ -43,9 +43,11 @@ MULTICA_PUBLIC_URL=https://api.multica.example.com
 | `JWT_SECRET` | 本番環境で必須 | ログイン JWT と一部の署名フローに使うシークレット。本番では空または既知のプレースホルダーだと起動を拒否 |
 | `APP_ENV` | 空 | プロダクションでは `production` を設定 |
 | `AUTH_TOKEN_TTL` | `720h`（30 日） | ブラウザ JWT と cookie の有効期間。Go duration または正の整数秒を受け付けます |
-| `LOG_LEVEL` | アプリのデフォルト | ログレベル |
+| `LOG_LEVEL` | `debug` | ログの詳細度: `debug`、`info`、`warn`、`error`（大文字小文字を区別しません）。認識できない値も `debug` にフォールバックします |
 | `MULTICA_SHUTDOWN_HOLD_DURATION` | `0` | 終了シグナル受信後、グレースフルシャットダウンを開始するまでの待機時間 |
 | `MULTICA_RUNTIME_RECONNECT_GRACE` | `3h` | オフラインのランタイムが処理中の作業を失敗させずに再接続できる猶予時間。`150s` 未満は `150s` に補正されます |
+| `MULTICA_RUN_UNRESPONSIVE_AFTER` | `90`（秒） | 実行中の作業が「応答なし」と表示されるまで沈黙していられる時間。読み取り時に算出される判定にすぎず、実行を失敗させたりキャンセルしたりすることはありません |
+| `MULTICA_BUDGET_MIN_ESTIMATE_USD_TICKS` | `1000000000`（$0.10） | 実行の予算見積もりの下限。USD ティック単位（1 USD = 10,000,000,000 ティック）。実行履歴から実コストを平均できるだけの完了済み実行が揃うまでのみ使用されます |
 
 Kubernetes で shutdown hold を設定する場合、`terminationGracePeriodSeconds` は hold と実際のシャットダウンにかかる時間の合計より大きくしてください。
 
@@ -62,6 +64,8 @@ primary とレプリカの接続上限は独立しています。全 API プロ�
 | `CORS_ALLOWED_ORIGINS` | 空 | 追加で許可する HTTP origin。カンマ区切り |
 | `ALLOWED_ORIGINS` | CORS / フロントエンド設定にフォールバック | WebSocket origin の許可リスト。カンマ区切り |
 | `COOKIE_DOMAIN` | 空 | フロントエンドと API の host が異なり、ブラウザが API ドメインへ直接アクセスする場合は必須。単一ドメイン構成では空のまま |
+| `NEXT_PUBLIC_API_URL` | ページの origin から自動導出 | ブラウザと Next.js の SSR プロキシが呼び出すバックエンドの origin（scheme + host、パスなし）。末尾の `/api` は取り除かれ、それ以外のパスはすべてのリクエストで二重になります |
+| `NEXT_PUBLIC_WS_URL` | ページの origin から自動導出 | ブラウザが接続する WebSocket アドレス |
 
 <Callout type="warning">
 `MULTICA_DAEMON_SERVER_URL` は認証なしの `/api/config` エンドポイントから返され、クライアントが読み取れます。公開設定として扱い、認証情報・トークンなどのシークレットを含めないでください。
@@ -163,12 +167,50 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 | `RATE_LIMIT_INVITATION_ACTOR_10M` | `10` | 招待者ごとの 10 分間スライディングウィンドウ内のワークスペース招待数。`0` でこの制限を無効化 |
 | `RATE_LIMIT_INVITATION_WORKSPACE_24H` | `50` | ワークスペース内の全管理者による 24 時間スライディングウィンドウ内の招待総数。`0` でこの制限を無効化 |
 | `RATE_LIMIT_INVITATION_RECIPIENT_24H` | `6` | 正規化された同一受信メールアドレスがワークスペースをまたいで 24 時間スライディングウィンドウ内に受け取れる招待数。`0` でこの制限を無効化 |
+| `RATE_LIMIT_CONTACT_SALES` | `5` | `/contact-sales` への IP あたり毎時の最大リクエスト数 |
+| `RATE_LIMIT_PLUGIN_API` | `120` | プラグイン Public API への IP あたり毎分の最大リクエスト数 |
 | `RATE_LIMIT_TRUSTED_PROXIES` | 空 | `X-Forwarded-For` の提供を許可するプロキシ CIDR。カンマ区切り |
 | `MULTICA_TRUSTED_PROXIES` | 空 | オートパイロット webhook とリアルタイム接続が使う信頼済みプロキシ CIDR |
 
 リバースプロキシ配下のデプロイでは、実際のプロキシのネットワーク範囲を設定してください。すべての送信元を無条件に信頼してはいけません。クライアントが転送元 IP を偽装できてしまいます。
 
 認証レート制限には `REDIS_URL` が必要です。未設定の場合、起動ログに認証レート制限が無効であることが表示されます。招待制限は Redis なしでもプロセス内メモリで動作し、Redis を設定すると複数レプリカで割り当てを共有します。設定済みの Redis が一時的に利用できない場合、認証レート制限はフェイルオープンしますが、招待作成は保護なしでメールを送らず、再試行可能な `503` を返します。
+
+### リアルタイムリレー
+
+Redis は、リアルタイムイベント（開いているブラウザタブへ push されるタスクとチャットの更新）のファンアウトも支えます。これらは `REDIS_URL` とは独立しており、プロダクションではリクエスト経路のキャッシュから切り離しておく価値があります。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `REALTIME_RELAY_REDIS_URL` | `REDIS_URL` にフォールバック | リアルタイムストリーム専用の Redis/Valkey。XTRIM MINID 対応が必要です（Redis 6.2 以降） |
+| `REALTIME_RELAY_MODE` | `sharded` | `sharded`、`dual`（両方に書き込み、読み取りは sharded — 移行支援用）、`legacy`（単一ストリーム）のいずれか。認識できない値は警告付きで `sharded` にフォールバックします |
+| `REALTIME_RELAY_SHARDS` | `8` | sharded リレーのシャード数。無効な値または `0` はデフォルトにフォールバックします |
+| `REALTIME_RELAY_XREAD_COUNT` | `128` | 各シャードのストリームに対する 1 回のポーリングあたりの `XREAD COUNT` |
+| `REALTIME_RELAY_XREAD_BLOCK` | `5s` | 各シャードのストリームに対する 1 回のポーリングあたりの `XREAD BLOCK` 時間 |
+| `REALTIME_RELAY_STREAM_MAXLEN` | `2000` | シャードごとに保持するエントリ数。観測されたエントリのバイト数、イベントレート、Redis のメモリ予算から見積もってください |
+| `REALTIME_RELAY_REPLAY_GRACE` | `5m` | sharded リーダー向けのリプレイ猶予 |
+| `REALTIME_RELAY_TRIM_HORIZON` | `10m` | 正確な時間ベースのトリミング境界。`REALTIME_RELAY_STREAM_MAXLEN` の後に適用されます |
+| `REALTIME_RELAY_STREAM_TTL_ENABLED` | `false` | 有効期限でストリーム全体を退避させる、オプトインの段階的フォールバック。切り替える前に `.env.example` のロールアウト・ロールバック手順を確認してください |
+| `REALTIME_RELAY_STREAM_TTL` | `15m` | ストリームの TTL。`REALTIME_RELAY_STREAM_TTL_ENABLED=true` の場合にのみ意味を持ちます |
+| `REALTIME_RELAY_TTL_REFRESH_INTERVAL` | `30s` | アクティブなストリームの TTL を更新する頻度 |
+| `REALTIME_RELAY_MAINTENANCE_INTERVAL` | `1m` | バックグラウンドのメンテナンス処理の間隔 |
+
+### チャンネル WebSocket リース
+
+複数レプリカ構成では、1 つの API レプリカだけが特定のチャンネルの受信 WebSocket 接続（WeCom など、長時間持続するチャンネル接続）を一度に保有できるよう、Redis によるリースが必要です。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `CHANNEL_WS_LEASE_BACKEND` | PostgreSQL | 複数レプリカのプロダクションでは `redis` を設定します。Redis、`Ping`、アトミックなリーススクリプトのいずれかが利用できない場合、supervisor は起動時にフェイルクローズします。すべてのレプリカを同時に切り替えてください — 二重ロックモードはありません |
+| `CHANNEL_WS_LEASE_REDIS_URL` | `REDIS_URL` にフォールバック | リース専用の Redis/Valkey インスタンスを推奨します。`maxmemory-policy noeviction` を設定してください |
+| `CHANNEL_WS_LEASE_NAMESPACE` | なし（Redis モードでは必須） | 1 つの Redis データベースを共有する複数の環境が互いのインストール ID と競合しないための、安定したデプロイ識別子。英数字、ドット、アンダースコア、ハイフンが使えます |
+| `CHANNEL_WS_LEASE_TTL` | `180s` | リースの TTL。`0 < poll <= renew < TTL` を満たす必要があります |
+| `CHANNEL_WS_LEASE_RENEW_INTERVAL` | `60s` | リース更新の間隔 |
+| `CHANNEL_WS_LEASE_POLL_INTERVAL` | `30s` | リース取得のポーリング間隔 |
+| `CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL` | `5s` | Redis エラー後のリトライ間隔 |
+| `CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN` | `5s` | split-brain を防ぐため、最後に確認できた TTL 失効よりこの時間だけ早く所有者が切断します |
+
+リースキーがサイレントに退避されると、チャンネル接続が中断されるおそれがあります。リース用インスタンスのメモリ／容量、退避数（常にゼロを維持すべき）、可用性、コマンドレイテンシにアラートを設定してください。
 
 ## 外部連携
 
@@ -178,18 +220,30 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 | GitHub | `GITHUB_WEBHOOK_SECRET` | Webhook HMAC と接続 state の署名シークレット |
 | GitHub | `GITHUB_APP_ID` | PR カードの CI ステータス・マージ可否と「GitHub から選択」リポジトリに必要です |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | App ID と対になる完全な PEM 秘密鍵。用途は同上 |
+| GitHub | `GITHUB_TOKEN` | GitHub の URL からスキルをインポートする際に、未認証の `api.github.com` 呼び出しへ Bearer ヘッダーとして付与する個人アクセストークン。レート制限が IP あたり 60/時から 5000/時に上がります。上記の GitHub App とは無関係です |
 | Lark | `MULTICA_LARK_SECRET_KEY` | base64 エンコードされた 32 バイトの資格情報暗号化キー |
+| Lark | `MULTICA_LARK_HTTP_BASE_URL` / `MULTICA_LARK_CALLBACK_BASE_URL` | すべてのインストールを 1 つの Lark/Feishu host（プロキシ、テスト用モック、単一クラウドのステージング環境など）に強制する、デプロイ全体の上書き設定。通常はどちらも空のままにしてください — リージョンはインストールごとに自動検出されます |
+| Lark | `MULTICA_LARK_WS_PROXY_URL` | WebSocket の長時間接続ハンドシェイク用の、固定 HTTP CONNECT プロキシ（任意）。空の場合は標準の `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` を使用します |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | base64 エンコードされた 32 バイトの token 暗号化キー |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | base64 エンコードされた 32 バイトの Bot token 暗号化キー |
+| DingTalk | `MULTICA_DINGTALK_SECRET_KEY` | base64 エンコードされた 32 バイトの AppSecret 暗号化キー |
+| WeCom | `MULTICA_WECOM_SECRET_KEY` | 各インストールの smart-bot secret を保存時に暗号化する、base64 エンコードされた 32 バイトのキー。空の場合はこの連携と対応する Web UI エンドポイントが無効になります（503） |
+| WeCom | `MULTICA_WECOM_MEDIA_ALLOW_CIDRS` | 予約済みに見えても media fetcher がアクセスしてよい範囲。カンマ区切り。fake-IP プロキシ構成の場合を除き空のままにしてください |
+| WeCom | `MULTICA_WECOM_TRACE` | `1` にすると、WeCom アダプターが読み書きするすべてのフレーム（メッセージ内容の先頭 120 文字を含む）をログに記録します。デバッグ専用で、セッション終了時には解除してください |
 | Composio | `COMPOSIO_API_KEY` | Composio ツール接続を有効化 |
 | Composio | `COMPOSIO_CALLBACK_BASE_URL` | コールバック API アドレス。`MULTICA_PUBLIC_URL` にフォールバック可能 |
 | Composio | `COMPOSIO_STATE_SECRET` | OAuth state の署名シークレット。`JWT_SECRET` から派生可能 |
 | セルフホスト Git | `MULTICA_VCS_INTEGRATION_ENABLED` | Forgejo/Gitea/GitLab 連携のスイッチ。compose ではデフォルトで有効 |
 | セルフホスト Git | `MULTICA_VCS_SECRET_KEY` | base64 エンコードされた 32 バイトの暗号化キー（`openssl rand -base64 32`）。未設定の場合、この機能全体が利用できません |
+| Linear Bridge | `MULTICA_LINEAR_SECRET_KEY` | 各ワークスペースの Linear OAuth トークンと webhook secret を保存時に暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合、この連携は完全に無効になります |
+| Linear Bridge | `MULTICA_LINEAR_CLIENT_ID` / `MULTICA_LINEAR_CLIENT_SECRET` | `linear.app/settings/api/applications` から取得する OAuth アプリケーションの資格情報。未設定でも既存のインストールの同期は続きますが、新規インストールはブロックされます |
+| Linear Bridge | `MULTICA_LINEAR_STATE_SECRET` | OAuth state の署名シークレット（任意）。未設定の場合、state は `JWT_SECRET` から派生したキーで署名されます |
 | Plugins | `MULTICA_PLUGIN_SECRET_KEY` | 保存済み secret と surface 起動 URL を暗号化する base64 形式の 32 バイト鍵 |
 | Plugins | `MULTICA_PLUGIN_SURFACE_ORIGIN` | バックエンドへルーティングする Cookie なしの専用 origin。app/API origin と分離し、`Host` を保持すること |
 | Plugins | `MULTICA_PLUGIN_API_URL` | バージョンを含む Plugin Public API の完全な Base URL（例: `https://plugin-api.example.com/v1`）。未設定時は `MULTICA_PUBLIC_URL` + `/v1` |
 | Plugins | `MULTICA_PLUGIN_DIR` | 開発時にローカル plugin bundle を公開するための任意の絶対ディレクトリ |
+| モデルキー（BYOK） | `MULTICA_MODEL_KEY_SECRET_KEY` | ワークスペースやプロジェクトが設定 → モデルキーで登録するプロバイダー API キーを暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合は「未設定」として扱われ、キーの保存が拒否されます |
+| SSO | `MULTICA_SSO_SECRET_KEY` | 各ワークスペースの OIDC クライアントシークレットを保存時に暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合、セキュリティタブには「未設定」と表示されます |
 
 `GITHUB_APP_ID` と秘密鍵を設定しなくても、PR の関連付け・ミラー・マージによる done への遷移は通常どおり動きますが、カードに CI とマージ可否のステータスが表示されず、「GitHub から選択」のリポジトリ入口も無効になります。
 
@@ -204,6 +258,7 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 | `MULTICA_LLM_API_KEY` | 空 | OpenAI 互換の API key |
 | `MULTICA_LLM_BASE_URL` | 空 | OpenAI 互換の endpoint |
 | `MULTICA_LLM_DEFAULT_MODEL` | `gpt-5.6-luna` | リクエストがモデルを指定しない場合に使用 |
+| `MULTICA_LLM_ROUTING_MODEL` | `MULTICA_LLM_DEFAULT_MODEL` にフォールバック | webhook の配信内容をオートパイロットの自然言語ルーティングルールと照合するために使う、小さく高速なモデル |
 | `MULTICA_LLM_EMBEDDING_MODEL` | 空 | 共有リポジトリインデックスの意味ベースのランク付けを有効にします。1536 次元のベクトルを返すモデルが必要です。空のままならインデックスはキーワードのみで動作します |
 | `MULTICA_LLM_MAX_RETRIES` | `2` | 1 回の呼び出しあたりのリトライ上限。`0` はリトライ無効、`1`〜`5` は最大 N 回 |
 
@@ -214,12 +269,84 @@ allowlist の正確な判定順序は[ログインとサインアップ](/auth-s
 - **会話タイトルの自動生成** — 新しいチャットセッションでユーザーが最初に送ったメッセージを、そのまま送信します。添付ファイルは含まれません。
 - **フォローアップ質問**（エージェントの返信の下に表示されるボタン） — 会話の末尾を送信します。最大 6 メッセージで、対象の返信は 3000 文字、それより古いメッセージは各 800 文字が上限です。
 - **共有セマンティックリポジトリインデックス** — ワークスペースが明示的に有効化したリポジトリ（設定 → リポジトリ → セマンティックインデックス）のコードチャンク本文と、検索クエリとして使う task のタイトルおよび説明の先頭 500 文字を送信します。これは `MULTICA_LLM_EMBEDDING_MODEL` を設定した場合にのみ動作します。空のままでもインデックスはキーワードでランク付けして機能し、リポジトリのコードがデプロイ外に出ることはありません。
+- **タスクのスコープ設定アシスタント**（タスク作成ダイアログの「数文からドラフトを生成」） — メンバーが入力したテキスト（最大 8000 文字）と、対象プロジェクトのタイトルおよび説明を送信します。
+- **[ネイティブランタイム](/native-runtime)** — デーモンなしで動くエージェントのツール呼び出しループが、タスクとコメントの内容を同じクライアントへ送信します。ここでは `MULTICA_LLM_ROUTING_MODEL` は使われません。ネイティブランタイムの呼び出しは `MULTICA_LLM_DEFAULT_MODEL` を使います。
 
 API key と base URL の両方が空の場合、このレイヤーは無効になり、上流へのリクエストを一切行いません。上記 2 つの機能はどちらも何も送信しなくなります。このレイヤーからチャットの内容をデプロイ外へ出せないポリシーでは、これがサポートされた構成です。セッションはクライアントが最初のメッセージから生成したタイトルをそのまま使い、フォローアップ質問のボタンは表示されず、他の機能への影響はありません。
 
 <Callout type="info">
 これは補助生成レイヤーのみに関する説明です。エージェントの実行は別のデータ経路です。エージェントがチャットに応答するとき、デーモンはそのエージェントの AI コーディングツールをツール自身の資格情報で実行し、上記の `MULTICA_LLM_*` 設定をツールへ渡すことはありません。（エージェント自身が必要とする実行単位の Multica 接続用変数は、デーモンが別途注入します。）上記の変数を空にしてもこの経路には影響しないため、エージェントのランタイム設定側で制御してください。
 </Callout>
+
+## 音声: 音声認識と音声合成
+
+どちらも任意で、独立してゲートされます。プロバイダーを未設定のままにすると、エラーにはならず対応する機能が UI から隠れます。
+
+### 音声認識(ボイスメモ、会議の文字起こし)
+
+OpenAI 互換の `POST {base}/v1/audio/transcriptions` 契約を話すプロバイダーであれば利用できます: Mistral Voxtral、OpenAI、Groq、または vLLM 上でセルフホストする Qwen3-ASR / Whisper。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_STT_BASE_URL` | 空 | 音声認識の endpoint。これまたはモデルを空のままにすると音声認識は無効になります — endpoint は `409` を返し、UI からも機能が隠れます |
+| `MULTICA_STT_API_KEY` | 空 | 音声認識プロバイダーの API key |
+| `MULTICA_STT_MODEL` | 空 | 音声認識のモデル名 |
+| `MULTICA_STT_LANGUAGE` | プロバイダーの自動検出 | `language` として送信する ISO 639-1 のヒント(例: `fr`) |
+| `MULTICA_STT_DIARIZE` | `false` | `true` にすると、対応するプロバイダー(Voxtral)へ話者ラベル付けを依頼します |
+| `MULTICA_STT_REALTIME_MODEL` | 空 | 会議レコーダーでの単語単位のライブ文字起こしを有効にします。ブラウザは、サーバーが発行する短命トークンを使ってプロバイダーのリアルタイム WebSocket を開きます |
+
+音声は文字起こし後に破棄され、保存されることはありません。
+
+### 音声合成(アシスタントメッセージの「読み上げ」)
+
+OpenAI 互換の `POST {base}/v1/audio/speech` 契約を話すプロバイダーであれば利用できます: OpenAI、Groq、または セルフホストの Kokoro-FastAPI / openedai-speech。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_TTS_BASE_URL` | 空 | 音声合成の endpoint。これまたはモデルを空のままにすると音声合成は無効になります — `/api/voice/speak` は `409` を返し、クライアントはブラウザ自身の `speechSynthesis` にフォールバックします |
+| `MULTICA_TTS_API_KEY` | 空 | 音声合成プロバイダーの API key |
+| `MULTICA_TTS_MODEL` | 空 | 音声合成のモデル名 |
+| `MULTICA_TTS_VOICE` | プロバイダーのデフォルト | プロバイダーの voice id(OpenAI: `alloy`、`nova` など)。空にするとプロバイダーが選びますが、拒否するプロバイダーもあります |
+
+音声はリクエストごとに合成され、保存されることはありません。
+
+## モバイル push
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_PUSH_DISABLED` | 空 | `1` を設定すると push 通知の送信を完全に無効化します |
+| `MULTICA_EXPO_PUSH_ENDPOINT` | Expo のデフォルト(`https://exp.host/--/api/v2/push/send`) | Expo push API endpoint を上書きする任意の設定 |
+
+Expo push は資格情報なしで動作します。
+
+## フィーチャーフラグ
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_FEATURE_FLAGS_FILE` | 空 | フィーチャーフラグのルールを宣言する YAML ファイルへのパス。未設定の場合、すべてのフラグは呼び出し側のデフォルトにフォールバックするため、フラグ設定を書く前でもサーバーは起動できます。設定済みファイルのパースエラーや IO エラーは、`DATABASE_URL` や `JWT_SECRET` の設定ミスと同様に起動を失敗させます |
+
+個々のフラグは、YAML を変更せずに `FF_<FLAG_KEY>` 環境変数でも上書きできます(例: `FF_BILLING_NEW_INVOICE_EMAIL=false`、パーセンテージ、その他の variant 文字列)。環境変数による上書きは YAML より優先されます — これは運用上のキルスイッチ経路です。再デプロイせずに、環境変数を設定してプロセスを再起動するだけでフラグを切り替えられます。完全な YAML スキーマは `server/pkg/featureflag` を参照してください。
+
+## オートパイロット失敗モニター
+
+最近の実行履歴が失敗ばかりのオートパイロットを定期的に一時停止し、設定ミスのスケジュール済みオートパイロットが実行とトークンを無限にホットループで消費し続けないようにします。
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `AUTOPILOT_FAIL_MONITOR_INTERVAL` | `24h` | スイープの実行頻度。`0` でモニター自体を無効化 |
+| `AUTOPILOT_FAIL_MONITOR_LOOKBACK` | `168h` | スイープが実行数を数える際に遡る期間 |
+| `AUTOPILOT_FAIL_MONITOR_STARTUP_DELAY` | `1m` | プロセス起動後、最初のスイープまでの遅延 |
+| `AUTOPILOT_FAIL_MONITOR_MIN_RUNS` | `50` | 失敗率を統計的に意味のあるものとみなすために、lookback ウィンドウ内で必要な最小実行数。正の整数である必要があります |
+| `AUTOPILOT_FAIL_MONITOR_FAIL_RATIO` | `0.9` | 自動一時停止をトリガーする失敗率(0, 1] |
+
+## セルフホストデプロイ
+
+| 変数 | デフォルト | 説明 |
+|---|---|---|
+| `MULTICA_CLOUD_URL` | 空 | マネージドの multica-cloud 接続。セルフホストでは空のままにしてください。接続すると、Fleet、Billing、権限ポリシー、事前購入済みシート数がこのサービスを使うようになります |
+| `MULTICA_IMAGE_TAG` | `latest` | セルフホストのリリースチャンネル。特定バージョンに固定するには、正確なリリース(`v0.2.4` など)を指定します |
+| `MULTICA_BACKEND_IMAGE` | `ghcr.io/multica-ai/multica-backend` | バックエンドイメージのリポジトリ |
+| `MULTICA_WEB_IMAGE` | `ghcr.io/multica-ai/multica-web` | Web イメージのリポジトリ |
 
 ## デーモン設定
 

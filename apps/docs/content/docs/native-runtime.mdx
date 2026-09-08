@@ -1,0 +1,56 @@
+---
+title: Native runtime
+description: Run an agent inside the Multica server itself, with no daemon and no AI coding tool CLI.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+Every workspace has one **native runtime** — an in-server execution path that runs an agent's tool-calling loop directly inside the Multica API process. It needs no [daemon](/daemon-runtimes), no connected computer, and no AI coding tool CLI.
+
+## When to choose it over a daemon runtime
+
+A daemon runtime drives a real AI coding tool (Claude Code, Codex, and so on) against a checked-out repository, with full filesystem and shell access. The native runtime does neither: it can only read and write through a small, fixed set of tools scoped to issues (see below). Choose it for lightweight issue triage, status changes, and comment work that does not need a repository checkout or shell access; keep coding work on a daemon runtime.
+
+Because there is no daemon and no CLI to install, the native runtime is always available and never shows a CLI version — an agent bound to it is ready the moment the workspace exists.
+
+## How it runs
+
+The native runtime seeds one `agent_runtime` row per workspace (`runtime_mode = 'native'`, provider `native`) and appears in runtime pickers and lists like any other runtime — nothing in the UI marks it specially today.
+
+A scheduled job, `native_agent_tick`, runs every 10 seconds and, for each workspace's native runtime, claims queued runs through the same eligibility path a daemon poll uses. Each claimed run executes in its own goroutine with a 10-minute timeout, independent of the tick itself. Within a run, the tool-calling loop is capped at 12 turns, and each tool result is capped at 8&nbsp;KB before it goes back to the model.
+
+<Callout type="info">
+The native runtime shares one global concurrency ceiling of 8 runs across all workspaces on the server, not a per-workspace limit.
+</Callout>
+
+## Native tools
+
+The tool-calling loop can only call a small, deliberately closed set of tools:
+
+| Tool | Does |
+|---|---|
+| `get_issue` | Reads an issue and its recent comments (the run's own issue by default). |
+| `list_issues` | Lists issues, filterable by status and priority, up to 50 at a time. |
+| `add_comment` | Posts a comment signed as the agent. |
+| `update_issue` | Updates title, description, or priority — not status; use `transition_issue` for that. |
+| `transition_issue` | Changes the issue's status through the same gated path as the UI. |
+| `create_sub_issue` | Creates a sub-issue under the run's issue. |
+| `create_issue` | Creates a new top-level issue, assigned to the agent itself by default. |
+
+Any issue ID the model supplies is re-validated against the run's workspace before use — a tool never trusts an issue reference out of model output alone.
+
+## Guardrails
+
+- **Gated status transitions.** `transition_issue` goes through the same transition-rule decision the HTTP handlers use, with the agent as the actor — an agent carries no workspace role, so it cannot inherit an owner's or admin's transition rights. Depending on the workspace's rules the move is applied immediately, denied with a reason returned to the model, or held as a pending approval request while the status stays unchanged.
+- **No silent status changes on creation.** `create_issue` and `create_sub_issue` always create the issue in its default status; they never land it on a status that the workspace's rules would otherwise gate. Any transition after creation still goes through `transition_issue`.
+- **No self-triggered run loop.** `create_issue` never enqueues a run for the issue it creates, so a native run cannot cascade into creating work that immediately re-triggers itself.
+
+## LLM requirement
+
+The native runtime calls the same server-side LLM client as the [chat auto-titling and follow-up assist layer](/environment-variables#server-side-llm): `MULTICA_LLM_API_KEY` or `MULTICA_LLM_BASE_URL` must be configured. Without it, the tick is a no-op — queued runs on the native runtime simply wait, with no error surfaced, until the layer is enabled.
+
+## Next steps
+
+- [Daemon and runtimes](/daemon-runtimes) — the alternative execution path, with full filesystem and shell access.
+- [Agents](/agents) — assign an agent to a runtime.
+- [Environment variables](/environment-variables#server-side-llm) — configure the server-side LLM layer the native runtime depends on.

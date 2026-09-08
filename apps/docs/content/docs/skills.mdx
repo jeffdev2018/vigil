@@ -87,6 +87,22 @@ After creating or importing a skill, it still needs to be added to specific agen
 
 Only members who can modify the agent can add, remove, or disable its skills.
 
+## Distilling a skill from a run
+
+When a run completes successfully, Multica can distill it into a reusable skill draft — the working method that made that run succeed, captured for reuse instead of relearned from scratch next time. Distillation only considers runs that finished as `completed` with a non-empty result, from an agent (not the system), and stops once an agent already has 30 distilled skills.
+
+Distillation needs the same [server-side LLM](/environment-variables#server-side-llm) as chat auto-titling and follow-up questions. With `MULTICA_LLM_API_KEY` and `MULTICA_LLM_DEFAULT_MODEL` unset, no skill is distilled — there is no lesser fallback, since a skill nobody actually distilled is not worth adding.
+
+<Callout type="info">
+A distilled skill is always created as a **draft** and never automatically attached to the agent that produced it. Review it and attach it to the agents that should use it, the same as any other skill.
+</Callout>
+
+If a skill with the same name already exists in the workspace, distillation is skipped for that run rather than overwriting it.
+
+### Provenance
+
+A distilled skill's page and the skills list show where it came from — the source run, the agent, and the issue — with a distinct icon and a "Distilled" source label. Unlike a skill imported from GitHub, ClawHub, or Skills.sh, a distilled skill has no hosted source to refresh from; edit it directly instead.
+
 ## Workspace skills and repository skills
 
 Workspace skills are stored in Multica — a fit for skills the team maintains together and adds to different agents.

@@ -33,6 +33,7 @@
     "---ランタイムと実行---",
     "tasks",
     "daemon-runtimes",
+    "native-runtime",
     "install-agent-runtime",
     "providers",
     "---自動化---",

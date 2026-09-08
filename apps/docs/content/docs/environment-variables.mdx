@@ -43,9 +43,11 @@ You also need to pick an email service, otherwise verification codes and invitat
 | `JWT_SECRET` | required in production | Secret for sign-in JWTs and some signing flows; production refuses to boot on empty or known placeholders |
 | `APP_ENV` | empty | Set to `production` in production |
 | `AUTH_TOKEN_TTL` | `720h` (30 days) | Lifetime of browser JWTs and cookies; accepts a Go duration or a positive integer of seconds |
-| `LOG_LEVEL` | application default | Log level |
+| `LOG_LEVEL` | `debug` | Log verbosity: `debug`, `info`, `warn`, or `error` (case-insensitive); an unrecognized value also falls back to `debug` |
 | `MULTICA_SHUTDOWN_HOLD_DURATION` | `0` | How long to wait after a termination signal before graceful shutdown begins |
 | `MULTICA_RUNTIME_RECONNECT_GRACE` | `3h` | How long an offline runtime may reconnect before its in-flight runs fail; values below `150s` are clamped |
+| `MULTICA_RUN_UNRESPONSIVE_AFTER` | `90` (seconds) | How long an active run may stay silent before it displays as unresponsive; a read-time verdict only, it never fails or cancels the run |
+| `MULTICA_BUDGET_MIN_ESTIMATE_USD_TICKS` | `1000000000` ($0.10) | Floor for a run's budget estimate, in USD ticks (1 USD = 10,000,000,000 ticks); used only until enough completed runs exist to average a real cost from history |
 
 When setting a shutdown hold on Kubernetes, `terminationGracePeriodSeconds` must exceed the hold plus the time the actual shutdown needs.
 
@@ -62,6 +64,8 @@ The primary and replica connection limits are independent. Budget their sum acro
 | `CORS_ALLOWED_ORIGINS` | empty | Extra allowed HTTP origins, comma-separated |
 | `ALLOWED_ORIGINS` | falls back to CORS / frontend origins | WebSocket origin allowlist, comma-separated |
 | `COOKIE_DOMAIN` | empty | Required when the frontend and API use different hosts and the browser talks to the API domain directly; keep empty for single-domain deployments |
+| `NEXT_PUBLIC_API_URL` | auto-derived from the page origin | Backend origin (scheme + host, no path) the browser and the Next.js SSR proxy call; a trailing `/api` is stripped, any other path doubles into every request |
+| `NEXT_PUBLIC_WS_URL` | auto-derived from the page origin | WebSocket URL the browser connects to |
 
 <Callout type="warning">
 `MULTICA_DAEMON_SERVER_URL` is returned by the unauthenticated `/api/config` endpoint and is visible to clients. Treat it as public configuration; never put credentials, tokens, or other secrets in it.
@@ -163,12 +167,50 @@ Use `ATTACHMENT_DOWNLOAD_MODE=proxy` when the endpoint — an internal MinIO, fo
 | `RATE_LIMIT_INVITATION_ACTOR_10M` | `10` | Workspace invitations each inviter may create per 10-minute sliding window; `0` disables this gate |
 | `RATE_LIMIT_INVITATION_WORKSPACE_24H` | `50` | Workspace invitations all admins may create per workspace per 24-hour sliding window; `0` disables this gate |
 | `RATE_LIMIT_INVITATION_RECIPIENT_24H` | `6` | Invitations one normalized recipient email may receive across workspaces per 24-hour sliding window; `0` disables this gate |
+| `RATE_LIMIT_CONTACT_SALES` | `5` | Max `/contact-sales` requests per IP per hour |
+| `RATE_LIMIT_PLUGIN_API` | `120` | Max plugin Public API requests per IP per minute |
 | `RATE_LIMIT_TRUSTED_PROXIES` | empty | Comma-separated proxy CIDRs allowed to provide `X-Forwarded-For` |
 | `MULTICA_TRUSTED_PROXIES` | empty | Trusted proxy CIDRs for automation webhooks and realtime connections |
 
 Deployments behind a reverse proxy must list their real proxy ranges. Do not blanket-trust all sources, or clients can forge forwarded IPs.
 
 The auth rate limits require `REDIS_URL`; without it, the startup log notes that auth rate limiting is disabled. Invitation limits still run in process-local memory without Redis and become shared across replicas when Redis is configured. If configured Redis becomes temporarily unavailable, auth rate limiting fails open, while invitation creation returns a retryable `503` instead of sending email without protection.
+
+### Realtime relay
+
+Redis also backs the fan-out of realtime events (issue and chat updates pushed to open browser tabs). These are independent of `REDIS_URL` and worth isolating from request-path caches in production.
+
+| Variable | Default | Description |
+|---|---|---|
+| `REALTIME_RELAY_REDIS_URL` | falls back to `REDIS_URL` | Dedicated Redis/Valkey for realtime streams; requires XTRIM MINID support (Redis 6.2+) |
+| `REALTIME_RELAY_MODE` | `sharded` | `sharded`, `dual` (write both, read sharded — migration aid), or `legacy` (single stream); an unrecognized value falls back to `sharded` with a warning |
+| `REALTIME_RELAY_SHARDS` | `8` | Number of shards for the sharded relay; invalid or zero values fall back to the default |
+| `REALTIME_RELAY_XREAD_COUNT` | `128` | `XREAD COUNT` per poll against each shard's stream |
+| `REALTIME_RELAY_XREAD_BLOCK` | `5s` | `XREAD BLOCK` duration per poll against each shard's stream |
+| `REALTIME_RELAY_STREAM_MAXLEN` | `2000` | Entries kept per shard; size it from observed entry bytes, event rate, and the Redis memory budget |
+| `REALTIME_RELAY_REPLAY_GRACE` | `5m` | Replay grace for sharded readers |
+| `REALTIME_RELAY_TRIM_HORIZON` | `10m` | Exact time trimming horizon, applied after `REALTIME_RELAY_STREAM_MAXLEN` |
+| `REALTIME_RELAY_STREAM_TTL_ENABLED` | `false` | Opt-in staged fallback that evicts a whole stream on expiry; see the rollout/rollback sequence in `.env.example` before flipping it |
+| `REALTIME_RELAY_STREAM_TTL` | `15m` | Stream TTL, only relevant once `REALTIME_RELAY_STREAM_TTL_ENABLED=true` |
+| `REALTIME_RELAY_TTL_REFRESH_INTERVAL` | `30s` | How often the TTL is refreshed on active streams |
+| `REALTIME_RELAY_MAINTENANCE_INTERVAL` | `1m` | Background maintenance sweep interval |
+
+### Channel WebSocket leases
+
+Multi-replica deployments need Redis-backed leases so only one API replica owns a given channel's inbound WebSocket connection (WeCom, and other long-lived channel connections) at a time.
+
+| Variable | Default | Description |
+|---|---|---|
+| `CHANNEL_WS_LEASE_BACKEND` | PostgreSQL | Set to `redis` for multi-replica production; the supervisor fails closed at startup if Redis, `Ping`, or the atomic lease scripts are unavailable. Switch every replica together — there is no dual-lock mode |
+| `CHANNEL_WS_LEASE_REDIS_URL` | falls back to `REDIS_URL` | Strongly recommended to be a dedicated lease-only Redis/Valkey instance, configured with `maxmemory-policy noeviction` |
+| `CHANNEL_WS_LEASE_NAMESPACE` | none (required in Redis mode) | Stable deployment identifier so environments sharing one Redis database do not contend on each other's installation IDs; letters, digits, dot, underscore, hyphen |
+| `CHANNEL_WS_LEASE_TTL` | `180s` | Lease TTL; timing must satisfy `0 < poll <= renew < TTL` |
+| `CHANNEL_WS_LEASE_RENEW_INTERVAL` | `60s` | Lease renewal interval |
+| `CHANNEL_WS_LEASE_POLL_INTERVAL` | `30s` | Poll interval for acquiring a lease |
+| `CHANNEL_WS_LEASE_ERROR_RETRY_INTERVAL` | `5s` | Retry interval after a Redis error |
+| `CHANNEL_WS_LEASE_EXPIRY_SAFETY_MARGIN` | `5s` | The owner disconnects this long before its last confirmed TTL expiry, to prevent split-brain |
+
+Silent lease-key eviction can interrupt channel connections — alert on memory/capacity, evictions (must stay zero), availability, and command latency for the lease instance.
 
 ## External integrations
 
@@ -178,18 +220,30 @@ The auth rate limits require `REDIS_URL`; without it, the startup log notes that
 | GitHub | `GITHUB_WEBHOOK_SECRET` | Webhook HMAC and connect-state signing secret |
 | GitHub | `GITHUB_APP_ID` | Needed for CI status and mergeability on PR cards and the "pick from GitHub" repository picker |
 | GitHub | `GITHUB_APP_PRIVATE_KEY` | Full PEM private key paired with the App ID; same uses as above |
+| GitHub | `GITHUB_TOKEN` | Personal access token attached as a Bearer header on unauthenticated `api.github.com` calls made while importing a skill from a GitHub URL; raises the rate limit from 60/hour to 5000/hour per IP. Unrelated to the GitHub App above |
 | Lark | `MULTICA_LARK_SECRET_KEY` | Base64-encoded 32-byte credential encryption key |
+| Lark | `MULTICA_LARK_HTTP_BASE_URL` / `MULTICA_LARK_CALLBACK_BASE_URL` | Deployment-wide overrides that force every installation onto one Lark/Feishu host (a proxy, a test mock, a single-cloud staging setup); leave both empty for normal use — region is auto-detected per installation |
+| Lark | `MULTICA_LARK_WS_PROXY_URL` | Optional fixed HTTP CONNECT proxy for the WebSocket long-conn handshake; empty uses standard `HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` |
 | Slack | `MULTICA_SLACK_SECRET_KEY` | Base64-encoded 32-byte token encryption key |
 | Telegram | `MULTICA_TELEGRAM_SECRET_KEY` | Base64-encoded 32-byte Bot token encryption key |
+| DingTalk | `MULTICA_DINGTALK_SECRET_KEY` | Base64-encoded 32-byte AppSecret encryption key |
+| WeCom | `MULTICA_WECOM_SECRET_KEY` | Base64-encoded 32-byte key that encrypts each installation's smart-bot secret at rest; empty disables the integration and its Web UI endpoints (503) |
+| WeCom | `MULTICA_WECOM_MEDIA_ALLOW_CIDRS` | Comma-separated ranges the media fetcher may dial despite looking reserved; leave empty except behind a fake-IP proxy setup |
+| WeCom | `MULTICA_WECOM_TRACE` | `1` logs every frame the WeCom adapter reads/writes, including message content (first 120 runes); for debugging only, unset when the session ends |
 | Composio | `COMPOSIO_API_KEY` | Enables Composio tool connections |
 | Composio | `COMPOSIO_CALLBACK_BASE_URL` | Callback API URL; can fall back to `MULTICA_PUBLIC_URL` |
 | Composio | `COMPOSIO_STATE_SECRET` | OAuth state signing secret; can be derived from `JWT_SECRET` |
 | Self-hosted Git | `MULTICA_VCS_INTEGRATION_ENABLED` | Forgejo/Gitea/GitLab integration switch; enabled by default in compose |
 | Self-hosted Git | `MULTICA_VCS_SECRET_KEY` | Base64-encoded 32-byte encryption key (`openssl rand -base64 32`); the feature is entirely unavailable without it |
+| Linear Bridge | `MULTICA_LINEAR_SECRET_KEY` | Base64-encoded 32-byte key that encrypts each workspace's Linear OAuth token and webhook secret at rest; unset disables the integration entirely |
+| Linear Bridge | `MULTICA_LINEAR_CLIENT_ID` / `MULTICA_LINEAR_CLIENT_SECRET` | OAuth application credentials from `linear.app/settings/api/applications`; unset keeps existing installations syncing but blocks new ones |
+| Linear Bridge | `MULTICA_LINEAR_STATE_SECRET` | Optional OAuth state signing secret; without it, state is signed with a key derived from `JWT_SECRET` |
 | Plugins | `MULTICA_PLUGIN_SECRET_KEY` | Base64-encoded 32-byte key for stored secrets and encrypted surface launch URLs |
 | Plugins | `MULTICA_PLUGIN_SURFACE_ORIGIN` | Dedicated cookie-free browser origin routed to this backend; must differ from app/API origins and preserve `Host` |
 | Plugins | `MULTICA_PLUGIN_API_URL` | Complete versioned Plugin Public API base URL, such as `https://plugin-api.example.com/v1`; falls back to `MULTICA_PUBLIC_URL` + `/v1` |
 | Plugins | `MULTICA_PLUGIN_DIR` | Optional absolute directory used to publish local plugin bundles during development |
+| Model keys (BYOK) | `MULTICA_MODEL_KEY_SECRET_KEY` | Base64-encoded 32-byte key that encrypts provider API keys workspaces and projects declare in Settings → Model keys; unset reads as "not configured" and refuses to store keys |
+| SSO | `MULTICA_SSO_SECRET_KEY` | Base64-encoded 32-byte key that encrypts each workspace's OIDC client secret at rest; unset reads the Security tab as "not configured" |
 
 Without `GITHUB_APP_ID` and the private key, PRs still link, mirror, and trigger merge-to-done normally, but cards show no CI or mergeability status, and the "pick from GitHub" repository entry is disabled.
 
@@ -204,6 +258,7 @@ This group configures server-side assist generation, such as conversation titles
 | `MULTICA_LLM_API_KEY` | empty | OpenAI-compatible API key |
 | `MULTICA_LLM_BASE_URL` | empty | OpenAI-compatible endpoint |
 | `MULTICA_LLM_DEFAULT_MODEL` | `gpt-5.6-luna` | Used when a request does not specify a model |
+| `MULTICA_LLM_ROUTING_MODEL` | falls back to `MULTICA_LLM_DEFAULT_MODEL` | Small, fast model used to judge webhook deliveries against an autopilot's natural-language routing rule |
 | `MULTICA_LLM_EMBEDDING_MODEL` | empty | Enables meaning-based ranking in the shared repo index. Must produce 1536-dimension vectors; empty keeps the index keyword-only |
 | `MULTICA_LLM_MAX_RETRIES` | `2` | Retry ceiling per call; `0` disables retries, `1`–`5` cap it at N |
 
@@ -215,12 +270,83 @@ These features use this layer, and each one sends content to the endpoint you co
 - **Follow-up questions** (the suggestion buttons under an agent reply) — the tail of the conversation: up to 6 messages, with the reply being answered capped at 3000 characters and each older message at 800.
 - **Shared semantic repo index** — the body of code chunks from repositories a workspace explicitly opted in to (Settings → Repositories → Semantic index), plus the issue title and the first 500 characters of its description used as the search query. This one is off unless `MULTICA_LLM_EMBEDDING_MODEL` is set: with it empty the index still works, ranking by keyword, and no repository code leaves the deployment.
 - **Issue scoping assistant** ("Draft from a few sentences" in the create issue dialog) — the text the member typed, capped at 8000 characters, plus the target project's title and description.
+- **[Native runtime](/native-runtime)** — the tool-calling loop of an agent running with no daemon sends issue and comment content to this same client. `MULTICA_LLM_ROUTING_MODEL` is not used here; native runtime calls use `MULTICA_LLM_DEFAULT_MODEL`.
 
 When both the API key and the base URL are empty, this layer is disabled and makes no upstream request at all — neither feature above sends anything. That is the supported configuration when your policy does not allow this layer to send chat content off the deployment: chat sessions keep the title the client derives from the first message, the follow-up question buttons do not appear, and everything else is unaffected.
 
 <Callout type="info">
 This covers the assist layer only. Running an agent is a separate data path: when an agent answers a chat, your daemon executes that agent's AI coding tool using the tool's own credentials, and does not forward the `MULTICA_LLM_*` settings above to it. (The run-scoped Multica connection variables the agent needs are injected by the daemon separately.) Emptying the variables above does not affect that path — govern it through the agent's runtime configuration.
 </Callout>
+
+## Voice: speech-to-text and text-to-speech
+
+Both are optional and independently gated; leaving either provider unset hides the corresponding feature instead of erroring.
+
+### Speech-to-text (voice memos, meeting transcription)
+
+Any provider speaking the OpenAI-compatible `POST {base}/v1/audio/transcriptions` contract: Mistral Voxtral, OpenAI, Groq, or a self-hosted Qwen3-ASR / Whisper behind vLLM.
+
+| Variable | Default | Description |
+|---|---|---|
+| `MULTICA_STT_BASE_URL` | empty | STT endpoint; leaving this or the model empty disables STT — the endpoints answer `409` and the UI hides the feature |
+| `MULTICA_STT_API_KEY` | empty | STT provider API key |
+| `MULTICA_STT_MODEL` | empty | STT model name |
+| `MULTICA_STT_LANGUAGE` | provider auto-detect | ISO 639-1 hint sent as `language` (e.g. `fr`) |
+| `MULTICA_STT_DIARIZE` | `false` | `true` asks providers that support it (Voxtral) to label speakers |
+| `MULTICA_STT_REALTIME_MODEL` | empty | Enables the live word-by-word transcript in the meeting recorder; the browser opens the provider's realtime WebSocket with a short-lived token the server mints |
+
+Audio is transcribed then discarded — never stored.
+
+### Text-to-speech ("read this aloud" on assistant messages)
+
+Any provider speaking the OpenAI-compatible `POST {base}/v1/audio/speech` contract: OpenAI, Groq, or a self-hosted Kokoro-FastAPI / openedai-speech.
+
+| Variable | Default | Description |
+|---|---|---|
+| `MULTICA_TTS_BASE_URL` | empty | TTS endpoint; leaving this or the model empty disables TTS — `/api/voice/speak` answers `409` and the client falls back to the browser's own `speechSynthesis` |
+| `MULTICA_TTS_API_KEY` | empty | TTS provider API key |
+| `MULTICA_TTS_MODEL` | empty | TTS model name |
+| `MULTICA_TTS_VOICE` | provider default | Provider voice id (OpenAI: `alloy`, `nova`, …); empty lets the provider pick, which some refuse |
+
+Audio is synthesized per request and never stored.
+
+## Mobile push
+
+| Variable | Default | Description |
+|---|---|---|
+| `MULTICA_PUSH_DISABLED` | empty | Set `1` to disable sending push notifications entirely |
+| `MULTICA_EXPO_PUSH_ENDPOINT` | Expo's default (`https://exp.host/--/api/v2/push/send`) | Optional override for the Expo push API endpoint |
+
+Expo push needs no credentials to work.
+
+## Feature flags
+
+| Variable | Default | Description |
+|---|---|---|
+| `MULTICA_FEATURE_FLAGS_FILE` | empty | Path to a YAML file declaring feature flag rules; every flag falls through to the caller's default when unset, so the server boots before any flag config is authored. A parse or IO error on a set file fails startup, the same as a `DATABASE_URL` or `JWT_SECRET` misconfiguration |
+
+Individual flags can also be overridden without touching the YAML through `FF_<FLAG_KEY>` environment variables (for example `FF_BILLING_NEW_INVOICE_EMAIL=false`, a percentage, or any variant string). The env override wins over the YAML — this is the operational kill-switch path: flip a flag without redeploying by restarting the process with the env var set. See `server/pkg/featureflag` for the full YAML schema.
+
+## Autopilot failure monitor
+
+Periodically pauses autopilots whose recent run history is dominated by failures, so a misconfigured scheduled autopilot cannot burn runs and tokens on a hot loop forever.
+
+| Variable | Default | Description |
+|---|---|---|
+| `AUTOPILOT_FAIL_MONITOR_INTERVAL` | `24h` | How often the sweep runs; `0` disables the monitor entirely |
+| `AUTOPILOT_FAIL_MONITOR_LOOKBACK` | `168h` | How far back the sweep looks when counting runs |
+| `AUTOPILOT_FAIL_MONITOR_STARTUP_DELAY` | `1m` | Delay after process startup before the first sweep |
+| `AUTOPILOT_FAIL_MONITOR_MIN_RUNS` | `50` | Minimum number of runs in the lookback window before the failure ratio is considered statistically meaningful; must be a positive integer |
+| `AUTOPILOT_FAIL_MONITOR_FAIL_RATIO` | `0.9` | Failure ratio (0, 1] that triggers an auto-pause |
+
+## Self-hosted deployment
+
+| Variable | Default | Description |
+|---|---|---|
+| `MULTICA_CLOUD_URL` | empty | Managed multica-cloud connection; leave empty for self-hosting. When connected, Fleet, Billing, entitlement policy, and pre-purchased seat capacity use this service |
+| `MULTICA_IMAGE_TAG` | `latest` | Self-host release channel; pin to an exact release (such as `v0.2.4`) to stay on a specific version |
+| `MULTICA_BACKEND_IMAGE` | `ghcr.io/multica-ai/multica-backend` | Backend image repository |
+| `MULTICA_WEB_IMAGE` | `ghcr.io/multica-ai/multica-web` | Web image repository |
 
 ## Daemon configuration
 
