@@ -9,8 +9,16 @@
  *
  * Item set (conditional, mirrors web's comment context menu):
  *   Reply (stub) · React… (opens nested sheet) · Copy · Select Text ·
- *   Copy Link · Resolve/Unresolve Thread (root only) · Delete (own only) ·
- *   Cancel
+ *   Copy Link · Create Sub-issue (ordinary comments only) ·
+ *   Resolve/Unresolve Thread (root only) · Delete (own only) · Cancel
+ *
+ * Retrying a failed agent run is NOT here — web renders it as an always-
+ * visible inline button under a retryable system comment's body
+ * (`TaskCommentRetryButton`,
+ * packages/views/issues/components/comment-card.tsx:251-302), not a menu
+ * item, because a failed run needs to be obvious without a discovery step.
+ * Mobile mirrors that placement in comment-card.tsx's `CommentBody`
+ * instead of adding it here.
  *
  * The nested React… sheet (5 quick emojis + More reactions… + Cancel) is
  * fired from INSIDE the outer sheet's completion callback rather than
@@ -34,6 +42,7 @@ import {
   useToggleCommentReaction,
 } from "@/data/mutations/issues";
 import { QUICK_EMOJIS } from "@/lib/quick-emojis";
+import { canCreateSubIssueFromComment } from "@/lib/comment-actions";
 
 const QUICK_ROW_SIZE = 5;
 
@@ -68,6 +77,7 @@ export function useCommentLongPress(
       | { kind: "copy" }
       | { kind: "select" }
       | { kind: "copyLink" }
+      | { kind: "subIssue" }
       | { kind: "resolve" }
       | { kind: "delete" }
       | { kind: "cancel" };
@@ -86,6 +96,11 @@ export function useCommentLongPress(
       push("Select Text", { kind: "select" });
     }
     if (canCopyLink) push("Copy Link", { kind: "copyLink" });
+    // Web parity: onCreateSubIssue && entry.comment_type === "comment"
+    // (packages/views/issues/components/comment-card.tsx:701, 1052).
+    if (canCreateSubIssueFromComment(entry) && wsSlug) {
+      push("Create Sub-issue", { kind: "subIssue" });
+    }
     if (isRoot) {
       push(resolved ? "Unresolve Thread" : "Resolve Thread", {
         kind: "resolve",
@@ -166,6 +181,19 @@ export function useCommentLongPress(
             Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Success,
             ).catch(() => {});
+            return;
+          }
+          case "subIssue": {
+            if (!wsSlug) return;
+            router.push({
+              pathname:
+                "/[workspace]/issue/[id]/comment/[commentId]/new-sub-issue",
+              params: {
+                workspace: wsSlug,
+                id: issueId,
+                commentId: entry.id,
+              },
+            });
             return;
           }
           case "resolve":

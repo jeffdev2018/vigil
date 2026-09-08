@@ -23,7 +23,7 @@
  * user keeps the "this thread is resolved" signal even while reading.
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, View } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -43,6 +43,7 @@ import { CommentAttachmentList } from "@/components/issue/comment-attachment-lis
 import {
   discardFailedComment,
   useCreateComment,
+  useRerunIssueTask,
   useToggleCommentReaction,
 } from "@/data/mutations/issues";
 import { useAuthStore } from "@/data/auth-store";
@@ -55,6 +56,8 @@ import { cn } from "@/lib/utils";
 import { ReactionBar } from "./reaction-bar";
 import { useCommentLongPress } from "./comment-context-menu";
 import { useCommentSelectStore } from "@/data/comment-select-store";
+import { retryableAgentFailureComment } from "@/lib/comment-actions";
+import { dispatchReasonCode } from "@/lib/dispatch-reason";
 
 interface Props {
   entry: TimelineEntry;
@@ -509,6 +512,9 @@ function CommentBody({
         attachments={entry.attachments}
         content={entry.content}
       />
+      {retryableAgentFailureComment(entry) ? (
+        <RetryRunButton issueId={issueId} taskId={entry.source_task_id} />
+      ) : null}
       {failed ? (
         <FailedActions
           error={failed.error}
@@ -530,6 +536,65 @@ function CommentBody({
   return (
     <Pressable onLongPress={longPress.onLongPress} delayLongPress={500}>
       {body}
+    </Pressable>
+  );
+}
+
+/**
+ * Web parity: `TaskCommentRetryButton`
+ * (packages/views/issues/components/comment-card.tsx:251-302) — an
+ * always-visible inline button under a system comment reporting a failed
+ * agent run, so retrying doesn't need the long-press menu as a discovery
+ * step (see comment-context-menu.tsx header for why it's NOT a menu item).
+ *
+ * No toast system on mobile (see FailedActions below) — a permission
+ * rejection (`invocation_not_allowed`, MUL-4525: the session was created
+ * while the user could run the agent and the server now refuses) gets its
+ * own Alert copy so it doesn't read as a transient failure to retry again;
+ * every other error falls back to a generic message.
+ */
+function RetryRunButton({
+  issueId,
+  taskId,
+}: {
+  issueId: string;
+  taskId: string;
+}) {
+  const rerun = useRerunIssueTask(issueId);
+  const { colorScheme } = useColorScheme();
+  const primary = THEME[colorScheme].primary;
+
+  const handleRetry = useCallback(() => {
+    if (rerun.isPending) return;
+    rerun.mutate(taskId, {
+      onError: (err) => {
+        Alert.alert(
+          "Retry failed",
+          dispatchReasonCode(err) === "invocation_not_allowed"
+            ? "You no longer have permission to run this agent, so the run was not retried."
+            : err instanceof Error
+              ? err.message
+              : "Couldn't retry this run. Please try again.",
+        );
+      },
+    });
+  }, [rerun, taskId]);
+
+  return (
+    <Pressable
+      onPress={handleRetry}
+      disabled={rerun.isPending}
+      hitSlop={6}
+      accessibilityRole="button"
+      accessibilityLabel="Retry run"
+      className="flex-row items-center gap-1.5 self-start mt-0.5"
+    >
+      {rerun.isPending ? (
+        <ActivityIndicator size="small" color={primary} />
+      ) : (
+        <Ionicons name="refresh" size={14} color={primary} />
+      )}
+      <Text className="text-xs text-primary font-medium">Retry Run</Text>
     </Pressable>
   );
 }
