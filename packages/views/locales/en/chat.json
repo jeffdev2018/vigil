@@ -258,7 +258,10 @@
     "error_not_configured": "Transcription is not configured on this server.",
     "error_failed": "The recording could not be transcribed.",
     "listen": "Listen",
-    "stop_listening": "Stop listening"
+    "stop_listening": "Stop listening",
+    "conversation_start": "Conversation mode",
+    "conversation_stop": "End conversation",
+    "conversation_transcribing": "Transcribing…"
   },
   "participants": {
     "add": "Add member",

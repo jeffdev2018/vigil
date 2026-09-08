@@ -19,7 +19,7 @@ import {
 } from "../../editor/use-coordinated-uploads";
 import { SubmitButton } from "@multica/ui/components/common/submit-button";
 import { ChatAddMenu } from "./chat-add-menu";
-import { VoiceMemoButton } from "../../voice";
+import { VoiceConversationButton, VoiceMemoButton } from "../../voice";
 import { useConfigStore } from "@multica/core/config";
 import { useVoiceStore } from "@multica/core/voice/store";
 import { CHAT_COLUMN, CHAT_GUTTER } from "./chat-column";
@@ -754,6 +754,23 @@ export function ChatInput({
                 projectId={projectId}
                 onSelectProject={projectSelectionEnabled ? onProjectChange : undefined}
                 projectContextUnsupported={projectContextUnsupported}
+              />
+            )}
+            {voiceEnabled && (
+              <VoiceConversationButton
+                disabled={!!disabled || !!noAgent}
+                onUtterance={(text) => {
+                  // A conversation turn sends itself: drop the text into the
+                  // draft then submit, so the normal send path — including the
+                  // dictated-reply arm that reads the answer back aloud — runs.
+                  const key = editorDraftKeyRef.current;
+                  const current = useChatStore.getState().inputDrafts[key] ?? "";
+                  const joined = current.trim() ? `${current.replace(/\s+$/, "")} ${text}` : text;
+                  commitDraft(key, joined);
+                  setIsEmpty(false);
+                  useVoiceStore.getState().markDictated();
+                  void submit();
+                }}
               />
             )}
             {voiceEnabled && (
