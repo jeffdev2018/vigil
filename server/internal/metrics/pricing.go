@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -255,4 +256,26 @@ func tokenCostUSD(tokens int64, pricePerM float64) float64 {
 		return 0
 	}
 	return float64(tokens) * pricePerM / 1_000_000
+}
+
+// EstimateTokenUsageUSD prices adapter-reported tokens against the Multica
+// catalog. It is an estimate, not a provider invoice. ok is false when the
+// model is unmapped or token counts are invalid.
+func EstimateTokenUsageUSD(model string, input, output, cacheRead, cacheWrite int64) (float64, bool) {
+	if input < 0 || output < 0 || cacheRead < 0 || cacheWrite < 0 {
+		return 0, false
+	}
+	price, ok := PriceForModelAlias(model)
+	if !ok {
+		return 0, false
+	}
+	total := tokenCostUSD(input, price.InputPerM) +
+		tokenCostUSD(output, price.OutputPerM) +
+		tokenCostUSD(cacheRead, price.CacheReadPerM) +
+		tokenCostUSD(cacheWrite, price.CacheWritePerM)
+	rounded, err := strconv.ParseFloat(strconv.FormatFloat(total, 'f', 10, 64), 64)
+	if err != nil {
+		return 0, false
+	}
+	return rounded, true
 }

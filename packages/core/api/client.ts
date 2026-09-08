@@ -1,5 +1,22 @@
 import { z } from "zod";
 import { configStore } from "../config";
+import type { ProjectMemory, ProjectMemoryUsage } from "../types/project";
+import type { ReviewDeliveryInput } from "../issues/delivery";
+import {
+  IssueDeliverySchema,
+  DeliveryReviewSchema,
+  DeliveryHistorySchema,
+  type DeliveryHistory,
+  DeliveryCriteriaSchema,
+  DeliveryCorrectionSchema,
+  type IssueDelivery,
+  type DeliveryReview,
+  type DeliveryCorrection,
+  ProjectMemorySchema,
+  ProjectMemoryHistorySchema,
+  ProjectMemoryUsageSchema,
+  EMPTY_PROJECT_MEMORY,
+} from "./schemas";
 import type {
   Issue,
   IssuePriority,
@@ -62,6 +79,11 @@ import type {
   AgentMemory,
   AgentMemoryList,
   AgentMemoryState,
+  AgentMemoryHistory,
+  AgentMemoryEvaluation,
+  AgentMemoryUsage,
+  MemoryExecutionConfig,
+  MemoryExecutionRequest,
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
@@ -826,6 +848,11 @@ import {
   type CreateIssueViewRequest,
   AgentMemorySchema,
   AgentMemoryListSchema,
+  AgentMemoryHistorySchema,
+  AgentMemoryEvaluationSchema,
+  AgentMemoryEvaluationListSchema,
+  AgentMemoryUsageSchema,
+  MemoryExecutionConfigSchema,
   EMPTY_AGENT_MEMORY,
   EMPTY_AGENT_MEMORY_LIST,
   TaskActivityResponseSchema,
@@ -4143,6 +4170,13 @@ export class ApiClient {
   // breaking the agent page; writes validate too so the caller never caches an
   // unparsed blob. POST returns 409 when the per-agent cap is reached — that
   // surfaces as an ApiError the tab toasts.
+  async getAgentMemoryUsage(agentId: string): Promise<AgentMemoryUsage> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/usage`);
+    const parsed = parseWithFallback<AgentMemoryUsage | null>(raw, AgentMemoryUsageSchema, null, { endpoint: "GET /api/agents/{agentId}/memories/usage" });
+    if (!parsed) throw new Error("Invalid agent memory usage response");
+    return parsed;
+  }
+
   async listAgentMemories(agentId: string): Promise<AgentMemoryList> {
     const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`);
     return parseWithFallback(
@@ -4153,37 +4187,94 @@ export class ApiClient {
     );
   }
 
-  async createAgentMemory(agentId: string, content: string): Promise<AgentMemory> {
+  async createAgentMemory(agentId: string, content: string, sourceTaskId?: string, expiresAt?: string | null, sourceReviewId?: string): Promise<AgentMemory> {
     const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories`, {
       method: "POST",
-      body: JSON.stringify({ content }),
+      body: JSON.stringify({ content, source_task_id: sourceTaskId, expires_at: expiresAt, source_review_id: sourceReviewId }),
     });
-    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+    const saved = parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
       endpoint: "POST /api/agents/{agentId}/memories",
     });
+    if (!saved.id || saved.agent_id !== agentId) throw new Error("Invalid agent memory response");
+    if (sourceReviewId !== undefined && (saved.source_review?.review_id !== sourceReviewId || saved.source_task_id !== saved.source_review?.task_id || !["pending", "active", "rejected"].includes(saved.status ?? ""))) throw new Error("Invalid correction memory response");
+    return saved;
   }
 
   async updateAgentMemory(
     agentId: string,
     memoryId: string,
-    patch: { content?: string; state?: AgentMemoryState },
+    changes: { content?: string; state?: AgentMemoryState; status?: "pending" | "active" | "rejected"; expected_revision?: number; expires_at?: string | null; restore_revision?: number; evaluation_id?: string },
   ): Promise<AgentMemory> {
     const raw = await this.fetch<unknown>(
       `/api/agents/${agentId}/memories/${memoryId}`,
       {
         method: "PUT",
-        body: JSON.stringify(patch),
+        body: JSON.stringify(changes),
       },
     );
-    return parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
+    const saved = parseWithFallback(raw, AgentMemorySchema, EMPTY_AGENT_MEMORY, {
       endpoint: "PUT /api/agents/{agentId}/memories/{memoryId}",
     });
+    if (saved.id !== memoryId || saved.agent_id !== agentId) throw new Error("Invalid agent memory response");
+    if (changes.restore_revision !== undefined && (saved.revision !== (changes.expected_revision ?? 0) + 1 || !saved.content.trim() || !["active", "pending", "rejected"].includes(saved.status ?? ""))) throw new Error("Invalid restored memory response");
+    return saved;
+  }
+
+  async getAgentMemoryHistory(agentId: string, memoryId: string, beforeRevision?: number): Promise<AgentMemoryHistory> {
+    const suffix = beforeRevision === undefined ? "" : `?before_revision=${beforeRevision}`;
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/history${suffix}`);
+    const parsed = parseWithFallback<AgentMemoryHistory | null>(raw, AgentMemoryHistorySchema, null, { endpoint: "GET /api/agents/{agentId}/memories/{memoryId}/history" });
+    if (!parsed || parsed.versions.some((version) => version.id !== memoryId || version.agent_id !== agentId)) throw new Error("Invalid agent memory history response");
+    return parsed;
   }
 
   async deleteAgentMemory(agentId: string, memoryId: string): Promise<void> {
     await this.fetch(`/api/agents/${agentId}/memories/${memoryId}`, {
       method: "DELETE",
     });
+  }
+
+  async listAgentMemoryEvaluations(agentId: string, memoryId: string): Promise<AgentMemoryEvaluation[]> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/evaluations`);
+    const parsed = parseWithFallback<AgentMemoryEvaluation[] | null>(raw, AgentMemoryEvaluationListSchema, null, { endpoint: "GET /api/agents/{id}/memories/{memoryId}/evaluations" });
+    if (!parsed || parsed.some((item) => item.memory_id !== memoryId)) throw new Error("Invalid memory evaluations response");
+    return parsed;
+  }
+
+  async getAgentMemoryEvaluation(agentId: string, memoryId: string, evaluationId: string): Promise<AgentMemoryEvaluation> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/evaluations/${evaluationId}`);
+    const parsed = parseWithFallback<AgentMemoryEvaluation | null>(raw, AgentMemoryEvaluationSchema, null, { endpoint: "GET /api/agents/{id}/memories/{memoryId}/evaluations/{evaluationId}" });
+    if (!parsed || parsed.id !== evaluationId || parsed.memory_id !== memoryId || !parsed.report) throw new Error("Invalid memory evaluation response");
+    return parsed;
+  }
+
+  async importAgentMemoryEvaluation(agentId: string, memoryId: string, report: unknown): Promise<AgentMemoryEvaluation> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/evaluations`, { method: "POST", body: JSON.stringify(report) });
+    const parsed = parseWithFallback<AgentMemoryEvaluation | null>(raw, AgentMemoryEvaluationSchema, null, { endpoint: "POST /api/agents/{id}/memories/{memoryId}/evaluations" });
+    if (!parsed || parsed.memory_id !== memoryId) throw new Error("Invalid imported evaluation response");
+    return parsed;
+  }
+
+  async getMemoryExecutionConfig(agentId: string, memoryId: string): Promise<MemoryExecutionConfig> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/evaluations/runtime`);
+    const parsed = parseWithFallback<MemoryExecutionConfig | null>(raw, MemoryExecutionConfigSchema, null, { endpoint: "GET memory evaluation runtime" });
+    if (!parsed) throw new Error("Invalid evaluation runtime response");
+    return parsed;
+  }
+
+  async startMemoryExecution(agentId: string, memoryId: string, request: MemoryExecutionRequest): Promise<AgentMemoryEvaluation> {
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/memories/${memoryId}/evaluations/run`, { method: "POST", body: JSON.stringify(request) });
+    const parsed = parseWithFallback<AgentMemoryEvaluation | null>(raw, AgentMemoryEvaluationSchema, null, { endpoint: "POST memory evaluation run" });
+    if (!parsed || parsed.memory_id !== memoryId) throw new Error("Invalid evaluation launch response");
+    return parsed;
+  }
+
+  async cancelMemoryExecution(agentId: string, memoryId: string, evaluationId: string): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/memories/${memoryId}/evaluations/${evaluationId}/cancel`, { method: "POST" });
+  }
+
+  async deleteAgentMemoryEvaluation(agentId: string, memoryId: string, evaluationId: string): Promise<void> {
+    await this.fetch(`/api/agents/${agentId}/memories/${memoryId}/evaluations/${evaluationId}`, { method: "DELETE" });
   }
 
   // Workspace-scoped agent task snapshot: every active task
@@ -6937,6 +7028,100 @@ export class ApiClient {
   }
 
   // Project resources
+  async getIssueDelivery(id: string): Promise<IssueDelivery | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery`);
+    return parseWithFallback<IssueDelivery | null>(raw, IssueDeliverySchema, null, { endpoint: "GET /api/issues/:id/delivery" });
+  }
+
+  async updateIssueDeliveryCriteria(id: string, criteria: string[], expectedRevision: number) {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/criteria`, {
+      method: "PUT", body: JSON.stringify({ criteria, expected_revision: expectedRevision }),
+    });
+    return parseWithFallback<{ criteria: string[]; revision: number } | null>(raw, DeliveryCriteriaSchema, null, { endpoint: "PUT /api/issues/:id/delivery/criteria" });
+  }
+
+  async reviewIssueDelivery(id: string, input: ReviewDeliveryInput): Promise<DeliveryReview | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/reviews`, {
+      method: "POST", body: JSON.stringify({ review_id: input.reviewId, expected_review_id: input.expectedReviewId,
+        snapshot_token: input.snapshotToken, decision: input.decision, feedback: input.feedback, assessments: input.assessments,
+        ...(input.humanEffortSeconds != null ? { human_effort_seconds: input.humanEffortSeconds } : {}) }),
+    });
+    return parseWithFallback<DeliveryReview | null>(raw, DeliveryReviewSchema, null, { endpoint: "POST /api/issues/:id/delivery/reviews" });
+  }
+
+  async getIssueDeliveryHistory(id: string, beforeId?: string): Promise<DeliveryHistory | null> {
+    const suffix = beforeId ? `?before_id=${encodeURIComponent(beforeId)}` : "";
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/reviews${suffix}`);
+    return parseWithFallback<DeliveryHistory | null>(raw, DeliveryHistorySchema, null, { endpoint: "GET /api/issues/:id/delivery/reviews" });
+  }
+
+  async startIssueDeliveryCorrection(id: string, reviewId: string): Promise<DeliveryCorrection | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/correction`, {
+      method: "POST", body: JSON.stringify({ review_id: reviewId }),
+    });
+    return parseWithFallback<DeliveryCorrection | null>(raw, DeliveryCorrectionSchema.refine((receipt) => receipt.reviewId === reviewId), null, { endpoint: "POST /api/issues/:id/delivery/correction" });
+  }
+
+  async getProjectMemory(id: string): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${id}/memory`);
+    return parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, {
+      endpoint: "GET /api/projects/{id}/memory",
+    });
+  }
+
+  async updateProjectMemory(
+    id: string,
+    rules: string[],
+    expectedRevision: number,
+    expiresAt?: string | null,
+    sourceReviewId?: string,
+  ): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${id}/memory`, {
+      method: "PUT",
+      body: JSON.stringify({
+        rules,
+        expected_revision: expectedRevision,
+        expires_at: expiresAt,
+        ...(sourceReviewId ? { source_review_id: sourceReviewId } : {}),
+      }),
+    });
+    const saved = parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, {
+      endpoint: "PUT /api/projects/{id}/memory",
+    });
+    if (
+      sourceReviewId !== undefined &&
+      (saved.source_review?.review_id !== sourceReviewId || saved.revision < 0)
+    ) {
+      throw new Error("Invalid project memory correction response");
+    }
+    return saved;
+  }
+
+  async getProjectMemoryHistory(id: string, beforeRevision?: number) {
+    const suffix = beforeRevision === undefined ? "" : `?before_revision=${beforeRevision}`;
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory/history${suffix}`);
+    const parsed = ProjectMemoryHistorySchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Invalid project memory history");
+    return parsed.data;
+  }
+
+  // Unreadable usage must be an error, never an empty prepared-context claim.
+  async getProjectMemoryUsage(id: string): Promise<ProjectMemoryUsage> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory/usage`);
+    const parsed = parseWithFallback<ProjectMemoryUsage | null>(raw, ProjectMemoryUsageSchema, null, {
+      endpoint: "GET /api/projects/{id}/memory/usage",
+    });
+    if (!parsed) throw new Error("Invalid project memory usage response");
+    return parsed;
+  }
+
+  async restoreProjectMemory(id: string, restoreRevision: number, expectedRevision: number): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory`, {
+      method: "PUT", body: JSON.stringify({ restore_revision: restoreRevision, expected_revision: expectedRevision }),
+    });
+    return parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, { endpoint: "PUT /api/projects/{id}/memory" });
+  }
+
   async listProjectResources(
     projectId: string,
   ): Promise<ListProjectResourcesResponse> {

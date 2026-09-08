@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	agentpkg "github.com/multica-ai/multica/server/pkg/agent"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
@@ -972,11 +973,12 @@ func parseUUIDLoose(s string) (pgtype.UUID, error) {
 // execenv materializes into .multica/project/resources.json, and the repo list
 // `multica repo checkout` reads.
 type claimProjectContext struct {
-	ProjectID   string
-	Title       string
-	Description string
-	Resources   []ProjectResourceData
-	Repos       []RepoData
+	MemoryVersion *service.MemoryVersion
+	ProjectID     string
+	Title         string
+	Description   string
+	Resources     []ProjectResourceData
+	Repos         []RepoData
 }
 
 // applyTo copies the resolved context onto a claim response. Callers assign the
@@ -986,6 +988,9 @@ func (c claimProjectContext) applyTo(resp *AgentTaskResponse) {
 	resp.ProjectID = c.ProjectID
 	resp.ProjectTitle = c.Title
 	resp.ProjectDescription = c.Description
+	if resp.MemoryContext != nil {
+		resp.MemoryContext.ProjectVersion = c.MemoryVersion
+	}
 	if len(c.Resources) > 0 {
 		resp.ProjectResources = c.Resources
 	}
@@ -1027,7 +1032,10 @@ func (h *Handler) resolveClaimProjectContext(ctx context.Context, projectID, wor
 		case err == nil:
 			out.ProjectID = uuidToString(project.ID)
 			out.Title = project.Title
-			out.Description = project.Description.String
+			out.Description, out.MemoryVersion, err = projectDescriptionWithMemory(project)
+			if err != nil {
+				return claimProjectContext{}, err
+			}
 
 			rows, resErr := h.Queries.ListProjectResourcesInWorkspace(ctx, db.ListProjectResourcesInWorkspaceParams{
 				ProjectID:   project.ID,

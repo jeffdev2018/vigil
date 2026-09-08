@@ -92,6 +92,7 @@ import { ThreadMinimap, type ThreadMinimapThread } from "./thread-minimap";
 import { collectThreadParticipants, collectThreadReplies, deriveThreadResolution } from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
+import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { RunSecretsSection } from "./run-secrets-section";
@@ -3407,6 +3408,21 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               </IssueContextMenuProvider>
             );
           })()}
+
+          <IssueDeliverySection
+            key={id}
+            wsId={wsId}
+            issueId={id}
+            identifier={issue.identifier}
+            getActorName={getActorName}
+            boardStatusIsReview={issueBehavesAs(issue, "in_review")}
+            canProposeDone={!issueBehavesAsAny(issue, ["done", "cancelled"])}
+            projectId={issue.project_id}
+            onMarkDone={() => {
+              handleUpdateField({ status: "done" });
+              onDone?.();
+            }}
+          />
 
           <div className="my-8 border-t" />
 
