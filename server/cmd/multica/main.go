@@ -52,6 +52,12 @@ func init() {
 	agentCmd.GroupID = groupCore
 	autopilotCmd.GroupID = groupCore
 	triageCmd.GroupID = groupCore
+	brainCmd.GroupID = groupCore
+	wikiCmd.GroupID = groupCore
+	criteriaCmd.GroupID = groupCore
+	decisionCmd.GroupID = groupCore
+	interviewCmd.GroupID = groupCore
+	reviewCmd.GroupID = groupCore
 	workspaceCmd.GroupID = groupCore
 	repoCmd.GroupID = groupCore
 	skillCmd.GroupID = groupCore
