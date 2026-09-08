@@ -877,3 +877,129 @@ func TestNativeAgentToolResultsFenceRecords(t *testing.T) {
 
 // callNativeToolRead is the test seam for read-only tools (they cannot fail
 // the run; the switch above routes writes separately).
+
+// N02 — the brief budget. A giant issue document must not burn the model's
+// context before the first turn: the whole brief is bounded, the description
+// keeps head AND tail with an honest truncation marker, comments are taken
+// newest-first into the remaining budget with an honest omission count, and
+// a small brief stays byte-identical (no gratuitous truncation).
+func TestNativeAgentBriefBudget(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+
+	// A 40 KB document with recognizable ends.
+	head := strings.Repeat("A", 40*1024)
+	tail := strings.Repeat("Z", 40*1024)
+	issueID := fx.Issue(t, "Giant doc", testutil.Cols{"description": head + tail})
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	taskRow, err := db.New(pool).GetAgentTask(ctx, util.MustParseUUID(taskID))
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, &scriptedNativeLLM{}, events.New())
+
+	brief, _, err := svc.nativeBriefForTask(ctx, taskRow, agent)
+	if err != nil {
+		t.Fatalf("brief: %v", err)
+	}
+	if len(brief) > nativeBriefBudget {
+		t.Fatalf("brief = %d bytes, want <= %d", len(brief), nativeBriefBudget)
+	}
+	if !strings.Contains(brief, strings.Repeat("A", 100)) || !strings.Contains(brief, strings.Repeat("Z", 100)) {
+		t.Fatal("brief lost the description's head or tail")
+	}
+	if !strings.Contains(brief, "middle truncated") {
+		t.Fatal("truncation is not announced honestly")
+	}
+	// Fences stay balanced after clamping.
+	open, close := nativeFencePattern()
+	if strings.Count(brief, open) != strings.Count(brief, close) {
+		t.Fatalf("unbalanced fences after clamping: %d open vs %d close", strings.Count(brief, open), strings.Count(brief, close))
+	}
+}
+
+// Many comments: the newest ones win the budget, the omitted count is stated,
+// and the brief still fits.
+func TestNativeAgentBriefCommentBudget(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Busy thread")
+	for i := 0; i < nativeBriefComments; i++ {
+		fx.Comment(t, issueID, fmt.Sprintf("comment-%02d: %s", i, strings.Repeat("c", 1200)))
+	}
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	taskRow, err := db.New(pool).GetAgentTask(ctx, util.MustParseUUID(taskID))
+	if err != nil {
+		t.Fatalf("get task: %v", err)
+	}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, &scriptedNativeLLM{}, events.New())
+
+	brief, _, err := svc.nativeBriefForTask(ctx, taskRow, agent)
+	if err != nil {
+		t.Fatalf("brief: %v", err)
+	}
+	if len(brief) > nativeBriefBudget {
+		t.Fatalf("brief = %d bytes, want <= %d", len(brief), nativeBriefBudget)
+	}
+	// The NEWEST comment survives; the OLDEST of the window is the first
+	// casualty once the budget is spent.
+	if !strings.Contains(brief, fmt.Sprintf("comment-%02d", nativeBriefComments-1)) {
+		t.Fatal("the newest comment did not make it into the brief")
+	}
+	if !strings.Contains(brief, "not included") {
+		t.Fatal("omitted comments are not announced")
+	}
+}
+
+// The small brief must not grow or change shape because a budget exists.
+func TestNativeHeadTailKeepsShortRecords(t *testing.T) {
+	if got := nativeHeadTail("short", nativeBriefDescriptionCap); got != "short" {
+		t.Fatalf("short record altered: %q", got)
+	}
+	long := strings.Repeat("x", nativeBriefDescriptionCap+1000)
+	got := nativeHeadTail(long, nativeBriefDescriptionCap)
+	if len(got) > nativeBriefDescriptionCap+200 {
+		t.Fatalf("head+tail result = %d, want ~cap", len(got))
+	}
+	if !strings.Contains(got, "middle truncated") {
+		t.Fatal("marker missing on a genuinely truncated record")
+	}
+}
