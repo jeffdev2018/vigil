@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { DndContext, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { AlertTriangle, GripVertical, Plus, Undo2 } from "lucide-react";
 import { orgMermaid } from "@multica/core/org";
@@ -237,6 +237,9 @@ export interface OrgCanvasProps {
   onChange: (next: OrgDefinition) => void;
   undoDepth: number;
   onUndo: () => void;
+  /** Selection is the page's, so a sibling panel can point at a unit. */
+  selectedUnitId: string | null;
+  onSelectUnit: (unitId: string | null) => void;
 }
 
 /**
@@ -257,9 +260,10 @@ export function OrgCanvas({
   onChange,
   undoDepth,
   onUndo,
+  selectedUnitId,
+  onSelectUnit,
 }: OrgCanvasProps) {
   const { t } = useT("org");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -271,7 +275,7 @@ export function OrgCanvas({
     (type === "agent" ? agentById.get(id)?.avatar_url : memberName.get(id)?.avatar_url) ?? null;
 
   const layout = useMemo(() => orgLayout(definition), [definition]);
-  const selected = definition.units.find((u) => u.id === selectedId) ?? null;
+  const selected = definition.units.find((u) => u.id === selectedUnitId) ?? null;
   const drawn = LAID_OUT.includes(model);
 
   const onDragEnd = (e: DragEndEvent) => {
@@ -303,7 +307,7 @@ export function OrgCanvas({
   const create = () => {
     const { def, id } = addUnit(definition, t(($) => $.canvas.new_unit_name));
     onChange(def);
-    setSelectedId(id);
+    onSelectUnit(id);
   };
 
   return (
@@ -364,12 +368,12 @@ export function OrgCanvas({
                         unit={unit}
                         model={orgEffectiveModel(definition, unit.id, model)}
                         paused={pausedUnits.includes(unit.id)}
-                        selected={selectedId === unit.id}
+                        selected={selectedUnitId === unit.id}
                         problems={orgProblemsForUnit(problems, unit.id)}
                         actorName={actorName}
                         actorAvatar={actorAvatar}
                         readOnly={readOnly}
-                        onSelect={() => setSelectedId(unit.id)}
+                        onSelect={() => onSelectUnit(unit.id)}
                         onKeyDown={onCardKeyDown(unit.id)}
                       />
                     </div>
@@ -398,9 +402,9 @@ export function OrgCanvas({
             onMoveMember={(index, toUnitId) => onChange(moveMember(definition, selected.id, index, toUnitId))}
             onDelete={() => {
               onChange(removeUnit(definition, selected.id));
-              setSelectedId(null);
+              onSelectUnit(null);
             }}
-            onClose={() => setSelectedId(null)}
+            onClose={() => onSelectUnit(null)}
           />
         )}
       </div>

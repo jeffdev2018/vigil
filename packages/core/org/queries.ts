@@ -1,6 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { OrgDefinition, OrgModel, OrgStructure, OrgWriteRequest } from "../types";
+import type { OrgDefinition, OrgModel, OrgSimulation, OrgSimulationRequest, OrgStructure, OrgWriteRequest } from "../types";
 import { issueKeys } from "../issues/queries";
 
 // Executable org chart (K75): structures, templates, health, offers.
@@ -67,6 +67,15 @@ export function useSetOrgStructureStatus(wsId: string) {
 
 export function useDeleteOrgStructure(wsId: string) {
   return useOrgMutation(wsId, (id: string) => api.deleteOrgStructure(id));
+}
+
+/**
+ * "Where would this request go?" — POST /api/org/simulate against the
+ * definition on screen. It writes nothing, so there is nothing to invalidate
+ * and nothing to cache: each run answers about the text the user just typed.
+ */
+export function useSimulateOrg() {
+  return useMutation<OrgSimulation, Error, OrgSimulationRequest>({ mutationFn: (v) => api.simulateOrg(v) });
 }
 
 export function useEscalateIssue(wsId: string) {
