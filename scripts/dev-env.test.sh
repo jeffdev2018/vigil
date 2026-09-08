@@ -229,4 +229,36 @@ printf 'n\n' | dev_env destroy orphan-902 > "$out" 2>&1 || fail "declining destr
 require_contains "$out" "Cancelled."
 [ -d "$MULTICA_DEV_HOME/envs/orphan-902" ] || fail "declined destroy removed the environment anyway"
 
+# ---------------------------------------------------------------------------
+# Ownership helpers: Next's listener often has a different PGID than `make`,
+# so belonging must follow the process tree, not only process group.
+# ---------------------------------------------------------------------------
+helper_src="$tmp_dir/ownership-helpers.sh"
+sed -n '/^process_group_id()/,/^health_belongs_to_api()/p' "$root_dir/scripts/dev-env.sh" \
+  | sed '$d' > "$helper_src"
+cat >> "$helper_src" <<EOF
+component_pid() { [ -n "\${STUB_LAUNCHER:-}" ] && printf '%s\\n' "\$STUB_LAUNCHER"; }
+port_listener_pid() { [ -n "\${STUB_LISTENER:-}" ] && printf '%s\\n' "\$STUB_LISTENER"; }
+listener_pid_file() { printf '%s/missing.listener.pid' $(printf '%q' "$tmp_dir"); }
+EOF
+# shellcheck source=/dev/null
+source "$helper_src"
+
+( sleep 30 ) &
+child_pid=$!
+process_is_descendant_of "$child_pid" "$$" \
+  || fail "process_is_descendant_of must accept a direct child"
+process_is_descendant_of "$$" "$child_pid" \
+  && fail "process_is_descendant_of must reject an ancestor as descendant"
+kill "$child_pid" 2>/dev/null || true
+wait "$child_pid" 2>/dev/null || true
+
+STUB_LAUNCHER=$$
+( sleep 30 ) &
+STUB_LISTENER=$!
+listener_belongs_to_component web 1 \
+  || fail "listener_belongs_to_component must accept a descendant listener"
+kill "$STUB_LISTENER" 2>/dev/null || true
+wait "$STUB_LISTENER" 2>/dev/null || true
+
 echo "✓ dev-env.sh registry behaviour verified"

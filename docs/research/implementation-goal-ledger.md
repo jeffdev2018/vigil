@@ -21,7 +21,7 @@ Objectif utilisateur : terminer les améliorations, la mémoire et les fonctionn
 | Activité ≠ livraison ≠ réussite | Partiel vérifié | Acceptation des preuves distinctes ; délai fin→revue + **effort auto-chronométré** web/desktop/mobile ; reste revue globale |
 | Progression projet | Vérifié pour le renommage | « Scope closed », explication terminé+annulé, tests déjà passés ; revue globale finale |
 | Surfaces orientées décision, dont mobile | Partiel : décisions + livraison mobile v1.5 | Inbox Décisions + accept/corriger sur fiche ; checklist [mobile-delivery-smoke-checklist-2026-09-07.md](mobile-delivery-smoke-checklist-2026-09-07.md) ; tests mobile delivery 6/6 + capture honesty 390px ; **simu iOS bloquée** (pas de Xcode/`simctl`) — [mobile-delivery-smoke-pilot-2026-09-07.md](mobile-delivery-smoke-pilot-2026-09-07.md) |
-| Qualité et intégration globales | Partiel vérifié (build + smoke PW) | `pnpm build` 5/5 ; Playwright auth+nav+onboarding **10/10** via `127.0.0.1` + CORS dual ([quality-build-playwright-2026-09-07.md](quality-build-playwright-2026-09-07.md)) ; `make up C=web` ownership encore fragile |
+| Qualité et intégration globales | Partiel vérifié (build + smoke PW) | `pnpm build` 5/5 ; Playwright auth+nav+onboarding **10/10** via `127.0.0.1` + CORS dual ([quality-build-playwright-2026-09-07.md](quality-build-playwright-2026-09-07.md)) ; ownership `make up C=web` stabilisé (descendant + `web.listener.pid`) |
 | Recherche de LA killer feature | En cours (dogfood #1 nommé ; sim ≠ preuve) | Outreach autorisé ; équipe #1 = dogfood Jeff/vigil-482 ([killer-feature-team1-dogfood-2026-09-07.md](killer-feature-team1-dogfood-2026-09-07.md)) — **hors** seuil ≥2 équipes ; Northline sim séparée ; reste contact externe joignable |
 
 ## Ordre de travail
