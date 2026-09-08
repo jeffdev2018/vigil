@@ -121,3 +121,42 @@ func TestAllowedCommandsProducesNoProviderRule(t *testing.T) {
 		t.Error("read_only must still reach Codex")
 	}
 }
+
+// HidesSecretNamed separates "withhold the workspace's secrets" from "withhold
+// this variable". Only the second may stop the run's own model credential from
+// being delivered: a profile whose HiddenSecrets is "*" that also withheld the
+// key paying for the run would not be restrictive, it would be broken.
+func TestHidesSecretNamed(t *testing.T) {
+	blanket := Profile{Name: "read_only", HiddenSecrets: []string{"*"}}
+	if !blanket.HidesSecret("ANTHROPIC_API_KEY") {
+		t.Fatal("the blanket glob still hides workspace secrets")
+	}
+	if blanket.HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error(`"*" says nothing about this variable in particular`)
+	}
+
+	named := Profile{Name: "gateway", HiddenSecrets: []string{"ANTHROPIC_API_KEY"}}
+	if !named.HidesSecretNamed("anthropic_api_key") {
+		t.Error("naming the variable is an instruction about it, case aside")
+	}
+
+	pattern := Profile{Name: "no-keys", HiddenSecrets: []string{"*_API_KEY"}}
+	if !pattern.HidesSecretNamed("OPENAI_API_KEY") {
+		t.Error("a pattern that says something about API keys is deliberate too")
+	}
+	if pattern.HidesSecretNamed("DATABASE_URL") {
+		t.Error("a pattern that does not match must not withhold")
+	}
+
+	mixed := Profile{Name: "mixed", HiddenSecrets: []string{"*", "*_TOKEN"}}
+	if mixed.HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error("the blanket is ignored and the other pattern does not match")
+	}
+	if !mixed.HidesSecretNamed("GITHUB_TOKEN") {
+		t.Error("a deliberate pattern beside the blanket still counts")
+	}
+
+	if (Profile{Name: "open"}).HidesSecretNamed("ANTHROPIC_API_KEY") {
+		t.Error("no hidden secrets, nothing named")
+	}
+}

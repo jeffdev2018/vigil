@@ -2579,7 +2579,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// BYOK (K48): the workspace's or project's key for the vendor this
 	// runtime spends, unless the agent brings its own. Injected after the
 	// profile filter: the key is workspace policy, not an agent secret.
-	resp.Agent.CustomEnv = h.resolveModelKeyForClaim(r.Context(), *task, runtime.Provider, runtime.WorkspaceID, resp.Agent.CustomEnv)
+	resp.Agent.CustomEnv = h.resolveModelKeyForClaim(r.Context(), *task, runtime.Provider, runtime.WorkspaceID, resp.Agent.PermissionProfile, resp.Agent.CustomEnv)
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID, agent.SystemKey.String, legacySkillRedirects)
 		if err != nil {
