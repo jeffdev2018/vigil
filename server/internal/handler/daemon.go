@@ -4280,6 +4280,7 @@ func sanitizeTaskFailRequest(req *TaskFailRequest) {
 	req.BranchName = util.SanitizeTextForPostgres(req.BranchName)
 	req.RetiredSessionID = util.SanitizeTextForPostgres(req.RetiredSessionID)
 	req.CheckpointSHA = util.SanitizeTextForPostgres(req.CheckpointSHA)
+	req.DiffUnified = util.SanitizeTextForPostgres(req.DiffUnified)
 }
 
 func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
@@ -4334,6 +4335,10 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 			BranchName:            req.BranchName,
 			SessionRolloutMissing: req.SessionRolloutMissing,
 			RetiredSessionID:      req.RetiredSessionID,
+			// Same reasoning as the branch above: the diff describes the same
+			// commit, so it must survive the reroute too.
+			DiffStat:    req.DiffStat,
+			DiffUnified: req.DiffUnified,
 		})
 		return
 	}
@@ -5051,6 +5056,13 @@ type TaskFailRequest struct {
 	// commit refs/multica/turn/<taskKey> points at in the user's repository.
 	// Recording it is what makes the run revertible.
 	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
+	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered
+	// before failing. Worktree mode commits the agent's leftovers before
+	// tearing the worktree down, so a losing attempt routinely still has a
+	// branch and a diff — same fields, same truncation contract as
+	// TaskCompleteRequest.
+	DiffStat    *protocol.TaskDiffStat `json:"diff_stat,omitempty"`
+	DiffUnified string                 `json:"diff_unified,omitempty"`
 }
 
 func (h *Handler) FailTask(w http.ResponseWriter, r *http.Request) {
@@ -5100,6 +5112,10 @@ func (h *Handler) failTask(w http.ResponseWriter, r *http.Request, taskID, works
 		return
 	}
 	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
+	// Racing (F11): a losing attempt's diff lands here too, so the compare
+	// view can show what it produced before it failed. Ignored for a task
+	// outside a group.
+	h.recordRunGroupTaskDiff(r.Context(), *task, req.DiffStat, req.DiffUnified)
 	h.TaskService.NotifyTaskFinished(*task)
 	// The settlement every terminal run gets (JEF-275): barriers, held writes,
 	// sealed replay. Shared with the complete path and with cancellation.
