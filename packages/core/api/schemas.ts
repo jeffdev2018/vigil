@@ -5298,6 +5298,51 @@ export const AgentDuelEnvelopeSchema = z.object({
   duel: AgentDuelSchema.nullable().catch(null).default(null),
 }).loose();
 
+// Racing attempts (F11 / JEF-6): N attempts on one issue, the human keeps one.
+// diff_unified is null both when nothing was recorded and when the patch was
+// too large to store — diff_truncated is what tells those apart, so the UI can
+// say "too large, read the branch" instead of "no changes".
+export const RunGroupAttemptSchema = z.object({
+  task_id: z.string().default(""),
+  agent_id: z.string().default(""),
+  status: z.string().catch("").default(""),
+  model: z.string().catch("").default(""),
+  diff_stat: z.unknown().nullable().catch(null).default(null),
+  diff_unified: z.string().nullable().catch(null).default(null),
+  diff_truncated: z.boolean().catch(false).default(false),
+  created_at: z.string().default(""),
+  completed_at: z.string().nullable().catch(null).default(null),
+}).loose();
+
+export const RunGroupSchema = z.object({
+  id: z.string().default(""),
+  issue_id: z.string().default(""),
+  status: z.enum(["running", "settled", "abandoned"]).catch("running").default("running"),
+  attempt_count: z.number().int().catch(0).default(0),
+  winner_task_id: z.string().nullable().catch(null).default(null),
+  created_by: z.string().nullable().catch(null).default(null),
+  created_at: z.string().default(""),
+  settled_at: z.string().nullable().catch(null).default(null),
+  attempts: z.array(RunGroupAttemptSchema).catch([]).default([]),
+}).loose();
+
+export const RunGroupEnvelopeSchema = z.object({
+  group: RunGroupSchema.nullable().catch(null).default(null),
+}).loose();
+
+export const RunGroupListEnvelopeSchema = z.object({
+  groups: z.array(RunGroupSchema).catch([]).default([]),
+}).loose();
+
+export type RunGroup = z.infer<typeof RunGroupSchema>;
+export type RunGroupAttempt = z.infer<typeof RunGroupAttemptSchema>;
+
+/** Body of POST /api/issues/:id/run-groups. The server caps attempts at 5. */
+export interface StartRunGroupInput {
+  attempts: Array<{ agent_id: string; model?: string }>;
+  note?: string;
+}
+
 // Refactoring campaigns (K42).
 export const CampaignBlockerSchema = z.object({
   kind: z.string().default(""),

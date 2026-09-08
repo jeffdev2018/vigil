@@ -107,6 +107,7 @@ import {
   EMPTY_RUNTIME_PROFILE,
 } from "./schemas";
 import { TaskActivityResponseSchema, EMPTY_TASK_ACTIVITY } from "./schemas";
+import { RunGroupEnvelopeSchema, RunGroupListEnvelopeSchema, type RunGroup } from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -3441,6 +3442,74 @@ describe("RuntimeProfileListSchema", () => {
           { endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles" },
         ).runtime_profiles,
       ).toEqual([]);
+    }
+  });
+});
+
+describe("RunGroupSchema", () => {
+  const GROUP_ENDPOINT = { endpoint: "POST /api/run-groups/:id/settle" };
+  const LIST_ENDPOINT = { endpoint: "GET /api/issues/:id/run-groups" };
+  // Typed so the fallback does not narrow parseWithFallback's T to `null`.
+  const EMPTY_GROUP: { group: RunGroup | null } = { group: null };
+  const EMPTY_LIST: { groups: RunGroup[] } = { groups: [] };
+  const attempt = {
+    task_id: "task-1",
+    agent_id: "agent-1",
+    status: "completed",
+    model: "opus",
+    diff_stat: { files: 2 },
+    diff_unified: "patch",
+    diff_truncated: false,
+    created_at: "2026-09-01T00:00:00Z",
+    completed_at: "2026-09-01T00:10:00Z",
+  };
+  const group = {
+    id: "group-1",
+    issue_id: "issue-1",
+    status: "settled",
+    attempt_count: 3,
+    winner_task_id: "task-1",
+    created_by: "user-1",
+    created_at: "2026-09-01T00:00:00Z",
+    settled_at: "2026-09-01T00:20:00Z",
+    attempts: [attempt],
+  };
+
+  it("keeps a settled race and its winning attempt", () => {
+    const parsed = parseWithFallback({ group }, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group;
+    expect(parsed?.status).toBe("settled");
+    expect(parsed?.winner_task_id).toBe("task-1");
+    expect(parsed?.attempts[0]?.model).toBe("opus");
+    expect(parsed?.attempts[0]?.diff_truncated).toBe(false);
+  });
+
+  it("distinguishes a truncated diff from no diff at all", () => {
+    const truncated = { ...group, attempts: [{ ...attempt, diff_unified: null, diff_truncated: true }, { ...attempt, task_id: "task-2", diff_stat: null, diff_unified: null }] };
+    const parsed = parseWithFallback({ group: truncated }, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group;
+    expect(parsed?.attempts[0]?.diff_truncated).toBe(true);
+    expect(parsed?.attempts[1]?.diff_truncated).toBe(false);
+    expect(parsed?.attempts[1]?.diff_stat).toBeNull();
+  });
+
+  it("falls back on an unknown status and on missing fields rather than throwing", () => {
+    const parsed = parseWithFallback(
+      { group: { id: "group-2", status: "photo_finish", attempts: [{ task_id: "task-9" }] } },
+      RunGroupEnvelopeSchema,
+      EMPTY_GROUP,
+      GROUP_ENDPOINT,
+    ).group;
+    expect(parsed?.status).toBe("running");
+    expect(parsed?.attempt_count).toBe(0);
+    expect(parsed?.winner_task_id).toBeNull();
+    expect(parsed?.attempts[0]?.status).toBe("");
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], { group: "nope" }]) {
+      expect(parseWithFallback(malformed, RunGroupEnvelopeSchema, EMPTY_GROUP, GROUP_ENDPOINT).group).toBeNull();
+    }
+    for (const malformed of [null, "oops", 42, { groups: "nope" }, { groups: [1, 2] }]) {
+      expect(parseWithFallback(malformed, RunGroupListEnvelopeSchema, EMPTY_LIST, LIST_ENDPOINT).groups).toEqual([]);
     }
   });
 });

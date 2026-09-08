@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Platform actions the runtime brief does not cover: issues and PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo, insights."
+description: "Platform actions beyond the runtime brief: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo, insights, racing."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -20,6 +20,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | Open | When the task is about |
 |---|---|
 | `references/issues.md` | Issues: PR linking vs close intent, reading a linked PR's state, metadata, custom properties, status side effects, sub-issues and stages, publishing your run plan, who else is running |
+| `references/racing.md` | Racing attempts: queueing 2-5 concurrent runs on one issue, reading their diffs, settling on a winner or abandoning the race |
 | `references/pr-walkthrough.md` | Answering a pull request walkthrough run: the `pr_walkthrough` block, the group kinds, anchoring an explanation to a hunk |
 | `references/review-flags.md` | Recording a review flag: what each severity means, when to state a confidence, the per-run cap, what a moving head does to a flag |
 | `references/critic-review.md` | Answering an adversarial review run: what each critic verdict costs, the findings JSON shape, recording it once, what a blocked author sees |
