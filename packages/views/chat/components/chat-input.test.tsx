@@ -23,7 +23,12 @@ const insertMarkdownSpy = vi.hoisted(() => vi.fn());
 let mockUploadIdSeq = 0;
 
 vi.mock("@multica/core/api", () => ({
-  api: { uploadFile: mockApiUploadFile },
+  api: {
+    uploadFile: mockApiUploadFile,
+    // Typing pings go through the api on every keystroke; without this stub
+    // they log "sendChatTyping is not a function" to stderr on a slow shard.
+    sendChatTyping: vi.fn(async () => {}),
+  },
 }));
 
 function makeUpload(overrides: Partial<UploadResult> & { id: string; link: string; filename: string }): UploadResult {
