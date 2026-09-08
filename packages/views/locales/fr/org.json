@@ -57,6 +57,75 @@
     "replaces_existing": "Choisir un modèle remplace la structure actuelle « {{name}} » par une nouvelle révision.",
     "composite_title": "Hiérarchie d'équipes"
   },
+  "wizard": {
+    "title": "Créer une organisation",
+    "step": "Étape {{n}} sur {{total}}",
+    "back": "Retour",
+    "next": "Suivant",
+    "cancel": "Annuler",
+    "purpose": {
+      "question": "Qu'est-ce que cette équipe doit accomplir ?",
+      "help": "Une phrase. Ses mots nomment la structure et deviennent ce que chaque unité prend en charge.",
+      "label": "En une phrase",
+      "placeholder": "Répondre aux tickets de nos clients dans la journée.",
+      "remaining": "{{count}} caractères restants",
+      "too_long": "{{count}} caractères de trop"
+    },
+    "flow": {
+      "question": "Comment le travail circule ?",
+      "decider": "Quand une demande arrive, qui décide en dernier ?",
+      "decider_one_person": "Une personne, toujours la même",
+      "decider_each_team": "Chaque équipe, pour son domaine",
+      "decider_topic_owner": "Le propriétaire de chaque sujet",
+      "shape": "Équipes par projet, par rôle, ou les deux ?",
+      "shape_project": "Par projet",
+      "shape_role": "Par rôle",
+      "shape_both": "Les deux",
+      "end": "Une mission avec une fin ?",
+      "compete": "Mettre les agents en concurrence ?",
+      "yes": "Oui",
+      "no": "Non",
+      "result": "Votre modèle : {{model}}",
+      "pick_another": "Choisir autrement",
+      "catalog": "Les sept structures",
+      "catalog_close": "Revenir aux questions"
+    },
+    "model_line": {
+      "hierarchy": "Une chaîne claire : chaque équipe sait à qui remonter.",
+      "squads": "Chaque escouade tient son domaine, son budget et sa réponse.",
+      "matrix": "Les pôles de compétence prêtent leurs membres aux projets qui en ont besoin.",
+      "circles": "Des rôles, pas des titres : chaque cercle tient ses propres décisions.",
+      "owner_network": "À plat : un propriétaire et un suppléant par sujet.",
+      "taskforce": "Une équipe empruntée, avec une fin annoncée.",
+      "market": "Les agents proposent ; la meilleure offre sous votre plafond l'emporte."
+    },
+    "template": {
+      "support": "Support client",
+      "practice": "Cabinet",
+      "agency": "Agence",
+      "finance": "Direction et finance",
+      "research": "Recherche",
+      "generic": "Direction et équipe"
+    },
+    "people": {
+      "question": "Qui en fait partie ?",
+      "help": "Tout le monde dans cet espace de travail, humains et agents.",
+      "template": "Unités proposées pour : {{template}}",
+      "unit_of": "Unité de {{name}}",
+      "empty": "Aucun membre ni agent dans cet espace de travail."
+    },
+    "review": {
+      "question": "Votre brouillon",
+      "model": "Modèle",
+      "name": "Nom",
+      "unnamed": "Nommé d'après le modèle",
+      "members_other": "{{count}} membres",
+      "open": "Ouvrir mon brouillon",
+      "draft_note": "Rien n'est activé : le brouillon s'ouvre dans l'organigramme pour que vous l'ajustiez.",
+      "replaces_existing": "Ouvrir le brouillon révise la structure actuelle « {{name}} ».",
+      "error": "Impossible de créer la structure"
+    }
+  },
   "form": {
     "name": "Nom",
     "owner": "Responsable humain",
@@ -249,6 +318,8 @@
     "name": "Nom",
     "mission": "Mission",
     "mission_none": "Aucun objectif",
+    "own_mission": "Sa mission",
+    "own_mission_placeholder": "Ce que cette unité doit accomplir.",
     "trust": "Cadran de confiance",
     "trust_level": {
       "read_only": "Lit seulement",

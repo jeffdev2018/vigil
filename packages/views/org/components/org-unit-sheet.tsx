@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Lock, Plus, Trash2, X } from "lucide-react";
+import { ORG_PURPOSE_MAX } from "@multica/core/org/templates";
 import {
   ORG_AUTONOMY_ORDER,
   ORG_DECIDER_CLASSES,
@@ -13,6 +14,7 @@ import type { Goal, MemberWithUser, OrgAutonomy, OrgProperty, OrgUnit } from "@m
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
+import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 import { OrgProblemList } from "./org-problem-list";
@@ -164,6 +166,18 @@ export function OrgUnitSheet({
       <label className="flex flex-col gap-1 text-caption text-muted-foreground">
         {t(($) => $.unit.name)}
         <Input value={unit.name} onChange={(e) => onPatch({ name: e.target.value })} disabled={readOnly} />
+      </label>
+
+      <label className="flex flex-col gap-1 text-caption text-muted-foreground">
+        {t(($) => $.unit.own_mission)}
+        <Textarea
+          value={unit.mission ?? ""}
+          rows={2}
+          maxLength={ORG_PURPOSE_MAX}
+          placeholder={t(($) => $.unit.own_mission_placeholder)}
+          onChange={(e) => onPatch({ mission: e.target.value })}
+          disabled={readOnly}
+        />
       </label>
 
       <label className="flex flex-col gap-1 text-caption text-muted-foreground">

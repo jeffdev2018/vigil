@@ -54,6 +54,75 @@
     "replaces_existing": "选择模板会以新修订版替换当前结构“{{name}}”。",
     "composite_title": "团队层级"
   },
+  "wizard": {
+    "title": "创建组织",
+    "step": "第 {{n}} 步，共 {{total}} 步",
+    "back": "上一步",
+    "next": "下一步",
+    "cancel": "取消",
+    "purpose": {
+      "question": "这个团队要完成什么？",
+      "help": "一句话。这些词用来命名结构，也决定每个单元接手什么。",
+      "label": "用一句话说明",
+      "placeholder": "当天回复客户的工单。",
+      "remaining": "还可输入 {{count}} 个字符",
+      "too_long": "超出 {{count}} 个字符"
+    },
+    "flow": {
+      "question": "工作如何流转？",
+      "decider": "请求到达时，最终由谁决定？",
+      "decider_one_person": "固定的一个人",
+      "decider_each_team": "各团队负责自己的领域",
+      "decider_topic_owner": "每个主题的负责人",
+      "shape": "按项目分组、按角色分组，还是两者都要？",
+      "shape_project": "按项目",
+      "shape_role": "按角色",
+      "shape_both": "两者都要",
+      "end": "这是有终点的任务吗？",
+      "compete": "让智能体相互竞争吗？",
+      "yes": "是",
+      "no": "否",
+      "result": "你的模型：{{model}}",
+      "pick_another": "换一种选择",
+      "catalog": "七种结构",
+      "catalog_close": "返回问题"
+    },
+    "model_line": {
+      "hierarchy": "一条清晰的链条：每个团队都知道向谁上报。",
+      "squads": "每个小队掌握自己的领域、预算和结论。",
+      "matrix": "能力池把成员借给需要的项目。",
+      "circles": "看角色而非头衔：每个圈子自己做决定。",
+      "owner_network": "扁平：每个主题一个负责人和一个替补。",
+      "taskforce": "借调组成的团队，有明确的结束条件。",
+      "market": "智能体报价；价格上限内最好的报价胜出。"
+    },
+    "template": {
+      "support": "客户支持",
+      "practice": "事务所",
+      "agency": "代理机构",
+      "finance": "管理层与财务",
+      "research": "研究",
+      "generic": "管理层与团队"
+    },
+    "people": {
+      "question": "谁参与其中？",
+      "help": "这个工作区里的所有人，包括成员和智能体。",
+      "template": "为「{{template}}」建议的单元",
+      "unit_of": "{{name}} 所属的单元",
+      "empty": "此工作区还没有成员或智能体。"
+    },
+    "review": {
+      "question": "你的草稿",
+      "model": "模型",
+      "name": "名称",
+      "unnamed": "按模型命名",
+      "members_other": "{{count}} 名成员",
+      "open": "打开我的草稿",
+      "draft_note": "什么都还没启用：草稿会在组织图中打开，方便你调整。",
+      "replaces_existing": "打开草稿会把当前结构“{{name}}”改为新版本。",
+      "error": "无法创建结构"
+    }
+  },
   "form": {
     "name": "名称",
     "owner": "人类负责人",
@@ -245,6 +314,8 @@
     "name": "名称",
     "mission": "使命",
     "mission_none": "无目标",
+    "own_mission": "它的使命",
+    "own_mission_placeholder": "这个单元要做的事。",
     "trust": "信任档位",
     "trust_level": {
       "read_only": "只读取",

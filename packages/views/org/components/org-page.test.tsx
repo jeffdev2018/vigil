@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
-import type { OrgDefinition, OrgHealth, OrgStructure, OrgTemplate } from "@multica/core/types";
+import type { OrgDefinition, OrgHealth, OrgStructure } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
 // Mermaid source and model labels: packages/core/org/queries.test.ts.
 
 const state = vi.hoisted(() => ({
   structures: [] as OrgStructure[],
-  templates: [] as OrgTemplate[],
   health: null as OrgHealth | null,
   created: [] as unknown[],
   updated: [] as unknown[],
@@ -31,7 +30,6 @@ vi.mock("@tanstack/react-query", () => ({
       const structure = state.structures.find((s) => s.id === id);
       return { data: structure ? { structure, revisions: [{ id: "r1", revision: 1, model: structure.model, status: "draft", note: "", changed_by: null, created_at: "2026-09-01T10:00:00Z" }] } : null, isPending: false };
     }
-    if (key === "org-templates") return { data: state.templates, isPending: false };
     if (key === "org-health") return { data: state.health, isPending: false };
     if (key === "org-preflight") return { data: { model: "hierarchy", pattern: "manager → workers", coordination_runs_per_issue: 2, coordination_cost_usd_ticks_per_issue: 1_500_000, human_review_items_per_issue: 1, human_review_seconds_per_issue: 90, units: 2, units_without_owner: 0, agents: 3, activation_requirements: [] } };
     if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner", avatar_url: null }], isLoading: false };
@@ -45,7 +43,6 @@ vi.mock("@multica/core/org", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/org")>()),
   orgListOptions: () => ({ queryKey: ["org-list"] }),
   orgDetailOptions: (_ws: string, id: string) => ({ queryKey: ["org-detail", id] }),
-  orgTemplatesOptions: () => ({ queryKey: ["org-templates"] }),
   orgHealthOptions: (_ws: string, id: string) => ({ queryKey: ["org-health", id] }),
   orgPreflightOptions: (_ws: string, id: string) => ({ queryKey: ["org-preflight", id] }),
   useCreateOrgStructure: () => ({ isPending: false, mutate: (data: unknown, o: { onSuccess: (s: unknown) => void }) => { state.created.push(data); o.onSuccess(null); } }),
@@ -75,13 +72,8 @@ const structure = (over: Partial<OrgStructure>): OrgStructure => ({
   paused_units: [], created_by: null, created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-01T10:00:00Z", ...over,
 });
 
-const template = (over: Partial<OrgTemplate>): OrgTemplate => ({
-  model: "squads", name: "Squads", pattern: "peer squads", description: "Small autonomous squads.", coordination_runs_per_issue: 1, definition, ...over,
-});
-
 beforeEach(() => {
   state.structures = [];
-  state.templates = [];
   state.health = null;
   state.created = [];
   state.updated = [];
@@ -105,31 +97,7 @@ describe("OrgPage", () => {
     expect(cards[1]?.textContent).toContain("1 paused unit");
   });
 
-  it("creates a structure from the picked template, with its definition", async () => {
-    state.templates = [template({}), template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
-    renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Applies to"), { target: { value: "p-1" } });
-    const cards = within(dialog).getAllByTestId("org-template");
-    expect(cards).toHaveLength(2);
-    expect(cards[1]?.textContent).toContain("Circles and roles");
-    expect(cards[1]?.textContent).toContain("1 coordination run per issue");
-    fireEvent.click(cards[1]!);
-    expect(state.created[0]).toEqual({ project_id: "p-1", model: "circles", name: "Circles", definition });
-  });
-
-  it("revises the existing structure of the scope instead of creating a second one", async () => {
-    state.structures = [structure({ id: "s-default", name: "Owner network", project_id: null, status: "active" })];
-    state.templates = [template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
-    renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("note").textContent).toContain("Owner network");
-    fireEvent.click(within(dialog).getAllByTestId("org-template")[0]!);
-    expect(state.created).toHaveLength(0);
-    expect(state.updated[0]).toEqual({ id: "s-default", data: { project_id: null, model: "circles", name: "Circles", definition } });
-  });
+  // The create flow is the four-step wizard: org-wizard.test.tsx.
 
   it("opens the detail with the chart, blocks save on invalid JSON, and saves the parsed definition", () => {
     state.structures = [structure({ id: "s" })];

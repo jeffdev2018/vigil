@@ -189,6 +189,9 @@ function OrgUnitCard({ unit, model, paused, selected, problems, actorName, actor
         >
           <span className="block truncate text-body font-medium" title={unit.name}>{unit.name}</span>
           <span className="block truncate text-caption text-muted-foreground">{t(($) => $.autonomy[unit.autonomy])}</span>
+          {(unit.mission ?? "") !== "" && (
+            <span className="block truncate text-caption text-muted-foreground" title={unit.mission}>{unit.mission}</span>
+          )}
         </button>
         {paused && <Badge className="bg-warning/10 text-warning">{t(($) => $.status.paused)}</Badge>}
       </div>

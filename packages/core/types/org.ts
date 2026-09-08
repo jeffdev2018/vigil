@@ -31,6 +31,9 @@ export interface OrgUnit {
   owner_id?: string;
   squad_id?: string;
   mission_goal_id?: string;
+  /** The unit's own sentence: what it is here to do. Free text (at most 240
+   *  characters), unlike `mission_goal_id` which points at a goal. */
+  mission?: string;
   budget_usd_ticks?: number;
   excludes: OrgProperty[];
   autonomy: OrgAutonomy;

@@ -9,8 +9,6 @@ import {
   orgHealthOptions,
   orgListOptions,
   orgPreflightOptions,
-  orgTemplatesOptions,
-  useCreateOrgStructure,
   useDeleteOrgStructure,
   useSetOrgStructureStatus,
   useUpdateOrgStructure,
@@ -22,7 +20,7 @@ import { useAuthStore } from "@multica/core/auth";
 import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { goalListOptions } from "@multica/core/goals";
-import type { OrgDefinition, OrgModel, OrgStatus, OrgStructure, OrgTemplate } from "@multica/core/types";
+import type { OrgDefinition, OrgModel, OrgStatus, OrgStructure } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
@@ -31,8 +29,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { cn } from "@multica/ui/lib/utils";
 import { CollectionPageHeader, CollectionPageHeaderAction, CollectionPageState } from "../../layout/collection-page";
 import { OrgCanvas } from "./org-canvas";
+import { OrgTemplateCards } from "./org-template-cards";
 import { OrgTester } from "./org-tester";
+import { OrgWizard } from "./org-wizard";
 import { useT } from "../../i18n";
+
+export { OrgTemplateCards };
 
 const STATUS_BADGE: Record<OrgStatus, string> = {
   draft: "bg-muted text-muted-foreground",
@@ -70,110 +72,6 @@ function parseDefinition(text: string): { def: OrgDefinition } | { error: string
   } catch (e) {
     return { error: e instanceof Error ? e.message : String(e) };
   }
-}
-
-// ---------------------------------------------------------------------------
-// Template picker — shared by the page and the project section.
-// ---------------------------------------------------------------------------
-
-export function OrgTemplateCards({ templates, onPick, disabled }: { templates: OrgTemplate[]; onPick: (t: OrgTemplate) => void; disabled?: boolean }) {
-  const { t } = useT("org");
-  return (
-    <div className="grid gap-2 sm:grid-cols-2">
-      {templates.map((tpl) => (
-        <button
-          key={tpl.composite === true ? "composite" : tpl.model}
-          type="button"
-          data-testid="org-template"
-          disabled={disabled}
-          onClick={() => onPick(tpl)}
-          className="flex flex-col items-start gap-1 rounded-md border p-3 text-left hover:bg-accent/70 disabled:opacity-50"
-        >
-          <span className="text-body font-medium">{tpl.composite === true ? t(($) => $.new.composite_title) : t(($) => $.model[tpl.model])}</span>
-          <span className="text-caption text-muted-foreground">{tpl.pattern}</span>
-          <span className="text-caption">{tpl.description}</span>
-          <span className="text-caption text-muted-foreground">{t(($) => $.new.runs_per_issue, { count: tpl.coordination_runs_per_issue })}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function NewStructureDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
-  const { t } = useT("org");
-  const wsId = useWorkspaceId();
-  const { data: templates = [], isPending } = useQuery(orgTemplatesOptions(wsId));
-  const { data: projects = [] } = useQuery(projectListOptions(wsId));
-  const { data: structures = [] } = useQuery(orgListOptions(wsId));
-  const create = useCreateOrgStructure(wsId);
-  const update = useUpdateOrgStructure(wsId);
-  const [projectId, setProjectId] = useState("");
-
-  // One structure per scope (unique index on workspace / project while not
-  // dissolved), so picking a template while one exists is a new revision of
-  // it, not a second structure the server would refuse with a 409.
-  const existing = structures.find((s) => s.status !== "dissolved" && (s.project_id ?? "") === projectId);
-
-  const pick = (tpl: OrgTemplate) => {
-    const body = { project_id: projectId || null, model: tpl.model, name: tpl.name, definition: tpl.definition };
-    const onError = (e: unknown) => toast.error(errorMessage(e, t(($) => $.new.error)));
-    if (existing) {
-      update.mutate(
-        { id: existing.id, data: body },
-        {
-          onSuccess: () => {
-            onClose();
-            onCreated(existing.id);
-          },
-          onError,
-        },
-      );
-      return;
-    }
-    create.mutate(body, {
-      onSuccess: (s: unknown) => {
-        onClose();
-        // The shared mutation helper erases the response type; the server answers with the created structure.
-        if (s && typeof s === "object" && "id" in s && typeof s.id === "string") onCreated(s.id);
-      },
-      onError,
-    });
-  };
-
-  return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t(($) => $.new.title)}</DialogTitle>
-          <DialogDescription>{t(($) => $.new.description)}</DialogDescription>
-        </DialogHeader>
-        <label className="flex flex-col gap-1 text-caption text-muted-foreground">
-          {t(($) => $.new.project)}
-          <select className={SELECT_CLASS} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-            <option value="">{t(($) => $.new.workspace_default)}</option>
-            {projects.map((p) => (
-              <option key={p.id} value={p.id}>{p.title}</option>
-            ))}
-          </select>
-        </label>
-        {existing ? (
-          <p className="text-caption text-muted-foreground" role="note">
-            {t(($) => $.new.replaces_existing, { name: existing.name })}
-          </p>
-        ) : null}
-        {isPending ? (
-          <p className="text-caption text-muted-foreground">{t(($) => $.new.loading)}</p>
-        ) : (
-          <div className="max-h-[60vh] overflow-y-auto">
-            <OrgTemplateCards templates={templates} onPick={pick} disabled={create.isPending || update.isPending} />
-          </div>
-        )}
-        <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={onClose}>{t(($) => $.new.cancel)}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -693,14 +591,14 @@ export function OrgPage() {
         icon={Network}
         title={t(($) => $.page.title)}
         count={structures.length}
-        actions={<CollectionPageHeaderAction icon={Plus} label={t(($) => $.page.new_structure)} onClick={() => setCreating(true)} />}
+        actions={<CollectionPageHeaderAction icon={Plus} label={t(($) => $.wizard.title)} onClick={() => setCreating(true)} />}
       />
       {!isLoading && structures.length === 0 ? (
         <CollectionPageState
           icon={Network}
           title={t(($) => $.page.empty)}
           description={t(($) => $.page.empty_description)}
-          actions={<Button size="sm" variant="outline" onClick={() => setCreating(true)}>{t(($) => $.page.new_structure)}</Button>}
+          actions={<Button size="sm" variant="outline" onClick={() => setCreating(true)}>{t(($) => $.wizard.title)}</Button>}
         />
       ) : (
         <div className="flex-1 overflow-y-auto px-4 py-2">
@@ -731,7 +629,7 @@ export function OrgPage() {
           </div>
         </div>
       )}
-      {creating && <NewStructureDialog onClose={() => setCreating(false)} onCreated={setSelectedId} />}
+      {creating && <OrgWizard onClose={() => setCreating(false)} onCreated={setSelectedId} />}
     </div>
   );
 }
