@@ -21,6 +21,23 @@ Common notifications include:
 
 Your own actions don't notify you. Multiple notifications on the same issue merge into one entry; open it to see the issue's recent changes.
 
+## Needs your attention
+
+The ordinary list is newest first, which can bury something worth acting on
+now under things that can wait until tomorrow. **Needs your attention**
+re-orders the same notifications by risk instead of date: nothing extra is
+stored, the order is computed each time you open it.
+
+A row at the top of the ordinary inbox list — with a live count — appears
+whenever at least one item needs it; opening it switches to the risk-ordered
+view. Higher risk comes from a more severe item (`action_required` outranks
+`attention`), a pending [Decision Card](/decisions) (higher still at `high`
+urgency), a decision that already escalated past its deadline (the top of the
+list, regardless of its urgency), and, to a smaller degree, how long an item
+has waited — so nothing sits unseen near the bottom indefinitely.
+
+The same projection is available directly: `GET /api/inbox/attention`.
+
 ## Sources of automatic subscription
 
 These participants subscribe to an issue automatically:
@@ -71,6 +88,7 @@ Turning a group off doesn't stop the changes from being recorded on the issue �
 
 ## Next steps
 
+- [Decisions](/decisions) — Decision Cards and requirement interviews, and the Decisions view that answers them from the inbox.
 - [Comments](/comments) — replies, mentions, and discussion threads.
 - [@-mention agents in comments](/mentioning-agents) — member notifications vs. agent runs.
 - [Autopilots](/autopilots) — configure automatic work creation and default subscribers.
