@@ -18,7 +18,7 @@ Objectif utilisateur : terminer les améliorations, la mémoire et les fonctionn
 | Activation jusqu’au premier résultat | Partiel vérifié (checklist + télémétrie + rendu + self-pilote) | Préparation lisible, `activation_checklist_viewed`, N/A CLI honnête, harness `/tmp/vigil-activation/` ; self-pilote ~4 min jusqu’au premier run ([activation-self-pilot-2026-09-07.md](activation-self-pilot-2026-09-07.md)) ; reste pilote froid &lt;10 min avec équipes externes |
 
 | Causes d’attente et reprises | Partiel vérifié (cause+action + honesty retry) | Cause/action sur le journal d’exécution (wait_reason + guidance queued/dispatched/waiting) ; tooltip retry aligné MUL-4869 (workdir / session / pas d’undo des effets externes) ; docs troubleshooting ; reste revue humaine sur parcours réel |
-| Activité ≠ livraison ≠ réussite | Partiel vérifié | Acceptation des preuves distinctes ; délai fin→revue + **effort auto-chronométré** web/desktop/mobile ; reste revue globale |
+| Activité ≠ livraison ≠ réussite | Partiel vérifié | Acceptation des preuves distinctes ; délai fin→revue + **effort auto-chronométré** ; A/B + batch 14 issues (9 accept / 5 corriger, effort avg 1s vs 2s) ([delivery-review-batch-2026-09-07.md](delivery-review-batch-2026-09-07.md)) ; reste revue UI manuelle / équipes externes |
 | Progression projet | Vérifié pour le renommage | « Scope closed », explication terminé+annulé, tests déjà passés ; revue globale finale |
 | Surfaces orientées décision, dont mobile | Partiel : décisions + livraison mobile v1.5 | Inbox Décisions + accept/corriger sur fiche ; checklist [mobile-delivery-smoke-checklist-2026-09-07.md](mobile-delivery-smoke-checklist-2026-09-07.md) ; tests mobile delivery 6/6 + capture honesty 390px ; **simu iOS bloquée** (pas de Xcode/`simctl`) — [mobile-delivery-smoke-pilot-2026-09-07.md](mobile-delivery-smoke-pilot-2026-09-07.md) |
 | Qualité et intégration globales | Partiel vérifié (build + smoke PW) | `pnpm build` 5/5 ; Playwright auth+nav+onboarding **10/10** via `127.0.0.1` + CORS dual ([quality-build-playwright-2026-09-07.md](quality-build-playwright-2026-09-07.md)) ; ownership `make up C=web` stabilisé (descendant + `web.listener.pid`) |
@@ -362,4 +362,19 @@ Suite ordonnée typecheck → core → views → web/desktop/docs → make test 
 ### 7 septembre — finalisation 4–7 (mobile effort, retry↓, build, commit)
 
 Parité mobile `human_effort_seconds` (API body + timer + affichage). Pilote reprises projet `keel-4` : 2/2→0/2 (−100 % relatif) — [memory-retry-reduction-2026-09-07.md](memory-retry-reduction-2026-09-07.md). `pnpm build` OK ; Playwright non exécuté (Docker Desktop indisponible après `make down`).
+
+### 7 septembre — séquence soir (ownership → qualité → retry vague 2 → ledger)
+
+1. Fix ownership web commit `f209fef13` (descendant + `web.listener.pid`).
+2. Qualité : typecheck 9/9, core 1756, handler Go OK, PW login spot-check — [quality-sequential-2026-09-07.md](quality-sequential-2026-09-07.md).
+3. Retry mémoire vague 2 `mast-9` : baseline 4/4 reprises → treatment 0/4 ; cumul vagues **6+6**, −100 % relatif (toujours synthétique) — [memory-retry-reduction-2026-09-07.md](memory-retry-reduction-2026-09-07.md).
+4. Ledger mis à jour ; reste bloqué humain : GitHub App, contact killer-feature externe, Xcode/sim.
+
+### 7 septembre — comparaison de procédures human_effort
+
+DEV-11 (`keel-4` miss → changes_requested, effort 4s, delay 874s) vs DEV-15 (`mast-9` hit → accepted, effort 1s, delay 512s). Preuve : [human-effort-procedure-2026-09-07.md](human-effort-procedure-2026-09-07.md).
+
+### 7 septembre — push + qualité beyond-smoke + revue batch + destroy flake
+
+Push `55bdb4955`. Views : 4900/4901 (flake sidebar-resize). PW beyond-smoke issues/settings/comments : 11 timeouts post-login. Destroy flake : `load_manifest` unset ambient DESKTOP_* . Revue batch 14 DEV-* : [delivery-review-batch-2026-09-07.md](delivery-review-batch-2026-09-07.md).
 
