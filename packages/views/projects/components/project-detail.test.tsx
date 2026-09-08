@@ -52,9 +52,12 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
   useInfiniteQuery: () => ({ data: undefined, isPending: false, isError: false }),
 }));
 
-// The memory section reads through `@multica/core/projects`, whose factories
-// call `queryOptions`; stub the module like the goals/org sections below.
-vi.mock("@multica/core/projects", () => ({
+// The memory section reads through `@multica/core/projects`. Spread the real
+// module for the same reason the react-query mock above does: this page also
+// pulls the wiki and resource sections from here, and a whitelist stub breaks
+// every time one more export joins that graph.
+vi.mock("@multica/core/projects", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/projects")>()),
   projectMemoryOptions: () => ({ queryKey: ["project-memory"] }),
   projectMemoryHistoryOptions: () => ({ queryKey: ["project-memory-history"] }),
   projectMemoryUsageOptions: () => ({ queryKey: ["project-memory-usage"] }),

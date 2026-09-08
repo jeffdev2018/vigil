@@ -72,7 +72,7 @@ export function MemoryTab({
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<AgentMemory | null>(null);
   const [pendingDelete, setPendingDelete] = useState<AgentMemory | null>(null);
-  const approve = useUpdateAgentMemory(agent.id);
+  const approve = useUpdateAgentMemory(wsId, agent.id);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
   const review = useUpdateAgentMemory(wsId, agent.id);
