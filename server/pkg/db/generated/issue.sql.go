@@ -409,6 +409,12 @@ WITH target AS (
 ),
 cleared_vcs_pr_links AS (
     DELETE FROM issue_vcs_pull_request WHERE issue_id IN (SELECT target.id FROM target)
+),
+cleared_delivery_contract AS (
+    DELETE FROM issue_delivery_contract WHERE issue_id IN (SELECT target.id FROM target)
+),
+cleared_delivery_reviews AS (
+    DELETE FROM issue_delivery_review WHERE issue_id IN (SELECT target.id FROM target)
 )
 DELETE FROM issue WHERE issue.id IN (SELECT target.id FROM target)
 `

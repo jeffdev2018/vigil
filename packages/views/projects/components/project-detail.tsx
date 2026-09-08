@@ -25,6 +25,7 @@ import { ActorAvatar } from "../../common/actor-avatar";
 import { currentPath, useNavigation } from "../../navigation";
 import { TitleEditor, ContentEditor, type ContentEditorRef } from "../../editor";
 import { PriorityIcon } from "../../issues/components/priority-icon";
+import { ProjectMemorySection } from "./project-memory-section";
 import { ProjectResourcesSection } from "./project-resources-section";
 import { ProjectGoalsSection } from "./project-goals-section";
 import { ProjectOrgSection } from "./project-org-section";
@@ -480,6 +481,7 @@ export function ProjectDetail({ projectId }: { projectId: string }) {
 
       {/* Resources */}
       <ProjectResourcesSection projectId={projectId} />
+      <ProjectMemorySection wsId={wsId} projectId={projectId} canEdit={isWorkspaceAdmin} />
 
       {/* Decision memory (K29) */}
       <ProjectDecisionsSection projectId={projectId} />

@@ -2532,6 +2532,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		}
 		resp.ThreadName = issue.Title
 		issueNumber = issue.Number
+		if !task.ChatSessionID.Valid {
+			brief, err := h.deliveryCriteriaBrief(r.Context(), issue)
+			if err != nil {
+				return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount,
+					h.rejectClaimSourceLoad(r.Context(), task, err, "delivery criteria", uuidToString(issue.ID))
+			}
+			resp.Agent.Instructions += brief
+		}
 
 		// Squad-leader briefing injection: keyed off the task being a
 		// leader-task (is_leader_task) carrying a squad_id — NOT off the

@@ -154,6 +154,7 @@ const (
 	// The `action` in the payload is advisory (it makes a frame in devtools
 	// self-describing); nothing routes on it.
 	EventIssueStatusChanged = "issue_status:changed"
+	EventDeliveryChanged    = "delivery:changed"
 
 	// Pin events
 	EventPinCreated   = "pin:created"

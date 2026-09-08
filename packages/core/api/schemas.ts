@@ -65,6 +65,7 @@ import type {
   WorkspaceNotesResponse,
   Label,
   AgentMemory,
+  ProjectMemory,
   AgentMemoryList,
   MemberWithUser,
   IssueProperty,
@@ -5514,3 +5515,161 @@ export const WorkspaceTemplateListSchema = z.object({
     created_at: z.string().catch(""),
   }).loose()).catch([]).default([]),
 }).loose();
+
+// Missing or malformed memory must never become a publishable empty draft.
+export const ProjectMemorySchema = z.object({
+  rules: z.array(z.string()),
+  revision: z.number().int().nonnegative(),
+  reviewed_by: z.string().nullable().catch(null),
+  reviewed_at: z.string().nullable().catch(null),
+  expires_at: z.iso.datetime({ offset: true }).nullable().default(null),
+  expired: z.boolean().default(false),
+  restored_from_revision: z.number().int().nonnegative().optional(),
+  // Provenance is additive display metadata; degrade independently so a bad
+  // source_review cannot erase the published rules.
+  source_review: z.object({
+    review_id: z.string(),
+    issue_id: z.string(),
+    task_id: z.string(),
+    feedback: z.string(),
+    criteria: z.array(z.string()),
+    assessments: z.array(z.object({
+      passed: z.boolean(),
+      evidence: z.string(),
+    })),
+    snapshot_token: z.string().optional(),
+    reviewed_by: z.string(),
+    reviewed_at: z.string(),
+    input_hash: z.string().optional(),
+  }).optional().catch(undefined),
+}).loose();
+export const ProjectMemoryHistorySchema = z.object({
+  versions: z.array(ProjectMemorySchema),
+  next_before_revision: z.number().int().positive().nullable(),
+});
+export const EMPTY_PROJECT_MEMORY: ProjectMemory = {
+  rules: [],
+  revision: -1,
+  reviewed_by: null,
+  reviewed_at: null,
+  expires_at: null,
+  expired: false,
+};
+
+
+const DeliverySnapshotSchema = z.object({
+  title: z.string(),
+  description: z.string().nullable(),
+  criteria: z.array(z.string().min(1)).max(20),
+  revision: z.number().int().nonnegative(),
+  run: z.object({
+    id: z.string().uuid(), status: z.string(), result: z.unknown(),
+    error: z.string().nullable(), completed_at: z.iso.datetime({ offset: true }).nullable(),
+  }).transform(({ completed_at, ...run }) => ({ ...run, completedAt: completed_at })).nullable(),
+  pull_requests: z.array(GitHubPullRequestSchema.extend({ head_sha: z.string() })
+    .transform(({ head_sha, ...pr }) => ({ ...pr, headSha: head_sha }))),
+}).transform(({ pull_requests, ...snapshot }) => ({ ...snapshot, pullRequests: pull_requests }));
+
+const DeliveryUSD = z.string().regex(/^\d+\.\d{10}$/).refine((value) => Number.isFinite(Number(value)));
+export const DeliveryUsageSnapshotSchema = z.object({
+  captured_at: z.iso.datetime({ offset: true }),
+  status: z.enum(["reported", "estimated", "partial", "unavailable"]),
+  available_usd: DeliveryUSD.nullable(),
+  reported_usd: DeliveryUSD,
+  estimated_usd: DeliveryUSD,
+  run_ids: z.array(z.string().uuid()),
+  runs_without_usage: z.number().int().nonnegative(),
+  nonterminal_runs: z.number().int().nonnegative(),
+  unpriced_slices: z.number().int().nonnegative(),
+}).refine((usage) => {
+  if (![usage.available_usd, usage.reported_usd, usage.estimated_usd].every((value) => value === null || /^\d+\.\d{10}$/.test(value))) return false;
+  if ((usage.status === "unavailable") !== (usage.available_usd === null)) return false;
+  if (usage.available_usd !== null && BigInt(usage.available_usd.replace(".", "")) !== BigInt(usage.reported_usd.replace(".", "")) + BigInt(usage.estimated_usd.replace(".", ""))) return false;
+  const gaps = usage.runs_without_usage + usage.nonterminal_runs + usage.unpriced_slices;
+  if (usage.status === "partial" && gaps === 0) return false;
+  if ((usage.status === "reported" || usage.status === "estimated") && (gaps > 0 || usage.run_ids.length === 0)) return false;
+  return usage.runs_without_usage <= usage.run_ids.length && usage.nonterminal_runs <= usage.run_ids.length;
+})
+  .transform((usage) => ({ capturedAt: usage.captured_at, status: usage.status, availableUsd: usage.available_usd,
+    reportedUsd: usage.reported_usd, estimatedUsd: usage.estimated_usd, runIds: usage.run_ids,
+    runsWithoutUsage: usage.runs_without_usage, nonterminalRuns: usage.nonterminal_runs, unpricedSlices: usage.unpriced_slices }));
+
+const DeliveryMetricsSchema = z.object({
+  review_count: z.number().int().nonnegative(),
+  reviewed_results: z.number().int().nonnegative(),
+  accepted_results: z.number().int().nonnegative(),
+  correction_requests: z.number().int().nonnegative(),
+  acceptance_reversals: z.number().int().nonnegative(),
+}).refine((m) => m.accepted_results <= m.reviewed_results && m.reviewed_results <= m.review_count)
+  .transform((m) => ({ reviewCount: m.review_count, reviewedResults: m.reviewed_results, acceptedResults: m.accepted_results,
+    correctionRequests: m.correction_requests, acceptanceReversals: m.acceptance_reversals }));
+
+export const DeliveryReviewSchema = z.object({
+  usage_snapshot: DeliveryUsageSnapshotSchema.nullable().optional().catch(null),
+  review_delay_seconds: z.number().int().nonnegative().nullable().optional().catch(null),
+  human_effort_seconds: z.number().int().nonnegative().nullable().optional().catch(null),
+  id: z.string().uuid(),
+  decision: z.enum(["accepted", "changes_requested"]),
+  feedback: z.string(),
+  assessments: z.array(z.object({ passed: z.boolean(), evidence: z.string() })).max(20),
+  snapshot: DeliverySnapshotSchema,
+  snapshot_token: z.string().regex(/^[a-f0-9]{64}$/),
+  reviewed_by: z.string().uuid(),
+  created_at: z.iso.datetime({ offset: true }),
+  correction_task_id: z.string().uuid().nullable().optional(),
+}).refine((review) => review.decision !== "accepted" || (
+  review.snapshot.run?.status === "completed" && review.snapshot.run.completedAt !== null &&
+  review.snapshot.criteria.length > 0 && review.assessments.length === review.snapshot.criteria.length &&
+  review.assessments.every((a) => a.passed === true && a.evidence.trim().length > 0)
+)).transform(({ snapshot_token, reviewed_by, created_at, correction_task_id, usage_snapshot, review_delay_seconds, human_effort_seconds, ...review }) => ({
+  usageSnapshot: usage_snapshot ?? null, reviewDelaySeconds: review_delay_seconds ?? null,
+  humanEffortSeconds: human_effort_seconds ?? null,
+  ...review, snapshotToken: snapshot_token, reviewedBy: reviewed_by, createdAt: created_at, correctionTaskId: correction_task_id ?? null,
+}));
+
+export const IssueDeliverySchema = z.object({
+  metrics: DeliveryMetricsSchema.nullable().optional().catch(null),
+  snapshot_token: z.string().regex(/^[a-f0-9]{64}$/),
+  latest_review: DeliveryReviewSchema.nullable(),
+  review_stale: z.boolean(),
+}).and(DeliverySnapshotSchema).transform(({ snapshot_token, latest_review, review_stale, ...snapshot }) => ({
+  ...snapshot, snapshotToken: snapshot_token, latestReview: latest_review,
+  reviewStale: review_stale || (latest_review !== null && latest_review.snapshotToken !== snapshot_token),
+}));
+export type IssueDelivery = z.infer<typeof IssueDeliverySchema>;
+export type DeliveryReview = z.infer<typeof DeliveryReviewSchema>;
+
+export const DeliveryCriteriaSchema = z.object({ criteria: z.array(z.string()), revision: z.number().int().nonnegative() });
+
+export const DeliveryCorrectionSchema = z.object({ review_id: z.string().uuid(), task_id: z.string().uuid() })
+  .transform(({ review_id, task_id }) => ({ reviewId: review_id, taskId: task_id }));
+export type DeliveryCorrection = z.infer<typeof DeliveryCorrectionSchema>;
+
+export const DeliveryHistorySchema = z.object({ reviews: z.array(DeliveryReviewSchema), next_before_id: z.string().uuid().nullable() })
+  .transform(({ reviews, next_before_id }) => ({ reviews, nextBeforeId: next_before_id }));
+export type DeliveryHistory = z.infer<typeof DeliveryHistorySchema>;
+
+const MemoryUsageCountSchema = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
+export const ProjectMemoryUsageSchema = z.object({
+  since: z.string().datetime({ offset: true }),
+  until: z.string().datetime({ offset: true }),
+  started_runs: MemoryUsageCountSchema,
+  recorded_runs: MemoryUsageCountSchema,
+  unrecorded_runs: MemoryUsageCountSchema,
+  runs_with_project_memory: MemoryUsageCountSchema,
+  versions: z.array(z.object({
+    project_id: z.string().uuid(),
+    revision: z.number().int().min(1).max(2147483647),
+    prepared_runs: MemoryUsageCountSchema.refine((count) => count > 0),
+    last_started_at: z.string().datetime({ offset: true }),
+  })),
+}).refine((value) => {
+  const since = Date.parse(value.since), until = Date.parse(value.until);
+  return until - since === 30 * 24 * 60 * 60 * 1000 &&
+    value.started_runs === value.recorded_runs + value.unrecorded_runs &&
+    value.recorded_runs >= value.runs_with_project_memory &&
+    (value.versions.length > 0) === (value.runs_with_project_memory > 0) &&
+    new Set(value.versions.map((version) => `${version.project_id}:${version.revision}`)).size === value.versions.length &&
+    value.versions.every((version) => version.prepared_runs <= value.runs_with_project_memory &&
+      Date.parse(version.last_started_at) >= since && Date.parse(version.last_started_at) < until);
+});

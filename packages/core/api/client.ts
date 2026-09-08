@@ -1,4 +1,21 @@
 import { configStore } from "../config";
+import type { ProjectMemory, ProjectMemoryUsage } from "../types/project";
+import type { ReviewDeliveryInput } from "../issues/delivery";
+import {
+  IssueDeliverySchema,
+  DeliveryReviewSchema,
+  DeliveryHistorySchema,
+  type DeliveryHistory,
+  DeliveryCriteriaSchema,
+  DeliveryCorrectionSchema,
+  type IssueDelivery,
+  type DeliveryReview,
+  type DeliveryCorrection,
+  ProjectMemorySchema,
+  ProjectMemoryHistorySchema,
+  ProjectMemoryUsageSchema,
+  EMPTY_PROJECT_MEMORY,
+} from "./schemas";
 import type {
   Issue,
   IssuePriority,
@@ -5617,6 +5634,100 @@ export class ApiClient {
   }
 
   // Project resources
+  async getIssueDelivery(id: string): Promise<IssueDelivery | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery`);
+    return parseWithFallback<IssueDelivery | null>(raw, IssueDeliverySchema, null, { endpoint: "GET /api/issues/:id/delivery" });
+  }
+
+  async updateIssueDeliveryCriteria(id: string, criteria: string[], expectedRevision: number) {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/criteria`, {
+      method: "PUT", body: JSON.stringify({ criteria, expected_revision: expectedRevision }),
+    });
+    return parseWithFallback<{ criteria: string[]; revision: number } | null>(raw, DeliveryCriteriaSchema, null, { endpoint: "PUT /api/issues/:id/delivery/criteria" });
+  }
+
+  async reviewIssueDelivery(id: string, input: ReviewDeliveryInput): Promise<DeliveryReview | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/reviews`, {
+      method: "POST", body: JSON.stringify({ review_id: input.reviewId, expected_review_id: input.expectedReviewId,
+        snapshot_token: input.snapshotToken, decision: input.decision, feedback: input.feedback, assessments: input.assessments,
+        ...(input.humanEffortSeconds != null ? { human_effort_seconds: input.humanEffortSeconds } : {}) }),
+    });
+    return parseWithFallback<DeliveryReview | null>(raw, DeliveryReviewSchema, null, { endpoint: "POST /api/issues/:id/delivery/reviews" });
+  }
+
+  async getIssueDeliveryHistory(id: string, beforeId?: string): Promise<DeliveryHistory | null> {
+    const suffix = beforeId ? `?before_id=${encodeURIComponent(beforeId)}` : "";
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/reviews${suffix}`);
+    return parseWithFallback<DeliveryHistory | null>(raw, DeliveryHistorySchema, null, { endpoint: "GET /api/issues/:id/delivery/reviews" });
+  }
+
+  async startIssueDeliveryCorrection(id: string, reviewId: string): Promise<DeliveryCorrection | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(id)}/delivery/correction`, {
+      method: "POST", body: JSON.stringify({ review_id: reviewId }),
+    });
+    return parseWithFallback<DeliveryCorrection | null>(raw, DeliveryCorrectionSchema.refine((receipt) => receipt.reviewId === reviewId), null, { endpoint: "POST /api/issues/:id/delivery/correction" });
+  }
+
+  async getProjectMemory(id: string): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${id}/memory`);
+    return parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, {
+      endpoint: "GET /api/projects/{id}/memory",
+    });
+  }
+
+  async updateProjectMemory(
+    id: string,
+    rules: string[],
+    expectedRevision: number,
+    expiresAt?: string | null,
+    sourceReviewId?: string,
+  ): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${id}/memory`, {
+      method: "PUT",
+      body: JSON.stringify({
+        rules,
+        expected_revision: expectedRevision,
+        expires_at: expiresAt,
+        ...(sourceReviewId ? { source_review_id: sourceReviewId } : {}),
+      }),
+    });
+    const saved = parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, {
+      endpoint: "PUT /api/projects/{id}/memory",
+    });
+    if (
+      sourceReviewId !== undefined &&
+      (saved.source_review?.review_id !== sourceReviewId || saved.revision < 0)
+    ) {
+      throw new Error("Invalid project memory correction response");
+    }
+    return saved;
+  }
+
+  async getProjectMemoryHistory(id: string, beforeRevision?: number) {
+    const suffix = beforeRevision === undefined ? "" : `?before_revision=${beforeRevision}`;
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory/history${suffix}`);
+    const parsed = ProjectMemoryHistorySchema.safeParse(raw);
+    if (!parsed.success) throw new Error("Invalid project memory history");
+    return parsed.data;
+  }
+
+  // Unreadable usage must be an error, never an empty prepared-context claim.
+  async getProjectMemoryUsage(id: string): Promise<ProjectMemoryUsage> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory/usage`);
+    const parsed = parseWithFallback<ProjectMemoryUsage | null>(raw, ProjectMemoryUsageSchema, null, {
+      endpoint: "GET /api/projects/{id}/memory/usage",
+    });
+    if (!parsed) throw new Error("Invalid project memory usage response");
+    return parsed;
+  }
+
+  async restoreProjectMemory(id: string, restoreRevision: number, expectedRevision: number): Promise<ProjectMemory> {
+    const raw = await this.fetch<unknown>(`/api/projects/${encodeURIComponent(id)}/memory`, {
+      method: "PUT", body: JSON.stringify({ restore_revision: restoreRevision, expected_revision: expectedRevision }),
+    });
+    return parseWithFallback(raw, ProjectMemorySchema, EMPTY_PROJECT_MEMORY, { endpoint: "PUT /api/projects/{id}/memory" });
+  }
+
   async listProjectResources(
     projectId: string,
   ): Promise<ListProjectResourcesResponse> {

@@ -363,7 +363,7 @@ func (q *Queries) GetPermissionProfileByNameForImport(ctx context.Context, arg G
 }
 
 const getProjectByTitleForImport = `-- name: GetProjectByTitleForImport :one
-SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date FROM project WHERE workspace_id = $1 AND title = $2 LIMIT 1
+SELECT id, workspace_id, title, description, icon, status, lead_type, lead_id, created_at, updated_at, priority, start_date, due_date, memory_rules, memory_revision, memory_reviewed_by, memory_reviewed_at, memory_expires_at, memory_source_review FROM project WHERE workspace_id = $1 AND title = $2 LIMIT 1
 `
 
 type GetProjectByTitleForImportParams struct {
@@ -388,6 +388,12 @@ func (q *Queries) GetProjectByTitleForImport(ctx context.Context, arg GetProject
 		&i.Priority,
 		&i.StartDate,
 		&i.DueDate,
+		&i.MemoryRules,
+		&i.MemoryRevision,
+		&i.MemoryReviewedBy,
+		&i.MemoryReviewedAt,
+		&i.MemoryExpiresAt,
+		&i.MemorySourceReview,
 	)
 	return i, err
 }

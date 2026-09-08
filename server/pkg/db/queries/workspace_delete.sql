@@ -533,6 +533,15 @@ DELETE FROM comment WHERE comment.workspace_id = $1;
 
 -- name: DeleteWorkspaceIssueRoots :exec
 WITH
+deleted_delivery_reviews AS (
+    DELETE FROM issue_delivery_review WHERE workspace_id = $1
+),
+deleted_delivery_contracts AS (
+    DELETE FROM issue_delivery_contract WHERE workspace_id = $1
+),
+deleted_project_memory_versions AS (
+    DELETE FROM project_memory_version WHERE workspace_id = $1
+),
 deleted_issues AS (
     DELETE FROM issue WHERE issue.workspace_id = $1
 ),
