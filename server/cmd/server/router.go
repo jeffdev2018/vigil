@@ -2510,6 +2510,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Route("/api/org", func(r chi.Router) {
 				r.Get("/templates", h.ListOrgTemplates)
 				r.Get("/resolve", h.ResolveOrgStructure)
+				r.Post("/simulate", h.SimulateOrgRequest)
 				r.Get("/", h.ListOrgStructures)
 				r.Post("/", h.CreateOrgStructure)
 				r.Route("/{id}", func(r chi.Router) {
