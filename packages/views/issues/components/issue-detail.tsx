@@ -113,6 +113,7 @@ import { PreemptedBadge } from "./preempted-badge";
 import { PipelineProgress } from "./pipeline-progress";
 import { FanoutSection } from "./fanout-section";
 import { DuelSection } from "./duel-section";
+import { RunGroupSection } from "./run-group-section";
 import { LinearLinkBadge } from "./linear-link-badge";
 import { EvalPromoteSection } from "./eval-promote-section";
 import { IssueMirrorsSection } from "./issue-mirrors-section";
@@ -2729,6 +2730,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
 
       {/* Agent duel (K39): two independent runs, the arbiter's scores, the human's verdict. */}
       <DuelSection issueId={id} />
+
+      {/* Racing attempts (F11): N attempts side by side, the human keeps one. */}
+      <RunGroupSection issueId={id} />
 
       {/* Linear Bridge (K21): this issue mirrors a Linear issue — identifier, link out, sync state. */}
       <LinearLinkBadge issueId={id} />
