@@ -247,6 +247,7 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | | `children <id>` | サブタスクをステージごとに一覧 | |
 | | `pull-requests <id>` | 関連付けられた PR を一覧 | |
 | | `comment list/add/delete/resolve/unresolve` | コメントを管理 | `add`: `--content` / `--content-stdin` / `--content-file`、`--parent`、`--attachment`；`list`: `--since`、`--thread`、`--tail` |
+| | `ask-agent <issue-id>` | エージェント間でこのタスクにメッセージを送信 | `--to`、`--intent`（`question`、`review`、`handoff`）、`--body` / `--body-stdin` / `--body-file` |
 | | `subscriber list/add/remove <issue-id>` | 購読者を管理 | `--user`、`--user-id`（省略時は現在のユーザー） |
 | | `label list/add/remove <issue-id>` | タスクのラベルを管理 | |
 | | `metadata list/get/set/delete <issue-id>` | タスクレベルのキー・バリューメタデータを管理 | |
@@ -255,6 +256,9 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | | `run-messages <task-id>` | 1 回の実行のメッセージを表示 | `--since`、`--issue` |
 | | `run-plan set <task-id>` | 実行自身のプランを公開（置き換え） | `--item "<テキスト>:<ステータス>"`（繰り返し可。省略時は標準入力の JSON）、`--issue` |
 | | `usage <issue-id>` | 集計されたトークン使用量を表示 | |
+| | `spend-token request <run-id>` | spend token をリクエスト、または承認済みの spend gate からトークンを回収 | `--amount`、`--purpose`、`--gate`、`--wait`、`--issue` |
+| | `spend-token verify <run-id>` | トークンを消費し、その支払いの内容を宣言 | `--token`、`--amount`、`--issue` |
+| | `budget-status <run-id>` | 実行の使用量と上限、および到達した制限を表示 | `--issue` |
 | | `rerun <id>` | 現在の担当者で実行を再キューイング | |
 | | `cancel-task <task-id>` | 進行中またはキュー中の実行をキャンセル | `--issue` |
 | `project` | `list/get/create/update/delete` | プロジェクトを管理 | |
@@ -276,6 +280,8 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | `workspace` | `list/get/create/update/switch` | ワークスペースを管理。`switch` は現在のプロファイルのデフォルトワークスペースを設定 | |
 | | `mcp list/add/update/remove` | ワークスペースの MCP サーバーライブラリを管理 | 書き込みは owner/admin のみ。ここに追加したサーバーはどのエージェントにも割り当てられません — `multica agent mcp add` で割り当てます。`list` は名前と transport のみを表示し、保存されたエントリは書き込み専用でどのロールにも返りません。`--server-config-file` / `--server-config-stdin` はトークンをシェル履歴から守ります |
 | | `member list/invite <email>` | メンバーの表示と招待 | `invite`: `--role`（member または admin。デフォルトは member） |
+| | `halt` | このワークスペースの全エージェントを保留（owner/admin のみ） | `--reason` |
+| | `resume` | ワークスペースの保留を解除（owner/admin のみ） | |
 | `repo` | `list/add/remove/checkout` | ワークスペースのリポジトリを管理し、ローカルにチェックアウト | `--url`（繰り返し可）；`checkout`: `--ref` |
 | `skill` | `list/get/create/update/delete` | スキルを管理 | |
 | | `import` | URL またはローカルファイルからスキルをインポート | `--url` / `--file`、`--on-conflict`（`fail`、`overwrite`、`rename`、`skip`。デフォルトは `fail`） |
@@ -285,6 +291,23 @@ CLI の設定ファイルには、あなたとして Multica にアクセスで�
 | | `member list/add/set-role/remove` | スクワッドのメンバーを管理 | |
 | | `activity <issue-id> <outcome>` | リーダーの評価を記録 | |
 | `chat` | `history`、`thread [id]` | エージェントが現在処理している外部チャットセッションを読み取り | `--limit`、`--before` |
+| `triage` | `list` | トリアージキューを一覧（デフォルトは保留中のキュー） | `--pending`、`--state`、`--include-snoozed`、`--limit`、`--full-id` |
+| | `verdict <item-id>` | 保留中のトリアージ項目に accept/dismiss を提案（エージェント専用） | `--accept` / `--dismiss`、`--reason` |
+| `brain` | `list` | 検索テキストやタグで絞り込んでワークスペースのノートを一覧 | `--search`、`--tag`、`--archived`、`--limit`、`--full-id` |
+| | `show <id>` | 1件のワークスペースノートを表示 | |
+| | `save` | ワークスペースの永続的な知識をノートとして保存 | `--title`、`--tags`、`--content` / `--content-file`、`--pinned`、`--id` |
+| | `archive <id>` | ノートをアーカイブし、実行への注入を停止 | |
+| `wiki` | `start` | wiki スナップショットを開始し、リポジトリのファイル一覧を通知 | `--project`、`--resource`、`--commit`、`--paths-from` |
+| | `page set` | wiki スナップショットに 1 ページを書き込む | `--project`、`--snapshot`、`--slug`、`--title`、`--content-file`、`--citations-file`、`--cite`（繰り返し可） |
+| | `publish` | wiki スナップショットを公開し、直前の版を一括で置き換え | `--project`、`--snapshot` |
+| `criteria` | `list <issue-id>` | 証跡状態付きでタスクの受け入れ基準を一覧 | |
+| | `set <issue-id>` | 受け入れ基準を置き換え（基準ごとに `--text` を1つ） | `--text`（繰り返し可） |
+| | `prove <issue-id> <criterion-id>` | 1件の基準に証跡を添付 | `--type`（`test`、`file`、`screenshot`、`url`、`human_validation`）、`--ref` |
+| `decision` | `ask <issue-id>` | Decision Card を作成：選択肢、推奨案、緊急度を伴う質問 | `--question`、`--option`（繰り返し可、`"id=Label"` または `"id=Label\|impact"`）、`--recommend`、`--urgency` |
+| `interview` | `ask <issue-id>` | JSON ファイルまたは標準入力から要件インタビュー（最大3問の多肢選択）を作成 | `--file` |
+| `review` | `flag add` | 関連付けられた PR の行範囲に1件の指摘を記録 | `--issue`、`--pr`、`--sha`、`--file`、`--line`、`--side`、`--severity`、`--confidence`、`--title`、`--body` |
+| | `flag list` | タスクのレビューフラグを深刻度順に一覧 | `--issue`、`--state` |
+| | `verdict` | このクリティックの実行が下した判定（`pass`、`concerns`、`block`）を記録 | `--issue`、`--task`、`--verdict`、`--summary`、`--findings-file` |
 
 ### Runtime
 
