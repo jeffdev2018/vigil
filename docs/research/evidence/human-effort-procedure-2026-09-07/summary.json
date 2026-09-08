@@ -1,0 +1,19 @@
+{
+  "criterion": "Agent comment equals exactly the token mast-9 (no other text).",
+  "procedure_a": {
+    "name": "baseline_miss_request_changes",
+    "issue": "DEV-11",
+    "human_effort_seconds": 4,
+    "review_delay_seconds": 874,
+    "decision": "changes_requested"
+  },
+  "procedure_b": {
+    "name": "treatment_hit_accept",
+    "issue": "DEV-15",
+    "human_effort_seconds": 1,
+    "review_delay_seconds": 512,
+    "decision": "accepted"
+  },
+  "effort_delta_seconds": 3,
+  "note": "review_delay is wall clock since run end; human_effort is client-timed active review. Procedures differ by memory hit vs miss outcome."
+}

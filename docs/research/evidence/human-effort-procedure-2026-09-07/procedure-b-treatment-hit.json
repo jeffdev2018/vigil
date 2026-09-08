@@ -1,0 +1,16 @@
+{
+  "issue": "DEV-15",
+  "issue_id": "01a07e6c-afd9-78d9-866b-5fbb0dab079f",
+  "bodies": [
+    "mast-9"
+  ],
+  "match_mast9": true,
+  "http_status": 201,
+  "decision": "accepted",
+  "human_effort_seconds": 1,
+  "review_delay_seconds": 512,
+  "usage_status": "estimated",
+  "available_usd": "0.1766263500",
+  "review_id": "a981bf2a-b51d-4974-a913-2140d061a1a8",
+  "sent_effort": 1
+}

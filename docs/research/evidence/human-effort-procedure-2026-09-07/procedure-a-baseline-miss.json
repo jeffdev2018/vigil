@@ -1,0 +1,16 @@
+{
+  "issue": "DEV-11",
+  "issue_id": "01a07e67-7e09-7655-80d2-6a4482c426fc",
+  "bodies": [
+    "keel-4"
+  ],
+  "match_mast9": false,
+  "http_status": 201,
+  "decision": "changes_requested",
+  "human_effort_seconds": 4,
+  "review_delay_seconds": 874,
+  "usage_status": "estimated",
+  "available_usd": "0.2434069500",
+  "review_id": "426be62b-7c31-491b-9f6c-54c6ea9704ba",
+  "sent_effort": 4
+}

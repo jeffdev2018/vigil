@@ -22,3 +22,7 @@ UI copy (en/zh/ja/ko) states the self-timer honesty.
 
 - Go: `TestIssueDeliveryHumanEffortSeconds`
 - Core: `issue-delivery.test.ts` parses `human_effort_seconds: 18`
+
+## Procedure comparison
+
+See [human-effort-procedure-2026-09-07.md](human-effort-procedure-2026-09-07.md).
