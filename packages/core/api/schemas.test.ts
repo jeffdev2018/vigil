@@ -151,6 +151,37 @@ import {
   BusinessRuleDryRunSchema,
   BlastRadiusRuleEnvelopeSchema,
 } from "./schemas";
+import {
+  MemberWithUserSchema,
+  MemberWithUserListSchema,
+  EMPTY_MEMBER_WITH_USER,
+  InvitationSchema,
+  InvitationListSchema,
+  EMPTY_INVITATION,
+  SkillSummaryListSchema,
+  EMPTY_SKILL_SUMMARY_LIST,
+  PersonalAccessTokenSchema,
+  PersonalAccessTokenListSchema,
+  CreatePersonalAccessTokenResponseSchema,
+  ChatPinnedAgentSchema,
+  ChatPinnedAgentListSchema,
+  EMPTY_CHAT_PINNED_AGENT,
+  PendingChatTasksResponseSchema,
+  EMPTY_PENDING_CHAT_TASKS_RESPONSE,
+  HasPendingChatTasksResponseSchema,
+  EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE,
+  AttachmentListSchema,
+  EMPTY_ATTACHMENT_LIST,
+  ProjectSchema,
+  EMPTY_PROJECT,
+  ListProjectsResponseSchema,
+  EMPTY_LIST_PROJECTS_RESPONSE,
+  ProjectResourceSchema,
+  EMPTY_PROJECT_RESOURCE,
+  ListProjectResourcesResponseSchema,
+  EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
+} from "./schemas";
+import type { CreatePersonalAccessTokenResponse } from "../types";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -4680,6 +4711,297 @@ describe("BlastRadiusRuleEnvelopeSchema (createBlastRadiusRule)", () => {
   it("falls back to null on a malformed body", () => {
     for (const malformed of [null, "nope", 42, {}, { rule: { path_pattern: "no id" } }]) {
       expect(parseWithFallback(malformed, BlastRadiusRuleEnvelopeSchema, null, { endpoint: "test" })).toBeNull();
+    }
+  });
+});
+
+// JEF-321 batch C — members, invitations, skills, personal access tokens,
+// chat sessions/pinned agents, attachments, projects.
+
+describe("MemberWithUserSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/workspaces/:id/members" };
+  const member = {
+    id: "member-1",
+    workspace_id: "ws-1",
+    user_id: "user-1",
+    role: "admin",
+    created_at: "2026-09-01T00:00:00Z",
+    name: "Ada",
+    email: "ada@example.com",
+    avatar_url: null,
+  };
+
+  it("keeps a valid member intact", () => {
+    const parsed = parseWithFallback(member, MemberWithUserSchema, EMPTY_MEMBER_WITH_USER, ENDPOINT);
+    expect(parsed.role).toBe("admin");
+    expect(parsed.name).toBe("Ada");
+  });
+
+  it("falls back on a missing required field rather than throwing", () => {
+    const parsed = parseWithFallback({ workspace_id: "ws-1" }, MemberWithUserSchema, EMPTY_MEMBER_WITH_USER, ENDPOINT);
+    expect(parsed).toEqual(EMPTY_MEMBER_WITH_USER);
+  });
+
+  it("parses a list, defaulting to [] on a malformed payload", () => {
+    expect(parseWithFallback([member], MemberWithUserListSchema, [], ENDPOINT)).toHaveLength(1);
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(parseWithFallback(malformed, MemberWithUserListSchema, [], ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("InvitationSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/invitations/:id" };
+  const invitation = {
+    id: "inv-1",
+    workspace_id: "ws-1",
+    inviter_id: "user-1",
+    invitee_email: "new@example.com",
+    invitee_user_id: null,
+    role: "member",
+    status: "pending",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+    expires_at: "2026-09-08T00:00:00Z",
+  };
+
+  it("keeps a valid invitation intact", () => {
+    const parsed = parseWithFallback(invitation, InvitationSchema, EMPTY_INVITATION, ENDPOINT);
+    expect(parsed.status).toBe("pending");
+    expect(parsed.invitee_email).toBe("new@example.com");
+  });
+
+  it("falls back an unknown status to 'pending' rather than throwing", () => {
+    const parsed = parseWithFallback({ ...invitation, status: "photo_finish" }, InvitationSchema, EMPTY_INVITATION, ENDPOINT);
+    expect(parsed.status).toBe("pending");
+  });
+
+  it("falls back on a missing id rather than throwing", () => {
+    const parsed = parseWithFallback({ status: "accepted" }, InvitationSchema, EMPTY_INVITATION, ENDPOINT);
+    expect(parsed).toEqual(EMPTY_INVITATION);
+  });
+
+  it("parses a list, defaulting to [] on a malformed payload", () => {
+    expect(parseWithFallback([invitation], InvitationListSchema, [], ENDPOINT)).toHaveLength(1);
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, InvitationListSchema, [], ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("SkillSummaryListSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/skills" };
+  const summary = {
+    id: "skill-1",
+    workspace_id: "ws-1",
+    name: "Triage",
+    description: "Triages issues",
+    config: {},
+    created_by: "user-1",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+    // No content/files: summary endpoints omit the body.
+  };
+
+  it("parses a summary payload lacking content/files", () => {
+    const parsed = parseWithFallback([summary], SkillSummaryListSchema, EMPTY_SKILL_SUMMARY_LIST, ENDPOINT);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.name).toBe("Triage");
+  });
+
+  it("defaults to [] on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, SkillSummaryListSchema, EMPTY_SKILL_SUMMARY_LIST, ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("PersonalAccessTokenSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/tokens" };
+  const token = {
+    id: "pat-1",
+    name: "CI token",
+    token_prefix: "mca_ab12",
+    expires_at: null,
+    last_used_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-08-01T00:00:00Z",
+  };
+
+  it("keeps a valid token intact", () => {
+    const parsed = parseWithFallback(token, PersonalAccessTokenSchema, { ...token, name: "" }, ENDPOINT);
+    expect(parsed.token_prefix).toBe("mca_ab12");
+  });
+
+  it("parses a list, defaulting to [] on a malformed payload", () => {
+    expect(parseWithFallback([token], PersonalAccessTokenListSchema, [], ENDPOINT)).toHaveLength(1);
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, PersonalAccessTokenListSchema, [], ENDPOINT)).toEqual([]);
+    }
+  });
+
+  it("keeps the once-shown token secret on a valid create response", () => {
+    const created = { ...token, token: "mca_ab12_secretvalue" };
+    const parsed = parseWithFallback<CreatePersonalAccessTokenResponse | null>(created, CreatePersonalAccessTokenResponseSchema, null, ENDPOINT);
+    expect(parsed?.token).toBe("mca_ab12_secretvalue");
+  });
+
+  it("falls back to null (not an invented secret) when the token is missing", () => {
+    expect(parseWithFallback(token, CreatePersonalAccessTokenResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(parseWithFallback(malformed, CreatePersonalAccessTokenResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("ChatPinnedAgentSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/chat/pinned-agents" };
+  const pinned = { agent_id: "agent-1", position: 2 };
+
+  it("keeps a valid pinned agent intact", () => {
+    const parsed = parseWithFallback(pinned, ChatPinnedAgentSchema, EMPTY_CHAT_PINNED_AGENT, ENDPOINT);
+    expect(parsed).toEqual(pinned);
+  });
+
+  it("defaults position to 0 when absent", () => {
+    const parsed = parseWithFallback({ agent_id: "agent-1" }, ChatPinnedAgentSchema, EMPTY_CHAT_PINNED_AGENT, ENDPOINT);
+    expect(parsed.position).toBe(0);
+  });
+
+  it("parses a list, defaulting to [] on a malformed payload", () => {
+    expect(parseWithFallback([pinned], ChatPinnedAgentListSchema, [], ENDPOINT)).toHaveLength(1);
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, ChatPinnedAgentListSchema, [], ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("PendingChatTasksResponseSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/chat/pending-tasks" };
+
+  it("keeps a valid task list intact", () => {
+    const payload = { tasks: [{ task_id: "task-1", status: "running", chat_session_id: "session-1" }] };
+    const parsed = parseWithFallback(payload, PendingChatTasksResponseSchema, EMPTY_PENDING_CHAT_TASKS_RESPONSE, ENDPOINT);
+    expect(parsed.tasks).toHaveLength(1);
+    expect(parsed.tasks[0]?.status).toBe("running");
+  });
+
+  it("falls back to an empty task list rather than throwing", () => {
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, PendingChatTasksResponseSchema, EMPTY_PENDING_CHAT_TASKS_RESPONSE, ENDPOINT).tasks).toEqual([]);
+    }
+  });
+});
+
+describe("HasPendingChatTasksResponseSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/chat/pending-tasks/has-any" };
+
+  it("keeps a valid boolean intact", () => {
+    expect(parseWithFallback({ has_pending: true }, HasPendingChatTasksResponseSchema, EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE, ENDPOINT).has_pending).toBe(true);
+  });
+
+  it("falls back to false rather than throwing", () => {
+    for (const malformed of [null, "oops", 42, {}]) {
+      expect(parseWithFallback(malformed, HasPendingChatTasksResponseSchema, EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE, ENDPOINT).has_pending).toBe(false);
+    }
+  });
+});
+
+describe("AttachmentListSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/issues/:id/attachments" };
+  const attachment = {
+    id: "att-1",
+    url: "https://files.example/att-1",
+    download_url: "https://files.example/att-1/download",
+    filename: "spec.pdf",
+  };
+
+  it("parses a valid attachment list", () => {
+    const parsed = parseWithFallback([attachment], AttachmentListSchema, EMPTY_ATTACHMENT_LIST, ENDPOINT);
+    expect(parsed).toHaveLength(1);
+    expect(parsed[0]?.filename).toBe("spec.pdf");
+  });
+
+  it("defaults to [] on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, AttachmentListSchema, EMPTY_ATTACHMENT_LIST, ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("ProjectSchema (batch C endpoints)", () => {
+  const ENDPOINT = { endpoint: "GET /api/projects/:id" };
+  const project = {
+    id: "proj-1",
+    workspace_id: "ws-1",
+    title: "Launch",
+    description: null,
+    icon: null,
+    status: "in_progress",
+    priority: "high",
+    lead_type: "member",
+    lead_id: "user-1",
+    start_date: null,
+    due_date: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+    issue_count: 3,
+    done_count: 1,
+    resource_count: 0,
+  };
+
+  it("keeps a valid project intact", () => {
+    const parsed = parseWithFallback(project, ProjectSchema, EMPTY_PROJECT, ENDPOINT);
+    expect(parsed.title).toBe("Launch");
+    expect(parsed.status).toBe("in_progress");
+  });
+
+  it("falls back on a missing id rather than throwing", () => {
+    expect(parseWithFallback({ title: "no id" }, ProjectSchema, EMPTY_PROJECT, ENDPOINT)).toEqual(EMPTY_PROJECT);
+  });
+
+  it("parses a list envelope, defaulting to an empty page on a malformed payload", () => {
+    const parsed = parseWithFallback({ projects: [project], total: 1 }, ListProjectsResponseSchema, EMPTY_LIST_PROJECTS_RESPONSE, ENDPOINT);
+    expect(parsed.projects).toHaveLength(1);
+    expect(parsed.total).toBe(1);
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, ListProjectsResponseSchema, EMPTY_LIST_PROJECTS_RESPONSE, ENDPOINT)).toEqual(EMPTY_LIST_PROJECTS_RESPONSE);
+    }
+  });
+});
+
+describe("ProjectResourceSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/projects/:id/resources" };
+  const resource = {
+    id: "res-1",
+    project_id: "proj-1",
+    workspace_id: "ws-1",
+    resource_type: "github_repo",
+    resource_ref: { url: "https://github.com/example/repo" },
+    label: "Backend repo",
+    position: 0,
+    created_at: "2026-09-01T00:00:00Z",
+    created_by: "user-1",
+  };
+
+  it("keeps a valid resource intact", () => {
+    const parsed = parseWithFallback(resource, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, ENDPOINT);
+    expect(parsed.resource_type).toBe("github_repo");
+    expect(parsed.resource_ref).toEqual({ url: "https://github.com/example/repo" });
+  });
+
+  it("falls back an unknown resource_type to 'github_repo' rather than throwing", () => {
+    const parsed = parseWithFallback({ ...resource, resource_type: "s3_bucket" }, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, ENDPOINT);
+    expect(parsed.resource_type).toBe("github_repo");
+  });
+
+  it("parses a list envelope, defaulting to an empty page on a malformed payload", () => {
+    const parsed = parseWithFallback({ resources: [resource], total: 1 }, ListProjectResourcesResponseSchema, EMPTY_LIST_PROJECT_RESOURCES_RESPONSE, ENDPOINT);
+    expect(parsed.resources).toHaveLength(1);
+    for (const malformed of [null, "oops", 42]) {
+      expect(parseWithFallback(malformed, ListProjectResourcesResponseSchema, EMPTY_LIST_PROJECT_RESOURCES_RESPONSE, ENDPOINT)).toEqual(EMPTY_LIST_PROJECT_RESOURCES_RESPONSE);
     }
   });
 });
