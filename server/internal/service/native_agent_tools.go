@@ -179,6 +179,12 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 	}
 }
 
+// callNativeToolRead dispatches one validated tool invocation. Errors are
+// values for the model to react to, not run failures. Exported for tests.
+func (s *NativeAgentService) callNativeToolRead(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
+	return s.callNativeTool(ctx, tctx, name, args)
+}
+
 // callNativeTool dispatches one validated tool invocation. Errors are values
 // for the model to react to, not run failures.
 func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
@@ -256,7 +262,7 @@ func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx *nati
 		out["priority"] = issue.Priority
 	}
 	if issue.Description.Valid {
-		out["description"] = issue.Description.String
+		out["description"] = nativeDataFence("issue description", issue.Description.String)
 	}
 	comments, err := s.Queries.ListCommentsForIssue(ctx, db.ListCommentsForIssueParams{
 		IssueID:     issue.ID,
@@ -271,7 +277,7 @@ func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx *nati
 		list = append(list, map[string]any{
 			"author_type": c.AuthorType,
 			"author_id":   util.UUIDToString(c.AuthorID),
-			"content":     clampString(c.Content, 2000),
+			"content":     nativeDataFence("comment", clampString(c.Content, 2000)),
 			"created_at":  c.CreatedAt,
 		})
 	}
@@ -592,11 +598,13 @@ func (s *NativeAgentService) nativeSearchNotes(ctx context.Context, tctx *native
 	out := make([]map[string]any, 0, len(notes))
 	for _, n := range notes {
 		out = append(out, map[string]any{
-			"id":      util.UUIDToString(n.ID),
-			"title":   n.Title,
-			"tags":    n.Tags,
-			"pinned":  n.Pinned,
-			"excerpt": clampString(n.Content, 300),
+			"id":     util.UUIDToString(n.ID),
+			"title":  n.Title,
+			"tags":   n.Tags,
+			"pinned": n.Pinned,
+			// Fenced as a record (N01): a note's body is workspace data,
+			// never instructions for the agent reading it.
+			"excerpt": nativeDataFence("note", clampString(n.Content, 300)),
 		})
 	}
 	return out, nil
@@ -614,7 +622,7 @@ func (s *NativeAgentService) nativeGetNote(ctx context.Context, tctx *nativeTool
 	}
 	return map[string]any{
 		"id": util.UUIDToString(note.ID), "title": note.Title,
-		"content": note.Content, "tags": note.Tags, "pinned": note.Pinned,
+		"content": nativeDataFence("note", note.Content), "tags": note.Tags, "pinned": note.Pinned,
 		"revision": note.Revision,
 	}, nil
 }
