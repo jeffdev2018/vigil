@@ -182,6 +182,45 @@ import {
   EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
 } from "./schemas";
 import type { CreatePersonalAccessTokenResponse } from "../types";
+import {
+  PinnedItemSchema,
+  PinnedItemListSchema,
+  EMPTY_PINNED_ITEM_LIST,
+  SquadMemberSchema,
+  SquadMemberListSchema,
+  EMPTY_SQUAD_MEMBER,
+  EMPTY_SQUAD_MEMBER_LIST,
+  AutopilotSchema,
+  EMPTY_AUTOPILOT,
+  GetAutopilotResponseSchema,
+  AutopilotCollaboratorsResponseSchema,
+  EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE,
+  AutopilotTriggerSchema,
+  EMPTY_AUTOPILOT_TRIGGER,
+  ListAutopilotRunsResponseSchema,
+  EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE,
+  VCSConnectionSchema,
+  ListVCSConnectionsResponseSchema,
+  EMPTY_LIST_VCS_CONNECTIONS_RESPONSE,
+  ConnectVCSResponseSchema,
+  LarkInstallationSchema,
+  ListLarkInstallationsResponseSchema,
+  EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE,
+  BeginLarkInstallResponseSchema,
+  LarkInstallStatusResponseSchema,
+  RedeemLarkBindingTokenResponseSchema,
+  ComposioToolkitSchema,
+  ComposioToolkitListSchema,
+  EMPTY_COMPOSIO_TOOLKIT_LIST,
+  ComposioConnectionSchema,
+  ComposioConnectionListSchema,
+  EMPTY_COMPOSIO_CONNECTION_LIST,
+  ComposioConnectInitResponseSchema,
+  SlackInstallationSchema,
+  ListSlackInstallationsResponseSchema,
+  EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE,
+  RedeemSlackBindingTokenResponseSchema,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -5002,6 +5041,601 @@ describe("ProjectResourceSchema", () => {
     expect(parsed.resources).toHaveLength(1);
     for (const malformed of [null, "oops", 42]) {
       expect(parseWithFallback(malformed, ListProjectResourcesResponseSchema, EMPTY_LIST_PROJECT_RESOURCES_RESPONSE, ENDPOINT)).toEqual(EMPTY_LIST_PROJECT_RESOURCES_RESPONSE);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch D — pins, squad members, autopilots, VCS/Lark/Composio/Slack
+// integrations
+// ---------------------------------------------------------------------------
+
+describe("PinnedItemSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/pins" };
+  const pin = {
+    id: "pin-1",
+    workspace_id: "ws-1",
+    user_id: "user-1",
+    item_type: "issue",
+    item_id: "issue-1",
+    position: 1,
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid pin intact", () => {
+    expect(parseWithFallback(pin, PinnedItemSchema, null, ENDPOINT)).toEqual(pin);
+  });
+
+  it("falls back to null on a missing required field", () => {
+    const { item_id: _item_id, ...rest } = pin;
+    expect(parseWithFallback(rest, PinnedItemSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, PinnedItemSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("PinnedItemListSchema", () => {
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, PinnedItemListSchema, EMPTY_PINNED_ITEM_LIST, { endpoint: "GET /api/pins" }),
+      ).toEqual([]);
+    }
+  });
+});
+
+describe("SquadMemberSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/squads/:id/members" };
+  const member = {
+    id: "member-1",
+    squad_id: "squad-1",
+    member_type: "agent",
+    member_id: "agent-1",
+    role: "reviewer",
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid squad member intact", () => {
+    expect(parseWithFallback(member, SquadMemberSchema, EMPTY_SQUAD_MEMBER, ENDPOINT)).toEqual(member);
+  });
+
+  it("falls back to EMPTY_SQUAD_MEMBER on a missing required field", () => {
+    const { member_id: _member_id, ...rest } = member;
+    expect(parseWithFallback(rest, SquadMemberSchema, EMPTY_SQUAD_MEMBER, ENDPOINT)).toEqual(EMPTY_SQUAD_MEMBER);
+  });
+
+  it("defaults role to empty string when absent", () => {
+    const { role: _role, ...rest } = member;
+    expect(parseWithFallback(rest, SquadMemberSchema, EMPTY_SQUAD_MEMBER, ENDPOINT)).toEqual({ ...member, role: "" });
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, SquadMemberSchema, EMPTY_SQUAD_MEMBER, ENDPOINT)).toEqual(EMPTY_SQUAD_MEMBER);
+    }
+  });
+});
+
+describe("SquadMemberListSchema", () => {
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, SquadMemberListSchema, EMPTY_SQUAD_MEMBER_LIST, {
+          endpoint: "GET /api/squads/:id/members",
+        }),
+      ).toEqual([]);
+    }
+  });
+});
+
+describe("AutopilotSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/autopilots" };
+  const autopilot = {
+    id: "autopilot-1",
+    workspace_id: "ws-1",
+    title: "Triage",
+    description: null,
+    assignee_type: "agent",
+    assignee_id: "agent-1",
+    status: "active",
+    execution_mode: "create_issue",
+    issue_title_template: null,
+    created_by_type: "member",
+    created_by_id: "member-1",
+    last_run_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid autopilot intact", () => {
+    expect(parseWithFallback(autopilot, AutopilotSchema, null, ENDPOINT)).toEqual(autopilot);
+  });
+
+  it("falls back to null on a missing required field (create — a failed mutation)", () => {
+    const { assignee_id: _assignee_id, ...rest } = autopilot;
+    expect(parseWithFallback(rest, AutopilotSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("falls back to EMPTY_AUTOPILOT on a missing required field (update — never thrown)", () => {
+    const { assignee_id: _assignee_id, ...rest } = autopilot;
+    expect(parseWithFallback(rest, AutopilotSchema, EMPTY_AUTOPILOT, { endpoint: "PATCH /api/autopilots/:id" })).toEqual(
+      EMPTY_AUTOPILOT,
+    );
+  });
+
+  it("defaults assignee_type to 'agent' when absent (pre-MUL-2429 servers)", () => {
+    const { assignee_type: _assignee_type, ...rest } = autopilot;
+    expect(parseWithFallback(rest, AutopilotSchema, null, ENDPOINT)).toEqual(autopilot);
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, AutopilotSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("GetAutopilotResponseSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/autopilots/:id" };
+  const autopilot = {
+    id: "autopilot-1",
+    workspace_id: "ws-1",
+    title: "Triage",
+    description: null,
+    assignee_type: "agent",
+    assignee_id: "agent-1",
+    status: "active",
+    execution_mode: "create_issue",
+    issue_title_template: null,
+    created_by_type: "member",
+    created_by_id: "member-1",
+    last_run_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+  const trigger = {
+    id: "trigger-1",
+    autopilot_id: "autopilot-1",
+    kind: "schedule",
+    enabled: true,
+    cron_expression: "0 9 * * *",
+    timezone: "UTC",
+    next_run_at: null,
+    webhook_token: null,
+    label: "Daily",
+    last_fired_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid detail response intact", () => {
+    const body = { autopilot, triggers: [trigger] };
+    expect(parseWithFallback(body, GetAutopilotResponseSchema, null, ENDPOINT)).toEqual(body);
+  });
+
+  it("defaults triggers to [] when absent", () => {
+    const body = { autopilot };
+    expect(parseWithFallback(body, GetAutopilotResponseSchema, null, ENDPOINT)).toEqual({
+      autopilot,
+      triggers: [],
+    });
+  });
+
+  it("falls back to null when autopilot is missing (getAutopilot throws on this)", () => {
+    expect(parseWithFallback({ triggers: [] }, GetAutopilotResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, GetAutopilotResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("AutopilotCollaboratorsResponseSchema", () => {
+  it("keeps valid collaborators intact", () => {
+    const body = { collaborators: [{ user_type: "member", user_id: "user-1", granted_by: "user-2", created_at: "2026-09-01T00:00:00Z" }] };
+    expect(
+      parseWithFallback(body, AutopilotCollaboratorsResponseSchema, EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE, {
+        endpoint: "POST /api/autopilots/:id/collaborators",
+      }),
+    ).toEqual(body);
+  });
+
+  it("falls back to EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, AutopilotCollaboratorsResponseSchema, EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE, {
+          endpoint: "POST /api/autopilots/:id/collaborators",
+        }),
+      ).toEqual(EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE);
+    }
+  });
+
+  it("defaults collaborators to [] when absent", () => {
+    expect(
+      parseWithFallback({}, AutopilotCollaboratorsResponseSchema, EMPTY_AUTOPILOT_COLLABORATORS_RESPONSE, {
+        endpoint: "POST /api/autopilots/:id/collaborators",
+      }),
+    ).toEqual({ collaborators: [] });
+  });
+});
+
+describe("AutopilotTriggerSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/autopilots/:id/triggers" };
+  const trigger = {
+    id: "trigger-1",
+    autopilot_id: "autopilot-1",
+    kind: "webhook",
+    enabled: true,
+    cron_expression: null,
+    timezone: null,
+    next_run_at: null,
+    webhook_token: "tok-1",
+    label: null,
+    last_fired_at: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid trigger intact", () => {
+    expect(parseWithFallback(trigger, AutopilotTriggerSchema, EMPTY_AUTOPILOT_TRIGGER, ENDPOINT)).toEqual(trigger);
+  });
+
+  it("falls back to EMPTY_AUTOPILOT_TRIGGER on a missing required field", () => {
+    const { id: _id, ...rest } = trigger;
+    expect(parseWithFallback(rest, AutopilotTriggerSchema, EMPTY_AUTOPILOT_TRIGGER, ENDPOINT)).toEqual(
+      EMPTY_AUTOPILOT_TRIGGER,
+    );
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, AutopilotTriggerSchema, EMPTY_AUTOPILOT_TRIGGER, ENDPOINT)).toEqual(
+        EMPTY_AUTOPILOT_TRIGGER,
+      );
+    }
+  });
+});
+
+describe("ListAutopilotRunsResponseSchema", () => {
+  it("falls back to EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, ListAutopilotRunsResponseSchema, EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE, {
+          endpoint: "GET /api/autopilots/:id/runs",
+        }),
+      ).toEqual(EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE);
+    }
+  });
+
+  it("defaults runs to [] and total to 0 when absent", () => {
+    expect(
+      parseWithFallback({}, ListAutopilotRunsResponseSchema, EMPTY_LIST_AUTOPILOT_RUNS_RESPONSE, {
+        endpoint: "GET /api/autopilots/:id/runs",
+      }),
+    ).toEqual({ runs: [], total: 0 });
+  });
+});
+
+describe("VCSConnectionSchema / ListVCSConnectionsResponseSchema", () => {
+  const connection = {
+    id: "conn-1",
+    workspace_id: "ws-1",
+    provider: "forgejo",
+    instance_url: "https://forgejo.example.com",
+    account_login: "octocat",
+    webhook_url: "https://multica.example.com/api/webhooks/vcs/tok",
+    webhook_path: "/api/webhooks/vcs/tok",
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid connection list intact", () => {
+    const body = { connections: [connection], available: true, configured: true, can_manage: true };
+    expect(
+      parseWithFallback(body, ListVCSConnectionsResponseSchema, EMPTY_LIST_VCS_CONNECTIONS_RESPONSE, {
+        endpoint: "GET /api/workspaces/:id/vcs/connections",
+      }),
+    ).toEqual(body);
+  });
+
+  it("defaults webhook_url/webhook_path to '' — a legitimately empty state, not drift", () => {
+    const { webhook_url: _u, webhook_path: _p, ...rest } = connection;
+    expect(parseWithFallback(rest, VCSConnectionSchema, null, { endpoint: "GET /api/workspaces/:id/vcs/connections" })).toEqual(
+      { ...connection, webhook_url: "", webhook_path: "" },
+    );
+  });
+
+  it("falls back to EMPTY_LIST_VCS_CONNECTIONS_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, ListVCSConnectionsResponseSchema, EMPTY_LIST_VCS_CONNECTIONS_RESPONSE, {
+          endpoint: "GET /api/workspaces/:id/vcs/connections",
+        }),
+      ).toEqual(EMPTY_LIST_VCS_CONNECTIONS_RESPONSE);
+    }
+  });
+});
+
+describe("ConnectVCSResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/workspaces/:id/vcs/connections" };
+  const connected = {
+    id: "conn-1",
+    workspace_id: "ws-1",
+    provider: "gitlab",
+    instance_url: "https://gitlab.example.com",
+    account_login: "octocat",
+    webhook_url: "",
+    webhook_path: "/api/webhooks/vcs/tok",
+    created_at: "2026-09-01T00:00:00Z",
+    webhook_secret: "s3cr3t",
+  };
+
+  it("keeps a valid connect response, including the one-time webhook_secret, intact", () => {
+    expect(parseWithFallback(connected, ConnectVCSResponseSchema, null, ENDPOINT)).toEqual(connected);
+  });
+
+  it("falls back to null (never an invented secret) when webhook_secret is missing", () => {
+    const { webhook_secret: _secret, ...rest } = connected;
+    expect(parseWithFallback(rest, ConnectVCSResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, ConnectVCSResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("LarkInstallationSchema / ListLarkInstallationsResponseSchema", () => {
+  const installation = {
+    id: "lark-1",
+    workspace_id: "ws-1",
+    agent_id: "agent-1",
+    app_id: "app-1",
+    bot_open_id: "ou_1",
+    installer_user_id: "user-1",
+    status: "active",
+    region: "feishu",
+    installed_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid installations list intact", () => {
+    const body = { installations: [installation], configured: true, install_supported: true };
+    expect(
+      parseWithFallback(body, ListLarkInstallationsResponseSchema, EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE, {
+        endpoint: "GET /api/workspaces/:id/lark/installations",
+      }),
+    ).toEqual(body);
+  });
+
+  it("falls back to EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, ListLarkInstallationsResponseSchema, EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE, {
+          endpoint: "GET /api/workspaces/:id/lark/installations",
+        }),
+      ).toEqual(EMPTY_LIST_LARK_INSTALLATIONS_RESPONSE);
+    }
+  });
+
+  it("keeps a lone installation valid on its own schema", () => {
+    expect(parseWithFallback(installation, LarkInstallationSchema, null, { endpoint: "test" })).toEqual(installation);
+  });
+});
+
+describe("BeginLarkInstallResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/workspaces/:id/lark/install/begin" };
+  const begin = {
+    session_id: "session-1",
+    qr_code_url: "https://accounts.feishu.cn/qr/abc",
+    expires_in_seconds: 300,
+    poll_interval_seconds: 2,
+  };
+
+  it("keeps a valid begin-install response intact", () => {
+    expect(parseWithFallback(begin, BeginLarkInstallResponseSchema, null, ENDPOINT)).toEqual(begin);
+  });
+
+  it("falls back to null (never an invented QR url) when qr_code_url is missing", () => {
+    const { qr_code_url: _url, ...rest } = begin;
+    expect(parseWithFallback(rest, BeginLarkInstallResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, BeginLarkInstallResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("LarkInstallStatusResponseSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/workspaces/:id/lark/install/:sessionId/status" };
+
+  it("keeps a valid pending status intact", () => {
+    const body = { status: "pending" };
+    expect(parseWithFallback(body, LarkInstallStatusResponseSchema, null, ENDPOINT)).toEqual(body);
+  });
+
+  it("keeps an unknown status string (server-driven, no exhaustive switch)", () => {
+    const body = { status: "some_future_state" };
+    expect(parseWithFallback(body, LarkInstallStatusResponseSchema, null, ENDPOINT)).toEqual(body);
+  });
+
+  it("falls back to null when status is missing", () => {
+    expect(parseWithFallback({}, LarkInstallStatusResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, LarkInstallStatusResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("RedeemLarkBindingTokenResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/lark/binding/redeem" };
+  const redeemed = { workspace_id: "ws-1", installation_id: "lark-1", lark_open_id: "ou_1" };
+
+  it("keeps a valid redemption response intact", () => {
+    expect(parseWithFallback(redeemed, RedeemLarkBindingTokenResponseSchema, null, ENDPOINT)).toEqual(redeemed);
+  });
+
+  it("falls back to null (never a false success) on a missing required field", () => {
+    const { installation_id: _id, ...rest } = redeemed;
+    expect(parseWithFallback(rest, RedeemLarkBindingTokenResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, RedeemLarkBindingTokenResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("ComposioToolkitSchema / ComposioToolkitListSchema", () => {
+  const toolkit = { slug: "github", name: "GitHub", logo: "https://x/y.png", category: "dev", connectable: true };
+
+  it("keeps a valid toolkit list intact", () => {
+    expect(
+      parseWithFallback([toolkit], ComposioToolkitListSchema, EMPTY_COMPOSIO_TOOLKIT_LIST, {
+        endpoint: "GET /api/integrations/composio/toolkits",
+      }),
+    ).toEqual([toolkit]);
+  });
+
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, ComposioToolkitListSchema, EMPTY_COMPOSIO_TOOLKIT_LIST, {
+          endpoint: "GET /api/integrations/composio/toolkits",
+        }),
+      ).toEqual([]);
+    }
+  });
+
+  it("defaults connectable to false when absent", () => {
+    const { connectable: _c, ...rest } = toolkit;
+    expect(parseWithFallback(rest, ComposioToolkitSchema, null, { endpoint: "test" })).toEqual({
+      ...toolkit,
+      connectable: false,
+    });
+  });
+});
+
+describe("ComposioConnectionSchema / ComposioConnectionListSchema", () => {
+  const connection = {
+    id: "conn-1",
+    toolkit_slug: "github",
+    status: "active",
+    connected_at: "2026-09-01T00:00:00Z",
+    last_used_at: null,
+  };
+
+  it("keeps a valid connection list intact", () => {
+    expect(
+      parseWithFallback([connection], ComposioConnectionListSchema, EMPTY_COMPOSIO_CONNECTION_LIST, {
+        endpoint: "GET /api/integrations/composio/connections",
+      }),
+    ).toEqual([connection]);
+  });
+
+  it("keeps an unknown status string (server-driven, no exhaustive switch)", () => {
+    const body = { ...connection, status: "some_future_state" };
+    expect(parseWithFallback(body, ComposioConnectionSchema, null, { endpoint: "test" })).toEqual(body);
+  });
+
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, ComposioConnectionListSchema, EMPTY_COMPOSIO_CONNECTION_LIST, {
+          endpoint: "GET /api/integrations/composio/connections",
+        }),
+      ).toEqual([]);
+    }
+  });
+});
+
+describe("ComposioConnectInitResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/integrations/composio/connect/init" };
+
+  it("keeps a valid redirect response intact", () => {
+    const body = { redirect_url: "https://backend.composio.dev/connect/abc" };
+    expect(parseWithFallback(body, ComposioConnectInitResponseSchema, null, ENDPOINT)).toEqual(body);
+  });
+
+  it("falls back to null (never an invented redirect target) when redirect_url is missing", () => {
+    expect(parseWithFallback({}, ComposioConnectInitResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, ComposioConnectInitResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("SlackInstallationSchema / ListSlackInstallationsResponseSchema", () => {
+  const installation = {
+    id: "slack-1",
+    workspace_id: "ws-1",
+    agent_id: "agent-1",
+    team_id: "team-1",
+    bot_user_id: "U1",
+    installer_user_id: "user-1",
+    status: "active",
+    installed_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid installations list intact", () => {
+    const body = { installations: [installation], configured: true, install_supported: true };
+    expect(
+      parseWithFallback(body, ListSlackInstallationsResponseSchema, EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE, {
+        endpoint: "GET /api/workspaces/:id/slack/installations",
+      }),
+    ).toEqual(body);
+  });
+
+  it("falls back to EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, ListSlackInstallationsResponseSchema, EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE, {
+          endpoint: "GET /api/workspaces/:id/slack/installations",
+        }),
+      ).toEqual(EMPTY_LIST_SLACK_INSTALLATIONS_RESPONSE);
+    }
+  });
+
+  it("falls back to null on registerSlackBYO's throw path when id is missing", () => {
+    const { id: _id, ...rest } = installation;
+    expect(parseWithFallback(rest, SlackInstallationSchema, null, { endpoint: "POST /api/workspaces/:id/slack/install/byo" })).toBeNull();
+  });
+});
+
+describe("RedeemSlackBindingTokenResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/slack/binding/redeem" };
+  const redeemed = { workspace_id: "ws-1", installation_id: "slack-1", slack_user_id: "U1" };
+
+  it("keeps a valid redemption response intact", () => {
+    expect(parseWithFallback(redeemed, RedeemSlackBindingTokenResponseSchema, null, ENDPOINT)).toEqual(redeemed);
+  });
+
+  it("falls back to null (never a false success) on a missing required field", () => {
+    const { slack_user_id: _id, ...rest } = redeemed;
+    expect(parseWithFallback(rest, RedeemSlackBindingTokenResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, RedeemSlackBindingTokenResponseSchema, null, ENDPOINT)).toBeNull();
     }
   });
 });
