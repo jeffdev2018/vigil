@@ -1,9 +1,16 @@
 -- name: SeedNativeRuntimes :execrows
 -- Idempotent per-workspace singleton row for the native runtime. Runs from the
 -- server tick so a workspace created after migration 826 still gets its row
--- without hooking workspace creation. Mirrors the migration's INSERT exactly.
-INSERT INTO agent_runtime (workspace_id, daemon_id, name, runtime_mode, provider, status, device_info)
-SELECT w.id, 'native', 'Native runtime', 'native', 'native', 'online', 'in-server agent runtime'
+-- without hooking workspace creation. Public + workspace-owner, matching
+-- migration 831: canUseRuntimeForAgent refuses a private ownerless runtime,
+-- so those two columns are what make the row usable for agent creation.
+INSERT INTO agent_runtime (workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, visibility, owner_id)
+SELECT w.id, 'native', 'Native runtime', 'native', 'native', 'online', 'in-server agent runtime',
+       'public',
+       (SELECT m.user_id FROM member m
+        WHERE m.workspace_id = w.id AND m.role = 'owner'
+        ORDER BY m.created_at, m.user_id
+        LIMIT 1)
 FROM workspace w
 WHERE NOT EXISTS (
     SELECT 1 FROM agent_runtime r
