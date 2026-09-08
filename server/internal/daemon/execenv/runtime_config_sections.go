@@ -654,6 +654,12 @@ func writeOrgContext(b *strings.Builder, ctx TaskContextForEnv) {
 	fmt.Fprintf(b, "You work inside the %s structure %q (revision %d).", strings.ReplaceAll(o.Model, "_", " "), o.StructureName, o.Revision)
 	if o.UnitName != "" {
 		fmt.Fprintf(b, " Your unit: %q, autonomy tier %s.", o.UnitName, strings.ReplaceAll(o.Autonomy, "_", " "))
+		if o.UnitMission != "" {
+			fmt.Fprintf(b, " Its mission: %s", o.UnitMission)
+			if !strings.HasSuffix(o.UnitMission, ".") {
+				b.WriteString(".")
+			}
+		}
 		if o.UnitModel != "" && o.UnitModel != o.Model {
 			fmt.Fprintf(b, " It operates as a%s %s inside that structure.", map[bool]string{true: "n", false: ""}[strings.HasPrefix(o.UnitModel, "o")], strings.ReplaceAll(o.UnitModel, "_", " "))
 		}

@@ -76,6 +76,9 @@ const (
 	orgHealthWindow            = 7 * 24 * time.Hour
 	orgProposalCooldown        = 24 * time.Hour
 	orgLLMReviewSecondsPerItem = 90
+	// orgMissionMaxRunes caps a unit's free-text mission: one sentence, the
+	// same ceiling the wizard's purpose field uses.
+	orgMissionMaxRunes = 240
 )
 
 var orgModels = []string{OrgModelHierarchy, OrgModelSquads, OrgModelMatrix, OrgModelCircles, OrgModelOwnerNetwork, OrgModelTaskforce, OrgModelMarket}
@@ -115,10 +118,14 @@ type OrgUnit struct {
 	// Model is how this unit takes an issue once routed to it. Empty inherits
 	// the parent's (via reports_to) and finally the structure's model, so a
 	// hierarchy can hold a market team next to a squad next to a pool.
-	Model                 string            `json:"model,omitempty"`
-	OwnerID               string            `json:"owner_id,omitempty"`
-	SquadID               string            `json:"squad_id,omitempty"`
-	MissionGoalID         string            `json:"mission_goal_id,omitempty"`
+	Model         string `json:"model,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
+	SquadID       string `json:"squad_id,omitempty"`
+	MissionGoalID string `json:"mission_goal_id,omitempty"`
+	// Mission is the unit's own sentence: what it is here to do. Free text
+	// (unlike MissionGoalID, which points at a goal), carried into the run's
+	// brief so an agent reads why its unit exists.
+	Mission               string            `json:"mission,omitempty"`
 	BudgetUsdTicks        int64             `json:"budget_usd_ticks,omitempty"`
 	Excludes              []string          `json:"excludes"`
 	Autonomy              string            `json:"autonomy"`
@@ -490,6 +497,10 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		u.Name = strings.TrimSpace(u.Name)
 		if u.ID == "" || u.Name == "" {
 			return orgErrorf("unit #%d needs an id and a name", i+1)
+		}
+		u.Mission = strings.TrimSpace(u.Mission)
+		if len([]rune(u.Mission)) > orgMissionMaxRunes {
+			return orgErrorf("unit %q: the mission is at most %d characters", u.Name, orgMissionMaxRunes)
 		}
 		if seen[u.ID] {
 			return orgErrorf("unit id %q is used twice", u.ID)

@@ -68,6 +68,7 @@ type OrgContextForEnv struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitMission    string   `json:"unit_mission,omitempty"`
 	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
