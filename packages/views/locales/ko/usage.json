@@ -168,8 +168,8 @@
   },
   "workflow_outcomes": {
     "title": "워크플로별 결과",
-    "subtitle": "최근 90일 · 태스크 클래스 및 워크플로별",
-    "col_class": "태스크 클래스",
+    "subtitle": "최근 90일 · 작업 클래스 및 워크플로별",
+    "col_class": "작업 클래스",
     "col_workflow": "워크플로",
     "col_samples": "샘플",
     "col_success": "성공률",

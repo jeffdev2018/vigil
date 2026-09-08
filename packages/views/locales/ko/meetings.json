@@ -41,7 +41,7 @@
     "actions_title": "실행 항목",
     "actions_empty": "추출된 실행 항목이 없습니다",
     "actions_open_triage": "트리아지에서 검토",
-    "actions_open_issue": "태스크 열기",
+    "actions_open_issue": "이슈 열기",
     "transcript_title": "전사",
     "transcript_empty": "아직 전사된 내용이 없습니다",
     "transcript_show": "전사 보기",
