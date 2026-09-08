@@ -49,6 +49,16 @@ export type ModelKeyList = z.infer<typeof ModelKeyListSchema>;
 
 export const EMPTY_MODEL_KEY_LIST: ModelKeyList = { keys: [], usage: [], vendors: [], configured: false };
 
+// retireModelKey (DELETE /api/workspaces/:id/model-keys/:keyId, JEF-321
+// batch E). useRetireModelKey (mutations.ts) discards the result and
+// invalidates the list on settle, so a malformed body falls back rather than
+// throws past a retirement that already applied server-side.
+export const RetireModelKeyResponseSchema = z.object({
+  retired: z.boolean().catch(false).default(false),
+}).loose();
+
+export const EMPTY_RETIRE_MODEL_KEY_RESPONSE: { retired: boolean } = { retired: false };
+
 export interface CreateModelKeyRequest {
   scope: ModelKeyScope;
   scope_id?: string;

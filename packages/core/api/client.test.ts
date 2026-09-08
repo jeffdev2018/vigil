@@ -657,8 +657,32 @@ describe("ApiClient server Table query", () => {
 
 describe("ApiClient issue move intent", () => {
   it("posts relative anchors without a client-authored position", async () => {
+    // JEF-321: moveIssue now validates the response through IssueSchema, so
+    // the stub must return a minimally valid Issue — this test only cares
+    // about the outgoing request body below.
+    const validIssue = {
+      id: "issue-1",
+      workspace_id: "ws-1",
+      number: 1,
+      identifier: "MUL-1",
+      title: "Latest",
+      description: null,
+      status: "in_progress",
+      priority: "none",
+      assignee_type: null,
+      assignee_id: null,
+      creator_type: "member",
+      creator_id: "user-1",
+      parent_issue_id: null,
+      project_id: null,
+      position: 15,
+      start_date: null,
+      due_date: null,
+      created_at: "2026-08-16T00:00:00Z",
+      updated_at: "2026-08-16T00:00:00Z",
+    };
     const fetchMock = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: "issue-1", position: 15 }), {
+      new Response(JSON.stringify(validIssue), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),

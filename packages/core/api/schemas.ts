@@ -4274,7 +4274,7 @@ export const SkillImportExistingSkillSchema = z.object({
  * backend still parses and its `reason` survives to the user. `z.enum` here
  * would fail the whole envelope on an unknown value, drop the server's reason
  * and leave only a generic "Import failed" — the server field is a bare
- * `string`, so it is free to grow. `skillFromImportResult` has the default
+ * `string`, so it is free to grow. `parseSkillImportResult` has the default
  * branch: anything outside created/updated is treated as a failure.
  */
 export const SkillImportResultSchema = z.object({
@@ -7214,3 +7214,87 @@ export const RedeemSlackBindingTokenResponseSchema = z.object({
   installation_id: z.string(),
   slack_user_id: z.string(),
 }).loose();
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch E — inbox bulk actions, issue batch-delete, agent task
+// cancellation, OIDC login completion, CLI token issuance, quick-create,
+// runtime unbind-and-delete (client-parse-guard.test.ts ALLOW_LIST closeout)
+// ---------------------------------------------------------------------------
+
+// markAllInboxRead / archiveAllInbox / archiveAllReadInbox / archiveCompletedInbox
+// (inbox/mutations.ts) all share this shape and are all "count is only used
+// to invalidate, never rendered" mutations — a malformed body must not throw,
+// or a bulk action that actually succeeded server-side would surface as a
+// failed mutation. Falls back to 0.
+export const InboxBulkActionResponseSchema = z.object({
+  count: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_INBOX_BULK_ACTION_RESPONSE: { count: number } = { count: 0 };
+
+// batchDeleteIssues (POST /api/issues/batch-delete). useBatchDeleteIssues
+// already removes the rows optimistically in onMutate and never reads the
+// mutation result, so a malformed body falls back to 0 rather than throwing
+// past a delete that already applied server-side.
+export const BatchDeleteIssuesResponseSchema = z.object({
+  deleted: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_BATCH_DELETE_ISSUES_RESPONSE: { deleted: number } = { deleted: 0 };
+
+// cancelAgentTasks (POST /api/agents/:id/cancel-tasks). agent-row-actions.tsx
+// reads `cancelled` only to word a toast ("no tasks to cancel" vs "cancelled
+// N tasks") inside its own try/catch, so a fallback of 0 degrades to the more
+// conservative message rather than throwing past a cancellation that already
+// applied.
+export const CancelAgentTasksResponseSchema = z.object({
+  cancelled: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_CANCEL_AGENT_TASKS_RESPONSE: { cancelled: number } = { cancelled: 0 };
+
+// completeOIDCLogin (POST /auth/oidc/callback). Extends LoginResponseSchema
+// (batch A, above) with the workspace to land on. Same "no EMPTY_* fallback"
+// rule as LoginResponseSchema: a malformed body must not look like a
+// successful login with nowhere to go — sso-callback-page.tsx's catch already
+// handles the throw.
+export const OIDCLoginResponseSchema = LoginResponseSchema.extend({
+  workspace_slug: z.string(),
+});
+
+// issueCliToken (POST /api/cli-token). login-page.tsx redirects the CLI
+// callback with the token directly; an invented empty token would silently
+// hand the CLI an unusable session instead of surfacing the existing
+// try/catch failure state. No EMPTY_* fallback — throw.
+export const IssueCliTokenResponseSchema = z.object({
+  token: z.string(),
+}).loose();
+
+// quickCreateIssue (POST /api/issues/quick-create). Same "create is a failed
+// mutation, not a safe-empty read" rule as createIssue/createComment above:
+// an invented empty task_id would report success on a modal submission that
+// actually failed to enqueue anything. No EMPTY_* fallback — throw.
+export const QuickCreateIssueResponseSchema = z.object({
+  task_id: z.string(),
+}).loose();
+
+// unbindAgentsAndDeleteRuntime (POST /api/runtimes/:id/unbind-agents-and-delete).
+// delete-runtime-dialog.tsx discards the result and invalidates on success, so
+// a malformed body falls back rather than throws past a delete that already
+// applied. `agents_archived` is the server's deprecated mirror of
+// `agents_unbound`, kept for installed clients (see client.ts doc comment).
+export const UnbindAgentsAndDeleteRuntimeResponseSchema = z.object({
+  status: z.string().catch(""),
+  agents_unbound: z.number().optional(),
+  agents_archived: z.number().optional(),
+  tasks_cancelled: z.number().catch(0).default(0),
+  autopilots_paused: z.number().optional(),
+}).loose();
+
+export const EMPTY_UNBIND_AGENTS_AND_DELETE_RUNTIME_RESPONSE: {
+  status: string;
+  agents_unbound?: number;
+  agents_archived?: number;
+  tasks_cancelled: number;
+  autopilots_paused?: number;
+} = { status: "", tasks_cancelled: 0 };

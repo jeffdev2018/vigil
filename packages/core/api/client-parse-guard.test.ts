@@ -55,32 +55,28 @@ const UNKNOWN_RETURN_BY_DESIGN = new Set([
   "approveProjectEpicStep",
 ]);
 
-// Methods JEF-321 has not yet migrated as of this push (batch D, rebased
-// onto batches A/B/C). These sit outside batch D's own domain (pins/squads/
-// autopilots/VCS/Lark/Composio/Slack) — workspaces, members, invitations,
-// tokens, chat sessions, inbox, business rules, attachments, agent tasks,
-// runtimes. This list must shrink to [] as later JEF-321 work lands; a
-// method landing here without being genuinely unmigrated is a regression,
-// not expected drift — validate it instead of allow-listing it.
-const ALLOW_LIST = new Set([
-  "archiveAllInbox",
-  "archiveAllReadInbox",
-  "archiveCompletedInbox",
-  "batchDeleteIssues",
-  "cancelAgentTasks",
-  "completeOIDCLogin",
-  "createComment",
+// Methods whose body calls `this.fetchRaw` (which the candidate filter's
+// `this.fetch` substring match also catches, since "this.fetchRaw" starts
+// with "this.fetch") but whose return value is not a parsed JSON body at
+// all: it is built from `Response.text()`/`Response.blob()` plus response
+// headers. There is no JSON shape to validate against a zod schema — the
+// object literal these methods return only wraps a blob/text stream, not a
+// server-authored JSON contract. Named and commented per method, mirroring
+// UNKNOWN_RETURN_BY_DESIGN above (JEF-321 batch E).
+const NON_JSON_RESPONSE_BY_DESIGN = new Set([
+  // Zip download: { blob, filename, runId } built from res.blob() and the
+  // Content-Disposition / X-Transfer-Run-ID headers, not JSON.
   "exportWorkspace",
+  // { text, originalContentType } built from res.text() and the
+  // X-Original-Content-Type header, not JSON.
   "getAttachmentTextContent",
-  "importSkillArchive",
-  "issueCliToken",
-  "markAllInboxRead",
-  "moveIssue",
-  "quickCreateIssue",
-  "retireModelKey",
-  "unbindAgentsAndDeleteRuntime",
-  "updateRuntime",
 ]);
+
+// JEF-321 batch E (2026-09) closed the last gap: every remaining method is
+// now validated through a schema. Adding a name back here is not allowed
+// without a ticket — a method landing here unvalidated is a regression, not
+// expected drift.
+const ALLOW_LIST = new Set<string>([]);
 
 interface MethodInfo {
   name: string;
@@ -157,6 +153,7 @@ describe("client.ts: every JSON-returning method validates its response", () => 
   const candidates = methods.filter((meth) => {
     if (!meth.body.includes("this.fetch")) return false;
     if (SKIP_RETURN_TYPES.has(meth.returnType)) return false;
+    if (NON_JSON_RESPONSE_BY_DESIGN.has(meth.name)) return false;
     return true;
   });
 
@@ -199,6 +196,19 @@ describe("client.ts: every JSON-returning method validates its response", () => 
         meth.returnType,
         `${name} no longer returns Promise<unknown> — remove it from UNKNOWN_RETURN_BY_DESIGN and validate it like any other method`,
       ).toBe("unknown");
+    }
+  });
+
+  it("NON_JSON_RESPONSE_BY_DESIGN has no stale entries (still exists and still reads a raw Response body)", () => {
+    const byName = new Map(methods.map((meth) => [meth.name, meth]));
+    for (const name of NON_JSON_RESPONSE_BY_DESIGN) {
+      const meth = byName.get(name);
+      expect(meth, `${name} is in NON_JSON_RESPONSE_BY_DESIGN but no longer exists in client.ts — remove it`).toBeDefined();
+      if (!meth) continue;
+      expect(
+        meth.body.includes("this.fetchRaw"),
+        `${name} no longer calls this.fetchRaw — remove it from NON_JSON_RESPONSE_BY_DESIGN and validate it like any other method`,
+      ).toBe(true);
     }
   });
 });

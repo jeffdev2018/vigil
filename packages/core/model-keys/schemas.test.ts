@@ -25,4 +25,14 @@ describe("model keys client", () => {
     stubFetch({ retired: true });
     expect(await client.retireModelKey("w1", "k2")).toEqual({ retired: true });
   });
+
+  // JEF-321 batch E: retireModelKey falls back to { retired: false } on a
+  // malformed body rather than throwing past a retirement that already
+  // applied server-side (useRetireModelKey discards the result and
+  // invalidates the list on settle).
+  it("falls back to retired: false on a malformed retire response", async () => {
+    const client = new ApiClient("https://api.example.test");
+    stubFetch({ retired: "yes" });
+    expect((await client.retireModelKey("w1", "k2")).retired).toBe(false);
+  });
 });
