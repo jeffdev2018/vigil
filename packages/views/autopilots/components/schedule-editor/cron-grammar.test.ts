@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { describe, it, expect, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { cronFields, parseCron, toCron } from "./cron-mapping";
 
 // The suite sweeps a corpus of tens of thousands of expressions per test, some
@@ -442,6 +442,11 @@ function corpus(): string[] {
 
   return [...out];
 }
+
+// Every test below walks the whole corpus (>10,000 expressions): ~1.2s alone
+// for the idempotence pass, past vitest's 5s default on a loaded CI shard.
+// The budget measures the machine, not the grammar.
+vi.setConfig({ testTimeout: 60_000 });
 
 const CORPUS = corpus();
 
