@@ -31,6 +31,7 @@
     "---런타임과 실행---",
     "tasks",
     "daemon-runtimes",
+    "native-runtime",
     "install-agent-runtime",
     "providers",
     "---자동화---",

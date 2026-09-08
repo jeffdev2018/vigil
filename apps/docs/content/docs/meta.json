@@ -34,6 +34,7 @@
     "---Runtime & execution---",
     "tasks",
     "daemon-runtimes",
+    "native-runtime",
     "install-agent-runtime",
     "providers",
     "---Automation---",
