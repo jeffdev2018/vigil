@@ -1451,6 +1451,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.PurgeWorkspaceTrafficConflicts(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "purge run groups",
+			run:  func() error { return qtx.PurgeWorkspaceRunGroups(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge run limit events",
 			run:  func() error { return qtx.PurgeWorkspaceRunLimitEvents(ctx, requester.WorkspaceID) },
 		},

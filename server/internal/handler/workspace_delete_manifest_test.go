@@ -141,6 +141,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"run_limit_policy":                   workspaceDelete,
 	"run_limit_event":                    workspaceDelete,
 	"traffic_conflict":                   workspaceDelete,
+	"run_group":                          workspaceDelete,
 	"pipeline":                           workspaceDelete,
 	"pipeline_stage":                     workspaceDelete,
 	"pipeline_run":                       workspaceDelete,
