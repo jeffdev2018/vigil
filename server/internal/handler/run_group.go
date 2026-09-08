@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Racing attempts (F11 / JEF-6). One issue, N independent attempts, the human
@@ -352,4 +354,34 @@ func (h *Handler) finishRunGroup(w http.ResponseWriter, r *http.Request, group d
 		slog.Warn("run group: reload attempts failed", "run_group_id", uuidToString(group.ID), "error", err)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"group": runGroupToResponse(group, attempts)})
+}
+
+// recordRunGroupTaskDiff stores what one attempt changed, as the daemon
+// measured it at Finalize.
+//
+// Best-effort and attempt-only: an ordinary run never carries a diff, and a
+// task outside a group is ignored even if one arrives — its columns are not
+// read by anything, and writing them would make the group-membership rule
+// depend on the caller rather than on the row.
+//
+// A nil stat writes nothing. A stat with no patch is the truncated case and
+// must still be written: it is exactly what tells the compare view the attempt
+// produced a diff too large to show.
+func (h *Handler) recordRunGroupTaskDiff(ctx context.Context, task db.AgentTaskQueue, stat *protocol.TaskDiffStat, unified string) {
+	if stat == nil || !task.RunGroupID.Valid {
+		return
+	}
+	encoded, err := json.Marshal(stat)
+	if err != nil {
+		slog.Warn("run group: could not encode the attempt's diff stat", "task_id", uuidToString(task.ID), "error", err)
+		return
+	}
+	if _, err := h.Queries.RecordTaskDiff(ctx, db.RecordTaskDiffParams{
+		ID:          task.ID,
+		DiffStat:    encoded,
+		DiffUnified: strToText(unified),
+	}); err != nil {
+		slog.Warn("run group: could not record the attempt's diff; the run stands, its column shows nothing",
+			"task_id", uuidToString(task.ID), "run_group_id", uuidToString(task.RunGroupID), "error", err)
+	}
 }

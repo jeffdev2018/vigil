@@ -4242,6 +4242,14 @@ type TaskCompleteRequest struct {
 	// commit refs/multica/turn/<taskKey> points at in the user's repository.
 	// Recording it is what makes the run revertible.
 	CheckpointSHA string `json:"checkpoint_sha,omitempty"`
+	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered.
+	// Only a task the claim marked as an attempt sends them, and only the stat
+	// is guaranteed: an over-the-bound patch is deliberately withheld, which is
+	// what the compare view renders as truncated. Both are stripped from the
+	// stored task result before it is marshalled, so the patch is persisted
+	// once, in its own column.
+	DiffStat    *protocol.TaskDiffStat `json:"diff_stat,omitempty"`
+	DiffUnified string                 `json:"diff_unified,omitempty"`
 }
 
 // sanitizeTaskCompleteRequest / sanitizeTaskFailRequest scrub every
@@ -4260,6 +4268,7 @@ func sanitizeTaskCompleteRequest(req *TaskCompleteRequest) {
 	req.BranchName = util.SanitizeTextForPostgres(req.BranchName)
 	req.RetiredSessionID = util.SanitizeTextForPostgres(req.RetiredSessionID)
 	req.CheckpointSHA = util.SanitizeTextForPostgres(req.CheckpointSHA)
+	req.DiffUnified = util.SanitizeTextForPostgres(req.DiffUnified)
 }
 
 func sanitizeTaskFailRequest(req *TaskFailRequest) {
@@ -4329,6 +4338,13 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The diff has its own columns (F11). Keep it out of the result JSONB: a
+	// patch up to the daemon's bound would otherwise be stored twice, and every
+	// reader of result — memory extraction, distillation, confidence — would
+	// have to parse past it.
+	diffStat, diffUnified := req.DiffStat, req.DiffUnified
+	req.DiffStat, req.DiffUnified = nil, ""
+
 	result, _ := json.Marshal(req)
 	// MUL-5305: SessionRolloutMissing is applied inside CompleteTask's terminal
 	// transaction (force session_id NULL + flag the row), so an auto-retry the
@@ -4347,6 +4363,9 @@ func (h *Handler) CompleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.recordTaskTurnCheckpoint(r.Context(), *task, req.CheckpointSHA)
+	// Racing (F11): the attempt's diff is what the compare view puts in its
+	// column. Ignored for a task outside a group.
+	h.recordRunGroupTaskDiff(r.Context(), *task, diffStat, diffUnified)
 	h.emitIssueExecutedOnFirstCompletion(r, task)
 	// Handoff packet (K17): every completed run leaves one.
 	h.ensureCompletionHandoffPacket(r.Context(), *task, req.PRURL)
