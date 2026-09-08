@@ -67,7 +67,7 @@ export function IssueUsageDialog({
   const unpricedCount = tasks.length - priced.length;
 
   const total = useMemo(
-    () => summarizeTaskUsageAcross(priced.map((task) => task.usage)),
+    () => summarizeTaskUsageAcross(priced.map((task) => task.usage), pricings),
     [priced, pricings],
   );
 
@@ -80,7 +80,7 @@ export function IssueUsageDialog({
   // tokens are counted but their spend is not, so the totals below understate
   // reality. Saying so is the difference between an estimate and a wrong number.
   const unmapped = useMemo(
-    () => collectUnmappedModels(priced.flatMap((task) => task.usage ?? [])),
+    () => collectUnmappedModels(priced.flatMap((task) => task.usage ?? []), pricings),
     [priced, pricings],
   );
 
@@ -223,7 +223,7 @@ function CostByAgent({
     return agentIds
       .map((agentId) => {
         const own = tasks.filter((task) => task.agent_id === agentId);
-        const summary = summarizeTaskUsageAcross(own.map((task) => task.usage));
+        const summary = summarizeTaskUsageAcross(own.map((task) => task.usage), pricings);
         return { agentId, cost: summary?.cost ?? 0, tokens: summary?.tokens ?? 0 };
       })
       .toSorted((a, b) => b.cost - a.cost);
