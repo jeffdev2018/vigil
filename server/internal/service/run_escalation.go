@@ -38,28 +38,6 @@ type TaskEscalation struct {
 // the plumbing without a schema change.
 const escalationReasonBelowThreshold = "below_threshold"
 
-// TaskContextHasEscalation reports whether a task's context carries a
-// confidence-cascade escalation record (JEF-272). The record is written in
-// the task's own INSERT, so it is the reliable marker that the row's runtime
-// is the SERVER's escalation pin — not the agent's binding — and the claim
-// fence may honour it.
-func TaskContextHasEscalation(contextJSON []byte) bool {
-	return taskEscalationAttempt(contextJSON) > 0 || hasEscalationRecord(contextJSON)
-}
-
-func hasEscalationRecord(contextJSON []byte) bool {
-	if len(contextJSON) == 0 {
-		return false
-	}
-	var ctx struct {
-		Escalation *TaskEscalation `json:"escalation"`
-	}
-	if err := json.Unmarshal(contextJSON, &ctx); err != nil {
-		return false
-	}
-	return ctx.Escalation != nil
-}
-
 // taskEscalationAttempt reads escalation.attempt off a task's context JSONB,
 // defaulting to 0 for tasks that were never escalated.
 func taskEscalationAttempt(contextJSON []byte) int {

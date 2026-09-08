@@ -294,20 +294,20 @@ func TestClaimTaskUsesCurrentAgentRuntimeWhenRuntimeIDIsOmitted(t *testing.T) {
 	}
 }
 
-// A confidence-cascade hop (JEF-272) pins a STRONGER runtime at enqueue,
-// deliberately different from the agent's binding. Without the fence
-// exemption the escalated task is claimable by nobody: the target runtime's
-// fence fails the agent-binding check and the agent's own runtime never sees
-// the row. Found live: eleven orphaned escalations had piled up on the demo
-// workspace before this was understood.
-func TestClaimTaskHonorsEscalationRuntimePin(t *testing.T) {
+// A runtime pool failover (K28) moves a task to another runtime the owner
+// listed in the agent's pool, deliberately different from the agent's binding.
+// Without the fence exemption the moved task is claimable by nobody: the target
+// runtime's fence fails the agent-binding check and the agent's own runtime
+// never sees the row. Membership is read per row, so dropping the runtime from
+// the pool closes the exemption again.
+func TestClaimTaskHonorsRuntimePoolMembership(t *testing.T) {
 	ctx := context.Background()
 	fixture := newRuntimeClaimAccessFixture(t, "public", true, false, "queued")
-	svc := NewTaskService(db.New(fixture.pool), fixture.pool, nil, events.New())
+	q := db.New(fixture.pool)
+	svc := NewTaskService(q, fixture.pool, nil, events.New())
 
-	// Control: without an escalation record the mismatched task stays
-	// unclaimable (the fence below is the one TestClaimTaskRejects-
-	// MismatchedAgentRuntime covers from the other side).
+	// Control: without a pool the mismatched task stays unclaimable (the fence
+	// TestClaimTaskRejectsMismatchedAgentRuntime covers from the other side).
 	refused, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, false)
 	if err != nil {
 		t.Fatalf("claim mismatched task: %v", err)
@@ -316,14 +316,23 @@ func TestClaimTaskHonorsEscalationRuntimePin(t *testing.T) {
 		t.Fatal("the fence let a plain mismatched task through")
 	}
 
-	// The escalation record is what the cascade writes under context.escalation.
-	fixture.pool.Exec(ctx, `UPDATE agent_task_queue
-		SET context = jsonb_build_object('escalation', '{"from_task_id":"00000000-0000-0000-0000-000000000000","reason":"below_threshold","attempt":1}'::jsonb)
-		WHERE id = $1`, fixture.taskID)
+	var poolID pgtype.UUID
+	if err := fixture.pool.QueryRow(ctx, `
+		INSERT INTO runtime_pool (workspace_id, name, runtime_ids)
+		SELECT workspace_id, 'claim-pool', jsonb_build_array($2::text) FROM agent WHERE id = $1
+		RETURNING id`, fixture.agentID, util.UUIDToString(fixture.runtimeID)).Scan(&poolID); err != nil {
+		t.Fatalf("create pool: %v", err)
+	}
+	t.Cleanup(func() { fixture.pool.Exec(context.Background(), `DELETE FROM runtime_pool WHERE id = $1`, poolID) })
+	if _, err := fixture.pool.Exec(ctx, `UPDATE agent SET runtime_pool_id = $2 WHERE id = $1`, fixture.agentID, poolID); err != nil {
+		t.Fatalf("attach pool: %v", err)
+	}
+	// The failover marker the K28 mover writes; the cheap Go pre-filter keys on it.
+	if _, err := fixture.pool.Exec(ctx, `UPDATE agent_task_queue SET failover_history = '[{"reason":"runtime_offline"}]'::jsonb WHERE id = $1`, fixture.taskID); err != nil {
+		t.Fatalf("stamp failover: %v", err)
+	}
 
-	// The candidate listing agrees BEFORE the claim, so the runtime that
-	// hosts the hop polls the task instead of skipping it.
-	candidates, err := db.New(fixture.pool).ListQueuedClaimCandidatesByRuntime(ctx, fixture.runtimeID)
+	candidates, err := q.ListQueuedClaimCandidatesByRuntime(ctx, fixture.runtimeID)
 	if err != nil {
 		t.Fatalf("list candidates: %v", err)
 	}
@@ -334,15 +343,15 @@ func TestClaimTaskHonorsEscalationRuntimePin(t *testing.T) {
 		}
 	}
 	if !found {
-		t.Fatal("the escalated task is missing from the runtime's candidate list")
+		t.Fatal("the pool-moved task is missing from the runtime's candidate list")
 	}
 
 	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
 	if err != nil {
-		t.Fatalf("claim escalated task: %v", err)
+		t.Fatalf("claim pool-moved task: %v", err)
 	}
 	if claimed == nil {
-		t.Fatal("the fence refused the server's own escalation pin — the task is claimable by nobody")
+		t.Fatal("the fence refused a runtime the owner listed in the agent's pool — the task is claimable by nobody")
 	}
 	if util.UUIDToString(claimed.ID) != fixture.taskID {
 		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), fixture.taskID)

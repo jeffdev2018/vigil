@@ -856,10 +856,15 @@ WHERE id = (
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
-                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
-                 -- server's escalation choice, pinned at enqueue — the same
-                 -- exemption a benchmark pin (JEF-276) gets.
-                 OR atq.context->'escalation' IS NOT NULL)
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -998,10 +1003,15 @@ WHERE id = (
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
-                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
-                 -- server's escalation choice, pinned at enqueue — the same
-                 -- exemption a benchmark pin (JEF-276) gets.
-                 OR atq.context->'escalation' IS NOT NULL)
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             AND (
                 r.visibility = 'public'
                 OR (
@@ -1056,10 +1066,15 @@ WHERE id IN (
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
-                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
-                 -- server's escalation choice, pinned at enqueue — the same
-                 -- exemption a benchmark pin (JEF-276) gets.
-                 OR atq.context->'escalation' IS NOT NULL)
+                 -- Runtime pool failover (K28): the owner listed this runtime in the
+                 -- agent's pool, so a task moved there is where the owner said it
+                 -- may run. Membership is checked per row — a runtime dropped from
+                 -- the pool stops matching the moment the pool changes.
+                 OR EXISTS (
+                     SELECT 1 FROM runtime_pool p
+                     WHERE p.id = a.runtime_pool_id
+                       AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+                 ))
             AND (
                 r.visibility = 'public'
                 OR (
@@ -2354,10 +2369,15 @@ WHERE atq.runtime_id = $1
         -- it exists to measure, for the same reason.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
-             -- Confidence-cascade hop (JEF-272): the task's runtime IS the
-             -- server's escalation choice, pinned at enqueue — the same
-             -- exemption a benchmark pin (JEF-276) gets.
-             OR atq.context->'escalation' IS NOT NULL)
+             -- Runtime pool failover (K28): the owner listed this runtime in the
+             -- agent's pool, so a task moved there is where the owner said it
+             -- may run. Membership is checked per row — a runtime dropped from
+             -- the pool stops matching the moment the pool changes.
+             OR EXISTS (
+                 SELECT 1 FROM runtime_pool p
+                 WHERE p.id = a.runtime_pool_id
+                   AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+             ))
         AND (
             r.visibility = 'public'
             OR (
@@ -2493,10 +2513,15 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
         -- it exists to measure, for the same reason.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
-             -- Confidence-cascade hop (JEF-272): the task's runtime IS the
-             -- server's escalation choice, pinned at enqueue — the same
-             -- exemption a benchmark pin (JEF-276) gets.
-             OR atq.context->'escalation' IS NOT NULL)
+             -- Runtime pool failover (K28): the owner listed this runtime in the
+             -- agent's pool, so a task moved there is where the owner said it
+             -- may run. Membership is checked per row — a runtime dropped from
+             -- the pool stops matching the moment the pool changes.
+             OR EXISTS (
+                 SELECT 1 FROM runtime_pool p
+                 WHERE p.id = a.runtime_pool_id
+                   AND p.runtime_ids @> to_jsonb(atq.runtime_id::text)
+             ))
         AND (
             r.visibility = 'public'
             OR (
