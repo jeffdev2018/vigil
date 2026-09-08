@@ -70,6 +70,16 @@ import type {
   AgentMemory,
   AgentMemoryList,
   MemberWithUser,
+  Invitation,
+  SkillSummary,
+  CreatePersonalAccessTokenResponse,
+  ChatPinnedAgent,
+  PendingChatTasksResponse,
+  HasPendingChatTasksResponse,
+  Project,
+  ListProjectsResponse,
+  ProjectResource,
+  ListProjectResourcesResponse,
   IssueProperty,
   ListPropertiesResponse,
   QuickAction,
@@ -1980,7 +1990,10 @@ export const EMPTY_SEARCH_ISSUES_RESPONSE: SearchIssuesResponse = {
   issues: [],
 };
 
-const ProjectSchema = z.object({
+// Exported (was module-private, used only by SearchProjectResultSchema below)
+// so JEF-321 batch C can reuse it for the plain project CRUD endpoints
+// instead of a near-duplicate schema.
+export const ProjectSchema = z.object({
   id: z.string(),
   workspace_id: z.string(),
   title: z.string(),
@@ -6681,3 +6694,185 @@ export const EMPTY_WORKSPACE: Workspace = {
   created_at: "",
   updated_at: "",
 };
+
+// -----------------------------------------------------------------------
+// JEF-321 batch C — members, invitations, skills, personal access tokens,
+// chat sessions/pinned agents, attachments, projects.
+// -----------------------------------------------------------------------
+
+// Members. Reuses MemberWithUserSchema (defined above, next to ShareLink)
+// for the list/patch/accept endpoints instead of a second definition.
+export const MemberWithUserListSchema = z.array(MemberWithUserSchema).catch([]).default([]);
+
+export const EMPTY_MEMBER_WITH_USER: MemberWithUser = {
+  id: "",
+  workspace_id: "",
+  user_id: "",
+  role: "member",
+  created_at: "",
+  name: "",
+  email: "",
+  avatar_url: null,
+};
+
+// Invitations. `role`/`status` stay lenient strings-with-catch so an
+// unrecognized server value degrades to a safe default instead of failing
+// the whole row.
+export const InvitationSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().optional().default(""),
+  inviter_id: z.string().optional().default(""),
+  invitee_email: z.string().optional().default(""),
+  invitee_user_id: z.string().nullable().optional().default(null),
+  role: z.string().optional().default("member"),
+  status: z.enum(["pending", "accepted", "declined", "expired"]).catch("pending"),
+  created_at: z.string().optional().default(""),
+  updated_at: z.string().optional().default(""),
+  expires_at: z.string().optional().default(""),
+  inviter_name: z.string().optional(),
+  inviter_email: z.string().optional(),
+  workspace_name: z.string().optional(),
+}).loose();
+
+export const EMPTY_INVITATION: Invitation = {
+  id: "",
+  workspace_id: "",
+  inviter_id: "",
+  invitee_email: "",
+  invitee_user_id: null,
+  role: "member",
+  status: "pending",
+  created_at: "",
+  updated_at: "",
+  expires_at: "",
+};
+
+export const InvitationListSchema = z.array(InvitationSchema).catch([]).default([]);
+
+// Skill summaries omit `content`/`files`; SkillSchema already defaults both,
+// so it doubles as the summary shape without a second, near-identical schema.
+export const SkillSummaryListSchema = z.array(SkillSchema).catch([]).default([]);
+export const EMPTY_SKILL_SUMMARY_LIST: SkillSummary[] = [];
+
+// Personal Access Tokens. `token` only appears on the create response and is
+// shown to the user exactly once — an empty-string fallback is intentional
+// (a swallowed secret would be worse than a visibly blank field) and callers
+// must treat "" as "could not read the token" rather than a real value.
+export const PersonalAccessTokenSchema = z.object({
+  id: z.string(),
+  name: z.string().optional().default(""),
+  token_prefix: z.string().optional().default(""),
+  expires_at: z.string().nullable().optional().default(null),
+  last_used_at: z.string().nullable().optional().default(null),
+  created_at: z.string().optional().default(""),
+}).loose();
+
+export const PersonalAccessTokenListSchema = z.array(PersonalAccessTokenSchema).catch([]).default([]);
+
+export const CreatePersonalAccessTokenResponseSchema = PersonalAccessTokenSchema.extend({
+  token: z.string().optional().default(""),
+}).loose();
+
+export const EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE: CreatePersonalAccessTokenResponse = {
+  id: "",
+  name: "",
+  token_prefix: "",
+  expires_at: null,
+  last_used_at: null,
+  created_at: "",
+  token: "",
+};
+
+// Chat sessions reuse ChatSessionSchema/EMPTY_CHAT_SESSION (defined above)
+// for create/update/pin/archive — same shape as GET /api/chat/sessions/:id.
+
+export const ChatPinnedAgentSchema = z.object({
+  agent_id: z.string(),
+  position: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_CHAT_PINNED_AGENT: ChatPinnedAgent = { agent_id: "", position: 0 };
+
+export const ChatPinnedAgentListSchema = z.array(ChatPinnedAgentSchema).catch([]).default([]);
+
+const PendingChatTaskItemSchema = z.object({
+  task_id: z.string().optional().default(""),
+  status: z.string().optional().default(""),
+  chat_session_id: z.string().optional().default(""),
+}).loose();
+
+export const PendingChatTasksResponseSchema = z.object({
+  tasks: z.array(PendingChatTaskItemSchema).catch([]).default([]),
+}).loose();
+
+export const EMPTY_PENDING_CHAT_TASKS_RESPONSE: PendingChatTasksResponse = { tasks: [] };
+
+export const HasPendingChatTasksResponseSchema = z.object({
+  has_pending: z.boolean().catch(false).default(false),
+}).loose();
+
+export const EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE: HasPendingChatTasksResponse = { has_pending: false };
+
+// Issue attachments list reuses AttachmentResponseSchema (defined above,
+// next to getAttachment/uploadFile) — same lenient shape, just wrapped.
+export const AttachmentListSchema = z.array(AttachmentResponseSchema).catch([]).default([]);
+export const EMPTY_ATTACHMENT_LIST: Attachment[] = [];
+
+// Projects. Reuses the ProjectSchema defined above (next to
+// SearchProjectResultSchema) for the plain project CRUD endpoints.
+export const EMPTY_PROJECT: Project = {
+  id: "",
+  workspace_id: "",
+  title: "",
+  description: null,
+  icon: null,
+  status: "planned",
+  priority: "none",
+  lead_type: null,
+  lead_id: null,
+  start_date: null,
+  due_date: null,
+  created_at: "",
+  updated_at: "",
+  issue_count: 0,
+  done_count: 0,
+  resource_count: 0,
+};
+
+export const ListProjectsResponseSchema = z.object({
+  projects: z.array(ProjectSchema).catch([]).default([]),
+  total: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_LIST_PROJECTS_RESPONSE: ListProjectsResponse = { projects: [], total: 0 };
+
+export const ProjectResourceSchema = z.object({
+  id: z.string(),
+  project_id: z.string().optional().default(""),
+  workspace_id: z.string().optional().default(""),
+  resource_type: z.enum(["github_repo", "local_directory"]).catch("github_repo"),
+  resource_ref: z.record(z.string(), z.unknown()).catch({}).default({}),
+  label: z.string().nullable().optional().default(null),
+  position: z.number().optional().default(0),
+  created_at: z.string().optional().default(""),
+  created_by: z.string().nullable().optional().default(null),
+}).loose();
+
+export const EMPTY_PROJECT_RESOURCE: ProjectResource = {
+  id: "",
+  project_id: "",
+  workspace_id: "",
+  resource_type: "github_repo",
+  resource_ref: {},
+  label: null,
+  position: 0,
+  created_at: "",
+  created_by: null,
+};
+
+export const ListProjectResourcesResponseSchema = z.object({
+  resources: z.array(ProjectResourceSchema).catch([]).default([]),
+  total: z.number().optional().default(0),
+}).loose();
+
+export const EMPTY_LIST_PROJECT_RESOURCES_RESPONSE: ListProjectResourcesResponse = { resources: [], total: 0 };

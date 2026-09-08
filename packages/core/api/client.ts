@@ -833,6 +833,33 @@ import {
   EMPTY_WORKSPACE,
   EMPTY_WORKSPACES,
   BlastRadiusRuleEnvelopeSchema,
+  // JEF-321 batch C
+  MemberWithUserSchema,
+  MemberWithUserListSchema,
+  EMPTY_MEMBER_WITH_USER,
+  InvitationSchema,
+  InvitationListSchema,
+  EMPTY_INVITATION,
+  SkillSummaryListSchema,
+  PersonalAccessTokenListSchema,
+  CreatePersonalAccessTokenResponseSchema,
+  EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE,
+  ChatPinnedAgentSchema,
+  ChatPinnedAgentListSchema,
+  EMPTY_CHAT_PINNED_AGENT,
+  PendingChatTasksResponseSchema,
+  EMPTY_PENDING_CHAT_TASKS_RESPONSE,
+  HasPendingChatTasksResponseSchema,
+  EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE,
+  AttachmentListSchema,
+  ProjectSchema,
+  EMPTY_PROJECT,
+  ListProjectsResponseSchema,
+  EMPTY_LIST_PROJECTS_RESPONSE,
+  ProjectResourceSchema,
+  EMPTY_PROJECT_RESOURCE,
+  ListProjectResourcesResponseSchema,
+  EMPTY_LIST_PROJECT_RESOURCES_RESPONSE,
 } from "./schemas";
 
 /** Identifies the calling client to the server.
@@ -5923,20 +5950,29 @@ export class ApiClient {
 
   // Members
   async listMembers(workspaceId: string): Promise<MemberWithUser[]> {
-    return this.fetch(`/api/workspaces/${workspaceId}/members`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/members`);
+    return parseWithFallback(raw, MemberWithUserListSchema, [], {
+      endpoint: "GET /api/workspaces/{id}/members",
+    });
   }
 
   async createMember(workspaceId: string, data: CreateMemberRequest): Promise<Invitation> {
-    return this.fetch(`/api/workspaces/${workspaceId}/members`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/members`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, InvitationSchema, EMPTY_INVITATION, {
+      endpoint: "POST /api/workspaces/{id}/members",
     });
   }
 
   async updateMember(workspaceId: string, memberId: string, data: UpdateMemberRequest): Promise<MemberWithUser> {
-    return this.fetch(`/api/workspaces/${workspaceId}/members/${memberId}`, {
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/members/${memberId}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, MemberWithUserSchema, EMPTY_MEMBER_WITH_USER, {
+      endpoint: "PATCH /api/workspaces/{id}/members/{memberId}",
     });
   }
 
@@ -5954,7 +5990,10 @@ export class ApiClient {
 
   // Invitations
   async listWorkspaceInvitations(workspaceId: string): Promise<Invitation[]> {
-    return this.fetch(`/api/workspaces/${workspaceId}/invitations`);
+    const raw = await this.fetch<unknown>(`/api/workspaces/${workspaceId}/invitations`);
+    return parseWithFallback(raw, InvitationListSchema, [], {
+      endpoint: "GET /api/workspaces/{id}/invitations",
+    });
   }
 
   async revokeInvitation(workspaceId: string, invitationId: string): Promise<void> {
@@ -5964,16 +6003,25 @@ export class ApiClient {
   }
 
   async listMyInvitations(): Promise<Invitation[]> {
-    return this.fetch("/api/invitations");
+    const raw = await this.fetch<unknown>("/api/invitations");
+    return parseWithFallback(raw, InvitationListSchema, [], {
+      endpoint: "GET /api/invitations",
+    });
   }
 
   async getInvitation(invitationId: string): Promise<Invitation> {
-    return this.fetch(`/api/invitations/${invitationId}`);
+    const raw = await this.fetch<unknown>(`/api/invitations/${invitationId}`);
+    return parseWithFallback(raw, InvitationSchema, EMPTY_INVITATION, {
+      endpoint: "GET /api/invitations/{id}",
+    });
   }
 
   async acceptInvitation(invitationId: string): Promise<MemberWithUser> {
-    return this.fetch(`/api/invitations/${invitationId}/accept`, {
+    const raw = await this.fetch<unknown>(`/api/invitations/${invitationId}/accept`, {
       method: "POST",
+    });
+    return parseWithFallback(raw, MemberWithUserSchema, EMPTY_MEMBER_WITH_USER, {
+      endpoint: "POST /api/invitations/{id}/accept",
     });
   }
 
@@ -6031,24 +6079,36 @@ export class ApiClient {
 
   // Skills
   async listSkills(): Promise<SkillSummary[]> {
-    return this.fetch("/api/skills");
+    const raw = await this.fetch<unknown>("/api/skills");
+    return parseWithFallback(raw, SkillSummaryListSchema, [], {
+      endpoint: "GET /api/skills",
+    });
   }
 
   async getSkill(id: string): Promise<Skill> {
-    return this.fetch(`/api/skills/${id}`);
+    const raw = await this.fetch<unknown>(`/api/skills/${id}`);
+    return parseWithFallback(raw, SkillSchema, EMPTY_SKILL, {
+      endpoint: "GET /api/skills/{id}",
+    });
   }
 
   async createSkill(data: CreateSkillRequest): Promise<Skill> {
-    return this.fetch("/api/skills", {
+    const raw = await this.fetch<unknown>("/api/skills", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, SkillSchema, EMPTY_SKILL, {
+      endpoint: "POST /api/skills",
     });
   }
 
   async updateSkill(id: string, data: UpdateSkillRequest): Promise<Skill> {
-    return this.fetch(`/api/skills/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/skills/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, SkillSchema, EMPTY_SKILL, {
+      endpoint: "PUT /api/skills/{id}",
     });
   }
 
@@ -6056,10 +6116,16 @@ export class ApiClient {
     await this.fetch(`/api/skills/${id}`, { method: "DELETE" });
   }
 
+  // Same endpoint as importSkillArchive, but a JSON body with no `on_conflict`
+  // (structuredResult=false server-side) so the server returns the created
+  // Skill directly instead of the { status, skill, reason } envelope.
   async importSkill(data: { url: string }): Promise<Skill> {
-    return this.fetch("/api/skills/import", {
+    const raw = await this.fetch<unknown>("/api/skills/import", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, SkillSchema, EMPTY_SKILL, {
+      endpoint: "POST /api/skills/import",
     });
   }
 
@@ -6106,7 +6172,10 @@ export class ApiClient {
   }
 
   async listAgentSkills(agentId: string): Promise<SkillSummary[]> {
-    return this.fetch(`/api/agents/${agentId}/skills`);
+    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/skills`);
+    return parseWithFallback(raw, SkillSummaryListSchema, [], {
+      endpoint: "GET /api/agents/{id}/skills",
+    });
   }
 
   async setAgentSkills(agentId: string, data: SetAgentSkillsRequest): Promise<void> {
@@ -6151,13 +6220,22 @@ export class ApiClient {
 
   // Personal Access Tokens
   async listPersonalAccessTokens(): Promise<PersonalAccessToken[]> {
-    return this.fetch("/api/tokens");
+    const raw = await this.fetch<unknown>("/api/tokens");
+    return parseWithFallback(raw, PersonalAccessTokenListSchema, [], {
+      endpoint: "GET /api/tokens",
+    });
   }
 
+  // `token` is shown to the user exactly once; a malformed response falls
+  // back to `token: ""` rather than a fabricated secret. Callers must treat
+  // an empty token as failure, not as "no token needed" — see tokens-tab.tsx.
   async createPersonalAccessToken(data: CreatePersonalAccessTokenRequest): Promise<CreatePersonalAccessTokenResponse> {
-    return this.fetch("/api/tokens", {
+    const raw = await this.fetch<unknown>("/api/tokens", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, CreatePersonalAccessTokenResponseSchema, EMPTY_CREATE_PERSONAL_ACCESS_TOKEN_RESPONSE, {
+      endpoint: "POST /api/tokens",
     });
   }
 
@@ -6236,10 +6314,13 @@ export class ApiClient {
     },
     workspaceSlug?: string,
   ): Promise<ChatSession> {
-    return this.fetch("/api/chat/sessions", {
+    const raw = await this.fetch<unknown>("/api/chat/sessions", {
       method: "POST",
       headers: workspaceHeader(workspaceSlug),
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ChatSessionSchema, EMPTY_CHAT_SESSION, {
+      endpoint: "POST /api/chat/sessions",
     });
   }
 
@@ -6271,35 +6352,50 @@ export class ApiClient {
     id: string,
     data: { title: string } | { project_id: string | null },
   ): Promise<ChatSession> {
-    return this.fetch(`/api/chat/sessions/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/chat/sessions/${id}`, {
       method: "PATCH",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ChatSessionSchema, EMPTY_CHAT_SESSION, {
+      endpoint: "PATCH /api/chat/sessions/{id}",
     });
   }
 
   async setChatSessionPinned(id: string, pinned: boolean): Promise<ChatSession> {
-    return this.fetch(`/api/chat/sessions/${id}/pin`, {
+    const raw = await this.fetch<unknown>(`/api/chat/sessions/${id}/pin`, {
       method: "PATCH",
       body: JSON.stringify({ pinned }),
+    });
+    return parseWithFallback(raw, ChatSessionSchema, EMPTY_CHAT_SESSION, {
+      endpoint: "PATCH /api/chat/sessions/{id}/pin",
     });
   }
 
   async setChatSessionArchived(id: string, archived: boolean): Promise<ChatSession> {
-    return this.fetch(`/api/chat/sessions/${id}/archive`, {
+    const raw = await this.fetch<unknown>(`/api/chat/sessions/${id}/archive`, {
       method: "PATCH",
       body: JSON.stringify({ archived }),
+    });
+    return parseWithFallback(raw, ChatSessionSchema, EMPTY_CHAT_SESSION, {
+      endpoint: "PATCH /api/chat/sessions/{id}/archive",
     });
   }
 
   // Quick-agent bar: per-user pinned agents.
   async listChatPinnedAgents(): Promise<ChatPinnedAgent[]> {
-    return this.fetch("/api/chat/pinned-agents");
+    const raw = await this.fetch<unknown>("/api/chat/pinned-agents");
+    return parseWithFallback(raw, ChatPinnedAgentListSchema, [], {
+      endpoint: "GET /api/chat/pinned-agents",
+    });
   }
 
   async pinChatAgent(agentId: string): Promise<ChatPinnedAgent> {
-    return this.fetch("/api/chat/pinned-agents", {
+    const raw = await this.fetch<unknown>("/api/chat/pinned-agents", {
       method: "POST",
       body: JSON.stringify({ agent_id: agentId }),
+    });
+    return parseWithFallback(raw, ChatPinnedAgentSchema, EMPTY_CHAT_PINNED_AGENT, {
+      endpoint: "POST /api/chat/pinned-agents",
     });
   }
 
@@ -6487,11 +6583,17 @@ export class ApiClient {
   }
 
   async listPendingChatTasks(): Promise<PendingChatTasksResponse> {
-    return this.fetch(`/api/chat/pending-tasks`);
+    const raw = await this.fetch<unknown>(`/api/chat/pending-tasks`);
+    return parseWithFallback(raw, PendingChatTasksResponseSchema, EMPTY_PENDING_CHAT_TASKS_RESPONSE, {
+      endpoint: "GET /api/chat/pending-tasks",
+    });
   }
 
   async hasAnyPendingChatTasks(): Promise<HasPendingChatTasksResponse> {
-    return this.fetch(`/api/chat/pending-tasks/has-any`);
+    const raw = await this.fetch<unknown>(`/api/chat/pending-tasks/has-any`);
+    return parseWithFallback(raw, HasPendingChatTasksResponseSchema, EMPTY_HAS_PENDING_CHAT_TASKS_RESPONSE, {
+      endpoint: "GET /api/chat/pending-tasks/has-any",
+    });
   }
 
   async markChatSessionRead(sessionId: string): Promise<void> {
@@ -6524,7 +6626,10 @@ export class ApiClient {
   }
 
   async listAttachments(issueId: string): Promise<Attachment[]> {
-    return this.fetch(`/api/issues/${issueId}/attachments`);
+    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/attachments`);
+    return parseWithFallback(raw, AttachmentListSchema, [], {
+      endpoint: "GET /api/issues/{id}/attachments",
+    });
   }
 
   // Fetches a fresh attachment metadata record. The server re-signs
@@ -6601,24 +6706,36 @@ export class ApiClient {
   async listProjects(params?: { status?: string }): Promise<ListProjectsResponse> {
     const search = new URLSearchParams();
     if (params?.status) search.set("status", params.status);
-    return this.fetch(`/api/projects?${search}`);
+    const raw = await this.fetch<unknown>(`/api/projects?${search}`);
+    return parseWithFallback(raw, ListProjectsResponseSchema, EMPTY_LIST_PROJECTS_RESPONSE, {
+      endpoint: "GET /api/projects",
+    });
   }
 
   async getProject(id: string): Promise<Project> {
-    return this.fetch(`/api/projects/${id}`);
+    const raw = await this.fetch<unknown>(`/api/projects/${id}`);
+    return parseWithFallback(raw, ProjectSchema, EMPTY_PROJECT, {
+      endpoint: "GET /api/projects/{id}",
+    });
   }
 
   async createProject(data: CreateProjectRequest): Promise<Project> {
-    return this.fetch("/api/projects", {
+    const raw = await this.fetch<unknown>("/api/projects", {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ProjectSchema, EMPTY_PROJECT, {
+      endpoint: "POST /api/projects",
     });
   }
 
   async updateProject(id: string, data: UpdateProjectRequest): Promise<Project> {
-    return this.fetch(`/api/projects/${id}`, {
+    const raw = await this.fetch<unknown>(`/api/projects/${id}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ProjectSchema, EMPTY_PROJECT, {
+      endpoint: "PUT /api/projects/{id}",
     });
   }
 
@@ -6706,16 +6823,22 @@ export class ApiClient {
   async listProjectResources(
     projectId: string,
   ): Promise<ListProjectResourcesResponse> {
-    return this.fetch(`/api/projects/${projectId}/resources`);
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources`);
+    return parseWithFallback(raw, ListProjectResourcesResponseSchema, EMPTY_LIST_PROJECT_RESOURCES_RESPONSE, {
+      endpoint: "GET /api/projects/{id}/resources",
+    });
   }
 
   async createProjectResource(
     projectId: string,
     data: CreateProjectResourceRequest,
   ): Promise<ProjectResource> {
-    return this.fetch(`/api/projects/${projectId}/resources`, {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources`, {
       method: "POST",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, {
+      endpoint: "POST /api/projects/{id}/resources",
     });
   }
 
@@ -6724,9 +6847,12 @@ export class ApiClient {
     resourceId: string,
     data: UpdateProjectResourceRequest,
   ): Promise<ProjectResource> {
-    return this.fetch(`/api/projects/${projectId}/resources/${resourceId}`, {
+    const raw = await this.fetch<unknown>(`/api/projects/${projectId}/resources/${resourceId}`, {
       method: "PUT",
       body: JSON.stringify(data),
+    });
+    return parseWithFallback(raw, ProjectResourceSchema, EMPTY_PROJECT_RESOURCE, {
+      endpoint: "PUT /api/projects/{id}/resources/{resourceId}",
     });
   }
 
