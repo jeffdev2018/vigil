@@ -17,9 +17,12 @@ import (
 )
 
 // scriptedNativeLLM plays a fixed sequence of model turns so the loop's
-// behaviour — not the model's — is what's under test.
+// behaviour — not the model's — is what's under test. usage, when set, is
+// stamped on every turn; fail makes every call fail (fuse testing).
 type scriptedNativeLLM struct {
 	turns []openai.ChatCompletion
+	usage *openai.CompletionUsage
+	fail  bool
 	calls int
 }
 
@@ -31,10 +34,20 @@ func (f *scriptedNativeLLM) Chat(_ context.Context, params openai.ChatCompletion
 	if len(params.Messages) < 2 {
 		return nil, errors.New("expected at least system + user messages")
 	}
+	if f.fail {
+		f.calls++
+		return nil, errors.New("gateway unreachable (scripted)")
+	}
 	if f.calls >= len(f.turns) {
 		return nil, errors.New("script exhausted: the loop kept calling after the final answer")
 	}
 	c := f.turns[f.calls]
+	if f.usage != nil {
+		c.Usage = *f.usage
+	}
+	if c.Model == "" {
+		c.Model = "scripted-model"
+	}
 	f.calls++
 	return &c, nil
 }
@@ -302,7 +315,7 @@ func TestNativeAgentTransitionRespectsF28Rules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get issue: %v", err)
 	}
-	tctx := nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
 
 	// Case 1: a rule that grants only owners refuses the agent outright.
 	fx.Insert(t, "issue_transition_rule", testutil.Cols{
@@ -493,5 +506,143 @@ func TestNativeUpdateIssueCannotMoveStatus(t *testing.T) {
 	}
 	if priority != "high" {
 		t.Errorf("priority = %q, want high", priority)
+	}
+}
+
+// A completed native run must land in task_usage exactly like a CLI run, so
+// budgets, scorecards and ROI account for native spend: provider "native",
+// the gateway-reported token totals accumulated across turns, cost NULL (the
+// readers' signal to estimate from the rate table).
+func TestNativeAgentRecordsTaskUsage(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Usage accounting")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	usage := openai.CompletionUsage{PromptTokens: 120, CompletionTokens: 30, TotalTokens: 150}
+	llm := &scriptedNativeLLM{
+		usage: &usage,
+		turns: []openai.ChatCompletion{
+			nativeToolCallTurn("call_1", "add_comment", `{"content":"compte mes tokens."}`),
+			nativeTextTurn("Fait."),
+		},
+	}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim task: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var provider, model string
+	var input, output int64
+	var cost *int64
+	if err := pool.QueryRow(ctx, `SELECT provider, model, input_tokens, output_tokens, cost_usd_ticks FROM task_usage WHERE task_id = $1`, taskID).
+		Scan(&provider, &model, &input, &output, &cost); err != nil {
+		t.Fatalf("task_usage row missing: %v", err)
+	}
+	if provider != "native" || model != "scripted-model" {
+		t.Fatalf("usage = (%q, %q), want (native, scripted-model)", provider, model)
+	}
+	// Two model turns, each reporting the same usage.
+	if input != 240 || output != 60 {
+		t.Fatalf("usage tokens = (%d, %d), want the per-turn figures accumulated over 2 turns (240, 60)", input, output)
+	}
+	if cost != nil {
+		t.Fatalf("cost = %v, want NULL so readers estimate from the rate table", *cost)
+	}
+}
+
+// The effectful-action cap: a model that loops on comments is cut off at
+// nativeMaxEffectfulActions; the run still settles completed and the refused
+// calls surface to the model as errors, not as workspace writes.
+func TestNativeAgentEffectfulActionCap(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Looping model")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	turns := make([]openai.ChatCompletion, nativeMaxTurns)
+	for i := range turns {
+		turns[i] = nativeToolCallTurn(fmt.Sprintf("call_%d", i), "add_comment", fmt.Sprintf(`{"content":"spam %d"}`, i))
+	}
+	llm := &scriptedNativeLLM{turns: turns}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim task: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var comments int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM comment WHERE issue_id = $1 AND author_id = $2`, issueID, agentID).Scan(&comments); err != nil {
+		t.Fatalf("count comments: %v", err)
+	}
+	if comments != nativeMaxEffectfulActions {
+		t.Fatalf("agent comments = %d, want exactly the cap %d", comments, nativeMaxEffectfulActions)
+	}
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status); err != nil {
+		t.Fatalf("read task status: %v", err)
+	}
+	if status != "completed" {
+		t.Fatalf("task status = %q, want completed (the cap refuses the tool, it does not fail the run)", status)
+	}
+}
+
+// The LLM fuse: consecutive gateway failures open a cooldown the tick honours,
+// and any success closes it again.
+func TestNativeAgentLLMFuse(t *testing.T) {
+	llm := &scriptedNativeLLM{fail: true}
+	svc := NewNativeAgentService(nil, nil, nil, llm, nil)
+
+	for i := 0; i < nativeLLMFuseThreshold; i++ {
+		if _, err := llm.Chat(context.Background(), openai.ChatCompletionNewParams{Messages: []openai.ChatCompletionMessageParamUnion{openai.SystemMessage("s"), openai.UserMessage("u")}}); err == nil {
+			t.Fatal("scripted failure mode did not fail")
+		}
+		svc.noteLLMFailure()
+	}
+	if !svc.llmFuseOpen() {
+		t.Fatal("fuse did not open after the failure threshold")
+	}
+	// The tick short-circuits before touching the database, so a nil Queries
+	// proves the guard ran first rather than panicking on the way to it.
+	if n, err := svc.Tick(context.Background()); err != nil || n != 0 {
+		t.Fatalf("Tick with the fuse open = (%d, %v), want (0, nil) without touching the DB", n, err)
+	}
+
+	svc.noteLLMSuccess()
+	if svc.llmFuseOpen() {
+		t.Fatal("fuse stayed open after a success")
 	}
 }
