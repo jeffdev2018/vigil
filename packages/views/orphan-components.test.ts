@@ -381,7 +381,7 @@ describe("packages/views components are mounted somewhere", () => {
         `\n\nMount it where it belongs, or delete it. If it is a deliberate ` +
         `exception, add it to ALLOWED in this file with the reason on its line.`,
     ).toEqual([]);
-  });
+  }, ORPHAN_SCAN_TIMEOUT_MS);
 
   it("every allow-list entry is still an orphan and still carries a reason", () => {
     // An allow-list that outlives its entries is how this check goes quiet.
@@ -397,5 +397,5 @@ describe("packages/views components are mounted somewhere", () => {
         `${key} is allow-listed but ${relPath} no longer exports ${name} — drop the entry.`,
       ).toBe(true);
     }
-  }, ORPHAN_SCAN_TIMEOUT_MS);
+  });
 });
