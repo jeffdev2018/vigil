@@ -199,3 +199,43 @@ export interface OrgOffer {
   status: "pending" | "won" | "lost" | "over_cap";
   created_at: string;
 }
+
+// Simulating a request against a draft or a revision (POST /api/org/simulate).
+export interface OrgSimulationUnit {
+  id: string;
+  name: string;
+  model: string;
+  autonomy: string;
+}
+
+export interface OrgSimulationRef {
+  unit_id: string;
+  unit_name: string;
+}
+
+export interface OrgSimulationActor {
+  kind: "agent" | "member" | "squad" | "none";
+  id: string;
+  name: string;
+}
+
+export interface OrgSimulationRequest {
+  model?: string;
+  definition?: OrgDefinition;
+  structure_id?: string;
+  request: { title: string; description?: string; keywords?: string[]; labels?: string[] };
+}
+
+export interface OrgSimulation {
+  basis: "draft" | "revision";
+  structure_id: string;
+  revision: number;
+  unit: OrgSimulationUnit | null;
+  receives: OrgSimulationRef | null;
+  prepares: OrgSimulationActor;
+  decides: OrgSimulationActor;
+  escalation_path: OrgSimulationRef[];
+  blocking_denies: string[];
+  cost_estimate_usd_ticks: number;
+  notes: string[];
+}

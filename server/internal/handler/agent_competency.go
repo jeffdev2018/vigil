@@ -108,12 +108,24 @@ func competencyDomainKey(labels []string, paths []string) string {
 }
 
 func (h *Handler) issueDomainKey(ctx context.Context, issue db.Issue) string {
+	return h.issueDomainKeyWith(ctx, issue, h.issueLabelNames(ctx, issue))
+}
+
+// issueLabelNames is the issue's label names, empty when it has none or is
+// not in the database at all.
+func (h *Handler) issueLabelNames(ctx context.Context, issue db.Issue) []string {
 	var labels []string
 	if rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID}); err == nil {
 		for _, l := range rows {
 			labels = append(labels, l.Name)
 		}
 	}
+	return labels
+}
+
+// issueDomainKeyWith takes the labels from the caller so a simulated issue,
+// which no label row points at, can still name its domain.
+func (h *Handler) issueDomainKeyWith(ctx context.Context, issue db.Issue, labels []string) string {
 	paths := service.IssuePaths(issue.Title, issue.Description.String)
 	if tasks, err := h.Queries.ListTasksByIssue(ctx, issue.ID); err == nil {
 		for _, t := range tasks {
