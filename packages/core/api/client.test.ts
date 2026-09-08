@@ -44,9 +44,36 @@ describe("ApiClient agent conversation-starter compatibility", () => {
 
   it("allows declared-capability create and update writes through", async () => {
     configStore.getState().setAgentConversationStartersSupported(true);
+    // JEF-321: createAgent/updateAgent now validate the response through
+    // AgentSchema, so the stub must return a minimally valid Agent — this
+    // test only cares about the outgoing request body below.
+    const validAgent = {
+      id: "agent-1",
+      workspace_id: "ws-1",
+      runtime_id: "runtime-1",
+      name: "Reviewer",
+      description: "",
+      instructions: "",
+      avatar_url: null,
+      runtime_mode: "local",
+      runtime_config: {},
+      custom_args: [],
+      visibility: "workspace",
+      permission_mode: "private",
+      invocation_targets: [],
+      status: "idle",
+      max_concurrent_tasks: 1,
+      model: "opus",
+      owner_id: null,
+      skills: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      archived_at: null,
+      archived_by: null,
+    };
     const fetchMock = vi.fn().mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ id: "agent-1" }), {
+        new Response(JSON.stringify(validAgent), {
           status: 200,
           headers: { "Content-Type": "application/json" },
         }),
@@ -77,8 +104,33 @@ describe("ApiClient agent conversation-starter compatibility", () => {
 
 describe("ApiClient edit guards", () => {
   it("serializes field baselines for issue and comment writes", async () => {
+    // JEF-321: updateIssue now validates the response through IssueSchema, so
+    // the stub must return a minimally valid Issue — this test only cares
+    // about the outgoing request bodies below. updateComment still tolerates
+    // "{}" via its EMPTY_COMMENT fallback, so one fixture covers both calls.
+    const validIssue = {
+      id: "issue-1",
+      workspace_id: "ws-1",
+      number: 1,
+      identifier: "MUL-1",
+      title: "Latest",
+      description: null,
+      status: "todo",
+      priority: "none",
+      assignee_type: null,
+      assignee_id: null,
+      creator_type: "member",
+      creator_id: "user-1",
+      parent_issue_id: null,
+      project_id: null,
+      position: 0,
+      start_date: null,
+      due_date: null,
+      created_at: "2026-08-16T00:00:00Z",
+      updated_at: "2026-08-16T00:00:00Z",
+    };
     const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(
-      new Response("{}", {
+      new Response(JSON.stringify(validIssue), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       }),
@@ -2084,7 +2136,33 @@ describe("ApiClient explicit workspace targeting", () => {
   }
 
   it("sends the given slug on Mika creation", async () => {
-    const fetchMock = stubOk({ id: "agent-1" });
+    // JEF-321: createMikaAgent now validates the response through
+    // MikaBootstrapResponseSchema (an Agent), so the stub must return a
+    // minimally valid one — this test only cares about the request header.
+    const fetchMock = stubOk({
+      id: "agent-1",
+      workspace_id: "ws-1",
+      runtime_id: "runtime-1",
+      name: "Mika",
+      description: "",
+      instructions: "",
+      avatar_url: null,
+      runtime_mode: "local",
+      runtime_config: {},
+      custom_args: [],
+      visibility: "private",
+      permission_mode: "private",
+      invocation_targets: [],
+      status: "idle",
+      max_concurrent_tasks: 1,
+      model: "opus",
+      owner_id: null,
+      skills: [],
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+      archived_at: null,
+      archived_by: null,
+    });
     await new ApiClient("https://api.example.test").createMikaAgent(
       { runtime_id: "runtime-1", language: "en" },
       "proxima-centauri",

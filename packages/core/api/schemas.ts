@@ -117,6 +117,9 @@ import type {
   PRStack,
   IssuePlanEnvelope,
   RuntimeProfile,
+  Agent,
+  IssueReaction,
+  Reaction,
 } from "../types";
 import type {
   CloudRuntimeNode,
@@ -960,14 +963,26 @@ export interface AppConfigResponse {
 // type still flows out at the call site; the schema only guards shape.
 // ---------------------------------------------------------------------------
 
-const ReactionSchema = z.object({
+// Exported (JEF-321 batch A) so a standalone POST /comments/:id/reactions
+// response can be validated the same way it is when embedded in a comment.
+export const ReactionSchema = z.object({
   id: z.string(),
   comment_id: z.string(),
   actor_type: z.string(),
   actor_id: z.string(),
   emoji: z.string(),
   created_at: z.string(),
+  comment_revision: z.number().int().positive().optional(),
 });
+
+export const EMPTY_REACTION: Reaction = {
+  id: "",
+  comment_id: "",
+  actor_type: "",
+  actor_id: "",
+  emoji: "",
+  created_at: "",
+};
 
 // Nested attachments embedded in timeline/comment responses stay lenient on
 // purpose: a single malformed attachment must not knock the whole timeline
@@ -6213,3 +6228,198 @@ export const EMPTY_RUNTIME_PROFILE: RuntimeProfile = {
 export const RuntimeProfileListSchema = z.object({
   runtime_profiles: z.array(RuntimeProfileSchema).catch([]).default([]),
 }).loose();
+
+// ---------------------------------------------------------------------------
+// JEF-321 batch A — auth, issue writes, comments/reactions, agents, runtimes
+// ---------------------------------------------------------------------------
+
+// POST /auth/verify-code, POST /auth/google. No EMPTY_ fallback: an empty
+// token would look like a successful login with no way to detect failure, so
+// client.ts parses to null and throws — caught by the existing login-page
+// try/catch, same path as any other login error.
+export const LoginResponseSchema = z.object({
+  token: z.string(),
+  user: UserSchema,
+}).loose();
+
+// Standalone issue-level reaction (POST /api/issues/:id/reactions). Mirrors
+// ReactionSchema's comment-level shape; issue_revision is additive so a
+// caller on an older backend still gets a usable reaction.
+export const IssueReactionSchema = z.object({
+  id: z.string(),
+  issue_id: z.string(),
+  actor_type: z.string(),
+  actor_id: z.string(),
+  emoji: z.string(),
+  created_at: z.string(),
+  issue_revision: z.number().int().positive().optional(),
+}).loose();
+
+export const EMPTY_ISSUE_REACTION: IssueReaction = {
+  id: "",
+  issue_id: "",
+  actor_type: "",
+  actor_id: "",
+  emoji: "",
+  created_at: "",
+};
+
+export const AssigneeFrequencyEntrySchema = z.object({
+  assignee_type: z.string(),
+  assignee_id: z.string(),
+  frequency: z.number().catch(0),
+}).loose();
+
+export const AssigneeFrequencyListSchema = z.array(AssigneeFrequencyEntrySchema);
+
+const AgentConversationStarterSchema = z.object({
+  label: z.string(),
+  prompt: z.string(),
+}).loose();
+
+const AgentSkillSummarySchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string(),
+  enabled: z.boolean().optional(),
+}).loose();
+
+const AgentInvocationTargetSchema = z.object({
+  target_type: z.string(),
+  target_id: z.string().nullable(),
+}).loose();
+
+// Agent (GET/POST/PUT /api/agents...). Kept lenient the same way IssueSchema
+// is: enum-shaped fields stay z.string()/z.enum().catch(...) so an unknown
+// value from a newer backend degrades instead of failing the whole object,
+// and nested arrays default to [] so a malformed skill/invocation-target list
+// doesn't blank the agent that carries it.
+export const AgentSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string(),
+  runtime_id: z.string().catch(""),
+  runtime_bound: z.boolean().optional(),
+  runtime_availability: z.enum(["online", "unstable", "offline"]).optional().catch(undefined),
+  name: z.string().catch(""),
+  description: z.string().catch(""),
+  instructions: z.string().catch(""),
+  conversation_starters: z.array(AgentConversationStarterSchema).optional().catch(undefined),
+  system_key: z.string().optional(),
+  system_instructions: z.string().optional(),
+  avatar_url: z.string().nullable().catch(null),
+  runtime_mode: z.string().catch("local"),
+  runtime_config: z.record(z.string(), z.unknown()).catch({}).default({}),
+  custom_args: z.array(z.string()).catch([]).default([]),
+  has_custom_env: z.boolean().optional(),
+  custom_env_key_count: z.number().optional(),
+  mcp_config: z.unknown().nullish(),
+  mcp_config_redacted: z.boolean().optional(),
+  composio_toolkit_allowlist: z.array(z.string()).optional().catch(undefined),
+  composio_toolkit_allowlist_redacted: z.boolean().optional(),
+  visibility: z.enum(["workspace", "private"]).catch("private"),
+  permission_mode: z.enum(["private", "public_to"]).catch("private"),
+  invocation_targets: z.array(AgentInvocationTargetSchema).catch([]).default([]),
+  status: z.enum(["idle", "working", "blocked", "error", "offline"]).catch("offline"),
+  max_concurrent_tasks: z.number().catch(1),
+  trust_mode: z.string().optional(),
+  effect_mode: z.string().optional(),
+  permission_profile_id: z.string().nullable().optional(),
+  runtime_pool_id: z.string().nullable().optional(),
+  model: z.string().catch(""),
+  thinking_level: z.string().optional(),
+  service_tier: z.string().optional(),
+  runtime_routing: z.string().optional(),
+  owner_id: z.string().nullable().catch(null),
+  skills: z.array(AgentSkillSummarySchema).catch([]).default([]),
+  disabled_runtime_skills: z.array(z.unknown()).optional().catch(undefined),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+  archived_at: z.string().nullable().catch(null),
+  archived_by: z.string().nullable().catch(null),
+}).loose();
+
+export const EMPTY_AGENT: Agent = {
+  id: "",
+  workspace_id: "",
+  runtime_id: "",
+  name: "",
+  description: "",
+  instructions: "",
+  avatar_url: null,
+  runtime_mode: "local",
+  runtime_config: {},
+  custom_args: [],
+  visibility: "private",
+  permission_mode: "private",
+  invocation_targets: [],
+  status: "offline",
+  max_concurrent_tasks: 0,
+  model: "",
+  owner_id: null,
+  skills: [],
+  created_at: "",
+  updated_at: "",
+  archived_at: null,
+  archived_by: null,
+};
+
+export const AgentListSchema = z.array(AgentSchema);
+
+// POST /api/agents/mika — the workspace's Mika plus its onboarding session,
+// resolved together server-side. `onboarding_session` is validated loosely
+// (not required) because the caller (bootstrapMika) already throws its own
+// "session was not returned" error when it is absent.
+export const MikaBootstrapResponseSchema = AgentSchema.extend({
+  onboarding_session: ChatSessionSchema.optional(),
+});
+
+// GET/PUT /api/agents/:id/env. Deliberately no EMPTY_ fallback: a malformed
+// response here must not present as "this agent has no custom env" (env-tab.tsx
+// throws through its try/catch instead, same as a network failure).
+export const AgentEnvResponseSchema = z.object({
+  agent_id: z.string(),
+  custom_env: z.record(z.string(), z.string()).catch({}).default({}),
+  scoped_keys: z.array(z.string()).optional().catch(undefined),
+}).loose();
+
+const SandboxCapabilitiesSchema = z.object({
+  os: z.string().optional(),
+  docker: z.boolean().optional(),
+  docker_version: z.string().optional(),
+  bwrap: z.boolean().optional(),
+  modes: z.array(z.string()).optional(),
+}).loose();
+
+// GET /api/runtimes. RuntimeDevice's optional K10/K46 fields (sandbox_*,
+// compliance) stay lenient — additive metadata a malformed value must not
+// take the whole runtime down with it.
+export const AgentRuntimeSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().catch(""),
+  daemon_id: z.string().nullable().catch(null),
+  name: z.string().catch(""),
+  custom_name: z.string().nullable().optional(),
+  runtime_mode: z.string().catch("local"),
+  provider: z.string().catch(""),
+  launch_header: z.string().catch(""),
+  status: z.enum(["online", "offline"]).catch("offline"),
+  device_info: z.string().catch(""),
+  metadata: z.record(z.string(), z.unknown()).catch({}).default({}),
+  owner_id: z.string().nullable().catch(null),
+  visibility: z.enum(["private", "public"]).catch("private"),
+  profile_id: z.string().nullable().optional(),
+  sandbox_mode: z.string().optional(),
+  sandbox_image: z.string().optional(),
+  sandbox_allowed_hosts: z.array(z.string()).optional().catch(undefined),
+  sandbox_capabilities: SandboxCapabilitiesSchema.optional().catch(undefined),
+  sandbox_effective: z.string().optional(),
+  compliance: z.object({
+    region: z.string(),
+    on_prem: z.boolean(),
+  }).loose().nullable().optional().catch(null),
+  last_seen_at: z.string().nullable().catch(null),
+  created_at: z.string().catch(""),
+  updated_at: z.string().catch(""),
+}).loose();
+
+export const AgentRuntimeListSchema = z.array(AgentRuntimeSchema);

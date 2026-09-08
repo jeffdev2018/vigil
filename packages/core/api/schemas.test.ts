@@ -108,6 +108,22 @@ import {
 } from "./schemas";
 import { TaskActivityResponseSchema, EMPTY_TASK_ACTIVITY } from "./schemas";
 import { RunGroupEnvelopeSchema, RunGroupListEnvelopeSchema, type RunGroup } from "./schemas";
+import {
+  LoginResponseSchema,
+  ReactionSchema,
+  EMPTY_REACTION,
+  IssueReactionSchema,
+  EMPTY_ISSUE_REACTION,
+  AssigneeFrequencyEntrySchema,
+  AssigneeFrequencyListSchema,
+  AgentSchema,
+  EMPTY_AGENT,
+  AgentListSchema,
+  MikaBootstrapResponseSchema,
+  AgentEnvResponseSchema,
+  AgentRuntimeSchema,
+  AgentRuntimeListSchema,
+} from "./schemas";
 import { parseWithFallback } from "./schema";
 
 const baseIssue = {
@@ -3510,6 +3526,361 @@ describe("RunGroupSchema", () => {
     }
     for (const malformed of [null, "oops", 42, { groups: "nope" }, { groups: [1, 2] }]) {
       expect(parseWithFallback(malformed, RunGroupListEnvelopeSchema, EMPTY_LIST, LIST_ENDPOINT).groups).toEqual([]);
+    }
+  });
+});
+
+// JEF-321 batch A — auth, issue writes, comments/reactions, agents, runtimes
+describe("LoginResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /auth/verify-code" };
+  const user = {
+    id: "user-1",
+    email: "a@b.com",
+    name: "Ada",
+    avatar_url: null,
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid login response intact", () => {
+    const parsed = parseWithFallback<{ token: string; user: typeof user } | null>(
+      { token: "tok-1", user },
+      LoginResponseSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.token).toBe("tok-1");
+    expect(parsed?.user.id).toBe("user-1");
+  });
+
+  it("falls back to null (not an invented token) when the token is missing", () => {
+    expect(
+      parseWithFallback({ user }, LoginResponseSchema, null, ENDPOINT),
+    ).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2], {}]) {
+      expect(parseWithFallback(malformed, LoginResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("ReactionSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/comments/:id/reactions" };
+  const reaction = {
+    id: "reaction-1",
+    comment_id: "comment-1",
+    actor_type: "member",
+    actor_id: "member-1",
+    emoji: "👍",
+    created_at: "2026-09-01T00:00:00Z",
+    comment_revision: 3,
+  };
+
+  it("keeps a valid reaction intact", () => {
+    const parsed = parseWithFallback(reaction, ReactionSchema, EMPTY_REACTION, ENDPOINT);
+    expect(parsed).toEqual(reaction);
+  });
+
+  it("falls back to EMPTY_REACTION on a missing required field", () => {
+    const { id: _id, ...rest } = reaction;
+    expect(parseWithFallback(rest, ReactionSchema, EMPTY_REACTION, ENDPOINT)).toEqual(EMPTY_REACTION);
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, ReactionSchema, EMPTY_REACTION, ENDPOINT)).toEqual(EMPTY_REACTION);
+    }
+  });
+});
+
+describe("IssueReactionSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/issues/:id/reactions" };
+  const reaction = {
+    id: "reaction-1",
+    issue_id: "issue-1",
+    actor_type: "agent",
+    actor_id: "agent-1",
+    emoji: "🚀",
+    created_at: "2026-09-01T00:00:00Z",
+    issue_revision: 5,
+  };
+
+  it("keeps a valid issue reaction intact", () => {
+    expect(
+      parseWithFallback(reaction, IssueReactionSchema, EMPTY_ISSUE_REACTION, ENDPOINT),
+    ).toEqual(reaction);
+  });
+
+  it("falls back to EMPTY_ISSUE_REACTION on a missing required field", () => {
+    const { emoji: _emoji, ...rest } = reaction;
+    expect(
+      parseWithFallback(rest, IssueReactionSchema, EMPTY_ISSUE_REACTION, ENDPOINT),
+    ).toEqual(EMPTY_ISSUE_REACTION);
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, IssueReactionSchema, EMPTY_ISSUE_REACTION, ENDPOINT),
+      ).toEqual(EMPTY_ISSUE_REACTION);
+    }
+  });
+});
+
+describe("AssigneeFrequencyEntrySchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/assignee-frequency" };
+
+  it("keeps a valid entry intact", () => {
+    const entry = { assignee_type: "member", assignee_id: "m1", frequency: 4 };
+    expect(parseWithFallback(entry, AssigneeFrequencyEntrySchema, null, ENDPOINT)).toEqual(entry);
+  });
+
+  it("keeps a valid list intact", () => {
+    const entries = [{ assignee_type: "member", assignee_id: "m1", frequency: 4 }];
+    expect(parseWithFallback(entries, AssigneeFrequencyListSchema, [], ENDPOINT)).toEqual(entries);
+  });
+
+  it("defaults a missing frequency to 0 rather than dropping the entry", () => {
+    const parsed = parseWithFallback<{ assignee_type: string; assignee_id: string; frequency: number }[]>(
+      [{ assignee_type: "member", assignee_id: "m1" }],
+      AssigneeFrequencyListSchema,
+      [],
+      ENDPOINT,
+    );
+    expect(parsed[0]?.frequency).toBe(0);
+  });
+
+  it("falls back to [] on a malformed or missing list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(parseWithFallback(malformed, AssigneeFrequencyListSchema, [], ENDPOINT)).toEqual([]);
+    }
+  });
+});
+
+describe("AgentSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/agents/:id" };
+  const agent = {
+    id: "agent-1",
+    workspace_id: "ws-1",
+    runtime_id: "runtime-1",
+    name: "Reviewer",
+    description: "Reviews PRs",
+    instructions: "Be thorough",
+    avatar_url: null,
+    runtime_mode: "local",
+    runtime_config: {},
+    custom_args: [],
+    visibility: "workspace",
+    permission_mode: "public_to",
+    invocation_targets: [{ target_type: "workspace", target_id: null }],
+    status: "idle",
+    max_concurrent_tasks: 2,
+    model: "opus",
+    owner_id: "member-1",
+    skills: [{ id: "skill-1", name: "Review", description: "", enabled: true }],
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+    archived_at: null,
+    archived_by: null,
+  };
+
+  it("keeps a valid agent intact", () => {
+    const parsed = parseWithFallback<typeof agent | null>(agent, AgentSchema, null, ENDPOINT);
+    expect(parsed?.id).toBe("agent-1");
+    expect(parsed?.skills[0]?.name).toBe("Review");
+    expect(parsed?.invocation_targets[0]?.target_type).toBe("workspace");
+  });
+
+  it("degrades an unknown status to offline rather than failing the whole agent", () => {
+    const parsed = parseWithFallback<typeof agent | null>(
+      { ...agent, status: "vibing" },
+      AgentSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.status).toBe("offline");
+  });
+
+  it("defaults a missing skills/invocation_targets list to [] rather than throwing", () => {
+    const { skills: _skills, invocation_targets: _targets, ...rest } = agent;
+    const parsed = parseWithFallback<typeof agent | null>(rest, AgentSchema, null, ENDPOINT);
+    expect(parsed?.skills).toEqual([]);
+    expect(parsed?.invocation_targets).toEqual([]);
+  });
+
+  it("falls back to null on a missing required id, and EMPTY_AGENT satisfies the Agent type", () => {
+    const { id: _id, ...rest } = agent;
+    expect(parseWithFallback<typeof agent | null>(rest, AgentSchema, null, ENDPOINT)).toBeNull();
+    expect(EMPTY_AGENT.id).toBe("");
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, AgentSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("AgentListSchema", () => {
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, AgentListSchema, [], { endpoint: "GET /api/agents" }),
+      ).toEqual([]);
+    }
+  });
+});
+
+describe("MikaBootstrapResponseSchema", () => {
+  const ENDPOINT = { endpoint: "POST /api/agents/mika" };
+  const agent = {
+    id: "agent-1",
+    workspace_id: "ws-1",
+    runtime_id: "runtime-1",
+    name: "Mika",
+    description: "",
+    instructions: "",
+    avatar_url: null,
+    runtime_mode: "local",
+    runtime_config: {},
+    custom_args: [],
+    visibility: "private",
+    permission_mode: "private",
+    invocation_targets: [],
+    status: "idle",
+    max_concurrent_tasks: 1,
+    model: "opus",
+    owner_id: null,
+    skills: [],
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+    archived_at: null,
+    archived_by: null,
+  };
+  const session = {
+    id: "session-1",
+    workspace_id: "ws-1",
+    agent_id: "agent-1",
+    title: "Onboarding",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid bootstrap response, onboarding_session included", () => {
+    const parsed = parseWithFallback<(typeof agent & { onboarding_session?: typeof session }) | null>(
+      { ...agent, onboarding_session: session },
+      MikaBootstrapResponseSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.id).toBe("agent-1");
+    expect(parsed?.onboarding_session?.id).toBe("session-1");
+  });
+
+  it("still validates when onboarding_session is absent — the caller throws its own error for that", () => {
+    const parsed = parseWithFallback<(typeof agent & { onboarding_session?: typeof session }) | null>(
+      agent,
+      MikaBootstrapResponseSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.id).toBe("agent-1");
+    expect(parsed?.onboarding_session).toBeUndefined();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, MikaBootstrapResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("AgentEnvResponseSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/agents/:id/env" };
+  const env = {
+    agent_id: "agent-1",
+    custom_env: { API_KEY: "****" },
+    scoped_keys: ["SCOPED_TOKEN"],
+  };
+
+  it("keeps a valid env response intact", () => {
+    expect(parseWithFallback(env, AgentEnvResponseSchema, null, ENDPOINT)).toEqual(env);
+  });
+
+  it("defaults a missing custom_env to {} rather than dropping the response", () => {
+    const { custom_env: _env, ...rest } = env;
+    const parsed = parseWithFallback<typeof env | null>(rest, AgentEnvResponseSchema, null, ENDPOINT);
+    expect(parsed?.custom_env).toEqual({});
+  });
+
+  it("falls back to null on a missing agent_id — the caller throws rather than showing an empty env", () => {
+    const { agent_id: _id, ...rest } = env;
+    expect(parseWithFallback(rest, AgentEnvResponseSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, AgentEnvResponseSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("AgentRuntimeSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/runtimes" };
+  const runtime = {
+    id: "runtime-1",
+    workspace_id: "ws-1",
+    daemon_id: "daemon-1",
+    name: "Local Claude",
+    runtime_mode: "local",
+    provider: "claude",
+    launch_header: "x-header",
+    status: "online",
+    device_info: "macOS",
+    metadata: {},
+    owner_id: "member-1",
+    visibility: "private",
+    last_seen_at: "2026-09-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+    updated_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("keeps a valid runtime intact", () => {
+    const parsed = parseWithFallback<typeof runtime | null>(runtime, AgentRuntimeSchema, null, ENDPOINT);
+    expect(parsed?.id).toBe("runtime-1");
+    expect(parsed?.status).toBe("online");
+  });
+
+  it("degrades an unknown status to offline rather than failing the whole runtime", () => {
+    const parsed = parseWithFallback<typeof runtime | null>(
+      { ...runtime, status: "rebooting" },
+      AgentRuntimeSchema,
+      null,
+      ENDPOINT,
+    );
+    expect(parsed?.status).toBe("offline");
+  });
+
+  it("falls back to null on a missing id", () => {
+    const { id: _id, ...rest } = runtime;
+    expect(parseWithFallback(rest, AgentRuntimeSchema, null, ENDPOINT)).toBeNull();
+  });
+
+  it("does not throw on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(parseWithFallback(malformed, AgentRuntimeSchema, null, ENDPOINT)).toBeNull();
+    }
+  });
+});
+
+describe("AgentRuntimeListSchema", () => {
+  it("falls back to [] on a malformed list", () => {
+    for (const malformed of [null, "oops", 42, { not: "an array" }]) {
+      expect(
+        parseWithFallback(malformed, AgentRuntimeListSchema, [], { endpoint: "GET /api/runtimes" }),
+      ).toEqual([]);
     }
   });
 });
