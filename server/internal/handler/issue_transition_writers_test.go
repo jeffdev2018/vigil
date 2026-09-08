@@ -85,6 +85,12 @@ var issueStatusWriters = map[string]statusWriterClass{
 	"internal/handler/critic.go": statusWriterSystem,
 	// The Linear bridge (K21) mirrors a state change made in Linear.
 	"internal/integrations/linear/sync.go": statusWriterSystem,
+	// The native agent runtime (rowboat lot B). transition_issue runs the
+	// shared gate (service.DecideIssueTransition) with the AGENT as actor
+	// before writing; update_issue pins the status to the current value and
+	// never moves it. create_sub_issue creates on the default status, which
+	// the create gate deliberately never gates.
+	"internal/service/native_agent_tools.go": statusWriterGated,
 	// A low-confidence run is sent back for review by the platform.
 	"internal/service/run_confidence.go": statusWriterSystem,
 	// An autopilot creates the issue its schedule or webhook asked for.

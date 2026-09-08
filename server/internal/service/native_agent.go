@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -56,15 +57,20 @@ type NativeAgentService struct {
 	Tasks   *TaskService
 	Issues  *IssueService
 	LLM     NativeAgentLLM
+	// Bus carries the realtime nudge for the agent's own writes (comments,
+	// issue edits, held transitions). Nil skips publishing — rows remain the
+	// source of truth and open clients converge on their next fetch.
+	Bus     *events.Bus
 	limiter chan struct{}
 }
 
-func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM) *NativeAgentService {
+func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {
 	return &NativeAgentService{
 		Queries: q,
 		Tasks:   tasks,
 		Issues:  issues,
 		LLM:     llm,
+		Bus:     bus,
 		limiter: make(chan struct{}, nativeMaxConcurrent),
 	}
 }
@@ -136,23 +142,16 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		s.failNativeTask(ctx, task, "native run: assigned agent no longer exists")
 		return
 	}
-	if !task.IssueID.Valid {
-		// ponytail: chat / quick-create / autopilot-run-only tasks are refused
-		// until a later lot gives them a brief; the refusal is honest and
-		// visible instead of silently queuing forever.
-		s.failNativeTask(ctx, task, "native runtime only supports issue tasks in this iteration")
-		return
-	}
-	issue, err := s.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: task.IssueID, WorkspaceID: agent.WorkspaceID})
-	if err != nil {
-		s.failNativeTask(ctx, task, "native run: task issue no longer exists")
+	brief, ownIssue, briefErr := s.nativeBriefForTask(ctx, task, agent)
+	if briefErr != nil {
+		s.failNativeTask(ctx, task, briefErr.Error())
 		return
 	}
 
-	tctx := nativeToolContext{task: task, agent: agent, issue: issue, workspaceID: agent.WorkspaceID}
+	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID}
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(nativeSystemPrompt(agent)),
-		openai.UserMessage(nativeTaskBrief(ctx, s.Queries, tctx)),
+		openai.UserMessage(brief),
 	}
 	tools := nativeAgentToolSpecs()
 
@@ -284,10 +283,76 @@ func nativeSystemPrompt(agent db.Agent) string {
 	return b.String()
 }
 
-// nativeTaskBrief assembles the user message: the issue and the recent
-// conversation around it.
+// nativeBriefForTask assembles the user message for whatever kind of task
+// this is, and resolves the task's own issue (nil for the issue-less kinds).
+// Every kind is honest: a task whose context cannot be loaded fails the run
+// with the reason, rather than executing against a guess.
+func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.AgentTaskQueue, agent db.Agent) (string, *db.Issue, error) {
+	switch {
+	case task.ChatSessionID.Valid:
+		msgs, err := s.Queries.ListChatMessages(ctx, task.ChatSessionID)
+		if err != nil {
+			return "", nil, fmt.Errorf("native run: chat history unavailable: %w", err)
+		}
+		var b strings.Builder
+		b.WriteString("You are replying in a chat conversation. Answer the user's last message; you may use the tools to look at or file issues first.\n\nConversation (oldest first):\n")
+		kept := msgs
+		if len(kept) > 30 {
+			kept = kept[len(kept)-30:]
+		}
+		for _, m := range kept {
+			fmt.Fprintf(&b, "- [%s] %s\n", m.Role, clampString(m.Content, 2000))
+		}
+		return b.String(), nil, nil
+
+	case task.AutopilotRunID.Valid:
+		run, err := s.Queries.GetAutopilotRun(ctx, task.AutopilotRunID)
+		if err != nil {
+			return "", nil, fmt.Errorf("native run: autopilot run unavailable")
+		}
+		ap, err := s.Queries.GetAutopilot(ctx, run.AutopilotID)
+		if err != nil {
+			return "", nil, fmt.Errorf("native run: autopilot unavailable")
+		}
+		var b strings.Builder
+		fmt.Fprintf(&b, "Autopilot task: %s\n", ap.Title)
+		if ap.Description.Valid && strings.TrimSpace(ap.Description.String) != "" {
+			b.WriteString("\nInstructions:\n" + ap.Description.String + "\n")
+		}
+		if len(run.TriggerPayload) > 0 {
+			fmt.Fprintf(&b, "\nTrigger payload:\n%s\n", clampString(string(run.TriggerPayload), 2000))
+		}
+		if task.TriggerSummary.Valid && task.TriggerSummary.String != "" {
+			b.WriteString("\nTrigger: " + task.TriggerSummary.String + "\n")
+		}
+		return b.String(), nil, nil
+
+	case task.Context != nil && !task.IssueID.Valid:
+		var qc QuickCreateContext
+		if err := json.Unmarshal(task.Context, &qc); err != nil || qc.Type != QuickCreateContextType {
+			return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, or quick-create context)")
+		}
+		var b strings.Builder
+		b.WriteString("Quick-create task: turn the following request into a well-formed issue (create_issue), then summarize what you filed.\n\nRequest:\n" + qc.Prompt + "\n")
+		return b.String(), nil, nil
+
+	case task.IssueID.Valid:
+		issue, err := s.Queries.GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: task.IssueID, WorkspaceID: agent.WorkspaceID})
+		if err != nil {
+			return "", nil, errors.New("native run: task issue no longer exists")
+		}
+		tctx := nativeToolContext{task: task, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
+		return nativeTaskBrief(ctx, s.Queries, tctx), &issue, nil
+
+	default:
+		return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, or quick-create context)")
+	}
+}
+
+// nativeTaskBrief assembles the user message for an issue task: the issue and
+// the recent conversation around it.
 func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext) string {
-	issue := tctx.issue
+	issue := *tctx.issue
 	var b strings.Builder
 	fmt.Fprintf(&b, "Issue #%d: %s\n", issue.Number, issue.Title)
 	fmt.Fprintf(&b, "Status: %s\n", issue.Status)

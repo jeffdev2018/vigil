@@ -6,6 +6,10 @@ const (
 	EventIssueCreated            = "issue:created"
 	EventIssueUpdated            = "issue:updated"
 	EventIssueDeleted            = "issue:deleted"
+	// EventIssueAuxChanged marks an issue's projections stale so open clients
+	// refetch — the nudge for writes that happen outside the web app (digest
+	// actions, the native agent runtime). No full issue snapshot on the wire.
+	EventIssueAuxChanged = "issue:aux_changed"
 	EventIssueMetadataChanged    = "issue_metadata:changed"
 	EventIssueAttachmentsChanged = "issue_attachments:changed"
 

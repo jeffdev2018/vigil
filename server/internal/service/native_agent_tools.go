@@ -7,9 +7,12 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/issuestatus"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
 )
@@ -24,9 +27,12 @@ import (
 // re-resolves ids against the task's workspace and whitelists enum values.
 
 type nativeToolContext struct {
-	task        db.AgentTaskQueue
-	agent       db.Agent
-	issue       db.Issue
+	task  db.AgentTaskQueue
+	agent db.Agent
+	// issue is the task's own issue, nil for the issue-less kinds (chat,
+	// quick-create, autopilot run-only). Tools that default to "the task's
+	// issue" require an explicit issue_id when it is nil.
+	issue       *db.Issue
 	workspaceID pgtype.UUID
 }
 
@@ -68,7 +74,7 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "update_issue",
-			Description: openai.String("Update the title, description, or priority of an issue (the task's own issue by default). Status changes are not available."),
+			Description: openai.String("Update the title, description, or priority of an issue (the task's own issue by default). To change status, use transition_issue."),
 			Parameters: shared.FunctionParameters{
 				"type": "object",
 				"properties": shared.FunctionParameters{
@@ -76,6 +82,18 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 					"title":       shared.FunctionParameters{"type": "string"},
 					"description": shared.FunctionParameters{"type": "string"},
 					"priority":    shared.FunctionParameters{"type": "string"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "transition_issue",
+			Description: openai.String("Move an issue to another status (the task's own issue by default). Workspace transition rules apply: the move may be refused, or held for human approval — in that case a request is filed and nothing changes yet."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"status"},
+				"properties": shared.FunctionParameters{
+					"issue_id": shared.FunctionParameters{"type": "string"},
+					"status":   shared.FunctionParameters{"type": "string", "description": "Target status key"},
 				},
 			},
 		}),
@@ -88,6 +106,20 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 				"properties": shared.FunctionParameters{
 					"title":       shared.FunctionParameters{"type": "string"},
 					"description": shared.FunctionParameters{"type": "string"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "create_issue",
+			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"title"},
+				"properties": shared.FunctionParameters{
+					"title":          shared.FunctionParameters{"type": "string"},
+					"description":    shared.FunctionParameters{"type": "string"},
+					"priority":       shared.FunctionParameters{"type": "string"},
+					"assign_to_self": shared.FunctionParameters{"type": "boolean"},
 				},
 			},
 		}),
@@ -110,8 +142,12 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx nativeTool
 		return s.nativeAddComment(ctx, tctx, args)
 	case "update_issue":
 		return s.nativeUpdateIssue(ctx, tctx, args)
+	case "transition_issue":
+		return s.nativeTransitionIssue(ctx, tctx, args)
 	case "create_sub_issue":
 		return s.nativeCreateSubIssue(ctx, tctx, args)
+	case "create_issue":
+		return s.nativeCreateIssue(ctx, tctx, args)
 	default:
 		return nil, fmt.Errorf("unknown tool %q", name)
 	}
@@ -122,7 +158,10 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx nativeTool
 func (s *NativeAgentService) nativeResolveIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (db.Issue, error) {
 	raw, _ := args["issue_id"].(string)
 	if strings.TrimSpace(raw) == "" {
-		return tctx.issue, nil
+		if tctx.issue == nil {
+			return db.Issue{}, errors.New("this task has no own issue; pass an explicit issue_id")
+		}
+		return *tctx.issue, nil
 	}
 	id, err := util.ParseUUID(strings.TrimSpace(raw))
 	if err != nil {
@@ -232,6 +271,10 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx nativeTo
 	if err != nil {
 		return nil, fmt.Errorf("comment failed: %w", err)
 	}
+	s.publishNative(protocol.EventCommentCreated, tctx, map[string]any{
+		"comment":        map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)},
+		"issue_revision": created.IssueRevision,
+	})
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
 }
 
@@ -293,7 +336,75 @@ func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx nativeT
 	if err != nil {
 		return nil, fmt.Errorf("update failed: %w", err)
 	}
+	s.publishNativeIssueChanged(tctx, updated.ID)
 	return map[string]any{"id": util.UUIDToString(updated.ID), "number": updated.Number, "revision": updated.Revision}, nil
+}
+
+// nativeTransitionIssue moves an issue's status THROUGH the shared F28 gate:
+// the same DecideIssueTransition the HTTP handlers run, with the agent as the
+// actor. Allow applies the move; NeedsApproval files the request (audit +
+// approver inbox) and reports it to the model as a held move; Deny surfaces
+// the rule's refusal. The model can tell the difference and tell the user.
+func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+	raw, _ := args["status"].(string)
+	status := strings.TrimSpace(raw)
+	if status == "" {
+		return nil, errors.New("status is required")
+	}
+	issue, err := s.nativeResolveIssue(ctx, tctx, args)
+	if err != nil {
+		return nil, err
+	}
+	if status == issue.Status {
+		return map[string]any{"id": util.UUIDToString(issue.ID), "status": issue.Status, "changed": false}, nil
+	}
+	// An agent actor carries no workspace role: granting one would hand the
+	// agent its owner's authority (see issuestatus.TransitionActor).
+	actor := issuestatus.TransitionActor{Type: issuestatus.ActorAgent, ID: util.UUIDToString(tctx.agent.ID)}
+	decision, err := DecideIssueTransition(ctx, s.Queries, tctx.workspaceID, issue.ProjectID, issue.Status, status, actor)
+	if err != nil {
+		return nil, fmt.Errorf("transition gate failed: %w", err)
+	}
+	switch decision.Outcome {
+	case issuestatus.TransitionDeny:
+		return nil, fmt.Errorf("a workspace transition rule does not allow you to move this issue to %s (reason: %s)", status, decision.Reason)
+	case issuestatus.TransitionNeedsApproval:
+		result, err := FileIssueTransitionRequest(ctx, s.Queries, s.Bus, issue, status, issuestatus.ActorAgent, util.UUIDToString(tctx.agent.ID), decision)
+		if err != nil {
+			if errors.Is(err, ErrTransitionPending) && result.Existing != nil {
+				return map[string]any{"held": true, "request_id": util.UUIDToString(result.Existing.ID), "to": result.Existing.ToStatus, "note": "an approval request was already waiting for this issue"}, nil
+			}
+			return nil, fmt.Errorf("could not file the approval request: %w", err)
+		}
+		return map[string]any{"held": true, "request_id": util.UUIDToString(result.Request.ID), "from": issue.Status, "to": status, "note": "the move needs human approval; a request was filed and the status is unchanged until an approver decides"}, nil
+	default:
+		params := db.UpdateIssueParams{ID: issue.ID}
+		// Same bare-narg contract as update_issue: pre-fill every overwrite
+		// column from the current row, then set the new status.
+		params.Status = pgtype.Text{String: status, Valid: true}
+		params.Title = pgtype.Text{String: issue.Title, Valid: true}
+		if issue.Description.Valid {
+			params.Description = issue.Description
+		}
+		if issue.Priority != "" {
+			params.Priority = pgtype.Text{String: issue.Priority, Valid: true}
+		}
+		params.AssigneeType = issue.AssigneeType
+		params.AssigneeID = issue.AssigneeID
+		params.DelegateType = issue.DelegateType
+		params.DelegateID = issue.DelegateID
+		params.StartDate = issue.StartDate
+		params.DueDate = issue.DueDate
+		params.ParentIssueID = issue.ParentIssueID
+		params.ProjectID = issue.ProjectID
+		params.Stage = issue.Stage
+		updated, err := s.Queries.UpdateIssue(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("transition failed: %w", err)
+		}
+		s.publishNativeIssueChanged(tctx, updated.ID)
+		return map[string]any{"id": util.UUIDToString(updated.ID), "status": updated.Status, "changed": true}, nil
+	}
 }
 
 func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
@@ -308,20 +419,101 @@ func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx nati
 	description, _ := args["description"].(string)
 	description = util.SanitizeTextForPostgres(description)
 
+	if tctx.issue == nil {
+		return nil, errors.New("create_sub_issue needs the task's own issue; use create_issue to file a top-level one")
+	}
+	parent := *tctx.issue
 	res, err := s.Issues.Create(ctx, IssueCreateParams{
-		WorkspaceID:   tctx.workspaceID,
-		Title:         title,
-		Description:   pgtype.Text{String: description, Valid: description != ""},
-		Status:        "backlog",
+		WorkspaceID: tctx.workspaceID,
+		Title:       title,
+		Description: pgtype.Text{String: description, Valid: description != ""},
+		// The default status, deliberately: a create landing on a non-default
+		// status is exactly what transitionAllowsCreate gates, and the native
+		// runtime routes status moves through transition_issue instead of
+		// smuggling one past the gate at create time.
+		Status:        "todo",
 		Priority:      "none",
 		CreatorType:   "agent",
 		CreatorID:     tctx.agent.ID,
-		ParentIssueID: tctx.issue.ID,
+		ParentIssueID: parent.ID,
 	}, IssueCreateOpts{ActorID: util.UUIDToString(tctx.agent.ID), Platform: "daemon"})
 	if err != nil {
 		return nil, fmt.Errorf("sub-issue failed: %w", err)
 	}
-	return map[string]any{"id": util.UUIDToString(res.Issue.ID), "number": res.Issue.Number, "parent_number": tctx.issue.Number}, nil
+	return map[string]any{"id": util.UUIDToString(res.Issue.ID), "number": res.Issue.Number, "parent_number": parent.Number}, nil
+}
+
+// publishNative sends one realtime nudge for an agent-authored write. The
+// payloads stay minimal on purpose: the client handlers for these event types
+// invalidate by issue id / prefix and refetch, so the row — already committed
+// — is what clients render.
+func (s *NativeAgentService) publishNative(eventType string, tctx nativeToolContext, payload map[string]any) {
+	if s.Bus == nil {
+		return
+	}
+	s.Bus.Publish(events.Event{
+		Type:        eventType,
+		WorkspaceID: util.UUIDToString(tctx.workspaceID),
+		ActorType:   "agent",
+		ActorID:     util.UUIDToString(tctx.agent.ID),
+		Payload:     payload,
+	})
+}
+
+// publishNativeIssueChanged marks an issue's projections stale so open
+// clients refetch — the same mechanism the platform uses for writes that
+// happen outside the web app (see digest actions).
+func (s *NativeAgentService) publishNativeIssueChanged(tctx nativeToolContext, issueID pgtype.UUID) {
+	s.publishNative(protocol.EventIssueAuxChanged, tctx, map[string]any{
+		"issue_id": util.UUIDToString(issueID),
+	})
+}
+
+// nativeCreateIssue files a top-level issue — the quick-create path. The
+// default status, same as the sub-issue path: a create landing on a
+// non-default status is what the create gate governs, and the native runtime
+// routes status moves through transition_issue.
+func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+	title, _ := args["title"].(string)
+	title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
+	if title == "" {
+		return nil, errors.New("title is required")
+	}
+	if len(title) > 255 {
+		title = title[:255]
+	}
+	description, _ := args["description"].(string)
+	description = util.SanitizeTextForPostgres(description)
+	priority, hasPriority := args["priority"].(string)
+	if hasPriority && !nativePriorityAllowed(priority) {
+		return nil, errors.New("priority must be one of urgent, high, medium, low, none")
+	}
+	if !hasPriority || priority == "" {
+		priority = "none"
+	}
+	assignToSelf := true
+	if v, ok := args["assign_to_self"].(bool); ok {
+		assignToSelf = v
+	}
+
+	params := IssueCreateParams{
+		WorkspaceID: tctx.workspaceID,
+		Title:       title,
+		Description: pgtype.Text{String: description, Valid: description != ""},
+		Status:      "todo",
+		Priority:    priority,
+		CreatorType: "agent",
+		CreatorID:   tctx.agent.ID,
+	}
+	if assignToSelf {
+		params.AssigneeType = pgtype.Text{String: "agent", Valid: true}
+		params.AssigneeID = tctx.agent.ID
+	}
+	res, err := s.Issues.Create(ctx, params, IssueCreateOpts{ActorID: util.UUIDToString(tctx.agent.ID), Platform: "daemon"})
+	if err != nil {
+		return nil, fmt.Errorf("issue creation failed: %w", err)
+	}
+	return map[string]any{"id": util.UUIDToString(res.Issue.ID), "number": res.Issue.Number, "status": res.Issue.Status}, nil
 }
 
 func taskPromptText(task db.AgentTaskQueue) string {
