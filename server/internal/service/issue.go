@@ -136,6 +136,14 @@ type IssueCreateOpts struct {
 	// still resolving, then promotes the returned task after attachment binding.
 	// Zero preserves the ordinary immediate enqueue path.
 	AssignedAgentRunFireAt time.Time
+
+	// SuppressRun files the issue with its assignee but starts no agent run,
+	// the create-side counterpart of the `suppress_run` field on issue update.
+	// An agent filing an issue on itself uses this: without it the create
+	// immediately spawns a second run of the same agent on its own filing, and
+	// nothing bounds that recursion. Meaningless together with
+	// AssignedAgentRunFireAt, which exists to create a run.
+	SuppressRun bool
 }
 
 // ErrActiveDuplicate signals that the duplicate guard found an active
@@ -513,7 +521,7 @@ func (s *IssueService) Create(ctx context.Context, p IssueCreateParams, opts Iss
 
 	s.publishIssueCreated(issue, attachments, labels, p.CreatorType, actorID, opts)
 	s.captureCreatedAnalytics(issue, p.CreatorType, actorID, opts)
-	if opts.AssignedAgentRunFireAt.IsZero() {
+	if opts.AssignedAgentRunFireAt.IsZero() && !opts.SuppressRun {
 		assignedTaskID = s.maybeEnqueueOnAssign(ctx, issue, p.CreatorType, actorID, opts.AssignedAgentRunFireAt)
 	}
 
