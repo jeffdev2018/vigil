@@ -855,7 +855,11 @@ WHERE id = (
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
-                 OR atq.leg_role = 'benchmark')
+                 OR atq.leg_role = 'benchmark'
+                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
+                 -- server's escalation choice, pinned at enqueue — the same
+                 -- exemption a benchmark pin (JEF-276) gets.
+                 OR atq.context->'escalation' IS NOT NULL)
             -- Private runtimes only execute their owner's agents. Ownerless
             -- runtime/agent rows remain claimable only so the handler can
             -- settle them explicitly before daemon delivery; filtering them
@@ -993,7 +997,11 @@ WHERE id = (
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
-                 OR atq.leg_role = 'benchmark')
+                 OR atq.leg_role = 'benchmark'
+                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
+                 -- server's escalation choice, pinned at enqueue — the same
+                 -- exemption a benchmark pin (JEF-276) gets.
+                 OR atq.context->'escalation' IS NOT NULL)
             AND (
                 r.visibility = 'public'
                 OR (
@@ -1047,7 +1055,11 @@ WHERE id IN (
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
-                 OR atq.leg_role = 'benchmark')
+                 OR atq.leg_role = 'benchmark'
+                 -- Confidence-cascade hop (JEF-272): the task's runtime IS the
+                 -- server's escalation choice, pinned at enqueue — the same
+                 -- exemption a benchmark pin (JEF-276) gets.
+                 OR atq.context->'escalation' IS NOT NULL)
             AND (
                 r.visibility = 'public'
                 OR (
@@ -2341,7 +2353,11 @@ WHERE atq.runtime_id = $1
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
         -- it exists to measure, for the same reason.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
-             OR atq.leg_role = 'benchmark')
+             OR atq.leg_role = 'benchmark'
+             -- Confidence-cascade hop (JEF-272): the task's runtime IS the
+             -- server's escalation choice, pinned at enqueue — the same
+             -- exemption a benchmark pin (JEF-276) gets.
+             OR atq.context->'escalation' IS NOT NULL)
         AND (
             r.visibility = 'public'
             OR (
@@ -2476,7 +2492,11 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
         -- it exists to measure, for the same reason.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
-             OR atq.leg_role = 'benchmark')
+             OR atq.leg_role = 'benchmark'
+             -- Confidence-cascade hop (JEF-272): the task's runtime IS the
+             -- server's escalation choice, pinned at enqueue — the same
+             -- exemption a benchmark pin (JEF-276) gets.
+             OR atq.context->'escalation' IS NOT NULL)
         AND (
             r.visibility = 'public'
             OR (

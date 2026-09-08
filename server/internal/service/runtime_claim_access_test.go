@@ -249,7 +249,7 @@ func TestClaimTaskRejectsMismatchedAgentRuntime(t *testing.T) {
 	fixture := newRuntimeClaimAccessFixture(t, "public", false, false, "queued")
 	svc := NewTaskService(db.New(fixture.pool), fixture.pool, nil, events.New())
 
-	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, false)
+	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
 	if err != nil {
 		t.Fatalf("claim task: %v", err)
 	}
@@ -288,6 +288,61 @@ func TestClaimTaskUsesCurrentAgentRuntimeWhenRuntimeIDIsOmitted(t *testing.T) {
 	}
 	if claimed == nil {
 		t.Fatal("ClaimTask returned nil, want task from the agent's current runtime")
+	}
+	if util.UUIDToString(claimed.ID) != fixture.taskID {
+		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), fixture.taskID)
+	}
+}
+
+// A confidence-cascade hop (JEF-272) pins a STRONGER runtime at enqueue,
+// deliberately different from the agent's binding. Without the fence
+// exemption the escalated task is claimable by nobody: the target runtime's
+// fence fails the agent-binding check and the agent's own runtime never sees
+// the row. Found live: eleven orphaned escalations had piled up on the demo
+// workspace before this was understood.
+func TestClaimTaskHonorsEscalationRuntimePin(t *testing.T) {
+	ctx := context.Background()
+	fixture := newRuntimeClaimAccessFixture(t, "public", true, false, "queued")
+	svc := NewTaskService(db.New(fixture.pool), fixture.pool, nil, events.New())
+
+	// Control: without an escalation record the mismatched task stays
+	// unclaimable (the fence below is the one TestClaimTaskRejects-
+	// MismatchedAgentRuntime covers from the other side).
+	refused, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, false)
+	if err != nil {
+		t.Fatalf("claim mismatched task: %v", err)
+	}
+	if refused != nil {
+		t.Fatal("the fence let a plain mismatched task through")
+	}
+
+	// The escalation record is what the cascade writes under context.escalation.
+	fixture.pool.Exec(ctx, `UPDATE agent_task_queue
+		SET context = jsonb_build_object('escalation', '{"from_task_id":"00000000-0000-0000-0000-000000000000","reason":"below_threshold","attempt":1}'::jsonb)
+		WHERE id = $1`, fixture.taskID)
+
+	// The candidate listing agrees BEFORE the claim, so the runtime that
+	// hosts the hop polls the task instead of skipping it.
+	candidates, err := db.New(fixture.pool).ListQueuedClaimCandidatesByRuntime(ctx, fixture.runtimeID)
+	if err != nil {
+		t.Fatalf("list candidates: %v", err)
+	}
+	found := false
+	for _, c := range candidates {
+		if util.UUIDToString(c.ID) == fixture.taskID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("the escalated task is missing from the runtime's candidate list")
+	}
+
+	claimed, err := svc.claimTask(ctx, fixture.agentID, fixture.runtimeID, true)
+	if err != nil {
+		t.Fatalf("claim escalated task: %v", err)
+	}
+	if claimed == nil {
+		t.Fatal("the fence refused the server's own escalation pin — the task is claimable by nobody")
 	}
 	if util.UUIDToString(claimed.ID) != fixture.taskID {
 		t.Fatalf("claimed task = %s, want %s", util.UUIDToString(claimed.ID), fixture.taskID)
