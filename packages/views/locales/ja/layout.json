@@ -5,8 +5,8 @@
     "meetings": "ミーティング",
     "postmortems": "振り返り",
     "chat": "チャット",
-    "my_issues": "マイタスク",
-    "issues": "タスク",
+    "my_issues": "マイ課題",
+    "issues": "課題",
     "projects": "プロジェクト",
     "goals": "ゴール",
     "cycles": "サイクル",
@@ -21,7 +21,7 @@
     "settings": "設定"
   },
   "tab": {
-    "issue": "タスク",
+    "issue": "課題",
     "project": "プロジェクト",
     "autopilot": "オートパイロット",
     "agent": "エージェント",
@@ -56,7 +56,7 @@
     "invitation_join": "参加",
     "invitation_decline": "辞退",
     "log_out": "ログアウト",
-    "new_issue": "新規タスク",
+    "new_issue": "新規課題",
     "new_issue_shortcut": "C",
     "pinned_label": "ピン留め済み",
     "work_group": "仕事",
