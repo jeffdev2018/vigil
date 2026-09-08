@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -50,6 +51,15 @@ const (
 	nativeToolResultCap = 8 * 1024
 	// nativeCommentMaxLen bounds an agent-authored comment (characters).
 	nativeCommentMaxLen = 30000
+	// nativeMaxEffectfulActions bounds how many state-changing tool calls one
+	// run may perform (comments, issue writes, creates). A confused model
+	// loops; the workspace must not eat the loop.
+	nativeMaxEffectfulActions = 10
+	// The LLM fuse: consecutive model-call failures trip a cooldown during
+	// which the tick stops dispatching new native runs. A gateway outage
+	// should queue work, not burn every task's retry budget.
+	nativeLLMFuseThreshold = 3
+	nativeLLMFuseCooldown  = 5 * time.Minute
 )
 
 type NativeAgentService struct {
@@ -60,8 +70,33 @@ type NativeAgentService struct {
 	// Bus carries the realtime nudge for the agent's own writes (comments,
 	// issue edits, held transitions). Nil skips publishing — rows remain the
 	// source of truth and open clients converge on their next fetch.
-	Bus     *events.Bus
-	limiter chan struct{}
+	Bus *events.Bus
+	// llmFailures counts consecutive model-call failures across runs;
+	// llmFuseUntil is the Unix-nano deadline the tick honours once the count
+	// reached nativeLLMFuseThreshold. Any success resets both.
+	llmFailures  atomic.Int32
+	llmFuseUntil atomic.Int64
+	limiter      chan struct{}
+}
+
+func (s *NativeAgentService) noteLLMSuccess() {
+	s.llmFailures.Store(0)
+	s.llmFuseUntil.Store(0)
+}
+
+func (s *NativeAgentService) noteLLMFailure() {
+	if s.llmFailures.Add(1) >= nativeLLMFuseThreshold {
+		s.llmFuseUntil.Store(time.Now().Add(nativeLLMFuseCooldown).UnixNano())
+		s.llmFailures.Store(0)
+	}
+}
+
+// llmFuseOpen reports whether the model gateway is in cooldown: the tick
+// declines to dispatch new native runs, so queued work waits instead of
+// burning every task's attempts against a dead upstream.
+func (s *NativeAgentService) llmFuseOpen() bool {
+	until := s.llmFuseUntil.Load()
+	return until != 0 && time.Now().UnixNano() < until
 }
 
 func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {
@@ -81,7 +116,7 @@ func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueServi
 func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	// Inert without a configured model — same contract as every other
 	// LLM-backed server feature: disabled means off, not failing.
-	if s.LLM == nil || !s.LLM.Enabled() {
+	if s.LLM == nil || !s.LLM.Enabled() || s.llmFuseOpen() {
 		return 0, nil
 	}
 	if _, err := s.Queries.SeedNativeRuntimes(ctx); err != nil {
@@ -127,11 +162,29 @@ func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	return dispatched, nil
 }
 
+// nativeRunUsage accumulates what the model gateway reported for one run, so
+// the completed row lands in task_usage exactly like a CLI run would and the
+// budget, scorecard and ROI readers see native spend. The cost column stays
+// NULL — the gateway's own price is unknown server-side, and NULL is the
+// readers' signal to estimate from the rate table (same contract as daemons
+// that do not report a cost).
+type nativeRunUsage struct {
+	input     int64
+	output    int64
+	cacheRead int64
+	model     string
+}
+
 // runTask executes one claimed task to completion. Every exit path settles the
 // task row: CompleteTask on an answer (even a bounded one), FailTask on
-// infrastructure trouble.
+// infrastructure trouble. Usage is recorded on both outcomes — a failed run
+// still burned tokens.
 func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue) {
 	taskID := task.ID
+	var usage nativeRunUsage
+	recordUsage := func() {
+		s.recordNativeUsage(ctx, taskID, usage)
+	}
 	if _, err := s.Tasks.StartTask(ctx, taskID); err != nil {
 		slog.Error("native run: start failed", "task_id", util.UUIDToString(taskID), "error", err)
 		s.failNativeTask(ctx, task, "native run could not start: "+err.Error())
@@ -163,16 +216,27 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		}
 		completion, err := s.LLM.Chat(ctx, params)
 		if err != nil {
+			s.noteLLMFailure()
 			if errors.Is(err, context.DeadlineExceeded) {
 				s.failNativeTask(ctx, task, "native run timed out")
 			} else {
 				s.failNativeTask(ctx, task, "model call failed: "+err.Error())
 			}
+			recordUsage()
 			return
 		}
 		if len(completion.Choices) == 0 {
+			s.noteLLMFailure()
 			s.failNativeTask(ctx, task, "model returned no choices")
+			recordUsage()
 			return
+		}
+		s.noteLLMSuccess()
+		usage.input += completion.Usage.PromptTokens
+		usage.output += completion.Usage.CompletionTokens
+		usage.cacheRead += completion.Usage.PromptTokensDetails.CachedTokens
+		if usage.model == "" {
+			usage.model = completion.Model
 		}
 		msg := completion.Choices[0].Message
 		if len(msg.ToolCalls) == 0 {
@@ -181,7 +245,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		}
 		messages = append(messages, msg.ToParam())
 		for _, call := range msg.ToolCalls {
-			result := s.executeNativeToolCall(ctx, tctx, call)
+			result := s.executeNativeToolCall(ctx, &tctx, call)
 			messages = append(messages, openai.ToolMessage(nativeClampToolResult(result), call.ID))
 		}
 	}
@@ -197,12 +261,37 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	if _, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", ""); err != nil {
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
 	}
+	recordUsage()
+}
+
+// recordNativeUsage lands the run's token totals in task_usage (provider
+// "native", matching the runtime row), so the hourly rollup, budgets and the
+// per-agent dashboards account native runs like any other. Best-effort: a
+// lost usage row must not fail the run that produced it.
+func (s *NativeAgentService) recordNativeUsage(ctx context.Context, taskID pgtype.UUID, usage nativeRunUsage) {
+	if usage.input == 0 && usage.output == 0 {
+		return
+	}
+	model := usage.model
+	if model == "" {
+		model = "unknown"
+	}
+	if err := s.Queries.UpsertTaskUsage(ctx, db.UpsertTaskUsageParams{
+		TaskID:          taskID,
+		Provider:        "native",
+		Model:           model,
+		InputTokens:     usage.input,
+		OutputTokens:    usage.output,
+		CacheReadTokens: usage.cacheRead,
+	}); err != nil {
+		slog.Warn("native run: usage write failed", "task_id", util.UUIDToString(taskID), "error", err)
+	}
 }
 
 // executeNativeToolCall runs one tool call, journals it in the transcript, and
 // returns the JSON-marshalled result for the model. Tool errors are reported
 // to the model (it may correct itself), never to the run.
-func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx nativeToolContext, call openai.ChatCompletionMessageToolCallUnion) string {
+func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx *nativeToolContext, call openai.ChatCompletionMessageToolCallUnion) string {
 	name := call.Function.Name
 	var args map[string]any
 	if raw := strings.TrimSpace(call.Function.Arguments); raw != "" {

@@ -29,6 +29,9 @@ import (
 type nativeToolContext struct {
 	task  db.AgentTaskQueue
 	agent db.Agent
+	// effectful counts this run's state-changing tool calls against
+	// nativeMaxEffectfulActions.
+	effectful int
 	// issue is the task's own issue, nil for the issue-less kinds (chat,
 	// quick-create, autopilot run-only). Tools that default to "the task's
 	// issue" require an explicit issue_id when it is nil.
@@ -128,7 +131,7 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 
 // callNativeTool dispatches one validated tool invocation. Errors are values
 // for the model to react to, not run failures.
-func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx nativeToolContext, name string, args map[string]any) (any, error) {
+func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
 	switch name {
 	case "get_issue":
 		issue, err := s.nativeResolveIssue(ctx, tctx, args)
@@ -138,16 +141,26 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx nativeTool
 		return s.nativeIssueSnapshot(ctx, tctx, issue)
 	case "list_issues":
 		return s.nativeListIssues(ctx, tctx, args)
-	case "add_comment":
-		return s.nativeAddComment(ctx, tctx, args)
-	case "update_issue":
-		return s.nativeUpdateIssue(ctx, tctx, args)
-	case "transition_issue":
-		return s.nativeTransitionIssue(ctx, tctx, args)
-	case "create_sub_issue":
-		return s.nativeCreateSubIssue(ctx, tctx, args)
-	case "create_issue":
-		return s.nativeCreateIssue(ctx, tctx, args)
+	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue":
+		// Rule-of-Many: one run may only change workspace state so many
+		// times. Read-only tools stay free; a refusal tells the model to
+		// wrap up instead of looping.
+		tctx.effectful++
+		if tctx.effectful > nativeMaxEffectfulActions {
+			return nil, fmt.Errorf("this run's effectful-action budget (%d) is exhausted; stop changing the workspace and give your final answer", nativeMaxEffectfulActions)
+		}
+		switch name {
+		case "add_comment":
+			return s.nativeAddComment(ctx, tctx, args)
+		case "update_issue":
+			return s.nativeUpdateIssue(ctx, tctx, args)
+		case "transition_issue":
+			return s.nativeTransitionIssue(ctx, tctx, args)
+		case "create_sub_issue":
+			return s.nativeCreateSubIssue(ctx, tctx, args)
+		default:
+			return s.nativeCreateIssue(ctx, tctx, args)
+		}
 	default:
 		return nil, fmt.Errorf("unknown tool %q", name)
 	}
@@ -155,7 +168,7 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx nativeTool
 
 // nativeResolveIssue resolves the optional issue_id argument to an issue row
 // verified against the task's workspace. Empty falls back to the task's issue.
-func (s *NativeAgentService) nativeResolveIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (db.Issue, error) {
+func (s *NativeAgentService) nativeResolveIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (db.Issue, error) {
 	raw, _ := args["issue_id"].(string)
 	if strings.TrimSpace(raw) == "" {
 		if tctx.issue == nil {
@@ -174,7 +187,7 @@ func (s *NativeAgentService) nativeResolveIssue(ctx context.Context, tctx native
 	return issue, nil
 }
 
-func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx nativeToolContext, issue db.Issue) (any, error) {
+func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx *nativeToolContext, issue db.Issue) (any, error) {
 	out := map[string]any{
 		"id":     util.UUIDToString(issue.ID),
 		"number": issue.Number,
@@ -208,7 +221,7 @@ func (s *NativeAgentService) nativeIssueSnapshot(ctx context.Context, tctx nativ
 	return out, nil
 }
 
-func (s *NativeAgentService) nativeListIssues(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeListIssues(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	params := db.ListIssuesParams{
 		WorkspaceID: tctx.workspaceID,
 		Limit:       25,
@@ -245,7 +258,7 @@ func (s *NativeAgentService) nativeListIssues(ctx context.Context, tctx nativeTo
 	return out, nil
 }
 
-func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	content, _ := args["content"].(string)
 	content = strings.TrimSpace(util.SanitizeTextForPostgres(content))
 	if content == "" {
@@ -278,7 +291,7 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx nativeTo
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
 }
 
-func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	issue, err := s.nativeResolveIssue(ctx, tctx, args)
 	if err != nil {
 		return nil, err
@@ -345,7 +358,7 @@ func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx nativeT
 // actor. Allow applies the move; NeedsApproval files the request (audit +
 // approver inbox) and reports it to the model as a held move; Deny surfaces
 // the rule's refusal. The model can tell the difference and tell the user.
-func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	raw, _ := args["status"].(string)
 	status := strings.TrimSpace(raw)
 	if status == "" {
@@ -407,7 +420,7 @@ func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx nat
 	}
 }
 
-func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	title, _ := args["title"].(string)
 	title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
 	if title == "" {
@@ -447,7 +460,7 @@ func (s *NativeAgentService) nativeCreateSubIssue(ctx context.Context, tctx nati
 // payloads stay minimal on purpose: the client handlers for these event types
 // invalidate by issue id / prefix and refetch, so the row — already committed
 // — is what clients render.
-func (s *NativeAgentService) publishNative(eventType string, tctx nativeToolContext, payload map[string]any) {
+func (s *NativeAgentService) publishNative(eventType string, tctx *nativeToolContext, payload map[string]any) {
 	if s.Bus == nil {
 		return
 	}
@@ -463,7 +476,7 @@ func (s *NativeAgentService) publishNative(eventType string, tctx nativeToolCont
 // publishNativeIssueChanged marks an issue's projections stale so open
 // clients refetch — the same mechanism the platform uses for writes that
 // happen outside the web app (see digest actions).
-func (s *NativeAgentService) publishNativeIssueChanged(tctx nativeToolContext, issueID pgtype.UUID) {
+func (s *NativeAgentService) publishNativeIssueChanged(tctx *nativeToolContext, issueID pgtype.UUID) {
 	s.publishNative(protocol.EventIssueAuxChanged, tctx, map[string]any{
 		"issue_id": util.UUIDToString(issueID),
 	})
@@ -473,7 +486,7 @@ func (s *NativeAgentService) publishNativeIssueChanged(tctx nativeToolContext, i
 // default status, same as the sub-issue path: a create landing on a
 // non-default status is what the create gate governs, and the native runtime
 // routes status moves through transition_issue.
-func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx nativeToolContext, args map[string]any) (any, error) {
+func (s *NativeAgentService) nativeCreateIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	title, _ := args["title"].(string)
 	title = strings.TrimSpace(util.SanitizeTextForPostgres(title))
 	if title == "" {
