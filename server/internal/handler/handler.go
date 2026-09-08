@@ -241,6 +241,9 @@ type Handler struct {
 	PluginService          *service.PluginService
 	IssueService           *service.IssueService
 	AutopilotService       *service.AutopilotService
+	// NativeAgents runs the in-server agent runtime (tool-calling loop over
+	// the internal LLM layer). Driven by the native_agent_tick scheduler job.
+	NativeAgents           *service.NativeAgentService
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
@@ -540,6 +543,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	)
 
 	taskSvc := service.NewTaskService(queries, txStarter, hub, bus, daemonHub)
+	issueSvc := service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc)
 	budgetSvc := service.NewBudgetService(queries, txStarter, bus)
 	taskSvc.Budget = budgetSvc
 	taskSvc.Analytics = analyticsClient
@@ -581,7 +585,8 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		TaskService:                  taskSvc,
 		BudgetService:                budgetSvc,
 		PluginService:                service.NewPluginService(queries, txStarter),
-		IssueService:                 service.NewIssueService(queries, txStarter, bus, analyticsClient, taskSvc),
+		IssueService:                 issueSvc,
+		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, llmClient),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),

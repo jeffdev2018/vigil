@@ -131,7 +131,11 @@ type PrepareParams struct {
 	// Profile is the daemon's profile name (empty = default). It namespaces the
 	// per-issue Codex session store so a second profile-daemon sharing the same
 	// ~/.codex cannot see or GC this daemon's stores (MUL-4424).
-	Profile      string
+	Profile string
+	// ShellHook registers the PreToolUse hook that decides this run's command
+	// allowlist. Nil when the run declares none, or when the provider has no
+	// hook Multica knows how to register.
+	ShellHook    *ClaudeShellHook
 	Provider     string // agent provider (determines runtime config and skill injection paths)
 	CodexVersion string // detected Codex CLI version (only used when Provider == "codex")
 	OpenclawBin  string // resolved openclaw CLI path (only used when Provider == "openclaw"); empty = look up on PATH
@@ -413,6 +417,11 @@ type Environment struct {
 	// ClaudeSettingsPath is a task-local --settings JSON file that applies
 	// disabled runtime-skill policy without mutating the user's Claude config.
 	ClaudeSettingsPath string
+	// ClaudeHookMarkerPath is the file the PreToolUse hook touches. Empty when
+	// no hook was registered. Its absence after a run that declared an
+	// allowlist means the hook never ran, which is not the same as a run that
+	// executed no shell command — and only one of those enforced anything.
+	ClaudeHookMarkerPath string
 	// OpenclawConfigPath is the path to the per-task synthesized OpenClaw
 	// config (set only for openclaw provider). The daemon exports this as
 	// OPENCLAW_CONFIG_PATH on the openclaw subprocess so its native skill
@@ -759,11 +768,15 @@ func Prepare(params PrepareParams, logger *slog.Logger) (*Environment, error) {
 	}
 
 	if params.Provider == "claude" {
-		settingsPath, err := prepareClaudeSkillSettings(envRoot, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills)
+		hook := claudeShellHookFor(envRoot, params.ShellHook)
+		settingsPath, err := prepareClaudeSkillSettings(envRoot, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills, hook)
 		if err != nil {
 			return nil, fmt.Errorf("execenv: prepare claude skill settings: %w", err)
 		}
 		env.ClaudeSettingsPath = settingsPath
+		if hook != nil && settingsPath != "" {
+			env.ClaudeHookMarkerPath = hook.MarkerPath
+		}
 	}
 
 	// For Hermes, redirect HERMES_HOME to a per-task compatibility overlay ONLY
@@ -872,7 +885,12 @@ type ReuseParams struct {
 	WorkspacesRoot string
 	WorkDir        string
 	Provider       string
-	CodexVersion   string // only used when Provider == "codex"
+	// ShellHook registers this run's PreToolUse command gate, same contract as
+	// PrepareParams.ShellHook. A reused environment re-registers it: the
+	// settings file is rewritten on reuse, so leaving it out would silently
+	// drop the gate on the second task of a session.
+	ShellHook    *ClaudeShellHook
+	CodexVersion string // only used when Provider == "codex"
 	// ResumeSessionID is the prior Codex thread/session ID this reused task
 	// intends to resume, when any. Only consulted when Provider == "codex" and
 	// only used while migrating a legacy per-task home whose sessions/ still
@@ -1041,11 +1059,15 @@ func Reuse(params ReuseParams, logger *slog.Logger) *Environment {
 	}
 
 	if params.Provider == "claude" && env.RootDir != "" {
-		settingsPath, err := prepareClaudeSkillSettings(env.RootDir, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills)
+		hook := claudeShellHookFor(env.RootDir, params.ShellHook)
+		settingsPath, err := prepareClaudeSkillSettings(env.RootDir, params.Task.DisabledRuntimeSkills, params.Task.AgentSkills, hook)
 		if err != nil {
 			logger.Warn("execenv: refresh claude skill settings failed", "error", err)
 		} else {
 			env.ClaudeSettingsPath = settingsPath
+			if hook != nil && settingsPath != "" {
+				env.ClaudeHookMarkerPath = hook.MarkerPath
+			}
 		}
 	}
 

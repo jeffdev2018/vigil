@@ -446,9 +446,15 @@ var concurrentIndexCleanups = map[string]string{
 	"815_insight_widget_owner_index":                            "idx_insight_widget_workspace_owner",
 	"816_insight_widget_shared_index":                           "idx_insight_widget_workspace_shared",
 	"818_insight_query_log_recent_index":                        "idx_insight_query_log_workspace_recent",
-	"833_agent_task_run_group_index":                            "idx_agent_task_run_group",
-	"834_run_group_issue_index":                                 "idx_run_group_issue_created",
-	"835_pending_task_per_issue_agent_v3":                       "idx_one_pending_task_per_issue_agent_v3",
+	"821_code_wiki_page_snapshot_slug_unique":                   "code_wiki_page_snapshot_slug_key",
+	"822_code_wiki_snapshot_resource_published_index":           "idx_code_wiki_snapshot_resource_published",
+	"823_code_wiki_snapshot_one_building_per_resource":          "code_wiki_snapshot_one_building_per_resource",
+	"824_code_wiki_snapshot_workspace_index":                    "idx_code_wiki_snapshot_workspace",
+	"825_code_wiki_page_workspace_index":                        "idx_code_wiki_page_workspace",
+	"830_task_a2a_budget_index":                                 "idx_agent_task_issue_a2a_created",
+	"835_agent_task_run_group_index":                            "idx_agent_task_run_group",
+	"836_run_group_issue_index":                                 "idx_run_group_issue_created",
+	"837_pending_task_per_issue_agent_v3":                       "idx_one_pending_task_per_issue_agent_v3",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
@@ -473,7 +479,7 @@ var concurrentDownIndexCleanups = map[string]string{
 	"391_drop_agent_task_queue_dispatched_prepare_index":    "idx_agent_task_queue_dispatched_prepare",
 	"437_drop_agent_runtime_last_seen_at_index":             "idx_agent_runtime_last_seen_at",
 	"450_drop_comment_delegated_failure_pending_index":      "idx_comment_delegated_failure_pending",
-	"836_drop_pending_issue_agent_v2":                       "idx_one_pending_task_per_issue_agent_v2",
+	"838_drop_pending_issue_agent_v2":                       "idx_one_pending_task_per_issue_agent_v2",
 }
 
 var preMigrationHooks = func() map[string]preMigrationHook {

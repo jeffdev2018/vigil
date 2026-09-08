@@ -2579,7 +2579,7 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// BYOK (K48): the workspace's or project's key for the vendor this
 	// runtime spends, unless the agent brings its own. Injected after the
 	// profile filter: the key is workspace policy, not an agent secret.
-	resp.Agent.CustomEnv = h.resolveModelKeyForClaim(r.Context(), *task, runtime.Provider, runtime.WorkspaceID, resp.Agent.CustomEnv)
+	resp.Agent.CustomEnv = h.resolveModelKeyForClaim(r.Context(), *task, runtime.Provider, runtime.WorkspaceID, resp.Agent.PermissionProfile, resp.Agent.CustomEnv)
 	if useSkillRefs {
 		_, skillRefs, err := h.TaskService.LoadAgentSkillBundles(r.Context(), task.AgentID, agent.SystemKey.String, legacySkillRedirects)
 		if err != nil {
@@ -3742,6 +3742,23 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 	}
 	runtimeWorkspaceID := uuidToString(runtime.WorkspaceID)
 	authMs = time.Since(start).Milliseconds()
+
+	// Fleet halt (K05). Answered before the claim, so a held workspace never
+	// takes a task off its own queue: the work stays queued and resumes when
+	// the halt lifts. Refusing after the claim would have meant failing tasks
+	// to stop them, which is the opposite of buying time to look.
+	if ws, err := h.Queries.GetWorkspace(r.Context(), runtime.WorkspaceID); err != nil {
+		slog.Warn("claim: could not read the workspace halt; holding this claim",
+			"runtime_id", runtimeID, "error", err)
+		payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
+		outcome = "halt_unreadable"
+		return
+	} else if halt := service.RunHaltFromSettings(ws.Settings); halt.Halted {
+		slog.Info("claim: workspace halted, no task dispatched", "runtime_id", runtimeID, "reason", halt.Reason)
+		payloadBytes, _ = writeMeasuredJSON(w, http.StatusOK, map[string]any{"task": nil})
+		outcome = "halted"
+		return
+	}
 
 	claimStart := time.Now()
 	task, err := h.TaskService.ClaimTaskForRuntime(r.Context(), parseUUID(runtimeID))

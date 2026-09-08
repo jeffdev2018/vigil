@@ -13,7 +13,7 @@
 -- is exactly the set of rows the feature creates and nothing else; what bounds
 -- them is the group's own attempt cap, checked before the fan-out.
 --
--- Built before v2 is dropped (migration 836) so the uniqueness rule holds
+-- Built before v2 is dropped (migration 838) so the uniqueness rule holds
 -- through a rolling deploy and through an interrupted migration run: v3's
 -- predicate is a subset of v2's, so both coexist safely.
 --

@@ -17,6 +17,7 @@ import (
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
 	"github.com/multica-ai/multica/server/pkg/modelkey"
+	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	"github.com/multica-ai/multica/server/pkg/taskfailure"
 )
@@ -314,7 +315,7 @@ func (h *Handler) DeactivateModelKey(w http.ResponseWriter, r *http.Request) {
 // workspace's, for the vendor the runtime spends. An agent that sets the
 // variable itself keeps its own key. Returns the env unchanged when nothing
 // applies.
-func (h *Handler) resolveModelKeyForClaim(ctx context.Context, task db.AgentTaskQueue, runtimeProvider string, wsUUID pgtype.UUID, env map[string]string) map[string]string {
+func (h *Handler) resolveModelKeyForClaim(ctx context.Context, task db.AgentTaskQueue, runtimeProvider string, wsUUID pgtype.UUID, profile *permissionprofile.Profile, env map[string]string) map[string]string {
 	if !h.modelKeysConfigured() {
 		return env
 	}
@@ -324,6 +325,16 @@ func (h *Handler) resolveModelKeyForClaim(ctx context.Context, task db.AgentTask
 	}
 	vendor, _ := modelkey.VendorByID(vendorID)
 	if strings.TrimSpace(env[vendor.EnvVar]) != "" {
+		return env
+	}
+	// A profile that names this variable is saying something about it, and
+	// putting the key back would override an instruction rather than complete
+	// one. A blanket "*" is not that instruction: it means "withhold the
+	// workspace's secrets", and the credential that pays for the run is not
+	// one of those — withholding it would only stop the run.
+	if profile != nil && profile.HidesSecretNamed(vendor.EnvVar) {
+		slog.Info("model key: withheld by the run's permission profile",
+			"task_id", uuidToString(task.ID), "profile", profile.Name, "env_var", vendor.EnvVar)
 		return env
 	}
 	var projectID pgtype.UUID

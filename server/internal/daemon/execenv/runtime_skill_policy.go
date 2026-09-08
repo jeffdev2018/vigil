@@ -11,6 +11,27 @@ import (
 
 const claudeRuntimeSkillSettingsFile = "claude-runtime-skill-settings.json"
 
+// ClaudeHookMarkerFile is the file the PreToolUse hook touches the first time
+// it runs. Whether a hook runs at all is the one thing the daemon cannot see
+// from outside — a CLI whose hooks were disabled looks exactly like a run that
+// used no shell command — so a run that declared an allowlist and never
+// observed the hook must not be reported as having enforced one.
+const ClaudeHookMarkerFile = "claude-hook-observed"
+
+// ClaudeShellHook registers `multica hook pre-tool-use` as a PreToolUse hook
+// on the Bash tool. It is the only place a command allowlist can be decided:
+// the hook receives the final command string, so chaining and wrapping are
+// visible to it, where a provider permission rule only ever matches a prefix
+// of what the model proposed.
+type ClaudeShellHook struct {
+	// Command is the multica binary the hook runs. The daemon resolves its own
+	// executable rather than trusting PATH, because a hook does not
+	// necessarily inherit the agent's.
+	Command string
+	// MarkerPath is touched on every invocation. See ClaudeHookMarkerFile.
+	MarkerPath string
+}
+
 // RuntimeSkillRefForEnv identifies a runtime-local skill for provider-specific
 // task environment filtering. Provider and runtime are already selected by the
 // task, so only the discovery root and provider-native key are needed here.
@@ -29,9 +50,9 @@ func cleanRuntimeSkillKey(key string) (string, bool) {
 	return filepath.ToSlash(cleaned), true
 }
 
-func prepareClaudeSkillSettings(envRoot string, disabled []RuntimeSkillRefForEnv, workspaceSkills []SkillContextForEnv) (string, error) {
+func prepareClaudeSkillSettings(envRoot string, disabled []RuntimeSkillRefForEnv, workspaceSkills []SkillContextForEnv, hook *ClaudeShellHook) (string, error) {
 	path := filepath.Join(envRoot, claudeRuntimeSkillSettingsFile)
-	if len(disabled) == 0 {
+	if len(disabled) == 0 && hook == nil {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
@@ -71,17 +92,30 @@ func prepareClaudeSkillSettings(envRoot string, disabled []RuntimeSkillRefForEnv
 		addDeny("Skill(" + invocationName + ")")
 		addDeny("Skill(" + invocationName + " *)")
 	}
-	if len(overrides) == 0 && len(deny) == 0 {
+	if len(overrides) == 0 && len(deny) == 0 && hook == nil {
 		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 			return "", err
 		}
 		return "", nil
 	}
-	payload := map[string]any{
-		"skillOverrides": overrides,
-		"permissions": map[string]any{
-			"deny": deny,
-		},
+	payload := map[string]any{}
+	if len(overrides) > 0 || len(deny) > 0 {
+		payload["skillOverrides"] = overrides
+		payload["permissions"] = map[string]any{"deny": deny}
+	}
+	if hook != nil {
+		// matcher "Bash" is an exact tool-name match; the handler decides from
+		// tool_input.command, which is the string the CLI is about to run.
+		payload["hooks"] = map[string]any{
+			"PreToolUse": []any{map[string]any{
+				"matcher": "Bash",
+				"hooks": []any{map[string]any{
+					"type":          "command",
+					"command":       hook.Command + " hook pre-tool-use",
+					"statusMessage": "Checking the command against this run's allowed commands",
+				}},
+			}},
+		}
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
@@ -156,4 +190,18 @@ func workspaceClaimsRuntimeSkill(name string, workspaceSkills []SkillContextForE
 		}
 	}
 	return false
+}
+
+// claudeShellHookFor completes a hook the daemon asked for with the marker
+// path inside this run's environment root, or returns nil when the run
+// declares no allowlist. It is separate from the daemon's own resolution so
+// the marker always lands beside the settings file that registered the hook.
+func claudeShellHookFor(envRoot string, requested *ClaudeShellHook) *ClaudeShellHook {
+	if requested == nil || strings.TrimSpace(requested.Command) == "" || strings.TrimSpace(envRoot) == "" {
+		return nil
+	}
+	return &ClaudeShellHook{
+		Command:    requested.Command,
+		MarkerPath: filepath.Join(envRoot, ClaudeHookMarkerFile),
+	}
 }
