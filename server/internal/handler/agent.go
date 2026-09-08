@@ -441,6 +441,10 @@ type AgentTaskResponse struct {
 	// autopilot work the claim ordering serves last. Empty on rows written by a
 	// server predating the column, which clients read as "sync".
 	DispatchLane string `json:"dispatch_lane,omitempty"`
+	// RunGroupID (F11) is set when this task is one attempt of a race. The
+	// daemon reads it off the claim to decide whether to measure the run's
+	// diff; empty for every ordinary run.
+	RunGroupID string `json:"run_group_id,omitempty"`
 	// Run confidence (JEF-240): the self-assessed score persisted after a
 	// successful run — score, rationale, model, the threshold that applied and
 	// whether the run landed below it. Empty for unscored runs (disabled LLM,
@@ -956,6 +960,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		TaskClass:              t.TaskClass,
 		Routing:                json.RawMessage(t.Routing),
 		DispatchLane:           t.DispatchLane,
+		RunGroupID:             uuidToString(t.RunGroupID),
 		LegRole:                t.LegRole,
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),

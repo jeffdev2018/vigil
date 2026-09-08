@@ -211,11 +211,32 @@ type TaskProgressPayload struct {
 	Total   int    `json:"total,omitempty"`
 }
 
+// TaskDiffStat summarises what one run changed, as `git diff --numstat`
+// reports it. Its shape is read verbatim by the run-comparison UI (F11), so the
+// three field names are part of the contract and must not be renamed. Binary
+// files count toward Files and contribute no lines.
+type TaskDiffStat struct {
+	Files      int `json:"files"`
+	Insertions int `json:"insertions"`
+	Deletions  int `json:"deletions"`
+}
+
 // TaskCompletedPayload is sent from daemon to server when a task finishes.
 type TaskCompletedPayload struct {
 	TaskID string `json:"task_id"`
 	PRURL  string `json:"pr_url,omitempty"`
 	Output string `json:"output,omitempty"`
+	// DiffStat / DiffUnified describe what a racing attempt (F11) delivered on
+	// its branch, measured against the commit its worktree started from. Sent
+	// only for a task the claim marked as an attempt, so an ordinary run pays
+	// nothing for them.
+	//
+	// DiffUnified is omitted when the patch exceeded the daemon's byte bound:
+	// the stat alone then tells the UI the diff exists and was truncated. The
+	// server stores these on the task row and does NOT keep DiffUnified in the
+	// task result, so the patch is persisted once.
+	DiffStat    *TaskDiffStat `json:"diff_stat,omitempty"`
+	DiffUnified string        `json:"diff_unified,omitempty"`
 }
 
 // ChatQuickActionsPayload supplements one completed chat turn with the
