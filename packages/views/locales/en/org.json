@@ -71,7 +71,8 @@
     "invalid_json": "Invalid JSON: {{error}}",
     "save": "Save",
     "saved": "Structure saved",
-    "error": "Could not save the structure"
+    "error": "Could not save the structure",
+    "advanced_json": "Advanced (JSON)"
   },
   "actions": {
     "activate": "Activate",
@@ -174,5 +175,72 @@
     "won": "Won",
     "lost": "Lost",
     "over_cap": "Over cap"
+  },
+  "canvas": {
+    "add_unit": "Add unit",
+    "new_unit_name": "New unit",
+    "undo": "Undo ({{count}})",
+    "hint": "Drag a member onto another unit, or a unit onto the one it reports to.",
+    "empty": "No unit yet. Add one to start.",
+    "layout_soon": "A layout of its own for {{model}} is coming; the diagram stands in meanwhile.",
+    "more_members": "+{{count}}",
+    "problem_count_one": "{{count}} thing to settle",
+    "problem_count_other": "{{count}} things to settle",
+    "no_selection": "Pick a unit to open its record.",
+    "json_broken": "The JSON below no longer parses; fix it to get the canvas back.",
+    "draft_recovered": "Draft rev. {{n}} recovered."
+  },
+  "problem": {
+    "unit_name_required": "Every unit needs an id and a name.",
+    "duplicate_unit_id": "The id “{{id}}” is used by two units.",
+    "taskforce_unit_model": "“{{unit}}”: a task force is a structure, not a unit.",
+    "hierarchy_roots": "A hierarchy has exactly one unit reporting to nobody; there are {{count}}.",
+    "autonomy_over_trust": "“{{unit}}” grants {{autonomy}} but {{agent}}'s trust dial stops at {{trust}}.",
+    "rule_of_two_unit": "“{{unit}}” holds untrusted input, sensitive data and external effects at once: a human approval will be required.",
+    "rule_of_two_edge": "{{from}} → {{to}} cumulates the three exposures: a human approval will be required on that link.",
+    "deciders_missing": "“{{unit}}” has external effects: name who decides on {{classes}}.",
+    "committee_termination": "Committee “{{decision}}”: set a quorum between 1 and {{max}} and at least one round.",
+    "market_price_cap": "A market needs the human price cap.",
+    "squads_needs_agents": "“{{unit}}” runs as a squad: give it a squad or agent members.",
+    "circles_needs_role": "“{{unit}}” runs as circles: give it at least one role."
+  },
+  "unit": {
+    "title": "Unit record",
+    "close": "Close the record",
+    "remove_unit": "Delete this unit",
+    "name": "Name",
+    "mission": "Mission",
+    "mission_none": "No goal",
+    "trust": "Trust dial",
+    "trust_level": {
+      "read_only": "Reads only",
+      "draft": "Prepares drafts",
+      "approve_payload": "Acts once approved",
+      "auto": "Acts alone within its limits"
+    },
+    "allow": "Decides alone",
+    "deny": "Never does",
+    "verb_placeholder": "A verb, e.g. merge",
+    "add": "Add",
+    "remove": "Remove {{item}}",
+    "locked_reason": "Multica refuses this everywhere; a structure cannot grant it.",
+    "properties": "What it handles",
+    "property": {
+      "untrusted_input": "Untrusted input",
+      "sensitive_data": "Sensitive data and secrets",
+      "external_effects": "External effects"
+    },
+    "human_approval": "A human approves before it acts",
+    "deciders": "Who decides",
+    "decider": {
+      "money": "Money",
+      "outbound_data": "Outbound data",
+      "external_message": "External message"
+    },
+    "decider_none": "Nobody yet",
+    "budget": "Budget (USD ticks)",
+    "members": "Members",
+    "no_members": "No member yet.",
+    "move_to": "Move {{name}} to another unit"
   }
 }
