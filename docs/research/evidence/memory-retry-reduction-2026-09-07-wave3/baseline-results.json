@@ -1,0 +1,20 @@
+[
+  {
+    "issue": "DEV-19",
+    "bodies": [
+      "Aucun \"project rift code\" trouv\u00e9 dans la m\u00e9moire du projet (revision 5). La m\u00e9moire contient uniquement dock code (keel-4) et warehouse bay code (mast-9)."
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline"
+  },
+  {
+    "issue": "DEV-20",
+    "bodies": [
+      "Aucun \"project rift code\" trouv\u00e9 dans la m\u00e9moire du projet. La m\u00e9moire contient uniquement dock code (keel-4) et warehouse bay code (mast-9)."
+    ],
+    "hit": false,
+    "correction_needed": true,
+    "arm": "baseline"
+  }
+]

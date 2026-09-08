@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multica-ai/multica/server/internal/events"
+	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/llm"
@@ -32,6 +32,7 @@ func seedAgentMemoryExtractionFixture(t *testing.T) (agentMemoryExtractionFixtur
 	t.Helper()
 	pool := newResolveOriginatorPool(t)
 	workspaceID, userID, agentID, issueID := seedAttributionFixture(t, pool)
+	t.Cleanup(func() { pool.Exec(context.Background(), `DELETE FROM agent_memory_version WHERE agent_id=$1`, agentID) })
 	return agentMemoryExtractionFixture{
 		workspaceID: workspaceID,
 		userID:      userID,
@@ -140,12 +141,18 @@ func TestAgentMemoryExtractionInsertsFacts(t *testing.T) {
 	// fact came from.
 	var linked int
 	if err := pool.QueryRow(context.Background(),
-		`SELECT COUNT(*) FROM agent_memory WHERE agent_id = $1 AND source_task_id = $2`,
+		`SELECT COUNT(*) FROM agent_memory WHERE agent_id = $1 AND source_task_id = $2 AND status = 'pending'`,
 		fx.agentID, taskID).Scan(&linked); err != nil {
 		t.Fatalf("count linked: %v", err)
 	}
 	if linked != 2 {
 		t.Fatalf("source_task_id linked rows = %d, want 2", linked)
+	}
+	if err := pool.QueryRow(context.Background(), `SELECT COUNT(*) FROM agent_memory_version WHERE agent_id=$1 AND source_task_id=$2 AND status='pending' AND revision=1`, fx.agentID, taskID).Scan(&linked); err != nil {
+		t.Fatal(err)
+	}
+	if linked != 2 {
+		t.Fatalf("missing extraction versions: %d", linked)
 	}
 }
 
@@ -234,6 +241,23 @@ func TestAgentMemoryExtractionCapsAtThreeFacts(t *testing.T) {
 	}
 }
 
+func TestAgentMemoryExtractionSkipsPrivateChat(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	chatID := testutil.New(pool, fx.workspaceID, fx.userID).ChatSession(t, fx.agentID)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "Private conversation output.")
+	if _, err := pool.Exec(context.Background(), `UPDATE agent_task_queue SET chat_session_id = $1, issue_id = NULL WHERE id = $2`, chatID, taskID); err != nil {
+		t.Fatal(err)
+	}
+	svc := memoryExtractionService(pool, events.New(),
+		stubMemoryLLM(t, `{"facts":["Private fact must not become shared memory."]}`))
+	if err := svc.ExtractAgentMemoriesForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatal(err)
+	}
+	if got := fx.memoryContents(t, pool); len(got) != 0 {
+		t.Fatalf("private chat leaked into memory: %v", got)
+	}
+}
+
 func TestAgentMemoryExtractionSkipsNonSuccessRun(t *testing.T) {
 	fx, pool := seedAgentMemoryExtractionFixture(t)
 	// A context-exhausted run is re-routed to the failure path, so its output
@@ -288,56 +312,31 @@ func TestAgentMemoryExtractionEventWiring(t *testing.T) {
 	}
 }
 
-// TestSelectBriefedAgentMemories pins the brief character budget: everything
-// fits until the budget is spent, then run-sourced facts (the oldest ones,
-// which a later run can learn again) drop out while human-pinned and
-// postmortem facts stay. Canonical matrix for the rule; the handler and the
-// claim path both read the count from here.
-func TestSelectBriefedAgentMemories(t *testing.T) {
-	long := strings.Repeat("a", 500)
-
-	t.Run("keeps everything under the budget", func(t *testing.T) {
-		facts := []AgentMemoryFact{
-			{Content: "one", Source: "run"},
-			{Content: "two", Source: "manual"},
+func TestAgentMemoryExtractionPreservesReviewedAndRejectedFactsAtCapacity(t *testing.T) {
+	fx, pool := seedAgentMemoryExtractionFixture(t)
+	taskID := fx.seedTerminalTask(t, pool, "completed", "New conventions.")
+	fixtures := testutil.New(pool, fx.workspaceID, fx.userID)
+	for i := 0; i < 200; i++ {
+		status := "active"
+		if i == 199 {
+			status = "rejected"
 		}
-		if got := SelectBriefedAgentMemories(facts); len(got) != 2 {
-			t.Fatalf("kept %d facts, want 2", len(got))
+		fixtures.Insert(t, "agent_memory", testutil.Cols{
+			"workspace_id": fx.workspaceID, "agent_id": fx.agentID,
+			"content": fmt.Sprintf("Keep fact %d.", i), "source": "run", "status": status,
+		})
+	}
+	svc := memoryExtractionService(pool, events.New(), stubMemoryLLM(t, `{"facts":["New suggestion."]}`))
+	if err := svc.ExtractAgentMemoriesForTask(context.Background(), util.MustParseUUID(taskID)); err != nil {
+		t.Fatal(err)
+	}
+	contents := fx.memoryContents(t, pool)
+	if len(contents) != 200 {
+		t.Fatalf("capacity changed: %d", len(contents))
+	}
+	for _, content := range contents {
+		if content == "run: New suggestion." {
+			t.Fatal("extraction displaced a reviewed or rejected fact")
 		}
-	})
-
-	t.Run("drops the oldest run facts past the budget", func(t *testing.T) {
-		facts := make([]AgentMemoryFact, 200)
-		for i := range facts {
-			facts[i] = AgentMemoryFact{Content: long, Source: "run"}
-		}
-		got := SelectBriefedAgentMemories(facts)
-		want := AgentMemoryBriefCharBudget / 500
-		if len(got) != want {
-			t.Fatalf("kept %d facts, want %d (%d-char budget at 500 chars each)",
-				len(got), want, AgentMemoryBriefCharBudget)
-		}
-	})
-
-	t.Run("never drops a manual or postmortem fact", func(t *testing.T) {
-		facts := make([]AgentMemoryFact, 0, 202)
-		for i := 0; i < 200; i++ {
-			facts = append(facts, AgentMemoryFact{Content: long, Source: "run"})
-		}
-		facts = append(facts,
-			AgentMemoryFact{Content: "pinned by a human", Source: "manual"},
-			AgentMemoryFact{Content: "written by a postmortem", Source: "postmortem"},
-		)
-		got := SelectBriefedAgentMemories(facts)
-		last := got[len(got)-2:]
-		if last[0].Source != "manual" || last[1].Source != "postmortem" {
-			t.Fatalf("budget dropped a non-run fact: tail = %#v", last)
-		}
-	})
-
-	t.Run("returns an empty slice for no facts", func(t *testing.T) {
-		if got := SelectBriefedAgentMemories(nil); len(got) != 0 {
-			t.Fatalf("kept %d facts from nil input", len(got))
-		}
-	})
+	}
 }

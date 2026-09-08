@@ -1269,6 +1269,9 @@ func (h *Handler) DaemonHeartbeat(w http.ResponseWriter, r *http.Request) {
 	if ack.PendingUpdate != nil {
 		resp["pending_update"] = ack.PendingUpdate
 	}
+	if ack.PendingMemoryEvaluation != "" {
+		resp["pending_memory_evaluation"] = ack.PendingMemoryEvaluation
+	}
 	if ack.PendingModelList != nil {
 		resp["pending_model_list"] = ack.PendingModelList
 	}
@@ -1464,6 +1467,14 @@ func (h *Handler) processHeartbeat(ctx context.Context, runtimeID string, suppor
 		RuntimeID:          runtimeID,
 		Status:             "ok",
 		ServerCapabilities: []string{protocol.DaemonCapabilityRPCV1},
+	}
+
+	if runtimeUUID, parseErr := util.ParseUUID(runtimeID); parseErr == nil {
+		probe, cancel := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
+		if pending, err := h.Queries.PeekAgentMemoryEvaluation(probe, runtimeUUID); err == nil {
+			ack.PendingMemoryEvaluation = uuidToString(pending)
+		}
+		cancel()
 	}
 
 	probeUpdateCtx, cancelProbeUpdate := context.WithTimeout(ctx, heartbeatHasPendingTimeout)
@@ -1981,7 +1992,7 @@ func (h *Handler) ClaimTasksByRuntime(w http.ResponseWriter, r *http.Request) {
 			WorkspaceID: parseUUID(resp.WorkspaceID),
 			UserID:      rt.OwnerID,
 			ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
-		}, deliveredCommentIDs, commentBackedTask, daemonTokens...)
+		}, deliveredCommentIDs, commentBackedTask, resp.MemoryContext, daemonTokens...)
 		if ferr != nil {
 			slog.Error("batch claim: finalize task claim failed; requeueing claim",
 				"task_id", uuidToString(task.ID), "error", ferr)
@@ -2630,18 +2641,26 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	// because a partial skill set is indistinguishable from a correct one,
 	// while a missing Memory section is plainly visible in the brief — a
 	// failed read must never stop an agent from being dispatched.
-	if memories, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
+	resp.MemoryContext = &service.TaskMemoryContext{
+		DispatchedAt: task.DispatchedAt.Time.UTC().Format(time.RFC3339Nano),
+		AgentStatus:  "unavailable", AgentVersions: []service.MemoryVersion{},
+	}
+	if memories, versions, err := h.TaskService.LoadAgentMemories(r.Context(), task.AgentID, agent.WorkspaceID); err != nil {
 		slog.Warn("daemon claim: load agent memories failed; continuing without memory",
 			"task_id", uuidToString(task.ID), "agent_id", uuidToString(agent.ID), "error", err)
-	} else if len(memories) > 0 {
+	} else {
 		contents := make([]string, len(memories))
 		states := make([]string, len(memories))
 		for i, m := range memories {
 			contents[i] = m.Content
 			states[i] = m.State
 		}
-		resp.Agent.Memories = contents
-		resp.Agent.MemoryStates = states
+		if len(memories) > 0 {
+			resp.Agent.Memories = contents
+			resp.Agent.MemoryStates = states
+		}
+		resp.MemoryContext.AgentStatus = "loaded"
+		resp.MemoryContext.AgentVersions = versions
 	}
 	// Daemon execution memory (F24) rides the SAME assembly point as agent
 	// memory above, deliberately: there is one place a brief is built, and a
@@ -2740,6 +2759,14 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 		resp.ThreadName = issue.Title
 		issueNumber = issue.Number
 		repoIndexQuery = repoIndexClaimQuery(issue.Title, issue.Description.String)
+		if !task.ChatSessionID.Valid {
+			brief, err := h.deliveryCriteriaBrief(r.Context(), issue)
+			if err != nil {
+				return resp, deliveredCommentIDs, agentSkillCount, builtinSkillCount,
+					h.rejectClaimSourceLoad(r.Context(), task, err, "delivery criteria", uuidToString(issue.ID))
+			}
+			resp.Agent.Instructions += brief
+		}
 
 		// Squad-leader briefing injection: keyed off the task being a
 		// leader-task (is_leader_task) carrying a squad_id — NOT off the
@@ -3886,7 +3913,7 @@ func (h *Handler) ClaimTaskByRuntime(w http.ResponseWriter, r *http.Request) {
 		WorkspaceID: parseUUID(resp.WorkspaceID),
 		UserID:      runtime.OwnerID,
 		ExpiresAt:   pgtype.Timestamptz{Time: time.Now().Add(24 * time.Hour), Valid: true},
-	}, deliveredCommentIDs, commentBackedTask, daemonTokens...)
+	}, deliveredCommentIDs, commentBackedTask, resp.MemoryContext, daemonTokens...)
 	if ferr != nil {
 		outcome = "error_claim_finalize"
 		slog.Error("task claim: failed to finalize token and comment delivery receipt",

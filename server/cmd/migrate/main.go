@@ -455,6 +455,19 @@ var concurrentIndexCleanups = map[string]string{
 	"835_agent_task_run_group_index":                            "idx_agent_task_run_group",
 	"836_run_group_issue_index":                                 "idx_run_group_issue_created",
 	"837_pending_task_per_issue_agent_v3":                       "idx_one_pending_task_per_issue_agent_v3",
+	"841_issue_delivery_contract_identity":                      "issue_delivery_contract_identity",
+	"842_issue_delivery_review_identity":                        "issue_delivery_review_identity",
+	"843_issue_delivery_review_history":                         "issue_delivery_review_history",
+	"846_project_memory_version_identity":                       "project_memory_version_identity",
+	"849_project_memory_correction_identity":                    "project_memory_correction_identity",
+	"852_task_memory_usage_window":                              "idx_agent_task_memory_usage_window",
+	"856_agent_memory_version_identity":                         "agent_memory_version_identity",
+	"858_agent_memory_correction_identity":                      "agent_memory_correction_identity",
+	"860_agent_memory_evaluation_identity":                      "agent_memory_evaluation_identity",
+	"861_agent_memory_evaluation_receipt":                       "agent_memory_evaluation_receipt",
+	"862_agent_memory_evaluation_history":                       "agent_memory_evaluation_history",
+	"864_memory_evaluation_execution_request":                   "agent_memory_evaluation_execution_request",
+	"865_memory_evaluation_execution_queue":                     "agent_memory_evaluation_execution_queue",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

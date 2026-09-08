@@ -490,6 +490,9 @@ type AgentTaskResponse struct {
 	ProjectTitle       string                `json:"project_title,omitempty"`       // for surfacing in agent context
 	ProjectDescription string                `json:"project_description,omitempty"` // durable project-level context injected into the brief
 	ProjectResources   []ProjectResourceData `json:"project_resources,omitempty"`   // resources attached to the project
+	// MemoryContext records which memory versions were prepared for this claim.
+	// Optional; older daemons ignore it. Not proof the model followed the text.
+	MemoryContext *service.TaskMemoryContext `json:"memory_context,omitempty"`
 	// GoalAncestry is the claimed issue's parent chain, root first (F22), so the
 	// brief can say why the task exists. Omitted on root issues and by older
 	// servers; a daemon that predates it writes the brief it always did.

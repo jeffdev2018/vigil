@@ -104,6 +104,13 @@ import {
   UndoReportSchema,
   TaskActivityResponseSchema,
   EMPTY_TASK_ACTIVITY,
+  IssueDeliverySchema,
+  DeliveryReviewSchema,
+  DeliveryCriteriaSchema,
+  DeliveryCorrectionSchema,
+  type IssueDelivery,
+  type DeliveryReview,
+  type DeliveryCorrection,
 } from "@multica/core/api/schemas";
 import type { AppConfigResponse } from "@multica/core/api/schemas";
 import {
@@ -1054,6 +1061,106 @@ class ApiClient {
       AgentTaskListSchema,
       EMPTY_AGENT_TASK_LIST,
       { ...opts, endpoint: "GET /api/issues/:id/task-runs" },
+    );
+  }
+
+  /**
+   * Delivery evidence for human accept / request-changes.
+   * Fail closed: malformed payloads become null (never a fake empty delivery).
+   * Mirrors packages/core/api/client.ts getIssueDelivery.
+   */
+  async getIssueDelivery(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueDelivery | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/delivery`,
+      { signal: opts?.signal },
+    );
+    return parseWithFallback<IssueDelivery | null>(
+      raw,
+      IssueDeliverySchema,
+      null,
+      { endpoint: "GET /api/issues/:id/delivery" },
+    );
+  }
+
+  async updateIssueDeliveryCriteria(
+    id: string,
+    criteria: string[],
+    expectedRevision: number,
+  ): Promise<{ criteria: string[]; revision: number } | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/delivery/criteria`,
+      {
+        method: "PUT",
+        body: JSON.stringify({
+          criteria,
+          expected_revision: expectedRevision,
+        }),
+      },
+    );
+    return parseWithFallback<{ criteria: string[]; revision: number } | null>(
+      raw,
+      DeliveryCriteriaSchema,
+      null,
+      { endpoint: "PUT /api/issues/:id/delivery/criteria" },
+    );
+  }
+
+  async reviewIssueDelivery(
+    id: string,
+    input: {
+      reviewId: string;
+      expectedReviewId: string;
+      snapshotToken: string;
+      decision: "accepted" | "changes_requested";
+      feedback: string;
+      assessments: { passed: boolean; evidence: string }[];
+      humanEffortSeconds?: number | null;
+    },
+  ): Promise<DeliveryReview | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/delivery/reviews`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          review_id: input.reviewId,
+          expected_review_id: input.expectedReviewId,
+          snapshot_token: input.snapshotToken,
+          decision: input.decision,
+          feedback: input.feedback,
+          assessments: input.assessments,
+          ...(input.humanEffortSeconds != null
+            ? { human_effort_seconds: input.humanEffortSeconds }
+            : {}),
+        }),
+      },
+    );
+    return parseWithFallback<DeliveryReview | null>(
+      raw,
+      DeliveryReviewSchema,
+      null,
+      { endpoint: "POST /api/issues/:id/delivery/reviews" },
+    );
+  }
+
+  async startIssueDeliveryCorrection(
+    id: string,
+    reviewId: string,
+  ): Promise<DeliveryCorrection | null> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(id)}/delivery/correction`,
+      {
+        method: "POST",
+        body: JSON.stringify({ review_id: reviewId }),
+      },
+    );
+    return parseWithFallback<DeliveryCorrection | null>(
+      raw,
+      DeliveryCorrectionSchema.refine((receipt) => receipt.reviewId === reviewId),
+      null,
+      { endpoint: "POST /api/issues/:id/delivery/correction" },
     );
   }
 

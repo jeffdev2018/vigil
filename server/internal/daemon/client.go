@@ -212,6 +212,7 @@ func daemonCommonCapabilities() []string {
 		protocol.DaemonCapabilityPlatformSkillV1,
 		protocol.DaemonCapabilityWorktreeRevertV1,
 		protocol.DaemonCapabilityRunPreviewV1,
+		protocol.DaemonCapabilityMemoryEvaluationV1,
 	}
 }
 

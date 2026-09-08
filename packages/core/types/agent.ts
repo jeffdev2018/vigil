@@ -1743,6 +1743,7 @@ export interface AgentVersionDiff {
 }
 
 export type AgentMemorySource = "manual" | "run" | "postmortem";
+export type AgentMemoryStatus = "pending" | "active" | "rejected";
 
 /**
  * Governance state of a memory fact (JEF-269): "draft" facts were learned
@@ -1757,6 +1758,17 @@ export type AgentMemoryState = "draft" | "approved";
  * `source_task_id` links a run-sourced memory to the task that produced it.
  */
 export interface AgentMemory {
+  source_review?: {
+    review_id: string;
+    issue_id: string;
+    task_id: string;
+    feedback: string;
+    criteria: string[];
+    assessments: { passed: boolean; evidence: string }[];
+    snapshot_token: string;
+    reviewed_by: string;
+    reviewed_at: string;
+  } | null;
   id: string;
   agent_id: string;
   content: string;
@@ -1768,6 +1780,93 @@ export interface AgentMemory {
   source_issue_id: string | null;
   created_at: string;
   updated_at: string;
+  status?: string;
+  revision?: number;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  expires_at?: string | null;
+  expired?: boolean;
+}
+
+export interface AgentMemoryVersion extends AgentMemory {
+  revision: number;
+  restored_from_revision?: number;
+}
+
+export interface AgentMemoryHistory {
+  versions: AgentMemoryVersion[];
+  next_before_revision: number | null;
+}
+
+export interface AgentMemoryEvaluation {
+  execution_status?: string;
+  execution_runtime_id?: string;
+  id: string;
+  memory_id: string;
+  revision: number;
+  uploaded_by: string;
+  created_at: string;
+  adopted_revision: number | null;
+  eligible: boolean;
+  reason: string;
+  /** Server receipt fingerprint of stored report bytes; not provider attestation. */
+  report_hash?: string;
+  /** Catalog estimate status — never a provider invoice. */
+  cost_status?: "unavailable" | "estimated" | "partial";
+  estimated_cost_usd?: number;
+  total: number;
+  baseline_passed: number;
+  candidate_passed: number;
+  regressions: number;
+  errors: number;
+  report?: {
+    candidate: { content: string; revision: number };
+    suite: { image: string; worker: string[]; verifier: string[] };
+    cases: {
+      id: string;
+      split: string;
+      input_hash: string;
+      checks_hash: string;
+      baseline: { status: string; duration_ms: number; artifact: string; diagnostic: string; runtime?: Record<string, unknown> };
+      candidate: { status: string; duration_ms: number; artifact: string; diagnostic: string; runtime?: Record<string, unknown> };
+    }[];
+  };
+}
+
+/** Prepared memory context for retained, started non-chat runs in a fixed window. */
+export interface AgentMemoryUsage {
+  since: string;
+  until: string;
+  started_runs: number;
+  recorded_runs: number;
+  unrecorded_runs: number;
+  load_failed_runs: number;
+  runs_with_agent_memory: number;
+  versions: { memory_id: string; revision: number; prepared_runs: number; last_started_at: string }[];
+}
+
+export interface MemoryExecutionConfig {
+  runtime_id: string;
+  provider: string;
+  model: string;
+  effort: string;
+  config_hash: string;
+  max_cases: number;
+  timeout_seconds: number;
+  check_modes?: ("exact" | "json" | "javascript")[];
+}
+
+export interface MemoryExecutionRequest {
+  request_id: string;
+  expected_revision: number;
+  config_hash: string;
+  cases: {
+    id: string;
+    split: "replay" | "holdout";
+    prompt: string;
+    expected: string;
+    check?: "exact" | "json" | "javascript";
+  }[];
 }
 
 /**

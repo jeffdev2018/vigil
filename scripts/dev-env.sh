@@ -150,6 +150,12 @@ load_manifest() {
   require_env_name "$1"
   file="$(manifest_of "$1")"
   [ -f "$file" ] || return 1
+  # Clear ambient desktop / workspaces identity before sourcing. A dogfood
+  # shell that exported vigil-482's DESKTOP_USER_DATA_DIR (or workspaces root)
+  # would otherwise poison `destroy` of every other registry entry — and fail
+  # scripts/dev-env.test.sh whenever that ambient path was present.
+  unset DESKTOP_USER_DATA_DIR DESKTOP_APP_SUFFIX DESKTOP_RENDERER_PORT \
+    DESKTOP_ENV_FILE WORKSPACES_ROOT 2>/dev/null || true
   # shellcheck disable=SC1090
   . "$file"
   [ "$NAME" = "$1" ] || die "Manifest $file declares NAME=$NAME; expected $1."
@@ -481,6 +487,25 @@ process_group_id() {
   ps -p "$1" -o pgid= 2>/dev/null | tr -d ' ' || true
 }
 
+# True when $1 is $2 or a child/grandchild/... of $2. Turbo/Next (and some
+# Electron helpers) put the real TCP listener in a fresh process group, so
+# matching PGID to the launcher pid fails even though the tree is ours.
+process_is_descendant_of() {
+  local pid=$1 ancestor=$2 parent hops=0
+  [ -n "$pid" ] && [ -n "$ancestor" ] || return 1
+  while [ "$hops" -lt 64 ]; do
+    [ "$pid" = "$ancestor" ] && return 0
+    parent="$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ' || true)"
+    [ -n "$parent" ] || return 1
+    case "$parent" in
+      0|1) return 1 ;;
+    esac
+    pid="$parent"
+    hops=$((hops + 1))
+  done
+  return 1
+}
+
 listener_belongs_to_component() {
   local component=$1 port=$2 launcher listener recorded
   launcher="$(component_pid "$component" || true)"
@@ -488,7 +513,8 @@ listener_belongs_to_component() {
   [ -n "$launcher" ] && [ -n "$listener" ] || return 1
   recorded="$(cat "$(listener_pid_file "$component")" 2>/dev/null || true)"
   [ -n "$recorded" ] && [ "$listener" = "$recorded" ] && return 0
-  [ "$(process_group_id "$listener")" = "$launcher" ]
+  [ "$(process_group_id "$listener")" = "$launcher" ] && return 0
+  process_is_descendant_of "$listener" "$launcher"
 }
 
 health_belongs_to_api() {
@@ -569,9 +595,16 @@ start_web() {
     if curl -sf --max-time 15 "http://localhost:${FRONTEND_PORT}" >/dev/null 2>&1; then
       listener="$(port_listener_pid "$FRONTEND_PORT")"
       if ! listener_belongs_to_component web "$FRONTEND_PORT"; then
-        stop_component web
-        die "Web on :$FRONTEND_PORT is not owned by the process group this environment launched."
+        # First HTTP success can race a foreign listener; keep waiting while
+        # our launcher is alive rather than killing a half-started turbo tree.
+        if ! component_pid web >/dev/null; then
+          die "web exited during startup. Log: $(log_file web)"
+        fi
+        sleep 2
+        waited=$((waited + 2))
+        continue
       fi
+      printf '%s\n' "$listener" > "$(listener_pid_file web)"
       ok "web serving http://localhost:$FRONTEND_PORT (pid ${listener:-?})"
       return 0
     fi
@@ -825,6 +858,25 @@ stop_component() {
 
   recorded_listener="$(cat "$(listener_pid_file "$name")" 2>/dev/null || true)"
   pid="$(component_pid "$name" || true)"
+  launcher=""
+  local port=""
+  case "$name" in
+    api) port="$BACKEND_PORT" ;;
+    web) port="$FRONTEND_PORT" ;;
+    desktop) port="$DESKTOP_RENDERER_PORT" ;;
+  esac
+  # Capture the TCP listener while the launcher is still alive. Next often
+  # lives in a different process group; after a group kill it reparents to
+  # launchd and ancestry proofs fail — so remember the pid first.
+  if [ -n "$pid" ] && [ -n "$port" ] && [ -z "$recorded_listener" ]; then
+    local live_listener
+    live_listener="$(port_listener_pid "$port")"
+    if [ -n "$live_listener" ] \
+      && { [ "$(process_group_id "$live_listener")" = "$pid" ] \
+        || process_is_descendant_of "$live_listener" "$pid"; }; then
+      recorded_listener="$live_listener"
+    fi
+  fi
   if [ -n "$pid" ]; then
     launcher="$pid"
     # Negative pid targets the process group, so make → go run → server all go
@@ -847,15 +899,9 @@ stop_component() {
   fi
 
   # A process group kill can miss a listener that has reparented away from its
-  # launcher. Only kill that listener when its process group still proves it
-  # belongs to the recorded launcher; a stale manifest must never kill an
+  # launcher. Only kill that listener when the recorded pid or (pre-kill)
+  # ownership proof says it is ours; a stale manifest must never kill an
   # unrelated process that later reused the port.
-  local port=""
-  case "$name" in
-    api) port="$BACKEND_PORT" ;;
-    web) port="$FRONTEND_PORT" ;;
-    desktop) port="$DESKTOP_RENDERER_PORT" ;;
-  esac
   if [ -n "$port" ]; then
     local listener
     listener="$(port_listener_pid "$port")"

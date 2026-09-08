@@ -4312,13 +4312,36 @@ func (s *TaskService) FinalizeTaskClaim(
 	token db.CreateTaskTokenParams,
 	deliveredCommentIDs []pgtype.UUID,
 	recordCommentReceipt bool,
+	memoryContext *TaskMemoryContext,
 	daemonTokens ...db.CreateDaemonTokenParams,
 ) ([]pgtype.UUID, error) {
 	if len(daemonTokens) > 1 {
 		return nil, fmt.Errorf("finalize task claim: expected at most one daemon token, got %d", len(daemonTokens))
 	}
+	var memoryJSON []byte
+	if memoryContext != nil {
+		// Copy before stamping the exact SQL claim generation; do not mutate a
+		// caller's response while finalizing it.
+		snapshot := *memoryContext
+		snapshot.DispatchedAt = task.DispatchedAt.Time.UTC().Format(time.RFC3339Nano)
+		var err error
+		memoryJSON, err = json.Marshal(snapshot)
+		if err != nil {
+			return nil, fmt.Errorf("encode memory context: %w", err)
+		}
+	}
 	receipt := task.DeliveredCommentIds
 	err := s.runInTx(ctx, func(qtx *db.Queries) error {
+		updated, err := qtx.SetTaskMemoryContext(ctx, db.SetTaskMemoryContextParams{
+			TaskID: task.ID, RuntimeID: task.RuntimeID, DispatchedAt: task.DispatchedAt, MemoryContext: memoryJSON,
+		})
+		if err != nil {
+			return fmt.Errorf("set memory context: %w", err)
+		}
+		if updated != 1 {
+			return fmt.Errorf("set memory context: %w", pgx.ErrNoRows)
+		}
+
 		if _, err := qtx.CreateTaskToken(ctx, token); err != nil {
 			return fmt.Errorf("create task token: %w", err)
 		}
@@ -7335,9 +7358,14 @@ const AgentMemoryBriefCharBudget = 40000
 // the daemon needs to render approved facts apart from unverified drafts.
 // The json tags are the claim-wire shape (TaskAgentData.Memories).
 type AgentMemoryFact struct {
-	Content string `json:"content"`
-	Source  string `json:"source,omitempty"`
-	State   string `json:"state"`
+	// ID and Revision identify the row the fact came from so a run can report
+	// which memory version it used (memory usage snapshots). They stay off the
+	// claim wire: the daemon reads content and state, not row identity.
+	ID       string `json:"-"`
+	Revision int32  `json:"-"`
+	Content  string `json:"content"`
+	Source   string `json:"source,omitempty"`
+	State    string `json:"state"`
 }
 
 // SelectBriefedAgentMemories takes facts NEWEST-FIRST and returns those a run
@@ -7368,24 +7396,29 @@ func SelectBriefedAgentMemories(facts []AgentMemoryFact) []AgentMemoryFact {
 // Unlike LoadAgentSkills this is NOT fail-closed: memory is briefing
 // context, not executable rules, so a missing section is plainly visible in
 // the brief and the claim continues without it (see buildClaimedTaskResponse).
-func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]AgentMemoryFact, error) {
+func (s *TaskService) LoadAgentMemories(ctx context.Context, agentID, workspaceID pgtype.UUID) ([]AgentMemoryFact, []MemoryVersion, error) {
 	rows, err := s.Queries.ListRecentAgentMemories(ctx, db.ListRecentAgentMemoriesParams{
 		AgentID:     agentID,
 		WorkspaceID: workspaceID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list agent memories: %w", err)
+		return nil, nil, fmt.Errorf("list agent memories: %w", err)
 	}
 	facts := make([]AgentMemoryFact, len(rows))
 	for i, row := range rows {
-		facts[i] = AgentMemoryFact{Content: row.Content, Source: row.Source, State: row.State}
+		facts[i] = AgentMemoryFact{
+			ID: util.UUIDToString(row.ID), Revision: row.Revision,
+			Content: row.Content, Source: row.Source, State: row.State,
+		}
 	}
 	briefed := SelectBriefedAgentMemories(facts)
 	ordered := make([]AgentMemoryFact, 0, len(briefed))
+	versions := make([]MemoryVersion, 0, len(briefed))
 	for i := len(briefed) - 1; i >= 0; i-- {
 		ordered = append(ordered, briefed[i])
+		versions = append(versions, MemoryVersion{ID: briefed[i].ID, Revision: briefed[i].Revision})
 	}
-	return ordered, nil
+	return ordered, versions, nil
 }
 
 // workspaceBriefNoteRecentLimit is how many non-pinned notes ride along with

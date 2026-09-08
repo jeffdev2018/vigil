@@ -929,6 +929,22 @@ WHERE id = (
 )
 RETURNING *;
 
+-- name: SetTaskMemoryContext :execrows
+-- Latest finalized claim only, matching the comment receipt semantics. An
+-- earlier payload must never replace the context of a newer claim or a run
+-- which already started. NULL means unrecorded, never an empty memory set.
+-- Stamp privacy from the locked task, never from caller-supplied JSON. The chat
+-- FK is SET NULL on deletion, so this marker must survive with the receipt.
+UPDATE agent_task_queue SET memory_context = CASE
+    WHEN sqlc.narg(memory_context)::jsonb IS NULL THEN NULL
+    ELSE sqlc.narg(memory_context)::jsonb || jsonb_build_object(
+        'is_chat', chat_session_id IS NOT NULL OR COALESCE(trigger_evidence_kind = 'chat', false)
+    )
+END
+WHERE id = @task_id AND runtime_id = @runtime_id
+  AND status = 'dispatched' AND started_at IS NULL
+  AND dispatched_at = @dispatched_at;
+
 -- name: SetTaskDeliveredCommentIDs :one
 -- Replace (rather than append to) the delivery receipt for this claim. A stale
 -- dispatched task may be reclaimed by a daemon with different capabilities,
