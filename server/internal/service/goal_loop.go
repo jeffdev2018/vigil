@@ -847,6 +847,7 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 	}
 	q.Answer = clampString(answer, goalQuestionCap)
 	q.AnsweredBy = util.UUIDToString(userID)
+	q.AnsweredByName = strings.TrimSpace(userName)
 	q.AnsweredAt = time.Now().UTC().Format(time.RFC3339)
 	raw, _ := json.Marshal(q)
 	updated, err := s.Queries.UpdateIssueGoalState(ctx, db.UpdateIssueGoalStateParams{

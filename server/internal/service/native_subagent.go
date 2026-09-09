@@ -153,6 +153,18 @@ func (s *NativeAgentService) nativeDelegate(ctx context.Context, tctx *nativeToo
 	return out, nil
 }
 
+// safeDelegate contains a panic in a sub-run: the parent gets an error
+// result for that delegation and keeps going; the server keeps serving.
+func (s *NativeAgentService) safeDelegate(ctx context.Context, tctx *nativeToolContext, args map[string]any) (out any, err error) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			slog.Error("native sub-agent: panicked", "task_id", util.UUIDToString(tctx.task.ID), "panic", rec)
+			out, err = nil, fmt.Errorf("sub-agent crashed: %v", rec)
+		}
+	}()
+	return s.nativeDelegate(ctx, tctx, args)
+}
+
 // nativeVerifyReport checks the report's citations against the sub-run's
 // receipts: what it cites that never happened, and what happened that it
 // never cites.
@@ -239,7 +251,7 @@ func (s *NativeAgentService) executeDelegateCalls(ctx context.Context, tctx *nat
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			var payload any
-			out, err := s.nativeDelegate(ctx, tctx, argsOf[i])
+			out, err := s.safeDelegate(ctx, tctx, argsOf[i])
 			payload = out
 			if err != nil {
 				payload = map[string]any{"error": err.Error()}

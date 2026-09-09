@@ -320,7 +320,7 @@ func TestGoalLoopQuestionAndAnswer(t *testing.T) {
 	if updated.Status != GoalStatusActive {
 		t.Fatalf("goal status after answer = %q", updated.Status)
 	}
-	if q := goalQuestionOf(updated.Question); q == nil || q.Answer != "Postgres" || q.AnsweredBy != f.userID {
+	if q := goalQuestionOf(updated.Question); q == nil || q.Answer != "Postgres" || q.AnsweredBy != f.userID || q.AnsweredByName != "Jeff" {
 		t.Fatalf("answered question = %+v (an option number resolves to its text)", q)
 	}
 	if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM inbox_item WHERE issue_id = $1 AND type = $2 AND archived = false`, f.issueID, GoalInboxQuestionType).Scan(&inbox); err != nil || inbox != 0 {

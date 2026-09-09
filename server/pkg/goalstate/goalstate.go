@@ -20,7 +20,9 @@ type Question struct {
 	AskedAt    string   `json:"asked_at"`
 	Answer     string   `json:"answer,omitempty"`
 	AnsweredBy string   `json:"answered_by,omitempty"`
-	AnsweredAt string   `json:"answered_at,omitempty"`
+	// AnsweredByName is the display name behind AnsweredBy, for the cards.
+	AnsweredByName string `json:"answered_by_name,omitempty"`
+	AnsweredAt     string `json:"answered_at,omitempty"`
 }
 
 // State is the goal-loop state of one issue.

@@ -179,6 +179,14 @@ func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 				// lifetime, detached from the scheduler's request.
 				runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), nativeRunTimeout)
 				defer cancel()
+				// Panic containment: a bug in one run must settle that run,
+				// never take the server down with every other run on it.
+				defer func() {
+					if rec := recover(); rec != nil {
+						slog.Error("native run: panicked", "task_id", util.UUIDToString(task.ID), "panic", rec)
+						s.failNativeTask(runCtx, task, fmt.Sprintf("native run panicked: %v", rec))
+					}
+				}()
 				s.runTask(runCtx, task)
 			}(*task)
 		}
@@ -430,8 +438,13 @@ func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx *na
 	}
 	if tctx.depth > 0 {
 		// Sub-runs journal receipts for the report contract; an errored
-		// call is a receipt too, marked as such.
-		_, errored := payload.(map[string]any)["error"]
+		// call is a receipt too, marked as such. Results are whatever the
+		// tool returned (an object, a list, a string); only an object can
+		// carry an error key.
+		errored := false
+		if m, ok := payload.(map[string]any); ok {
+			_, errored = m["error"]
+		}
 		tctx.recordReceipt(name, inputJSON, !errored)
 	}
 	s.writeToolResult(ctx, tctx.task.ID, name, string(raw))
