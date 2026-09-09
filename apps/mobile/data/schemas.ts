@@ -1116,3 +1116,118 @@ export type IssueGoal = z.infer<typeof IssueGoalSchema>;
 export type IssueGoalResponse = z.infer<typeof IssueGoalResponseSchema>;
 
 export const EMPTY_ISSUE_GOAL_RESPONSE: IssueGoalResponse = { goal: null };
+
+// ---------------------------------------------------------------------------
+// Inline approvals — GET /api/approvals[?issue_id=]. The unified feed of
+// every pending human ask: Decision Cards, held status transitions
+// (transition gate, F28) and goal-loop questions. Field shape mirrors
+// `packages/core/approvals/schemas.ts` (ApprovalItemSchema /
+// ApprovalsResponseSchema) exactly; not imported from there because
+// `@multica/core/approvals` only exports its aggregate `./index.ts`, which
+// also re-exports `./queries.ts` — a module that imports web's live `api`
+// singleton (`../api`). That is not "types and pure functions from
+// @multica/core" (apps/mobile/CLAUDE.md import whitelist), so this file
+// keeps its own copy; mirror both by hand if either changes.
+export type ApprovalSource = "decision" | "transition" | "goal_question";
+export type ApprovalKind =
+  | "decision"
+  | "gate"
+  | "plan"
+  | "interview"
+  | "preview"
+  | "watchdog"
+  | "pipeline"
+  | "goal_attach"
+  | "org_assign"
+  | "transition"
+  | "goal_question";
+
+export const ApprovalOptionSchema = z.object({
+  id: z.string().catch(""),
+  label: z.string().catch(""),
+  impact: z.string().catch(""),
+}).loose();
+
+export const ApprovalGateSchema = z.object({
+  id: z.string().catch(""),
+  task_id: z.string().catch(""),
+  gate_type: z.string().catch(""),
+  summary: z.string().catch(""),
+  details: z.record(z.string(), z.unknown()).catch({}),
+  status: z.string().catch("pending"),
+  created_at: z.string().catch(""),
+  expires_at: z.string().nullable().catch(null),
+  resolved_at: z.string().nullable().catch(null),
+}).loose();
+
+export const ApprovalTransitionSchema = z.object({
+  request_id: z.string().catch(""),
+  from_status: z.string().catch(""),
+  to_status: z.string().catch(""),
+  rule_id: z.string().nullable().catch(null),
+  approver_roles: z.array(z.string()).catch([]),
+}).loose();
+
+export const ApprovalGoalQuestionSchema = z.object({
+  kind: z.string().catch("text"),
+  prompt: z.string().catch(""),
+  options: z.array(z.string()).catch([]),
+  run_id: z.string().catch(""),
+  asked_at: z.string().catch(""),
+}).loose();
+
+export const ApprovalItemSchema = z.object({
+  id: z.string().catch(""),
+  source: z.string().catch("decision"),
+  kind: z.string().catch("decision"),
+  issue: z.object({
+    id: z.string().catch(""),
+    identifier: z.string().catch(""),
+    title: z.string().catch(""),
+    status: z.string().catch(""),
+  }).loose().catch({ id: "", identifier: "", title: "", status: "" }),
+  task_id: z.string().catch(""),
+  asked_by: z.object({
+    type: z.string().catch(""),
+    id: z.string().catch(""),
+    name: z.string().catch(""),
+  }).loose().catch({ type: "", id: "", name: "" }),
+  question: z.string().catch(""),
+  options: z.array(ApprovalOptionSchema).catch([]),
+  recommended_option_id: z.string().catch(""),
+  urgency: z.string().catch("normal"),
+  created_at: z.string().catch(""),
+  expires_at: z.string().nullable().catch(null),
+  sla_deadline_at: z.string().nullable().catch(null),
+  can_decide: z.boolean().catch(false),
+  cannot_decide_reason: z.string().catch(""),
+  gate: ApprovalGateSchema.nullable().catch(null),
+  transition: ApprovalTransitionSchema.nullable().catch(null),
+  goal_question: ApprovalGoalQuestionSchema.nullable().catch(null),
+}).loose();
+
+export const RunHaltSchema = z.object({
+  halted: z.boolean().catch(false),
+  reason: z.string().catch(""),
+  halted_by: z.string().catch(""),
+  halted_at: z.string().nullable().catch(null),
+}).loose();
+
+export type ApprovalOption = z.infer<typeof ApprovalOptionSchema>;
+export type ApprovalGate = z.infer<typeof ApprovalGateSchema>;
+export type ApprovalTransition = z.infer<typeof ApprovalTransitionSchema>;
+export type ApprovalGoalQuestion = z.infer<typeof ApprovalGoalQuestionSchema>;
+export type ApprovalItem = z.infer<typeof ApprovalItemSchema>;
+export type RunHalt = z.infer<typeof RunHaltSchema>;
+
+export const EMPTY_RUN_HALT: RunHalt = { halted: false, reason: "", halted_by: "", halted_at: null };
+
+export const ApprovalsResponseSchema = z.object({
+  approvals: z.array(ApprovalItemSchema).catch([]),
+  total: z.number().catch(0),
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+}).loose();
+
+export type ApprovalsResponse = z.infer<typeof ApprovalsResponseSchema>;
+
+export const EMPTY_APPROVALS: ApprovalsResponse = { approvals: [], total: 0, run_halt: EMPTY_RUN_HALT };

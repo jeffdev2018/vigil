@@ -38,6 +38,9 @@ export type WSEventType =
   | "task:scored"
   | "task:escalated"
   | "task:workflow-selected"
+  // Inline approvals (OS plan, chantier 3): an ask appeared or was settled.
+  | "approval:asked"
+  | "approval:decided"
   | "inbox:new"
   | "inbox:read"
   | "inbox:unread"
@@ -233,6 +236,15 @@ export interface AgentArchivedPayload {
 
 export interface AgentRestoredPayload {
   agent: Agent;
+}
+
+/** approval:asked / approval:decided — the feed behind every inline card is stale. */
+export interface ApprovalEventPayload {
+  source: "decision" | "transition" | "goal_question" | (string & {});
+  id: string;
+  issue_id: string;
+  kind: string;
+  outcome?: string;
 }
 
 export interface InboxNewPayload {
@@ -856,6 +868,8 @@ export interface WSEventPayloadMap {
   "task:escalated": TaskEscalatedPayload;
   "task:workflow-selected": TaskWorkflowSelectedPayload;
   "task:progress": unknown;
+  "approval:asked": ApprovalEventPayload;
+  "approval:decided": ApprovalEventPayload;
   "inbox:new": InboxNewPayload;
   "inbox:read": InboxReadPayload;
   "inbox:unread": InboxUnreadPayload;
