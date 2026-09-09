@@ -44,6 +44,19 @@ Any issue ID the model supplies is re-validated against the run's workspace befo
 - **Gated status transitions.** `transition_issue` goes through the same transition-rule decision the HTTP handlers use, with the agent as the actor — an agent carries no workspace role, so it cannot inherit an owner's or admin's transition rights. Depending on the workspace's rules the move is applied immediately, denied with a reason returned to the model, or held as a pending approval request while the status stays unchanged.
 - **No silent status changes on creation.** `create_issue` and `create_sub_issue` always create the issue in its default status; they never land it on a status that the workspace's rules would otherwise gate. Any transition after creation still goes through `transition_issue`.
 - **No self-triggered run loop.** `create_issue` never enqueues a run for the issue it creates, so a native run cannot cascade into creating work that immediately re-triggers itself.
+- **Budgets end on a status, not a cut.** The last turn, and the first turn after a spent budget (10 state-changing tool calls per run), is a wrap-up turn: no tools are offered and the model is asked for a short closing status — what it did, what remains, what blocked it. That status is the run's final answer.
+- **Identical calls are refused.** The same tool called with the same arguments gets a warning on the third call and a refusal on the fifth, which triggers the wrap-up.
+
+## Long tasks: the goal loop
+
+A run on an issue rarely finishes the issue. After a run on an issue settles, the server asks the model a second, tool-less question: does the closing status meet the issue's goal (title, description, acceptance criteria)? The answer is typed — `satisfied`, or one of `goal_not_met_yet`, `missing_evidence`, `needs_user_input`, `run_failed`, `external_wait` — and lands in the run transcript as a `Goal check` line and in the run's result under `goal_loop`.
+
+- `goal_not_met_yet` and `missing_evidence` queue the next run on the same issue with a handoff note carrying the previous status and the blocker, up to 8 continuations after the first run. The follow-up run also sees the last runs' summaries in its brief.
+- Two continuations in a row that end on the same status stop the loop as stagnation.
+- `needs_user_input`, `external_wait` and `run_failed` stop the loop and post a comment on the issue, because the next step is a person's.
+- A human who reassigns or closes the issue while a run is in flight stops the loop; a human-triggered run (a comment, a new assignment) starts the count over.
+
+The loop reads its state off the previous run's result, not from memory: a server restart between two runs loses nothing. Set `native_goal_loop.max_continuations` in the workspace settings to change the ceiling (up to 20) or to `0` to turn the judge off.
 
 ## LLM requirement
 

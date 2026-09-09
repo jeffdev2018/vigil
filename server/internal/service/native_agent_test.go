@@ -110,6 +110,8 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
 		nativeToolCallTurn("call_1", "add_comment", `{"content":"Voilà le résumé."}`),
 		nativeTextTurn("Commentaire ajouté."),
+		// The goal judge's verdict on the closing status (goal loop).
+		nativeTextTurn(`{"satisfied": true, "reason": "the summary is posted"}`),
 	}}
 	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
 
@@ -138,12 +140,13 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		t.Fatalf("agent comments = %d, want 1", commentCount)
 	}
 
-	// The transcript carries the tool call, its result, and the final answer.
+	// The transcript carries the tool call, its result, the final answer
+	// and the goal check's verdict line.
 	messages, err := db.New(pool).ListTaskMessages(ctx, claimed.ID)
 	if err != nil {
 		t.Fatalf("list task messages: %v", err)
 	}
-	wantTypes := []string{"tool_use", "tool_result", "text"}
+	wantTypes := []string{"tool_use", "tool_result", "text", "system"}
 	if len(messages) != len(wantTypes) {
 		t.Fatalf("transcript = %v, want %v", messageTypes(messages), wantTypes)
 	}
@@ -236,6 +239,11 @@ func TestNativeAgentStopsAtTurnLimit(t *testing.T) {
 	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
 	fx := testutil.New(pool, ws, user)
 	fx.Member(t, ws, user, "owner")
+	// This test looks at the wrap-up turn as the model's last call; the
+	// goal judge (native_goal_loop_test.go) would otherwise come after it.
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"native_goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+		t.Fatalf("disable goal loop: %v", err)
+	}
 	runtimeID := fx.Runtime(t, "native", testutil.Cols{
 		"runtime_mode": "native",
 		"daemon_id":    "native",
@@ -320,6 +328,11 @@ func TestNativeAgentRefusesRepeatedIdenticalCalls(t *testing.T) {
 	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
 	fx := testutil.New(pool, ws, user)
 	fx.Member(t, ws, user, "owner")
+	// This test looks at the wrap-up turn as the model's last call; the
+	// goal judge (native_goal_loop_test.go) would otherwise come after it.
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"native_goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+		t.Fatalf("disable goal loop: %v", err)
+	}
 	runtimeID := fx.Runtime(t, "native", testutil.Cols{
 		"runtime_mode": "native",
 		"daemon_id":    "native",
