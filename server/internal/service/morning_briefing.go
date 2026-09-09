@@ -40,14 +40,35 @@ func MorningBriefingSettings(settings []byte) (MorningBriefing, bool) {
 	if b.Timezone == "" {
 		b.Timezone = "UTC"
 	}
-	channels := make([]BriefingChannel, 0, len(b.Channels))
-	for _, c := range b.Channels {
+	b.Channels = validBriefingChannels(b.Channels)
+	return b, true
+}
+
+// BriefingChannels reads the configured delivery chats WITHOUT the enabled
+// gate MorningBriefingSettings applies. Inline approvals post into the same
+// chats, and a team can want the approval buttons in chat without also
+// wanting an 8am digest.
+func BriefingChannels(settings []byte) []BriefingChannel {
+	if len(settings) == 0 {
+		return nil
+	}
+	var s struct {
+		Briefing *MorningBriefing `json:"morning_briefing"`
+	}
+	if err := json.Unmarshal(settings, &s); err != nil || s.Briefing == nil {
+		return nil
+	}
+	return validBriefingChannels(s.Briefing.Channels)
+}
+
+func validBriefingChannels(in []BriefingChannel) []BriefingChannel {
+	out := make([]BriefingChannel, 0, len(in))
+	for _, c := range in {
 		if c.Type != "" && c.ChatID != "" {
-			channels = append(channels, c)
+			out = append(out, c)
 		}
 	}
-	b.Channels = channels
-	return b, true
+	return out
 }
 
 // CrossReview (K15) is the workspace policy in workspace.settings:

@@ -72,11 +72,15 @@ is decidable wherever you meet it:
   above the composer.
 - **Mobile** — the same cards in the issue timeline and the inbox detail, plus
   the swipe list under **Inbox → Decisions**.
-- **Chat channels** — Slack, Lark, Telegram and WeCom get the ask with
-  Approve / Deny buttons when the workspace's digest channel is configured
-  (DingTalk gets a button that opens the issue). A click answers the card and
-  the message is updated with the outcome; a reply names why a click was
-  refused (unbound account, already decided).
+- **Chat channels** — the ask is posted to the workspace's digest channels
+  the moment it is filed (Decision Cards, held transitions and goal
+  questions alike): Slack, Lark (Feishu) and Telegram get it with
+  Approve / Deny buttons; DingTalk and WeCom get it as a message with a
+  link that opens the issue, since their inbound button events could not
+  be verified. A click answers it and the posted message is rewritten
+  with the outcome on Slack, Telegram and Lark, or followed by a short
+  note on DingTalk and WeCom; a refused click gets a sentence saying why
+  (account not linked, already decided, not an approver).
 
 Only a human can answer; an agent that tries is refused, the mirror image of
 who is allowed to ask.

@@ -454,6 +454,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		ServerVersion:            normalizeServerVersion(version),
 	}
 	h := handler.New(queries, pool, hub, bus, emailSvc, store, cfSigner, analyticsClient, signupConfig, daemonHub)
+	// Inline approvals: a transition or goal question filed inside
+	// internal/service reaches the chat channels through the bus.
+	registerApprovalListeners(bus, h)
 	// Mobile push (K64): Expo push needs no credentials; MULTICA_PUSH_DISABLED=1 turns it off.
 	if os.Getenv("MULTICA_PUSH_DISABLED") != "1" {
 		h.Push = push.NewExpoSender(os.Getenv("MULTICA_EXPO_PUSH_ENDPOINT"))
@@ -689,7 +692,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				// Registering the Factory (connect/send) + ResolverSet
 				// (inbound pipeline seams) is all it takes to add the platform
 				// to the engine — no engine edit.
-				connector, connectorLabel := buildLarkConnector(installSvc, larkClient)
+				connector, connectorLabel := buildLarkConnector(installSvc, larkClient, larkCardActionHandler(h, larkClient, installSvc))
 				lark.RegisterFeishu(channelRegistry, lark.FeishuChannelDeps{
 					Connector:   connector,
 					APIClient:   larkClient,
@@ -1149,7 +1152,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 
 			// Per-installation inbound: the Supervisor builds + supervises one
 			// long-polling loop per active Telegram installation.
-			telegram.RegisterTelegram(channelRegistry, telegram.ChannelDeps{Decrypt: box.Open, Logger: slog.Default()})
+			telegram.RegisterTelegram(channelRegistry, telegram.ChannelDeps{
+				Decrypt: box.Open,
+				Logger:  slog.Default(),
+				// Inline approvals: an inline-keyboard press decides through
+				// the same core as the Slack button and the web button.
+				OnApprovalClick: func(ctx context.Context, appID, userID, data string) string {
+					return h.DecideApprovalFromChannel(ctx, string(telegram.TypeTelegram), appID, userID, data)
+				},
+			})
 
 			installSvc, ierr := telegram.NewInstallService(queries, pool, box, slog.Default())
 			if ierr != nil {
@@ -3290,6 +3301,44 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	return r, h
 }
 
+// larkCardActionHandler settles an inline approval button pressed on a Lark
+// card and rewrites the card with the outcome, so the answer is readable by
+// the whole chat rather than only by the clicker.
+func larkCardActionHandler(h *handler.Handler, apiClient lark.APIClient, installSvc *lark.InstallationService) func(context.Context, lark.Installation, lark.CardAction) {
+	return func(ctx context.Context, inst lark.Installation, act lark.CardAction) {
+		reply := h.DecideApprovalFromChannel(ctx, string(channel.TypeFeishu), act.AppID, act.OperatorOpenID, act.Value)
+		if act.MessageID == "" {
+			return
+		}
+		creds, err := installSvc.DecryptAppSecret(inst)
+		if err != nil {
+			slog.Warn("lark: approval card patch skipped, credentials unavailable", "error", err)
+			return
+		}
+		card, err := lark.ApprovalOutcomeCardJSON(reply)
+		if err != nil {
+			return
+		}
+		if err := apiClient.PatchInteractiveCard(ctx, lark.PatchCardParams{
+			InstallationID:    larkPatchCredentials(inst, creds),
+			LarkCardMessageID: act.MessageID,
+			CardJSON:          card,
+		}); err != nil {
+			slog.Warn("lark: approval card patch failed", "error", err)
+		}
+	}
+}
+
+// larkPatchCredentials mirrors the connector's CredentialsProvider so a card
+// patch authenticates exactly like the socket that delivered the press.
+func larkPatchCredentials(inst lark.Installation, secret string) lark.InstallationCredentials {
+	creds := lark.InstallationCredentials{AppID: inst.AppID, AppSecret: secret, Region: lark.RegionOrDefault(inst.Region)}
+	if inst.TenantKey.Valid {
+		creds.TenantKey = inst.TenantKey.String
+	}
+	return creds
+}
+
 // buildLarkConnector wires the real WS long-conn connector that talks
 // to /callback/ws/endpoint directly with app_id/app_secret. The
 // connector wraps every read with a ctx-cancel watchdog so lease loss /
@@ -3307,7 +3356,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 //
 // Returns the connector plus a short label for the boot log:
 // "ws-long-conn" in the healthy case, "noop" in the fallback case.
-func buildLarkConnector(installSvc *lark.InstallationService, apiClient lark.APIClient) (lark.EventConnector, string) {
+func buildLarkConnector(installSvc *lark.InstallationService, apiClient lark.APIClient, onCardAction func(context.Context, lark.Installation, lark.CardAction)) (lark.EventConnector, string) {
 	endpointFetcher, err := lark.NewHTTPConnectionTokenFetcher(lark.HTTPConnectionTokenConfig{
 		BaseURL: strings.TrimSpace(os.Getenv("MULTICA_LARK_CALLBACK_BASE_URL")),
 		Logger:  slog.Default(),
@@ -3350,6 +3399,7 @@ func buildLarkConnector(installSvc *lark.InstallationService, apiClient lark.API
 		EndpointFetcher:     endpointFetcher,
 		FrameDecoder:        decoder,
 		Enricher:            enricher,
+		CardActionHandler:   onCardAction,
 		CredentialsProvider: credsProvider,
 		Logger:              slog.Default(),
 	})

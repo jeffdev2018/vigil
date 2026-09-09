@@ -376,7 +376,14 @@ func (h *Handler) ListApprovals(w http.ResponseWriter, r *http.Request) {
 // publishApproval announces an ask (approval:asked) or its settlement
 // (approval:decided) to the workspace. Issue-scoped and small: clients
 // refetch the feed for the issue or the workspace.
-func (h *Handler) publishApproval(eventType, actorType, actorID string, wsID, issueID pgtype.UUID, source, id, kind, outcome string) {
+//
+// A settlement is also the single choke point where a chat message carrying
+// the ask's buttons has to be rewritten, so it happens here rather than in
+// each of the three settle endpoints.
+func (h *Handler) publishApproval(ctx context.Context, eventType, actorType, actorID string, wsID, issueID pgtype.UUID, source, id, kind, outcome string) {
+	if eventType == protocol.EventApprovalDecided {
+		h.settleApprovalMessages(ctx, wsID, issueID, source, id, outcome)
+	}
 	if h.Bus == nil {
 		return
 	}
@@ -385,6 +392,18 @@ func (h *Handler) publishApproval(eventType, actorType, actorID string, wsID, is
 		payload["outcome"] = outcome
 	}
 	h.publish(eventType, uuidToString(wsID), actorType, actorID, payload)
+}
+
+// approvalOutcomeSentence turns the machine outcome into the words a chat
+// reader gets where the original buttons stood.
+func approvalOutcomeSentence(outcome string) string {
+	switch outcome {
+	case "":
+		return "answered"
+	case "expired":
+		return "expired without an answer"
+	}
+	return outcome
 }
 
 // ExpireOverdueGates settles every pending gate past its deadline: the gate
@@ -407,7 +426,7 @@ func (h *Handler) ExpireOverdueGates(ctx context.Context) int {
 		if _, err := h.Queries.RespondIssueDecisionAsSystem(ctx, db.RespondIssueDecisionAsSystemParams{ID: gate.DecisionRequestID, Response: answer}); err != nil {
 			slog.Warn("approval gate sweeper: card not answered", "gate_id", uuidToString(gate.ID), "error", err)
 		}
-		h.publishApproval(protocol.EventApprovalDecided, "system", "", gate.WorkspaceID, gate.IssueID, ApprovalSourceDecision, uuidToString(gate.DecisionRequestID), ApprovalKindGate, "expired")
+		h.publishApproval(ctx, protocol.EventApprovalDecided, "system", "", gate.WorkspaceID, gate.IssueID, ApprovalSourceDecision, uuidToString(gate.DecisionRequestID), ApprovalKindGate, "expired")
 		if h.Bus != nil {
 			h.publish(protocol.EventIssueAuxChanged, uuidToString(gate.WorkspaceID), "system", "", map[string]any{"issue_id": uuidToString(gate.IssueID)})
 		}

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -339,10 +340,15 @@ func (h *Handler) ReportPlanVerification(w http.ResponseWriter, r *http.Request)
 // publishIssueAuxChanged bumps the issue revision and emits issue:updated so
 // clients admit the event and refetch the plan and its verifications.
 func (h *Handler) publishIssueAuxChanged(r *http.Request, issue db.Issue, actorType, actorID string) {
-	ctx := r.Context()
+	h.publishIssueAuxChangedCtx(r.Context(), issue, actorType, actorID)
+}
+
+// publishIssueAuxChangedCtx is publishIssueAuxChanged for callers with no
+// request: an approval settled from a chat button, a background sweep.
+func (h *Handler) publishIssueAuxChangedCtx(ctx context.Context, issue db.Issue, actorType, actorID string) {
 	fresh, err := h.Queries.TouchIssueRevision(ctx, issue.ID)
 	if err != nil {
-		slog.Warn("touch issue revision failed", append(logger.RequestAttrs(r), "error", err, "issue_id", uuidToString(issue.ID))...)
+		slog.Warn("touch issue revision failed", "error", err, "issue_id", uuidToString(issue.ID))
 		return
 	}
 	resp := issueToResponse(fresh, h.getIssuePrefix(ctx, fresh.WorkspaceID))

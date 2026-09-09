@@ -71,6 +71,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"budget_period":                      workspaceDelete,
 	"budget_policy":                      workspaceDelete,
 	"budget_reservation":                 workspaceDelete,
+	"channel_approval_message":           workspaceDelete,
 	"channel_binding_token":              workspaceDelete,
 	"channel_chat_context_generation":    workspaceDelete,
 	"channel_chat_session_binding":       workspaceDelete,
