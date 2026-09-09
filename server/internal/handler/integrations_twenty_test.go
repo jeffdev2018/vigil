@@ -90,6 +90,18 @@ func TestTwentyConnectShowsTheTokenOnceAndTheStatusAfter(t *testing.T) {
 	if status.Connection.InboundToken != "" || status.Connection.BaseURL != fake.URL || strings.Join(status.Connection.Events, ",") != "person.created" {
 		t.Fatalf("connection on GET = %+v, want no clear token", *status.Connection)
 	}
+	// An owner sees the inbound path again (to register the webhook by hand);
+	// a plain member does not, because the path is the credential.
+	if status.Connection.InboundPath != conn.InboundPath {
+		t.Fatalf("owner GET inbound_path = %q, want %q", status.Connection.InboundPath, conn.InboundPath)
+	}
+	dbfx.Exec(t, `UPDATE member SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
+	dbfx.Cleanup(t, `UPDATE member SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
+	testutil.Call(t, testHandler.GetTwentyConnection, newRequest(http.MethodGet, "/api/integrations/twenty", nil)).Want(http.StatusOK).JSON(&status)
+	if status.Connection == nil || status.Connection.InboundPath != "" {
+		t.Fatalf("member GET = %+v, want no inbound path", status.Connection)
+	}
+	dbfx.Exec(t, `UPDATE member SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	if n := dbfx.Count(t, `SELECT count(*) FROM audit_log_entry WHERE workspace_id = $1 AND action = $2`, testWorkspaceID, AuditTwentyConnected); n != 1 {
 		t.Fatalf("audit entries = %d, want 1", n)
 	}

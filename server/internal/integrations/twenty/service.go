@@ -123,6 +123,26 @@ func (s *Service) Get(ctx context.Context, workspaceID pgtype.UUID) (Connection,
 	return connectionView(row), nil
 }
 
+// GetForAdmin is Get plus the inbound path: the path carries the intake
+// token, so only an owner or admin (who could mint a new one anyway) sees it
+// again, to register or repair the subscription in Twenty by hand.
+func (s *Service) GetForAdmin(ctx context.Context, workspaceID pgtype.UUID) (Connection, error) {
+	row, err := s.Store.GetWorkspaceTwentyConnection(ctx, workspaceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Connection{}, ErrNotConnected
+	}
+	if err != nil {
+		return Connection{}, err
+	}
+	view := connectionView(row)
+	if s.Box != nil && len(row.InboundTokenSealed) > 0 {
+		if token, oerr := s.Box.Open(row.InboundTokenSealed); oerr == nil {
+			view.InboundPath = InboundPathPrefix + string(token)
+		}
+	}
+	return view, nil
+}
+
 // ConnectParams is what a member submits.
 type ConnectParams struct {
 	BaseURL        string
