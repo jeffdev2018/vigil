@@ -269,3 +269,17 @@ Les six invariants ont échoué comme attendu sur le code audité : supérieur i
 Les fonctions de la version installée sont lues au commit fixe `5b68cc711` pour rendre le diagnostic reproductible. Après correction sur une base commune, ces scénarios doivent devenir des tests de comportement sur la nouvelle implémentation ; le diagnostic de l’ancienne révision reste une preuve historique.
 
 Pas de nouvelle installation ni de mise à jour du serveur pendant cet audit. Les fichiers applicatifs existants n’ont pas été modifiés par cette passe ; seuls ce rapport et son diagnostic ont été ajoutés.
+
+
+## 8. Intégration et installation locale — 8 septembre 2026
+
+La mention « pas de nouvelle installation » ci-dessus décrit la passe d’audit initiale. Les corrections ont ensuite été intégrées sur la base complète `5b68cc711`, dont le checkout initial `8a3e1212b` est un ancêtre, dans `/Users/jeff/orca/vigil-org-integrated`, branche `fix/org-integrated`, commit applicatif `929858ef1`. Le checkout initial et ses modifications ont été conservés.
+
+- App macOS arm64 **0.4.43-31-g929858ef1** construite, signature ad hoc vérifiée, installée dans `/Applications/Multica.app` et lancée avec le profil existant. Build local non notarié, sans publication distante.
+- DMG et ZIP disponibles dans `apps/desktop/dist/` du checkout intégré.
+- Ancienne app conservée dans `~/.multica/backups/Multica-0.4.43-30-g5b68cc711-before-org.zip`, archive vérifiée.
+- Serveur Docker local mis à jour avec `multica-backend:org-929858ef1`. `/health` confirme `commit: 929858ef1`; migrations identiques, configuration et volumes conservés. Override : `~/.multica/docker/vigil-org.override.yml`. Image précédente conservée sous `multica-backend:before-org-929858ef1`.
+- Vérifications sur la base intégrée : 178 tests Core/API/Studio, 39 tests Views Organisation/Studio, typechecks Core/Views et Desktop main, lint des écrans modifiés, tests Go ciblés handler/mcpgov/execenv, compilation serveur Linux et paquet macOS. Tous passent.
+- Contrôle visuel dans l’app installée : espace `one`, huit organisations existantes; actions distinctes de création d’agent, création d’équipe et ajout de membres; organigramme et panneau de composition affichés.
+
+La capture réelle confirme deux limites de présentation et de données héritées : l’ancienne unité `Support lead` demeure sans membres, et des liens d’escalade peuvent encore évoquer une hiérarchie par leur disposition. Les noms/missions anglais déjà sauvegardés n’ont pas été réécrits. La mise à jour ne constitue pas une migration automatique de l’organisation métier de l’utilisateur.
