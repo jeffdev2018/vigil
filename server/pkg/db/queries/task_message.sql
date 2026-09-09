@@ -134,3 +134,10 @@ SELECT DISTINCT ON (task_id) *
 FROM task_message
 WHERE task_id = ANY(sqlc.arg('task_ids')::uuid[]) AND type = 'plan'
 ORDER BY task_id, seq DESC;
+
+-- name: UpdateTaskMessageContent :exec
+-- Streaming (N04): the native run writes its final text message once and then
+-- grows it in place as chunks arrive, republishing task:message per update —
+-- the client merges by seq, so the transcript shows the text building live
+-- with no frontend change.
+UPDATE task_message SET content = $3 WHERE id = $1 AND task_id = $2;

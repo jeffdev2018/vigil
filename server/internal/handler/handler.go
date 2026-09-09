@@ -586,7 +586,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		BudgetService:                budgetSvc,
 		PluginService:                service.NewPluginService(queries, txStarter),
 		IssueService:                 issueSvc,
-		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, llmClient, bus),
+		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),

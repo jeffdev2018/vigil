@@ -15,6 +15,8 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -27,11 +29,38 @@ import (
 // answer land in task_message (tool_use / tool_result / text), so the existing
 // run transcript UI renders a native run with zero frontend changes.
 
+// NativeChatStream is the shape of an SSE completion stream the loop walks.
+// *ssestream.Stream satisfies it; tests drive it with a slice-backed fake.
+type NativeChatStream interface {
+	Next() bool
+	Current() openai.ChatCompletionChunk
+	Err() error
+}
+
+// NativeLLMAdapter adapts *llm.Client to NativeAgentLLM: the stream return
+// type must match exactly for interface satisfaction, and the client returns
+// the concrete SDK stream.
+type NativeLLMAdapter struct {
+	*llm.Client
+}
+
+func (a NativeLLMAdapter) ChatStream(ctx context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error) {
+	stream, err := a.Client.ChatStream(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return stream, nil
+}
+
 // NativeAgentLLM is the slice of *llm.Client the loop needs. An interface so
 // tests can drive the loop with a scripted model.
 type NativeAgentLLM interface {
 	Enabled() bool
 	Chat(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
+	// ChatStream is the same request, streamed (N04). *llm.Client backs it
+	// with NewStreaming; the loop asks for usage in the final chunk so the
+	// lot C accounting survives the switch.
+	ChatStream(ctx context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error)
 }
 
 const (
@@ -65,6 +94,10 @@ const (
 	// Continuity (N03): how many predecessor run summaries ride the brief of
 	// a follow-up run on the same issue.
 	nativeBriefRunSummaries = 3
+	// Streaming (N04): how often the growing final text is persisted and
+	// republished while chunks arrive. The client flushes on a 100 ms window,
+	// so 250 ms here lands visibly without thrashing the table.
+	nativeStreamFlushInterval = 250 * time.Millisecond
 	// nativeMaxEffectfulActions bounds how many state-changing tool calls one
 	// run may perform (comments, issue writes, creates). A confused model
 	// loops; the workspace must not eat the loop.
@@ -81,6 +114,10 @@ type NativeAgentService struct {
 	Tasks   *TaskService
 	Issues  *IssueService
 	LLM     NativeAgentLLM
+	// streamFlushInterval is how often the growing final text is persisted
+	// and republished while chunks arrive. A field so a test can flush per
+	// chunk; production keeps the default constant.
+	streamFlushInterval time.Duration
 	// Bus carries the realtime nudge for the agent's own writes (comments,
 	// issue edits, held transitions). Nil skips publishing — rows remain the
 	// source of truth and open clients converge on their next fetch.
@@ -115,12 +152,13 @@ func (s *NativeAgentService) llmFuseOpen() bool {
 
 func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {
 	return &NativeAgentService{
-		Queries: q,
-		Tasks:   tasks,
-		Issues:  issues,
-		LLM:     llm,
-		Bus:     bus,
-		limiter: make(chan struct{}, nativeMaxConcurrent),
+		Queries:             q,
+		Tasks:               tasks,
+		Issues:              issues,
+		LLM:                 llm,
+		Bus:                 bus,
+		streamFlushInterval: nativeStreamFlushInterval,
+		limiter:             make(chan struct{}, nativeMaxConcurrent),
 	}
 }
 
@@ -223,12 +261,19 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	tools := nativeAgentToolSpecs()
 
 	var finalText string
+	textStreamed := false
 	for turn := 0; turn < nativeMaxTurns; turn++ {
 		params := openai.ChatCompletionNewParams{
 			Messages: messages,
 			Tools:    tools,
 		}
-		completion, err := s.LLM.Chat(ctx, params)
+		// Ask the gateway to include usage on the final chunk so the lot C
+		// accounting survives streaming (N04); gateways that ignore it simply
+		// report nothing, and recordNativeUsage already skips empty totals.
+		params.StreamOptions = openai.ChatCompletionStreamOptionsParam{
+			IncludeUsage: openai.Bool(true),
+		}
+		stream, err := s.LLM.ChatStream(ctx, params)
 		if err != nil {
 			s.noteLLMFailure()
 			if errors.Is(err, context.DeadlineExceeded) {
@@ -239,26 +284,127 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 			recordUsage()
 			return
 		}
-		if len(completion.Choices) == 0 {
+		// A streamed turn accumulates prose deltas and tool-call deltas at
+		// once — the turn's nature is only known when the stream ends.
+		var text strings.Builder
+		type nativeToolCallAcc struct {
+			ID, Name, Arguments string
+		}
+		toolCalls := map[int]*nativeToolCallAcc{}
+		var toolOrder []int
+		streamedMsgID := pgtype.UUID{}
+		streamedSeq := int32(0)
+		lastFlush := time.Now()
+		sawChoice := false
+		for stream.Next() {
+			chunk := stream.Current()
+			if chunk.Usage.PromptTokens != 0 || chunk.Usage.CompletionTokens != 0 {
+				usage.input += chunk.Usage.PromptTokens
+				usage.output += chunk.Usage.CompletionTokens
+				usage.cacheRead += chunk.Usage.PromptTokensDetails.CachedTokens
+			}
+			if usage.model == "" && chunk.Model != "" {
+				usage.model = chunk.Model
+			}
+			if len(chunk.Choices) == 0 {
+				continue
+			}
+			sawChoice = true
+			delta := chunk.Choices[0].Delta
+			if delta.Content != "" {
+				text.WriteString(delta.Content)
+				// Grow the final message in place, throttled: the client
+				// merges task:message by seq, so the transcript shows the
+				// answer building with no frontend change.
+				if !streamedMsgID.Valid {
+					seq, err := s.Queries.NextTaskMessageSeq(ctx, taskID)
+					if err != nil {
+						continue
+					}
+					msg, err := s.Queries.CreateTaskMessage(ctx, db.CreateTaskMessageParams{
+						ID: dbid.NewV7(), TaskID: taskID, Seq: int32(seq), Type: "text",
+						Content: pgtype.Text{String: text.String(), Valid: true},
+					})
+					if err != nil {
+						continue
+					}
+					streamedMsgID, streamedSeq = msg.ID, msg.Seq
+				}
+				if time.Since(lastFlush) >= s.streamFlushInterval {
+					if err := s.Queries.UpdateTaskMessageContent(ctx, db.UpdateTaskMessageContentParams{
+						ID: streamedMsgID, TaskID: taskID,
+						Content: pgtype.Text{String: text.String(), Valid: true},
+					}); err == nil {
+						s.publishNativeTaskMessage(tctx, taskID, streamedSeq, text.String())
+						lastFlush = time.Now()
+					}
+				}
+			}
+			for _, tc := range delta.ToolCalls {
+				idx := int(tc.Index)
+				existing, ok := toolCalls[idx]
+				if !ok {
+					toolCalls[idx] = &nativeToolCallAcc{ID: tc.ID, Name: tc.Function.Name, Arguments: tc.Function.Arguments}
+					toolOrder = append(toolOrder, idx)
+					continue
+				}
+				existing.ID += tc.ID
+				existing.Name += tc.Function.Name
+				existing.Arguments += tc.Function.Arguments
+			}
+		}
+		if err := stream.Err(); err != nil {
+			s.noteLLMFailure()
+			s.failNativeTask(ctx, task, "model stream failed: "+err.Error())
+			recordUsage()
+			return
+		}
+		if !sawChoice {
 			s.noteLLMFailure()
 			s.failNativeTask(ctx, task, "model returned no choices")
 			recordUsage()
 			return
 		}
 		s.noteLLMSuccess()
-		usage.input += completion.Usage.PromptTokens
-		usage.output += completion.Usage.CompletionTokens
-		usage.cacheRead += completion.Usage.PromptTokensDetails.CachedTokens
-		if usage.model == "" {
-			usage.model = completion.Model
-		}
-		msg := completion.Choices[0].Message
-		if len(msg.ToolCalls) == 0 {
-			finalText = strings.TrimSpace(msg.Content)
+		if len(toolOrder) == 0 {
+			// A prose turn: the streamed message IS the final text. Complete
+			// it (the flush was throttled) and stop the loop. The legacy
+			// write below must not add a second copy.
+			finalText = strings.TrimSpace(text.String())
+			if streamedMsgID.Valid {
+				if err := s.Queries.UpdateTaskMessageContent(ctx, db.UpdateTaskMessageContentParams{
+					ID: streamedMsgID, TaskID: taskID,
+					Content: pgtype.Text{String: finalText, Valid: true},
+				}); err == nil {
+					s.publishNativeTaskMessage(tctx, taskID, streamedSeq, finalText)
+				}
+				textStreamed = true
+			}
 			break
 		}
-		messages = append(messages, msg.ToParam())
-		for _, call := range msg.ToolCalls {
+		// A tool turn: rebuild the assistant message for the protocol and run
+		// the calls in the order the model issued them.
+		var calls []openai.ChatCompletionMessageToolCallUnion
+		for _, idx := range toolOrder {
+			acc := toolCalls[idx]
+			calls = append(calls, openai.ChatCompletionMessageToolCallUnion{
+				ID:   acc.ID,
+				Type: "function",
+				Function: openai.ChatCompletionMessageFunctionToolCallFunction{
+					Name:      acc.Name,
+					Arguments: acc.Arguments,
+				},
+			})
+		}
+		assistantMsg := openai.ChatCompletionMessage{
+			Role:      "assistant",
+			ToolCalls: calls,
+		}
+		if text.Len() > 0 {
+			assistantMsg.Content = text.String()
+		}
+		messages = append(messages, assistantMsg.ToParam())
+		for _, call := range calls {
 			result := s.executeNativeToolCall(ctx, &tctx, call)
 			messages = append(messages, openai.ToolMessage(nativeClampToolResult(result), call.ID))
 		}
@@ -269,13 +415,44 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		// retry-loop. The transcript already carries what was done.
 		finalText = "Run stopped after reaching the tool-call turn limit without a final answer."
 	}
-	s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
+	if !textStreamed {
+		// Prose that never reached the stream path (empty deltas, or the
+		// bounded-stop fallback): write it once, the pre-stream way.
+		s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
+	}
 
 	result, _ := json.Marshal(map[string]any{"summary": finalText})
 	if _, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", ""); err != nil {
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
 	}
 	recordUsage()
+}
+
+// publishNativeTaskMessage republishes a (growing) transcript row exactly the
+// way the daemon's message endpoint does, so the existing client handler
+// merges it by seq with no frontend change (N04).
+func (s *NativeAgentService) publishNativeTaskMessage(tctx nativeToolContext, taskID pgtype.UUID, seq int32, content string) {
+	if s.Bus == nil {
+		return
+	}
+	issueID := ""
+	if tctx.task.IssueID.Valid {
+		issueID = util.UUIDToString(tctx.task.IssueID)
+	}
+	s.Bus.Publish(events.Event{
+		Type:        protocol.EventTaskMessage,
+		WorkspaceID: util.UUIDToString(tctx.workspaceID),
+		ActorType:   "agent",
+		ActorID:     util.UUIDToString(tctx.agent.ID),
+		TaskID:      util.UUIDToString(taskID),
+		Payload: protocol.TaskMessagePayload{
+			TaskID:  util.UUIDToString(taskID),
+			IssueID: issueID,
+			Seq:     int(seq),
+			Type:    "text",
+			Content: content,
+		},
+	})
 }
 
 // recordNativeUsage lands the run's token totals in task_usage (provider
