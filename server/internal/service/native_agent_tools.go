@@ -12,6 +12,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
@@ -32,14 +33,84 @@ type nativeToolContext struct {
 	// effectful counts this run's state-changing tool calls against
 	// nativeMaxEffectfulActions.
 	effectful int
+	// textStreamed (N04): the closing text was grown in place by the stream;
+	// the caller must not write a second copy. streamedMsgID names the row.
+	textStreamed  bool
+	streamedMsgID pgtype.UUID
+	// repeats counts identical tool calls (name + canonical arguments) so a
+	// model stuck re-issuing the same call is warned, then refused.
+	repeats map[string]int
+	// wrapUp asks the loop to spend its next turn on a closing status
+	// instead of more tools; wrapUpReason says why, for the model and the
+	// transcript.
+	wrapUp       bool
+	wrapUpReason string
 	// issue is the task's own issue, nil for the issue-less kinds (chat,
 	// quick-create, autopilot run-only). Tools that default to "the task's
 	// issue" require an explicit issue_id when it is nil.
 	issue       *db.Issue
 	workspaceID pgtype.UUID
+	// depth is 0 for a run, 1 for a sub-agent it delegated to; budget is
+	// shared down the tree (effectful ceiling, sub-agent count); receipts
+	// are a sub-run's journal for the report contract.
+	depth    int
+	budget   *nativeRunBudget
+	receipts []nativeReceipt
+}
+
+// chargeEffectful counts one state-changing call against the caller's own
+// ceiling and the run's shared one. Non-empty when a ceiling is crossed:
+// the reason for the wrap-up.
+func (t *nativeToolContext) chargeEffectful() string {
+	t.effectful++
+	own := nativeMaxEffectfulActions
+	if t.depth > 0 {
+		own = nativeSubagentMaxEffectful
+	}
+	if t.effectful > own {
+		return fmt.Sprintf("the effectful-action budget (%d state-changing calls) is spent", own)
+	}
+	if t.budget != nil {
+		t.budget.mu.Lock()
+		t.budget.effectful++
+		n := t.budget.effectful
+		t.budget.mu.Unlock()
+		if n > nativeMaxEffectfulActions {
+			return fmt.Sprintf("the run's effectful-action budget (%d state-changing calls, sub-agents included) is spent", nativeMaxEffectfulActions)
+		}
+	}
+	return ""
+}
+
+// requestWrapUp flags the run for a closing turn. The first reason wins:
+// it is the one that actually ended the work.
+func (t *nativeToolContext) requestWrapUp(reason string) {
+	if t.wrapUp {
+		return
+	}
+	t.wrapUp = true
+	t.wrapUpReason = reason
 }
 
 var nativeIssuePriorities = []string{"urgent", "high", "medium", "low", "none"}
+
+// nativeAgentToolSpecsFor is the tool list for a run at the given depth: a
+// sub-agent gets neither delegate (depth is one) nor ask_user (it reports
+// to its run, not to the team).
+func nativeAgentToolSpecsFor(depth int) []openai.ChatCompletionToolUnionParam {
+	all := nativeAgentToolSpecs()
+	if depth == 0 {
+		return all
+	}
+	out := make([]openai.ChatCompletionToolUnionParam, 0, len(all))
+	for _, t := range all {
+		if t.OfFunction != nil && (t.OfFunction.Function.Name == "delegate" || t.OfFunction.Function.Name == "ask_user") {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
+}
 
 func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 	return []openai.ChatCompletionToolUnionParam{
@@ -163,6 +234,31 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "ask_user",
+			Description: openai.String("Ask the team a question you cannot answer yourself (a decision, a missing fact, a permission). The run ends after this call; the goal loop waits for the answer and a follow-up run receives it. kind is text (free answer) or choice (pick one of options)."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"question": shared.FunctionParameters{"type": "string"},
+					"kind":     shared.FunctionParameters{"type": "string", "enum": []string{"text", "choice"}},
+					"options":  shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+				},
+				"required": []string{"question"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "delegate",
+			Description: openai.String("Hand one bounded piece of this task to a sub-agent with a fresh context: say exactly what to do and what to report. It runs with the same tools (minus delegate and ask_user), its own turn and time budget, and returns a report whose claims cite receipts [rN] of its tool calls; the result tells you which citations were verified. Up to 6 sub-agents per run, 3 at a time. Use it for independent reads or drafts, not for the decision that is yours."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"task":    shared.FunctionParameters{"type": "string"},
+					"context": shared.FunctionParameters{"type": "string"},
+				},
+				"required": []string{"task"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -199,11 +295,11 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeListIssues(ctx, tctx, args)
 	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note":
 		// Rule-of-Many: one run may only change workspace state so many
-		// times. Read-only tools stay free; a refusal tells the model to
-		// wrap up instead of looping.
-		tctx.effectful++
-		if tctx.effectful > nativeMaxEffectfulActions {
-			return nil, fmt.Errorf("this run's effectful-action budget (%d) is exhausted; stop changing the workspace and give your final answer", nativeMaxEffectfulActions)
+		// times, its sub-agents included. Read-only tools stay free; a
+		// refusal tells the model to wrap up instead of looping.
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, fmt.Errorf("this run's effectful-action budget is exhausted (%s); stop changing the workspace and give your final answer", reason)
 		}
 		switch name {
 		case "add_comment":
@@ -221,6 +317,10 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
+	case "ask_user":
+		return s.nativeAskUser(ctx, tctx, args)
+	case "delegate":
+		return s.nativeDelegate(ctx, tctx, args)
 	case "search_notes":
 		return s.nativeSearchNotes(ctx, tctx, args)
 	case "get_note":
@@ -355,6 +455,33 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
 }
 
+// nativeAskUser records a typed question for the team on the issue's goal
+// and closes the run: the goal loop turns it into a needs_user_input verdict,
+// raises the inbox item, and queues the follow-up run with the answer.
+func (s *NativeAgentService) nativeAskUser(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Goal == nil {
+		return nil, errors.New("the goal loop is not available on this server")
+	}
+	if tctx.issue == nil {
+		return nil, errors.New("ask_user needs the task's own issue")
+	}
+	q := goalstate.Question{}
+	q.Prompt, _ = args["question"].(string)
+	q.Kind, _ = args["kind"].(string)
+	if raw, ok := args["options"].([]any); ok {
+		for _, o := range raw {
+			if str, ok := o.(string); ok {
+				q.Options = append(q.Options, str)
+			}
+		}
+	}
+	if _, err := s.Goal.AskQuestion(ctx, tctx.task, q); err != nil {
+		return nil, err
+	}
+	tctx.requestWrapUp("you asked the team a question; the run stops here and a follow-up run will receive the answer")
+	return map[string]any{"asked": true, "note": "the question is on its way to the team; give your closing status now"}, nil
+}
+
 func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	issue, err := s.nativeResolveIssue(ctx, tctx, args)
 	if err != nil {
@@ -455,27 +582,7 @@ func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx *na
 		}
 		return map[string]any{"held": true, "request_id": util.UUIDToString(result.Request.ID), "from": issue.Status, "to": status, "note": "the move needs human approval; a request was filed and the status is unchanged until an approver decides"}, nil
 	default:
-		params := db.UpdateIssueParams{ID: issue.ID}
-		// Same bare-narg contract as update_issue: pre-fill every overwrite
-		// column from the current row, then set the new status.
-		params.Status = pgtype.Text{String: status, Valid: true}
-		params.Title = pgtype.Text{String: issue.Title, Valid: true}
-		if issue.Description.Valid {
-			params.Description = issue.Description
-		}
-		if issue.Priority != "" {
-			params.Priority = pgtype.Text{String: issue.Priority, Valid: true}
-		}
-		params.AssigneeType = issue.AssigneeType
-		params.AssigneeID = issue.AssigneeID
-		params.DelegateType = issue.DelegateType
-		params.DelegateID = issue.DelegateID
-		params.StartDate = issue.StartDate
-		params.DueDate = issue.DueDate
-		params.ParentIssueID = issue.ParentIssueID
-		params.ProjectID = issue.ProjectID
-		params.Stage = issue.Stage
-		updated, err := s.Queries.UpdateIssue(ctx, params)
+		updated, err := updateIssueStatusKeepingFields(ctx, s.Queries, issue, status)
 		if err != nil {
 			return nil, fmt.Errorf("transition failed: %w", err)
 		}

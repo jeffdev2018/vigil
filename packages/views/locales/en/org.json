@@ -57,6 +57,76 @@
     "replaces_existing": "Picking a template replaces the current structure “{{name}}” as a new revision.",
     "composite_title": "Hierarchy of teams"
   },
+  "wizard": {
+    "title": "Create an organisation",
+    "step": "Step {{n}} of {{total}}",
+    "back": "Back",
+    "next": "Next",
+    "cancel": "Cancel",
+    "purpose": {
+      "question": "What is this team here to do?",
+      "help": "One sentence. Its words name the structure and become what each unit picks up.",
+      "label": "In one sentence",
+      "placeholder": "Answer our customers' tickets within the day.",
+      "remaining": "{{count}} characters left",
+      "too_long": "{{count}} characters over the limit"
+    },
+    "flow": {
+      "question": "How does the work move?",
+      "decider": "When a request arrives, who decides in the end?",
+      "decider_one_person": "One person, always the same",
+      "decider_each_team": "Each team, for its own area",
+      "decider_topic_owner": "The owner of each topic",
+      "shape": "Teams by project, by role, or both?",
+      "shape_project": "By project",
+      "shape_role": "By role",
+      "shape_both": "Both",
+      "end": "A mission with an end?",
+      "compete": "Put the agents in competition?",
+      "yes": "Yes",
+      "no": "No",
+      "result": "Your model: {{model}}",
+      "pick_another": "Choose otherwise",
+      "catalog": "The seven structures",
+      "catalog_close": "Back to the questions"
+    },
+    "model_line": {
+      "hierarchy": "A clear chain: every team knows who to escalate to.",
+      "squads": "Each squad owns its area, its budget and its answer.",
+      "matrix": "Competence pools lend their people to the projects that need them.",
+      "circles": "Roles, not titles: each circle holds its own decisions.",
+      "owner_network": "Flat: one owner and one backup per topic.",
+      "taskforce": "A borrowed team with a stated end.",
+      "market": "Agents bid; the best offer under your price cap wins."
+    },
+    "template": {
+      "support": "Customer support",
+      "practice": "Practice",
+      "agency": "Agency",
+      "finance": "Direction and finance",
+      "research": "Research",
+      "generic": "Direction and team"
+    },
+    "people": {
+      "question": "Who is part of it?",
+      "help": "Everyone in this workspace, humans and agents.",
+      "template": "Units suggested for: {{template}}",
+      "unit_of": "Unit of {{name}}",
+      "empty": "No member or agent in this workspace yet."
+    },
+    "review": {
+      "question": "Your draft",
+      "model": "Model",
+      "name": "Name",
+      "unnamed": "Named after the model",
+      "members_one": "{{count}} member",
+      "members_other": "{{count}} members",
+      "open": "Open my draft",
+      "draft_note": "Nothing is activated: the draft opens in the chart so you can adjust it.",
+      "replaces_existing": "Opening the draft revises the current structure “{{name}}”.",
+      "error": "Could not create the structure"
+    }
+  },
   "form": {
     "name": "Name",
     "owner": "Human owner",
@@ -71,7 +141,8 @@
     "invalid_json": "Invalid JSON: {{error}}",
     "save": "Save",
     "saved": "Structure saved",
-    "error": "Could not save the structure"
+    "error": "Could not save the structure",
+    "advanced_json": "Advanced (JSON)"
   },
   "actions": {
     "activate": "Activate",
@@ -174,5 +245,112 @@
     "won": "Won",
     "lost": "Lost",
     "over_cap": "Over cap"
+  },
+  "canvas": {
+    "add_unit": "Add unit",
+    "new_unit_name": "New unit",
+    "undo": "Undo ({{count}})",
+    "hint": "Drag a member onto another unit, or a unit onto the one it reports to.",
+    "empty": "No unit yet. Add one to start.",
+    "layout_soon": "A layout of its own for {{model}} is coming; the diagram stands in meanwhile.",
+    "more_members": "+{{count}}",
+    "problem_count_one": "{{count}} thing to settle",
+    "problem_count_other": "{{count}} things to settle",
+    "no_selection": "Pick a unit to open its record.",
+    "json_broken": "The JSON below no longer parses; fix it to get the canvas back.",
+    "draft_recovered": "Draft rev. {{n}} recovered."
+  },
+  "tester": {
+    "title": "Test a request",
+    "request": "The request",
+    "placeholder": "Write it the way a customer or a colleague would.",
+    "basis_draft": "Against the draft, rev. {{n}}.",
+    "basis_unsaved": "Against the draft, rev. {{n}} (unsaved).",
+    "basis_active": "Against the active revision, rev. {{n}}.",
+    "examples": "Examples:",
+    "example_1": "My card was declined at checkout, three customers today already.",
+    "example_2": "Rotate the production database password before Friday.",
+    "from_issue": "Test with a real issue",
+    "picker_title": "Pick an issue",
+    "picker_description": "Its title, description and labels fill the request.",
+    "labels": "Labels:",
+    "submit": "Test",
+    "running": "Testing…",
+    "empty": "Nothing tested yet. Write a request and run it against the chart above.",
+    "receives": "Receives",
+    "prepares": "Prepares",
+    "decides": "Decides",
+    "escalates": "Escalates to",
+    "blocked": "Blocked by",
+    "blocked_none": "Nothing this unit refuses.",
+    "blocked_consequence": "the request will be escalated with its context; this unit will not carry it out.",
+    "cost": "Estimated cost",
+    "notes": "Notes",
+    "root": "— (root)",
+    "nobody": "Nobody",
+    "no_unit": "No unit takes this request.",
+    "open_unit": "Show {{name}} on the chart",
+    "kind": {
+      "agent": "agent",
+      "member": "member",
+      "squad": "squad"
+    },
+    "error": "The test failed",
+    "error_invalid": "The definition on the canvas is not valid, so nothing was tested: {{error}}. Settle the problems listed beside the chart first."
+  },
+  "problem": {
+    "unit_name_required": "Every unit needs an id and a name.",
+    "duplicate_unit_id": "The id “{{id}}” is used by two units.",
+    "taskforce_unit_model": "“{{unit}}”: a task force is a structure, not a unit.",
+    "hierarchy_roots": "A hierarchy has exactly one unit reporting to nobody; there are {{count}}.",
+    "autonomy_over_trust": "“{{unit}}” grants {{autonomy}} but {{agent}}'s trust dial stops at {{trust}}.",
+    "rule_of_two_unit": "“{{unit}}” holds untrusted input, sensitive data and external effects at once: a human approval will be required.",
+    "rule_of_two_edge": "{{from}} → {{to}} cumulates the three exposures: a human approval will be required on that link.",
+    "deciders_missing": "“{{unit}}” has external effects: name who decides on {{classes}}.",
+    "committee_termination": "Committee “{{decision}}”: set a quorum between 1 and {{max}} and at least one round.",
+    "market_price_cap": "A market needs the human price cap.",
+    "squads_needs_agents": "“{{unit}}” runs as a squad: give it a squad or agent members.",
+    "circles_needs_role": "“{{unit}}” runs as circles: give it at least one role."
+  },
+  "unit": {
+    "title": "Unit record",
+    "close": "Close the record",
+    "remove_unit": "Delete this unit",
+    "name": "Name",
+    "mission": "Mission",
+    "mission_none": "No goal",
+    "own_mission": "Its mission",
+    "own_mission_placeholder": "What this unit is here to do.",
+    "trust": "Trust dial",
+    "trust_level": {
+      "read_only": "Reads only",
+      "draft": "Prepares drafts",
+      "approve_payload": "Acts once approved",
+      "auto": "Acts alone within its limits"
+    },
+    "allow": "Decides alone",
+    "deny": "Never does",
+    "verb_placeholder": "A verb, e.g. merge",
+    "add": "Add",
+    "remove": "Remove {{item}}",
+    "locked_reason": "Multica refuses this everywhere; a structure cannot grant it.",
+    "properties": "What it handles",
+    "property": {
+      "untrusted_input": "Untrusted input",
+      "sensitive_data": "Sensitive data and secrets",
+      "external_effects": "External effects"
+    },
+    "human_approval": "A human approves before it acts",
+    "deciders": "Who decides",
+    "decider": {
+      "money": "Money",
+      "outbound_data": "Outbound data",
+      "external_message": "External message"
+    },
+    "decider_none": "Nobody yet",
+    "budget": "Budget (USD ticks)",
+    "members": "Members",
+    "no_members": "No member yet.",
+    "move_to": "Move {{name}} to another unit"
   }
 }

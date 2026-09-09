@@ -37,6 +37,7 @@
     "tasks",
     "daemon-runtimes",
     "native-runtime",
+    "mcp-server",
     "install-agent-runtime",
     "providers",
     "---Automation---",

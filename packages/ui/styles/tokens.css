@@ -219,6 +219,18 @@
     --find-match: oklch(0.92 0.15 100);
     --find-match-active: oklch(0.82 0.17 62);
     --find-match-foreground: oklch(0.22 0.03 92);
+    /* Org canvas: one tint per organisation model, painted as the left rule of
+       a unit card. Seven hues spread around the wheel so two models never read
+       as the same card at a glance; brand blue stays with hierarchy, the
+       default model. Chroma is kept moderate because the tint is a 3px rule
+       next to body text, not a fill. */
+    --org-hierarchy: oklch(0.55 0.16 255);
+    --org-squads: oklch(0.58 0.15 155);
+    --org-matrix: oklch(0.58 0.14 305);
+    --org-circles: oklch(0.60 0.14 195);
+    --org-owner-network: oklch(0.60 0.15 35);
+    --org-taskforce: oklch(0.62 0.15 85);
+    --org-market: oklch(0.56 0.16 350);
 }
 
 .dark {
@@ -286,4 +298,12 @@
     --find-match: oklch(0.82 0.16 100);
     --find-match-active: oklch(0.76 0.18 60);
     --find-match-foreground: oklch(0.18 0.02 92);
+    /* Same hues, lifted so a thin rule still separates from the dark canvas. */
+    --org-hierarchy: oklch(0.70 0.15 255);
+    --org-squads: oklch(0.72 0.14 155);
+    --org-matrix: oklch(0.72 0.13 305);
+    --org-circles: oklch(0.74 0.13 195);
+    --org-owner-network: oklch(0.72 0.14 35);
+    --org-taskforce: oklch(0.76 0.14 85);
+    --org-market: oklch(0.70 0.15 350);
 }

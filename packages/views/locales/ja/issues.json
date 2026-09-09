@@ -691,7 +691,9 @@
       "shard": "シャード",
       "eval": "評価",
       "escalation": "エスカレーション",
-      "other": "工程"
+      "other": "工程",
+      "continuation": "継続",
+      "subagent": "サブエージェント"
     }
   },
   "usage_detail": {
@@ -1482,6 +1484,75 @@
       "reopen": "再オープン",
       "ask_proof": "証拠を要求",
       "none": "アクションなし"
+    }
+  },
+  "goal_loop": {
+    "section": "ゴール",
+    "intro": "このエージェントに、複数回の実行にわたって目指すゴールを設定します。",
+    "goal_label": "ゴール",
+    "goal_placeholder": "このイシューで達成すべきことは？",
+    "max_continuations": "最大継続回数",
+    "save": "ゴールを保存",
+    "cancel": "キャンセル",
+    "edit": "編集",
+    "save_failed": "ゴールを保存できませんでした",
+    "saved": "ゴールを保存しました",
+    "pause": "一時停止",
+    "resume": "再開",
+    "pause_failed": "ゴールを一時停止できませんでした",
+    "resume_failed": "ゴールを再開できませんでした",
+    "paused": "ゴールを一時停止しました",
+    "resumed": "ゴールを再開しました",
+    "continuation_progress": "継続 {{n}} / {{max}}",
+    "blocker": "妨げ",
+    "reason": "理由",
+    "next_step": "次のステップ",
+    "evidence": "根拠",
+    "evidence_show_all": "すべて表示（{{count}}件）",
+    "evidence_collapse": "折りたたむ",
+    "status": {
+      "active": "進行中",
+      "paused": "一時停止中",
+      "waiting_user": "回答待ち",
+      "satisfied": "ゴール達成",
+      "stopped": "停止"
+    },
+    "outcomes": {
+      "none": "まだ結果なし",
+      "satisfied": "達成",
+      "continued": "継続",
+      "stopped_exhausted": "継続回数の上限に達した",
+      "stopped_stagnation": "進展なく行き詰まった",
+      "stopped_needs_user_input": "あなたの回答が必要",
+      "stopped_external_wait": "外部要因を待機中",
+      "stopped_run_failed": "実行が失敗した",
+      "stopped_judge_unavailable": "判定が利用できなかった",
+      "stopped_paused": "一時停止",
+      "stopped_issue_changed": "イシューが変更された",
+      "stopped_unknown": "停止",
+      "other": "不明な結果"
+    },
+    "badge": {
+      "continued": "ゴール：継続 {{n}}/{{max}}",
+      "satisfied": "ゴール達成",
+      "waiting": "ゴール：回答待ち",
+      "stopped": "ゴール：停止（{{reason}}）"
+    },
+    "question": {
+      "answer_placeholder": "回答を入力…",
+      "answer": "回答する",
+      "answer_failed": "回答を送信できませんでした",
+      "answered": "回答を送信しました",
+      "answered_line": "{{when}}に回答済み",
+      "answered_by_line": "{{by}}が{{when}}に回答済み"
+    },
+    "blockers": {
+      "goal_not_met_yet": "ゴール未達成",
+      "missing_evidence": "証拠が不足",
+      "needs_user_input": "あなたの回答が必要",
+      "external_wait": "外部の要素を待機中",
+      "run_failed": "実行が失敗",
+      "other": "その他"
     }
   },
   "eval_promote": {

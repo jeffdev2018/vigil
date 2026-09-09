@@ -58,6 +58,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { legKeys, type WorkflowLegs } from "@multica/core/issues/legs";
+import { goalKeys } from "@multica/core/issues/goal-loop";
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -587,6 +588,21 @@ describe("workflow legs", () => {
     expect(screen.queryByText("Draft")).toBeNull();
   });
 
+  it("labels a goal-loop continuation leg", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+      makeTask({ id: "task-2", status: "completed", completed_at: "2026-06-08T08:05:00Z", leg_role: "continuation", workflow_root_task_id: "task-1" }),
+    ]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (2)" }));
+    expect(screen.getByText("Continuation")).toBeInTheDocument();
+  });
+
   it("totals the whole workflow, every leg counted", () => {
     renderLog(legs());
     expect(screen.getByText("Workflow")).toBeInTheDocument();
@@ -602,5 +618,57 @@ describe("workflow legs", () => {
   it("renders no summary before the workflow has loaded", () => {
     renderLog();
     expect(screen.queryByText("Workflow")).toBeNull();
+  });
+});
+
+// Goal loop: a past run's contribution to the issue's goal, badged next to
+// LegBadge/OffPeakBadge. The outcome parsing and label-key mapping are pinned
+// in packages/core/issues/goal-loop.test.ts; this covers the row wiring.
+describe("goal loop badge", () => {
+  function renderLogWithGoal(task: AgentTask, goalOver: Partial<import("@multica/core/types").IssueGoal> = {}) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [task]);
+    qc.setQueryData(goalKeys.issue("ws-1", "issue-1"), {
+      id: "g1", issue_id: "issue-1", goal: "Ship it", status: "active", continuation: 2,
+      max_continuations: 8, no_progress: 0, last_outcome: "", evidence: [], set_by_type: "member",
+      updated_at: "2026-06-08T08:00:00Z", ...goalOver,
+    });
+    return renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+  }
+
+  it("badges a continuing run with its progress against the issue's max continuations", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 2, outcome: "continued" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.getByText("Goal: continued 2/8")).toBeInTheDocument();
+  });
+
+  it("badges the run that satisfied the goal", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 3, outcome: "satisfied" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.getByText("Goal met")).toBeInTheDocument();
+  });
+
+  it("badges the run that stopped needing the human, with the reason as its title", () => {
+    renderLogWithGoal(
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z", result: { goal_loop: { continuation: 3, outcome: "stopped:needs_user_input", reason: "unclear target env" } } }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    const badge = screen.getByText("Goal: waiting for answer");
+    expect(badge).toBeInTheDocument();
+    expect(badge.getAttribute("title")).toBe("unclear target env");
+  });
+
+  it("shows no badge for a run with no goal_loop verdict", () => {
+    renderLogWithGoal(makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }));
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+    expect(screen.queryByText(/^Goal/)).toBeNull();
   });
 });

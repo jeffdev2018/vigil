@@ -54,6 +54,75 @@
     "replaces_existing": "选择模板会以新修订版替换当前结构“{{name}}”。",
     "composite_title": "团队层级"
   },
+  "wizard": {
+    "title": "创建组织",
+    "step": "第 {{n}} 步，共 {{total}} 步",
+    "back": "上一步",
+    "next": "下一步",
+    "cancel": "取消",
+    "purpose": {
+      "question": "这个团队要完成什么？",
+      "help": "一句话。这些词用来命名结构，也决定每个单元接手什么。",
+      "label": "用一句话说明",
+      "placeholder": "当天回复客户的工单。",
+      "remaining": "还可输入 {{count}} 个字符",
+      "too_long": "超出 {{count}} 个字符"
+    },
+    "flow": {
+      "question": "工作如何流转？",
+      "decider": "请求到达时，最终由谁决定？",
+      "decider_one_person": "固定的一个人",
+      "decider_each_team": "各团队负责自己的领域",
+      "decider_topic_owner": "每个主题的负责人",
+      "shape": "按项目分组、按角色分组，还是两者都要？",
+      "shape_project": "按项目",
+      "shape_role": "按角色",
+      "shape_both": "两者都要",
+      "end": "这是有终点的任务吗？",
+      "compete": "让智能体相互竞争吗？",
+      "yes": "是",
+      "no": "否",
+      "result": "你的模型：{{model}}",
+      "pick_another": "换一种选择",
+      "catalog": "七种结构",
+      "catalog_close": "返回问题"
+    },
+    "model_line": {
+      "hierarchy": "一条清晰的链条：每个团队都知道向谁上报。",
+      "squads": "每个小队掌握自己的领域、预算和结论。",
+      "matrix": "能力池把成员借给需要的项目。",
+      "circles": "看角色而非头衔：每个圈子自己做决定。",
+      "owner_network": "扁平：每个主题一个负责人和一个替补。",
+      "taskforce": "借调组成的团队，有明确的结束条件。",
+      "market": "智能体报价；价格上限内最好的报价胜出。"
+    },
+    "template": {
+      "support": "客户支持",
+      "practice": "事务所",
+      "agency": "代理机构",
+      "finance": "管理层与财务",
+      "research": "研究",
+      "generic": "管理层与团队"
+    },
+    "people": {
+      "question": "谁参与其中？",
+      "help": "这个工作区里的所有人，包括成员和智能体。",
+      "template": "为「{{template}}」建议的单元",
+      "unit_of": "{{name}} 所属的单元",
+      "empty": "此工作区还没有成员或智能体。"
+    },
+    "review": {
+      "question": "你的草稿",
+      "model": "模型",
+      "name": "名称",
+      "unnamed": "按模型命名",
+      "members_other": "{{count}} 名成员",
+      "open": "打开我的草稿",
+      "draft_note": "什么都还没启用：草稿会在组织图中打开，方便你调整。",
+      "replaces_existing": "打开草稿会把当前结构“{{name}}”改为新版本。",
+      "error": "无法创建结构"
+    }
+  },
   "form": {
     "name": "名称",
     "owner": "人类负责人",
@@ -68,7 +137,8 @@
     "invalid_json": "JSON 无效：{{error}}",
     "save": "保存",
     "saved": "结构已保存",
-    "error": "无法保存结构"
+    "error": "无法保存结构",
+    "advanced_json": "高级（JSON）"
   },
   "actions": {
     "activate": "启用",
@@ -171,5 +241,111 @@
     "won": "中标",
     "lost": "落选",
     "over_cap": "超出上限"
+  },
+  "canvas": {
+    "add_unit": "添加单元",
+    "new_unit_name": "新单元",
+    "undo": "撤销（{{count}}）",
+    "hint": "把成员拖到另一个单元，或把一个单元拖到它汇报的单元上。",
+    "empty": "还没有单元。先添加一个。",
+    "layout_soon": "{{model}} 的专属布局正在开发中，暂时用图表代替。",
+    "more_members": "+{{count}}",
+    "problem_count_other": "{{count}} 项待处理",
+    "no_selection": "选择一个单元即可打开它的档案。",
+    "json_broken": "下面的 JSON 已无法解析，修好后画布会回来。",
+    "draft_recovered": "已恢复草稿 rev. {{n}}。"
+  },
+  "tester": {
+    "title": "试一条请求",
+    "request": "请求",
+    "placeholder": "按客户或同事的写法写。",
+    "basis_draft": "针对草稿 rev. {{n}}。",
+    "basis_unsaved": "针对草稿 rev. {{n}}（未保存）。",
+    "basis_active": "针对生效的修订 rev. {{n}}。",
+    "examples": "示例：",
+    "example_1": "结账时银行卡被拒，今天已经第三位客户了。",
+    "example_2": "周五之前更换生产数据库的密码。",
+    "from_issue": "用真实任务来试",
+    "picker_title": "选择一个任务",
+    "picker_description": "它的标题、描述和标签会填进请求。",
+    "labels": "标签：",
+    "submit": "试一下",
+    "running": "正在试…",
+    "empty": "还没试过。写一条请求，让它走一遍上面的组织图。",
+    "receives": "谁接手",
+    "prepares": "谁来做",
+    "decides": "谁拍板",
+    "escalates": "上报给",
+    "blocked": "被什么挡住",
+    "blocked_none": "这个单元没有拒绝的事项。",
+    "blocked_consequence": "请求会连同上下文一起上报，这个单元不会执行它。",
+    "cost": "预计成本",
+    "notes": "说明",
+    "root": "—（顶层）",
+    "nobody": "无",
+    "no_unit": "没有单元接手这条请求。",
+    "open_unit": "在组织图上显示 {{name}}",
+    "kind": {
+      "agent": "智能体",
+      "member": "成员",
+      "squad": "小队"
+    },
+    "error": "试运行失败",
+    "error_invalid": "画布上的定义不合法，什么也没试成：{{error}}。请先解决组织图旁列出的问题。"
+  },
+  "problem": {
+    "unit_name_required": "每个单元都需要 id 和名称。",
+    "duplicate_unit_id": "id“{{id}}”被两个单元同时使用。",
+    "taskforce_unit_model": "“{{unit}}”：taskforce 是结构的模型，不是单元的模型。",
+    "hierarchy_roots": "层级结构中不向任何人汇报的单元只能有一个，现在有 {{count}} 个。",
+    "autonomy_over_trust": "“{{unit}}”授予 {{autonomy}}，但 {{agent}} 的信任档位只到 {{trust}}。",
+    "rule_of_two_unit": "“{{unit}}”同时持有不可信输入、敏感数据和外部影响：将需要人工审批。",
+    "rule_of_two_edge": "{{from}} → {{to}} 累计了三种暴露：该链路将需要人工审批。",
+    "deciders_missing": "“{{unit}}”具有外部影响：请指定 {{classes}} 的决策人。",
+    "committee_termination": "委员会“{{decision}}”：法定人数请设在 1 到 {{max}} 之间，轮次至少 1 轮。",
+    "market_price_cap": "内部市场需要由人设定价格上限。",
+    "squads_needs_agents": "“{{unit}}”以 squads 运行：请为它指定 squad 或智能体成员。",
+    "circles_needs_role": "“{{unit}}”以 circles 运行：请至少指定一个角色。"
+  },
+  "unit": {
+    "title": "单元档案",
+    "close": "关闭档案",
+    "remove_unit": "删除该单元",
+    "name": "名称",
+    "mission": "使命",
+    "mission_none": "无目标",
+    "own_mission": "它的使命",
+    "own_mission_placeholder": "这个单元要做的事。",
+    "trust": "信任档位",
+    "trust_level": {
+      "read_only": "只读取",
+      "draft": "只准备草稿",
+      "approve_payload": "经批准后行动",
+      "auto": "在限定范围内自行行动"
+    },
+    "allow": "可自行决定",
+    "deny": "绝不做的事",
+    "verb_placeholder": "一个动词，例如 merge",
+    "add": "添加",
+    "remove": "移除 {{item}}",
+    "locked_reason": "Multica 在任何地方都拒绝它，结构无法授予。",
+    "properties": "它处理什么",
+    "property": {
+      "untrusted_input": "不可信输入",
+      "sensitive_data": "敏感数据与密钥",
+      "external_effects": "外部影响"
+    },
+    "human_approval": "行动前由人审批",
+    "deciders": "谁来决定",
+    "decider": {
+      "money": "资金",
+      "outbound_data": "外发数据",
+      "external_message": "外部消息"
+    },
+    "decider_none": "暂无",
+    "budget": "预算（USD ticks）",
+    "members": "成员",
+    "no_members": "还没有成员。",
+    "move_to": "把 {{name}} 移到其他单元"
   }
 }

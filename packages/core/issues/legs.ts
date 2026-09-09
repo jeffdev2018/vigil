@@ -76,6 +76,8 @@ const KNOWN_LEG_ROLES = new Set([
   "shard",
   "eval",
   "escalation",
+  "continuation",
+  "subagent",
 ]);
 
 export function legRoleLabelKey(role: string): string {

@@ -492,6 +492,7 @@ type OrgContext struct {
 	RevisionID     string   `json:"revision_id"`
 	UnitID         string   `json:"unit_id,omitempty"`
 	UnitName       string   `json:"unit_name,omitempty"`
+	UnitMission    string   `json:"unit_mission,omitempty"`
 	UnitModel      string   `json:"unit_model,omitempty"`
 	Autonomy       string   `json:"autonomy,omitempty"`
 	Allow          []string `json:"allow,omitempty"`
@@ -517,26 +518,10 @@ func (h *Handler) resolveClaimOrgContext(ctx context.Context, issue db.Issue, ag
 	}
 	if unit != nil {
 		out.UnitID, out.UnitName, out.Autonomy, out.Allow, out.Deny = unit.ID, unit.Name, unit.Autonomy, unit.Allow, unit.Deny
+		out.UnitMission = unit.Mission
 		out.UnitModel = orgEffectiveModel(&def, unit.ID, s.Model)
-		seen := map[string]bool{unit.ID: true}
-		for cur := unit; cur != nil; {
-			var next *OrgUnit
-			for _, kind := range []string{"escalates_to", "reports_to"} {
-				for _, e := range def.Edges {
-					if e.From == cur.ID && e.Kind == kind && !seen[e.To] {
-						next = def.unit(e.To)
-					}
-				}
-				if next != nil {
-					break
-				}
-			}
-			if next == nil {
-				break
-			}
-			seen[next.ID] = true
-			out.EscalationPath = append(out.EscalationPath, next.Name)
-			cur = next
+		for _, up := range orgEscalationChain(&def, unit) {
+			out.EscalationPath = append(out.EscalationPath, up.Name)
 		}
 	}
 	return out

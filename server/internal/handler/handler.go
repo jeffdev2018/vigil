@@ -244,6 +244,13 @@ type Handler struct {
 	// NativeAgents runs the in-server agent runtime (tool-calling loop over
 	// the internal LLM layer). Driven by the native_agent_tick scheduler job.
 	NativeAgents *service.NativeAgentService
+	// GoalLoop judges settled issue runs and drives the continuation chain
+	// (long tasks). Shared by the native runtime and the daemon path.
+	GoalLoop *service.GoalLoopService
+	// internalRouter is the server's own router, handed over once built, so
+	// the MCP server can dispatch a tool call to the handler that owns the
+	// operation.
+	internalRouter http.Handler
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
@@ -587,6 +594,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		PluginService:                service.NewPluginService(queries, txStarter),
 		IssueService:                 issueSvc,
 		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
+		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
 		UpdateStore:                  NewInMemoryUpdateStore(),
@@ -613,6 +621,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		TTS: tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
 		cfg: cfg,
 	}
+	h.NativeAgents.Goal = h.GoalLoop
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
 	// The default passthrough scheduler reports sweeper-race recoveries so the
 	// daemon:register refresh fires even without the production batched wiring.

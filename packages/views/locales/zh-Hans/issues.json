@@ -691,7 +691,9 @@
       "shard": "分片",
       "eval": "评测",
       "escalation": "升级",
-      "other": "环节"
+      "other": "环节",
+      "continuation": "延续",
+      "subagent": "子智能体"
     }
   },
   "usage_detail": {
@@ -1482,6 +1484,75 @@
       "reopen": "重新打开",
       "ask_proof": "要求证据",
       "none": "无操作"
+    }
+  },
+  "goal_loop": {
+    "section": "目标",
+    "intro": "为该智能体设定一个目标，让它在多次运行中持续追求。",
+    "goal_label": "目标",
+    "goal_placeholder": "这个议题应该达成什么？",
+    "max_continuations": "最大延续次数",
+    "save": "保存目标",
+    "cancel": "取消",
+    "edit": "编辑",
+    "save_failed": "无法保存目标",
+    "saved": "目标已保存",
+    "pause": "暂停",
+    "resume": "恢复",
+    "pause_failed": "无法暂停目标",
+    "resume_failed": "无法恢复目标",
+    "paused": "目标已暂停",
+    "resumed": "目标已恢复",
+    "continuation_progress": "延续 {{n}} / {{max}}",
+    "blocker": "阻碍",
+    "reason": "原因",
+    "next_step": "下一步",
+    "evidence": "证据",
+    "evidence_show_all": "显示全部（{{count}}）",
+    "evidence_collapse": "收起",
+    "status": {
+      "active": "进行中",
+      "paused": "已暂停",
+      "waiting_user": "等待回答",
+      "satisfied": "目标已达成",
+      "stopped": "已停止"
+    },
+    "outcomes": {
+      "none": "尚无结果",
+      "satisfied": "已达成",
+      "continued": "已延续",
+      "stopped_exhausted": "延续次数已用尽",
+      "stopped_stagnation": "停滞——没有进展",
+      "stopped_needs_user_input": "需要你的回答",
+      "stopped_external_wait": "正在等待外部条件",
+      "stopped_run_failed": "运行失败",
+      "stopped_judge_unavailable": "裁判不可用",
+      "stopped_paused": "已暂停",
+      "stopped_issue_changed": "议题已变更",
+      "stopped_unknown": "已停止",
+      "other": "未知结果"
+    },
+    "badge": {
+      "continued": "目标：已延续 {{n}}/{{max}}",
+      "satisfied": "目标已达成",
+      "waiting": "目标：等待回答",
+      "stopped": "目标：已停止（{{reason}}）"
+    },
+    "question": {
+      "answer_placeholder": "输入你的回答…",
+      "answer": "回答",
+      "answer_failed": "无法发送回答",
+      "answered": "回答已发送",
+      "answered_line": "已于 {{when}} 回答",
+      "answered_by_line": "{{by}} 已于 {{when}} 回答"
+    },
+    "blockers": {
+      "goal_not_met_yet": "目标尚未达成",
+      "missing_evidence": "缺少证据",
+      "needs_user_input": "需要你的回答",
+      "external_wait": "等待外部因素",
+      "run_failed": "运行失败",
+      "other": "其他"
     }
   },
   "eval_promote": {

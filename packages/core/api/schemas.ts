@@ -5931,6 +5931,44 @@ export const WatchdogVerdictListSchema = z.object({ verdicts: z.array(WatchdogVe
 export const WatchdogScanResultSchema = z.object({ task_id: z.string().default("") }).loose();
 export const WatchdogVerdictEnvelopeSchema = z.object({ verdict: WatchdogVerdictSchema }).loose();
 
+// Goal loop: an agent works one issue toward a stated goal across bounded
+// continuations. Named IssueGoal* to stay clear of the unrelated K74
+// workspace-mission GoalSchema above.
+const IssueGoalQuestionSchema = z.object({
+  kind: z.enum(["text", "choice"]).catch("text").default("text"),
+  prompt: z.string().catch("").default(""),
+  options: z.array(z.string()).optional().catch(undefined),
+  run_id: z.string().catch("").default(""),
+  asked_at: z.string().catch("").default(""),
+  answer: z.string().optional().catch(undefined),
+  answered_by: z.string().optional().catch(undefined),
+  answered_by_name: z.string().optional().catch(undefined),
+  answered_at: z.string().optional().catch(undefined),
+}).loose();
+
+export const IssueGoalSchema = z.object({
+  id: z.string().catch("").default(""),
+  issue_id: z.string().catch("").default(""),
+  goal: z.string().catch("").default(""),
+  status: z.enum(["active", "paused", "waiting_user", "satisfied", "stopped"]).catch("active").default("active"),
+  continuation: z.number().catch(0).default(0),
+  max_continuations: z.number().catch(1).default(1),
+  no_progress: z.number().catch(0).default(0),
+  last_outcome: z.string().catch("").default(""),
+  last_blocker: z.string().optional().catch(undefined),
+  last_reason: z.string().optional().catch(undefined),
+  next_step: z.string().optional().catch(undefined),
+  evidence: z.array(z.string()).catch([]).default([]),
+  question: IssueGoalQuestionSchema.optional().catch(undefined),
+  last_run_id: z.string().optional().catch(undefined),
+  chain_root_task_id: z.string().optional().catch(undefined),
+  done_request_id: z.string().optional().catch(undefined),
+  set_by_type: z.enum(["member", "agent", "system"]).catch("system").default("system"),
+  updated_at: z.string().catch("").default(""),
+}).loose();
+
+export const IssueGoalEnvelopeSchema = z.object({ goal: IssueGoalSchema.nullable().catch(null).default(null) }).loose();
+
 // Vigil learns you (K71).
 export const WorkProfileObservationSchema = z.object({
   id: z.string().default(""),
@@ -6211,6 +6249,25 @@ export const OrgOfferListSchema = z.object({
   offers: z.array(z.object({ id: z.string(), agent_id: z.string().catch(""), agent_name: z.string().catch(""), confidence: z.number().catch(0), cost_usd_ticks: z.number().catch(0), eta_hours: z.number().catch(0), status: z.enum(["pending", "won", "lost", "over_cap"]).catch("pending"), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgResolveSchema = z.object({ structure: OrgStructureSchema.nullable().catch(null) }).loose();
+const OrgSimulationRefSchema = z.object({ unit_id: z.string().catch(""), unit_name: z.string().catch("") }).loose();
+const OrgSimulationActorSchema = z.object({ kind: z.enum(["agent", "member", "squad", "none"]).catch("none"), id: z.string().catch(""), name: z.string().catch("") }).loose();
+// A simulation is shown as an answer, not merged into a list, so the three
+// fields that carry its meaning stay required: a payload missing them is
+// rejected outright (client.ts throws) rather than rendered as a confident
+// "nobody prepares this, against no basis".
+export const OrgSimulationSchema = z.object({
+  basis: z.enum(["draft", "revision"]),
+  structure_id: z.string().catch(""),
+  revision: z.number().catch(0),
+  unit: z.object({ id: z.string().catch(""), name: z.string().catch(""), model: z.string().catch(""), autonomy: z.string().catch("") }).loose().nullable().catch(null).default(null),
+  receives: OrgSimulationRefSchema.nullable().catch(null).default(null),
+  prepares: OrgSimulationActorSchema,
+  decides: OrgSimulationActorSchema,
+  escalation_path: z.array(OrgSimulationRefSchema).catch([]).default([]),
+  blocking_denies: z.array(z.string()).catch([]).default([]),
+  cost_estimate_usd_ticks: z.number().catch(0),
+  notes: z.array(z.string()).catch([]).default([]),
+}).loose();
 export const IssueEnvelopeSchema = z.object({ issue: IssueSchema.nullable().catch(null) }).loose();
 
 // Workspace export / import (K76).

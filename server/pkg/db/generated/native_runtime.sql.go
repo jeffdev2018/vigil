@@ -11,6 +11,135 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createSubagentTask = `-- name: CreateSubagentTask :one
+INSERT INTO agent_task_queue (
+    id, agent_id, issue_id, status, priority, runtime_id, dispatched_at, started_at,
+    trigger_summary, leg_role, workflow_root_task_id, delegated_from_task_id,
+    accountable_user_id, originator_user_id
+)
+VALUES ($1, $2, $3, 'running', 0, $4, now(), now(), $5, 'subagent', $6, $7, $8, $9)
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context
+`
+
+type CreateSubagentTaskParams struct {
+	ID                  pgtype.UUID `json:"id"`
+	AgentID             pgtype.UUID `json:"agent_id"`
+	IssueID             pgtype.UUID `json:"issue_id"`
+	RuntimeID           pgtype.UUID `json:"runtime_id"`
+	TriggerSummary      pgtype.Text `json:"trigger_summary"`
+	WorkflowRootTaskID  pgtype.UUID `json:"workflow_root_task_id"`
+	DelegatedFromTaskID pgtype.UUID `json:"delegated_from_task_id"`
+	AccountableUserID   pgtype.UUID `json:"accountable_user_id"`
+	OriginatorUserID    pgtype.UUID `json:"originator_user_id"`
+}
+
+// Sub-agent runs (long tasks, brick 5): a native run delegates a bounded
+// piece of work to an isolated in-process loop. The sub-run is its own task
+// row so its transcript, usage and cost land where every run's do, as a
+// 'subagent' leg of the parent's workflow. It never waits in the queue: it
+// starts running the moment the parent asks and is settled by the parent.
+func (q *Queries) CreateSubagentTask(ctx context.Context, arg CreateSubagentTaskParams) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, createSubagentTask,
+		arg.ID,
+		arg.AgentID,
+		arg.IssueID,
+		arg.RuntimeID,
+		arg.TriggerSummary,
+		arg.WorkflowRootTaskID,
+		arg.DelegatedFromTaskID,
+		arg.AccountableUserID,
+		arg.OriginatorUserID,
+	)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.LastActivityAt,
+		&i.PermissionProfileID,
+		&i.FailoverHistory,
+		&i.RoutingDecision,
+		&i.PauseRequestedAt,
+		&i.ResumedByTaskID,
+		&i.LastCheckpointSeq,
+		&i.CheckpointAttempts,
+		&i.CheckpointedAt,
+		&i.TouchedPaths,
+		&i.DriftReason,
+		&i.PreemptedAt,
+		&i.PreemptedByTaskID,
+		&i.ReviewOfTaskID,
+		&i.TaskClass,
+		&i.Routing,
+		&i.SafeMode,
+		&i.ModelKeyID,
+		&i.Confidence,
+		&i.LegRole,
+		&i.WorkflowRootTaskID,
+		&i.DispatchLane,
+		&i.CheckpointSha,
+		&i.TurnSeq,
+		&i.A2aDepth,
+		&i.RunGroupID,
+		&i.ModelOverride,
+		&i.DiffStat,
+		&i.DiffUnified,
+		&i.MemoryContext,
+	)
+	return i, err
+}
+
 const heartbeatNativeRuntimes = `-- name: HeartbeatNativeRuntimes :execrows
 UPDATE agent_runtime
 SET last_seen_at = now(), status = 'online', updated_at = now()
@@ -147,4 +276,115 @@ func (q *Queries) SeedNativeRuntimes(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const settleSubagentTask = `-- name: SettleSubagentTask :one
+UPDATE agent_task_queue
+SET status = $2, result = $3, error = $4, completed_at = now()
+WHERE id = $1
+RETURNING id, agent_id, issue_id, status, priority, dispatched_at, started_at, completed_at, result, error, created_at, context, runtime_id, session_id, work_dir, trigger_comment_id, chat_session_id, autopilot_run_id, attempt, max_attempts, parent_task_id, failure_reason, trigger_summary, force_fresh_session, is_leader_task, wait_reason, initiator_user_id, handoff_note, prepare_lease_expires_at, squad_id, runtime_mcp_overlay, escalation_for_task_id, fire_at, originator_user_id, runtime_connected_apps, coalesced_comment_ids, delivered_comment_ids, chat_input_task_id, chat_finalize_deferred_at, originator_source, delegated_from_task_id, retry_of_task_id, rerun_of_task_id, rule_version_id, trigger_evidence_kind, trigger_evidence_ref_id, accountable_user_id, session_rollout_missing, retired_session_id, quick_actions_disabled, regenerate_quick_actions_for, branch_name, durable_work_dir, channel_context_revision, last_activity_at, permission_profile_id, failover_history, routing_decision, pause_requested_at, resumed_by_task_id, last_checkpoint_seq, checkpoint_attempts, checkpointed_at, touched_paths, drift_reason, preempted_at, preempted_by_task_id, review_of_task_id, task_class, routing, safe_mode, model_key_id, confidence, leg_role, workflow_root_task_id, dispatch_lane, checkpoint_sha, turn_seq, a2a_depth, run_group_id, model_override, diff_stat, diff_unified, memory_context
+`
+
+type SettleSubagentTaskParams struct {
+	ID     pgtype.UUID `json:"id"`
+	Status string      `json:"status"`
+	Result []byte      `json:"result"`
+	Error  pgtype.Text `json:"error"`
+}
+
+func (q *Queries) SettleSubagentTask(ctx context.Context, arg SettleSubagentTaskParams) (AgentTaskQueue, error) {
+	row := q.db.QueryRow(ctx, settleSubagentTask,
+		arg.ID,
+		arg.Status,
+		arg.Result,
+		arg.Error,
+	)
+	var i AgentTaskQueue
+	err := row.Scan(
+		&i.ID,
+		&i.AgentID,
+		&i.IssueID,
+		&i.Status,
+		&i.Priority,
+		&i.DispatchedAt,
+		&i.StartedAt,
+		&i.CompletedAt,
+		&i.Result,
+		&i.Error,
+		&i.CreatedAt,
+		&i.Context,
+		&i.RuntimeID,
+		&i.SessionID,
+		&i.WorkDir,
+		&i.TriggerCommentID,
+		&i.ChatSessionID,
+		&i.AutopilotRunID,
+		&i.Attempt,
+		&i.MaxAttempts,
+		&i.ParentTaskID,
+		&i.FailureReason,
+		&i.TriggerSummary,
+		&i.ForceFreshSession,
+		&i.IsLeaderTask,
+		&i.WaitReason,
+		&i.InitiatorUserID,
+		&i.HandoffNote,
+		&i.PrepareLeaseExpiresAt,
+		&i.SquadID,
+		&i.RuntimeMcpOverlay,
+		&i.EscalationForTaskID,
+		&i.FireAt,
+		&i.OriginatorUserID,
+		&i.RuntimeConnectedApps,
+		&i.CoalescedCommentIds,
+		&i.DeliveredCommentIds,
+		&i.ChatInputTaskID,
+		&i.ChatFinalizeDeferredAt,
+		&i.OriginatorSource,
+		&i.DelegatedFromTaskID,
+		&i.RetryOfTaskID,
+		&i.RerunOfTaskID,
+		&i.RuleVersionID,
+		&i.TriggerEvidenceKind,
+		&i.TriggerEvidenceRefID,
+		&i.AccountableUserID,
+		&i.SessionRolloutMissing,
+		&i.RetiredSessionID,
+		&i.QuickActionsDisabled,
+		&i.RegenerateQuickActionsFor,
+		&i.BranchName,
+		&i.DurableWorkDir,
+		&i.ChannelContextRevision,
+		&i.LastActivityAt,
+		&i.PermissionProfileID,
+		&i.FailoverHistory,
+		&i.RoutingDecision,
+		&i.PauseRequestedAt,
+		&i.ResumedByTaskID,
+		&i.LastCheckpointSeq,
+		&i.CheckpointAttempts,
+		&i.CheckpointedAt,
+		&i.TouchedPaths,
+		&i.DriftReason,
+		&i.PreemptedAt,
+		&i.PreemptedByTaskID,
+		&i.ReviewOfTaskID,
+		&i.TaskClass,
+		&i.Routing,
+		&i.SafeMode,
+		&i.ModelKeyID,
+		&i.Confidence,
+		&i.LegRole,
+		&i.WorkflowRootTaskID,
+		&i.DispatchLane,
+		&i.CheckpointSha,
+		&i.TurnSeq,
+		&i.A2aDepth,
+		&i.RunGroupID,
+		&i.ModelOverride,
+		&i.DiffStat,
+		&i.DiffUnified,
+		&i.MemoryContext,
+	)
+	return i, err
 }

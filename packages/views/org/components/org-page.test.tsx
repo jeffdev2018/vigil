@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
-import type { OrgDefinition, OrgHealth, OrgStructure, OrgTemplate } from "@multica/core/types";
+import type { OrgDefinition, OrgHealth, OrgStructure } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
 // Mermaid source and model labels: packages/core/org/queries.test.ts.
 
 const state = vi.hoisted(() => ({
   structures: [] as OrgStructure[],
-  templates: [] as OrgTemplate[],
   health: null as OrgHealth | null,
   created: [] as unknown[],
   updated: [] as unknown[],
@@ -18,7 +17,8 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/auth", () => ({ useAuthStore: (sel: (s: unknown) => unknown) => sel({ user: { id: "u-1" } }) }));
-vi.mock("@multica/core/workspace/queries", () => ({ memberListOptions: () => ({ queryKey: ["members"] }) }));
+vi.mock("@multica/core/workspace/queries", () => ({ memberListOptions: () => ({ queryKey: ["members"] }), agentListOptions: () => ({ queryKey: ["agents"] }) }));
+vi.mock("@multica/core/goals", () => ({ goalListOptions: () => ({ queryKey: ["goals"] }) }));
 vi.mock("@multica/core/projects/queries", () => ({ projectListOptions: () => ({ queryKey: ["projects"] }) }));
 vi.mock("sonner", () => ({ toast: { error: state.toastError, success: vi.fn() } }));
 vi.mock("../../editor/mermaid-diagram", () => ({ MermaidDiagram: ({ chart }: { chart: string }) => <pre data-testid="mermaid">{chart}</pre> }));
@@ -30,10 +30,11 @@ vi.mock("@tanstack/react-query", () => ({
       const structure = state.structures.find((s) => s.id === id);
       return { data: structure ? { structure, revisions: [{ id: "r1", revision: 1, model: structure.model, status: "draft", note: "", changed_by: null, created_at: "2026-09-01T10:00:00Z" }] } : null, isPending: false };
     }
-    if (key === "org-templates") return { data: state.templates, isPending: false };
     if (key === "org-health") return { data: state.health, isPending: false };
     if (key === "org-preflight") return { data: { model: "hierarchy", pattern: "manager → workers", coordination_runs_per_issue: 2, coordination_cost_usd_ticks_per_issue: 1_500_000, human_review_items_per_issue: 1, human_review_seconds_per_issue: 90, units: 2, units_without_owner: 0, agents: 3, activation_requirements: [] } };
-    if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner" }], isLoading: false };
+    if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner", avatar_url: null }], isLoading: false };
+    if (key === "agents") return { data: [{ id: "a-1", name: "Mika", avatar_url: null, trust_mode: "autonomous" }, { id: "a-2", name: "Nia", avatar_url: null, trust_mode: "autonomous" }], isLoading: false };
+    if (key === "goals") return { data: [], isLoading: false };
     if (key === "projects") return { data: [{ id: "p-1", title: "Apollo" }], isLoading: false };
     return { data: undefined, isLoading: false, isPending: true };
   },
@@ -42,13 +43,14 @@ vi.mock("@multica/core/org", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@multica/core/org")>()),
   orgListOptions: () => ({ queryKey: ["org-list"] }),
   orgDetailOptions: (_ws: string, id: string) => ({ queryKey: ["org-detail", id] }),
-  orgTemplatesOptions: () => ({ queryKey: ["org-templates"] }),
   orgHealthOptions: (_ws: string, id: string) => ({ queryKey: ["org-health", id] }),
   orgPreflightOptions: (_ws: string, id: string) => ({ queryKey: ["org-preflight", id] }),
   useCreateOrgStructure: () => ({ isPending: false, mutate: (data: unknown, o: { onSuccess: (s: unknown) => void }) => { state.created.push(data); o.onSuccess(null); } }),
   useUpdateOrgStructure: () => ({ isPending: false, mutate: (v: unknown, o: { onSuccess: () => void }) => { state.updated.push(v); o.onSuccess(); } }),
   useSetOrgStructureStatus: () => ({ isPending: false, mutate: (v: unknown, o: { onSuccess: () => void }) => { state.status.push(v); o.onSuccess(); } }),
   useDeleteOrgStructure: () => ({ isPending: false, mutate: vi.fn() }),
+  // The tester panel has its own suite; here it only has to mount.
+  useSimulateOrg: () => ({ isPending: false, mutate: vi.fn(), data: undefined, error: null }),
 }));
 
 import { OrgPage } from "./org-page";
@@ -70,13 +72,8 @@ const structure = (over: Partial<OrgStructure>): OrgStructure => ({
   paused_units: [], created_by: null, created_at: "2026-09-01T10:00:00Z", updated_at: "2026-09-01T10:00:00Z", ...over,
 });
 
-const template = (over: Partial<OrgTemplate>): OrgTemplate => ({
-  model: "squads", name: "Squads", pattern: "peer squads", description: "Small autonomous squads.", coordination_runs_per_issue: 1, definition, ...over,
-});
-
 beforeEach(() => {
   state.structures = [];
-  state.templates = [];
   state.health = null;
   state.created = [];
   state.updated = [];
@@ -100,47 +97,73 @@ describe("OrgPage", () => {
     expect(cards[1]?.textContent).toContain("1 paused unit");
   });
 
-  it("creates a structure from the picked template, with its definition", async () => {
-    state.templates = [template({}), template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
-    renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Applies to"), { target: { value: "p-1" } });
-    const cards = within(dialog).getAllByTestId("org-template");
-    expect(cards).toHaveLength(2);
-    expect(cards[1]?.textContent).toContain("Circles and roles");
-    expect(cards[1]?.textContent).toContain("1 coordination run per issue");
-    fireEvent.click(cards[1]!);
-    expect(state.created[0]).toEqual({ project_id: "p-1", model: "circles", name: "Circles", definition });
-  });
-
-  it("revises the existing structure of the scope instead of creating a second one", async () => {
-    state.structures = [structure({ id: "s-default", name: "Owner network", project_id: null, status: "active" })];
-    state.templates = [template({ model: "circles", name: "Circles", pattern: "circles", description: "Roles, not titles." })];
-    renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
-    const dialog = await screen.findByRole("dialog");
-    expect(within(dialog).getByRole("note").textContent).toContain("Owner network");
-    fireEvent.click(within(dialog).getAllByTestId("org-template")[0]!);
-    expect(state.created).toHaveLength(0);
-    expect(state.updated[0]).toEqual({ id: "s-default", data: { project_id: null, model: "circles", name: "Circles", definition } });
-  });
+  // The create flow is the four-step wizard: org-wizard.test.tsx.
 
   it("opens the detail with the chart, blocks save on invalid JSON, and saves the parsed definition", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
     fireEvent.click(screen.getByTestId("org-structure"));
-    expect(screen.getByTestId("mermaid").textContent).toContain('u_dev -->|reports to| u_lead');
+    expect(screen.getAllByTestId("org-unit-card").map((c) => c.getAttribute("data-unit-id"))).toEqual(["lead", "dev"]);
     expect(screen.getAllByTestId("org-unit").map((u) => u.textContent)).toEqual(["LeadAda · Approve payload · 1 member", "DevNo owner · Draft · 2 members"]);
+    fireEvent.click(screen.getByText("Advanced (JSON)"));
     const editor = screen.getByLabelText("Definition (JSON)");
     fireEvent.change(editor, { target: { value: "{ nope" } });
-    expect(screen.getByRole("alert").textContent).toMatch(/^Invalid JSON/);
+    expect(screen.getByText(/^Invalid JSON/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
     fireEvent.change(editor, { target: { value: JSON.stringify({ ...definition, units: [definition.units[0]] }) } });
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Renamed" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.updated[0]).toMatchObject({ id: "s", data: { name: "Renamed", owner_id: "u-1", dissolve_at: null, end_condition: "", budget_usd_ticks: 0 } });
     expect((state.updated[0] as { data: { definition: OrgDefinition } }).data.definition.units).toHaveLength(1);
+  });
+
+  it("keeps the canvas and the advanced JSON on the same definition, and undoes canvas edits", () => {
+    state.structures = [structure({ id: "s" })];
+    renderWithI18n(<OrgPage />);
+    fireEvent.click(screen.getByTestId("org-structure"));
+    fireEvent.click(screen.getByText("Advanced (JSON)"));
+
+    // Canvas -> JSON: renaming from the unit record rewrites the textarea.
+    fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
+    fireEvent.change(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name"), { target: { value: "Captain" } });
+    const editor = screen.getByLabelText("Definition (JSON)") as HTMLTextAreaElement;
+    expect(JSON.parse(editor.value).units[0].name).toBe("Captain");
+
+    // Undo pops the canvas edit back off; typing in the JSON is not a step.
+    fireEvent.click(screen.getByRole("button", { name: "Undo (1)" }));
+    expect(JSON.parse((screen.getByLabelText("Definition (JSON)") as HTMLTextAreaElement).value).units[0].name).toBe("Lead");
+
+    // JSON -> canvas: the textarea is still the same object the cards draw.
+    fireEvent.change(editor, {
+      target: { value: JSON.stringify({ ...definition, units: [{ ...definition.units[0], name: "Skipper" }] }) },
+    });
+    expect(screen.getAllByTestId("org-unit-card")).toHaveLength(1);
+    expect(screen.getByTestId("org-unit-card").textContent).toContain("Skipper");
+  });
+
+  it("autosaves a draft two seconds after the last canvas edit, and never an active structure", () => {
+    vi.useFakeTimers();
+    try {
+      state.structures = [structure({ id: "s", status: "active" })];
+      const active = renderWithI18n(<OrgPage />);
+      fireEvent.click(screen.getByTestId("org-structure"));
+      fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
+      fireEvent.change(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name"), { target: { value: "Captain" } });
+      vi.advanceTimersByTime(5000);
+      expect(state.updated).toHaveLength(0);
+      active.unmount();
+
+      state.structures = [structure({ id: "s" })];
+      renderWithI18n(<OrgPage />);
+      fireEvent.click(screen.getByTestId("org-structure"));
+      fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
+      fireEvent.change(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name"), { target: { value: "Captain" } });
+      expect(state.updated).toHaveLength(0);
+      vi.advanceTimersByTime(2000);
+      expect((state.updated[0] as { data: { definition: OrgDefinition } }).data.definition.units[0]?.name).toBe("Captain");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("activates with the attestation after showing the preflight numbers", async () => {

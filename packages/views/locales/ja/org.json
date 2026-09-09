@@ -54,6 +54,75 @@
     "replaces_existing": "テンプレートを選ぶと、現在の構造「{{name}}」が新しいリビジョンとして置き換えられます。",
     "composite_title": "チームの階層"
   },
+  "wizard": {
+    "title": "組織を作る",
+    "step": "ステップ {{n}} / {{total}}",
+    "back": "戻る",
+    "next": "次へ",
+    "cancel": "キャンセル",
+    "purpose": {
+      "question": "このチームは何を成し遂げるのですか？",
+      "help": "一文で。その言葉が構造の名前になり、各ユニットが引き受ける内容にもなります。",
+      "label": "一文で",
+      "placeholder": "顧客のチケットにその日のうちに回答する。",
+      "remaining": "残り {{count}} 文字",
+      "too_long": "{{count}} 文字超過"
+    },
+    "flow": {
+      "question": "仕事はどう流れますか？",
+      "decider": "依頼が届いたとき、最終的に誰が決めますか？",
+      "decider_one_person": "常に同じ一人",
+      "decider_each_team": "各チームが自分の領域で",
+      "decider_topic_owner": "各テーマのオーナー",
+      "shape": "チームはプロジェクト単位、役割単位、その両方？",
+      "shape_project": "プロジェクト単位",
+      "shape_role": "役割単位",
+      "shape_both": "両方",
+      "end": "終わりのあるミッションですか？",
+      "compete": "エージェントを競わせますか？",
+      "yes": "はい",
+      "no": "いいえ",
+      "result": "選ばれたモデル：{{model}}",
+      "pick_another": "別の選び方をする",
+      "catalog": "7つの構造",
+      "catalog_close": "質問に戻る"
+    },
+    "model_line": {
+      "hierarchy": "明確な指揮系統：どのチームも誰に上げるか分かっています。",
+      "squads": "各スクワッドが自分の領域と予算と結論を持ちます。",
+      "matrix": "コンピテンシープールが必要なプロジェクトに人を貸し出します。",
+      "circles": "肩書きではなく役割：各サークルが自分で決めます。",
+      "owner_network": "フラット：テーマごとにオーナーと代理が一人ずつ。",
+      "taskforce": "借り受けたメンバーと、宣言された終了条件。",
+      "market": "エージェントが入札し、上限内で最良の提案が勝ちます。"
+    },
+    "template": {
+      "support": "カスタマーサポート",
+      "practice": "士業事務所",
+      "agency": "エージェンシー",
+      "finance": "経営と財務",
+      "research": "リサーチ",
+      "generic": "経営とチーム"
+    },
+    "people": {
+      "question": "誰が参加しますか？",
+      "help": "このワークスペースの全員、人もエージェントも。",
+      "template": "「{{template}}」向けに提案するユニット",
+      "unit_of": "{{name}} のユニット",
+      "empty": "このワークスペースにはまだメンバーもエージェントもいません。"
+    },
+    "review": {
+      "question": "あなたの下書き",
+      "model": "モデル",
+      "name": "名前",
+      "unnamed": "モデル名を使用",
+      "members_other": "メンバー {{count}}人",
+      "open": "下書きを開く",
+      "draft_note": "まだ何も有効化されていません。下書きは組織図で開くので調整できます。",
+      "replaces_existing": "下書きを開くと現在の構造「{{name}}」の新しい版になります。",
+      "error": "構造を作成できませんでした"
+    }
+  },
   "form": {
     "name": "名前",
     "owner": "人間のオーナー",
@@ -68,7 +137,8 @@
     "invalid_json": "JSONが無効です: {{error}}",
     "save": "保存",
     "saved": "構造を保存しました",
-    "error": "構造を保存できませんでした"
+    "error": "構造を保存できませんでした",
+    "advanced_json": "詳細設定（JSON）"
   },
   "actions": {
     "activate": "有効化",
@@ -171,5 +241,111 @@
     "won": "落札",
     "lost": "不落札",
     "over_cap": "上限超過"
+  },
+  "canvas": {
+    "add_unit": "ユニットを追加",
+    "new_unit_name": "新しいユニット",
+    "undo": "元に戻す ({{count}})",
+    "hint": "メンバーを別のユニットへ、ユニットを報告先のユニットへドラッグします。",
+    "empty": "ユニットがまだありません。まず 1 つ追加してください。",
+    "layout_soon": "{{model}} 専用のレイアウトは準備中です。それまでは図で代用します。",
+    "more_members": "+{{count}}",
+    "problem_count_other": "未解決 {{count}} 件",
+    "no_selection": "ユニットを選ぶとカルテが開きます。",
+    "json_broken": "下の JSON を解析できません。修正するとキャンバスに戻ります。",
+    "draft_recovered": "下書き rev. {{n}} を復元しました。"
+  },
+  "tester": {
+    "title": "依頼を試す",
+    "request": "依頼",
+    "placeholder": "顧客や同僚が書くとおりに書いてください。",
+    "basis_draft": "下書き rev. {{n}} に対して。",
+    "basis_unsaved": "下書き rev. {{n}}（未保存）に対して。",
+    "basis_active": "有効なリビジョン rev. {{n}} に対して。",
+    "examples": "例：",
+    "example_1": "決済でカードが拒否されます。今日だけで 3 人目です。",
+    "example_2": "金曜までに本番データベースのパスワードを更新してください。",
+    "from_issue": "実際の課題で試す",
+    "picker_title": "課題を選ぶ",
+    "picker_description": "そのタイトル・説明・ラベルが依頼に入ります。",
+    "labels": "ラベル：",
+    "submit": "試す",
+    "running": "実行中…",
+    "empty": "まだ何も試していません。依頼を書いて、上の組織図に流してください。",
+    "receives": "受け取る",
+    "prepares": "用意する",
+    "decides": "決める",
+    "escalates": "上げる先",
+    "blocked": "妨げるもの",
+    "blocked_none": "このユニットが断るものはありません。",
+    "blocked_consequence": "依頼は文脈ごとエスカレーションされ、このユニットでは実行されません。",
+    "cost": "見積コスト",
+    "notes": "備考",
+    "root": "—（頂点）",
+    "nobody": "該当なし",
+    "no_unit": "この依頼を受け取るユニットがありません。",
+    "open_unit": "{{name}} を組織図で表示",
+    "kind": {
+      "agent": "エージェント",
+      "member": "メンバー",
+      "squad": "スクワッド"
+    },
+    "error": "テストに失敗しました",
+    "error_invalid": "キャンバスの定義が不正なため、何も試せませんでした：{{error}}。まず組織図の横に並ぶ項目を片づけてください。"
+  },
+  "problem": {
+    "unit_name_required": "すべてのユニットに id と名前が必要です。",
+    "duplicate_unit_id": "id「{{id}}」が 2 つのユニットで使われています。",
+    "taskforce_unit_model": "「{{unit}}」: taskforce は構造のモデルであり、ユニットのモデルではありません。",
+    "hierarchy_roots": "階層では誰にも報告しないユニットはちょうど 1 つです。現在は {{count}} 個あります。",
+    "autonomy_over_trust": "「{{unit}}」は {{autonomy}} を与えていますが、{{agent}} のトラストダイヤルは {{trust}} までです。",
+    "rule_of_two_unit": "「{{unit}}」は信頼できない入力・機微データ・外部作用を同時に持っています。人間の承認が必要になります。",
+    "rule_of_two_edge": "{{from}} → {{to}} が 3 つの露出を合算しています。この経路には人間の承認が必要になります。",
+    "deciders_missing": "「{{unit}}」には外部作用があります。{{classes}} の決裁者を指定してください。",
+    "committee_termination": "委員会「{{decision}}」: 定足数を 1〜{{max}} に、ラウンド数を 1 以上に設定してください。",
+    "market_price_cap": "マーケットには人間が定める価格上限が必要です。",
+    "squads_needs_agents": "「{{unit}}」は squads で動きます。squad またはエージェントのメンバーを割り当ててください。",
+    "circles_needs_role": "「{{unit}}」は circles で動きます。ロールを少なくとも 1 つ設定してください。"
+  },
+  "unit": {
+    "title": "ユニットのカルテ",
+    "close": "カルテを閉じる",
+    "remove_unit": "このユニットを削除",
+    "name": "名前",
+    "mission": "ミッション",
+    "mission_none": "目標なし",
+    "own_mission": "このユニットの使命",
+    "own_mission_placeholder": "このユニットが果たすべきこと。",
+    "trust": "トラストダイヤル",
+    "trust_level": {
+      "read_only": "読むだけ",
+      "draft": "下書きを用意する",
+      "approve_payload": "承認を得てから動く",
+      "auto": "決められた範囲で単独に動く"
+    },
+    "allow": "単独で決めてよいこと",
+    "deny": "決してしないこと",
+    "verb_placeholder": "動詞（例: merge）",
+    "add": "追加",
+    "remove": "{{item}} を外す",
+    "locked_reason": "Multica はこれをどこでも拒否します。構造から与えることはできません。",
+    "properties": "扱うもの",
+    "property": {
+      "untrusted_input": "信頼できない入力",
+      "sensitive_data": "機微データとシークレット",
+      "external_effects": "外部作用"
+    },
+    "human_approval": "動く前に人間が承認する",
+    "deciders": "決裁者",
+    "decider": {
+      "money": "お金",
+      "outbound_data": "外部へのデータ送信",
+      "external_message": "外部へのメッセージ"
+    },
+    "decider_none": "まだ未定",
+    "budget": "予算（USD ticks）",
+    "members": "メンバー",
+    "no_members": "メンバーがまだいません。",
+    "move_to": "{{name}} を別のユニットへ移す"
   }
 }

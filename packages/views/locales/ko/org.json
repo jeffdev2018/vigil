@@ -54,6 +54,75 @@
     "replaces_existing": "템플릿을 선택하면 현재 구조 “{{name}}”이(가) 새 리비전으로 대체됩니다.",
     "composite_title": "팀 계층 구조"
   },
+  "wizard": {
+    "title": "조직 만들기",
+    "step": "{{total}}단계 중 {{n}}단계",
+    "back": "뒤로",
+    "next": "다음",
+    "cancel": "취소",
+    "purpose": {
+      "question": "이 팀은 무엇을 해내야 하나요?",
+      "help": "한 문장으로. 그 단어들이 구조의 이름이 되고, 각 유닛이 맡을 일이 됩니다.",
+      "label": "한 문장으로",
+      "placeholder": "고객 티켓에 당일 안에 답한다.",
+      "remaining": "{{count}}자 남음",
+      "too_long": "{{count}}자 초과"
+    },
+    "flow": {
+      "question": "일은 어떻게 흘러가나요?",
+      "decider": "요청이 들어오면 최종적으로 누가 결정하나요?",
+      "decider_one_person": "언제나 같은 한 사람",
+      "decider_each_team": "각 팀이 자기 영역에서",
+      "decider_topic_owner": "각 주제의 담당자",
+      "shape": "팀을 프로젝트별로, 역할별로, 아니면 둘 다?",
+      "shape_project": "프로젝트별",
+      "shape_role": "역할별",
+      "shape_both": "둘 다",
+      "end": "끝이 정해진 미션인가요?",
+      "compete": "에이전트끼리 경쟁시킬까요?",
+      "yes": "예",
+      "no": "아니오",
+      "result": "선택된 모델: {{model}}",
+      "pick_another": "다르게 고르기",
+      "catalog": "일곱 가지 구조",
+      "catalog_close": "질문으로 돌아가기"
+    },
+    "model_line": {
+      "hierarchy": "명확한 사슬: 모든 팀이 누구에게 올릴지 압니다.",
+      "squads": "각 스쿼드가 자기 영역과 예산과 답을 책임집니다.",
+      "matrix": "역량 풀이 필요한 프로젝트에 사람을 빌려줍니다.",
+      "circles": "직함이 아니라 역할: 각 서클이 스스로 결정합니다.",
+      "owner_network": "수평: 주제마다 담당자 한 명과 백업 한 명.",
+      "taskforce": "빌려온 팀, 그리고 명시된 종료 조건.",
+      "market": "에이전트가 입찰하고, 상한선 안에서 가장 좋은 제안이 이깁니다."
+    },
+    "template": {
+      "support": "고객 지원",
+      "practice": "전문 사무소",
+      "agency": "에이전시",
+      "finance": "경영과 재무",
+      "research": "리서치",
+      "generic": "경영과 팀"
+    },
+    "people": {
+      "question": "누가 참여하나요?",
+      "help": "이 워크스페이스의 모든 사람, 사람과 에이전트 모두.",
+      "template": "'{{template}}'에 제안하는 유닛",
+      "unit_of": "{{name}}의 유닛",
+      "empty": "이 워크스페이스에 아직 멤버나 에이전트가 없습니다."
+    },
+    "review": {
+      "question": "내 초안",
+      "model": "모델",
+      "name": "이름",
+      "unnamed": "모델 이름 사용",
+      "members_other": "멤버 {{count}}명",
+      "open": "내 초안 열기",
+      "draft_note": "아직 아무것도 활성화되지 않았습니다. 초안은 조직도에서 열려 바로 조정할 수 있습니다.",
+      "replaces_existing": "초안을 열면 현재 구조 “{{name}}”의 새 판이 됩니다.",
+      "error": "구조를 만들지 못했습니다"
+    }
+  },
   "form": {
     "name": "이름",
     "owner": "사람 담당자",
@@ -68,7 +137,8 @@
     "invalid_json": "잘못된 JSON: {{error}}",
     "save": "저장",
     "saved": "구조를 저장했습니다",
-    "error": "구조를 저장할 수 없습니다"
+    "error": "구조를 저장할 수 없습니다",
+    "advanced_json": "고급 (JSON)"
   },
   "actions": {
     "activate": "활성화",
@@ -171,5 +241,111 @@
     "won": "낙찰",
     "lost": "유찰",
     "over_cap": "상한 초과"
+  },
+  "canvas": {
+    "add_unit": "유닛 추가",
+    "new_unit_name": "새 유닛",
+    "undo": "실행 취소 ({{count}})",
+    "hint": "구성원을 다른 유닛으로, 유닛을 보고 대상 유닛으로 끌어다 놓으세요.",
+    "empty": "아직 유닛이 없습니다. 먼저 하나 추가하세요.",
+    "layout_soon": "{{model}} 전용 배치는 준비 중입니다. 그때까지는 다이어그램으로 대신합니다.",
+    "more_members": "+{{count}}",
+    "problem_count_other": "정리할 항목 {{count}}개",
+    "no_selection": "유닛을 선택하면 카드가 열립니다.",
+    "json_broken": "아래 JSON을 해석할 수 없습니다. 고치면 캔버스가 돌아옵니다.",
+    "draft_recovered": "초안 rev. {{n}}을(를) 복원했습니다."
+  },
+  "tester": {
+    "title": "요청 시험하기",
+    "request": "요청",
+    "placeholder": "고객이나 동료가 쓰듯이 적어 보세요.",
+    "basis_draft": "초안 rev. {{n}} 기준입니다.",
+    "basis_unsaved": "초안 rev. {{n}}(저장 안 됨) 기준입니다.",
+    "basis_active": "활성 리비전 rev. {{n}} 기준입니다.",
+    "examples": "예시:",
+    "example_1": "결제에서 카드가 거절됩니다. 오늘만 벌써 세 번째입니다.",
+    "example_2": "금요일 전에 운영 데이터베이스 비밀번호를 교체해 주세요.",
+    "from_issue": "실제 이슈로 시험하기",
+    "picker_title": "이슈 고르기",
+    "picker_description": "이슈의 제목, 설명, 라벨이 요청에 채워집니다.",
+    "labels": "라벨:",
+    "submit": "시험",
+    "running": "시험 중…",
+    "empty": "아직 시험한 것이 없습니다. 요청을 적고 위 조직도에 흘려보내세요.",
+    "receives": "받는 곳",
+    "prepares": "준비",
+    "decides": "결정",
+    "escalates": "올리는 곳",
+    "blocked": "막는 것",
+    "blocked_none": "이 유닛이 거부하는 것은 없습니다.",
+    "blocked_consequence": "요청은 맥락과 함께 에스컬레이션되며 이 유닛이 수행하지 않습니다.",
+    "cost": "예상 비용",
+    "notes": "참고",
+    "root": "— (최상위)",
+    "nobody": "없음",
+    "no_unit": "이 요청을 받는 유닛이 없습니다.",
+    "open_unit": "조직도에서 {{name}} 보기",
+    "kind": {
+      "agent": "에이전트",
+      "member": "구성원",
+      "squad": "스쿼드"
+    },
+    "error": "시험에 실패했습니다",
+    "error_invalid": "캔버스의 정의가 올바르지 않아 아무것도 시험하지 못했습니다: {{error}}. 조직도 옆에 나열된 항목부터 정리하세요."
+  },
+  "problem": {
+    "unit_name_required": "모든 유닛에는 id와 이름이 필요합니다.",
+    "duplicate_unit_id": "id “{{id}}”을(를) 두 유닛이 함께 쓰고 있습니다.",
+    "taskforce_unit_model": "“{{unit}}”: taskforce는 구조의 모델이며 유닛의 모델이 아닙니다.",
+    "hierarchy_roots": "계층에서는 아무에게도 보고하지 않는 유닛이 정확히 하나여야 하는데 {{count}}개입니다.",
+    "autonomy_over_trust": "“{{unit}}”은(는) {{autonomy}}을(를) 부여하지만 {{agent}}의 신뢰 다이얼은 {{trust}}까지입니다.",
+    "rule_of_two_unit": "“{{unit}}”이(가) 신뢰할 수 없는 입력·민감 데이터·외부 효과를 한꺼번에 가집니다. 사람의 승인이 필요합니다.",
+    "rule_of_two_edge": "{{from}} → {{to}} 경로가 세 가지 노출을 합칩니다. 이 연결에는 사람의 승인이 필요합니다.",
+    "deciders_missing": "“{{unit}}”에 외부 효과가 있습니다. {{classes}}의 결정자를 지정하세요.",
+    "committee_termination": "위원회 “{{decision}}”: 정족수를 1에서 {{max}} 사이로, 라운드를 1회 이상으로 정하세요.",
+    "market_price_cap": "마켓에는 사람이 정하는 가격 상한이 필요합니다.",
+    "squads_needs_agents": "“{{unit}}”은(는) squads로 동작합니다. squad 또는 에이전트 구성원을 지정하세요.",
+    "circles_needs_role": "“{{unit}}”은(는) circles로 동작합니다. 역할을 최소 하나 지정하세요."
+  },
+  "unit": {
+    "title": "유닛 카드",
+    "close": "카드 닫기",
+    "remove_unit": "이 유닛 삭제",
+    "name": "이름",
+    "mission": "미션",
+    "mission_none": "목표 없음",
+    "own_mission": "이 유닛의 미션",
+    "own_mission_placeholder": "이 유닛이 해내야 할 일.",
+    "trust": "신뢰 다이얼",
+    "trust_level": {
+      "read_only": "읽기만 합니다",
+      "draft": "초안을 준비합니다",
+      "approve_payload": "승인을 받은 뒤 행동합니다",
+      "auto": "정해진 한계 안에서 혼자 행동합니다"
+    },
+    "allow": "혼자 결정하는 것",
+    "deny": "절대 하지 않는 것",
+    "verb_placeholder": "동사, 예: merge",
+    "add": "추가",
+    "remove": "{{item}} 제거",
+    "locked_reason": "Multica가 어디서나 거부합니다. 구조가 허용할 수 없습니다.",
+    "properties": "다루는 것",
+    "property": {
+      "untrusted_input": "신뢰할 수 없는 입력",
+      "sensitive_data": "민감 데이터와 시크릿",
+      "external_effects": "외부 효과"
+    },
+    "human_approval": "행동하기 전에 사람이 승인합니다",
+    "deciders": "결정자",
+    "decider": {
+      "money": "돈",
+      "outbound_data": "외부로 나가는 데이터",
+      "external_message": "외부 메시지"
+    },
+    "decider_none": "아직 없음",
+    "budget": "예산 (USD ticks)",
+    "members": "구성원",
+    "no_members": "아직 구성원이 없습니다.",
+    "move_to": "{{name}}을(를) 다른 유닛으로 옮기기"
   }
 }

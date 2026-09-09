@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
 import { issueKeys } from "@multica/core/issues/queries";
 import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
+import { goalLoopOfTask, goalOutcomeLabelKey, issueGoalOptions } from "@multica/core/issues/goal-loop";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask, TaskStatus } from "@multica/core/types";
@@ -593,7 +594,7 @@ function PastRow({
 
   return (
     <>
-      <RowShell task={task} title={rowTitle}>
+      <RowShell task={task} title={rowTitle} issueId={issueId}>
         <TriggerText text={trigger} />
         <RunPlanCounter task={task} />
         <TaskCommentCoverage task={task} />
@@ -647,6 +648,7 @@ function PastRow({
 function RowShell({
   task,
   title,
+  issueId,
   children,
 }: {
   task: AgentTask;
@@ -655,6 +657,10 @@ function RowShell({
    *  is swapped out for the action buttons on hover — a title there would
    *  disappear at exactly the moment the pointer arrives. */
   title?: string;
+  /** Only past rows pass this — it is what lets GoalBadge look up the run's
+   *  verdict; a still-running row has no result yet, so the badge would be
+   *  empty regardless. */
+  issueId?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -674,8 +680,39 @@ function RowShell({
       )}
       <LegBadge task={task} />
       <OffPeakBadge task={task} />
+      {issueId && <GoalBadge task={task} issueId={issueId} />}
       {children}
     </div>
+  );
+}
+
+// Goal loop: what this run contributed to the issue's goal, e.g. "Goal:
+// continued 2/8", "Goal met", "Goal: waiting for answer". Absent for any run
+// with no goal_loop verdict (most runs), so the query only fires when there
+// is something to show.
+function GoalBadge({ task, issueId }: { task: AgentTask; issueId: string }) {
+  const { t } = useT("issues");
+  const wsId = useWorkspaceId();
+  const verdict = goalLoopOfTask(task);
+  const { data: goal } = useQuery({ ...issueGoalOptions(wsId, issueId), enabled: !!verdict });
+  if (!verdict) return null;
+  const outcomeKey = goalOutcomeLabelKey(verdict.outcome);
+  if (outcomeKey === "none") return null;
+  const title = verdict.reason || verdict.blocker || undefined;
+  let label: string;
+  if (outcomeKey === "continued") {
+    label = t(($) => $.goal_loop.badge.continued, { n: verdict.continuation, max: goal?.max_continuations ?? verdict.continuation });
+  } else if (outcomeKey === "satisfied") {
+    label = t(($) => $.goal_loop.badge.satisfied);
+  } else if (outcomeKey === "stopped_needs_user_input") {
+    label = t(($) => $.goal_loop.badge.waiting);
+  } else {
+    label = t(($) => $.goal_loop.badge.stopped, { reason: t(($) => $.goal_loop.outcomes[outcomeKey as "stopped_unknown"]) });
+  }
+  return (
+    <span className="shrink-0 whitespace-nowrap rounded bg-accent px-1 py-px text-micro text-muted-foreground" title={title}>
+      {label}
+    </span>
   );
 }
 
@@ -744,7 +781,9 @@ function WorkflowSummary({ tasks }: { tasks: AgentTask[] }) {
   return <WorkflowSummaryLine rootTaskId={root} />;
 }
 
-function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
+// Exported for the Goal section, which reuses this exact formatting for a
+// goal loop's chain cost (same totals endpoint, same root task id).
+export function WorkflowSummaryLine({ rootTaskId }: { rootTaskId: string }) {
   const { t } = useT("issues");
   const wsId = useWorkspaceId();
   const { data } = useQuery(taskLegsOptions(wsId, rootTaskId));

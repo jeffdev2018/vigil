@@ -1396,6 +1396,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// deployment pays nothing.
 	h.TaskService.SubscribeRunConfidence(bus)
 
+	// Goal loop (long tasks): judge every settled issue run that did not
+	// judge itself (native runs do), drive the continuation chain.
+	h.GoalLoop.Subscribe(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -1727,6 +1731,16 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
 		r.Post("/api/mcp/code-wiki", h.CodeWikiMCP)
+	})
+	// Vigil as an MCP server (OS plan, chantier 1): members with a personal
+	// access token and runs with their task token discover and call the
+	// workspace's tools; the server decides deny / ask / allow per call.
+	// Auth group only: the handler resolves the workspace and membership
+	// itself, from the path slug, the headers or the token binding.
+	r.Group(func(r chi.Router) {
+		r.Use(middleware.Auth(queries, patCache, cloudPATVerifier))
+		r.Post("/api/mcp", h.VigilMCP)
+		r.Post("/api/mcp/{workspace}", h.VigilMCP)
 	})
 
 	r.Group(func(r chi.Router) {
@@ -2464,6 +2478,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Post("/", h.CreateTaskShareLink)
 				r.Delete("/{id}", h.RevokeTaskShareLink)
 			})
+			// Goal loop (long tasks): goal, chain state, pause/resume, answers.
+			r.Route("/api/issues/{id}/goal", func(r chi.Router) {
+				r.Get("/", h.GetIssueGoal)
+				r.Put("/", h.SetIssueGoal)
+				r.Post("/pause", h.PauseIssueGoal)
+				r.Post("/resume", h.ResumeIssueGoal)
+				r.Post("/answer", h.AnswerIssueGoal)
+				r.Post("/question", h.AskIssueGoalQuestion)
+			})
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
 				r.Get("/", h.GetIssueWatchdog)
@@ -2510,6 +2533,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Route("/api/org", func(r chi.Router) {
 				r.Get("/templates", h.ListOrgTemplates)
 				r.Get("/resolve", h.ResolveOrgStructure)
+				r.Post("/simulate", h.SimulateOrgRequest)
 				r.Get("/", h.ListOrgStructures)
 				r.Post("/", h.CreateOrgStructure)
 				r.Route("/{id}", func(r chi.Router) {
@@ -2626,6 +2650,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Bounded workflows (JEF-275).
 			r.Get("/api/workflow-limits", h.GetWorkflowLimits)
 			r.Put("/api/workflow-limits", h.PutWorkflowLimits)
+			// MCP server settings (OS plan, chantier 1).
+			r.Get("/api/mcp-server/settings", h.GetMCPServerSettings)
+			r.Put("/api/mcp-server/settings", h.PutMCPServerSettings)
 			r.Get("/api/repo-index/settings", h.GetRepoIndexSettings)
 			r.Put("/api/repo-index/settings", h.PutRepoIndexSettings)
 			// Data residency (K46): where this workspace's work may run.
@@ -3222,6 +3249,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		})
 	})
 
+	// The MCP server dispatches tool calls through the finished router.
+	h.SetInternalRouter(r)
 	return r, h
 }
 

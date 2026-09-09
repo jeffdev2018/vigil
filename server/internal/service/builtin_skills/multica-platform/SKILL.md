@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Platform actions beyond the runtime brief: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo, insights, racing."
+description: "Platform actions: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, long tasks, MCP server, triage, undo, insights, racing."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -38,6 +38,8 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/spending.md` | Paying for something from a run: asking for a spend token, the approval gate over the workspace threshold, redeeming it, and reading the run's budget and limits |
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
+| `references/mcp-server.md` | Reaching Vigil over MCP from a run or an external client: the endpoint, the two surfaces, allow / ask / deny, held calls (gates, confirmation tokens), what is never exposed |
+| `references/goal-loop.md` | Long tasks across runs: how your closing status is judged against the issue's goal, what queues the next run, asking the team a typed question, reading and pausing the chain |
 | `references/insights.md` | Answering a question about the workspace with a figure: what the insight vocabulary accepts, why no SQL is ever written, and what the numbers do not mean |
 | `references/triage-verdicts.md` | The triage queue: suggesting a verdict on inbound work a human then decides |
 | `references/status-transitions.md` | A status change refused with `transition_not_allowed`, or held with `202 pending_approval`: what the workspace's transition rules govern and what to do instead of retrying |

@@ -76,6 +76,9 @@ const (
 	orgHealthWindow            = 7 * 24 * time.Hour
 	orgProposalCooldown        = 24 * time.Hour
 	orgLLMReviewSecondsPerItem = 90
+	// orgMissionMaxRunes caps a unit's free-text mission: one sentence, the
+	// same ceiling the wizard's purpose field uses.
+	orgMissionMaxRunes = 240
 )
 
 var orgModels = []string{OrgModelHierarchy, OrgModelSquads, OrgModelMatrix, OrgModelCircles, OrgModelOwnerNetwork, OrgModelTaskforce, OrgModelMarket}
@@ -90,6 +93,9 @@ var orgNonNegotiableDeny = []string{"delete", "bill", "send_external_without_app
 var orgAutonomyRank = map[string]int{"read_only": 0, "draft": 1, "approve_payload": 2, "auto": 3}
 
 var orgEdgeKinds = map[string]bool{"reports_to": true, "backs_up": true, "escalates_to": true, "consults": true}
+
+// orgDecisionClasses are the external effects a unit must name a decider for.
+var orgDecisionClasses = []string{"money", "outbound_data", "external_message"}
 
 type OrgMember struct {
 	Type   string `json:"type"`
@@ -112,10 +118,14 @@ type OrgUnit struct {
 	// Model is how this unit takes an issue once routed to it. Empty inherits
 	// the parent's (via reports_to) and finally the structure's model, so a
 	// hierarchy can hold a market team next to a squad next to a pool.
-	Model                 string            `json:"model,omitempty"`
-	OwnerID               string            `json:"owner_id,omitempty"`
-	SquadID               string            `json:"squad_id,omitempty"`
-	MissionGoalID         string            `json:"mission_goal_id,omitempty"`
+	Model         string `json:"model,omitempty"`
+	OwnerID       string `json:"owner_id,omitempty"`
+	SquadID       string `json:"squad_id,omitempty"`
+	MissionGoalID string `json:"mission_goal_id,omitempty"`
+	// Mission is the unit's own sentence: what it is here to do. Free text
+	// (unlike MissionGoalID, which points at a goal), carried into the run's
+	// brief so an agent reads why its unit exists.
+	Mission               string            `json:"mission,omitempty"`
 	BudgetUsdTicks        int64             `json:"budget_usd_ticks,omitempty"`
 	Excludes              []string          `json:"excludes"`
 	Autonomy              string            `json:"autonomy"`
@@ -183,6 +193,35 @@ func (d *OrgDefinition) parent(unitID string) *OrgUnit {
 		}
 	}
 	return nil
+}
+
+// orgEscalationChain is the ladder above a unit: its escalates_to edge when
+// it has one, else reports_to, each unit visited once so a cycle terminates.
+// Shared by the run's org context and by the simulation, so a person and an
+// agent are told the same path.
+func orgEscalationChain(d *OrgDefinition, unit *OrgUnit) []*OrgUnit {
+	var out []*OrgUnit
+	seen := map[string]bool{unit.ID: true}
+	for cur := unit; cur != nil; {
+		var next *OrgUnit
+		for _, kind := range []string{"escalates_to", "reports_to"} {
+			for _, e := range d.Edges {
+				if e.From == cur.ID && e.Kind == kind && !seen[e.To] {
+					next = d.unit(e.To)
+				}
+			}
+			if next != nil {
+				break
+			}
+		}
+		if next == nil {
+			return out
+		}
+		seen[next.ID] = true
+		out = append(out, next)
+		cur = next
+	}
+	return out
 }
 
 // orgEffectiveModel is the model a unit operates under: its own, else the
@@ -459,6 +498,10 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		if u.ID == "" || u.Name == "" {
 			return orgErrorf("unit #%d needs an id and a name", i+1)
 		}
+		u.Mission = strings.TrimSpace(u.Mission)
+		if len([]rune(u.Mission)) > orgMissionMaxRunes {
+			return orgErrorf("unit %q: the mission is at most %d characters", u.Name, orgMissionMaxRunes)
+		}
 		if seen[u.ID] {
 			return orgErrorf("unit id %q is used twice", u.ID)
 		}
@@ -550,7 +593,7 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 		}
 		// A unit exposed to external effects names who decides on money, outbound data and external messages.
 		if u.properties()["external_effects"] {
-			for _, class := range []string{"money", "outbound_data", "external_message"} {
+			for _, class := range orgDecisionClasses {
 				if u.Deciders[class] == "" || !memberKnown(u.Deciders[class]) {
 					return orgErrorf("unit %q has external effects: name a member as decider for %s", u.Name, class)
 				}
@@ -1157,11 +1200,15 @@ func (h *Handler) orgFlow(ctx context.Context, s db.OrgStructure, unitID, kind s
 // orgMatchUnit picks the unit a rule routes the issue to, else the model's
 // fallback. A paused unit or one without owner never receives work.
 func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDefinition, issue db.Issue) *OrgUnit {
+	return h.orgMatchUnitWith(ctx, s, def, issue, h.issueLabelNames(ctx, issue))
+}
+
+// orgMatchUnitWith takes the issue's labels from the caller: a simulated
+// issue is not in the database, so its labels cannot be read back from it.
+func (h *Handler) orgMatchUnitWith(ctx context.Context, s db.OrgStructure, def OrgDefinition, issue db.Issue, labelNames []string) *OrgUnit {
 	labels := map[string]bool{}
-	if rows, err := h.Queries.ListLabelsByIssue(ctx, db.ListLabelsByIssueParams{IssueID: issue.ID, WorkspaceID: issue.WorkspaceID}); err == nil {
-		for _, l := range rows {
-			labels[strings.ToLower(l.Name)] = true
-		}
+	for _, l := range labelNames {
+		labels[strings.ToLower(l)] = true
 	}
 	paths := service.IssuePaths(issue.Title, issue.Description.String)
 	text := strings.ToLower(issue.Title + "\n" + issue.Description.String)
@@ -1238,12 +1285,18 @@ func (h *Handler) orgMatchUnit(ctx context.Context, s db.OrgStructure, def OrgDe
 // matrix model (the unit's effective one) the most competent member for the
 // issue's domain wins.
 func (h *Handler) orgTargetForUnit(ctx context.Context, model string, u *OrgUnit, issue db.Issue) (string, pgtype.UUID) {
+	return h.orgTargetForUnitWith(ctx, model, u, issue, h.issueLabelNames(ctx, issue))
+}
+
+// orgTargetForUnitWith takes the issue's labels from the caller, for the
+// same reason orgMatchUnitWith does: the matrix reads its domain off them.
+func (h *Handler) orgTargetForUnitWith(ctx context.Context, model string, u *OrgUnit, issue db.Issue, labelNames []string) (string, pgtype.UUID) {
 	if u.SquadID != "" {
 		return "squad", parseUUID(u.SquadID)
 	}
 	agents := u.memberIDs("agent")
 	if model == OrgModelMatrix && len(agents) > 1 {
-		domain := h.issueDomainKey(ctx, issue)
+		domain := h.issueDomainKeyWith(ctx, issue, labelNames)
 		rows, _ := h.Queries.ListDomainCompetency(ctx, db.ListDomainCompetencyParams{WorkspaceID: issue.WorkspaceID, DomainKey: domain})
 		bestScore, best := -1.0, ""
 		for _, c := range rows {

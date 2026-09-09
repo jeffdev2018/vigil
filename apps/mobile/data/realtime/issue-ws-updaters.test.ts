@@ -3,6 +3,7 @@ import type { Issue, IssueReaction, TimelineEntry } from "@multica/core/types";
 import { describe, expect, it, vi } from "vitest";
 
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
 import {
   addCommentReaction,
   addIssueReaction,
@@ -13,6 +14,13 @@ import {
   removeIssueReaction,
   replaceCommentTimelineEntry,
 } from "./issue-ws-updaters";
+
+// issueGoalKeys comes from data/queries/issue-goal.ts, which also exports
+// api-calling query options and so imports @/data/api at module scope (same
+// reason data/realtime/inbox-ws-updaters.test.ts and chat-ws-updaters.test.ts
+// mock it) — without this the module-level EXPO_PUBLIC_API_URL check in
+// api.ts throws before any test in this file runs.
+vi.mock("@/data/api", () => ({ api: {} }));
 
 describe("invalidateIssueAfterReconnect", () => {
   it("invalidates attachments together with the issue and task caches", () => {
@@ -29,6 +37,7 @@ describe("invalidateIssueAfterReconnect", () => {
       issueKeys.attachments(wsId, issueId),
       issueKeys.activeTasks(wsId, issueId),
       issueKeys.tasks(wsId, issueId),
+      issueGoalKeys.issue(wsId, issueId),
     ]);
   });
 });

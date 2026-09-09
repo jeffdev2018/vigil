@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/events"
@@ -287,15 +286,7 @@ func notifyTransitionApprovers(ctx context.Context, q *db.Queries, bus *events.B
 				Type:        protocol.EventInboxNew,
 				WorkspaceID: util.UUIDToString(issue.WorkspaceID),
 				ActorType:   "system",
-				Payload: map[string]any{"item": map[string]any{
-					"id":           util.UUIDToString(item.ID),
-					"workspace_id": util.UUIDToString(item.WorkspaceID),
-					"type":         item.Type,
-					"severity":     item.Severity,
-					"issue_id":     util.UUIDToString(issue.ID),
-					"title":        item.Title,
-					"created_at":   item.CreatedAt.Time.Format(time.RFC3339),
-				}},
+				Payload:     map[string]any{"item": InboxItemPayload(item)},
 			})
 		}
 	}
