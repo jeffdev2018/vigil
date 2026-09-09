@@ -244,6 +244,7 @@ Silent lease-key eviction can interrupt channel connections — alert on memory/
 | Plugins | `MULTICA_PLUGIN_DIR` | Optional absolute directory used to publish local plugin bundles during development |
 | Model keys (BYOK) | `MULTICA_MODEL_KEY_SECRET_KEY` | Base64-encoded 32-byte key that encrypts provider API keys workspaces and projects declare in Settings → Model keys; unset reads as "not configured" and refuses to store keys |
 | SSO | `MULTICA_SSO_SECRET_KEY` | Base64-encoded 32-byte key that encrypts each workspace's OIDC client secret at rest; unset reads the Security tab as "not configured" |
+| Twenty CRM | `MULTICA_TWENTY_SECRET_KEY` | Base64-encoded 32-byte key that encrypts each workspace's Twenty API key and webhook secret at rest; unset disables the integration (Settings → Integrations shows it as not configured). Webhooks are delivered to `MULTICA_PUBLIC_URL` |
 
 Without `GITHUB_APP_ID` and the private key, PRs still link, mirror, and trigger merge-to-done normally, but cards show no CI or mergeability status, and the "pick from GitHub" repository entry is disabled.
 

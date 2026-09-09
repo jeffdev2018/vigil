@@ -244,6 +244,7 @@ Redis 也为实时事件（推送到打开的浏览器标签页的任务和对�
 | 插件 | `MULTICA_PLUGIN_DIR` | 开发时用于发布本地插件包的可选绝对目录 |
 | 模型密钥（BYOK） | `MULTICA_MODEL_KEY_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密工作区和项目在「设置 → 模型密钥」中填写的服务商 API key；未设置时显示为"未配置"，并拒绝保存密钥 |
 | SSO | `MULTICA_SSO_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 OIDC client secret；未设置时"安全"标签页显示为"未配置" |
+| Twenty CRM | `MULTICA_TWENTY_SECRET_KEY` | base64 编码的 32 字节密钥，用于加密每个工作区的 Twenty API 密钥和 Webhook 密钥；未设置时集成被禁用（设置 → 集成显示为"未配置"）。Webhook 投递到 `MULTICA_PUBLIC_URL` |
 
 不配置 `GITHUB_APP_ID` 和私钥时，PR 仍会正常关联、镜像和触发合并转 done，但卡片上不显示 CI 与可合并状态，"从 GitHub 选择"仓库入口也会禁用。
 

@@ -34,6 +34,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
+	twentyinteg "github.com/multica-ai/multica/server/internal/integrations/twenty"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
 	"github.com/multica-ai/multica/server/internal/middleware"
@@ -1231,6 +1232,26 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			slog.Info("model keys (BYOK) enabled")
 		}
 	}
+	// Twenty CRM (OS plan, chantier 2). The box seals each workspace's API key
+	// and webhook secret; without it the whole integration answers 503.
+	// MULTICA_PUBLIC_URL is where Twenty posts webhooks; when unset the
+	// connection still works for agents (MCP) and the inbound path is shown
+	// for a hand-registered subscription.
+	if twentyKey, err := secretbox.LoadKey("MULTICA_TWENTY_SECRET_KEY"); err == nil {
+		if box, err := secretbox.New(twentyKey); err != nil {
+			slog.Error("twenty: secretbox.New failed; twenty integration disabled", "error", err)
+		} else {
+			svc := twentyinteg.NewService(queries, box, signupConfig.PublicURL)
+			h.Twenty = svc
+			if h.TaskService != nil {
+				h.TaskService.Twenty = svc
+			}
+			slog.Info("twenty integration enabled", "webhooks", signupConfig.PublicURL != "")
+		}
+	} else {
+		slog.Info("twenty integration disabled (MULTICA_TWENTY_SECRET_KEY not set)")
+	}
+
 	if ssoKey, err := secretbox.LoadKey("MULTICA_SSO_SECRET_KEY"); err == nil {
 		if box, err := secretbox.New(ssoKey); err != nil {
 			slog.Error("sso: secretbox.New failed; SSO disabled", "error", err)
@@ -1592,6 +1613,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// the token in the path is the credential, the workspace comes from the
 	// source row it resolves to, never from a request header.
 	r.Post("/api/triage/inbound/email/{token}", h.HandleInboundTriageEmail)
+	// Twenty CRM webhooks: token names the workspace, HMAC proves the sender.
+	r.Post("/api/triage/inbound/twenty/{token}", h.HandleInboundTwentyWebhook)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
@@ -2655,6 +2678,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// MCP server settings (OS plan, chantier 1).
 			r.Get("/api/mcp-server/settings", h.GetMCPServerSettings)
 			r.Put("/api/mcp-server/settings", h.PutMCPServerSettings)
+			// Twenty CRM connection (OS plan, chantier 2): workspace-scoped.
+			r.Route("/api/integrations/twenty", func(r chi.Router) {
+				r.Get("/", h.GetTwentyConnection)
+				r.Post("/connect", h.ConnectTwenty)
+				r.Put("/settings", h.PutTwentySettings)
+				r.Delete("/", h.DisconnectTwenty)
+				r.Post("/check", h.CheckTwentyConnection)
+				r.Get("/members", h.ListTwentyMembers)
+			})
 			r.Get("/api/repo-index/settings", h.GetRepoIndexSettings)
 			r.Put("/api/repo-index/settings", h.PutRepoIndexSettings)
 			// Data residency (K46): where this workspace's work may run.

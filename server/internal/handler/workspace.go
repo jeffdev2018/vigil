@@ -1293,6 +1293,10 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			},
 		},
 		{
+			name: "purge twenty connection",
+			run:  func() error { return qtx.PurgeWorkspaceTwentyConnections(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "purge decision records",
 			run:  func() error { return qtx.PurgeWorkspaceDecisionRecords(ctx, requester.WorkspaceID) },
 		},

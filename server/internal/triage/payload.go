@@ -36,6 +36,16 @@ func BuildPayload(triggerPayload []byte) []byte {
 	return out
 }
 
+// StoredBody returns the trigger payload BuildPayload kept, or nil when it
+// was truncated or absent.
+func StoredBody(payload []byte) []byte {
+	var p storedPayload
+	if err := json.Unmarshal(payload, &p); err != nil || p.Truncated {
+		return nil
+	}
+	return []byte(p.Body)
+}
+
 // ContentDigest fingerprints the inbound content so two deliveries can be
 // compared even when the transport carries no idempotency key.
 func ContentDigest(title string, triggerPayload []byte) string {

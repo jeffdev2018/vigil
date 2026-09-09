@@ -244,6 +244,7 @@ Redis は、リアルタイムイベント（開いているブラウザタブ�
 | Plugins | `MULTICA_PLUGIN_DIR` | 開発時にローカル plugin bundle を公開するための任意の絶対ディレクトリ |
 | モデルキー（BYOK） | `MULTICA_MODEL_KEY_SECRET_KEY` | ワークスペースやプロジェクトが設定 → モデルキーで登録するプロバイダー API キーを暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合は「未設定」として扱われ、キーの保存が拒否されます |
 | SSO | `MULTICA_SSO_SECRET_KEY` | 各ワークスペースの OIDC クライアントシークレットを保存時に暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合、セキュリティタブには「未設定」と表示されます |
+| Twenty CRM | `MULTICA_TWENTY_SECRET_KEY` | 各ワークスペースの Twenty API キーと Webhook シークレットを保存時に暗号化する、base64 エンコードされた 32 バイトのキー。未設定の場合、統合は無効になります（設定 → 統合に「未設定」と表示）。Webhook は `MULTICA_PUBLIC_URL` に配信されます |
 
 `GITHUB_APP_ID` と秘密鍵を設定しなくても、PR の関連付け・ミラー・マージによる done への遷移は通常どおり動きますが、カードに CI とマージ可否のステータスが表示されず、「GitHub から選択」のリポジトリ入口も無効になります。
 
