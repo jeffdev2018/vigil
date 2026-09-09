@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Platform actions beyond the runtime brief: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, triage, undo, insights, racing."
+description: "Platform actions: issues, PRs, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, long tasks, triage, undo, insights, racing."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---

@@ -41,3 +41,23 @@ WHERE issue_id = $1
   AND status IN ('completed', 'failed')
 ORDER BY completed_at DESC NULLS LAST
 LIMIT $3;
+
+-- name: CreateSubagentTask :one
+-- Sub-agent runs (long tasks, brick 5): a native run delegates a bounded
+-- piece of work to an isolated in-process loop. The sub-run is its own task
+-- row so its transcript, usage and cost land where every run's do, as a
+-- 'subagent' leg of the parent's workflow. It never waits in the queue: it
+-- starts running the moment the parent asks and is settled by the parent.
+INSERT INTO agent_task_queue (
+    id, agent_id, issue_id, status, priority, runtime_id, dispatched_at, started_at,
+    trigger_summary, leg_role, workflow_root_task_id, delegated_from_task_id,
+    accountable_user_id, originator_user_id
+)
+VALUES ($1, $2, $3, 'running', 0, $4, now(), now(), $5, 'subagent', $6, $7, $8, $9)
+RETURNING *;
+
+-- name: SettleSubagentTask :one
+UPDATE agent_task_queue
+SET status = $2, result = $3, error = $4, completed_at = now()
+WHERE id = $1
+RETURNING *;

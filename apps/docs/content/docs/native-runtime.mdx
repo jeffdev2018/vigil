@@ -39,6 +39,12 @@ The tool-calling loop can only call a small, deliberately closed set of tools:
 
 Any issue ID the model supplies is re-validated against the run's workspace before use — a tool never trusts an issue reference out of model output alone.
 
+## Sub-agents
+
+A run may hand one bounded piece of its task to a sub-agent with the `delegate` tool: what to do and what to report, plus optional context. The sub-agent runs in-process with a fresh context and the same tools minus `delegate` and `ask_user`, at most 8 turns, 4 state-changing calls and 5 minutes; it is its own run on the issue (a `subagent` leg of the parent's workflow, so its transcript, tokens and cost show with the parent's). A run may start 6 sub-agents, 3 at a time, and their state-changing calls count against the run's own budget of 10.
+
+A sub-agent's report must cite a receipt `[rN]` for every action it claims; receipts are its actual tool calls, numbered in order. The parent gets the report with the receipts, the citations that match no call (`unverified_citations`) and the calls the report never mentions (`uncited_receipts`), so a claim without a receipt reads as a claim, not a fact.
+
 ## Guardrails
 
 - **Gated status transitions.** `transition_issue` goes through the same transition-rule decision the HTTP handlers use, with the agent as the actor — an agent carries no workspace role, so it cannot inherit an owner's or admin's transition rights. Depending on the workspace's rules the move is applied immediately, denied with a reason returned to the model, or held as a pending approval request while the status stays unchanged.

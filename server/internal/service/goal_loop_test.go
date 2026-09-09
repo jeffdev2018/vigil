@@ -492,8 +492,13 @@ func TestGoalLoopJudgesDaemonRunsThroughTheBus(t *testing.T) {
 	if _, err := f.tasks.CompleteTask(ctx, util.MustParseUUID(taskID), result, "", "", "", false, "", ""); err != nil {
 		t.Fatal(err)
 	}
+	// The judge runs on its own goroutine: the verdict lands first, the
+	// continuation (and its leg stamp) right after.
 	deadline := time.Now().Add(10 * time.Second)
-	for f.outcome(t, taskID) == "" && time.Now().Before(deadline) {
+	for time.Now().Before(deadline) {
+		if q := f.queued(t); len(q) == 1 && q[0].LegRole == LegRoleContinuation {
+			break
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 	if got := f.outcome(t, taskID); got != "continued" {
