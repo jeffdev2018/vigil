@@ -290,6 +290,25 @@ func TestVigilMCPAgentAsksThroughAGate(t *testing.T) {
 	}
 }
 
+// Production requests arrive with chi's routing context for POST /api/mcp
+// already on the context; a GET dispatched with that context was routed as
+// a POST (the regression the first smoke found). The dispatch must route on
+// its own method and path.
+func TestVigilMCPDispatchIgnoresTheIncomingRouteContext(t *testing.T) {
+	mcpTestRouter(t)
+	issue := dbfx.Issue(t, "routed issue "+uuid.NewString()[:8])
+	req := mcpMemberRequest(testUserID, "", mcpCallTool("issue_get", map[string]any{"id": issue}))
+	rctx := chi.NewRouteContext()
+	rctx.RouteMethod = http.MethodPost
+	rctx.RoutePath = mcpServerPath
+	rctx.URLParams.Add("workspace", "")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	got := mcpDo(t, req)
+	if got.Result.IsError || got.Result.StructuredContent["id"] != issue {
+		t.Fatalf("issue_get through a stale route context = %+v", got.Result)
+	}
+}
+
 // Settings: readable by any member, writable by owners and admins, validated.
 func TestVigilMCPSettingsEndpoints(t *testing.T) {
 	var out struct {
@@ -324,6 +343,5 @@ func TestVigilMCPSettingsEndpoints(t *testing.T) {
 	plain := dbfx.User(t, "plain "+uuid.NewString()[:8], uuid.NewString()[:8]+"@example.com")
 	dbfx.Member(t, testWorkspaceID, plain, "member")
 	put(plain, map[string]any{"enabled": false, "default_surface": "compound", "tools": map[string]string{}}).Want(http.StatusForbidden)
-	_ = context.Background
 	_ = json.Marshal
 }
