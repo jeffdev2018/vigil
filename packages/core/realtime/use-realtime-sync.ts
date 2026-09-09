@@ -10,6 +10,7 @@ import { clearWorkspaceStorage } from "../platform/storage-cleanup";
 import { defaultStorage } from "../platform/storage";
 import { getCurrentWsId, getCurrentSlug } from "../platform/workspace-storage";
 import { issueKeys } from "../issues/queries";
+import { goalKeys } from "../issues/goal-loop";
 import { crossReviewKeys, type CrossReviewSignal } from "../issues/cross-review";
 import { rememberWorkflowSelection } from "../issues/workflow-policy";
 import type { AgentTask } from "../types";
@@ -1265,8 +1266,16 @@ export function useRealtimeSync(
       const { issue_id } = p as { issue_id?: string };
       const wsId = getCurrentWsId();
       if (!wsId) return;
-      if (issue_id) qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
-      else qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+      if (issue_id) {
+        qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, issue_id) });
+        // The goal loop also publishes this event on every change (a
+        // continuation, a pause/resume, an answer given from outside the web
+        // app) so the card refreshes live without a dedicated event type.
+        qc.invalidateQueries({ queryKey: goalKeys.issue(wsId, issue_id) });
+      } else {
+        qc.invalidateQueries({ queryKey: issueKeys.decisionsAll(wsId) });
+        qc.invalidateQueries({ queryKey: goalKeys.all(wsId) });
+      }
     });
 
     const unsubIssueDeleted = ws.on("issue:deleted", (p) => {

@@ -35,6 +35,7 @@ import type {
   TimelineEntry,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
 
 type TimelinePredicate = (entry: TimelineEntry) => boolean;
 type TimelineMutate = (entry: TimelineEntry) => TimelineEntry;
@@ -201,6 +202,9 @@ export function invalidateIssueAfterReconnect(
   qc.invalidateQueries({ queryKey: issueKeys.attachments(wsId, issueId) });
   qc.invalidateQueries({ queryKey: issueKeys.activeTasks(wsId, issueId) });
   qc.invalidateQueries({ queryKey: issueKeys.tasks(wsId, issueId) });
+  // goal_loop: a background agent run can advance the loop (continuation,
+  // status, a new question) while this client was disconnected.
+  qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
 }
 
 // =====================================================

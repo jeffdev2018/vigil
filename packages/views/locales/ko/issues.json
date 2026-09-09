@@ -691,7 +691,9 @@
       "shard": "샤드",
       "eval": "평가",
       "escalation": "에스컬레이션",
-      "other": "단계"
+      "other": "단계",
+      "continuation": "연속 실행",
+      "subagent": "서브 에이전트"
     }
   },
   "usage_detail": {
@@ -1482,6 +1484,75 @@
       "reopen": "재오픈",
       "ask_proof": "증거 요청",
       "none": "조치 없음"
+    }
+  },
+  "goal_loop": {
+    "section": "목표",
+    "intro": "이 에이전트에게 여러 번의 실행에 걸쳐 추구할 목표를 설정하세요.",
+    "goal_label": "목표",
+    "goal_placeholder": "이 이슈가 달성해야 할 것은?",
+    "max_continuations": "최대 연속 실행 횟수",
+    "save": "목표 저장",
+    "cancel": "취소",
+    "edit": "수정",
+    "save_failed": "목표를 저장하지 못했습니다",
+    "saved": "목표가 저장되었습니다",
+    "pause": "일시 중지",
+    "resume": "재개",
+    "pause_failed": "목표를 일시 중지하지 못했습니다",
+    "resume_failed": "목표를 재개하지 못했습니다",
+    "paused": "목표가 일시 중지되었습니다",
+    "resumed": "목표가 재개되었습니다",
+    "continuation_progress": "연속 실행 {{n}} / {{max}}",
+    "blocker": "막힌 부분",
+    "reason": "이유",
+    "next_step": "다음 단계",
+    "evidence": "근거",
+    "evidence_show_all": "모두 보기 ({{count}}개)",
+    "evidence_collapse": "간략히 보기",
+    "status": {
+      "active": "진행 중",
+      "paused": "일시 중지됨",
+      "waiting_user": "답변 대기 중",
+      "satisfied": "목표 달성",
+      "stopped": "중단됨"
+    },
+    "outcomes": {
+      "none": "아직 결과 없음",
+      "satisfied": "달성함",
+      "continued": "계속됨",
+      "stopped_exhausted": "연속 실행 횟수를 모두 소진함",
+      "stopped_stagnation": "진전 없이 정체됨",
+      "stopped_needs_user_input": "당신의 답변이 필요함",
+      "stopped_external_wait": "외부 요인을 기다리는 중",
+      "stopped_run_failed": "실행이 실패함",
+      "stopped_judge_unavailable": "판정을 이용할 수 없었음",
+      "stopped_paused": "일시 중지됨",
+      "stopped_issue_changed": "이슈가 변경됨",
+      "stopped_unknown": "중단됨",
+      "other": "알 수 없는 결과"
+    },
+    "badge": {
+      "continued": "목표: 계속 {{n}}/{{max}}",
+      "satisfied": "목표 달성",
+      "waiting": "목표: 답변 대기 중",
+      "stopped": "목표: 중단됨 ({{reason}})"
+    },
+    "question": {
+      "answer_placeholder": "답변을 입력하세요…",
+      "answer": "답변",
+      "answer_failed": "답변을 보내지 못했습니다",
+      "answered": "답변을 보냈습니다",
+      "answered_line": "{{when}} 답변함",
+      "answered_by_line": "{{by}}이(가) {{when}} 답변함"
+    },
+    "blockers": {
+      "goal_not_met_yet": "목표 미달성",
+      "missing_evidence": "증거 부족",
+      "needs_user_input": "답변 필요",
+      "external_wait": "외부 요소 대기 중",
+      "run_failed": "실행 실패",
+      "other": "기타"
     }
   },
   "eval_promote": {

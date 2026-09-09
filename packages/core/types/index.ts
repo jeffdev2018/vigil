@@ -245,6 +245,13 @@ export type {
 export type { StorageAdapter } from "./storage";
 export type { Goal, GoalStatus, GoalWriteRequest, ListGoalsResponse } from "./goal";
 export type {
+  IssueGoal,
+  IssueGoalStatus,
+  IssueGoalQuestion,
+  IssueGoalQuestionKind,
+  SetIssueGoalInput,
+} from "./issue-goal";
+export type {
   Cycle,
   CycleBurndown,
   CycleBurndownDay,

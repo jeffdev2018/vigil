@@ -95,6 +95,7 @@ import { IssueDescription } from "./issue-description";
 import { IssueReactionRow } from "./issue-reaction-row";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { AgentEffectsSection } from "./agent-effects-section";
+import { GoalSection } from "./goal-section";
 import { ActivityRow } from "./activity-row";
 import { CommentCard } from "./comment-card";
 import { useLastViewedStore } from "@/data/stores/last-viewed-store";
@@ -365,6 +366,7 @@ export function TimelineList({
       <IssueReactionRow issue={issue} />
       <IssueDeliverySection issue={issue} />
       <AgentEffectsSection issueId={issue.id} />
+      <GoalSection issue={issue} />
       <View className="px-4 pt-4 pb-2 border-t border-border">
         <Text className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
           Activity

@@ -70,6 +70,7 @@
     "./issues/run-replay": "./issues/run-replay.ts",
     "./issues/legs": "./issues/legs.ts",
     "./issues/watchdog": "./issues/watchdog.ts",
+    "./issues/goal-loop": "./issues/goal-loop.ts",
     "./work-profile": "./work-profile/queries.ts",
     "./goals": "./goals/queries.ts",
     "./cycles": "./cycles/queries.ts",

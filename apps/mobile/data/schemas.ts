@@ -1062,3 +1062,57 @@ export const EMPTY_VOICE_ISSUE_DRAFT: VoiceIssueDraft = {
   description: "",
   suggested_labels: [],
 };
+
+// ---------------------------------------------------------------------------
+// Issue goal loop — GET/PUT /api/issues/{id}/goal, POST .../pause|resume|
+// answer. Mirrors the wire shape of `goalstate.State` in
+// server/pkg/goalstate/goalstate.go. Mobile-only until web's goal-loop panel
+// promotes a schema to core (packages/core/types/issue-goal.ts already
+// defines the strict `IssueGoal` interface with a closed `status` union, but
+// no zod schema exists there yet — this file's `status` and `question.kind`
+// stay free strings on purpose so a status/kind the server adds before this
+// build ships still renders instead of vanishing (root CLAUDE.md "API
+// Response Compatibility"); `apps/mobile/lib/issue-goal-display.ts` supplies
+// the label fallback for an unrecognised value).
+export const IssueGoalQuestionSchema = z.object({
+  kind: z.string().catch("text").default("text"),
+  prompt: z.string().catch("").default(""),
+  options: z.array(z.string()).catch([]).default([]),
+  run_id: z.string().catch("").default(""),
+  asked_at: z.string().catch("").default(""),
+  answer: z.string().optional(),
+  answered_by: z.string().optional(),
+  answered_by_name: z.string().optional(),
+  answered_at: z.string().optional(),
+}).loose();
+
+export const IssueGoalSchema = z.object({
+  id: z.string(),
+  issue_id: z.string(),
+  goal: z.string().catch("").default(""),
+  status: z.string().catch("active").default("active"),
+  continuation: z.number().catch(0).default(0),
+  max_continuations: z.number().catch(0).default(0),
+  no_progress: z.number().catch(0).default(0),
+  last_outcome: z.string().catch("").default(""),
+  last_blocker: z.string().optional(),
+  last_reason: z.string().optional(),
+  next_step: z.string().optional(),
+  evidence: z.array(z.string()).catch([]).default([]),
+  question: IssueGoalQuestionSchema.nullable().optional(),
+  last_run_id: z.string().optional(),
+  chain_root_task_id: z.string().optional(),
+  done_request_id: z.string().optional(),
+  set_by_type: z.string().catch("member").default("member"),
+  updated_at: z.string().catch("").default(""),
+}).loose();
+
+export const IssueGoalResponseSchema = z.object({
+  goal: IssueGoalSchema.nullable(),
+}).loose();
+
+export type IssueGoalQuestion = z.infer<typeof IssueGoalQuestionSchema>;
+export type IssueGoal = z.infer<typeof IssueGoalSchema>;
+export type IssueGoalResponse = z.infer<typeof IssueGoalResponseSchema>;
+
+export const EMPTY_ISSUE_GOAL_RESPONSE: IssueGoalResponse = { goal: null };

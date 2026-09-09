@@ -186,6 +186,11 @@ import {
   type AgentEffectList,
   type UndoReport,
 } from "./schemas";
+import {
+  EMPTY_ISSUE_GOAL_RESPONSE,
+  IssueGoalResponseSchema,
+  type IssueGoalResponse,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 
@@ -822,6 +827,75 @@ class ApiClient {
       EMPTY_UNDO_REPORT,
       { method: "POST" },
       { endpoint: "POST /api/agent-effects/:id/undo" },
+    );
+  }
+
+  // ── Goal loop — mirrors server/internal/handler/issue_goal.go ──────
+  // Every endpoint answers `{goal: State | null}`; schema/fallback are
+  // mobile-local (see EMPTY_ISSUE_GOAL_RESPONSE comment in ./schemas).
+
+  async getIssueGoal(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidated<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { ...opts, endpoint: "GET /api/issues/:id/goal" },
+    );
+  }
+
+  // Server validates (server/internal/service/goal_loop.go SetGoal): goal
+  // <= 6000 chars, max_continuations in [1,20] → 400 with {"error": "..."}
+  // otherwise. Mobile mirrors the same bounds client-side for instant
+  // feedback (lib/issue-goal-display.ts issueGoalFormError) but this is the
+  // authoritative check.
+  async setIssueGoal(
+    issueId: string,
+    body: { goal: string; max_continuations?: number },
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "PUT", body: JSON.stringify(body) },
+      { endpoint: "PUT /api/issues/:id/goal" },
+    );
+  }
+
+  async pauseIssueGoal(issueId: string): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/pause`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST" },
+      { endpoint: "POST /api/issues/:id/goal/pause" },
+    );
+  }
+
+  async resumeIssueGoal(issueId: string): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/resume`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST" },
+      { endpoint: "POST /api/issues/:id/goal/resume" },
+    );
+  }
+
+  // 409 (nothing waiting) surfaces as ApiError with status 409 — the caller
+  // (useAnswerIssueGoal) branches on that instead of a generic error toast.
+  async answerIssueGoal(
+    issueId: string,
+    answer: string,
+  ): Promise<IssueGoalResponse> {
+    return this.fetchValidatedWith<IssueGoalResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/goal/answer`,
+      IssueGoalResponseSchema,
+      EMPTY_ISSUE_GOAL_RESPONSE,
+      { method: "POST", body: JSON.stringify({ answer }) },
+      { endpoint: "POST /api/issues/:id/goal/answer" },
     );
   }
 
