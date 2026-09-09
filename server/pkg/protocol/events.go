@@ -76,6 +76,13 @@ const (
 	EventWorkspaceNoteDeleted = "workspace_note:deleted"
 
 	// Inbox events
+	// Inline approvals (OS plan, chantier 3): something a human is asked to
+	// decide appeared or was settled. Workspace-wide, issue-scoped payload:
+	// {source: decision|transition|goal_question, id, issue_id, kind, outcome?}.
+	// Personal inbox items still carry the ask to each recipient.
+	EventApprovalAsked   = "approval:asked"
+	EventApprovalDecided = "approval:decided"
+
 	EventInboxNew           = "inbox:new"
 	EventInboxRead          = "inbox:read"
 	EventInboxUnread        = "inbox:unread"

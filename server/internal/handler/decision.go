@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 )
@@ -219,6 +220,17 @@ func (h *Handler) RespondIssueDecision(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "decision not found")
 		return
 	}
+	// Approval gates (K05) may be reserved to owners and admins by policy;
+	// every other card keeps the rule that whoever sees the issue may answer.
+	if _, gerr := h.Queries.GetApprovalGateByDecision(ctx, decision.ID); gerr == nil {
+		if ws, werr := h.Queries.GetWorkspace(ctx, issue.WorkspaceID); werr == nil {
+			member, merr := h.getWorkspaceMember(ctx, userID, uuidToString(issue.WorkspaceID))
+			if merr != nil || !service.ApprovalGatesSettings(ws.Settings).GateApproverAllowed(member.Role) {
+				writeErrorCode(w, http.StatusForbidden, "not_an_approver", "this workspace reserves approval gates to owners and admins")
+				return
+			}
+		}
+	}
 	var options []DecisionOption
 	_ = json.Unmarshal(decision.Options, &options)
 	chosen := ""
@@ -297,6 +309,11 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if err != nil {
 		return db.IssueDecision{}, "", err
 	}
+	outcome := req.OptionID
+	if outcome == "" {
+		outcome = "modified"
+	}
+	h.publishApproval(protocol.EventApprovalDecided, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), outcome)
 	// Pipelines (K37): a gate card answered advances or stops the pipeline, no resume.
 	if h.advancePipelineForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil

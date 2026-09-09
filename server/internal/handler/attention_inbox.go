@@ -115,6 +115,7 @@ func (h *Handler) ListAttentionInbox(w http.ResponseWriter, r *http.Request) {
 // notifyDecisionRequested files one inbox item per workspace manager when a
 // Decision Card is asked (K01 → K02). Best effort: the card exists either way.
 func (h *Handler) notifyDecisionRequested(ctx context.Context, issue db.Issue, decision db.IssueDecision, actorType, actorID string) {
+	h.publishApproval(protocol.EventApprovalAsked, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), "")
 	recipients, err := service.ListWorkspaceManagerNotificationRecipients(ctx, h.Queries, issue.WorkspaceID)
 	if err != nil {
 		slog.Warn("decision inbox: list recipients failed", "error", err, "issue_id", uuidToString(issue.ID))

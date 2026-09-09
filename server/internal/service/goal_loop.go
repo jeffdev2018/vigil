@@ -527,6 +527,9 @@ func goalEvidenceOf(raw []byte) []string {
 	return out
 }
 
+// GoalQuestionOf decodes the question a run left on the goal, nil when none.
+func GoalQuestionOf(raw []byte) *goalstate.Question { return goalQuestionOf(raw) }
+
 func goalQuestionOf(raw []byte) *goalstate.Question {
 	if len(raw) == 0 {
 		return nil
@@ -834,7 +837,13 @@ func (s *GoalLoopService) AskQuestion(ctx context.Context, task db.AgentTaskQueu
 		return db.IssueGoal{}, err
 	}
 	raw, _ := json.Marshal(q)
-	return s.Queries.SetIssueGoalQuestion(ctx, db.SetIssueGoalQuestionParams{ID: goal.ID, Question: raw})
+	updated, err := s.Queries.SetIssueGoalQuestion(ctx, db.SetIssueGoalQuestionParams{ID: goal.ID, Question: raw})
+	if err != nil {
+		return db.IssueGoal{}, err
+	}
+	// Inline approvals: the question is an ask like any other.
+	s.publish(protocol.EventApprovalAsked, issue.WorkspaceID, task.AgentID, map[string]any{"source": "goal_question", "id": util.UUIDToString(updated.ID), "issue_id": util.UUIDToString(issue.ID), "kind": "goal_question"})
+	return updated, nil
 }
 
 // ErrGoalNotWaiting: an answer arrived while no question was pending.
@@ -911,6 +920,10 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 		}
 	}
 	s.publish(protocol.EventIssueAuxChanged, issue.WorkspaceID, userID, map[string]any{"issue_id": util.UUIDToString(issue.ID)})
+	if s.Bus != nil {
+		s.Bus.Publish(events.Event{Type: protocol.EventApprovalDecided, WorkspaceID: util.UUIDToString(issue.WorkspaceID), ActorType: "member", ActorID: util.UUIDToString(userID),
+			Payload: map[string]any{"source": "goal_question", "id": util.UUIDToString(updated.ID), "issue_id": util.UUIDToString(issue.ID), "kind": "goal_question", "outcome": "answered"}})
+	}
 	return updated, nil
 }
 

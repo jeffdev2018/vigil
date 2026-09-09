@@ -602,6 +602,7 @@ func (h *Handler) decideIssueTransitionRequest(w http.ResponseWriter, r *http.Re
 	}
 	h.publish(event, uuidToString(issue.WorkspaceID), actor.Type, actor.ID,
 		map[string]any{"request": issueTransitionRequestToResponse(decided)})
+	h.publishApproval(protocol.EventApprovalDecided, actor.Type, actor.ID, issue.WorkspaceID, issue.ID, ApprovalSourceTransition, uuidToString(decided.ID), ApprovalKindTransition, state)
 
 	resp := issueToResponse(applied, h.getIssuePrefix(r.Context(), applied.WorkspaceID))
 	h.fillStatusCategory(r.Context(), applied.WorkspaceID, &resp)

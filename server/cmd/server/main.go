@@ -705,6 +705,9 @@ func main() {
 	// its bounded transactions run independently once per hour, so a slow GC
 	// round cannot delay offline detection or task recovery.
 	go runRuntimeGCSweeper(sweepCtx, pool, queries, taskSvc.Metrics, h)
+	// Approval gates past their deadline are settled once a minute so an
+	// inbox row or a timeline card never shows an ask nobody can answer.
+	go runApprovalGateSweeper(sweepCtx, h)
 	// Source-context cleanup is object-store work, so it gets its own goroutine
 	// instead of a slot in the runtime sweep tick.
 	go runSourceContextSweeper(sweepCtx, taskSvc)
