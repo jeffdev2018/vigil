@@ -11,6 +11,7 @@ import { runtimeListOptions } from "@multica/core/runtimes/queries";
 import type { Agent, Goal, MemberWithUser, OrgDefinition, OrgMember } from "@multica/core/types";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { Button } from "@multica/ui/components/ui/button";
+import { OrgSelect } from "./org-select";
 import { Input } from "@multica/ui/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { cn } from "@multica/ui/lib/utils";
@@ -32,7 +33,6 @@ const ZOOM_MIN = 0.4;
 /** "Fit" never goes below what a name stays readable at; past that, scroll. */
 const FIT_MIN = 0.6;
 const ZOOM_MAX = 1.6;
-const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
 
 export interface OrgPeopleChartProps {
   wsId: string;
@@ -345,12 +345,7 @@ function AddTeammateDialog({
           </div>
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.people.who)}
-            <select className={SELECT_CLASS} value={id} onChange={(e) => setId(e.target.value)}>
-              <option value="">{t(($) => $.people.pick)}</option>
-              {choices.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <OrgSelect value={id} onValueChange={setId} items={[{ value: "", label: t(($) => $.people.pick) }, ...choices.map((c) => ({ value: c.id, label: c.name }))]} />
           </label>
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.people.title)}
@@ -358,12 +353,7 @@ function AddTeammateDialog({
           </label>
           <label className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.people.reports_to)}
-            <select className={SELECT_CLASS} value={manager} onChange={(e) => setManager(e.target.value)}>
-              <option value="">{t(($) => $.people.manager_none)}</option>
-              {people.map((p) => (
-                <option key={p.key} value={p.key}>{nameOf(p)} · {p.title}</option>
-              ))}
-            </select>
+            <OrgSelect value={manager} onValueChange={setManager} items={[{ value: "", label: t(($) => $.people.manager_none) }, ...people.map((p) => ({ value: p.key, label: `${nameOf(p)} · ${p.title}` }))]} />
           </label>
         </div>
         <DialogFooter>

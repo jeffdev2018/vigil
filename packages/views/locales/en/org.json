@@ -717,6 +717,14 @@
     "parent_required": "This organization is hierarchical. Choose the reporting team explicitly.",
     "explicit_people": "Nobody is added automatically. Choose only the people who will work in this organization.",
     "back_to_teams": "Back to teams",
-    "move_person": "Move {{name}}"
+    "move_person": "Move {{name}}",
+    "create_relation": "Create a relationship",
+    "assign_person": "Assign a person",
+    "people_filter": "Filter people",
+    "all_people": "Everyone",
+    "person": "Person or agent",
+    "choose_person": "Choose a person or agent",
+    "source_team": "From team",
+    "return_to_view": "Back to {{view}}"
   }
 }

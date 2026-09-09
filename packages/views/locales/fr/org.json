@@ -716,6 +716,14 @@
     "parent_required": "Cette organisation est hiérarchique : choisissez explicitement l’équipe de rattachement.",
     "explicit_people": "Aucun membre n’est ajouté automatiquement. Choisissez uniquement les personnes qui travailleront dans cette organisation.",
     "back_to_teams": "Revenir aux équipes",
-    "move_person": "Déplacer {{name}}"
+    "move_person": "Déplacer {{name}}",
+    "create_relation": "Créer une relation",
+    "assign_person": "Affecter un membre",
+    "people_filter": "Filtrer les personnes",
+    "all_people": "Tout le monde",
+    "person": "Personne ou agent",
+    "choose_person": "Choisir une personne ou un agent",
+    "source_team": "Équipe de départ",
+    "return_to_view": "Revenir à {{view}}"
   }
 }

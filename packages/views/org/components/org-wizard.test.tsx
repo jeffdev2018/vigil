@@ -109,11 +109,14 @@ describe("OrgWizard", () => {
 
     // 3 — the real members of the workspace, on the units of the support template.
     expect(screen.getAllByTestId("org-wizard-actor")).toHaveLength(3);
-    expect((screen.getByLabelText("Unit of Ada") as HTMLSelectElement).value).toBe("");
-    expect((screen.getByLabelText("Unit of Mika") as HTMLSelectElement).value).toBe("");
-    await user.selectOptions(screen.getByLabelText("Unit of Ada"), "support-lead");
-    await user.selectOptions(screen.getByLabelText("Unit of Mika"), "front-line");
-    await user.selectOptions(screen.getByLabelText("Unit of Nia"), "front-line");
+    expect(screen.getByLabelText("Unit of Ada")).toHaveTextContent("Do not assign");
+    expect(screen.getByLabelText("Unit of Mika")).toHaveTextContent("Do not assign");
+    await user.click(screen.getByLabelText("Unit of Ada"));
+    await user.click(await screen.findByRole("option", { name: "Support coordination" }));
+    await user.click(screen.getByLabelText("Unit of Mika"));
+    await user.click(await screen.findByRole("option", { name: "Front line" }));
+    await user.click(screen.getByLabelText("Unit of Nia"));
+    await user.click(await screen.findByRole("option", { name: "Front line" }));
     await user.click(next());
 
     // 4 — the preview, then the draft.
@@ -172,11 +175,13 @@ describe("OrgWizard", () => {
     fireEvent.change(screen.getByLabelText("In one sentence"), { target: { value: "Suivre les factures" } });
     expect(next()).toBeDisabled();
     expect(screen.getByRole("alert").textContent).toContain("already has an organization");
-    await user.selectOptions(screen.getByLabelText("Applies to"), "p-1");
+    await user.click(screen.getByLabelText("Applies to"));
+    await user.click(await screen.findByRole("option", { name: "Apollo" }));
     await user.click(next());
     await answerFlow(user, { decider: "The owner of each topic" });
     await user.click(next());
-    await user.selectOptions(screen.getByLabelText("Unit of Mika"), "");
+    await user.click(screen.getByLabelText("Unit of Mika"));
+    await user.click(await screen.findByRole("option", { name: "Do not assign" }));
     await user.click(next());
     await user.click(screen.getByRole("button", { name: "Open my draft" }));
     expect(state.updated).toHaveLength(0);

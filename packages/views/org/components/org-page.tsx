@@ -1,4 +1,7 @@
 "use client";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@multica/ui/components/ui/tabs";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
+import { OrgSelect } from "./org-select";
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -343,7 +346,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   };
 
   return (
-    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-5 md:px-6">
+    <Tabs value={tab} onValueChange={v => setTab(v as typeof tab)} className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-5 md:px-6">
       <div className="flex flex-wrap items-center gap-2 pt-4">
         <Button type="button" variant="ghost" size="sm" className="gap-1 px-2" onClick={() => onBack()}>
           <ArrowLeft className="size-3.5" />
@@ -369,17 +372,17 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       {readOnly && <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.page.read_only)}</p>}
 
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b bg-background py-3">
-        <div className="flex flex-wrap gap-1" aria-label={t($ => $.page.title)}>{(["compose", "activity", "history", "settings"] as const).map(key => { const Icon = { compose: GitBranch, activity: Activity, history: History, settings: Settings2 }[key]; return <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)} className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-body transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}><Icon className="size-4" />{t($ => $.workspace.tabs[key])}</button>; })}</div>
+        <TabsList variant="line" aria-label={t($ => $.page.title)}>{(["compose", "activity", "history", "settings"] as const).map(key => { const Icon = { compose: GitBranch, activity: Activity, history: History, settings: Settings2 }[key]; return <TabsTrigger value={key} key={key} className="gap-2 px-3"><Icon className="size-4" />{t($ => $.workspace.tabs[key])}</TabsTrigger>; })}</TabsList>
         <Button size="sm" variant="outline" aria-pressed={testing} onClick={() => { setTab("compose"); setTesting(v => !v); }}>{t($ => $.coherence.test)}</Button>
         {!readOnly && <div className="flex flex-wrap items-center gap-2"><span role="status" className="hidden items-center gap-1.5 text-caption text-muted-foreground sm:flex">{dirty ? <span className="size-1.5 rounded-full bg-warning" /> : <Check className="size-3.5 text-success" />}{dirty ? t($ => $.coherence.draft_saved) : t($ => $.workspace.saved)}</span><Button size="sm" variant="ghost" disabled={!dirty || update.isPending} onClick={discard}>{t($ => $.coherence.discard)}</Button><Button size="sm" disabled={!dirty || update.isPending || "error" in parsed || !form.name.trim() || problems.length > 0 || baseRevision !== structure.revision} onClick={() => structure.status === "active" ? setPublishing(true) : save()}><Save className="mr-1.5 size-3.5" />{structure.status === "active" ? t($ => $.coherence.publish) : t($ => $.form.save)}</Button></div>}
       </div>
       {baseRevision !== structure.revision && dirty && <p role="alert" className="mt-4 text-caption text-warning">{t($ => $.coherence.conflict)}</p>}
-      <div hidden={tab !== "compose"} className="mt-4 space-y-3">
+      <TabsContent value="compose" keepMounted className="mt-4 space-y-3">
         {testing && "def" in parsed && <OrgTester structureId={structure.id} definition={parsed.def} model={structure.model} status={structure.status} revision={structure.revision} dirty={dirty} goals={goals} onSelectUnit={setFocusedUnit} />}
         <OrgProblemList problems={problems} />
         {"def" in parsed && <OrgEditor focusedUnit={focusedUnit} definition={parsed.def} model={structure.model} pausedUnits={structure.paused_units} readOnly={readOnly || update.isPending} onChange={def => set("definition", JSON.stringify(def, null, 2))} />}
-      </div>
-      <section hidden={tab !== "settings"} className="mx-auto mt-6 max-w-3xl rounded-2xl border bg-card p-6">
+      </TabsContent>
+      <TabsContent value="settings" keepMounted className="mx-auto mt-6 max-w-3xl rounded-2xl border bg-card p-6">
         <div className="flex flex-col gap-3">
           <h3 className="text-caption font-medium">{t(($) => $.page.editor)}</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -389,12 +392,9 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.owner)}
-              <select className={SELECT_CLASS} value={form.owner_id} onChange={(e) => set("owner_id", e.target.value)} disabled={readOnly || update.isPending}>
-                <option value="">{t(($) => $.form.owner_none)}</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>{m.name}</option>
-                ))}
-              </select>
+              <OrgSelect className="w-full" value={form.owner_id} onValueChange={(e) => set("owner_id", e)} disabled={readOnly || update.isPending} items={[{ value: "", label: t(($) => $.form.owner_none) }, ...members.map((m) => (
+                  ({ value: m.user_id, label: m.name })
+                ))]} />
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.dissolve_at)}
@@ -402,11 +402,9 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.end_condition)}
-              <select className={SELECT_CLASS} value={form.end_condition} onChange={(e) => set("end_condition", e.target.value)} disabled={readOnly || update.isPending}>
-                {END_CONDITIONS.map((c) => (
-                  <option key={c} value={c}>{c === "" ? t(($) => $.form.end_none) : c === "all_issues_done" ? t(($) => $.form.end_all_issues_done) : t(($) => $.form.end_budget_spent)}</option>
-                ))}
-              </select>
+              <OrgSelect className="w-full" value={form.end_condition} onValueChange={(e) => set("end_condition", e)} disabled={readOnly || update.isPending} items={[...END_CONDITIONS.map((c) => (
+                  ({ value: c, label: c === "" ? t(($) => $.form.end_none) : c === "all_issues_done" ? t(($) => $.form.end_all_issues_done) : t(($) => $.form.end_budget_spent) })
+                ))]} />
             </label>
             <label className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.form.budget)}
@@ -415,7 +413,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
           </div>
           {"def" in parsed && <details className="space-y-3 rounded-lg border p-4"><summary className="cursor-pointer text-body font-medium">{t($ => $.coherence.collective)}</summary>
             {parsed.def.committees.map((committee, index) => <div key={index} className="space-y-2 rounded-lg bg-muted/30 p-3"><label className="block text-caption">{t($ => $.coherence.decision_type)}<Input disabled={readOnly || update.isPending} value={committee.decision_type} onChange={e => set("definition", JSON.stringify({ ...parsed.def, committees: parsed.def.committees.map((c, i) => i === index ? { ...c, decision_type: e.target.value } : c) }, null, 2))} /></label>
-              <fieldset disabled={readOnly || update.isPending} className="flex flex-wrap gap-3"><legend className="text-caption">{t($ => $.coherence.sections.units)}</legend>{parsed.def.units.map(unit => <label key={unit.id} className="flex items-center gap-1 text-caption"><input type="checkbox" checked={committee.unit_ids.includes(unit.id)} onChange={e => set("definition", JSON.stringify({ ...parsed.def, committees: parsed.def.committees.map((c, i) => i === index ? { ...c, unit_ids: e.target.checked ? [...c.unit_ids, unit.id] : c.unit_ids.filter(id => id !== unit.id) } : c) }, null, 2))} />{unit.name}</label>)}</fieldset>
+              <fieldset disabled={readOnly || update.isPending} className="flex flex-wrap gap-3"><legend className="text-caption">{t($ => $.coherence.sections.units)}</legend>{parsed.def.units.map(unit => <label key={unit.id} className="flex items-center gap-1 text-caption"><Checkbox checked={committee.unit_ids.includes(unit.id)} onCheckedChange={e => set("definition", JSON.stringify({ ...parsed.def, committees: parsed.def.committees.map((c, i) => i === index ? { ...c, unit_ids: e ? [...c.unit_ids, unit.id] : c.unit_ids.filter(id => id !== unit.id) } : c) }, null, 2))} />{unit.name}</label>)}</fieldset>
               {(["quorum", "max_rounds"] as const).map(key => <label key={key} className="block text-caption">{t($ => $.coherence[key])}<Input disabled={readOnly || update.isPending} type="number" min={1} step={1} value={committee[key]} onChange={e => set("definition", JSON.stringify({ ...parsed.def, committees: parsed.def.committees.map((c, i) => i === index ? { ...c, [key]: Number(e.target.value) } : c) }, null, 2))} /></label>)}
               <Button disabled={readOnly || update.isPending} variant="ghost" size="sm" onClick={() => set("definition", JSON.stringify({ ...parsed.def, committees: parsed.def.committees.filter((_, i) => i !== index) }, null, 2))}>{t($ => $.coherence.remove_committee)}</Button>
             </div>)}<Button disabled={readOnly || update.isPending} size="sm" variant="outline" onClick={() => set("definition", JSON.stringify({ ...parsed.def, committees: [...parsed.def.committees, { decision_type: "", unit_ids: [], quorum: 1, max_rounds: 3 }] }, null, 2))}>{t($ => $.coherence.add_committee)}</Button>
@@ -428,14 +426,14 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
           </label></details>
           {"error" in parsed && <p role="alert" className="text-caption text-destructive">{t(($) => $.form.invalid_json, { error: parsed.error })}</p>}
         </div>
-      </section>
+      </TabsContent>
 
-      <section hidden={tab !== "activity"} className="mt-6 rounded-2xl border bg-card p-6">
+      <TabsContent value="activity" keepMounted className="mt-6 rounded-2xl border bg-card p-6">
         <h3 className="mb-4 text-title-sm font-semibold">{t(($) => $.health.title)}</h3>
         <OrgHealthSection structureId={structure.id} />
-      </section>
+      </TabsContent>
 
-      <section hidden={tab !== "history"} className="mx-auto mt-6 max-w-4xl rounded-2xl border bg-card p-6">
+      <TabsContent value="history" keepMounted className="mx-auto mt-6 max-w-4xl rounded-2xl border bg-card p-6">
         <h3 className="mb-1 text-caption font-medium">{t(($) => $.page.revisions)}</h3>
         {revisions.length === 0 ? (
           <p className="text-caption text-muted-foreground">{t(($) => $.page.no_revisions)}</p>
@@ -450,7 +448,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
             ))}
           </ul>
         )}
-      </section>
+      </TabsContent>
 
       {publishing && <Dialog open onOpenChange={open => { if (!update.isPending) setPublishing(open); }}><DialogContent><DialogHeader><DialogTitle>{t($ => $.coherence.publish)}</DialogTitle><DialogDescription>{t($ => $.coherence.publish_hint)}</DialogDescription></DialogHeader><ul className="space-y-2 text-body">{"def" in parsed && orgDefinitionChanges(structure.definition, parsed.def).map(c => <li key={c.id}>{c.after?.name ?? c.before?.name ?? t($ => $.coherence.sections[c.section])}</li>)}</ul><DialogFooter><Button variant="outline" disabled={update.isPending} onClick={() => setPublishing(false)}>{t($ => $.actions.cancel)}</Button><Button disabled={update.isPending} onClick={save}>{t($ => $.coherence.publish)}</Button></DialogFooter></DialogContent></Dialog>}
       {reviewRevision && <Dialog open onOpenChange={open => { if (!open) setReviewRevision(null); }}><DialogContent className="sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.history.title, { n: reviewRevision.revision })}</DialogTitle><DialogDescription>{t($ => $.history.description)}</DialogDescription></DialogHeader><div className="max-h-[60vh] space-y-4 overflow-auto">{reviewRevision.definition && <><div className="space-y-2">{orgDefinitionChanges(structure.definition, reviewRevision.definition).map(change => <div key={change.id} className="rounded-lg border p-3"><p className="text-body font-medium">{change.after?.name ?? change.before?.name ?? t($ => $.coherence.sections[change.section])}</p><div className="mt-2 grid gap-2 text-caption sm:grid-cols-2">{([change.before, change.after]).map((unit, i) => <div key={i} className="rounded-md bg-muted/50 p-3"><span className="text-muted-foreground">{i === 0 ? t($ => $.history.current) : t($ => $.history.previous)}</span><p className="mt-1">{unit ? `${unit.name} · ${t($ => $.autonomy[unit.autonomy])} · ${t($ => $.page.members, { count: unit.members.length })}` : t($ => $.history.absent)}</p><p>{unit?.roles.map(r => r.name).join(", ")}</p></div>)}</div></div>)}</div><p className="text-caption text-muted-foreground">{t($ => $.history.full_diff)}</p></>}<details><summary className="cursor-pointer text-caption font-medium">{t($ => $.visual.advanced)}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><div><h4 className="mb-2 text-caption font-semibold">{t($ => $.history.current)}</h4><pre className="overflow-auto rounded-md bg-muted p-3 text-caption">{JSON.stringify(structure.definition, null, 2)}</pre></div><div><h4 className="mb-2 text-caption font-semibold">{t($ => $.history.previous)}</h4><pre className="overflow-auto rounded-md bg-muted p-3 text-caption">{JSON.stringify(reviewRevision.definition, null, 2)}</pre></div></div></details></div>{dirty && <p className="text-caption text-warning">{t($ => $.history.dirty)}</p>}<DialogFooter><Button variant="outline" onClick={() => setReviewRevision(null)}>{t($ => $.actions.cancel)}</Button><Button disabled={readOnly || dirty || update.isPending || reviewRevision.revision === structure.revision} onClick={restore}>{t($ => $.history.restore)}</Button></DialogFooter></DialogContent></Dialog>}
@@ -458,7 +456,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       {dialog && dialog !== "activate" && (
         <ReasonDialog structure={structure} action={dialog} onClose={() => setDialog(null)} onDone={dialog === "delete" ? onDeleted : undefined} />
       )}
-    </div>
+    </Tabs>
   );
 }
 
@@ -488,7 +486,7 @@ export function OrgPage() {
 
   return <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
     <CollectionPageHeader className="h-auto min-h-12 flex-wrap py-2 [&>div:last-child]:flex-wrap [&>div:last-child]:justify-start" icon={Network} title={t($ => $.page.title)} actions={<>
-      {current && <select aria-label={t($ => $.studio.organization)} data-testid="org-structure-picker" value={current.id} onChange={e => select(e.target.value)} className="h-8 max-w-64 truncate rounded-lg border bg-background px-2 text-caption">{sorted.map(s => <option key={s.id} value={s.id}>{scope(s)} · {s.name}</option>)}</select>}
+      {current && <OrgSelect aria-label={t($ => $.studio.organization)} data-testid="org-structure-picker" value={current.id} onValueChange={e => select(e)} className="w-full max-w-64" items={[...sorted.map(s => ({ value: s.id, label: [scope(s), " · ", s.name].join("") }))]} />}
       <Button size="sm" variant="ghost" onClick={() => setOverview(v => !v)}>{t($ => $.studio.browse)}</Button>
       <Button size="sm" variant="ghost" onClick={() => setCatalogOpen(true)}>{t($ => $.wizard.catalog)}</Button>
       <CollectionPageHeaderAction icon={Plus} label={t($ => $.page.new_structure)} onClick={() => setCreating(true)} />

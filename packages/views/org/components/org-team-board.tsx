@@ -1,4 +1,6 @@
 "use client";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
+import { OrgSelect } from "./org-select";
 
 import { useMemo, useState } from "react";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
@@ -87,10 +89,10 @@ export function OrgTeamBoard({ definition, people, selected, readOnly, onSelect,
       {directory && <aside className="order-first mx-4 mb-4 rounded-xl bg-muted/30 p-3 lg:order-last lg:ml-0" aria-label={t($ => $.studio.directory)}>
         <div className="mb-3 flex items-center justify-between"><h3 className="text-body font-semibold">{t($ => $.studio.directory)}</h3><Button size="sm" variant="ghost" aria-label={t($ => $.visual.close)} onClick={() => setDirectory(false)}><X className="size-3.5" /></Button></div>
         <div className="relative"><Search className="pointer-events-none absolute left-2.5 top-2.5 size-3.5 text-muted-foreground" /><Input className="h-9 pl-8 text-caption" aria-label={t($ => $.visual.search)} placeholder={t($ => $.visual.search)} value={search} onChange={e => setSearch(e.target.value)} /></div>
-        <label className="my-3 flex items-center gap-2 text-caption text-muted-foreground"><input type="checkbox" checked={unassigned} onChange={e => setUnassigned(e.target.checked)} />{t($ => $.studio.only_unassigned)}</label>
+        <label className="my-3 flex items-center gap-2 text-caption text-muted-foreground"><Checkbox checked={unassigned} onCheckedChange={e => setUnassigned(e)} />{t($ => $.studio.only_unassigned)}</label>
         <p className="mb-2 text-caption leading-relaxed text-muted-foreground">{t($ => $.studio.directory_hint)}</p>
         <div className="max-h-44 overflow-y-auto lg:max-h-80">{showPeople.map(person => <PersonRow key={`${person.type}:${person.id}`} person={person} disabled={readOnly} onClick={() => { setPicked(person); setTarget(""); }} />)}{showPeople.length === 0 && <p className="p-3 text-caption text-muted-foreground">{t($ => $.studio.no_results)}</p>}</div>
-        {picked && <div className="mt-3 space-y-2 rounded-lg border bg-background p-3"><p className="text-caption font-medium">{picked.name}</p><select aria-label={t($ => $.studio.assign_to)} className="h-9 w-full rounded-md border bg-background px-2 text-caption" value={target} disabled={readOnly} onChange={e => setTarget(e.target.value)}><option value="">{t($ => $.visual.choose_team)}</option>{definition.units.filter(u => !u.members.some(m => m.id === picked.id && m.type === picked.type)).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select><Button size="sm" className="w-full gap-2" disabled={!target || readOnly} onClick={() => assign(picked, target)}><Check className="size-3.5" />{t($ => $.studio.assign)}</Button></div>}
+        {picked && <div className="mt-3 space-y-2 rounded-lg border bg-background p-3"><p className="text-caption font-medium">{picked.name}</p><OrgSelect aria-label={t($ => $.studio.assign_to)} className="w-full" value={target} disabled={readOnly} onValueChange={e => setTarget(e)} items={[{ value: "", label: t($ => $.visual.choose_team) }, ...definition.units.filter(u => !u.members.some(m => m.id === picked.id && m.type === picked.type)).map(u => ({ value: u.id, label: u.name }))]} /><Button size="sm" className="w-full gap-2" disabled={!target || readOnly} onClick={() => assign(picked, target)}><Check className="size-3.5" />{t($ => $.studio.assign)}</Button></div>}
         {!readOnly && <Button size="sm" variant="outline" className="mt-4 w-full gap-2" onClick={onCreateAgent}><Bot className="size-3.5" />{t($ => $.coherence.create_agent)}</Button>}
       </aside>}
     </div>

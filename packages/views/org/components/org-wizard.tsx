@@ -1,4 +1,5 @@
 "use client";
+import { OrgSelect } from "./org-select";
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -28,7 +29,6 @@ import { useOrgWizardDraftStore } from "@multica/core/org/draft-store";
 import { projectListOptions } from "@multica/core/projects/queries";
 import { OrgTemplateCards } from "./org-template-cards";
 
-const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
 const STEPS = 4;
 
 const errorMessage = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback);
@@ -180,7 +180,7 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
         <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
           {step === 1 && (
             <>
-              <label className="space-y-1 text-caption">{t($ => $.new.project)}<select className={SELECT_CLASS} value={projectId} onChange={e => setProjectId(e.target.value)}><option value="">{t($ => $.new.workspace_default)}</option>{projects.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select></label>
+              <label className="space-y-1 text-caption">{t($ => $.new.project)}<OrgSelect className="w-full" value={projectId} onValueChange={e => setProjectId(e)} items={[{ value: "", label: t($ => $.new.workspace_default) }, ...projects.map(p => ({ value: p.id, label: p.title }))]} /></label>
               {existing && <p role="alert" className="text-caption text-warning">{t($ => $.coherence.scope_taken)}</p>}
               <h3 className="text-body font-medium">{t(($) => $.wizard.purpose.question)}</h3>
               <p className="text-caption text-muted-foreground">{t(($) => $.wizard.purpose.help)}</p>
@@ -290,17 +290,9 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                     return (
                       <li key={key} data-testid="org-wizard-actor" className="flex items-center gap-2 text-caption">
                         <span className="truncate">{actor.name}</span>
-                        <select
-                          className={`${SELECT_CLASS} ml-auto w-48`}
-                          aria-label={t(($) => $.wizard.people.unit_of, { name: actor.name })}
-                          value={placedIn(key)}
-                          onChange={(e) => setDraft({ placement: { ...placement, [key]: e.target.value } })}
-                        >
-                          <option value="">{t($ => $.coherence.excluded)}</option>
-                          {template.units.map((u) => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))}
-                        </select>
+                        <OrgSelect className="w-full" aria-label={t(($) => $.wizard.people.unit_of, { name: actor.name })} value={placedIn(key)} onValueChange={(e) => setDraft({ placement: { ...placement, [key]: e } })} items={[{ value: "", label: t($ => $.coherence.excluded) }, ...template.units.map((u) => (
+                            ({ value: u.id, label: u.name })
+                          ))]} />
                       </li>
                     );
                   })}

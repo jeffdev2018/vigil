@@ -13,13 +13,13 @@ import {
 import type { Goal, MemberWithUser, OrgAutonomy, OrgProperty, OrgUnit } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
+import { Checkbox } from "@multica/ui/components/ui/checkbox";
 import { Input } from "@multica/ui/components/ui/input";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
 import { OrgProblemList } from "./org-problem-list";
-
-const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
+import { OrgSelect } from "./org-select";
 
 export interface OrgUnitSheetProps {
   unit: OrgUnit;
@@ -182,17 +182,7 @@ export function OrgUnitSheet({
 
       <label className="flex flex-col gap-1 text-caption text-muted-foreground">
         {t(($) => $.unit.mission)}
-        <select
-          className={SELECT_CLASS}
-          value={unit.mission_goal_id ?? ""}
-          onChange={(e) => onPatch({ mission_goal_id: e.target.value })}
-          disabled={readOnly}
-        >
-          <option value="">{t(($) => $.unit.mission_none)}</option>
-          {goals.map((g) => (
-            <option key={g.id} value={g.id}>{g.title}</option>
-          ))}
-        </select>
+        <OrgSelect value={unit.mission_goal_id ?? ""} onValueChange={(value) => onPatch({ mission_goal_id: value })} disabled={readOnly} items={[{ value: "", label: t(($) => $.unit.mission_none) }, ...goals.map((g) => ({ value: g.id, label: g.title }))]} />
       </label>
 
       <fieldset className="flex flex-col gap-1" disabled={readOnly}>
@@ -239,17 +229,12 @@ export function OrgUnitSheet({
         <legend className="text-caption text-muted-foreground">{t(($) => $.unit.properties)}</legend>
         {ORG_PROPERTIES.map((p) => (
           <label key={p} className="flex items-center gap-2 text-caption">
-            <input type="checkbox" checked={handles(p)} onChange={() => toggleProperty(p)} disabled={readOnly} />
+            <Checkbox checked={handles(p)} onCheckedChange={() => toggleProperty(p)} disabled={readOnly} />
             {t(($) => $.unit.property[p])}
           </label>
         ))}
         <label className="flex items-center gap-2 text-caption">
-          <input
-            type="checkbox"
-            checked={unit.human_approval === true}
-            onChange={(e) => onPatch({ human_approval: e.target.checked })}
-            disabled={readOnly}
-          />
+          <Checkbox checked={unit.human_approval === true} onCheckedChange={(checked) => onPatch({ human_approval: checked === true })} disabled={readOnly} />
           {t(($) => $.unit.human_approval)}
         </label>
       </fieldset>
@@ -260,17 +245,7 @@ export function OrgUnitSheet({
           {ORG_DECIDER_CLASSES.map((klass) => (
             <label key={klass} className="flex flex-col gap-1 text-caption text-muted-foreground">
               {t(($) => $.unit.decider[klass])}
-              <select
-                className={SELECT_CLASS}
-                value={(unit.deciders ?? {})[klass] ?? ""}
-                onChange={(e) => onPatch({ deciders: { ...(unit.deciders ?? {}), [klass]: e.target.value } })}
-                disabled={readOnly}
-              >
-                <option value="">{t(($) => $.unit.decider_none)}</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>{m.name}</option>
-                ))}
-              </select>
+              <OrgSelect value={(unit.deciders ?? {})[klass] ?? ""} onValueChange={(value) => onPatch({ deciders: { ...(unit.deciders ?? {}), [klass]: value } })} disabled={readOnly} items={[{ value: "", label: t(($) => $.unit.decider_none) }, ...members.map((m) => ({ value: m.user_id, label: m.name }))]} />
             </label>
           ))}
         </fieldset>
@@ -296,17 +271,7 @@ export function OrgUnitSheet({
             {(unit.members ?? []).map((m, i) => (
               <li key={`${m.type}:${m.id}`} data-testid="org-sheet-member" className="flex items-center gap-2 text-caption">
                 <span className="truncate">{actorName(m.type, m.id)}</span>
-                <select
-                  className={cn(SELECT_CLASS, "ml-auto w-40")}
-                  value={unit.id}
-                  disabled={readOnly}
-                  aria-label={t(($) => $.unit.move_to, { name: actorName(m.type, m.id) })}
-                  onChange={(e) => onMoveMember(i, e.target.value)}
-                >
-                  {units.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+                <OrgSelect value={unit.id} onValueChange={(value) => onMoveMember(i, value)} disabled={readOnly} aria-label={t(($) => $.unit.move_to, { name: actorName(m.type, m.id) })} className="ml-auto w-40" items={units.map((u) => ({ value: u.id, label: u.name }))} />
               </li>
             ))}
           </ul>

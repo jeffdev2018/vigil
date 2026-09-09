@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { validateOrgDefinition } from "@multica/core/org/validate";
 import type { MemberWithUser, OrgDefinition, OrgModel, OrgUnit } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -101,12 +102,15 @@ describe("OrgCanvas", () => {
     expect(screen.getByText("+3")).toBeTruthy();
   });
 
-  it("moves a member to another unit from the record's list, with no pointer involved", () => {
+  it("moves a member to another unit from the record's list, with no pointer involved", async () => {
+    const user = userEvent.setup();
     const changes: OrgDefinition[] = [];
     renderWithI18n(<Harness onChange={(d) => changes.push(d)} />);
     fireEvent.click(screen.getAllByTestId("org-unit-card")[1]!.querySelector("[data-org-card]")!);
     const sheet = screen.getByTestId("org-unit-sheet");
-    fireEvent.change(within(sheet).getByLabelText("Move Mika to another unit"), { target: { value: "lead" } });
+    await user.click(within(sheet).getByRole("combobox", { name: "Move Mika to another unit" }));
+    await user.click(screen.getByRole("option", { name: "Lead" }));
+    await waitFor(() => expect(changes.length).toBeGreaterThan(0));
     const next = changes.at(-1)!;
     expect(next.units.find((u) => u.id === "dev")?.members).toEqual([]);
     expect(next.units.find((u) => u.id === "lead")?.members).toHaveLength(2);
@@ -122,12 +126,13 @@ describe("OrgCanvas", () => {
     expect(within(screen.getByTestId("org-unit-sheet")).getByLabelText("Name")).toHaveValue("Dev");
   });
 
-  it("warns about the Rule of Two as soon as the unit is made to handle everything", () => {
+  it("warns about the Rule of Two as soon as the unit is made to handle everything", async () => {
+    const user = userEvent.setup();
     renderWithI18n(<Harness />);
     fireEvent.click(screen.getAllByTestId("org-unit-card")[0]!.querySelector("[data-org-card]")!);
     const sheet = screen.getByTestId("org-unit-sheet");
     expect(within(sheet).queryByText(/human approval will be required/)).toBeNull();
-    fireEvent.click(within(sheet).getByLabelText("External effects"));
+    await user.click(within(sheet).getByRole("checkbox", { name: "External effects" }));
     expect(screen.getByTestId("org-unit-sheet").textContent).toContain("a human approval will be required");
     // The card carries the same signal, so the chart shows where the problem is.
     expect(screen.getAllByTestId("org-card-problem").length).toBeGreaterThan(0);

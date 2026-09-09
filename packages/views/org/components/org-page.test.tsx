@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import userEvent from "@testing-library/user-event";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { OrgDefinition, OrgHealth, OrgStructure, OrgTemplate } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -90,13 +91,58 @@ beforeEach(() => {
   state.toastError.mockReset();
 });
 
+async function choose(trigger: HTMLElement, label: string | RegExp) {
+  await userEvent.click(trigger);
+  await userEvent.click(await screen.findByRole("option", { name: label }));
+}
+
 describe("OrgPage", () => {
-  it("assigns an existing agent from the directory without creating a team or changing its owner", () => {
+  it("creates a relationship from Relationships without adding a team", async () => {
+    state.structures = [structure({})];
+    renderWithI18n(<OrgPage />);
+    await userEvent.click(screen.getByRole("tab", { name: "Relationships" }));
+    expect(screen.queryByRole("button", { name: "Add team" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Create a relationship" }));
+    const dialog = screen.getByRole("dialog");
+    await choose(within(dialog).getByRole("combobox", { name: "From team" }), "Dev");
+    await choose(within(dialog).getByRole("combobox", { name: "Connection type" }), "Escalates to");
+    await choose(within(dialog).getByRole("combobox", { name: "Target team" }), "Lead");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add connection" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const saved = (state.updated[0] as { data: { definition: OrgDefinition } }).data.definition;
+    expect(saved.units).toHaveLength(2);
+    expect(saved.edges).toContainEqual({ from: "dev", to: "lead", kind: "escalates_to" });
+  });
+
+  it("assigns from Directory and returns there after editing an owner's team", async () => {
+    state.structures = [structure({})];
+    renderWithI18n(<OrgPage />);
+    await userEvent.click(screen.getByRole("tab", { name: "Directory" }));
+    expect(screen.queryByRole("button", { name: "Add team" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Owner of Lead" }));
+    expect(screen.getByRole("combobox", { name: "Human owner" })).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "Back to Directory" }));
+    expect(screen.getByRole("tab", { name: "Directory" })).toHaveAttribute("aria-selected", "true");
+    fireEvent.change(screen.getByRole("textbox", { name: "Find a person or agent" }), { target: { value: "Sol" } });
+    const card = screen.getByRole("article");
+    await userEvent.click(within(card).getByRole("button", { name: "Assign a person" }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByRole("combobox", { name: "Person or agent" })).toHaveTextContent("Sol");
+    await choose(within(dialog).getByRole("combobox", { name: "Assign to a team" }), "Dev");
+    await userEvent.click(within(dialog).getByRole("button", { name: "Add to this team" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save" }));
+    const saved = (state.updated[0] as { data: { definition: OrgDefinition } }).data.definition;
+    expect(saved.units).toHaveLength(2);
+    expect(saved.units[1]?.members).toContainEqual({ type: "agent", id: "a-3" });
+    expect(state.created).toEqual([]);
+  });
+
+  it("assigns an existing agent from the directory without creating a team or changing its owner", async () => {
     state.structures = [structure({})];
     renderWithI18n(<OrgPage />);
     const directory = screen.getByRole("complementary", { name: "People to assign" });
     fireEvent.click(within(directory).getByRole("button", { name: "Sol" }));
-    fireEvent.change(within(directory).getByRole("combobox", { name: "Assign to a team" }), { target: { value: "dev" } });
+    await choose(within(directory).getByRole("combobox", { name: "Assign to a team" }), "Dev");
     fireEvent.click(within(directory).getByRole("button", { name: "Add to this team" }));
     expect(screen.getAllByTestId("org-team")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
@@ -106,15 +152,15 @@ describe("OrgPage", () => {
     expect(state.created).toEqual([]);
   });
 
-  it("lists structures, the workspace default first, with model labels and project titles", () => {
+  it("lists structures, the workspace default first, with model labels and project titles", async () => {
     state.structures = [
       structure({ id: "proj", project_id: "p-1", model: "market", name: "Apollo market", status: "active", paused_units: ["dev"] }),
       structure({ id: "def", name: "Default org" }),
     ];
     renderWithI18n(<OrgPage />);
-    expect(screen.getByTestId("org-structure-picker")).toHaveValue("def");
+    expect(screen.getByTestId("org-structure-picker")).toHaveTextContent("Default org");
     expect(screen.getAllByTestId("org-team")).toHaveLength(2);
-    fireEvent.change(screen.getByTestId("org-structure-picker"), { target: { value: "proj" } });
+    await choose(screen.getByTestId("org-structure-picker"), /Apollo market/);
     expect(screen.getByRole("heading", { name: "Apollo market" })).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "All organizations" }));
     const rows = screen.getAllByTestId("org-structure");
@@ -134,7 +180,7 @@ describe("OrgPage", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
     expect(screen.getAllByTestId("org-team")).toHaveLength(2);
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByText("Advanced: JSON definition"));
     const editor = screen.getByLabelText("Definition (JSON)");
     fireEvent.change(editor, { target: { value: "{ nope" } });
@@ -152,7 +198,7 @@ describe("OrgPage", () => {
     renderWithI18n(<OrgPage />);
     fireEvent.click(within(screen.getAllByTestId("org-team")[0]!).getAllByRole("button")[0]!);
     fireEvent.change(screen.getByLabelText("Team name"), { target: { value: "New lead" } });
-    fireEvent.click(screen.getByRole("button", { name: "Back to teams" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to Teams" }));
     expect(screen.getAllByTestId("org-team")[0]?.textContent).toContain("New lead");
     expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "All organizations" }));
@@ -180,14 +226,14 @@ describe("OrgPage", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Add team" })[0]!);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("button", { name: "Add team" })).toBeDisabled();
-    expect(within(dialog).getByLabelText("Human owner")).toHaveValue("");
-    expect(within(dialog).getByLabelText("Parent team")).toHaveValue("");
+    expect(within(dialog).getByRole("combobox", { name: "Human owner" })).toHaveTextContent("No owner");
+    expect(within(dialog).getByRole("combobox", { name: "Parent team" })).toHaveTextContent("No parent team");
     fireEvent.change(within(dialog).getByLabelText("Team name"), { target: { value: "Operations" } });
-    fireEvent.change(within(dialog).getByLabelText("Parent team"), { target: { value: "lead" } });
+    await choose(within(dialog).getByRole("combobox", { name: "Parent team" }), "Lead");
     fireEvent.click(within(dialog).getByRole("button", { name: "Add team" }));
     expect(screen.getAllByTestId("org-team")).toHaveLength(3);
     expect(within(screen.getByRole("dialog")).getByText("This team is empty. Add its first members.")).toBeVisible();
-    fireEvent.click(screen.getByRole("button", { name: "Back to teams" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to Teams" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     const change = state.updated[0] as { data: { definition: OrgDefinition } };
     expect(change.data.definition.units[2]).toMatchObject({ name: "Operations", members: [] });
@@ -229,7 +275,7 @@ describe("OrgPage", () => {
       proposals: [{ key: "vacant-dev", unit_id: "dev", title: "Fill the reviewer role", body: "Dev has had no reviewer for 7 days.", measure: "vacant_roles = 0" }],
     };
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Activity" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Activity" }));
     const health = screen.getByTestId("org-health").textContent;
     expect(health).toContain("Drift rate25%");
     expect(screen.getByTestId("org-health-unit").textContent).toContain("reviewer");

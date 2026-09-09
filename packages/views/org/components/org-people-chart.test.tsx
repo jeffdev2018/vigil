@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { validateOrgDefinition } from "@multica/core/org/validate";
 import type { Agent, MemberWithUser, OrgDefinition, OrgUnit } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
@@ -116,14 +117,17 @@ describe("OrgPeopleChart", () => {
     expect(stage().style.transform).toBe("scale(1)");
   });
 
-  it("adds a teammate under the chosen manager and selects the new card", () => {
+  it("adds a teammate under the chosen manager and selects the new card", async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithI18n(<Harness onChange={onChange} />);
     fireEvent.click(screen.getByRole("button", { name: "Add a teammate" }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Who"), { target: { value: "kimi" } });
+    await user.click(within(dialog).getByRole("combobox", { name: "Who" }));
+    await user.click(screen.getByRole("option", { name: "Kimi" }));
     fireEvent.change(within(dialog).getByLabelText("Title"), { target: { value: "Support L2" } });
-    fireEvent.change(within(dialog).getByLabelText("Reports to"), { target: { value: "support/member:lea" } });
+    await user.click(within(dialog).getByRole("combobox", { name: "Reports to" }));
+    await user.click(screen.getByRole("option", { name: /Léa/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
     const next = onChange.mock.calls[0]?.[0] as OrgDefinition;
     expect(next.units.find((u) => u.id === "support")?.members.at(-1)).toEqual({ type: "agent", id: "kimi", role: "Support L2" });
