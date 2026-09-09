@@ -25,8 +25,10 @@ type scriptedNativeLLM struct {
 	fail  bool
 	calls int
 	// last is the request of the most recent call, so a test can look at
-	// what the loop offered the model (tools, closing prompt).
-	last openai.ChatCompletionNewParams
+	// what the loop offered the model (tools, closing prompt); first is the
+	// opening call, whose user message is the brief.
+	last  openai.ChatCompletionNewParams
+	first openai.ChatCompletionNewParams
 }
 
 func (f *scriptedNativeLLM) Enabled() bool { return true }
@@ -38,6 +40,9 @@ func (f *scriptedNativeLLM) Chat(_ context.Context, params openai.ChatCompletion
 		return nil, errors.New("expected at least system + user messages")
 	}
 	f.last = params
+	if f.calls == 0 {
+		f.first = params
+	}
 	if f.fail {
 		f.calls++
 		return nil, errors.New("gateway unreachable (scripted)")
@@ -114,6 +119,7 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		nativeTextTurn(`{"satisfied": true, "reason": "the summary is posted"}`),
 	}}
 	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+	svc.Goal = NewGoalLoopService(db.New(pool), tasks, llm, events.New())
 
 	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
 	if err != nil {
@@ -140,13 +146,13 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		t.Fatalf("agent comments = %d, want 1", commentCount)
 	}
 
-	// The transcript carries the tool call, its result, the final answer
-	// and the goal check's verdict line.
+	// The transcript carries the tool call, its result, the final answer,
+	// the goal check's verdict line and the done proposal it triggered.
 	messages, err := db.New(pool).ListTaskMessages(ctx, claimed.ID)
 	if err != nil {
 		t.Fatalf("list task messages: %v", err)
 	}
-	wantTypes := []string{"tool_use", "tool_result", "text", "system"}
+	wantTypes := []string{"tool_use", "tool_result", "text", "system", "system"}
 	if len(messages) != len(wantTypes) {
 		t.Fatalf("transcript = %v, want %v", messageTypes(messages), wantTypes)
 	}
@@ -240,8 +246,8 @@ func TestNativeAgentStopsAtTurnLimit(t *testing.T) {
 	fx := testutil.New(pool, ws, user)
 	fx.Member(t, ws, user, "owner")
 	// This test looks at the wrap-up turn as the model's last call; the
-	// goal judge (native_goal_loop_test.go) would otherwise come after it.
-	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"native_goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+	// goal judge (goal_loop_test.go) would otherwise come after it.
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
 		t.Fatalf("disable goal loop: %v", err)
 	}
 	runtimeID := fx.Runtime(t, "native", testutil.Cols{
@@ -329,8 +335,8 @@ func TestNativeAgentRefusesRepeatedIdenticalCalls(t *testing.T) {
 	fx := testutil.New(pool, ws, user)
 	fx.Member(t, ws, user, "owner")
 	// This test looks at the wrap-up turn as the model's last call; the
-	// goal judge (native_goal_loop_test.go) would otherwise come after it.
-	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"native_goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+	// goal judge (goal_loop_test.go) would otherwise come after it.
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
 		t.Fatalf("disable goal loop: %v", err)
 	}
 	runtimeID := fx.Runtime(t, "native", testutil.Cols{

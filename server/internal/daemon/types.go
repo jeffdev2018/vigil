@@ -3,6 +3,7 @@ package daemon
 import (
 	"encoding/json"
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/permissionprofile"
 
 	"github.com/multica-ai/multica/server/internal/runtimeapps"
@@ -202,6 +203,8 @@ type Task struct {
 	HandoffNote                   string                        `json:"handoff_note,omitempty"`                     // legacy assignment handoff instruction; rendered only in the per-turn prompt
 	// HandoffPacket (K17): the latest structured handoff on the issue; rendered in the per-turn prompt.
 	HandoffPacket *HandoffPacket `json:"handoff_packet,omitempty"`
+	// Goal (goal loop): the issue's goal and chain state; rendered in the per-turn prompt.
+	Goal *goalstate.State `json:"goal,omitempty"`
 	// ResumeFromCheckpointSeq (K20): non-zero when this run continues an interrupted one.
 	ResumeFromCheckpointSeq int64 `json:"resume_from_checkpoint_seq,omitempty"`
 

@@ -15,6 +15,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -91,6 +92,9 @@ type NativeAgentService struct {
 	// issue edits, held transitions). Nil skips publishing — rows remain the
 	// source of truth and open clients converge on their next fetch.
 	Bus *events.Bus
+	// Goal judges the closing status of issue runs and drives the chain
+	// (goal_loop.go). Nil skips the judge — runs still end on a status.
+	Goal *GoalLoopService
 	// llmFailures counts consecutive model-call failures across runs;
 	// llmFuseUntil is the Unix-nano deadline the tick honours once the count
 	// reached nativeLLMFuseThreshold. Any success resets both.
@@ -297,19 +301,16 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	}
 	s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
 
-	// Goal loop: the closing status is judged against the issue's goal;
-	// the verdict rides in the result, the follow-up run (if any) is queued
-	// once this row is completed so it does not collide with it.
-	payload := map[string]any{"summary": finalText}
-	goalState, continuation := s.nativeGoalCheck(ctx, &tctx, finalText, &usage)
-	if goalState != nil {
-		payload["goal_loop"] = goalState
-	}
-	result, _ := json.Marshal(payload)
-	if _, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", ""); err != nil {
+	result, _ := json.Marshal(map[string]any{"summary": finalText})
+	completed, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", "")
+	if err != nil {
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
-	} else if continuation != "" {
-		s.nativeGoalContinue(ctx, &tctx, continuation)
+	} else if s.Goal != nil && tctx.issue != nil && completed != nil {
+		// Goal loop: the closing status is judged against the issue's
+		// goal once the row is completed, so the follow-up run (if any)
+		// does not collide with this one in the pending slot. Judge usage
+		// is not this run's usage; the judge call is accounted below.
+		s.Goal.AfterRunCompleted(ctx, *completed, finalText)
 	}
 	recordUsage()
 }
@@ -574,7 +575,7 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 			return "", nil, errors.New("native run: task issue no longer exists")
 		}
 		tctx := nativeToolContext{task: task, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
-		return nativeTaskBrief(ctx, s.Queries, tctx), &issue, nil
+		return nativeTaskBrief(ctx, s.Queries, s.Goal, tctx), &issue, nil
 
 	default:
 		return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, or quick-create context)")
@@ -583,7 +584,7 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 
 // nativeTaskBrief assembles the user message for an issue task: the issue and
 // the recent conversation around it.
-func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext) string {
+func nativeTaskBrief(ctx context.Context, q *db.Queries, goal *GoalLoopService, tctx nativeToolContext) string {
 	issue := *tctx.issue
 	var b strings.Builder
 	fmt.Fprintf(&b, "Issue #%d: %s\n", issue.Number, issue.Title)
@@ -616,6 +617,14 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, tctx nativeToolContext)
 		if len(parts) > 0 {
 			b.WriteString("\nWhat previous runs on this issue concluded (newest first):\n")
 			b.WriteString(strings.Join(parts, "\n") + "\n")
+		}
+	}
+
+	// Goal state (goal loop): what the chain knows — goal, iteration,
+	// blocker, evidence, pending answer. Same words the daemon renders.
+	if goal != nil {
+		if st, err := goal.State(ctx, issue); err == nil && st != nil {
+			b.WriteString("\n" + goalstate.Render(st))
 		}
 	}
 

@@ -38,6 +38,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/spending.md` | Paying for something from a run: asking for a spend token, the approval gate over the workspace threshold, redeeming it, and reading the run's budget and limits |
 | `references/skill-import.md` | Importing a skill into this workspace from a URL or a local archive |
 | `references/goals.md` | Workspace goals: the goal ancestry in your brief, and proposing a goal from a run |
+| `references/goal-loop.md` | Long tasks across runs: how your closing status is judged against the issue's goal, what queues the next run, asking the team a typed question, reading and pausing the chain |
 | `references/insights.md` | Answering a question about the workspace with a figure: what the insight vocabulary accepts, why no SQL is ever written, and what the numbers do not mean |
 | `references/triage-verdicts.md` | The triage queue: suggesting a verdict on inbound work a human then decides |
 | `references/status-transitions.md` | A status change refused with `transition_not_allowed`, or held with `202 pending_approval`: what the workspace's transition rules govern and what to do instead of retrying |

@@ -1617,6 +1617,30 @@ type IssueDependency struct {
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
+type IssueGoal struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	Goal             string             `json:"goal"`
+	Status           string             `json:"status"`
+	Continuation     int32              `json:"continuation"`
+	MaxContinuations int32              `json:"max_continuations"`
+	NoProgress       int32              `json:"no_progress"`
+	LastSignature    string             `json:"last_signature"`
+	LastOutcome      string             `json:"last_outcome"`
+	LastBlocker      string             `json:"last_blocker"`
+	LastReason       string             `json:"last_reason"`
+	NextStep         string             `json:"next_step"`
+	Evidence         []byte             `json:"evidence"`
+	Question         []byte             `json:"question"`
+	LastRunID        pgtype.UUID        `json:"last_run_id"`
+	DoneRequestID    pgtype.UUID        `json:"done_request_id"`
+	SetByType        string             `json:"set_by_type"`
+	SetByID          pgtype.UUID        `json:"set_by_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type IssueLabel struct {
 	ID           pgtype.UUID        `json:"id"`
 	WorkspaceID  pgtype.UUID        `json:"workspace_id"`

@@ -142,6 +142,7 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"run_scoped_secret":                  workspaceDelete,
 	"runtime_pool":                       workspaceDelete,
 	"handoff_packet":                     workspaceDelete,
+	"issue_goal":                         workspaceDelete,
 	"run_limit_policy":                   workspaceDelete,
 	"run_limit_event":                    workspaceDelete,
 	"traffic_conflict":                   workspaceDelete,

@@ -2366,6 +2366,8 @@ func (h *Handler) buildClaimedTaskResponse(r *http.Request, task *db.AgentTaskQu
 	resp = taskToResponse(*task, runtimeWorkspaceID)
 	// Handoff packet (K17): the resuming agent reads what the last hand left.
 	resp.HandoffPacket = h.latestHandoffPacket(r.Context(), task.IssueID)
+	// Goal loop: the chain's memory rides with the claim.
+	resp.Goal = h.goalStateForTask(r, task.IssueID)
 	// Checkpoints (K20): a resumed run is told where the interrupted one stopped.
 	if task.CheckpointAttempts > 0 && task.LastCheckpointSeq.Valid {
 		resp.ResumeFromCheckpointSeq = task.LastCheckpointSeq.Int64

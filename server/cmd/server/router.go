@@ -1396,6 +1396,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	// deployment pays nothing.
 	h.TaskService.SubscribeRunConfidence(bus)
 
+	// Goal loop (long tasks): judge every settled issue run that did not
+	// judge itself (native runs do), drive the continuation chain.
+	h.GoalLoop.Subscribe(bus)
+
 	if opts.HeartbeatScheduler != nil {
 		h.HeartbeatScheduler = opts.HeartbeatScheduler
 	}
@@ -2463,6 +2467,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/", h.ListTaskShareLinks)
 				r.Post("/", h.CreateTaskShareLink)
 				r.Delete("/{id}", h.RevokeTaskShareLink)
+			})
+			// Goal loop (long tasks): goal, chain state, pause/resume, answers.
+			r.Route("/api/issues/{id}/goal", func(r chi.Router) {
+				r.Get("/", h.GetIssueGoal)
+				r.Put("/", h.SetIssueGoal)
+				r.Post("/pause", h.PauseIssueGoal)
+				r.Post("/resume", h.ResumeIssueGoal)
+				r.Post("/answer", h.AnswerIssueGoal)
+				r.Post("/question", h.AskIssueGoalQuestion)
 			})
 			// Task watchdog (K73).
 			r.Route("/api/issues/{id}/watchdog", func(r chi.Router) {
