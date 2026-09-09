@@ -98,6 +98,15 @@ beforeEach(() => {
 });
 
 describe("OrgTester", () => {
+  it("hides the previous routing after the request changes", async () => {
+    state.simulateOrg.mockResolvedValue(simulation());
+    render(); type("Help with billing"); run();
+    await waitFor(() => expect(screen.getByTestId("org-tester-result")).toBeVisible());
+    type("A different request");
+    expect(screen.queryByTestId("org-tester-result")).toBeNull();
+    expect(screen.getByRole("status").textContent).toContain("Run the test again");
+  });
+
   it("shows the invitation and no result until a simulation ran", () => {
     render();
     expect(screen.getByTestId("org-tester-empty")).toBeTruthy();

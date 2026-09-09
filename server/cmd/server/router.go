@@ -2532,6 +2532,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Executable org chart (K75).
 			r.Route("/api/org", func(r chi.Router) {
 				r.Get("/templates", h.ListOrgTemplates)
+				r.Get("/team-templates", h.ListOrgTeamTemplates)
+				r.Get("/team-templates/{templateID}/download", h.DownloadOrgTeamTemplate)
 				r.Get("/resolve", h.ResolveOrgStructure)
 				r.Post("/simulate", h.SimulateOrgRequest)
 				r.Get("/", h.ListOrgStructures)

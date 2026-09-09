@@ -6198,6 +6198,7 @@ export const ContestSettingsSchema = z.object({
 const OrgMemberSchema = z.object({ type: z.enum(["member", "agent"]).catch("member"), id: z.string().catch(""), role: z.string().optional(), role_id: z.string().optional() }).loose();
 const OrgRoleSchema = z.object({ id: z.string().catch(""), name: z.string().catch(""), responsibilities: z.string().optional(), keywords: z.array(z.string()).optional() }).loose();
 const OrgUnitSchema = z.object({
+  mission: z.string().optional(),
   id: z.string().catch(""),
   name: z.string().catch(""),
   kind: z.string().optional(),
@@ -6249,7 +6250,7 @@ export const OrgStructureSchema = z.object({
 export const OrgStructureListSchema = z.object({ structures: z.array(OrgStructureSchema).catch([]).default([]) }).loose();
 export const OrgStructureDetailSchema = z.object({
   structure: OrgStructureSchema,
-  revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
+  revisions: z.array(z.object({ id: z.string(), revision: z.number().catch(0), model: z.string().catch(""), status: z.string().catch(""), definition: OrgDefinitionSchema.optional().catch(undefined), note: z.string().catch(""), changed_by: z.string().nullable().catch(null).default(null), created_at: z.string().catch("") }).loose()).catch([]).default([]),
 }).loose();
 export const OrgTemplateListSchema = z.object({
   templates: z.array(z.object({ model: z.string(), composite: z.boolean().optional().catch(undefined), name: z.string().catch(""), pattern: z.string().catch(""), description: z.string().catch(""), coordination_runs_per_issue: z.number().catch(0), definition: OrgDefinitionSchema }).loose()).catch([]).default([]),
@@ -7653,3 +7654,5 @@ export const ProjectMemoryUsageSchema = z.object({
     value.versions.every((version) => version.prepared_runs <= value.runs_with_project_memory &&
       Date.parse(version.last_started_at) >= since && Date.parse(version.last_started_at) < until);
 });
+
+export const OrgTeamCatalogSchema = z.object({ templates: z.array(z.object({ id: z.string(), name: z.string(), description: z.string(), roles: z.array(z.string()), procedure: z.string() })) });

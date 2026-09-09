@@ -1,4 +1,5 @@
 "use client";
+import { SkillStudio } from "./skill-studio";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -166,10 +167,10 @@ function hasLocalEdits(draft: SkillDraft, baseline: SkillDraft | null): boolean 
  * read-only sentence. Delete lives in the header instead, matching the agent
  * detail page where Archive sits in the header.
  */
-type DetailView = "overview" | "files";
+type DetailView = "overview" | "files" | "studio";
 
 function isDetailView(value: string | null): value is DetailView {
-  return value === "overview" || value === "files";
+  return value === "overview" || value === "files" || value === "studio";
 }
 
 // ---------------------------------------------------------------------------
@@ -1157,6 +1158,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
       id: "files",
       label: t(($) => $.detail.tabs.files, { count: totalFileCount(skill) }),
     },
+    { id: "studio", label: t($ => $.studio.title) },
   ];
 
   return (
@@ -1311,7 +1313,7 @@ export function SkillDetailPage({ skillId }: { skillId: string }) {
           activeView === "files" && "md:overflow-hidden",
         )}
       >
-        {activeView === "overview" ? (
+        {activeView === "studio" ? <SkillStudio skill={skill} dirty={isDirty || conflictPending} /> : activeView === "overview" ? (
           <OverviewTab
             skill={skill}
             name={name}

@@ -77,6 +77,8 @@ describe("orgModelFromAnswers", () => {
 describe("pickOrgTemplate", () => {
   it.each([
     ["répondre aux tickets de nos clients", "support"],
+    ["Suivre Facture Clients", "finance"],
+    ["campagne clients", "agency"],
     ["gérer les dossiers du cabinet et les mandats", "practice"],
     ["produire les campagnes de l'agence", "agency"],
     ["suivre les factures et le budget", "finance"],
@@ -164,4 +166,13 @@ describe("buildOrgDefinition", () => {
     expect(overlaid.units.find((u) => u.id === "front-line")?.model).toBe("market");
     expect(overlaid.market.price_cap_usd_ticks).toBeGreaterThan(0);
   });
+});
+
+
+it("keeps peer squads flat and their human coordination unit eligible without an agent", () => {
+  const template = pickOrgTemplate("tickets clients");
+  const definition = buildOrgDefinition({ template, shape: orgModelFromAnswers({ decider: "each_team", teamShape: "project", hasEnd: false, compete: false }), assignments: {}, ownerId: "u-1", routingWords: [] });
+  expect(definition.edges.some(e => e.kind === "reports_to")).toBe(false);
+  expect(definition.units.find(u => u.id === orgTemplateRoot(template).id)?.model).toBe("owner_network");
+  expect(definition.edges.some(e => e.kind === "escalates_to")).toBe(true);
 });
