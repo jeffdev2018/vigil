@@ -93,6 +93,7 @@
     "trust_promotion_suggested": "建议提升信任模式",
     "triage_stale": "待分类队列已停滞",
     "transition_approval_requested": "需要审批",
+    "goal_question": "智能体的提问",
     "critic_degraded": "已跳过对抗式评审",
     "critic_budget": "已停止对抗式评审",
     "cycle_rollover_orphaned": "周期结束，有工作无处安放",

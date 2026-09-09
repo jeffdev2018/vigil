@@ -72,6 +72,9 @@ export type InboxItemType =
   // Transition rules (F28): a status change is held for an approver. Filed for
   // every member holding a role the rule accepts as an approver.
   | "transition_approval_requested"
+  // Goal loop (long tasks): an agent asked the team a typed question and
+  // the chain waits for the answer. Filed for the run's accountable human.
+  | "goal_question"
   // Adversarial critic (F25): the policy could not be honoured (no critic on
   // another provider, or the critic run could not be started), or the loop
   // stopped on its round / cost budget. Both are cases where a policy quietly

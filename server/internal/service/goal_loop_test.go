@@ -520,3 +520,14 @@ func TestGoalLoopJudgesDaemonRunsThroughTheBus(t *testing.T) {
 	}
 	_ = goalstate.Render
 }
+
+// The inbox:new payload carries the recipient: the realtime listener routes
+// the event by it, so an item without one never reaches a client live.
+func TestInboxItemPayloadCarriesRecipient(t *testing.T) {
+	item := db.InboxItem{ID: dbid.NewV7(), WorkspaceID: dbid.NewV7(), RecipientType: "member", RecipientID: dbid.NewV7(), Type: GoalInboxQuestionType, Severity: "action_required", Title: "Question"}
+	item.IssueID = dbid.NewV7()
+	out := InboxItemPayload(item)
+	if out["recipient_id"] != util.UUIDToString(item.RecipientID) || out["recipient_type"] != "member" || out["issue_id"] != util.UUIDToString(item.IssueID) || out["type"] != GoalInboxQuestionType {
+		t.Fatalf("payload = %v", out)
+	}
+}
