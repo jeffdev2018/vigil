@@ -164,6 +164,7 @@
     "./agents/queries": "./agents/queries.ts",
     "./agents/competency": "./agents/competency.ts",
     "./agents/routing-check": "./agents/routing-check.ts",
+    "./agents/mcp-server": "./agents/mcp-server.ts",
     "./agents/run-state": "./agents/run-state.ts",
     "./agents/derive-presence": "./agents/derive-presence.ts",
     "./agents/use-agent-presence": "./agents/use-agent-presence.ts",

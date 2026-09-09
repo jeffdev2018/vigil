@@ -5730,6 +5730,35 @@ export const WorkflowLimitsSchema = z.object({
   max_legs_allowed: z.number().int().catch(50).default(50),
 }).loose();
 
+// Vigil as an MCP server (OS plan, chantier 1). A workspace admin's saved
+// settings, plus the tool catalogue and endpoint returned alongside them so
+// the settings page never has to fetch two endpoints to render one form.
+export const MCPToolDecisionSchema = z.enum(["allow", "ask", "deny"]);
+
+export const MCPServerSettingsSchema = z.object({
+  enabled: z.boolean().catch(true).default(true),
+  default_surface: z.enum(["compound", "granular"]).catch("compound").default("compound"),
+  // A single malformed override degrades the whole map to "no overrides"
+  // rather than keeping the others — the safe read is the caller's own
+  // ceiling, never a partially-trusted tightening.
+  tools: z.record(z.string(), MCPToolDecisionSchema).catch({}).default({}),
+}).loose();
+
+export const MCPServerCatalogToolSchema = z.object({
+  name: z.string().default(""),
+  group: z.string().default(""),
+  action: z.string().default(""),
+  risk: z.string().catch("unknown").default("unknown"),
+  description: z.string().default(""),
+  agent_only: z.boolean().catch(false).default(false),
+}).loose();
+
+export const MCPServerSettingsEnvelopeSchema = z.object({
+  settings: MCPServerSettingsSchema,
+  tools: z.array(MCPServerCatalogToolSchema).catch([]).default([]),
+  endpoint: z.string().catch("").default(""),
+}).loose();
+
 // Data residency (K46). Declared in packages/core/residency/schemas.ts and
 // re-exported here so the API client imports every response schema from one
 // module, like WorkflowLimitsSchema above.

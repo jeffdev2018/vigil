@@ -524,6 +524,7 @@ import {
   CompetencySettingsSchema,
   RoutingCheckSchema,
   WorkflowLimitsSchema,
+  MCPServerSettingsEnvelopeSchema,
   DataResidencyPolicySchema,
   CrossReviewListSchema,
   AgentEffectListSchema,
@@ -4614,6 +4615,17 @@ export class ApiClient {
   async putWorkflowLimits(input: import("../agents/routing-check").WorkflowLimits): Promise<import("../agents/routing-check").WorkflowLimitsSettings> {
     const raw = await this.fetch<unknown>(`/api/workflow-limits`, { method: "PUT", body: JSON.stringify(input) });
     return parseWithFallback(raw, WorkflowLimitsSchema, { ...input, min_legs: 1, max_legs_allowed: 50 }, { endpoint: "PUT /api/workflow-limits" });
+  }
+
+  // Vigil as an MCP server (OS plan, chantier 1).
+  async getMCPServerSettings(): Promise<import("../agents/mcp-server").MCPServerSettingsEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/mcp-server/settings`);
+    return parseWithFallback(raw, MCPServerSettingsEnvelopeSchema, { settings: { enabled: true, default_surface: "compound", tools: {} }, tools: [], endpoint: "" }, { endpoint: "GET /api/mcp-server/settings" });
+  }
+
+  async putMCPServerSettings(input: import("../agents/mcp-server").MCPServerSettings): Promise<import("../agents/mcp-server").MCPServerSettingsEnvelope> {
+    const raw = await this.fetch<unknown>(`/api/mcp-server/settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, MCPServerSettingsEnvelopeSchema, { settings: input, tools: [], endpoint: "" }, { endpoint: "PUT /api/mcp-server/settings" });
   }
 
   // Data residency (K46): where this workspace's work may run, and what each
