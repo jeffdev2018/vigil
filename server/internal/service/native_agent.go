@@ -297,9 +297,19 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	}
 	s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
 
-	result, _ := json.Marshal(map[string]any{"summary": finalText})
+	// Goal loop: the closing status is judged against the issue's goal;
+	// the verdict rides in the result, the follow-up run (if any) is queued
+	// once this row is completed so it does not collide with it.
+	payload := map[string]any{"summary": finalText}
+	goalState, continuation := s.nativeGoalCheck(ctx, &tctx, finalText, &usage)
+	if goalState != nil {
+		payload["goal_loop"] = goalState
+	}
+	result, _ := json.Marshal(payload)
 	if _, err := s.Tasks.CompleteTask(ctx, taskID, result, "", "", "", false, "", ""); err != nil {
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
+	} else if continuation != "" {
+		s.nativeGoalContinue(ctx, &tctx, continuation)
 	}
 	recordUsage()
 }
