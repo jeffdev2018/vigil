@@ -13,6 +13,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 )
 
@@ -1233,5 +1234,186 @@ func TestNativeAgentBriefCarriesRunContinuity(t *testing.T) {
 	}
 	if strings.Contains(otherBrief, "trois questions ouvertes") {
 		t.Fatal("continuity leaked into an unrelated issue's brief")
+	}
+}
+
+// fakeChatStream walks a fixed slice of chunks the way the SDK stream does.
+type fakeChatStream struct {
+	chunks []openai.ChatCompletionChunk
+	i      int
+}
+
+func (f *fakeChatStream) Next() bool {
+	f.i++
+	return f.i < len(f.chunks)
+}
+
+func (f *fakeChatStream) Current() openai.ChatCompletionChunk { return f.chunks[f.i] }
+
+func (f *fakeChatStream) Err() error { return nil }
+
+// streamChunksFromTurns converts scripted turns into streamed chunks: text
+// turns arrive as three content deltas plus a usage-bearing final chunk;
+// tool-call turns arrive as tool-call deltas. The loop consumes only
+// ChatStream now, so every scripted test rides this.
+func streamChunksFromTurns(turns []openai.ChatCompletion, usage *openai.CompletionUsage) []openai.ChatCompletionChunk {
+	var chunks []openai.ChatCompletionChunk
+	for _, t := range turns {
+		msg := t.Choices[0].Message
+		if len(msg.ToolCalls) > 0 {
+			for i, tc := range msg.ToolCalls {
+				chunks = append(chunks, openai.ChatCompletionChunk{
+					Model: "scripted-model",
+					Choices: []openai.ChatCompletionChunkChoice{{
+						Delta: openai.ChatCompletionChunkChoiceDelta{
+							ToolCalls: []openai.ChatCompletionChunkChoiceDeltaToolCall{{
+								Index:    int64(i),
+								ID:       tc.ID,
+								Function: openai.ChatCompletionChunkChoiceDeltaToolCallFunction{Name: tc.Function.Name, Arguments: tc.Function.Arguments},
+							}},
+						},
+					}},
+				})
+			}
+			// Tool turns report usage too — a gateway with include_usage
+			// bills every turn, and the accounting test relies on it.
+			chunks = append(chunks, openai.ChatCompletionChunk{
+				Model: "scripted-model",
+				Usage: derefUsage(usage),
+			})
+			continue
+		}
+		// Three content shards: enough for the grow-in-place path to run.
+		third := (len(msg.Content) + 2) / 3
+		for i := 0; i < len(msg.Content); i += third {
+			end := min(i+third, len(msg.Content))
+			chunks = append(chunks, openai.ChatCompletionChunk{
+				Model:   "scripted-model",
+				Choices: []openai.ChatCompletionChunkChoice{{Delta: openai.ChatCompletionChunkChoiceDelta{Content: msg.Content[i:end]}}},
+			})
+		}
+		chunks = append(chunks, openai.ChatCompletionChunk{
+			Model: "scripted-model",
+			Usage: derefUsage(usage),
+		})
+	}
+	return chunks
+}
+
+func (f *scriptedNativeLLM) ChatStream(_ context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error) {
+	if len(params.Messages) < 2 {
+		return nil, errors.New("expected at least system + user messages")
+	}
+	// Record the request exactly like Chat does — the loop only consumes the
+	// stream since N04, and the tests read first/last to inspect the brief.
+	f.last = params
+	if f.calls == 0 {
+		f.first = params
+	}
+	if f.calls >= len(f.turns) {
+		return nil, errors.New("script exhausted: the loop kept calling after the final answer")
+	}
+	turn := f.turns[f.calls]
+	f.calls++
+	// i starts BEFORE the first chunk: Next() pre-increments, so a
+	// single-chunk stream must still yield that chunk.
+	return &fakeChatStream{chunks: streamChunksFromTurns([]openai.ChatCompletion{turn}, f.usage), i: -1}, nil
+}
+
+// derefUsage mirrors the scripted usage or a sane default when the script
+// sets none (the loop must still see a usage-bearing final chunk).
+func derefUsage(u *openai.CompletionUsage) openai.CompletionUsage {
+	if u != nil {
+		return *u
+	}
+	return openai.CompletionUsage{PromptTokens: 100, CompletionTokens: 20, TotalTokens: 120}
+}
+
+// N04 — the streamed final turn. The text message is created once, grows in
+// place as chunks arrive, and each growth is republished as task:message —
+// the client merges by seq, so the transcript shows the answer building live.
+// Proven with a zero flush interval: every chunk persists and publishes.
+func TestNativeAgentStreamsFinalText(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Streamed answer")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	usage := openai.CompletionUsage{PromptTokens: 50, CompletionTokens: 10, TotalTokens: 60}
+	llm := &scriptedNativeLLM{
+		usage: &usage,
+		turns: []openai.ChatCompletion{nativeTextTurn("Première partie. Deuxième partie. Troisième partie.")},
+	}
+	bus := events.New()
+	var publishes int
+	var lastContent string
+	bus.SubscribeAll(func(e events.Event) {
+		if e.Type == protocol.EventTaskMessage {
+			if p, ok := e.Payload.(protocol.TaskMessagePayload); ok && p.Type == "text" {
+				publishes++
+				lastContent = p.Content
+			}
+		}
+	})
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, bus)
+	// Flush on every chunk so the progressive path is observable in a test
+	// that runs in milliseconds.
+	svc.streamFlushInterval = 0
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim task: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	// ONE text row, complete.
+	messages, err := db.New(pool).ListTaskMessages(ctx, claimed.ID)
+	if err != nil {
+		t.Fatalf("list messages: %v", err)
+	}
+	textRows := 0
+	var stored string
+	for _, m := range messages {
+		if m.Type == "text" {
+			textRows++
+			stored = m.Content.String
+		}
+	}
+	if textRows != 1 {
+		t.Fatalf("text rows = %d, want exactly 1 (grow in place)", textRows)
+	}
+	if stored != "Première partie. Deuxième partie. Troisième partie." {
+		t.Fatalf("stored text = %q", stored)
+	}
+	// The progressive publishes happened: the stream shards are three, so at
+	// least three task:message frames carried a growing content, the last one
+	// complete.
+	if publishes < 3 {
+		t.Fatalf("task:message publishes = %d, want >= 3 (progressive)", publishes)
+	}
+	if lastContent != stored {
+		t.Fatalf("last published content = %q, want the final text", lastContent)
+	}
+	// Usage survived the switch to streaming.
+	var input, output int64
+	if err := pool.QueryRow(ctx, `SELECT input_tokens, output_tokens FROM task_usage WHERE task_id = $1`, taskID).Scan(&input, &output); err != nil {
+		t.Fatalf("task_usage: %v", err)
+	}
+	if input != 50 || output != 10 {
+		t.Fatalf("streamed usage = (%d, %d), want the reported (50, 10)", input, output)
 	}
 }

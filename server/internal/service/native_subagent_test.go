@@ -53,6 +53,17 @@ type routedNativeLLM struct {
 
 func (r *routedNativeLLM) Enabled() bool { return true }
 
+// ChatStream routes each streamed turn exactly like Chat, playing the turn's
+// completion as a single chunk followed by a usage-bearing one — the loop
+// only consumes ChatStream since N04.
+func (r *routedNativeLLM) ChatStream(ctx context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error) {
+	completion, err := r.Chat(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	return &fakeChatStream{chunks: streamChunksFromTurns([]openai.ChatCompletion{*completion}, nil), i: -1}, nil
+}
+
 func (r *routedNativeLLM) route(params openai.ChatCompletionNewParams) string {
 	if len(params.Messages) < 2 || params.Messages[1].OfUser == nil {
 		return "default"

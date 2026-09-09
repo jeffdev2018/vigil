@@ -33,6 +33,10 @@ type nativeToolContext struct {
 	// effectful counts this run's state-changing tool calls against
 	// nativeMaxEffectfulActions.
 	effectful int
+	// textStreamed (N04): the closing text was grown in place by the stream;
+	// the caller must not write a second copy. streamedMsgID names the row.
+	textStreamed  bool
+	streamedMsgID pgtype.UUID
 	// repeats counts identical tool calls (name + canonical arguments) so a
 	// model stuck re-issuing the same call is warned, then refused.
 	repeats map[string]int

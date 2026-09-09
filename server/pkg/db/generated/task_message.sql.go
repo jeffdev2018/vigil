@@ -431,3 +431,22 @@ func (q *Queries) SetTaskDriftReason(ctx context.Context, arg SetTaskDriftReason
 	_, err := q.db.Exec(ctx, setTaskDriftReason, arg.ID, arg.DriftReason)
 	return err
 }
+
+const updateTaskMessageContent = `-- name: UpdateTaskMessageContent :exec
+UPDATE task_message SET content = $3 WHERE id = $1 AND task_id = $2
+`
+
+type UpdateTaskMessageContentParams struct {
+	ID      pgtype.UUID `json:"id"`
+	TaskID  pgtype.UUID `json:"task_id"`
+	Content pgtype.Text `json:"content"`
+}
+
+// Streaming (N04): the native run writes its final text message once and then
+// grows it in place as chunks arrive, republishing task:message per update —
+// the client merges by seq, so the transcript shows the text building live
+// with no frontend change.
+func (q *Queries) UpdateTaskMessageContent(ctx context.Context, arg UpdateTaskMessageContentParams) error {
+	_, err := q.db.Exec(ctx, updateTaskMessageContent, arg.ID, arg.TaskID, arg.Content)
+	return err
+}

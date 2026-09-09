@@ -136,7 +136,16 @@ func (s *NativeAgentService) nativeDelegate(ctx context.Context, tctx *nativeToo
 		report = "Sub-agent stopped without a report."
 	}
 	report = clampString(report, nativeSubagentReportCap)
-	s.writeNativeMessage(ctx, sub.ID, "text", "", report, nil)
+	if sub2.textStreamed {
+		// The stream grew the report row in place (N04); only clamp it.
+		_ = s.Queries.UpdateTaskMessageContent(ctx, db.UpdateTaskMessageContentParams{
+			ID:      sub2.streamedMsgID,
+			TaskID:  sub.ID,
+			Content: pgtype.Text{String: report, Valid: true},
+		})
+	} else {
+		s.writeNativeMessage(ctx, sub.ID, "text", "", report, nil)
+	}
 	result, _ := json.Marshal(map[string]any{"summary": report, "receipts": sub2.receipts})
 	if _, err := s.Queries.SettleSubagentTask(ctx, db.SettleSubagentTaskParams{
 		ID: sub.ID, Status: status, Result: result, Error: pgtype.Text{String: errText, Valid: errText != ""},
