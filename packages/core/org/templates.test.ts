@@ -77,6 +77,8 @@ describe("orgModelFromAnswers", () => {
 describe("pickOrgTemplate", () => {
   it.each([
     ["répondre aux tickets de nos clients", "support"],
+    ["Suivre Facture Clients", "finance"],
+    ["campagne clients", "agency"],
     ["gérer les dossiers du cabinet et les mandats", "practice"],
     ["produire les campagnes de l'agence", "agency"],
     ["suivre les factures et le budget", "finance"],

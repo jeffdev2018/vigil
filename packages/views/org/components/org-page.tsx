@@ -2,11 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Network, Plus, ArrowUpRight, Users, GitBranch, Activity, History, Settings2, Layers, Check, Save } from "lucide-react";
+import { ArrowLeft, Network, Plus, ArrowUpRight, GitBranch, Activity, History, Settings2, Check, Save } from "lucide-react";
 import { toast } from "sonner";
 import {
   parseEditableOrgDefinition,
-  orgLayout,
   orgDefinitionChanges,
   orgDetailOptions,
   orgHealthOptions,
@@ -21,8 +20,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useAuthStore } from "@multica/core/auth";
 import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
-import type { OrgDefinition, OrgStatus, OrgStructure, OrgRevision } from "@multica/core/types";
-import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
+import type { OrgStatus, OrgStructure, OrgRevision } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
@@ -287,7 +285,6 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   useEffect(() => {
     if (!useOrgDraftStore.getState().draft.edits[structure.id]) { setForm(original); setBaseRevision(structure.revision); }
   }, [structure, original]);
-  const [leaving, setLeaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [focusedUnit, setFocusedUnit] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
@@ -346,13 +343,13 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
   };
 
   return (
-    <div className="min-w-0 flex-1 overflow-y-auto px-4 py-5 md:px-8">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="button" variant="ghost" size="sm" className="gap-1 px-2" onClick={() => dirty ? setLeaving(true) : onBack()}>
+    <div className="min-h-0 min-w-0 flex-1 overflow-y-auto px-4 pb-5 md:px-6">
+      <div className="flex flex-wrap items-center gap-2 pt-4">
+        <Button type="button" variant="ghost" size="sm" className="gap-1 px-2" onClick={() => onBack()}>
           <ArrowLeft className="size-3.5" />
           {t(($) => $.page.back)}
         </Button>
-        <h2 className="text-title-lg font-semibold tracking-tight">{structure.name}</h2>
+        <h2 className="text-title-sm font-semibold tracking-tight">{structure.name}</h2>
         <Badge variant="outline">{t(($) => $.model[structure.model])}</Badge>
         <Badge className={STATUS_BADGE[structure.status]}>{t(($) => $.status[structure.status])}</Badge>
         <span className="text-caption text-muted-foreground">{t(($) => $.page.revision, { n: structure.revision })}</span>
@@ -371,13 +368,13 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       {structure.paused_reason && <p className="mt-1 text-caption text-warning">{structure.paused_reason}</p>}
       {readOnly && <p className="mt-1 text-caption text-muted-foreground">{t(($) => $.page.read_only)}</p>}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b pb-3">
+      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b bg-background py-3">
         <div className="flex flex-wrap gap-1" aria-label={t($ => $.page.title)}>{(["compose", "activity", "history", "settings"] as const).map(key => { const Icon = { compose: GitBranch, activity: Activity, history: History, settings: Settings2 }[key]; return <button type="button" key={key} aria-pressed={tab === key} onClick={() => setTab(key)} className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-body transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", tab === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted")}><Icon className="size-4" />{t($ => $.workspace.tabs[key])}</button>; })}</div>
-        {!readOnly && <div className="flex items-center gap-3"><span role="status" className="hidden items-center gap-1.5 text-caption text-muted-foreground sm:flex">{dirty ? <span className="size-1.5 rounded-full bg-warning" /> : <Check className="size-3.5 text-success" />}{dirty ? t($ => $.coherence.draft_saved) : t($ => $.workspace.saved)}</span><Button size="sm" variant="ghost" disabled={!dirty || update.isPending} onClick={discard}>{t($ => $.coherence.discard)}</Button><Button size="sm" disabled={!dirty || update.isPending || "error" in parsed || !form.name.trim() || problems.length > 0 || baseRevision !== structure.revision} onClick={() => structure.status === "active" ? setPublishing(true) : save()}><Save className="mr-1.5 size-3.5" />{structure.status === "active" ? t($ => $.coherence.publish) : t($ => $.form.save)}</Button></div>}
+        <Button size="sm" variant="outline" aria-pressed={testing} onClick={() => { setTab("compose"); setTesting(v => !v); }}>{t($ => $.coherence.test)}</Button>
+        {!readOnly && <div className="flex flex-wrap items-center gap-2"><span role="status" className="hidden items-center gap-1.5 text-caption text-muted-foreground sm:flex">{dirty ? <span className="size-1.5 rounded-full bg-warning" /> : <Check className="size-3.5 text-success" />}{dirty ? t($ => $.coherence.draft_saved) : t($ => $.workspace.saved)}</span><Button size="sm" variant="ghost" disabled={!dirty || update.isPending} onClick={discard}>{t($ => $.coherence.discard)}</Button><Button size="sm" disabled={!dirty || update.isPending || "error" in parsed || !form.name.trim() || problems.length > 0 || baseRevision !== structure.revision} onClick={() => structure.status === "active" ? setPublishing(true) : save()}><Save className="mr-1.5 size-3.5" />{structure.status === "active" ? t($ => $.coherence.publish) : t($ => $.form.save)}</Button></div>}
       </div>
       {baseRevision !== structure.revision && dirty && <p role="alert" className="mt-4 text-caption text-warning">{t($ => $.coherence.conflict)}</p>}
-      <div hidden={tab !== "compose"} className="mt-5 space-y-4">
-        <div className="flex justify-end"><Button variant="outline" onClick={() => setTesting(v => !v)}>{t($ => $.coherence.test)}</Button></div>
+      <div hidden={tab !== "compose"} className="mt-4 space-y-3">
         {testing && "def" in parsed && <OrgTester structureId={structure.id} definition={parsed.def} model={structure.model} status={structure.status} revision={structure.revision} dirty={dirty} goals={goals} onSelectUnit={setFocusedUnit} />}
         <OrgProblemList problems={problems} />
         {"def" in parsed && <OrgEditor focusedUnit={focusedUnit} definition={parsed.def} model={structure.model} pausedUnits={structure.paused_units} readOnly={readOnly || update.isPending} onChange={def => set("definition", JSON.stringify(def, null, 2))} />}
@@ -456,7 +453,6 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       </section>
 
       {publishing && <Dialog open onOpenChange={open => { if (!update.isPending) setPublishing(open); }}><DialogContent><DialogHeader><DialogTitle>{t($ => $.coherence.publish)}</DialogTitle><DialogDescription>{t($ => $.coherence.publish_hint)}</DialogDescription></DialogHeader><ul className="space-y-2 text-body">{"def" in parsed && orgDefinitionChanges(structure.definition, parsed.def).map(c => <li key={c.id}>{c.after?.name ?? c.before?.name ?? t($ => $.coherence.sections[c.section])}</li>)}</ul><DialogFooter><Button variant="outline" disabled={update.isPending} onClick={() => setPublishing(false)}>{t($ => $.actions.cancel)}</Button><Button disabled={update.isPending} onClick={save}>{t($ => $.coherence.publish)}</Button></DialogFooter></DialogContent></Dialog>}
-      {leaving && <Dialog open onOpenChange={setLeaving}><DialogContent><DialogHeader><DialogTitle>{t($ => $.workspace.leave_title)}</DialogTitle><DialogDescription>{t($ => $.visual.unsaved)}</DialogDescription></DialogHeader><DialogFooter><Button variant="outline" onClick={() => setLeaving(false)}>{t($ => $.workspace.keep_editing)}</Button><Button variant="destructive" onClick={() => { clearOrgDraft(structure.id); onBack(); }}>{t($ => $.workspace.discard)}</Button></DialogFooter></DialogContent></Dialog>}
       {reviewRevision && <Dialog open onOpenChange={open => { if (!open) setReviewRevision(null); }}><DialogContent className="sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.history.title, { n: reviewRevision.revision })}</DialogTitle><DialogDescription>{t($ => $.history.description)}</DialogDescription></DialogHeader><div className="max-h-[60vh] space-y-4 overflow-auto">{reviewRevision.definition && <><div className="space-y-2">{orgDefinitionChanges(structure.definition, reviewRevision.definition).map(change => <div key={change.id} className="rounded-lg border p-3"><p className="text-body font-medium">{change.after?.name ?? change.before?.name ?? t($ => $.coherence.sections[change.section])}</p><div className="mt-2 grid gap-2 text-caption sm:grid-cols-2">{([change.before, change.after]).map((unit, i) => <div key={i} className="rounded-md bg-muted/50 p-3"><span className="text-muted-foreground">{i === 0 ? t($ => $.history.current) : t($ => $.history.previous)}</span><p className="mt-1">{unit ? `${unit.name} · ${t($ => $.autonomy[unit.autonomy])} · ${t($ => $.page.members, { count: unit.members.length })}` : t($ => $.history.absent)}</p><p>{unit?.roles.map(r => r.name).join(", ")}</p></div>)}</div></div>)}</div><p className="text-caption text-muted-foreground">{t($ => $.history.full_diff)}</p></>}<details><summary className="cursor-pointer text-caption font-medium">{t($ => $.visual.advanced)}</summary><div className="mt-3 grid gap-3 sm:grid-cols-2"><div><h4 className="mb-2 text-caption font-semibold">{t($ => $.history.current)}</h4><pre className="overflow-auto rounded-md bg-muted p-3 text-caption">{JSON.stringify(structure.definition, null, 2)}</pre></div><div><h4 className="mb-2 text-caption font-semibold">{t($ => $.history.previous)}</h4><pre className="overflow-auto rounded-md bg-muted p-3 text-caption">{JSON.stringify(reviewRevision.definition, null, 2)}</pre></div></div></details></div>{dirty && <p className="text-caption text-warning">{t($ => $.history.dirty)}</p>}<DialogFooter><Button variant="outline" onClick={() => setReviewRevision(null)}>{t($ => $.actions.cancel)}</Button><Button disabled={readOnly || dirty || update.isPending || reviewRevision.revision === structure.revision} onClick={restore}>{t($ => $.history.restore)}</Button></DialogFooter></DialogContent></Dialog>}
       {dialog === "activate" && <ActivateDialog structure={structure} onClose={() => setDialog(null)} />}
       {dialog && dialog !== "activate" && (
@@ -464,12 +460,6 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
       )}
     </div>
   );
-}
-
-function OrgMiniMap({ definition }: { definition: OrgDefinition }) {
-  const layout = orgLayout(definition);
-  const nodes = new Map(layout.nodes.map(n => [n.unit.id, n]));
-  return <svg viewBox={`0 0 ${layout.width} ${layout.height}`} className="h-36 w-full text-info" aria-hidden="true">{definition.edges.map((edge, i) => { const a = nodes.get(edge.from), b = nodes.get(edge.to); return a && b ? <path key={i} d={`M${a.x + 140},${a.y + 60} L${b.x + 140},${b.y + 60}`} stroke="currentColor" opacity=".3" strokeWidth="5" strokeDasharray={edge.kind === "reports_to" ? undefined : "10 10"} /> : null; })}{layout.nodes.map(({ unit, x, y }, i) => <g key={unit.id}><rect x={x} y={y} width="280" height="120" rx="20" fill="var(--card)" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" /><circle cx={x + 38} cy={y + 38} r="14" fill="currentColor" opacity={i === 0 ? 1 : .45} /><rect x={x + 65} y={y + 28} width="150" height="14" rx="7" fill="var(--foreground)" opacity=".5" /><rect x={x + 25} y={y + 72} width="100" height="10" rx="5" fill="var(--muted-foreground)" opacity=".3" /></g>)}</svg>;
 }
 
 // ---------------------------------------------------------------------------
@@ -483,75 +473,40 @@ export function OrgPage() {
   const { data: projects = [] } = useQuery(projectListOptions(wsId));
   const { data: members = [] } = useQuery(memberListOptions(wsId));
   const selectedId = useOrgDraftStore(s => s.draft.selectedId);
-  const setSelectedId = (id: string | null) => useOrgDraftStore.getState().setDraft({ selectedId: id });
+  const [overview, setOverview] = useState(false);
+  const [search, setSearch] = useState("");
+  const select = (id: string | null) => { useOrgDraftStore.getState().setDraft({ selectedId: id }); setOverview(false); };
   const [creating, setCreating] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const currentUser = useAuthStore(s => s.user);
   const canTransfer = members.some(m => m.user_id === currentUser?.id && (m.role === "owner" || m.role === "admin"));
+  const projectTitle = new Map(projects.map(p => [p.id, p.title]));
+  const sorted = [...structures].sort((a, b) => Number(a.project_id !== null) - Number(b.project_id !== null) || a.created_at.localeCompare(b.created_at));
+  const current = sorted.find(s => s.id === selectedId) ?? sorted.find(s => s.project_id === null && s.status !== "dissolved") ?? sorted.find(s => s.status === "active") ?? sorted[0];
+  const scope = (s: OrgStructure) => s.project_id ? projectTitle.get(s.project_id) ?? t($ => $.page.unknown_project) : t($ => $.page.workspace_default);
 
-  const projectTitle = useMemo(() => new Map(projects.map((p) => [p.id, p.title])), [projects]);
-  const memberName = useMemo(() => new Map(members.map((m) => [m.user_id, m.name])), [members]);
-  const sorted = useMemo(
-    () => [...structures].sort((a, b) => Number(a.project_id !== null) - Number(b.project_id !== null) || a.created_at.localeCompare(b.created_at)),
-    [structures],
-  );
-
-  if (selectedId) {
-    return (
-      <div className="relative flex min-w-0 flex-1 min-h-0 flex-col">
-        <CollectionPageHeader icon={Network} title={t(($) => $.page.title)} />
-        <OrgDetail id={selectedId} onBack={() => setSelectedId(null)} onDeleted={() => setSelectedId(null)} />
-      </div>
-    );
-  }
-
-  return (
-    <div className="relative flex min-w-0 flex-1 min-h-0 flex-col">
-      <CollectionPageHeader
-        icon={Network}
-        title={t(($) => $.page.title)}
-        count={structures.length}
-        actions={<><Button size="sm" variant="outline" onClick={() => setCatalogOpen(true)}>{t($ => $.wizard.catalog)}</Button><Button size="sm" variant="outline" onClick={() => setTransferring(true)}>{t($ => $.wizard.transfer)}</Button><CollectionPageHeaderAction icon={Plus} label={t(($) => $.page.new_structure)} onClick={() => setCreating(true)} /></>}
-      />
-      {isLoading || isError ? (
-        <CollectionPageState icon={Network} title={isError ? t($ => $.form.error) : t($ => $.page.loading)} actions={isError ? <Button onClick={() => void refetch()}>{t($ => $.catalog.retry)}</Button> : undefined} />
-      ) : (
-        <div className="flex-1 overflow-y-auto px-5 py-8 md:px-10">
-          <section className="mb-9 flex flex-wrap items-end justify-between gap-6"><div className="max-w-xl"><p className="mb-3 flex items-center gap-2 text-caption font-medium text-info"><Layers className="size-4" />{t($ => $.workspace.eyebrow)}</p><h1 className="text-display font-semibold tracking-tight">{t($ => $.workspace.title)}</h1><p className="mt-3 max-w-lg text-body-lg leading-relaxed text-muted-foreground">{t($ => $.workspace.description)}</p></div><div className="flex gap-7 rounded-2xl border bg-muted/20 px-6 py-5">{[[structures.length, t($ => $.workspace.structures)], [structures.reduce((n, s) => n + s.definition.units.length, 0), t($ => $.workspace.teams)], [structures.filter(s => s.status === "active").length, t($ => $.workspace.active)]].map(([count, label]) => <div key={label}><p className="text-display-sm font-semibold tabular-nums">{count}</p><p className="mt-1 text-caption text-muted-foreground">{label}</p></div>)}</div></section>
-          <div className="mb-4 flex items-center gap-2"><h2 className="text-title-sm font-semibold">{t($ => $.workspace.your_structures)}</h2><span className="rounded-full bg-muted px-2 py-0.5 text-caption text-muted-foreground">{structures.length}</span></div>
-          <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-3">
-            {sorted.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                data-testid="org-structure"
-                onClick={() => setSelectedId(s.id)}
-                className="group flex min-w-0 flex-col overflow-hidden rounded-2xl border bg-card text-left shadow-sm transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-1 hover:border-info/40 hover:shadow-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transform-none"
-              >
-                <span className="relative block w-full border-b bg-info/5 px-8 py-4"><OrgMiniMap definition={s.definition} /><span className="absolute right-4 top-4 rounded-full bg-background p-2 text-muted-foreground transition-colors group-hover:bg-info group-hover:text-background"><ArrowUpRight className="size-4" /></span></span>
-                <span className="flex w-full flex-col gap-3 p-5"><span className="text-caption text-muted-foreground">
-                  {s.project_id === null ? t(($) => $.page.workspace_default) : projectTitle.get(s.project_id) ?? t(($) => $.page.unknown_project)}
-                </span>
-                <span className="text-title font-semibold tracking-tight">{s.name}</span>
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <Badge variant="outline">{t(($) => $.model[s.model])}</Badge>
-                  <Badge className={STATUS_BADGE[s.status]}>{t(($) => $.status[s.status])}</Badge>
-                  <span className="text-caption text-muted-foreground">{t(($) => $.page.revision, { n: s.revision })}</span>
-                </span>
-                <span className="mt-2 flex items-center gap-2 border-t pt-4 text-caption text-muted-foreground"><ActorAvatar name={s.owner_id ? memberName.get(s.owner_id) ?? "" : ""} initials={(s.owner_id ? memberName.get(s.owner_id) ?? "" : "").slice(0, 2)} size="md" />
-                  {s.owner_id ? memberName.get(s.owner_id) ?? s.owner_id : t(($) => $.page.no_owner)}
-                  {s.paused_units.length > 0 && ` · ${t(($) => $.page.paused_units, { count: s.paused_units.length })}`}
-                <span className="ml-auto flex items-center gap-1"><Users className="size-3.5" />{t($ => $.visual.team_count, { count: s.definition.units.length })}</span></span></span>
-              </button>
-            ))}
-            <button type="button" onClick={() => setCreating(true)} className="group flex min-h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed bg-muted/10 p-8 text-center transition-colors hover:border-info/50 hover:bg-info/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"><span className="mb-1 rounded-2xl border bg-background p-4 shadow-sm transition-transform group-hover:scale-110 motion-reduce:transform-none"><Plus className="size-6 text-info" /></span><span className="text-title-sm font-semibold">{t($ => $.workspace.add_title)}</span><span className="max-w-60 text-caption leading-relaxed text-muted-foreground">{t($ => $.workspace.add_description)}</span><span className="mt-2 flex items-center gap-1 text-caption font-medium text-info">{t($ => $.workspace.explore)}<ArrowUpRight className="size-3.5" /></span></button>
-          </div>
-        </div>
-      )}
-      {transferring && <Dialog open onOpenChange={setTransferring}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.wizard.transfer)}</DialogTitle><DialogDescription>{t($ => $.wizard.transfer_hint)}</DialogDescription></DialogHeader><ExportImportSetting canEdit={canTransfer} /></DialogContent></Dialog>}
-      {catalogOpen && <Dialog open onOpenChange={setCatalogOpen}><DialogContent className="max-h-[85vh] overflow-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.wizard.catalog)}</DialogTitle><DialogDescription>{t($ => $.catalog.includes)}</DialogDescription></DialogHeader><OrgTeamCatalog canInstall={canTransfer} onInstalled={() => setCatalogOpen(false)} /></DialogContent></Dialog>}
-      {creating && <OrgWizard onClose={() => setCreating(false)} onCreated={setSelectedId} />}
-    </div>
-  );
+  return <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+    <CollectionPageHeader className="h-auto min-h-12 flex-wrap py-2 [&>div:last-child]:flex-wrap [&>div:last-child]:justify-start" icon={Network} title={t($ => $.page.title)} actions={<>
+      {current && <select aria-label={t($ => $.studio.organization)} data-testid="org-structure-picker" value={current.id} onChange={e => select(e.target.value)} className="h-8 max-w-64 truncate rounded-lg border bg-background px-2 text-caption">{sorted.map(s => <option key={s.id} value={s.id}>{scope(s)} · {s.name}</option>)}</select>}
+      <Button size="sm" variant="ghost" onClick={() => setOverview(v => !v)}>{t($ => $.studio.browse)}</Button>
+      <Button size="sm" variant="ghost" onClick={() => setCatalogOpen(true)}>{t($ => $.wizard.catalog)}</Button>
+      <CollectionPageHeaderAction icon={Plus} label={t($ => $.page.new_structure)} onClick={() => setCreating(true)} />
+    </>} />
+    {isLoading || isError ? <CollectionPageState icon={Network} title={isError ? t($ => $.form.error) : t($ => $.page.loading)} actions={isError ? <Button onClick={() => void refetch()}>{t($ => $.catalog.retry)}</Button> : undefined} />
+      : current && !overview ? <OrgDetail key={current.id} id={current.id} onBack={() => setOverview(true)} onDeleted={() => { select(null); setOverview(true); }} />
+      : <div className="flex-1 overflow-auto p-5 md:p-8">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-title-lg font-semibold">{t($ => $.studio.browse)}</h1><p className="mt-1 text-body text-muted-foreground">{t($ => $.studio.scope_hint)}</p></div><Button size="sm" variant="outline" onClick={() => setTransferring(true)}>{t($ => $.wizard.transfer)}</Button></div>
+        {sorted.length > 0 && <Input className="mb-4 max-w-sm" aria-label={t($ => $.studio.search_org)} placeholder={t($ => $.studio.search_org)} value={search} onChange={e => setSearch(e.target.value)} />}
+        <div className="divide-y rounded-xl border">{sorted.filter(s => `${s.name} ${scope(s)}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(s => <button key={s.id} type="button" data-testid="org-structure" onClick={() => select(s.id)} className="group flex w-full items-center gap-4 p-4 text-left transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted"><Network className="size-5 text-muted-foreground" /></span>
+          <span className="min-w-0 flex-1"><span className="block truncate text-body font-semibold">{s.name}</span><span className="mt-1 block text-caption text-muted-foreground">{scope(s)} · {t($ => $.model[s.model])}</span></span>
+          <span className="hidden text-caption text-muted-foreground sm:block">{t($ => $.visual.team_count, { count: s.definition.units.length })}</span><Badge className={STATUS_BADGE[s.status]}>{t($ => $.status[s.status])}</Badge><ArrowUpRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </button>)}</div>
+        {sorted.length === 0 && <div className="mx-auto flex max-w-xl flex-col items-start gap-4 py-14"><Network className="size-10 text-muted-foreground" /><h2 className="text-title-lg font-semibold">{t($ => $.studio.empty_title)}</h2><p className="text-body text-muted-foreground">{t($ => $.studio.empty_hint)}</p><Button onClick={() => setCreating(true)}><Plus className="mr-2 size-4" />{t($ => $.page.new_structure)}</Button></div>}
+      </div>}
+    {transferring && <Dialog open onOpenChange={setTransferring}><DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.wizard.transfer)}</DialogTitle><DialogDescription>{t($ => $.wizard.transfer_hint)}</DialogDescription></DialogHeader><ExportImportSetting canEdit={canTransfer} /></DialogContent></Dialog>}
+    {catalogOpen && <Dialog open onOpenChange={setCatalogOpen}><DialogContent className="max-h-[85vh] overflow-auto sm:max-w-3xl"><DialogHeader><DialogTitle>{t($ => $.wizard.catalog)}</DialogTitle><DialogDescription>{t($ => $.catalog.includes)}</DialogDescription></DialogHeader><OrgTeamCatalog canInstall={canTransfer} onInstalled={() => setCatalogOpen(false)} /></DialogContent></Dialog>}
+    {creating && <OrgWizard onClose={() => setCreating(false)} onCreated={select} />}
+  </div>;
 }

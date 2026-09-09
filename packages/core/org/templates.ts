@@ -140,7 +140,7 @@ export interface OrgBusinessTemplate {
 export const ORG_BUSINESS_TEMPLATES: OrgBusinessTemplate[] = [
   {
     key: "support",
-    match: ["support", "client", "clients", "customer", "customers", "ticket", "tickets", "helpdesk", "sav", "réclamation", "reclamation", "assistance", "hotline", "remboursement", "refund"],
+    match: ["support", "ticket", "tickets", "helpdesk", "sav", "réclamation", "reclamation", "assistance", "hotline", "remboursement", "refund"],
     units: [
       { id: "support-lead", name: "Support lead", mission: "Own the queue and answer for the team.", keywords: [], autonomy: "approve_payload", deny: [], root: true },
       { id: "front-line", name: "Front line", mission: "Answer incoming requests the day they arrive.", keywords: ["support", "ticket", "question", "client", "customer", "commande", "order"], autonomy: "draft", deny: ["refund"], primary: true },

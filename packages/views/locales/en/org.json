@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Org",
-    "new_structure": "New structure",
+    "new_structure": "New organization",
     "empty": "No structure yet",
     "empty_description": "A structure decides who works on what: it routes issues to units, escalates, approves and spends. Pick one of the seven models to start.",
     "workspace_default": "Workspace default",
@@ -587,7 +587,7 @@
     "mission": "Team mission",
     "owner": "Human owner",
     "add_members": "Add members",
-    "members_hint": "Choose existing agents or people in this workspace. Adding them does not create a team or change their reporting relationships.",
+    "members_hint": "Members are people or agents already in this workspace.",
     "people_error": "Could not load all members.",
     "empty_team": "This team is empty. Add its first members.",
     "recipient": "Receiving agent",
@@ -616,7 +616,7 @@
     "remove_team_hint": "Deleting “{{name}}” removes its {{members}} memberships, {{edges}} relationships and {{rules}} rules. Agents and people remain in the workspace.",
     "quorum_block": "Committee “{{name}}” requires {{quorum}} teams. Explicitly change its composition or quorum before deleting this team.",
     "scope_taken": "This scope already has an organization. Choose another project or edit the existing organization.",
-    "excluded": "Do not include",
+    "excluded": "Do not assign",
     "test": "Test a request",
     "discard": "Discard my changes",
     "draft_saved": "Draft kept on this device",
@@ -671,5 +671,52 @@
     "move_hint": "Move to… (local role removed)",
     "owns_team": "Owner of {{name}}",
     "members": "Members"
+  },
+  "studio": {
+    "organization": "Current organization",
+    "browse": "All organizations",
+    "scope_hint": "One organization per scope. Choose the one you want to compose.",
+    "search_org": "Search organizations…",
+    "empty_title": "Build your first team",
+    "empty_hint": "Describe its mission, choose its members, then check where requests go.",
+    "views": {
+      "board": "Teams",
+      "chart": "Relationships",
+      "people": "Directory"
+    },
+    "owner": "Owner:",
+    "receives": "Default recipient →",
+    "linked_squad": "Linked squad",
+    "show_less": "Show less",
+    "show_more": "Show {{count}} more members",
+    "owner_only": "{{name}} owns this scope. No members have been assigned yet.",
+    "add_mission": "Define this team’s mission",
+    "board_hint": "Members work in teams. Human owners supervise.",
+    "directory": "People to assign",
+    "only_unassigned": "Without a team in this organization",
+    "directory_hint": "Drag a person into a team, or click their name to assign them.",
+    "no_results": "No people match this filter.",
+    "assign_to": "Assign to a team",
+    "assign": "Add to this team",
+    "assigned": "{{name}} added to {{team}}. Save to apply this change.",
+    "team_empty_hint": "Create the group, then choose its members.",
+    "inspector_hint": "Compose the team, then define how it works. Changes stay in your draft until saved.",
+    "relationships": "Relationships to display",
+    "relations": {
+      "reports_to": "Team hierarchy",
+      "escalates_to": "Escalations",
+      "backs_up": "Backups",
+      "consults": "Consultations"
+    },
+    "relation_hint": {
+      "reports_to": "These links define reporting relationships between teams.",
+      "escalates_to": "Who takes over a blocked request. This is not a hierarchy.",
+      "backs_up": "Who steps in when a team is unavailable.",
+      "consults": "Who is consulted without taking ownership."
+    },
+    "parent_required": "This organization is hierarchical. Choose the reporting team explicitly.",
+    "explicit_people": "Nobody is added automatically. Choose only the people who will work in this organization.",
+    "back_to_teams": "Back to teams",
+    "move_person": "Move {{name}}"
   }
 }

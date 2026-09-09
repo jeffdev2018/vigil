@@ -15,9 +15,11 @@ import { Button } from "@multica/ui/components/ui/button";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { Input } from "@multica/ui/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@multica/ui/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@multica/ui/components/ui/sheet";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { cn } from "@multica/ui/lib/utils";
 import { useT } from "../../i18n";
+import { OrgTeamBoard } from "./org-team-board";
 
 const field = "h-9 w-full rounded-md border bg-background px-2 text-body focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const AUTONOMY = ["read_only", "draft", "approve_payload", "auto"] as const;
@@ -37,12 +39,12 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
   const navigation = useNavigation();
   const agents = agentQuery.data ?? [];
   const members = memberQuery.data ?? [];
-  const [selected, setSelected] = useState<string | null>(definition.units[0]?.id ?? null);
-  useEffect(() => { if (focusedUnit) setSelected(focusedUnit); }, [focusedUnit]);
+  const [selected, setSelected] = useState<string | null>(null);
+  useEffect(() => { if (focusedUnit) { setSelected(focusedUnit); setView("chart"); } }, [focusedUnit]);
   const [zoom, setZoom] = useState(1);
   const [panel, setPanel] = useState<"people" | "rules" | "connections">("people");
   const [search, setSearch] = useState("");
-  const [view, setView] = useState<"chart" | "people">("chart");
+  const [view, setView] = useState<"board" | "chart" | "people">("board");
   const [creating, setCreating] = useState(false);
   const [teamName, setTeamName] = useState("");
   const [teamOwner, setTeamOwner] = useState("");
@@ -51,52 +53,55 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
   const [picked, setPicked] = useState<string[]>([]);
   const [removing, setRemoving] = useState(false);
   const [target, setTarget] = useState("");
+  const [relation, setRelation] = useState<OrgEdgeKind>("reports_to");
   const [kind, setKind] = useState<OrgEdgeKind>("reports_to");
   const viewport = useRef<HTMLDivElement>(null);
   const drag = useRef<{ x: number; y: number; left: number; top: number } | null>(null);
   const marker = useId().replace(/:/g, "");
-  const layout = useMemo(() => orgLayout(definition), [definition]);
+  const layout = useMemo(() => orgLayout({ ...definition, edges: relation === "reports_to" ? definition.edges.filter(e => e.kind === "reports_to") : [] }), [definition, relation]);
   const positions = new Map(layout.nodes.map(n => [n.unit.id, n]));
   const unit = definition.units.find(u => u.id === selected);
   const patch = (change: Partial<OrgUnit>) => { if (unit && !readOnly) onChange({ ...definition, units: definition.units.map(u => u.id === unit.id ? { ...u, ...change } : u) }); };
-  const people = [...members.map(m => ({ id: m.user_id, name: m.name, type: "member" as const })), ...agents.map(a => ({ id: a.id, name: a.name, type: "agent" as const }))];
+  const people = [...members.map(m => ({ id: m.user_id, name: m.name, avatar_url: m.avatar_url, type: "member" as const })), ...agents.map(a => ({ id: a.id, name: a.name, avatar_url: a.avatar_url, type: "agent" as const }))];
   const ownerName = (id?: string) => members.find(m => m.user_id === id)?.name ?? t($ => $.page.no_owner);
   const fit = () => { setZoom(Math.min(1, Math.max(.3, ((viewport.current?.clientWidth ?? layout.width) - 24) / layout.width))); viewport.current?.scrollTo?.({ left: 0, top: 0 }); };
   useEffect(() => {
     const container = viewport.current;
     if (!container || view !== "chart") return;
     const center = () => {
-      const next = Math.min(1, Math.max(.8, (container.clientWidth - 24) / layout.width));
-      const node = layout.nodes.find(n => n.unit.id === selected);
+      const next = Math.min(1, Math.max(.3, (container.clientWidth - 24) / layout.width));
       setZoom(next);
-      container.scrollTo?.({ left: Math.max(0, (node ? node.x + 140 : layout.width / 2) * next - container.clientWidth / 2), top: Math.max(0, (node?.y ?? 0) * next - 60) });
+      container.scrollTo?.({ left: Math.max(0, (layout.width / 2) * next - container.clientWidth / 2), top: 0 });
     };
     center();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(center);
     observer.observe(container);
     return () => observer.disconnect();
-  }, [layout, selected, view]);
+  }, [layout.width, layout.height, view]);
   const add = () => {
-    if (!teamName.trim() || readOnly) return;
+    if (!teamName.trim() || readOnly || (model === "hierarchy" && definition.units.length > 0 && !teamParent)) return;
     const id = crypto.randomUUID();
-    const next: OrgUnit = { id, name: teamName.trim(), owner_id: teamOwner || undefined, kind: "unit", members: [], roles: [], autonomy: "draft", excludes: ["external_effects"], allow: ["read", "comment", "propose_plan"], deny: [], escalation_quota_per_day: 5 };
+    const next: OrgUnit = { id, name: teamName.trim(), owner_id: teamOwner || undefined, kind: "unit", members: [], roles: model === "circles" ? [{ id: crypto.randomUUID(), name: t($ => $.visual.new_role) }] : [], autonomy: "draft", excludes: ["external_effects"], allow: ["read", "comment", "propose_plan"], deny: [], escalation_quota_per_day: 5 };
     onChange({ ...definition, units: [...definition.units, next], edges: teamParent ? [...definition.edges, { from: id, to: teamParent, kind: "reports_to" }] : definition.edges });
-    setSelected(id); setView("chart"); setCreating(false); setTeamName(""); setTeamOwner(""); setTeamParent(""); setPanel("people");
+    setSelected(id); setView("board"); setCreating(false); setTeamName(""); setTeamOwner(""); setTeamParent(""); setPanel("people");
   };
   const addEdge = () => {
-    if (!unit || !target || (kind === "reports_to" && orgWouldCycle(definition, unit.id, target))) return;
+    if (readOnly || !unit || !target || (kind === "reports_to" && orgWouldCycle(definition, unit.id, target))) return;
     if (definition.edges.some(e => e.from === unit.id && e.to === target && e.kind === kind)) return;
     onChange({ ...definition, edges: [...definition.edges.filter(e => !(model === "hierarchy" && kind === "reports_to" && e.kind === "reports_to" && e.from === unit.id)), { from: unit.id, to: target, kind }] }); setTarget("");
   };
   const cyclic = !!unit && kind === "reports_to" && !!target && orgWouldCycle(definition, unit.id, target);
 
-  return <section className="overflow-hidden rounded-2xl border bg-card shadow-sm" aria-label={t($ => $.visual.title)}>
+  const selectTeam = (id: string, tab: "people" | "rules" | "connections" = "people") => { setSelected(id); setPanel(tab); setTarget(""); };
+  const addPeopleTo = (id: string) => { setSelected(id); setPanel("people"); setAddingPeople(true); setPicked([]); setSearch(""); };
+
+  return <section className="relative rounded-xl border bg-card" aria-label={t($ => $.visual.title)}>
     <div className="flex flex-wrap items-center gap-2 border-b px-5 py-4">
-      <Network className="size-4 text-primary" /><h3 className="text-body font-semibold">{t($ => $.visual.title)}</h3><div className="flex rounded-lg bg-muted p-1">{(["chart", "people"] as const).map(v => <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={cn("rounded-md px-2 py-1 text-caption focus-visible:ring-2 focus-visible:ring-ring", view === v && "bg-background font-semibold shadow-sm")}>{t($ => $.coherence.views[v])}</button>)}</div>
+      <Network className="size-4 text-muted-foreground" /><div className="flex rounded-lg bg-muted p-1">{(["board", "chart", "people"] as const).map(v => <button key={v} type="button" aria-pressed={view === v} onClick={() => setView(v)} className={cn("rounded-md px-2 py-1 text-caption focus-visible:ring-2 focus-visible:ring-ring", view === v && "bg-background font-semibold shadow-sm")}>{t($ => $.studio.views[v])}</button>)}</div>
       <span className="text-caption text-muted-foreground">{t($ => $.visual.team_count, { count: definition.units.length })}</span>
       <div className="ml-auto flex max-w-full flex-wrap items-center gap-1">
-        {!readOnly && <Button size="sm" variant="outline" onClick={() => navigation.push(paths.newAgent())}><Bot className="mr-1 size-4" />{t($ => $.coherence.create_agent)}</Button>}
+
         <div hidden={view !== "chart"} className={cn(view === "chart" && "flex", "items-center gap-1")}><Button size="sm" variant="ghost" aria-label={t($ => $.visual.zoom_out)} onClick={() => setZoom(z => Math.max(.3, z - .1))}><Minus className="size-4" /></Button>
         <output className="w-12 text-center text-caption tabular-nums">{Math.round(zoom * 100)}%</output>
         <Button size="sm" variant="ghost" aria-label={t($ => $.visual.zoom_in)} onClick={() => setZoom(z => Math.min(2, z + .1))}><Plus className="size-4" /></Button>
@@ -104,10 +109,11 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
         {!readOnly && <Button size="sm" className="ml-2 gap-1" onClick={() => setCreating(true)}><Plus className="size-4" />{t($ => $.visual.add_team)}</Button>}
       </div>
     </div>
+    {view === "board" && <OrgTeamBoard definition={definition} people={people} selected={selected} readOnly={readOnly} onSelect={selectTeam} onAdd={addPeopleTo} onChange={onChange} onCreateTeam={() => setCreating(true)} onCreateAgent={() => navigation.push(paths.newAgent())} />}
     {view === "people" && <div className="max-h-[640px] overflow-auto p-5"><p className="mb-4 text-caption text-muted-foreground">{t($ => $.coherence.directory_hint)}</p><div className="grid gap-3 sm:grid-cols-2">{people.map(person => <div key={`${person.type}:${person.id}`} className="rounded-xl border p-4"><div className="flex items-center gap-3"><ActorAvatar name={person.name} initials={initials(person.name)} isAgent={person.type === "agent"} size="lg" /><div><p className="text-body font-semibold">{person.name}</p><p className="text-caption text-muted-foreground">{t($ => $.visual[person.type])}</p></div></div><div className="mt-3 flex flex-wrap gap-2">{definition.units.filter(u => u.members.some(m => m.id === person.id && m.type === person.type)).map(u => <Button key={u.id} size="sm" variant="outline" onClick={() => { setSelected(u.id); setView("chart"); setPanel("people"); }}>{u.name}</Button>)}</div>{person.type === "member" && <div className="mt-2 flex flex-wrap gap-2">{definition.units.filter(u => u.owner_id === person.id).map(u => <Button key={u.id} size="sm" variant="ghost" onClick={() => { setSelected(u.id); setView("chart"); setPanel("rules"); }}>{t($ => $.coherence.owns_team, { name: u.name })}</Button>)}</div>}{!definition.units.some(u => u.members.some(m => m.id === person.id && m.type === person.type) || (person.type === "member" && u.owner_id === person.id)) && <p className="mt-3 text-caption text-muted-foreground">{t($ => $.coherence.unassigned)}</p>}</div>)}</div></div>}
-    <div hidden={view !== "chart"} className={cn(view === "chart" && "grid", unit && "lg:grid-cols-[minmax(0,1fr)_360px]")}>
+    <div hidden={view !== "chart"} className={cn(view === "chart" && "grid")}>
       <div className="relative min-w-0 bg-muted/20" style={{ backgroundImage: "radial-gradient(var(--border) 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
-        <div className="flex items-center gap-2 px-5 pt-4 text-caption text-muted-foreground"><span className="rounded-full border bg-background px-3 py-1.5">{readOnly ? t($ => $.page.read_only) : t($ => $.visual.live_edit)}</span><span className="hidden sm:inline">{t($ => $.visual.hint)}</span></div>
+        <div className="flex flex-wrap items-center gap-3 px-4 py-3"><select aria-label={t($ => $.studio.relationships)} className={field + " max-w-64"} value={relation} onChange={e => setRelation(e.target.value as OrgEdgeKind)}>{EDGE_KINDS.map(k => <option key={k} value={k}>{t($ => $.studio.relations[k])}</option>)}</select><span className="text-caption text-muted-foreground">{t($ => $.studio.relation_hint[relation])}</span></div>
         <div ref={viewport} tabIndex={0} role="region" aria-label={t($ => $.visual.canvas)} className="h-[360px] lg:h-[580px] overflow-auto overscroll-contain cursor-grab focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
           onPointerDown={e => { if ((e.target as HTMLElement).closest("button") || e.button !== 0 || e.pointerType === "touch") return; drag.current = { x: e.clientX, y: e.clientY, left: e.currentTarget.scrollLeft, top: e.currentTarget.scrollTop }; e.currentTarget.setPointerCapture(e.pointerId); }}
           onPointerMove={e => { if (drag.current) { e.currentTarget.scrollLeft = drag.current.left + drag.current.x - e.clientX; e.currentTarget.scrollTop = drag.current.top + drag.current.y - e.clientY; } }}
@@ -116,7 +122,7 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
             <div className="relative origin-top-left" style={{ width: layout.width, height: layout.height, transform: `scale(${zoom})` }}>
               <svg width={layout.width} height={layout.height} className="absolute inset-0 text-muted-foreground/50" aria-hidden="true">
                 <defs><marker id={marker} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="currentColor" /></marker></defs>
-                {definition.edges.map((e, i) => {
+                {definition.edges.filter(e => e.kind === relation).map((e, i) => {
                   const a = positions.get(e.from), b = positions.get(e.to); if (!a || !b) return null;
                   const above = b.y < a.y;
                   const y1 = a.y + (above ? 0 : 178), y2 = b.y + (above ? 178 : 0);
@@ -139,15 +145,16 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
           </div>
         </div>
       </div>
-      {unit && <aside className="lg:max-h-[640px] overflow-y-auto border-t bg-background p-5 lg:border-l lg:border-t-0" aria-label={t($ => $.visual.edit_team)}>
-        <div className="mb-4 flex items-center justify-between"><div><p className="mb-1 text-caption text-muted-foreground">{t($ => $.visual.edit_team)}</p><h4 className="text-title-sm font-semibold">{unit.name}</h4></div><Button variant="ghost" size="sm" aria-label={t($ => $.visual.close)} onClick={() => setSelected(null)}><X className="size-4" /></Button></div>
+    </div>
+      {unit && !addingPeople && !removing && <Sheet open onOpenChange={open => { if (!open) setSelected(null); }}><SheetContent showCloseButton={false} className="data-[side=right]:w-[min(92vw,520px)] data-[side=right]:sm:max-w-[520px] overflow-hidden p-5 pt-12"><SheetHeader className="p-0 pr-8"><SheetTitle>{unit.name}</SheetTitle><SheetDescription>{t($ => $.studio.inspector_hint)}</SheetDescription></SheetHeader><Button className="absolute right-4 top-3" variant="ghost" size="sm" aria-label={t($ => $.visual.close)} onClick={() => setSelected(null)}><X className="size-4" /></Button><aside className="min-h-0 flex-1 overflow-y-auto pr-1" aria-label={t($ => $.visual.edit_team)}>
         <div className="mb-5 flex rounded-lg bg-muted p-1" aria-label={t($ => $.visual.edit_team)}>{(["people", "rules", "connections"] as const).map(key => <button key={key} type="button" aria-pressed={panel === key} onClick={() => setPanel(key)} className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-caption transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", panel === key ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}>{key === "people" ? <Users className="size-3.5" /> : key === "rules" ? <ShieldCheck className="size-3.5" /> : <GitBranch className="size-3.5" />}{t($ => $.visual.tabs[key])}</button>)}</div>
         <fieldset disabled={readOnly} className="flex flex-col gap-4 disabled:opacity-70">
           <label className="space-y-1 text-caption">{t($ => $.visual.team_name)}<Input value={unit.name} onChange={e => patch({ name: e.target.value })} /></label>
           {!unit.name.trim() && <p role="alert" className="text-caption text-destructive">{t($ => $.problem.unit_name_required)}</p>}
-          <div hidden={panel !== "rules"} className="space-y-4">
-          <label className="space-y-1 text-caption">{t($ => $.coherence.mission)}<Textarea rows={2} maxLength={240} value={unit.mission ?? ""} onChange={e => patch({ mission: e.target.value })} /></label>
+          <div hidden={panel !== "people"} className="space-y-4">          <label className="space-y-1 text-caption">{t($ => $.coherence.mission)}<Textarea rows={2} maxLength={240} value={unit.mission ?? ""} onChange={e => patch({ mission: e.target.value })} /></label>
           <label className="space-y-1 text-caption">{t($ => $.coherence.owner)}<select className={field} value={unit.owner_id ?? ""} onChange={e => patch({ owner_id: e.target.value || undefined })}><option value="">{t($ => $.form.owner_none)}</option>{members.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}</select></label>
+</div>
+          <div hidden={panel !== "rules"} className="space-y-4">
           <label className="block space-y-1 text-caption">{t($ => $.coherence.squad)}<select className={field} value={unit.squad_id ?? ""} onChange={e => patch({ squad_id: e.target.value || undefined })}><option value="">{t($ => $.coherence.no_squad)}</option>{squads.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
 
           <label className="block space-y-1 text-caption">{t($ => $.coherence.team_model)}<select className={field} value={unit.model ?? ""} onChange={e => patch({ model: e.target.value ? e.target.value as OrgModel : undefined })}><option value="">{t($ => $.coherence.inherit_model)}</option>{MODELS.map(m => <option key={m} value={m}>{t($ => $.model[m])}</option>)}</select></label>
@@ -165,6 +172,8 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
           </details>
           </div>
           <div hidden={panel !== "people"} className="space-y-5">
+              <label className="block space-y-1 text-caption">{t($ => $.coherence.recipient)}<select className={field} value={unit.members.find(m => m.type === "agent" && m.role === "lead")?.id ?? ""} onChange={e => patch({ members: unit.members.map(m => m.type === "agent" ? { ...m, role: m.id === e.target.value ? "lead" : m.role === "lead" ? undefined : m.role } : m) })}><option value="">{t($ => $.coherence.recipient_auto)}</option>{unit.members.filter(m => m.type === "agent").map(m => <option key={m.id} value={m.id}>{agents.find(a => a.id === m.id)?.name ?? m.id}</option>)}</select></label>
+              <p className="text-caption text-muted-foreground">{t($ => $.coherence.recipient_hint)}</p>
             <div className="space-y-3">
               <div className="flex items-center justify-between"><h5 className="whitespace-nowrap text-body font-semibold">{t($ => $.coherence.members)} · {unit.members.length}</h5><Button size="sm" variant="outline" onClick={() => { setAddingPeople(true); setPicked([]); setSearch(""); }}><Plus className="mr-1 size-3" />{t($ => $.coherence.add_members)}</Button></div>
               <p className="text-caption text-muted-foreground">{t($ => $.coherence.members_hint)}</p>
@@ -179,8 +188,7 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
                   <select className={`${field} mt-2`} aria-label={t($ => $.visual.assign_role)} value={member.role_id ?? ""} onChange={e => patch({ members: unit.members.map(m => m.id === member.id && m.type === member.type ? { ...m, role_id: e.target.value || undefined } : m) })}><option value="">{t($ => $.coherence.no_role)}</option>{unit.roles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
                 </div>;
               })}
-              <label className="block space-y-1 text-caption">{t($ => $.coherence.recipient)}<select className={field} value={unit.members.find(m => m.type === "agent" && m.role === "lead")?.id ?? ""} onChange={e => patch({ members: unit.members.map(m => m.type === "agent" ? { ...m, role: m.id === e.target.value ? "lead" : m.role === "lead" ? undefined : m.role } : m) })}><option value="">{t($ => $.coherence.recipient_auto)}</option>{unit.members.filter(m => m.type === "agent").map(m => <option key={m.id} value={m.id}>{agents.find(a => a.id === m.id)?.name ?? m.id}</option>)}</select></label>
-              <p className="text-caption text-muted-foreground">{t($ => $.coherence.recipient_hint)}</p>
+
             </div>
           <div className="space-y-2"><h5 className="text-caption font-medium">{t($ => $.visual.roles)}</h5>{unit.roles.map(role => <div key={role.id} className="space-y-1 rounded-lg border bg-muted/20 p-3"><div className="flex justify-end"><Button variant="ghost" size="sm" aria-label={t($ => $.visual.remove_role)} disabled={orgEffectiveModel(definition, unit.id, model ?? "hierarchy") === "circles" && unit.roles.length <= 1} onClick={() => patch({ roles: unit.roles.filter(r => r.id !== role.id), members: unit.members.map(m => m.role_id === role.id ? { ...m, role_id: undefined } : m) })}><X className="size-3.5" /></Button></div><Input aria-label={t($ => $.visual.role_name)} value={role.name} onChange={e => patch({ roles: unit.roles.map(r => r.id === role.id ? { ...r, name: e.target.value } : r) })} /><Input aria-label={t($ => $.visual.keywords)} value={(role.keywords ?? []).join(", ")} onChange={e => patch({ roles: unit.roles.map(r => r.id === role.id ? { ...r, keywords: e.target.value.split(",").map(k => k.trim()) } : r) })} /><Input aria-label={t($ => $.visual.responsibilities)} value={role.responsibilities ?? ""} onChange={e => patch({ roles: unit.roles.map(r => r.id === role.id ? { ...r, responsibilities: e.target.value } : r) })} /></div>)}<Button size="sm" variant="outline" onClick={() => patch({ roles: [...unit.roles, { id: crypto.randomUUID(), name: t($ => $.visual.new_role) }] })}>{t($ => $.visual.add_role)}</Button></div>
           </div>
@@ -197,20 +205,19 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
           </div>
           <Button variant="ghost" size="sm" className="justify-start gap-2 text-destructive" disabled={definition.units.length <= 1} onClick={() => setRemoving(true)}><Trash2 className="size-4" />{t($ => $.visual.remove_team)}</Button>
         </fieldset>
-      </aside>}
-    </div>
+      </aside><Button variant="outline" onClick={() => setSelected(null)}>{t($ => $.studio.back_to_teams)}</Button></SheetContent></Sheet>}
     {creating && <Dialog open onOpenChange={setCreating}><DialogContent><DialogHeader><DialogTitle>{t($ => $.visual.add_team)}</DialogTitle><DialogDescription>{t($ => $.coherence.create_team_hint)}</DialogDescription></DialogHeader><form onSubmit={e => { e.preventDefault(); add(); }} className="space-y-4">
       <label className="block space-y-1 text-caption">{t($ => $.visual.team_name)}<Input autoFocus value={teamName} onChange={e => setTeamName(e.target.value)} /></label>
       <label className="block space-y-1 text-caption">{t($ => $.coherence.owner)}<select className={field} value={teamOwner} onChange={e => setTeamOwner(e.target.value)}><option value="">{t($ => $.form.owner_none)}</option>{members.map(m => <option key={m.user_id} value={m.user_id}>{m.name}</option>)}</select></label>
       <label className="block space-y-1 text-caption">{t($ => $.coherence.parent)}<select className={field} value={teamParent} onChange={e => setTeamParent(e.target.value)}><option value="">{t($ => $.coherence.no_parent)}</option>{definition.units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
-      <DialogFooter><Button type="button" variant="outline" onClick={() => setCreating(false)}>{t($ => $.actions.cancel)}</Button><Button type="submit" disabled={!teamName.trim() || readOnly}>{t($ => $.visual.add_team)}</Button></DialogFooter>
+      {model === "hierarchy" && !teamParent && <p className="text-caption text-muted-foreground">{t($ => $.studio.parent_required)}</p>}<DialogFooter><Button type="button" variant="outline" onClick={() => setCreating(false)}>{t($ => $.actions.cancel)}</Button><Button type="submit" disabled={!teamName.trim() || readOnly || (model === "hierarchy" && definition.units.length > 0 && !teamParent)}>{t($ => $.visual.add_team)}</Button></DialogFooter>
     </form></DialogContent></Dialog>}
     {addingPeople && unit && <Dialog open onOpenChange={setAddingPeople}><DialogContent><DialogHeader><DialogTitle>{t($ => $.coherence.add_to, { name: unit.name })}</DialogTitle><DialogDescription>{t($ => $.coherence.members_hint)}</DialogDescription></DialogHeader>
       <Input aria-label={t($ => $.visual.search)} placeholder={t($ => $.visual.search)} value={search} onChange={e => setSearch(e.target.value)} />
       <div className="max-h-80 space-y-1 overflow-y-auto">{people.filter(p => !unit.members.some(m => m.type === p.type && m.id === p.id) && p.name.toLocaleLowerCase().includes(search.toLocaleLowerCase())).map(p => {
         const key = `${p.type}:${p.id}`;
         return <label key={key} className="flex cursor-pointer items-center gap-3 rounded-lg p-3 hover:bg-muted has-[:checked]:bg-info/10"><input type="checkbox" checked={picked.includes(key)} onChange={e => setPicked(prev => e.target.checked ? [...prev, key] : prev.filter(v => v !== key))} /><ActorAvatar name={p.name} initials={initials(p.name)} isAgent={p.type === "agent"} size="lg" /><span className="min-w-0 flex-1 truncate text-body font-medium">{p.name}</span><span className="text-caption text-muted-foreground">{t($ => $.visual[p.type])}</span></label>;
-      })}</div><DialogFooter><Button variant="outline" onClick={() => setAddingPeople(false)}>{t($ => $.actions.cancel)}</Button><Button disabled={picked.length === 0 || readOnly} onClick={() => { onChange(addOrgMembers(definition, unit.id, people.filter(p => picked.includes(`${p.type}:${p.id}`)).map(p => ({ id: p.id, type: p.type })))); setAddingPeople(false); setPicked([]); }}>{t($ => $.coherence.add_selected, { count: picked.length })}</Button></DialogFooter>
+      })}</div><DialogFooter><Button variant="outline" onClick={() => setAddingPeople(false)}>{t($ => $.actions.cancel)}</Button><Button disabled={picked.length === 0 || readOnly} onClick={() => { onChange(addOrgMembers(definition, unit.id, people.filter(p => picked.includes(`${p.type}:${p.id}`)).map(p => ({ id: p.id, type: p.type })))); setAddingPeople(false); setSelected(null); setPicked([]); }}>{t($ => $.coherence.add_selected, { count: picked.length })}</Button></DialogFooter>
     </DialogContent></Dialog>}
     {removing && unit && <Dialog open onOpenChange={setRemoving}><DialogContent><DialogHeader><DialogTitle>{t($ => $.visual.remove_team)}</DialogTitle><DialogDescription>{t($ => $.coherence.remove_team_hint, { name: unit.name, members: unit.members.length, edges: definition.edges.filter(e => e.from === unit.id || e.to === unit.id).length, rules: definition.rules.filter(r => r.target_unit === unit.id).length })}</DialogDescription></DialogHeader>
       {orgUnitRemovalBlockers(definition, unit.id).map(c => <p key={c.decision_type} role="alert" className="text-caption text-destructive">{t($ => $.coherence.quorum_block, { name: c.decision_type, quorum: c.quorum })}</p>)}<DialogFooter><Button variant="outline" onClick={() => setRemoving(false)}>{t($ => $.actions.cancel)}</Button><Button variant="destructive" disabled={readOnly || orgUnitRemovalBlockers(definition, unit.id).length > 0} onClick={() => { onChange(removeOrgUnit(definition, unit.id)); setSelected(null); setRemoving(false); }}>{t($ => $.visual.remove_team)}</Button></DialogFooter>

@@ -109,8 +109,10 @@ describe("OrgWizard", () => {
 
     // 3 — the real members of the workspace, on the units of the support template.
     expect(screen.getAllByTestId("org-wizard-actor")).toHaveLength(3);
-    expect((screen.getByLabelText("Unit of Ada") as HTMLSelectElement).value).toBe("support-lead");
-    expect((screen.getByLabelText("Unit of Mika") as HTMLSelectElement).value).toBe("front-line");
+    expect((screen.getByLabelText("Unit of Ada") as HTMLSelectElement).value).toBe("");
+    expect((screen.getByLabelText("Unit of Mika") as HTMLSelectElement).value).toBe("");
+    await user.selectOptions(screen.getByLabelText("Unit of Ada"), "support-lead");
+    await user.selectOptions(screen.getByLabelText("Unit of Mika"), "front-line");
     await user.selectOptions(screen.getByLabelText("Unit of Nia"), "front-line");
     await user.click(next());
 

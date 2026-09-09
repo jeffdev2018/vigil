@@ -6,11 +6,9 @@ import { toast } from "sonner";
 import {
   ORG_PURPOSE_MAX,
   buildOrgDefinition,
-  orgDefaultAssignments,
   orgModelFromAnswers,
   orgRoutingWords,
   orgStructureName,
-  orgTemplateRoot,
   pickOrgTemplate,
   type OrgDecider,
   type OrgShape,
@@ -126,26 +124,17 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   );
   const ownerId = members.find((m) => m.role === "owner")?.user_id ?? members[0]?.user_id ?? "";
 
-  // The suggested placement follows the template until the user moves someone.
-  const suggested = useMemo(() => {
-    const byUnit = orgDefaultAssignments(template, actors);
-    const out: Record<string, string> = {};
-    for (const [unitId, keys] of Object.entries(byUnit)) for (const key of keys) out[key] = unitId;
-    return out;
-  }, [template, actors]);
-  const placedIn = (key: string): string => placement[key] === "" || template.units.some(u => u.id === placement[key]) ? placement[key]! : suggested[key] ?? orgTemplateRoot(template).id;
-
+  // Workspace membership is not consent to join a proposed team.
+  const placedIn = (key: string): string => template.units.some(u => u.id === placement[key]) ? placement[key]! : "";
   const assignments = useMemo(() => {
-    const root = orgTemplateRoot(template).id;
-    const out: Record<string, string[]> = {};
-    for (const u of template.units) out[u.id] = [];
+    const out: Record<string, string[]> = Object.fromEntries(template.units.map(u => [u.id, []]));
     for (const actor of actors) {
       const key = `${actor.type}:${actor.id}`;
-      const target = placement[key] === "" || template.units.some(u => u.id === placement[key]) ? placement[key]! : suggested[key] ?? root;
-      out[target]?.push(key);
+      const target = placement[key];
+      if (target && out[target]) out[target].push(key);
     }
     return out;
-  }, [template, actors, placement, suggested]);
+  }, [template, actors, placement]);
 
   const definition = useMemo(
     () => buildOrgDefinition({ template, shape, assignments, ownerId, routingWords }),
@@ -160,7 +149,7 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   const stepValid =
     step === 1 ? purposeText !== "" && purposeText.length <= ORG_PURPOSE_MAX
       : step === 2 ? chosenModel !== null || (decider !== null && (decider !== "each_team" || teamShape !== null) && hasEnd !== null && compete !== null)
-        : true;
+        : step === 3 ? problems.length === 0 : true;
 
   const submit = () => {
     if (existing || problems.length) return;
@@ -286,6 +275,8 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
 
           {step === 3 && (
             <>
+              <p className="rounded-lg bg-info/5 p-3 text-caption text-muted-foreground">{t($ => $.studio.explicit_people)}</p>
+              <OrgProblemList problems={problems} />
               <h3 className="text-body font-medium">{t(($) => $.wizard.people.question)}</h3>
               <p className="text-caption text-muted-foreground">
                 {t(($) => $.wizard.people.template, { template: t(($) => $.wizard.template[template.key]) })}

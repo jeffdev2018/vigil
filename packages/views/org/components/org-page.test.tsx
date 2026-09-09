@@ -91,24 +91,41 @@ beforeEach(() => {
 });
 
 describe("OrgPage", () => {
+  it("assigns an existing agent from the directory without creating a team or changing its owner", () => {
+    state.structures = [structure({})];
+    renderWithI18n(<OrgPage />);
+    const directory = screen.getByRole("complementary", { name: "People to assign" });
+    fireEvent.click(within(directory).getByRole("button", { name: "Sol" }));
+    fireEvent.change(within(directory).getByRole("combobox", { name: "Assign to a team" }), { target: { value: "dev" } });
+    fireEvent.click(within(directory).getByRole("button", { name: "Add to this team" }));
+    expect(screen.getAllByTestId("org-team")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const saved = (state.updated[0] as { data: { definition: OrgDefinition } }).data;
+    expect(saved.definition.units.find(u => u.id === "dev")?.members).toContainEqual({ id: "a-3", type: "agent" });
+    expect(saved.definition.units.find(u => u.id === "dev")?.owner_id).toBeUndefined();
+    expect(state.created).toEqual([]);
+  });
+
   it("lists structures, the workspace default first, with model labels and project titles", () => {
     state.structures = [
       structure({ id: "proj", project_id: "p-1", model: "market", name: "Apollo market", status: "active", paused_units: ["dev"] }),
       structure({ id: "def", name: "Default org" }),
     ];
     renderWithI18n(<OrgPage />);
-    const cards = screen.getAllByTestId("org-structure");
-    expect(cards[0]?.textContent).toContain("Workspace default");
-    expect(cards[0]?.textContent).toContain("Hierarchy");
-    expect(cards[0]?.textContent).toContain("Ada");
-    expect(cards[1]?.textContent).toContain("Apollo");
-    expect(cards[1]?.textContent).toContain("Internal market");
-    expect(cards[1]?.textContent).toContain("1 paused unit");
+    expect(screen.getByTestId("org-structure-picker")).toHaveValue("def");
+    expect(screen.getAllByTestId("org-team")).toHaveLength(2);
+    fireEvent.change(screen.getByTestId("org-structure-picker"), { target: { value: "proj" } });
+    expect(screen.getByRole("heading", { name: "Apollo market" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "All organizations" }));
+    const rows = screen.getAllByTestId("org-structure");
+    expect(rows[0]?.textContent).toContain("Workspace default");
+    expect(rows[1]?.textContent).toContain("Apollo");
+
   });
 
   it("opens the need-first creation wizard", async () => {
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getAllByRole("button", { name: "New structure" })[0]!);
+    fireEvent.click(screen.getAllByRole("button", { name: "New organization" })[0]!);
     expect(await screen.findByLabelText("In one sentence")).toBeVisible();
     expect(state.created).toHaveLength(0);
   });
@@ -116,8 +133,7 @@ describe("OrgPage", () => {
   it("opens the detail with the chart, blocks save on invalid JSON, and saves the parsed definition", () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
-    expect(screen.getAllByTestId("org-node")).toHaveLength(2);
+    expect(screen.getAllByTestId("org-team")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByText("Advanced: JSON definition"));
     const editor = screen.getByLabelText("Definition (JSON)");
@@ -131,17 +147,17 @@ describe("OrgPage", () => {
     expect((state.updated[0] as { data: { definition: OrgDefinition } }).data.definition.units).toHaveLength(1);
   });
 
-  it("edits a team directly and protects unsaved changes when leaving", async () => {
+  it("keeps a team draft when browsing another organization and returning", async () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
+    fireEvent.click(within(screen.getAllByTestId("org-team")[0]!).getAllByRole("button")[0]!);
     fireEvent.change(screen.getByLabelText("Team name"), { target: { value: "New lead" } });
-    expect(screen.getAllByTestId("org-node")[0]?.textContent).toContain("New lead");
+    fireEvent.click(screen.getByRole("button", { name: "Back to teams" }));
+    expect(screen.getAllByTestId("org-team")[0]?.textContent).toContain("New lead");
     expect(screen.getByRole("button", { name: "Activate" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "All structures" }));
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Keep editing" }));
-    expect(screen.getByLabelText("Team name")).toHaveValue("New lead");
+    fireEvent.click(screen.getByRole("button", { name: "All organizations" }));
+    fireEvent.click(screen.getByTestId("org-structure"));
+    expect(screen.getAllByTestId("org-team")[0]?.textContent).toContain("New lead");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.updated[0]).toMatchObject({ id: "s", data: { expected_revision: 1, definition: { units: [expect.objectContaining({ name: "New lead" }), expect.anything()] } } });
   });
@@ -149,20 +165,19 @@ describe("OrgPage", () => {
   it("adds an existing agent to the selected team without creating an extra team or manager", async () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
-    fireEvent.click(screen.getByRole("button", { name: "Add members" }));
+    fireEvent.click(within(screen.getAllByTestId("org-team")[0]!).getByRole("button", { name: "Add members" }));
     const dialog = await screen.findByRole("dialog");
     fireEvent.click(within(dialog).getByRole("checkbox", { name: /Sol/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Add selection (1)" }));
-    expect(screen.getAllByTestId("org-node")).toHaveLength(2);
+    expect(screen.getAllByTestId("org-team")).toHaveLength(2);
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.updated[0]).toMatchObject({ data: { definition: { edges: definition.edges, units: [expect.objectContaining({ id: "lead", members: [{ type: "member", id: "u-1" }, { type: "agent", id: "a-3" }] }), expect.anything()] } } });
   });
 
   it("creates an empty team only after an explicit name and preserves its independent parent and owner choices", async () => {
     state.structures = [structure({ id: "s" })];
-    renderWithI18n(<OrgPage />); fireEvent.click(screen.getByTestId("org-structure"));
-    fireEvent.click(screen.getByRole("button", { name: "Add team" }));
+    renderWithI18n(<OrgPage />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Add team" })[0]!);
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByRole("button", { name: "Add team" })).toBeDisabled();
     expect(within(dialog).getByLabelText("Human owner")).toHaveValue("");
@@ -170,8 +185,9 @@ describe("OrgPage", () => {
     fireEvent.change(within(dialog).getByLabelText("Team name"), { target: { value: "Operations" } });
     fireEvent.change(within(dialog).getByLabelText("Parent team"), { target: { value: "lead" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add team" }));
-    expect(screen.getAllByTestId("org-node")).toHaveLength(3);
-    expect(screen.getByText("This team is empty. Add its first members.")).toBeVisible();
+    expect(screen.getAllByTestId("org-team")).toHaveLength(3);
+    expect(within(screen.getByRole("dialog")).getByText("This team is empty. Add its first members.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Back to teams" }));
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     const change = state.updated[0] as { data: { definition: OrgDefinition } };
     expect(change.data.definition.units[2]).toMatchObject({ name: "Operations", members: [] });
@@ -182,17 +198,16 @@ describe("OrgPage", () => {
   it("restores a changed membership draft after remounting", () => {
     state.structures = [structure({ id: "s" })];
     const mounted = renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
+    fireEvent.click(within(screen.getAllByTestId("org-team")[0]!).getAllByRole("button")[0]!);
     fireEvent.change(screen.getByLabelText("Team name"), { target: { value: "Recovered name" } });
     mounted.unmount(); renderWithI18n(<OrgPage />);
-    expect(screen.getByLabelText("Team name")).toHaveValue("Recovered name");
+    expect(screen.getAllByTestId("org-team")[0]?.textContent).toContain("Recovered name");
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
   });
 
   it("activates with the attestation after showing the preflight numbers", async () => {
     state.structures = [structure({ id: "s" })];
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
     fireEvent.click(screen.getByRole("button", { name: "Activate" }));
     const dialog = await screen.findByRole("dialog");
     const pre = within(dialog).getByTestId("org-preflight").textContent;
@@ -214,7 +229,6 @@ describe("OrgPage", () => {
       proposals: [{ key: "vacant-dev", unit_id: "dev", title: "Fill the reviewer role", body: "Dev has had no reviewer for 7 days.", measure: "vacant_roles = 0" }],
     };
     renderWithI18n(<OrgPage />);
-    fireEvent.click(screen.getByTestId("org-structure"));
     fireEvent.click(screen.getByRole("button", { name: "Activity" }));
     const health = screen.getByTestId("org-health").textContent;
     expect(health).toContain("Drift rate25%");

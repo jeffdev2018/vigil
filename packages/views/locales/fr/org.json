@@ -1,7 +1,7 @@
 {
   "page": {
     "title": "Organisation",
-    "new_structure": "Nouvelle structure",
+    "new_structure": "Nouvelle organisation",
     "empty": "Aucune structure",
     "empty_description": "Une structure décide qui travaille sur quoi : elle route les tâches vers des unités, escalade, approuve et dépense. Choisissez l'un des sept modèles pour commencer.",
     "workspace_default": "Défaut de l'espace de travail",
@@ -586,7 +586,7 @@
     "mission": "Mission de l’équipe",
     "owner": "Responsable humain",
     "add_members": "Ajouter des membres",
-    "members_hint": "Choisissez des agents ou des personnes déjà présents dans cet espace. Leur ajout ne crée pas d’équipe et ne change pas leur hiérarchie.",
+    "members_hint": "Les membres sont des personnes ou des agents déjà présents dans le workspace.",
     "people_error": "Impossible de charger tous les membres.",
     "empty_team": "Cette équipe est vide. Ajoutez ses premiers membres.",
     "recipient": "Agent destinataire",
@@ -615,7 +615,7 @@
     "remove_team_hint": "Supprimer « {{name}} » retire ses {{members}} appartenances, {{edges}} relations et {{rules}} règles. Les agents et les personnes restent dans l’espace.",
     "quorum_block": "Le comité « {{name}} » exige {{quorum}} équipes. Modifiez explicitement sa composition ou son quorum avant de supprimer cette équipe.",
     "scope_taken": "Ce périmètre possède déjà une organisation. Choisissez un autre projet ou modifiez l’organisation existante.",
-    "excluded": "Ne pas inclure",
+    "excluded": "Ne pas affecter",
     "test": "Tester une demande",
     "discard": "Annuler mes modifications",
     "draft_saved": "Brouillon conservé sur cet appareil",
@@ -670,5 +670,52 @@
     "move_hint": "Déplacer vers… (rôle local retiré)",
     "owns_team": "Responsable de {{name}}",
     "members": "Membres"
+  },
+  "studio": {
+    "organization": "Organisation affichée",
+    "browse": "Toutes les organisations",
+    "scope_hint": "Une organisation par périmètre : choisissez celle que vous souhaitez composer.",
+    "search_org": "Rechercher une organisation…",
+    "empty_title": "Composez votre première équipe",
+    "empty_hint": "Décrivez sa mission, choisissez ses membres, puis vérifiez à qui vont les demandes.",
+    "views": {
+      "board": "Équipes",
+      "chart": "Relations",
+      "people": "Annuaire"
+    },
+    "owner": "Responsable :",
+    "receives": "Par défaut →",
+    "linked_squad": "Squad liée",
+    "show_less": "Réduire",
+    "show_more": "Voir les {{count}} autres membres",
+    "owner_only": "{{name}} porte ce périmètre. Aucun membre n’y est encore affecté.",
+    "add_mission": "Définir la mission de cette équipe",
+    "board_hint": "Les membres travaillent dans les équipes. Le responsable humain supervise.",
+    "directory": "Répertoire",
+    "only_unassigned": "Sans équipe dans cette organisation",
+    "directory_hint": "Glissez une personne dans une équipe, ou cliquez sur son nom pour l’affecter.",
+    "no_results": "Aucune personne ne correspond à ce filtre.",
+    "assign_to": "Affecter à une équipe",
+    "assign": "Ajouter à cette équipe",
+    "assigned": "{{name}} ajouté à {{team}}. Modification à enregistrer.",
+    "team_empty_hint": "Créez le groupe, puis choisissez ses membres.",
+    "inspector_hint": "Composez l’équipe, puis précisez son fonctionnement. Vos changements restent en brouillon jusqu’à l’enregistrement.",
+    "relationships": "Relations à afficher",
+    "relations": {
+      "reports_to": "Hiérarchie des équipes",
+      "escalates_to": "Escalades",
+      "backs_up": "Remplacements",
+      "consults": "Consultations"
+    },
+    "relation_hint": {
+      "reports_to": "Ces liens définissent un rattachement entre équipes.",
+      "escalates_to": "Qui reprend une demande bloquée. Ce n’est pas une hiérarchie.",
+      "backs_up": "Qui prend le relais en cas d’indisponibilité.",
+      "consults": "Qui est consulté, sans transfert de responsabilité."
+    },
+    "parent_required": "Cette organisation est hiérarchique : choisissez explicitement l’équipe de rattachement.",
+    "explicit_people": "Aucun membre n’est ajouté automatiquement. Choisissez uniquement les personnes qui travailleront dans cette organisation.",
+    "back_to_teams": "Revenir aux équipes",
+    "move_person": "Déplacer {{name}}"
   }
 }

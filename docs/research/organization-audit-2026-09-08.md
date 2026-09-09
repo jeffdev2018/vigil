@@ -283,3 +283,11 @@ La mention « pas de nouvelle installation » ci-dessus décrit la passe d’aud
 - Contrôle visuel dans l’app installée : espace `one`, huit organisations existantes; actions distinctes de création d’agent, création d’équipe et ajout de membres; organigramme et panneau de composition affichés.
 
 La capture réelle confirme deux limites de présentation et de données héritées : l’ancienne unité `Support lead` demeure sans membres, et des liens d’escalade peuvent encore évoquer une hiérarchie par leur disposition. Les noms/missions anglais déjà sauvegardés n’ont pas été réécrits. La mise à jour ne constitue pas une migration automatique de l’organisation métier de l’utilisateur.
+
+## 9. Reprise du parcours après rejet visuel
+
+La galerie de grandes cartes a été remplacée par l’ouverture directe de l’organisation courante. Les organisations restent accessibles dans un sélecteur de périmètre et une liste recherchable. La composition présente les membres réels de chaque équipe et un répertoire d’affectation, avec glisser-déposer et alternative par bouton. Le déplacement réutilise la logique existante de retrait des rôles locaux ; la création d’agent reste une navigation distincte.
+
+L’assistant n’affecte plus automatiquement les membres du workspace. Le vocabulaire générique « clients » ne suffit plus à sélectionner Support : « Suivre Facture Clients » sélectionne Finance. Une nouvelle équipe hiérarchique exige un parent explicite. Le responsable humain, les membres et le destinataire par défaut sont distincts dans l’édition. Les vues de relations filtrent hiérarchie, escalade, remplacement et consultation, sans disposer les escalades comme une hiérarchie implicite. Le cadrage initial inclut désormais tous les nœuds lorsque leur largeur excède la fenêtre.
+
+Contrôles : 68 tests Core Organisation et 41 tests Views Organisation ; vérification des types Views ; lint des composants modifiés. Rendu réel en aperçu local, thèmes clair/sombre et largeur 900 px : affectation au clic, changement du compteur, propriétaire préservé, réglages d’équipe, sélection des relations. Cet aperçu utilise des données de démonstration ; il ne constitue pas un test du backend de production. Les organisations déjà sauvegardées et leurs noms hérités ne sont pas réécrits.
