@@ -268,5 +268,8 @@
     "typing_name": "{{name}} が入力中…",
     "typing_count": "{{count}} 人が入力中…",
     "author_badge": "{{name}} が送信"
+  },
+  "approvals": {
+    "strip_title_other": "承認待ち {{count}}件"
   }
 }

@@ -47,7 +47,8 @@
     "attention_empty": "Rien ne requiert votre attention.",
     "briefing_title": "Ce matin",
     "retro_title": "Rétrospective hebdomadaire",
-    "decisions_title": "Décisions en attente"
+    "decisions_title": "Décisions en attente",
+    "approval_action_failed": "Impossible d'enregistrer la réponse"
   },
   "detail": {
     "select_prompt": "Sélectionnez une notification pour afficher les détails",
@@ -58,7 +59,8 @@
     "autopilot_quota_exceeded_body": "Ce workspace a atteint sa limite de {{limit}} exécutions d'autopilot pour la période en cours. Les exécutions suivantes ne démarreront pas avant la réinitialisation le {{resetAt}}.",
     "autopilot_quota_upgrade": "Voir les options de mise à niveau",
     "archive": "Archiver",
-    "unarchive": "Désarchiver"
+    "unarchive": "Désarchiver",
+    "already_decided": "Déjà décidé"
   },
   "types": {
     "issue_assigned": "Assigné",

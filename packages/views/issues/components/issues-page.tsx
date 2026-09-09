@@ -9,6 +9,8 @@ import type {
 } from "@multica/core/types";
 import { useIssuesScope } from "@multica/core/issues/stores/issues-scope-store";
 import { useViewStore } from "@multica/core/issues/stores/view-store-context";
+import { useWorkspaceId } from "@multica/core/hooks";
+import { RunHaltBanner } from "../../approvals";
 import { PageHeader } from "../../layout/page-header";
 import { useT } from "../../i18n";
 import { IssueSurface } from "../surface/issue-surface";
@@ -49,6 +51,7 @@ function IssuesSurfaceHeader({
 export function IssuesPage() {
   const { t } = useT("issues");
   const scope = useIssuesScope("issues");
+  const wsId = useWorkspaceId();
 
   return (
     <div className="flex flex-1 min-h-0 flex-col">
@@ -56,6 +59,8 @@ export function IssuesPage() {
         <ListTodo className="h-4 w-4 text-muted-foreground" />
         <h1 className="text-body font-medium">{t(($) => $.page.breadcrumb_title)}</h1>
       </PageHeader>
+
+      <RunHaltBanner wsId={wsId} />
 
       <IssueSurface
         scope={{ type: "workspace", actorKind: scope }}

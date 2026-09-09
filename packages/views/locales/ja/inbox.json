@@ -45,7 +45,8 @@
     "attention_empty": "対応が必要なものはありません。",
     "briefing_title": "今朝のブリーフィング",
     "retro_title": "週次レトロ",
-    "decisions_title": "判断待ち"
+    "decisions_title": "判断待ち",
+    "approval_action_failed": "回答を記録できませんでした"
   },
   "detail": {
     "select_prompt": "詳細を表示する通知を選択してください",
@@ -56,7 +57,8 @@
     "autopilot_quota_exceeded_body": "このワークスペースは現在の期間の自動化実行上限 {{limit}} 回に達しました。実行枠が {{resetAt}} にリセットされるまで、以降の自動化は開始されません。",
     "autopilot_quota_upgrade": "アップグレード方法を見る",
     "archive": "アーカイブ",
-    "unarchive": "アーカイブ解除"
+    "unarchive": "アーカイブ解除",
+    "already_decided": "すでに判断済み"
   },
   "types": {
     "issue_assigned": "割り当て済み",

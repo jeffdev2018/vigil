@@ -268,5 +268,8 @@
     "typing_name": "{{name}} 正在输入…",
     "typing_count": "{{count}} 人正在输入…",
     "author_badge": "由 {{name}} 发送"
+  },
+  "approvals": {
+    "strip_title_other": "{{count}} 项待审批"
   }
 }

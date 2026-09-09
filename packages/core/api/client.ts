@@ -379,7 +379,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
-import { ApprovalsResponseSchema, EMPTY_APPROVALS, type ApprovalsResponse } from "../approvals/schemas";
+import { ApprovalsResponseSchema, EMPTY_APPROVALS, RunHaltSchema, EMPTY_RUN_HALT, type ApprovalsResponse, type RunHalt } from "../approvals/schemas";
 import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, TwentyStatusSchema, type TwentyConnectInput, type TwentyConnection, type TwentyMemberLink, type TwentySettingsInput, type TwentyStatus } from "../twenty/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
@@ -8110,6 +8110,21 @@ export class ApiClient {
     const query = issueId ? `?issue_id=${encodeURIComponent(issueId)}` : "";
     const raw = await this.fetch<unknown>(`/api/approvals${query}`);
     return parseWithFallback(raw, ApprovalsResponseSchema, EMPTY_APPROVALS, { endpoint: "GET /api/approvals" }) as ApprovalsResponse;
+  }
+
+  // Fleet halt (K05 / m169): whether this workspace's agents are held right
+  // now, readable by every member; setting or lifting it is owner/admin only.
+  async getRunHalt(): Promise<RunHalt> {
+    const raw = await this.fetch<unknown>(`/api/run-halt`);
+    return parseWithFallback(raw, RunHaltSchema, EMPTY_RUN_HALT, { endpoint: "GET /api/run-halt" });
+  }
+
+  async putRunHalt(input: { halted: boolean; reason: string }): Promise<RunHalt> {
+    const raw = await this.fetch<unknown>(`/api/run-halt`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, RunHaltSchema, EMPTY_RUN_HALT, { endpoint: "PUT /api/run-halt" });
   }
 
   // Twenty CRM (OS plan, chantier 2). Workspace-scoped through X-Workspace-ID.

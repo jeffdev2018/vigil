@@ -1830,6 +1830,11 @@
     "pending_banner_one": "{{count}} en attente de décision",
     "pending_banner_other": "{{count}} en attente de décision",
     "run_halt_title": "Agents à l'arrêt",
-    "run_halt_body": "Toute action soumise à approbation est refusée tant que l'arrêt est actif."
+    "run_halt_body": "Toute action soumise à approbation est refusée tant que l'arrêt est actif.",
+    "run_halt_by": "Arrêté par {{who}} {{when}}",
+    "run_halt_reason_prefix": "Motif : {{reason}}",
+    "run_halt_unknown_actor": "un propriétaire",
+    "run_halt_lift": "Lever l'arrêt",
+    "run_halt_lift_failed": "Impossible de lever l'arrêt"
   }
 }

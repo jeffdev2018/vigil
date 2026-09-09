@@ -272,5 +272,9 @@
     "typing_name": "{{name}} is typing…",
     "typing_count": "{{count}} people are typing…",
     "author_badge": "Sent by {{name}}"
+  },
+  "approvals": {
+    "strip_title_one": "{{count}} pending approval",
+    "strip_title_other": "{{count}} pending approvals"
   }
 }

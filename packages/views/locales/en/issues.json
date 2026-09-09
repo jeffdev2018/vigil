@@ -1830,6 +1830,11 @@
     "pending_banner_one": "{{count}} awaiting a decision",
     "pending_banner_other": "{{count}} awaiting a decision",
     "run_halt_title": "Agents are halted",
-    "run_halt_body": "Every gated action is refused while the halt is on."
+    "run_halt_body": "Every gated action is refused while the halt is on.",
+    "run_halt_by": "Halted by {{who}} {{when}}",
+    "run_halt_reason_prefix": "Reason: {{reason}}",
+    "run_halt_unknown_actor": "an owner",
+    "run_halt_lift": "Lift the halt",
+    "run_halt_lift_failed": "Could not lift the halt"
   }
 }

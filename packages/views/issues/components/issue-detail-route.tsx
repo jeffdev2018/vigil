@@ -5,6 +5,7 @@ import { useCanonicalIssue } from "@multica/core/issues/canonical-id";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
 import { useNavigation } from "../../navigation";
+import { RunHaltBanner } from "../../approvals";
 import { IssueDetail, IssueDetailSkeleton, IssueNotFound } from "./issue-detail";
 
 interface IssueDetailRouteProps {
@@ -90,10 +91,13 @@ export function IssueDetailRoute({ routeId, onDelete }: IssueDetailRouteProps) {
   if (notFound || !canonicalId) return <IssueNotFound showBackLink={!onDelete} />;
 
   return (
-    <IssueDetail
-      issueId={canonicalId}
-      onDelete={onDelete}
-      highlightCommentId={highlight.commentId}
-    />
+    <div className="flex flex-1 min-h-0 flex-col">
+      <RunHaltBanner wsId={wsId} />
+      <IssueDetail
+        issueId={canonicalId}
+        onDelete={onDelete}
+        highlightCommentId={highlight.commentId}
+      />
+    </div>
   );
 }

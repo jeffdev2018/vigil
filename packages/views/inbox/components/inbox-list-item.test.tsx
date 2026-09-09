@@ -1,11 +1,28 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { WorkspaceSlugProvider } from "@multica/core/paths";
 import { buildIssueStatusCatalog } from "@multica/core/issue-statuses";
 import type { InboxItem, IssueStatusEntry } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import { NavigationProvider } from "../../navigation";
 import type { NavigationAdapter } from "../../navigation";
 import { InboxListItem } from "./inbox-list-item";
+
+const mockRespond = vi.hoisted(() => vi.fn());
+const mockDecideTransition = vi.hoisted(() => vi.fn());
+const mockAnswerGoal = vi.hoisted(() => vi.fn());
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
+vi.mock("@multica/core/issues/decisions", () => ({
+  useRespondIssueDecision: () => ({ mutate: mockRespond, isPending: false }),
+}));
+vi.mock("@multica/core/issues/goal-loop", () => ({
+  useAnswerIssueGoal: () => ({ mutate: mockAnswerGoal, isPending: false }),
+}));
+vi.mock("@multica/core/issue-transitions", () => ({
+  useDecideIssueTransitionRequest: () => ({ mutate: mockDecideTransition, isPending: false }),
+}));
 
 // The catalog is server state; these suites render leaves without a
 // QueryClientProvider, so it is stubbed like the other data hooks. The real
@@ -121,17 +138,22 @@ function renderRow(props: {
   view: "inbox" | "archived";
   adapter?: NavigationAdapter;
   onClick?: () => void;
+  approvals?: ApprovalItem[];
 }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <WorkspaceSlugProvider slug="acme">
       <NavigationProvider value={props.adapter ?? makeAdapter()}>
-        <InboxListItem
-          item={props.item}
-          view={props.view}
-          isSelected={false}
-          onClick={props.onClick ?? vi.fn()}
-          onAction={vi.fn()}
-        />
+        <QueryClientProvider client={qc}>
+          <InboxListItem
+            item={props.item}
+            view={props.view}
+            isSelected={false}
+            onClick={props.onClick ?? vi.fn()}
+            onAction={vi.fn()}
+            approvals={props.approvals}
+          />
+        </QueryClientProvider>
       </NavigationProvider>
     </WorkspaceSlugProvider>,
   );
@@ -419,5 +441,108 @@ describe("InboxListItem status glyph", () => {
     const icon = getByTestId("status-icon");
     expect(icon.getAttribute("data-status")).toBe("human_review");
     expect(icon.getAttribute("data-color")).toBe("");
+  });
+});
+
+function approval(over: Partial<ApprovalItem> = {}): ApprovalItem {
+  return {
+    id: "d1",
+    source: "decision",
+    kind: "decision",
+    issue: { id: "issue-1", identifier: "ONE-1", title: "Ship it", status: "in_progress" },
+    task_id: "t1",
+    asked_by: { type: "agent", id: "a1", name: "Ops bot" },
+    question: "Which environment?",
+    options: [{ id: "approve", label: "Approve", impact: "" }, { id: "deny", label: "Deny", impact: "" }],
+    recommended_option_id: "",
+    urgency: "normal",
+    created_at: "2026-09-09T10:00:00Z",
+    expires_at: null,
+    sla_deadline_at: null,
+    can_decide: true,
+    cannot_decide_reason: "",
+    decision: null,
+    gate: null,
+    transition: null,
+    goal_question: null,
+    ...over,
+  };
+}
+
+// Row semantics (matching, "already decided") live in inbox-display.test.ts.
+// This suite proves only what the row adds: quick-decide buttons that never
+// open the row, hidden whenever there is nothing decidable.
+describe("InboxListItem approval quick actions", () => {
+  it("decides a matching decision from the row without opening it", () => {
+    const onClick = vi.fn();
+    renderRow({
+      item: item({ type: "decision_request", details: { decision_id: "d1" } }),
+      view: "inbox",
+      onClick,
+      approvals: [approval()],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(mockRespond).toHaveBeenCalledWith(
+      { issueId: "issue-1", decisionId: "d1", answer: { option_id: "approve" } },
+      expect.anything(),
+    );
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("decides a matching transition with approve/reject", () => {
+    renderRow({
+      item: item({ type: "transition_approval_requested" }),
+      view: "inbox",
+      approvals: [
+        approval({
+          id: "r1",
+          source: "transition",
+          options: [{ id: "approve", label: "Approve", impact: "" }, { id: "reject", label: "Reject", impact: "" }],
+        }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Reject" }));
+
+    expect(mockDecideTransition).toHaveBeenCalledWith({ requestId: "r1", decision: "reject" }, expect.anything());
+  });
+
+  it("answers a matching goal question with the option's label", () => {
+    renderRow({
+      item: item({ type: "goal_question" }),
+      view: "inbox",
+      approvals: [
+        approval({
+          id: "g1",
+          source: "goal_question",
+          options: [{ id: "0", label: "EU", impact: "" }, { id: "1", label: "US", impact: "" }],
+        }),
+      ],
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "US" }));
+
+    expect(mockAnswerGoal).toHaveBeenCalledWith("US", expect.anything());
+  });
+
+  it("shows nothing when there is no matching approval", () => {
+    renderRow({ item: item({ type: "decision_request", details: { decision_id: "d1" } }), view: "inbox", approvals: [] });
+    expect(screen.queryByTestId("approval-quick-actions")).toBeNull();
+  });
+
+  it("shows nothing when the reader may not decide it", () => {
+    renderRow({
+      item: item({ type: "decision_request", details: { decision_id: "d1" } }),
+      view: "inbox",
+      approvals: [approval({ can_decide: false, cannot_decide_reason: "not_an_approver" })],
+    });
+    expect(screen.queryByTestId("approval-quick-actions")).toBeNull();
+  });
+
+  it("shows nothing for an ordinary row with no ask", () => {
+    renderRow({ item: item({ type: "new_comment" }), view: "inbox", approvals: [approval()] });
+    expect(screen.queryByTestId("approval-quick-actions")).toBeNull();
   });
 });

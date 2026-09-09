@@ -5,12 +5,18 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { InboxDecisions } from "@multica/core/inbox/queries";
 import { renderWithI18n } from "../../test/i18n";
 
-// Parsing: packages/core/inbox/decisions.test.ts. Card semantics: decision-cards-section.test.tsx (K01).
+// Parsing: packages/core/inbox/decisions.test.ts. Card semantics (answer flows,
+// countdown, gate details): approval-card.test.tsx. This suite proves the view
+// hands the server's risk-ordered, capped list to the shared ApprovalCard —
+// adapted from the decisions endpoint's own shape — and keeps that ordering.
 
 const state = vi.hoisted(() => ({ data: { decisions: [], total: 0 } as InboxDecisions, respond: vi.fn() }));
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
-vi.mock("@multica/core/paths", () => ({ useWorkspacePaths: () => ({ issueDetail: (id: string) => `/acme/issues/${id}` }) }));
+vi.mock("@multica/core/paths", () => ({
+  useWorkspaceSlug: () => "acme",
+  paths: { workspace: () => ({ issueDetail: (id: string) => `/acme/issues/${id}` }) },
+}));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("../../navigation", () => ({ AppLink: ({ href, children, className }: { href: string; children: React.ReactNode; className?: string }) => <a href={href} className={className}>{children}</a> }));
 vi.mock("@multica/core/inbox/queries", async (importOriginal) => ({
@@ -18,6 +24,8 @@ vi.mock("@multica/core/inbox/queries", async (importOriginal) => ({
   inboxDecisionsOptions: () => ({ queryKey: ["inbox-decisions"], queryFn: async () => state.data }),
 }));
 vi.mock("@multica/core/issues/decisions", () => ({ useRespondIssueDecision: () => ({ mutate: state.respond, isPending: false }) }));
+vi.mock("@multica/core/issues/goal-loop", () => ({ useAnswerIssueGoal: () => ({ mutate: vi.fn(), isPending: false }) }));
+vi.mock("@multica/core/issue-transitions", () => ({ useDecideIssueTransitionRequest: () => ({ mutate: vi.fn(), isPending: false }) }));
 
 import { DecisionsView } from "./decisions-view";
 
@@ -46,13 +54,14 @@ describe("DecisionsView", () => {
     expect(await screen.findByTestId("inbox-decisions-empty")).toBeTruthy();
   });
 
-  it("shows at most the five cards the server sent, the remainder count, and answers in one click", async () => {
+  it("shows the cards the server sent, in the server's order, and answers in one click through the shared card", async () => {
     state.data = { decisions: ["1", "2", "3", "4", "5"].map((id) => card(id)), total: 8 };
     render();
-    expect(await screen.findAllByTestId("inbox-decision")).toHaveLength(5);
+    const cards = await screen.findAllByTestId("approval-card");
+    expect(cards).toHaveLength(5);
     expect(screen.getByTestId("inbox-decisions-more").textContent).toBe("3 more waiting after these");
-    expect(screen.getByText("ACME-1").getAttribute("href")).toBe("/acme/issues/i-1");
-    fireEvent.click(screen.getAllByRole("button", { name: /Keep it · recommended/ })[0]!);
+    expect(screen.getByText("ACME-1 · Issue 1").getAttribute("href")).toBe("/acme/issues/i-1");
+    fireEvent.click(screen.getAllByRole("button", { name: /^Keep it/ })[0]!);
     expect(state.respond).toHaveBeenCalledWith({ issueId: "i-1", decisionId: "1", answer: { option_id: "keep" } }, expect.anything());
   });
 

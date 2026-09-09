@@ -13,6 +13,7 @@ import { Archive, Check, ChevronRight, Inbox, RotateCcw } from "lucide-react";
 import { isEditableShortcutTarget } from "@multica/core/shortcuts";
 import { isImeComposing } from "@multica/core/utils";
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import type { InboxView } from "./inbox-view";
 import { InboxListItem } from "./inbox-list-item";
 import { VirtuosoSeed, VIRTUOSO_SEED_COUNT } from "../../common/virtuoso-seed";
@@ -61,6 +62,7 @@ export function InboxList({
   onOpenRetro,
   emptyLabel,
   emptyAction,
+  approvals = [],
 }: {
   items: InboxItem[];
   view: InboxView;
@@ -82,6 +84,9 @@ export function InboxList({
   onOpenRetro?: () => void;
   emptyLabel?: string;
   emptyAction?: ReactNode;
+  // Inline approvals (OS plan, chantier 3): passed straight through to each
+  // row so it can offer quick decide buttons for its own matching ask, if any.
+  approvals?: ApprovalItem[];
 }) {
   const { t } = useT("inbox");
   // Virtuoso's `customScrollParent` wants the actual HTMLElement, not a ref.
@@ -291,6 +296,7 @@ export function InboxList({
       isSelected={(item.issue_id ?? item.id) === selectedKey}
       onClick={() => selectItem(item)}
       onAction={() => onAction(item.id)}
+      approvals={approvals}
     />
   );
 
