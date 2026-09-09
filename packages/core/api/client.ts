@@ -465,6 +465,7 @@ import {
   OrgStructureListSchema,
   OrgStructureDetailSchema,
   OrgTemplateListSchema,
+  OrgTeamCatalogSchema,
   OrgHealthSchema,
   OrgPreflightSchema,
   OrgOfferListSchema,
@@ -4903,6 +4904,19 @@ export class ApiClient {
   }
 
   // Executable org chart (K75)
+  async listOrgTeamTemplates(): Promise<import("../types/org").OrgTeamTemplate[]> {
+    const raw = await this.fetch<unknown>("/api/org/team-templates");
+    const result = parseWithFallback<{ templates: import("../types/org").OrgTeamTemplate[] } | null>(raw, OrgTeamCatalogSchema.nullable(), null, { endpoint: "GET /api/org/team-templates" });
+    if (!result) throw new Error("Invalid team catalog response");
+    return result.templates;
+  }
+
+  async downloadOrgTeamTemplate(id: string): Promise<Blob> {
+    const response = await this.fetchRaw(`/api/org/team-templates/${encodeURIComponent(id)}/download`);
+    if (!response.ok) throw new Error(`Could not prepare team (${response.status})`);
+    return response.blob();
+  }
+
   async listOrgTemplates(): Promise<import("../types").OrgTemplate[]> {
     const raw = await this.fetch<unknown>("/api/org/templates");
     return parseWithFallback(raw, OrgTemplateListSchema, { templates: [] }, { endpoint: "GET /api/org/templates" }).templates as import("../types").OrgTemplate[];

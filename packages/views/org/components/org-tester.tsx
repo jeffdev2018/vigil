@@ -39,7 +39,9 @@ export function OrgTester({ structureId, definition, model, status, revision, di
   const [labels, setLabels] = useState<string[]>([]);
   const [picking, setPicking] = useState(false);
   const simulate = useSimulateOrg();
-  const sim = simulate.data ?? null;
+  const request = { model, definition, structure_id: structureId, request: { ...orgRequestFromText(text), labels } };
+  const stale = !!simulate.data && JSON.stringify(simulate.variables) !== JSON.stringify(request);
+  const sim = stale || simulate.isPending ? null : simulate.data ?? null;
 
   const basis = dirty
     ? t(($) => $.tester.basis_unsaved, { n: revision })
@@ -47,13 +49,7 @@ export function OrgTester({ structureId, definition, model, status, revision, di
       ? t(($) => $.tester.basis_draft, { n: revision })
       : t(($) => $.tester.basis_active, { n: revision });
 
-  const run = () =>
-    simulate.mutate({
-      model,
-      definition,
-      structure_id: structureId,
-      request: { ...orgRequestFromText(text), labels },
-    });
+  const run = () => simulate.mutate(request);
 
   const applyExample = (example: string) => {
     setText(example);
@@ -97,7 +93,7 @@ export function OrgTester({ structureId, definition, model, status, revision, di
   return (
     <div data-testid="org-tester" className="grid gap-3 min-[820px]:grid-cols-[1fr_22rem]">
       <div className="flex flex-col gap-2 rounded-md border p-3">
-        <p className="text-caption text-muted-foreground">{basis}</p>
+        <p className="text-caption text-muted-foreground">{basis}</p>{stale && <p role="status" className="text-caption text-warning">{t($ => $.tester.stale)}</p>}
         <label className="flex flex-col gap-1 text-caption text-muted-foreground">
           {t(($) => $.tester.request)}
           <Textarea

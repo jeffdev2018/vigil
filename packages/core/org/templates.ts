@@ -135,9 +135,8 @@ export interface OrgBusinessTemplate {
   units: OrgTemplateUnit[];
 }
 
-// Unit names and missions are data written into the definition, not UI copy:
-// they follow the server's own templates and stay in English. The template's
-// own label is translated in the wizard.
+// English defaults for pure builders. The wizard localizes team names and
+// missions before writing the definition; ids and routing keywords stay stable.
 export const ORG_BUSINESS_TEMPLATES: OrgBusinessTemplate[] = [
   {
     key: "support",
@@ -287,7 +286,9 @@ export function buildOrgDefinition(p: OrgBuildParams): OrgDefinition {
       name: u.name,
       mission: u.mission,
       owner_id: p.ownerId,
-      ...(u.id === root.id ? {} : p.shape.unitModel === undefined ? {} : { model: p.shape.unitModel }),
+      ...(u.id === root.id && (p.shape.model === "squads" || p.shape.unitModel === "squads")
+        ? { model: "owner_network" as const }
+        : u.id !== root.id && p.shape.unitModel !== undefined ? { model: p.shape.unitModel } : {}),
       excludes: [...WIZARD_EXCLUDES],
       autonomy: u.autonomy,
       allow: [...WIZARD_ALLOW],
@@ -308,7 +309,7 @@ export function buildOrgDefinition(p: OrgBuildParams): OrgDefinition {
     edges: p.template.units
       .filter((u) => u.id !== root.id)
       .flatMap((u) => [
-        { from: u.id, to: root.id, kind: "reports_to" as const },
+        ...(["hierarchy", "matrix"].includes(p.shape.base) ? [{ from: u.id, to: root.id, kind: "reports_to" as const }] : []),
         { from: u.id, to: root.id, kind: "escalates_to" as const },
       ]),
     rules,

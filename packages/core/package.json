@@ -156,7 +156,7 @@
     "./runtimes": "./runtimes/index.ts",
     "./runtimes/queries": "./runtimes/queries.ts",
     "./runtimes/mutations": "./runtimes/mutations.ts",
-	"./runtimes/cli-auth": "./runtimes/cli-auth.ts",
+    "./runtimes/cli-auth": "./runtimes/cli-auth.ts",
     "./runtimes/custom-pricing-store": "./runtimes/custom-pricing-store.ts",
     "./dashboard": "./dashboard/index.ts",
     "./dashboard/queries": "./dashboard/queries.ts",
@@ -275,7 +275,9 @@
     "./skills/frontmatter": "./skills/frontmatter.ts",
     "./skills/pack-archive": "./skills/pack-archive.ts",
     "./skills/stores": "./skills/stores/index.ts",
-    "./autopilots/stores": "./autopilots/stores/index.ts"
+    "./skills/studio": "./skills/studio.ts",
+    "./autopilots/stores": "./autopilots/stores/index.ts",
+    "./org/draft-store": "./org/draft-store.ts"
   },
   "dependencies": {
     "@formatjs/intl-localematcher": "catalog:",

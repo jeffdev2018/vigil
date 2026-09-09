@@ -473,6 +473,9 @@ func (h *Handler) validateOrg(ctx context.Context, wsUUID pgtype.UUID, model str
 	if !containsStr(orgModels, model) {
 		return orgErrorf("model must be one of: %s", strings.Join(orgModels, ", "))
 	}
+	if err := validateOrgReporting(*d, model); err != nil {
+		return err
+	}
 	if len(d.Units) == 0 {
 		return orgErrorf("a structure needs at least one unit")
 	}
@@ -717,16 +720,31 @@ func (h *Handler) orgActivationCheck(ctx context.Context, wsUUID pgtype.UUID, mo
 // --- CRUD --------------------------------------------------------------------------
 
 type orgWriteRequest struct {
-	ProjectID       *string         `json:"project_id"`
-	Model           string          `json:"model"`
-	Name            string          `json:"name"`
-	Definition      json.RawMessage `json:"definition"`
-	OwnerID         *string         `json:"owner_id"`
-	DissolveAt      *string         `json:"dissolve_at"`
-	EndCondition    string          `json:"end_condition"`
-	BudgetUsdTicks  int64           `json:"budget_usd_ticks"`
-	EvalAttestation string          `json:"eval_attestation"`
-	Note            string          `json:"note"`
+	ExpectedRevision  *int32          `json:"expected_revision"`
+	RestoreRevisionID string          `json:"restore_revision_id"`
+	ProjectID         *string         `json:"project_id"`
+	Model             string          `json:"model"`
+	Name              string          `json:"name"`
+	Definition        json.RawMessage `json:"definition"`
+	OwnerID           *string         `json:"owner_id"`
+	DissolveAt        *string         `json:"dissolve_at"`
+	EndCondition      *string         `json:"end_condition"`
+	BudgetUsdTicks    *int64          `json:"budget_usd_ticks"`
+	EvalAttestation   string          `json:"eval_attestation"`
+	Note              string          `json:"note"`
+}
+
+func derefOrgBudget(v *int64) int64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+func derefOrgString(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return *v
 }
 
 func (h *Handler) decodeOrgRequest(w http.ResponseWriter, r *http.Request) (orgWriteRequest, OrgDefinition, pgtype.UUID, pgtype.Timestamptz, bool) {
@@ -736,6 +754,10 @@ func (h *Handler) decodeOrgRequest(w http.ResponseWriter, r *http.Request) (orgW
 		return req, OrgDefinition{}, pgtype.UUID{}, pgtype.Timestamptz{}, false
 	}
 	def := decodeOrgDefinition(req.Definition)
+	if req.BudgetUsdTicks != nil && *req.BudgetUsdTicks < 0 {
+		writeError(w, http.StatusBadRequest, "budget must be non-negative")
+		return req, def, pgtype.UUID{}, pgtype.Timestamptz{}, false
+	}
 	var owner pgtype.UUID
 	if req.OwnerID != nil && *req.OwnerID != "" {
 		id, ok := parseUUIDOrBadRequest(w, *req.OwnerID, "owner_id")
@@ -832,7 +854,7 @@ func (h *Handler) GetOrgStructure(w http.ResponseWriter, r *http.Request) {
 	revisions, _ := h.Queries.ListOrgRevisions(r.Context(), db.ListOrgRevisionsParams{StructureID: s.ID, WorkspaceID: wsUUID})
 	revs := make([]map[string]any, 0, len(revisions))
 	for _, rv := range revisions {
-		revs = append(revs, map[string]any{"id": uuidToString(rv.ID), "revision": rv.Revision, "model": rv.Model, "status": rv.Status, "note": rv.Note, "changed_by": uuidToPtr(rv.ChangedBy), "created_at": timestampToString(rv.CreatedAt)})
+		revs = append(revs, map[string]any{"id": uuidToString(rv.ID), "revision": rv.Revision, "model": rv.Model, "status": rv.Status, "definition": decodeOrgDefinition(rv.Definition), "note": rv.Note, "changed_by": uuidToPtr(rv.ChangedBy), "created_at": timestampToString(rv.CreatedAt)})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"structure": h.orgToResponse(r.Context(), s), "revisions": revs})
 }
@@ -877,7 +899,7 @@ func (h *Handler) CreateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if !owner.Valid {
 		owner = parseUUID(userID)
 	}
-	s, err := h.createOrgStructure(r.Context(), wsUUID, projectID, req.Model, req.Name, orgStatusDraft, def, owner, dissolve, req.EndCondition, req.BudgetUsdTicks, req.EvalAttestation, parseUUID(userID), req.Note)
+	s, err := h.createOrgStructure(r.Context(), wsUUID, projectID, req.Model, req.Name, orgStatusDraft, def, owner, dissolve, derefOrgString(req.EndCondition), derefOrgBudget(req.BudgetUsdTicks), req.EvalAttestation, parseUUID(userID), req.Note)
 	if err != nil {
 		if strings.Contains(err.Error(), "uq_org_structure") {
 			writeError(w, http.StatusConflict, "this project (or the workspace default) already has a live structure")
@@ -943,8 +965,25 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if model == "" {
 		model = prev.Model
 	}
+	if req.ExpectedRevision != nil && *req.ExpectedRevision != prev.Revision {
+		writeError(w, http.StatusConflict, "This structure changed. Reload it before saving.")
+		return
+	}
 	if len(req.Definition) == 0 {
 		def = decodeOrgDefinition(prev.Definition)
+	}
+	if req.RestoreRevisionID != "" {
+		rid, ok := parseUUIDOrBadRequest(w, req.RestoreRevisionID, "restore_revision_id")
+		if !ok {
+			return
+		}
+		rev, err := h.Queries.GetOrgRevision(r.Context(), db.GetOrgRevisionParams{ID: rid, WorkspaceID: wsUUID})
+		if err != nil || rev.StructureID != prev.ID {
+			writeError(w, http.StatusNotFound, "revision not found")
+			return
+		}
+		def, model = decodeOrgDefinition(rev.Definition), rev.Model
+		req.Note = fmt.Sprintf("Restored definition from revision %d", rev.Revision)
 	}
 	if err := h.validateOrg(r.Context(), wsUUID, model, &def); err != nil {
 		h.writeOrgError(w, err)
@@ -964,13 +1003,13 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	if name == "" {
 		name = prev.Name
 	}
-	endCondition := req.EndCondition
-	if endCondition == "" {
-		endCondition = prev.EndCondition
+	endCondition := prev.EndCondition
+	if req.EndCondition != nil {
+		endCondition = *req.EndCondition
 	}
-	budget := req.BudgetUsdTicks
-	if budget == 0 {
-		budget = prev.BudgetUsdTicks
+	budget := prev.BudgetUsdTicks
+	if req.BudgetUsdTicks != nil {
+		budget = *req.BudgetUsdTicks
 	}
 	if prev.Status == orgStatusActive {
 		if err := h.orgActivationCheck(r.Context(), wsUUID, model, owner, dissolve, endCondition, eval, def); err != nil {
@@ -980,23 +1019,46 @@ func (h *Handler) UpdateOrgStructure(w http.ResponseWriter, r *http.Request) {
 	}
 	s, err := h.saveOrgRevision(r.Context(), prev, model, name, prev.Status, def, owner, dissolve, endCondition, budget, eval, parseUUID(userID), req.Note)
 	if err != nil {
+		if errors.Is(err, errOrgRevisionConflict) {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "failed to save structure")
 		return
 	}
 	writeJSON(w, http.StatusOK, h.orgToResponse(r.Context(), s))
 }
 
+var errOrgRevisionConflict = errors.New("This structure changed. Reload it before saving.")
+
 func (h *Handler) saveOrgRevision(ctx context.Context, prev db.OrgStructure, model, name, status string, def OrgDefinition, owner pgtype.UUID, dissolve pgtype.Timestamptz, endCondition string, budget int64, eval string, by pgtype.UUID, note string) (db.OrgStructure, error) {
+	tx, err := h.TxStarter.Begin(ctx)
+	if err != nil {
+		return db.OrgStructure{}, err
+	}
+	defer tx.Rollback(ctx)
+	var revision int32
+	var currentStatus string
+	if err := tx.QueryRow(ctx, "SELECT revision, status FROM org_structure WHERE id = $1 AND workspace_id = $2 FOR UPDATE", prev.ID, prev.WorkspaceID).Scan(&revision, &currentStatus); err != nil {
+		return db.OrgStructure{}, err
+	}
+	if revision != prev.Revision || currentStatus != prev.Status {
+		return db.OrgStructure{}, errOrgRevisionConflict
+	}
+	q := h.Queries.WithTx(tx)
 	raw, _ := json.Marshal(def)
 	revID := dbid.NewV7()
-	s, err := h.Queries.UpdateOrgStructure(ctx, db.UpdateOrgStructureParams{
+	s, err := q.UpdateOrgStructure(ctx, db.UpdateOrgStructureParams{
 		ID: prev.ID, WorkspaceID: prev.WorkspaceID, Model: model, Name: name, Status: status, RevisionID: revID, Definition: raw, OwnerID: owner,
 		DissolveAt: dissolve, EndCondition: endCondition, BudgetUsdTicks: budget, EvalAttestation: eval,
 	})
 	if err != nil {
 		return db.OrgStructure{}, err
 	}
-	if _, err := h.Queries.CreateOrgRevision(ctx, db.CreateOrgRevisionParams{ID: revID, WorkspaceID: prev.WorkspaceID, StructureID: s.ID, Revision: s.Revision, Model: model, Status: status, Definition: raw, ChangedBy: by, Note: note}); err != nil {
+	if _, err := q.CreateOrgRevision(ctx, db.CreateOrgRevisionParams{ID: revID, WorkspaceID: prev.WorkspaceID, StructureID: s.ID, Revision: s.Revision, Model: model, Status: status, Definition: raw, ChangedBy: by, Note: note}); err != nil {
+		return db.OrgStructure{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return db.OrgStructure{}, err
 	}
 	h.audit(ctx, prev.WorkspaceID, "member", uuidToString(by), AuditOrgSaved, "org_structure", s.ID, map[string]any{"model": model, "revision": s.Revision, "status": status, "units": len(def.Units), "note": note}, nil)
@@ -1570,4 +1632,41 @@ func (h *Handler) orgAlert(ctx context.Context, s db.OrgStructure, ownerID, titl
 		return
 	}
 	h.publish(protocol.EventInboxNew, uuidToString(s.WorkspaceID), "system", "", map[string]any{"item": inboxToResponse(item)})
+}
+
+// Reporting graphs must be acyclic, including disconnected components.
+func validateOrgReporting(def OrgDefinition, model string) error {
+	parents := map[string][]string{}
+	for _, e := range def.Edges {
+		if e.Kind == "reports_to" {
+			parents[e.From] = append(parents[e.From], e.To)
+		}
+	}
+	state := map[string]int{}
+	var visit func(string) bool
+	visit = func(id string) bool {
+		if state[id] == 1 {
+			return false
+		}
+		if state[id] == 2 {
+			return true
+		}
+		state[id] = 1
+		for _, parent := range parents[id] {
+			if !visit(parent) {
+				return false
+			}
+		}
+		state[id] = 2
+		return true
+	}
+	for _, u := range def.Units {
+		if model == OrgModelHierarchy && len(parents[u.ID]) > 1 {
+			return orgErrorf("hierarchy: unit %q can have only one reporting parent", u.Name)
+		}
+		if !visit(u.ID) {
+			return orgErrorf("reporting lines contain a cycle")
+		}
+	}
+	return nil
 }

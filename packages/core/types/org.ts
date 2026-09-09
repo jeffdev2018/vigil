@@ -115,6 +115,7 @@ export interface OrgRevision {
   note: string;
   changed_by: string | null;
   created_at: string;
+  definition?: OrgDefinition;
 }
 
 export interface OrgTemplate {
@@ -129,6 +130,8 @@ export interface OrgTemplate {
 }
 
 export interface OrgWriteRequest {
+  expected_revision?: number;
+  restore_revision_id?: string;
   project_id?: string | null;
   model?: OrgModel;
   name?: string;
@@ -203,6 +206,7 @@ export interface OrgOffer {
   created_at: string;
 }
 
+export interface OrgTeamTemplate { id: string; name: string; description: string; roles: string[]; procedure: string }
 // Simulating a request against a draft or a revision (POST /api/org/simulate).
 export interface OrgSimulationUnit {
   id: string;

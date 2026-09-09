@@ -21,12 +21,14 @@ const state = vi.hoisted(() => ({
 
 vi.mock("@multica/core/hooks", () => ({ useWorkspaceId: () => "ws-1" }));
 vi.mock("@multica/core/workspace/queries", () => ({ memberListOptions: () => ({ queryKey: ["members"] }), agentListOptions: () => ({ queryKey: ["agents"] }) }));
+vi.mock("@multica/core/projects/queries", () => ({ projectListOptions: () => ({ queryKey: ["projects"] }) }));
 vi.mock("sonner", () => ({ toast: { error: state.toastError, success: vi.fn() } }));
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (o: { queryKey?: readonly unknown[] }) => {
     const [key] = o.queryKey ?? [];
     if (key === "org-list") return { data: state.structures, isPending: false };
     if (key === "org-templates") return { data: state.templates, isPending: false };
+    if (key === "projects") return { data: [{ id: "p-1", title: "Apollo" }], isPending: false };
     if (key === "members") return { data: [{ user_id: "u-1", name: "Ada", role: "owner", avatar_url: null }], isPending: false };
     if (key === "agents") return { data: [{ id: "a-1", name: "Mika", avatar_url: null }, { id: "a-2", name: "Nia", avatar_url: null }], isPending: false };
     return { data: undefined, isPending: true };
@@ -45,6 +47,7 @@ vi.mock("@multica/core/org", () => ({
   }),
 }));
 
+import { useOrgWizardDraftStore } from "@multica/core/org/draft-store";
 import { OrgWizard } from "./org-wizard";
 
 const definition: OrgDefinition = { units: [], edges: [], rules: [], committees: [], market: { price_cap_usd_ticks: 0, offers_per_agent_per_day: 0, min_offers: 0 } };
@@ -74,6 +77,7 @@ async function answerFlow(user: ReturnType<typeof userEvent.setup>, over: { deci
 }
 
 beforeEach(() => {
+  useOrgWizardDraftStore.getState().clearDraft();
   state.structures = [];
   state.templates = [];
   state.created = [];
@@ -112,7 +116,7 @@ describe("OrgWizard", () => {
 
     // 4 — the preview, then the draft.
     const units = screen.getAllByTestId("org-wizard-unit").map((u) => u.textContent ?? "");
-    expect(units[0]).toContain("Support lead");
+    expect(units[0]).toContain("Support coordination");
     expect(units[0]).toContain("1 member");
     expect(units[1]).toContain("2 members");
     await user.click(screen.getByRole("button", { name: "Open my draft" }));
@@ -159,19 +163,24 @@ describe("OrgWizard", () => {
     ]);
   });
 
-  it("revises the workspace default instead of creating a second structure", async () => {
+  it("never replaces the workspace default and creates only in an available scope", async () => {
     const user = userEvent.setup();
     state.structures = [structure({})];
     render();
     fireEvent.change(screen.getByLabelText("In one sentence"), { target: { value: "Suivre les factures" } });
+    expect(next()).toBeDisabled();
+    expect(screen.getByRole("alert").textContent).toContain("already has an organization");
+    await user.selectOptions(screen.getByLabelText("Applies to"), "p-1");
     await user.click(next());
     await answerFlow(user, { decider: "The owner of each topic" });
     await user.click(next());
+    await user.selectOptions(screen.getByLabelText("Unit of Mika"), "");
     await user.click(next());
-    expect(screen.getByRole("note").textContent).toContain("Owner network");
     await user.click(screen.getByRole("button", { name: "Open my draft" }));
-    expect(state.created).toHaveLength(0);
-    expect((state.updated[0] as { id: string }).id).toBe("s-default");
-    expect(state.createdId).toEqual(["s-default"]);
+    expect(state.updated).toHaveLength(0);
+    expect(state.created).toHaveLength(1);
+    expect(state.created[0]).toMatchObject({ project_id: "p-1" });
+    const def = state.created[0]?.definition as OrgDefinition;
+    expect(def.units.flatMap(u => u.members).some(m => m.id === "a-1")).toBe(false);
   });
 });

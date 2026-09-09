@@ -93,9 +93,9 @@ export interface OrgValidateContext {
 }
 
 /**
- * Every invariant the server would reject, in the order a reader meets them:
+ * Immediate advisory checks, in the order a reader meets them:
  * identity, then the Trust Dial ceiling, then the Rule of Two, then the
- * per-model shape. Returns an empty array when the definition would save.
+ * per-model shape. The server still validates identities, references and writes.
  */
 export function validateOrgDefinition(def: OrgDefinition, ctx: OrgValidateContext): OrgProblem[] {
   const problems: OrgProblem[] = [];
