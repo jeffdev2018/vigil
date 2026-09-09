@@ -1720,6 +1720,7 @@ export const IssueDependenciesResponseSchema = z.object({
   blocks: z.array(IssueDependencySchema).default([]),
   blocked_by: z.array(IssueDependencySchema).default([]),
   related: z.array(IssueDependencySchema).default([]),
+  duplicate: z.array(IssueDependencySchema).default([]),
 }).loose();
 
 // Triage queue (M2). Payload is the stored capture JSONB — an object whose

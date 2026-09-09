@@ -256,3 +256,29 @@ func TestListIssueDependenciesBulkSkipsUnparseableIDs(t *testing.T) {
 		t.Fatalf("expected the one valid edge, got %+v", out.Dependencies)
 	}
 }
+
+// R01: duplicate is a first-class relation — accepted, listed under its own
+// key, and symmetric like related (A duplicate B then B duplicate A is the
+// same link seen twice, refused 409 rather than stored twice).
+func TestIssueDependencyDuplicate(t *testing.T) {
+	a := dbfx.Issue(t, "dependency duplicate A")
+	b := dbfx.Issue(t, "dependency duplicate B")
+
+	callCreateDependency(t, a, b, "duplicate").Want(http.StatusCreated)
+	// The reverse declaration is the same link: conflict, not a second row.
+	callCreateDependency(t, b, a, "duplicate").Want(http.StatusConflict)
+	if got := dbfx.Count(t, `SELECT COUNT(*) FROM issue_dependency WHERE type = 'duplicate'`); got != 1 {
+		t.Fatalf("duplicate rows = %d, want 1", got)
+	}
+
+	// Both sides list it under `duplicate`.
+	for _, issueID := range []string{a, b} {
+		out := callListDependencies(t, issueID)
+		if len(out.Duplicate) != 1 || out.Duplicate[0].Issue.Title == "" {
+			t.Fatalf("duplicate list for %s = %+v, want the one link", issueID, out.Duplicate)
+		}
+		if len(out.Blocks) != 0 || len(out.BlockedBy) != 0 || len(out.Related) != 0 {
+			t.Fatalf("duplicate leaked into another bucket: %+v", out)
+		}
+	}
+}

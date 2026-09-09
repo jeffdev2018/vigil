@@ -478,7 +478,9 @@
       "hint_select": "sélectionner",
       "hint_jump": "accéder",
       "hint_close": "fermer"
-    }
+    },
+    "section_related": "Liées à",
+    "section_duplicate": "Doublons"
   },
   "timeline": {
     "loading": "Chargement..."
@@ -813,7 +815,8 @@
     "delete_issue": "Supprimer l'issue",
     "add_blocking": "Marquer comme bloquante...",
     "add_blocked_by": "Marquer comme bloquée par...",
-    "remove_dependency": "Retirer la dépendance"
+    "remove_dependency": "Retirer la dépendance",
+    "add_relation": "Ajouter une relation…"
   },
   "pickers": {
     "custom_property": {

@@ -257,6 +257,13 @@
     "title_blocked_by": "选择阻塞此任务的任务",
     "description": "搜索要与当前任务关联的任务",
     "toast_failed": "添加依赖失败",
-    "toast_success": "已关联 {{identifier}}"
+    "toast_success": "已关联 {{identifier}}",
+    "title": "添加关系",
+    "type_labels": {
+      "blocks": "阻碍",
+      "blocked_by": "被阻碍",
+      "related": "相关",
+      "duplicate": "重复"
+    }
   }
 }

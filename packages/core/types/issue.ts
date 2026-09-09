@@ -251,7 +251,7 @@ export interface Issue {
   source_context?: IssueSourceContext;
 }
 
-export type IssueDependencyType = "blocks" | "blocked_by" | "related";
+export type IssueDependencyType = "blocks" | "blocked_by" | "related" | "duplicate";
 
 /** One relation seen from the requested issue; `type` is relative to it. */
 export interface IssueDependency {
@@ -264,6 +264,7 @@ export interface IssueDependencies {
   blocks: IssueDependency[];
   blocked_by: IssueDependency[];
   related: IssueDependency[];
+  duplicate: IssueDependency[];
 }
 
 // ── Plan verification (F17) ─────────────────────────────────────────────────

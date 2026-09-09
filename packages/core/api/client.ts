@@ -1882,7 +1882,7 @@ export class ApiClient {
     return parseWithFallback<IssueDependencies>(
       raw,
       IssueDependenciesResponseSchema,
-      { blocks: [], blocked_by: [], related: [] },
+      { blocks: [], blocked_by: [], related: [], duplicate: [] },
       { endpoint: "GET /api/issues/:id/dependencies" },
     );
   }

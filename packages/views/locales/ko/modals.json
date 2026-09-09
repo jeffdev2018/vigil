@@ -257,6 +257,13 @@
     "title_blocked_by": "차단 원인 선택",
     "description": "이 이슈와 연결할 이슈를 검색하세요",
     "toast_failed": "의존성을 추가하지 못했습니다",
-    "toast_success": "{{identifier}}을(를) 연결했습니다"
+    "toast_success": "{{identifier}}을(를) 연결했습니다",
+    "title": "관계 추가",
+    "type_labels": {
+      "blocks": "차단",
+      "blocked_by": "차단됨",
+      "related": "관련",
+      "duplicate": "중복"
+    }
   }
 }
