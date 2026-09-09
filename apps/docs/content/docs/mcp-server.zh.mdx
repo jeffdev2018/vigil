@@ -1,0 +1,65 @@
+---
+title: MCP 服务器
+description: 把 Claude Code、Codex、Cursor 或任何 MCP 客户端接入你的工作区——由服务器决定每次调用能做什么。
+---
+
+Multica 把每个工作区都暴露为一个 [MCP](https://modelcontextprotocol.io) 服务器。MCP 客户端——Claude Code、Codex、Cursor、脚本，或者在 Multica 内部运行的智能体——连接到它，发现工作区的工具并调用它们。任务、评论、目标循环、Brain、项目、智能体、分诊、收件箱和运行记录都可以访问；删除、密钥、成员管理、审批和账单则故意不开放。
+
+由服务器而不是客户端决定一次调用能做什么：按工具、按调用者分别是 **allow**、**ask** 或 **deny**。这个决定属于工作区，客户端无法协商。
+
+## 接入客户端
+
+端点是你 Multica 服务器上的 `POST /api/mcp/{workspace-slug}`（可流式传输的 HTTP，每个请求一条 JSON 回复，没有会话）。用[个人访问令牌](/members-roles)（`mul_…`）认证。
+
+```json title="Claude Code · .mcp.json"
+{
+  "mcpServers": {
+    "vigil": {
+      "type": "http",
+      "url": "https://multica.example.com/api/mcp/acme",
+      "headers": { "Authorization": "Bearer mul_xxx" }
+    }
+  }
+}
+```
+
+```toml title="Codex · config.toml"
+[mcp_servers.vigil]
+url = "https://multica.example.com/api/mcp/acme"
+http_headers = { Authorization = "Bearer mul_xxx" }
+```
+
+Cursor 和其他客户端使用同样的 URL 和 header。路径里没有 slug 时，发送 `X-Workspace-Slug` 或 `X-Workspace-ID`。在 Multica 内部运行的智能体运行会用自己的运行令牌到达同一个端点；工作区由令牌决定。
+
+## 两种 surface
+
+在 URL 上加 `?surface=compound` 或 `?surface=granular`，或者在**设置 → MCP 服务器**里设置工作区的默认值。
+
+- **compound**（默认）：每个领域一个工具，共九个，各自带一个 `action` 参数——`vigil_issue`、`vigil_goal`、`vigil_brain`、`vigil_project`、`vigil_team`、`vigil_triage`、`vigil_inbox`、`vigil_run`、`vigil_handoff`。占用客户端上下文更少。
+- **granular**：每个操作一个工具（`issue_create`、`note_create`、`goal_answer` 等），适合偏好显式 schema 的客户端。
+
+两种 surface 下工具名都可用，所以缓存了其中一种目录的客户端仍然能正常工作。
+
+## 决定：allow、ask、deny
+
+每个工具都有一个风险等级（只读或内部写入；目录里没有面向外部或敏感的工具）。调用者的上限优先生效：成员单独就能执行只读和内部写入操作；智能体获得其[信任拨盘](/agents)所设定的上限——observer 只能读取。工作区管理员随后可以在**设置 → MCP 服务器**里把任意工具收紧为 **ask** 或 **deny**；覆盖设置永远不会放宽上限。
+
+**ask** 的含义取决于调用者是谁：
+
+- **成员的客户端**会拿到*保留*状态的调用结果，附带一个确认令牌和一段直白的说明。客户端会把即将发生的事情展示给这个人，然后带上 `confirm_token` 重新发送同一次调用。令牌绑定到确切的那次调用，十分钟后过期。
+- **智能体的运行**会在其运行上记一条审批关卡，就像敏感的工具调用或一次 git push 一样：由人在应用里做决定。保留的结果会给出这条关卡的名字；运行用 `vigil_gate_wait` 轮询它，一旦获批，就带上 `gate_id` 重新发送同一次调用。被拒绝的关卡是最终结果。
+
+**deny** 是一次说明理由的直接拒绝。每次调用都会作为 `mcp.inbound_call` 记入审计日志，附带其决定和结果；每个调用者都被限制在每分钟 120 次。
+
+## 客户端看到什么
+
+工具结果就是 API 自己的 JSON，外面包了一层提醒：工作区里的记录是别人和智能体写下的数据，从来不是指令。工具调用会经过和应用、CLI 相同的 handler：流转规则照常生效（一次状态变更可能会以*等待审批*的形式返回），事件会送达打开着的客户端，审计日志会记录令牌背后的操作者。
+
+## 设置
+
+`GET /api/mcp-server/settings` 返回工作区的设置，以及包含每个工具风险等级的完整目录。`PUT`（owner 和 admin）接受 `{ "enabled", "default_surface", "tools": { "<tool>": "allow" | "ask" | "deny" } }`。关闭服务器会用明确的提示拒绝所有调用，除此之外什么都不改变。
+
+## 接下来
+
+- [原生运行时](/native-runtime) —— `vigil_goal` 和 `vigil_run` 工具所暴露的目标循环与子智能体。
+- [智能体](/agents) —— 信任拨盘，在这里设定智能体的上限。

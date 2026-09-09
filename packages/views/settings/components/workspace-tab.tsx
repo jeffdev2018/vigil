@@ -49,6 +49,7 @@ import { RuntimePoolsSetting } from "./runtime-pools-setting";
 import { IssueRoutingSetting } from "./issue-routing-setting";
 import { CompetencySetting } from "./competency-setting";
 import { WorkflowLimitsSetting } from "./workflow-limits-setting";
+import { MCPServerSetting } from "./mcp-server-setting";
 import { DataResidencySetting } from "./data-residency-setting";
 import { BatchWindowSetting } from "./batch-window-setting";
 import { CrossReviewSetting } from "./cross-review-setting";
@@ -516,6 +517,7 @@ export function WorkspaceTab() {
       {workspace && <IssueRoutingSetting canEdit={canManageWorkspace} />}
       {workspace && <CompetencySetting canEdit={canManageWorkspace} />}
       {workspace && <WorkflowLimitsSetting canEdit={canManageWorkspace} />}
+      {workspace && <MCPServerSetting canEdit={canManageWorkspace} />}
       {workspace && <DataResidencySetting canEdit={canManageWorkspace} />}
       {workspace && <BatchWindowSetting canEdit={canManageWorkspace} />}
       {workspace && <CrossReviewSetting canEdit={canManageWorkspace} />}
