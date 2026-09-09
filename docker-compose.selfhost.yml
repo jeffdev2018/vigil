@@ -218,6 +218,8 @@ services:
       MULTICA_MODEL_KEY_SECRET_KEY: ${MULTICA_MODEL_KEY_SECRET_KEY:-}
       # SSO (K60) at-rest encryption key for OIDC client secrets
       MULTICA_SSO_SECRET_KEY: ${MULTICA_SSO_SECRET_KEY:-}
+      # Twenty CRM at-rest encryption key for API keys and webhook secrets
+      MULTICA_TWENTY_SECRET_KEY: ${MULTICA_TWENTY_SECRET_KEY:-}
       # Linear Bridge (K21). MULTICA_LINEAR_SECRET_KEY is the opt-in: unset =
       # integration disabled. It encrypts each workspace's Linear OAuth token
       # and webhook secret at rest. The CLIENT_ID / CLIENT_SECRET pair is the

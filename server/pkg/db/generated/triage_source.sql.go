@@ -11,6 +11,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearTriageSourceToken = `-- name: ClearTriageSourceToken :exec
+UPDATE triage_source SET token_hash = '', updated_at = now()
+WHERE workspace_id = $1 AND kind = $2 AND ref_id = $3
+`
+
+type ClearTriageSourceTokenParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Kind        string      `json:"kind"`
+	RefID       pgtype.UUID `json:"ref_id"`
+}
+
+// Revoke an intake token without deleting the source: items already captured
+// keep pointing at their source row.
+func (q *Queries) ClearTriageSourceToken(ctx context.Context, arg ClearTriageSourceTokenParams) error {
+	_, err := q.db.Exec(ctx, clearTriageSourceToken, arg.WorkspaceID, arg.Kind, arg.RefID)
+	return err
+}
+
 const countTriageItemsForSourceSince = `-- name: CountTriageItemsForSourceSince :one
 SELECT COUNT(*)::bigint AS n
 FROM triage_item

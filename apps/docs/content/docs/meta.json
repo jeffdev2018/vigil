@@ -50,6 +50,7 @@
     "telegram-bot-integration",
     "github-integration",
     "vcs-integration",
+    "twenty",
     "---Apps---",
     "desktop-app",
     "mobile-app",

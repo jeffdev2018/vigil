@@ -3229,6 +3229,24 @@ type WorkspaceTransferRun struct {
 	CompletedAt  pgtype.Timestamptz `json:"completed_at"`
 }
 
+type WorkspaceTwentyConnection struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	BaseUrl             string             `json:"base_url"`
+	ApiKeySealed        []byte             `json:"api_key_sealed"`
+	WebhookSecretSealed []byte             `json:"webhook_secret_sealed"`
+	InboundTokenSealed  []byte             `json:"inbound_token_sealed"`
+	TwentyWebhookID     string             `json:"twenty_webhook_id"`
+	Events              []string           `json:"events"`
+	ExposeToAgents      bool               `json:"expose_to_agents"`
+	Status              string             `json:"status"`
+	LastError           string             `json:"last_error"`
+	TwentyWorkspaceName string             `json:"twenty_workspace_name"`
+	CreatedByID         pgtype.UUID        `json:"created_by_id"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
 // F09: one user request to revert a conversation branch to the turn target_task_id delivered.
 type WorktreeRevertRequest struct {
 	ID            pgtype.UUID        `json:"id"`

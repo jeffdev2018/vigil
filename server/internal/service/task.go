@@ -89,6 +89,10 @@ type TaskService struct {
 	// exactly as before. Wired in router.go after composiointeg.NewService
 	// succeeds; the concrete type is *composio.Service.
 	Composio ComposioOverlayBuilder
+	// Twenty (OS plan, chantier 2) is the second overlay builder: the
+	// workspace's Twenty CRM mounted as an MCP server for its agents. Nil
+	// when the integration is not configured.
+	Twenty ComposioOverlayBuilder
 	// QuickActions generates chat follow-up suggestions through the
 	// server-internal LLM layer. Optional: nil (or a disabled client) turns the
 	// whole feature off — no pending marker, no pills — which is the expected
@@ -503,20 +507,30 @@ type runtimeMCPOverlayData struct {
 // Enqueue paths call this BEFORE inserting the queued row so the daemon cannot
 // claim a task during the network round-trip to Composio and miss the overlay.
 func (s *TaskService) buildRuntimeMCPOverlay(ctx context.Context, originatorUserID pgtype.UUID, agent db.Agent) runtimeMCPOverlayData {
-	if s == nil || s.Composio == nil {
+	if s == nil {
 		return runtimeMCPOverlayData{}
 	}
-	if !featureflags.ComposioMCPAppsEnabled(ctx, s.FeatureFlags) {
-		return runtimeMCPOverlayData{}
+	var result runtimeapps.MCPOverlayResult
+	if s.Composio != nil && featureflags.ComposioMCPAppsEnabled(ctx, s.FeatureFlags) {
+		composio, err := s.Composio.BuildTaskOverlay(ctx, originatorUserID, agent)
+		if err != nil {
+			slog.Warn("runtime mcp overlay: BuildTaskOverlay failed; task will run without composio overlay",
+				"originator_user_id", util.UUIDToString(originatorUserID),
+				"agent_id", util.UUIDToString(agent.ID),
+				"error", err,
+			)
+		} else {
+			result = composio
+		}
 	}
-	result, err := s.Composio.BuildTaskOverlay(ctx, originatorUserID, agent)
-	if err != nil {
-		slog.Warn("runtime mcp overlay: BuildTaskOverlay failed; task will run without composio overlay",
-			"originator_user_id", util.UUIDToString(originatorUserID),
-			"agent_id", util.UUIDToString(agent.ID),
-			"error", err,
-		)
-		return runtimeMCPOverlayData{}
+	if s.Twenty != nil {
+		twenty, err := s.Twenty.BuildTaskOverlay(ctx, originatorUserID, agent)
+		if err != nil {
+			slog.Warn("runtime mcp overlay: Twenty overlay failed; task will run without it",
+				"agent_id", util.UUIDToString(agent.ID), "error", err)
+		} else {
+			result = runtimeapps.MergeOverlayResults(result, twenty)
+		}
 	}
 	if len(result.MCPOverlay) == 0 {
 		slog.Debug("runtime mcp overlay: no composio overlay for task",

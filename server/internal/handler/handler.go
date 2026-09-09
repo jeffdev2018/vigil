@@ -33,6 +33,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/integrations/linear"
 	"github.com/multica-ai/multica/server/internal/integrations/slack"
 	"github.com/multica-ai/multica/server/internal/integrations/telegram"
+	"github.com/multica-ai/multica/server/internal/integrations/twenty"
 	"github.com/multica-ai/multica/server/internal/integrations/wecom"
 	"github.com/multica-ai/multica/server/internal/issuestatus"
 	obsmetrics "github.com/multica-ai/multica/server/internal/metrics"
@@ -329,6 +330,9 @@ type Handler struct {
 	// the composio HTTP handlers return 503 in that case. Wired in
 	// cmd/server/router.go after handler.New.
 	Composio *composio.Service
+	// Twenty CRM integration (OS plan, chantier 2). Nil when
+	// MULTICA_TWENTY_SECRET_KEY is unset; the handlers then answer 503.
+	Twenty *twenty.Service
 	// ChannelSupervisor owns the per-installation supervisor goroutines
 	// that hold the §4.4 WS lease and drive each channel.Channel
 	// (MUL-3620 generalized the Feishu-only Hub into this channel-agnostic
