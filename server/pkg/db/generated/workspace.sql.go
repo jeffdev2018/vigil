@@ -131,6 +131,11 @@ cleared_user_bindings AS (
 cleared_binding_tokens AS (
     DELETE FROM channel_binding_token WHERE workspace_id = $1
 ),
+cleared_channel_approval_messages AS (
+    -- channel_approval_message carries no FK by repo rule, so the workspace
+    -- DELETE below never reaches it.
+    DELETE FROM channel_approval_message WHERE workspace_id = $1
+),
 cleared_installations AS (
     DELETE FROM channel_installation WHERE workspace_id = $1
 ),

@@ -712,6 +712,19 @@ type CampaignShard struct {
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ChannelApprovalMessage struct {
+	ID             pgtype.UUID        `json:"id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	InstallationID pgtype.UUID        `json:"installation_id"`
+	ChannelType    string             `json:"channel_type"`
+	ChatID         string             `json:"chat_id"`
+	MessageID      string             `json:"message_id"`
+	Source         string             `json:"source"`
+	AskID          pgtype.UUID        `json:"ask_id"`
+	Settled        bool               `json:"settled"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type ChannelBindingToken struct {
 	TokenHash      string             `json:"token_hash"`
 	WorkspaceID    pgtype.UUID        `json:"workspace_id"`

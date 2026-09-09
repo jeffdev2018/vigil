@@ -313,7 +313,7 @@ func (h *Handler) answerDecisionCore(ctx context.Context, issue db.Issue, decisi
 	if outcome == "" {
 		outcome = "modified"
 	}
-	h.publishApproval(protocol.EventApprovalDecided, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), outcome)
+	h.publishApproval(ctx, protocol.EventApprovalDecided, actorType, actorID, issue.WorkspaceID, issue.ID, ApprovalSourceDecision, uuidToString(decision.ID), h.decisionKind(ctx, decision), outcome)
 	// Pipelines (K37): a gate card answered advances or stops the pipeline, no resume.
 	if h.advancePipelineForDecision(ctx, decision, req.OptionID, actorType, actorID) {
 		return updated, "", nil

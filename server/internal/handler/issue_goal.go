@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/pkg/goalstate"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // Goal loop (long tasks): the goal an issue is worked toward and the state
@@ -166,6 +167,9 @@ func (h *Handler) AnswerIssueGoal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.audit(r.Context(), issue.WorkspaceID, "member", userID, AuditGoalAnswered, "issue", issue.ID, nil, nil)
+	// The ask is settled: the feed and any chat message carrying its buttons
+	// have to hear it, the same way a decision and a transition do.
+	h.publishApproval(r.Context(), protocol.EventApprovalDecided, "member", userID, issue.WorkspaceID, issue.ID, ApprovalSourceGoalQuestion, uuidToString(goal.ID), ApprovalKindGoalAsk, req.Answer)
 	h.publishIssueAuxChanged(r, issue, "member", userID)
 	writeJSON(w, http.StatusOK, map[string]any{"goal": service.GoalStateOf(goal)})
 }

@@ -100,3 +100,16 @@ func chunkText(text string, size int) []string {
 	}
 	return out
 }
+
+// UpdateMessage rewrites a message this sender posted, addressed by the
+// channel and the message ts SendRichDigest returned. Passing only sections
+// and no actions block is what retires a settled ask's buttons.
+func (d *DigestSender) UpdateMessage(ctx context.Context, inst db.ChannelInstallation, chatID, messageID, text string) error {
+	creds, err := decodeCredentials(inst.Config, d.decrypt)
+	if err != nil {
+		return err
+	}
+	_, _, _, err = slack.New(creds.BotToken).UpdateMessageContext(ctx, chatID, messageID,
+		slack.MsgOptionText(text, false), slack.MsgOptionBlocks(DigestBlocks(text, nil)...))
+	return err
+}
