@@ -379,6 +379,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { ApprovalsResponseSchema, EMPTY_APPROVALS, type ApprovalsResponse } from "../approvals/schemas";
 import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, TwentyStatusSchema, type TwentyConnectInput, type TwentyConnection, type TwentyMemberLink, type TwentySettingsInput, type TwentyStatus } from "../twenty/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
@@ -8102,6 +8103,13 @@ export class ApiClient {
       body: JSON.stringify({ agent_id: agentId, redirect }),
     });
     return parseWithFallback(raw, LinearOAuthStartSchema, { authorize_url: "" }, { endpoint: "POST /api/workspaces/:id/linear/oauth/start" }).authorize_url;
+  }
+
+  // Inline approvals (OS plan, chantier 3): every pending ask, or one issue's.
+  async listApprovals(issueId?: string): Promise<ApprovalsResponse> {
+    const query = issueId ? `?issue_id=${encodeURIComponent(issueId)}` : "";
+    const raw = await this.fetch<unknown>(`/api/approvals${query}`);
+    return parseWithFallback(raw, ApprovalsResponseSchema, EMPTY_APPROVALS, { endpoint: "GET /api/approvals" }) as ApprovalsResponse;
   }
 
   // Twenty CRM (OS plan, chantier 2). Workspace-scoped through X-Workspace-ID.
