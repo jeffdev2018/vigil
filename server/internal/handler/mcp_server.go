@@ -570,7 +570,12 @@ func (h *Handler) mcpDispatch(r *http.Request, caller mcpCaller, leaf mcpLeaf, a
 	if encoded := query.Encode(); encoded != "" {
 		target += "?" + encoded
 	}
-	ctx, cancel := context.WithTimeout(r.Context(), mcpDispatchTimeout)
+	// The incoming request's context carries chi's routing context for
+	// POST /api/mcp; a request served through the mux with that context
+	// would be routed with the MCP call's method and path. A fresh routing
+	// context makes the mux route the dispatched request on its own
+	// method and path, while cancellation and values still flow.
+	ctx, cancel := context.WithTimeout(context.WithValue(r.Context(), chi.RouteCtxKey, chi.NewRouteContext()), mcpDispatchTimeout)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, leaf.Method, target, reader)
 	if err != nil {
