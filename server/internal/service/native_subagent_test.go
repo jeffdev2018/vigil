@@ -249,6 +249,32 @@ func TestNativeAgentDelegatesAndVerifiesReceipts(t *testing.T) {
 	}
 }
 
+// A sub-agent whose tool returns a list, not an object (list_issues), gets a
+// receipt like any other call — the regression that once took the server
+// down with a type assertion in the receipt journal.
+func TestNativeAgentSubagentReceiptsForListResults(t *testing.T) {
+	f := newSubagentFixture(t)
+	llm := &routedNativeLLM{routes: map[string][]openai.ChatCompletion{
+		"default": {
+			nativeToolCallTurn("call_d1", "delegate", `{"task":"List the issues and report how many you see."}`),
+			nativeTextTurn("Delegated the listing."),
+		},
+		"Delegated task on issue": {
+			nativeToolCallTurn("call_s1", "list_issues", `{"limit":3}`),
+			nativeTextTurn("Listed the issues [r1]: one issue."),
+		},
+	}}
+	parent := f.run(t, llm)
+	subs := f.subtasks(t, parent)
+	if len(subs) != 1 || subs[0].Status != "completed" {
+		t.Fatalf("sub-tasks = %+v, want one completed", subs)
+	}
+	results := f.toolResults(t, parent)
+	if len(results) != 1 || !strings.Contains(results[0], `"tool":"list_issues"`) || !strings.Contains(results[0], `"ok":true`) || !strings.Contains(results[0], `"unverified_citations":[]`) {
+		t.Fatalf("delegate result = %v", results)
+	}
+}
+
 // Four delegations in one turn run three at a time; the run may start six
 // in total and the seventh is refused with the reason in its result.
 func TestNativeAgentSubagentConcurrencyAndBudget(t *testing.T) {
