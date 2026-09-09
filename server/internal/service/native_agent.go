@@ -52,12 +52,12 @@ const (
 	nativeToolResultCap = 8 * 1024
 	// nativeCommentMaxLen bounds an agent-authored comment (characters).
 	nativeCommentMaxLen = 30000
-	// Brief budget (N02): the whole user message the loop sends is bounded so
-	// an issue-document cannot burn the model's context (and the run's cost)
-	// before the first turn. The header always survives; the description is
-	// head+tail clamped; comments are taken newest-first until the budget is
-	// spent, with an honest count of what was left out.
-	nativeBriefBudget = 16 * 1024
+	// Brief budget (N02): the whole user message the loop sends is bounded
+	// (nativeBriefTokenBudget, in estimated tokens) so an issue-document
+	// cannot burn the model's context (and the run's cost) before the first
+	// turn. The header always survives; the description is head+tail
+	// clamped; comments are taken newest-first until the budget is spent,
+	// with an honest count of what was left out.
 	// Loop guard: the same tool called with byte-identical arguments this
 	// many times in one run gets a warning riding the result, and past the
 	// refuse mark the call is not executed and the run is asked to wrap up.
@@ -226,10 +226,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	}
 
 	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID}
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(nativeSystemPrompt(agent)),
-		openai.UserMessage(brief),
-	}
+	cx := newNativeContext(nativeSystemPrompt(agent), brief)
 	tools := nativeAgentToolSpecs()
 
 	var finalText string
@@ -240,14 +237,19 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		// next run (and the human) with nothing; a run that ends on a
 		// status can be continued.
 		wrapUp := tctx.wrapUp || turn == nativeMaxTurns-1
+		// Context compaction (long tasks): trim, then summarize, before
+		// the conversation outgrows the model.
+		if note := s.nativeCompactIfNeeded(ctx, cx, &usage); note != "" {
+			s.writeNativeMessage(ctx, taskID, "system", "", note, nil)
+		}
+		messages := cx.messages()
 		params := openai.ChatCompletionNewParams{Messages: messages}
 		if wrapUp {
 			reason := tctx.wrapUpReason
 			if reason == "" {
 				reason = fmt.Sprintf("the turn budget (%d tool-calling turns) is spent", nativeMaxTurns)
 			}
-			messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
-			params.Messages = messages
+			params.Messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
 		} else {
 			params.Tools = tools
 		}
@@ -283,11 +285,14 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 			finalText = strings.TrimSpace(msg.Content)
 			break
 		}
-		messages = append(messages, msg.ToParam())
+		results := make([]nativeToolResult, 0, len(msg.ToolCalls))
+		assistantText := msg.Content
 		for _, call := range msg.ToolCalls {
+			assistantText += call.Function.Name + call.Function.Arguments
 			result := s.executeNativeToolCall(ctx, &tctx, call)
-			messages = append(messages, openai.ToolMessage(nativeClampToolResult(result), call.ID))
+			results = append(results, nativeToolResult{callID: call.ID, tool: call.Function.Name, content: nativeClampToolResult(result)})
 		}
+		cx.addTurn(msg.ToParam(), assistantText, results)
 	}
 
 	if finalText == "" {
@@ -637,7 +642,7 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, goal *GoalLoopService, 
 		Limit:       nativeBriefComments,
 	})
 	if err == nil && len(comments) > 0 {
-		remaining := nativeBriefBudget - b.Len() - len(taskPromptText(tctx.task)) - 128
+		remaining := nativeBriefTokenBudget - nativeTokenEstimate(b.String()) - nativeTokenEstimate(taskPromptText(tctx.task)) - 32
 		kept := make([]string, 0, len(comments))
 		for i := len(comments) - 1; i >= 0; i-- {
 			c := comments[i]
@@ -650,10 +655,11 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, goal *GoalLoopService, 
 				content = content[:2000] + "…"
 			}
 			entry := fmt.Sprintf("- [%s] %s\n", author, nativeDataFence("comment", content))
-			if len(entry) > remaining {
+			cost := nativeTokenEstimate(entry)
+			if cost > remaining {
 				break
 			}
-			remaining -= len(entry)
+			remaining -= cost
 			kept = append(kept, entry)
 		}
 		if len(kept) > 0 {
@@ -663,7 +669,7 @@ func nativeTaskBrief(ctx context.Context, q *db.Queries, goal *GoalLoopService, 
 			}
 		}
 		if omitted := len(comments) - len(kept); omitted > 0 {
-			fmt.Fprintf(&b, "\n(%d older comment(s) not included — the brief is capped at %d bytes; use the tools to read them.)\n", omitted, nativeBriefBudget)
+			fmt.Fprintf(&b, "\n(%d older comment(s) not included — the brief is capped at about %d tokens; use the tools to read them.)\n", omitted, nativeBriefTokenBudget)
 		}
 	}
 	if taskText := taskPromptText(tctx.task); taskText != "" {
