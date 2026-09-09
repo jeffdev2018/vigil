@@ -24,6 +24,9 @@ type scriptedNativeLLM struct {
 	usage *openai.CompletionUsage
 	fail  bool
 	calls int
+	// last is the request of the most recent call, so a test can look at
+	// what the loop offered the model (tools, closing prompt).
+	last openai.ChatCompletionNewParams
 }
 
 func (f *scriptedNativeLLM) Enabled() bool { return true }
@@ -34,6 +37,7 @@ func (f *scriptedNativeLLM) Chat(_ context.Context, params openai.ChatCompletion
 	if len(params.Messages) < 2 {
 		return nil, errors.New("expected at least system + user messages")
 	}
+	f.last = params
 	if f.fail {
 		f.calls++
 		return nil, errors.New("gateway unreachable (scripted)")
@@ -241,9 +245,11 @@ func TestNativeAgentStopsAtTurnLimit(t *testing.T) {
 	issueID := fx.Issue(t, "Loop forever")
 	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
 
+	// Distinct arguments every turn: the identical-call guard is tested
+	// separately, this is the pure turn budget.
 	turns := make([]openai.ChatCompletion, nativeMaxTurns)
 	for i := range turns {
-		turns[i] = nativeToolCallTurn(fmt.Sprintf("call_%d", i), "get_issue", `{}`)
+		turns[i] = nativeToolCallTurn(fmt.Sprintf("call_%d", i), "list_issues", fmt.Sprintf(`{"limit":%d}`, i+1))
 	}
 	llm := &scriptedNativeLLM{turns: turns}
 	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
@@ -262,12 +268,132 @@ func TestNativeAgentStopsAtTurnLimit(t *testing.T) {
 	if llm.calls != nativeMaxTurns {
 		t.Fatalf("model calls = %d, want exactly the turn limit %d", llm.calls, nativeMaxTurns)
 	}
+	// The last turn is a wrap-up: no tools offered, a closing prompt that
+	// names the reason. The scripted model still "calls a tool" there; the
+	// loop ignores it and settles on a status that says why.
+	if len(llm.last.Tools) != 0 {
+		t.Fatalf("last turn offered %d tools, want none (wrap-up turn)", len(llm.last.Tools))
+	}
+	if !strings.Contains(nativeLastUserMessage(t, llm.last), "turn budget") {
+		t.Fatalf("last turn prompt = %q, want the wrap-up prompt naming the turn budget", nativeLastUserMessage(t, llm.last))
+	}
 	var status string
 	if err := pool.QueryRow(ctx, `SELECT status FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status); err != nil {
 		t.Fatalf("read task status: %v", err)
 	}
 	if status != "completed" {
 		t.Fatalf("task status = %q, want completed with the bounded-stop summary", status)
+	}
+	var summary string
+	if err := pool.QueryRow(ctx, `SELECT content FROM task_message WHERE task_id = $1 AND type = 'text' ORDER BY seq DESC LIMIT 1`, taskID).Scan(&summary); err != nil {
+		t.Fatalf("read closing text: %v", err)
+	}
+	if !strings.Contains(summary, "turn limit") {
+		t.Fatalf("closing text = %q, want it to name the turn limit", summary)
+	}
+}
+
+// nativeLastUserMessage returns the text of the last user message in a
+// request, or fails the test.
+func nativeLastUserMessage(t *testing.T, params openai.ChatCompletionNewParams) string {
+	t.Helper()
+	for i := len(params.Messages) - 1; i >= 0; i-- {
+		if u := params.Messages[i].OfUser; u != nil {
+			if s := u.Content.OfString; s.Valid() {
+				return s.Value
+			}
+		}
+	}
+	t.Fatal("request has no user message")
+	return ""
+}
+
+// A model that re-issues the same tool call with identical arguments is
+// warned at nativeRepeatWarnAt, refused at nativeRepeatRefuseAt, and the run
+// then spends its next turn on a closing status instead of more tools.
+func TestNativeAgentRefusesRepeatedIdenticalCalls(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Re-read forever")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	// Refuse-at identical calls, then the closing turn's text.
+	turns := make([]openai.ChatCompletion, 0, nativeRepeatRefuseAt+1)
+	for i := 0; i < nativeRepeatRefuseAt; i++ {
+		turns = append(turns, nativeToolCallTurn(fmt.Sprintf("call_%d", i), "get_issue", `{}`))
+	}
+	turns = append(turns, nativeTextTurn("Status: read the issue, nothing changed, nothing blocks."))
+	llm := &scriptedNativeLLM{turns: turns}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim task: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	if llm.calls != nativeRepeatRefuseAt+1 {
+		t.Fatalf("model calls = %d, want %d tool turns + 1 wrap-up", llm.calls, nativeRepeatRefuseAt)
+	}
+	if len(llm.last.Tools) != 0 {
+		t.Fatalf("wrap-up turn offered %d tools, want none", len(llm.last.Tools))
+	}
+	if !strings.Contains(nativeLastUserMessage(t, llm.last), "repeated") {
+		t.Fatalf("wrap-up prompt = %q, want the repeat reason", nativeLastUserMessage(t, llm.last))
+	}
+	rows, err := pool.Query(ctx, `SELECT output FROM task_message WHERE task_id = $1 AND type = 'tool_result' ORDER BY seq`, taskID)
+	if err != nil {
+		t.Fatalf("read tool results: %v", err)
+	}
+	defer rows.Close()
+	var results []string
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		results = append(results, c)
+	}
+	if len(results) != nativeRepeatRefuseAt {
+		t.Fatalf("tool results = %d, want one per call", len(results))
+	}
+	for i, r := range results {
+		n := i + 1
+		switch {
+		case n < nativeRepeatWarnAt:
+			if strings.Contains(r, "warning") || strings.Contains(r, "refused") {
+				t.Fatalf("call #%d result carries a warning too early: %s", n, r)
+			}
+		case n < nativeRepeatRefuseAt:
+			if !strings.Contains(r, "warning") {
+				t.Fatalf("call #%d result lacks the repeat warning: %s", n, r)
+			}
+		default:
+			if !strings.Contains(r, "refused") {
+				t.Fatalf("call #%d was not refused: %s", n, r)
+			}
+		}
+	}
+	var summary string
+	if err := pool.QueryRow(ctx, `SELECT content FROM task_message WHERE task_id = $1 AND type = 'text' ORDER BY seq DESC LIMIT 1`, taskID).Scan(&summary); err != nil {
+		t.Fatalf("read closing text: %v", err)
+	}
+	if !strings.HasPrefix(summary, "Status:") {
+		t.Fatalf("closing text = %q, want the model's own status", summary)
 	}
 }
 
@@ -610,6 +736,14 @@ func TestNativeAgentEffectfulActionCap(t *testing.T) {
 	}
 	if comments != nativeMaxEffectfulActions {
 		t.Fatalf("agent comments = %d, want exactly the cap %d", comments, nativeMaxEffectfulActions)
+	}
+	// The refusal flags the run for a wrap-up: the very next turn offers no
+	// tools and names the spent budget. Cap + refusal + wrap-up = cap+2 calls.
+	if llm.calls != nativeMaxEffectfulActions+2 {
+		t.Fatalf("model calls = %d, want cap + refused call + wrap-up = %d", llm.calls, nativeMaxEffectfulActions+2)
+	}
+	if len(llm.last.Tools) != 0 || !strings.Contains(nativeLastUserMessage(t, llm.last), "effectful-action budget") {
+		t.Fatalf("last turn (tools=%d, prompt=%q) is not the effectful-budget wrap-up", len(llm.last.Tools), nativeLastUserMessage(t, llm.last))
 	}
 	var status string
 	if err := pool.QueryRow(ctx, `SELECT status FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status); err != nil {
