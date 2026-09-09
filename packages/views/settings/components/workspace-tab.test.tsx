@@ -84,6 +84,7 @@ vi.mock("./module-ownership-setting", () => ({ ModuleOwnershipSetting: () => nul
 vi.mock("./morning-briefing-setting", () => ({ MorningBriefingSetting: () => null }));
 vi.mock("./competency-setting", () => ({ CompetencySetting: () => null }));
 vi.mock("./workflow-limits-setting", () => ({ WorkflowLimitsSetting: () => null }));
+vi.mock("./mcp-server-setting", () => ({ MCPServerSetting: () => null }));
 vi.mock("./data-residency-setting", () => ({ DataResidencySetting: () => null }));
 vi.mock("./batch-window-setting", () => ({ BatchWindowSetting: () => null }));
 vi.mock("./workflow-policy-setting", () => ({ WorkflowPolicySetting: () => null }));
