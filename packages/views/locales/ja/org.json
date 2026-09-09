@@ -123,6 +123,71 @@
       "draft_note": "まだ何も有効化されていません。下書きは組織図で開くので調整できます。",
       "replaces_existing": "下書きを開くと現在の構造「{{name}}」の新しい版になります。",
       "error": "構造を作成できませんでした"
+    },
+    "catalog": "業務テンプレート",
+    "transfer": "インポート / エクスポート",
+    "transfer_hint": "インポート前にプレビューしながらワークスペースの項目を移行します。",
+    "unit_templates": {
+      "support-lead": {
+        "name": "サポート統括",
+        "mission": "キューを管理し、チームの対応に責任を持つ。"
+      },
+      "front-line": {
+        "name": "フロントライン",
+        "mission": "届いた依頼にその日のうちに答える。"
+      },
+      "escalation": {
+        "name": "エスカレーション",
+        "mission": "フロントラインで解決できないものを引き受ける。"
+      },
+      "partner": {
+        "name": "事務所代表",
+        "mission": "事務所を出るすべての案件に責任を持つ。"
+      },
+      "intake": {
+        "name": "受付",
+        "mission": "案件を開き、必要な情報を集め、対応内容を伝える。"
+      },
+      "review": {
+        "name": "レビュー",
+        "mission": "送り出す前にすべての案件を確認する。"
+      },
+      "account": {
+        "name": "顧客対応",
+        "mission": "関係を維持し、何を出すか判断する。"
+      },
+      "production": {
+        "name": "制作",
+        "mission": "依頼内容を成果物に仕上げる。"
+      },
+      "quality": {
+        "name": "品質管理",
+        "mission": "確認せずに出すものはない。"
+      },
+      "direction": {
+        "name": "経営",
+        "mission": "決定し、チームの責任を負う。"
+      },
+      "finance": {
+        "name": "財務",
+        "mission": "すべての数字を準備し、人間が最終承認する。"
+      },
+      "research-lead": {
+        "name": "リサーチ統括",
+        "mission": "問いを選び、結論に責任を持つ。"
+      },
+      "research": {
+        "name": "リサーチ",
+        "mission": "答えを探し、根拠を示す。"
+      },
+      "peer-review": {
+        "name": "査読",
+        "mission": "結論を公開する前に根拠を確認する。"
+      },
+      "team": {
+        "name": "チーム",
+        "mission": "このチームに与えられた仕事をこなす。"
+      }
     }
   },
   "form": {
@@ -293,7 +358,8 @@
       "squad": "スクワッド"
     },
     "error": "テストに失敗しました",
-    "error_invalid": "キャンバスの定義が不正なため、何も試せませんでした：{{error}}。まず組織図の横に並ぶ項目を片づけてください。"
+    "error_invalid": "キャンバスの定義が不正なため、何も試せませんでした：{{error}}。まず組織図の横に並ぶ項目を片づけてください。",
+    "stale": "依頼または組織が変更されました。テストをやり直してください。"
   },
   "problem": {
     "unit_name_required": "すべてのユニットに id と名前が必要です。",
@@ -379,5 +445,280 @@
     "manager_none": "なし — 組織図の頂点",
     "cancel": "キャンセル",
     "confirm": "追加"
+  },
+  "visual": {
+    "title": "あなたの組織",
+    "team_count": "{{count}} チーム",
+    "zoom_out": "縮小",
+    "zoom_in": "拡大",
+    "fit": "全体表示",
+    "add_team": "チームを追加",
+    "new_team": "新しいチーム",
+    "hint": "チームを選ぶと編集を始められます。",
+    "canvas": "インタラクティブな組織図",
+    "edit_team": "チーム設定",
+    "close": "チーム設定を閉じる",
+    "team_name": "チーム名",
+    "autonomy": "自律度",
+    "trust_hint": "保存前にサーバーが各エージェントのトラストレベルを確認します。チームはエージェントが持つ以上の自律度を与えられません。",
+    "budget": "チーム予算（USD）",
+    "people": "メンバーとエージェント",
+    "member": "人間",
+    "agent": "エージェント",
+    "roles": "ロール",
+    "role_name": "ロール名",
+    "responsibilities": "職務",
+    "assign_role": "このロールを割り当てる",
+    "new_role": "新しいロール",
+    "add_role": "ロールを追加",
+    "routing": "依頼をルーティング",
+    "routing_hint": "これらのキーワードを含む依頼はこのチームにルーティングできます。",
+    "keywords": "キーワード（カンマ区切り）",
+    "connections": "つながり",
+    "edge": {
+      "reports_to": "報告先",
+      "escalates_to": "エスカレーション先",
+      "backs_up": "バックアップ",
+      "consults": "相談先"
+    },
+    "remove_connection": "つながりを削除",
+    "connection_type": "つながりの種類",
+    "target": "対象チーム",
+    "choose_team": "チームを選択",
+    "cycle": "この報告関係はループを作ってしまいます。",
+    "add_connection": "つながりを追加",
+    "remove_team": "チームとそのつながりを削除",
+    "unsaved": "未保存の変更があります。有効化またはこのページを離れる前に保存してください。",
+    "advanced": "詳細: JSON定義",
+    "live_edit": "ビジュアル編集",
+    "define_roles": "ロールを定義する",
+    "search": "人またはエージェントを検索",
+    "tabs": {
+      "people": "チーム",
+      "rules": "運用ルール",
+      "connections": "関係"
+    },
+    "no_agents": "割り当てられたエージェントはありません",
+    "remove_role": "このロールを削除",
+    "team_count_other": "{{count}} チーム"
+  },
+  "history": {
+    "compare": "比較",
+    "title": "第{{n}}版",
+    "description": "定義とモデルを新しいリビジョンとして復元します。現在のステータス、オーナー、予算、日付は保持されます。現在の検証ルールがすべて適用されます。",
+    "current": "現在の定義",
+    "previous": "選択したリビジョン",
+    "dirty": "復元する前に編集内容を保存または破棄してください。",
+    "restore": "この定義を復元",
+    "restored": "定義を復元しました",
+    "absent": "チームが存在しません",
+    "full_diff": "変更されたチームは上に要約されています。職務、関係、ルール、予算を確認するには完全な定義を開いてください。"
+  },
+  "catalog": {
+    "retry": "再試行",
+    "preparing": "プレビューを準備中…",
+    "preview": "インストールされる内容",
+    "includes": "ロール付きエージェント3体、共有プロシージャ1件、プロジェクト1件、組織図1件、初期タスク1件、週次レビュー1件。",
+    "paused": "エージェントにはランタイム接続が必要です。組織は下書きのまま、週次レビューは一時停止のままになります。",
+    "collisions": "{{count}} 件の名前の衝突が見つかりました。新しい項目はリネームされ、既存の項目はそのまま保持されます。",
+    "install": "このチームをインストール",
+    "installing": "インストール中…",
+    "installed": "インストール結果",
+    "next": "下の作成された項目を確認し、エージェントをランタイムに接続してから、有効化前に構造を開いて確認してください。",
+    "done": "構造を見る",
+    "names": {
+      "support": "カスタマーサポート",
+      "product": "プロダクト＆エンジニアリング",
+      "agency": "コンテンツエージェンシー",
+      "finance": "オペレーション＆財務",
+      "research": "リサーチデスク"
+    },
+    "descriptions": {
+      "support": "依頼を仕分けし、返信を下書きし、機微なケースを確認する。",
+      "product": "依頼を実装とレビュー済みの成果物に変える。",
+      "agency": "一貫した編集方針で企画・執筆・レビューする。",
+      "finance": "意思決定を準備し、裏付けとなる証跡を確認する。",
+      "research": "調査し、情報源を突き合わせ、結果をまとめる。"
+    },
+    "roles": "補完的なロール {{count}} 個",
+    "count_labels": {
+      "agents": "エージェント",
+      "skills": "スキル",
+      "projects": "プロジェクト",
+      "org_structures": "組織",
+      "autopilots": "ルーティン",
+      "issues": "課題",
+      "profiles": "プロフィール",
+      "goals": "目標",
+      "notes": "メモ",
+      "triage_sources": "ソース"
+    }
+  },
+  "workspace": {
+    "eyebrow": "あなたのチームワークスペース",
+    "title": "正しい役割。正しいチーム。",
+    "description": "組織に形を与えましょう。エージェントと人を集め、役割を明確にし、仕事を前に進めます。",
+    "structures": "構造",
+    "teams": "チーム",
+    "active": "有効",
+    "your_structures": "あなたの組織",
+    "add_title": "組織を作成",
+    "add_description": "必要なことを説明し、仕事の流れを選び、メンバーを割り当てます。",
+    "explore": "はじめる",
+    "pending": "未保存の変更",
+    "saved": "すべての変更を保存しました",
+    "tabs": {
+      "compose": "作成",
+      "activity": "アクティビティ",
+      "history": "履歴",
+      "settings": "設定"
+    },
+    "leave_title": "保存せずに離れますか？",
+    "keep_editing": "編集を続ける",
+    "discard": "破棄して離れる"
+  },
+  "coherence": {
+    "mission": "チームのミッション",
+    "owner": "人間のオーナー",
+    "add_members": "メンバーを追加",
+    "members_hint": "メンバーはこのワークスペースに既にいる人またはエージェントです。",
+    "people_error": "メンバーを全て読み込めませんでした。",
+    "empty_team": "このチームは空です。最初のメンバーを追加してください。",
+    "recipient": "受信エージェント",
+    "recipient_auto": "最初のエージェント、いなければ人間のオーナー",
+    "recipient_hint": "人間のオーナーが監督します。受信エージェントが依頼を受け取ります。紐づいたスクワッドがあれば優先されます。",
+    "remove_member": "{{name}} をこのチームから外す",
+    "no_role": "ロール未設定",
+    "rule_fields": {
+      "keywords": "キーワード",
+      "labels": "ラベル",
+      "paths": "パス"
+    },
+    "priority": "優先度",
+    "remove_rule": "ルールを削除",
+    "add_rule": "ルールを追加",
+    "team_model": "チームの運用モデル",
+    "inherit_model": "組織 / 親チームから継承",
+    "allow": "許可されたアクション（1行に1つ）",
+    "deny": "禁止されたアクション（1行に1つ）",
+    "escalation_quota": "1日あたりのエスカレーション数",
+    "create_team_hint": "空のチームを作成し、その後メンバーを選びます。人間のオーナーと親チームは任意で、互いに独立しています。",
+    "parent": "親チーム",
+    "no_parent": "親チームなし",
+    "add_to": "{{name}} にメンバーを追加",
+    "add_selected": "選択を追加（{{count}}）",
+    "remove_team_hint": "「{{name}}」を削除すると、その {{members}} 件のメンバーシップ、{{edges}} 件の関係、{{rules}} 件のルールが削除されます。エージェントと人はワークスペースに残ります。",
+    "quorum_block": "委員会「{{name}}」には {{quorum}} チームが必要です。このチームを削除する前に、構成または定足数を明示的に変更してください。",
+    "scope_taken": "この範囲には既に組織があります。別のプロジェクトを選ぶか、既存の組織を編集してください。",
+    "excluded": "割り当てない",
+    "test": "依頼を試す",
+    "discard": "変更を破棄",
+    "draft_saved": "下書きはこの端末に保存されています",
+    "conflict": "より新しいリビジョンが存在します。あなたの下書きは保持されます。保存する前にバージョンを比較してください。",
+    "publish": "変更を公開",
+    "publish_hint": "この変更は有効な組織のルーティングに即座に反映されます。",
+    "sections": {
+      "units": "チーム",
+      "edges": "関係",
+      "rules": "ルーティングルール",
+      "committees": "委員会",
+      "market": "マーケット"
+    },
+    "create_agent": "エージェントを作成",
+    "squad": "実行スクワッド（任意）",
+    "no_squad": "上のメンバーを使う",
+    "goal": "紐づいた目標",
+    "no_goal": "目標なし",
+    "views": {
+      "chart": "チーム",
+      "people": "人とエージェント"
+    },
+    "directory_hint": "ワークスペースのプロフィールとそのチーム。人間のオーナーシップはメンバーシップとは別に表示されます。",
+    "unassigned": "この組織にチームがありません",
+    "permissions": "権限と承認",
+    "locked_deny": "常に適用される禁止事項",
+    "exposures": "このチームが扱うもの",
+    "properties": {
+      "untrusted_input": "信頼できない外部コンテンツ",
+      "sensitive_data": "機微データ",
+      "external_effects": "外部への作用"
+    },
+    "human_approval": "人間の承認が必要",
+    "deciders": {
+      "money": "資金に関する決定",
+      "outbound_data": "外部へのデータ送信",
+      "external_message": "外部へのメッセージ"
+    },
+    "collective": "集団的な決定とマーケット",
+    "decision_type": "決定の種類",
+    "quorum": "決定に必要なチーム数",
+    "max_rounds": "最大ラウンド数",
+    "add_committee": "委員会を追加",
+    "remove_committee": "委員会を削除",
+    "market": {
+      "price_cap_usd_ticks": "1件あたりの価格上限（USD）",
+      "offers_per_agent_per_day": "1日あたり、エージェント1体あたりの提案数",
+      "min_offers": "最低提案数"
+    },
+    "catalog_admin": "テンプレートのインストールには管理者またはオーナーの権限が必要です。",
+    "move_member": "{{name}} を別のチームに移動",
+    "move_hint": "移動先…（ローカルロールは削除されます）",
+    "owns_team": "{{name}} のオーナー",
+    "members": "メンバー"
+  },
+  "studio": {
+    "organization": "現在の組織",
+    "browse": "すべての組織",
+    "scope_hint": "範囲ごとに組織は1つです。編集したいものを選んでください。",
+    "search_org": "組織を検索…",
+    "empty_title": "最初のチームを作りましょう",
+    "empty_hint": "ミッションを説明し、メンバーを選び、依頼がどこに行くか確認します。",
+    "views": {
+      "board": "チーム",
+      "chart": "関係",
+      "people": "ディレクトリ"
+    },
+    "owner": "オーナー：",
+    "receives": "既定の受信者 →",
+    "linked_squad": "紐づいたスクワッド",
+    "show_less": "表示を減らす",
+    "show_more": "さらに{{count}}名のメンバーを表示",
+    "owner_only": "{{name}} がこの範囲を所有しています。メンバーはまだ割り当てられていません。",
+    "add_mission": "このチームのミッションを定義",
+    "board_hint": "メンバーはチームで働きます。人間のオーナーが監督します。",
+    "directory": "割り当て候補の人",
+    "only_unassigned": "この組織でチーム未所属",
+    "directory_hint": "人をチームにドラッグするか、名前をクリックして割り当てます。",
+    "no_results": "このフィルターに一致する人がいません。",
+    "assign_to": "チームに割り当てる",
+    "assign": "このチームに追加",
+    "assigned": "{{name}} を {{team}} に追加しました。適用するには保存してください。",
+    "team_empty_hint": "グループを作成し、その後メンバーを選びます。",
+    "inspector_hint": "チームを編成し、その運用方法を定義します。変更は保存するまで下書きのままです。",
+    "relationships": "表示する関係",
+    "relations": {
+      "reports_to": "チームの階層",
+      "escalates_to": "エスカレーション",
+      "backs_up": "バックアップ",
+      "consults": "相談"
+    },
+    "relation_hint": {
+      "reports_to": "これらのリンクはチーム間の報告関係を定義します。",
+      "escalates_to": "止まった依頼を引き継ぐ相手です。階層ではありません。",
+      "backs_up": "チームが対応できないときに代わりを務める相手です。",
+      "consults": "オーナーシップは持たず、相談を受ける相手です。"
+    },
+    "parent_required": "この組織は階層型です。報告先のチームを明示的に選んでください。",
+    "explicit_people": "誰も自動では追加されません。この組織で働く人だけを選んでください。",
+    "back_to_teams": "チーム一覧に戻る",
+    "move_person": "{{name}} を移動",
+    "create_relation": "関係を作成",
+    "assign_person": "人を割り当てる",
+    "people_filter": "人を絞り込む",
+    "all_people": "全員",
+    "person": "人またはエージェント",
+    "choose_person": "人またはエージェントを選択",
+    "source_team": "移動元のチーム",
+    "return_to_view": "{{view}} に戻る"
   }
 }

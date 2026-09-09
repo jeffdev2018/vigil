@@ -123,6 +123,71 @@
       "draft_note": "아직 아무것도 활성화되지 않았습니다. 초안은 조직도에서 열려 바로 조정할 수 있습니다.",
       "replaces_existing": "초안을 열면 현재 구조 “{{name}}”의 새 판이 됩니다.",
       "error": "구조를 만들지 못했습니다"
+    },
+    "catalog": "업무 템플릿",
+    "transfer": "가져오기 / 내보내기",
+    "transfer_hint": "가져오기 전에 미리보기와 함께 워크스페이스 항목을 이전합니다.",
+    "unit_templates": {
+      "support-lead": {
+        "name": "지원 총괄",
+        "mission": "큐를 관리하고 팀을 대표해 답합니다."
+      },
+      "front-line": {
+        "name": "프런트라인",
+        "mission": "들어온 요청에 그날 안에 답합니다."
+      },
+      "escalation": {
+        "name": "에스컬레이션",
+        "mission": "프런트라인이 해결하지 못한 것을 맡습니다."
+      },
+      "partner": {
+        "name": "사무소 대표",
+        "mission": "사무소를 나가는 모든 안건에 책임집니다."
+      },
+      "intake": {
+        "name": "접수",
+        "mission": "안건을 열고 필요한 정보를 모아 처리 범위를 안내합니다."
+      },
+      "review": {
+        "name": "검토",
+        "mission": "내보내기 전에 모든 안건을 확인합니다."
+      },
+      "account": {
+        "name": "고객 관계",
+        "mission": "관계를 유지하고 무엇을 내보낼지 조율합니다."
+      },
+      "production": {
+        "name": "제작",
+        "mission": "브리프를 요청받은 결과물로 만듭니다."
+      },
+      "quality": {
+        "name": "품질 관리",
+        "mission": "확인 없이 나가는 것은 없습니다."
+      },
+      "direction": {
+        "name": "경영",
+        "mission": "결정하고 팀을 대표해 책임집니다."
+      },
+      "finance": {
+        "name": "재무",
+        "mission": "모든 수치를 준비하고 사람이 최종 승인합니다."
+      },
+      "research-lead": {
+        "name": "리서치 총괄",
+        "mission": "질문을 정하고 결론에 책임집니다."
+      },
+      "research": {
+        "name": "리서치",
+        "mission": "답을 찾고 출처를 제시합니다."
+      },
+      "peer-review": {
+        "name": "동료 검토",
+        "mission": "결론을 공개하기 전에 출처를 확인합니다."
+      },
+      "team": {
+        "name": "팀",
+        "mission": "이 팀이 맡은 일을 수행합니다."
+      }
     }
   },
   "form": {
@@ -293,7 +358,8 @@
       "squad": "스쿼드"
     },
     "error": "시험에 실패했습니다",
-    "error_invalid": "캔버스의 정의가 올바르지 않아 아무것도 시험하지 못했습니다: {{error}}. 조직도 옆에 나열된 항목부터 정리하세요."
+    "error_invalid": "캔버스의 정의가 올바르지 않아 아무것도 시험하지 못했습니다: {{error}}. 조직도 옆에 나열된 항목부터 정리하세요.",
+    "stale": "요청 또는 조직이 변경되었습니다. 테스트를 다시 실행하세요."
   },
   "problem": {
     "unit_name_required": "모든 유닛에는 id와 이름이 필요합니다.",
@@ -379,5 +445,280 @@
     "manager_none": "없음 — 조직도의 최상위",
     "cancel": "취소",
     "confirm": "추가"
+  },
+  "visual": {
+    "title": "내 조직",
+    "team_count": "{{count}}개 팀",
+    "zoom_out": "축소",
+    "zoom_in": "확대",
+    "fit": "화면 맞춤",
+    "add_team": "팀 추가",
+    "new_team": "새 팀",
+    "hint": "팀을 선택해 구성을 시작하세요.",
+    "canvas": "대화형 조직도",
+    "edit_team": "팀 설정",
+    "close": "팀 설정 닫기",
+    "team_name": "팀 이름",
+    "autonomy": "자율성",
+    "trust_hint": "서버는 저장 전에 각 에이전트의 신뢰 수준을 확인합니다. 팀은 에이전트가 가진 것보다 더 많은 자율성을 부여할 수 없습니다.",
+    "budget": "팀 예산(USD)",
+    "people": "구성원과 에이전트",
+    "member": "사람",
+    "agent": "에이전트",
+    "roles": "역할",
+    "role_name": "역할 이름",
+    "responsibilities": "담당 업무",
+    "assign_role": "이 역할 배정",
+    "new_role": "새 역할",
+    "add_role": "역할 추가",
+    "routing": "요청 라우팅",
+    "routing_hint": "이 키워드가 포함된 요청은 이 팀으로 라우팅될 수 있습니다.",
+    "keywords": "키워드(쉼표로 구분)",
+    "connections": "연결",
+    "edge": {
+      "reports_to": "보고 대상",
+      "escalates_to": "에스컬레이션 대상",
+      "backs_up": "백업",
+      "consults": "상담 대상"
+    },
+    "remove_connection": "연결 제거",
+    "connection_type": "연결 유형",
+    "target": "대상 팀",
+    "choose_team": "팀 선택",
+    "cycle": "이 보고 관계는 루프를 만듭니다.",
+    "add_connection": "연결 추가",
+    "remove_team": "팀과 그 연결 제거",
+    "unsaved": "저장하지 않은 변경 사항이 있습니다. 활성화하거나 이 페이지를 벗어나기 전에 저장하세요.",
+    "advanced": "고급: JSON 정의",
+    "live_edit": "비주얼 편집",
+    "define_roles": "역할을 정의하세요",
+    "search": "사람 또는 에이전트 찾기",
+    "tabs": {
+      "people": "팀",
+      "rules": "운영 규칙",
+      "connections": "관계"
+    },
+    "no_agents": "배정된 에이전트가 없습니다",
+    "remove_role": "이 역할 제거",
+    "team_count_other": "{{count}}개 팀"
+  },
+  "history": {
+    "compare": "비교",
+    "title": "{{n}}판",
+    "description": "정의와 모델을 새 리비전으로 복원합니다. 현재 상태, 담당자, 예산, 날짜는 유지됩니다. 현재의 모든 검증 규칙이 적용됩니다.",
+    "current": "현재 정의",
+    "previous": "선택한 리비전",
+    "dirty": "복원하기 전에 수정 내용을 저장하거나 취소하세요.",
+    "restore": "이 정의 복원",
+    "restored": "정의를 복원했습니다",
+    "absent": "팀이 없습니다",
+    "full_diff": "변경된 팀은 위에 요약되어 있습니다. 담당 업무, 관계, 규칙, 예산을 확인하려면 전체 정의를 여세요."
+  },
+  "catalog": {
+    "retry": "다시 시도",
+    "preparing": "미리보기 준비 중…",
+    "preview": "설치될 항목",
+    "includes": "역할이 지정된 에이전트 3개, 공유 절차 1개, 프로젝트 1개, 조직도 1개, 시작 이슈 1개, 주간 리뷰 1개.",
+    "paused": "에이전트에는 런타임 연결이 필요합니다. 조직은 초안 상태로 남고 주간 리뷰는 일시정지 상태로 남습니다.",
+    "collisions": "이름 충돌 {{count}}건이 발견되었습니다. 새 항목은 이름이 바뀌고, 기존 항목은 유지됩니다.",
+    "install": "이 팀 설치",
+    "installing": "설치하는 중…",
+    "installed": "설치 결과",
+    "next": "아래에서 생성된 항목을 확인하고, 에이전트를 런타임에 연결한 다음, 활성화 전에 구조를 열어 확인하세요.",
+    "done": "구조 보기",
+    "names": {
+      "support": "고객 지원",
+      "product": "제품 및 엔지니어링",
+      "agency": "콘텐츠 에이전시",
+      "finance": "운영 및 재무",
+      "research": "리서치 데스크"
+    },
+    "descriptions": {
+      "support": "요청을 분류하고, 답변 초안을 작성하고, 민감한 사례를 검토합니다.",
+      "product": "브리프를 구현하고 검토를 거친 결과물로 만듭니다.",
+      "agency": "일관된 편집 방향으로 기획, 초안 작성, 검토를 진행합니다.",
+      "finance": "결정을 준비하고 근거 자료를 확인합니다.",
+      "research": "조사하고 출처를 교차 확인해 결과를 종합합니다."
+    },
+    "roles": "보완 역할 {{count}}개",
+    "count_labels": {
+      "agents": "에이전트",
+      "skills": "스킬",
+      "projects": "프로젝트",
+      "org_structures": "조직",
+      "autopilots": "루틴",
+      "issues": "이슈",
+      "profiles": "프로필",
+      "goals": "목표",
+      "notes": "메모",
+      "triage_sources": "소스"
+    }
+  },
+  "workspace": {
+    "eyebrow": "내 팀 워크스페이스",
+    "title": "맞는 역할. 맞는 팀.",
+    "description": "조직에 형태를 부여하세요. 에이전트와 사람을 모으고, 역할을 명확히 하고, 일을 앞으로 나아가게 합니다.",
+    "structures": "구조",
+    "teams": "팀",
+    "active": "활성",
+    "your_structures": "내 조직",
+    "add_title": "조직 만들기",
+    "add_description": "필요한 것을 설명하고, 일의 흐름을 정하고, 구성원을 배정하세요.",
+    "explore": "시작하기",
+    "pending": "저장하지 않은 변경 사항",
+    "saved": "모든 변경 사항이 저장되었습니다",
+    "tabs": {
+      "compose": "구성",
+      "activity": "활동",
+      "history": "이력",
+      "settings": "설정"
+    },
+    "leave_title": "저장하지 않고 나갈까요?",
+    "keep_editing": "계속 편집",
+    "discard": "저장하지 않고 나가기"
+  },
+  "coherence": {
+    "mission": "팀 미션",
+    "owner": "사람 오너",
+    "add_members": "구성원 추가",
+    "members_hint": "구성원은 이 워크스페이스에 이미 있는 사람 또는 에이전트입니다.",
+    "people_error": "모든 구성원을 불러오지 못했습니다.",
+    "empty_team": "이 팀은 비어 있습니다. 첫 구성원을 추가하세요.",
+    "recipient": "수신 에이전트",
+    "recipient_auto": "첫 번째 에이전트, 없으면 사람 오너",
+    "recipient_hint": "사람 오너가 감독합니다. 수신 에이전트가 요청을 받습니다. 연결된 스쿼드가 있으면 우선합니다.",
+    "remove_member": "{{name}}을(를) 이 팀에서 제거",
+    "no_role": "역할 없음",
+    "rule_fields": {
+      "keywords": "키워드",
+      "labels": "라벨",
+      "paths": "경로"
+    },
+    "priority": "우선순위",
+    "remove_rule": "규칙 제거",
+    "add_rule": "규칙 추가",
+    "team_model": "팀 운영 모델",
+    "inherit_model": "조직 / 상위 팀에서 상속",
+    "allow": "허용된 작업(줄당 하나)",
+    "deny": "금지된 작업(줄당 하나)",
+    "escalation_quota": "하루 에스컬레이션 수",
+    "create_team_hint": "빈 팀을 만든 다음 구성원을 선택하세요. 사람 오너와 상위 팀은 선택 사항이며 서로 독립적입니다.",
+    "parent": "상위 팀",
+    "no_parent": "상위 팀 없음",
+    "add_to": "{{name}}에 구성원 추가",
+    "add_selected": "선택 항목 추가({{count}})",
+    "remove_team_hint": "“{{name}}”을(를) 삭제하면 그 {{members}}개 멤버십, {{edges}}개 관계, {{rules}}개 규칙이 제거됩니다. 에이전트와 사람은 워크스페이스에 남습니다.",
+    "quorum_block": "위원회 “{{name}}”에는 팀 {{quorum}}개가 필요합니다. 이 팀을 삭제하기 전에 구성이나 정족수를 명시적으로 변경하세요.",
+    "scope_taken": "이 범위에는 이미 조직이 있습니다. 다른 프로젝트를 선택하거나 기존 조직을 수정하세요.",
+    "excluded": "배정하지 않음",
+    "test": "요청 시험하기",
+    "discard": "내 변경 사항 취소",
+    "draft_saved": "초안이 이 기기에 보관되었습니다",
+    "conflict": "더 최신 리비전이 있습니다. 초안은 보존되니, 저장하기 전에 버전을 비교하세요.",
+    "publish": "변경 사항 게시",
+    "publish_hint": "이 변경 사항은 활성 조직의 라우팅에 즉시 반영됩니다.",
+    "sections": {
+      "units": "팀",
+      "edges": "관계",
+      "rules": "라우팅 규칙",
+      "committees": "위원회",
+      "market": "마켓"
+    },
+    "create_agent": "에이전트 만들기",
+    "squad": "실행 스쿼드(선택 사항)",
+    "no_squad": "위 구성원 사용",
+    "goal": "연결된 목표",
+    "no_goal": "목표 없음",
+    "views": {
+      "chart": "팀",
+      "people": "사람 & 에이전트"
+    },
+    "directory_hint": "워크스페이스 프로필과 그 팀. 사람 오너십은 멤버십과 별도로 표시됩니다.",
+    "unassigned": "이 조직에 팀이 없습니다",
+    "permissions": "권한과 승인",
+    "locked_deny": "항상 적용되는 거부 사항",
+    "exposures": "이 팀이 다루는 것",
+    "properties": {
+      "untrusted_input": "신뢰할 수 없는 외부 콘텐츠",
+      "sensitive_data": "민감 데이터",
+      "external_effects": "외부로 나가는 작업"
+    },
+    "human_approval": "사람의 승인 필요",
+    "deciders": {
+      "money": "금전적 결정",
+      "outbound_data": "외부로 나가는 데이터",
+      "external_message": "외부 메시지"
+    },
+    "collective": "집단 결정과 마켓",
+    "decision_type": "결정 유형",
+    "quorum": "결정에 필요한 팀 수",
+    "max_rounds": "최대 라운드 수",
+    "add_committee": "위원회 추가",
+    "remove_committee": "위원회 제거",
+    "market": {
+      "price_cap_usd_ticks": "건당 가격 상한(USD)",
+      "offers_per_agent_per_day": "에이전트 1개당 하루 제안 수",
+      "min_offers": "최소 제안 수"
+    },
+    "catalog_admin": "템플릿 설치에는 관리자 또는 오너 역할이 필요합니다.",
+    "move_member": "{{name}}을(를) 다른 팀으로 이동",
+    "move_hint": "이동 대상…(로컬 역할 제거됨)",
+    "owns_team": "{{name}}의 오너",
+    "members": "구성원"
+  },
+  "studio": {
+    "organization": "현재 조직",
+    "browse": "모든 조직",
+    "scope_hint": "범위마다 조직은 하나입니다. 편성할 조직을 선택하세요.",
+    "search_org": "조직 검색…",
+    "empty_title": "첫 팀을 만드세요",
+    "empty_hint": "미션을 설명하고 구성원을 선택한 다음 요청이 어디로 가는지 확인하세요.",
+    "views": {
+      "board": "팀",
+      "chart": "관계",
+      "people": "디렉터리"
+    },
+    "owner": "오너:",
+    "receives": "기본 수신자 →",
+    "linked_squad": "연결된 스쿼드",
+    "show_less": "간략히 보기",
+    "show_more": "구성원 {{count}}명 더 보기",
+    "owner_only": "{{name}}이(가) 이 범위를 소유합니다. 아직 배정된 구성원이 없습니다.",
+    "add_mission": "이 팀의 미션 정의",
+    "board_hint": "구성원은 팀 단위로 일합니다. 사람 오너가 감독합니다.",
+    "directory": "배정할 사람",
+    "only_unassigned": "이 조직에서 팀이 없는 사람",
+    "directory_hint": "사람을 팀으로 끌어다 놓거나 이름을 클릭해 배정하세요.",
+    "no_results": "이 필터와 일치하는 사람이 없습니다.",
+    "assign_to": "팀에 배정",
+    "assign": "이 팀에 추가",
+    "assigned": "{{name}}을(를) {{team}}에 추가했습니다. 적용하려면 저장하세요.",
+    "team_empty_hint": "그룹을 만든 다음 구성원을 선택하세요.",
+    "inspector_hint": "팀을 구성한 다음 작동 방식을 정의하세요. 저장 전까지 변경 사항은 초안으로 남습니다.",
+    "relationships": "표시할 관계",
+    "relations": {
+      "reports_to": "팀 계층",
+      "escalates_to": "에스컬레이션",
+      "backs_up": "백업",
+      "consults": "상담"
+    },
+    "relation_hint": {
+      "reports_to": "이 링크는 팀 간 보고 관계를 정의합니다.",
+      "escalates_to": "막힌 요청을 이어받는 대상입니다. 계층 구조가 아닙니다.",
+      "backs_up": "팀을 이용할 수 없을 때 대신 나서는 대상입니다.",
+      "consults": "소유권 없이 상담을 받는 대상입니다."
+    },
+    "parent_required": "이 조직은 계층형입니다. 보고 대상 팀을 명시적으로 선택하세요.",
+    "explicit_people": "자동으로 추가되는 사람은 없습니다. 이 조직에서 일할 사람만 선택하세요.",
+    "back_to_teams": "팀 목록으로 돌아가기",
+    "move_person": "{{name}} 이동",
+    "create_relation": "관계 만들기",
+    "assign_person": "사람 배정",
+    "people_filter": "사람 필터링",
+    "all_people": "전체",
+    "person": "사람 또는 에이전트",
+    "choose_person": "사람 또는 에이전트 선택",
+    "source_team": "출발 팀",
+    "return_to_view": "{{view}}(으)로 돌아가기"
   }
 }
