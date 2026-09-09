@@ -259,6 +259,13 @@
     "title_blocked_by": "Mark as blocked by",
     "description": "Search for an issue to link to this issue",
     "toast_failed": "Failed to add dependency",
-    "toast_success": "Linked {{identifier}}"
+    "toast_success": "Linked {{identifier}}",
+    "title": "Add relation",
+    "type_labels": {
+      "blocks": "Blocks",
+      "blocked_by": "Blocked by",
+      "related": "Related to",
+      "duplicate": "Duplicate of"
+    }
   }
 }

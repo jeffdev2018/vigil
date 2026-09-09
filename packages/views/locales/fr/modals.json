@@ -259,6 +259,13 @@
     "title_blocked_by": "Marquer comme bloqué par",
     "description": "Rechercher une issue à lier à cette issue",
     "toast_failed": "Échec de l'ajout de la dépendance",
-    "toast_success": "{{identifier}} lié"
+    "toast_success": "{{identifier}} lié",
+    "title": "Ajouter une relation",
+    "type_labels": {
+      "blocks": "Bloque",
+      "blocked_by": "Bloquée par",
+      "related": "Liée à",
+      "duplicate": "Doublon de"
+    }
   }
 }

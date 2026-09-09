@@ -1,0 +1,5 @@
+-- Reverse 875: tighten back. Rows already carrying 'duplicate' would block
+-- the ADD until they are removed or retyped.
+ALTER TABLE issue_dependency DROP CONSTRAINT IF EXISTS issue_dependency_type_check;
+ALTER TABLE issue_dependency ADD CONSTRAINT issue_dependency_type_check
+    CHECK (type IN ('blocks', 'blocked_by', 'related'));

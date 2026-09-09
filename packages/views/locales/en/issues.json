@@ -478,7 +478,9 @@
       "hint_select": "select",
       "hint_jump": "jump",
       "hint_close": "close"
-    }
+    },
+    "section_related": "Related",
+    "section_duplicate": "Duplicates"
   },
   "timeline": {
     "loading": "Loading..."
@@ -813,7 +815,8 @@
     "delete_issue": "Delete issue",
     "add_blocking": "Mark as blocking...",
     "add_blocked_by": "Mark as blocked by...",
-    "remove_dependency": "Remove dependency"
+    "remove_dependency": "Remove dependency",
+    "add_relation": "Add relation…"
   },
   "pickers": {
     "custom_property": {

@@ -471,7 +471,9 @@
       "hint_select": "选择",
       "hint_jump": "跳转",
       "hint_close": "关闭"
-    }
+    },
+    "section_related": "相关",
+    "section_duplicate": "重复"
   },
   "timeline": {
     "loading": "加载中…"
@@ -779,7 +781,8 @@
     "delete_issue": "删除任务",
     "add_blocking": "添加阻塞的任务...",
     "add_blocked_by": "添加被阻塞于...",
-    "remove_dependency": "移除依赖"
+    "remove_dependency": "移除依赖",
+    "add_relation": "添加关系…"
   },
   "pickers": {
     "custom_property": {

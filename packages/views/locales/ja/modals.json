@@ -257,6 +257,13 @@
     "title_blocked_by": "ブロック元を選択",
     "description": "この課題に関連付ける課題を検索してください",
     "toast_failed": "依存関係を追加できませんでした",
-    "toast_success": "{{identifier}} を関連付けました"
+    "toast_success": "{{identifier}} を関連付けました",
+    "title": "関連を追加",
+    "type_labels": {
+      "blocks": "ブロック",
+      "blocked_by": "ブロックされる",
+      "related": "関連",
+      "duplicate": "重複"
+    }
   }
 }
