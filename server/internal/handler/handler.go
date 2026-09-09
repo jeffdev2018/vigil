@@ -247,6 +247,10 @@ type Handler struct {
 	// GoalLoop judges settled issue runs and drives the continuation chain
 	// (long tasks). Shared by the native runtime and the daemon path.
 	GoalLoop *service.GoalLoopService
+	// internalRouter is the server's own router, handed over once built, so
+	// the MCP server can dispatch a tool call to the handler that owns the
+	// operation.
+	internalRouter http.Handler
 	// Entitlements supplies workspace-scoped commercial gates. A nil provider
 	// preserves self-hosted behavior without extra reads.
 	Entitlements entitlement.Provider
