@@ -57,6 +57,12 @@ const (
 	// head+tail clamped; comments are taken newest-first until the budget is
 	// spent, with an honest count of what was left out.
 	nativeBriefBudget = 16 * 1024
+	// Loop guard: the same tool called with byte-identical arguments this
+	// many times in one run gets a warning riding the result, and past the
+	// refuse mark the call is not executed and the run is asked to wrap up.
+	// A model re-reading the same issue five times has stopped reasoning.
+	nativeRepeatWarnAt   = 3
+	nativeRepeatRefuseAt = 5
 	// nativeBriefDescriptionCap bounds the description alone inside that
 	// budget, keeping room for comments.
 	nativeBriefDescriptionCap = 6 * 1024
@@ -224,9 +230,22 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 
 	var finalText string
 	for turn := 0; turn < nativeMaxTurns; turn++ {
-		params := openai.ChatCompletionNewParams{
-			Messages: messages,
-			Tools:    tools,
+		// The last turn, or the first turn after a budget refusal, is a
+		// wrap-up: no tools, one question — what was done, what remains,
+		// what blocks. A run that ends on "turn limit reached" leaves the
+		// next run (and the human) with nothing; a run that ends on a
+		// status can be continued.
+		wrapUp := tctx.wrapUp || turn == nativeMaxTurns-1
+		params := openai.ChatCompletionNewParams{Messages: messages}
+		if wrapUp {
+			reason := tctx.wrapUpReason
+			if reason == "" {
+				reason = fmt.Sprintf("the turn budget (%d tool-calling turns) is spent", nativeMaxTurns)
+			}
+			messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
+			params.Messages = messages
+		} else {
+			params.Tools = tools
 		}
 		completion, err := s.LLM.Chat(ctx, params)
 		if err != nil {
@@ -253,7 +272,10 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 			usage.model = completion.Model
 		}
 		msg := completion.Choices[0].Message
-		if len(msg.ToolCalls) == 0 {
+		if wrapUp || len(msg.ToolCalls) == 0 {
+			// On the wrap-up turn the model was offered no tools; any
+			// tool call it hallucinates anyway is ignored, the text is
+			// the run's closing status.
 			finalText = strings.TrimSpace(msg.Content)
 			break
 		}
@@ -265,9 +287,13 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	}
 
 	if finalText == "" {
-		// Turn budget exhausted without a closing answer: settle rather than
+		// Even the wrap-up turn produced nothing: settle rather than
 		// retry-loop. The transcript already carries what was done.
-		finalText = "Run stopped after reaching the tool-call turn limit without a final answer."
+		reason := tctx.wrapUpReason
+		if reason == "" {
+			reason = "the tool-calling turn limit was reached"
+		}
+		finalText = "Run stopped without a final status: " + reason + "."
 	}
 	s.writeNativeMessage(ctx, taskID, "text", "", finalText, nil)
 
@@ -276,6 +302,16 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		slog.Error("native run: complete failed", "task_id", util.UUIDToString(taskID), "error", err)
 	}
 	recordUsage()
+}
+
+// nativeWrapUpPrompt is the user turn that closes a run whose budget is
+// spent. It names the reason so the model does not try to keep working, and
+// asks for the three things a follow-up run needs.
+func nativeWrapUpPrompt(reason string) string {
+	return "Stop: " + reason + ". No tools are available anymore. " +
+		"Reply with a short final status for the team, in three parts: " +
+		"what you did, what remains to be done, and what blocked you (if anything). " +
+		"A follow-up run will continue from this status."
 }
 
 // recordNativeUsage lands the run's token totals in task_usage (provider
@@ -316,10 +352,30 @@ func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx *na
 	inputJSON, _ := json.Marshal(args)
 	s.writeNativeMessage(ctx, tctx.task.ID, "tool_use", name, "", inputJSON)
 
-	out, err := s.callNativeTool(ctx, tctx, name, args)
-	var payload any = out
-	if err != nil {
-		payload = map[string]any{"error": err.Error()}
+	// Identical-call guard. json.Marshal sorts map keys, so the key is
+	// canonical for the same arguments in any order.
+	if tctx.repeats == nil {
+		tctx.repeats = map[string]int{}
+	}
+	repeatKey := name + "\x00" + string(inputJSON)
+	tctx.repeats[repeatKey]++
+	repeats := tctx.repeats[repeatKey]
+
+	var payload any
+	if repeats >= nativeRepeatRefuseAt {
+		tctx.requestWrapUp(fmt.Sprintf("the same call (%s with identical arguments) was repeated %d times", name, repeats))
+		payload = map[string]any{"error": fmt.Sprintf("refused: %s was already called %d times with identical arguments and its result has not changed; stop repeating it and give your final status", name, repeats-1)}
+	} else {
+		out, err := s.callNativeTool(ctx, tctx, name, args)
+		payload = out
+		if err != nil {
+			payload = map[string]any{"error": err.Error()}
+		} else if repeats >= nativeRepeatWarnAt {
+			payload = map[string]any{
+				"result":  out,
+				"warning": fmt.Sprintf("this is call #%d of %s with identical arguments; the result is unchanged, do not repeat it", repeats, name),
+			}
+		}
 	}
 	raw, merr := json.Marshal(payload)
 	if merr != nil {

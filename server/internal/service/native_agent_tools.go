@@ -32,11 +32,29 @@ type nativeToolContext struct {
 	// effectful counts this run's state-changing tool calls against
 	// nativeMaxEffectfulActions.
 	effectful int
+	// repeats counts identical tool calls (name + canonical arguments) so a
+	// model stuck re-issuing the same call is warned, then refused.
+	repeats map[string]int
+	// wrapUp asks the loop to spend its next turn on a closing status
+	// instead of more tools; wrapUpReason says why, for the model and the
+	// transcript.
+	wrapUp       bool
+	wrapUpReason string
 	// issue is the task's own issue, nil for the issue-less kinds (chat,
 	// quick-create, autopilot run-only). Tools that default to "the task's
 	// issue" require an explicit issue_id when it is nil.
 	issue       *db.Issue
 	workspaceID pgtype.UUID
+}
+
+// requestWrapUp flags the run for a closing turn. The first reason wins:
+// it is the one that actually ended the work.
+func (t *nativeToolContext) requestWrapUp(reason string) {
+	if t.wrapUp {
+		return
+	}
+	t.wrapUp = true
+	t.wrapUpReason = reason
 }
 
 var nativeIssuePriorities = []string{"urgent", "high", "medium", "low", "none"}
@@ -203,6 +221,7 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		// wrap up instead of looping.
 		tctx.effectful++
 		if tctx.effectful > nativeMaxEffectfulActions {
+			tctx.requestWrapUp(fmt.Sprintf("the effectful-action budget (%d state-changing calls) is spent", nativeMaxEffectfulActions))
 			return nil, fmt.Errorf("this run's effectful-action budget (%d) is exhausted; stop changing the workspace and give your final answer", nativeMaxEffectfulActions)
 		}
 		switch name {
