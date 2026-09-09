@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"strings"
 
 	"github.com/multica-ai/multica/server/internal/daemon/execenv"
@@ -224,6 +225,10 @@ func buildPromptBody(task Task, provider string) string {
 		fmt.Fprintf(&b, "This run resumes automatically after an infrastructure interruption. The previous attempt reached transcript message %d on the same session: continue from where it stopped and do not redo completed steps.\n\n", task.ResumeFromCheckpointSeq)
 	}
 	b.WriteString(renderHandoffPacket(task.HandoffPacket))
+	// Goal loop: the chain's memory, same words the native runtime reads.
+	if task.Goal != nil {
+		b.WriteString(goalstate.Render(task.Goal) + "\n")
+	}
 	fmt.Fprintf(&b, "Start by running `multica issue get %s --output json` to understand your task, then complete it.\n", task.IssueID)
 	// Workflow step 2 owns the catch-up rule for every issue turn; this line
 	// only hands over the commands. It used to add "(assignment-triggered tasks

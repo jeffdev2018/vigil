@@ -12,6 +12,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
+	"github.com/multica-ai/multica/server/pkg/goalstate"
 	"github.com/multica-ai/multica/server/pkg/protocol"
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/shared"
@@ -181,6 +182,19 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "ask_user",
+			Description: openai.String("Ask the team a question you cannot answer yourself (a decision, a missing fact, a permission). The run ends after this call; the goal loop waits for the answer and a follow-up run receives it. kind is text (free answer) or choice (pick one of options)."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"question": shared.FunctionParameters{"type": "string"},
+					"kind":     shared.FunctionParameters{"type": "string", "enum": []string{"text", "choice"}},
+					"options":  shared.FunctionParameters{"type": "array", "items": shared.FunctionParameters{"type": "string"}},
+				},
+				"required": []string{"question"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -240,6 +254,8 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		default:
 			return s.nativeCreateIssue(ctx, tctx, args)
 		}
+	case "ask_user":
+		return s.nativeAskUser(ctx, tctx, args)
 	case "search_notes":
 		return s.nativeSearchNotes(ctx, tctx, args)
 	case "get_note":
@@ -374,6 +390,33 @@ func (s *NativeAgentService) nativeAddComment(ctx context.Context, tctx *nativeT
 	return map[string]any{"id": util.UUIDToString(created.ID), "issue_number": issue.Number}, nil
 }
 
+// nativeAskUser records a typed question for the team on the issue's goal
+// and closes the run: the goal loop turns it into a needs_user_input verdict,
+// raises the inbox item, and queues the follow-up run with the answer.
+func (s *NativeAgentService) nativeAskUser(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Goal == nil {
+		return nil, errors.New("the goal loop is not available on this server")
+	}
+	if tctx.issue == nil {
+		return nil, errors.New("ask_user needs the task's own issue")
+	}
+	q := goalstate.Question{}
+	q.Prompt, _ = args["question"].(string)
+	q.Kind, _ = args["kind"].(string)
+	if raw, ok := args["options"].([]any); ok {
+		for _, o := range raw {
+			if str, ok := o.(string); ok {
+				q.Options = append(q.Options, str)
+			}
+		}
+	}
+	if _, err := s.Goal.AskQuestion(ctx, tctx.task, q); err != nil {
+		return nil, err
+	}
+	tctx.requestWrapUp("you asked the team a question; the run stops here and a follow-up run will receive the answer")
+	return map[string]any{"asked": true, "note": "the question is on its way to the team; give your closing status now"}, nil
+}
+
 func (s *NativeAgentService) nativeUpdateIssue(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
 	issue, err := s.nativeResolveIssue(ctx, tctx, args)
 	if err != nil {
@@ -474,27 +517,7 @@ func (s *NativeAgentService) nativeTransitionIssue(ctx context.Context, tctx *na
 		}
 		return map[string]any{"held": true, "request_id": util.UUIDToString(result.Request.ID), "from": issue.Status, "to": status, "note": "the move needs human approval; a request was filed and the status is unchanged until an approver decides"}, nil
 	default:
-		params := db.UpdateIssueParams{ID: issue.ID}
-		// Same bare-narg contract as update_issue: pre-fill every overwrite
-		// column from the current row, then set the new status.
-		params.Status = pgtype.Text{String: status, Valid: true}
-		params.Title = pgtype.Text{String: issue.Title, Valid: true}
-		if issue.Description.Valid {
-			params.Description = issue.Description
-		}
-		if issue.Priority != "" {
-			params.Priority = pgtype.Text{String: issue.Priority, Valid: true}
-		}
-		params.AssigneeType = issue.AssigneeType
-		params.AssigneeID = issue.AssigneeID
-		params.DelegateType = issue.DelegateType
-		params.DelegateID = issue.DelegateID
-		params.StartDate = issue.StartDate
-		params.DueDate = issue.DueDate
-		params.ParentIssueID = issue.ParentIssueID
-		params.ProjectID = issue.ProjectID
-		params.Stage = issue.Stage
-		updated, err := s.Queries.UpdateIssue(ctx, params)
+		updated, err := updateIssueStatusKeepingFields(ctx, s.Queries, issue, status)
 		if err != nil {
 			return nil, fmt.Errorf("transition failed: %w", err)
 		}

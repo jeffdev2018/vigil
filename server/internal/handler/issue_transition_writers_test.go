@@ -107,6 +107,10 @@ var issueStatusWriters = map[string]statusWriterClass{
 	// create tools file on the default status, which the create gate
 	// deliberately never gates.
 	"internal/service/native_agent_tools.go": statusWriterGated,
+	// The goal loop proposes done through DecideIssueTransition with the
+	// agent as the actor, exactly like the native transition tool; the
+	// helper both share is the downstream write.
+	"internal/service/goal_loop.go": statusWriterGated,
 	// A low-confidence run is sent back for review by the platform.
 	"internal/service/run_confidence.go": statusWriterSystem,
 	// An autopilot creates the issue its schedule or webhook asked for.
