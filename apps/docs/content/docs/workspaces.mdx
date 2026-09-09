@@ -38,6 +38,21 @@ The creator automatically becomes an `owner`.
 After the issue prefix changes, every issue immediately switches to the new number (`MUL-5` becomes `NEW-5`), but the old numbers in PRs, branch names, and chat history do not update.
 </Callout>
 
+## Compose an organization
+
+Open **Organization** to group people and agents into teams. Each structure applies to one project or serves as the workspace default.
+
+- **Compose**: select a team in the chart, then assign members, roles and a human owner. The inspector separates team membership, autonomy and relationships. Pan the canvas or use the zoom controls to explore larger structures.
+- **Activity**: inspect routing, escalations, actual spending and suggested corrections from the server.
+- **History**: compare saved definitions and restore one as a new revision. Restoration keeps the current status, owner, budget and dates, and runs current validations. It works after activation; dissolved structures remain read-only.
+- **Settings**: edit the structure’s name, budget and end conditions. Advanced JSON remains available for model-specific configuration.
+
+Save before activating. Changes stay in the editor until saved; activation still requires a human owner and an evaluation attestation. A conflicting revision is rejected instead of overwriting another member’s save.
+
+**New structure** offers five prepared teams: customer support, product and engineering, a content agency, operations and finance, and research. Installation uses the workspace import preview and requires an owner or admin. Each team includes three agents, a shared skill, a project, an organization, a starter task and a weekly review. Connect the imported agents to runtimes before execution; the organization starts as a draft and the review is paused. Name conflicts are renamed.
+
+**Import / export** opens the existing workspace transfer flow, including its preview, conflict handling and transfer history.
+
 ## Switch and leave
 
 One account can join multiple workspaces. Switching only changes what you are currently viewing; it moves no data.
@@ -55,3 +70,12 @@ Only an `owner` can delete a workspace. Deletion permanently removes all of its 
 - [Members and roles](/members-roles) — invite members and manage roles.
 - [Issues](/issues) — the basic unit of work in a workspace.
 - [Agents](/agents) — agent identity and configuration.
+
+
+### Teams, people, and agents in Organization
+
+Creating an agent opens the agent setup flow. Creating a team adds an empty organizational group; choose its human owner and parent team explicitly. Add existing people or agents through **Add members**. Removing a membership keeps the workspace identity intact. Moving a member to another team clears their previous team role and receiving-agent designation.
+
+The **People & agents** view distinguishes team membership from human ownership. A linked execution squad takes routing priority; otherwise the designated receiving agent, first agent, or human owner receives the request. Use **Test a request** to inspect routing before activating. Changing the request or chart invalidates the displayed test result.
+
+Creation and editing drafts are saved on the current device, separately for each workspace. Creating an organization never replaces an existing scope. Publishing changes to an active organization requires reviewing the changes; activation attestation remains a manual declaration of testing.

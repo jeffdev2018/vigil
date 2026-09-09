@@ -1,0 +1,27 @@
+bl_output:
+  root: docs/business-logic
+  categories: [workflows, models]
+  index_file: index.md
+  glossary_file: glossary.md
+terminology:
+  terms:
+    - term: espace de travail
+      definition: Périmètre partagé des collaborateurs, agents et projets.
+    - term: organisation
+      definition: Configuration de coordination associée à un périmètre de travail.
+    - term: équipe
+      definition: Groupe de participants avec une mission et des responsabilités.
+entry_points:
+  framework: Go Chi et React
+  endpoints:
+    path_patterns: [server/internal/handler/org*.go]
+    grep_patterns: ['func .*Org']
+    bl_category: workflows
+  models:
+    path_patterns: [packages/core/types.ts, server/internal/handler/org.go]
+    grep_patterns: ['type Org', 'interface Org']
+    bl_category: models
+  workflows:
+    path_patterns: [packages/views/org/components/*.tsx, packages/core/org/*.ts]
+    grep_patterns: ['function Org', 'function buildOrg']
+    bl_category: workflows

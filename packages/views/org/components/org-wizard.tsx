@@ -1,4 +1,5 @@
 "use client";
+import { OrgSelect } from "./org-select";
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -6,17 +7,15 @@ import { toast } from "sonner";
 import {
   ORG_PURPOSE_MAX,
   buildOrgDefinition,
-  orgDefaultAssignments,
   orgModelFromAnswers,
   orgRoutingWords,
   orgStructureName,
-  orgTemplateRoot,
   pickOrgTemplate,
   type OrgDecider,
   type OrgShape,
   type OrgTeamShape,
 } from "@multica/core/org/templates";
-import { orgListOptions, orgTemplatesOptions, useCreateOrgStructure, useUpdateOrgStructure } from "@multica/core/org";
+import { orgListOptions, orgTemplatesOptions, useCreateOrgStructure } from "@multica/core/org";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { agentListOptions, memberListOptions } from "@multica/core/workspace/queries";
 import type { OrgMember, OrgModel, OrgTemplate } from "@multica/core/types";
@@ -24,9 +23,12 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { Textarea } from "@multica/ui/components/ui/textarea";
 import { useT } from "../../i18n";
+import { validateOrgDefinition } from "@multica/core/org/validate";
+import { OrgProblemList } from "./org-problem-list";
+import { useOrgWizardDraftStore } from "@multica/core/org/draft-store";
+import { projectListOptions } from "@multica/core/projects/queries";
 import { OrgTemplateCards } from "./org-template-cards";
 
-const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
 const STEPS = 4;
 
 const errorMessage = (e: unknown, fallback: string): string => (e instanceof Error && e.message ? e.message : fallback);
@@ -81,21 +83,29 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   const { data: structures = [] } = useQuery(orgListOptions(wsId));
   const { data: templates = [] } = useQuery(orgTemplatesOptions(wsId));
   const create = useCreateOrgStructure(wsId);
-  const update = useUpdateOrgStructure(wsId);
+  const { data: projects = [] } = useQuery(projectListOptions(wsId));
+  const draft = useOrgWizardDraftStore(s => s.draft);
+  const setDraft = useOrgWizardDraftStore(s => s.setDraft);
 
-  const [step, setStep] = useState(1);
-  const [purpose, setPurpose] = useState("");
-  const [decider, setDecider] = useState<OrgDecider | null>(null);
-  const [teamShape, setTeamShape] = useState<OrgTeamShape | null>(null);
-  const [hasEnd, setHasEnd] = useState<boolean | null>(null);
-  const [compete, setCompete] = useState<boolean | null>(null);
-  const [chosenModel, setChosenModel] = useState<OrgModel | null>(null);
+
+  const { step, projectId, purpose, decider, teamShape, hasEnd, compete, chosenModel, placement } = draft;
+  const setStep = (step: number) => setDraft({ step });
+  const setProjectId = (projectId: string) => setDraft({ projectId });
+  const setPurpose = (purpose: string) => setDraft({ purpose });
+  const setDecider = (decider: OrgDecider) => setDraft({ decider });
+  const setTeamShape = (teamShape: OrgTeamShape) => setDraft({ teamShape });
+  const setHasEnd = (hasEnd: boolean) => setDraft({ hasEnd });
+  const setCompete = (compete: boolean) => setDraft({ compete });
+  const setChosenModel = (chosenModel: OrgModel | null) => setDraft({ chosenModel });
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [placement, setPlacement] = useState<Record<string, string>>({});
 
   const purposeText = purpose.trim();
   const routingWords = useMemo(() => orgRoutingWords(purposeText), [purposeText]);
-  const template = useMemo(() => pickOrgTemplate(purposeText), [purposeText]);
+  const template = useMemo(() => {
+    const base = pickOrgTemplate(purposeText);
+    const labels = t($ => $.wizard.unit_templates, { returnObjects: true });
+    return { ...base, units: base.units.map(unit => ({ ...unit, ...labels[unit.id as keyof typeof labels] })) };
+  }, [purposeText, t]);
   const shape: OrgShape = useMemo(
     () =>
       chosenModel !== null
@@ -114,49 +124,40 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
   );
   const ownerId = members.find((m) => m.role === "owner")?.user_id ?? members[0]?.user_id ?? "";
 
-  // The suggested placement follows the template until the user moves someone.
-  const suggested = useMemo(() => {
-    const byUnit = orgDefaultAssignments(template, actors);
-    const out: Record<string, string> = {};
-    for (const [unitId, keys] of Object.entries(byUnit)) for (const key of keys) out[key] = unitId;
-    return out;
-  }, [template, actors]);
-  const placedIn = (key: string): string => placement[key] ?? suggested[key] ?? orgTemplateRoot(template).id;
-
+  // Workspace membership is not consent to join a proposed team.
+  const placedIn = (key: string): string => template.units.some(u => u.id === placement[key]) ? placement[key]! : "";
   const assignments = useMemo(() => {
-    const root = orgTemplateRoot(template).id;
-    const out: Record<string, string[]> = {};
-    for (const u of template.units) out[u.id] = [];
+    const out: Record<string, string[]> = Object.fromEntries(template.units.map(u => [u.id, []]));
     for (const actor of actors) {
       const key = `${actor.type}:${actor.id}`;
-      out[placement[key] ?? suggested[key] ?? root]?.push(key);
+      const target = placement[key];
+      if (target && out[target]) out[target].push(key);
     }
     return out;
-  }, [template, actors, placement, suggested]);
+  }, [template, actors, placement]);
 
   const definition = useMemo(
     () => buildOrgDefinition({ template, shape, assignments, ownerId, routingWords }),
     [template, shape, assignments, ownerId, routingWords],
   );
 
-  // One structure per scope: picking a model while the workspace default exists
-  // is a new revision of it, not a second structure the server would refuse.
-  const existing = structures.find((s) => s.status !== "dissolved" && s.project_id === null);
+  const problems = validateOrgDefinition(definition, { model: shape.model, agentTrust: Object.fromEntries(agents.map(a => [a.id, a.trust_mode ?? ""])), agentName: Object.fromEntries(agents.map(a => [a.id, a.name])) });
+
+  // Creating must never overwrite an existing scope.
+  const existing = structures.find((s) => s.status !== "dissolved" && s.project_id === (projectId || null));
 
   const stepValid =
     step === 1 ? purposeText !== "" && purposeText.length <= ORG_PURPOSE_MAX
       : step === 2 ? chosenModel !== null || (decider !== null && (decider !== "each_team" || teamShape !== null) && hasEnd !== null && compete !== null)
-        : true;
+        : step === 3 ? problems.length === 0 : true;
 
   const submit = () => {
-    const body = { project_id: null, model: shape.model, name: orgStructureName(purposeText), definition };
+    if (existing || problems.length) return;
+    const body = { owner_id: ownerId, project_id: projectId || null, model: shape.model, name: orgStructureName(purposeText), definition };
     const onError = (e: unknown) => toast.error(errorMessage(e, t(($) => $.wizard.review.error)));
-    if (existing !== undefined) {
-      update.mutate({ id: existing.id, data: body }, { onSuccess: () => { onClose(); onCreated(existing.id); }, onError });
-      return;
-    }
     create.mutate(body, {
       onSuccess: (s: unknown) => {
+        useOrgWizardDraftStore.getState().clearDraft();
         onClose();
         // The shared mutation helper erases the response type; the server answers with the created structure.
         if (s !== null && typeof s === "object" && "id" in s && typeof s.id === "string") onCreated(s.id);
@@ -165,11 +166,11 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
     });
   };
 
-  const pending = create.isPending || update.isPending;
+  const pending = create.isPending;
   const overflow = purposeText.length - ORG_PURPOSE_MAX;
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
+    <Dialog open onOpenChange={(open) => { if (!open && !pending) onClose(); }}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>{t(($) => $.wizard.title)}</DialogTitle>
@@ -179,6 +180,8 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
         <div className="flex max-h-[60vh] flex-col gap-3 overflow-y-auto">
           {step === 1 && (
             <>
+              <label className="space-y-1 text-caption">{t($ => $.new.project)}<OrgSelect className="w-full" value={projectId} onValueChange={e => setProjectId(e)} items={[{ value: "", label: t($ => $.new.workspace_default) }, ...projects.map(p => ({ value: p.id, label: p.title }))]} /></label>
+              {existing && <p role="alert" className="text-caption text-warning">{t($ => $.coherence.scope_taken)}</p>}
               <h3 className="text-body font-medium">{t(($) => $.wizard.purpose.question)}</h3>
               <p className="text-caption text-muted-foreground">{t(($) => $.wizard.purpose.help)}</p>
               <label className="flex flex-col gap-1 text-caption text-muted-foreground">
@@ -272,6 +275,8 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
 
           {step === 3 && (
             <>
+              <p className="rounded-lg bg-info/5 p-3 text-caption text-muted-foreground">{t($ => $.studio.explicit_people)}</p>
+              <OrgProblemList problems={problems} />
               <h3 className="text-body font-medium">{t(($) => $.wizard.people.question)}</h3>
               <p className="text-caption text-muted-foreground">
                 {t(($) => $.wizard.people.template, { template: t(($) => $.wizard.template[template.key]) })}
@@ -285,16 +290,9 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                     return (
                       <li key={key} data-testid="org-wizard-actor" className="flex items-center gap-2 text-caption">
                         <span className="truncate">{actor.name}</span>
-                        <select
-                          className={`${SELECT_CLASS} ml-auto w-48`}
-                          aria-label={t(($) => $.wizard.people.unit_of, { name: actor.name })}
-                          value={placedIn(key)}
-                          onChange={(e) => setPlacement((prev) => ({ ...prev, [key]: e.target.value }))}
-                        >
-                          {template.units.map((u) => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
-                          ))}
-                        </select>
+                        <OrgSelect className="w-full" aria-label={t(($) => $.wizard.people.unit_of, { name: actor.name })} value={placedIn(key)} onValueChange={(e) => setDraft({ placement: { ...placement, [key]: e } })} items={[{ value: "", label: t($ => $.coherence.excluded) }, ...template.units.map((u) => (
+                            ({ value: u.id, label: u.name })
+                          ))]} />
                       </li>
                     );
                   })}
@@ -323,10 +321,11 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
                   </li>
                 ))}
               </ul>
+              <OrgProblemList problems={problems} />
               <p className="text-caption text-muted-foreground">{t(($) => $.wizard.review.draft_note)}</p>
               {existing !== undefined && (
                 <p className="text-caption text-muted-foreground" role="note">
-                  {t(($) => $.wizard.review.replaces_existing, { name: existing.name })}
+                  {t($ => $.coherence.scope_taken)}
                 </p>
               )}
             </>
@@ -334,20 +333,20 @@ export function OrgWizard({ onClose, onCreated }: OrgWizardProps) {
         </div>
 
         <DialogFooter>
-          <Button type="button" variant="outline" size="sm" onClick={step === 1 ? onClose : () => setStep(step - 1)}>
+          <Button type="button" variant="outline" size="sm" disabled={pending} onClick={step === 1 ? onClose : () => setStep(step - 1)}>
             {step === 1 ? t(($) => $.wizard.cancel) : t(($) => $.wizard.back)}
           </Button>
           {step < STEPS ? (
             <Button
               type="button"
               size="sm"
-              disabled={!stepValid}
+              disabled={!stepValid || !!existing}
               onClick={() => setStep(step + 1)}
             >
               {t(($) => $.wizard.next)}
             </Button>
           ) : (
-            <Button type="button" size="sm" disabled={pending} onClick={submit}>
+            <Button type="button" size="sm" disabled={pending || !!existing || problems.length > 0} onClick={submit}>
               {t(($) => $.wizard.review.open)}
             </Button>
           )}

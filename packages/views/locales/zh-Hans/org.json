@@ -19,7 +19,9 @@
     "revisions": "版本记录",
     "no_revisions": "还没有版本。",
     "revision_row": "第 {{n}} 版 · {{status}} · {{model}}",
-    "read_only": "已解散的结构为只读。"
+    "read_only": "已解散的结构为只读。",
+    "structure": "结构",
+    "settings": "结构设置"
   },
   "status": {
     "draft": "草稿",
@@ -347,5 +349,35 @@
     "members": "成员",
     "no_members": "还没有成员。",
     "move_to": "把 {{name}} 移到其他单元"
+  },
+  "people": {
+    "view_people": "成员",
+    "view_units": "团队",
+    "add": "添加成员",
+    "hint": "点击卡片打开详情。组织图按「谁向谁汇报」自动绘制。",
+    "zoom_in": "放大",
+    "zoom_out": "缩小",
+    "fit": "适应",
+    "human": "人类",
+    "agent": "智能体",
+    "active": "工作中",
+    "empty": "还没有人。添加第一位成员，TA 将成为组织图的顶端。",
+    "no_selection": "选择一个人以打开详情。",
+    "reports_to": "汇报对象",
+    "root": "无 — 组织图顶端",
+    "team": "下属",
+    "team_none": "暂无",
+    "unit": "团队",
+    "advanced": "高级 — 团队可自行决定的事、绝不做的事、自主级别",
+    "dialog_description": "谁加入组织图，以及向谁汇报。",
+    "who": "谁",
+    "kind_agent": "智能体",
+    "kind_human": "人类",
+    "pick": "选择…",
+    "title": "头衔",
+    "title_placeholder": "支持负责人、账单…",
+    "manager_none": "无 — 组织图顶端",
+    "cancel": "取消",
+    "confirm": "添加"
   }
 }

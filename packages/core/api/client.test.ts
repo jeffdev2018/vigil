@@ -2975,3 +2975,11 @@ describe("ApiClient batch update refusals", () => {
     ]);
   });
 });
+
+describe("organization simulation boundary", () => {
+  it("rejects malformed results rather than displaying a successful routing", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(JSON.stringify({ basis: "draft", prepares: "broken" }), { status: 200, headers: { "Content-Type": "application/json" } })));
+    const client = new ApiClient("https://api.example.test");
+    await expect(client.simulateOrg({ request: { title: "Review this request" } })).rejects.toThrow("malformed simulation");
+  });
+});
