@@ -2362,6 +2362,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Fleet halt (K05): one switch that stops this workspace's agents.
 			// Readable by every member — someone whose run was refused has to
 			// be able to see by whom — and writable by owner/admin.
+			// Inline approvals (OS plan, chantier 3): every pending ask in one feed.
+			r.Get("/api/approvals", h.ListApprovals)
 			r.Get("/api/run-halt", h.GetRunHalt)
 			r.Put("/api/run-halt", h.PutRunHalt)
 			// Approval gates (K05): a run asks before pushing, calling a sensitive tool or spending.

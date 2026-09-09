@@ -210,6 +210,13 @@ func FileIssueTransitionRequest(
 		return FileTransitionResult{}, fmt.Errorf("create transition request: %w", err)
 	}
 
+	if bus != nil {
+		bus.Publish(events.Event{
+			Type: protocol.EventApprovalAsked, WorkspaceID: util.UUIDToString(issue.WorkspaceID), ActorType: actorType, ActorID: actorID,
+			Payload: map[string]any{"source": "transition", "id": util.UUIDToString(req.ID), "issue_id": util.UUIDToString(issue.ID), "kind": "transition"},
+		})
+	}
+
 	// Audit entry — same shape the handler's h.audit writes for the HTTP path.
 	details, _ := json.Marshal(map[string]any{"request_id": util.UUIDToString(req.ID), "from": issue.Status, "to": toStatus})
 	if _, err := q.CreateAuditLogEntry(ctx, db.CreateAuditLogEntryParams{
