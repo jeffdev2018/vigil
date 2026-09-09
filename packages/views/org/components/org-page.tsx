@@ -23,7 +23,7 @@ import { useWorkspaceId } from "@multica/core/hooks";
 import { useAuthStore } from "@multica/core/auth";
 import { memberListOptions, agentListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects/queries";
-import type { OrgStatus, OrgStructure, OrgRevision } from "@multica/core/types";
+import type { OrgModel, OrgStatus, OrgStructure, OrgRevision } from "@multica/core/types";
 import { Badge } from "@multica/ui/components/ui/badge";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
@@ -51,6 +51,7 @@ const STATUS_BADGE: Record<OrgStatus, string> = {
 
 const SELECT_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
 const END_CONDITIONS = ["", "all_issues_done", "budget_spent"] as const;
+const ORG_MODELS: OrgModel[] = ["hierarchy", "squads", "matrix", "circles", "owner_network", "taskforce", "market"];
 
 const errorMessage = (e: unknown, fallback: string) => (e instanceof Error && e.message ? e.message : fallback);
 
@@ -281,6 +282,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
     dissolve_at: toLocalInput(structure.dissolve_at),
     end_condition: structure.end_condition ?? "",
     budget: String(structure.budget_usd_ticks ?? 0),
+    model: structure.model,
     definition: JSON.stringify(structure.definition, null, 2),
   }), [structure]);
   const [form, setForm] = useState(() => useOrgDraftStore.getState().draft.edits[structure.id]?.form ?? original);
@@ -318,6 +320,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
         data: {
           expected_revision: baseRevision,
           definition: parsed.def,
+          model: form.model,
           name: form.name.trim(),
           owner_id: form.owner_id,
           dissolve_at: toRFC3339(form.dissolve_at) ?? "",
@@ -326,14 +329,14 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
         },
       },
       {
-        onSuccess: saved => { clearOrgDraft(structure.id); if (saved) { setBaseRevision(saved.revision); setForm({ name: saved.name, owner_id: saved.owner_id ?? "", dissolve_at: toLocalInput(saved.dissolve_at), end_condition: saved.end_condition, budget: String(saved.budget_usd_ticks), definition: JSON.stringify(saved.definition, null, 2) }); } setPublishing(false); toast.success(t(($) => $.form.saved)); },
+        onSuccess: saved => { clearOrgDraft(structure.id); if (saved) { setBaseRevision(saved.revision); setForm({ name: saved.name, owner_id: saved.owner_id ?? "", dissolve_at: toLocalInput(saved.dissolve_at), end_condition: saved.end_condition, budget: String(saved.budget_usd_ticks), model: saved.model, definition: JSON.stringify(saved.definition, null, 2) }); } setPublishing(false); toast.success(t(($) => $.form.saved)); },
         onError: (e) => toast.error(errorMessage(e, t(($) => $.form.error))),
       },
     );
   };
 
   const resume = () => setStatus.mutate({ id: structure.id, action: "resume" }, { onError: (e) => toast.error(errorMessage(e, t(($) => $.actions.error))) });
-  const dirty = form.definition !== JSON.stringify(structure.definition, null, 2) || form.name !== structure.name || form.owner_id !== (structure.owner_id ?? "") || form.budget !== String(structure.budget_usd_ticks ?? 0) || form.dissolve_at !== toLocalInput(structure.dissolve_at) || form.end_condition !== (structure.end_condition ?? "");
+  const dirty = form.model !== structure.model || form.definition !== JSON.stringify(structure.definition, null, 2) || form.name !== structure.name || form.owner_id !== (structure.owner_id ?? "") || form.budget !== String(structure.budget_usd_ticks ?? 0) || form.dissolve_at !== toLocalInput(structure.dissolve_at) || form.end_condition !== (structure.end_condition ?? "");
   useEffect(() => {
     if (!dirty) return;
     const preventLoss = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
@@ -353,7 +356,7 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
           {t(($) => $.page.back)}
         </Button>
         <h2 className="text-title-sm font-semibold tracking-tight">{structure.name}</h2>
-        <Badge variant="outline">{t(($) => $.model[structure.model])}</Badge>
+        <OrgSelect aria-label={t(($) => $.coherence.team_model)} className="w-52" value={form.model} onValueChange={value => set("model", value as OrgModel)} disabled={readOnly || update.isPending} items={ORG_MODELS.map(model => ({ value: model, label: t(($) => $.model[model]) }))} />
         <Badge className={STATUS_BADGE[structure.status]}>{t(($) => $.status[structure.status])}</Badge>
         <span className="text-caption text-muted-foreground">{t(($) => $.page.revision, { n: structure.revision })}</span>
         <div className="ml-auto flex items-center gap-1">
