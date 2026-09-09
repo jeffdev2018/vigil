@@ -1074,8 +1074,8 @@ func TestNativeAgentBriefBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("brief: %v", err)
 	}
-	if len(brief) > nativeBriefBudget {
-		t.Fatalf("brief = %d bytes, want <= %d", len(brief), nativeBriefBudget)
+	if got := nativeTokenEstimate(brief); got > nativeBriefTokenBudget {
+		t.Fatalf("brief = ~%d tokens, want <= %d", got, nativeBriefTokenBudget)
 	}
 	if !strings.Contains(brief, strings.Repeat("A", 100)) || !strings.Contains(brief, strings.Repeat("Z", 100)) {
 		t.Fatal("brief lost the description's head or tail")
@@ -1129,8 +1129,8 @@ func TestNativeAgentBriefCommentBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("brief: %v", err)
 	}
-	if len(brief) > nativeBriefBudget {
-		t.Fatalf("brief = %d bytes, want <= %d", len(brief), nativeBriefBudget)
+	if got := nativeTokenEstimate(brief); got > nativeBriefTokenBudget {
+		t.Fatalf("brief = ~%d tokens, want <= %d", got, nativeBriefTokenBudget)
 	}
 	// The NEWEST comment survives; the OLDEST of the window is the first
 	// casualty once the budget is spent.
@@ -1216,8 +1216,8 @@ func TestNativeAgentBriefCarriesRunContinuity(t *testing.T) {
 	if !strings.Contains(brief, "<data previous run summary>") {
 		t.Fatal("predecessor summary is not fenced as a record")
 	}
-	if len(brief) > nativeBriefBudget {
-		t.Fatalf("brief = %d bytes, budget still binding", len(brief))
+	if got := nativeTokenEstimate(brief); got > nativeBriefTokenBudget {
+		t.Fatalf("brief = ~%d tokens, budget still binding", got)
 	}
 
 	// Another issue's brief must NOT see it.
