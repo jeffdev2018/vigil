@@ -691,12 +691,44 @@ type claudeControlRequestPayload struct {
 
 // ── Shared helpers ──
 
+// trySendTerminalWait bounds how long a terminal message waits for a slow
+// consumer before it is dropped after all. Long enough for a transcript
+// writer to catch up, short enough that a vanished consumer cannot pin the
+// backend goroutine.
+const trySendTerminalWait = 2 * time.Second
+
+// trySend delivers a streamed message without ever blocking the backend on a
+// full channel — except for the messages the run cannot afford to lose.
+// Narration (text, thinking, tool events, logs) is dropped when the consumer
+// lags: Result.Output is finalized independently, only the live transcript
+// thins out. The final answer, an error and a status (which carries the
+// session id the daemon pins for resume) wait a bounded time for a slot
+// instead, so a burst of deltas never evicts the one message that says how
+// the run ended.
 func trySend(ch chan<- Message, msg Message) {
 	select {
 	case ch <- msg:
+		return
 	default:
-		// Channel full — drop message. Result.Output is finalized independently,
-		// so only live transcript consumers are affected.
+	}
+	if !terminalMessage(msg) {
+		return
+	}
+	timer := time.NewTimer(trySendTerminalWait)
+	defer timer.Stop()
+	select {
+	case ch <- msg:
+	case <-timer.C:
+	}
+}
+
+// terminalMessage reports whether a message must survive a full channel.
+func terminalMessage(msg Message) bool {
+	switch msg.Type {
+	case MessageResponse, MessageError, MessageStatus:
+		return true
+	default:
+		return false
 	}
 }
 
