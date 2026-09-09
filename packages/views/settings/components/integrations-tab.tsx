@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ArrowLeft, ChevronRight, FolderGit2, Blocks } from "lucide-react";
+import { ArrowLeft, ChevronRight, FolderGit2, Blocks, Contact } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { ApiError } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
@@ -13,6 +13,7 @@ import {
 import { githubInstallationsOptions } from "@multica/core/github";
 import { larkInstallationsOptions } from "@multica/core/lark";
 import { linearInstallationOptions } from "@multica/core/linear";
+import { twentyStatusOptions } from "@multica/core/twenty";
 import { slackInstallationsOptions } from "@multica/core/slack";
 import { dingtalkInstallationsOptions } from "@multica/core/dingtalk";
 import { wecomInstallationsOptions } from "@multica/core/wecom";
@@ -25,6 +26,7 @@ import { AppLink, useNavigation } from "../../navigation";
 import { useT } from "../../i18n";
 import { LarkTab } from "./lark-tab";
 import { LinearTab } from "./linear-tab";
+import { TwentyTab } from "./twenty-tab";
 import { ComposioTab } from "./composio-tab";
 import { SlackTab } from "./slack-tab";
 import { DingTalkTab } from "./dingtalk-tab";
@@ -105,6 +107,11 @@ export function IntegrationsTab() {
     enabled: canView,
     select: (data) => data.connected === true,
   });
+  const twenty = useQuery({
+    ...twentyStatusOptions(wsId),
+    enabled: canView,
+    select: (data) => data.connected === true,
+  });
   const vcs = useQuery({
     ...vcsConnectionsOptions(wsId),
     enabled: canView && vcsAvailable,
@@ -152,6 +159,20 @@ export function IntegrationsTab() {
           icon: <IntegrationChannelIcon channel="linear" />,
           content: <LinearTab />,
           state: linear,
+        },
+      ],
+    },
+    {
+      id: "business",
+      label: t(($) => $.integrations.business_title),
+      entries: [
+        {
+          id: "twenty",
+          label: t(($) => $.twenty.section_title),
+          description: t(($) => $.twenty.page_description),
+          icon: <Contact className="size-5" />,
+          content: <TwentyTab />,
+          state: twenty,
         },
       ],
     },

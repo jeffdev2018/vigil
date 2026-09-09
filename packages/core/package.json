@@ -224,6 +224,7 @@
     "./residency": "./residency/index.ts",
     "./eval": "./eval/index.ts",
     "./linear": "./linear/index.ts",
+    "./twenty": "./twenty/index.ts",
     "./access": "./access/index.ts",
     "./mirrors": "./mirrors/index.ts",
     "./issue-transitions": "./issue-transitions/index.ts",

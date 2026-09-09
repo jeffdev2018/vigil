@@ -379,6 +379,7 @@ import {
   type UpdateBudgetPolicyRequest,
 } from "../budgets/schemas";
 import { ModelKeyListSchema, ModelKeySchema, EMPTY_MODEL_KEY_LIST, RetireModelKeyResponseSchema, EMPTY_RETIRE_MODEL_KEY_RESPONSE, type ModelKeyList, type ModelKey, type CreateModelKeyRequest } from "../model-keys/schemas";
+import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, TwentyStatusSchema, type TwentyConnectInput, type TwentyConnection, type TwentyMemberLink, type TwentySettingsInput, type TwentyStatus } from "../twenty/schemas";
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
@@ -8101,6 +8102,36 @@ export class ApiClient {
       body: JSON.stringify({ agent_id: agentId, redirect }),
     });
     return parseWithFallback(raw, LinearOAuthStartSchema, { authorize_url: "" }, { endpoint: "POST /api/workspaces/:id/linear/oauth/start" }).authorize_url;
+  }
+
+  // Twenty CRM (OS plan, chantier 2). Workspace-scoped through X-Workspace-ID.
+  async getTwentyStatus(): Promise<TwentyStatus> {
+    const raw = await this.fetch<unknown>(`/api/integrations/twenty`);
+    return parseWithFallback(raw, TwentyStatusSchema, EMPTY_TWENTY_STATUS, { endpoint: "GET /api/integrations/twenty" });
+  }
+
+  async connectTwenty(input: TwentyConnectInput): Promise<TwentyConnection> {
+    const raw = await this.fetch<unknown>(`/api/integrations/twenty/connect`, { method: "POST", body: JSON.stringify(input) });
+    return parseWithFallback(raw, TwentyConnectionSchema, { base_url: input.base_url, status: "connected", last_error: "", events: input.events, expose_to_agents: input.expose_to_agents, webhook_registered: false, inbound_path: "", inbound_token: "", twenty_workspace_name: "", mcp_url: "", connected_at: "", updated_at: "" }, { endpoint: "POST /api/integrations/twenty/connect" });
+  }
+
+  async updateTwentySettings(input: TwentySettingsInput): Promise<TwentyConnection> {
+    const raw = await this.fetch<unknown>(`/api/integrations/twenty/settings`, { method: "PUT", body: JSON.stringify(input) });
+    return parseWithFallback(raw, TwentyConnectionSchema, { base_url: "", status: "connected", last_error: "", events: input.events, expose_to_agents: input.expose_to_agents, webhook_registered: false, inbound_path: "", inbound_token: "", twenty_workspace_name: "", mcp_url: "", connected_at: "", updated_at: "" }, { endpoint: "PUT /api/integrations/twenty/settings" });
+  }
+
+  async checkTwenty(): Promise<TwentyConnection> {
+    const raw = await this.fetch<unknown>(`/api/integrations/twenty/check`, { method: "POST" });
+    return parseWithFallback(raw, TwentyConnectionSchema, { base_url: "", status: "error", last_error: "", events: [], expose_to_agents: false, webhook_registered: false, inbound_path: "", inbound_token: "", twenty_workspace_name: "", mcp_url: "", connected_at: "", updated_at: "" }, { endpoint: "POST /api/integrations/twenty/check" });
+  }
+
+  async disconnectTwenty(): Promise<void> {
+    await this.fetch<unknown>(`/api/integrations/twenty`, { method: "DELETE" });
+  }
+
+  async listTwentyMembers(): Promise<TwentyMemberLink[]> {
+    const raw = await this.fetch<unknown>(`/api/integrations/twenty/members`);
+    return parseWithFallback(raw, TwentyMembersSchema, { members: [] }, { endpoint: "GET /api/integrations/twenty/members" }).members;
   }
 
   async disconnectLinear(workspaceId: string): Promise<void> {
