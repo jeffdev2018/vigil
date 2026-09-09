@@ -1,8 +1,9 @@
 import { createDraftStore } from "../drafts/create-draft-store";
+import type { OrgModel } from "../types";
 
 export interface OrgEditorDraft {
   revision: number;
-  form: { name: string; owner_id: string; dissolve_at: string; end_condition: string; budget: string; definition: string };
+  form: { name: string; owner_id: string; dissolve_at: string; end_condition: string; budget: string; model: OrgModel; definition: string };
 }
 
 export const useOrgDraftStore = createDraftStore<{

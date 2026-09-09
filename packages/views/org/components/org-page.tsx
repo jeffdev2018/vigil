@@ -285,7 +285,12 @@ function OrgDetailBody({ structure, revisions, onBack, onDeleted }: { structure:
     model: structure.model,
     definition: JSON.stringify(structure.definition, null, 2),
   }), [structure]);
-  const [form, setForm] = useState(() => useOrgDraftStore.getState().draft.edits[structure.id]?.form ?? original);
+  // A draft persisted before the model selector existed has no model:
+  // the structure's own model fills the gap rather than an undefined.
+  const [form, setForm] = useState(() => {
+    const draft = useOrgDraftStore.getState().draft.edits[structure.id]?.form;
+    return draft ? { ...original, ...draft } : original;
+  });
   const [baseRevision, setBaseRevision] = useState(() => useOrgDraftStore.getState().draft.edits[structure.id]?.revision ?? structure.revision);
   useEffect(() => {
     if (!useOrgDraftStore.getState().draft.edits[structure.id]) { setForm(original); setBaseRevision(structure.revision); }

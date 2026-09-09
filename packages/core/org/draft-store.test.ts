@@ -7,7 +7,7 @@ it("persists edits in their own workspace and restores them after a workspace sw
   setCurrentWorkspace("org-draft-test-a", "a");
   await Promise.resolve();
   useOrgDraftStore.getState().clearDraft();
-  const draft = { revision: 4, form: { name: "Draft team", owner_id: "", dissolve_at: "", end_condition: "", budget: "0", definition: "{}" } };
+  const draft = { revision: 4, form: { name: "Draft team", owner_id: "", dissolve_at: "", end_condition: "", budget: "0", model: "hierarchy" as const, definition: "{}" } };
   saveOrgDraft("org", draft);
   setCurrentWorkspace("org-draft-test-b", "b");
   await Promise.resolve();
