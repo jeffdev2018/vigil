@@ -268,5 +268,8 @@
     "typing_name": "{{name}} 님이 입력 중…",
     "typing_count": "{{count}}명이 입력 중…",
     "author_badge": "{{name}} 님이 보냄"
+  },
+  "approvals": {
+    "strip_title_other": "승인 대기 {{count}}개"
   }
 }

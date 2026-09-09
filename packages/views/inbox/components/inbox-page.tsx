@@ -98,11 +98,15 @@ import {
   getInboxDisplayTitle,
   isAutopilotQuotaNotice,
   isQuickCreateOutcome,
+  isApprovalAskType,
+  findMatchingApproval,
   resolveDetailItem,
 } from "./inbox-display";
 import { AutopilotQuotaNotice } from "./autopilot-quota-notice";
 import { useT } from "../../i18n";
 import { useIssueLimitUpgradePrompt } from "../../modals/use-issue-limit-upgrade-prompt";
+import { workspaceApprovalsOptions } from "@multica/core/approvals";
+import { ApprovalCard } from "../../approvals/approval-card";
 
 export function InboxPage() {
   const { t } = useT("inbox");
@@ -141,6 +145,12 @@ export function InboxPage() {
   const wsId = useWorkspaceId();
   const { data: rawItems = [], isLoading: loading } = useQuery(inboxListOptions(wsId));
   const items = useMemo(() => deduplicateInboxItems(rawItems), [rawItems]);
+
+  // Inline approvals (OS plan, chantier 3): the same feed the timeline and
+  // chat panel read, so a decision/transition/goal-question row can be
+  // answered without opening the full issue.
+  const { data: approvalsFeed } = useQuery(workspaceApprovalsOptions(wsId));
+  const approvals = useMemo(() => approvalsFeed?.approvals ?? [], [approvalsFeed]);
 
   // Fetched in both views, not just the archived one: the main list's entry
   // into the archive is labelled with this count, so it has to be known before
@@ -712,6 +722,7 @@ export function InboxPage() {
         onOpenBriefing={openBriefing}
         onOpenDecisions={openDecisions}
         onOpenRetro={openRetro}
+        approvals={approvals}
         emptyLabel={
           hasActiveFilters && viewItems.length > 0 && visibleItems.length === 0
             ? t(($) => $.filters.empty)
@@ -771,7 +782,13 @@ export function InboxPage() {
     </div>
   ) : null;
 
-  const detailContent = detailItem?.issue_id ? (
+  // Inline approvals: a decision/transition/goal-question row stays in the
+  // inbox's own detail pane (act-in-place) instead of opening the full issue
+  // — null when the ask has already been settled underneath the row.
+  const isApprovalDetail = !!detailItem && isApprovalAskType(detailItem.type);
+  const detailApproval = isApprovalDetail && detailItem ? findMatchingApproval(detailItem, approvals) : null;
+
+  const detailContent = detailItem?.issue_id && !isApprovalDetail ? (
     // Key by issue_id (not inbox-item id): a new comment/reaction generates a
     // new inbox notification for the same issue, and the dedup helper picks the
     // newest one — keying on its id would remount IssueDetail on every event,
@@ -820,6 +837,15 @@ export function InboxPage() {
       <p className="mt-1 text-body text-muted-foreground">
         {typeLabels[detailItem.type]} · {timeAgo(detailItem.created_at)}
       </p>
+      {isApprovalDetail ? (
+        detailApproval ? (
+          <div className="mt-4">
+            <ApprovalCard approval={detailApproval} wsId={wsId} showIssue />
+          </div>
+        ) : (
+          <p className="mt-4 text-body text-muted-foreground">{t(($) => $.detail.already_decided)}</p>
+        )
+      ) : null}
       {isAutopilotQuotaNotice(detailItem.type) ? (
         <AutopilotQuotaNotice
           item={detailItem}
@@ -945,7 +971,7 @@ export function InboxPage() {
     // of selection get their chrome from different places, so they render
     // differently — `InboxItem.issue_id` is nullable and a null one is a plain
     // notification (a failed quick-create, say), not an issue.
-    if (detailItem?.issue_id) {
+    if (detailItem?.issue_id && !isApprovalDetail) {
       // No scroll container and no back bar of our own: `IssueDetail` owns
       // both, and takes the way back through `leadingAction`. Wrapping it in
       // an `overflow-y-auto` used to collapse its inner scroller to content

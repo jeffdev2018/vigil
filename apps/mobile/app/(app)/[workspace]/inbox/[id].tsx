@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { ActivityIndicator, Linking, ScrollView, View } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -9,7 +10,9 @@ import { BILLING_WORKSPACE_SUBSCRIPTIONS_FLAG } from "@multica/core/feature-flag
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
+import { ApprovalAskCard } from "@/components/approvals/approval-card";
 import { inboxListOptions } from "@/data/queries/inbox";
+import { useWorkspaceApprovals } from "@/data/queries/approvals";
 import {
   appConfigOptions,
   workspaceSubscriptionSummaryOptions,
@@ -19,6 +22,16 @@ import {
   getAutopilotQuotaBody,
   getInboxDisplayTitle,
 } from "@/lib/inbox-display";
+import { matchApprovalForInboxItem } from "@/lib/approvals-display";
+
+// Inbox item types with a decidable ask on the approvals feed (GET
+// /api/approvals) — see matchApprovalForInboxItem for how each is matched.
+const APPROVAL_NOTICE_TYPES = new Set([
+  "decision_request",
+  "decision_escalated",
+  "transition_approval_requested",
+  "goal_question",
+]);
 
 function BillingRecovery({
   recovery,
@@ -74,6 +87,18 @@ export default function InboxNoticeDetail() {
     (candidate) => candidate.id === id && candidate.workspace_id === wsId,
   );
   const isQuotaNotice = item?.type === "autopilot_quota_exceeded";
+  const isApprovalNotice = !!item && APPROVAL_NOTICE_TYPES.has(item.type);
+  // Workspace-level feed: the matching ask may belong to any issue.
+  const { data: approvalsFeed } = useWorkspaceApprovals(
+    isApprovalNotice ? wsId : null,
+  );
+  const matchedApproval = useMemo(
+    () =>
+      item && isApprovalNotice
+        ? matchApprovalForInboxItem(item, approvalsFeed?.approvals ?? [])
+        : null,
+    [item, isApprovalNotice, approvalsFeed],
+  );
   const configQuery = useQuery({
     ...appConfigOptions(),
     enabled: isQuotaNotice,
@@ -122,12 +147,32 @@ export default function InboxNoticeDetail() {
         </View>
       ) : !item ||
         (item.type !== "autopilot_quota_exceeded" &&
-          item.type !== "autopilot_paused") ? (
+          item.type !== "autopilot_paused" &&
+          !isApprovalNotice) ? (
         <View className="px-4 py-8">
           <Text className="text-sm text-muted-foreground text-center">
             This notification is no longer available.
           </Text>
         </View>
+      ) : isApprovalNotice ? (
+        <ScrollView
+          className="flex-1"
+          contentContainerClassName="gap-4 px-4 py-5"
+          showsVerticalScrollIndicator={false}
+        >
+          {wsId && matchedApproval ? (
+            <ApprovalAskCard approval={matchedApproval} wsId={wsId} />
+          ) : (
+            <Text className="text-sm text-muted-foreground">
+              Already decided
+            </Text>
+          )}
+          {item.body ? (
+            <Text className="text-base leading-6 text-foreground">
+              {item.body}
+            </Text>
+          ) : null}
+        </ScrollView>
       ) : (
         <ScrollView
           className="flex-1"

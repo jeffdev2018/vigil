@@ -47,7 +47,8 @@
     "attention_empty": "Nothing needs your attention.",
     "briefing_title": "This morning",
     "retro_title": "Weekly retro",
-    "decisions_title": "Decisions waiting for you"
+    "decisions_title": "Decisions waiting for you",
+    "approval_action_failed": "Could not record the answer"
   },
   "detail": {
     "select_prompt": "Select a notification to view details",
@@ -58,7 +59,8 @@
     "autopilot_quota_exceeded_body": "This workspace has reached its limit of {{limit}} autopilot runs for the current period. Further autopilot runs will not start until the allowance resets {{resetAt}}.",
     "autopilot_quota_upgrade": "View upgrade options",
     "archive": "Archive",
-    "unarchive": "Unarchive"
+    "unarchive": "Unarchive",
+    "already_decided": "Already decided"
   },
   "types": {
     "issue_assigned": "Assigned",

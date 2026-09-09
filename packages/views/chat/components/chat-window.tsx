@@ -89,6 +89,8 @@ import {
 import { useChatProjectContextSupport } from "./use-chat-project-context-support";
 import { createLogger } from "@multica/core/logger";
 import type { Agent, Attachment, ChatMessage, ChatSession, PendingChatTasksResponse } from "@multica/core/types";
+import { workspaceApprovalsOptions, approvalsAskedBy } from "@multica/core/approvals";
+import { ChatApprovalsStrip } from "./chat-approvals-strip";
 import { useLocale, useT } from "../../i18n";
 
 const uiLogger = createLogger("chat.ui");
@@ -262,6 +264,14 @@ export function ChatWindow() {
     null;
   const activeAgentRuntimeBound =
     !!activeAgent && isAgentRuntimeBound(activeAgent);
+
+  // Inline approvals (OS plan, chantier 3): the pending asks THIS agent
+  // filed, shown above the composer so they can be settled without leaving
+  // the conversation.
+  const { data: approvalsFeed } = useQuery(workspaceApprovalsOptions(wsId));
+  const agentApprovals = activeAgent
+    ? approvalsAskedBy(approvalsFeed?.approvals ?? [], activeAgent.id)
+    : [];
 
   // A session outlives the permission that created it: the agent can be flipped
   // to personal, change owner, or drop this member from its allow-list, and the
@@ -976,6 +986,8 @@ export function ChatWindow() {
       ) : (
         <OfflineBanner agentName={activeAgent?.name} availability={availability} />
       )}
+
+      <ChatApprovalsStrip approvals={agentApprovals} wsId={wsId} />
 
       <ChatQueue
         tasks={queuedTasks}

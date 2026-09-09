@@ -8,15 +8,27 @@ import { api } from "@multica/core/api";
 import { workspaceKeys } from "@multica/core/workspace/queries";
 import type { Workspace } from "@multica/core/types";
 import { Input } from "@multica/ui/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@multica/ui/components/ui/select";
 import { SettingsCard, SettingsRow, SettingsSection } from "./settings-layout";
 import { useT } from "../../i18n";
 
 export const APPROVAL_GATES_SETTING_KEY = "approval_gates";
 
+// Mirrors server/internal/service/approval_gates.go's ApprovalGates.Approvers.
+export const GATE_APPROVERS_ANY_MEMBER = "any_member";
+export const GATE_APPROVERS_OWNER_ADMIN = "owner_admin";
+
 export interface ApprovalGatesPolicy {
   timeout_minutes: number;
   spend_threshold_usd_ticks: number;
   sensitive_tools: string;
+  approvers: typeof GATE_APPROVERS_ANY_MEMBER | typeof GATE_APPROVERS_OWNER_ADMIN;
 }
 
 export const DEFAULT_SENSITIVE_TOOLS = "(?i)merge|delete|remove|drop|destroy|pay|charge|transfer|refund|purchase";
@@ -28,6 +40,7 @@ export function approvalGatesPolicy(workspace: Workspace | null | undefined): Ap
     timeout_minutes: typeof raw.timeout_minutes === "number" && raw.timeout_minutes > 0 ? Math.floor(raw.timeout_minutes) : 30,
     spend_threshold_usd_ticks: typeof raw.spend_threshold_usd_ticks === "number" && raw.spend_threshold_usd_ticks > 0 ? raw.spend_threshold_usd_ticks : 100_000_000_000,
     sensitive_tools: typeof raw.sensitive_tools === "string" && raw.sensitive_tools !== "" ? raw.sensitive_tools : DEFAULT_SENSITIVE_TOOLS,
+    approvers: raw.approvers === GATE_APPROVERS_OWNER_ADMIN ? GATE_APPROVERS_OWNER_ADMIN : GATE_APPROVERS_ANY_MEMBER,
   };
 }
 
@@ -42,6 +55,7 @@ export function ApprovalGatesSetting({ workspace, canEdit }: { workspace: Worksp
   const [timeout, setTimeout_] = useState(String(policy.timeout_minutes));
   const [spend, setSpend] = useState((policy.spend_threshold_usd_ticks / 1e10).toFixed(2));
   const [tools, setTools] = useState(policy.sensitive_tools);
+  const [approvers, setApprovers] = useState<ApprovalGatesPolicy["approvers"]>(policy.approvers);
   const [saving, setSaving] = useState(false);
 
   async function persist(next: ApprovalGatesPolicy) {
@@ -66,8 +80,13 @@ export function ApprovalGatesSetting({ workspace, canEdit }: { workspace: Worksp
     setSpend((ticks / 1e10).toFixed(2));
     setTools(pattern);
     if (minutes !== policy.timeout_minutes || ticks !== policy.spend_threshold_usd_ticks || pattern !== policy.sensitive_tools) {
-      void persist({ timeout_minutes: minutes, spend_threshold_usd_ticks: ticks, sensitive_tools: pattern });
+      void persist({ timeout_minutes: minutes, spend_threshold_usd_ticks: ticks, sensitive_tools: pattern, approvers });
     }
+  };
+  const commitApprovers = (next: ApprovalGatesPolicy["approvers"]) => {
+    if (!next || next === approvers) return;
+    setApprovers(next);
+    void persist({ ...policy, approvers: next });
   };
 
   return (
@@ -88,6 +107,27 @@ export function ApprovalGatesSetting({ workspace, canEdit }: { workspace: Worksp
         </SettingsRow>
         <SettingsRow label={t(($) => $.workspace.gates_tools_label)} description={t(($) => $.workspace.gates_tools_description)}>
           <Input aria-label={t(($) => $.workspace.gates_tools_label)} className="w-72 font-mono" value={tools} disabled={!canEdit || saving} onChange={(e) => setTools(e.target.value)} onBlur={commit} />
+        </SettingsRow>
+        <SettingsRow label={t(($) => $.workspace.gates_approvers_label)} description={t(($) => $.workspace.gates_approvers_description)} size="select">
+          <Select
+            items={[
+              { value: GATE_APPROVERS_ANY_MEMBER, label: t(($) => $.workspace.gates_approvers_any_member) },
+              { value: GATE_APPROVERS_OWNER_ADMIN, label: t(($) => $.workspace.gates_approvers_owner_admin) },
+            ]}
+            value={approvers}
+            disabled={!canEdit || saving}
+            onValueChange={(next) => commitApprovers(next as ApprovalGatesPolicy["approvers"])}
+          >
+            <SelectTrigger size="sm" className="w-full" aria-label={t(($) => $.workspace.gates_approvers_label)}>
+              <SelectValue>
+                {approvers === GATE_APPROVERS_OWNER_ADMIN ? t(($) => $.workspace.gates_approvers_owner_admin) : t(($) => $.workspace.gates_approvers_any_member)}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value={GATE_APPROVERS_ANY_MEMBER}>{t(($) => $.workspace.gates_approvers_any_member)}</SelectItem>
+              <SelectItem value={GATE_APPROVERS_OWNER_ADMIN}>{t(($) => $.workspace.gates_approvers_owner_admin)}</SelectItem>
+            </SelectContent>
+          </Select>
         </SettingsRow>
       </SettingsCard>
     </SettingsSection>

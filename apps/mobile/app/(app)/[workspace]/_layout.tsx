@@ -6,6 +6,7 @@ import { workspaceListOptions } from "@/data/queries/workspaces";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { RealtimeProvider } from "@/data/realtime/realtime-provider";
 import { useInboxRealtime } from "@/data/realtime/use-inbox-realtime";
+import { useApprovalsRealtime } from "@/data/realtime/use-approvals-realtime";
 import { useIssuesRealtime } from "@/data/realtime/use-issues-realtime";
 import { useMyIssuesRealtime } from "@/data/realtime/use-my-issues-realtime";
 import { useChatSessionsRealtime } from "@/data/realtime/use-chat-sessions-realtime";
@@ -75,6 +76,9 @@ export const unstable_settings = { anchor: "(tabs)" } as const;
  */
 function RealtimeSubscriptions() {
   useInboxRealtime();
+  // Inline approvals: pending asks feed both the inbox and any open issue's
+  // timeline — see use-approvals-realtime.ts for why it mounts listing-level.
+  useApprovalsRealtime();
   useIssuesRealtime();
   useMyIssuesRealtime();
   useChatSessionsRealtime();

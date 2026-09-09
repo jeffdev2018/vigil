@@ -191,6 +191,11 @@ import {
   IssueGoalResponseSchema,
   type IssueGoalResponse,
 } from "./schemas";
+import {
+  EMPTY_APPROVALS,
+  ApprovalsResponseSchema,
+  type ApprovalsResponse,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 
@@ -896,6 +901,38 @@ class ApiClient {
       EMPTY_ISSUE_GOAL_RESPONSE,
       { method: "POST", body: JSON.stringify({ answer }) },
       { endpoint: "POST /api/issues/:id/goal/answer" },
+    );
+  }
+
+  // ── Inline approvals — mirrors packages/core/api/client.ts listApprovals /
+  // decideIssueTransitionRequest. Schema is mobile-local (see the Inline
+  // approvals section of ./schemas — @multica/core/approvals is not on the
+  // mobile sharing whitelist, see the comment there).
+
+  /** Every pending ask, or one issue's, from the unified approvals feed. */
+  async listApprovals(
+    issueId?: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<ApprovalsResponse> {
+    const query = issueId ? `?issue_id=${encodeURIComponent(issueId)}` : "";
+    return this.fetchValidated<ApprovalsResponse>(
+      `/api/approvals${query}`,
+      ApprovalsResponseSchema,
+      EMPTY_APPROVALS,
+      { ...opts, endpoint: "GET /api/approvals" },
+    );
+  }
+
+  // Transition gate (F28): approve/reject a status change held for
+  // approval. Mirrors packages/core/api/client.ts decideIssueTransitionRequest.
+  async decideIssueTransitionRequest(
+    requestId: string,
+    decision: "approve" | "reject",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch(
+      `/api/issue-transition-requests/${encodeURIComponent(requestId)}/${decision}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
     );
   }
 

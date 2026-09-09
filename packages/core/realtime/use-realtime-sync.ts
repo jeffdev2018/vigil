@@ -910,6 +910,15 @@ export function useRealtimeSync(
       // can never reach it, and staleTime: Infinity means navigating away and
       // back does not heal it either. Without this the banner never appears for
       // the approver, and never clears for the requester.
+      // approval:asked|decided (OS plan, chantier 3): an ask appeared or was
+      // settled somewhere — the feed behind every inline card is stale, and
+      // so are the projections it was derived from.
+      approval: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: ["approvals", wsId] });
+        qc.invalidateQueries({ queryKey: inboxKeys.decisions(wsId) });
+      },
       issue_transition: () => {
         const wsId = getCurrentWsId();
         if (!wsId) return;

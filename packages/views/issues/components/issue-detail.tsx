@@ -96,6 +96,8 @@ import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { GoalSection } from "./goal-section";
 import { DecisionCardsSection } from "./decision-cards-section";
+import { ApprovalCard, PendingApprovalsBar } from "../../approvals/approval-card";
+import { issueApprovalsOptions, type ApprovalItem } from "@multica/core/approvals";
 import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
 import { RoutingBadge } from "./routing-badge";
@@ -505,12 +507,37 @@ function shallowEqualEntries(a: TimelineEntry[], b: TimelineEntry[]): boolean {
 type TimelineItem =
   | { kind: "comment"; id: string; entry: TimelineEntry }
   | { kind: "resolved-bar"; id: string; entry: TimelineEntry }
-  | { kind: "activity-group"; id: string; entries: TimelineEntry[] };
+  | { kind: "activity-group"; id: string; entries: TimelineEntry[] }
+  // Inline approvals (OS plan, chantier 3): a pending ask sits in the
+  // timeline at the moment it was asked, decidable in place.
+  | { kind: "approval"; id: string; approval: ApprovalItem };
 
-type RawTimelineGroup = {
-  type: "comment" | "activities";
-  entries: TimelineEntry[];
-};
+type RawTimelineGroup =
+  | { type: "comment" | "activities"; entries: TimelineEntry[] }
+  | { type: "approval"; approval: ApprovalItem };
+
+/**
+ * Interleaves pending asks with the grouped timeline by time asked. An ask
+ * with no usable timestamp lands at the end, which is where the eye looks
+ * for what is waiting now.
+ */
+function interleaveApprovals(groups: RawTimelineGroup[], approvals: ReadonlyArray<ApprovalItem>): RawTimelineGroup[] {
+  if (approvals.length === 0) return groups;
+  const stamp = (g: RawTimelineGroup): number => {
+    if (g.type === "approval") {
+      const t = Date.parse(g.approval.created_at);
+      return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
+    }
+    const t = Date.parse(g.entries[0]?.created_at ?? "");
+    return Number.isNaN(t) ? 0 : t;
+  };
+  const merged: RawTimelineGroup[] = [...groups, ...approvals.map((approval) => ({ type: "approval" as const, approval }))];
+  // Stable: ties keep the timeline's own order, approvals after entries.
+  return merged
+    .map((g, i) => ({ g, i, t: stamp(g) }))
+    .sort((a, b) => a.t - b.t || a.i - b.i)
+    .map(({ g }) => g);
+}
 
 function flattenGroups(
   groups: ReadonlyArray<RawTimelineGroup>,
@@ -518,6 +545,10 @@ function flattenGroups(
 ): TimelineItem[] {
   const out: TimelineItem[] = [];
   for (const group of groups) {
+    if (group.type === "approval") {
+      out.push({ kind: "approval", id: group.approval.id, approval: group.approval });
+      continue;
+    }
     if (group.type === "comment") {
       const entry = group.entries[0]!;
       const isResolved = !!entry.resolved_at;
@@ -1590,10 +1621,21 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // changes (timeline events) or expandedResolved flips (user toggles a
   // resolved thread). Kept in a useMemo so Virtuoso's data identity is stable
   // across unrelated re-renders.
+  const { data: approvalsFeed } = useQuery(issueApprovalsOptions(wsId, id));
+  const pendingApprovals = useMemo(() => approvalsFeed?.approvals ?? [], [approvalsFeed]);
   const items = useMemo<TimelineItem[]>(
-    () => flattenGroups(timelineView.groups, expandedResolved),
-    [timelineView.groups, expandedResolved],
+    () => flattenGroups(interleaveApprovals([...timelineView.groups], pendingApprovals), expandedResolved),
+    [timelineView.groups, pendingApprovals, expandedResolved],
   );
+  const scrollToApproval = useCallback((approvalId: string) => {
+    const index = items.findIndex((it) => it.kind === "approval" && it.id === approvalId);
+    if (index < 0) return;
+    if (virtuosoRef.current) {
+      virtuosoRef.current.scrollToIndex({ index, align: "start", offset: -16 });
+    } else {
+      document.getElementById(`approval-${approvalId}`)?.scrollIntoView({ block: "start" });
+    }
+  }, [items]);
 
   // In-page find (Cmd/Ctrl+F). `items.length` is the content signal that
   // triggers a match recompute when comments are added/removed; text edits
@@ -2060,7 +2102,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       { content: issue?.description, attachments: descEditorAttachments },
     ];
     for (const item of items) {
-      if (item.kind === "activity-group") continue;
+      if (item.kind === "activity-group" || item.kind === "approval") continue;
       blocks.push({
         content: item.entry.content,
         attachments: item.entry.attachments,
@@ -2848,6 +2890,13 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   // The wrapper `id="comment-..."` is the deep-link target — equivalent to
   // a native `<a href="#comment-...">` anchor.
   const renderItem = (_i: number, item: TimelineItem): React.ReactElement => {
+    if (item.kind === "approval") {
+      return (
+        <div className="pb-3" id={`approval-${item.id}`}>
+          <ApprovalCard approval={item.approval} wsId={wsId} />
+        </div>
+      );
+    }
     if (item.kind === "resolved-bar") {
       return (
         <div className="pb-3" id={`comment-${item.id}`}>
@@ -3594,6 +3643,9 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
               // on a target" have fundamentally opposed contracts (estimated
               // heights vs real heights). Trying to satisfy both in one
               // path is what produced the bug history this PR closes.
+              <PendingApprovalsBar approvals={pendingApprovals} onSelect={scrollToApproval} />
+            )}
+            {timelineLoading && timelineView.groups.length === 0 ? null : (
               !highlightCommentId && !find.open ? (
                 !scrollContainerEl ? (
                   // Skeleton while the callback ref populates so the gap

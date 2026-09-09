@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
 import { ApiError } from "@multica/core/api";
 import type { InboxItem } from "@multica/core/types";
+import type { ApprovalItem } from "@multica/core/approvals";
 import { useInboxFilterStore } from "@multica/core/inbox/filter-store";
 import { InboxPage } from "./inbox-page";
 
@@ -23,16 +24,38 @@ const listData: { active: InboxItem[]; archived: InboxItem[]; attention: InboxIt
   attention: [],
 };
 
+// Inline approvals (OS plan, chantier 3): the workspace approvals feed the
+// detail pane and the row quick actions read from.
+const approvalsData: { approvals: ApprovalItem[] } = { approvals: [] };
+
 vi.mock("@tanstack/react-query", () => ({
   useQuery: (options: { queryKey: readonly unknown[] }) => ({
-    data: options.queryKey.includes("archived")
-      ? listData.archived
-      : options.queryKey.includes("attention")
-        ? listData.attention
-        : listData.active,
+    data: options.queryKey.includes("approvals")
+      ? approvalsData
+      : options.queryKey.includes("archived")
+        ? listData.archived
+        : options.queryKey.includes("attention")
+          ? listData.attention
+          : listData.active,
     isLoading: false,
     isError: false,
   }),
+}));
+
+vi.mock("@multica/core/approvals", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@multica/core/approvals")>()),
+  workspaceApprovalsOptions: () => ({ queryKey: ["approvals", "workspace-1", "workspace"] }),
+}));
+
+// Captures the props each rendered card received, so a test can assert which
+// approval (or none) the detail pane and a row matched without standing up
+// the real card's own mutations/countdown.
+const approvalCardProps = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+vi.mock("../../approvals/approval-card", () => ({
+  ApprovalCard: (props: Record<string, unknown>) => {
+    approvalCardProps.push(props);
+    return <div data-testid="approval-card-stub" />;
+  },
 }));
 
 vi.mock("@multica/core/hooks", () => ({
@@ -253,6 +276,8 @@ function reset() {
   listData.active = [];
   listData.archived = [];
   listData.attention = [];
+  approvalsData.approvals = [];
+  approvalCardProps.length = 0;
   searchParams = new URLSearchParams();
   replace.mockClear();
   markReadMutate.mockClear();
@@ -893,5 +918,89 @@ describe("InboxPage", () => {
 
     expect(replace).toHaveBeenCalledWith("/acme/issues/issue-404");
     expect(replace).not.toHaveBeenCalledWith("/acme/inbox");
+  });
+
+  describe("inline approvals", () => {
+    it("shows the matching approval above the body for a decision request", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "decision_request", details: { decision_id: "d1" } }),
+      ];
+      approvalsData.approvals = [
+        { id: "d1", source: "decision", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.getByTestId("approval-card-stub")).toBeTruthy();
+      expect(approvalCardProps.at(-1)).toMatchObject({
+        wsId: "workspace-1",
+        showIssue: true,
+        approval: { id: "d1" },
+      });
+    });
+
+    it("matches a transition_approval_requested item by issue id, not decision id", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "transition_approval_requested" }),
+      ];
+      approvalsData.approvals = [
+        { id: "r1", source: "transition", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(approvalCardProps.at(-1)).toMatchObject({ approval: { id: "r1" } });
+    });
+
+    it("matches a goal_question item by issue id", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "goal_question" }),
+      ];
+      approvalsData.approvals = [
+        { id: "g1", source: "goal_question", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(approvalCardProps.at(-1)).toMatchObject({ approval: { id: "g1" } });
+    });
+
+    it("shows nothing to decide when the ask already settled", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [
+        item({ id: "inbox-a", issue_id: "issue-a", type: "decision_request", details: { decision_id: "d1" } }),
+      ];
+      approvalsData.approvals = [];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.queryByTestId("approval-card-stub")).toBeNull();
+    });
+
+    it("renders the issue itself, not the approval detail pane, for an ordinary issue-linked item", () => {
+      reset();
+      layout.width = DESKTOP;
+      listData.active = [item({ id: "inbox-a", issue_id: "issue-a", type: "new_comment" })];
+      approvalsData.approvals = [
+        { id: "d1", source: "decision", issue: { id: "issue-a" } } as ApprovalItem,
+      ];
+
+      render(<InboxPage />);
+      fireEvent.click(screen.getByTestId("row"));
+
+      expect(screen.queryByTestId("approval-card-stub")).toBeNull();
+      expect(issueDetailProps.at(-1)).toMatchObject({ issueId: "issue-a" });
+    });
   });
 });
