@@ -678,15 +678,7 @@ func (s *GoalLoopService) raiseQuestion(ctx context.Context, issue db.Issue, tas
 			slog.Warn("goal loop: inbox item failed", "issue_id", util.UUIDToString(issue.ID), "error", err)
 			continue
 		}
-		s.publish(protocol.EventInboxNew, issue.WorkspaceID, task.AgentID, map[string]any{"item": map[string]any{
-			"id":           util.UUIDToString(item.ID),
-			"workspace_id": util.UUIDToString(item.WorkspaceID),
-			"type":         item.Type,
-			"severity":     item.Severity,
-			"issue_id":     util.UUIDToString(issue.ID),
-			"title":        item.Title,
-			"created_at":   item.CreatedAt.Time.Format(time.RFC3339),
-		}})
+		s.publish(protocol.EventInboxNew, issue.WorkspaceID, task.AgentID, map[string]any{"item": InboxItemPayload(item)})
 	}
 }
 
@@ -695,6 +687,34 @@ func (s *GoalLoopService) raiseQuestion(ctx context.Context, issue db.Issue, tas
 func (s *GoalLoopService) RaiseQuestionNow(ctx context.Context, issue db.Issue, task db.AgentTaskQueue, goal db.IssueGoal) {
 	s.raiseQuestion(ctx, issue, task, goal, goalQuestionOf(goal.Question))
 	s.publishGoalChanged(issue, task.AgentID)
+}
+
+// InboxItemPayload is the inbox:new event body for one item. The realtime
+// listener routes the event to the item's recipient by recipient_id; an
+// item without it is stored but never lights up a client until reload.
+func InboxItemPayload(item db.InboxItem) map[string]any {
+	out := map[string]any{
+		"id":             util.UUIDToString(item.ID),
+		"workspace_id":   util.UUIDToString(item.WorkspaceID),
+		"recipient_type": item.RecipientType,
+		"recipient_id":   util.UUIDToString(item.RecipientID),
+		"type":           item.Type,
+		"severity":       item.Severity,
+		"title":          item.Title,
+		"read":           item.Read,
+		"archived":       item.Archived,
+		"created_at":     item.CreatedAt.Time.Format(time.RFC3339),
+	}
+	if item.IssueID.Valid {
+		out["issue_id"] = util.UUIDToString(item.IssueID)
+	}
+	if item.Body.Valid {
+		out["body"] = item.Body.String
+	}
+	if len(item.Details) > 0 {
+		out["details"] = json.RawMessage(item.Details)
+	}
+	return out
 }
 
 // questionRecipients: the run's accountable human when the attribution

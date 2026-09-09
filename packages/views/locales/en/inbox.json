@@ -95,6 +95,7 @@
     "trust_promotion_suggested": "Trust promotion suggested",
     "triage_stale": "Triage is stalling",
     "transition_approval_requested": "Approval needed",
+    "goal_question": "Question from the agent",
     "critic_degraded": "Adversarial review skipped",
     "critic_budget": "Adversarial review stopped",
     "cycle_rollover_orphaned": "Work left a cycle with nowhere to go",

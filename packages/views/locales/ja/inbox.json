@@ -93,6 +93,7 @@
     "trust_promotion_suggested": "信頼モードの昇格提案",
     "triage_stale": "トリアージが滞っています",
     "transition_approval_requested": "承認が必要です",
+    "goal_question": "エージェントからの質問",
     "critic_degraded": "批評レビューをスキップしました",
     "critic_budget": "批評レビューを停止しました",
     "cycle_rollover_orphaned": "サイクル終了時に行き先のない作業が残りました",
