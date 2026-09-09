@@ -341,6 +341,25 @@ func TestGoalLoopQuestionAndAnswer(t *testing.T) {
 	}
 }
 
+// An answer on a closed issue is recorded but queues no run: the platform
+// refuses to run on a closed issue, so the run would only fail.
+func TestGoalLoopAnswerOnClosedIssueQueuesNothing(t *testing.T) {
+	ctx := context.Background()
+	f := newGoalFixture(t, "native")
+	task := f.newTask(t)
+	f.runNative(t, task, nativeToolCallTurn("c1", "ask_user", `{"question":"Archive it?"}`), nativeTextTurn("Asked."))
+	if _, err := f.pool.Exec(ctx, `UPDATE issue SET status = 'done' WHERE id = $1`, f.issueID); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := f.goal.Answer(ctx, f.issue(t), "No", util.MustParseUUID(f.userID), "Jeff")
+	if err != nil || updated.Status != GoalStatusStopped || goalQuestionOf(updated.Question).Answer != "No" {
+		t.Fatalf("answer = %+v, %v (the chain stops on a closed issue)", updated, err)
+	}
+	if q := f.queued(t); len(q) != 0 {
+		t.Fatalf("a closed issue must not get a run, got %+v", q)
+	}
+}
+
 // The chain is bounded by the row: the eighth continuation is the last, two
 // identical statuses in a row stop the loop, a human blocker stops it too.
 func TestGoalLoopBoundsAndStops(t *testing.T) {

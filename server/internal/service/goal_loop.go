@@ -870,8 +870,15 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 	q.AnsweredByName = strings.TrimSpace(userName)
 	q.AnsweredAt = time.Now().UTC().Format(time.RFC3339)
 	raw, _ := json.Marshal(q)
+	closed := issue.Status == "done" || issue.Status == "cancelled"
+	status := GoalStatusActive
+	if closed {
+		// A closed issue gets the answer on record but no run: the chain
+		// stops rather than showing itself active with nothing to run.
+		status = GoalStatusStopped
+	}
 	updated, err := s.Queries.UpdateIssueGoalState(ctx, db.UpdateIssueGoalStateParams{
-		ID: goal.ID, Status: GoalStatusActive, Continuation: goal.Continuation, NoProgress: goal.NoProgress,
+		ID: goal.ID, Status: status, Continuation: goal.Continuation, NoProgress: goal.NoProgress,
 		LastSignature: goal.LastSignature, LastOutcome: goal.LastOutcome, LastBlocker: goal.LastBlocker,
 		LastReason: goal.LastReason, NextStep: goal.NextStep, Evidence: goal.Evidence, Question: raw,
 		LastRunID: goal.LastRunID, DoneRequestID: goal.DoneRequestID,
@@ -889,7 +896,7 @@ func (s *GoalLoopService) Answer(ctx context.Context, issue db.Issue, answer str
 		s.Bus.Publish(events.Event{Type: protocol.EventCommentCreated, WorkspaceID: util.UUIDToString(issue.WorkspaceID), ActorType: "member", ActorID: util.UUIDToString(userID),
 			Payload: map[string]any{"comment": map[string]any{"id": util.UUIDToString(created.ID), "issue_id": util.UUIDToString(issue.ID)}, "issue_revision": created.IssueRevision}})
 	}
-	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid {
+	if issue.AssigneeType.String == "agent" && issue.AssigneeID.Valid && !closed {
 		who := userName
 		if who == "" {
 			who = "a team member"
