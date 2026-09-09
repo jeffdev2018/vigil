@@ -94,6 +94,7 @@ import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
+import { GoalSection } from "./goal-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { RunSecretsSection } from "./run-secrets-section";
 import { FailoverSection } from "./failover-section";
@@ -2769,6 +2770,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
       {/* Plan verification — the issue plan and its newest verification
           report (F17). Hides itself until a plan is published. */}
       <PlanVerificationSection issueId={id} />
+
+      {/* Goal loop: the agent works this issue toward a stated goal across
+          bounded continuations. Hides itself until a goal exists, except a
+          compact affordance to set one while an agent is assigned. */}
+      <GoalSection issueId={id} issue={issue} />
       </>}
 
       {/* Details — creator and timestamps. Sits below the execution log

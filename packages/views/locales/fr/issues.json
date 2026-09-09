@@ -718,7 +718,9 @@
       "shard": "Fragment",
       "eval": "Évaluation",
       "escalation": "Escalade",
-      "other": "Étape"
+      "other": "Étape",
+      "continuation": "Continuation",
+      "subagent": "Sous-agent"
     }
   },
   "usage_detail": {
@@ -1518,6 +1520,75 @@
       "reopen": "rouvrir",
       "ask_proof": "demander une preuve",
       "none": "aucune action"
+    }
+  },
+  "goal_loop": {
+    "section": "Objectif",
+    "intro": "Donne à cet agent un objectif à poursuivre sur plusieurs exécutions.",
+    "goal_label": "Objectif",
+    "goal_placeholder": "Qu'est-ce que cette issue doit accomplir ?",
+    "max_continuations": "Continuations max",
+    "save": "Enregistrer l'objectif",
+    "cancel": "Annuler",
+    "edit": "Modifier",
+    "save_failed": "Impossible d'enregistrer l'objectif",
+    "saved": "Objectif enregistré",
+    "pause": "Mettre en pause",
+    "resume": "Reprendre",
+    "pause_failed": "Impossible de mettre l'objectif en pause",
+    "resume_failed": "Impossible de reprendre l'objectif",
+    "paused": "Objectif en pause",
+    "resumed": "Objectif repris",
+    "continuation_progress": "Continuation {{n}} / {{max}}",
+    "blocker": "Blocage",
+    "reason": "Raison",
+    "next_step": "Prochaine étape",
+    "evidence": "Preuves",
+    "evidence_show_all": "Tout afficher ({{count}})",
+    "evidence_collapse": "Afficher moins",
+    "status": {
+      "active": "Actif",
+      "paused": "En pause",
+      "waiting_user": "En attente de réponse",
+      "satisfied": "Objectif atteint",
+      "stopped": "Arrêté"
+    },
+    "outcomes": {
+      "none": "Pas encore de résultat",
+      "satisfied": "Atteint",
+      "continued": "Poursuivi",
+      "stopped_exhausted": "Budget de continuations épuisé",
+      "stopped_stagnation": "Bloqué — aucun progrès",
+      "stopped_needs_user_input": "A besoin de ta réponse",
+      "stopped_external_wait": "En attente d'un élément externe",
+      "stopped_run_failed": "L'exécution a échoué",
+      "stopped_judge_unavailable": "Le juge était indisponible",
+      "stopped_paused": "En pause",
+      "stopped_issue_changed": "L'issue a changé",
+      "stopped_unknown": "Arrêté",
+      "other": "Résultat inconnu"
+    },
+    "badge": {
+      "continued": "Objectif : poursuivi {{n}}/{{max}}",
+      "satisfied": "Objectif atteint",
+      "waiting": "Objectif : en attente de réponse",
+      "stopped": "Objectif : arrêté ({{reason}})"
+    },
+    "question": {
+      "answer_placeholder": "Écris ta réponse…",
+      "answer": "Répondre",
+      "answer_failed": "Impossible d'envoyer la réponse",
+      "answered": "Réponse envoyée",
+      "answered_line": "Répondu {{when}}",
+      "answered_by_line": "Répondu par {{by}} · {{when}}"
+    },
+    "blockers": {
+      "goal_not_met_yet": "Objectif pas encore atteint",
+      "missing_evidence": "Preuves manquantes",
+      "needs_user_input": "Votre réponse est attendue",
+      "external_wait": "En attente d'un élément externe",
+      "run_failed": "L'exécution a échoué",
+      "other": "Autre"
     }
   },
   "eval_promote": {

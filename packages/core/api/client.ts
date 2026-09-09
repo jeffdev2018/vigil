@@ -460,6 +460,7 @@ import {
   RunReplaySchema,
   WorkflowLegsSchema,
   WatchdogEnvelopeSchema,
+  IssueGoalEnvelopeSchema,
   WorkProfileSchema,
   OrgStructureSchema,
   OrgStructureListSchema,
@@ -5503,6 +5504,34 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/watchdog-verdicts/${encodeURIComponent(verdictId)}/review`, { method: "POST", body: JSON.stringify({ confirmed }) });
     const fallback: import("../issues/watchdog").WatchdogVerdict = { id: verdictId, watchdog_id: "", issue_id: "", task_id: "", verdict: "escalate", summary: "", findings: [], dropped: [], applied: {}, decision_id: null, human_review: confirmed ? "confirmed" : "overturned", contract_revision: 0, created_at: "" };
     return parseWithFallback(raw, WatchdogVerdictEnvelopeSchema, { verdict: fallback }, { endpoint: "POST /api/watchdog-verdicts/:id/review" }).verdict;
+  }
+
+  // Goal loop: an agent works one issue toward a stated goal across bounded
+  // continuations, stopping when satisfied, stuck, or needing the human.
+  async getIssueGoal(issueId: string): Promise<import("../types").IssueGoal | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal`);
+    return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "GET /api/issues/:id/goal" }).goal;
+  }
+
+  async setIssueGoal(issueId: string, body: import("../types").SetIssueGoalInput): Promise<import("../types").IssueGoal | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal`, { method: "PUT", body: JSON.stringify(body) });
+    return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "PUT /api/issues/:id/goal" }).goal;
+  }
+
+  async pauseIssueGoal(issueId: string): Promise<import("../types").IssueGoal | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal/pause`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "POST /api/issues/:id/goal/pause" }).goal;
+  }
+
+  async resumeIssueGoal(issueId: string): Promise<import("../types").IssueGoal | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal/resume`, { method: "POST", body: "{}" });
+    return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "POST /api/issues/:id/goal/resume" }).goal;
+  }
+
+  // 409 when no question is waiting; the caller (mutation onError) surfaces it.
+  async answerIssueGoal(issueId: string, answer: string): Promise<import("../types").IssueGoal | null> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal/answer`, { method: "POST", body: JSON.stringify({ answer }) });
+    return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "POST /api/issues/:id/goal/answer" }).goal;
   }
 
   // Run replay (K70).

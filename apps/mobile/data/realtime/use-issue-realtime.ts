@@ -13,6 +13,14 @@
  *     task:failed / task:cancelled → invalidate timeline + detail (task
  *     state can flip an issue's status server-side without firing
  *     issue:updated, so we refetch the authoritative detail too)
+ *   - issue:updated / issue:aux_changed → also invalidate the goal-loop
+ *     query (goal_loop). Member-triggered goal actions (set/pause/resume/
+ *     answer, server/internal/handler/issue_goal.go) publish issue:updated
+ *     via publishIssueAuxChanged; agent/judge-driven transitions with no
+ *     HTTP request in flight (server/internal/service/goal_loop.go) publish
+ *     issue:aux_changed directly. Neither payload carries the goal object,
+ *     so invalidate (not patch) is correct here (apps/mobile/CLAUDE.md
+ *     "Patch over invalidate" rule #1).
  *   - reconnect → invalidate detail + timeline (we might've missed events
  *     while disconnected; server has no replay buffer for this client)
  *
@@ -34,6 +42,7 @@ import type {
   TaskQueuedPayload,
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
+import { issueGoalKeys } from "@/data/queries/issue-goal";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 import {
   addCommentReaction,
@@ -107,6 +116,15 @@ export function useIssueRealtime(
           patchIssueDetail(qc, wsId, payload.issue);
           patchMyIssuesList(qc, wsId, payload.issue);
           patchIssuesList(qc, wsId, payload.issue);
+          qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
+        }),
+        // Agent/judge-driven goal transitions with no HTTP request in
+        // flight (server/internal/service/goal_loop.go). issue_id is
+        // optional on this event's payload; undefined never equals issueId
+        // so the guard is safe.
+        ws.on("issue:aux_changed", (payload) => {
+          if (payload.issue_id !== issueId) return;
+          qc.invalidateQueries({ queryKey: issueGoalKeys.issue(wsId, issueId) });
         }),
         ws.on("issue:deleted", (payload) => {
           if (payload.issue_id !== issueId) return;

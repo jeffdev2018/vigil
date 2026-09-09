@@ -718,7 +718,9 @@
       "shard": "Shard",
       "eval": "Eval",
       "escalation": "Escalation",
-      "other": "Leg"
+      "other": "Leg",
+      "continuation": "Continuation",
+      "subagent": "Sub-agent"
     }
   },
   "usage_detail": {
@@ -1518,6 +1520,75 @@
       "reopen": "reopen",
       "ask_proof": "ask for a proof",
       "none": "no action"
+    }
+  },
+  "goal_loop": {
+    "section": "Goal",
+    "intro": "Give this agent a goal to work toward across several runs.",
+    "goal_label": "Goal",
+    "goal_placeholder": "What should this issue accomplish?",
+    "max_continuations": "Max continuations",
+    "save": "Save goal",
+    "cancel": "Cancel",
+    "edit": "Edit",
+    "save_failed": "Could not save the goal",
+    "saved": "Goal saved",
+    "pause": "Pause",
+    "resume": "Resume",
+    "pause_failed": "Could not pause the goal",
+    "resume_failed": "Could not resume the goal",
+    "paused": "Goal paused",
+    "resumed": "Goal resumed",
+    "continuation_progress": "Continuation {{n}} / {{max}}",
+    "blocker": "Blocker",
+    "reason": "Reason",
+    "next_step": "Next step",
+    "evidence": "Evidence",
+    "evidence_show_all": "Show all ({{count}})",
+    "evidence_collapse": "Show less",
+    "status": {
+      "active": "Active",
+      "paused": "Paused",
+      "waiting_user": "Waiting for answer",
+      "satisfied": "Goal met",
+      "stopped": "Stopped"
+    },
+    "outcomes": {
+      "none": "No outcome yet",
+      "satisfied": "Satisfied",
+      "continued": "Continued",
+      "stopped_exhausted": "Exhausted its continuation budget",
+      "stopped_stagnation": "Stalled — no progress",
+      "stopped_needs_user_input": "Needs your input",
+      "stopped_external_wait": "Waiting on something external",
+      "stopped_run_failed": "The run failed",
+      "stopped_judge_unavailable": "The judge was unavailable",
+      "stopped_paused": "Paused",
+      "stopped_issue_changed": "The issue changed",
+      "stopped_unknown": "Stopped",
+      "other": "Unknown outcome"
+    },
+    "badge": {
+      "continued": "Goal: continued {{n}}/{{max}}",
+      "satisfied": "Goal met",
+      "waiting": "Goal: waiting for answer",
+      "stopped": "Goal: stopped ({{reason}})"
+    },
+    "question": {
+      "answer_placeholder": "Type your answer…",
+      "answer": "Answer",
+      "answer_failed": "Could not send the answer",
+      "answered": "Answer sent",
+      "answered_line": "Answered {{when}}",
+      "answered_by_line": "Answered by {{by}} · {{when}}"
+    },
+    "blockers": {
+      "goal_not_met_yet": "Goal not met yet",
+      "missing_evidence": "Missing evidence",
+      "needs_user_input": "Needs your input",
+      "external_wait": "Waiting on something external",
+      "run_failed": "The run failed",
+      "other": "Other"
     }
   },
   "eval_promote": {

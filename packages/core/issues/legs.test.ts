@@ -21,7 +21,7 @@ const client = () => new ApiClient("https://api.example.test");
 
 describe("legRoleLabelKey", () => {
   it("keeps every role the server can send", () => {
-    for (const role of ["draft", "retry", "fallback", "rerun", "review", "critique", "answer", "revision", "watchdog", "duel", "fanout", "shard", "eval", "escalation"]) {
+    for (const role of ["draft", "retry", "fallback", "rerun", "review", "critique", "answer", "revision", "watchdog", "duel", "fanout", "shard", "eval", "escalation", "continuation", "subagent"]) {
       expect(legRoleLabelKey(role)).toBe(role);
     }
   });
