@@ -225,74 +225,14 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		return
 	}
 
-	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID}
+	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID, budget: &nativeRunBudget{}}
 	cx := newNativeContext(nativeSystemPrompt(agent), brief)
-	tools := nativeAgentToolSpecs()
 
-	var finalText string
-	for turn := 0; turn < nativeMaxTurns; turn++ {
-		// The last turn, or the first turn after a budget refusal, is a
-		// wrap-up: no tools, one question — what was done, what remains,
-		// what blocks. A run that ends on "turn limit reached" leaves the
-		// next run (and the human) with nothing; a run that ends on a
-		// status can be continued.
-		wrapUp := tctx.wrapUp || turn == nativeMaxTurns-1
-		// Context compaction (long tasks): trim, then summarize, before
-		// the conversation outgrows the model.
-		if note := s.nativeCompactIfNeeded(ctx, cx, &usage); note != "" {
-			s.writeNativeMessage(ctx, taskID, "system", "", note, nil)
-		}
-		messages := cx.messages()
-		params := openai.ChatCompletionNewParams{Messages: messages}
-		if wrapUp {
-			reason := tctx.wrapUpReason
-			if reason == "" {
-				reason = fmt.Sprintf("the turn budget (%d tool-calling turns) is spent", nativeMaxTurns)
-			}
-			params.Messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
-		} else {
-			params.Tools = tools
-		}
-		completion, err := s.LLM.Chat(ctx, params)
-		if err != nil {
-			s.noteLLMFailure()
-			if errors.Is(err, context.DeadlineExceeded) {
-				s.failNativeTask(ctx, task, "native run timed out")
-			} else {
-				s.failNativeTask(ctx, task, "model call failed: "+err.Error())
-			}
-			recordUsage()
-			return
-		}
-		if len(completion.Choices) == 0 {
-			s.noteLLMFailure()
-			s.failNativeTask(ctx, task, "model returned no choices")
-			recordUsage()
-			return
-		}
-		s.noteLLMSuccess()
-		usage.input += completion.Usage.PromptTokens
-		usage.output += completion.Usage.CompletionTokens
-		usage.cacheRead += completion.Usage.PromptTokensDetails.CachedTokens
-		if usage.model == "" {
-			usage.model = completion.Model
-		}
-		msg := completion.Choices[0].Message
-		if wrapUp || len(msg.ToolCalls) == 0 {
-			// On the wrap-up turn the model was offered no tools; any
-			// tool call it hallucinates anyway is ignored, the text is
-			// the run's closing status.
-			finalText = strings.TrimSpace(msg.Content)
-			break
-		}
-		results := make([]nativeToolResult, 0, len(msg.ToolCalls))
-		assistantText := msg.Content
-		for _, call := range msg.ToolCalls {
-			assistantText += call.Function.Name + call.Function.Arguments
-			result := s.executeNativeToolCall(ctx, &tctx, call)
-			results = append(results, nativeToolResult{callID: call.ID, tool: call.Function.Name, content: nativeClampToolResult(result)})
-		}
-		cx.addTurn(msg.ToParam(), assistantText, results)
+	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeAgentToolSpecsFor(0), nativeMaxTurns, &usage)
+	if loopErr != nil {
+		s.failNativeTask(ctx, task, loopErr.Error())
+		recordUsage()
+		return
 	}
 
 	if finalText == "" {
@@ -318,6 +258,97 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		s.Goal.AfterRunCompleted(ctx, *completed, finalText)
 	}
 	recordUsage()
+}
+
+// errNativeTimeout is the loop's error when the run's context deadline
+// passed; its text is the task's failure message.
+var errNativeTimeout = errors.New("native run timed out")
+
+// runLoop is the tool-calling loop shared by a run and its sub-agents: at
+// most maxTurns model calls, the last one (or the first after a budget
+// refusal) a tool-less wrap-up. Returns the closing text, or an error whose
+// text is the failure message to settle the task with.
+func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContext, cx *nativeContext, tools []openai.ChatCompletionToolUnionParam, maxTurns int, usage *nativeRunUsage) (string, error) {
+	taskID := tctx.task.ID
+	for turn := 0; turn < maxTurns; turn++ {
+		// The last turn, or the first turn after a budget refusal, is a
+		// wrap-up: no tools, one question — what was done, what remains,
+		// what blocks. A run that ends on "turn limit reached" leaves the
+		// next run (and the human) with nothing; a run that ends on a
+		// status can be continued.
+		wrapUp := tctx.wrapUp || turn == maxTurns-1
+		// Context compaction (long tasks): trim, then summarize, before
+		// the conversation outgrows the model.
+		if note := s.nativeCompactIfNeeded(ctx, cx, usage); note != "" {
+			s.writeNativeMessage(ctx, taskID, "system", "", note, nil)
+		}
+		messages := cx.messages()
+		params := openai.ChatCompletionNewParams{Messages: messages}
+		if wrapUp {
+			reason := tctx.wrapUpReason
+			if reason == "" {
+				reason = fmt.Sprintf("the turn budget (%d tool-calling turns) is spent", maxTurns)
+			}
+			params.Messages = append(messages, openai.UserMessage(nativeWrapUpPrompt(reason)))
+		} else {
+			params.Tools = tools
+		}
+		completion, err := s.LLM.Chat(ctx, params)
+		if err != nil {
+			s.noteLLMFailure()
+			if errors.Is(err, context.DeadlineExceeded) {
+				return "", errNativeTimeout
+			}
+			return "", fmt.Errorf("model call failed: %w", err)
+		}
+		if len(completion.Choices) == 0 {
+			s.noteLLMFailure()
+			return "", errors.New("model returned no choices")
+		}
+		s.noteLLMSuccess()
+		usage.input += completion.Usage.PromptTokens
+		usage.output += completion.Usage.CompletionTokens
+		usage.cacheRead += completion.Usage.PromptTokensDetails.CachedTokens
+		if usage.model == "" {
+			usage.model = completion.Model
+		}
+		msg := completion.Choices[0].Message
+		if wrapUp || len(msg.ToolCalls) == 0 {
+			// On the wrap-up turn the model was offered no tools; any
+			// tool call it hallucinates anyway is ignored, the text is
+			// the run's closing status.
+			return strings.TrimSpace(msg.Content), nil
+		}
+		// Tool calls of one turn: ordinary tools run in order; delegate
+		// calls (top-level runs only) run together, a few at a time, and
+		// their results take their places in the sequence.
+		assistantText := msg.Content
+		outputs := make([]string, len(msg.ToolCalls))
+		var delegates []int
+		for i, call := range msg.ToolCalls {
+			assistantText += call.Function.Name + call.Function.Arguments
+			if call.Function.Name == "delegate" && tctx.depth == 0 {
+				delegates = append(delegates, i)
+				continue
+			}
+			outputs[i] = s.executeNativeToolCall(ctx, tctx, call)
+		}
+		if len(delegates) > 0 {
+			calls := make([]openai.ChatCompletionMessageToolCallUnion, 0, len(delegates))
+			for _, i := range delegates {
+				calls = append(calls, msg.ToolCalls[i])
+			}
+			for k, out := range s.executeDelegateCalls(ctx, tctx, calls) {
+				outputs[delegates[k]] = out
+			}
+		}
+		results := make([]nativeToolResult, 0, len(msg.ToolCalls))
+		for i, call := range msg.ToolCalls {
+			results = append(results, nativeToolResult{callID: call.ID, tool: call.Function.Name, content: nativeClampToolResult(outputs[i])})
+		}
+		cx.addTurn(msg.ToParam(), assistantText, results)
+	}
+	return "", nil
 }
 
 // nativeWrapUpPrompt is the user turn that closes a run whose budget is
@@ -396,6 +427,12 @@ func (s *NativeAgentService) executeNativeToolCall(ctx context.Context, tctx *na
 	raw, merr := json.Marshal(payload)
 	if merr != nil {
 		raw = []byte(`{"error":"tool result could not be serialised"}`)
+	}
+	if tctx.depth > 0 {
+		// Sub-runs journal receipts for the report contract; an errored
+		// call is a receipt too, marked as such.
+		_, errored := payload.(map[string]any)["error"]
+		tctx.recordReceipt(name, inputJSON, !errored)
 	}
 	s.writeToolResult(ctx, tctx.task.ID, name, string(raw))
 	return string(raw)
