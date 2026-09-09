@@ -70,7 +70,8 @@ func (h *Handler) twentyReady(w http.ResponseWriter) bool {
 // GetTwentyConnection: GET /api/integrations/twenty.
 func (h *Handler) GetTwentyConnection(w http.ResponseWriter, r *http.Request) {
 	workspaceID := h.resolveWorkspaceID(r)
-	if _, ok := h.requireWorkspaceMember(w, r, workspaceID, "workspace not found"); !ok {
+	member, ok := h.requireWorkspaceMember(w, r, workspaceID, "workspace not found")
+	if !ok {
 		return
 	}
 	wsUUID, ok := parseUUIDOrBadRequest(w, workspaceID, "workspace id")
@@ -82,7 +83,13 @@ func (h *Handler) GetTwentyConnection(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, resp)
 		return
 	}
-	conn, err := h.Twenty.Get(r.Context(), wsUUID)
+	var conn twenty.Connection
+	var err error
+	if roleAllowed(member.Role, "owner", "admin") {
+		conn, err = h.Twenty.GetForAdmin(r.Context(), wsUUID)
+	} else {
+		conn, err = h.Twenty.Get(r.Context(), wsUUID)
+	}
 	switch {
 	case errors.Is(err, twenty.ErrNotConnected):
 	case err != nil:

@@ -176,7 +176,6 @@ export function TwentyTab() {
   if (!connected) {
     return (
       <div className="space-y-4" data-testid="twenty-connect">
-        <p className="text-body text-muted-foreground">{t(($) => $.twenty.page_description)}</p>
         {canManage ? (
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
