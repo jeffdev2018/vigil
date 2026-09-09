@@ -168,9 +168,11 @@ export function GoalSection({ issueId, issue }: { issueId: string; issue: Pick<I
               {t(($) => $.goal_loop.resume)}
             </Button>
           )}
-          <Button type="button" size="sm" variant="ghost" onClick={() => (editing ? setEditing(false) : startEdit())}>
-            {editing ? t(($) => $.goal_loop.cancel) : t(($) => $.goal_loop.edit)}
-          </Button>
+          {!editing && (
+            <Button type="button" size="sm" variant="ghost" onClick={startEdit}>
+              {t(($) => $.goal_loop.edit)}
+            </Button>
+          )}
         </div>
       </div>
 
