@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DndContext, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
+import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { ArrowRight, Bot, Check, GripVertical, Plus, Search, Users, X } from "lucide-react";
 import type { OrgDefinition, OrgMember, OrgUnit } from "@multica/core/types";
 import { addOrgMembers, moveOrgMember } from "@multica/core/org";
@@ -15,8 +15,8 @@ export type OrgBoardPerson = OrgMember & { name: string; avatar_url?: string | n
 
 function PersonRow({ person, from, disabled, onClick }: { person: OrgBoardPerson; from?: string; disabled: boolean; onClick: () => void }) {
   const { t } = useT("org");
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: `${from ?? "directory"}:${person.type}:${person.id}`, data: { member: person, from }, disabled });
-  return <div ref={setNodeRef} className={cn("relative flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted", isDragging && "z-30 bg-card shadow-xl ring-2 ring-info")} style={transform ? { transform: `translate3d(${transform.x}px,${transform.y}px,0)` } : undefined}>
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${from ?? "directory"}:${person.type}:${person.id}`, data: { member: person, from }, disabled });
+  return <div ref={setNodeRef} className={cn("relative flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted", isDragging && "opacity-30")}>
     {!disabled && <button type="button" {...attributes} {...listeners} aria-label={t($ => $.studio.move_person, { name: person.name })} className="shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><GripVertical className="size-3.5" /></button>}
     <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <ActorAvatar name={person.name} avatarUrl={person.avatar_url} initials={person.name.slice(0, 2)} isAgent={person.type === "agent"} size="md" />
@@ -58,6 +58,7 @@ export function OrgTeamBoard({ definition, people, selected, readOnly, onSelect,
   const [picked, setPicked] = useState<OrgBoardPerson | null>(null);
   const [target, setTarget] = useState("");
   const [notice, setNotice] = useState("");
+  const [dragging, setDragging] = useState<OrgBoardPerson | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(KeyboardSensor));
   const assigned = useMemo(() => new Set(definition.units.flatMap(u => u.members.map(m => `${m.type}:${m.id}`))), [definition]);
   const missing = people.filter(p => !assigned.has(`${p.type}:${p.id}`));
@@ -72,10 +73,11 @@ export function OrgTeamBoard({ definition, people, selected, readOnly, onSelect,
     setPicked(null); setTarget("");
   };
   const dropped = (event: DragEndEvent) => {
+    setDragging(null);
     const data = event.active.data.current;
     if (data?.member && event.over) assign(data.member as OrgBoardPerson, String(event.over.id), data.from as string | undefined);
   };
-  return <DndContext sensors={sensors} onDragEnd={dropped}>
+  return <DndContext sensors={sensors} onDragStart={event => setDragging(event.active.data.current?.member ?? null)} onDragCancel={() => setDragging(null)} onDragEnd={dropped}>
     <div className="flex flex-wrap items-center gap-3 px-4 py-3 text-caption text-muted-foreground"><span>{t($ => $.studio.board_hint)}</span><Button size="sm" variant="ghost" aria-pressed={directory} className="ml-auto gap-2" onClick={() => setDirectory(v => !v)}><Users className="size-4" />{t($ => $.studio.directory)}<span className="rounded bg-muted px-1.5 tabular-nums">{missing.length}</span></Button></div>
     <div className={cn("grid items-start", directory && "lg:grid-cols-[minmax(0,1fr)_240px]")}>
       <div className="grid min-w-0 gap-4 p-4 sm:grid-cols-2 2xl:grid-cols-3">
@@ -92,6 +94,7 @@ export function OrgTeamBoard({ definition, people, selected, readOnly, onSelect,
         {!readOnly && <Button size="sm" variant="outline" className="mt-4 w-full gap-2" onClick={onCreateAgent}><Bot className="size-3.5" />{t($ => $.coherence.create_agent)}</Button>}
       </aside>}
     </div>
+    <DragOverlay dropAnimation={null}>{dragging && <div className="flex items-center gap-2 rounded-lg border border-info bg-card p-3 text-caption font-medium shadow-xl ring-4 ring-info/15"><ActorAvatar name={dragging.name} avatarUrl={dragging.avatar_url} initials={dragging.name.slice(0, 2)} isAgent={dragging.type === "agent"} size="md" />{dragging.name}</div>}</DragOverlay>
     <p role="status" aria-live="polite" className={cn("px-4 text-caption text-success", notice && "pb-3")}>{notice}</p>
   </DndContext>;
 }
