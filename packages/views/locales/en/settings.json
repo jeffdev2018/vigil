@@ -2632,7 +2632,8 @@
       "section": "Upload a pack",
       "description": "Install a pack.yaml someone shared with you. The server reads and checks the file; nothing is applied before you have seen the preview.",
       "file_label": "Pack file",
-      "file_description": "A single .yaml file."
+      "file_description": "A single .yaml file.",
+      "too_large": "The web app cannot upload a pack over {{max}}. Install this file from the CLI instead: multica pack install-file <file> — or multica pack preview-file <file> to check it first."
     },
     "export": {
       "section": "Export as a pack",
@@ -2647,6 +2648,8 @@
       "metric_description": "How to read that metric",
       "include_issues": "Include work items",
       "include_notes": "Include notes",
+      "include_skills": "Include procedures (skills)",
+      "skills_note": "Procedures discovered on a connected computer are never exported.",
       "button": "Export the pack",
       "exporting": "Exporting...",
       "done": "Pack downloaded",

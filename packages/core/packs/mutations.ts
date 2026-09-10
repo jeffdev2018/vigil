@@ -9,7 +9,7 @@ import { projectKeys } from "../projects/queries";
 import { workspaceKeys } from "../workspace/queries";
 import { saveTransferBlob } from "../workspace/transfer";
 import { packKeys } from "./queries";
-import type { PackExportInput, PackStrategy } from "./schemas";
+import type { PackExportInput, PackInstall, PackStrategy } from "./schemas";
 
 /**
  * Packs (OS plan, vague B). Nothing here is optimistic: an install runs the
@@ -75,11 +75,26 @@ export function useInstallPackUpload(wsId: string) {
   });
 }
 
-/** Removes the configuration the pack created; content it brought stays. */
+/**
+ * Removes the configuration the pack created; content it brought stays.
+ *
+ * The response carries the ledger row as the server left it (status
+ * `removed`, `removed_at` set), so it is written straight into the installs
+ * list: the row loses its Installed badge and its Uninstall button the moment
+ * the mutation resolves, instead of only once the refetch below lands. That
+ * matters because the row's actions are what a stale copy makes wrong — the
+ * server answers 409 to a second uninstall. The invalidation still runs on
+ * settle for everything a pack touched, the catalogue included.
+ */
 export function useUninstallPack(wsId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (v: { id: string }) => api.uninstallPack(v.id),
+    onSuccess: (result) => {
+      qc.setQueryData<PackInstall[]>(packKeys.installs(wsId), (rows) =>
+        rows?.map((row) => (row.id === result.install.id ? result.install : row)),
+      );
+    },
     onSettled: () => invalidatePackTargets(qc, wsId),
   });
 }

@@ -96,8 +96,35 @@ const INSTALL_STATUS_TONE: Record<string, string> = {
 /** Fallback domain select value: the tab shows every pack. */
 const ALL_DOMAINS = "all";
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
+/**
+ * An upload posts through the web app's Next.js `/api` rewrite, which stalls
+ * on request bodies past this and answers 500 after ~30s (8 MB passes, 16 MB
+ * hangs). The server itself accepts 32 MB, so a bigger pack is not refused —
+ * it is refused *here*, and pointed at the CLI, which talks to the API
+ * directly.
+ */
+const UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+const UPLOAD_MAX_LABEL = `${UPLOAD_MAX_BYTES / 1024 / 1024} MB`;
+
+/**
+ * The server's own text, when there is one. It is never shown on its own: a
+ * raw "API error: 500 Internal Server Error" tells a user nothing, so every
+ * caller pairs it with the translated label and shows it as a second line.
+ */
+function errorDetail(error: unknown): string {
+  return error instanceof Error && error.message ? error.message : "";
+}
+
+/** Translated label first, the server's text under it. */
+function ErrorLines({ label, detail }: { label: string; detail: string }) {
+  return (
+    <div role="alert" className="flex flex-col gap-0.5">
+      <p className="text-caption text-destructive">{label}</p>
+      {detail && (
+        <p className="text-caption break-words text-muted-foreground">{detail}</p>
+      )}
+    </div>
+  );
 }
 
 type LabelMap = Record<string, string>;
@@ -293,7 +320,7 @@ function KindList({ contents, kinds }: { contents: PackContents; kinds: LabelMap
   const entries = Object.entries(contents).filter(([, names]) => names.length > 0);
   if (entries.length === 0) return null;
   return (
-    <ul className="flex flex-col gap-1.5 text-caption">
+    <ul className="flex max-h-64 flex-col gap-1.5 overflow-y-auto text-caption">
       {entries.map(([kind, names]) => (
         <li key={kind}>
           <span className="font-medium">{labelFor(kinds, kind)}</span>
@@ -393,7 +420,7 @@ function PreviewPanel({
           <p className="text-caption font-medium">
             {t(($) => $.packs.preview.collisions, { count: preview.collisions.length })}
           </p>
-          <ul className="text-caption text-muted-foreground">
+          <ul className="max-h-48 overflow-y-auto text-caption text-muted-foreground">
             {preview.collisions.map((c) => (
               <li key={`${c.kind}:${c.name}`}>{`${labelFor(kinds, c.kind)} · ${c.name}`}</li>
             ))}
@@ -493,7 +520,7 @@ function PackDetailDialog({
       { id: packId },
       {
         onError: (error) =>
-          toast.error(errorMessage(error, t(($) => $.packs.preview.failed))),
+          toast.error(t(($) => $.packs.preview.failed), { description: errorDetail(error) }),
       },
     );
   };
@@ -504,7 +531,7 @@ function PackDetailDialog({
       {
         onSuccess: () => toast.success(t(($) => $.packs.install_done)),
         onError: (error) =>
-          toast.error(errorMessage(error, t(($) => $.packs.install_failed))),
+          toast.error(t(($) => $.packs.install_failed), { description: errorDetail(error) }),
       },
     );
   };
@@ -621,7 +648,9 @@ function PackDetailDialog({
                 onClick={() =>
                   download.mutate(packId, {
                     onError: (error) =>
-                      toast.error(errorMessage(error, t(($) => $.packs.detail.download_failed))),
+                      toast.error(t(($) => $.packs.detail.download_failed), {
+                        description: errorDetail(error),
+                      }),
                   })
                 }
               >
@@ -700,7 +729,9 @@ function InstalledSection({
           toast.success(t(($) => $.packs.installed.uninstall_done));
         },
         onError: (error) =>
-          toast.error(errorMessage(error, t(($) => $.packs.installed.uninstall_failed))),
+          toast.error(t(($) => $.packs.installed.uninstall_failed), {
+            description: errorDetail(error),
+          }),
       },
     );
   };
@@ -900,6 +931,9 @@ function UploadSection({
 
   const previewData = preview.data ?? null;
   const effectiveStrategy = (strategy || previewData?.strategy || "skip") as PackStrategy;
+  // Derived from the file already in state; the message below is the whole
+  // handling, so there is no second piece of state to keep in step.
+  const oversize = file !== null && file.size > UPLOAD_MAX_BYTES;
 
   const pickFile = (event: ChangeEvent<HTMLInputElement>) => {
     const next = event.target.files?.[0] ?? null;
@@ -907,12 +941,12 @@ function UploadSection({
     setStrategy("");
     preview.reset();
     install.reset();
-    if (!next) return;
+    if (!next || next.size > UPLOAD_MAX_BYTES) return;
     preview.mutate(
       { file: next },
       {
         onError: (error) =>
-          toast.error(errorMessage(error, t(($) => $.packs.preview.failed))),
+          toast.error(t(($) => $.packs.preview.failed), { description: errorDetail(error) }),
       },
     );
   };
@@ -942,10 +976,29 @@ function UploadSection({
               onChange={pickFile}
               className="text-caption"
             />
+            {oversize && (
+              <p role="alert" className="text-caption text-destructive">
+                {t(($) => $.packs.upload.too_large, { max: UPLOAD_MAX_LABEL })}
+              </p>
+            )}
             {preview.isPending && (
               <p role="status" className="text-caption text-muted-foreground">
                 {t(($) => $.packs.preview.running)}
               </p>
+            )}
+            {/* A toast is gone in four seconds; the reason a preview or an
+                install failed has to stay under the drop zone. */}
+            {preview.isError && (
+              <ErrorLines
+                label={t(($) => $.packs.preview.failed)}
+                detail={errorDetail(preview.error)}
+              />
+            )}
+            {install.isError && (
+              <ErrorLines
+                label={t(($) => $.packs.install_failed)}
+                detail={errorDetail(install.error)}
+              />
             )}
             {previewData && !install.isSuccess && (
               <>
@@ -963,7 +1016,9 @@ function UploadSection({
                       {
                         onSuccess: () => toast.success(t(($) => $.packs.install_done)),
                         onError: (error) =>
-                          toast.error(errorMessage(error, t(($) => $.packs.install_failed))),
+                          toast.error(t(($) => $.packs.install_failed), {
+                            description: errorDetail(error),
+                          }),
                       },
                     )
                   }
@@ -1002,6 +1057,9 @@ function ExportSection({
   const [metricDescription, setMetricDescription] = useState("");
   const [includeIssues, setIncludeIssues] = useState(false);
   const [includeNotes, setIncludeNotes] = useState(false);
+  // Matches the server default. Skills discovered on a connected computer
+  // (origin `runtime_local`) are dropped there whatever this says.
+  const [includeSkills, setIncludeSkills] = useState(true);
 
   // The server validates the manifest and answers 400 with the exact reason,
   // so this only gates on the fields it always rejects when empty.
@@ -1104,6 +1162,18 @@ function ExportSection({
               />
               {t(($) => $.packs.export.include_notes)}
             </label>
+            <label className="flex items-center gap-2 text-caption">
+              <input
+                type="checkbox"
+                checked={includeSkills}
+                disabled={!canManage}
+                onChange={(e) => setIncludeSkills(e.target.checked)}
+              />
+              {t(($) => $.packs.export.include_skills)}
+            </label>
+            <p className="text-caption text-muted-foreground">
+              {t(($) => $.packs.export.skills_note)}
+            </p>
             <div>
               <Button
                 type="button"
@@ -1125,11 +1195,14 @@ function ExportSection({
                       },
                       include_issues: includeIssues,
                       include_notes: includeNotes,
+                      include_skills: includeSkills,
                     },
                     {
                       onSuccess: () => toast.success(t(($) => $.packs.export.done)),
                       onError: (error) =>
-                        toast.error(errorMessage(error, t(($) => $.packs.export.failed))),
+                        toast.error(t(($) => $.packs.export.failed), {
+                          description: errorDetail(error),
+                        }),
                     },
                   )
                 }

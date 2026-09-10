@@ -24,6 +24,8 @@ const state = vi.hoisted(() => ({
   installDetail: null as unknown,
   previewData: null as unknown,
   uploadPreviewData: null as unknown,
+  uploadPreviewError: null as Error | null,
+  uploadInstallError: null as Error | null,
   preview: vi.fn(),
   previewUpload: vi.fn(),
   install: vi.fn(),
@@ -74,6 +76,8 @@ vi.mock("@multica/core/packs", async (importOriginal) => ({
     mutate: state.previewUpload,
     data: state.uploadPreviewData,
     isPending: false,
+    isError: state.uploadPreviewError !== null,
+    error: state.uploadPreviewError,
     reset: vi.fn(),
   }),
   useInstallPack: () => ({
@@ -88,6 +92,8 @@ vi.mock("@multica/core/packs", async (importOriginal) => ({
     data: undefined,
     isPending: false,
     isSuccess: false,
+    isError: state.uploadInstallError !== null,
+    error: state.uploadInstallError,
     reset: vi.fn(),
   }),
   useUninstallPack: () => ({ mutate: state.uninstall, isPending: false }),
@@ -202,6 +208,8 @@ beforeEach(() => {
   state.installDetail = null;
   state.previewData = null;
   state.uploadPreviewData = null;
+  state.uploadPreviewError = null;
+  state.uploadInstallError = null;
 });
 
 describe("PacksTab catalogue", () => {
@@ -358,6 +366,35 @@ describe("PacksTab installed", () => {
     expect(state.uninstall).toHaveBeenCalledWith({ id: "install-1" }, expect.anything());
   });
 
+  // useUninstallPack rewrites the installs list from the uninstall response so
+  // the row is correct the moment the mutation resolves, without waiting on
+  // the refetch the invalidation triggers (canonical test:
+  // packages/core/packs/mutations.test.tsx). What this asserts is the other
+  // half: the row's badge and its actions read that list and nothing else, so
+  // a removed install can never keep a live Uninstall button — the server
+  // answers 409 to the second attempt.
+  it("shows Removed and drops the button once the uninstall resolves", () => {
+    state.installs = [install()];
+    state.uninstall.mockImplementation(
+      (_v: { id: string }, opts: { onSuccess: (r: unknown) => void }) => {
+        const removed = install({ status: "removed", removed_at: "2026-09-10T10:00:00Z" });
+        state.installs = [removed];
+        opts.onSuccess({
+          install: removed,
+          report: { removed: { labels: 2 }, kept: [], reasons: [] },
+        });
+      },
+    );
+    const { rerender } = renderWithI18n(<PacksTab />);
+    fireEvent.click(screen.getByRole("button", { name: /Uninstall/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Remove the pack" }));
+    expect(screen.getByTestId("pack-uninstall-report").textContent).toContain("2 labels");
+    // The list the mutation rewrote reaches the row through the query.
+    rerender(<PacksTab />);
+    expect(screen.queryByRole("button", { name: /Uninstall/ })).toBeNull();
+    expect(screen.getAllByText("Removed").length).toBeGreaterThan(0);
+  });
+
   it("hides the destructive actions from a plain member", () => {
     member.role = "member";
     state.installs = [install()];
@@ -380,6 +417,30 @@ describe("PacksTab upload", () => {
     expect(state.previewUpload).toHaveBeenCalledWith(
       { file: expect.any(File) },
       expect.anything(),
+    );
+  });
+
+  it("refuses a file the /api rewrite cannot carry and names the CLI instead", () => {
+    const big = new File(["x"], "big.pack.yaml", { type: "text/yaml" });
+    Object.defineProperty(big, "size", { value: 9 * 1024 * 1024 });
+    renderWithI18n(<PacksTab />);
+    fireEvent.change(screen.getByLabelText("Pack file"), { target: { files: [big] } });
+    expect(state.previewUpload).not.toHaveBeenCalled();
+    const alert = screen.getByRole("alert");
+    expect(alert.textContent).toContain("cannot upload a pack over 8 MB");
+    expect(alert.textContent).toContain("multica pack install-file");
+    expect(alert.textContent).toContain("multica pack preview-file");
+  });
+
+  it("keeps a failed preview readable under the drop zone, label before raw text", () => {
+    state.uploadPreviewError = new Error("API error: 500 Internal Server Error");
+    renderWithI18n(<PacksTab />);
+    const panel = screen.getByTestId("pack-upload");
+    const alert = within(panel).getByRole("alert");
+    expect(alert.textContent).toContain("Failed to preview the pack");
+    expect(alert.textContent).toContain("API error: 500 Internal Server Error");
+    expect(alert.textContent?.indexOf("Failed to preview the pack")).toBeLessThan(
+      alert.textContent?.indexOf("API error") ?? -1,
     );
   });
 
@@ -425,7 +486,27 @@ describe("PacksTab export", () => {
         },
         include_issues: false,
         include_notes: true,
+        include_skills: true,
       },
+      expect.anything(),
+    );
+  });
+
+  it("lets the export drop the procedures and says machine-local ones never travel", () => {
+    renderWithI18n(<PacksTab />);
+    const panel = screen.getByTestId("pack-export");
+    expect(
+      within(panel).getByText(/discovered on a connected computer are never exported/),
+    ).toBeTruthy();
+    fireEvent.change(within(panel).getByLabelText("Identifier (kebab-case)"), {
+      target: { value: "my-desk" },
+    });
+    fireEvent.change(within(panel).getByLabelText("Title"), { target: { value: "My desk" } });
+    fireEvent.change(within(panel).getByLabelText("Summary"), { target: { value: "Ours." } });
+    fireEvent.click(within(panel).getByLabelText("Include procedures (skills)"));
+    fireEvent.click(screen.getByRole("button", { name: /Export the pack/ }));
+    expect(state.exportPack).toHaveBeenCalledWith(
+      expect.objectContaining({ include_skills: false }),
       expect.anything(),
     );
   });

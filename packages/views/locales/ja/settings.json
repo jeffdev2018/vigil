@@ -2624,7 +2624,8 @@
       "section": "パックをアップロード",
       "description": "共有された pack.yaml をインストールします。ファイルの読み取りと検査はサーバーが行い、プレビューを確認する前に適用されることはありません。",
       "file_label": "パックファイル",
-      "file_description": ".yaml ファイル 1 つ。"
+      "file_description": ".yaml ファイル 1 つ。",
+      "too_large": "{{max}} を超えるパックはウェブアプリからアップロードできません。CLI からインストールしてください: multica pack install-file <file> — 先に確認するなら multica pack preview-file <file>。"
     },
     "export": {
       "section": "パックとしてエクスポート",
@@ -2639,6 +2640,8 @@
       "metric_description": "その指標の読み方",
       "include_issues": "課題を含める",
       "include_notes": "ノートを含める",
+      "include_skills": "手順 (スキル) を含める",
+      "skills_note": "接続されたコンピューターで見つかった手順はエクスポートされません。",
       "button": "パックをエクスポート",
       "exporting": "エクスポート中...",
       "done": "パックをダウンロードしました",

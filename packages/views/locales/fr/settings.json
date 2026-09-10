@@ -2632,7 +2632,8 @@
       "section": "Importer un pack",
       "description": "Installez un pack.yaml qu'on vous a partagé. Le serveur lit et vérifie le fichier ; rien n'est appliqué avant que vous ayez vu l'aperçu.",
       "file_label": "Fichier du pack",
-      "file_description": "Un seul fichier .yaml."
+      "file_description": "Un seul fichier .yaml.",
+      "too_large": "L'application web ne peut pas envoyer un pack de plus de {{max}}. Installez ce fichier depuis la CLI : multica pack install-file <fichier> — ou multica pack preview-file <fichier> pour le vérifier d'abord."
     },
     "export": {
       "section": "Exporter en pack",
@@ -2647,6 +2648,8 @@
       "metric_description": "Comment lire cet indicateur",
       "include_issues": "Inclure les tâches",
       "include_notes": "Inclure les notes",
+      "include_skills": "Inclure les procédures (skills)",
+      "skills_note": "Les procédures découvertes sur un ordinateur connecté ne sont jamais exportées.",
       "button": "Exporter le pack",
       "exporting": "Export...",
       "done": "Pack téléchargé",

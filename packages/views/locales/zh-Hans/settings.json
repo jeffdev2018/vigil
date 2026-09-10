@@ -2624,7 +2624,8 @@
       "section": "上传 pack",
       "description": "安装别人分享给你的 pack.yaml。文件由服务端读取和校验；在你看到预览之前不会应用任何内容。",
       "file_label": "pack 文件",
-      "file_description": "一个 .yaml 文件。"
+      "file_description": "一个 .yaml 文件。",
+      "too_large": "超过 {{max}} 的 pack 无法从网页端上传，请改用 CLI 安装：multica pack install-file <file>；想先检查就用 multica pack preview-file <file>。"
     },
     "export": {
       "section": "导出为 pack",
@@ -2639,6 +2640,8 @@
       "metric_description": "怎么看这个指标",
       "include_issues": "包含任务",
       "include_notes": "包含笔记",
+      "include_skills": "包含 skill",
+      "skills_note": "在已连接的电脑上发现的 skill 永远不会被导出。",
       "button": "导出 pack",
       "exporting": "导出中...",
       "done": "已下载 pack",
