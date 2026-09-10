@@ -58,13 +58,4 @@ describe("decision memory client", () => {
     const init = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0]?.[1] as { body?: string };
     expect(JSON.parse(init?.body ?? "{}")).not.toHaveProperty("run_id");
   });
-
-  it("reads the ADR requirement and falls back to a satisfied gate", async () => {
-    stubFetch({ required: true, satisfied: false, files: 12, file_threshold: 10, migration: true, decisions: 0 });
-    const req = await new ApiClient("https://api.example.test").getIssueAdrRequirement("i1");
-    expect(req.required).toBe(true);
-    expect(req.files).toBe(12);
-    stubFetch([]);
-    expect((await new ApiClient("https://api.example.test").getIssueAdrRequirement("i1")).satisfied).toBe(true);
-  });
 });

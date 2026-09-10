@@ -23,7 +23,6 @@ import type {
   CreateIssueRequest,
   MoveIssueRequest,
   UpdateIssueRequest,
-  GroupedIssuesResponse,
   ListIssuesResponse,
   SearchIssuesResponse,
   SearchProjectsResponse,
@@ -31,7 +30,6 @@ import type {
   CreateMemberRequest,
   UpdateMemberRequest,
   ListIssuesParams,
-  ListGroupedIssuesParams,
   IssueTableFacetsRequest,
   IssueTableFacetsResponse,
   IssueTableGroupsRequest,
@@ -93,7 +91,6 @@ import type {
   CreatePersonalAccessTokenResponse,
   RuntimeUsage,
   IssueUsageSummary,
-  RuntimeHourlyActivity,
   RuntimeUsageByAgent,
   RuntimeUsageByHour,
   RuntimeRoutingStatsResponse,
@@ -109,7 +106,6 @@ import type {
   AuditLogFilter,
   AuditLogPage,
   AuditChainStatus,
-  ADRRequirement,
   DecisionRecord,
   BlastRadiusRule,
   BlastRadiusPreview,
@@ -427,7 +423,7 @@ import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, Twent
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
-import { DoctrineSchema, DoctrinePublishResponseSchema, DoctrineVersionsResponseSchema, DoctrineVersionEnvelopeSchema, DoctrineDiffSchema, DoctrineReportsResponseSchema, DoctrineReportEnvelopeSchema, EMPTY_DOCTRINE, EMPTY_DOCTRINE_PUBLISH, EMPTY_DOCTRINE_VERSION, EMPTY_DOCTRINE_VERSIONS, EMPTY_DOCTRINE_DIFF, EMPTY_DOCTRINE_REPORT, type Doctrine, type DoctrineDiff, type DoctrinePublishInput, type DoctrinePublishResponse, type DoctrineReport, type DoctrineReportFilter, type DoctrineVersion, type DoctrineVersionsResponse } from "../doctrine/schemas";
+import { DoctrineSchema, DoctrinePublishResponseSchema, DoctrineVersionsResponseSchema, DoctrineDiffSchema, DoctrineReportsResponseSchema, DoctrineReportEnvelopeSchema, EMPTY_DOCTRINE, EMPTY_DOCTRINE_PUBLISH, EMPTY_DOCTRINE_VERSIONS, EMPTY_DOCTRINE_DIFF, EMPTY_DOCTRINE_REPORT, type Doctrine, type DoctrineDiff, type DoctrinePublishInput, type DoctrinePublishResponse, type DoctrineReport, type DoctrineReportFilter, type DoctrineVersionsResponse } from "../doctrine/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
 import { CodeWikiSchema, CodeWikiPageSchema, EMPTY_CODE_WIKI, type CodeWiki, type CodeWikiPage } from "../projects/wiki";
@@ -478,7 +474,6 @@ import {
   type OnboardingChecklistResponse,
   ChildIssuesResponseSchema,
   ChildIssueProgressResponseSchema,
-  CommentsListSchema,
   AnchoredThreadsSchema,
   EMPTY_ANCHORED_THREADS,
   CommentTriggerPreviewSchema,
@@ -590,12 +585,10 @@ import {
   RunLimitPoliciesEnvelopeSchema,
   RunLimitEventsEnvelopeSchema,
   HandoffPacketsEnvelopeSchema,
-  LatestHandoffPacketEnvelopeSchema,
   RoutingSettingsSchema,
   TrustSuggestionSchema,
   TrustHistorySchema,
   WhySearchResponseSchema,
-  ADRRequirementSchema,
   DecisionRecordListSchema,
   BlastRadiusRulesSchema,
   BlastRadiusPreviewSchema,
@@ -620,7 +613,6 @@ import {
   EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   EMPTY_CLOUD_RUNTIME_NODE_LIST,
   EMPTY_AGENT_BUILDER_SESSION,
-  EMPTY_GROUPED_ISSUES_RESPONSE,
   EMPTY_ISSUE_TABLE_FACETS_RESPONSE,
   EMPTY_ISSUE_TABLE_GROUPS_RESPONSE,
   EMPTY_ISSUE_TABLE_ROWS_RESPONSE,
@@ -636,7 +628,6 @@ import {
   EMPTY_WEBHOOK_DELIVERY,
   AppConfigSchema,
   type AppConfigResponse,
-  GroupedIssuesResponseSchema,
   IssueTableFacetsResponseSchema,
   IssueTableGroupsResponseSchema,
   IssueTableRowsResponseSchema,
@@ -740,7 +731,6 @@ import {
   SourceContextPreviewSchema,
   CommentSubIssueTaskResponseSchema,
   ListWebhookDeliveriesResponseSchema,
-  RuntimeHourlyActivityListSchema,
   RuntimeUsageByAgentListSchema,
   RuntimeUsageByHourListSchema,
   RuntimeUsageListSchema,
@@ -1612,52 +1602,6 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(path);
     return parseWithFallback(raw, ListIssuesResponseSchema, EMPTY_LIST_ISSUES_RESPONSE, {
       endpoint: "GET /api/issues",
-    });
-  }
-
-  async listGroupedIssues(params: ListGroupedIssuesParams): Promise<GroupedIssuesResponse> {
-    const search = new URLSearchParams({ group_by: params.group_by });
-    if (params.limit) search.set("limit", String(params.limit));
-    if (params.offset) search.set("offset", String(params.offset));
-    if (params.workspace_id) search.set("workspace_id", params.workspace_id);
-    if (params.statuses?.length) search.set("statuses", params.statuses.join(","));
-    if (params.priorities?.length) search.set("priorities", params.priorities.join(","));
-    if (params.assignee_types?.length) search.set("assignee_types", params.assignee_types.join(","));
-    if (params.assignee_id) search.set("assignee_id", params.assignee_id);
-    if (params.assignee_ids?.length) search.set("assignee_ids", params.assignee_ids.join(","));
-    if (params.creator_id) search.set("creator_id", params.creator_id);
-    if (params.project_id) search.set("project_id", params.project_id);
-    if (params.involves_user_id) search.set("involves_user_id", params.involves_user_id);
-    if (params.metadata && Object.keys(params.metadata).length > 0) {
-      search.set("metadata", JSON.stringify(params.metadata));
-    }
-    if (params.properties && Object.keys(params.properties).length > 0) {
-      search.set("properties", JSON.stringify(params.properties));
-    }
-    if (params.assignee_filters?.length) {
-      search.set("assignee_filters", params.assignee_filters.map((f) => `${f.type}:${f.id}`).join(","));
-    }
-    if (params.include_no_assignee) search.set("include_no_assignee", "true");
-    if (params.delegate_filters?.length) {
-      search.set("delegate_filters", params.delegate_filters.map((f) => `${f.type}:${f.id}`).join(","));
-    }
-    if (params.include_no_delegate) search.set("include_no_delegate", "true");
-    if (params.creator_filters?.length) {
-      search.set("creator_filters", params.creator_filters.map((f) => `${f.type}:${f.id}`).join(","));
-    }
-    if (params.project_ids?.length) search.set("project_ids", params.project_ids.join(","));
-    if (params.include_no_project) search.set("include_no_project", "true");
-    if (params.label_ids?.length) search.set("label_ids", params.label_ids.join(","));
-    if (params.group_assignee_type) search.set("group_assignee_type", params.group_assignee_type);
-    if (params.group_assignee_id) search.set("group_assignee_id", params.group_assignee_id);
-    if (params.date_field) search.set("date_field", params.date_field);
-    if (params.date_start) search.set("date_start", params.date_start);
-    if (params.date_end) search.set("date_end", params.date_end);
-    if (params.sort_by) search.set("sort", params.sort_by);
-    if (params.sort_direction) search.set("direction", params.sort_direction);
-    const raw = await this.fetch<unknown>(`/api/issues/grouped?${search}`);
-    return parseWithFallback(raw, GroupedIssuesResponseSchema, EMPTY_GROUPED_ISSUES_RESPONSE, {
-      endpoint: "GET /api/issues/grouped",
     });
   }
 
@@ -3029,13 +2973,6 @@ export class ApiClient {
   }
 
   // Comments
-  async listComments(issueId: string): Promise<Comment[]> {
-    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/comments`);
-    return parseWithFallback(raw, CommentsListSchema, [], {
-      endpoint: "GET /api/issues/:id/comments",
-    });
-  }
-
   async createComment(
     issueId: string,
     content: string,
@@ -3953,18 +3890,6 @@ export class ApiClient {
     }).runtime_profiles;
   }
 
-  async getRuntimeProfile(
-    workspaceId: string,
-    profileId: string,
-  ): Promise<RuntimeProfile> {
-    const raw = await this.fetch<unknown>(
-      `/api/workspaces/${workspaceId}/runtime-profiles/${profileId}`,
-    );
-    return parseWithFallback(raw, RuntimeProfileSchema, EMPTY_RUNTIME_PROFILE, {
-      endpoint: "GET /api/workspaces/:workspaceId/runtime-profiles/:profileId",
-    });
-  }
-
   async createRuntimeProfile(
     workspaceId: string,
     body: CreateRuntimeProfileRequest,
@@ -4024,25 +3949,6 @@ export class ApiClient {
     return parseWithFallback<RuntimeUsage[]>(raw, RuntimeUsageListSchema, [], {
       endpoint: "GET /api/runtimes/:id/usage",
     });
-  }
-
-  async getRuntimeTaskActivity(
-    runtimeId: string,
-    params?: { tz?: string },
-  ): Promise<RuntimeHourlyActivity[]> {
-    // Hour-of-day heatmap follows the viewer's tz, like the other reports on
-    // this page. Pass the viewer's IANA zone so the server buckets correctly.
-    const search = new URLSearchParams();
-    if (params?.tz) search.set("tz", params.tz);
-    const raw = await this.fetch<unknown>(
-      `/api/runtimes/${runtimeId}/activity?${search}`,
-    );
-    return parseWithFallback<RuntimeHourlyActivity[]>(
-      raw,
-      RuntimeHourlyActivityListSchema,
-      [],
-      { endpoint: "GET /api/runtimes/:id/activity" },
-    );
   }
 
   async getRuntimeUsageByAgent(
@@ -4736,11 +4642,6 @@ export class ApiClient {
     }).decisions;
   }
 
-  async getIssueAdrRequirement(issueId: string): Promise<ADRRequirement> {
-    const raw = await this.fetch<unknown>(`/api/issues/${issueId}/adr-required`);
-    return parseWithFallback(raw, ADRRequirementSchema, { required: false, satisfied: true, files: 0, file_threshold: 0, migration: false, decisions: 0 }, { endpoint: "GET /api/issues/:id/adr-required" });
-  }
-
   // Trust Dial (K26).
   async getAgentTrustMode(agentId: string): Promise<{ agent_id: string; mode: string; modes: string[] }> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/trust-mode`);
@@ -5133,22 +5034,6 @@ export class ApiClient {
     );
   }
 
-  async getDoctrineVersion(
-    id: string,
-    options?: { signal?: AbortSignal },
-  ): Promise<DoctrineVersion> {
-    const raw = await this.fetch<unknown>(
-      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}`,
-      options?.signal ? { signal: options.signal } : undefined,
-    );
-    return parseWithFallback<{ version: DoctrineVersion }>(
-      raw,
-      DoctrineVersionEnvelopeSchema,
-      { version: { ...EMPTY_DOCTRINE_VERSION, id } },
-      { endpoint: "GET /api/workspace/doctrine/versions/:id" },
-    ).version;
-  }
-
   /** `against` omitted compares the version with its predecessor. */
   async getDoctrineVersionDiff(
     id: string,
@@ -5474,11 +5359,6 @@ export class ApiClient {
     return parseWithFallback(raw, ContestListSchema, { contests: [] }, { endpoint: "GET /api/contests" }).contests;
   }
 
-  async getContest(id: string): Promise<import("../issues/contest").Contest | null> {
-    const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}`);
-    return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "GET /api/contests/:id" });
-  }
-
   async confirmContest(id: string, verdict: "upheld" | "dismissed" | "mixed", note: string): Promise<import("../issues/contest").Contest | null> {
     const raw = await this.fetch<unknown>(`/api/contests/${encodeURIComponent(id)}/verdict`, { method: "POST", body: JSON.stringify({ verdict, note }) });
     return parseWithFallback(raw, ContestSchema.nullable(), null, { endpoint: "POST /api/contests/:id/verdict" });
@@ -5709,11 +5589,6 @@ export class ApiClient {
   async listHandoffPackets(issueId: string): Promise<import("../issues/handoff").HandoffPacket[]> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packets`);
     return parseWithFallback(raw, HandoffPacketsEnvelopeSchema, { packets: [] }, { endpoint: "GET /api/issues/:id/handoff-packets" }).packets;
-  }
-
-  async getLatestHandoffPacket(issueId: string): Promise<import("../issues/handoff").HandoffPacket | null> {
-    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/handoff-packet/latest`);
-    return parseWithFallback(raw, LatestHandoffPacketEnvelopeSchema, { packet: null }, { endpoint: "GET /api/issues/:id/handoff-packet/latest" }).packet;
   }
 
   async createHandoffPacket(issueId: string, input: import("../issues/handoff").HandoffPacketInput): Promise<import("../issues/handoff").HandoffPacket> {
@@ -6968,13 +6843,6 @@ export class ApiClient {
     });
   }
 
-  async listAgentSkills(agentId: string): Promise<SkillSummary[]> {
-    const raw = await this.fetch<unknown>(`/api/agents/${agentId}/skills`);
-    return parseWithFallback(raw, SkillSummaryListSchema, [], {
-      endpoint: "GET /api/agents/{id}/skills",
-    });
-  }
-
   async setAgentSkills(agentId: string, data: SetAgentSkillsRequest): Promise<void> {
     await this.fetch(`/api/agents/${agentId}/skills`, {
       method: "PUT",
@@ -7444,10 +7312,6 @@ export class ApiClient {
     });
   }
 
-  async deleteAttachment(id: string): Promise<void> {
-    await this.fetch(`/api/attachments/${id}`, { method: "DELETE" });
-  }
-
   // Fetches the raw bytes of a text-previewable attachment.
   //
   // The endpoint sidesteps CloudFront CORS (not configured on the CDN) and
@@ -7769,13 +7633,6 @@ export class ApiClient {
     const raw = await this.fetch<unknown>(`/api/labels?resource_type=${resourceType}`);
     return parseWithFallback(raw, ListLabelsResponseSchema, EMPTY_LIST_LABELS_RESPONSE, {
       endpoint: "GET /api/labels",
-    });
-  }
-
-  async getLabel(id: string): Promise<Label> {
-    const raw = await this.fetch<unknown>(`/api/labels/${id}`);
-    return parseWithFallback(raw, LabelSchema, EMPTY_LABEL, {
-      endpoint: "GET /api/labels/{id}",
     });
   }
 
