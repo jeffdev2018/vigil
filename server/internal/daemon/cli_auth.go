@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/multica-ai/multica/server/internal/daemon/execenv"
 	"github.com/multica-ai/multica/server/internal/daemon/processtree"
 	"github.com/multica-ai/multica/server/pkg/agent"
 	"github.com/multica-ai/multica/server/pkg/redact"
@@ -180,6 +182,24 @@ func (w *cliAuthOutputWriter) Write(p []byte) (int, error) {
 
 func (d *Daemon) handleCliAuth(ctx context.Context, rt Runtime, pending PendingCliAuth) {
 	d.logger.Info("CLI authentication requested", "runtime_id", rt.ID, "request_id", pending.ID, "provider", rt.Provider, "action", pending.Action)
+
+	// `claude login` and `codex login` both write the OS account's single
+	// credential file. Two of them at once — two runtimes on this machine, or
+	// a retry arriving while the first is still waiting on the device code —
+	// race on that file, and the loser silently overwrites a session the user
+	// just completed. The lock is per OS account, so it also covers a second
+	// daemon process; it cannot cover someone running the CLI by hand.
+	home, err := os.UserHomeDir()
+	if err != nil {
+		d.reportCliAuthFailure(ctx, rt, pending.ID, err)
+		return
+	}
+	unlock, err := execenv.LockProviderAuthentication(home, rt.Provider)
+	if err != nil {
+		d.reportCliAuthFailure(ctx, rt, pending.ID, err)
+		return
+	}
+	defer unlock()
 
 	execPath, fixedArgs, err := d.resolveRuntimeCommand(ctx, rt)
 	if err != nil {
