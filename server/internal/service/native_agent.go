@@ -705,7 +705,9 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 			// writes must not settle until the model reconciles those effects
 			// with the ask. Divert once into a wrap-up turn that carries the
 			// effect ledger; Run confidence still scores the completed result.
-			if !wrapUp && len(tctx.receipts) > 0 && !tctx.honestStopAsked {
+			// Sub-agents (depth>0) already close under the receipt report
+			// contract — do not insert a second wrap-up there.
+			if !wrapUp && tctx.depth == 0 && len(tctx.receipts) > 0 && !tctx.honestStopAsked {
 				tctx.honestStopAsked = true
 				tctx.requestWrapUp("honest stop: reconcile the effects you produced with what was asked")
 				if finalText != "" {
