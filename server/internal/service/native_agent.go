@@ -255,7 +255,8 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	recordUsage := func() {
 		s.recordNativeUsage(ctx, taskID, usage)
 	}
-	if _, err := s.Tasks.StartTask(ctx, taskID); err != nil {
+	started, err := s.Tasks.StartTask(ctx, taskID)
+	if err != nil {
 		slog.Error("native run: start failed", "task_id", util.UUIDToString(taskID), "error", err)
 		s.failNativeTask(ctx, task, "native run could not start: "+err.Error())
 		return
@@ -264,6 +265,11 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	if err != nil {
 		s.failNativeTask(ctx, task, "native run: assigned agent no longer exists")
 		return
+	}
+	// Adopt the started row: the loop evaluates workspace run limits against
+	// this task, and the gate only bites a running one.
+	if started != nil {
+		task = *started
 	}
 	brief, ownIssue, briefErr := s.nativeBriefForTask(ctx, task, agent)
 	if briefErr != nil {
@@ -275,6 +281,12 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	cx := newNativeContext(nativeSystemPrompt(agent), brief)
 
 	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeAgentToolSpecsFor(0), nativeMaxTurns, &usage)
+	if errors.Is(loopErr, errNativeRunLimitStopped) {
+		// The workspace's run limit already settled the task with the gate's
+		// message (N07); recording usage is all that is left.
+		recordUsage()
+		return
+	}
 	if loopErr != nil {
 		s.failNativeTask(ctx, task, loopErr.Error())
 		recordUsage()
@@ -503,6 +515,13 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 			results = append(results, nativeToolResult{callID: call.ID, tool: call.Function.Name, content: nativeClampToolResult(outputs[i])})
 		}
 		cx.addTurn(msg.ToParam(), assistantText, results)
+		// Workspace run limits (N07): the same gates the daemon evaluates
+		// after every message batch — turns, duration, tool calls, cost —
+		// now bite the native loop too. A stop settles the task with the
+		// gate's message; the caller must settle nothing further.
+		if s.Tasks != nil && s.Tasks.EvaluateRunLimits(ctx, tctx.task) {
+			return "", errNativeRunLimitStopped
+		}
 	}
 	return "", nil
 }
@@ -698,6 +717,11 @@ func nativeClampToolResult(s string) string {
 	}
 	return s[:nativeToolResultCap] + `…{"error":"tool result truncated for context"}`
 }
+
+// errNativeRunLimitStopped: the workspace's run limits (K03) failed the run
+// mid-loop — the task is already settled with the gate's message, so the
+// caller settles nothing further and writes no closing text.
+var errNativeRunLimitStopped = errors.New("run stopped by a workspace run limit")
 
 // nativeDataFence wraps content read from the workspace so the model can tell
 // records from instructions (N01). ASCII angle markers survive JSON tool
