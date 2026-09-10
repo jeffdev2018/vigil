@@ -430,6 +430,8 @@ import {
   PrioritizeQueuedChatTaskResponseSchema,
   SendChatMessageResponseSchema,
   StartMikaOnboardingResponseSchema,
+  OnboardingChecklistSchema,
+  type OnboardingChecklistResponse,
   ChildIssuesResponseSchema,
   ChildIssueProgressResponseSchema,
   CommentsListSchema,
@@ -569,6 +571,7 @@ import {
   EMPTY_CHAT_SESSION_LIST,
   EMPTY_CHAT_PARTICIPANT_LIST,
   EMPTY_PRIORITIZE_QUEUED_CHAT_TASK_RESPONSE,
+  EMPTY_ONBOARDING_CHECKLIST,
   EMPTY_CLOUD_RUNTIME_NODE,
   EMPTY_CLOUD_RUNTIME_NODE_ACTION,
   EMPTY_CLOUD_RUNTIME_NODE_LIST,
@@ -1409,6 +1412,18 @@ export class ApiClient {
     });
     return parseWithFallback(raw, UserSchema, EMPTY_USER, {
       endpoint: "POST /api/me/onboarding/complete",
+    });
+  }
+
+  // Getting-started checklist (OS plan, chantier 5). Workspace resolved from
+  // the header, like GET /api/triage/stats — the caller is always inside a
+  // workspace by the time this card renders.
+  async getOnboardingChecklist(workspaceSlug?: string): Promise<OnboardingChecklistResponse> {
+    const raw = await this.fetch<unknown>("/api/onboarding/checklist", {
+      headers: workspaceHeader(workspaceSlug),
+    });
+    return parseWithFallback(raw, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, {
+      endpoint: "GET /api/onboarding/checklist",
     });
   }
 

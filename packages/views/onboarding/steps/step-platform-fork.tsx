@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { ArrowRight, Download, Loader2 } from "lucide-react";
+import { ArrowRight, Download, Globe, Loader2, type LucideIcon } from "lucide-react";
 import { Button } from "@multica/ui/components/ui/button";
 import {
   Dialog,
@@ -12,6 +12,7 @@ import {
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
 import { cn } from "@multica/ui/lib/utils";
+import { useConfigStore } from "@multica/core/config";
 import type { AgentRuntime } from "@multica/core/types";
 import { runtimeDisplayLabel } from "@multica/core/runtimes";
 import {
@@ -28,22 +29,28 @@ import { useT } from "../../i18n";
 /**
  * Step 3 on **web**. The user is in a browser and hasn't downloaded
  * the desktop app yet, so we can't scan their machine for runtimes.
- * This screen is a fan-out: three clearly clickable cards, each with
+ * This screen is a fan-out: clearly clickable cards, each with
  * an explicit right-side button that says what clicking does:
  *
- *   1. **Download desktop** — primary card, black bg, "Download" pill.
+ *   1. **Run in the browser** (OS plan, chantier 5) — the workspace's
+ *      native runtime, when the server has a model configured
+ *      (`native_runtime_available`). No install: clicking calls
+ *      `onNext(runtime)` directly, exactly like the CLI dialog's own
+ *      Connect button, so `bootstrapMika` binds Mika to it immediately.
+ *      Disabled with an operator hint when unavailable.
+ *   2. **Download desktop** — primary card, black bg, "Download" pill.
  *      Opens the installer in a new tab; the user finishes onboarding
  *      inside the desktop app.
- *   2. **Install the CLI** — alt card, "Show steps" pill → opens a
+ *   3. **Install the CLI** — alt card, "Show steps" pill → opens a
  *      dialog containing the real install instructions + live runtime
  *      probe. When a runtime appears and the user selects it, the
  *      dialog's "Connect & continue" button fires `onNext(runtime)`
  *      and advances the flow.
- *   3. **Cloud computer** — alt card, "Coming soon" badge. Not yet
+ *   4. **Cloud computer** — alt card, "Coming soon" badge. Not yet
  *      available; rendered as a static, non-actionable preview.
  *
- * Footer is simplified — no Continue button, since the CLI dialog
- * owns that advancement itself. Only Skip remains.
+ * Footer is simplified — no Continue button, since the native card and the
+ * CLI dialog each own their own advancement. Only Skip remains.
  */
 
 type DialogState = "cli" | null;
@@ -73,9 +80,30 @@ export function StepPlatformFork({
 
   const [dialog, setDialog] = useState<DialogState>(null);
   const [connecting, setConnecting] = useState(false);
+  const [connectingNative, setConnectingNative] = useState(false);
   const [model, setModel] = useState("");
 
   const picker = useRuntimePicker(wsId, wsSlug);
+
+  // The workspace's native runtime (OS plan, chantier 5) is provisioned at
+  // workspace-creation time whenever the server has a model configured, so
+  // it is just another row in the same `owner=me` list this step already
+  // polls — no second query. `nativeRuntimeAvailable` is the server's own
+  // declaration (from /api/config); a workspace created before the flag
+  // flipped on has no such row yet, which is why both are checked together.
+  const nativeRuntimeAvailable = useConfigStore((s) => s.nativeRuntimeAvailable);
+  const nativeRuntime =
+    picker.runtimes.find((r) => r.runtime_mode === "native") ?? null;
+
+  const handleNativeConnect = async () => {
+    if (!nativeRuntime || connectingNative) return;
+    setConnectingNative(true);
+    try {
+      await onNext(nativeRuntime);
+    } finally {
+      setConnectingNative(false);
+    }
+  };
 
   const pickDesktop = () => {
     // No post-click state. `noopener` makes window.open return null by spec
@@ -115,6 +143,37 @@ export function StepPlatformFork({
         />
 
         <div className="flex flex-col gap-2">
+          <ForkAlt
+            title={t(($) => $.step_platform.native_title)}
+            subtitle={
+              nativeRuntimeAvailable
+                ? t(($) => $.step_platform.native_subtitle)
+                : t(($) => $.step_platform.native_disabled_subtitle)
+            }
+            actionLabel={
+              connectingNative ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : nativeRuntimeAvailable && nativeRuntime ? (
+                t(($) => $.step_platform.native_action)
+              ) : (
+                t(($) => $.step_platform.native_action_disabled)
+              )
+            }
+            badge={
+              nativeRuntimeAvailable
+                ? t(($) => $.step_platform.native_badge)
+                : undefined
+            }
+            icon={Globe}
+            onAction={handleNativeConnect}
+            // ponytail: treats "flag on but row not indexed yet" the same as
+            // "flag off" rather than a third loading state — the row is
+            // created at workspace-creation time, so by step 3 this is only a
+            // transient race. Upgrade to a distinct "preparing" state if that
+            // race turns out to be visible in practice.
+            disabled={!nativeRuntimeAvailable || !nativeRuntime || connectingNative}
+          />
+
           <ForkPrimary onClick={pickDesktop} />
 
           <ForkAlt
@@ -218,12 +277,17 @@ function ForkAlt({
   actionLabel,
   onAction,
   disabled = false,
+  badge,
+  icon: Icon,
 }: {
   title: string;
   subtitle: ReactNode;
   actionLabel: ReactNode;
   onAction?: () => void;
   disabled?: boolean;
+  /** Small pill next to the title, e.g. "Recommended" on the native card. */
+  badge?: ReactNode;
+  icon?: LucideIcon;
 }) {
   return (
     <div
@@ -233,7 +297,15 @@ function ForkAlt({
       )}
     >
       <div className="min-w-0">
-        <div className="text-body font-medium text-foreground">{title}</div>
+        <div className="flex items-center gap-2 text-body font-medium text-foreground">
+          {Icon && <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />}
+          {title}
+          {badge && (
+            <span className="shrink-0 rounded-full bg-primary/10 px-2 py-0.5 text-micro font-medium text-primary">
+              {badge}
+            </span>
+          )}
+        </div>
         <div className="mt-1 text-caption leading-[1.5] text-muted-foreground">
           {subtitle}
         </div>

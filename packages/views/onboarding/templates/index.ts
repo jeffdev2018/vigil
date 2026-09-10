@@ -8,6 +8,10 @@ export {
   INSTALL_RUNTIME_ISSUE_BODY,
 } from "./install-runtime-issue";
 export {
+  FIRST_RUN_ISSUE_TITLE,
+  FIRST_RUN_ISSUE_BODY,
+} from "./first-run-issue";
+export {
   getMikaOnboarding,
   type MikaContentLang,
   type MikaOnboardingDefinition,

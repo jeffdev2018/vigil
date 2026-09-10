@@ -156,6 +156,13 @@
           "subtitle": "Codex 또는 Kimi를 설치한 뒤 Runtimes에서 Mika 안내 채팅을 시작하세요."
         }
       }
+    },
+    "native": {
+      "loading": "첫 번째 실행을 준비하는 중...",
+      "error_title": "시작하지 못했습니다",
+      "error_body": "첫 번째 실행을 만들지 못했습니다. 다시 시도하거나, 준비되면 새 이슈를 만들어 Mika에게 배정하세요.",
+      "retry": "다시 시도",
+      "dismiss": "나중에"
     }
   },
   "step_workspace": {
@@ -246,6 +253,12 @@
     "cloud_title": "클라우드 컴퓨터 사용",
     "cloud_subtitle": "클라우드에서 컴퓨터를 실행해 드립니다. 아직 제공되지 않습니다.",
     "cloud_action": "준비 중",
+    "native_title": "브라우저에서 실행",
+    "native_subtitle": "설치할 필요가 없습니다 — Mika는 Multica 자체 runtime에서 실행됩니다.",
+    "native_disabled_subtitle": "운영자에게 서버용 모델(MULTICA_LLM_API_KEY) 설정을 요청하세요.",
+    "native_action": "Mika와 시작",
+    "native_action_disabled": "사용할 수 없음",
+    "native_badge": "추천",
     "cli_dialog_title": "터미널에서 연결",
     "cli_dialog_description": "데스크톱과 같은 연결을 터미널에서 설정합니다. 서버, 원격 개발 환경, headless 컴퓨터에 사용하세요.",
     "cli_dialog_pick_hint": "위에서 컴퓨터를 선택하세요.",
@@ -271,5 +284,17 @@
     "name": "Mika",
     "role": "참모장",
     "blurb": "하고 싶은 일을 Mika에게 알려주면 이슈가 되고, 알맞은 에이전트가 맡습니다."
+  },
+  "getting_started": {
+    "title": "시작하기",
+    "dismiss": "닫기",
+    "row_runtime_native": "네이티브 런타임 준비 완료",
+    "row_runtime_daemon": "런타임 연결됨",
+    "row_runtime_none": "런타임 연결",
+    "row_agent": "에이전트 만들기",
+    "row_issue": "이슈 만들기",
+    "row_first_run": "첫 번째 실행 완료하기",
+    "row_first_decision": "첫 번째 결정에 답하기",
+    "optional_suffix": "(선택)"
   }
 }

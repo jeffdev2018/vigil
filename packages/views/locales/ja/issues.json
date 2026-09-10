@@ -79,7 +79,9 @@
     "breadcrumb_workspace_fallback": "ワークスペース",
     "empty_title": "まだ課題がありません",
     "empty_hint": "課題を作成して始めましょう。",
-    "move_failed": "課題を移動できませんでした"
+    "move_failed": "課題を移動できませんでした",
+    "empty_run_explainer": "エージェントはブラウザ上のネイティブランタイムで動くか、あなたが接続したコンピュータで動きます。",
+    "empty_run_explainer_link": "エージェントを作成"
   },
   "status": {
     "backlog": "バックログ",

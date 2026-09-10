@@ -80,7 +80,9 @@
     "breadcrumb_workspace_fallback": "Workspace",
     "empty_title": "No issues yet",
     "empty_hint": "Create an issue to get started.",
-    "move_failed": "Failed to move issue"
+    "move_failed": "Failed to move issue",
+    "empty_run_explainer": "Agents run in the browser on the native runtime — or on a computer you connect.",
+    "empty_run_explainer_link": "Create an agent"
   },
   "status": {
     "backlog": "Backlog",

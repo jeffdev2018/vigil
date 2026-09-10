@@ -44,7 +44,9 @@
   },
   "empty": {
     "title": "还没有智能体",
-    "description": "创建一个智能体，像分配给同事那样把任务交给它。本地智能体在你的机器上运行，云智能体在 Multica 运行时上运行。"
+    "description": "创建一个智能体，像分配给同事那样把任务交给它。本地智能体在你的机器上运行，云智能体在 Multica 运行时上运行。",
+    "description_run_explainer": "智能体可以在浏览器里的原生运行时上运行，也可以在你连接的电脑上运行。",
+    "description_run_explainer_link": "查看运行时"
   },
   "no_matches": {
     "title": "无匹配项",

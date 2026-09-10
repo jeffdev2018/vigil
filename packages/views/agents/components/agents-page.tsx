@@ -59,7 +59,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@multica/ui/components/ui/tooltip";
-import { useNavigation, useRowLink } from "../../navigation";
+import { AppLink, useNavigation, useRowLink } from "../../navigation";
 import { ActorAvatar } from "../../common/actor-avatar";
 import { ProviderLogo } from "../../runtimes/components/provider-logo";
 import {
@@ -315,13 +315,30 @@ function ListError({
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  runtimesHref,
+}: {
+  onCreate: () => void;
+  runtimesHref: string;
+}) {
   const { t } = useT("agents");
   return (
     <CollectionPageState
       icon={Bot}
       title={t(($) => $.empty.title)}
-      description={t(($) => $.empty.description)}
+      description={
+        <>
+          {t(($) => $.empty.description)}{" "}
+          {t(($) => $.empty.description_run_explainer)}{" "}
+          <AppLink
+            href={runtimesHref}
+            className="underline decoration-muted-foreground/30 underline-offset-4 hover:text-foreground"
+          >
+            {t(($) => $.empty.description_run_explainer_link)}
+          </AppLink>
+        </>
+      }
       actions={
         <Button type="button" onClick={onCreate} size="sm">
           <Plus aria-hidden="true" className="size-3" />
@@ -1150,7 +1167,10 @@ export function AgentsPage({
         </div>
       ) : showEmpty ? (
         <div className="flex flex-1 items-center justify-center">
-          <EmptyState onCreate={() => navigation.push(paths.newAgent())} />
+          <EmptyState
+            onCreate={() => navigation.push(paths.newAgent())}
+            runtimesHref={paths.runtimes()}
+          />
         </div>
       ) : (
         <>

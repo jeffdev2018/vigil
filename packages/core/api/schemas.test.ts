@@ -3,6 +3,8 @@ import type { OrgSimulation } from "../types";
 import {
   OrgSimulationSchema,
   AppConfigSchema,
+  OnboardingChecklistSchema,
+  EMPTY_ONBOARDING_CHECKLIST,
   ProjectMemoryHistorySchema,
   CommentAnchorSchema,
   CommentSchema,
@@ -1927,6 +1929,26 @@ describe("AppConfigSchema agent_conversation_starters_supported drift", () => {
     expect(
       AppConfigSchema.parse({ agent_conversation_starters_supported: true })
         .agent_conversation_starters_supported,
+    ).toBe(true);
+  });
+});
+
+describe("AppConfigSchema native_runtime_available drift", () => {
+  it("defaults to false when the server predates the native runtime", () => {
+    expect(AppConfigSchema.parse({}).native_runtime_available).toBe(false);
+  });
+
+  it("coerces a malformed declaration to false rather than trusting it", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: "yes" })
+        .native_runtime_available,
+    ).toBe(false);
+  });
+
+  it("carries a genuine declaration through", () => {
+    expect(
+      AppConfigSchema.parse({ native_runtime_available: true })
+        .native_runtime_available,
     ).toBe(true);
   });
 });
@@ -5888,5 +5910,56 @@ describe("OrgSimulationSchema", () => {
     ]) {
       expect(parseWithFallback(malformed, OrgSimulationSchema, null, ENDPOINT)).toBeNull();
     }
+  });
+});
+
+describe("OnboardingChecklistSchema", () => {
+  const ENDPOINT = { endpoint: "GET /api/onboarding/checklist" };
+  const valid = {
+    runtime_kind: "native",
+    native_available: true,
+    runtime_ready: true,
+    agent_created: true,
+    issue_created: true,
+    first_run_completed: false,
+    first_decision_answered: false,
+    complete: false,
+    agents: 1,
+    issues: 2,
+    completed_runs: 0,
+  };
+
+  it("keeps a valid checklist intact", () => {
+    expect(
+      parseWithFallback(valid, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+    ).toEqual(valid);
+  });
+
+  it("defaults an unrecognized runtime_kind to none rather than failing the whole checklist", () => {
+    const parsed = parseWithFallback(
+      { ...valid, runtime_kind: "quantum" },
+      OnboardingChecklistSchema,
+      EMPTY_ONBOARDING_CHECKLIST,
+      ENDPOINT,
+    );
+    expect(parsed.runtime_kind).toBe("none");
+    // Every other field survives — one bad enum must not blank the card.
+    expect(parsed.agent_created).toBe(true);
+  });
+
+  it("falls back to the empty checklist on a malformed payload", () => {
+    for (const malformed of [null, "oops", 42, [1, 2]]) {
+      expect(
+        parseWithFallback(malformed, OnboardingChecklistSchema, EMPTY_ONBOARDING_CHECKLIST, ENDPOINT),
+      ).toEqual(EMPTY_ONBOARDING_CHECKLIST);
+    }
+  });
+
+  it("coerces missing/malformed booleans and counts to safe defaults", () => {
+    const parsed = OnboardingChecklistSchema.parse({
+      runtime_ready: "yes",
+      agents: "three",
+    });
+    expect(parsed).toEqual(EMPTY_ONBOARDING_CHECKLIST);
   });
 });

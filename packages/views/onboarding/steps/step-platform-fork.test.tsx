@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import type { AgentRuntime } from "@multica/core/types";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nProvider } from "@multica/core/i18n/react";
+import { configStore } from "@multica/core/config";
 import enCommon from "../../locales/en/common.json";
 import enOnboarding from "../../locales/en/onboarding.json";
 
@@ -82,6 +83,48 @@ describe("StepPlatformFork", () => {
   beforeEach(() => {
     resetPicker();
     vi.restoreAllMocks();
+    configStore.getState().setNativeRuntimeAvailable(false);
+  });
+
+  describe("native runtime card (OS plan, chantier 5)", () => {
+    it("renders disabled with an operator hint when the server has no model configured", () => {
+      renderFork();
+      expect(screen.getByText(/^run in the browser$/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/MULTICA_LLM_API_KEY/),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /start with mika/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("stays disabled when the flag is on but the native runtime row hasn't appeared yet", () => {
+      configStore.getState().setNativeRuntimeAvailable(true);
+      resetPicker({ runtimes: [] });
+      renderFork();
+      expect(
+        screen.queryByRole("button", { name: /start with mika/i }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("is clickable once available, and calls onNext with the native runtime", async () => {
+      configStore.getState().setNativeRuntimeAvailable(true);
+      const native = makeRuntime({
+        id: "rt_native",
+        name: "Native runtime",
+        runtime_mode: "native",
+      });
+      resetPicker({ runtimes: [native] });
+      const user = userEvent.setup();
+      const { onNext } = renderFork();
+
+      expect(screen.getByText(/recommended/i)).toBeInTheDocument();
+      const button = screen.getByRole("button", { name: /start with mika/i });
+      expect(button).toBeEnabled();
+      await user.click(button);
+      expect(onNext).toHaveBeenCalledTimes(1);
+      expect(onNext).toHaveBeenCalledWith(native);
+    });
   });
 
   it("renders the three fork options at rest", () => {

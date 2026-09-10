@@ -45,7 +45,9 @@
   },
   "empty": {
     "title": "Aucun agent pour le moment",
-    "description": "Créez un agent et assignez-lui des issues, comme à n'importe quel coéquipier. Les agents locaux s'exécutent sur votre machine ; les agents cloud s'exécutent sur le runtime de Multica."
+    "description": "Créez un agent et assignez-lui des issues, comme à n'importe quel coéquipier. Les agents locaux s'exécutent sur votre machine ; les agents cloud s'exécutent sur le runtime de Multica.",
+    "description_run_explainer": "Les agents s'exécutent dans le navigateur sur le runtime natif — ou sur un ordinateur que vous connectez.",
+    "description_run_explainer_link": "Voir les runtimes"
   },
   "no_matches": {
     "title": "Aucun résultat",
