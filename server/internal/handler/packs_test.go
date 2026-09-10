@@ -376,3 +376,27 @@ func TestRewriteViewQueryResolvesPropertyNames(t *testing.T) {
 		t.Fatalf("untouched keys = %v", filters)
 	}
 }
+
+// yaml.v3 emits a multi-line string whose first line starts with a space as
+// a literal block no parser reads back; the export chooses the style itself.
+func TestPackYAMLReadsBackWithAwkwardStrings(t *testing.T) {
+	b := newTransferBundle()
+	b.Skills = []transferSkill{{Name: "s", Description: "d", Content: "  indented first line\nsecond line\n", Status: "published", Config: json.RawMessage(`{}`), Files: []transferFile{{Path: "a.md", Content: "trailing space \nline\t tab\r\n"}}}}
+	b.Agents = []transferAgent{{Name: "A", Instructions: "```\n  code\n```\n", Skills: []string{"s"}, ConversationStarters: json.RawMessage(`["hi"]`), CustomArgs: json.RawMessage(`[]`)}}
+	b.Doctrine = " starts with a space\n- rule"
+	raw, err := packYAML(packs.Manifest{ID: "awkward", Version: "1.0.0", Title: "Awkward", Summary: "s", Domain: "ops", Metric: packs.Metric{Label: "l", Description: "d"}}, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := packs.Parse(raw)
+	if err != nil {
+		t.Fatalf("parse: %v\n%s", err, raw)
+	}
+	back, err := packBundle(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if back.Skills[0].Content != b.Skills[0].Content || back.Skills[0].Files[0].Content != b.Skills[0].Files[0].Content || back.Agents[0].Instructions != b.Agents[0].Instructions || back.Doctrine != b.Doctrine {
+		t.Fatalf("round trip changed the text:\n%q\n%q\n%q", back.Skills[0].Content, back.Skills[0].Files[0].Content, back.Doctrine)
+	}
+}

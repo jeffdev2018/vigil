@@ -905,11 +905,7 @@ func packYAML(m packs.Manifest, b *transferBundle) ([]byte, error) {
 	order := []string{"issue_statuses", "issue_types", "labels", "properties", "views", "transition_rules", "business_rules", "doctrine", "ownership_rules", "permission_profiles", "skills", "agents", "projects", "goals", "autopilots", "triage_sources", "org_structures", "notes", "issues"}
 	node := &yaml.Node{Kind: yaml.MappingNode}
 	appendKV := func(key string, value any) error {
-		var v yaml.Node
-		if err := v.Encode(value); err != nil {
-			return err
-		}
-		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, &v)
+		node.Content = append(node.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: key}, toYAMLNode(value))
 		return nil
 	}
 	if err := appendKV("pack", manifestDoc); err != nil {
@@ -944,7 +940,71 @@ func packYAML(m packs.Manifest, b *transferBundle) ([]byte, error) {
 		return nil, err
 	}
 	_ = enc.Close()
+	// The file has to read back: a pack nobody can import is not an export.
+	var probe map[string]any
+	if err := yaml.Unmarshal([]byte(out.String()), &probe); err != nil {
+		return nil, fmt.Errorf("the export does not read back as YAML: %w", err)
+	}
 	return []byte(out.String()), nil
+}
+
+// toYAMLNode builds the node tree by hand, in key order, choosing the scalar
+// style itself. yaml.v3's own encoder emits a multi-line string whose first
+// line starts with a space as a literal block without its indentation
+// indicator, which no parser (its own included) reads back; those strings
+// are double-quoted instead.
+func toYAMLNode(v any) *yaml.Node {
+	switch x := v.(type) {
+	case nil:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "null"}
+	case map[string]any:
+		n := &yaml.Node{Kind: yaml.MappingNode}
+		keys := make([]string, 0, len(x))
+		for k := range x {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		for _, k := range keys {
+			n.Content = append(n.Content, &yaml.Node{Kind: yaml.ScalarNode, Value: k}, toYAMLNode(x[k]))
+		}
+		return n
+	case []any:
+		n := &yaml.Node{Kind: yaml.SequenceNode}
+		for _, item := range x {
+			n.Content = append(n.Content, toYAMLNode(item))
+		}
+		return n
+	case string:
+		n := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: x}
+		if strings.ContainsAny(x, "\r\t\x00") || strings.ContainsAny(x, "\x01\x02\x03\x04\x05\x06\x07\x08\x0b\x0c\x0e\x0f") {
+			n.Style = yaml.DoubleQuotedStyle
+		} else if strings.Contains(x, "\n") {
+			first := strings.SplitN(x, "\n", 2)[0]
+			if strings.HasPrefix(first, " ") || strings.HasSuffix(x, " ") || strings.Contains(x, " \n") {
+				n.Style = yaml.DoubleQuotedStyle
+			} else {
+				n.Style = yaml.LiteralStyle
+			}
+		} else if x == "" || x != strings.TrimSpace(x) {
+			n.Style = yaml.DoubleQuotedStyle
+		}
+		return n
+	case bool:
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!bool", Value: fmt.Sprint(x)}
+	case float64:
+		if x == float64(int64(x)) {
+			return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!int", Value: fmt.Sprintf("%d", int64(x))}
+		}
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!float", Value: fmt.Sprint(x)}
+	case json.Number:
+		return &yaml.Node{Kind: yaml.ScalarNode, Value: x.String()}
+	default:
+		var n yaml.Node
+		if err := n.Encode(v); err == nil {
+			return &n
+		}
+		return &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: fmt.Sprint(v), Style: yaml.DoubleQuotedStyle}
+	}
 }
 
 // applyWorkspacePack seeds a freshly created workspace from a catalogue
