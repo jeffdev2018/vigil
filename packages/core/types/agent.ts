@@ -534,6 +534,8 @@ export interface AgentTask {
   routing_decision?: { risk_level: string; matched_paths: string[]; target_pool_id?: string; target_pool_name?: string; runtime_id?: string; escalated: boolean; escalation_reason?: string; decided_at: string } | null;
   /** The input comment was edited or deleted, invalidating this run. */
   cancelled_by_comment_change?: boolean;
+  /** Why a `waiting_local_directory` run is parked: which path, held by which task. */
+  wait_reason?: string;
   created_at: string;
   /** Non-empty when the task was spawned from a chat session. */
   chat_session_id?: string;
