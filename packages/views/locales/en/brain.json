@@ -73,7 +73,7 @@
     "recording": "Recording {{elapsed}}",
     "uploading": "Uploading…",
     "drop_hint": "Drop the file to capture it",
-    "too_large": "You cannot capture a file over {{size}} here. Use the CLI, which talks to the API directly.",
+    "too_large": "A file cannot exceed {{size}} per capture.",
     "storage_off": "File capture is not configured on this server.",
     "error": "The capture failed",
     "captured_toast": "Captured"

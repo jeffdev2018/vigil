@@ -420,16 +420,21 @@ describe("PacksTab upload", () => {
     );
   });
 
-  it("refuses a file the /api rewrite cannot carry and names the CLI instead", () => {
+  it("refuses a file over the server's 32 MB cap before the request", () => {
     const big = new File(["x"], "big.pack.yaml", { type: "text/yaml" });
-    Object.defineProperty(big, "size", { value: 9 * 1024 * 1024 });
+    Object.defineProperty(big, "size", { value: 33 * 1024 * 1024 });
     renderWithI18n(<PacksTab />);
     fireEvent.change(screen.getByLabelText("Pack file"), { target: { files: [big] } });
     expect(state.previewUpload).not.toHaveBeenCalled();
-    const alert = screen.getByRole("alert");
-    expect(alert.textContent).toContain("cannot upload a pack over 8 MB");
-    expect(alert.textContent).toContain("multica pack install-file");
-    expect(alert.textContent).toContain("multica pack preview-file");
+    expect(screen.getByRole("alert").textContent).toContain("cannot exceed 32 MB");
+  });
+
+  it("sends a 20 MB file: the /api proxy carries it since proxyClientMaxBodySize", () => {
+    const big = new File(["x"], "big.pack.yaml", { type: "text/yaml" });
+    Object.defineProperty(big, "size", { value: 20 * 1024 * 1024 });
+    renderWithI18n(<PacksTab />);
+    fireEvent.change(screen.getByLabelText("Pack file"), { target: { files: [big] } });
+    expect(state.previewUpload).toHaveBeenCalled();
   });
 
   it("keeps a failed preview readable under the drop zone, label before raw text", () => {

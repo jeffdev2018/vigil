@@ -179,15 +179,14 @@ describe("CaptureInbox", () => {
     );
   });
 
-  it("refuses a file over 8 MB before the request, and points at the CLI", async () => {
+  it("refuses a file over the server's 50 MB cap before the request", async () => {
     renderInbox();
     const input = (await screen.findByTestId("capture-file-input")) as HTMLInputElement;
     fireEvent.change(input, {
-      target: { files: [fileOfSize("dump.zip", 9 * 1024 * 1024)] },
+      target: { files: [fileOfSize("dump.zip", 51 * 1024 * 1024)] },
     });
     const alert = await screen.findByRole("alert");
-    expect(alert.textContent).toContain("cannot capture a file over 8 MB");
-    expect(alert.textContent).toContain("CLI");
+    expect(alert.textContent).toContain("cannot exceed 50 MB");
     expect(mutations.captureUpload).not.toHaveBeenCalled();
   });
 

@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-서버는 32 MB까지의 팩 파일을 받습니다. 웹 앱에서는 8 MB까지 업로드할 수 있고, 그보다 크면 `multica pack preview-file` / `install-file`을 씁니다. 연결된 컴퓨터에서 발견된 스킬은 내보내기에 포함되지 않으며(그 기기의 것이므로), `--include-skills=false`를 주면 스킬을 전부 제외합니다. 내보내기도 자격 증명을 담지 않습니다 —— 에이전트의 환경 변수 키는 남겨지고, 트리거는 비활성으로 돌아오며, 트리아지 소스는 토큰 없이 돌아옵니다.
+서버는 앱에서든 CLI(`multica pack preview-file` / `install-file`)에서든 32 MB까지의 팩 파일을 받습니다. 연결된 컴퓨터에서 발견된 스킬은 내보내기에 포함되지 않으며(그 기기의 것이므로), `--include-skills=false`를 주면 스킬을 전부 제외합니다. 내보내기도 자격 증명을 담지 않습니다 —— 에이전트의 환경 변수 키는 남겨지고, 트리거는 비활성으로 돌아오며, 트리아지 소스는 토큰 없이 돌아옵니다.
 
 ## 팩 포맷
 
