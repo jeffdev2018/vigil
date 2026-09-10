@@ -47,6 +47,10 @@ const nextConfig: NextConfig = {
     // the API truncated and hung it until "socket hang up" (JEF-346). The
     // API's own caps are 32 MB (packs) and 50 MB (Brain captures).
     proxyClientMaxBodySize: "64mb",
+    // Endpoints that wait on a model (autopilot draft, Brain suggest,
+    // consult, insights) can take longer than the 30 s default before the
+    // API answers; the proxy must not turn that into a 500.
+    proxyTimeout: 180_000,
   },
   ...(allowedDevOrigins && allowedDevOrigins.length > 0
     ? { allowedDevOrigins }
