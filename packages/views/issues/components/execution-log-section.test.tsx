@@ -698,6 +698,42 @@ describe("goal loop badge", () => {
 // questions mid-run shows one line per consult under its row. The query is
 // seeded like the legs/goal suites above — the schema fallback and unknown
 // state tolerance are pinned in packages/core/fleet/schemas.test.ts.
+describe("parked run hold reason", () => {
+  // The daemon writes wait_reason once on the way into a directory hold and
+  // never clears it, so the caption has to follow the status rather than the
+  // column. A run that resumed must not keep explaining a hold it left.
+  it("captions a parked run with the hold it is queued behind, and only while parked", () => {
+    const reason = "waiting on /repos/api, held by task 8f3c1d2a";
+    const { rerender } = renderRow(
+      <ActiveTaskRow
+        task={makeTask({ status: "waiting_local_directory", started_at: null, wait_reason: reason })}
+        issueId="issue-1"
+      />,
+    );
+    expect(screen.getByTestId("run-wait-reason")).toHaveTextContent(reason);
+
+    // Same stale column, run back in flight: the caption goes.
+    rerender(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <ActiveTaskRow task={makeTask({ status: "running", wait_reason: reason })} issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    expect(screen.queryByTestId("run-wait-reason")).not.toBeInTheDocument();
+  });
+
+  // An older backend sends the field unfiltered or not at all; neither may
+  // produce an empty caption box on the row.
+  it("shows no caption when the hold has no reason to give", () => {
+    renderRow(
+      <ActiveTaskRow
+        task={makeTask({ status: "waiting_local_directory", started_at: null, wait_reason: "   " })}
+        issueId="issue-1"
+      />,
+    );
+    expect(screen.queryByTestId("run-wait-reason")).not.toBeInTheDocument();
+  });
+});
+
 describe("run consults", () => {
   function makeConsult(over: Partial<AgentConsult> = {}): AgentConsult {
     return {
@@ -780,4 +816,5 @@ describe("run consults", () => {
     fireEvent.click(screen.getByRole("button", { name: "Afficher les exécutions passées (1)" }));
     expect(screen.getByText("fleet-mini consulté · $0.42")).toBeInTheDocument();
   });
+
 });

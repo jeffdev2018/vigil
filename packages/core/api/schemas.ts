@@ -2788,6 +2788,9 @@ export const AgentTaskSchema = z.object({
   // Invalid optional audit data is unknown, never a fabricated empty set.
   memory_context: TaskMemoryContextSchema.optional().catch(undefined),
   cancelled_by_comment_change: z.boolean().optional().catch(undefined),
+  // Server-gated on the status, so an absent field means "no hold to explain",
+  // never "hold with an unknown cause".
+  wait_reason: z.string().optional().catch(undefined),
   id: z.string(),
   agent_id: z.string().default(""),
   runtime_id: z.string().default(""),

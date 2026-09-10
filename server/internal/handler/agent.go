@@ -367,6 +367,15 @@ type TaskIssueStatusData struct {
 type AgentTaskResponse struct {
 	CancelledByCommentChange bool `json:"cancelled_by_comment_change,omitempty"`
 
+	// WaitReason explains a waiting_local_directory hold — which path, and
+	// which task holds it. Gated on the status by waitReasonForStatus: the
+	// daemon writes the column once on the way into the hold and never clears
+	// it, so an ungated read would label a task that resumed ten minutes ago.
+	// The chat surface has shown this since the hold existed; the issue
+	// execution log showed the status alone, which reads as "stuck" rather
+	// than "queued behind a directory lock".
+	WaitReason string `json:"wait_reason,omitempty"`
+
 	ID                   string                 `json:"id"`
 	AgentID              string                 `json:"agent_id"`
 	RuntimeID            string                 `json:"runtime_id"`
@@ -978,6 +987,8 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	return AgentTaskResponse{
 		// Task-scoped provenance must not transfer through copied retry context.
 		CancelledByCommentChange: t.Status == "cancelled" && cancellation.TaskID != "" && cancellation.TaskID == uuidToString(t.ID),
+
+		WaitReason: waitReasonForStatus(t.Status, t.WaitReason),
 
 		ID:                     uuidToString(t.ID),
 		AgentID:                uuidToString(t.AgentID),

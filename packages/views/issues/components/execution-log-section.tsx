@@ -366,6 +366,17 @@ export function ActiveTaskRow({
         )
       : "";
 
+  // A parked run says which path it is queued behind, and which task holds it.
+  // The server already gates the field on the status (waitReasonForStatus): the
+  // daemon writes wait_reason once on the way into the hold and never clears
+  // it, so an ungated read would label a task that resumed ten minutes ago.
+  // Re-checking the status here costs nothing and keeps an older backend, which
+  // sends the column unfiltered or not at all, from captioning a running row.
+  const holdReason =
+    task.status === "waiting_local_directory"
+      ? task.wait_reason?.trim() || undefined
+      : undefined;
+
   // Transcript only meaningful once messages exist — pure-queued and
   // waiting_local_directory tasks haven't streamed any agent output yet.
   const showTranscript =
@@ -408,6 +419,15 @@ export function ActiveTaskRow({
             </>
           ) : (
             <span className={`${tone} min-w-0 truncate`}>{label}</span>
+          )}
+          {holdReason && (
+            <span
+              data-testid="run-wait-reason"
+              className="text-muted-foreground min-w-0 truncate"
+              title={holdReason}
+            >
+              {holdReason}
+            </span>
           )}
           {unresponsive && (
             <span
