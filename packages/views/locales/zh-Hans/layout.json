@@ -69,6 +69,7 @@
     "discord_card": {
       "title": "加入 Discord",
       "dismiss": "关闭"
-    }
+    },
+    "more_nav": "下方还有更多入口"
   }
 }

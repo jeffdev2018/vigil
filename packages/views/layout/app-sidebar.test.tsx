@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@multica/core/api";
 import { renderWithI18n } from "../test/i18n";
-import { AppSidebar } from "./app-sidebar";
+import { AppSidebar, hasOverflowBelow } from "./app-sidebar";
 
 const { appForeground, chatSessions, chatStore, detail, deletePin, inboxItems, navigation, pins, postmortemStats, sidebarState, summary, triageStats, workspaces } = vi.hoisted(() => ({
   appForeground: { current: true },
@@ -524,5 +524,13 @@ describe("personal nav — Triage", () => {
   it("shows no Postmortems badge without drafts", () => {
     const { container } = render(<AppSidebar />);
     expect(postmortemBadge(container)).toBeNull();
+  });
+});
+
+describe("hasOverflowBelow", () => {
+  it("is true only while content remains under the viewport", () => {
+    expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 0 })).toBe(true);
+    expect(hasOverflowBelow({ scrollHeight: 900, clientHeight: 600, scrollTop: 300 })).toBe(false);
+    expect(hasOverflowBelow({ scrollHeight: 600, clientHeight: 600, scrollTop: 0 })).toBe(false);
   });
 });
