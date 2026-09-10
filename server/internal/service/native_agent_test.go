@@ -2282,3 +2282,129 @@ func TestNativeAgentHonestStop(t *testing.T) {
 		t.Fatalf("honest-stop system ledger rows = %d, want 1", ledgerRows)
 	}
 }
+
+// N15 — living document: a note_target run loads the note into the brief,
+// updates it via update_note, and leaves revision+1 with a clean transcript.
+func TestNativeAgentLivingDocumentNoteTarget(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+		t.Fatalf("disable goal loop: %v", err)
+	}
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	noteID := seedBrainNote(t, pool, ws, "Compte-rendu hebdo", "Semaine 1: rien.", nil, false)
+
+	contextJSON := fmt.Sprintf(
+		`{"type":"note_target","note_id":"%s","instruction":"Ajoute la semaine 2: démo livrée."}`,
+		noteID,
+	)
+	taskID := fx.Task(t, agentID, testutil.Cols{
+		"runtime_id": runtimeID,
+		"context":    testutil.Raw("'" + contextJSON + "'::jsonb"),
+	})
+
+	newContent := "Semaine 1: rien.\nSemaine 2: démo livrée."
+	argsJSON, _ := json.Marshal(map[string]string{"note_id": noteID, "content": newContent})
+	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
+		nativeToolCallTurn("call_1", "update_note", string(argsJSON)),
+		nativeTextTurn("All done."), // premature → N18 honest stop
+		nativeTextTurn("Status: updated the living document [r1]. Nothing remains."),
+	}}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	brief := nativeLastUserMessage(t, llm.first)
+	for _, want := range []string{"Living document", noteID, "Compte-rendu hebdo", "revision: 1", "update_note"} {
+		if !strings.Contains(brief, want) {
+			t.Fatalf("brief missing %q:\n%s", want, brief)
+		}
+	}
+
+	var rev int64
+	var content string
+	if err := pool.QueryRow(ctx, `SELECT revision, content FROM workspace_note WHERE id=$1`, noteID).Scan(&rev, &content); err != nil {
+		t.Fatalf("read note: %v", err)
+	}
+	if rev != 2 {
+		t.Fatalf("revision = %d, want 2", rev)
+	}
+	if !strings.Contains(content, "démo livrée") {
+		t.Fatalf("content = %q, want week 2", content)
+	}
+
+	var toolUses int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_message WHERE task_id=$1 AND type='tool_use' AND tool='update_note'`, taskID).Scan(&toolUses); err != nil {
+		t.Fatalf("transcript: %v", err)
+	}
+	if toolUses != 1 {
+		t.Fatalf("update_note tool_use rows = %d, want 1", toolUses)
+	}
+
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status); err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	if status != "completed" {
+		t.Fatalf("status = %q, want completed", status)
+	}
+}
+
+// N15 — brief for an issue run that also carries a note_target in context.
+func TestNativeAgentLivingDocumentOnIssueBrief(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Rédiger le CR")
+	noteID := seedBrainNote(t, pool, ws, "CR projet", "Draft.", nil, false)
+	contextJSON := fmt.Sprintf(`{"type":"note_target","note_id":"%s"}`, noteID)
+	taskID := fx.Task(t, agentID, testutil.Cols{
+		"issue_id":   issueID,
+		"runtime_id": runtimeID,
+		"context":    testutil.Raw("'" + contextJSON + "'::jsonb"),
+	})
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("agent: %v", err)
+	}
+	task, err := db.New(pool).GetAgentTask(ctx, util.MustParseUUID(taskID))
+	if err != nil {
+		t.Fatalf("task: %v", err)
+	}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+	brief, _, err := svc.nativeBriefForTask(ctx, task, agent)
+	if err != nil {
+		t.Fatalf("brief: %v", err)
+	}
+	if !strings.Contains(brief, "Issue #") || !strings.Contains(brief, "Living document") || !strings.Contains(brief, noteID) {
+		t.Fatalf("issue+note brief = %q", brief)
+	}
+}
