@@ -1878,6 +1878,97 @@ func TestNativeAgentStopsWhenWorkspaceHalted(t *testing.T) {
 	}
 }
 
+// N14 — a task queued against an already-closed issue is failed at entry
+// with issue_terminal, and never calls the model.
+func TestNativeAgentRefusesClosedIssueAtEntry(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Already done")
+	pool.Exec(ctx, `UPDATE issue SET status='done' WHERE id=$1`, issueID)
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{nativeTextTurn("should not run")}}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	if llm.calls != 0 {
+		t.Fatalf("model calls = %d, want 0", llm.calls)
+	}
+	var status, reason string
+	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if status != "failed" || reason != ReasonIssueTerminal {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	}
+}
+
+// N14 — closing the issue mid-run stops the loop at the next turn and fails
+// the task with issue_terminal.
+func TestNativeAgentStopsWhenIssueClosed(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Close mid-run")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	midRun := func() {
+		pool.Exec(ctx, `UPDATE issue SET status='done' WHERE id=$1`, issueID)
+	}
+	llm := &midRunLLM{inner: &scriptedNativeLLM{turns: []openai.ChatCompletion{
+		nativeToolCallTurn("call_1", "get_issue", `{}`),
+		nativeTextTurn("done"),
+	}}, afterCall: midRun}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var status, reason string
+	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,'') FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &reason); err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if status != "failed" || reason != ReasonIssueTerminal {
+		t.Fatalf("status/reason = %q/%q, want failed/%s", status, reason, ReasonIssueTerminal)
+	}
+	if llm.inner.calls != 1 {
+		t.Fatalf("model calls = %d, want 1 (left at turn boundary)", llm.inner.calls)
+	}
+}
+
 // midRunLLM wraps the scripted model and fires a hook after each model call.
 type midRunLLM struct {
 	inner     *scriptedNativeLLM
@@ -1897,8 +1988,13 @@ func (m *midRunLLM) Chat(ctx context.Context, params openai.ChatCompletionNewPar
 }
 
 func (m *midRunLLM) ChatStream(ctx context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error) {
-	m.afterCall()
-	return m.inner.ChatStream(ctx, params)
+	stream, err := m.inner.ChatStream(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+	// Fire the hook once the stream is exhausted — after this turn's model
+	// output, before the next shouldStop — so "mid-run" matches N09/N14.
+	return &afterCallStream{inner: stream, after: m.afterCall}, nil
 }
 
 // N10 — preview effect mode holds the native run's writes. An agent in
@@ -1984,3 +2080,27 @@ func TestNativeAgentPreviewHoldsWrites(t *testing.T) {
 		t.Fatalf("apply-mode comment missing: %d", comments)
 	}
 }
+
+// afterCallStream wraps a stream and runs after once when Next first returns false.
+type afterCallStream struct {
+	inner NativeChatStream
+	after func()
+	done  bool
+}
+
+func (a *afterCallStream) Next() bool {
+	if a.inner.Next() {
+		return true
+	}
+	if !a.done {
+		a.done = true
+		if a.after != nil {
+			a.after()
+		}
+	}
+	return false
+}
+
+func (a *afterCallStream) Current() openai.ChatCompletionChunk { return a.inner.Current() }
+
+func (a *afterCallStream) Err() error { return a.inner.Err() }

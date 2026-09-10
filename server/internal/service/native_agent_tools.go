@@ -34,6 +34,9 @@ type nativeToolContext struct {
 	// effectful counts this run's state-changing tool calls against
 	// nativeMaxEffectfulActions.
 	effectful int
+	// effectWindow (N11): temporal Rule of Two loaded from workspace
+	// settings at run start. Max<=0 disables the window.
+	effectWindow NativeEffectWindow
 	// textStreamed (N04): the closing text was grown in place by the stream;
 	// the caller must not write a second copy. streamedMsgID names the row.
 	textStreamed  bool
@@ -453,6 +456,13 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			tctx.requestWrapUp(reason)
 			return nil, fmt.Errorf("this run's effectful-action budget is exhausted (%s); stop changing the workspace and give your final answer", reason)
 		}
+		// Temporal Rule of Two (N11): across runs, the same agent is
+		// bounded by a sliding window so a frenzy of short runs cannot
+		// thrash the workspace.
+		if reason := s.observeAgentEffect(util.UUIDToString(tctx.agent.ID), tctx.effectWindow, time.Now()); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, fmt.Errorf("%s", reason)
+		}
 		switch name {
 		case "add_comment":
 			return s.nativeAddComment(ctx, tctx, args)
@@ -475,6 +485,10 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeCalendarSlots(ctx, tctx, args)
 	case "propose_event":
 		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		if reason := s.observeAgentEffect(util.UUIDToString(tctx.agent.ID), tctx.effectWindow, time.Now()); reason != "" {
 			tctx.requestWrapUp(reason)
 			return nil, errors.New(reason)
 		}
