@@ -38,7 +38,6 @@
     "location": "장소",
     "location_placeholder": "회의실, 링크, 또는 주소",
     "issue": "작업",
-    "issue_placeholder": "작업 ID (선택)",
     "participants": "참가자",
     "participants_none": "아직 참가자가 없습니다",
     "add_participants": "참가자 추가",
@@ -54,7 +53,12 @@
     "create": "이벤트 만들기",
     "save": "저장",
     "error": "이벤트를 저장할 수 없습니다",
-    "date_order": "종료는 시작보다 나중이어야 합니다."
+    "date_order": "종료는 시작보다 나중이어야 합니다.",
+    "issue_pick": "이슈 연결…",
+    "issue_change": "변경",
+    "issue_clear": "연결된 이슈 제거",
+    "issue_picker_title": "이슈 연결",
+    "issue_picker_description": "이 이벤트와 관련된 이슈를 검색해 선택하세요."
   },
   "sheet": {
     "participants": "참가자",

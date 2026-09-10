@@ -38,7 +38,6 @@
     "location": "地点",
     "location_placeholder": "会议室、链接或地址",
     "issue": "任务",
-    "issue_placeholder": "任务 ID（可选）",
     "participants": "参与者",
     "participants_none": "暂无参与者",
     "add_participants": "添加参与者",
@@ -54,7 +53,12 @@
     "create": "创建事件",
     "save": "保存",
     "error": "无法保存该事件",
-    "date_order": "结束时间必须晚于开始时间。"
+    "date_order": "结束时间必须晚于开始时间。",
+    "issue_pick": "关联任务…",
+    "issue_change": "更换",
+    "issue_clear": "清除关联任务",
+    "issue_picker_title": "关联任务",
+    "issue_picker_description": "搜索并选择与此事件相关的任务。"
   },
   "sheet": {
     "participants": "参与者",

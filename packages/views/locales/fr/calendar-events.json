@@ -38,7 +38,6 @@
     "location": "Lieu",
     "location_placeholder": "Salle, lien ou adresse",
     "issue": "Tâche",
-    "issue_placeholder": "Identifiant de tâche (optionnel)",
     "participants": "Participants",
     "participants_none": "Aucun participant pour l'instant",
     "add_participants": "Ajouter des participants",
@@ -54,7 +53,12 @@
     "create": "Créer l'événement",
     "save": "Enregistrer",
     "error": "Impossible d'enregistrer l'événement",
-    "date_order": "La fin doit être après le début."
+    "date_order": "La fin doit être après le début.",
+    "issue_pick": "Lier une tâche…",
+    "issue_change": "Changer",
+    "issue_clear": "Retirer la tâche liée",
+    "issue_picker_title": "Lier une tâche",
+    "issue_picker_description": "Recherchez et choisissez la tâche concernée par cet événement."
   },
   "sheet": {
     "participants": "Participants",
