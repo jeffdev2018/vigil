@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@multica/ui/components/ui/dialog";
+import { ActivationReadinessCard } from "./activation-readiness-card";
 import {
   MikaRuntimeChoice,
   type MikaRuntimeSelection,
@@ -184,6 +185,10 @@ export function RuntimesPage({
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className={cn(PAGE_RAIL, PAGE_GUTTER, "flex flex-col py-4 sm:py-6")}>
+            {/* Only on the populated page: with no machine at all, EmptyState
+                already says what to do, and the checklist would repeat it
+                above a centred layout it does not belong in. */}
+            <ActivationReadinessCard machines={machines} />
             {!agentsLoading &&
               !chatSessionsLoading &&
               memberNeedsMikaSetup(agents, chatSessions) &&

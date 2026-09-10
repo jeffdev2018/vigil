@@ -563,5 +563,42 @@
     "table_cache_r": "Cache R",
     "table_cache_w": "Cache W",
     "no_data": "No usage data yet"
+  },
+  "activation": {
+    "title": "Ready for a first result?",
+    "description": "Check these before assigning work to an agent. Fix what is blocked; a repository is recommended for coding tasks but not required to chat with Mika.",
+    "optional": "Optional",
+    "steps": {
+      "machine_online": {
+        "label": "Machine online",
+        "ready": "A runtime is online and reachable.",
+        "action": "Start or reconnect a desktop daemon, or add a computer.",
+        "not_applicable": "Not required in this workspace state."
+      },
+      "cli_present": {
+        "label": "Agent CLI present",
+        "ready": "An agent CLI is registered on a machine.",
+        "action": "Install Claude Code or Codex, then wait for the daemon to pick it up (or restart the daemon).",
+        "not_applicable": "Not required in this workspace state."
+      },
+      "cli_authenticated": {
+        "label": "CLI signed in",
+        "ready": "Provider authentication is valid for an online Claude or Codex runtime.",
+        "action": "Open a machine and sign in to the agent CLI (Claude or Codex).",
+        "not_applicable": "No online Claude or Codex runtime yet — sign-in applies when one is connected."
+      },
+      "repo_linked": {
+        "label": "Repository linked",
+        "ready": "At least one repository is available to agents.",
+        "action": "Add a repo under Settings → Repositories, or connect GitHub.",
+        "not_applicable": "Not required in this workspace state."
+      },
+      "first_agent_ready": {
+        "label": "First agent conversation",
+        "ready": "Mika is ready for this member.",
+        "action": "Use Start with Mika once a runtime is online.",
+        "not_applicable": "Not required in this workspace state."
+      }
+    }
   }
 }
