@@ -480,6 +480,8 @@ type Handler struct {
 	// BrainEmbedder keeps one vector per live note for ranked Brain search
 	// (OS plan, vague B). Nil or disabled: search ranks lexically.
 	BrainEmbedder service.NoteEmbedder
+	// Recurrence spawns the occurrences of recurring issues (table stakes).
+	Recurrence *service.RecurrenceService
 	// TTS synthesizes speech for "read this aloud". Always non-nil;
 	// Enabled() is false when MULTICA_TTS_* is unset, and the client falls
 	// back to the browser's own speechSynthesis.
@@ -628,6 +630,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		IssueService:                 issueSvc,
 		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		BrainEmbedder:                brainEmbedder,
+		Recurrence:                   service.NewRecurrenceService(queries, issueSvc),
 		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,

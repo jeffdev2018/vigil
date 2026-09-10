@@ -78,8 +78,11 @@ const (
 	EventBrainCaptureChanged = "brain_capture:changed"
 	// EventFollowupChanged fires when a follow-up (deferred wake-up of an
 	// issue\'s agent) is scheduled or cancelled (payload: issue_id, followup_id, change).
-	EventFollowupChanged      = "followup:changed"
-	EventWorkspaceNoteDeleted = "workspace_note:deleted"
+	EventFollowupChanged = "followup:changed"
+	// EventIssueRecurrenceChanged fires when a recurrence rule is created,
+	// updated or cleared on an issue (payload: issue_id, recurrence_id, change).
+	EventIssueRecurrenceChanged = "issue_recurrence:changed"
+	EventWorkspaceNoteDeleted   = "workspace_note:deleted"
 
 	// Inbox events
 	// Inline approvals (OS plan, chantier 3): something a human is asked to

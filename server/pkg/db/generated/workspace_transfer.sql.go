@@ -533,7 +533,7 @@ func (q *Queries) ListAutopilotsForExport(ctx context.Context, workspaceID pgtyp
 }
 
 const listIssuesForExport = `-- name: ListIssuesForExport :many
-SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
+SELECT id, workspace_id, title, description, status, priority, assignee_type, assignee_id, creator_type, creator_id, parent_issue_id, acceptance_criteria, context_refs, position, due_date, created_at, updated_at, number, project_id, origin_type, origin_id, first_executed_at, start_date, metadata, stage, properties, revision, last_activity_at, reopen_count, completed_at, contract_risk, contract_revision, goal_id, delegate_type, delegate_id, cycle_id, issue_type, recurrence_id FROM issue WHERE workspace_id = $1 ORDER BY number ASC LIMIT 5000
 `
 
 func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UUID) ([]Issue, error) {
@@ -583,6 +583,7 @@ func (q *Queries) ListIssuesForExport(ctx context.Context, workspaceID pgtype.UU
 			&i.DelegateID,
 			&i.CycleID,
 			&i.IssueType,
+			&i.RecurrenceID,
 		); err != nil {
 			return nil, err
 		}
