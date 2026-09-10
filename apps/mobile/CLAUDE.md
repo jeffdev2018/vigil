@@ -89,6 +89,7 @@ Start minimal. Add to this list when actually adopted — do NOT pre-list librar
 - **TanStack Query 5** — mobile owns its `QueryClient` with `AppState` focus listener + `NetInfo` online listener.
 - **Zustand** — mobile-local state only.
 - **expo-secure-store** — auth token persistence + theme preference (`light` / `dark` / `system`).
+- **expo-audio** — duplex chat conversation recording + metering (N20). Mic permission via the `expo-audio` config plugin in `app.config.ts`.
 
 When upgrading any of these, update this list.
 
