@@ -1,5 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { CheckCircle2, Search } from "lucide-react";
 import type { TimelineEntry } from "@multica/core/types";
 import { knownA2AIntent } from "@multica/core/issues/a2a-message";
 import { useActorName } from "@multica/core/workspace/hooks";
@@ -7,6 +15,9 @@ import { cn } from "@multica/ui/lib/utils";
 import { ActorAvatar } from "@multica/ui/components/common/actor-avatar";
 import { resolvePublicFileUrl } from "@multica/core/workspace/avatar-url";
 import { useT } from "../../i18n";
+import { pickerNavigationDirection } from "../../common/picker-keys";
+import { isImeComposing } from "@multica/core/utils";
+import { matchesThreadFilter, type ThreadOutlineFilter } from "./thread-utils";
 
 // ---------------------------------------------------------------------------
 // ThreadMinimap — quick-jump rail with a complete thread outline.
@@ -86,6 +97,38 @@ export function commentPreview(markdown: string): { title: string; body: string 
   };
 }
 
+/**
+ * Split `text` on every case-insensitive occurrence of `query`, tinting the
+ * matches. Without this a filtered outline asks the reader to re-find the term
+ * they just typed — a row that matched on its author looks identical to one
+ * that matched on its title. Uses the same `--find-match` tint as the in-page
+ * find bar, so "this is your search term" reads the same everywhere.
+ */
+export function highlightMatches(text: string, query: string): ReactNode {
+  const needle = query.trim();
+  if (needle === "") return text;
+  const lowerText = text.toLowerCase();
+  const lowerNeedle = needle.toLowerCase();
+  const out: ReactNode[] = [];
+  let from = 0;
+  let at = lowerText.indexOf(lowerNeedle);
+  while (at !== -1) {
+    if (at > from) out.push(text.slice(from, at));
+    out.push(
+      <mark
+        key={at}
+        className="rounded-[3px] bg-[var(--find-match)] px-px text-[var(--find-match-foreground)]"
+      >
+        {text.slice(at, at + needle.length)}
+      </mark>,
+    );
+    from = at + needle.length;
+    at = lowerText.indexOf(lowerNeedle, from);
+  }
+  if (from < text.length) out.push(text.slice(from));
+  return out;
+}
+
 export interface ThreadMinimapThread {
   /** Root comment id — also the `comment-${id}` DOM anchor of the rendered row. */
   id: string;
@@ -100,6 +143,11 @@ export interface ThreadMinimapThread {
   resolved: boolean;
   /** Unique authors across the root and every nested reply, in first-seen order. */
   participants: TimelineEntry[];
+  /**
+   * The reader started this thread, answered in it, or was @mentioned in it —
+   * derived by the caller with `threadInvolvesUser`. Drives the "@me" pill.
+   */
+  involvesMe: boolean;
 }
 
 interface ThreadMinimapProps {
@@ -175,17 +223,25 @@ function useVisibleThreadIds(
 }
 
 /** The thread currently highlighted in the outline and rail. */
+/**
+ * The outline row the reader is on. Keyed by thread id rather than by index:
+ * the rail always draws every tick (position is not filterable) while the card
+ * draws a filtered subset, so an index means two different rows in the two
+ * lists as soon as a search is typed.
+ */
 interface PreviewAnchor {
-  index: number;
+  threadId: string;
 }
 
 function MinimapTick({
+  threadId,
   label,
   inViewport,
   isHighlighted,
   isAgentMessage,
   onClick,
 }: {
+  threadId: string;
   label: string;
   inViewport: boolean;
   /** The corresponding outline row is active. */
@@ -203,6 +259,7 @@ function MinimapTick({
     <button
       type="button"
       aria-label={label}
+      data-thread-id={threadId}
       onClick={onClick}
       // 20px wide, tick flushed to the right end: with the rail inset 12px
       // (see the caller's className) the strip spans 12–32px from the panel
@@ -255,22 +312,62 @@ export function ThreadMinimap({
   const prevPreviewsRef = useRef<Map<string, { content: string | undefined; preview: { title: string; body: string } }>>(new Map());
   const previews = useMemo(() => {
     const next = new Map<string, { content: string | undefined; preview: { title: string; body: string } }>();
-    const arr = threads.map((th) => {
+    const byId = new Map<string, { title: string; body: string; haystack: string }>();
+    for (const th of threads) {
       const cached = prevPreviewsRef.current.get(th.id);
       const preview =
         cached && cached.content === th.entry.content
           ? cached.preview
           : commentPreview(th.entry.content ?? "");
       next.set(th.id, { content: th.entry.content, preview });
-      return preview;
-    });
+      const authorName =
+        th.entry.actor_name || getActorName(th.entry.actor_type, th.entry.actor_id);
+      byId.set(th.id, {
+        title: preview.title || authorName,
+        body: preview.body,
+        // Author included so "everything I can see on the row" is searchable:
+        // the name is the fallback title, and often the only thing a reader
+        // remembers about a thread they are looking for.
+        haystack: `${preview.title}\n${preview.body}\n${authorName}`.toLowerCase(),
+      });
+    }
     prevPreviewsRef.current = next;
-    return arr;
-  }, [threads]);
+    return byId;
+  }, [threads, getActorName]);
+
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<ThreadOutlineFilter>("all");
+
+  /** Threads the card lists. The rail's ticks stay unfiltered — see PreviewAnchor. */
+  const rows = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return threads.filter(
+      (th) =>
+        matchesThreadFilter(th, filter) &&
+        (needle === "" || (previews.get(th.id)?.haystack ?? "").includes(needle)),
+    );
+  }, [threads, filter, query, previews]);
+
+  const counts = useMemo(
+    () => ({
+      all: threads.length,
+      unresolved: threads.filter((th) => !th.resolved).length,
+      resolved: threads.filter((th) => th.resolved).length,
+      mine: threads.filter((th) => th.involvesMe).length,
+    }),
+    [threads],
+  );
 
   const shimRef = useRef<HTMLDivElement | null>(null);
   const navRef = useRef<HTMLElement | null>(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
+  const listRef = useRef<HTMLUListElement | null>(null);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  const listId = useId();
+  const optionId = useCallback(
+    (threadId: string) => `${listId}-${threadId}`,
+    [listId],
+  );
 
   // Hover wave + preview targeting. Pointer position lives in refs and ticks
   // are scaled with direct style writes so pointermove never re-renders the
@@ -288,9 +385,7 @@ export function ThreadMinimap({
 
   const showPreview = useCallback((anchor: PreviewAnchor | null) => {
     previewRef.current = anchor;
-    setPreview((prev) =>
-      prev?.index === anchor?.index ? prev : anchor,
-    );
+    setPreview((prev) => (prev?.threadId === anchor?.threadId ? prev : anchor));
   }, []);
 
   useEffect(() => {
@@ -365,7 +460,9 @@ export function ThreadMinimap({
 
     if (y === null || !nearest) return;
     const { index } = nearest as { index: number };
-    const anchor: PreviewAnchor = { index };
+    const nearestThread = threads[index];
+    if (!nearestThread) return;
+    const anchor: PreviewAnchor = { threadId: nearestThread.id };
     pendingAnchorRef.current = anchor;
     if (previewRef.current) {
       // Already open: gliding highlights the matching row without moving the card.
@@ -376,7 +473,7 @@ export function ThreadMinimap({
         if (pointerYRef.current !== null) showPreview(pendingAnchorRef.current);
       }, PREVIEW_OPEN_DELAY_MS);
     }
-  }, [showPreview]);
+  }, [showPreview, threads]);
   const scheduleWave = useCallback(() => {
     if (!waveRafRef.current) waveRafRef.current = requestAnimationFrame(runWave);
   }, [runWave]);
@@ -403,21 +500,84 @@ export function ThreadMinimap({
       const btn = (e.target as HTMLElement).closest("button");
       if (!nav || !shim || !btn) return;
       cancelClose();
-      const buttons = [...nav.querySelectorAll<HTMLButtonElement>("button")];
-      const index = buttons.indexOf(btn as HTMLButtonElement);
-      if (index < 0) return;
-      showPreview({ index });
+      const threadId = (btn as HTMLButtonElement).dataset.threadId;
+      if (!threadId) return;
+      showPreview({ threadId });
     },
     [cancelClose, showPreview],
   );
 
+  // Arrow keys drive the outline from the search field. Rows stay real,
+  // Tab-reachable buttons whose `onFocus` sets the same anchor, so DOM focus
+  // and the highlight are one piece of state rather than two that can disagree.
+  const handleCardKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      // An IME commit arrives as Enter while composing, and the Ctrl aliases
+      // arrive as plain letters. Acting on those would jump away mid-word the
+      // moment a CJK reader picked a candidate.
+      if (isImeComposing(e)) return;
+      // Only from the search field: `preventDefault` on a button's keydown
+      // cancels the click the browser was about to synthesize, so handling
+      // Enter for the whole card made the "Resolved" pill jump instead of
+      // filter, and made a focused row activate the wrong thread.
+      if (e.target !== searchRef.current) return;
+      const direction = pickerNavigationDirection(e.nativeEvent);
+      if (direction) {
+        // Matters for the letter aliases: focus is in a text field, where
+        // Ctrl+K/N/P are readline editing commands that would otherwise mangle
+        // the query while moving the cursor.
+        e.preventDefault();
+        if (rows.length === 0) return;
+        const at = rows.findIndex((row) => row.id === previewRef.current?.threadId);
+        const step = direction === "next" ? 1 : -1;
+        const next = at < 0 ? (direction === "next" ? 0 : rows.length - 1) : at + step;
+        showPreview({
+          threadId: rows[(next + rows.length) % rows.length]!.id,
+        });
+        return;
+      }
+      if (e.key === "Enter") {
+        const threadId = previewRef.current?.threadId;
+        if (!threadId || !rows.some((row) => row.id === threadId)) return;
+        e.preventDefault();
+        onJump(threadId);
+      }
+    },
+    [onJump, rows, showPreview],
+  );
+
+  const filterPills: { id: ThreadOutlineFilter; label: string; count: number }[] = [
+    { id: "all", label: t(($) => $.detail.thread_outline.filter_all), count: counts.all },
+    { id: "unresolved", label: t(($) => $.detail.thread_outline.filter_unresolved), count: counts.unresolved },
+    { id: "resolved", label: t(($) => $.detail.thread_outline.filter_resolved), count: counts.resolved },
+    { id: "mine", label: t(($) => $.detail.thread_outline.filter_mine), count: counts.mine },
+  ];
+
+  // Filtering can hide the row the anchor points at, which would leave ↵ doing
+  // nothing and no row highlighted. Fall to the first remaining row instead of
+  // clearing the anchor, which would close the card mid-search.
   useEffect(() => {
-    const card = cardRef.current;
+    const current = previewRef.current;
+    if (!current || rows.length === 0) return;
+    if (rows.some((row) => row.id === current.threadId)) return;
+    showPreview({ threadId: rows[0]!.id });
+  }, [rows, showPreview]);
+
+  useEffect(() => {
+    const card = listRef.current;
     if (!card || !preview) return;
     // Rail navigation should reveal its row in a long outline. Moving within
     // the list itself must leave its scroll position under the reader's control.
-    if (pointerYRef.current === null && !navRef.current?.contains(document.activeElement)) return;
-    const row = card.querySelectorAll("li")[preview.index];
+    if (
+      pointerYRef.current === null &&
+      !navRef.current?.contains(document.activeElement) &&
+      document.activeElement !== searchRef.current
+    ) {
+      return;
+    }
+    const row = card.querySelector<HTMLLIElement>(
+      `li[data-thread-id="${CSS.escape(preview.threadId)}"]`,
+    );
     if (!row) return;
     if (row.offsetTop < card.scrollTop) card.scrollTop = row.offsetTop;
     else if (row.offsetTop + row.offsetHeight > card.scrollTop + card.clientHeight) {
@@ -436,9 +596,13 @@ export function ThreadMinimap({
         if (event.key !== "Escape") return;
         event.preventDefault();
         event.stopPropagation();
-        const activeIndex = previewRef.current?.index;
-        if (cardRef.current?.contains(document.activeElement) && activeIndex !== undefined) {
-          navRef.current?.querySelectorAll("button")[activeIndex]?.focus();
+        const activeThreadId = previewRef.current?.threadId;
+        if (cardRef.current?.contains(document.activeElement) && activeThreadId) {
+          navRef.current
+            ?.querySelector<HTMLButtonElement>(
+              `button[data-thread-id="${CSS.escape(activeThreadId)}"]`,
+            )
+            ?.focus();
         }
         cancelClose();
         if (openTimerRef.current !== null) {
@@ -460,14 +624,12 @@ export function ThreadMinimap({
         // flex compresses the spacing (down to min-h) instead of overflowing.
         className="pointer-events-auto flex max-h-full flex-col overflow-hidden"
       >
-        {threads.map((thread, i) => {
-          const title =
-            previews[i]!.title ||
-            thread.entry.actor_name ||
-            getActorName(thread.entry.actor_type, thread.entry.actor_id);
+        {threads.map((thread) => {
+          const title = previews.get(thread.id)!.title;
           return (
             <MinimapTick
               key={thread.id}
+              threadId={thread.id}
               // Announce resolution on the tick as well as in the outline.
               label={
                 thread.resolved
@@ -475,7 +637,7 @@ export function ThreadMinimap({
                   : title
               }
               inViewport={visibleIds.has(thread.id)}
-              isHighlighted={preview?.index === i}
+              isHighlighted={preview?.threadId === thread.id}
               isAgentMessage={knownA2AIntent(thread.entry.a2a_intent) !== null}
               onClick={(event) => handleJump(thread.id, event)}
             />
@@ -490,23 +652,85 @@ export function ThreadMinimap({
           onPointerLeave={scheduleClose}
           onFocusCapture={cancelClose}
           onBlurCapture={scheduleClose}
-          className="pointer-events-auto absolute right-8 top-1/2 max-h-[calc(100%-3rem)] w-80 max-w-[calc(100vw-4rem)] -translate-y-1/2 overflow-y-auto overscroll-contain rounded-xl bg-popover p-2 text-body text-popover-foreground shadow-lg ring-1 ring-foreground/10"
+          onKeyDown={handleCardKeyDown}
+          // The box no longer scrolls as a whole: the search band and the
+          // pills stay put while only the list moves, so the field the reader
+          // is typing into cannot scroll out from under them.
+          className="pointer-events-auto absolute right-8 top-1/2 flex max-h-[calc(100%-3rem)] w-80 max-w-[calc(100vw-4rem)] -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-popover text-body text-popover-foreground shadow-lg ring-1 ring-foreground/10"
         >
-          <ul>
-            {threads.map((thread, index) => {
-              const title = previews[index]!.title || thread.entry.actor_name ||
-                getActorName(thread.entry.actor_type, thread.entry.actor_id);
+          <div className="flex h-10 shrink-0 items-center gap-2.5 px-3">
+            <Search className="size-4 shrink-0 text-faint-foreground" aria-hidden />
+            <input
+              ref={searchRef}
+              role="combobox"
+              aria-expanded
+              aria-controls={listId}
+              aria-activedescendant={
+                preview && rows.some((row) => row.id === preview.threadId)
+                  ? optionId(preview.threadId)
+                  : undefined
+              }
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t(($) => $.detail.thread_outline.search_placeholder)}
+              aria-label={t(($) => $.detail.thread_outline.search_placeholder)}
+              className="min-w-0 flex-1 bg-transparent text-body text-foreground outline-none placeholder:text-faint-foreground"
+            />
+            {query.trim() !== "" && (
+              <span className="shrink-0 text-caption tabular-nums text-faint-foreground">
+                {t(($) => $.detail.thread_outline.match_count, { count: rows.length })}
+              </span>
+            )}
+          </div>
+
+          {/* Divider stays: it is the top edge of the scroll region, and
+              without it the list slides under the pills with nothing marking
+              the boundary. */}
+          <div className="flex shrink-0 items-center gap-1 border-b border-border px-1.5 pb-2">
+            {filterPills.map((pill) => (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => setFilter(pill.id)}
+                data-active={filter === pill.id || undefined}
+                className={cn(
+                  "flex h-7 items-center gap-1 rounded-full px-2 text-caption text-muted-foreground transition-colors",
+                  "hover:bg-surface-hover",
+                  "data-active:bg-surface-selected data-active:font-medium data-active:text-foreground data-active:hover:bg-surface-selected",
+                )}
+              >
+                {/* The space is for the accessible name, not the layout —
+                    without it the two spans concatenate to "Resolved1". */}
+                {pill.label}{" "}
+                <span className="tabular-nums text-faint-foreground">{pill.count}</span>
+              </button>
+            ))}
+          </div>
+
+          {rows.length === 0 ? (
+            <p className="px-3 py-8 text-center text-caption text-muted-foreground">
+              {t(($) => $.detail.thread_outline.empty)}
+            </p>
+          ) : (
+          <ul
+            ref={listRef}
+            id={listId}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-2"
+          >
+            {rows.map((thread) => {
+              const title = previews.get(thread.id)!.title;
               const participantNames = thread.participants.map((participant) =>
                 participant.actor_name || getActorName(participant.actor_type, participant.actor_id),
               );
               return (
-                <li key={thread.id}>
+                <li key={thread.id} data-thread-id={thread.id}>
                   <button
                     type="button"
-                    onPointerEnter={() => showPreview({ index })}
-                    onFocus={() => showPreview({ index })}
+                    id={optionId(thread.id)}
+                    onPointerEnter={() => showPreview({ threadId: thread.id })}
+                    onFocus={() => showPreview({ threadId: thread.id })}
                     onClick={(event) => handleJump(thread.id, event)}
-                    data-active={preview.index === index || undefined}
+                    data-active={preview.threadId === thread.id || undefined}
                     aria-label={thread.resolved
                       ? t(($) => $.detail.thread_nav_resolved_label, { title })
                       : title}
@@ -514,7 +738,7 @@ export function ThreadMinimap({
                     className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-body text-muted-foreground transition-colors hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-active:font-medium data-active:text-brand"
                   >
                     <span className="flex min-w-0 flex-1 items-center gap-1.5">
-                      <span className="truncate">{title}</span>
+                      <span className="truncate">{highlightMatches(title, query)}</span>
                       {thread.resolved && (
                         <CheckCircle2
                           className="size-3.5 shrink-0 text-success"
@@ -558,6 +782,7 @@ export function ThreadMinimap({
               );
             })}
           </ul>
+          )}
         </div>
       )}
     </div>

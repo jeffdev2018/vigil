@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import type { TimelineEntry } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
-import { ThreadMinimap, commentPreview, waveScale } from "./thread-minimap";
+import { ThreadMinimap, commentPreview, highlightMatches, waveScale } from "./thread-minimap";
 
 vi.mock("@multica/core/workspace/hooks", () => ({
   useActorName: () => ({
@@ -76,9 +76,9 @@ describe("waveScale", () => {
 
 describe("ThreadMinimap", () => {
   const threads = [
-    { id: "c1", entry: comment("c1", "First thread opener\nwith details"), resolved: false, participants: [] },
-    { id: "c2", entry: comment("c2", "Second thread opener"), resolved: false, participants: [] },
-    { id: "c3", entry: comment("c3", ""), resolved: false, participants: [] },
+    { id: "c1", entry: comment("c1", "First thread opener\nwith details"), resolved: false, participants: [], involvesMe: false },
+    { id: "c2", entry: comment("c2", "Second thread opener"), resolved: false, participants: [], involvesMe: false },
+    { id: "c3", entry: comment("c3", ""), resolved: false, participants: [], involvesMe: false },
   ];
 
   it("renders nothing below the thread threshold", () => {
@@ -338,5 +338,122 @@ describe("ThreadMinimap", () => {
     fireEvent.click(screen.getByRole("button", { name: "Second thread opener" }));
     expect(onJump).toHaveBeenCalledTimes(1);
     expect(onJump).toHaveBeenCalledWith("c2");
+  });
+});
+
+describe("highlightMatches", () => {
+  it("returns the plain string when there is nothing to find", () => {
+    expect(highlightMatches("deploy failed", "  ")).toBe("deploy failed");
+  });
+
+  it("tints every occurrence, case-insensitively, without dropping the gaps", () => {
+    const parts = highlightMatches("Deploy the deployment", "deploy") as unknown[];
+    // "Deploy" | " the " | "deploy" | "ment" — the un-tinted text between and
+    // after the matches has to survive, or the row renders a truncated title.
+    expect(parts).toHaveLength(4);
+    expect(parts[1]).toBe(" the ");
+    expect(parts[3]).toBe("ment");
+  });
+});
+
+describe("ThreadMinimap outline search and filters", () => {
+  const searchThreads = [
+    { id: "c1", entry: comment("c1", "Deploy pipeline is red"), resolved: false, participants: [], involvesMe: false },
+    { id: "c2", entry: comment("c2", "Rename the deploy step"), resolved: true, participants: [], involvesMe: false },
+    { id: "c3", entry: comment("c3", "Unrelated question"), resolved: false, participants: [], involvesMe: true },
+  ];
+
+  /** Opens the outline the way a pointer does, then returns the search field. */
+  function openOutline(onJump = vi.fn()) {
+    renderWithI18n(
+      <ThreadMinimap threads={searchThreads} scrollContainerEl={null} onJump={onJump} />,
+    );
+    const nav = screen.getByRole("navigation", { name: "Jump to comment thread" });
+    fireEvent.pointerMove(nav, { clientY: 0 });
+    act(() => vi.advanceTimersByTime(30));
+    act(() => vi.advanceTimersByTime(150));
+    return { nav, onJump, search: screen.getByRole("combobox", { name: "Search threads" }) };
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("narrows the outline on the query while the rail keeps every tick", () => {
+    const { nav, search } = openOutline();
+    fireEvent.change(search, { target: { value: "deploy" } });
+
+    const list = screen.getByRole("list");
+    expect(within(list).getAllByRole("button")).toHaveLength(2);
+    expect(within(list).queryByText("Unrelated question")).not.toBeInTheDocument();
+    expect(screen.getByText("2 found")).toBeInTheDocument();
+    // Position is not filterable: the rail still answers "where am I" for the
+    // whole issue, so all three ticks stay.
+    expect(within(nav).getAllByRole("button")).toHaveLength(3);
+  });
+
+  it("tints the matched text inside the row", () => {
+    const { search } = openOutline();
+    fireEvent.change(search, { target: { value: "deploy" } });
+    const marks = screen.getByRole("list").querySelectorAll("mark");
+    expect([...marks].map((m) => m.textContent)).toEqual(["Deploy", "deploy"]);
+  });
+
+  it("filters by resolution and by involvement, counting each pill", () => {
+    const { search } = openOutline();
+    expect(screen.getByRole("button", { name: /Resolved 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Unresolved 2/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /Resolved 1/ }));
+    expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(1);
+    expect(screen.getByText("Rename the deploy step")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /@me 1/ }));
+    expect(screen.getByText("Unrelated question")).toBeInTheDocument();
+    expect(screen.queryByText("Rename the deploy step")).not.toBeInTheDocument();
+    expect(search).toHaveValue("");
+  });
+
+  it("says so when nothing matches, instead of showing an empty list", () => {
+    const { search } = openOutline();
+    fireEvent.change(search, { target: { value: "nothing here" } });
+    expect(screen.getByText("No thread matches")).toBeInTheDocument();
+    expect(screen.queryByRole("list")).not.toBeInTheDocument();
+  });
+
+  it("moves the cursor with the arrows and jumps to it with Enter", () => {
+    const { onJump, search } = openOutline();
+    // jsdom rects put the pointer on the first tick, so the cursor starts on c1.
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onJump).toHaveBeenCalledWith("c2");
+
+    // Wraps rather than stopping at the end — a short list is faster to walk
+    // backwards through the top than forwards through the bottom.
+    fireEvent.keyDown(search, { key: "ArrowUp" });
+    fireEvent.keyDown(search, { key: "ArrowUp" });
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onJump).toHaveBeenLastCalledWith("c3");
+  });
+
+  it("does not act on Enter or the letter aliases while an IME is composing", () => {
+    const { onJump, search } = openOutline();
+    fireEvent.keyDown(search, { key: "Enter", isComposing: true });
+    expect(onJump).not.toHaveBeenCalled();
+  });
+
+  it("carries the cursor to the first surviving row when the query hides it", () => {
+    const { onJump, search } = openOutline();
+    fireEvent.keyDown(search, { key: "ArrowDown" });
+    fireEvent.keyDown(search, { key: "ArrowDown" }); // cursor on c3
+    fireEvent.change(search, { target: { value: "deploy" } }); // c3 disappears
+
+    // Not cleared: an anchor of null would close the card mid-search, and a
+    // stale anchor would leave Enter doing nothing.
+    fireEvent.keyDown(search, { key: "Enter" });
+    expect(onJump).toHaveBeenCalledWith("c1");
   });
 });

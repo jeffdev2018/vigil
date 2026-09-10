@@ -504,7 +504,16 @@
       "hint_close": "close"
     },
     "section_related": "Related",
-    "section_duplicate": "Duplicates"
+    "section_duplicate": "Duplicates",
+    "thread_outline": {
+      "search_placeholder": "Search threads",
+      "match_count": "{{count}} found",
+      "empty": "No thread matches",
+      "filter_all": "All",
+      "filter_unresolved": "Unresolved",
+      "filter_resolved": "Resolved",
+      "filter_mine": "@me"
+    }
   },
   "timeline": {
     "loading": "Loading..."

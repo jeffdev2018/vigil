@@ -482,7 +482,16 @@
       "hint_close": "fermer"
     },
     "section_related": "Liées à",
-    "section_duplicate": "Doublons"
+    "section_duplicate": "Doublons",
+    "thread_outline": {
+      "search_placeholder": "Rechercher dans les fils",
+      "match_count": "{{count}} trouvés",
+      "empty": "Aucun fil ne correspond",
+      "filter_all": "Tous",
+      "filter_unresolved": "Non résolus",
+      "filter_resolved": "Résolus",
+      "filter_mine": "@moi"
+    }
   },
   "timeline": {
     "loading": "Chargement..."

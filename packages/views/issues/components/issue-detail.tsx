@@ -92,7 +92,12 @@ import { CommentInput } from "./comment-input";
 import { CurrentIssueRenderContextProvider } from "../current-issue-render-context";
 import { ResolvedThreadBar } from "./resolved-thread-bar";
 import { ThreadMinimap, type ThreadMinimapThread } from "./thread-minimap";
-import { collectThreadParticipants, collectThreadReplies, deriveThreadResolution } from "./thread-utils";
+import {
+  collectThreadParticipants,
+  collectThreadReplies,
+  deriveThreadResolution,
+  threadInvolvesUser,
+} from "./thread-utils";
 import { IssueAgentHeaderChip } from "./issue-agent-header-chip";
 import { ExecutionLogSection } from "./execution-log-section";
 import { IssueDeliverySection } from "./issue-delivery-section";
@@ -1739,10 +1744,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
             entry: it.entry,
             resolved: deriveThreadResolution(it.entry, replies).kind !== "none",
             participants: collectThreadParticipants(it.entry, replies),
+            involvesMe: threadInvolvesUser(it.entry, replies, user?.id ?? ""),
           },
         ];
       }),
-    [items, timelineView.threadReplies],
+    [items, timelineView.threadReplies, user?.id],
   );
 
   // When the timeline renders flat (deep-link or in-page find), there is no

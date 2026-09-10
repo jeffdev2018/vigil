@@ -496,7 +496,16 @@
       "hint_close": "닫기"
     },
     "section_related": "관련",
-    "section_duplicate": "중복"
+    "section_duplicate": "중복",
+    "thread_outline": {
+      "search_placeholder": "스레드 검색",
+      "match_count": "{{count}}건",
+      "empty": "일치하는 스레드가 없습니다",
+      "filter_all": "전체",
+      "filter_unresolved": "미해결",
+      "filter_resolved": "해결됨",
+      "filter_mine": "@나"
+    }
   },
   "timeline": {
     "loading": "불러오는 중..."
