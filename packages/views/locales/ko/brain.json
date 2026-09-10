@@ -73,7 +73,7 @@
     "recording": "녹음 중 {{elapsed}}",
     "uploading": "업로드 중…",
     "drop_hint": "파일을 놓으면 캡처됩니다",
-    "too_large": "여기서는 {{size}}를 넘는 파일을 캡처할 수 없습니다. API를 직접 호출하는 CLI를 사용하세요.",
+    "too_large": "캡처 한 건당 파일은 {{size}}를 넘을 수 없습니다.",
     "storage_off": "이 서버에는 파일 캡처가 설정되어 있지 않습니다.",
     "error": "캡처에 실패했습니다",
     "captured_toast": "캡처했습니다"

@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-The server accepts a pack file up to 32 MB; the web app can upload up to 8 MB (above that, `multica pack preview-file` / `install-file`). An export never carries the skills discovered on a connected computer (they belong to that machine), and `--include-skills=false` leaves every skill out. An export carries no credential either — agents lose their environment keys, triggers come back disabled, triage sources come back without their token.
+The server accepts a pack file up to 32 MB, from the app or from the CLI (`multica pack preview-file` / `install-file`). An export never carries the skills discovered on a connected computer (they belong to that machine), and `--include-skills=false` leaves every skill out. An export carries no credential either — agents lose their environment keys, triggers come back disabled, triage sources come back without their token.
 
 ## Pack format
 

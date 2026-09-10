@@ -361,16 +361,10 @@ export function CalendarEventDialog({
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !pickingIssue) onClose(); }}>
       <DialogContent
+        // Base UI has no outside-press handlers (those are Radix props); the
+        // dialog is controlled and onOpenChange above ignores a close while
+        // an issue is being picked, which keeps it open through the picker.
         className="sm:max-w-lg overflow-y-auto max-h-[90vh]"
-        onPointerDownOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
-        onFocusOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
       >
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>

@@ -2633,7 +2633,7 @@
       "description": "Installez un pack.yaml qu'on vous a partagé. Le serveur lit et vérifie le fichier ; rien n'est appliqué avant que vous ayez vu l'aperçu.",
       "file_label": "Fichier du pack",
       "file_description": "Un seul fichier .yaml.",
-      "too_large": "L'application web ne peut pas envoyer un pack de plus de {{max}}. Installez ce fichier depuis la CLI : multica pack install-file <fichier> — ou multica pack preview-file <fichier> pour le vérifier d'abord."
+      "too_large": "Un fichier de pack ne peut pas dépasser {{max}}."
     },
     "export": {
       "section": "Exporter en pack",

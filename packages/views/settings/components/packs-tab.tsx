@@ -103,7 +103,8 @@ const ALL_DOMAINS = "all";
  * it is refused *here*, and pointed at the CLI, which talks to the API
  * directly.
  */
-const UPLOAD_MAX_BYTES = 8 * 1024 * 1024;
+// Mirrors packs.MaxFileBytes on the server; the message is inline instead of a 413.
+const UPLOAD_MAX_BYTES = 32 * 1024 * 1024;
 const UPLOAD_MAX_LABEL = `${UPLOAD_MAX_BYTES / 1024 / 1024} MB`;
 
 /**

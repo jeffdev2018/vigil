@@ -2625,7 +2625,7 @@
       "description": "安装别人分享给你的 pack.yaml。文件由服务端读取和校验；在你看到预览之前不会应用任何内容。",
       "file_label": "pack 文件",
       "file_description": "一个 .yaml 文件。",
-      "too_large": "超过 {{max}} 的 pack 无法从网页端上传，请改用 CLI 安装：multica pack install-file <file>；想先检查就用 multica pack preview-file <file>。"
+      "too_large": "pack 文件不能超过 {{max}}。"
     },
     "export": {
       "section": "导出为 pack",

@@ -73,7 +73,7 @@
     "recording": "Enregistrement {{elapsed}}",
     "uploading": "Envoi…",
     "drop_hint": "Déposez le fichier pour le capturer",
-    "too_large": "Vous ne pouvez pas capturer ici un fichier de plus de {{size}}. Utilisez la CLI, qui parle directement à l'API.",
+    "too_large": "Un fichier ne peut pas dépasser {{size}} par capture.",
     "storage_off": "La capture de fichiers n'est pas configurée sur ce serveur.",
     "error": "La capture a échoué",
     "captured_toast": "Capturé"

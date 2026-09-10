@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-服务端接受最大 32 MB 的 pack 文件；网页端最多上传 8 MB，更大的文件请用 `multica pack preview-file` / `install-file`。在已连接电脑上发现的技能不会被导出（它们属于那台机器）；加上 `--include-skills=false` 会把所有技能都排除。导出同样不携带任何凭证 —— 智能体的环境变量密钥被留下，触发器回来时是关闭的，分诊来源回来时没有 token。
+服务端接受最大 32 MB 的 pack 文件，从应用或 CLI（`multica pack preview-file` / `install-file`）上传均可。在已连接电脑上发现的技能不会被导出（它们属于那台机器）；加上 `--include-skills=false` 会把所有技能都排除。导出同样不携带任何凭证 —— 智能体的环境变量密钥被留下，触发器回来时是关闭的，分诊来源回来时没有 token。
 
 ## pack 格式
 
