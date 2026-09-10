@@ -163,6 +163,9 @@ type NativeAgentService struct {
 	// llmFuses maps nativeLLMFuseKey(baseURL, model) → *nativeFuseSlot.
 	// A success on a key clears that key only.
 	llmFuses sync.Map
+	// agentEffects maps agent id → *agentEffectTimes for the temporal Rule
+	// of Two (N11): a sliding window of state-changing tool calls across runs.
+	agentEffects sync.Map
 	// limiter is the global in-flight cap. wsInFlight counts per workspace
 	// (N12) so one busy workspace cannot take every global slot when peers
 	// are also queued.
@@ -434,6 +437,18 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		}
 		return
 	}
+	// N14: refuse to start on an issue that is already closed/cancelled —
+	// queued rows that the CLI path cancels on close must not burn a native
+	// run either.
+	if task.IssueID.Valid {
+		if issue, err := s.Queries.GetIssue(ctx, task.IssueID); err == nil && nativeIssueIsTerminal(ctx, s.Queries, agent.WorkspaceID, issue.Status) {
+			msg := "The issue was closed while this run was still going, so there is nothing left for it to deliver."
+			if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+				slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
+			}
+			return
+		}
+	}
 	started, err := s.Tasks.StartTask(ctx, taskID)
 	if err != nil {
 		slog.Error("native run: start failed", "task_id", util.UUIDToString(taskID), "error", err)
@@ -453,6 +468,12 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 
 	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID, budget: &nativeRunBudget{}}
 	tctx.orgDenies = s.nativeOrgDenies(ctx, agent.WorkspaceID, ownIssue, agent.ID)
+	// Temporal Rule of Two (N11): load the sliding-window policy once per run.
+	if ws, err := s.Queries.GetWorkspace(ctx, agent.WorkspaceID); err == nil {
+		tctx.effectWindow = NativeEffectWindowFromSettings(ws.Settings)
+	} else {
+		tctx.effectWindow = NativeEffectWindowFromSettings(nil)
+	}
 	cx := newNativeContext(s.nativeSystemPromptWithDoctrine(ctx, agent), brief)
 
 	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeFilterToolSpecs(nativeAgentToolSpecsFor(0), tctx.orgDenies), nativeMaxTurns, &usage)
@@ -461,6 +482,19 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 		// when the task was cancelled it is settled, and when the workspace
 		// was halted the stale reclaim picks the row back up once the halt
 		// lifts — the halt contract is "buy time", not "fail the work".
+		recordUsage()
+		return
+	}
+	if errors.Is(loopErr, errNativeIssueTerminal) {
+		// Issue closed under the run (N14): settle like the terminal-issue
+		// sweeper so failure_reason stays issue_terminal.
+		msg := finalText
+		if msg == "" {
+			msg = "The issue was closed while this run was still going, so there is nothing left for it to deliver."
+		}
+		if _, err := s.Tasks.FailTask(ctx, taskID, msg, "", "", "", ReasonIssueTerminal, false, "", ""); err != nil {
+			slog.Error("native run: fail on terminal issue failed", "task_id", util.UUIDToString(taskID), "error", err)
+		}
 		recordUsage()
 		return
 	}
@@ -516,13 +550,19 @@ var errNativeTimeout = errors.New("native run timed out")
 func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContext, cx *nativeContext, tools []openai.ChatCompletionToolUnionParam, maxTurns int, usage *nativeRunUsage) (string, error) {
 	taskID := tctx.task.ID
 	stop := &nativeStopCheck{queries: s.Queries}
+	if tctx.issue != nil {
+		stop.issueID = tctx.issue.ID
+	}
 	nowMs := func() int64 { return time.Now().UnixMilli() }
 	for turn := 0; turn < maxTurns; turn++ {
-		// Cooperative stop (N09): a human cancelling the run or halting the
-		// workspace must not wait out the timeout. Checked BEFORE the turn so
-		// even the first turn respects a halt that landed during the claim.
-		if stopped, why := stop.shouldStop(ctx, taskID, tctx.workspaceID, nowMs); stopped {
+		// Cooperative stop (N09/N14): cancel, halt, or a closed issue must
+		// not wait out the timeout. Checked BEFORE the turn so even the
+		// first turn respects a halt/close that landed during the claim.
+		if stopped, why, issueTerminal := stop.shouldStop(ctx, taskID, tctx.workspaceID, nowMs); stopped {
 			s.writeNativeMessage(ctx, taskID, "system", "", "Run stopped: "+why, nil)
+			if issueTerminal {
+				return why, errNativeIssueTerminal
+			}
 			return "", errNativeRunStopped
 		}
 		// The last turn, or the first turn after a budget refusal, is a
