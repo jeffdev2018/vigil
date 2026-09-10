@@ -486,7 +486,8 @@
       "code_health": "代码健康",
       "doc_drift": "智能体上下文漂移",
       "issue_types": "工作项类型",
-      "doctrine": "行动准则"
+      "doctrine": "行动准则",
+      "packs": "Pack"
     },
     "groups": {
       "personal": "个人设置",
@@ -2547,5 +2548,161 @@
     "report_status_acknowledged": "已确认",
     "report_status_dismissed": "已忽略",
     "unknown_member": "未知"
+  },
+  "packs": {
+    "title": "Pack",
+    "description": "Pack 把这个工作区变成某个职能的开箱可用配置：状态、任务类型、标签、属性、视图、规则、一段 doctrine、一份 skill、一个项目、一个目标和示例任务。每个 pack 都能在没有智能体的情况下使用——智能体以暂停状态且未绑定运行时进入，自动化默认关闭。",
+    "read_only": "只有 owner 和 admin 可以安装、更新或移除 pack。",
+    "install_done": "已安装 pack",
+    "install_failed": "无法安装 pack",
+    "catalogue": {
+      "section": "目录",
+      "description": "选择这个工作区的职能。除非你明确指定，安装不会覆盖已有内容。",
+      "filter_label": "按领域筛选",
+      "all_domains": "全部",
+      "loading": "加载中...",
+      "failed": "无法加载目录",
+      "retry": "重试",
+      "empty": "该领域暂无 pack。"
+    },
+    "card": {
+      "installed": "已安装 {{version}}",
+      "update_to": "更新到 {{version}}",
+      "wave": "第 {{wave}} 批",
+      "works_without_agents": "无需智能体",
+      "metric": "指标：{{label}}"
+    },
+    "detail": {
+      "failed": "无法加载这个 pack",
+      "version": "版本 {{version}}",
+      "metric": "要盯的一个指标",
+      "prerequisites": "前置条件",
+      "optional": "可选",
+      "contents": "会安装什么",
+      "changelog": "更新日志",
+      "author_license": "{{author}} · {{license}}",
+      "download": "下载 pack.yaml",
+      "download_failed": "无法下载 pack 文件"
+    },
+    "preview": {
+      "title": "预览",
+      "start": "预览安装",
+      "running": "正在读取 pack...",
+      "failed": "无法预览 pack",
+      "collisions": "与工作区已有内容有 {{count}} 处名称冲突",
+      "no_collisions": "工作区中没有与 pack 冲突的内容。",
+      "strategy": "冲突时",
+      "install": "安装",
+      "update": "更新",
+      "installing": "安装中..."
+    },
+    "report": {
+      "title": "安装报告",
+      "created": "已创建",
+      "merged": "已合并",
+      "skipped": "已跳过"
+    },
+    "installed": {
+      "section": "已安装",
+      "description": "pack 创建的每一项都有记录，因此可以原地更新或移除。",
+      "empty": "暂未安装任何 pack。",
+      "items": "{{count}} 项",
+      "update": "更新到 {{version}}",
+      "uninstall": "卸载",
+      "uninstall_done": "已移除 pack",
+      "uninstall_failed": "无法移除 pack",
+      "uninstall_report": "卸载报告",
+      "removed": "已移除",
+      "kept": "已保留",
+      "no_items": "这次安装没有记录任何项。",
+      "confirm_title": "移除 {{title}}？",
+      "confirm_body": "pack 创建的配置会被移除：视图、标签、属性、规则、状态和任务类型删除，智能体和自动化归档。你的内容会留下：pack 带来的项目、目标、笔记和任务现在归这个工作区，它合并进已有项的改动保持原样。",
+      "confirm_cancel": "取消",
+      "confirm_action": "移除 pack"
+    },
+    "upload": {
+      "section": "上传 pack",
+      "description": "安装别人分享给你的 pack.yaml。文件由服务端读取和校验；在你看到预览之前不会应用任何内容。",
+      "file_label": "pack 文件",
+      "file_description": "一个 .yaml 文件。"
+    },
+    "export": {
+      "section": "导出为 pack",
+      "description": "把这个工作区的配置导出成 pack.yaml，可以编辑、分享或安装到别处。密钥永远不会包含在内。",
+      "manifest": "清单",
+      "id": "标识符（kebab-case）",
+      "version": "版本（1.0.0）",
+      "pack_title": "标题",
+      "summary": "摘要",
+      "domain": "领域",
+      "metric_label": "要盯的指标",
+      "metric_description": "怎么看这个指标",
+      "include_issues": "包含任务",
+      "include_notes": "包含笔记",
+      "button": "导出 pack",
+      "exporting": "导出中...",
+      "done": "已下载 pack",
+      "failed": "无法导出 pack"
+    },
+    "strategies": {
+      "skip": "跳过已存在的项",
+      "merge": "合并进已有项",
+      "rename": "重命名 pack 带来的项"
+    },
+    "strategy_help": {
+      "skip": "工作区中同名的内容完全保持原样。",
+      "merge": "用 pack 的版本更新已有项。做更新时用这个。",
+      "rename": "pack 的项以新名称进来，和你的并列存在。"
+    },
+    "prerequisite_status": {
+      "met": "已满足",
+      "missing": "缺少",
+      "unknown": "由你决定"
+    },
+    "sources": {
+      "builtin": "内置",
+      "upload": "上传",
+      "workspace": "工作区"
+    },
+    "install_status": {
+      "installed": "已安装",
+      "failed": "失败",
+      "removed": "已移除"
+    },
+    "domains": {
+      "helpdesk": "IT 支持台",
+      "ops": "运营",
+      "support": "客户支持",
+      "sales": "销售",
+      "marketing": "市场",
+      "leadership": "管理层",
+      "research": "研究",
+      "hr": "人力",
+      "finance": "财务",
+      "legal": "法务",
+      "engineering": "工程",
+      "other": "其他"
+    },
+    "kinds": {
+      "issue_statuses": "状态",
+      "issue_types": "任务类型",
+      "labels": "标签",
+      "properties": "属性",
+      "views": "视图",
+      "transition_rules": "流转规则",
+      "business_rules": "业务规则",
+      "ownership_rules": "责任规则",
+      "permission_profiles": "权限档案",
+      "skills": "skill",
+      "agents": "智能体",
+      "projects": "项目",
+      "goals": "目标",
+      "autopilots": "自动化",
+      "triage_sources": "接入来源",
+      "org_structures": "组织图",
+      "notes": "笔记",
+      "issues": "任务",
+      "doctrine": "doctrine"
+    }
   }
 }

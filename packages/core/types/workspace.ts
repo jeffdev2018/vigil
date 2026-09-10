@@ -23,6 +23,15 @@ export interface Workspace {
   postmortem_cost_threshold_usd_ticks?: number | null;
   created_at: string;
   updated_at: string;
+  /**
+   * Set only on the POST /api/workspaces response, when the new workspace was
+   * seeded from a template run (K76) or a catalogue pack (packs, vague B):
+   * the seed report, or the reason the seed failed. The workspace itself is
+   * created either way — the server does not roll the create back — so a
+   * caller that reads `template_error` must still treat the workspace as real.
+   */
+  template?: Record<string, unknown>;
+  template_error?: string;
 }
 
 /**

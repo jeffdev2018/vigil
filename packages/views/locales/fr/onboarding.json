@@ -207,7 +207,13 @@
     "creation_disabled_lede_resume": "La création de workspace est désactivée sur cette instance, vous allez donc rejoindre votre workspace existant.",
     "template_label": "Partir de",
     "template_scratch": "Partir de zéro",
-    "template_hint": "Un modèle pré-remplit les agents, compétences, projets et plus à partir d'un workspace exporté."
+    "template_hint": "Un modèle pré-remplit les agents, compétences, projets et plus à partir d'un workspace exporté.",
+    "pack_label": "Partir d'un pack",
+    "pack_none": "Aucun pack",
+    "pack_none_hint": "Un espace de travail vide, que vous configurez vous-même.",
+    "pack_no_agents": "Aucun agent requis",
+    "pack_hint": "Un pack installe les statuts, types de tâche, étiquettes, vues, règles et un premier projet pour un métier. Il fonctionne sans aucun agent, et vous pourrez installer ou retirer des packs plus tard depuis Réglages -> Packs.",
+    "pack_seed_failed": "L'espace de travail a été créé, mais le pack n'a pas pu être installé : {{reason}}. Réessayez depuis Réglages -> Packs."
   },
   "step_runtime": {
     "scanning_headline": "Connexion à cet ordinateur…",

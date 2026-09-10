@@ -486,7 +486,8 @@
       "code_health": "コードヘルス",
       "doc_drift": "エージェントコンテキストのずれ",
       "issue_types": "作業アイテムタイプ",
-      "doctrine": "行動指針"
+      "doctrine": "行動指針",
+      "packs": "パック"
     },
     "groups": {
       "personal": "個人設定",
@@ -2547,5 +2548,161 @@
     "report_status_acknowledged": "確認済み",
     "report_status_dismissed": "却下",
     "unknown_member": "不明"
+  },
+  "packs": {
+    "title": "パック",
+    "description": "パックはこのワークスペースを一つの業務向けの実用構成に変えます。ステータス、課題タイプ、ラベル、プロパティ、ビュー、ルール、ドクトリンの節、手順、プロジェクト、ゴール、サンプルの課題まで。どのパックもエージェントなしで機能します。エージェントは実行環境なしの一時停止状態、自動化は無効の状態で入ります。",
+    "read_only": "パックのインストール、更新、削除は owner と admin のみが行えます。",
+    "install_done": "パックをインストールしました",
+    "install_failed": "パックをインストールできませんでした",
+    "catalogue": {
+      "section": "カタログ",
+      "description": "このワークスペースの業務を選びます。明示的に指定しない限り、既存のものは上書きされません。",
+      "filter_label": "領域で絞り込む",
+      "all_domains": "すべて",
+      "loading": "読み込み中...",
+      "failed": "カタログを読み込めませんでした",
+      "retry": "再試行",
+      "empty": "この領域のパックはまだありません。"
+    },
+    "card": {
+      "installed": "{{version}} をインストール済み",
+      "update_to": "{{version}} に更新",
+      "wave": "第 {{wave}} 波",
+      "works_without_agents": "エージェントなしで動作",
+      "metric": "指標: {{label}}"
+    },
+    "detail": {
+      "failed": "このパックを読み込めませんでした",
+      "version": "バージョン {{version}}",
+      "metric": "追う指標",
+      "prerequisites": "前提条件",
+      "optional": "任意",
+      "contents": "インストールされるもの",
+      "changelog": "変更履歴",
+      "author_license": "{{author}} · {{license}}",
+      "download": "pack.yaml をダウンロード",
+      "download_failed": "パックファイルをダウンロードできませんでした"
+    },
+    "preview": {
+      "title": "プレビュー",
+      "start": "インストールをプレビュー",
+      "running": "パックを読み取り中...",
+      "failed": "パックをプレビューできませんでした",
+      "collisions": "既存のものと {{count}} 件の名前の衝突があります",
+      "no_collisions": "このワークスペースにパックと衝突するものはありません。",
+      "strategy": "衝突したとき",
+      "install": "インストール",
+      "update": "更新",
+      "installing": "インストール中..."
+    },
+    "report": {
+      "title": "インストール結果",
+      "created": "作成",
+      "merged": "統合",
+      "skipped": "スキップ"
+    },
+    "installed": {
+      "section": "インストール済み",
+      "description": "パックが作成した項目はすべて記録されるため、その場で更新も削除もできます。",
+      "empty": "インストール済みのパックはまだありません。",
+      "items": "{{count}} 件の項目",
+      "update": "{{version}} に更新",
+      "uninstall": "アンインストール",
+      "uninstall_done": "パックを削除しました",
+      "uninstall_failed": "パックを削除できませんでした",
+      "uninstall_report": "アンインストール結果",
+      "removed": "削除",
+      "kept": "残したもの",
+      "no_items": "このインストールは項目を記録していません。",
+      "confirm_title": "{{title}} を削除しますか?",
+      "confirm_body": "パックが作成した構成は削除されます。ビュー、ラベル、プロパティ、ルール、ステータス、課題タイプは削除され、エージェントと自動化はアーカイブされます。コンテンツは残ります。パックが持ち込んだプロジェクト、ゴール、ノート、課題はこのワークスペースのものになり、既存の項目に統合されたものはそのままです。",
+      "confirm_cancel": "キャンセル",
+      "confirm_action": "パックを削除"
+    },
+    "upload": {
+      "section": "パックをアップロード",
+      "description": "共有された pack.yaml をインストールします。ファイルの読み取りと検査はサーバーが行い、プレビューを確認する前に適用されることはありません。",
+      "file_label": "パックファイル",
+      "file_description": ".yaml ファイル 1 つ。"
+    },
+    "export": {
+      "section": "パックとしてエクスポート",
+      "description": "このワークスペースの構成を pack.yaml にします。編集、共有、他の場所へのインストールができます。シークレットは含まれません。",
+      "manifest": "マニフェスト",
+      "id": "識別子 (kebab-case)",
+      "version": "バージョン (1.0.0)",
+      "pack_title": "タイトル",
+      "summary": "概要",
+      "domain": "領域",
+      "metric_label": "追う指標",
+      "metric_description": "その指標の読み方",
+      "include_issues": "課題を含める",
+      "include_notes": "ノートを含める",
+      "button": "パックをエクスポート",
+      "exporting": "エクスポート中...",
+      "done": "パックをダウンロードしました",
+      "failed": "パックをエクスポートできませんでした"
+    },
+    "strategies": {
+      "skip": "既存のものはそのまま",
+      "merge": "既存のものに統合",
+      "rename": "パック側を別名で追加"
+    },
+    "strategy_help": {
+      "skip": "同じ名前で既にあるものは一切変更されません。",
+      "merge": "パック側の内容で既存の項目を更新します。更新のときに使います。",
+      "rename": "パックの項目が新しい名前で、既存のものと並んで入ります。"
+    },
+    "prerequisite_status": {
+      "met": "満たしている",
+      "missing": "未設定",
+      "unknown": "任意判断"
+    },
+    "sources": {
+      "builtin": "内蔵",
+      "upload": "アップロード",
+      "workspace": "ワークスペース"
+    },
+    "install_status": {
+      "installed": "インストール済み",
+      "failed": "失敗",
+      "removed": "削除済み"
+    },
+    "domains": {
+      "helpdesk": "ヘルプデスク",
+      "ops": "オペレーション",
+      "support": "カスタマーサポート",
+      "sales": "セールス",
+      "marketing": "マーケティング",
+      "leadership": "経営",
+      "research": "リサーチ",
+      "hr": "人事",
+      "finance": "財務",
+      "legal": "法務",
+      "engineering": "エンジニアリング",
+      "other": "その他"
+    },
+    "kinds": {
+      "issue_statuses": "ステータス",
+      "issue_types": "課題タイプ",
+      "labels": "ラベル",
+      "properties": "プロパティ",
+      "views": "ビュー",
+      "transition_rules": "遷移ルール",
+      "business_rules": "業務ルール",
+      "ownership_rules": "担当ルール",
+      "permission_profiles": "権限プロファイル",
+      "skills": "手順",
+      "agents": "エージェント",
+      "projects": "プロジェクト",
+      "goals": "ゴール",
+      "autopilots": "自動化",
+      "triage_sources": "受付ソース",
+      "org_structures": "組織図",
+      "notes": "ノート",
+      "issues": "課題",
+      "doctrine": "ドクトリン"
+    }
   }
 }

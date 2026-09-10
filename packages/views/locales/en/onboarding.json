@@ -207,7 +207,13 @@
     "creation_disabled_lede_resume": "Workspace creation is disabled on this instance, so you'll continue into your existing workspace.",
     "template_label": "Start from",
     "template_scratch": "Start from scratch",
-    "template_hint": "A template pre-fills agents, skills, projects and more from an exported workspace."
+    "template_hint": "A template pre-fills agents, skills, projects and more from an exported workspace.",
+    "pack_label": "Start from a pack",
+    "pack_none": "No pack",
+    "pack_none_hint": "An empty workspace you set up yourself.",
+    "pack_no_agents": "No agent needed",
+    "pack_hint": "A pack installs the statuses, work item types, labels, views, rules and a first project for one function. It works with no agent at all, and you can install or remove packs later from Settings -> Packs.",
+    "pack_seed_failed": "The workspace was created, but the pack could not be installed: {{reason}}. Try again from Settings -> Packs."
   },
   "step_runtime": {
     "scanning_headline": "Connecting this computer…",

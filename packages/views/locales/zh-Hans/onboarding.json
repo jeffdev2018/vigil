@@ -207,7 +207,13 @@
     "creation_disabled_lede_resume": "该实例已禁用创建工作区，继续进入你已有的工作区即可。",
     "template_label": "从哪里开始",
     "template_scratch": "从零开始",
-    "template_hint": "模板会根据已导出的工作区预先填好 Agent、技能、项目等内容。"
+    "template_hint": "模板会根据已导出的工作区预先填好 Agent、技能、项目等内容。",
+    "pack_label": "从 pack 开始",
+    "pack_none": "不用 pack",
+    "pack_none_hint": "一个空工作区，由你自己配置。",
+    "pack_no_agents": "无需智能体",
+    "pack_hint": "pack 会为一个职能装好状态、任务类型、标签、视图、规则和第一个项目。它没有智能体也能用，之后也可以在设置 -> Pack 里安装或移除。",
+    "pack_seed_failed": "工作区已创建，但 pack 没能安装：{{reason}}。可以在设置 -> Pack 里重试。"
   },
   "step_runtime": {
     "scanning_headline": "正在连接这台电脑...",

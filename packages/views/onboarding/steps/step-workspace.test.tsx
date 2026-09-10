@@ -6,6 +6,9 @@ import { I18nProvider } from "@multica/core/i18n/react";
 import enCommon from "../../locales/en/common.json";
 import enOnboarding from "../../locales/en/onboarding.json";
 import enWorkspace from "../../locales/en/workspace.json";
+// The pack picker's rows read the kind and domain glossary from the settings
+// namespace, which owns the Packs tab — one glossary for the product.
+import enSettings from "../../locales/en/settings.json";
 import type { Workspace } from "@multica/core/types";
 
 const TEST_RESOURCES = {
@@ -13,6 +16,7 @@ const TEST_RESOURCES = {
     common: enCommon,
     onboarding: enOnboarding,
     workspace: enWorkspace,
+    settings: enSettings,
   },
 };
 
@@ -50,6 +54,16 @@ vi.mock("@multica/core/api", () => ({
 const mockTemplates = vi.hoisted(() => ({ list: [] as { id: string; name: string; workspace_name: string }[] }));
 vi.mock("@multica/core/workspace/transfer", () => ({
   workspaceTemplatesOptions: () => ({ queryKey: ["workspace-templates"], queryFn: async () => mockTemplates.list }),
+}));
+
+const mockPacks = vi.hoisted(() => ({
+  catalogue: { packs: [] as unknown[], domains: [] as string[] },
+}));
+vi.mock("@multica/core/packs", () => ({
+  packSeedCatalogueOptions: () => ({
+    queryKey: ["pack-catalogue"],
+    queryFn: async () => mockPacks.catalogue,
+  }),
 }));
 
 import { StepWorkspace } from "./step-workspace";
@@ -355,5 +369,92 @@ describe("StepWorkspace — issue prefix", () => {
       template_run_id: "run-1",
     });
     mockTemplates.list = [];
+  });
+});
+
+// Packs (OS plan, vague B): the new workspace can start as a ready-to-use
+// setup for one function. The catalogue read here is the pre-workspace one
+// (/api/pack-catalogue) — no workspace header, no install state — because
+// the workspace being seeded does not exist yet.
+describe("StepWorkspace — pack picker", () => {
+  const HELPDESK = {
+    manifest: {
+      id: "helpdesk-it",
+      title: "IT helpdesk",
+      summary: "Take tickets, triage them, answer them.",
+      domain: "helpdesk",
+      works_without_agents: true,
+    },
+    counts: { labels: 5, views: 3, agents: 2 },
+    contents: { labels: ["Bug"] },
+  };
+  const SALES = {
+    manifest: {
+      id: "sales",
+      title: "Sales pipeline",
+      summary: "Deals, stages, follow-ups.",
+      domain: "sales",
+      works_without_agents: false,
+    },
+    counts: { labels: 2 },
+    contents: {},
+  };
+
+  it("stays hidden when the catalogue is empty", () => {
+    mockPacks.catalogue = { packs: [], domains: [] };
+    renderStep({ existing: null, disabled: false });
+    expect(screen.queryByText("No pack")).not.toBeInTheDocument();
+  });
+
+  it("renders a row per catalogue pack, defaulting to no pack", async () => {
+    mockPacks.catalogue = { packs: [HELPDESK, SALES], domains: ["helpdesk", "sales"] };
+    renderStep({ existing: null, disabled: false });
+
+    const none = await screen.findByRole("radio", { name: /No pack/ });
+    expect(none).toBeChecked();
+    const helpdesk = screen.getByRole("radio", { name: /IT helpdesk/ });
+    expect(helpdesk).not.toBeChecked();
+    // Domain badge, the counts summary and the zero-agent promise all read
+    // off the catalogue entry, not off a hardcoded list.
+    expect(helpdesk.textContent).toContain("Helpdesk");
+    expect(helpdesk.textContent).toContain("5 labels · 3 views · 2 agents");
+    expect(helpdesk.textContent).toContain("No agent needed");
+    expect(
+      screen.getByRole("radio", { name: /Sales pipeline/ }).textContent,
+    ).not.toContain("No agent needed");
+  });
+
+  it("sends the picked pack as pack_id", async () => {
+    mockCreateMutate.mockClear();
+    mockPacks.catalogue = { packs: [HELPDESK, SALES], domains: ["helpdesk", "sales"] };
+    renderStep({ existing: null, disabled: false });
+
+    fireEvent.click(await screen.findByRole("radio", { name: /IT helpdesk/ }));
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate.mock.calls[0]![0]).toMatchObject({
+      slug: "acme-inc",
+      pack_id: "helpdesk-it",
+    });
+  });
+
+  it("sends no pack_id when the user deselects back to no pack", async () => {
+    mockCreateMutate.mockClear();
+    mockPacks.catalogue = { packs: [HELPDESK], domains: ["helpdesk"] };
+    renderStep({ existing: null, disabled: false });
+
+    const helpdesk = await screen.findByRole("radio", { name: /IT helpdesk/ });
+    fireEvent.click(helpdesk);
+    fireEvent.click(helpdesk);
+    fireEvent.change(screen.getByLabelText("Workspace name"), {
+      target: { value: "Acme Inc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^Create Acme Inc$/ }));
+
+    expect(mockCreateMutate.mock.calls[0]![0]).not.toHaveProperty("pack_id");
+    mockPacks.catalogue = { packs: [], domains: [] };
   });
 });

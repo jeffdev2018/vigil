@@ -487,7 +487,8 @@
       "code_health": "Code health",
       "doc_drift": "Agent context drift",
       "issue_types": "Work item types",
-      "doctrine": "Doctrine"
+      "doctrine": "Doctrine",
+      "packs": "Packs"
     },
     "groups": {
       "personal": "Personal",
@@ -2555,5 +2556,161 @@
     "report_status_acknowledged": "Acknowledged",
     "report_status_dismissed": "Dismissed",
     "unknown_member": "Unknown"
+  },
+  "packs": {
+    "title": "Packs",
+    "description": "A pack turns this workspace into a ready-to-use setup for one function: statuses, work item types, labels, properties, views, rules, a doctrine section, a procedure, a project, a goal and example work. Every pack works with no agent at all — agents arrive paused with no runtime, autopilots disabled.",
+    "read_only": "Only owners and admins can install, update or remove a pack.",
+    "install_done": "Pack installed",
+    "install_failed": "Failed to install the pack",
+    "catalogue": {
+      "section": "Catalogue",
+      "description": "Pick the function this workspace is for. Installing never overwrites what you already have unless you ask it to.",
+      "filter_label": "Filter by domain",
+      "all_domains": "All",
+      "loading": "Loading...",
+      "failed": "Failed to load the catalogue",
+      "retry": "Try again",
+      "empty": "No pack in this domain yet."
+    },
+    "card": {
+      "installed": "Installed {{version}}",
+      "update_to": "Update to {{version}}",
+      "wave": "Wave {{wave}}",
+      "works_without_agents": "Works without agents",
+      "metric": "Metric: {{label}}"
+    },
+    "detail": {
+      "failed": "Failed to load this pack",
+      "version": "Version {{version}}",
+      "metric": "The one metric to watch",
+      "prerequisites": "Prerequisites",
+      "optional": "optional",
+      "contents": "What it installs",
+      "changelog": "Changelog",
+      "author_license": "By {{author}} · {{license}}",
+      "download": "Download pack.yaml",
+      "download_failed": "Failed to download the pack file"
+    },
+    "preview": {
+      "title": "Preview",
+      "start": "Preview the install",
+      "running": "Reading the pack...",
+      "failed": "Failed to preview the pack",
+      "collisions": "{{count}} name collisions with what this workspace already has",
+      "no_collisions": "Nothing in this workspace collides with the pack.",
+      "strategy": "On collision",
+      "install": "Install",
+      "update": "Update",
+      "installing": "Installing..."
+    },
+    "report": {
+      "title": "Install report",
+      "created": "Created",
+      "merged": "Merged",
+      "skipped": "Skipped"
+    },
+    "installed": {
+      "section": "Installed",
+      "description": "Every row a pack created is recorded, so it can be updated in place or removed.",
+      "empty": "No pack installed yet.",
+      "items": "{{count}} items",
+      "update": "Update to {{version}}",
+      "uninstall": "Uninstall",
+      "uninstall_done": "Pack removed",
+      "uninstall_failed": "Failed to remove the pack",
+      "uninstall_report": "Uninstall report",
+      "removed": "Removed",
+      "kept": "Kept",
+      "no_items": "This install recorded no rows.",
+      "confirm_title": "Remove {{title}}?",
+      "confirm_body": "The configuration the pack created goes: its views, labels, properties, rules, statuses and work item types are removed, its agents and automations archived. Your content stays: projects, goals, notes and work items the pack brought are yours now, and anything it merged into a row you already had is left alone.",
+      "confirm_cancel": "Cancel",
+      "confirm_action": "Remove the pack"
+    },
+    "upload": {
+      "section": "Upload a pack",
+      "description": "Install a pack.yaml someone shared with you. The server reads and checks the file; nothing is applied before you have seen the preview.",
+      "file_label": "Pack file",
+      "file_description": "A single .yaml file."
+    },
+    "export": {
+      "section": "Export as a pack",
+      "description": "Turn this workspace's configuration into a pack.yaml you can edit, share or install elsewhere. Secrets are never included.",
+      "manifest": "Manifest",
+      "id": "Identifier (kebab-case)",
+      "version": "Version (1.0.0)",
+      "pack_title": "Title",
+      "summary": "Summary",
+      "domain": "Domain",
+      "metric_label": "Metric to watch",
+      "metric_description": "How to read that metric",
+      "include_issues": "Include work items",
+      "include_notes": "Include notes",
+      "button": "Export the pack",
+      "exporting": "Exporting...",
+      "done": "Pack downloaded",
+      "failed": "Failed to export the pack"
+    },
+    "strategies": {
+      "skip": "Skip what already exists",
+      "merge": "Merge into what exists",
+      "rename": "Rename what the pack brings"
+    },
+    "strategy_help": {
+      "skip": "Anything this workspace already has by that name is left exactly as it is.",
+      "merge": "The pack's version updates the row you already have. Use it for an update.",
+      "rename": "The pack's item arrives under a new name, side by side with yours."
+    },
+    "prerequisite_status": {
+      "met": "Met",
+      "missing": "Missing",
+      "unknown": "Up to you"
+    },
+    "sources": {
+      "builtin": "Built-in",
+      "upload": "Upload",
+      "workspace": "Workspace"
+    },
+    "install_status": {
+      "installed": "Installed",
+      "failed": "Failed",
+      "removed": "Removed"
+    },
+    "domains": {
+      "helpdesk": "Helpdesk",
+      "ops": "Operations",
+      "support": "Customer support",
+      "sales": "Sales",
+      "marketing": "Marketing",
+      "leadership": "Leadership",
+      "research": "Research",
+      "hr": "People",
+      "finance": "Finance",
+      "legal": "Legal",
+      "engineering": "Engineering",
+      "other": "Other"
+    },
+    "kinds": {
+      "issue_statuses": "statuses",
+      "issue_types": "work item types",
+      "labels": "labels",
+      "properties": "properties",
+      "views": "views",
+      "transition_rules": "transition rules",
+      "business_rules": "business rules",
+      "ownership_rules": "ownership rules",
+      "permission_profiles": "permission profiles",
+      "skills": "procedures",
+      "agents": "agents",
+      "projects": "projects",
+      "goals": "goals",
+      "autopilots": "automations",
+      "triage_sources": "intake sources",
+      "org_structures": "org charts",
+      "notes": "notes",
+      "issues": "work items",
+      "doctrine": "doctrine"
+    }
   }
 }

@@ -16,6 +16,7 @@ import {
 import { cn } from "@multica/ui/lib/utils";
 import { useCreateWorkspace } from "@multica/core/workspace/mutations";
 import { workspaceTemplatesOptions } from "@multica/core/workspace/transfer";
+import { packSeedCatalogueOptions } from "@multica/core/packs";
 import type { Workspace } from "@multica/core/types";
 import { isImeComposing } from "@multica/core/utils";
 import { matchLocale } from "@multica/core/i18n";
@@ -203,6 +204,14 @@ export function StepWorkspace({
   // fetch collapses to — the picker simply stays hidden.
   const { data: templates = [] } = useQuery(workspaceTemplatesOptions());
   const [templateRunId, setTemplateRunId] = useState("");
+  // Packs (OS plan, vague B): the new workspace can start as a ready-to-use
+  // setup for one function. This catalogue is the pre-workspace one
+  // (/api/pack-catalogue) — no workspace header, no install state — because
+  // the workspace being seeded does not exist yet. Empty string = no pack,
+  // which is also where a failed fetch lands: the picker just stays hidden.
+  const { data: packCatalogue } = useQuery(packSeedCatalogueOptions());
+  const packs = packCatalogue?.packs ?? [];
+  const [packId, setPackId] = useState("");
 
   const handleCreate = () => {
     if (!canCreate || createWorkspace.isPending) return;
@@ -216,9 +225,23 @@ export function StepWorkspace({
         // is what makes an edited prefix stick.
         issue_prefix: effectivePrefix,
         ...(templateRunId ? { template_run_id: templateRunId } : {}),
+        ...(packId ? { pack_id: packId } : {}),
       },
       {
-        onSuccess: onCreated,
+        // The workspace exists either way: the server creates it first and
+        // reports a failed seed in `template_error` rather than rolling the
+        // create back. Say so and continue instead of stranding the user on a
+        // step whose workspace is already there.
+        onSuccess: (workspace) => {
+          if (workspace.template_error) {
+            toast.error(
+              t(($) => $.step_workspace.pack_seed_failed, {
+                reason: workspace.template_error,
+              }),
+            );
+          }
+          return onCreated(workspace);
+        },
         onError: (error) => {
           if (isWorkspaceSlugConflict(error)) {
             setSlugServerError(t(($) => $.step_workspace.slug_taken_error));
@@ -414,6 +437,42 @@ export function StepWorkspace({
           <FieldDescription>{t(($) => $.step_workspace.template_hint)}</FieldDescription>
         </Field>
       )}
+      {packs.length > 0 && (
+        <Field>
+          <FieldLabel id="ws-pack-label">
+            {t(($) => $.step_workspace.pack_label)}
+          </FieldLabel>
+          <div
+            role="radiogroup"
+            aria-labelledby="ws-pack-label"
+            className="flex flex-col gap-2"
+          >
+            <PackChoice
+              title={t(($) => $.step_workspace.pack_none)}
+              summary={t(($) => $.step_workspace.pack_none_hint)}
+              selected={packId === ""}
+              disabled={isCreating}
+              onSelect={() => setPackId("")}
+            />
+            {packs.map((entry) => (
+              <PackChoice
+                key={entry.manifest.id}
+                title={entry.manifest.title}
+                summary={entry.manifest.summary}
+                domain={entry.manifest.domain}
+                counts={entry.counts}
+                worksWithoutAgents={entry.manifest.works_without_agents === true}
+                selected={packId === entry.manifest.id}
+                disabled={isCreating}
+                onSelect={() =>
+                  setPackId((id) => (id === entry.manifest.id ? "" : entry.manifest.id))
+                }
+              />
+            ))}
+          </div>
+          <FieldDescription>{t(($) => $.step_workspace.pack_hint)}</FieldDescription>
+        </Field>
+      )}
     </FieldGroup>
   );
 
@@ -487,6 +546,89 @@ export function StepWorkspace({
         </StepFooter>
       )}
     </>
+  );
+}
+
+/**
+ * One row of the "Start from a pack" radio group, and also its "No pack"
+ * row — which is why the props are plain values rather than a catalogue
+ * entry. Compact on purpose: the full card grid, the description, the
+ * prerequisites and the preview live in Settings -> Packs; here the user is
+ * naming a workspace and only needs to recognise the function.
+ */
+function PackChoice({
+  title,
+  summary,
+  domain,
+  counts,
+  worksWithoutAgents = false,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  title: string;
+  summary: string;
+  domain?: string;
+  counts?: Record<string, number>;
+  worksWithoutAgents?: boolean;
+  selected: boolean;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  const { t } = useT("onboarding");
+  // The kind glossary ("labels", "views", "agents"...) is translated once, in
+  // the settings namespace that owns the Packs tab. Reading it here keeps one
+  // glossary for the product rather than a second copy under onboarding.
+  const { t: tSettings } = useT("settings");
+  const kinds = tSettings(($) => $.packs.kinds, { returnObjects: true }) as Record<
+    string,
+    string
+  >;
+  const domains = tSettings(($) => $.packs.domains, { returnObjects: true }) as Record<
+    string,
+    string
+  >;
+  const summaryOfCounts = Object.entries(counts ?? {})
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([kind, n]) => `${n} ${kinds[kind] ?? kind}`)
+    .join(" · ");
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        "flex w-full items-start gap-4 rounded-lg border bg-card px-4 py-3 text-left transition-all",
+        selected
+          ? "border-foreground shadow-[inset_0_0_0_1px_var(--color-foreground)]"
+          : "hover:border-foreground/20 hover:bg-accent/30",
+      )}
+    >
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-body font-medium text-foreground">{title}</span>
+          {domain && (
+            <span className="rounded-full border px-2 py-0.5 text-caption text-muted-foreground">
+              {domains[domain] ?? domain}
+            </span>
+          )}
+          {worksWithoutAgents && (
+            <span className="rounded-full border px-2 py-0.5 text-caption text-muted-foreground">
+              {t(($) => $.step_workspace.pack_no_agents)}
+            </span>
+          )}
+        </div>
+        <span className="text-caption leading-relaxed text-muted-foreground">{summary}</span>
+        {summaryOfCounts && (
+          <span className="text-caption text-muted-foreground">{summaryOfCounts}</span>
+        )}
+      </div>
+      <RadioMark selected={selected} />
+    </button>
   );
 }
 

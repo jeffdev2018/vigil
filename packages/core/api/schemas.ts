@@ -6950,6 +6950,12 @@ export const WorkspaceSchema = z.object({
   postmortem_cost_threshold_usd_ticks: z.number().nullable().optional(),
   created_at: z.string().default(""),
   updated_at: z.string().default(""),
+  // Present only on the POST /api/workspaces response, when the new
+  // workspace was seeded from a template run (K76) or a catalogue pack: the
+  // seed report, or the reason the seed failed while the workspace itself was
+  // created. Optional everywhere else, so EMPTY_WORKSPACE stays valid.
+  template: z.record(z.string(), z.unknown()).optional(),
+  template_error: z.string().optional(),
 }).loose();
 
 export const WorkspaceListSchema = z.array(WorkspaceSchema);
