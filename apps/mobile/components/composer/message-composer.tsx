@@ -116,6 +116,10 @@ interface Props {
   isSending?: boolean;
   renderStop?: () => ReactNode;
 
+  /** Optional leading toolbar actions after @ / image / file (chat voice
+   *  conversation). Comment omits this. */
+  toolbarExtras?: ReactNode;
+
   /** Hard-disable. Used when chat has no usable agent. The pill shows
    *  `disabledReason` instead of `pillLabel`, and the pill is
    *  non-interactive (cannot expand). */
@@ -168,6 +172,7 @@ export function MessageComposer({
   expandTrigger,
   isSending = false,
   renderStop,
+  toolbarExtras,
   disabled = false,
   disabledReason,
   manageKeyboard = true,
@@ -572,6 +577,7 @@ export function MessageComposer({
             accessibilityLabel="Upload file"
             className="h-8 w-8"
           />
+          {toolbarExtras}
           <View className="flex-1" />
           {isSending && renderStop ? (
             renderStop()

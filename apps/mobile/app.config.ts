@@ -80,14 +80,23 @@ export default ({ config }: ConfigContext): ExpoConfig => {
           // Adding it re-runs the config plugin, so the next build must go
           // through `pnpm ios` (scripts/ios-run.sh always prebuilds).
           //
-          // Microphone stays disabled: no audio-recording module is
-          // installed (see components/brain/capture-composer.tsx), so
-          // nothing in the app can open a mic.
+          // Microphone stays disabled here: recording (conversations, Brain
+          // voice memos) uses expo-audio's own mic permission string below.
           photosPermission:
             "Allow Multica to access your photos to attach images to issues, comments and Brain captures.",
           cameraPermission:
             "Allow Multica to use the camera to capture a photo straight into the workspace Brain.",
           microphonePermission: false,
+        },
+      ],
+      [
+        "expo-audio",
+        {
+          // N20 duplex conversation: continuous mic in chat. Dev-client /
+          // production builds need this string in Info.plist or iOS kills
+          // the process on first record attempt.
+          microphonePermission:
+            "Allow Multica to use the microphone for voice conversation in chat.",
         },
       ],
       [
