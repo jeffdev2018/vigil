@@ -104,6 +104,9 @@ type AppConfig struct {
 	// to last_activity_at (F02). Omitted by older servers; the client falls
 	// back to its own default.
 	RunUnresponsiveAfterSeconds float64 `json:"run_unresponsive_after_seconds,omitempty"`
+	// NativeRuntimeAvailable (OS plan, chantier 5): the in-server runtime has
+	// a model to run with, so onboarding can offer "run in the browser".
+	NativeRuntimeAvailable bool `json:"native_runtime_available"`
 }
 
 // GetConfig is mounted on the public (unauthenticated) route group because
@@ -130,6 +133,7 @@ func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
 	config.DaemonServerURL, config.DaemonAppURL = daemonSetupURLsFromEnv()
 	config.VCSIntegrationAvailable = h.cfg.VCSIntegrationEnabled
 	config.RunUnresponsiveAfterSeconds = service.RunUnresponsiveAfterSeconds()
+	config.NativeRuntimeAvailable = h.NativeAgents.Available()
 	config.FeatureFlags = featureflags.EvaluateFrontendPublicFlags(r.Context(), h.FeatureFlags)
 	// Only surface the build version on self-hosted deployments. The managed
 	// cloud is continuously deployed and its users can't choose the build, so

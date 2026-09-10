@@ -175,6 +175,14 @@ func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueServi
 // Tick seeds + heartbeats the native runtime rows, then claims and dispatches
 // as many queued tasks as the concurrency cap allows. It returns the number of
 // runs dispatched this tick.
+// Available reports whether the native runtime can run anything right now:
+// a configured model and a closed fuse. Onboarding offers the browser path
+// only when this is true, and routing refuses a native-bound trigger when
+// it is false, so a run never sits queued in silence.
+func (s *NativeAgentService) Available() bool {
+	return s != nil && s.LLM != nil && s.LLM.Enabled() && !s.llmFuseOpen()
+}
+
 func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	// Inert without a configured model — same contract as every other
 	// LLM-backed server feature: disabled means off, not failing.

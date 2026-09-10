@@ -39,13 +39,17 @@ import (
 )
 
 type TaskService struct {
-	Queries   *db.Queries
-	TxStarter TxStarter
-	Hub       *realtime.Hub
-	Bus       *events.Bus
-	Analytics analytics.Client
-	Metrics   *obsmetrics.BusinessMetrics
-	Wakeup    TaskWakeupNotifier
+	// NativeRuntimeAvailable says whether the in-server runtime can run a
+	// task right now (model configured, fuse closed). Nil means unknown, which
+	// routing treats as available: the native service wires it at start-up.
+	NativeRuntimeAvailable func() bool
+	Queries                *db.Queries
+	TxStarter              TxStarter
+	Hub                    *realtime.Hub
+	Bus                    *events.Bus
+	Analytics              analytics.Client
+	Metrics                *obsmetrics.BusinessMetrics
+	Wakeup                 TaskWakeupNotifier
 	// ModelKeyFailover (K48) retires the key a run failed on and says whether
 	// another key can take the retry. Nil keeps runs without BYOK unchanged.
 	ModelKeyFailover func(ctx context.Context, task db.AgentTaskQueue, reason string) bool
