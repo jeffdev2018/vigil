@@ -68,33 +68,6 @@ import {
   AgentActivityHoverContent,
 } from "./agent-activity-hover-content";
 
-function makeIssue(id: string, identifier: string, title: string): Issue {
-  return {
-    id,
-    workspace_id: "ws-1",
-    number: 1,
-    identifier,
-    title,
-    description: null,
-    status: "in_progress",
-    priority: "none",
-    assignee_type: null,
-    assignee_id: null,
-    creator_type: "member",
-    creator_id: "user-1",
-    parent_issue_id: null,
-    project_id: null,
-    position: 1,
-    stage: null,
-    start_date: null,
-    due_date: null,
-    metadata: {},
-    properties: {},
-    created_at: "2026-06-08T08:00:00Z",
-    updated_at: "2026-06-08T08:00:00Z",
-  };
-}
-
 function makeTask(overrides: Partial<AgentTask>): AgentTask {
   return {
     id: "task-1",
