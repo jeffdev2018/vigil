@@ -46,6 +46,7 @@ import { dingtalkKeys } from "../dingtalk/queries";
 import { wecomKeys } from "../wecom/queries";
 import { telegramKeys } from "../telegram/queries";
 import { runHaltKeys } from "../run-halt/queries";
+import { onboardingChecklistKeys } from "../onboarding/checklist";
 import { runKeys } from "../runs/fleet-queries";
 import {
   onIssueCreated,
@@ -862,6 +863,9 @@ export function useRealtimeSync(
           // per-squad members-status cache without refetching the static squad
           // list summary.
           invalidateSquadMemberStatusQueries(qc, wsId);
+          // Getting-started checklist (OS plan, chantier 5): an agent
+          // create flips `agent_created`.
+          qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         }
       },
       member: () => {
@@ -1141,6 +1145,9 @@ export function useRealtimeSync(
         if (!wsId) return;
         qc.invalidateQueries({ queryKey: agentTaskSnapshotKeys.list(wsId) });
         qc.invalidateQueries({ queryKey: workspaceWorkingAgentsKeys.all(wsId) });
+        // Getting-started checklist (OS plan, chantier 5): a task lifecycle
+        // event is what flips `first_run_completed`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
         // The Table working-agent shortcut derives an assignee set from the
         // projection above. Refresh its server-owned graph alongside that set
         // so rows/groups/facets cannot remain on an old task transition while
@@ -1279,7 +1286,12 @@ export function useRealtimeSync(
       const { issue } = p as IssueCreatedPayload;
       if (!issue) return;
       const wsId = getCurrentWsId();
-      if (wsId) onIssueCreated(qc, wsId, issue);
+      if (wsId) {
+        onIssueCreated(qc, wsId, issue);
+        // Getting-started checklist (OS plan, chantier 5): flips
+        // `issue_created`.
+        qc.invalidateQueries({ queryKey: onboardingChecklistKeys.all(wsId) });
+      }
     });
 
     // issue:aux_changed carries an answer given outside the web app — a decision

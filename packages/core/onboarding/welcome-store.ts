@@ -12,17 +12,25 @@ import { create } from "zustand";
  * row (the v2 design persisted it as fields and leaked complexity
  * everywhere).
  *
- * The signal is only needed when the user explicitly skips runtime setup.
- * The workspace welcome hook seeds one install-runtime guide and shows it in
- * a modal. Once a runtime appears, the Runtimes page offers the same Mika
- * bootstrap used by the connected onboarding path. Runtime-connected
- * onboarding creates Mika before reaching the workspace and does not use
- * this signal.
+ * The signal covers two exits that both need one-shot workspace-shell setup
+ * after the onboarding screen has already unmounted:
+ *
+ *   - "skip": the user explicitly skipped runtime setup. The workspace
+ *     welcome hook seeds one install-runtime guide and shows it in a modal.
+ *     Once a runtime appears, the Runtimes page offers the same Mika
+ *     bootstrap used by the connected onboarding path.
+ *   - "native" (OS plan, chantier 5): the user picked the browser-based
+ *     native runtime. Mika is already bootstrapped by the time this fires
+ *     (onboarding-flow's handleRuntimeNext runs bootstrapMika first) — the
+ *     hook only needs to seed the "Your first run" issue, assigned to
+ *     `agentId`, and navigate straight to it.
+ *
+ * Every other runtime-connected exit (CLI, desktop) creates Mika and opens
+ * her chat directly from onboarding-flow and never touches this signal.
  */
-export interface WelcomeSignal {
-  workspaceId: string;
-  choice: "skip";
-}
+export type WelcomeSignal =
+  | { workspaceId: string; choice: "skip" }
+  | { workspaceId: string; choice: "native"; agentId: string };
 
 interface WelcomeStoreState {
   signal: WelcomeSignal | null;

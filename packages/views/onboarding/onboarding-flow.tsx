@@ -84,7 +84,7 @@ function mergeQuestionnaire(
  * destination. Runtime-connected onboarding opens the real Mika conversation
  * started by the final step; other exits land on the workspace issue list.
  *
- * Three exit shapes feed onComplete:
+ * Four exit shapes feed onComplete:
  *   - Skip-existing (Welcome): completeOnboarding marks onboarded; navigate
  *     to the existing workspace's issue list.
  *   - Runtime-skipped (no runtime on Step 3): completeOnboarding marks
@@ -94,9 +94,16 @@ function mergeQuestionnaire(
  *   - Runtime-connected: create or repair the workspace's Mika on the selected
  *     runtime, start one hidden onboarding kickoff, mark onboarding complete,
  *     and open Mika's real chat. No fixed specialist team is created.
+ *   - Native runtime (OS plan, chantier 5): same Mika bootstrap as
+ *     runtime-connected, but completionPath is "native" and we push a
+ *     {choice:"native", agentId} welcome signal instead of opening the hidden
+ *     chat — the welcome hook seeds a "Your first run" issue assigned to
+ *     Mika and navigates there, so the person watches a real run instead of
+ *     a scripted conversation.
  *
- * This file never touches createAgent / createIssue. The runtime-skipped
- * guide flow remains in `packages/views/workspace/welcome-after-onboarding.tsx`.
+ * This file never touches createIssue. The runtime-skipped guide issue and
+ * the native first-run issue both live in
+ * `packages/views/workspace/welcome-after-onboarding.tsx`.
  */
 interface OnboardingFlowProps {
   onComplete: (
@@ -271,6 +278,23 @@ function OnboardingStepFlow({
             model,
             ...getMikaOnboarding(contentLang),
           });
+          // Native runtime (OS plan, chantier 5): Mika is bootstrapped exactly
+          // like any other connected runtime, but the first thing to watch is
+          // a real run, not the hidden onboarding chat. Seeding that issue
+          // touches createIssue, which this file deliberately never calls —
+          // the welcome hook does it, the same way it owns the runtime-skipped
+          // guide issue. Landing with no destination (like that skip path)
+          // lets it take over once the workspace shell mounts.
+          if (rt.runtime_mode === "native") {
+            await completeOnboarding("native", workspace.id);
+            useWelcomeStore.getState().set({
+              workspaceId: workspace.id,
+              choice: "native",
+              agentId: result.agent.id,
+            });
+            onComplete(workspace, undefined);
+            return;
+          }
           await completeOnboarding("full", workspace.id);
           onComplete(workspace, {
             kind: "chat",

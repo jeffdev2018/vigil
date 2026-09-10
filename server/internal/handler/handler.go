@@ -653,6 +653,9 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 	taskSvc.OnTaskCancelled = h.afterTaskCancelled
 	// Validated routing (JEF-275): a refused trigger reaches a human.
 	taskSvc.OnRoutingBlocked = h.onRoutingBlocked
+	// Native onboarding (OS plan, chantier 5): routing refuses a native-bound
+	// trigger while the server has no model, instead of queuing it in silence.
+	taskSvc.NativeRuntimeAvailable = h.NativeAgents.Available
 	return h
 }
 

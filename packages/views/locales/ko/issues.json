@@ -79,7 +79,9 @@
     "breadcrumb_workspace_fallback": "워크스페이스",
     "empty_title": "아직 이슈가 없습니다",
     "empty_hint": "이슈를 만들어 시작하세요.",
-    "move_failed": "이슈를 이동하지 못했습니다"
+    "move_failed": "이슈를 이동하지 못했습니다",
+    "empty_run_explainer": "에이전트는 브라우저의 네이티브 런타임에서 실행되거나, 직접 연결한 컴퓨터에서 실행됩니다.",
+    "empty_run_explainer_link": "에이전트 만들기"
   },
   "status": {
     "backlog": "백로그",

@@ -156,6 +156,13 @@
           "subtitle": "Codex または Kimi をインストールし、Runtimes から Mika の案内チャットを始めてください。"
         }
       }
+    },
+    "native": {
+      "loading": "はじめての実行を準備中…",
+      "error_title": "開始できませんでした",
+      "error_body": "はじめての実行を作成できませんでした。再試行するか、準備ができたら新しい課題を作って Mika に割り当ててください。",
+      "retry": "再試行",
+      "dismiss": "後で"
     }
   },
   "step_workspace": {
@@ -246,6 +253,12 @@
     "cloud_title": "クラウドコンピュータを使う",
     "cloud_subtitle": "クラウドでコンピュータを動かします。まだ提供されていません。",
     "cloud_action": "近日公開",
+    "native_title": "ブラウザで実行",
+    "native_subtitle": "インストール不要 — Mika は Multica 自身の runtime で動きます。",
+    "native_disabled_subtitle": "運用担当者にサーバー用のモデル (MULTICA_LLM_API_KEY) の設定を依頼してください。",
+    "native_action": "Mika と始める",
+    "native_action_disabled": "利用できません",
+    "native_badge": "おすすめ",
     "cli_dialog_title": "ターミナルから接続",
     "cli_dialog_description": "デスクトップと同じ接続を、ターミナルからセットアップします。サーバー、リモート開発環境、ヘッドレスなコンピュータに使ってください。",
     "cli_dialog_pick_hint": "上でコンピュータを選んでください。",
@@ -271,5 +284,17 @@
     "name": "Mika",
     "role": "参謀長",
     "blurb": "やりたいことを Mika に伝えると、課題になり、適したエージェントが担当します。"
+  },
+  "getting_started": {
+    "title": "はじめに",
+    "dismiss": "閉じる",
+    "row_runtime_native": "ネイティブランタイムの準備完了",
+    "row_runtime_daemon": "ランタイム接続済み",
+    "row_runtime_none": "ランタイムを接続",
+    "row_agent": "エージェントを作成",
+    "row_issue": "課題を作成",
+    "row_first_run": "はじめての実行を完了する",
+    "row_first_decision": "最初の判断に回答する",
+    "optional_suffix": "(任意)"
   }
 }

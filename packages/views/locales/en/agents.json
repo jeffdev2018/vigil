@@ -45,7 +45,9 @@
   },
   "empty": {
     "title": "No agents yet",
-    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime."
+    "description": "Create an agent and assign it issues, like any teammate. Local agents run on your machine; cloud agents run on Multica's runtime.",
+    "description_run_explainer": "Agents run in the browser on the native runtime — or on a computer you connect.",
+    "description_run_explainer_link": "See runtimes"
   },
   "no_matches": {
     "title": "No matches",

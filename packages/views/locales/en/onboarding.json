@@ -156,6 +156,13 @@
           "subtitle": "Install Codex or Kimi, then start the guided Mika chat from Runtimes."
         }
       }
+    },
+    "native": {
+      "loading": "Setting up your first run…",
+      "error_title": "We couldn't start that",
+      "error_body": "Your first run didn't get created. You can try again, or open a new issue and assign it to Mika whenever you're ready.",
+      "retry": "Try again",
+      "dismiss": "Not now"
     }
   },
   "step_workspace": {
@@ -247,6 +254,12 @@
     "cloud_title": "Use a cloud computer",
     "cloud_subtitle": "We'll run a computer for you in the cloud. Not live yet.",
     "cloud_action": "Coming soon",
+    "native_title": "Run in the browser",
+    "native_subtitle": "Nothing to install — Mika runs on Multica's own runtime.",
+    "native_disabled_subtitle": "Ask the operator to set a model for the server (MULTICA_LLM_API_KEY).",
+    "native_action": "Start with Mika",
+    "native_action_disabled": "Not available",
+    "native_badge": "Recommended",
     "cli_dialog_title": "Connect from the terminal",
     "cli_dialog_description": "Same connection as Desktop, set up from the terminal. Use it for servers, remote dev boxes, or any headless computer.",
     "cli_dialog_pick_hint": "Pick a computer above.",
@@ -273,5 +286,17 @@
     "name": "Mika",
     "role": "Chief of Staff",
     "blurb": "Tell Mika what you want done. It becomes an issue, with the right agent on it."
+  },
+  "getting_started": {
+    "title": "Getting started",
+    "dismiss": "Dismiss",
+    "row_runtime_native": "Native runtime ready",
+    "row_runtime_daemon": "Runtime connected",
+    "row_runtime_none": "Connect a runtime",
+    "row_agent": "Create an agent",
+    "row_issue": "Create an issue",
+    "row_first_run": "Complete your first run",
+    "row_first_decision": "Answer your first decision",
+    "optional_suffix": "(optional)"
   }
 }

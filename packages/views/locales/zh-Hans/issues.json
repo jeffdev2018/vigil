@@ -79,7 +79,9 @@
     "breadcrumb_workspace_fallback": "工作区",
     "empty_title": "还没有任务",
     "empty_hint": "创建一个任务开始使用。",
-    "move_failed": "移动任务失败"
+    "move_failed": "移动任务失败",
+    "empty_run_explainer": "智能体可以在浏览器里的原生运行时上运行，也可以在你连接的电脑上运行。",
+    "empty_run_explainer_link": "新建智能体"
   },
   "status": {
     "backlog": "待规划",

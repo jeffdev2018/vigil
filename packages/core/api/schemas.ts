@@ -961,6 +961,11 @@ export interface AppConfigResponse {
   /** Whether agent create/update persists `conversation_starters`. Older servers
    * silently ignored the unknown field, so absent must be treated as false. */
   agent_conversation_starters_supported?: boolean;
+  /** Whether this deployment has a configured model for the browser-based
+   * native runtime (OS plan, chantier 5). Absent/false on servers without
+   * MULTICA_LLM_API_KEY set — the onboarding native-runtime card stays
+   * disabled and no native RuntimeDevice row exists for new workspaces. */
+  native_runtime_available?: boolean;
   server_version?: string;
   /** Run liveness threshold in seconds (F02): an active run whose
    * last_activity_at is older than this is shown as unresponsive. Omitted by
@@ -1208,6 +1213,7 @@ export const AppConfigSchema = z.object({
   feature_flags: FeatureFlagsSchema,
   local_worktree_supported: BooleanWithDefaultSchema(false),
   agent_conversation_starters_supported: BooleanWithDefaultSchema(false),
+  native_runtime_available: BooleanWithDefaultSchema(false),
   meeting_transcription_available: BooleanWithDefaultSchema(false).optional(),
   meeting_realtime_available: BooleanWithDefaultSchema(false).optional(),
   tts_available: BooleanWithDefaultSchema(false).optional(),
@@ -1229,6 +1235,9 @@ export const EMPTY_APP_CONFIG: AppConfigResponse = {
   local_worktree_supported: false,
   // Fail closed: old servers returned success while dropping the field.
   agent_conversation_starters_supported: false,
+  // Fail closed: no declared model means the native runtime card must stay
+  // disabled rather than default to "try it".
+  native_runtime_available: false,
   feature_flags: {},
 };
 
@@ -2897,6 +2906,52 @@ export const PrioritizeQueuedChatTaskResponseSchema:
 
 export const EMPTY_PRIORITIZE_QUEUED_CHAT_TASK_RESPONSE:
   PrioritizeQueuedChatTaskResponse = { task_id: "" };
+
+// GET /api/onboarding/checklist (OS plan, chantier 5). Drives the
+// getting-started card shown on a fresh workspace. `runtime_kind` is open the
+// same way IssueStatus is: the client only branches on the three keys the
+// server documents today, and an unrecognized future kind still parses.
+export interface OnboardingChecklistResponse {
+  runtime_kind: "native" | "daemon" | "none";
+  native_available: boolean;
+  runtime_ready: boolean;
+  agent_created: boolean;
+  issue_created: boolean;
+  first_run_completed: boolean;
+  first_decision_answered: boolean;
+  complete: boolean;
+  agents: number;
+  issues: number;
+  completed_runs: number;
+}
+
+export const OnboardingChecklistSchema: z.ZodType<OnboardingChecklistResponse> = z.object({
+  runtime_kind: z.enum(["native", "daemon", "none"]).catch("none"),
+  native_available: BooleanWithDefaultSchema(false),
+  runtime_ready: BooleanWithDefaultSchema(false),
+  agent_created: BooleanWithDefaultSchema(false),
+  issue_created: BooleanWithDefaultSchema(false),
+  first_run_completed: BooleanWithDefaultSchema(false),
+  first_decision_answered: BooleanWithDefaultSchema(false),
+  complete: BooleanWithDefaultSchema(false),
+  agents: z.number().catch(0),
+  issues: z.number().catch(0),
+  completed_runs: z.number().catch(0),
+}).loose();
+
+export const EMPTY_ONBOARDING_CHECKLIST: OnboardingChecklistResponse = {
+  runtime_kind: "none",
+  native_available: false,
+  runtime_ready: false,
+  agent_created: false,
+  issue_created: false,
+  first_run_completed: false,
+  first_decision_answered: false,
+  complete: false,
+  agents: 0,
+  issues: 0,
+  completed_runs: 0,
+};
 
 export const EMPTY_CHAT_DRAFT_RESTORES: ChatDraftRestoresResponse = {
   restores: [],

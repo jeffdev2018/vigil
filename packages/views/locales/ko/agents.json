@@ -44,7 +44,9 @@
   },
   "empty": {
     "title": "아직 에이전트가 없습니다",
-    "description": "팀원에게 하듯 에이전트를 만들고 이슈를 할당하세요. 로컬 에이전트는 내 기기에서, 클라우드 에이전트는 Multica 런타임에서 실행됩니다."
+    "description": "팀원에게 하듯 에이전트를 만들고 이슈를 할당하세요. 로컬 에이전트는 내 기기에서, 클라우드 에이전트는 Multica 런타임에서 실행됩니다.",
+    "description_run_explainer": "에이전트는 브라우저의 네이티브 런타임에서 실행되거나, 직접 연결한 컴퓨터에서 실행됩니다.",
+    "description_run_explainer_link": "런타임 보기"
   },
   "no_matches": {
     "title": "일치하는 결과 없음",

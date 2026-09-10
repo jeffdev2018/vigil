@@ -2375,6 +2375,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// be able to see by whom — and writable by owner/admin.
 			// Inline approvals (OS plan, chantier 3): every pending ask in one feed.
 			r.Get("/api/approvals", h.ListApprovals)
+			// Native onboarding (OS plan, chantier 5): the getting-started checklist.
+			r.Get("/api/onboarding/checklist", h.GetOnboardingChecklist)
 			// Fleet page (OS plan, chantier 4).
 			r.Get("/api/runs", h.ListRuns)
 			r.Post("/api/runs/cancel", h.CancelRuns)

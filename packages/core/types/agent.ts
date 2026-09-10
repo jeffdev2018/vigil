@@ -2,7 +2,16 @@ import type { ChatSession } from "./chat";
 
 export type AgentStatus = "idle" | "working" | "blocked" | "error" | "offline";
 
-export type AgentRuntimeMode = "local" | "cloud";
+/**
+ * "native" (OS plan, chantier 5) is a workspace-level runtime that runs in
+ * the browser server-side — no daemon, no CLI install. One row is
+ * provisioned per workspace when the server has a configured model
+ * (`native_runtime_available` in `/api/config`), so it behaves like any
+ * other `RuntimeDevice` to the rest of the frontend (selectable in
+ * `MikaRuntimeChoice`, listed by `GET /api/runtimes`) — only onboarding
+ * treats it specially, as the no-install fast path.
+ */
+export type AgentRuntimeMode = "local" | "cloud" | "native";
 
 // ---------------------------------------------------------------------------
 // Smart runtime routing (JEF-237)

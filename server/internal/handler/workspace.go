@@ -315,6 +315,16 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to seed the org structure: "+err.Error())
 		return
 	}
+	// Native onboarding (OS plan, chantier 5): the in-server runtime exists
+	// the moment the workspace does, so the runtime step can offer "run in
+	// the browser" without racing the ten-second server tick. Only when the
+	// server can actually run it — an unusable runtime is worse than none.
+	if h.NativeAgents.Available() {
+		if _, err := qtx.SeedNativeRuntimeForWorkspace(r.Context(), db.SeedNativeRuntimeForWorkspaceParams{WorkspaceID: ws.ID, OwnerID: parseUUID(userID)}); err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to seed the native runtime: "+err.Error())
+			return
+		}
+	}
 
 	// NOTE: CreateWorkspace deliberately does NOT mark the user as
 	// onboarded. The `onboarded_at` flag is owned by CompleteOnboarding
