@@ -1847,3 +1847,87 @@ func (m *midRunLLM) ChatStream(ctx context.Context, params openai.ChatCompletion
 	m.afterCall()
 	return m.inner.ChatStream(ctx, params)
 }
+
+// N10 — preview effect mode holds the native run's writes. An agent in
+// effect_mode=preview gets its effectful tools journaled as PENDING effects
+// (K69's own gate, the same one every HTTP write path consults) instead of
+// applied: nothing reaches the workspace, the model is told a human must
+// approve, reads stay free, and held writes do not spend the effect budget.
+// trust_mode stays the CLI/MCP cap it already is — effect_mode is the write
+// gate, consistent with the HTTP paths.
+func TestNativeAgentPreviewHoldsWrites(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	previewID := fx.Agent(t, "Preview agent", runtimeID, testutil.Cols{"effect_mode": "preview"})
+	issueID := fx.Issue(t, "Held write")
+	taskID := fx.Task(t, previewID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(previewID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	issue, err := db.New(pool).GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: util.MustParseUUID(issueID), WorkspaceID: agent.WorkspaceID})
+	if err != nil {
+		t.Fatalf("get issue: %v", err)
+	}
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+
+	// Effectful tool: held, journaled, nothing applied.
+	out, err := svc.callNativeToolRead(ctx, tctx, "add_comment", map[string]any{"content": "hello"})
+	if err != nil {
+		t.Fatalf("add_comment in preview errored instead of being held: %v", err)
+	}
+	held := out.(map[string]any)
+	if held["held"] != true || held["pending_effect_id"] == "" {
+		t.Fatalf("hold reply = %v, want a pending effect id", held)
+	}
+	var comments int
+	pool.QueryRow(ctx, `SELECT COUNT(*) FROM comment WHERE issue_id=$1`, issueID).Scan(&comments)
+	if comments != 0 {
+		t.Fatalf("preview wrote a comment: %d rows", comments)
+	}
+	var pending int
+	pool.QueryRow(ctx, `SELECT COUNT(*) FROM agent_effect WHERE task_id=$1 AND status='pending' AND kind='native_add_comment'`, taskID).Scan(&pending)
+	if pending != 1 {
+		t.Fatalf("pending effects = %d, want 1 journaled native_add_comment", pending)
+	}
+	// Held writes do not spend the effect budget.
+	if tctx.effectful != 0 {
+		t.Fatalf("held write spent the effect budget: %d", tctx.effectful)
+	}
+
+	// Reads stay free in preview.
+	if _, err := svc.callNativeToolRead(ctx, tctx, "get_issue", nil); err != nil {
+		t.Fatalf("read refused in preview: %v", err)
+	}
+
+	// The counter keeps counting only real writes: an apply-mode twin spends.
+	applyID := fx.Agent(t, "Apply agent", runtimeID, testutil.Cols{"effect_mode": "apply"})
+	applyAgent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(applyID))
+	if err != nil {
+		t.Fatalf("get apply agent: %v", err)
+	}
+	applyTctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: applyAgent, issue: &issue, workspaceID: applyAgent.WorkspaceID}
+	if _, err := svc.callNativeToolRead(ctx, applyTctx, "add_comment", map[string]any{"content": "applied"}); err != nil {
+		t.Fatalf("apply add_comment errored: %v", err)
+	}
+	if applyTctx.effectful == 0 {
+		t.Fatal("apply-mode write did not spend the effect budget")
+	}
+	pool.QueryRow(ctx, `SELECT COUNT(*) FROM comment WHERE issue_id=$1 AND content='applied'`, issueID).Scan(&comments)
+	if comments != 1 {
+		t.Fatalf("apply-mode comment missing: %d", comments)
+	}
+}
