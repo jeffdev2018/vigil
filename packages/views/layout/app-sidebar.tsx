@@ -592,7 +592,8 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   useEffect(() => {
     const el = sidebarScrollRef.current;
     if (!el) return;
-    const active = el.querySelector<HTMLElement>('[data-active="true"]');
+    // Base UI renders the active state as a bare `data-active` attribute.
+    const active = el.querySelector<HTMLElement>("[data-active]");
     active?.scrollIntoView({ block: "nearest" });
   }, [pathname]);
   const revealMoreNav = useCallback(() => {
