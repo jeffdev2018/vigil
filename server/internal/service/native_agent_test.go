@@ -2178,3 +2178,107 @@ func TestNativeAgentScheduleFollowup(t *testing.T) {
 		}
 	}
 }
+
+func TestNativeWrapUpPromptHonestStop(t *testing.T) {
+	got := nativeWrapUpPrompt("the turn budget is spent", []nativeReceipt{
+		{ID: "r1", Tool: "add_comment", Args: `{"content":"hi"}`, OK: true},
+	})
+	for _, want := range []string{
+		"turn budget",
+		"Honest stop / auto-bilan",
+		"[r1]",
+		"add_comment",
+		"Effects this run produced",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("wrap-up prompt missing %q:\n%s", want, got)
+		}
+	}
+	empty := nativeWrapUpPrompt("done", nil)
+	if !strings.Contains(empty, "none") {
+		t.Fatalf("empty ledger should say none: %s", empty)
+	}
+}
+
+// N18 — after a state-changing tool, a premature prose turn is diverted into
+// a wrap-up whose prompt carries the auto-bilan + effect ledger; the final
+// summary must cite the receipt that actually landed.
+func TestNativeAgentHonestStop(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	if _, err := pool.Exec(ctx, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) || '{"goal_loop":{"max_continuations":0}}'::jsonb WHERE id = $1`, ws); err != nil {
+		t.Fatalf("disable goal loop: %v", err)
+	}
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Honest stop")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
+		nativeToolCallTurn("call_1", "add_comment", `{"content":"shipped"}`),
+		nativeTextTurn("All done."), // premature — must divert to honest stop
+		nativeTextTurn("Status: I added a comment [r1]. Nothing remains. Nothing blocked."),
+	}}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	if llm.calls != 3 {
+		t.Fatalf("model calls = %d, want 3 (tool + premature + honest wrap-up)", llm.calls)
+	}
+	prompt := nativeLastUserMessage(t, llm.last)
+	if len(llm.last.Tools) != 0 {
+		t.Fatalf("final turn offered tools, want wrap-up")
+	}
+	for _, want := range []string{"Honest stop / auto-bilan", "[r1]", "add_comment", "Effects this run produced"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("final wrap-up prompt missing %q:\n%s", want, prompt)
+		}
+	}
+
+	var status string
+	var result []byte
+	if err := pool.QueryRow(ctx, `SELECT status, result FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status, &result); err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if status != "completed" {
+		t.Fatalf("status = %q, want completed", status)
+	}
+	var decoded struct {
+		Summary  string          `json:"summary"`
+		Receipts []nativeReceipt `json:"receipts"`
+	}
+	if err := json.Unmarshal(result, &decoded); err != nil {
+		t.Fatalf("result: %v", err)
+	}
+	if !strings.Contains(decoded.Summary, "[r1]") {
+		t.Fatalf("summary does not cite the produced effect: %q", decoded.Summary)
+	}
+	if len(decoded.Receipts) != 1 || decoded.Receipts[0].Tool != "add_comment" {
+		t.Fatalf("result receipts = %+v, want one add_comment", decoded.Receipts)
+	}
+
+	var ledgerRows int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_message WHERE task_id=$1 AND type='system' AND content LIKE '%Effects this run produced%'`, taskID).Scan(&ledgerRows); err != nil {
+		t.Fatalf("ledger rows: %v", err)
+	}
+	if ledgerRows != 1 {
+		t.Fatalf("honest-stop system ledger rows = %d, want 1", ledgerRows)
+	}
+}
