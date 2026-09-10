@@ -483,6 +483,8 @@ var concurrentIndexCleanups = map[string]string{
 	"889_workspace_doctrine_version_created_index":              "idx_workspace_doctrine_version_ws_created",
 	"890_workspace_doctrine_report_status_index":                "idx_workspace_doctrine_report_ws_status",
 	"892_workspace_pack_install_ws_index":                       "idx_workspace_pack_install_ws",
+	"893_agent_consult_workspace_created_index":                 "idx_agent_consult_workspace_created",
+	"894_agent_consult_task_index":                              "idx_agent_consult_task",
 	"893_workspace_pack_item_install_index":                     "idx_workspace_pack_item_install",
 	"902_brain_capture_ws_status_index":                         "idx_brain_capture_ws_status",
 	"903_workspace_note_embedding_ws_index":                     "idx_workspace_note_embedding_ws",
