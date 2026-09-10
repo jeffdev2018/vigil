@@ -73,7 +73,11 @@ func (h *Handler) draftAutopilot(ctx context.Context, text, defaultTZ string) (A
 		defaultTZ = "UTC"
 	}
 	user := fmt.Sprintf("Default timezone: %s\nToday: %s\nSentence:\n<sentence>\n%s\n</sentence>", defaultTZ, time.Now().In(mustLocation(defaultTZ)).Format("Monday 2 January 2006 15:04"), text)
-	raw, err := h.LLM.GenerateJSON(ctx, "", autopilotDraftSystemPrompt, user, 0, 600)
+	// A draft is a small structured task: the routing model (small, fast)
+	// answers in seconds where the default model can take the better part of a
+	// minute, which the web proxy would not wait for.
+	model := h.cfg.LLMRoutingModel
+	raw, err := h.LLM.GenerateJSON(ctx, model, autopilotDraftSystemPrompt, user, 0, 600)
 	if err != nil {
 		return AutopilotDraft{}, true, err
 	}
@@ -111,7 +115,10 @@ func (h *Handler) draftAutopilot(ctx context.Context, text, defaultTZ string) (A
 	for _, at := range runs {
 		d.NextRuns = append(d.NextRuns, at.Format(time.RFC3339))
 	}
-	d.Model = h.LLM.DefaultModel()
+	d.Model = model
+	if d.Model == "" {
+		d.Model = h.LLM.DefaultModel()
+	}
 	return d, true, nil
 }
 
