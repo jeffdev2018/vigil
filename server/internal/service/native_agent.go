@@ -78,9 +78,11 @@ const (
 	// nativeRunTimeout bounds one whole run, model calls included.
 	nativeRunTimeout = 10 * time.Minute
 	// nativeMaxConcurrent bounds in-flight native runs across the whole
-	// server. ponytail: a single global cap, not per-workspace fairness —
-	// revisit if a busy workspace can starve another one.
-	nativeMaxConcurrent = 8
+	// server. nativeMaxPerWorkspace (N12) caps one workspace under
+	// contention so a busy one cannot starve another; a lone workspace
+	// still takes the full global cap.
+	nativeMaxConcurrent   = 8
+	nativeMaxPerWorkspace = 4
 	// nativeBriefComments caps how many recent comments ride the brief.
 	nativeBriefComments = 20
 	// nativeToolResultCap bounds one tool result before it goes back into the
@@ -161,7 +163,12 @@ type NativeAgentService struct {
 	// llmFuses maps nativeLLMFuseKey(baseURL, model) → *nativeFuseSlot.
 	// A success on a key clears that key only.
 	llmFuses sync.Map
-	limiter  chan struct{}
+	// limiter is the global in-flight cap. wsInFlight counts per workspace
+	// (N12) so one busy workspace cannot take every global slot when peers
+	// are also queued.
+	limiter    chan struct{}
+	wsInFlight sync.Map // workspace id string → *atomic.Int32
+	tickCount  atomic.Uint64
 }
 
 // nativeLLMFuseKey builds the cooldown key for a gateway + model pair.
@@ -259,9 +266,44 @@ func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueServi
 	}
 }
 
-// Tick seeds + heartbeats the native runtime rows, then claims and dispatches
-// as many queued tasks as the concurrency cap allows. It returns the number of
-// runs dispatched this tick.
+// wsInFlightCounter returns the per-workspace in-flight counter, creating it
+// on first use.
+func (s *NativeAgentService) wsInFlightCounter(workspaceID string) *atomic.Int32 {
+	if v, ok := s.wsInFlight.Load(workspaceID); ok {
+		return v.(*atomic.Int32)
+	}
+	c := &atomic.Int32{}
+	actual, _ := s.wsInFlight.LoadOrStore(workspaceID, c)
+	return actual.(*atomic.Int32)
+}
+
+// tryAcquireRunSlot reserves a global slot and a per-workspace slot. maxPerWS
+// is nativeMaxPerWorkspace under contention, or nativeMaxConcurrent when the
+// tick only sees one native runtime (a lone workspace may fill the server).
+// false means the caller should skip this workspace (at its cap) or stop the
+// tick (global full) — the bool globalFull distinguishes the two.
+func (s *NativeAgentService) tryAcquireRunSlot(workspaceID string, maxPerWS int) (ok bool, globalFull bool) {
+	select {
+	case s.limiter <- struct{}{}:
+	default:
+		return false, true
+	}
+	n := s.wsInFlightCounter(workspaceID)
+	if int(n.Add(1)) > maxPerWS {
+		n.Add(-1)
+		<-s.limiter
+		return false, false
+	}
+	return true, false
+}
+
+func (s *NativeAgentService) releaseRunSlot(workspaceID string) {
+	if n := s.wsInFlightCounter(workspaceID); n.Add(-1) < 0 {
+		n.Store(0)
+	}
+	<-s.limiter
+}
+
 // Available reports whether the native runtime can run anything right now:
 // a configured model and a closed fuse. Onboarding offers the browser path
 // only when this is true, and routing refuses a native-bound trigger when
@@ -275,6 +317,9 @@ func (s *NativeAgentService) Available() bool {
 	return !s.llmFuseOpen(nativeResolvedModel(s.LLM, db.Agent{}))
 }
 
+// Tick seeds + heartbeats the native runtime rows, then claims and dispatches
+// as many queued tasks as the concurrency cap allows. It returns the number of
+// runs dispatched this tick.
 func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	// Inert without a configured model — same contract as every other
 	// LLM-backed server feature: disabled means off, not failing. The fuse
@@ -293,28 +338,43 @@ func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("native runtime list: %w", err)
 	}
+	// Fairness (N12): under contention each workspace is capped; a lone
+	// workspace may still fill the global limiter. Rotate the start index
+	// so created_at order cannot permanently prefer the oldest workspace.
+	maxPerWS := nativeMaxPerWorkspace
+	if len(runtimes) <= 1 {
+		maxPerWS = nativeMaxConcurrent
+	}
 	dispatched := 0
-	for _, rt := range runtimes {
+	n := len(runtimes)
+	if n == 0 {
+		return 0, nil
+	}
+	offset := int(s.tickCount.Add(1) % uint64(n))
+	for i := 0; i < n; i++ {
+		rt := runtimes[(offset+i)%n]
+		wsID := util.UUIDToString(rt.WorkspaceID)
 		for {
-			// Reserve the slot BEFORE claiming: a claimed task with no
-			// executor would sit dispatched until stale reclaim.
-			select {
-			case s.limiter <- struct{}{}:
-			default:
-				return dispatched, nil
+			ok, globalFull := s.tryAcquireRunSlot(wsID, maxPerWS)
+			if !ok {
+				if globalFull {
+					return dispatched, nil
+				}
+				// This workspace is at its share — try the next one.
+				break
 			}
 			task, err := s.Tasks.ClaimTaskForRuntime(ctx, rt.ID)
 			if err != nil {
-				<-s.limiter
+				s.releaseRunSlot(wsID)
 				return dispatched, fmt.Errorf("native claim: %w", err)
 			}
 			if task == nil {
-				<-s.limiter
+				s.releaseRunSlot(wsID)
 				break
 			}
 			dispatched++
-			go func(task db.AgentTaskQueue) {
-				defer func() { <-s.limiter }()
+			go func(task db.AgentTaskQueue, wsID string) {
+				defer s.releaseRunSlot(wsID)
 				// The job's ctx dies with the tick; the run owns its own
 				// lifetime, detached from the scheduler's request.
 				runCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), nativeRunTimeout)
@@ -328,7 +388,7 @@ func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 					}
 				}()
 				s.runTask(runCtx, task)
-			}(*task)
+			}(*task, wsID)
 		}
 	}
 	return dispatched, nil
