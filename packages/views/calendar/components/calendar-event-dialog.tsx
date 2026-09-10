@@ -359,19 +359,12 @@ export function CalendarEventDialog({
   };
 
   return (
+    // `open` is pinned: the dialog is unmounted by the parent through
+    // `onClose()`, never by itself. That makes this guard the whole dismissal
+    // policy — while the nested issue picker is up, an outside press reaches
+    // here and is dropped, so picking an issue cannot close the form behind it.
     <Dialog open onOpenChange={(open) => { if (!open && !pickingIssue) onClose(); }}>
-      <DialogContent
-        className="sm:max-w-lg overflow-y-auto max-h-[90vh]"
-        onPointerDownOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
-        onInteractOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
-        onFocusOutside={(e) => {
-          if (pickingIssue) e.preventDefault();
-        }}
-      >
+      <DialogContent className="sm:max-w-lg overflow-y-auto max-h-[90vh]">
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>
