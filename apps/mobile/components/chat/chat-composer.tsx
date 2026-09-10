@@ -29,9 +29,11 @@
 import { useCallback } from "react";
 import { Pressable, View } from "react-native";
 import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
-import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
 import { MessageComposer } from "@/components/composer/message-composer";
+import { VoiceConversationButton } from "@/components/voice/voice-conversation-button";
+import { appConfigOptions } from "@/data/queries/billing";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
 import { THEME } from "@/lib/theme";
@@ -72,6 +74,10 @@ export function ChatComposer({
   disabledReason,
 }: Props) {
   const wsSlug = useWorkspaceStore((s) => s.currentWorkspaceSlug);
+  // Same gate as web chat-input: hide conversation when STT is not configured.
+  // Mirrors `useConfigStore.meetingTranscriptionAvailable`.
+  const { data: config } = useQuery(appConfigOptions());
+  const voiceEnabled = config?.meeting_transcription_available === true;
 
   const onSubmit = useCallback(
     async ({
@@ -95,6 +101,17 @@ export function ChatComposer({
     onStop();
   }, [onStop]);
 
+  const handleUtterance = useCallback(
+    (text: string) => {
+      // Mirror web VoiceConversationButton: join any typed draft, then send
+      // through the normal chat path.
+      const joined = value.trim() ? `${value.replace(/\s+$/, "")} ${text}` : text;
+      onChangeText(joined);
+      void onSend(joined, []);
+    },
+    [value, onChangeText, onSend],
+  );
+
   return (
     <MessageComposer
       value={value}
@@ -117,6 +134,14 @@ export function ChatComposer({
       disabledReason={disabledReason}
       isSending={sending}
       renderStop={allowStop ? () => <StopButton onPress={handleStop} /> : undefined}
+      toolbarExtras={
+        voiceEnabled ? (
+          <VoiceConversationButton
+            disabled={!!disabled}
+            onUtterance={handleUtterance}
+          />
+        ) : null
+      }
       manageKeyboard={false}
     />
   );

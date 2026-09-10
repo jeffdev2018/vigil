@@ -66,6 +66,7 @@ import type {
   PostmortemsResponse,
   Meeting,
   MeetingListResponse,
+  VoiceTranscription,
   UpdateIssueRequest,
   UpdateMeRequest,
   UpdateProjectRequest,
@@ -98,8 +99,10 @@ import {
   PostmortemsResponseSchema,
   EMPTY_MEETING,
   EMPTY_MEETING_LIST,
+  EMPTY_VOICE_TRANSCRIPTION,
   MeetingListResponseSchema,
   MeetingSchema,
+  VoiceTranscriptionSchema,
   AgentEffectListSchema,
   UndoReportSchema,
   TaskActivityResponseSchema,
@@ -2227,6 +2230,81 @@ class ApiClient {
       method: "PUT",
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * Voice memo / conversation turn: one audio file in, its text out
+   * (POST /api/voice/transcribe). Mirrors `packages/core/api/client.ts:transcribeVoice`
+   * with the RN-shaped `FileAsset` instead of a browser `Blob`.
+   *
+   * `language` is an ISO-639-1 code; "" leaves the server on MULTICA_STT_LANGUAGE.
+   * 409 `stt_not_configured` surfaces as ApiError with that `code` on the body.
+   */
+  async transcribeVoice(
+    asset: FileAsset,
+    language = "",
+  ): Promise<VoiceTranscription> {
+    const rid = createRequestId();
+    const start = Date.now();
+    const path = "/api/voice/transcribe";
+
+    const headers: Record<string, string> = {
+      "X-Client-Platform": "mobile",
+      "X-Client-OS": "ios",
+      "X-Client-Version": "0.1.0",
+      "X-Request-ID": rid,
+    };
+    if (this.token) headers["Authorization"] = `Bearer ${this.token}`;
+    const slug = getCurrentSlug();
+    if (slug) headers["X-Workspace-Slug"] = slug;
+
+    const formData = new FormData();
+    formData.append(
+      "file",
+      { uri: asset.uri, name: asset.name, type: asset.type } as never,
+    );
+    if (language) formData.append("language", language);
+
+    console.log(`[api] → POST ${path}`, { rid, filename: asset.name });
+
+    const res = await fetch(`${API_URL}${path}`, {
+      method: "POST",
+      headers,
+      body: formData,
+    });
+    const duration = Date.now() - start;
+
+    if (!res.ok) {
+      if (res.status === 401) this.options.onUnauthorized?.();
+      let body: unknown;
+      try {
+        body = await res.json();
+      } catch {
+        body = undefined;
+      }
+      const message =
+        (body && typeof body === "object" && "message" in body
+          ? String((body as { message: unknown }).message)
+          : null) ?? `Transcription failed: ${res.status}`;
+      console.error(`[api] ← ${res.status} ${path}`, {
+        rid,
+        duration: `${duration}ms`,
+        error: message,
+      });
+      throw new ApiError(message, res.status, body);
+    }
+
+    const raw = (await res.json()) as unknown;
+    console.log(`[api] ← ${res.status} ${path}`, {
+      rid,
+      duration: `${duration}ms`,
+    });
+    return parseWithFallback(
+      raw,
+      VoiceTranscriptionSchema,
+      EMPTY_VOICE_TRANSCRIPTION,
+      { endpoint: "POST /api/voice/transcribe" },
+    );
   }
 
   // --- File Upload ---
