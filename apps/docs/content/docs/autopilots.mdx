@@ -218,7 +218,10 @@ Everything below the closing `---` becomes the skill the agent reads.
 ```
 
 **Import** from the Autopilot page: drop the file or paste it, check the parsed
-preview, then import. The frontmatter is validated strictly — an unknown key is
+preview, then import. From the terminal, `multica autopilot import
+DAEMON.md --preview` validates and reports without writing, and dropping
+`--preview` imports (`--strategy fail|overwrite|rename` decides what happens
+when a daemon of that name already exists). The frontmatter is validated strictly — an unknown key is
 refused with the line it appears on, so a typo can never silently ship a daemon
 that never fires. Importing the same file twice changes nothing at all, so a
 repository can re-apply its declarations on every deploy.
@@ -270,6 +273,8 @@ multica autopilot trigger-add <autopilot-id> --kind webhook --event-match-criter
 multica autopilot trigger-update <autopilot-id> <trigger-id> --window-minutes 120
 multica autopilot trigger-dry-run <autopilot-id> <trigger-id> --payload-file event.json
 multica autopilot export <autopilot-id> --out DAEMON.md
+multica autopilot import DAEMON.md --preview
+multica autopilot import DAEMON.md --strategy overwrite
 multica autopilot memory get <autopilot-id>
 ```
 

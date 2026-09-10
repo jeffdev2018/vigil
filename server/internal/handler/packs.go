@@ -279,6 +279,38 @@ func (h *Handler) ListPacks(w http.ResponseWriter, r *http.Request) {
 	}{out, packs.Domains})
 }
 
+// GET /api/pack-catalogue — the catalogue without any workspace context, for
+// the workspace creation flow: manifests, counts and contents, no install
+// state and no prerequisite check (there is no workspace to check against).
+func (h *Handler) ListPackCatalogue(w http.ResponseWriter, r *http.Request) {
+	if _, ok := requireUserID(w, r); !ok {
+		return
+	}
+	all, err := packs.Builtin()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "catalogue unavailable: "+err.Error())
+		return
+	}
+	type entry struct {
+		Manifest packs.Manifest `json:"manifest"`
+		Counts   map[string]int `json:"counts"`
+		Contents PackContents   `json:"contents"`
+	}
+	out := make([]entry, 0, len(all))
+	for _, p := range all {
+		b, err := packBundle(p)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out = append(out, entry{Manifest: p.Manifest, Counts: transferCounts(b), Contents: packContents(b)})
+	}
+	writeJSON(w, http.StatusOK, struct {
+		Packs   []entry  `json:"packs"`
+		Domains []string `json:"domains"`
+	}{out, packs.Domains})
+}
+
 // GET /api/packs/{id} — one catalogue pack with its contents and description.
 func (h *Handler) GetPack(w http.ResponseWriter, r *http.Request) {
 	wsRaw := h.resolveWorkspaceID(r)

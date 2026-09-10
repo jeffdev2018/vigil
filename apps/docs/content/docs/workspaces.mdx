@@ -26,7 +26,7 @@ Creating a workspace asks for three things:
 - **Workspace URL**: the slug in the address — the `my-team` in `multica.ai/my-team`. Lowercase letters, digits, and hyphens only; it cannot collide with an existing workspace or a reserved address, and it cannot be changed after creation.
 - **Issue prefix**: pre-filled from the workspace URL and editable before you create — with the prefix `MUL`, issue numbers appear as `MUL-1`, `MUL-2`, counting up independently within the workspace. Uppercase letters and digits, up to 10 characters; it can be changed later in settings.
 
-The creator automatically becomes an `owner`.
+The creator automatically becomes an `owner`. A new workspace can also start from a [pack](/packs) — the function's types, views, rules and colleagues are installed as its first act.
 
 ## Change settings
 
@@ -51,7 +51,9 @@ Save before activating. Changes stay in the editor until saved; activation still
 
 **New structure** offers five prepared teams: customer support, product and engineering, a content agency, operations and finance, and research. Installation uses the workspace import preview and requires an owner or admin. Each team includes three agents, a shared skill, a project, an organization, a starter task and a weekly review. Connect the imported agents to runtimes before execution; the organization starts as a draft and the review is paused. Name conflicts are renamed.
 
-**Import / export** opens the existing workspace transfer flow, including its preview, conflict handling and transfer history.
+**Import / export** opens the existing workspace transfer flow, including its preview, conflict handling and transfer history. The same two steps from the terminal: `multica workspace export --out bundle.zip`, then `multica workspace import bundle.zip --preview` before `multica workspace import bundle.zip --strategy rename`.
+
+**Packs** go one step further than a prepared team. A [pack](/packs) is one file that sets up a whole function — helpdesk, ops, support, sales, marketing, leadership, research, HR, finance, legal — with that function's work item types, statuses, labels, properties, views, rules, a doctrine section, a project and its agents as paused colleagues. Installing one never overwrites what the workspace already has, and because every row it creates is recorded against the pack, it can be upgraded in place or uninstalled later. **Settings → Packs** holds the catalogue.
 
 ## Switch and leave
 

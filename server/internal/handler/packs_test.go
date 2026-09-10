@@ -293,6 +293,30 @@ func TestPackEndpointsCatalogueUploadAndExport(t *testing.T) {
 	}
 }
 
+func TestPackCatalogueNeedsNoWorkspace(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	req := newRequest(http.MethodGet, "/api/pack-catalogue", nil)
+	req.Header.Del("X-Workspace-ID")
+	var out struct {
+		Packs []struct {
+			Manifest packs.Manifest `json:"manifest"`
+			Counts   map[string]int `json:"counts"`
+			Contents PackContents   `json:"contents"`
+		} `json:"packs"`
+		Domains []string `json:"domains"`
+	}
+	testutil.Call(t, testHandler.ListPackCatalogue, req).Want(http.StatusOK).JSON(&out)
+	if len(out.Packs) < 10 || out.Packs[0].Counts["agents"] == 0 || len(out.Packs[0].Contents["agents"]) == 0 || len(out.Domains) == 0 {
+		t.Fatalf("catalogue = %d packs, %+v", len(out.Packs), out.Domains)
+	}
+	anon := newRequest(http.MethodGet, "/api/pack-catalogue", nil)
+	anon.Header.Del("X-User-ID")
+	anon.Header.Del("X-Workspace-ID")
+	testutil.Call(t, testHandler.ListPackCatalogue, anon).Want(http.StatusUnauthorized)
+}
+
 func TestCreateWorkspaceSeedsFromAPack(t *testing.T) {
 	if testHandler == nil {
 		t.Skip("database not available")

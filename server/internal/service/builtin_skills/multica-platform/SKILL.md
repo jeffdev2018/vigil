@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Issues, status transitions, work item types, walkthroughs, review flags, critic verdicts, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run previews, skill import, spending, goals, long tasks, MCP, Twenty, runs, calendar, doctrine, triage, undo, insights, racing."
+description: "Issues, status transitions, work item types, walkthrough, review flag, critic verdict, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run preview, skill import, spend, goals, long task, MCP, Twenty, runs, calendar, doctrine, triage, undo, insight, racing, packs."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -41,6 +41,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/mcp-server.md` | Reaching Vigil over MCP from a run or an external client: the endpoint, the two surfaces, allow / ask / deny, held calls (gates, confirmation tokens), what is never exposed |
 | `references/calendar.md` | The workspace calendar: reading the agenda and events, finding a free slot for people and agents, proposing an event a person accepts |
 | `references/doctrine.md` | The workspace doctrine, the standing rules in your brief: where it ranks against issues, comments and notes, and how to report a rule you cannot follow, two rules that conflict, or one too vague to apply |
+| `references/packs.md` | A function pack: what one installs into a workspace, why a run cannot install, upgrade or remove one, and how to read the catalogue and the install ledger |
 | `references/runs.md` | The fleet: listing every run of the workspace with what each is blocked on and what it cost, cancelling your own runs, what the halt means for you |
 | `references/twenty.md` | The Twenty CRM a workspace is connected to: its MCP server in your run, reading and writing customer records, items that come from the CRM, the member pairing by email |
 | `references/goal-loop.md` | Long tasks across runs: how your closing status is judged against the issue's goal, what queues the next run, asking the team a typed question, reading and pausing the chain |

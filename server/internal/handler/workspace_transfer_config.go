@@ -905,10 +905,13 @@ func (h *Handler) exportTransferConfig(ctx context.Context, ws db.Workspace, b *
 		return fmt.Errorf("ownership rules: %w", err)
 	}
 	for _, o := range owns {
-		if o.OwnerUserID.Valid && !o.LabelID.Valid && !o.PathPattern.Valid {
+		label := labelNames[uuidToString(o.LabelID)]
+		// A rule needs a label the bundle carries or a path; one whose label is
+		// gone (or that only names a person) is the workspace's, not the pack's.
+		if label == "" && !o.PathPattern.Valid {
 			continue
 		}
-		b.OwnershipRules = append(b.OwnershipRules, transferOwnershipRule{PathPattern: o.PathPattern.String, Label: labelNames[uuidToString(o.LabelID)], ReferentAgent: agentNames[uuidToString(o.ReferentAgentID)], Priority: o.Priority})
+		b.OwnershipRules = append(b.OwnershipRules, transferOwnershipRule{PathPattern: o.PathPattern.String, Label: label, ReferentAgent: agentNames[uuidToString(o.ReferentAgentID)], Priority: o.Priority})
 	}
 	b.Doctrine = strings.TrimSpace(ws.Context.String)
 	return nil

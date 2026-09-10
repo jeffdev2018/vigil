@@ -62,6 +62,8 @@ func doctrineAdmin(t *testing.T) string {
 
 func TestDoctrinePublishesVersionsRestoresAndDiffs(t *testing.T) {
 	doctrineCleanup(t)
+	// Audit rows are never cleaned up between tests: count the delta.
+	auditsBefore := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE workspace_id = $1 AND action = $2`, testWorkspaceID, AuditDoctrinePublished)
 	if d := getDoctrine(t); d.Revision != 0 || d.Content != "" || !d.CanPublish || d.ByteLimit != doctrineMaxBytes {
 		t.Fatalf("empty doctrine = %+v", d)
 	}
@@ -125,7 +127,7 @@ func TestDoctrinePublishesVersionsRestoresAndDiffs(t *testing.T) {
 	if env.Doctrine.Revision != 3 || env.Doctrine.Content != "Always answer in French.\nNever push to main." || env.Version.RestoredFromRevision == nil || *env.Version.RestoredFromRevision != 1 {
 		t.Fatalf("restore = %+v / %+v", env.Doctrine, env.Version)
 	}
-	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE workspace_id = $1 AND action = $2`, testWorkspaceID, AuditDoctrinePublished); n != 3 {
+	if n := dbfx.Count(t, `SELECT COUNT(*) FROM audit_log_entry WHERE workspace_id = $1 AND action = $2`, testWorkspaceID, AuditDoctrinePublished) - auditsBefore; n != 3 {
 		t.Fatalf("published audits = %d, want 3", n)
 	}
 }
