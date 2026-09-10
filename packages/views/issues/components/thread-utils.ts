@@ -1,5 +1,6 @@
 import type { TimelineEntry } from "@multica/core/types";
 import { sortTimelineEntriesAsc } from "@multica/core/issues/timeline-sort";
+import { preprocessMentionShortcodes } from "@multica/core/markdown";
 
 /**
  * Walks the parent_id graph rooted at `rootId` and returns every descendant in
@@ -113,4 +114,69 @@ export function resolvedThreadRootIds(entries: readonly TimelineEntry[]): string
         "none",
     )
     .map((root) => root.id);
+}
+
+/** Which slice of the outline the reader is looking at. */
+export type ThreadOutlineFilter = "all" | "unresolved" | "resolved" | "mine";
+
+/** The fields the outline filters read — a subset of ThreadMinimapThread. */
+export interface FilterableThread {
+  resolved: boolean;
+  /** The reader authored, replied in, or was @mentioned in this thread. */
+  involvesMe: boolean;
+}
+
+export function matchesThreadFilter(
+  thread: FilterableThread,
+  filter: ThreadOutlineFilter,
+): boolean {
+  switch (filter) {
+    case "unresolved":
+      return !thread.resolved;
+    case "resolved":
+      return thread.resolved;
+    case "mine":
+      return thread.involvesMe;
+    case "all":
+      return true;
+    default:
+      // The union covers every pill, but an exhaustive default keeps a future
+      // filter from silently hiding the whole outline.
+      return true;
+  }
+}
+
+/**
+ * Whether `content` @mentions `userId`.
+ *
+ * Current mentions serialize as markdown links to `mention://member/<uuid>`,
+ * but the legacy `[@ id="..." label="..."]` shortcode form is still in the
+ * database — `preprocessMarkdown` migrates it on read, not before storage, and
+ * the timeline hands us raw content. Matching only the link form would drop
+ * every thread whose sole mention of the reader was written in the old format.
+ * `preprocessMentionShortcodes` returns its input untouched when there is no
+ * `[@ ` in it, so the normal path costs one substring scan.
+ */
+export function mentionsUser(content: string | undefined, userId: string): boolean {
+  if (!content || !userId) return false;
+  return preprocessMentionShortcodes(content).includes(`mention://member/${userId}`);
+}
+
+/**
+ * "@me" means the thread concerns this reader: they started it, answered in
+ * it, or were @mentioned anywhere in it. Authorship counts because a thread
+ * you spoke in is one you are expected to follow — narrowing to literal
+ * mentions would drop most of them.
+ */
+export function threadInvolvesUser(
+  root: TimelineEntry,
+  replies: readonly TimelineEntry[],
+  userId: string,
+): boolean {
+  if (!userId) return false;
+  return [root, ...replies].some(
+    (entry) =>
+      (entry.actor_type === "member" && entry.actor_id === userId) ||
+      mentionsUser(entry.content, userId),
+  );
 }

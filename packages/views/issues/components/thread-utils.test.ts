@@ -4,8 +4,11 @@ import type { TimelineEntry } from "@multica/core/types";
 import {
   collectThreadParticipants,
   collectThreadReplies,
+  matchesThreadFilter,
+  mentionsUser,
   resolvedThreadRootIds,
   rootCommentIds,
+  threadInvolvesUser,
 } from "./thread-utils";
 
 function comment(id: string, createdAt: string, parentId: string | null): TimelineEntry {
@@ -143,5 +146,84 @@ describe("collectThreadParticipants", () => {
     const system = { ...comment("system", "2026-06-11T10:03:00Z", "root"), actor_type: "system" };
     const replies = collectThreadReplies("root", bucketByParent([repeat, agent, member, system]));
     expect(collectThreadParticipants(root, replies)).toEqual([root, agent, member]);
+  });
+});
+
+describe("matchesThreadFilter", () => {
+  const cases: [boolean, boolean, Record<string, boolean>][] = [
+    [false, false, { all: true, unresolved: true, resolved: false, mine: false }],
+    [true, false, { all: true, unresolved: false, resolved: true, mine: false }],
+    [false, true, { all: true, unresolved: true, resolved: false, mine: true }],
+    [true, true, { all: true, unresolved: false, resolved: true, mine: true }],
+  ];
+  it.each(cases)(
+    "resolved=%s involvesMe=%s selects the right pills",
+    (resolved, involvesMe, expected) => {
+      for (const [filter, want] of Object.entries(expected)) {
+        expect(
+          matchesThreadFilter({ resolved, involvesMe }, filter as "all"),
+        ).toBe(want);
+      }
+    },
+  );
+
+  it("shows everything rather than nothing for a filter it does not know", () => {
+    // A pill added later must not silently empty the outline before its case
+    // is written.
+    expect(
+      matchesThreadFilter({ resolved: true, involvesMe: false }, "future" as "all"),
+    ).toBe(true);
+  });
+});
+
+describe("mentionsUser", () => {
+  const me = "11111111-1111-4111-8111-111111111111";
+
+  it("matches the link form and the legacy shortcode still sitting in the database", () => {
+    expect(mentionsUser(`hi [Ann](mention://member/${me}) here`, me)).toBe(true);
+    expect(mentionsUser(`hi [@ id="${me}" label="Ann"] here`, me)).toBe(true);
+  });
+
+  it("does not match another member, empty content, or an empty reader", () => {
+    expect(mentionsUser("hi [Bo](mention://member/22222222-2222-4222-8222-222222222222)", me)).toBe(false);
+    expect(mentionsUser(undefined, me)).toBe(false);
+    expect(mentionsUser("", me)).toBe(false);
+    expect(mentionsUser(`[Ann](mention://member/${me})`, "")).toBe(false);
+  });
+});
+
+describe("threadInvolvesUser", () => {
+  const me = "11111111-1111-4111-8111-111111111111";
+  const other = "22222222-2222-4222-8222-222222222222";
+
+  function entry(actorType: string, actorId: string, content: string): TimelineEntry {
+    return {
+      ...comment("e", "2026-09-01T00:00:00Z", null),
+      actor_type: actorType,
+      actor_id: actorId,
+      content,
+    } as TimelineEntry;
+  }
+
+  it("counts authorship of the root, authorship of a reply, and a mention anywhere", () => {
+    const mine = entry("member", me, "x");
+    const theirs = entry("member", other, "x");
+    expect(threadInvolvesUser(mine, [], me)).toBe(true);
+    expect(threadInvolvesUser(theirs, [mine], me)).toBe(true);
+    expect(
+      threadInvolvesUser(theirs, [entry("agent", "a1", `cc [Ann](mention://member/${me})`)], me),
+    ).toBe(true);
+  });
+
+  it("does not count an agent whose id happens to equal the reader's", () => {
+    // actor_id is only unique within an actor type, so the type has to be
+    // part of the comparison.
+    expect(threadInvolvesUser(entry("agent", me, "x"), [], me)).toBe(false);
+  });
+
+  it("is false for a thread the reader never touched, and for an anonymous reader", () => {
+    const theirs = entry("member", other, "x");
+    expect(threadInvolvesUser(theirs, [entry("member", other, "y")], me)).toBe(false);
+    expect(threadInvolvesUser(entry("member", me, "x"), [], "")).toBe(false);
   });
 });

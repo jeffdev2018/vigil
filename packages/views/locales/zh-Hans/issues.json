@@ -496,7 +496,16 @@
       "hint_close": "关闭"
     },
     "section_related": "相关",
-    "section_duplicate": "重复"
+    "section_duplicate": "重复",
+    "thread_outline": {
+      "search_placeholder": "搜索讨论串",
+      "match_count": "{{count}} 条",
+      "empty": "没有匹配的讨论串",
+      "filter_all": "全部",
+      "filter_unresolved": "未解决",
+      "filter_resolved": "已解决",
+      "filter_mine": "@我"
+    }
   },
   "timeline": {
     "loading": "加载中…"
