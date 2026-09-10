@@ -1,9 +1,15 @@
 import { queryOptions } from "@tanstack/react-query";
 import { api } from "@/data/api";
 
+/** Three-segment key shape per apps/mobile/CLAUDE.md. `.all` is what a pack
+ *  install invalidates: a bundle can bring paused agents with it. */
+export const agentKeys = {
+  all: (wsId: string | null) => ["agents", wsId] as const,
+};
+
 export const agentListOptions = (wsId: string | null) =>
   queryOptions({
-    queryKey: ["agents", wsId] as const,
+    queryKey: agentKeys.all(wsId),
     queryFn: ({ signal }) => api.listAgents({ signal }),
     enabled: !!wsId,
     // Mirrors Web/Desktop: projected unstable ages offline without an event,

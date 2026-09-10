@@ -15,6 +15,7 @@ import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
 import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
 import { useCalendarRealtime } from "@/data/realtime/use-calendar-realtime";
 import { useDoctrineRealtime } from "@/data/realtime/use-doctrine-realtime";
+import { usePacksRealtime } from "@/data/realtime/use-packs-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -96,6 +97,10 @@ function RealtimeSubscriptions() {
   // Workspace doctrine (OS plan, chantier 22): the open-reports badge in the
   // More popover must stay fresh from anywhere in the workspace.
   useDoctrineRealtime();
+  // Packs (OS plan, vague B): the "update available" badge in the More
+  // popover, and a pack installed from web/desktop rewrites this
+  // workspace's statuses, labels, agents and projects under the user's feet.
+  usePacksRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -423,6 +428,18 @@ export default function WorkspaceLayout() {
         <Stack.Screen
           name="more/doctrine-version/[id]"
           options={{ title: "Changes", headerBackTitle: "Doctrine" }}
+        />
+        {/* Packs (OS plan, vague B): the catalogue + the install ledger, and
+            one pushed screen per pack (its description is markdown of
+            arbitrary length, and the install is a two-step preview/apply
+            flow). Uploading and exporting a pack.yaml stay on web/desktop. */}
+        <Stack.Screen
+          name="more/packs"
+          options={{ title: "Packs", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="more/pack/[id]"
+          options={{ title: "Pack", headerBackTitle: "Packs" }}
         />
         <Stack.Screen
           name="meeting/[id]"

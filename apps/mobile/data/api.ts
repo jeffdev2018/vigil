@@ -224,6 +224,30 @@ import {
   type DoctrineReportsResponse,
   type DoctrineVersionsResponse,
 } from "./schemas";
+import {
+  PackCatalogueSchema,
+  PackDetailSchema,
+  PackInstallDetailSchema,
+  PackInstallListSchema,
+  PackInstallResultSchema,
+  PackPreviewSchema,
+  PackUninstallResultSchema,
+  EMPTY_PACK_CATALOGUE,
+  EMPTY_PACK_DETAIL,
+  EMPTY_PACK_INSTALL_DETAIL,
+  EMPTY_PACK_INSTALL_LIST,
+  EMPTY_PACK_INSTALL_RESULT,
+  EMPTY_PACK_PREVIEW,
+  EMPTY_PACK_UNINSTALL_RESULT,
+  type PackCatalogue,
+  type PackDetail,
+  type PackInstallDetail,
+  type PackInstallList,
+  type PackInstallResult,
+  type PackPreview,
+  type PackStrategy,
+  type PackUninstallResult,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 import {
@@ -1237,6 +1261,102 @@ class ApiClient {
     await this.fetch<void>(
       `/api/workspace/doctrine/reports/${encodeURIComponent(id)}/${resolution}`,
       { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  // --- Packs (OS plan, vague B) ---
+  // Read + preview + install + uninstall. Upload and export stay on
+  // web/desktop: both are file-system flows (pick a .yaml, save a download)
+  // that have no phone equivalent worth the surface.
+
+  async listPacks(opts?: { signal?: AbortSignal }): Promise<PackCatalogue> {
+    return this.fetchValidated<PackCatalogue>(
+      "/api/packs",
+      PackCatalogueSchema,
+      EMPTY_PACK_CATALOGUE,
+      { ...opts, endpoint: "GET /api/packs" },
+    );
+  }
+
+  async getPack(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<PackDetail> {
+    return this.fetchValidated<PackDetail>(
+      `/api/packs/${encodeURIComponent(id)}`,
+      PackDetailSchema,
+      EMPTY_PACK_DETAIL,
+      { ...opts, endpoint: "GET /api/packs/:id" },
+    );
+  }
+
+  async listPackInstalls(opts?: {
+    signal?: AbortSignal;
+  }): Promise<PackInstallList> {
+    return this.fetchValidated<PackInstallList>(
+      "/api/packs/installed",
+      PackInstallListSchema,
+      EMPTY_PACK_INSTALL_LIST,
+      { ...opts, endpoint: "GET /api/packs/installed" },
+    );
+  }
+
+  async getPackInstall(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<PackInstallDetail> {
+    return this.fetchValidated<PackInstallDetail>(
+      `/api/packs/installed/${encodeURIComponent(id)}`,
+      PackInstallDetailSchema,
+      EMPTY_PACK_INSTALL_DETAIL,
+      { ...opts, endpoint: "GET /api/packs/installed/:id" },
+    );
+  }
+
+  /** Dry run: collisions, problems, the strategy the server would pick, and
+   *  `blocked` when this pack cannot be installed at all. */
+  async previewPack(
+    id: string,
+    strategy?: PackStrategy,
+  ): Promise<PackPreview> {
+    return this.fetchValidatedWith<PackPreview>(
+      `/api/packs/${encodeURIComponent(id)}/preview`,
+      PackPreviewSchema,
+      EMPTY_PACK_PREVIEW,
+      { method: "POST", body: JSON.stringify({ strategy: strategy ?? "" }) },
+      { endpoint: "POST /api/packs/:id/preview" },
+    );
+  }
+
+  /** 409 when the preview said blocked and `force` is not set. */
+  async installPack(
+    id: string,
+    strategy?: PackStrategy,
+    force?: boolean,
+  ): Promise<PackInstallResult> {
+    return this.fetchValidatedWith<PackInstallResult>(
+      `/api/packs/${encodeURIComponent(id)}/install`,
+      PackInstallResultSchema,
+      EMPTY_PACK_INSTALL_RESULT,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          strategy: strategy ?? "",
+          force: force === true,
+        }),
+      },
+      { endpoint: "POST /api/packs/:id/install" },
+    );
+  }
+
+  /** Removes the configuration the pack created; the content it brought stays. */
+  async uninstallPack(id: string): Promise<PackUninstallResult> {
+    return this.fetchValidatedWith<PackUninstallResult>(
+      `/api/packs/installed/${encodeURIComponent(id)}/uninstall`,
+      PackUninstallResultSchema,
+      EMPTY_PACK_UNINSTALL_RESULT,
+      { method: "POST" },
+      { endpoint: "POST /api/packs/installed/:id/uninstall" },
     );
   }
 
