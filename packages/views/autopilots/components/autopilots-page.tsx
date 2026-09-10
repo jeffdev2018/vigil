@@ -13,6 +13,7 @@ import {
   Pause,
   Plus,
   Shield,
+  Sparkles,
   Webhook,
   Zap,
 } from "lucide-react";
@@ -53,6 +54,7 @@ import {
   CollectionPageState,
 } from "../../layout/collection-page";
 import { AutopilotDialog } from "./autopilot-dialog";
+import { AutopilotDraftDialog } from "./autopilot-draft-dialog";
 import { AutopilotListToolbar, actorFilterValue } from "./autopilot-list-toolbar";
 import {
   AutopilotBatchToolbar,
@@ -626,6 +628,7 @@ export function AutopilotsPage() {
   } = useQuery(autopilotListOptions(wsId));
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [draftOpen, setDraftOpen] = useState(false);
   const [selectedTemplate, setSelectedTemplate] =
     useState<AutopilotTemplate | null>(null);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
@@ -784,11 +787,21 @@ export function AutopilotsPage() {
         title={t(($) => $.page.title)}
         count={totalCount}
         actions={
-          <CollectionPageHeaderAction
-            icon={Plus}
-            label={t(($) => $.page.new_autopilot)}
-            onClick={() => openCreate()}
-          />
+          <div className="flex items-center gap-2">
+            {/* Say what you want in plain words; the model answers a schedule.
+                Sits beside the manual form, which is also where a workspace
+                with no model configured lands. */}
+            <CollectionPageHeaderAction
+              icon={Sparkles}
+              label={t(($) => $.from_sentence.action)}
+              onClick={() => setDraftOpen(true)}
+            />
+            <CollectionPageHeaderAction
+              icon={Plus}
+              label={t(($) => $.page.new_autopilot)}
+              onClick={() => openCreate()}
+            />
+          </div>
         }
       />
 
@@ -973,6 +986,14 @@ export function AutopilotsPage() {
         rows={selectedRows}
         onClear={() => setSelectedIds(new Set())}
       />
+
+      {draftOpen && (
+        <AutopilotDraftDialog
+          open={draftOpen}
+          onOpenChange={setDraftOpen}
+          onWriteYourself={() => openCreate()}
+        />
+      )}
 
       {createOpen && (
         <AutopilotDialog

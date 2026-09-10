@@ -70,6 +70,7 @@ import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
 import { onBrainCaptureChanged, onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onFollowupChanged } from "../followups/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -152,6 +153,7 @@ import type {
   AgentMemoryEventPayload,
   MeetingEventPayload,
   CalendarChangedPayload,
+  FollowupChangedPayload,
 } from "../types";
 
 const chatWsLogger = createLogger("chat.ws");
@@ -1248,6 +1250,9 @@ export function useRealtimeSync(
       // note and search projections move with the inbox, and the prefix path
       // hands handlers no payload — so it takes the specific route below.
       "brain_capture:changed",
+      // followup:changed needs its issue_id to refresh that issue's list, and
+      // the prefix path hands handlers no payload — specific route below.
+      "followup:changed",
       // cross_review:rework / escalated raise a notice signal in addition to
       // the invalidation, so they skip the prefix path to avoid handling the
       // same frame twice.
@@ -1265,6 +1270,15 @@ export function useRealtimeSync(
       const prefix = msg.type.split(":")[0] ?? "";
       const refresh = refreshMap[prefix];
       if (refresh) debouncedRefresh(prefix, refresh);
+    });
+
+    const unsubFollowup = ws.on("followup:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      // ws.on hands every handler `unknown` (see ws-client.ts) — the map
+      // types the frame, it does not narrow the callback.
+      const payload = p as Partial<FollowupChangedPayload> | undefined;
+      onFollowupChanged(qc, wsId, typeof payload?.issue_id === "string" ? payload.issue_id : undefined);
     });
 
     const unsubBrainCapture = ws.on("brain_capture:changed", (p) => {
@@ -2218,6 +2232,7 @@ export function useRealtimeSync(
       unsubDoctrineChanged();
       unsubPackChanged();
       unsubBrainCapture();
+      unsubFollowup();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

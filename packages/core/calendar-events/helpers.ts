@@ -1,4 +1,5 @@
 import type {
+  AgendaFollowup,
   AgendaIssue,
   AgendaMeeting,
   CalendarAgenda,
@@ -18,6 +19,8 @@ export interface CalendarDayBucket {
   events: CalendarEventEntry[];
   issuesDue: AgendaIssue[];
   meetings: AgendaMeeting[];
+  /** Scheduled agent wake-ups ("réveil programmé") firing that day. */
+  followups: AgendaFollowup[];
 }
 
 /**
@@ -59,7 +62,7 @@ export function groupAgendaByDay(
   const bucket = (date: string): CalendarDayBucket => {
     let b = days.get(date);
     if (!b) {
-      b = { date, events: [], issuesDue: [], meetings: [] };
+      b = { date, events: [], issuesDue: [], meetings: [], followups: [] };
       days.set(date, b);
     }
     return b;
@@ -74,6 +77,12 @@ export function groupAgendaByDay(
   for (const meeting of agenda.meetings) {
     const key = dayKeyInTimezone(meeting.started_at, tz);
     if (key) bucket(key).meetings.push(meeting);
+  }
+  // `followups` is absent on a server that predates the wake-ups — read it as
+  // empty rather than letting the whole grouping throw.
+  for (const followup of agenda.followups ?? []) {
+    const key = dayKeyInTimezone(followup.fires_at, tz);
+    if (key) bucket(key).followups.push(followup);
   }
   return days;
 }

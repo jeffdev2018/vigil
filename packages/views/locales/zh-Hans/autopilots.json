@@ -588,5 +588,31 @@
     "updated_at": "更新于 {{at}}",
     "last_run": "上次运行 {{at}}",
     "read_only": "由运行写入，此处不可编辑"
+  },
+  "from_sentence": {
+    "action": "从一句话创建",
+    "title": "从一句话创建自动驾驶",
+    "description": "说明要做什么、什么时候做。模型会给出排程建议，创建前由你确认。",
+    "sentence_label": "你的描述",
+    "sentence_placeholder": "每周一 9 点，列出未关闭的事项并发布。",
+    "draft": "解读这句话",
+    "draft_failed": "无法解读这句话",
+    "no_model": "未配置模型；请自行填写排程。",
+    "write_yourself": "打开手动表单",
+    "back": "重写描述",
+    "field_title": "标题",
+    "field_cron": "Cron 表达式",
+    "field_timezone": "时区",
+    "field_prompt": "给智能体的指令",
+    "field_mode": "执行模式",
+    "field_issue_title": "每次运行创建的事项标题",
+    "field_assignee": "智能体",
+    "assignee_placeholder": "由哪个智能体执行？",
+    "next_runs": "接下来的运行",
+    "create_paused": "创建并暂停",
+    "create_active": "创建并启用",
+    "created_paused": "自动驾驶已创建，处于暂停状态",
+    "created_active": "自动驾驶已创建并启用",
+    "create_failed": "无法创建自动驾驶"
   }
 }

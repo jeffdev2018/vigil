@@ -1842,6 +1842,46 @@
     "run_halt_reason_prefix": "理由: {{reason}}",
     "run_halt_unknown_actor": "オーナー",
     "run_halt_lift": "停止を解除",
-    "run_halt_lift_failed": "停止を解除できませんでした"
+    "run_halt_lift_failed": "停止を解除できませんでした",
+    "kind_calendar_proposal": "会議の提案",
+    "kind_autopilot_proposal": "オートパイロットの提案"
+  },
+  "followups": {
+    "section": "フォローアップ",
+    "schedule": "フォローアップを予約",
+    "empty": "予約された起動はありません。",
+    "fires_in": "{{countdown}}後",
+    "scheduled_by": "{{by}} が予約",
+    "cancel": "このフォローアップを取り消す",
+    "cancelled": "フォローアップを取り消しました",
+    "cancel_failed": "フォローアップを取り消せませんでした",
+    "scheduled": "フォローアップを予約しました",
+    "schedule_failed": "フォローアップを予約できませんでした",
+    "budget_reached": "1 日のフォローアップ上限に達しました。",
+    "budget_line": "1 日あたりエージェントごとに最大 {{agent}} 件、ワークスペースごとに最大 {{workspace}} 件。",
+    "quick": {
+      "in_1h": "1 時間後",
+      "tomorrow_9": "明日 9:00",
+      "next_monday_9": "来週月曜 9:00",
+      "custom": "時刻を指定"
+    },
+    "cancel_dialog": {
+      "title": "このフォローアップを取り消しますか？",
+      "description": "{{agent}} はこの課題で起動しません。",
+      "keep": "残す",
+      "confirm": "フォローアップを取り消す"
+    },
+    "dialog": {
+      "title": "フォローアップを予約",
+      "description": "エージェントがメモとともにこの課題に戻ります。",
+      "custom_label": "日時",
+      "agent_label": "エージェント",
+      "agent_placeholder": "どのエージェントが起動しますか？",
+      "note_label": "メモ",
+      "note_placeholder": "何を確認しますか？",
+      "budget_hint": "1 日あたりエージェントごとに最大 {{agent}} 件のフォローアップ。",
+      "cancel": "キャンセル",
+      "confirm": "予約"
+    }
   }
 }

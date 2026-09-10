@@ -2707,5 +2707,16 @@
       "issues": "이슈",
       "doctrine": "독트린"
     }
+  },
+  "followup_budget": {
+    "title": "후속 알림 예산",
+    "intro": "에이전트가 하루에 예약할 수 있는 깨우기 횟수와 워크스페이스 전체의 횟수입니다.",
+    "per_agent": "하루에 에이전트당",
+    "per_workspace": "하루에 워크스페이스당",
+    "out_of_range": "{{min}}에서 {{max}} 사이여야 합니다.",
+    "save": "저장",
+    "saving": "저장 중…",
+    "saved": "저장됨",
+    "save_failed": "후속 알림 예산을 저장하지 못했습니다"
   }
 }

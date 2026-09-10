@@ -1,16 +1,29 @@
 "use client";
 
-import { useState } from "react";
-import { Gauge, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { AlarmClock, Gauge, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "@multica/core/api";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { useCurrentWorkspace } from "@multica/core/paths";
+import { workspaceKeys } from "@multica/core/workspace/queries";
+import {
+  FOLLOWUP_BUDGET_MAX,
+  FOLLOWUP_BUDGET_MIN,
+  clampFollowupBudget,
+  followupBudgetFromSettings,
+  mergeFollowupBudget,
+} from "@multica/core/followups";
+import { followupKeys } from "@multica/core/followups";
+import type { Workspace } from "@multica/core/types";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import { projectListOptions } from "@multica/core/projects";
 import { formatGateValue, runLimitPoliciesOptions, useDeleteRunLimitPolicy, useSaveRunLimitPolicy, type RunLimitGate, type RunLimitPolicy, type RunLimitPolicyInput } from "@multica/core/budgets/run-limits";
 import { Button } from "@multica/ui/components/ui/button";
 import { Input } from "@multica/ui/components/ui/input";
 import { useT } from "../../i18n";
+import { SettingsSaveState, type SettingsSaveStatus } from "./settings-layout";
 
 const TICKS_PER_USD = 1e10;
 
@@ -82,7 +95,115 @@ export function RunLimitsSection({ canManage }: { canManage: boolean }) {
           <RunLimitEditor policy={null} projects={projects} agents={agents} pending={save.isPending} onCancel={() => setEditing(null)} onSave={(input) => save.mutate({ input }, { onError: fail, onSuccess: () => setEditing(null) })} />
         )}
       </div>
+      <FollowupBudgetGroup canManage={canManage} />
     </section>
+  );
+}
+
+/**
+ * Follow-up budget: how many wake-ups ("réveil programmé") an agent and a
+ * workspace may file per day. A cap on what runs, so it sits with the run
+ * limits — but it lives in `workspace.settings.followups`, not in a policy
+ * row, so it saves through the workspace endpoint the way
+ * `settings.doctrine.require_review` does: read the current blob, merge this
+ * one key, PATCH the whole thing back (the server replaces it wholesale).
+ */
+function FollowupBudgetGroup({ canManage }: { canManage: boolean }) {
+  const { t } = useT("settings");
+  const wsId = useWorkspaceId();
+  const qc = useQueryClient();
+  const workspace = useCurrentWorkspace();
+  const stored = followupBudgetFromSettings(workspace?.settings);
+  const [perAgent, setPerAgent] = useState(String(stored.max_per_agent_per_day));
+  const [perWorkspace, setPerWorkspace] = useState(String(stored.max_per_workspace_per_day));
+  const [status, setStatus] = useState<SettingsSaveStatus>("idle");
+
+  // The workspace list arrives after the first paint, so the fields follow the
+  // stored values until the person edits them.
+  useEffect(() => {
+    setPerAgent(String(stored.max_per_agent_per_day));
+    setPerWorkspace(String(stored.max_per_workspace_per_day));
+  }, [stored.max_per_agent_per_day, stored.max_per_workspace_per_day]);
+
+  const agentValue = clampFollowupBudget(perAgent, stored.max_per_agent_per_day);
+  const workspaceValue = clampFollowupBudget(perWorkspace, stored.max_per_workspace_per_day);
+  const outOfRange = (raw: string) => {
+    const n = Number(raw.trim());
+    return raw.trim() !== "" && (!Number.isFinite(n) || n < FOLLOWUP_BUDGET_MIN || n > FOLLOWUP_BUDGET_MAX);
+  };
+  const refused = outOfRange(perAgent) || outOfRange(perWorkspace);
+  const dirty =
+    agentValue !== stored.max_per_agent_per_day || workspaceValue !== stored.max_per_workspace_per_day;
+
+  const save = async () => {
+    if (!workspace) return;
+    setStatus("saving");
+    try {
+      const merged = mergeFollowupBudget(workspace.settings, {
+        max_per_agent_per_day: agentValue,
+        max_per_workspace_per_day: workspaceValue,
+      });
+      const updated = await api.updateWorkspace(workspace.id, { settings: merged });
+      qc.setQueryData(workspaceKeys.list(), (old: Workspace[] | undefined) =>
+        old?.map((ws) => (ws.id === updated.id ? updated : ws)),
+      );
+      // The issue block quotes the budget from its own list response.
+      await qc.invalidateQueries({ queryKey: followupKeys.all(wsId) });
+      setStatus("saved");
+    } catch (error) {
+      setStatus("error");
+      toast.error(error instanceof Error && error.message ? error.message : t(($) => $.followup_budget.save_failed));
+    }
+  };
+
+  const field = (
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+  ) => (
+    <label className="flex flex-col gap-1">
+      {label}
+      <Input
+        type="number"
+        min={FOLLOWUP_BUDGET_MIN}
+        max={FOLLOWUP_BUDGET_MAX}
+        step={1}
+        aria-label={label}
+        disabled={!canManage}
+        value={value}
+        onChange={(e) => { onChange(e.target.value); setStatus("idle"); }}
+      />
+    </label>
+  );
+
+  return (
+    <div data-testid="followup-budget" className="space-y-2 border-t border-border pt-3">
+      <div className="flex items-center gap-2">
+        <AlarmClock className="h-4 w-4 text-muted-foreground" />
+        <h4 className="font-medium">{t(($) => $.followup_budget.title)}</h4>
+        <SettingsSaveState
+          status={status}
+          savingLabel={t(($) => $.followup_budget.saving)}
+          savedLabel={t(($) => $.followup_budget.saved)}
+          errorLabel={t(($) => $.followup_budget.save_failed)}
+        />
+      </div>
+      <p className="text-caption text-muted-foreground">{t(($) => $.followup_budget.intro)}</p>
+      <div className="grid grid-cols-1 gap-2 text-caption md:grid-cols-2">
+        {field(t(($) => $.followup_budget.per_agent), perAgent, setPerAgent)}
+        {field(t(($) => $.followup_budget.per_workspace), perWorkspace, setPerWorkspace)}
+      </div>
+      {refused && (
+        <p role="alert" className="text-caption text-destructive">
+          {t(($) => $.followup_budget.out_of_range, { min: FOLLOWUP_BUDGET_MIN, max: FOLLOWUP_BUDGET_MAX })}
+        </p>
+      )}
+      {canManage && (
+        <Button type="button" size="sm" variant="outline" disabled={!dirty || refused || status === "saving"} onClick={() => void save()}>
+          {t(($) => $.followup_budget.save)}
+        </Button>
+      )}
+    </div>
   );
 }
 

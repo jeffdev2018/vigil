@@ -15,6 +15,8 @@ export type ApprovalKind =
   | "pipeline"
   | "goal_attach"
   | "org_assign"
+  | "calendar_proposal"
+  | "autopilot_proposal"
   | "transition"
   | "goal_question";
 
@@ -126,6 +128,24 @@ export function approvalSecondsLeft(item: Pick<ApprovalItem, "expires_at" | "sla
 }
 
 /** Compact "12m" / "3h 05m" / "2d" countdown label; "" when none. */
+/**
+ * What a card stands for, as the UI should label it.
+ *
+ * An autopilot proposal ("Proposed autopilot · <title> · <cron>") is a plain
+ * Decision Card whose options are `autopilot:activate:<id>` /
+ * `autopilot:discard:<id>` — the approvals feed classifies goal_attach,
+ * org_assign and calendar_proposal by that same option prefix but has no
+ * branch for this one yet (server/internal/handler/approvals.go decisionKind),
+ * so the prefix is read here. Once the server names the kind, its value wins
+ * because `approval.kind` is only reached when no prefix matches.
+ */
+export function approvalKindOf(approval: Pick<ApprovalItem, "kind" | "options">): string {
+  if (approval.options?.some((o) => o.id.startsWith("autopilot:"))) {
+    return "autopilot_proposal";
+  }
+  return approval.kind;
+}
+
 export function formatCountdown(seconds: number | null): string {
   if (seconds === null) return "";
   if (seconds <= 0) return "0m";

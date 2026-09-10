@@ -588,5 +588,31 @@
     "updated_at": "更新 {{at}}",
     "last_run": "最終実行 {{at}}",
     "read_only": "実行が書き込みます。ここでは編集できません"
+  },
+  "from_sentence": {
+    "action": "文章から作成",
+    "title": "文章からオートパイロットを作成",
+    "description": "何をいつ行うかを書いてください。モデルがスケジュールを提案し、作成前に確認できます。",
+    "sentence_label": "入力する文章",
+    "sentence_placeholder": "毎週月曜 9 時に、未完了の課題を一覧にして投稿して。",
+    "draft": "この文章を読ませる",
+    "draft_failed": "この文章を読み取れませんでした",
+    "no_model": "モデルが設定されていません。スケジュールを自分で入力してください。",
+    "write_yourself": "手動フォームを開く",
+    "back": "文章を書き直す",
+    "field_title": "タイトル",
+    "field_cron": "cron 式",
+    "field_timezone": "タイムゾーン",
+    "field_prompt": "エージェントへの指示",
+    "field_mode": "実行モード",
+    "field_issue_title": "各実行で作成する課題のタイトル",
+    "field_assignee": "エージェント",
+    "assignee_placeholder": "どのエージェントが実行しますか？",
+    "next_runs": "次回以降の実行",
+    "create_paused": "一時停止で作成",
+    "create_active": "作成して有効化",
+    "created_paused": "オートパイロットを一時停止で作成しました",
+    "created_active": "オートパイロットを作成し有効化しました",
+    "create_failed": "オートパイロットを作成できませんでした"
   }
 }

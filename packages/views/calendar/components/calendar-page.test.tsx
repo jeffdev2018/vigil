@@ -99,6 +99,18 @@ const AGENDA: CalendarAgenda = {
   ],
   cycles: [{ id: "cyc-1", name: "Cycle 14", start_date: "2026-09-01", end_date: "2026-09-14" }],
   meetings: [],
+  followups: [
+    {
+      id: "f-1",
+      issue_id: "iss-1",
+      identifier: "MUL-1",
+      issue_title: "Ship it",
+      agent_id: "a-1",
+      agent_name: "Bea",
+      fires_at: "2026-09-12T09:00:00Z",
+      note: "Check whether staging is green",
+    },
+  ],
 };
 
 const mocks = vi.hoisted(() => ({
@@ -186,6 +198,23 @@ describe("CalendarPage", () => {
     // not only the day it starts.
     expect(cellFor("2026-09-05").textContent).toContain("Cycle 14");
     expect(cellFor("2026-09-10").textContent).toContain("Cycle 14");
+  });
+
+  it("shows a scheduled wake-up in its day, with its agent, issue and note", async () => {
+    renderPage();
+    await screen.findByText("September 2026");
+
+    await screen.findByText("Design review");
+
+    // AppLink is mocked down to a bare <a>, so assert through the cell.
+    const cell = cellFor("2026-09-12");
+    expect(cell.textContent).toContain(en.page.followup_prefix);
+    expect(cell.textContent).toContain("Bea");
+    expect(cell.textContent).toContain("Check whether staging is green");
+    const link = [...cell.querySelectorAll("a")].find((a) =>
+      a.textContent?.includes(en.page.followup_prefix),
+    );
+    expect(link?.getAttribute("href")).toContain("iss-1");
   });
 
   it("opens the event sheet and records a response", async () => {

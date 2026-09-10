@@ -12,7 +12,8 @@
     "next_period": "Next",
     "empty_agenda": "Nothing on the agenda for this window.",
     "more": "+{{count}} more",
-    "cycle_band": "{{name}}"
+    "cycle_band": "{{name}}",
+    "followup_prefix": "Wake-up"
   },
   "status": {
     "proposed": "Proposed",

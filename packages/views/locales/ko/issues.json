@@ -1842,6 +1842,46 @@
     "run_halt_reason_prefix": "이유: {{reason}}",
     "run_halt_unknown_actor": "소유자",
     "run_halt_lift": "정지 해제",
-    "run_halt_lift_failed": "정지를 해제하지 못했습니다"
+    "run_halt_lift_failed": "정지를 해제하지 못했습니다",
+    "kind_calendar_proposal": "회의 제안",
+    "kind_autopilot_proposal": "오토파일럿 제안"
+  },
+  "followups": {
+    "section": "후속 알림",
+    "schedule": "후속 알림 예약",
+    "empty": "예약된 깨우기가 없습니다.",
+    "fires_in": "{{countdown}} 후",
+    "scheduled_by": "{{by}} 예약",
+    "cancel": "이 후속 알림 취소",
+    "cancelled": "후속 알림을 취소했습니다",
+    "cancel_failed": "후속 알림을 취소하지 못했습니다",
+    "scheduled": "후속 알림을 예약했습니다",
+    "schedule_failed": "후속 알림을 예약하지 못했습니다",
+    "budget_reached": "하루 후속 알림 한도에 도달했습니다.",
+    "budget_line": "하루에 에이전트당 최대 {{agent}}건, 워크스페이스당 최대 {{workspace}}건.",
+    "quick": {
+      "in_1h": "1시간 후",
+      "tomorrow_9": "내일 9:00",
+      "next_monday_9": "다음 주 월요일 9:00",
+      "custom": "시간 선택"
+    },
+    "cancel_dialog": {
+      "title": "이 후속 알림을 취소할까요?",
+      "description": "{{agent}}이(가) 이 이슈에서 깨어나지 않습니다.",
+      "keep": "유지",
+      "confirm": "후속 알림 취소"
+    },
+    "dialog": {
+      "title": "후속 알림 예약",
+      "description": "에이전트가 메모와 함께 이 이슈로 돌아옵니다.",
+      "custom_label": "날짜 및 시간",
+      "agent_label": "에이전트",
+      "agent_placeholder": "어떤 에이전트가 깨어날까요?",
+      "note_label": "메모",
+      "note_placeholder": "무엇을 확인해야 하나요?",
+      "budget_hint": "하루에 에이전트당 최대 {{agent}}건의 후속 알림.",
+      "cancel": "취소",
+      "confirm": "예약"
+    }
   }
 }

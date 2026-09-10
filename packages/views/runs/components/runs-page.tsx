@@ -533,6 +533,14 @@ function RunRow({
   // open string on the wire (a server may add a kind this build predates).
   const task = run as unknown as AgentTask;
 
+  // A follow-up (réveil programmé) shows here as a run blocked on "deferred",
+  // and that word says nothing. The row already carries the wake-up's own
+  // trigger summary ("Follow-up: <note>") — read it instead when there is one.
+  const blockedLabel =
+    run.blocked_on?.kind === "deferred" && run.trigger_summary
+      ? run.trigger_summary
+      : run.blocked_on?.summary ?? "";
+
   const handleCancel = async () => {
     const results = await cancelRuns.mutateAsync([run.id]);
     reportCancelOutcomes(results.results, t);
@@ -584,16 +592,16 @@ function RunRow({
             <AppLink
               href={issueHref}
               className="max-w-40 shrink-0 truncate rounded bg-warning/10 px-1.5 py-0.5 text-caption text-warning hover:underline"
-              title={`${t(($) => $.row.blocked_on)}: ${run.blocked_on.summary}`}
+              title={`${t(($) => $.row.blocked_on)}: ${blockedLabel}`}
             >
-              {run.blocked_on.summary}
+              {blockedLabel}
             </AppLink>
           ) : (
             <span
               className="max-w-40 shrink-0 truncate rounded bg-warning/10 px-1.5 py-0.5 text-caption text-warning"
-              title={`${t(($) => $.row.blocked_on)}: ${run.blocked_on.summary}`}
+              title={`${t(($) => $.row.blocked_on)}: ${blockedLabel}`}
             >
-              {run.blocked_on.summary}
+              {blockedLabel}
             </span>
           )
         ) : null}

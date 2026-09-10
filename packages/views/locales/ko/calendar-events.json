@@ -12,7 +12,8 @@
     "next_period": "다음",
     "empty_agenda": "이 기간에는 일정이 없습니다.",
     "more": "+{{count}}개 더",
-    "cycle_band": "{{name}}"
+    "cycle_band": "{{name}}",
+    "followup_prefix": "깨우기"
   },
   "status": {
     "proposed": "제안됨",

@@ -1886,6 +1886,46 @@
     "run_halt_reason_prefix": "Reason: {{reason}}",
     "run_halt_unknown_actor": "an owner",
     "run_halt_lift": "Lift the halt",
-    "run_halt_lift_failed": "Could not lift the halt"
+    "run_halt_lift_failed": "Could not lift the halt",
+    "kind_calendar_proposal": "Meeting proposal",
+    "kind_autopilot_proposal": "Autopilot proposal"
+  },
+  "followups": {
+    "section": "Follow-ups",
+    "schedule": "Schedule a follow-up",
+    "empty": "No wake-up scheduled.",
+    "fires_in": "in {{countdown}}",
+    "scheduled_by": "by {{by}}",
+    "cancel": "Cancel this follow-up",
+    "cancelled": "Follow-up cancelled",
+    "cancel_failed": "Could not cancel the follow-up",
+    "scheduled": "Follow-up scheduled",
+    "schedule_failed": "Could not schedule the follow-up",
+    "budget_reached": "Daily follow-up budget reached.",
+    "budget_line": "At most {{agent}} per agent and {{workspace}} per workspace each day.",
+    "quick": {
+      "in_1h": "In 1 h",
+      "tomorrow_9": "Tomorrow 9:00",
+      "next_monday_9": "Next Monday 9:00",
+      "custom": "Pick a time"
+    },
+    "cancel_dialog": {
+      "title": "Cancel this follow-up?",
+      "description": "{{agent}} will not wake up on this issue.",
+      "keep": "Keep it",
+      "confirm": "Cancel the follow-up"
+    },
+    "dialog": {
+      "title": "Schedule a follow-up",
+      "description": "The agent comes back to this issue with your note.",
+      "custom_label": "Date and time",
+      "agent_label": "Agent",
+      "agent_placeholder": "Which agent wakes up?",
+      "note_label": "Note",
+      "note_placeholder": "What should it check?",
+      "budget_hint": "At most {{agent}} follow-ups per agent per day.",
+      "cancel": "Cancel",
+      "confirm": "Schedule"
+    }
   }
 }

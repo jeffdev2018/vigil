@@ -307,6 +307,11 @@ import type {
   CalendarEventInput,
   CalendarEventsResponse,
   CalendarAgenda,
+  DraftAutopilotInput,
+  Followup,
+  IssueFollowupsResponse,
+  ProposeAutopilotInput,
+  ScheduleFollowupInput,
   CalendarSlotsResponse,
   CalendarFeedTokenStatus,
   CalendarGoogleImportResult,
@@ -331,6 +336,8 @@ import type {
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
+  AutopilotDraft,
+  AutopilotProposalResponse,
   BrainCapture,
   BrainCapturesResponse,
   BrainCaptureStatus,
@@ -705,6 +712,14 @@ import {
   CalendarEventResponseSchema,
   EMPTY_CALENDAR_EVENT,
   CalendarAgendaSchema,
+  AutopilotDraftResponseSchema,
+  AutopilotProposalResponseSchema,
+  EMPTY_AUTOPILOT_DRAFT,
+  EMPTY_AUTOPILOT_PROPOSAL,
+  EMPTY_FOLLOWUP,
+  EMPTY_ISSUE_FOLLOWUPS,
+  FollowupResponseSchema,
+  IssueFollowupsResponseSchema,
   EMPTY_CALENDAR_AGENDA,
   CalendarSlotsResponseSchema,
   EMPTY_CALENDAR_SLOTS_RESPONSE,
@@ -6114,6 +6129,62 @@ export class ApiClient {
   async answerIssueGoal(issueId: string, answer: string): Promise<import("../types").IssueGoal | null> {
     const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/goal/answer`, { method: "POST", body: JSON.stringify({ answer }) });
     return parseWithFallback(raw, IssueGoalEnvelopeSchema, { goal: null }, { endpoint: "POST /api/issues/:id/goal/answer" }).goal;
+  }
+
+  // Follow-ups (OS plan, vague B): a deferred wake-up of the issue's agent.
+  // 429 when the workspace or the agent is out of daily budget — the message
+  // names which cap, and the dialog shows it inline.
+  async listIssueFollowups(
+    issueId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<IssueFollowupsResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<IssueFollowupsResponse>(raw, IssueFollowupsResponseSchema, EMPTY_ISSUE_FOLLOWUPS, {
+      endpoint: "GET /api/issues/:id/followups",
+    });
+  }
+
+  async scheduleIssueFollowup(issueId: string, input: ScheduleFollowupInput): Promise<Followup> {
+    const raw = await this.fetch<unknown>(`/api/issues/${encodeURIComponent(issueId)}/followups`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, FollowupResponseSchema, { followup: EMPTY_FOLLOWUP }, {
+      endpoint: "POST /api/issues/:id/followups",
+    }).followup;
+  }
+
+  /** 409 when the follow-up already fired or was cancelled. */
+  async cancelIssueFollowup(issueId: string, followupId: string): Promise<void> {
+    await this.fetch(
+      `/api/issues/${encodeURIComponent(issueId)}/followups/${encodeURIComponent(followupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  // Autopilots from a sentence. Draft writes nothing; 503 means no model is
+  // configured and the caller offers the manual form instead.
+  async draftAutopilot(input: DraftAutopilotInput): Promise<AutopilotDraft> {
+    const raw = await this.fetch<unknown>("/api/autopilots/draft", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback(raw, AutopilotDraftResponseSchema, { draft: EMPTY_AUTOPILOT_DRAFT }, {
+      endpoint: "POST /api/autopilots/draft",
+    }).draft;
+  }
+
+  async proposeAutopilot(input: ProposeAutopilotInput): Promise<AutopilotProposalResponse> {
+    const raw = await this.fetch<unknown>("/api/autopilots/propose", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<AutopilotProposalResponse>(raw, AutopilotProposalResponseSchema, EMPTY_AUTOPILOT_PROPOSAL, {
+      endpoint: "POST /api/autopilots/propose",
+    });
   }
 
   // Run replay (K70).

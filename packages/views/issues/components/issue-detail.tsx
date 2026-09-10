@@ -98,6 +98,7 @@ import { ExecutionLogSection } from "./execution-log-section";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { PlanVerificationSection } from "./plan-verification-section";
 import { GoalSection } from "./goal-section";
+import { FollowupsSection } from "./followups-section";
 import { DecisionCardsSection } from "./decision-cards-section";
 import { ApprovalCard, PendingApprovalsBar } from "../../approvals/approval-card";
 import { issueApprovalsOptions, type ApprovalItem } from "@multica/core/approvals";
@@ -2849,6 +2850,11 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           bounded continuations. Hides itself until a goal exists, except a
           compact affordance to set one while an agent is assigned. */}
       <GoalSection issueId={id} issue={issue} />
+
+      {/* Follow-ups: scheduled wake-ups of this issue's agent. Sits under the
+          goal because both answer "what happens next on this issue", one by
+          continuation and one by the clock. */}
+      <FollowupsSection issueId={id} issue={issue} />
       </>}
 
       {/* Details — creator and timestamps. Sits below the execution log
