@@ -1,0 +1,299 @@
+package handler
+
+import (
+	"bytes"
+	"context"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+
+	"github.com/multica-ai/multica/server/internal/testutil"
+)
+
+func brainWorkspace(t *testing.T) string {
+	t.Helper()
+	workspaceID := dbfx.Workspace(t, "Brain capture", "brain-capture-"+uuid.NewString())
+	dbfx.Member(t, workspaceID, testUserID, "owner")
+	return workspaceID
+}
+
+type captureEnvelope struct {
+	Capture BrainCaptureResponse   `json:"capture"`
+	Note    *WorkspaceNoteResponse `json:"note"`
+}
+
+func capture(t *testing.T, workspaceID string, body map[string]any) BrainCaptureResponse {
+	t.Helper()
+	var out captureEnvelope
+	testutil.Call(t, noteWorkspaceHandler(testHandler.CreateBrainCapture),
+		noteRequest(http.MethodPost, "/api/brain/captures", workspaceID, body)).
+		Want(http.StatusCreated).JSON(&out)
+	dbfx.Cleanup(t, `DELETE FROM brain_capture WHERE id = $1`, out.Capture.ID)
+	return out.Capture
+}
+
+func captureAction(t *testing.T, workspaceID, id, action string, body any, want int) captureEnvelope {
+	t.Helper()
+	var out captureEnvelope
+	req := testutil.WithURLParams(noteRequest(http.MethodPost, "/api/brain/captures/"+id+"/"+action, workspaceID, body), "id", id)
+	var h http.HandlerFunc
+	switch action {
+	case "organize":
+		h = testHandler.OrganizeBrainCapture
+	case "reopen":
+		h = testHandler.ReopenBrainCapture
+	case "suggest":
+		h = testHandler.SuggestBrainCapture
+	}
+	res := testutil.Call(t, noteWorkspaceHandler(h), req).Want(want)
+	if want < 300 {
+		res.JSON(&out)
+	}
+	return out
+}
+
+func listCaptures(t *testing.T, workspaceID, status string) (items []BrainCaptureResponse, rawCount int64) {
+	t.Helper()
+	var out struct {
+		Captures []BrainCaptureResponse `json:"captures"`
+		RawCount int64                  `json:"raw_count"`
+	}
+	path := "/api/brain/captures"
+	if status != "" {
+		path += "?status=" + status
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListBrainCaptures),
+		noteRequest(http.MethodGet, path, workspaceID, nil)).Want(http.StatusOK).JSON(&out)
+	return out.Captures, out.RawCount
+}
+
+func TestBrainCaptureValidation(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	cases := []struct {
+		name string
+		body map[string]any
+	}{
+		{"empty", map[string]any{"content": "   "}},
+		{"bad url", map[string]any{"url": "ftp://x"}},
+		{"too long", map[string]any{"content": strings.Repeat("a", brainCaptureMaxContentRunes+1)}},
+		{"binary kind through json", map[string]any{"kind": "image", "content": "x"}},
+	}
+	for _, tc := range cases {
+		testutil.Call(t, noteWorkspaceHandler(testHandler.CreateBrainCapture),
+			noteRequest(http.MethodPost, "/api/brain/captures", workspaceID, tc.body)).Want(http.StatusBadRequest)
+	}
+}
+
+func TestBrainCaptureLifecycle(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+
+	text := capture(t, workspaceID, map[string]any{"content": "Deploys go through the release tag, never a manual push", "origin": "cli"})
+	if text.Kind != "text" || text.Status != "raw" || text.Origin != "cli" || text.CreatedByType != "member" {
+		t.Fatalf("capture = %+v, want raw text from cli by a member", text)
+	}
+	link := capture(t, workspaceID, map[string]any{"url": "https://example.com/runbook", "origin": "bogus"})
+	if link.Kind != "link" || link.Origin != "web" {
+		t.Errorf("link capture = kind %q origin %q, want link/web (unknown origin falls back to web)", link.Kind, link.Origin)
+	}
+	todo := capture(t, workspaceID, map[string]any{"kind": "todo", "content": "call the vendor back"})
+
+	raw, rawCount := listCaptures(t, workspaceID, "")
+	if len(raw) != 3 || rawCount != 3 {
+		t.Fatalf("inbox holds %d (raw_count %d), want 3", len(raw), rawCount)
+	}
+	if raw[0].ID != todo.ID {
+		t.Errorf("inbox is newest first: got %s first, want the todo", raw[0].ID)
+	}
+
+	// Organize into a new note: the capture body becomes the note, the
+	// title falls back to the first line, the note is sourced "capture".
+	out := captureAction(t, workspaceID, text.ID, "organize", map[string]any{"action": "note", "tags": []string{"Deploy"}}, http.StatusOK)
+	if out.Note == nil {
+		t.Fatal("organize as note returned no note")
+	}
+	dbfx.Cleanup(t, `DELETE FROM workspace_note WHERE id = $1`, out.Note.ID)
+	if out.Note.Source != "capture" || out.Note.Title != "Deploys go through the release tag, never a manual push" || len(out.Note.Tags) != 1 || out.Note.Tags[0] != "deploy" {
+		t.Errorf("note = %+v, want source capture, first-line title, lowercased tag", out.Note)
+	}
+	if out.Capture.Status != "organized" || out.Capture.NoteID == nil || *out.Capture.NoteID != out.Note.ID || out.Capture.OrganizedBy == nil {
+		t.Errorf("capture after organize = %+v, want organized and linked to the note", out.Capture)
+	}
+	// Organizing twice is a conflict, never a second note.
+	captureAction(t, workspaceID, text.ID, "organize", map[string]any{"action": "note"}, http.StatusConflict)
+
+	// Merge into the note just created: the text is appended, tags union.
+	merged := captureAction(t, workspaceID, link.ID, "organize", map[string]any{"action": "merge", "note_id": out.Note.ID, "tags": []string{"runbook"}}, http.StatusOK)
+	if merged.Note == nil || !strings.HasSuffix(merged.Note.Content, "https://example.com/runbook") || merged.Note.Revision != 2 {
+		t.Fatalf("merged note = %+v, want the link appended at revision 2", merged.Note)
+	}
+	if len(merged.Note.Tags) != 2 {
+		t.Errorf("merged tags = %v, want the union [deploy runbook]", merged.Note.Tags)
+	}
+	// Merge into a note of another workspace: not found, never a leak.
+	otherWS := dbfx.Workspace(t, "Other", "brain-other-"+uuid.NewString())
+	dbfx.Member(t, otherWS, testUserID, "owner")
+	foreign := createNote(t, otherWS, CreateWorkspaceNoteRequest{Title: "foreign", Content: "x"})
+	captureAction(t, workspaceID, todo.ID, "organize", map[string]any{"action": "merge", "note_id": foreign.ID}, http.StatusNotFound)
+
+	// Discard, then reopen.
+	discarded := captureAction(t, workspaceID, todo.ID, "organize", map[string]any{"action": "discard"}, http.StatusOK)
+	if discarded.Capture.Status != "discarded" || discarded.Note != nil {
+		t.Errorf("discard = %+v, want discarded without a note", discarded.Capture)
+	}
+	if _, rawCount := listCaptures(t, workspaceID, ""); rawCount != 0 {
+		t.Errorf("raw_count after organizing everything = %d, want 0", rawCount)
+	}
+	if done, _ := listCaptures(t, workspaceID, "organized"); len(done) != 2 {
+		t.Errorf("organized list has %d, want 2", len(done))
+	}
+	reopened := captureAction(t, workspaceID, todo.ID, "reopen", nil, http.StatusOK)
+	if reopened.Capture.Status != "raw" {
+		t.Errorf("reopen = %q, want raw", reopened.Capture.Status)
+	}
+	// Only a discarded capture reopens.
+	captureAction(t, workspaceID, text.ID, "reopen", nil, http.StatusConflict)
+	// Bad action / bad status filter.
+	captureAction(t, workspaceID, todo.ID, "organize", map[string]any{"action": "archive"}, http.StatusBadRequest)
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ListBrainCaptures),
+		noteRequest(http.MethodGet, "/api/brain/captures?status=nope", workspaceID, nil)).Want(http.StatusBadRequest)
+	// Without a model, a suggestion on demand says so instead of guessing.
+	captureAction(t, workspaceID, todo.ID, "suggest", nil, http.StatusServiceUnavailable)
+}
+
+func TestBrainCaptureUploadBecomesAttachmentAndNote(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	store := &mockStorage{}
+	origStorage := testHandler.Storage
+	testHandler.Storage = store
+	t.Cleanup(func() { testHandler.Storage = origStorage })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "whiteboard.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = part.Write([]byte("\x89PNG\r\n\x1a\nrest-of-bytes"))
+	_ = writer.WriteField("content", "photo of the sprint board")
+	_ = writer.Close()
+	req := httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", &body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	req.Header.Set("X-User-ID", testUserID)
+	req.Header.Set("X-Workspace-ID", workspaceID)
+	var out captureEnvelope
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture), req).Want(http.StatusCreated).JSON(&out)
+	dbfx.Cleanup(t, `DELETE FROM brain_capture WHERE id = $1`, out.Capture.ID)
+	if out.Capture.Kind != "image" || out.Capture.Attachment == nil || out.Capture.TitleHint != "whiteboard" || out.Capture.Content != "photo of the sprint board" {
+		t.Fatalf("upload capture = %+v, want an image with its attachment and the file name as title hint", out.Capture)
+	}
+	dbfx.Cleanup(t, `DELETE FROM attachment WHERE id = $1`, out.Capture.Attachment.ID)
+	if n := dbfx.Count(t, `SELECT count(*) FROM attachment WHERE id = $1 AND capture_id = $2`, out.Capture.Attachment.ID, out.Capture.ID); n != 1 {
+		t.Errorf("attachment is not linked back to the capture")
+	}
+
+	organized := captureAction(t, workspaceID, out.Capture.ID, "organize", map[string]any{"action": "note", "title": "Sprint board"}, http.StatusOK)
+	if organized.Note == nil {
+		t.Fatal("no note")
+	}
+	dbfx.Cleanup(t, `DELETE FROM workspace_note WHERE id = $1`, organized.Note.ID)
+	if !strings.Contains(organized.Note.Content, "![whiteboard.png](") || !strings.HasPrefix(organized.Note.Content, "photo of the sprint board") {
+		t.Errorf("note content = %q, want the caption then the image embedded", organized.Note.Content)
+	}
+	if n := dbfx.Count(t, `SELECT count(*) FROM attachment WHERE id = $1 AND note_id = $2`, out.Capture.Attachment.ID, organized.Note.ID); n != 1 {
+		t.Errorf("attachment is not linked to the note it was filed into")
+	}
+	// No file field → 400, missing storage → 503.
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture),
+		testutil.WithHeaders(httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", strings.NewReader("")), "X-User-ID", testUserID, "X-Workspace-ID", workspaceID)).
+		Want(http.StatusBadRequest)
+	testHandler.Storage = nil
+	testutil.Call(t, noteWorkspaceHandler(testHandler.UploadBrainCapture),
+		testutil.WithHeaders(httptest.NewRequest(http.MethodPost, "/api/brain/captures/upload", strings.NewReader("")), "X-User-ID", testUserID, "X-Workspace-ID", workspaceID)).
+		Want(http.StatusServiceUnavailable)
+}
+
+func searchNotes(t *testing.T, workspaceID, query string) []WorkspaceNoteSearchHit {
+	t.Helper()
+	var out struct {
+		Notes  []WorkspaceNoteSearchHit `json:"notes"`
+		Vector bool                     `json:"vector"`
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes/search?"+query, workspaceID, nil)).Want(http.StatusOK).JSON(&out)
+	return out.Notes
+}
+
+func TestWorkspaceNoteRankedSearch(t *testing.T) {
+	workspaceID := brainWorkspace(t)
+	deploy := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Deploy procedure", Content: "Push the release tag on main. The Homebrew tap follows the tag. Never deploy on a Friday.", Tags: []string{"ops"}})
+	vendor := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Vendor contacts", Content: "The printer vendor answers on Mondays.", Tags: []string{"vendor"}})
+	archived := createNote(t, workspaceID, CreateWorkspaceNoteRequest{Title: "Old deploy notes", Content: "deploy deploy deploy, the old way"})
+	testutil.Call(t, noteWorkspaceHandler(testHandler.ArchiveWorkspaceNote),
+		testutil.WithURLParams(noteRequest(http.MethodPost, "/api/workspace/notes/"+archived.ID+"/archive", workspaceID, nil), "id", archived.ID)).Want(http.StatusOK)
+
+	hits := searchNotes(t, workspaceID, "q=deploy+tag")
+	if len(hits) != 1 || hits[0].ID != deploy.ID {
+		t.Fatalf("search deploy tag = %d hits (first %v), want only the live deploy note", len(hits), hits)
+	}
+	if hits[0].Snippet == "" || !strings.Contains(hits[0].Snippet, "<mark>") || hits[0].LexRank == nil || hits[0].VecRank != nil || hits[0].Score <= 0 {
+		t.Errorf("hit = score %v snippet %q lex %v vec %v, want a marked snippet ranked lexically only", hits[0].Score, hits[0].Snippet, hits[0].LexRank, hits[0].VecRank)
+	}
+	if hits := searchNotes(t, workspaceID, "q=deploy&archived=true"); len(hits) != 2 {
+		t.Errorf("archived=true returned %d, want the archived note too", len(hits))
+	}
+	if hits := searchNotes(t, workspaceID, "q=deploy&tag=vendor"); len(hits) != 0 {
+		t.Errorf("tag filter leaked %d hits", len(hits))
+	}
+	// Web-search syntax: a quoted phrase and a negation.
+	if hits := searchNotes(t, workspaceID, `q=%22release+tag%22+-friday`); len(hits) != 0 {
+		t.Errorf("negated term still matched %d", len(hits))
+	}
+
+	// Vector leg: a stored vector close to the query vector lifts a note the
+	// lexical leg does not see. 1536 dims: the query is a unit vector on
+	// axis 0; the vendor note's vector is the same; the deploy note points
+	// the other way.
+	unit := func(sign string) string {
+		parts := make([]string, 1536)
+		for i := range parts {
+			parts[i] = "0"
+		}
+		parts[0] = sign + "1"
+		return "[" + strings.Join(parts, ",") + "]"
+	}
+	dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, vendor.ID, workspaceID, unit(""))
+	dbfx.Exec(t, `INSERT INTO workspace_note_embedding (note_id, workspace_id, embedding, embedding_model, content_hash) VALUES ($1, $2, $3::vector, 'test-model', 'h')`, deploy.ID, workspaceID, unit("-"))
+	dbfx.Cleanup(t, `DELETE FROM workspace_note_embedding WHERE workspace_id = $1`, workspaceID)
+	origEmbedder := testHandler.BrainEmbedder
+	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "test-model"}
+	t.Cleanup(func() { testHandler.BrainEmbedder = origEmbedder })
+	hits = searchNotes(t, workspaceID, "q=printer")
+	if len(hits) != 2 || hits[0].ID != vendor.ID {
+		t.Fatalf("fused search = %v, want the vendor note first (lexical + vector) then deploy (vector only)", hits)
+	}
+	if hits[0].LexRank == nil || hits[0].VecRank == nil || hits[1].LexRank != nil || hits[1].VecRank == nil {
+		t.Errorf("ranks = %v/%v and %v/%v, want vendor on both legs and deploy on the vector leg only", hits[0].LexRank, hits[0].VecRank, hits[1].LexRank, hits[1].VecRank)
+	}
+	// A vector from another model never fuses.
+	testHandler.BrainEmbedder = stubEmbedder{literal: unit(""), model: "other-model"}
+	if hits := searchNotes(t, workspaceID, "q=printer"); len(hits) != 1 {
+		t.Errorf("other model fused %d hits, want the lexical hit alone", len(hits))
+	}
+	testutil.Call(t, noteWorkspaceHandler(testHandler.SearchWorkspaceNotes),
+		noteRequest(http.MethodGet, "/api/workspace/notes/search?q=", workspaceID, nil)).Want(http.StatusBadRequest)
+}
+
+// stubEmbedder answers a fixed query vector so the fusion is testable
+// without a provider.
+type stubEmbedder struct{ literal, model string }
+
+func (s stubEmbedder) EmbedNoteAsync(pgtype.UUID) {}
+func (s stubEmbedder) QueryEmbedding(_ context.Context, _ string) (string, string, bool) {
+	return s.literal, s.model, true
+}
+func (s stubEmbedder) Enabled() bool { return true }

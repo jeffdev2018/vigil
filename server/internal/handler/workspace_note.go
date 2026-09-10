@@ -322,6 +322,7 @@ func (h *Handler) CreateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to create workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(note.ID)
 
 	// Undo (K69): a note a run wrote can be removed again.
 	h.recordEffect(r, workspaceID, pgtype.UUID{}, service.EffectNoteCreate, "workspace_note", note.ID, map[string]any{}, map[string]any{"title": note.Title}, true)
@@ -419,6 +420,7 @@ func (h *Handler) UpdateWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to update workspace note: "+err.Error())
 		return
 	}
+	h.embedNoteAsync(updated.ID)
 	// Undo (K69): title, content, tags and pin state as they were before the run's edit.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteUpdate, "workspace_note", note.ID,
 		map[string]any{"title": note.Title, "content": note.Content, "tags": note.Tags, "pinned": note.Pinned},
@@ -528,6 +530,7 @@ func (h *Handler) DeleteWorkspaceNote(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workspace note not found")
 		return
 	}
+	_ = h.Queries.DeleteWorkspaceNoteEmbedding(r.Context(), note.ID)
 	// Undo (K69): a run's deletion is reversible.
 	h.recordEffect(r, note.WorkspaceID, pgtype.UUID{}, service.EffectNoteDelete, "workspace_note", note.ID, noteEffectSnapshot(note), map[string]any{}, true)
 

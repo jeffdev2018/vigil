@@ -1079,6 +1079,9 @@ func (s *NativeAgentService) nativeSaveNote(ctx context.Context, tctx *nativeToo
 	if err != nil {
 		return nil, fmt.Errorf("note save failed: %w", err)
 	}
+	if s.NoteEmbedder != nil {
+		s.NoteEmbedder.EmbedNoteAsync(note.ID)
+	}
 	s.publishNative(protocol.EventWorkspaceNoteCreated, tctx, map[string]any{
 		"note": map[string]any{"id": util.UUIDToString(note.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},
 	})
@@ -1130,6 +1133,9 @@ func (s *NativeAgentService) nativeUpdateNote(ctx context.Context, tctx *nativeT
 	updated, err := s.Queries.UpdateWorkspaceNote(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("note update failed (concurrent edit?): %w", err)
+	}
+	if s.NoteEmbedder != nil {
+		s.NoteEmbedder.EmbedNoteAsync(updated.ID)
 	}
 	s.publishNative(protocol.EventWorkspaceNoteUpdated, tctx, map[string]any{
 		"note": map[string]any{"id": util.UUIDToString(updated.ID), "workspace_id": util.UUIDToString(tctx.workspaceID)},

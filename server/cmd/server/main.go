@@ -797,6 +797,9 @@ func main() {
 	}
 	// Native runtime (rowboat borrow, lot A): claim and run the tasks of agents
 	// bound to the in-server runtime. Inert without MULTICA_LLM_* configured.
+	if err := schedulerMgr.Register(scheduler.BrainEmbeddingBackfillJob(h.BackfillBrainEmbeddings)); err != nil {
+		slog.Error("scheduler: register brain embedding backfill job failed", "error", err)
+	}
 	if err := schedulerMgr.Register(scheduler.CalendarReminderJob(h.RemindCalendarEvents)); err != nil {
 		slog.Error("scheduler: register calendar reminder job failed", "error", err)
 	}

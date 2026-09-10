@@ -78,6 +78,8 @@ var workspaceDeletionManifest = map[string]workspaceDeleteAction{
 	"workspace_doctrine_report":          workspaceDelete,
 	"workspace_pack_install":             workspaceDelete,
 	"workspace_pack_item":                workspaceDelete,
+	"brain_capture":                      workspaceDelete,
+	"workspace_note_embedding":           workspaceDelete,
 	"calendar_feed_token":                workspaceDelete,
 	"channel_approval_message":           workspaceDelete,
 	"channel_binding_token":              workspaceDelete,

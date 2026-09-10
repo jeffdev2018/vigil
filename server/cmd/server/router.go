@@ -2441,12 +2441,27 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Route("/api/workspace/notes", func(r chi.Router) {
 				r.Get("/", h.ListWorkspaceNotes)
 				r.Post("/", h.CreateWorkspaceNote)
+				// Ranked search (lexical + vector, RRF) with snippets.
+				r.Get("/search", h.SearchWorkspaceNotes)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetWorkspaceNote)
 					r.Patch("/", h.UpdateWorkspaceNote)
 					r.Delete("/", h.DeleteWorkspaceNote)
 					r.Post("/archive", h.ArchiveWorkspaceNote)
 					r.Post("/unarchive", h.UnarchiveWorkspaceNote)
+				})
+			})
+			// Brain capture inbox (OS plan, vague B): capture first, organize
+			// later. Agent runs reach it with a task token.
+			r.Route("/api/brain/captures", func(r chi.Router) {
+				r.Get("/", h.ListBrainCaptures)
+				r.Post("/", h.CreateBrainCapture)
+				r.Post("/upload", h.UploadBrainCapture)
+				r.Route("/{id}", func(r chi.Router) {
+					r.Get("/", h.GetBrainCapture)
+					r.Post("/suggest", h.SuggestBrainCapture)
+					r.Post("/organize", h.OrganizeBrainCapture)
+					r.Post("/reopen", h.ReopenBrainCapture)
 				})
 			})
 			// Insights (F27): ask a question in plain language, run a saved
