@@ -817,6 +817,59 @@ func TestNativeAgentLLMFuse(t *testing.T) {
 	}
 }
 
+// Fairness (N12): under contention each workspace is capped so a busy one
+// cannot take every global slot; a lone workspace still fills the global cap.
+func TestNativeAgentWorkspaceFairness(t *testing.T) {
+	svc := NewNativeAgentService(nil, nil, nil, &scriptedNativeLLM{}, nil)
+
+	// Contention: two workspaces, each limited to nativeMaxPerWorkspace.
+	const wsA, wsB = "ws-a", "ws-b"
+	for i := 0; i < nativeMaxPerWorkspace; i++ {
+		ok, globalFull := svc.tryAcquireRunSlot(wsA, nativeMaxPerWorkspace)
+		if !ok || globalFull {
+			t.Fatalf("wsA slot %d: ok=%v globalFull=%v", i, ok, globalFull)
+		}
+	}
+	if ok, globalFull := svc.tryAcquireRunSlot(wsA, nativeMaxPerWorkspace); ok || globalFull {
+		t.Fatalf("wsA over its share: ok=%v globalFull=%v, want workspace-full", ok, globalFull)
+	}
+	// Peer still gets its share of the global pool.
+	for i := 0; i < nativeMaxPerWorkspace; i++ {
+		ok, globalFull := svc.tryAcquireRunSlot(wsB, nativeMaxPerWorkspace)
+		if !ok || globalFull {
+			t.Fatalf("wsB slot %d: ok=%v globalFull=%v", i, ok, globalFull)
+		}
+	}
+	if ok, globalFull := svc.tryAcquireRunSlot(wsB, nativeMaxPerWorkspace); ok || !globalFull {
+		// Global is exactly full (4+4=8): next acquire must report globalFull.
+		if ok {
+			t.Fatal("expected no slot once global is full")
+		}
+		if !globalFull {
+			t.Fatal("expected globalFull once both workspace shares fill the server")
+		}
+	}
+	for i := 0; i < nativeMaxPerWorkspace; i++ {
+		svc.releaseRunSlot(wsA)
+		svc.releaseRunSlot(wsB)
+	}
+
+	// Alone: a single workspace may take the full global cap.
+	alone := "ws-alone"
+	for i := 0; i < nativeMaxConcurrent; i++ {
+		ok, globalFull := svc.tryAcquireRunSlot(alone, nativeMaxConcurrent)
+		if !ok || globalFull {
+			t.Fatalf("alone slot %d: ok=%v globalFull=%v", i, ok, globalFull)
+		}
+	}
+	if ok, globalFull := svc.tryAcquireRunSlot(alone, nativeMaxConcurrent); ok || !globalFull {
+		t.Fatalf("alone over global: ok=%v globalFull=%v", ok, globalFull)
+	}
+	for i := 0; i < nativeMaxConcurrent; i++ {
+		svc.releaseRunSlot(alone)
+	}
+}
+
 // The Brain tools (JEF-316 slice 1): an agent saves a note under its own
 // authorship, finds it back through full-text search, and edits it with the
 // row's optimistic revision — the same rows the /brain page renders.
