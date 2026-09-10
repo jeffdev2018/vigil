@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/integrations/channel"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 )
 
@@ -329,10 +330,12 @@ func issueCreatedText(res DispatchResult, appURL string) string {
 	} else {
 		line = fmt.Sprintf("Created %s — %s", identifier, title)
 	}
-	if appURL == "" {
-		return line
+	// Link off IssueIdentifier, not the local display value: the "#42" fallback
+	// above is a degraded label, never a routable identifier.
+	if link := channel.IssueWebLink(appURL, res.IssueWorkspaceSlug, res.IssueIdentifier); link != "" {
+		return line + "\n" + link
 	}
-	return line + "\n" + strings.TrimRight(appURL, "/") + "/issues/" + identifier
+	return line
 }
 
 func issueDuplicateText(res DispatchResult, appURL string) string {
@@ -347,10 +350,12 @@ func issueDuplicateText(res DispatchResult, appURL string) string {
 	} else {
 		line = fmt.Sprintf("Not created — active issue %s already exists: %s", identifier, title)
 	}
-	if appURL == "" {
-		return line
+	// Link off IssueIdentifier, not the local display value: the "#42" fallback
+	// above is a degraded label, never a routable identifier.
+	if link := channel.IssueWebLink(appURL, res.IssueWorkspaceSlug, res.IssueIdentifier); link != "" {
+		return line + "\n" + link
 	}
-	return line + "\n" + strings.TrimRight(appURL, "/") + "/issues/" + identifier
+	return line
 }
 
 func (r *LarkOutcomeReplier) sendChatNotice(ctx context.Context, inst Installation, msg InboundMessage, body string) error {

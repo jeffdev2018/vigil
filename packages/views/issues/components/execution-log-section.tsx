@@ -9,6 +9,7 @@ import { issueKeys } from "@multica/core/issues/queries";
 import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
 import { goalLoopOfTask, goalOutcomeLabelKey, issueGoalOptions } from "@multica/core/issues/goal-loop";
 import { useWorkspaceId } from "@multica/core/hooks";
+import { issueTasksOptions } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import type { AgentTask, TaskStatus } from "@multica/core/types";
 import { useConfigStore } from "@multica/core/config";
@@ -30,6 +31,7 @@ import { ReplayButton, RunPlan, runPlanProgress, TranscriptButton } from "../../
 import { ContestButton } from "../../contests/components/contest-button";
 import { cancelReasonLabel, failureReasonLabel } from "../../agents/components/tabs/task-failure";
 import { useT } from "../../i18n";
+import { compareActiveIssueTasks } from "./active-task-order";
 import {
   formatTokens,
   formatUsd,
@@ -94,19 +96,14 @@ export function ExecutionLogSection({ issueId, identifier }: ExecutionLogSection
   // a `["issues", "tasks"]` prefix-match — no local WS subscriptions
   // needed, and the cache stays fresh even when this component isn't
   // mounted (e.g. user cancels from agent-side, then navigates here).
-  const { data: tasks = [] } = useQuery({
-    queryKey: issueKeys.tasks(issueId),
-    queryFn: () => api.listTasksByIssue(issueId),
-    staleTime: 30_000,
-    refetchOnWindowFocus: true,
-  });
+  const { data: tasks = [] } = useQuery(issueTasksOptions(issueId));
 
   // Bucketing goes through the normalized state (F02): pending (queued,
   // deferred), active (dispatched, running) and blocked
   // (waiting_local_directory) are all "in flight"; an unknown status lands
   // in pending rather than vanishing.
   const activeTasks = useMemo(
-    () => tasks.filter((t) => !isRunSettled(runStateOf(t.status))),
+    () => tasks.filter((t) => !isRunSettled(runStateOf(t.status))).toSorted(compareActiveIssueTasks),
     [tasks],
   );
 
@@ -337,7 +334,7 @@ export function ActiveTaskRow({
 }: {
   task: AgentTask;
   issueId: string;
-  onTranscriptOpenChange?: (open: boolean) => void;
+  onTranscriptOpenChange?: (open: boolean, fromKeyboard?: boolean) => void;
 }) {
   const { t } = useT("issues");
   const [cancelling, setCancelling] = useState(false);

@@ -7,7 +7,6 @@ import {
   groupSteps,
   laneSegmentPosition,
   rowCalls,
-  shouldShowTimeline,
   timelineTicks,
   toolKindTotals,
   type TraceCallStep,
