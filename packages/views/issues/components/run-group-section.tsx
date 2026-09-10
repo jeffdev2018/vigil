@@ -7,14 +7,18 @@ import { toast } from "sonner";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { agentListOptions } from "@multica/core/workspace/queries";
 import {
+  canJudgeRunGroup,
   canStartRunGroup,
   diffStatLabel,
   diffUnifiedLines,
+  formatAttemptDuration,
+  formatUsdTicks,
   runGroupErrorKind,
   runGroupKeys,
   runGroupsOptions,
   sortRunGroups,
   useAbandonRunGroup,
+  useJudgeRunGroup,
   useSettleRunGroup,
   type RunGroup,
   type RunGroupAttempt,
@@ -38,10 +42,12 @@ import { RunGroupStartDialog } from "./run-group-start-dialog";
 
 /**
  * Racing attempts (F11): every race this issue has run, newest first, with the
- * attempts side by side — agent, model, run status, diff stat and the patch
- * itself — plus the two decisions only a human makes: keep one attempt, or
- * drop the whole race. Both cancel the other attempts server-side, so nothing
- * here is optimistic: the list is re-read from the answer.
+ * attempts side by side — agent, runtime, model, run status, cost, duration,
+ * diff stat and the patch itself — plus the two decisions only a human makes: keep one attempt, or
+ * drop the whole race. An LLM judge (JEF-234) can be asked for a verdict once
+ * two attempts have finished; its recommendation and per-attempt scores only
+ * advise, they never settle. Settling and abandoning cancel the other attempts
+ * server-side, so nothing here is optimistic: the list is re-read from the answer.
  */
 export function RunGroupSection({ issueId, canManage = true }: { issueId: string; canManage?: boolean }) {
   const { t } = useT("issues");
@@ -51,7 +57,9 @@ export function RunGroupSection({ issueId, canManage = true }: { issueId: string
   const { data: agents = [] } = useQuery({ ...agentListOptions(wsId), enabled: canManage });
   const settle = useSettleRunGroup(wsId, issueId);
   const abandon = useAbandonRunGroup(wsId, issueId);
+  const judge = useJudgeRunGroup(wsId, issueId);
   const [startOpen, setStartOpen] = useState(false);
+  const [judgeError, setJudgeError] = useState<{ groupId: string; message: string } | null>(null);
   const [confirm, setConfirm] = useState<
     { kind: "keep"; groupId: string; taskId: string; agent: string } | { kind: "abandon"; groupId: string } | null
   >(null);
@@ -76,6 +84,21 @@ export function RunGroupSection({ issueId, canManage = true }: { issueId: string
     const done = { onError: fail, onSettled: () => setConfirm(null) };
     if (confirm.kind === "keep") settle.mutate({ groupId: confirm.groupId, winnerTaskId: confirm.taskId }, done);
     else abandon.mutate({ groupId: confirm.groupId }, done);
+  };
+
+  // "Too few finished attempts" is expected enough to be a sentence in the
+  // card itself; anything else falls back to the shared toast.
+  const askJudge = (groupId: string) => {
+    setJudgeError(null);
+    judge.mutate({ groupId }, {
+      onError: (err) => {
+        if (runGroupErrorKind(err) === "not_judgeable") {
+          setJudgeError({ groupId, message: t(($) => $.race.error_not_judgeable) });
+          return;
+        }
+        fail(err);
+      },
+    });
   };
 
   // Nothing to say to a reader who cannot start one and has none to read.
@@ -114,6 +137,9 @@ export function RunGroupSection({ issueId, canManage = true }: { issueId: string
             agentName={agentName}
             canManage={canManage}
             busy={settle.isPending || abandon.isPending}
+            judging={judge.isPending}
+            judgeError={judgeError?.groupId === group.id ? judgeError.message : null}
+            onJudge={() => askJudge(group.id)}
             onKeep={(attempt) => setConfirm({ kind: "keep", groupId: group.id, taskId: attempt.task_id, agent: agentName(attempt.agent_id) })}
             onAbandon={() => setConfirm({ kind: "abandon", groupId: group.id })}
           />
@@ -161,6 +187,9 @@ function RunGroupCard({
   agentName,
   canManage,
   busy,
+  judging,
+  judgeError,
+  onJudge,
   onKeep,
   onAbandon,
 }: {
@@ -168,11 +197,21 @@ function RunGroupCard({
   agentName: (id: string) => string;
   canManage: boolean;
   busy: boolean;
+  judging: boolean;
+  judgeError: string | null;
+  onJudge: () => void;
   onKeep: (attempt: RunGroupAttempt) => void;
   onAbandon: () => void;
 }) {
   const { t } = useT("issues");
   const running = group.status === "running";
+  const judgement = group.judgement;
+  const verdict = judgement?.status === "answered" ? judgement : null;
+  const scoreByTask = new Map((verdict?.scores ?? []).map((s) => [s.task_id, s.score]));
+  const showAbandon = running && canManage;
+  // Visible on any unsettled race, but clickable only once two attempts have
+  // completed — the same rule the server enforces with 409 run_group_not_judgeable.
+  const showJudge = canManage && group.status !== "settled";
   return (
     <div
       data-testid="run-group"
@@ -190,12 +229,34 @@ function RunGroupCard({
           {t(($) => $.race.status[group.status])}
         </span>
         <span className="text-muted-foreground">{t(($) => $.race.attempts, { count: group.attempts.length })}</span>
-        {running && canManage && (
+        {showJudge && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className={cn(!showAbandon && "ml-auto")}
+            disabled={judging || busy || !canJudgeRunGroup(group)}
+            onClick={onJudge}
+          >
+            {judging ? t(($) => $.race.judging) : t(($) => $.race.ask_judge)}
+          </Button>
+        )}
+        {showAbandon && (
           <Button type="button" size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={onAbandon}>
             {t(($) => $.race.abandon)}
           </Button>
         )}
       </div>
+      {/* The verdict only ever advises: keeping an attempt stays the human's call. */}
+      {verdict && verdict.justification !== "" && (
+        <p data-testid="run-group-judgement" className="text-muted-foreground">{verdict.justification}</p>
+      )}
+      {judgement?.status === "failed" && (
+        <p data-testid="run-group-judge-failed" className="text-muted-foreground">{t(($) => $.race.judge_failed)}</p>
+      )}
+      {judgeError !== null && (
+        <p data-testid="run-group-judge-error" className="text-destructive">{judgeError}</p>
+      )}
       {/* The attempts scroll sideways inside this box; the issue page never does. */}
       <div className="overflow-x-auto">
         <div className="flex gap-2">
@@ -205,6 +266,8 @@ function RunGroupCard({
               attempt={attempt}
               name={agentName(attempt.agent_id)}
               winner={group.winner_task_id === attempt.task_id}
+              recommended={verdict?.winner_task_id === attempt.task_id && verdict.winner_task_id !== ""}
+              score={scoreByTask.get(attempt.task_id) ?? null}
               canKeep={running && canManage}
               busy={busy}
               onKeep={() => onKeep(attempt)}
@@ -220,6 +283,8 @@ function AttemptColumn({
   attempt,
   name,
   winner,
+  recommended,
+  score,
   canKeep,
   busy,
   onKeep,
@@ -227,6 +292,8 @@ function AttemptColumn({
   attempt: RunGroupAttempt;
   name: string;
   winner: boolean;
+  recommended: boolean;
+  score: number | null;
   canKeep: boolean;
   busy: boolean;
   onKeep: () => void;
@@ -234,6 +301,11 @@ function AttemptColumn({
   const { t } = useT("issues");
   const statusLabel = useStatusLabel(attempt.status);
   const stat = diffStatLabel(attempt.diff_stat);
+  // runtime_name is empty for attempts on the agent's own binding and for
+  // backends that predate JEF-234 — then the short id stands in, then a dash.
+  const runtime = attempt.runtime_name || (attempt.runtime_id ? attempt.runtime_id.slice(0, 8) : null);
+  const cost = formatUsdTicks(attempt.cost_usd_ticks);
+  const duration = formatAttemptDuration(attempt.duration_seconds);
   return (
     <div
       data-testid="run-group-attempt"
@@ -244,13 +316,30 @@ function AttemptColumn({
       <div className="flex items-center gap-1.5 font-medium">
         <TaskStatusIcon status={attempt.status} />
         <span className="truncate" title={name}>{name}</span>
+        {recommended && (
+          <span data-testid="run-group-recommended" className={cn("shrink-0 rounded px-1 bg-info/15 text-info", !winner && "ml-auto")}>
+            {t(($) => $.race.recommended)}
+          </span>
+        )}
         {winner && <span className="ml-auto shrink-0 text-success">{t(($) => $.race.kept)}</span>}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-2 text-muted-foreground">
         <dt>{t(($) => $.race.model)}</dt>
         <dd className="truncate font-mono">{attempt.model || t(($) => $.race.default_model)}</dd>
+        <dt>{t(($) => $.race.runtime)}</dt>
+        <dd className="truncate" title={attempt.runtime_name || undefined}>{runtime ?? "—"}</dd>
         <dt>{t(($) => $.race.run_status)}</dt>
         <dd className="truncate">{statusLabel}</dd>
+        <dt>{t(($) => $.race.cost)}</dt>
+        <dd className="font-mono">{cost ?? "—"}</dd>
+        <dt>{t(($) => $.race.duration)}</dt>
+        <dd className="font-mono">{duration ?? "—"}</dd>
+        {score !== null && (
+          <>
+            <dt>{t(($) => $.race.judge_score)}</dt>
+            <dd data-testid="run-group-judge-score" className="font-mono">{score}/10</dd>
+          </>
+        )}
         <dt>{t(($) => $.race.diff_stat)}</dt>
         <dd className="font-mono">{stat ?? "—"}</dd>
       </dl>

@@ -1364,6 +1364,7 @@
     "start_confirm": "Start the race",
     "attempt_agent": "Attempt {{index}} — agent",
     "attempt_model": "Attempt {{index}} — model",
+    "attempt_runtime": "Attempt {{index}} — runtime",
     "remove_attempt": "Remove attempt {{index}}",
     "add_attempt": "Add an attempt",
     "pick_agent": "Pick an agent…",
@@ -1372,6 +1373,10 @@
     "note_placeholder": "Note for every attempt (optional)",
     "model": "Model",
     "default_model": "agent default",
+    "runtime": "Runtime",
+    "default_runtime": "Default (agent binding)",
+    "cost": "Cost",
+    "duration": "Duration",
     "run_status": "Run",
     "diff_stat": "Diff",
     "diff_truncated": "Diff too large to store — stat only; read the branch.",
@@ -1388,7 +1393,13 @@
     "cancel": "Cancel",
     "failed": "The race request failed",
     "error_already_active": "A race is already running on this issue.",
-    "error_already_settled": "This race is no longer running."
+    "error_already_settled": "This race is no longer running.",
+    "ask_judge": "Ask the judge",
+    "judging": "Judging…",
+    "recommended": "Recommended",
+    "judge_score": "Judge score",
+    "judge_failed": "The judge could not give a verdict — compare the attempts yourself.",
+    "error_not_judgeable": "The judge needs at least 2 completed attempts."
   },
   "campaign": {
     "section": "Refactoring campaign",

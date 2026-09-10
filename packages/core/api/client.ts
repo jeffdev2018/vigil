@@ -4864,6 +4864,14 @@ export class ApiClient {
     return parseWithFallback(raw, RunGroupEnvelopeSchema, { group: null }, { endpoint: "POST /api/run-groups/:id/abandon" }).group;
   }
 
+  // LLM judge (JEF-234): answers 409 run_group_not_judgeable when fewer than
+  // 2 attempts have completed — the button is gated client-side on the same
+  // rule, so seeing it means the list was stale.
+  async judgeRunGroup(groupId: string): Promise<import("./schemas").RunGroup | null> {
+    const raw = await this.fetch<unknown>(`/api/run-groups/${encodeURIComponent(groupId)}/judge`, { method: "POST" });
+    return parseWithFallback(raw, RunGroupEnvelopeSchema, { group: null }, { endpoint: "POST /api/run-groups/:id/judge" }).group;
+  }
+
   // Learned competency (K43).
   async getAgentCompetency(agentId: string): Promise<import("../agents/competency").AgentCompetency> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/competency`);

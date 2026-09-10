@@ -322,7 +322,7 @@ INSERT INTO agent_task_queue (
     squad_id, context, originator_user_id, accountable_user_id, runtime_mcp_overlay, runtime_connected_apps,
     originator_source, delegated_from_task_id, rule_version_id, rerun_of_task_id, trigger_evidence_kind, trigger_evidence_ref_id,
     task_class, routing, a2a_depth,
-    run_group_id, model_override,
+    run_group_id, model_override, runtime_pinned,
     id
 )
 SELECT
@@ -367,6 +367,9 @@ SELECT
     -- what keeps this INSERT's behaviour identical to its pre-F11 self.
     sqlc.narg('run_group_id')::uuid,
     NULLIF(COALESCE(sqlc.narg('model_override')::text, ''), ''),
+    -- Runtime pin (JEF-234): TRUE only for an attempt enqueued with an
+    -- explicit runtime_id; NULL keeps the column default for every other run.
+    COALESCE(sqlc.narg('runtime_pinned')::boolean, FALSE),
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid())
 WHERE lock_task_owner_rows($1, $3, $2)
 RETURNING *;
@@ -869,8 +872,14 @@ WHERE id = (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise. The pin only relaxes the
+            -- AGENT's binding; the outer atq.runtime_id = @runtime_id still
+            -- holds, so a pinned task is claimable by exactly the pinned
+            -- runtime and by no other.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -1032,8 +1041,11 @@ WHERE id = (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -1095,8 +1107,11 @@ WHERE id IN (
             -- A benchmark replay (JEF-276) is stamped with the candidate
             -- runtime it exists to measure, for the same reason: the pin IS
             -- the experiment, so the agent's binding is not authority.
+            -- A runtime-pinned run-group attempt (JEF-234) is stamped with the
+            -- runtime the user raced, likewise.
             AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
                  OR atq.leg_role = 'benchmark'
+                 OR atq.runtime_pinned
                  -- Runtime pool failover (K28): the owner listed this runtime in the
                  -- agent's pool, so a task moved there is where the owner said it
                  -- may run. Membership is checked per row — a runtime dropped from
@@ -2441,9 +2456,12 @@ WHERE atq.runtime_id = $1
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
-        -- it exists to measure, for the same reason.
+        -- it exists to measure, for the same reason. A runtime-pinned
+        -- run-group attempt (JEF-234) is stamped with the runtime the user
+        -- raced, likewise.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
+             OR atq.runtime_pinned
              -- Runtime pool failover (K28): the owner listed this runtime in the
              -- agent's pool, so a task moved there is where the owner said it
              -- may run. Membership is checked per row — a runtime dropped from
@@ -2584,9 +2602,12 @@ WHERE atq.runtime_id = ANY(@runtime_ids::uuid[])
         -- Auto-routed agents (runtime_routing = 'auto', JEF-237) hold tasks
         -- stamped with the CHOSEN runtime, not their bound fallback runtime.
         -- A benchmark replay (JEF-276) is stamped with the candidate runtime
-        -- it exists to measure, for the same reason.
+        -- it exists to measure, for the same reason. A runtime-pinned
+        -- run-group attempt (JEF-234) is stamped with the runtime the user
+        -- raced, likewise.
         AND (a.runtime_id = atq.runtime_id OR a.runtime_routing = 'auto'
              OR atq.leg_role = 'benchmark'
+             OR atq.runtime_pinned
              -- Runtime pool failover (K28): the owner listed this runtime in the
              -- agent's pool, so a task moved there is where the owner said it
              -- may run. Membership is checked per row — a runtime dropped from

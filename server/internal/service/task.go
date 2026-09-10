@@ -1743,7 +1743,18 @@ type RunGroupAttempt struct {
 	// a group. Validated against the daemon-discovered catalogue by the caller,
 	// which is the only layer that can see it.
 	ModelOverride string
+	// RuntimeOverride (JEF-234) pins the attempt to one runtime: the task is
+	// stamped with it — not the agent's bound runtime, not the router's pick —
+	// and runtime_pinned=true is persisted, so only that runtime can claim it.
+	// Invalid means "route exactly as before".
+	RuntimeOverride pgtype.UUID
 }
+
+// ErrRunGroupRuntimeNotFound means a run-group attempt named a runtime that
+// does not exist in the issue's workspace (JEF-234). A runtime from another
+// workspace is the same refusal: it is not this workspace's runtime to race
+// on, and saying which one it IS would leak across the tenant boundary.
+var ErrRunGroupRuntimeNotFound = errors.New("runtime not found in this workspace")
 
 // EnqueueRunGroupAttempt queues one attempt of a racing group (F11 / JEF-6).
 //
@@ -1754,9 +1765,22 @@ type RunGroupAttempt struct {
 //
 // forceFreshSession is true because attempts must not resume one another's
 // session: the whole point is N independent tries at the same problem.
-func (s *TaskService) EnqueueRunGroupAttempt(ctx context.Context, issue db.Issue, agentID pgtype.UUID, groupID pgtype.UUID, modelOverride string, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+//
+// runtimeOverride pins the attempt to one runtime (JEF-234). It must exist in
+// the issue's workspace — anything else fails with ErrRunGroupRuntimeNotFound.
+// Online is NOT required: a pinned attempt queues until the runtime comes back,
+// like every other queued task.
+func (s *TaskService) EnqueueRunGroupAttempt(ctx context.Context, issue db.Issue, agentID pgtype.UUID, groupID pgtype.UUID, modelOverride string, runtimeOverride pgtype.UUID, handoffNote string, actorUserID pgtype.UUID) (db.AgentTaskQueue, error) {
+	if runtimeOverride.Valid {
+		if _, err := s.Queries.GetAgentRuntimeForWorkspace(ctx, db.GetAgentRuntimeForWorkspaceParams{
+			ID:          runtimeOverride,
+			WorkspaceID: issue.WorkspaceID,
+		}); err != nil {
+			return db.AgentTaskQueue{}, ErrRunGroupRuntimeNotFound
+		}
+	}
 	return s.enqueueMentionTaskWithCommentPlan(ctx, issue, agentID, pgtype.UUID{}, nil, false, pgtype.UUID{}, true, handoffNote, actorUserID, pgtype.UUID{},
-		RunGroupAttempt{GroupID: groupID, ModelOverride: modelOverride})
+		RunGroupAttempt{GroupID: groupID, ModelOverride: modelOverride, RuntimeOverride: runtimeOverride})
 }
 
 func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, issue db.Issue, agentID pgtype.UUID, triggerCommentID pgtype.UUID, coalescedCommentIDs []pgtype.UUID, isLeader bool, squadID pgtype.UUID, forceFreshSession bool, handoffNote string, actorUserID pgtype.UUID, rerunOfTaskID pgtype.UUID, attempt RunGroupAttempt) (db.AgentTaskQueue, error) {
@@ -1805,6 +1829,13 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 	if stamp.RuntimeID.Valid {
 		mentionRuntimeID = stamp.RuntimeID
 	}
+	// JEF-234: an explicit runtime pin beats both the binding and the router.
+	// The stamp IS the override, so the task_usage rollup attributes the
+	// attempt's cost to the runtime that actually ran it, and the claim fence
+	// (runtime_pinned) lets exactly that runtime pick the task up.
+	if attempt.RuntimeOverride.Valid {
+		mentionRuntimeID = attempt.RuntimeOverride
+	}
 	stamp.Routing = routingTraceWithWarnings(stamp.Routing, RoutingWarnings(routingProblems))
 	taskID := dbid.NewV7()
 	task, err := s.createTaskWithBudget(ctx, BudgetScope{
@@ -1846,6 +1877,9 @@ func (s *TaskService) enqueueMentionTaskWithCommentPlan(ctx context.Context, iss
 			// Racing attempts (F11). Both zero for every other caller.
 			RunGroupID:    attempt.GroupID,
 			ModelOverride: pgtype.Text{String: attempt.ModelOverride, Valid: attempt.ModelOverride != ""},
+			// JEF-234: TRUE only for an attempt with an explicit runtime pin;
+			// invalid everywhere else keeps the INSERT's COALESCE default.
+			RuntimePinned: pgtype.Bool{Bool: attempt.RuntimeOverride.Valid, Valid: attempt.RuntimeOverride.Valid},
 		})
 	})
 	if err != nil {

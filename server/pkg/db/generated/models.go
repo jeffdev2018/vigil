@@ -430,6 +430,7 @@ type AgentTaskQueue struct {
 	DiffUnified     pgtype.Text `json:"diff_unified"`
 	MemoryContext   []byte      `json:"memory_context"`
 	CommentThreadID pgtype.UUID `json:"comment_thread_id"`
+	RuntimePinned   bool        `json:"runtime_pinned"`
 }
 
 type AgentToLabel struct {
@@ -2614,6 +2615,8 @@ type RunGroup struct {
 	AttemptCount int32              `json:"attempt_count"`
 	CreatedAt    pgtype.Timestamptz `json:"created_at"`
 	SettledAt    pgtype.Timestamptz `json:"settled_at"`
+	// LLM judge verdict (JEF-234): {status, winner_task_id, justification, scores[], model, judged_at, cost_usd_ticks}. NULL until judged.
+	Judgement []byte `json:"judgement"`
 }
 
 type RunLimitEvent struct {

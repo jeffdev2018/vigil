@@ -3,12 +3,14 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/dbid"
@@ -40,6 +42,10 @@ const (
 type RunGroupAttemptRequest struct {
 	AgentID string `json:"agent_id"`
 	Model   string `json:"model"`
+	// RuntimeID (JEF-234) pins the attempt to one runtime: only that runtime
+	// may claim it, and cost/duration are attributed to it. Empty keeps the
+	// pre-JEF-234 behaviour — the agent's bound runtime or auto routing.
+	RuntimeID string `json:"runtime_id"`
 }
 
 type StartRunGroupRequest struct {
@@ -50,39 +56,60 @@ type StartRunGroupRequest struct {
 // RunGroupAttemptResponse is one attempt. diff_unified is the consolidated
 // patch when the daemon recorded one; diff_truncated says the run produced a
 // diff too large to store, so "no unified diff" is not "no changes".
+//
+// The comparison fields (JEF-234): runtime_id/runtime_name identify the runtime
+// the attempt ran (or will run) on — empty only when the runtime row is gone.
+// cost_usd_ticks is the summed provider-reported cost (1e-10 USD), 0 while no
+// usage was reported. duration_seconds is 0 until the attempt completes.
 type RunGroupAttemptResponse struct {
-	TaskID        string          `json:"task_id"`
-	AgentID       string          `json:"agent_id"`
-	Status        string          `json:"status"`
-	Model         string          `json:"model"`
-	DiffStat      json.RawMessage `json:"diff_stat"`
-	DiffUnified   *string         `json:"diff_unified"`
-	DiffTruncated bool            `json:"diff_truncated"`
-	CreatedAt     string          `json:"created_at"`
-	CompletedAt   *string         `json:"completed_at"`
+	TaskID          string          `json:"task_id"`
+	AgentID         string          `json:"agent_id"`
+	Status          string          `json:"status"`
+	Model           string          `json:"model"`
+	RuntimeID       string          `json:"runtime_id"`
+	RuntimeName     string          `json:"runtime_name"`
+	CostUsdTicks    int64           `json:"cost_usd_ticks"`
+	DurationSeconds int64           `json:"duration_seconds"`
+	DiffStat        json.RawMessage `json:"diff_stat"`
+	DiffUnified     *string         `json:"diff_unified"`
+	DiffTruncated   bool            `json:"diff_truncated"`
+	CreatedAt       string          `json:"created_at"`
+	CompletedAt     *string         `json:"completed_at"`
 }
 
 type RunGroupResponse struct {
-	ID           string                    `json:"id"`
-	IssueID      string                    `json:"issue_id"`
-	Status       string                    `json:"status"`
-	AttemptCount int32                     `json:"attempt_count"`
-	WinnerTaskID *string                   `json:"winner_task_id"`
-	CreatedBy    *string                   `json:"created_by"`
-	CreatedAt    string                    `json:"created_at"`
-	SettledAt    *string                   `json:"settled_at"`
-	Attempts     []RunGroupAttemptResponse `json:"attempts"`
+	ID           string  `json:"id"`
+	IssueID      string  `json:"issue_id"`
+	Status       string  `json:"status"`
+	AttemptCount int32   `json:"attempt_count"`
+	WinnerTaskID *string `json:"winner_task_id"`
+	CreatedBy    *string `json:"created_by"`
+	CreatedAt    string  `json:"created_at"`
+	SettledAt    *string `json:"settled_at"`
+	// Judgement is the LLM judge's verdict (JEF-234 follow-up), null until
+	// POST /api/run-groups/{id}/judge has run. See RunGroupJudgement.
+	Judgement *RunGroupJudgement        `json:"judgement"`
+	Attempts  []RunGroupAttemptResponse `json:"attempts"`
 }
 
-func runGroupAttemptToResponse(task db.AgentTaskQueue) RunGroupAttemptResponse {
+func runGroupAttemptToResponse(task db.AgentTaskQueue, metrics map[string]db.ListRunGroupAttemptMetricsForIssueRow) RunGroupAttemptResponse {
 	out := RunGroupAttemptResponse{
 		TaskID:      uuidToString(task.ID),
 		AgentID:     uuidToString(task.AgentID),
 		Status:      task.Status,
 		Model:       task.ModelOverride.String,
+		RuntimeID:   uuidToString(task.RuntimeID),
 		DiffUnified: textToPtr(task.DiffUnified),
 		CreatedAt:   timestampToString(task.CreatedAt),
 		CompletedAt: timestampToPtr(task.CompletedAt),
+	}
+	// The metrics read should cover every attempt; a miss still reports the
+	// task's own runtime stamp, with name/cost/duration at their zero values.
+	if m, ok := metrics[out.TaskID]; ok {
+		out.RuntimeID = uuidToString(m.RuntimeID)
+		out.RuntimeName = m.RuntimeName
+		out.CostUsdTicks = m.CostUsdTicks
+		out.DurationSeconds = m.DurationSeconds
 	}
 	if len(task.DiffStat) > 0 {
 		out.DiffStat = json.RawMessage(task.DiffStat)
@@ -93,7 +120,24 @@ func runGroupAttemptToResponse(task db.AgentTaskQueue) RunGroupAttemptResponse {
 	return out
 }
 
-func runGroupToResponse(group db.RunGroup, attempts []db.AgentTaskQueue) RunGroupResponse {
+// runGroupMetricsByTask loads the JEF-234 comparison metrics for every attempt
+// of every group on one issue, keyed by task id. A read failure degrades to an
+// empty map — the attempts themselves, their status and their diffs are the
+// response; cost/duration at zero are the same values a fresh attempt reports.
+func (h *Handler) runGroupMetricsByTask(ctx context.Context, issueID pgtype.UUID) map[string]db.ListRunGroupAttemptMetricsForIssueRow {
+	rows, err := h.Queries.ListRunGroupAttemptMetricsForIssue(ctx, issueID)
+	if err != nil {
+		slog.Warn("run group: could not load attempt metrics", "issue_id", uuidToString(issueID), "error", err)
+		return map[string]db.ListRunGroupAttemptMetricsForIssueRow{}
+	}
+	out := make(map[string]db.ListRunGroupAttemptMetricsForIssueRow, len(rows))
+	for _, row := range rows {
+		out[uuidToString(row.TaskID)] = row
+	}
+	return out
+}
+
+func runGroupToResponse(group db.RunGroup, attempts []db.AgentTaskQueue, metrics map[string]db.ListRunGroupAttemptMetricsForIssueRow) RunGroupResponse {
 	out := RunGroupResponse{
 		ID:           uuidToString(group.ID),
 		IssueID:      uuidToString(group.IssueID),
@@ -103,10 +147,11 @@ func runGroupToResponse(group db.RunGroup, attempts []db.AgentTaskQueue) RunGrou
 		CreatedBy:    uuidToPtr(group.CreatedBy),
 		CreatedAt:    timestampToString(group.CreatedAt),
 		SettledAt:    timestampToPtr(group.SettledAt),
+		Judgement:    runGroupJudgementFromDB(group.Judgement),
 		Attempts:     make([]RunGroupAttemptResponse, 0, len(attempts)),
 	}
 	for _, task := range attempts {
-		out.Attempts = append(out.Attempts, runGroupAttemptToResponse(task))
+		out.Attempts = append(out.Attempts, runGroupAttemptToResponse(task, metrics))
 	}
 	return out
 }
@@ -126,9 +171,11 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "a race runs between 2 and 5 attempts")
 		return
 	}
-	// Resolve every agent before creating anything: a half-created group whose
-	// second agent does not exist would hold the issue's one open-race slot.
+	// Resolve every agent and pinned runtime before creating anything: a
+	// half-created group whose second agent does not exist would hold the
+	// issue's one open-race slot.
 	agents := make([]db.Agent, 0, len(req.Attempts))
+	runtimeOverrides := make([]pgtype.UUID, 0, len(req.Attempts))
 	for _, attempt := range req.Attempts {
 		agentID, ok := parseUUIDOrBadRequest(w, attempt.AgentID, "agent id")
 		if !ok {
@@ -140,6 +187,22 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		agents = append(agents, agent)
+		// JEF-234: an empty runtime_id is "route as before"; a non-empty one
+		// must parse and must name a runtime of THIS workspace — a foreign
+		// runtime is the same 404 as an unknown one, not a leak across the
+		// tenant boundary.
+		var override pgtype.UUID
+		if strings.TrimSpace(attempt.RuntimeID) != "" {
+			override, ok = parseUUIDOrBadRequest(w, attempt.RuntimeID, "runtime id")
+			if !ok {
+				return
+			}
+			if _, err := h.Queries.GetAgentRuntimeForWorkspace(r.Context(), db.GetAgentRuntimeForWorkspaceParams{ID: override, WorkspaceID: issue.WorkspaceID}); err != nil {
+				writeError(w, http.StatusNotFound, "runtime not found in this workspace")
+				return
+			}
+		}
+		runtimeOverrides = append(runtimeOverrides, override)
 	}
 	if active, err := h.Queries.CountActiveRunGroupsForIssue(r.Context(), issue.ID); err == nil && active > 0 {
 		writeErrorCode(w, http.StatusConflict, ErrCodeRunGroupActive, "a race is already running on this issue")
@@ -168,9 +231,15 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 	note := strings.TrimSpace(req.Note)
 	queued := make([]db.AgentTaskQueue, 0, len(agents))
 	for i, agent := range agents {
-		task, err := h.TaskService.EnqueueRunGroupAttempt(r.Context(), issue, agent.ID, group.ID, strings.TrimSpace(req.Attempts[i].Model), note, userID)
+		task, err := h.TaskService.EnqueueRunGroupAttempt(r.Context(), issue, agent.ID, group.ID, strings.TrimSpace(req.Attempts[i].Model), runtimeOverrides[i], note, userID)
 		if err != nil {
 			h.unwindRunGroup(r, group, queued)
+			// The runtime was verified above; this is the TOCTOU half of that
+			// check (deleted between resolve and enqueue).
+			if errors.Is(err, service.ErrRunGroupRuntimeNotFound) {
+				writeError(w, http.StatusNotFound, "runtime not found in this workspace")
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "failed to queue the attempt: "+err.Error())
 			return
 		}
@@ -182,7 +251,7 @@ func (h *Handler) StartRunGroup(w http.ResponseWriter, r *http.Request) {
 		"run_group_id": uuidToString(group.ID), "attempts": len(queued), "started": true,
 	}, nil)
 	h.publishIssueAuxChanged(r, issue, actorType, actorID)
-	writeJSON(w, http.StatusCreated, map[string]any{"group": runGroupToResponse(group, queued)})
+	writeJSON(w, http.StatusCreated, map[string]any{"group": runGroupToResponse(group, queued, h.runGroupMetricsByTask(r.Context(), issue.ID))})
 }
 
 // unwindRunGroup rolls a partial fan-out back: the attempts already queued are
@@ -221,9 +290,10 @@ func (h *Handler) ListIssueRunGroups(w http.ResponseWriter, r *http.Request) {
 		key := uuidToString(task.RunGroupID)
 		byGroup[key] = append(byGroup[key], task)
 	}
+	metrics := h.runGroupMetricsByTask(r.Context(), issue.ID)
 	out := make([]RunGroupResponse, 0, len(groups))
 	for _, group := range groups {
-		out = append(out, runGroupToResponse(group, byGroup[uuidToString(group.ID)]))
+		out = append(out, runGroupToResponse(group, byGroup[uuidToString(group.ID)], metrics))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"groups": out})
 }
@@ -353,7 +423,7 @@ func (h *Handler) finishRunGroup(w http.ResponseWriter, r *http.Request, group d
 	if err != nil {
 		slog.Warn("run group: reload attempts failed", "run_group_id", uuidToString(group.ID), "error", err)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"group": runGroupToResponse(group, attempts)})
+	writeJSON(w, http.StatusOK, map[string]any{"group": runGroupToResponse(group, attempts, h.runGroupMetricsByTask(r.Context(), issue.ID))})
 }
 
 // recordRunGroupTaskDiff stores what one attempt changed, as the daemon
