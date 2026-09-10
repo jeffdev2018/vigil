@@ -207,6 +207,8 @@ type CreateWorkspaceRequest struct {
 	IssuePrefix *string `json:"issue_prefix"`
 	// TemplateRunID (K76) seeds the new workspace from a template export the creator can read.
 	TemplateRunID *string `json:"template_run_id"`
+	// PackID (packs, vague B) seeds the new workspace from a catalogue pack.
+	PackID *string `json:"pack_id"`
 }
 
 func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
@@ -355,6 +357,14 @@ func (h *Handler) CreateWorkspace(w http.ResponseWriter, r *http.Request) {
 	if req.TemplateRunID != nil && *req.TemplateRunID != "" {
 		if result, err := h.applyWorkspaceTemplate(r.Context(), ws.ID, *req.TemplateRunID, userID); err != nil {
 			slog.Warn("workspace template failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "error", err)...)
+			resp.TemplateError = err.Error()
+		} else {
+			resp.Template = result
+		}
+	}
+	if req.PackID != nil && *req.PackID != "" {
+		if result, err := h.applyWorkspacePack(r.Context(), ws.ID, *req.PackID, userID); err != nil {
+			slog.Warn("workspace pack failed", append(logger.RequestAttrs(r), "workspace_id", wsID, "pack_id", *req.PackID, "error", err)...)
 			resp.TemplateError = err.Error()
 		} else {
 			resp.Template = result
@@ -1340,6 +1350,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge doctrine reports",
 			run:  func() error { return qtx.PurgeWorkspaceDoctrineReports(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pack items",
+			run:  func() error { return qtx.PurgeWorkspacePackItems(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge pack installs",
+			run:  func() error { return qtx.PurgeWorkspacePackInstalls(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge calendar feed tokens",

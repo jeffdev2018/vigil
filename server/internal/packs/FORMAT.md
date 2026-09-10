@@ -90,7 +90,7 @@ properties:
   - name: Requester team
     type: select               # text | url | number | checkbox | date | select | multi_select | actor | multi_actor
     description: Which team filed the ticket.
-    icon: users
+    icon: user-round             # one of the app's property icon keys (see property.go validPropertyIcons)
     config:
       options:                 # select / multi_select only
         - { name: Sales, color: "#10b981" }
@@ -105,6 +105,8 @@ views:
     query:                     # same keys as the app's saved views
       typeFilters: [ticket]
       statusFilters: [todo, in_progress, waiting_on_requester]
+      propertyFilters:         # keyed by property NAME here; the install
+        Impact: [Everyone]     # resolves names and option names to ids
     display: {}                # display settings, optional
 
 transition_rules:
@@ -131,7 +133,7 @@ doctrine: |
 ownership_rules:
   - label: access              # label name (issue labels) — or path_pattern
     path_pattern: ""
-    referent_agent: Helpdesk · Triage   # agent name in this pack, optional
+    referent_agent: Helpdesk · Triage   # agent name in this pack, optional; the installer becomes the human owner
     priority: 10
 
 # ---- Kinds the transfer bundle already carries (same shapes) ---------------
@@ -260,3 +262,16 @@ checks every enum above, every cross-reference (skills an agent lists, the
 agent an autopilot names, projects, goal keys, labels, status keys, issue type
 keys) and applies each pack to a fresh test workspace twice (the second apply
 must be a no-op). Run it before committing a pack.
+
+## Known limits of the format
+
+- Transition rules key on categories, not on a work item type or a property:
+  an approval gate covers every issue moving between those categories.
+- A property cannot be marked required, and two select properties cannot be
+  bound to each other; write such rules in the doctrine and in a business
+  rule.
+- `metric` is one label and one description; a second number goes in
+  `description` or `hint`.
+- Schedule triggers take a cron expression and a fixed timezone.
+- Sample issues carry no due date and no assignee.
+

@@ -82,7 +82,7 @@ properties:
   - name: Requester team
     type: select
     description: Which team filed the ticket.
-    icon: users
+    icon: user-round
     config:
       options:
         - { name: Sales, color: "#10b981" }
@@ -93,7 +93,7 @@ properties:
   - name: Impact
     type: select
     description: How many people are affected.
-    icon: activity
+    icon: gauge
     config:
       options:
         - { name: One person, color: "#10b981" }

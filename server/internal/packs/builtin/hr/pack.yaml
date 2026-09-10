@@ -1,0 +1,385 @@
+pack:
+  id: hr
+  version: 1.0.0
+  title: People & HR
+  summary: A hiring pipeline whose stage is a property, onboarding as a project of dated steps, leave and contract requests as tickets, and a confidentiality rule agents cannot read around.
+  description: |
+    Sets up the people side of a small company: a **Candidate** type whose
+    pipeline stage is a property (so the board is one view, not seven
+    statuses), a **People request** type for leave, equipment and contract
+    changes, an **Onboarding step** type, an onboarding project whose steps
+    carry owners and due dates, labels for the areas HR actually works in,
+    saved views for the pipeline and the request queue, an onboarding
+    coordinator agent, and a doctrine section that keeps personal data out of
+    every field an agent can read.
+
+    Works with no agent at all: the pipeline property, the request type and the
+    onboarding project run a human HR desk from day one. Connect the native
+    runtime to let the coordinator chase the steps.
+
+    First week: copy the onboarding project for the next arrival, put a due date
+    on every step relative to their first day, and move your current candidates
+    into the pipeline view. Read the confidentiality note before entering a
+    single name.
+  domain: hr
+  wave: 3
+  author: Multica
+  license: MIT
+  tags: [hr, hiring, onboarding, leave]
+  works_without_agents: true
+  metric:
+    label: Onboarding steps completed before day one
+    description: Share of an arrival's onboarding steps closed before their first working day — the ones that make the first day usable rather than administrative.
+    hint: Project "Onboarding", type "onboarding_step"; compare each step's closed date with the arrival's start date.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the onboarding coordinator agent run in the browser without a CLI.
+    - kind: channel
+      name: Slack or Telegram
+      optional: true
+      note: Colleagues can file leave and equipment requests from chat.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: awaiting_employee
+    name: Awaiting the person
+    description: HR asked the employee or candidate for something and cannot move until they answer.
+    category: blocked
+    color: "#f59e0b"
+  - key: withdrawn
+    name: Withdrawn
+    description: The candidate withdrew or the request was taken back. Kept, not deleted, so the pipeline numbers stay honest.
+    category: cancelled
+    color: "#94a3b8"
+
+issue_types:
+  - key: candidate
+    name: Candidate
+    description: One person in the hiring pipeline. Stage lives in the "Hiring stage" property.
+    color: "#8b5cf6"
+    icon: user-search
+  - key: request
+    name: People request
+    description: Leave, equipment, remote work, a contract change — anything a colleague asks HR for.
+    color: "#0ea5e9"
+    icon: inbox
+  - key: onboarding_step
+    name: Onboarding step
+    description: One dated thing that has to be true before or shortly after someone's first day.
+    color: "#10b981"
+    icon: check-square
+
+labels:
+  - name: hiring
+    description: Roles, sourcing, interviews, offers.
+    color: "#8b5cf6"
+    resource_type: issue
+  - name: onboarding
+    description: Everything between a signed offer and the end of the first week.
+    color: "#10b981"
+    resource_type: issue
+  - name: offboarding
+    description: Last day, access removal, equipment return, handover.
+    color: "#ef4444"
+    resource_type: issue
+  - name: leave
+    description: Holiday, sick leave, parental and unpaid leave.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: contract
+    description: Contract changes, role changes, working-time changes.
+    color: "#f59e0b"
+    resource_type: issue
+  - name: policy
+    description: Handbook, working rules, anything that binds everyone.
+    color: "#94a3b8"
+    resource_type: issue
+
+properties:
+  - name: Hiring stage
+    type: select
+    description: Where the candidate is. The pipeline is this property, not the status.
+    icon: milestone
+    config:
+      options:
+        - { name: Applied, color: "#94a3b8" }
+        - { name: Screening, color: "#0ea5e9" }
+        - { name: Interview, color: "#6366f1" }
+        - { name: Reference check, color: "#8b5cf6" }
+        - { name: Offer out, color: "#f59e0b" }
+        - { name: Hired, color: "#10b981" }
+        - { name: Declined, color: "#ef4444" }
+    issue_types: [candidate]
+  - name: Request type
+    type: select
+    description: What the colleague is asking for. Drives who approves it.
+    icon: list-checks
+    config:
+      options:
+        - { name: Leave, color: "#0ea5e9" }
+        - { name: Equipment, color: "#10b981" }
+        - { name: Remote or relocation, color: "#8b5cf6" }
+        - { name: Contract change, color: "#f59e0b" }
+        - { name: Something else, color: "#94a3b8" }
+    issue_types: [request]
+  - name: Approving manager
+    type: actor
+    description: The one person who approves this request or owns this step. Named before the work starts.
+    icon: user-round
+    config: {}
+    issue_types: [request, onboarding_step]
+
+views:
+  - name: Hiring pipeline
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [candidate]
+      statusFilters: [todo, in_progress, in_review, awaiting_employee]
+    display: {}
+  - name: Open people requests
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [request]
+      statusFilters: [todo, in_progress, in_review, awaiting_employee]
+    display: {}
+  - name: Onboarding steps due
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [onboarding_step]
+      labelFilters: [onboarding]
+      statusFilters: [todo, in_progress, awaiting_employee]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: awaiting_employee
+    enabled: true
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: A candidate is never advanced or closed by an agent
+    attach_point: issue_submit_review
+    natural_language: An issue of type "candidate" cannot be submitted for review by an agent; only a member moves a candidate forward, and only after writing what happened in the step they ran.
+  - title: No agent run on a candidate or a policy item
+    attach_point: agent_run_dispatch
+    natural_language: An agent run must not be dispatched on an issue of type "candidate", nor on any issue labelled "policy" or "contract".
+
+doctrine: |
+  - A candidate or employee item carries the minimum needed to run the next step: a first name and a last initial, the stage, the manager, the role. Nothing else.
+  - Never in a title, description, comment or property: salary or pay figures, health information, identity or bank details, home address, family situation, or an evaluation of someone's character. Those live in the HR system of record; the item links to it, it does not copy it.
+  - Agents work on onboarding steps and on requests. They are never assigned a candidate item, never dispatched on anything labelled policy or contract, and never read a document attached to a person's item.
+  - The hiring stage moves only after the person who ran the step has written what happened. A stage is never advanced by a calendar, a reminder or an agent.
+  - A leave, equipment or contract request is approved in the item by the manager named in "Approving manager", so the decision has a trace and the employee can see it.
+  - Offboarding removes every access on the last working day and the checklist proves it, step by step, with the person who did each one.
+
+ownership_rules:
+  - label: onboarding
+    path_pattern: ""
+    referent_agent: People · Onboarding coordinator
+    priority: 10
+
+permission_profiles: []
+
+skills:
+  - name: hr-procedure
+    description: How hiring, onboarding and people requests are run here, and what must never be written down.
+    content: |
+      # People procedure
+
+      ## Confidentiality first
+      Before writing anything into an item, check it against this list. None of
+      it belongs in a title, description, comment or property:
+      pay figures, health information, identity or bank details, home address,
+      family situation, or a judgement of someone's character.
+
+      Write "salary discussed, recorded in the HR system" — never the number.
+      Write "medical certificate received" — never what it says.
+      If you are unsure, put it in the system of record and link to it.
+
+      ## Hiring
+      1. One item per candidate, type Candidate, title `First name L. · role`.
+      2. "Hiring stage" is the pipeline. Move it only after the person who ran
+         the step writes, in a comment, what happened and what the next step is.
+      3. A candidate who withdraws goes to Withdrawn, not deleted: the pipeline
+         numbers have to stay honest.
+      4. Declined candidates get an answer within a week. That is the whole
+         reputation of the company on the hiring market.
+
+      ## Onboarding
+      1. Copy the Onboarding project for the arrival. Every step gets an
+         "Approving manager" (its owner) and a due date relative to day one.
+      2. Steps that must be done BEFORE day one: contract signed, accounts
+         created, laptop ordered and received, first-week schedule sent,
+         buddy named, access to the tools they will use on day one.
+      3. Steps for the first week: payroll enrolment, handbook read, expenses
+         and leave procedures explained, the first small piece of real work.
+      4. A step blocked on the arrival goes to Awaiting the person, with the
+         date it was asked.
+
+      ## Requests
+      1. Set "Request type" and "Approving manager" at intake.
+      2. The manager approves in the item. HR executes; HR does not approve on
+         a manager's behalf.
+      3. A request answered outside the item did not happen — restate the
+         answer in the item.
+
+      ## Never
+      - Never advance a hiring stage yourself if you are an agent.
+      - Never copy a document's content into a comment.
+      - Never close a request that has no approval written in it.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: People · Onboarding coordinator
+    description: Keeps the onboarding steps dated, owned and chased so day one works.
+    instructions: |
+      You are the onboarding coordinator. Your scope is Onboarding step items and People requests. You check that every step of an upcoming arrival has an owner in "Approving manager" and a due date relative to their first day, you list the steps that would land after day one, and you draft the nudge to each step's owner as a comment.
+
+      You are bound by the confidentiality rules in the hr-procedure skill. You never write a pay figure, health information, identity or bank details, home address or family situation into any field, and you never copy the content of an attached document into a comment. If a step's description would require any of that, write "recorded in the HR system of record" and stop.
+
+      You are never assigned a Candidate item, you never move a "Hiring stage", and you are never dispatched on an item labelled policy or contract. You draft; a person sends every message that leaves the workspace, approves every request and closes every step. If an arrival's start date is missing you cannot schedule anything: ask for it and stop.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [hr-procedure]
+    versions: []
+
+projects:
+  - title: Onboarding
+    description: The checklist for one arrival, copied per person. Every step has an owner and a due date relative to day one; the ones that matter are closed before they walk in.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-onboarding-ready]
+
+goals:
+  - key: g-onboarding-ready
+    parent_key: ""
+    title: Nobody spends their first day waiting on us
+    description: Accounts, hardware, contract and schedule are done before the arrival's first working day.
+    success_measure: At least 90% of an arrival's onboarding steps closed before their start date, across the last five arrivals.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: People · Day-one readiness check
+    description: Disabled after install. Every Monday it opens an item listing the onboarding steps of the next two arrivals that are still open, unowned or due after day one, and drafts a nudge for each owner. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: People · Onboarding coordinator
+    execution_mode: create_issue
+    issue_title_template: "Day-one readiness · {{date}}"
+    project: Onboarding
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 8 * * 1"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: People · Confidentiality — what may be written where
+    content: |
+      # What may be written where
+
+      The workspace is readable by colleagues and, on some items, by agents.
+      Treat every field as readable by more people than you have in mind.
+
+      ## Never in an item — title, description, comment or property
+      - Pay, bonus, equity or any figure attached to a person
+      - Health information, diagnoses, certificates, accommodations detail
+      - Identity documents, national numbers, bank details
+      - Home address, family situation, personal contact details
+      - A judgement of someone's character or personality
+
+      ## Instead
+      | Instead of | Write |
+      | --- | --- |
+      | the salary offered | "offer terms recorded in the HR system" |
+      | what the sick note says | "medical certificate received, dates covered" |
+      | the ID number | "identity verified on <date> by <name>" |
+      | "not a culture fit" | the observable fact from the step, or nothing |
+
+      ## Where the real record lives
+      The HR system of record holds contracts, pay, identity and health data.
+      An item links to it. It never copies it. If the link cannot be shared,
+      the item says who to ask.
+
+      ## Agents
+      Agents may work on onboarding steps and people requests. They are never
+      assigned a candidate item, never dispatched on policy or contract items,
+      and never read an attached document. This is a doctrine rule and two
+      business rules, not a preference.
+    tags: [hr, confidentiality]
+    pinned: true
+
+issues:
+  - title: "Example · Candidate — Amina K. · support engineer"
+    description: |
+      An example candidate item. Hiring stage: Interview. Role: support engineer. Approving manager: the support lead.
+
+      The screening call is written up in a comment. Nothing about pay, health or identity is recorded here — the offer terms, when they exist, go in the HR system of record and this item links to them.
+    status: in_progress
+    priority: high
+    project: ""
+    goal_key: ""
+    labels: [hiring]
+  - title: "Example · Request — two weeks of leave in August"
+    description: "An example people request. Request type: Leave. Approving manager: the requester's manager, who approves in this item so the answer is traceable. HR executes once the approval is written here."
+    status: in_review
+    priority: medium
+    project: ""
+    goal_key: ""
+    labels: [leave]
+  - title: "Example · Onboarding step — laptop ordered and received before day one"
+    description: |
+      An example onboarding step. Owner: whoever holds hardware. Due: five working days before the arrival's start date.
+
+      Done means the machine is physically here, imaged, and the accounts they need on day one already log in on it. Not "ordered".
+    status: todo
+    priority: high
+    project: Onboarding
+    goal_key: g-onboarding-ready
+    labels: [onboarding]

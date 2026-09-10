@@ -1,0 +1,397 @@
+pack:
+  id: legal
+  version: 1.0.0
+  title: Legal & contracts
+  summary: Contract reviews and legal requests with a counterparty and a risk level, a clause library in the Brain, a person approving every review, and a contract reader that flags deviations and never advises.
+  description: |
+    Sets up the legal work of a company that has no legal department: a
+    **Contract review** and a **Legal request** type, a "Counterparty", a "Risk
+    level" and a "Signature owner" property, the two statuses a review actually
+    waits in, saved views for the queue and for what is waiting on someone
+    else, an approval gate no agent can pass, a contract-reader agent that
+    compares an incoming draft against our clause library and quotes the
+    deviations, a pinned clause library in the Brain, and a doctrine section
+    that forbids legal advice leaving the workspace.
+
+    Works with no agent at all: the types, the risk level and the clause library
+    turn scattered contract threads into a queue with a turnaround you can
+    measure. Connect the native runtime to let the reader compare drafts.
+
+    First week: open a Contract review for every contract currently in a mail
+    thread, set the counterparty and the risk level, and write the three clauses
+    you always negotiate into the clause library. The reader is only as good as
+    that note.
+  domain: legal
+  wave: 3
+  author: Multica
+  license: MIT
+  tags: [legal, contracts, review, risk]
+  works_without_agents: true
+  metric:
+    label: Review turnaround
+    description: Working days between a contract review being opened and a person approving its close, excluding the time it sits waiting on the counterparty.
+    hint: Type "contract_review", view "Open reviews"; subtract time spent on "Awaiting counterparty".
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the contract reader agent run in the browser without a CLI.
+    - kind: integration
+      name: Document store
+      optional: true
+      note: Without one, drafts are attached to the item or pasted into it.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: awaiting_counterparty
+    name: Awaiting counterparty
+    description: We answered and the other side has to move. Their clock, not ours — this time is excluded from turnaround.
+    category: blocked
+    color: "#f59e0b"
+  - key: awaiting_business_owner
+    name: Awaiting business owner
+    description: A commercial question has to be settled inside the company before the legal review can continue.
+    category: blocked
+    color: "#8b5cf6"
+
+issue_types:
+  - key: contract_review
+    name: Contract review
+    description: One contract or amendment to read, negotiate and sign off.
+    color: "#6366f1"
+    icon: file-signature
+  - key: legal_request
+    name: Legal request
+    description: A question from the business — can we do this, what does this clause bind us to, what do we answer.
+    color: "#0ea5e9"
+    icon: scale
+
+labels:
+  - name: nda
+    description: Mutual and one-way non-disclosure agreements.
+    color: "#94a3b8"
+    resource_type: issue
+  - name: dpa
+    description: Data processing agreements, sub-processors, transfer terms.
+    color: "#ef4444"
+    resource_type: issue
+  - name: customer-contract
+    description: Terms we sign with a customer, and their purchase-order paperwork.
+    color: "#10b981"
+    resource_type: issue
+  - name: supplier-contract
+    description: Terms a supplier or contractor asks us to sign.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: employment
+    description: Employment and contractor agreements, IP assignment, non-compete.
+    color: "#f59e0b"
+    resource_type: issue
+
+properties:
+  - name: Counterparty
+    type: text
+    description: Who is on the other side, as named in the document. Written before the review starts.
+    icon: briefcase-business
+    config: {}
+    issue_types: [contract_review, legal_request]
+  - name: Risk level
+    type: select
+    description: What we are exposed to if this goes wrong. Set from the clauses, not from the size of the deal.
+    icon: circle-alert
+    config:
+      options:
+        - { name: "Low — standard terms", color: "#10b981" }
+        - { name: Medium — accepted deviations, color: "#f59e0b" }
+        - { name: High — unusual exposure, color: "#ef4444" }
+        - { name: Blocker — not signable, color: "#7f1d1d" }
+        - { name: Not assessed, color: "#94a3b8" }
+    issue_types: [contract_review, legal_request]
+  - name: Signature owner
+    type: actor
+    description: The person who signs, or who owns the answer. High and Blocker never rest on the reviewer's own authority.
+    icon: user-round
+    config: {}
+    issue_types: [contract_review, legal_request]
+
+views:
+  - name: Open reviews
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [contract_review, legal_request]
+      statusFilters: [todo, in_progress, in_review, awaiting_counterparty, awaiting_business_owner]
+    display: {}
+  - name: Waiting on someone else
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [contract_review, legal_request]
+      statusFilters: [awaiting_counterparty, awaiting_business_owner]
+    display: {}
+  - name: Awaiting sign-off
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [contract_review]
+      statusFilters: [in_review]
+    display: {}
+
+transition_rules:
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: awaiting_business_owner
+    enabled: true
+
+business_rules:
+  - title: A review is closed by a person, never by an agent
+    attach_point: issue_submit_review
+    natural_language: An issue of type "contract_review" cannot be moved to done by an agent, and cannot be closed while its "Risk level" is "Not assessed" or "Blocker".
+  - title: No agent run on a data or employment contract without a signature owner
+    attach_point: agent_run_dispatch
+    natural_language: An agent run must not be dispatched on an issue labelled "dpa" or "employment" whose "Signature owner" property is empty.
+
+doctrine: |
+  - Every contract, amendment and legal question is an item, with the Counterparty and a Risk level set before the reading starts. "Not assessed" is a starting state, not a resting one.
+  - The contract reader compares a draft against our clause library, quotes the clause it is flagging, and says how it deviates. It never gives legal advice, never answers the counterparty, and never writes to anyone outside the workspace.
+  - A review closes only when the person named in "Signature owner" has approved it in the item, whatever the reader found and however small the contract looks.
+  - High and Blocker are never signed on the reviewer's own authority: they go to the signature owner with the exposure written in one sentence, and Blocker means we ask for a change rather than accept a caveat.
+  - Anything we accept that departs from the clause library is written back into the library the same week, with the counterparty, the wording accepted and why. A precedent nobody recorded gets re-negotiated from scratch next time.
+  - The counterparty's deadline is theirs. A review with no answer after five working days is escalated to the signature owner, not waited on quietly.
+
+ownership_rules:
+  - label: supplier-contract
+    path_pattern: ""
+    referent_agent: Legal · Contract reader
+    priority: 10
+
+permission_profiles: []
+
+skills:
+  - name: legal-review-procedure
+    description: How a contract is read, flagged, escalated and signed off here.
+    content: |
+      # Contract review procedure
+
+      ## Intake
+      1. One item per contract or amendment. Title: `Counterparty · what it is`.
+      2. Set "Counterparty" exactly as the document names the entity — the
+         trading name and the legal entity are often not the same company.
+      3. Set "Signature owner". Set "Risk level" to Not assessed and change it
+         as soon as the clauses are read.
+      4. Label it: nda, dpa, customer-contract, supplier-contract, employment.
+
+      ## Reading (what the contract reader produces)
+      Read the clause library note first. Then, for the clauses below, quote
+      the actual wording from the draft and say how it deviates from ours:
+      1. Liability — cap, exclusions, and whether the cap is mutual.
+      2. Indemnities — what we indemnify, uncapped or not.
+      3. Term, renewal and termination — notice period, auto-renewal, exit for
+         convenience.
+      4. Payment terms and late-payment consequences.
+      5. IP and licence grants — what the other side gets, for how long.
+      6. Data protection — sub-processors, transfers, breach notice, audit.
+      7. Confidentiality — duration and carve-outs.
+      8. Governing law, jurisdiction, dispute route.
+      9. Anything that binds us to a third party we have not seen.
+
+      Output shape, per finding: the clause reference, the quoted wording, the
+      deviation from our library, and the exposure in one sentence. No advice,
+      no "we recommend accepting", no reassurance. If a clause is absent that
+      our library requires, that is a finding too.
+
+      ## Risk level
+      - **Low** — our template, no deviation.
+      - **Medium** — deviations the library records as previously accepted.
+      - **High** — uncapped liability, an indemnity we have not given before,
+        unusual IP or data terms.
+      - **Blocker** — cannot be signed as drafted. Ask for the change.
+
+      ## Escalation and close
+      1. High or Blocker goes to the signature owner with the exposure in one
+         sentence and the change we are asking for.
+      2. Answers to the counterparty are written by a person, always.
+      3. Waiting on the other side → Awaiting counterparty. Waiting on a
+         commercial call inside the company → Awaiting business owner.
+      4. Submit for review; the signature owner or an admin approves the close.
+      5. Every accepted deviation is written into the clause library that week.
+
+      ## Never
+      - Never give legal advice, in the item or anywhere else.
+      - Never answer, mail or negotiate with the counterparty.
+      - Never close a review yourself.
+      - Never say a contract is fine. Say what you found and what you checked.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Legal · Contract reader
+    description: Compares a draft against our clause library and quotes every deviation, with the exposure in one sentence.
+    instructions: |
+      You are the contract reader. You read a draft against the pinned "Legal · Clause library" note and produce findings, clause by clause, in the shape the legal-review-procedure skill defines: the clause reference, the wording quoted from the draft, how it deviates from our library, and the exposure in one sentence. A required clause that is missing from the draft is a finding.
+
+      You do not give legal advice. You do not recommend signing or refusing, you do not reassure, and you never write "this is standard" or "this is fine". You state what the clause says and how it differs from ours; the signature owner decides. If a clause is outside our library and you have no precedent for it, say exactly that rather than reasoning towards a conclusion.
+
+      You never write to, answer or negotiate with the counterparty, and nothing you produce is addressed to anyone outside the workspace. You propose a "Risk level" with your reason but you never close a review, never approve one, and you stop and escalate to the named "Signature owner" as soon as you find uncapped liability, an indemnity we have not given before, or unusual data or IP terms. If "Signature owner" is empty on a dpa or employment item, stop and ask for it.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [legal-review-procedure]
+    versions: []
+
+projects:
+  - title: Contract reviews
+    description: Every contract, amendment and legal question in one queue, so turnaround is measurable and nothing lives only in a mail thread.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-review-turnaround]
+
+goals:
+  - key: g-review-turnaround
+    parent_key: ""
+    title: Answer every contract within five working days
+    description: A review that takes three weeks is a commercial problem before it is a legal one.
+    success_measure: Median turnaround under five working days over a quarter, counting only the time the review sits with us.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Legal · Weekly review-queue sweep
+    description: Disabled after install. Every Tuesday it lists reviews open with us for more than five working days, those still on "Not assessed", and those waiting on a counterparty with no chase recorded, and drafts a nudge for each signature owner. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Legal · Contract reader
+    execution_mode: create_issue
+    issue_title_template: "Review queue sweep · {{date}}"
+    project: Contract reviews
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 9 * * 2"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Legal · Clause library
+    content: |
+      # Clause library
+
+      Our position on each clause, and what we have accepted before. The
+      contract reader compares drafts against this note, so a position that is
+      not written here does not exist.
+
+      Each entry: **our position**, **acceptable variants** (with the
+      counterparty and date we accepted them), **never**.
+
+      ## Liability cap
+      - **Our position**: mutual cap at the fees paid in the 12 months before
+        the claim.
+      - **Acceptable**: 2x annual fees for a customer contract over a year old.
+      - **Never**: uncapped liability, or a cap that binds only us.
+
+      ## Indemnities
+      - **Our position**: we indemnify for IP infringement by our own product,
+        capped as above.
+      - **Never**: indemnifying the counterparty's use of the product, or any
+        indemnity described as "uncapped" or "notwithstanding the cap".
+
+      ## Term and termination
+      - **Our position**: 12-month term, 30 days' notice before renewal,
+        termination for convenience with 30 days' notice.
+      - **Never**: auto-renewal with more than 60 days' notice, or no exit for
+        convenience on a multi-year term.
+
+      ## Payment terms
+      - **Our position**: 30 days net. **Acceptable**: 45 days for a public
+        body. **Never**: payment conditional on the counterparty's own
+        collection from a third party.
+
+      ## Data protection
+      - **Our position**: our DPA, our sub-processor list, 72-hour breach
+        notice, audit by written questionnaire.
+      - **Never**: an on-site audit right without notice, or an obligation to
+        add a sub-processor we have not assessed.
+
+      ## IP and licence grants
+      - **Our position**: the customer gets a licence for the term, nothing
+        more. **Never**: any assignment of our IP, or a licence surviving
+        termination.
+
+      ## Governing law
+      - **Our position**: our own jurisdiction.
+      - **Acceptable**: a neutral third jurisdiction for a counterparty larger
+        than us. **Never**: a jurisdiction where we could not realistically
+        litigate.
+
+      ## Recording a new precedent
+      When we accept something not listed here, add it the same week: the
+      counterparty, the date, the wording accepted, and the reason. That line
+      is what stops us re-negotiating the same point from zero next year.
+    tags: [legal, clauses]
+    pinned: true
+
+issues:
+  - title: "Example · Contract review — supplier master agreement"
+    description: |
+      An example contract review. Counterparty: the analytics supplier, legal entity as named in the draft. Risk level: High — the liability clause is uncapped and the indemnity is one-way. Signature owner: an owner of the workspace.
+
+      The reader's findings quote both clauses and state the exposure in one sentence each. Because the risk level is High, this does not get signed on the reviewer's authority: it goes to the signature owner with the change we are asking for.
+    status: in_progress
+    priority: high
+    project: Contract reviews
+    goal_key: g-review-turnaround
+    labels: [supplier-contract]
+  - title: "Example · Contract review — mutual NDA on our template"
+    description: "An example contract review. Counterparty: a prospective partner. Risk level: Low — our template, no deviation. Still closes only when the signature owner approves it in this item."
+    status: in_review
+    priority: low
+    project: Contract reviews
+    goal_key: ""
+    labels: [nda]
+  - title: "Example · Legal request — can we name this customer in a case study?"
+    description: |
+      An example legal request. Counterparty: the customer in question. Risk level: Not assessed until the confidentiality clause of their contract is read.
+
+      The answer to the customer is written by a person. The reader's job is to quote the confidentiality and publicity clauses and say what they permit.
+    status: awaiting_business_owner
+    priority: medium
+    project: Contract reviews
+    goal_key: ""
+    labels: [customer-contract]
