@@ -2396,6 +2396,21 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.With(handler.RequireHumanActor).Post("/api/calendar/feed-token", h.MintCalendarFeedToken)
 			r.With(handler.RequireHumanActor).Delete("/api/calendar/feed-token", h.RevokeCalendarFeedToken)
 			r.With(handler.RequireHumanActor).Post("/api/calendar/google/import", h.ImportGoogleCalendar)
+			// Workspace doctrine (OS plan, chantier 22).
+			r.Route("/api/workspace/doctrine", func(r chi.Router) {
+				r.Get("/", h.GetWorkspaceDoctrine)
+				r.With(handler.RequireHumanActor).Put("/", h.UpdateWorkspaceDoctrine)
+				r.Get("/versions", h.ListDoctrineVersions)
+				r.Get("/versions/{id}", h.GetDoctrineVersion)
+				r.Get("/versions/{id}/diff", h.DiffDoctrineVersion)
+				r.With(handler.RequireHumanActor).Post("/versions/{id}/approve", h.ApproveDoctrineVersion)
+				r.With(handler.RequireHumanActor).Post("/versions/{id}/reject", h.RejectDoctrineVersion)
+				r.With(handler.RequireHumanActor).Post("/versions/{id}/restore", h.RestoreDoctrineVersion)
+				r.Get("/reports", h.ListDoctrineReports)
+				r.Post("/reports", h.CreateDoctrineReport)
+				r.With(handler.RequireHumanActor).Post("/reports/{id}/acknowledge", h.AcknowledgeDoctrineReport)
+				r.With(handler.RequireHumanActor).Post("/reports/{id}/dismiss", h.DismissDoctrineReport)
+			})
 			// Fleet page (OS plan, chantier 4).
 			r.Get("/api/runs", h.ListRuns)
 			r.Post("/api/runs/cancel", h.CancelRuns)

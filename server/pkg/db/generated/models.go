@@ -3172,7 +3172,43 @@ type Workspace struct {
 	// When TRUE, an agent run that resolves to no precise accountable human (would be owner_fallback) is refused at enqueue instead of degrading to the agent owner (MUL-4302 §3.5). Default FALSE = owner_fallback. Never affects authorization (originator_user_id).
 	AttributionFailClosed bool `json:"attribution_fail_closed"`
 	// Draft a postmortem when a completed run costs more than this many cost_usd_ticks (1e-10 USD). NULL disables the costly trigger.
-	PostmortemCostThresholdUsdTicks pgtype.Int8 `json:"postmortem_cost_threshold_usd_ticks"`
+	PostmortemCostThresholdUsdTicks pgtype.Int8        `json:"postmortem_cost_threshold_usd_ticks"`
+	DoctrineRevision                int32              `json:"doctrine_revision"`
+	DoctrineUpdatedAt               pgtype.Timestamptz `json:"doctrine_updated_at"`
+	DoctrineUpdatedBy               pgtype.UUID        `json:"doctrine_updated_by"`
+}
+
+type WorkspaceDoctrineReport struct {
+	ID               pgtype.UUID        `json:"id"`
+	WorkspaceID      pgtype.UUID        `json:"workspace_id"`
+	DoctrineRevision int32              `json:"doctrine_revision"`
+	Kind             string             `json:"kind"`
+	Summary          string             `json:"summary"`
+	Passage          string             `json:"passage"`
+	ReporterType     string             `json:"reporter_type"`
+	ReporterID       pgtype.UUID        `json:"reporter_id"`
+	TaskID           pgtype.UUID        `json:"task_id"`
+	IssueID          pgtype.UUID        `json:"issue_id"`
+	Status           string             `json:"status"`
+	ResolvedBy       pgtype.UUID        `json:"resolved_by"`
+	ResolvedAt       pgtype.Timestamptz `json:"resolved_at"`
+	ResolutionNote   string             `json:"resolution_note"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkspaceDoctrineVersion struct {
+	ID                   pgtype.UUID        `json:"id"`
+	WorkspaceID          pgtype.UUID        `json:"workspace_id"`
+	Revision             pgtype.Int4        `json:"revision"`
+	Content              string             `json:"content"`
+	Status               string             `json:"status"`
+	Note                 string             `json:"note"`
+	AuthorID             pgtype.UUID        `json:"author_id"`
+	ReviewedBy           pgtype.UUID        `json:"reviewed_by"`
+	ReviewedAt           pgtype.Timestamptz `json:"reviewed_at"`
+	ReviewNote           string             `json:"review_note"`
+	RestoredFromRevision pgtype.Int4        `json:"restored_from_revision"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
 }
 
 type WorkspaceInvitation struct {

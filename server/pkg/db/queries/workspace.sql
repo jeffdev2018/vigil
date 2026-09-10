@@ -2,7 +2,7 @@
 SELECT w.id, w.name, w.slug, w.description, w.settings,
        w.created_at, w.updated_at, w.context, w.repos,
        w.issue_prefix, w.issue_counter, w.avatar_url, w.attribution_fail_closed,
-       w.postmortem_cost_threshold_usd_ticks
+       w.postmortem_cost_threshold_usd_ticks, w.doctrine_revision, w.doctrine_updated_at, w.doctrine_updated_by
 FROM member m
 JOIN workspace w ON w.id = m.workspace_id
 WHERE m.user_id = $1

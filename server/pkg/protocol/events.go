@@ -88,6 +88,11 @@ const (
 	// answered, scheduled or cancelled; payload {event_id, issue_id, status}.
 	EventCalendarChanged = "calendar:changed"
 
+	// EventDoctrineChanged (workspace doctrine): a revision was published,
+	// proposed or reviewed, or a report was filed or resolved. Clients
+	// refetch the doctrine and its reports.
+	EventDoctrineChanged = "doctrine:changed"
+
 	EventApprovalAsked   = "approval:asked"
 	EventApprovalDecided = "approval:decided"
 
