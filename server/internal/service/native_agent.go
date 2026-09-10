@@ -1156,12 +1156,26 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 		if task.TriggerSummary.Valid && task.TriggerSummary.String != "" {
 			b.WriteString("\nTrigger: " + task.TriggerSummary.String + "\n")
 		}
+		// Living document (N15): autopilot instructions may pin a note.
+		if nt, ok := ParseNoteTargetFromAutopilotDescription(ap.Description.String); ok {
+			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+		}
+		if nt, ok := ParseNoteTargetContext(task.Context); ok {
+			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+		}
 		return b.String(), nil, nil
 
 	case task.Context != nil && !task.IssueID.Valid:
+		if nt, ok := ParseNoteTargetContext(task.Context); ok {
+			var b strings.Builder
+			b.WriteString("Living-document run: your job is to update the targeted workspace note so it reflects the latest facts. ")
+			b.WriteString("Use get_note / update_note; do not settle for a comment alone.\n")
+			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			return b.String(), nil, nil
+		}
 		var qc QuickCreateContext
 		if err := json.Unmarshal(task.Context, &qc); err != nil || qc.Type != QuickCreateContextType {
-			return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, or quick-create context)")
+			return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, quick-create, or note_target context)")
 		}
 		var b strings.Builder
 		b.WriteString("Quick-create task: turn the following request into a well-formed issue (create_issue), then summarize what you filed.\n\nRequest:\n" + qc.Prompt + "\n")
@@ -1173,10 +1187,17 @@ func (s *NativeAgentService) nativeBriefForTask(ctx context.Context, task db.Age
 			return "", nil, errors.New("native run: task issue no longer exists")
 		}
 		tctx := nativeToolContext{task: task, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
-		return nativeTaskBrief(ctx, s.Queries, s.Goal, tctx), &issue, nil
+		brief := nativeTaskBrief(ctx, s.Queries, s.Goal, tctx)
+		if nt, ok := ParseNoteTargetContext(task.Context); ok {
+			var b strings.Builder
+			b.WriteString(brief)
+			nativeAppendNoteTargetBrief(ctx, s.Queries, agent.WorkspaceID, nt, &b)
+			return b.String(), &issue, nil
+		}
+		return brief, &issue, nil
 
 	default:
-		return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, or quick-create context)")
+		return "", nil, errors.New("native run: unsupported task kind (no issue, chat, autopilot, quick-create, or note_target context)")
 	}
 }
 
