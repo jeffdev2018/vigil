@@ -38,7 +38,6 @@
     "location": "Location",
     "location_placeholder": "Room, link, or address",
     "issue": "Issue",
-    "issue_placeholder": "Issue id (optional)",
     "participants": "Participants",
     "participants_none": "No participants yet",
     "add_participants": "Add participants",
@@ -54,7 +53,12 @@
     "create": "Create event",
     "save": "Save",
     "error": "Could not save the event",
-    "date_order": "The end must be after the start."
+    "date_order": "The end must be after the start.",
+    "issue_pick": "Link an issue…",
+    "issue_change": "Change",
+    "issue_clear": "Clear linked issue",
+    "issue_picker_title": "Link an issue",
+    "issue_picker_description": "Search and pick the issue this event is about."
   },
   "sheet": {
     "participants": "Participants",

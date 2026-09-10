@@ -30,6 +30,28 @@ vi.mock("../../common/actor-avatar", () => ({
     <span data-testid="actor-avatar" data-actor-id={actorId} />
   ),
 }));
+vi.mock("../../modals/issue-picker-modal", () => ({
+  IssuePickerModal: ({
+    open,
+    onSelect,
+  }: {
+    open: boolean;
+    onSelect: (issue: { id: string; identifier: string; title: string }) => void;
+  }) => (
+    <div data-testid="issue-picker-mock" data-open={open ? "true" : "false"}>
+      {open ? (
+        <button
+          type="button"
+          onClick={() =>
+            onSelect({ id: "iss-uuid-1", identifier: "MUL-42", title: "Linked work" })
+          }
+        >
+          pick-issue
+        </button>
+      ) : null}
+    </div>
+  ),
+}));
 vi.mock("@multica/core/auth", () => ({
   useAuthStore: (selector: (s: { user: { id: string; name: string } }) => unknown) =>
     selector({ user: { id: "u-1", name: "Me" } }),
@@ -193,6 +215,28 @@ describe("CalendarPage", () => {
     const body = mocks.create.mock.calls[0]![0] as { title: string; starts_at: string; ends_at: string };
     expect(body.title).toBe("Standup");
     expect(Date.parse(body.starts_at)).toBeLessThan(Date.parse(body.ends_at));
+  });
+
+  it("links an issue via the picker instead of free-text issue_id", async () => {
+    renderPage();
+    await screen.findByText("September 2026");
+
+    fireEvent.click(screen.getByRole("button", { name: en.page.new_event }));
+    fireEvent.change(await screen.findByPlaceholderText(en.form.title_placeholder), {
+      target: { value: "Sync" },
+    });
+    expect(screen.queryByPlaceholderText(/issue id/i)).toBeNull();
+    expect(screen.getByTestId("issue-picker-mock").getAttribute("data-open")).toBe("false");
+
+    fireEvent.click(screen.getByRole("button", { name: en.form.issue_pick }));
+    expect(screen.getByTestId("issue-picker-mock").getAttribute("data-open")).toBe("true");
+    fireEvent.click(screen.getByRole("button", { name: "pick-issue" }));
+    expect(await screen.findByText("MUL-42")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: en.form.create }));
+    await waitFor(() => expect(mocks.create).toHaveBeenCalled());
+    const body = mocks.create.mock.calls[0]![0] as { issue_id?: string };
+    expect(body.issue_id).toBe("iss-uuid-1");
   });
 
   it("finds a slot and fills the start/end fields", async () => {

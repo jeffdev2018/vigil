@@ -39,6 +39,7 @@ import {
   PickerSection,
   PickerEmpty,
 } from "../../issues/components/pickers/property-picker";
+import { IssuePickerModal } from "../../modals/issue-picker-modal";
 import { useT } from "../../i18n";
 
 const FIELD_CLASS = "h-8 w-full rounded-md border bg-background px-2 text-body";
@@ -56,6 +57,8 @@ interface FormState {
   timezone: string;
   location: string;
   issueId: string;
+  /** Display label for the linked issue (identifier); empty when none. */
+  issueLabel: string;
   participants: CalendarEventParticipantInput[];
 }
 
@@ -77,6 +80,7 @@ function initialForm(target: CalendarEventDialogTarget, tz: string): FormState {
       timezone: e.timezone || tz,
       location: e.location,
       issueId: e.issue_id ?? "",
+      issueLabel: e.issue_identifier || e.issue_id || "",
       participants: e.participants
         .filter((p) => p.type === "member" || p.type === "agent")
         .map((p) => ({ type: p.type as "member" | "agent", id: p.id, required: p.required })),
@@ -97,6 +101,7 @@ function initialForm(target: CalendarEventDialogTarget, tz: string): FormState {
     timezone: tz,
     location: "",
     issueId: "",
+    issueLabel: "",
     participants: [],
   };
 }
@@ -321,6 +326,7 @@ export function CalendarEventDialog({
   const wsId = useWorkspaceId();
   const viewingTz = useViewingTimezone();
   const [form, setForm] = useState<FormState>(() => initialForm(target, viewingTz));
+  const [pickingIssue, setPickingIssue] = useState(false);
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
 
@@ -353,8 +359,19 @@ export function CalendarEventDialog({
   };
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-lg overflow-y-auto max-h-[90vh]">
+    <Dialog open onOpenChange={(open) => { if (!open && !pickingIssue) onClose(); }}>
+      <DialogContent
+        className="sm:max-w-lg overflow-y-auto max-h-[90vh]"
+        onPointerDownOutside={(e) => {
+          if (pickingIssue) e.preventDefault();
+        }}
+        onInteractOutside={(e) => {
+          if (pickingIssue) e.preventDefault();
+        }}
+        onFocusOutside={(e) => {
+          if (pickingIssue) e.preventDefault();
+        }}
+      >
         <form onSubmit={submit} className="flex flex-col gap-4">
           <DialogHeader>
             <DialogTitle>
@@ -438,14 +455,43 @@ export function CalendarEventDialog({
             />
           </label>
 
-          <label className="flex flex-col gap-1 text-caption text-muted-foreground">
+          <div className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.form.issue)}
-            <Input
-              value={form.issueId}
-              onChange={(e) => set("issueId", e.target.value)}
-              placeholder={t(($) => $.form.issue_placeholder)}
-            />
-          </label>
+            {form.issueId ? (
+              <div className="flex h-8 items-center gap-2 rounded-md border bg-background px-2">
+                <span className="min-w-0 flex-1 truncate text-body text-foreground">
+                  {form.issueLabel || form.issueId}
+                </span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 shrink-0 px-1.5 text-caption"
+                  onClick={() => setPickingIssue(true)}
+                >
+                  {t(($) => $.form.issue_change)}
+                </Button>
+                <button
+                  type="button"
+                  className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  aria-label={t(($) => $.form.issue_clear)}
+                  onClick={() => setForm((f) => ({ ...f, issueId: "", issueLabel: "" }))}
+                >
+                  <X className="size-3.5" />
+                </button>
+              </div>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 justify-start font-normal text-muted-foreground"
+                onClick={() => setPickingIssue(true)}
+              >
+                {t(($) => $.form.issue_pick)}
+              </Button>
+            )}
+          </div>
 
           <div className="flex flex-col gap-1 text-caption text-muted-foreground">
             {t(($) => $.form.participants)}
@@ -482,6 +528,22 @@ export function CalendarEventDialog({
             </Button>
           </DialogFooter>
         </form>
+
+        <IssuePickerModal
+          open={pickingIssue}
+          onOpenChange={setPickingIssue}
+          title={t(($) => $.form.issue_picker_title)}
+          description={t(($) => $.form.issue_picker_description)}
+          excludeIds={form.issueId ? [form.issueId] : []}
+          onSelect={(issue) => {
+            setForm((f) => ({
+              ...f,
+              issueId: issue.id,
+              issueLabel: issue.identifier || issue.title,
+            }));
+            setPickingIssue(false);
+          }}
+        />
       </DialogContent>
     </Dialog>
   );
