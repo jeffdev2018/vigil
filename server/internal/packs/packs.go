@@ -24,8 +24,10 @@ var builtinFS embed.FS
 // FormatVersion is the transfer format version a pack file implies.
 const FormatVersion = 2
 
-// MaxFileBytes caps an uploaded pack file.
-const MaxFileBytes = 4 << 20
+// MaxFileBytes caps an uploaded pack file. A workspace with many skills and
+// their files exports to tens of megabytes, so this matches the transfer
+// bundle's cap rather than a "small YAML" guess.
+const MaxFileBytes = 32 << 20
 
 var (
 	idPattern      = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
