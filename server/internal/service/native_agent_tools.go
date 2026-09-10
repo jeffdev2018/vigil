@@ -332,6 +332,19 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 				"required": []string{"title", "starts_at", "ends_at"},
 			},
 		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "report_doctrine_conflict",
+			Description: openai.String("File a doctrine report when this task cannot be done without breaking a workspace rule (kind refusal), when two rules collide (conflict), or when a rule is too vague to apply (ambiguity). The workspace owners are notified and review the rule; do not improvise around the doctrine instead of reporting."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"kind", "summary"},
+				"properties": shared.FunctionParameters{
+					"kind":    shared.FunctionParameters{"type": "string", "enum": nativeDoctrineReportKinds},
+					"summary": shared.FunctionParameters{"type": "string", "description": "What the task asked, which rule stands in the way, and what you did instead."},
+					"passage": shared.FunctionParameters{"type": "string", "description": "The doctrine passage at issue, quoted."},
+				},
+			},
+		}),
 	}
 }
 
@@ -417,6 +430,11 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return nil, errors.New(reason)
 		}
 		return s.nativeCalendarPropose(ctx, tctx, args)
+	case "report_doctrine_conflict":
+		// Deliberately outside the effectful budget: a run that spent its
+		// budget must still be able to say a rule blocked it, and the
+		// repeat guard already refuses the same report twice.
+		return s.nativeReportDoctrineConflict(ctx, tctx, args)
 	case "ask_user":
 		return s.nativeAskUser(ctx, tctx, args)
 	case "delegate":
@@ -1128,4 +1146,47 @@ func (s *NativeAgentService) nativeCalendarPropose(ctx context.Context, tctx *na
 		return nil, errors.New("this run has no issue to propose an event on")
 	}
 	return s.Calendar.Propose(ctx, tctx.agent.WorkspaceID, tctx.agent.ID, tctx.task.IssueID, args)
+}
+
+// ---- Doctrine report (workspace doctrine, chantier 22) ----------------------
+
+// nativeDoctrineReportKinds is the closed kind list the API accepts.
+var nativeDoctrineReportKinds = []string{"conflict", "refusal", "ambiguity"}
+
+func nativeIsDoctrineKind(kind string) bool {
+	for _, k := range nativeDoctrineReportKinds {
+		if k == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// nativeReportDoctrineConflict files a doctrine report for this run. Length
+// limits are the API's: an over-long summary comes back as its error message,
+// which the model reads and can shorten.
+func (s *NativeAgentService) nativeReportDoctrineConflict(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Doctrine == nil {
+		return nil, errors.New("this server cannot file doctrine reports")
+	}
+	rawKind, _ := args["kind"].(string)
+	kind := strings.ToLower(strings.TrimSpace(rawKind))
+	if !nativeIsDoctrineKind(kind) {
+		return nil, fmt.Errorf("kind must be one of %s", strings.Join(nativeDoctrineReportKinds, ", "))
+	}
+	rawSummary, _ := args["summary"].(string)
+	summary := strings.TrimSpace(util.SanitizeTextForPostgres(rawSummary))
+	if summary == "" {
+		return nil, errors.New("summary is required: say what the task asked and which rule stands in the way")
+	}
+	rawPassage, _ := args["passage"].(string)
+	passage := strings.TrimSpace(util.SanitizeTextForPostgres(rawPassage))
+	id, err := s.Doctrine.Report(ctx, tctx.task, tctx.agent, kind, summary, passage)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"report_id": id,
+		"result":    fmt.Sprintf("Doctrine report filed (id %s). The workspace owners were notified; continue with the parts of the task the doctrine allows.", id),
+	}, nil
 }

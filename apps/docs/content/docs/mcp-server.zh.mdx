@@ -35,7 +35,7 @@ Cursor 和其他客户端使用同样的 URL 和 header。路径里没有 slug �
 
 在 URL 上加 `?surface=compound` 或 `?surface=granular`，或者在**设置 → MCP 服务器**里设置工作区的默认值。
 
-- **compound**（默认）：每个领域一个工具，共九个，各自带一个 `action` 参数——`vigil_issue`、`vigil_goal`、`vigil_brain`、`vigil_project`、`vigil_team`、`vigil_triage`、`vigil_inbox`、`vigil_run`、`vigil_handoff`。占用客户端上下文更少。
+- **compound**（默认）：每个领域一个工具，共十一个，各自带一个 `action` 参数——`vigil_issue`、`vigil_goal`、`vigil_brain`、`vigil_project`、`vigil_team`、`vigil_triage`、`vigil_inbox`、`vigil_run`、`vigil_handoff`、`vigil_calendar`、`vigil_doctrine`。占用客户端上下文更少。
 - **granular**：每个操作一个工具（`issue_create`、`note_create`、`goal_answer` 等），适合偏好显式 schema 的客户端。
 
 两种 surface 下工具名都可用，所以缓存了其中一种目录的客户端仍然能正常工作。

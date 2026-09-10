@@ -35,6 +35,9 @@ const PRIORITY_LABEL: Record<IssuePriority, string> = {
 
 // Mirrors useTypeLabels in packages/views/inbox/components/inbox-detail-label.tsx
 const TYPE_LABEL: Record<InboxItemType, string> = {
+  // Workspace doctrine (OS plan, chantier 22).
+  doctrine_review: "Doctrine review",
+  doctrine_report: "Doctrine report",
   // Native calendar (OS plan, chantier 19).
   calendar_invitation: "Invitation",
   calendar_reminder: "Reminder",
@@ -203,6 +206,14 @@ export function InboxDetailLabel({
       // new_comment case: show the body, fall back to the type label.
       case "calendar_invitation":
       case "calendar_reminder":
+        return singleLine(item.body) || TYPE_LABEL[type];
+      // Workspace doctrine (OS plan, chantier 22): same reasoning — the
+      // server writes a ready-to-read body ("A new doctrine revision is
+      // waiting for your review.", "…now live as revision N.", or the
+      // report summary — notifyDoctrineReview / notifyDoctrineReport in
+      // server/internal/handler/workspace_doctrine.go).
+      case "doctrine_review":
+      case "doctrine_report":
         return singleLine(item.body) || TYPE_LABEL[type];
       default:
         return TYPE_LABEL[type] ?? type;

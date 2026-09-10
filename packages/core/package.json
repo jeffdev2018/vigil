@@ -219,6 +219,7 @@
     "./model-keys": "./model-keys/index.ts",
     "./code-health": "./code-health/index.ts",
     "./doc-drift": "./doc-drift/index.ts",
+    "./doctrine": "./doctrine/index.ts",
     "./pr-walkthrough": "./pr-walkthrough/index.ts",
     "./projects/epic": "./projects/epic.ts",
     "./review-flags": "./review-flags/index.ts",

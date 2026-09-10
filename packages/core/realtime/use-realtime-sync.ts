@@ -37,6 +37,7 @@ import {
 import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { calendarEventKeys } from "../calendar-events/queries";
+import { doctrineKeys } from "../doctrine/queries";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { epicKeys } from "../projects/epic";
@@ -1436,6 +1437,17 @@ export function useRealtimeSync(
       }
     });
 
+    // Workspace doctrine (OS plan, chantier 22). Invalidate only — the payload
+    // is a change hint (published, proposed, approved/rejected, a report filed
+    // or resolved), same choice as the calendar above. The version ledger, the
+    // diffs and the report lists are all keyed under the same workspace root,
+    // so one invalidation covers whichever block is on screen.
+    const unsubDoctrineChanged = ws.on("doctrine:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      qc.invalidateQueries({ queryKey: doctrineKeys.all(wsId) });
+    });
+
     // Review rework loop (JEF-238): a request_changes verdict sent the task
     // back to the worker, or the cycle cap escalated to a human. Refresh the
     // issue's review list and raise a client-only signal the cross-review
@@ -2180,6 +2192,7 @@ export function useRealtimeSync(
       unsubMeetingUpdated();
       unsubMeetingDeleted();
       unsubCalendarChanged();
+      unsubDoctrineChanged();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

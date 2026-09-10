@@ -58,7 +58,8 @@
     "autopilot_quota_upgrade": "업그레이드 옵션 보기",
     "archive": "보관",
     "unarchive": "보관 해제",
-    "already_decided": "이미 결정됨"
+    "already_decided": "이미 결정됨",
+    "open_doctrine": "행동 지침 열기"
   },
   "types": {
     "issue_assigned": "할당됨",
@@ -111,7 +112,9 @@
     "code_health_report": "코드 건강 보고서",
     "doc_drift_report": "에이전트 컨텍스트 드리프트",
     "calendar_invitation": "이벤트에 초대됨",
-    "calendar_reminder": "곧 시작"
+    "calendar_reminder": "곧 시작",
+    "doctrine_review": "행동 지침 검토",
+    "doctrine_report": "행동 지침 신고"
   },
   "labels": {
     "set_status_to": "상태 변경:",

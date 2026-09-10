@@ -58,7 +58,8 @@
     "autopilot_quota_upgrade": "查看升级方案",
     "archive": "归档",
     "unarchive": "取消归档",
-    "already_decided": "已决定"
+    "already_decided": "已决定",
+    "open_doctrine": "打开行动准则"
   },
   "types": {
     "issue_assigned": "已分配",
@@ -111,7 +112,9 @@
     "code_health_report": "代码健康报告",
     "doc_drift_report": "智能体上下文漂移",
     "calendar_invitation": "受邀参加事件",
-    "calendar_reminder": "即将开始"
+    "calendar_reminder": "即将开始",
+    "doctrine_review": "行动准则评审",
+    "doctrine_report": "行动准则反馈"
   },
   "labels": {
     "set_status_to": "状态设为",

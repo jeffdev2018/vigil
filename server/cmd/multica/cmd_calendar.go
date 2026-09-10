@@ -55,6 +55,9 @@ func init() {
 		c.Flags().String("from", "", "window start, RFC 3339 (default now)")
 		c.Flags().String("to", "", "window end, RFC 3339 (default a week ahead)")
 	}
+	for _, c := range []*cobra.Command{calendarAgendaCmd, calendarEventsCmd, calendarSlotsCmd, calendarProposeCmd} {
+		c.Flags().String("output", "table", "Output format: table or json")
+	}
 	calendarEventsCmd.Flags().Bool("full-id", false, "print full ids")
 	calendarSlotsCmd.Flags().String("participants", "", "member:<user id>,agent:<agent id>")
 	calendarSlotsCmd.Flags().Int("duration", 30, "minutes")

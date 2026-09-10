@@ -54,6 +54,7 @@ import { WorkspaceAvatar } from "@/components/workspace/workspace-avatar";
 import { workspaceListOptions } from "@/data/queries/workspaces";
 import { triageStatsOptions } from "@/data/queries/triage";
 import { postmortemStatsOptions } from "@/data/queries/postmortem";
+import { doctrineOptions } from "@/data/queries/doctrine";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -79,7 +80,7 @@ interface NavItem {
    * triage counts the pending queue and postmortems count the drafts,
    * exactly like the inbox count next to them — work waiting on a human.
    */
-  badge?: "triage" | "postmortem";
+  badge?: "triage" | "postmortem" | "doctrine";
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -103,6 +104,15 @@ const NAV_ITEMS: NavItem[] = [
     icon: "doc.text.magnifyingglass",
     path: "/more/postmortems",
     badge: "postmortem",
+  },
+  // Workspace doctrine (OS plan, chantier 22). Badge counts the open
+  // reports — the same "work waiting on a human" reading as triage and
+  // postmortems, and the same number the server puts on `open_reports`.
+  {
+    label: "Doctrine",
+    icon: "text.book.closed",
+    path: "/more/doctrine",
+    badge: "doctrine",
   },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
   // Native calendar (OS plan, chantier 19).
@@ -217,7 +227,7 @@ export function MoreTabDropdownAnchor({
  * cleared queue costs no visual noise. Truncated at 99+ like the tab-bar
  * badges in `lib/unread-counts.ts`.
  */
-function NavBadge({ kind }: { kind: "triage" | "postmortem" }) {
+function NavBadge({ kind }: { kind: "triage" | "postmortem" | "doctrine" }) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   // Both queries are declared unconditionally (hooks cannot be conditional)
   // and gated by `enabled` on the branch that is not this row's kind, so a
@@ -232,7 +242,17 @@ function NavBadge({ kind }: { kind: "triage" | "postmortem" }) {
     enabled: !!wsId && kind === "postmortem",
     select: (stats) => stats.draft,
   });
-  const count = (kind === "triage" ? triage.data : postmortem.data) ?? 0;
+  const doctrine = useQuery({
+    ...doctrineOptions(wsId),
+    enabled: !!wsId && kind === "doctrine",
+    select: (d) => d.open_reports,
+  });
+  const count =
+    (kind === "triage"
+      ? triage.data
+      : kind === "postmortem"
+        ? postmortem.data
+        : doctrine.data) ?? 0;
   if (count <= 0) return null;
   return (
     <View className="rounded-full bg-secondary px-1.5 py-0.5">

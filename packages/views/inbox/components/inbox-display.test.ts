@@ -7,6 +7,7 @@ import {
   getInboxDisplayTitle,
   getQuickCreateOutcomeDetail,
   isApprovalAskType,
+  isDoctrineType,
   isAutopilotQuotaNotice,
   isQuickCreateOutcome,
   resolveDetailItem,
@@ -163,6 +164,14 @@ describe("isApprovalAskType", () => {
     expect(isApprovalAskType("transition_approval_requested")).toBe(true);
     expect(isApprovalAskType("goal_question")).toBe(true);
     expect(isApprovalAskType("new_comment")).toBe(false);
+  });
+});
+
+describe("isDoctrineType", () => {
+  it("names only the two items whose subject is the doctrine", () => {
+    expect(isDoctrineType("doctrine_review")).toBe(true);
+    expect(isDoctrineType("doctrine_report")).toBe(true);
+    expect(isDoctrineType("new_comment")).toBe(false);
   });
 });
 

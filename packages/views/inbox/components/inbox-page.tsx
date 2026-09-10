@@ -53,7 +53,7 @@ import {
 import { IssueDetail, issueHighlightMementoKey } from "../../issues/components";
 import { useViewStateWriter } from "../../platform";
 import { ErrorBoundary } from "@multica/ui/components/common/error-boundary";
-import { useNavigation, useReportNavigating } from "../../navigation";
+import { AppLink, useNavigation, useReportNavigating } from "../../navigation";
 import { toast } from "sonner";
 import {
   MoreHorizontal,
@@ -99,6 +99,7 @@ import {
   isAutopilotQuotaNotice,
   isQuickCreateOutcome,
   isApprovalAskType,
+  isDoctrineType,
   findMatchingApproval,
   resolveDetailItem,
 } from "./inbox-display";
@@ -865,6 +866,17 @@ export function InboxPage() {
         </div>
       )}
       <div className="mt-4 flex gap-2">
+        {isDoctrineType(detailItem.type) && (
+          <Button
+            size="sm"
+            variant="outline"
+            data-testid="open-doctrine"
+            render={<AppLink href={`${wsPaths.settings()}?tab=doctrine`} />}
+            nativeButton={false}
+          >
+            {t(($) => $.detail.open_doctrine)}
+          </Button>
+        )}
         {detailItem.type === "quick_create_failed" &&
           detailItem.details?.source_context_id &&
           detailItem.details?.task_id && (

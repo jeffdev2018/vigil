@@ -142,7 +142,11 @@ export type WSEventType =
   // Native calendar (OS plan, chantier 19): an event was created, updated,
   // its status changed (scheduled/cancelled, including a proposal's
   // accept/decline), or a participant answered.
-  | "calendar:changed";
+  | "calendar:changed"
+  // Workspace doctrine (OS plan, chantier 22): a revision was published, one
+  // was proposed for review, a proposal was approved/rejected, or a report
+  // was filed or resolved.
+  | "doctrine:changed";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -376,6 +380,21 @@ export interface CalendarChangedPayload {
   issue_id: string | null;
   status: string;
   starts_at: string;
+}
+
+/**
+ * Workspace doctrine (OS plan, chantier 22). A change hint, not a row: the
+ * doctrine, its version ledger and its reports are all read back from the
+ * API, so listeners invalidate the doctrine queries rather than merging this.
+ * `change` is one of published | proposed | rejected | reported |
+ * report_acknowledged | report_dismissed — read it with a `default` branch.
+ */
+export interface DoctrineChangedPayload {
+  revision: number;
+  change: string;
+  version_id?: string;
+  report_id?: string;
+  pending_version_id?: string;
 }
 
 export interface CrossReviewEventPayload {
@@ -986,6 +1005,7 @@ export interface WSEventPayloadMap {
   "run_preview:updated": RunPreviewUpdatedPayload;
   "run_halt:changed": RunHaltChangedPayload;
   "calendar:changed": CalendarChangedPayload;
+  "doctrine:changed": DoctrineChangedPayload;
 }
 
 /**

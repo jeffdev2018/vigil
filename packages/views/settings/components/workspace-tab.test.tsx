@@ -75,7 +75,14 @@ vi.mock("@multica/core/auth", () => {
 });
 
 vi.mock("../../navigation", () => ({
-  useNavigation: () => ({ push: vi.fn() }),
+  useNavigation: () => ({
+    push: vi.fn(),
+    pathname: "/test-workspace/settings",
+    searchParams: new URLSearchParams("tab=workspace"),
+  }),
+  AppLink: ({ href, children }: { href: string; children?: ReactNode }) => (
+    <a href={href}>{children}</a>
+  ),
 }));
 
 // Module ownership (K33) has its own queries and tests; the tab test keeps
@@ -170,6 +177,16 @@ describe("WorkspaceTab — automatic updates", () => {
     expect(screen.queryByRole("button", { name: /^Save$/ })).toBeNull();
   });
 
+  // The workspace context became the doctrine (its own tab, versioned and
+  // reviewable), so this tab must not offer a second, silently auto-saved
+  // editor for the same text.
+  it("sends the doctrine to its own tab instead of editing the context here", () => {
+    render(<WorkspaceTab />, { wrapper: I18nWrapper });
+    expect(screen.queryByRole("textbox", { name: "Context" })).toBeNull();
+    const link = screen.getByRole("link", { name: "Open Doctrine" });
+    expect(link.getAttribute("href")).toBe("/test-workspace/settings?tab=doctrine");
+  });
+
   it("renders the workspace slug in the shared read-only input control", () => {
     render(<WorkspaceTab />, { wrapper: I18nWrapper });
 
@@ -202,7 +219,6 @@ describe("WorkspaceTab — automatic updates", () => {
       expect(mockUpdateWorkspace).toHaveBeenCalledWith("workspace-1", {
         name: "Renamed Workspace",
         description: "",
-        context: "",
       });
       expect(mockToastSuccess).toHaveBeenCalledWith(
         "Workspace settings saved",

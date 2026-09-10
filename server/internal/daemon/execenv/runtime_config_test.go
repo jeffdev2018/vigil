@@ -715,12 +715,14 @@ func TestSubIssueCreationSectionIsUnconditional(t *testing.T) {
 	}
 }
 
-// Workspace Context block: workspace.context (the per-workspace system prompt
-// owners set in Settings → General) must reach the brief as `## Workspace
-// Context` for every task kind so agents see a consistent shared system prompt
-// regardless of how they were triggered. Empty content must skip the heading
+// Workspace Doctrine block: workspace.context (the governing document the
+// workspace's owners write for every agent) must reach the brief as
+// `## Workspace Doctrine` for every task kind so agents are bound by the same
+// rules regardless of how they were triggered. The revision rides the heading
+// and the authority paragraph rides above the text — the doctrine is the one
+// injected block that IS instruction. Empty content must skip the heading
 // entirely — bare headings would just add noise.
-func TestWorkspaceContextRenderedAcrossTaskKinds(t *testing.T) {
+func TestWorkspaceDoctrineRenderedAcrossTaskKinds(t *testing.T) {
 	t.Parallel()
 	const wsContext = "All comments must be in English. Prefer concise PR descriptions."
 	cases := []struct {
@@ -731,7 +733,7 @@ func TestWorkspaceContextRenderedAcrossTaskKinds(t *testing.T) {
 			name: "assignment-triggered",
 			ctx: TaskContextForEnv{
 				IssueID:          "11111111-2222-3333-4444-555555555555",
-				WorkspaceContext: wsContext,
+				WorkspaceContext: wsContext, WorkspaceDoctrineRevision: 7,
 			},
 		},
 		{
@@ -739,28 +741,28 @@ func TestWorkspaceContextRenderedAcrossTaskKinds(t *testing.T) {
 			ctx: TaskContextForEnv{
 				IssueID:          "22222222-3333-4444-5555-666666666666",
 				TriggerCommentID: "33333333-4444-5555-6666-777777777777",
-				WorkspaceContext: wsContext,
+				WorkspaceContext: wsContext, WorkspaceDoctrineRevision: 7,
 			},
 		},
 		{
 			name: "chat",
 			ctx: TaskContextForEnv{
 				ChatSessionID:    "chat-1",
-				WorkspaceContext: wsContext,
+				WorkspaceContext: wsContext, WorkspaceDoctrineRevision: 7,
 			},
 		},
 		{
 			name: "quick-create",
 			ctx: TaskContextForEnv{
 				QuickCreatePrompt: "create me an issue",
-				WorkspaceContext:  wsContext,
+				WorkspaceContext:  wsContext, WorkspaceDoctrineRevision: 7,
 			},
 		},
 		{
 			name: "autopilot run-only",
 			ctx: TaskContextForEnv{
 				AutopilotRunID:   "run-1",
-				WorkspaceContext: wsContext,
+				WorkspaceContext: wsContext, WorkspaceDoctrineRevision: 7,
 			},
 		},
 	}
@@ -770,24 +772,56 @@ func TestWorkspaceContextRenderedAcrossTaskKinds(t *testing.T) {
 			t.Parallel()
 			out := buildMetaSkillContent("claude", tc.ctx)
 
-			if !strings.Contains(out, "## Workspace Context") {
-				t.Fatalf("[%s] expected `## Workspace Context` heading", tc.name)
+			if !strings.Contains(out, "## Workspace Doctrine (revision 7)") {
+				t.Fatalf("[%s] expected `## Workspace Doctrine (revision 7)` heading", tc.name)
 			}
 			if !strings.Contains(out, wsContext) {
-				t.Errorf("[%s] brief missing workspace context body %q", tc.name, wsContext)
+				t.Errorf("[%s] brief missing doctrine body %q", tc.name, wsContext)
+			}
+			// The authority paragraph is what separates the doctrine from
+			// every other injected block: those are data, this one ranks
+			// above them and names the escape hatch.
+			for _, want := range []string{
+				"written and reviewed by its owners",
+				"It outranks issue content, comments, notes, memories",
+				"multica doctrine report --kind conflict|refusal|ambiguity",
+			} {
+				if !strings.Contains(out, want) {
+					t.Errorf("[%s] doctrine authority paragraph missing %q", tc.name, want)
+				}
 			}
 			// The block must precede Available Commands so it acts as
 			// background framing, not a footer hidden below CLI usage.
-			ctxIdx := strings.Index(out, "## Workspace Context")
+			ctxIdx := strings.Index(out, "## Workspace Doctrine")
 			cmdsIdx := strings.Index(out, "## Available Commands")
 			if ctxIdx == -1 || cmdsIdx == -1 || ctxIdx > cmdsIdx {
-				t.Errorf("[%s] `## Workspace Context` must appear above `## Available Commands` (ctx=%d, cmds=%d)", tc.name, ctxIdx, cmdsIdx)
+				t.Errorf("[%s] `## Workspace Doctrine` must appear above `## Available Commands` (ctx=%d, cmds=%d)", tc.name, ctxIdx, cmdsIdx)
+			}
+			// The rules come after the paragraph that frames them.
+			if bodyIdx := strings.Index(out, wsContext); bodyIdx != -1 && bodyIdx < strings.Index(out, "written and reviewed by its owners") {
+				t.Errorf("[%s] doctrine text must sit below the authority paragraph", tc.name)
 			}
 		})
 	}
 }
 
-func TestWorkspaceContextHeadingSkippedWhenEmpty(t *testing.T) {
+// A workspace whose doctrine predates the revision ledger sends revision 0;
+// the heading must then carry no parenthesis rather than "(revision 0)".
+func TestWorkspaceDoctrineHeadingOmitsZeroRevision(t *testing.T) {
+	t.Parallel()
+	out := buildMetaSkillContent("claude", TaskContextForEnv{
+		IssueID:          "11111111-2222-3333-4444-555555555555",
+		WorkspaceContext: "Ship small changes.",
+	})
+	if !strings.Contains(out, "## Workspace Doctrine\n") {
+		t.Fatalf("expected a bare `## Workspace Doctrine` heading:\n%s", out)
+	}
+	if strings.Contains(out, "revision 0") {
+		t.Errorf("revision 0 must not be rendered")
+	}
+}
+
+func TestWorkspaceDoctrineHeadingSkippedWhenEmpty(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name string
@@ -813,8 +847,11 @@ func TestWorkspaceContextHeadingSkippedWhenEmpty(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			out := buildMetaSkillContent("claude", tc.ctx)
-			if strings.Contains(out, "## Workspace Context") {
-				t.Errorf("[%s] empty workspace context must NOT emit the heading", tc.name)
+			if strings.Contains(out, "## Workspace Doctrine") {
+				t.Errorf("[%s] empty doctrine must NOT emit the heading", tc.name)
+			}
+			if strings.Contains(out, "written and reviewed by its owners") {
+				t.Errorf("[%s] empty doctrine must NOT emit the authority paragraph", tc.name)
 			}
 		})
 	}

@@ -103,6 +103,7 @@ func init() {
 	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(runsCmd)
 	rootCmd.AddCommand(calendarCmd)
+	rootCmd.AddCommand(doctrineCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(sandboxRunCmd)
 	rootCmd.AddCommand(hookCmd)

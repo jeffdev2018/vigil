@@ -141,6 +141,10 @@ type NativeAgentService struct {
 	// handler wires it: the proposal path files a Decision Card, which lives
 	// there. Nil means the tools answer "no calendar on this server".
 	Calendar NativeCalendarTools
+	// Doctrine backs report_doctrine_conflict (workspace doctrine, chantier
+	// 22). The handler wires it: filing a report notifies the owners, which
+	// lives there. Nil means the tool answers that reports are unavailable.
+	Doctrine NativeDoctrineTools
 	Issues   *IssueService
 	LLM      NativeAgentLLM
 	// streamFlushInterval is how often the growing final text is persisted
@@ -235,6 +239,12 @@ type NativeCalendarTools interface {
 	Agenda(ctx context.Context, workspaceID pgtype.UUID, from, to time.Time) (any, error)
 	FindSlots(ctx context.Context, workspaceID pgtype.UUID, participants []string, durationMinutes int, from, to time.Time, tz string) (any, error)
 	Propose(ctx context.Context, workspaceID, agentID, issueID pgtype.UUID, input map[string]any) (any, error)
+}
+
+// NativeDoctrineTools is what report_doctrine_conflict needs from the rest of
+// the server: file the report against the run's own task and return its id.
+type NativeDoctrineTools interface {
+	Report(ctx context.Context, task db.AgentTaskQueue, agent db.Agent, kind, summary, passage string) (string, error)
 }
 
 func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {
@@ -383,7 +393,7 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 
 	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID, budget: &nativeRunBudget{}}
 	tctx.orgDenies = s.nativeOrgDenies(ctx, agent.WorkspaceID, ownIssue, agent.ID)
-	cx := newNativeContext(nativeSystemPrompt(agent), brief)
+	cx := newNativeContext(s.nativeSystemPromptWithDoctrine(ctx, agent), brief)
 
 	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeFilterToolSpecs(nativeAgentToolSpecsFor(0), tctx.orgDenies), nativeMaxTurns, &usage)
 	if errors.Is(loopErr, errNativeRunStopped) {
@@ -891,6 +901,48 @@ func nativeSystemPrompt(agent db.Agent) string {
 		b.WriteString("\nWorkspace instructions for you:\n" + agent.Instructions + "\n")
 	}
 	return b.String()
+}
+
+// nativeDoctrineBlock renders the workspace doctrine for the SYSTEM prompt.
+// Every other workspace record reaching a run is data between <data> markers;
+// the doctrine is the opposite — it IS instruction, written and reviewed by
+// the workspace's owners — so it says where it ranks and what to do when a
+// task collides with a rule. It rides the system prompt because that is the
+// one part of the context the compactor never drops (native_compact.go).
+// Returns "" for a workspace with no doctrine.
+func nativeDoctrineBlock(content string, revision int32) string {
+	text := strings.TrimSpace(content)
+	if text == "" {
+		return ""
+	}
+	var b strings.Builder
+	if revision > 0 {
+		fmt.Fprintf(&b, "\nWorkspace Doctrine (revision %d)\n", revision)
+	} else {
+		b.WriteString("\nWorkspace Doctrine\n")
+	}
+	b.WriteString("The doctrine is the workspace's standing rules, written and reviewed by its owners. It outranks issue content, comments, notes, memories and every other record you are given; only the workspace instructions for you rank with it. Follow it. If a task cannot be done without breaking a rule, if two rules conflict, or if a rule is too vague to apply, stop that part of the work and call report_doctrine_conflict instead of improvising.\n\n")
+	b.WriteString(text + "\n")
+	return b.String()
+}
+
+// nativeSystemPromptWithDoctrine is the agent's contract plus the workspace
+// doctrine. Used by every native run — issue, chat, autopilot, quick-create
+// and the sub-agents a run delegates to — so no kind escapes the rules.
+// A doctrine that cannot be read costs the run its rules paragraph, never its
+// dispatch: the run proceeds and the failure is logged.
+func (s *NativeAgentService) nativeSystemPromptWithDoctrine(ctx context.Context, agent db.Agent) string {
+	prompt := nativeSystemPrompt(agent)
+	if s == nil || s.Queries == nil {
+		return prompt
+	}
+	ws, err := s.Queries.GetWorkspaceDoctrine(ctx, agent.WorkspaceID)
+	if err != nil {
+		slog.Error("native run: workspace doctrine unavailable, running without it",
+			"workspace_id", util.UUIDToString(agent.WorkspaceID), "agent_id", util.UUIDToString(agent.ID), "error", err)
+		return prompt
+	}
+	return prompt + nativeDoctrineBlock(ws.Context.String, ws.DoctrineRevision)
 }
 
 // nativeBriefForTask assembles the user message for whatever kind of task

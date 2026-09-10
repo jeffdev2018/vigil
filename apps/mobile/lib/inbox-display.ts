@@ -95,6 +95,32 @@ export function getInboxNavigationTarget(
       params: { workspace, id: item.id },
     };
   }
+  // Workspace doctrine (OS plan, chantier 22). Checked BEFORE `issue_id`
+  // for the same reason as the calendar branch above: a `doctrine_report`
+  // carries the issue its task was working on, but the thing waiting on the
+  // reader is the report itself (acknowledge / dismiss), which lives on the
+  // doctrine screen — the row there links back to the issue. A
+  // `doctrine_review` that names a version goes straight to its diff, the
+  // only thing an approver needs to see before deciding.
+  if (item.type === "doctrine_review") {
+    const versionId = item.details?.version_id;
+    if (typeof versionId === "string" && versionId) {
+      return {
+        pathname: "/[workspace]/more/doctrine-version/[id]" as const,
+        params: { workspace, id: versionId },
+      };
+    }
+    return {
+      pathname: "/[workspace]/more/doctrine" as const,
+      params: { workspace },
+    };
+  }
+  if (item.type === "doctrine_report") {
+    return {
+      pathname: "/[workspace]/more/doctrine" as const,
+      params: { workspace },
+    };
+  }
   if (item.issue_id) {
     return {
       pathname: "/[workspace]/issue/[id]" as const,

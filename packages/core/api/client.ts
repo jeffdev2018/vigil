@@ -391,6 +391,7 @@ import { EMPTY_TWENTY_STATUS, TwentyConnectionSchema, TwentyMembersSchema, Twent
 import { EMPTY_LINEAR_INSTALLATION, LinearInstallationSchema, LinearLinkEnvelopeSchema, LinearOAuthStartSchema, type LinearInstallation, type LinearLink } from "../linear/schemas";
 import { CodeHealthScanEnvelopeSchema, CodeHealthScanListSchema, CodeHealthSettingsSchema, CODE_HEALTH_DEFAULT_SETTINGS, type CodeHealthScan, type CodeHealthSettings, type CodeHealthSettingsInput } from "../code-health/schemas";
 import { DocDriftCheckSchema, DocDriftProposalEnvelopeSchema, DocDriftProposalListSchema, DocDriftSettingsSchema, DOC_DRIFT_DEFAULT_SETTINGS, type DocDriftProposal, type DocDriftSettings, type DocDriftSettingsInput } from "../doc-drift/schemas";
+import { DoctrineSchema, DoctrinePublishResponseSchema, DoctrineVersionsResponseSchema, DoctrineVersionEnvelopeSchema, DoctrineDiffSchema, DoctrineReportsResponseSchema, DoctrineReportEnvelopeSchema, EMPTY_DOCTRINE, EMPTY_DOCTRINE_PUBLISH, EMPTY_DOCTRINE_VERSION, EMPTY_DOCTRINE_VERSIONS, EMPTY_DOCTRINE_DIFF, EMPTY_DOCTRINE_REPORT, type Doctrine, type DoctrineDiff, type DoctrinePublishInput, type DoctrinePublishResponse, type DoctrineReport, type DoctrineReportFilter, type DoctrineVersion, type DoctrineVersionsResponse } from "../doctrine/schemas";
 import { PrWalkthroughSchema, PrWalkthroughRefreshSchema, PrWalkthroughSettingsSchema, EMPTY_PR_WALKTHROUGH, PR_WALKTHROUGH_DEFAULT_SETTINGS, type PrWalkthrough, type PrWalkthroughSettings } from "../pr-walkthrough/schemas";
 import { EpicSchema, EpicGenerateSchema, EpicStepWriteSchema, EpicApplySchema, EMPTY_EPIC, type Epic, type EpicApplyResult } from "../projects/epic";
 import { CodeWikiSchema, CodeWikiPageSchema, EMPTY_CODE_WIKI, type CodeWiki, type CodeWikiPage } from "../projects/wiki";
@@ -5020,6 +5021,174 @@ export class ApiClient {
   async openDocDriftProposalPR(id: string): Promise<DocDriftProposal | null> {
     const raw = await this.fetch<unknown>(`/api/doc-drift/proposals/${encodeURIComponent(id)}/open-pr`, { method: "POST" });
     return parseWithFallback(raw, DocDriftProposalEnvelopeSchema, { proposal: null }, { endpoint: "POST /api/doc-drift/proposals/:id/open-pr" }).proposal as DocDriftProposal | null;
+  }
+
+  // Workspace doctrine (OS plan, chantier 22): the governing document, its
+  // revision ledger with an optional second-reviewer flow, the line diff, and
+  // the reports an agent files when a task collides with a rule. Workspace
+  // scope rides on the usual X-Workspace-ID header.
+  async getWorkspaceDoctrine(options?: { signal?: AbortSignal }): Promise<Doctrine> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<Doctrine>(raw, DoctrineSchema, EMPTY_DOCTRINE, {
+      endpoint: "GET /api/workspace/doctrine",
+    });
+  }
+
+  /**
+   * Publishes a revision, or files it as a proposal when the workspace
+   * requires a second reviewer (the server answers 202 there — read
+   * `doctrine.pending` to tell the two apart). 409 on a stale
+   * `expected_revision` or an already-pending proposal, 400 when unchanged or
+   * over `byte_limit`.
+   */
+  async publishWorkspaceDoctrine(input: DoctrinePublishInput): Promise<DoctrinePublishResponse> {
+    const raw = await this.fetch<unknown>(`/api/workspace/doctrine`, {
+      method: "PUT",
+      body: JSON.stringify(input),
+    });
+    return parseWithFallback<DoctrinePublishResponse>(
+      raw,
+      DoctrinePublishResponseSchema,
+      EMPTY_DOCTRINE_PUBLISH,
+      { endpoint: "PUT /api/workspace/doctrine" },
+    );
+  }
+
+  async listDoctrineVersions(
+    cursor?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DoctrineVersionsResponse> {
+    const qs = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions${qs}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<DoctrineVersionsResponse>(
+      raw,
+      DoctrineVersionsResponseSchema,
+      EMPTY_DOCTRINE_VERSIONS,
+      { endpoint: "GET /api/workspace/doctrine/versions" },
+    );
+  }
+
+  async getDoctrineVersion(
+    id: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DoctrineVersion> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<{ version: DoctrineVersion }>(
+      raw,
+      DoctrineVersionEnvelopeSchema,
+      { version: { ...EMPTY_DOCTRINE_VERSION, id } },
+      { endpoint: "GET /api/workspace/doctrine/versions/:id" },
+    ).version;
+  }
+
+  /** `against` omitted compares the version with its predecessor. */
+  async getDoctrineVersionDiff(
+    id: string,
+    against?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<DoctrineDiff> {
+    const qs = against ? `?against=${encodeURIComponent(against)}` : "";
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/diff${qs}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<DoctrineDiff>(raw, DoctrineDiffSchema, EMPTY_DOCTRINE_DIFF, {
+      endpoint: "GET /api/workspace/doctrine/versions/:id/diff",
+    });
+  }
+
+  async approveDoctrineVersion(id: string, note?: string): Promise<DoctrinePublishResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/approve`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+    return parseWithFallback<DoctrinePublishResponse>(
+      raw,
+      DoctrinePublishResponseSchema,
+      EMPTY_DOCTRINE_PUBLISH,
+      { endpoint: "POST /api/workspace/doctrine/versions/:id/approve" },
+    );
+  }
+
+  async rejectDoctrineVersion(id: string, note?: string): Promise<DoctrinePublishResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/reject`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+    return parseWithFallback<DoctrinePublishResponse>(
+      raw,
+      DoctrinePublishResponseSchema,
+      EMPTY_DOCTRINE_PUBLISH,
+      { endpoint: "POST /api/workspace/doctrine/versions/:id/reject" },
+    );
+  }
+
+  async restoreDoctrineVersion(
+    id: string,
+    expectedRevision: number,
+    note?: string,
+  ): Promise<DoctrinePublishResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/restore`,
+      { method: "POST", body: JSON.stringify({ expected_revision: expectedRevision, note: note ?? "" }) },
+    );
+    return parseWithFallback<DoctrinePublishResponse>(
+      raw,
+      DoctrinePublishResponseSchema,
+      EMPTY_DOCTRINE_PUBLISH,
+      { endpoint: "POST /api/workspace/doctrine/versions/:id/restore" },
+    );
+  }
+
+  async listDoctrineReports(
+    status: DoctrineReportFilter = "open",
+    options?: { signal?: AbortSignal },
+  ): Promise<DoctrineReport[]> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/reports?status=${encodeURIComponent(status)}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback<{ reports: DoctrineReport[] }>(
+      raw,
+      DoctrineReportsResponseSchema,
+      { reports: [] },
+      { endpoint: "GET /api/workspace/doctrine/reports" },
+    ).reports;
+  }
+
+  async acknowledgeDoctrineReport(id: string, note?: string): Promise<DoctrineReport> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/reports/${encodeURIComponent(id)}/acknowledge`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+    return parseWithFallback<{ report: DoctrineReport }>(
+      raw,
+      DoctrineReportEnvelopeSchema,
+      { report: { ...EMPTY_DOCTRINE_REPORT, id } },
+      { endpoint: "POST /api/workspace/doctrine/reports/:id/acknowledge" },
+    ).report;
+  }
+
+  async dismissDoctrineReport(id: string, note?: string): Promise<DoctrineReport> {
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/doctrine/reports/${encodeURIComponent(id)}/dismiss`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+    return parseWithFallback<{ report: DoctrineReport }>(
+      raw,
+      DoctrineReportEnvelopeSchema,
+      { report: { ...EMPTY_DOCTRINE_REPORT, id } },
+      { endpoint: "POST /api/workspace/doctrine/reports/:id/dismiss" },
+    ).report;
   }
 
   async triggerCodeHealthScan(): Promise<CodeHealthScan | null> {

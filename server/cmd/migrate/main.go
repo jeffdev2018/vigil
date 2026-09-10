@@ -478,6 +478,10 @@ var concurrentIndexCleanups = map[string]string{
 	"883_calendar_event_participant_person_index":               "idx_calendar_event_participant_person",
 	"884_calendar_feed_token_hash_index":                        "idx_calendar_feed_token_hash",
 	"885_calendar_feed_token_user_index":                        "idx_calendar_feed_token_user",
+	"887_workspace_doctrine_version_revision_index":             "idx_workspace_doctrine_version_revision",
+	"888_workspace_doctrine_version_pending_index":              "idx_workspace_doctrine_version_pending",
+	"889_workspace_doctrine_version_created_index":              "idx_workspace_doctrine_version_ws_created",
+	"890_workspace_doctrine_report_status_index":                "idx_workspace_doctrine_report_ws_status",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

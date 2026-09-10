@@ -447,7 +447,30 @@ func (h *Handler) UpdateWorkspace(w http.ResponseWriter, r *http.Request) {
 		params.Description = pgtype.Text{String: *req.Description, Valid: true}
 	}
 	if req.Context != nil {
-		params.Context = pgtype.Text{String: *req.Context, Valid: true}
+		// The context field is the doctrine's legacy door (installed clients,
+		// `multica workspace update --context`). It goes through the same
+		// ledger as PUT /api/workspace/doctrine; an older client knows no
+		// revision, so it publishes against whatever is live. "Unchanged" is
+		// not an error on this door.
+		if isMachineCredentialActor(r) {
+			writeError(w, http.StatusForbidden, "the doctrine can only be changed by a human")
+			return
+		}
+		member, ok := h.requireWorkspaceMember(w, r, id, "workspace not found")
+		if !ok {
+			return
+		}
+		if !isWorkspaceManager(member) {
+			writeError(w, http.StatusForbidden, "only workspace owners and admins can change the doctrine")
+			return
+		}
+		if _, _, err := h.publishDoctrine(r.Context(), idUUID, member, doctrinePublication{Content: *req.Context}); err != nil {
+			var de *doctrineError
+			if !errors.As(err, &de) || de.msg != "the doctrine is unchanged" {
+				writeDoctrineError(w, err)
+				return
+			}
+		}
 	}
 	if req.Settings != nil {
 		s, _ := json.Marshal(req.Settings)
@@ -1309,6 +1332,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 		{
 			name: "purge calendar participants",
 			run:  func() error { return qtx.PurgeWorkspaceCalendarEventParticipants(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge doctrine versions",
+			run:  func() error { return qtx.PurgeWorkspaceDoctrineVersions(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "purge doctrine reports",
+			run:  func() error { return qtx.PurgeWorkspaceDoctrineReports(ctx, requester.WorkspaceID) },
 		},
 		{
 			name: "purge calendar feed tokens",
