@@ -1804,6 +1804,10 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// no workspace in the path to gate on.
 		// --- User-scoped routes (no workspace context required) ---
 		r.Get("/api/me", h.GetMe)
+		// Workspace creation reads these before any workspace exists: the
+		// template exports the person can see, and the pack catalogue.
+		r.Get("/api/workspace-templates", h.ListWorkspaceTemplates)
+		r.Get("/api/pack-catalogue", h.ListPackCatalogue)
 		r.Patch("/api/me", h.UpdateMe)
 		r.Patch("/api/me/onboarding", h.PatchOnboarding)
 		r.Post("/api/me/onboarding/complete", h.CompleteOnboarding)
@@ -2650,8 +2654,6 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Vigil learns you (K71): what it knows about me, forget, correct, overturn.
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
-			r.Get("/api/workspace-templates", h.ListWorkspaceTemplates)
-			r.Get("/api/pack-catalogue", h.ListPackCatalogue)
 			r.Get("/api/work-profile", h.GetMyWorkProfile)
 			r.Patch("/api/work-profile/{id}", h.PatchWorkProfileObservation)
 			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)
