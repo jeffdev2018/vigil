@@ -184,6 +184,17 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "search_workspace",
+			Description: openai.String("Search the whole workspace by text: matching issues (open or closed) and knowledge notes, in one call. Use it to find past requests, decisions or procedures by words, names or numbers."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"query"},
+				"properties": shared.FunctionParameters{
+					"query": shared.FunctionParameters{"type": "string", "description": "Words to look for"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "search_notes",
 			Description: openai.String("Search the workspace's shared knowledge (notes): full-text query and/or a single tag. This is where procedures, decisions and know-how live — check it before answering or filing."),
 			Parameters: shared.FunctionParameters{
@@ -321,6 +332,8 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 		return s.nativeAskUser(ctx, tctx, args)
 	case "delegate":
 		return s.nativeDelegate(ctx, tctx, args)
+	case "search_workspace":
+		return s.nativeSearchWorkspace(ctx, tctx, args)
 	case "search_notes":
 		return s.nativeSearchNotes(ctx, tctx, args)
 	case "get_note":
@@ -651,6 +664,48 @@ func (s *NativeAgentService) publishNativeIssueChanged(tctx *nativeToolContext, 
 	s.publishNative(protocol.EventIssueAuxChanged, tctx, map[string]any{
 		"issue_id": util.UUIDToString(issueID),
 	})
+}
+
+// nativeSearchWorkspace (N06): issues and notes in one call — the helpdesk
+// question is "find what was said about this", not "find an issue".
+func (s *NativeAgentService) nativeSearchWorkspace(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	raw, _ := args["query"].(string)
+	query := strings.TrimSpace(raw)
+	if query == "" {
+		return nil, errors.New("query is required")
+	}
+	issues, err := s.Queries.SearchIssuesForNative(ctx, db.SearchIssuesForNativeParams{
+		WorkspaceID: tctx.workspaceID,
+		Needle:      pgtype.Text{String: query, Valid: true},
+		PageLimit:   10,
+	})
+	if err != nil {
+		issues = nil // best-effort: notes may still answer
+	}
+	outIssues := make([]map[string]any, 0, len(issues))
+	for _, i := range issues {
+		outIssues = append(outIssues, map[string]any{
+			"id": util.UUIDToString(i.ID), "number": i.Number,
+			"title": i.Title, "status": i.Status,
+		})
+	}
+	notes, err := s.Queries.ListWorkspaceNotes(ctx, db.ListWorkspaceNotesParams{
+		WorkspaceID:     tctx.workspaceID,
+		IncludeArchived: false,
+		Search:          pgtype.Text{String: query, Valid: true},
+		PageLimit:       5,
+	})
+	if err != nil {
+		notes = nil
+	}
+	outNotes := make([]map[string]any, 0, len(notes))
+	for _, n := range notes {
+		outNotes = append(outNotes, map[string]any{
+			"id": util.UUIDToString(n.ID), "title": n.Title,
+			"excerpt": clampString(n.Content, 200),
+		})
+	}
+	return map[string]any{"issues": outIssues, "notes": outNotes}, nil
 }
 
 // ---- Workspace Brain tools (JEF-316 office runtime, slice 1) -------------

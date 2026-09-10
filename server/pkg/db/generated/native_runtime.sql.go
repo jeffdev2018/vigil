@@ -250,6 +250,58 @@ func (q *Queries) ListRecentRunSummariesForIssue(ctx context.Context, arg ListRe
 	return items, nil
 }
 
+const searchIssuesForNative = `-- name: SearchIssuesForNative :many
+SELECT id, number, title, status FROM issue
+WHERE workspace_id = $1
+  AND (title ILIKE '%' || $2 || '%'
+       OR COALESCE(description, '') ILIKE '%' || $2 || '%')
+ORDER BY updated_at DESC
+LIMIT $3
+`
+
+type SearchIssuesForNativeParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Needle      pgtype.Text `json:"needle"`
+	PageLimit   int32       `json:"page_limit"`
+}
+
+type SearchIssuesForNativeRow struct {
+	ID     pgtype.UUID `json:"id"`
+	Number int32       `json:"number"`
+	Title  string      `json:"title"`
+	Status string      `json:"status"`
+}
+
+// Workspace-scoped substring search over issue titles and descriptions for the
+// native agent's search_workspace tool (N06). Same closed-inclusive contract
+// as the picker's search: a helpdesk agent must find last week's request even
+// if it was closed since. ponytail: ILIKE per term, no tsvector on issue —
+// revisit if a workspace's issues make this slow.
+func (q *Queries) SearchIssuesForNative(ctx context.Context, arg SearchIssuesForNativeParams) ([]SearchIssuesForNativeRow, error) {
+	rows, err := q.db.Query(ctx, searchIssuesForNative, arg.WorkspaceID, arg.Needle, arg.PageLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SearchIssuesForNativeRow{}
+	for rows.Next() {
+		var i SearchIssuesForNativeRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Number,
+			&i.Title,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const seedNativeRuntimes = `-- name: SeedNativeRuntimes :execrows
 INSERT INTO agent_runtime (workspace_id, daemon_id, name, runtime_mode, provider, status, device_info, visibility, owner_id)
 SELECT w.id, 'native', 'Native runtime', 'native', 'native', 'online', 'in-server agent runtime',
