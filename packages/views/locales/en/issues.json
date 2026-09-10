@@ -700,7 +700,17 @@
     "revert_dialog_confirm": "Revert branch",
     "revert_pending": "Reverting…",
     "revert_done": "Reverted to this turn",
-    "revert_failed": "The revert did not complete"
+    "revert_failed": "The revert did not complete",
+    "consult": {
+      "answered": "Consulted {{model}} · {{cost}}",
+      "pending": "Consulting {{model}}…",
+      "failed": "Consult to {{model}} failed",
+      "refused": "Consult to {{model}} refused · {{reason}}",
+      "refused_no_reason": "Consult to {{model}} refused",
+      "cost_unreported": "cost not reported",
+      "reason_budget_exceeded": "daily consult budget exhausted",
+      "reason_llm_disabled": "no LLM configured for consults"
+    }
   },
   "legs": {
     "workflow": "Workflow",

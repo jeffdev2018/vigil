@@ -1766,6 +1766,12 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspacePostmortems(ctx, requester.WorkspaceID) },
 		},
 		{
+			// agent_consult (JEF-12) carries no FK; sweep it before the agent
+			// rows it logically hangs off.
+			name: "delete agent consults",
+			run:  func() error { return qtx.DeleteWorkspaceAgentConsults(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete agent effects",
 			run:  func() error { return qtx.DeleteWorkspaceAgentEffects(ctx, requester.WorkspaceID) },
 		},

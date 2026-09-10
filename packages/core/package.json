@@ -216,6 +216,8 @@
     "./billing/queries": "./billing/queries.ts",
     "./billing/mutations": "./billing/mutations.ts",
     "./budgets": "./budgets/index.ts",
+    "./fleet": "./fleet/index.ts",
+    "./fleet/queries": "./fleet/queries.ts",
     "./model-keys": "./model-keys/index.ts",
     "./code-health": "./code-health/index.ts",
     "./doc-drift": "./doc-drift/index.ts",

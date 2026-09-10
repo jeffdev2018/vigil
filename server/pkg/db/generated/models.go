@@ -68,6 +68,23 @@ type AgentBuilderDraft struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type AgentConsult struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	TaskID        pgtype.UUID        `json:"task_id"`
+	AgentID       pgtype.UUID        `json:"agent_id"`
+	Model         string             `json:"model"`
+	Question      string             `json:"question"`
+	Answer        pgtype.Text        `json:"answer"`
+	State         string             `json:"state"`
+	RefusalReason pgtype.Text        `json:"refusal_reason"`
+	InputTokens   pgtype.Int8        `json:"input_tokens"`
+	OutputTokens  pgtype.Int8        `json:"output_tokens"`
+	CostUsdTicks  pgtype.Int8        `json:"cost_usd_ticks"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	FinalizedAt   pgtype.Timestamptz `json:"finalized_at"`
+}
+
 type AgentCorrectionSignal struct {
 	ID                  pgtype.UUID        `json:"id"`
 	WorkspaceID         pgtype.UUID        `json:"workspace_id"`

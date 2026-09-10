@@ -59,6 +59,7 @@ import { issueKeys } from "@multica/core/issues/queries";
 import { useCustomPricingStore } from "@multica/core/runtimes/custom-pricing-store";
 import { legKeys, type WorkflowLegs } from "@multica/core/issues/legs";
 import { goalKeys } from "@multica/core/issues/goal-loop";
+import { fleetKeys, type AgentConsult } from "@multica/core/fleet";
 
 function makeTask(overrides: Partial<AgentTask> = {}): AgentTask {
   return {
@@ -90,6 +91,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+// Bare row renders need a client now that each row queries its consults
+// (JEF-12) — the same wrap the run-state suite below already used.
+function renderRow(ui: React.ReactElement) {
+  return renderWithI18n(
+    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+      {ui}
+    </QueryClientProvider>,
+  );
+}
+
 describe("ActiveTaskRow run plan (F04)", () => {
   const plan = {
     seq: 1_000_002,
@@ -101,7 +112,7 @@ describe("ActiveTaskRow run plan (F04)", () => {
   };
 
   it("shows the progress counter and the checklist under the row", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow task={makeTask({ plan })} issueId="issue-1" />,
     );
 
@@ -113,19 +124,19 @@ describe("ActiveTaskRow run plan (F04)", () => {
   });
 
   it("renders no counter and no block for a run that published no plan", () => {
-    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    renderRow(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
     expect(screen.queryByRole("list")).not.toBeInTheDocument();
   });
 
   it("carries the run's preview chip (F12) so a reviewer can reach the dev server", () => {
-    renderWithI18n(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
+    renderRow(<ActiveTaskRow task={makeTask()} issueId="issue-1" />);
     expect(screen.getByTestId("run-preview-chip").getAttribute("data-task")).toBe("task-1");
   });
 });
 
 describe("ActiveTaskRow", () => {
   it("renders running status as elapsed time only", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow
         task={makeTask({
           trigger_comment_id: "comment-3",
@@ -333,7 +344,7 @@ describe("per-run token usage", () => {
   // running task carries usage in production. Asserting a token figure here
   // would only prove that a hand-written fixture renders.
   it("shows a running row's timer, and no token figure even if usage exists", () => {
-    renderWithI18n(
+    renderRow(
       <ActiveTaskRow
         task={makeTask({ usage: [usageSlice()] })}
         issueId="issue-1"
@@ -670,5 +681,93 @@ describe("goal loop badge", () => {
     renderLogWithGoal(makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }));
     fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
     expect(screen.queryByText(/^Goal/)).toBeNull();
+  });
+});
+
+// Consult lines (JEF-12): a run that asked the platform's internal LLM
+// questions mid-run shows one line per consult under its row. The query is
+// seeded like the legs/goal suites above — the schema fallback and unknown
+// state tolerance are pinned in packages/core/fleet/schemas.test.ts.
+describe("run consults", () => {
+  function makeConsult(over: Partial<AgentConsult> = {}): AgentConsult {
+    return {
+      consult_id: "consult-1",
+      task_id: "task-1",
+      agent_id: "agent-1",
+      model: "fleet-mini",
+      question: "Which table holds runs?",
+      answer: "The run queue.",
+      state: "answered",
+      refusal_reason: null,
+      input_tokens: 120,
+      output_tokens: 40,
+      // $0.42 in pricing ticks (1e10 ticks = 1 USD).
+      cost_usd_ticks: 4_200_000_000,
+      created_at: "2026-06-08T08:02:00Z",
+      finalized_at: "2026-06-08T08:02:01Z",
+      ...over,
+    };
+  }
+
+  function renderLogWithConsults(consults: AgentConsult[]) {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    ]);
+    qc.setQueryData(fleetKeys.consultsByTask("ws-1", "task-1"), consults);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Show past runs (1)" }));
+  }
+
+  it("renders nothing for a run with no consults", () => {
+    renderLogWithConsults([]);
+    expect(screen.queryByText(/Consult/)).toBeNull();
+  });
+
+  it("shows an answered consult with model and USD cost converted from ticks", () => {
+    renderLogWithConsults([makeConsult()]);
+    expect(screen.getByText("Consulted fleet-mini · $0.42")).toBeInTheDocument();
+  });
+
+  it("says the cost was not reported when the LLM layer sent none", () => {
+    renderLogWithConsults([makeConsult({ cost_usd_ticks: null })]);
+    expect(screen.getByText("Consulted fleet-mini · cost not reported")).toBeInTheDocument();
+  });
+
+  it("renders a failed consult as an inline error", () => {
+    renderLogWithConsults([makeConsult({ state: "failed", refusal_reason: "upstream 500" })]);
+    const line = screen.getByText("Consult to fleet-mini failed");
+    expect(line.className).toContain("text-destructive");
+  });
+
+  it("shows the localized reason for a refused consult", () => {
+    renderLogWithConsults([makeConsult({ state: "refused", refusal_reason: "consult_budget_exceeded", cost_usd_ticks: null })]);
+    expect(screen.getByText("Consult to fleet-mini refused · daily consult budget exhausted")).toBeInTheDocument();
+  });
+
+  it("reads an unknown state as a plain line, never an error", () => {
+    renderLogWithConsults([makeConsult({ state: "streaming" })]);
+    const line = screen.getByText("Consulted fleet-mini · $0.42");
+    expect(line.className).not.toContain("text-destructive");
+  });
+
+  it("localizes the consult line", () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    qc.setQueryData(issueKeys.tasks("issue-1"), [
+      makeTask({ id: "task-1", status: "completed", completed_at: "2026-06-08T08:04:00Z" }),
+    ]);
+    qc.setQueryData(fleetKeys.consultsByTask("ws-1", "task-1"), [makeConsult()]);
+    renderWithI18n(
+      <QueryClientProvider client={qc}>
+        <ExecutionLogSection issueId="issue-1" />
+      </QueryClientProvider>,
+      { locale: "fr" },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Afficher les exécutions passées (1)" }));
+    expect(screen.getByText("fleet-mini consulté · $0.42")).toBeInTheDocument();
   });
 });

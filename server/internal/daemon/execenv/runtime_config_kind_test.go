@@ -300,6 +300,9 @@ func TestSlimQuickCreateAvailableCommands(t *testing.T) {
 		"multica repo checkout <url>",
 		"### Squad maintenance",
 		"multica squad member set-role",
+		"### Fleet & consult",
+		"multica fleet status",
+		"multica consult",
 	} {
 		if strings.Contains(out, banned) {
 			t.Errorf("quick_create slim Available Commands should NOT advertise %q (hard guardrails forbid the call)", banned)
