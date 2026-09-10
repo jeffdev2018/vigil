@@ -25,6 +25,10 @@ type scriptedNativeLLM struct {
 	usage *openai.CompletionUsage
 	fail  bool
 	calls int
+	// baseURL / defaultModel feed the N13 fuse key the same way a real
+	// *llm.Client would; tests that do not care leave them empty.
+	baseURL      string
+	defaultModel string
 	// last is the request of the most recent call, so a test can look at
 	// what the loop offered the model (tools, closing prompt); first is the
 	// opening call, whose user message is the brief.
@@ -33,6 +37,15 @@ type scriptedNativeLLM struct {
 }
 
 func (f *scriptedNativeLLM) Enabled() bool { return true }
+
+func (f *scriptedNativeLLM) BaseURL() string { return f.baseURL }
+
+func (f *scriptedNativeLLM) DefaultModel() string {
+	if f.defaultModel != "" {
+		return f.defaultModel
+	}
+	return "scripted-model"
+}
 
 func (f *scriptedNativeLLM) Chat(_ context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	// The brief must always ride along; a run without workspace context is
@@ -774,30 +787,33 @@ func TestNativeAgentEffectfulActionCap(t *testing.T) {
 	}
 }
 
-// The LLM fuse: consecutive gateway failures open a cooldown the tick honours,
-// and any success closes it again.
+// The LLM fuse (N13): consecutive gateway failures open a cooldown keyed by
+// base URL + model. Failures on gateway A leave gateway B free to dispatch;
+// a success on a key clears that key only.
 func TestNativeAgentLLMFuse(t *testing.T) {
-	llm := &scriptedNativeLLM{fail: true}
-	svc := NewNativeAgentService(nil, nil, nil, llm, nil)
+	llmA := &scriptedNativeLLM{fail: true, baseURL: "https://gw-a.test", defaultModel: "model-x"}
+	svc := NewNativeAgentService(nil, nil, nil, llmA, nil)
 
 	for i := 0; i < nativeLLMFuseThreshold; i++ {
-		if _, err := llm.Chat(context.Background(), openai.ChatCompletionNewParams{Messages: []openai.ChatCompletionMessageParamUnion{openai.SystemMessage("s"), openai.UserMessage("u")}}); err == nil {
-			t.Fatal("scripted failure mode did not fail")
-		}
-		svc.noteLLMFailure()
+		svc.noteLLMFailure("model-x")
 	}
-	if !svc.llmFuseOpen() {
-		t.Fatal("fuse did not open after the failure threshold")
+	if !svc.llmFuseOpen("model-x") {
+		t.Fatal("fuse did not open after the failure threshold on gateway A / model-x")
 	}
-	// The tick short-circuits before touching the database, so a nil Queries
-	// proves the guard ran first rather than panicking on the way to it.
-	if n, err := svc.Tick(context.Background()); err != nil || n != 0 {
-		t.Fatalf("Tick with the fuse open = (%d, %v), want (0, nil) without touching the DB", n, err)
+	if svc.llmFuseOpen("model-y") {
+		t.Fatal("fuse on model-x must not cool down model-y on the same gateway")
 	}
 
-	svc.noteLLMSuccess()
-	if svc.llmFuseOpen() {
-		t.Fatal("fuse stayed open after a success")
+	// Swap the client to gateway B: the same model name must stay open there.
+	svc.LLM = &scriptedNativeLLM{baseURL: "https://gw-b.test", defaultModel: "model-x"}
+	if svc.llmFuseOpen("model-x") {
+		t.Fatal("fuse on gateway A must not cool down gateway B")
+	}
+
+	svc.LLM = llmA
+	svc.noteLLMSuccess("model-x")
+	if svc.llmFuseOpen("model-x") {
+		t.Fatal("fuse stayed open after a success on that key")
 	}
 }
 
@@ -1816,6 +1832,10 @@ type midRunLLM struct {
 }
 
 func (m *midRunLLM) Enabled() bool { return m.inner.Enabled() }
+
+func (m *midRunLLM) BaseURL() string { return m.inner.BaseURL() }
+
+func (m *midRunLLM) DefaultModel() string { return m.inner.DefaultModel() }
 
 func (m *midRunLLM) Chat(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
 	out, err := m.inner.Chat(ctx, params)

@@ -53,6 +53,10 @@ type routedNativeLLM struct {
 
 func (r *routedNativeLLM) Enabled() bool { return true }
 
+func (r *routedNativeLLM) BaseURL() string { return "" }
+
+func (r *routedNativeLLM) DefaultModel() string { return "scripted-model" }
+
 // ChatStream routes each streamed turn exactly like Chat, playing the turn's
 // completion as a single chunk followed by a usage-bearing one — the loop
 // only consumes ChatStream since N04.
