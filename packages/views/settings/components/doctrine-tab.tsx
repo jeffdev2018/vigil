@@ -471,7 +471,7 @@ export function DoctrineTab() {
                     >
                       {t(($) => $.doctrine.compare)}
                     </Button>
-                    {canEdit && version.revision !== null ? (
+                    {canEdit && version.revision !== null && version.status !== "active" ? (
                       <Button
                         size="sm"
                         variant="outline"

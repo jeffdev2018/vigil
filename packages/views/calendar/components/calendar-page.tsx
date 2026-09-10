@@ -8,6 +8,7 @@ import {
   calendarMonthIsEmpty,
   currentCalendarMonth,
   shiftMonth,
+  weekStartsOnFor,
   type CalendarMonth,
 } from "@multica/core/issues/calendar-grid";
 import { calendarAgendaOptions, groupAgendaByDay, type CalendarDayBucket } from "@multica/core/calendar-events";
@@ -52,9 +53,9 @@ function addDaysUTC(d: Date, days: number): Date {
   return new Date(d.getTime() + days * MS_PER_DAY);
 }
 
-function startOfWeekUTC(d: Date): Date {
+function startOfWeekUTC(d: Date, weekStartsOn: 0 | 1): Date {
   const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  return addDaysUTC(start, -start.getUTCDay());
+  return addDaysUTC(start, -((start.getUTCDay() - weekStartsOn + 7) % 7));
 }
 
 function utcDayKey(d: Date): string {
@@ -205,7 +206,8 @@ export function CalendarPage() {
 
   const [view, setView] = useState<ViewMode>("month");
   const [month, setMonth] = useState<CalendarMonth>(() => currentCalendarMonth());
-  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekUTC(new Date()));
+  const weekStartsOn = weekStartsOnFor(locale);
+  const [weekStart, setWeekStart] = useState<Date>(() => startOfWeekUTC(new Date(), weekStartsOn));
   const [dialogTarget, setDialogTarget] = useState<CalendarEventDialogTarget | null>(null);
   const [openEventId, setOpenEventId] = useState<string | null>(null);
 
@@ -213,8 +215,8 @@ export function CalendarPage() {
   // (leading/trailing days from neighbouring months included) without
   // recomputing the "6 weeks, Sunday-first" arithmetic a second time here.
   const monthCells = useMemo(
-    () => buildCalendarGrid(month, [] as AgendaIssue[], () => null, { today }),
-    [month, today],
+    () => buildCalendarGrid(month, [] as AgendaIssue[], () => null, { today, weekStartsOn }),
+    [month, today, weekStartsOn],
   );
   const isMonth = view === "month";
   const from = isMonth ? monthCells[0]!.utcDate : weekStart;
@@ -306,7 +308,7 @@ export function CalendarPage() {
           className="h-7 text-caption"
           onClick={() => {
             setMonth(currentCalendarMonth());
-            setWeekStart(startOfWeekUTC(new Date()));
+            setWeekStart(startOfWeekUTC(new Date(), weekStartsOn));
           }}
         >
           {t(($) => $.page.today)}

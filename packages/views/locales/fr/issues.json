@@ -785,7 +785,7 @@
   },
   "card": {
     "update_failed": "Échec de la mise à jour de l'issue",
-    "updated_ago": "Mis à jour il y a {{time}}"
+    "updated_ago": "Mis à jour {{time}}"
   },
   "actions": {
     "status": "Statut",
