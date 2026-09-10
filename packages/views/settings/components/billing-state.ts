@@ -15,8 +15,23 @@ export type AutopilotUsageView =
       limit: number;
       progress: number;
       reached: boolean;
+      /**
+       * True once usage crosses the alert ratio but before the server refuses.
+       * Derived here, not a server fact: it only changes how the same numbers
+       * are labelled, never whether a run is admitted.
+       */
+      approaching: boolean;
       resetAt: string;
     };
+
+/**
+ * Fraction of the quota at which the UI warns before the hard refusal.
+ *
+ * "Reached" means Multica-controlled admission is closed (reserving an
+ * autopilot run). It does not claim to stop provider spend happening outside
+ * Multica's queue.
+ */
+export const AUTOPILOT_QUOTA_ALERT_RATIO = 0.8;
 
 /**
  * Quota admission counts completed and reserved runs. Keep reserved work
@@ -63,6 +78,8 @@ export function resolveAutopilotUsage(
         limit,
         progress,
         reached,
+        approaching:
+          !reached && limit > 0 && total / limit >= AUTOPILOT_QUOTA_ALERT_RATIO,
         resetAt,
       };
     }

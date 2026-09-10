@@ -184,6 +184,7 @@
       "usage_loading": "자동화 사용량 불러오는 중",
       "usage_label": "자동화 쿼터 사용량",
       "current_usage": "현재 사용량",
+      "approaching": "한도에 근접",
       "reached": "한도 도달",
       "usage_total": "{{total}} / {{limit}}",
       "usage_breakdown": "완료 {{used}} · 진행 중 {{reserved}}",
