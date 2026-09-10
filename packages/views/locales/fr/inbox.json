@@ -60,7 +60,8 @@
     "autopilot_quota_upgrade": "Voir les options de mise à niveau",
     "archive": "Archiver",
     "unarchive": "Désarchiver",
-    "already_decided": "Déjà décidé"
+    "already_decided": "Déjà décidé",
+    "open_doctrine": "Ouvrir la doctrine"
   },
   "types": {
     "issue_assigned": "Assigné",
@@ -113,7 +114,9 @@
     "code_health_report": "Rapport de santé du code",
     "doc_drift_report": "Dérive du contexte agent",
     "calendar_invitation": "Invitation à un événement",
-    "calendar_reminder": "Commence bientôt"
+    "calendar_reminder": "Commence bientôt",
+    "doctrine_review": "Relecture de la doctrine",
+    "doctrine_report": "Signalement de doctrine"
   },
   "labels": {
     "set_status_to": "Définir le statut sur",

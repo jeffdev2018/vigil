@@ -88,7 +88,15 @@ export type InboxItemType =
   // scheduled event (filed on create and on a re-invite after it moves), or
   // gets the fifteen-minute-out reminder.
   | "calendar_invitation"
-  | "calendar_reminder";
+  | "calendar_reminder"
+  // Workspace doctrine (OS plan, chantier 22): a revision is waiting for a
+  // second reviewer (filed for the other owners/admins), or the author is
+  // told how the review went.
+  | "doctrine_review"
+  // An agent (or a member) hit a doctrine rule it could not follow, found two
+  // rules in conflict, or found one too vague to act on. Filed for the
+  // workspace's owners/admins.
+  | "doctrine_report";
 
 /**
  * One workspace's unread inbox count in the cross-workspace summary

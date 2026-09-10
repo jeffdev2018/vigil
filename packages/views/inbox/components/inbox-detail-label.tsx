@@ -67,6 +67,8 @@ export function useTypeLabels(): Record<InboxItemType, string> {
     cycle_rollover_orphaned: t(($) => $.types.cycle_rollover_orphaned),
     calendar_invitation: t(($) => $.types.calendar_invitation),
     calendar_reminder: t(($) => $.types.calendar_reminder),
+    doctrine_review: t(($) => $.types.doctrine_review),
+    doctrine_report: t(($) => $.types.doctrine_report),
   };
 }
 

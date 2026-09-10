@@ -60,7 +60,8 @@
     "autopilot_quota_upgrade": "View upgrade options",
     "archive": "Archive",
     "unarchive": "Unarchive",
-    "already_decided": "Already decided"
+    "already_decided": "Already decided",
+    "open_doctrine": "Open the doctrine"
   },
   "types": {
     "issue_assigned": "Assigned",
@@ -113,7 +114,9 @@
     "code_health_report": "Code health report",
     "doc_drift_report": "Agent context drift",
     "calendar_invitation": "Invited to an event",
-    "calendar_reminder": "Starting soon"
+    "calendar_reminder": "Starting soon",
+    "doctrine_review": "Doctrine review",
+    "doctrine_report": "Doctrine report"
   },
   "labels": {
     "set_status_to": "Set status to",

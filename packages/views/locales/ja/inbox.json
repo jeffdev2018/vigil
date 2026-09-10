@@ -58,7 +58,8 @@
     "autopilot_quota_upgrade": "アップグレード方法を見る",
     "archive": "アーカイブ",
     "unarchive": "アーカイブ解除",
-    "already_decided": "すでに判断済み"
+    "already_decided": "すでに判断済み",
+    "open_doctrine": "行動指針を開く"
   },
   "types": {
     "issue_assigned": "割り当て済み",
@@ -111,7 +112,9 @@
     "code_health_report": "コードヘルスレポート",
     "doc_drift_report": "エージェントコンテキストのずれ",
     "calendar_invitation": "イベントに招待されました",
-    "calendar_reminder": "まもなく開始"
+    "calendar_reminder": "まもなく開始",
+    "doctrine_review": "行動指針のレビュー",
+    "doctrine_report": "行動指針の報告"
   },
   "labels": {
     "set_status_to": "ステータスを変更:",

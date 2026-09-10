@@ -91,6 +91,16 @@ export function findMatchingApproval(item: InboxItem, approvals: ApprovalItem[])
   return null;
 }
 
+/**
+ * Workspace doctrine (OS plan, chantier 22): the two item types whose subject
+ * is the doctrine itself. Neither names an issue to open, so the detail pane
+ * sends the reader to the Doctrine settings tab, where the pending proposal
+ * and the open reports live.
+ */
+export function isDoctrineType(type: InboxItem["type"]): boolean {
+  return type === "doctrine_review" || type === "doctrine_report";
+}
+
 export function getQuickCreateOutcomeDetail(item: InboxItem): string {
   const details = item.details ?? {};
   return singleLine(details.error) || singleLine(item.body);
