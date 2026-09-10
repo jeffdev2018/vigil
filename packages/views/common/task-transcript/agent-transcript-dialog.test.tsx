@@ -1292,6 +1292,8 @@ describe("AgentTranscriptDialog — error remediation", () => {
     await user.click(screen.getByRole("button", { name: /Error/ }));
 
     expect(screen.queryByText("Suggested fix")).not.toBeInTheDocument();
+  });
+});
 
 describe("readable issue references", () => {
   it("searches both the displayed identifier and original UUID", async () => {

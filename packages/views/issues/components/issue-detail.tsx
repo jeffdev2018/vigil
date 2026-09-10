@@ -81,7 +81,6 @@ import { ProjectPicker } from "../../projects/components/project-picker";
 import { GoalPicker } from "../../goals/components/goal-picker";
 import { CyclePicker } from "../../cycles/components/cycle-picker";
 import { LocalDirectoryHint } from "../../projects/components/local-directory-hint";
-import { CommentCard } from "./comment-card";
 import { MeetingOriginLink } from "./meeting-origin-link";
 import { useNewRunIds } from "./use-run-comment-motion";
 import { AgentRunComment, CommentCard } from "./comment-card";
@@ -534,7 +533,8 @@ function interleaveApprovals(groups: RawTimelineGroup[], approvals: ReadonlyArra
       const t = Date.parse(g.approval.created_at);
       return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
     }
-    const t = Date.parse(g.entries[0]?.created_at ?? "");
+    const at = g.type === "run" ? (g.entry?.created_at ?? g.run.task.created_at) : g.entries[0]?.created_at;
+    const t = Date.parse(at ?? "");
     return Number.isNaN(t) ? 0 : t;
   };
   const merged: RawTimelineGroup[] = [...groups, ...approvals.map((approval) => ({ type: "approval" as const, approval }))];
@@ -1730,7 +1730,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
   const minimapThreads = useMemo<ThreadMinimapThread[]>(
     () =>
       items.flatMap((it) => {
-        if (it.kind === "activity-group" || !it.entry) return [];
+        if (it.kind === "activity-group" || it.kind === "approval" || !it.entry) return [];
         const replies = timelineView.threadReplies.get(it.id) ?? EMPTY_REPLIES;
         return [
           {
@@ -2928,6 +2928,7 @@ export function IssueDetail({ issueId, onDelete, onDone, defaultSidebarOpen = tr
           <ApprovalCard approval={item.approval} wsId={wsId} />
         </div>
       );
+    }
     if (item.kind === "run") {
       const reply = item.entry;
       return <div className="pb-3" id={reply ? `comment-${reply.id}` : undefined}>

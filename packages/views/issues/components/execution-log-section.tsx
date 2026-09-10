@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronRight, Loader2, RotateCcw, Square } from "lucide-react";
 import { toast } from "sonner";
 import { api, dispatchReasonCode } from "@multica/core/api";
-import { issueKeys } from "@multica/core/issues/queries";
 import { legRoleLabelKey, taskLegsOptions, workflowRootOf } from "@multica/core/issues/legs";
 import { goalLoopOfTask, goalOutcomeLabelKey, issueGoalOptions } from "@multica/core/issues/goal-loop";
 import { useWorkspaceId } from "@multica/core/hooks";
