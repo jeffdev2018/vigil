@@ -39,6 +39,21 @@ export type OrganizeAction = "note" | "merge";
  * resulting title/body, and the dialog stays open until it answers — a
  * capture removed from the inbox before the write landed would be a lie.
  */
+/**
+ * The title the server derives when the field is left empty: the capture's
+ * first line, cut at a word boundary past 80 characters (mirrors
+ * `firstLine` in server/internal/handler/brain_capture.go).
+ */
+export function derivedTitle(content: string): string {
+  const line = (content.trim().split("\n")[0] ?? "").trim();
+  const runes = Array.from(line);
+  if (runes.length <= 80) return line;
+  let cut = runes.slice(0, 80).join("");
+  const space = cut.search(/[ \t][^ \t]*$/);
+  if (space > 40) cut = cut.slice(0, space);
+  return cut.replace(/[ \t,;:.-]+$/, "");
+}
+
 export function OrganizeDialog({
   wsId,
   capture,
@@ -131,14 +146,7 @@ export function OrganizeDialog({
   // The server derives a missing title the same way: the title hint, then
   // the capture's first line. Show that default so an empty field is a
   // choice, not a blocker.
-  const defaultTitle =
-    capture.title_hint.trim() ||
-    (capture.content ?? "")
-      .trim()
-      .split("\n")[0]
-      ?.trim()
-      .slice(0, 80) ||
-    "";
+  const defaultTitle = capture.title_hint.trim() || derivedTitle(capture.content ?? "");
   const canSubmit =
     action === "merge" ? Boolean(target?.id) : title.trim() !== "" || defaultTitle !== "";
 

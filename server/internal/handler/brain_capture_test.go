@@ -309,3 +309,17 @@ func (s stubEmbedder) QueryEmbedding(_ context.Context, _ string) (string, strin
 	return s.literal, s.model, true
 }
 func (s stubEmbedder) Enabled() bool { return true }
+
+func TestFirstLineCutsAtAWordBoundary(t *testing.T) {
+	cases := map[string]string{
+		"short":              "short",
+		"first line\nsecond": "first line",
+		"les déploiements passent par le tag de release visuel, jamais par un push manuel sur le serveur": "les déploiements passent par le tag de release visuel, jamais par un push",
+		strings.Repeat("a", 100): strings.Repeat("a", 80),
+	}
+	for in, want := range cases {
+		if got := firstLine(in, 80); got != want {
+			t.Errorf("firstLine(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
