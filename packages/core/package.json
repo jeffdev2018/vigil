@@ -138,6 +138,7 @@
     "./insights/queries": "./insights/queries.ts",
     "./insights/mutations": "./insights/mutations.ts",
     "./brain": "./brain/index.ts",
+    "./followups": "./followups/index.ts",
     "./brain/queries": "./brain/queries.ts",
     "./brain/mutations": "./brain/mutations.ts",
     "./brain/ws-updaters": "./brain/ws-updaters.ts",

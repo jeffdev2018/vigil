@@ -94,6 +94,29 @@ describe("ApprovalCard", () => {
     expect(mockRespond).toHaveBeenCalledWith({ issueId: "i1", decisionId: "d1", answer: { option_id: "approve" } }, expect.anything());
   });
 
+  it("reads an autopilot proposal by its option ids, whatever kind the feed sent", async () => {
+    const user = userEvent.setup();
+    const proposal = item({
+      kind: "decision",
+      gate: null,
+      question: "Proposed autopilot · Monday open tickets · 0 9 * * 1 (Europe/Paris)",
+      options: [
+        { id: "autopilot:activate:ap-1", label: "Activate", impact: "the autopilot runs on its schedule" },
+        { id: "autopilot:discard:ap-1", label: "Discard", impact: "the autopilot is archived" },
+      ],
+    });
+    renderUI(<ApprovalCard approval={proposal} wsId="ws" />);
+    expect(screen.getByText(enIssues.approvals.kind_autopilot_proposal)).toBeTruthy();
+    expect(screen.getByTestId("approval-card").getAttribute("data-kind")).toBe("autopilot_proposal");
+
+    // The card is answered through the ordinary respond flow.
+    await user.click(screen.getByRole("button", { name: /^Activate/ }));
+    expect(mockRespond).toHaveBeenCalledWith(
+      { issueId: "i1", decisionId: "d1", answer: { option_id: "autopilot:activate:ap-1" } },
+      expect.anything(),
+    );
+  });
+
   it("sends a free-text answer on a decision", async () => {
     const user = userEvent.setup();
     renderUI(<ApprovalCard approval={item({ kind: "decision", gate: null, question: "Which colour?" })} wsId="ws" />);

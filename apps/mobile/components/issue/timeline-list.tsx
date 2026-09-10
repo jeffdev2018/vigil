@@ -96,6 +96,7 @@ import { IssueReactionRow } from "./issue-reaction-row";
 import { IssueDeliverySection } from "./issue-delivery-section";
 import { AgentEffectsSection } from "./agent-effects-section";
 import { GoalSection } from "./goal-section";
+import { FollowupsSection } from "./followups-section";
 import { ActivityRow } from "./activity-row";
 import { CommentCard } from "./comment-card";
 import { ApprovalAskCard, PendingApprovalsBar } from "@/components/approvals/approval-card";
@@ -408,6 +409,7 @@ export function TimelineList({
       <IssueDeliverySection issue={issue} />
       <AgentEffectsSection issueId={issue.id} />
       <GoalSection issue={issue} />
+      <FollowupsSection issue={issue} />
       <View className="px-4 pt-4 pb-2 border-t border-border">
         <Text className="text-xs uppercase tracking-wider text-muted-foreground font-medium">
           Activity

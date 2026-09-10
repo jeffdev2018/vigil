@@ -65,6 +65,9 @@ import type {
   CalendarEventEntry,
   CalendarEventsResponse,
   CalendarAgenda,
+  Followup,
+  FollowupBudget,
+  IssueFollowupsResponse,
   CalendarSlotsResponse,
   CalendarFeedTokenStatus,
   CalendarGoogleImportResult,
@@ -72,6 +75,8 @@ import type {
   PostmortemsResponse,
   WorkspaceNote,
   WorkspaceNotesResponse,
+  AutopilotDraft,
+  AutopilotProposalResponse,
   BrainCapture,
   BrainCapturesResponse,
   OrganizeBrainCaptureResponse,
@@ -7976,6 +7981,19 @@ export const AgendaMeetingSchema = z.object({
   ended_at: z.string().nullable().optional(),
 }).loose();
 
+// A wake-up in the agenda. `.catch([])` on the array so a follow-up shaped
+// wrong by a newer server costs the wake-up band, never the whole agenda.
+export const AgendaFollowupSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  identifier: z.string().default(""),
+  issue_title: z.string().default(""),
+  agent_id: z.string().default(""),
+  agent_name: z.string().default(""),
+  fires_at: z.string().default(""),
+  note: z.string().default(""),
+}).loose();
+
 export const CalendarAgendaSchema = z.object({
   from: z.string().default(""),
   to: z.string().default(""),
@@ -7983,6 +8001,7 @@ export const CalendarAgendaSchema = z.object({
   issues_due: z.array(AgendaIssueSchema).default([]),
   cycles: z.array(AgendaCycleSchema).default([]),
   meetings: z.array(AgendaMeetingSchema).default([]),
+  followups: z.array(AgendaFollowupSchema).catch([]).default([]),
 }).loose();
 
 export const EMPTY_CALENDAR_AGENDA: CalendarAgenda = Object.freeze({
@@ -7992,6 +8011,7 @@ export const EMPTY_CALENDAR_AGENDA: CalendarAgenda = Object.freeze({
   issues_due: [],
   cycles: [],
   meetings: [],
+  followups: [],
 }) as CalendarAgenda;
 
 export const CalendarSlotSchema = z.object({
@@ -8036,3 +8056,99 @@ export const EMPTY_CALENDAR_GOOGLE_IMPORT_RESULT: CalendarGoogleImportResult = O
   updated: 0,
   seen: 0,
 }) as CalendarGoogleImportResult;
+
+// Follow-ups (OS plan, vague B): a deferred wake-up of an issue's agent.
+// Server source of truth: server/internal/handler/followups.go.
+export const FollowupSchema = z.object({
+  id: z.string(),
+  issue_id: z.string().default(""),
+  agent_id: z.string().default(""),
+  agent_name: z.string().default(""),
+  fires_at: z.string().default(""),
+  note: z.string().default(""),
+  // Open on the wire: an actor kind added server-side must not drop the row.
+  scheduled_by_type: z.string().default("member"),
+  scheduled_by_id: z.string().nullable().optional(),
+  created_at: z.string().default(""),
+}).loose();
+
+// The budget is what the schedule dialog quotes when the server refuses with
+// a 429; a malformed one must not cost the list, hence the per-field catch.
+export const FollowupBudgetSchema = z.object({
+  max_per_agent_per_day: z.number().catch(0).default(0),
+  max_per_workspace_per_day: z.number().catch(0).default(0),
+}).loose();
+
+export const EMPTY_FOLLOWUP_BUDGET: FollowupBudget = Object.freeze({
+  max_per_agent_per_day: 0,
+  max_per_workspace_per_day: 0,
+}) as FollowupBudget;
+
+export const IssueFollowupsResponseSchema = z.object({
+  followups: z.array(FollowupSchema).catch([]).default([]),
+  budget: FollowupBudgetSchema.catch({ max_per_agent_per_day: 0, max_per_workspace_per_day: 0 }),
+}).loose();
+
+export const EMPTY_ISSUE_FOLLOWUPS: IssueFollowupsResponse = Object.freeze({
+  followups: [],
+  budget: EMPTY_FOLLOWUP_BUDGET,
+}) as IssueFollowupsResponse;
+
+export const FollowupResponseSchema = z.object({
+  followup: FollowupSchema,
+}).loose();
+
+// A create whose body drifted still scheduled the wake-up server-side: the
+// caller invalidates the list either way, so degrade rather than throw.
+export const EMPTY_FOLLOWUP: Followup = Object.freeze({
+  id: "",
+  issue_id: "",
+  agent_id: "",
+  agent_name: "",
+  fires_at: "",
+  note: "",
+  scheduled_by_type: "member",
+  scheduled_by_id: null,
+  created_at: "",
+}) as Followup;
+
+// Autopilots from a sentence. `execution_mode` stays an open string: the
+// preview renders it through a defaulted switch, never an exhaustive one.
+export const AutopilotDraftSchema = z.object({
+  title: z.string().default(""),
+  cron_expression: z.string().default(""),
+  timezone: z.string().default("UTC"),
+  description: z.string().default(""),
+  execution_mode: z.string().default("run_only"),
+  issue_title_template: z.string().default("").catch(""),
+  reason: z.string().default(""),
+  next_runs: z.array(z.string()).catch([]).default([]),
+  model: z.string().optional(),
+}).loose();
+
+export const AutopilotDraftResponseSchema = z.object({
+  draft: AutopilotDraftSchema,
+}).loose();
+
+export const EMPTY_AUTOPILOT_DRAFT: AutopilotDraft = Object.freeze({
+  title: "",
+  cron_expression: "",
+  timezone: "UTC",
+  description: "",
+  execution_mode: "run_only",
+  issue_title_template: "",
+  reason: "",
+  next_runs: [],
+}) as AutopilotDraft;
+
+export const AutopilotProposalResponseSchema = z.object({
+  autopilot: AutopilotSchema,
+  decision_id: z.string().nullable().default(null),
+  next_runs: z.array(z.string()).catch([]).default([]),
+}).loose();
+
+export const EMPTY_AUTOPILOT_PROPOSAL: AutopilotProposalResponse = Object.freeze({
+  autopilot: EMPTY_AUTOPILOT,
+  decision_id: null,
+  next_runs: [],
+}) as AutopilotProposalResponse;

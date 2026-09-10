@@ -312,6 +312,9 @@ func dispatchResultFromEngine(res engine.Result) DispatchResult {
 		IssueDuplicate:     res.IssueDuplicate,
 		IssueUsageHadMedia: res.IssueUsageHadMedia,
 		IssueHeld:          res.IssueHeld,
+		AutopilotID:        res.AutopilotID,
+		ScheduleTitle:      res.ScheduleTitle,
+		ScheduleSummary:    res.ScheduleSummary,
 	}
 }
 

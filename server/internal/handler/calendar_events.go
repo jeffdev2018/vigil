@@ -741,6 +741,8 @@ type CalendarAgendaResponse struct {
 	IssuesDue []AgendaIssue   `json:"issues_due"`
 	Cycles    []AgendaCycle   `json:"cycles"`
 	Meetings  []AgendaMeeting `json:"meetings"`
+	// Followups are the scheduled wake-ups of agents in the window.
+	Followups []AgendaFollowup `json:"followups"`
 }
 
 type AgendaIssue struct {
@@ -788,6 +790,7 @@ func (h *Handler) GetCalendarAgenda(w http.ResponseWriter, r *http.Request) {
 		out.Events = h.calendarEventsToResponses(ctx, wsUUID, rows)
 	}
 	prefix := h.getIssuePrefix(ctx, wsUUID)
+	out.Followups = h.agendaFollowups(ctx, wsUUID, prefix, from, to)
 	day := func(t time.Time) pgtype.Date { return pgtype.Date{Time: t.UTC().Truncate(24 * time.Hour), Valid: true} }
 	if rows, err := h.Queries.ListIssuesDueBetween(ctx, db.ListIssuesDueBetweenParams{WorkspaceID: wsUUID, Since: day(from), Until: day(to.Add(24*time.Hour - time.Second))}); err == nil {
 		for _, i := range rows {

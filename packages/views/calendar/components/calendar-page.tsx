@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarRange, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { AlarmClock, CalendarRange, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   buildCalendarGrid,
@@ -14,7 +14,7 @@ import {
 import { calendarAgendaOptions, groupAgendaByDay, type CalendarDayBucket } from "@multica/core/calendar-events";
 import { useWorkspaceId } from "@multica/core/hooks";
 import { useWorkspacePaths } from "@multica/core/paths";
-import type { AgendaCycle, AgendaIssue, AgendaMeeting, CalendarEventEntry } from "@multica/core/types";
+import type { AgendaCycle, AgendaFollowup, AgendaIssue, AgendaMeeting, CalendarEventEntry } from "@multica/core/types";
 import { cn } from "@multica/ui/lib/utils";
 import { Button } from "@multica/ui/components/ui/button";
 import {
@@ -47,7 +47,8 @@ type DayEntry =
   | { kind: "event"; key: string; event: CalendarEventEntry }
   | { kind: "issue"; key: string; issue: AgendaIssue }
   | { kind: "meeting"; key: string; meeting: AgendaMeeting }
-  | { kind: "cycle"; key: string; cycle: AgendaCycle };
+  | { kind: "cycle"; key: string; cycle: AgendaCycle }
+  | { kind: "followup"; key: string; followup: AgendaFollowup };
 
 function addDaysUTC(d: Date, days: number): Date {
   return new Date(d.getTime() + days * MS_PER_DAY);
@@ -73,12 +74,35 @@ function entriesForDay(dateKey: string, bucket: CalendarDayBucket | undefined, c
     for (const event of bucket.events) entries.push({ kind: "event", key: `event:${event.id}`, event });
     for (const issue of bucket.issuesDue) entries.push({ kind: "issue", key: `issue:${issue.id}`, issue });
     for (const meeting of bucket.meetings) entries.push({ kind: "meeting", key: `meeting:${meeting.id}`, meeting });
+    for (const followup of bucket.followups) entries.push({ kind: "followup", key: `followup:${followup.id}`, followup });
   }
   return entries;
 }
 
 function EntryChip({ entry, onOpenEvent }: { entry: DayEntry; onOpenEvent: (id: string) => void }) {
   const p = useWorkspacePaths();
+  const { t } = useT("calendar-events");
+  if (entry.kind === "followup") {
+    // A scheduled wake-up of an issue's agent. The note is the whole point of
+    // the wake-up, so it rides in the title where a truncated row can still
+    // be read, and the chip links to the issue it will wake up on.
+    const f = entry.followup;
+    return (
+      <AppLink
+        href={p.issueDetail(f.issue_id)}
+        newTabTitle={f.identifier}
+        data-testid="agenda-followup"
+        title={f.note}
+        className="flex min-w-0 items-center gap-1 rounded px-1 py-0.5 text-caption hover:bg-accent"
+      >
+        <AlarmClock className="size-3 shrink-0 text-warning" aria-hidden="true" />
+        <span className="shrink-0 text-warning">{t(($) => $.page.followup_prefix)}</span>
+        <span className="shrink-0 truncate text-muted-foreground">{f.agent_name}</span>
+        <span className="w-12 shrink-0 truncate text-muted-foreground">{f.identifier}</span>
+        <span className="truncate">{f.note}</span>
+      </AppLink>
+    );
+  }
   if (entry.kind === "cycle") {
     return (
       <span className="truncate rounded bg-primary/10 px-1 py-0.5 text-caption text-primary">
@@ -249,7 +273,11 @@ export function CalendarPage() {
   const isEmpty =
     isMonth
       ? !agenda || (calendarMonthIsEmpty(monthCells) && agenda.events.length === 0 && agenda.cycles.length === 0)
-      : !agenda || (agenda.events.length === 0 && agenda.issues_due.length === 0 && agenda.meetings.length === 0);
+      : !agenda ||
+        (agenda.events.length === 0 &&
+          agenda.issues_due.length === 0 &&
+          agenda.meetings.length === 0 &&
+          (agenda.followups?.length ?? 0) === 0);
 
   const editingEvent = openEventId
     ? agenda?.events.find((e) => e.id === openEventId)

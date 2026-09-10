@@ -99,7 +99,7 @@ func TestVigilMCPHandshakeAndSurfaces(t *testing.T) {
 
 	compound := mcpToolNames(mcpDo(t, mcpMemberRequest(testUserID, "", mcpRPC("tools/list", map[string]any{}))))
 	joined := strings.Join(compound, " ")
-	for _, want := range []string{"vigil_issue", "vigil_goal", "vigil_brain", "vigil_project", "vigil_team", "vigil_triage", "vigil_inbox", "vigil_run", "vigil_handoff", "vigil_calendar", "vigil_doctrine"} {
+	for _, want := range []string{"vigil_issue", "vigil_goal", "vigil_brain", "vigil_project", "vigil_team", "vigil_triage", "vigil_inbox", "vigil_run", "vigil_handoff", "vigil_calendar", "vigil_doctrine", "vigil_autopilot"} {
 		if !strings.Contains(joined, want) {
 			t.Fatalf("compound surface lacks %s: %v", want, compound)
 		}

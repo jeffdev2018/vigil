@@ -72,3 +72,14 @@ a fresh allowance and queues a run from the goal state.
 
 Workspace setting `goal_loop`: `max_continuations` (0 turns the judge off),
 `propose_done` (false records the verdict without moving the issue).
+
+## Waiting instead of continuing
+
+A continuation is for work you can carry on with now. When the next step
+depends on a *time* — a deploy that lands at 9, a build that takes an hour —
+do not burn continuations idling: `schedule_followup {when, note}` files one
+deferred run of this issue's agent at that instant, carrying your note as its
+trigger. `list_followups` shows what is already pending and
+`cancel_followup` drops one. Daily budgets apply. See
+`references/wakeups.md`, which also covers proposing an autopilot when the
+work should repeat rather than happen once.

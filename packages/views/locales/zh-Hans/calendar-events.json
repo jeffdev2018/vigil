@@ -12,7 +12,8 @@
     "next_period": "下一个",
     "empty_agenda": "这段时间没有日程。",
     "more": "还有{{count}}项",
-    "cycle_band": "{{name}}"
+    "cycle_band": "{{name}}",
+    "followup_prefix": "唤醒"
   },
   "status": {
     "proposed": "待确认",

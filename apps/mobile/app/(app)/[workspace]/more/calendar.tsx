@@ -14,7 +14,13 @@ import { FlatList, Pressable, View } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { CalendarEventEntry, AgendaIssue, AgendaMeeting } from "@multica/core/types";
+import type {
+  AgendaFollowup,
+  AgendaIssue,
+  AgendaMeeting,
+  CalendarEventEntry,
+} from "@multica/core/types";
+
 import { Text } from "@/components/ui/text";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -22,6 +28,7 @@ import { StatusIcon } from "@/components/ui/status-icon";
 import { calendarAgendaOptions } from "@/data/queries/calendar";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useIssueStatuses } from "@/lib/use-issue-statuses";
+import { followupAbsoluteTime } from "@/lib/followup-display";
 import {
   buildAgendaDays,
   enumerateLocalDays,
@@ -66,7 +73,13 @@ export default function CalendarAgendaScreen() {
   const days = useMemo(
     () =>
       buildAgendaDays(
-        data ?? { events: [], issues_due: [], cycles: [], meetings: [] },
+        data ?? {
+          events: [],
+          issues_due: [],
+          cycles: [],
+          meetings: [],
+          followups: [],
+        },
         windowDates,
         DEVICE_TZ,
       ),
@@ -159,7 +172,12 @@ function DayGroup({
   wsSlug: string | null;
 }) {
   const hasContent =
-    day.cycles.length + day.events.length + day.issuesDue.length + day.meetings.length > 0;
+    day.cycles.length +
+      day.events.length +
+      day.issuesDue.length +
+      day.meetings.length +
+      day.followups.length >
+    0;
   if (!hasContent) return null;
 
   const dayLabel = new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, {
@@ -201,7 +219,54 @@ function DayGroup({
       {day.meetings.map((meeting) => (
         <MeetingRow key={meeting.id} meeting={meeting} />
       ))}
+
+      {day.followups.map((followup) => (
+        <WakeupRow key={followup.id} followup={followup} wsSlug={wsSlug} />
+      ))}
     </View>
+  );
+}
+
+/**
+ * A scheduled wake-up of an issue's agent (JEF-373). Reads as
+ * "Wake-up · <agent> · <identifier>" with the note underneath, and taps
+ * through to the issue — the same destination as the issue-due row, because
+ * the issue is where the follow-up can be cancelled or another one added.
+ */
+function WakeupRow({
+  followup,
+  wsSlug,
+}: {
+  followup: AgendaFollowup;
+  wsSlug: string | null;
+}) {
+  return (
+    <Pressable
+      onPress={() =>
+        wsSlug &&
+        router.push({
+          pathname: "/[workspace]/issue/[id]",
+          params: { workspace: wsSlug, id: followup.issue_id },
+        })
+      }
+      className="flex-row items-start gap-2 px-3 py-2 active:opacity-70"
+    >
+      <Ionicons name="alarm-outline" size={14} color="#71717a" />
+      <View className="flex-1 min-w-0">
+        <Text className="text-sm text-muted-foreground" numberOfLines={1}>
+          Wake-up · {followup.agent_name || "Agent"} ·{" "}
+          {followup.identifier || followup.issue_title}
+        </Text>
+        {!!followup.note && (
+          <Text className="text-xs text-muted-foreground" numberOfLines={2}>
+            {followup.note}
+          </Text>
+        )}
+      </View>
+      <Text className="text-xs text-muted-foreground">
+        {followupAbsoluteTime(followup.fires_at)}
+      </Text>
+    </Pressable>
   );
 }
 

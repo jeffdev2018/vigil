@@ -12,7 +12,8 @@
     "next_period": "Suivant",
     "empty_agenda": "Rien à l'agenda pour cette période.",
     "more": "+{{count}} de plus",
-    "cycle_band": "{{name}}"
+    "cycle_band": "{{name}}",
+    "followup_prefix": "Réveil"
   },
   "status": {
     "proposed": "Proposé",

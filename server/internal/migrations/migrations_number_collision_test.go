@@ -35,6 +35,10 @@ var grandfatheredDuplicateNumbers = map[string]bool{
 	// branch with the same numbers and are applied everywhere under their
 	// full stems; renumbering would re-run them.
 	"891": true, "892": true, "893": true, "894": true,
+	// 901–902: the Brain capture (PR #316) and the run-groups judge / pinned
+	// runtime (PR #319) crossed on the integration branch the same day; both
+	// sets are applied under their full stems.
+	"901": true, "902": true,
 }
 
 // TestNoNewMigrationNumberCollisions fails when a migration number gains a

@@ -588,5 +588,31 @@
     "updated_at": "업데이트 {{at}}",
     "last_run": "마지막 실행 {{at}}",
     "read_only": "실행이 기록하며 여기서는 수정할 수 없습니다"
+  },
+  "from_sentence": {
+    "action": "문장으로 만들기",
+    "title": "문장으로 오토파일럿 만들기",
+    "description": "무엇을 언제 해야 하는지 적으세요. 모델이 일정을 제안하고, 생성 전에 확인할 수 있습니다.",
+    "sentence_label": "입력 문장",
+    "sentence_placeholder": "매주 월요일 9시에 열린 이슈를 정리해서 올려줘.",
+    "draft": "문장 해석하기",
+    "draft_failed": "문장을 해석하지 못했습니다",
+    "no_model": "구성된 모델이 없습니다. 일정을 직접 작성하세요.",
+    "write_yourself": "수동 양식 열기",
+    "back": "문장 다시 쓰기",
+    "field_title": "제목",
+    "field_cron": "cron 식",
+    "field_timezone": "시간대",
+    "field_prompt": "에이전트 지시문",
+    "field_mode": "실행 모드",
+    "field_issue_title": "실행마다 만들 이슈 제목",
+    "field_assignee": "에이전트",
+    "assignee_placeholder": "어떤 에이전트가 실행하나요?",
+    "next_runs": "다음 실행",
+    "create_paused": "일시중지 상태로 생성",
+    "create_active": "생성 후 활성화",
+    "created_paused": "오토파일럿을 일시중지 상태로 만들었습니다",
+    "created_active": "오토파일럿을 만들고 활성화했습니다",
+    "create_failed": "오토파일럿을 만들지 못했습니다"
   }
 }

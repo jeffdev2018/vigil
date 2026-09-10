@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { AgendaCycle, AgendaIssue, AgendaMeeting, CalendarEventEntry } from "@multica/core/types";
+import type { AgendaFollowup } from "@multica/core/types";
 import {
   buildAgendaDays,
   dayKeyInTimezone,
@@ -198,5 +199,88 @@ describe("buildAgendaDays", () => {
       "UTC",
     );
     expect(days.find((d) => d.date === "2026-09-11")?.meetings).toHaveLength(1);
+  });
+});
+
+/**
+ * Wake-ups on the agenda (JEF-373). `fires_at` carries no per-item timezone
+ * on the wire, so — like meetings — a wake-up lands on the day the VIEWER's
+ * device is in, which is the property these cases pin.
+ */
+describe("buildAgendaDays with follow-ups", () => {
+  const windowDates = enumerateLocalDays(new Date(2026, 8, 9), 3); // Sep 9-11
+
+  function followup(overrides: Partial<AgendaFollowup> = {}): AgendaFollowup {
+    return {
+      id: "f1",
+      issue_id: "i1",
+      identifier: "ENG-1",
+      issue_title: "Ship it",
+      agent_id: "a1",
+      agent_name: "Ada",
+      fires_at: "2026-09-10T09:00:00Z",
+      note: "Check the deploy",
+      ...overrides,
+    };
+  }
+
+  it("gives every day an empty followups list when the agenda has none", () => {
+    const days = buildAgendaDays(
+      { events: [], issues_due: [], cycles: [], meetings: [] },
+      windowDates,
+      "UTC",
+    );
+    expect(days.every((d) => d.followups.length === 0)).toBe(true);
+  });
+
+  it("groups a wake-up by the device timezone", () => {
+    const days = buildAgendaDays(
+      {
+        events: [],
+        issues_due: [],
+        cycles: [],
+        meetings: [],
+        followups: [followup({ fires_at: "2026-09-11T09:00:00Z" })],
+      },
+      windowDates,
+      "UTC",
+    );
+    expect(days.find((d) => d.date === "2026-09-11")?.followups).toHaveLength(1);
+  });
+
+  it("sorts several wake-ups on the same day soonest first", () => {
+    const days = buildAgendaDays(
+      {
+        events: [],
+        issues_due: [],
+        cycles: [],
+        meetings: [],
+        followups: [
+          followup({ id: "late", fires_at: "2026-09-10T17:00:00Z" }),
+          followup({ id: "early", fires_at: "2026-09-10T07:00:00Z" }),
+        ],
+      },
+      windowDates,
+      "UTC",
+    );
+    expect(
+      days.find((d) => d.date === "2026-09-10")?.followups.map((f) => f.id),
+    ).toEqual(["early", "late"]);
+  });
+
+  it("drops a wake-up outside the rendered window rather than growing a day", () => {
+    const days = buildAgendaDays(
+      {
+        events: [],
+        issues_due: [],
+        cycles: [],
+        meetings: [],
+        followups: [followup({ fires_at: "2026-10-01T09:00:00Z" })],
+      },
+      windowDates,
+      "UTC",
+    );
+    expect(days).toHaveLength(3);
+    expect(days.every((d) => d.followups.length === 0)).toBe(true);
   });
 });

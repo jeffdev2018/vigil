@@ -122,6 +122,18 @@ describe("groupAgendaByDay", () => {
     meetings: [
       { id: "m1", title: "Standup", status: "done", started_at: "2026-09-09T23:45:00Z" },
     ],
+    followups: [
+      {
+        id: "f1",
+        issue_id: "i1",
+        identifier: "MUL-1",
+        issue_title: "Ship it",
+        agent_id: "a1",
+        agent_name: "Ada",
+        fires_at: "2026-09-09T23:50:00Z",
+        note: "Check staging",
+      },
+    ],
   };
 
   it("buckets events and meetings by their instant's day in tz, and issues by due_date directly", () => {
@@ -131,7 +143,14 @@ describe("groupAgendaByDay", () => {
     expect(day.events).toHaveLength(1);
     expect(day.meetings).toHaveLength(1);
     expect(day.issuesDue).toHaveLength(1);
+    expect(day.followups).toHaveLength(1);
     // Cycles are not bucketed — they span a range, not one day.
     expect(days.has("2026-09-01")).toBe(false);
+  });
+
+  it("reads an agenda from a server that predates wake-ups as having none", () => {
+    const { followups: _followups, ...older } = agenda;
+    const days = groupAgendaByDay(older as CalendarAgenda, "Asia/Tokyo");
+    expect(days.get("2026-09-10")?.followups).toEqual([]);
   });
 });

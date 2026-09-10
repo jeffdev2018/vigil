@@ -202,6 +202,13 @@ export type {
   WorkspaceNoteSearchHit,
   WorkspaceNoteSearchResponse,
 } from "./brain-capture";
+export type {
+  Followup,
+  FollowupBudget,
+  FollowupScheduledByType,
+  IssueFollowupsResponse,
+  ScheduleFollowupInput,
+} from "./followup";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";
@@ -294,6 +301,7 @@ export type {
   AgendaIssue,
   AgendaCycle,
   AgendaMeeting,
+  AgendaFollowup,
   CalendarAgenda,
   CalendarSlot,
   CalendarSlotsResponse,
@@ -429,6 +437,10 @@ export type {
   WebhookTriggerDryRunRequest,
   WebhookTriggerDryRunResult,
   ScheduleTriggerDryRunResult,
+  AutopilotDraft,
+  DraftAutopilotInput,
+  ProposeAutopilotInput,
+  AutopilotProposalResponse,
 } from "./autopilot";
 export type {
   Squad,

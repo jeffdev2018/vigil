@@ -2715,5 +2715,16 @@
       "issues": "tâches",
       "doctrine": "doctrine"
     }
+  },
+  "followup_budget": {
+    "title": "Budget de rappels",
+    "intro": "Combien de réveils un agent peut programmer chaque jour, et combien l'espace de travail entier peut.",
+    "per_agent": "Par agent et par jour",
+    "per_workspace": "Par espace de travail et par jour",
+    "out_of_range": "Entre {{min}} et {{max}}.",
+    "save": "Enregistrer",
+    "saving": "Enregistrement…",
+    "saved": "Enregistré",
+    "save_failed": "Impossible d'enregistrer le budget de rappels"
   }
 }

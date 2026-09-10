@@ -1,6 +1,6 @@
 ---
 name: multica-platform
-description: "Issues, status transitions, work item types, walkthrough, review flag, critic verdict, mentions, agents, squads, autopilots, daemons, projects, cycles, epics, runtimes, run preview, skill import, spend, goals, long task, MCP, Twenty, runs, calendar, doctrine, triage, undo, insight, racing, packs."
+description: "Issues, status transitions, work item types, walkthrough, review flag, critic verdict, mention, agent, squad, autopilot, daemon, project, cycle, epic, runtime, run preview, skill import, spend, goal, long task, MCP, Twenty, runs, calendar, doctrine, triage, undo, insight, racing, pack, follow-up."
 user-invocable: false
 allowed-tools: Bash(multica *), Bash(git *), Bash(gh *)
 ---
@@ -28,6 +28,7 @@ Read the invariants below, then open the reference(s) your task actually needs
 | `references/agents.md` | Creating, copying or debugging an agent definition: fields, secrets, MCP config, skill binding |
 | `references/squads.md` | Squads: leader routing, roster, recording leader activity, why a squad did or did not run |
 | `references/autopilots.md` | Autopilots: schedule / webhook / manual triggers, `create_issue` vs `run_only`, why one did not fire |
+| `references/wakeups.md` | Moving work into the future: a follow-up (one deferred wake-up of this issue's agent, with a note and a daily budget), or an autopilot proposed from a sentence and left paused until a person activates it |
 | `references/daemon-markdown.md` | A daemon declared as a `DAEMON.md` file: the frontmatter schema, importing and exporting one, and the execution memory a daemon keeps between its runs |
 | `references/projects.md` | Projects and their durable resources (`github_repo`, `local_directory`, worktree mode) |
 | `references/cycles.md` | Planning an issue into a dated cycle: which cycle it may join, what the capacity and burndown numbers mean, what rollover does at the end |

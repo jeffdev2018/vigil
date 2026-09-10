@@ -591,5 +591,31 @@
     "updated_at": "Updated {{at}}",
     "last_run": "Last run {{at}}",
     "read_only": "Written by runs, not editable here"
+  },
+  "from_sentence": {
+    "action": "From a sentence",
+    "title": "Autopilot from a sentence",
+    "description": "Say what should happen and when. The model proposes the schedule; you check it before anything is created.",
+    "sentence_label": "Your sentence",
+    "sentence_placeholder": "Every Monday at 9, list the open tickets and post them.",
+    "draft": "Read my sentence",
+    "draft_failed": "Could not read that sentence",
+    "no_model": "No model configured; write the schedule yourself.",
+    "write_yourself": "Open the manual form",
+    "back": "Rewrite the sentence",
+    "field_title": "Title",
+    "field_cron": "Cron",
+    "field_timezone": "Timezone",
+    "field_prompt": "Instruction to the agent",
+    "field_mode": "Execution mode",
+    "field_issue_title": "Issue title at each run",
+    "field_assignee": "Agent",
+    "assignee_placeholder": "Which agent runs it?",
+    "next_runs": "Next runs",
+    "create_paused": "Create paused",
+    "create_active": "Create and activate",
+    "created_paused": "Autopilot created, paused",
+    "created_active": "Autopilot created and active",
+    "create_failed": "Could not create the autopilot"
   }
 }

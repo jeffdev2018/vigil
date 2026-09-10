@@ -2715,5 +2715,16 @@
       "issues": "work items",
       "doctrine": "doctrine"
     }
+  },
+  "followup_budget": {
+    "title": "Follow-up budget",
+    "intro": "How many wake-ups an agent may schedule each day, and how many the whole workspace may.",
+    "per_agent": "Per agent, per day",
+    "per_workspace": "Per workspace, per day",
+    "out_of_range": "Between {{min}} and {{max}}.",
+    "save": "Save",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "save_failed": "Could not save the follow-up budget"
   }
 }

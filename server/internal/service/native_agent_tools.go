@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -40,6 +39,8 @@ type nativeToolContext struct {
 	// effectWindow (N11): temporal Rule of Two loaded from workspace
 	// settings at run start. Max<=0 disables the window.
 	effectWindow NativeEffectWindow
+	// followupSettings is the per-day wake-up budget from workspace settings.
+	followupSettings FollowupSettings
 	// textStreamed (N04): the closing text was grown in place by the stream;
 	// the caller must not write a second copy. streamedMsgID names the row.
 	textStreamed  bool
@@ -311,6 +312,37 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "cancel_followup",
+			Description: openai.String("Cancel a follow-up scheduled on this issue that has not fired yet (list_followups shows them). Use it before scheduling a replacement instead of stacking wake-ups."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"followup_task_id": shared.FunctionParameters{"type": "string", "description": "id returned by schedule_followup or list_followups"},
+				},
+				"required": []string{"followup_task_id"},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "list_followups",
+			Description: openai.String("The follow-ups already scheduled on this issue (who, when, note). Check it before scheduling another."),
+			Parameters:  shared.FunctionParameters{"type": "object", "properties": shared.FunctionParameters{}},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "propose_autopilot",
+			Description: openai.String("Propose a recurring automation from a sentence (\"every Monday at 9, list the open tickets\") or from explicit fields. It is created paused; a person activates it from the Decision Card filed on this issue. Use it when the work should repeat on a schedule instead of scheduling follow-ups by hand."),
+			Parameters: shared.FunctionParameters{
+				"type": "object",
+				"properties": shared.FunctionParameters{
+					"text":            shared.FunctionParameters{"type": "string", "description": "the schedule and the task in plain words; the model drafts title, cron and prompt"},
+					"title":           shared.FunctionParameters{"type": "string"},
+					"cron_expression": shared.FunctionParameters{"type": "string", "description": "5-field cron, when you know it"},
+					"timezone":        shared.FunctionParameters{"type": "string", "description": "IANA timezone"},
+					"description":     shared.FunctionParameters{"type": "string", "description": "the instruction followed at each run"},
+					"execution_mode":  shared.FunctionParameters{"type": "string", "enum": []string{"create_issue", "run_only"}},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -534,6 +566,20 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return nil, errors.New(reason)
 		}
 		return s.nativeScheduleFollowup(ctx, tctx, args)
+	case "cancel_followup":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeCancelFollowup(ctx, tctx, args)
+	case "list_followups":
+		return s.nativeListFollowups(ctx, tctx)
+	case "propose_autopilot":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeProposeAutopilot(ctx, tctx, args)
 	case "report_doctrine_conflict":
 		// Deliberately outside the effectful budget: a run that spent its
 		// budget must still be able to say a rule blocked it, and the
@@ -888,56 +934,78 @@ func (s *NativeAgentService) nativeScheduleFollowup(ctx context.Context, tctx *n
 		return nil, errors.New("schedule_followup needs the task's own issue")
 	}
 	rawWhen, _ := args["when"].(string)
-	when := strings.TrimSpace(rawWhen)
-	if when == "" {
-		return nil, errors.New("when is required (RFC 3339 or +minutes)")
-	}
-	var fireAt time.Time
-	if strings.HasPrefix(when, "+") {
-		mins, err := strconv.Atoi(strings.TrimPrefix(when, "+"))
-		if err != nil || mins < 1 {
-			return nil, errors.New("offset must be +<minutes> with at least 1 minute")
-		}
-		fireAt = time.Now().Add(time.Duration(mins) * time.Minute)
-	} else {
-		parsed, err := time.Parse(time.RFC3339, when)
-		if err != nil {
-			return nil, errors.New("when must be RFC 3339 (e.g. 2026-09-11T09:00:00+02:00) or +minutes")
-		}
-		fireAt = parsed
-	}
-	now := time.Now()
-	if fireAt.Before(now.Add(time.Minute)) {
-		return nil, errors.New("the follow-up must fire at least 1 minute from now")
-	}
-	if fireAt.After(now.Add(30 * 24 * time.Hour)) {
-		return nil, errors.New("the follow-up must fire within 30 days")
-	}
 	note, _ := args["note"].(string)
-	note = strings.TrimSpace(util.SanitizeTextForPostgres(note))
-	if len(note) > 500 {
-		note = note[:500]
-	}
-	if note == "" {
-		note = "Scheduled follow-up."
-	}
-
-	task, err := s.Queries.CreateDeferredAgentTask(ctx, db.CreateDeferredAgentTaskParams{
-		ID:             dbid.NewV7(),
-		AgentID:        tctx.agent.ID,
-		RuntimeID:      tctx.agent.RuntimeID,
-		IssueID:        tctx.issue.ID,
-		Priority:       tctx.task.Priority,
-		TriggerSummary: pgtype.Text{String: fmt.Sprintf("Follow-up: %s", note), Valid: true},
-		FireAt:         pgtype.Timestamptz{Time: fireAt, Valid: true},
+	task, err := ScheduleFollowup(ctx, s.Queries, FollowupInput{
+		WorkspaceID: tctx.workspaceID, IssueID: tctx.issue.ID, Agent: tctx.agent, Priority: tctx.task.Priority,
+		When: rawWhen, Note: note, ByType: "agent", ByID: tctx.agent.ID, Settings: tctx.followupSettings,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("follow-up could not be scheduled: %w", err)
+		return nil, err
 	}
+	s.publishNative(protocol.EventFollowupChanged, tctx, map[string]any{"issue_id": util.UUIDToString(tctx.issue.ID), "followup_id": util.UUIDToString(task.ID), "change": "scheduled"})
 	return map[string]any{
 		"scheduled": true, "followup_task_id": util.UUIDToString(task.ID),
-		"fires_at": fireAt.UTC().Format(time.RFC3339),
+		"fires_at": task.FireAt.Time.UTC().Format(time.RFC3339),
 	}, nil
+}
+
+// nativeCancelFollowup drops a follow-up the run (or a previous run of the
+// same issue) scheduled and that has not fired yet.
+func (s *NativeAgentService) nativeCancelFollowup(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("cancel_followup needs the task's own issue")
+	}
+	raw, _ := args["followup_task_id"].(string)
+	id, err := util.ParseUUID(strings.TrimSpace(raw))
+	if err != nil {
+		return nil, errors.New("followup_task_id must be a uuid")
+	}
+	row, err := s.Queries.GetIssueFollowup(ctx, db.GetIssueFollowupParams{ID: id, IssueID: tctx.issue.ID, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, errors.New("no such follow-up on this issue")
+	}
+	if row.Status != "deferred" {
+		return map[string]any{"cancelled": false, "status": row.Status}, nil
+	}
+	if _, err := s.Queries.CancelAgentTask(ctx, id); err != nil {
+		return nil, fmt.Errorf("follow-up could not be cancelled: %w", err)
+	}
+	s.publishNative(protocol.EventFollowupChanged, tctx, map[string]any{"issue_id": util.UUIDToString(tctx.issue.ID), "followup_id": util.UUIDToString(id), "change": "cancelled"})
+	return map[string]any{"cancelled": true}, nil
+}
+
+// nativeListFollowups shows what is already scheduled on the issue so a run
+// does not stack a second wake-up on the first.
+func (s *NativeAgentService) nativeListFollowups(ctx context.Context, tctx *nativeToolContext) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("list_followups needs the task's own issue")
+	}
+	rows, err := s.Queries.ListIssueFollowups(ctx, db.ListIssueFollowupsParams{IssueID: tctx.issue.ID, WorkspaceID: tctx.workspaceID})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]map[string]any, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, map[string]any{"followup_task_id": util.UUIDToString(r.ID), "agent_id": util.UUIDToString(r.AgentID), "fires_at": r.FireAt.Time.UTC().Format(time.RFC3339), "note": FollowupNoteFromSummary(r.TriggerSummary.String)})
+	}
+	return map[string]any{"followups": out}, nil
+}
+
+// nativeProposeAutopilot files a paused autopilot behind a Decision Card on
+// the run's issue; the handler owns the card, so this goes through it.
+func (s *NativeAgentService) nativeProposeAutopilot(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if s.Autopilots == nil {
+		return nil, errors.New("autopilot proposals are not available on this server")
+	}
+	if tctx.issue == nil {
+		return nil, errors.New("propose_autopilot needs the task's own issue")
+	}
+	text, _ := args["text"].(string)
+	cron, _ := args["cron_expression"].(string)
+	if strings.TrimSpace(text) == "" && strings.TrimSpace(cron) == "" {
+		return nil, errors.New("give text (a sentence) or cron_expression with title and description")
+	}
+	return s.Autopilots.Propose(ctx, tctx.task, tctx.agent, args)
 }
 
 // nativeSearchWorkspace (N06): issues and notes in one call — the helpdesk

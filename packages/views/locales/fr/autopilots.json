@@ -591,5 +591,31 @@
     "updated_at": "Mis à jour {{at}}",
     "last_run": "Dernière exécution {{at}}",
     "read_only": "Écrit par les exécutions, non modifiable ici"
+  },
+  "from_sentence": {
+    "action": "Depuis une phrase",
+    "title": "Autopilot depuis une phrase",
+    "description": "Dites ce qui doit se passer et quand. Le modèle propose la planification ; vous la vérifiez avant toute création.",
+    "sentence_label": "Votre phrase",
+    "sentence_placeholder": "Chaque lundi à 9 h, liste les tickets ouverts et publie-les.",
+    "draft": "Lire ma phrase",
+    "draft_failed": "Impossible de lire cette phrase",
+    "no_model": "Aucun modèle configuré ; écrivez la planification vous-même.",
+    "write_yourself": "Ouvrir le formulaire manuel",
+    "back": "Réécrire la phrase",
+    "field_title": "Titre",
+    "field_cron": "Cron",
+    "field_timezone": "Fuseau horaire",
+    "field_prompt": "Instruction à l'agent",
+    "field_mode": "Mode d'exécution",
+    "field_issue_title": "Titre du ticket à chaque exécution",
+    "field_assignee": "Agent",
+    "assignee_placeholder": "Quel agent l'exécute ?",
+    "next_runs": "Prochaines exécutions",
+    "create_paused": "Créer en pause",
+    "create_active": "Créer et activer",
+    "created_paused": "Autopilot créé, en pause",
+    "created_active": "Autopilot créé et actif",
+    "create_failed": "Impossible de créer l'autopilot"
   }
 }

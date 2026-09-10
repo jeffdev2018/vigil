@@ -108,6 +108,18 @@ export interface AgendaMeeting {
   ended_at?: string | null;
 }
 
+/** A scheduled wake-up of an issue's agent, in the unified agenda. */
+export interface AgendaFollowup {
+  id: string;
+  issue_id: string;
+  identifier: string;
+  issue_title: string;
+  agent_id: string;
+  agent_name: string;
+  fires_at: string;
+  note: string;
+}
+
 export interface CalendarAgenda {
   from: string;
   to: string;
@@ -115,6 +127,8 @@ export interface CalendarAgenda {
   issues_due: AgendaIssue[];
   cycles: AgendaCycle[];
   meetings: AgendaMeeting[];
+  /** Pending follow-ups in the window. Absent on older servers. */
+  followups: AgendaFollowup[];
 }
 
 export interface CalendarSlot {

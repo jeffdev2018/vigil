@@ -99,6 +99,11 @@ export function approvalKindLabel(
       return "Goal attachment";
     case "org_assign":
       return "Routed assignment";
+    // Proposed autopilot (JEF-373): a paused automation waiting for someone
+    // to activate or discard it. The feed classifies it by the "autopilot:"
+    // option prefix, the way it already does for calendar proposals.
+    case "autopilot_proposal":
+      return "Autopilot proposal";
     case "transition":
       return "Status change held";
     case "goal_question":

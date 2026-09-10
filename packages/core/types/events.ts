@@ -9,6 +9,7 @@ import type { Project } from "./project";
 import type { Cycle } from "./cycle";
 import type { Label } from "./label";
 import type { Postmortem } from "./postmortem";
+import type { Followup } from "./followup";
 
 // WebSocket event types (matching Go server protocol/events.go)
 export type WSEventType =
@@ -132,6 +133,10 @@ export type WSEventType =
   // transition — captured, transcribed, suggested, note, merge, discard,
   // reopened, deleted. Payload: {capture_id, status, change}.
   | "brain_capture:changed"
+  // Follow-ups (OS plan, vague B, réveil programmé): a deferred wake-up of an
+  // issue's agent was scheduled or cancelled — by a member, an agent run, the
+  // CLI or MCP. Payload: {issue_id, followup_id, change, followup?}.
+  | "followup:changed"
   | "cross_review:queued"
   | "cross_review:report"
   | "cross_review:rework"
@@ -381,6 +386,20 @@ export interface RunHaltChangedPayload {
  * response — listeners invalidate the calendar queries rather than merging
  * this, the same choice `MeetingEventPayload` makes for meetings.
  */
+/**
+ * Follow-ups (OS plan, vague B, réveil programmé): a deferred wake-up of an
+ * issue's agent was scheduled or cancelled — by a member, an agent run, the
+ * CLI or MCP. `followup` rides along on "scheduled" only; a cancel carries the
+ * id alone, so listeners refetch the issue's pending list rather than merging.
+ * `change` is open on the wire — read it with a `default` branch.
+ */
+export interface FollowupChangedPayload {
+  issue_id: string;
+  followup_id: string;
+  change: "scheduled" | "cancelled" | (string & {});
+  followup?: Followup;
+}
+
 export interface CalendarChangedPayload {
   event_id: string;
   issue_id: string | null;
@@ -1023,6 +1042,7 @@ export interface WSEventPayloadMap {
   "run_preview:updated": RunPreviewUpdatedPayload;
   "run_halt:changed": RunHaltChangedPayload;
   "calendar:changed": CalendarChangedPayload;
+  "followup:changed": FollowupChangedPayload;
   "doctrine:changed": DoctrineChangedPayload;
   "pack:changed": PackChangedPayload;
 }

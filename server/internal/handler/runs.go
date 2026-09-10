@@ -436,7 +436,12 @@ func (h *Handler) runBlockers(ctx context.Context, wsUUID pgtype.UUID, rows []db
 		case "paused":
 			set(id, RunBlocker{Kind: RunBlockerPaused, Summary: "paused", Since: timestampToPtr(t.PauseRequestedAt)})
 		case "deferred":
-			set(id, RunBlocker{Kind: RunBlockerDeferred, Summary: "deferred", Since: timestampToPtr(t.CreatedAt)})
+			// A follow-up carries its note; other deferrals keep the bare word.
+			summary := "deferred"
+			if t.TriggerEvidenceKind.String == "followup" && t.TriggerSummary.Valid {
+				summary = t.TriggerSummary.String
+			}
+			set(id, RunBlocker{Kind: RunBlockerDeferred, Summary: summary, Since: timestampToPtr(t.CreatedAt)})
 		}
 	}
 	return out

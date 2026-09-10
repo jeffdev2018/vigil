@@ -21,6 +21,7 @@
  *     issue:aux_changed directly. Neither payload carries the goal object,
  *     so invalidate (not patch) is correct here (apps/mobile/CLAUDE.md
  *     "Patch over invalidate" rule #1).
+ *   - followup:changed → invalidate this issue's follow-ups (JEF-373)
  *   - reconnect → invalidate detail + timeline (we might've missed events
  *     while disconnected; server has no replay buffer for this client)
  *
@@ -43,6 +44,7 @@ import type {
 } from "@multica/core/types";
 import { issueKeys } from "@/data/queries/issue-keys";
 import { issueGoalKeys } from "@/data/queries/issue-goal";
+import { followupKeys } from "@/data/queries/followups";
 import { useWSSubscriptions } from "@/lib/use-ws-subscriptions";
 import {
   addCommentReaction,
@@ -239,9 +241,28 @@ export function useIssueRealtime(
         ws.on("task:failed", onTaskEvent),
         ws.on("task:cancelled", onTaskEvent),
 
+        // ----- Follow-ups (JEF-373) -----
+        // Scheduled or cancelled from anywhere — the CLI, an MCP client, the
+        // agent's own run, or another device. The payload carries the full
+        // followup on "scheduled" but not on "cancelled", and the list is
+        // server-ordered (soonest first) with a budget block riding along,
+        // so invalidate rather than patch (condition 2 of the
+        // patch-over-invalidate rule in apps/mobile/CLAUDE.md).
+        // `followup:changed` is in `WSEventType` but has no
+        // `WSEventPayloadMap` entry yet (packages/core/types/events.ts, owned
+        // by the web side of JEF-373), so the payload arrives as `unknown` —
+        // loud, not silently `any`. Narrowed here rather than left unguarded;
+        // delete the cast once the map entry lands.
+        ws.on("followup:changed", (payload) => {
+          const p = payload as { issue_id?: string };
+          if (p.issue_id !== issueId) return;
+          qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
+        }),
+
         // ----- Reconnect -----
         ws.onReconnect(() => {
           invalidateIssueAfterReconnect(qc, wsId, issueId);
+          qc.invalidateQueries({ queryKey: followupKeys.issue(wsId, issueId) });
         }),
       ];
     },

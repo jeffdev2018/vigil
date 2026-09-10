@@ -44,6 +44,7 @@ const (
 	ApprovalKindGoalAttach = "goal_attach"
 	ApprovalKindOrgAssign  = "org_assign"
 	ApprovalKindCalendar   = "calendar_proposal"
+	ApprovalKindAutopilot  = "autopilot_proposal"
 	ApprovalKindTransition = "transition"
 	ApprovalKindGoalAsk    = "goal_question"
 
@@ -137,6 +138,9 @@ func (h *Handler) decisionKind(ctx context.Context, d db.IssueDecision) string {
 		}
 		if strings.HasPrefix(o.ID, calendarOptionPrefix) {
 			return ApprovalKindCalendar
+		}
+		if strings.HasPrefix(o.ID, autopilotOptionPrefix) {
+			return ApprovalKindAutopilot
 		}
 	}
 	return ApprovalKindDecision

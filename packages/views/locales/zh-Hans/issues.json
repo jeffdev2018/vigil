@@ -1842,6 +1842,46 @@
     "run_halt_reason_prefix": "原因：{{reason}}",
     "run_halt_unknown_actor": "某位所有者",
     "run_halt_lift": "解除停止",
-    "run_halt_lift_failed": "无法解除停止"
+    "run_halt_lift_failed": "无法解除停止",
+    "kind_calendar_proposal": "会议提议",
+    "kind_autopilot_proposal": "自动驾驶提议"
+  },
+  "followups": {
+    "section": "回访提醒",
+    "schedule": "安排回访提醒",
+    "empty": "尚未安排唤醒。",
+    "fires_in": "{{countdown}}后",
+    "scheduled_by": "由 {{by}} 安排",
+    "cancel": "取消该回访提醒",
+    "cancelled": "回访提醒已取消",
+    "cancel_failed": "无法取消回访提醒",
+    "scheduled": "回访提醒已安排",
+    "schedule_failed": "无法安排回访提醒",
+    "budget_reached": "已达到每日回访提醒上限。",
+    "budget_line": "每天每个智能体最多 {{agent}} 次，每个工作区最多 {{workspace}} 次。",
+    "quick": {
+      "in_1h": "1 小时后",
+      "tomorrow_9": "明天 9:00",
+      "next_monday_9": "下周一 9:00",
+      "custom": "选择时间"
+    },
+    "cancel_dialog": {
+      "title": "取消该回访提醒？",
+      "description": "{{agent}} 不会在该事项上被唤醒。",
+      "keep": "保留",
+      "confirm": "取消回访提醒"
+    },
+    "dialog": {
+      "title": "安排回访提醒",
+      "description": "智能体将带着你的备注回到该事项。",
+      "custom_label": "日期和时间",
+      "agent_label": "智能体",
+      "agent_placeholder": "由哪个智能体唤醒？",
+      "note_label": "备注",
+      "note_placeholder": "需要检查什么？",
+      "budget_hint": "每天每个智能体最多 {{agent}} 次回访提醒。",
+      "cancel": "取消",
+      "confirm": "安排"
+    }
   }
 }

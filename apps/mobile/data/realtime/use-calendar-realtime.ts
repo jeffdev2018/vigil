@@ -30,7 +30,15 @@ export function useCalendarRealtime() {
         qc.invalidateQueries({ queryKey: calendarKeys.all(wsId) });
         qc.invalidateQueries({ queryKey: inboxKeys.list(wsId) });
       };
-      return [ws.on("calendar:changed", invalidate), ws.onReconnect(invalidate)];
+      return [
+        ws.on("calendar:changed", invalidate),
+        // The agenda also carries wake-ups (JEF-373), so a follow-up
+        // scheduled or cancelled anywhere moves a window of this cache.
+        ws.on("followup:changed", () => {
+          qc.invalidateQueries({ queryKey: calendarKeys.all(wsId) });
+        }),
+        ws.onReconnect(invalidate),
+      ];
     },
     [qc],
   );

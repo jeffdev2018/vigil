@@ -3,9 +3,10 @@
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronDown, ChevronRight, Clock, ShieldCheck } from "lucide-react";
+import { CalendarClock, ChevronDown, ChevronRight, Clock, ShieldCheck } from "lucide-react";
 import {
   approvalKeys,
+  approvalKindOf,
   approvalSecondsLeft,
   formatCountdown,
   gateDetails,
@@ -74,18 +75,21 @@ export function ApprovalCard({ approval, wsId, showIssue = false, compact = fals
   const gate = gateDetails(approval.gate);
   const countdown = formatCountdown(secondsLeft);
   const expired = secondsLeft === 0;
+  const kind = approvalKindOf(approval);
   const kindLabel = approvalKindLabel(approval, t);
+  // An autopilot proposal asks about a schedule, not about a blocked action.
+  const KindIcon = kind === "autopilot_proposal" ? CalendarClock : ShieldCheck;
   const issueHref = slug && approval.issue.id ? paths.workspace(slug).issueDetail(approval.issue.id) : null;
 
   return (
     <div
       data-testid="approval-card"
-      data-kind={approval.kind}
+      data-kind={kind}
       data-source={approval.source}
       className={cn("flex flex-col gap-1.5 rounded-md border p-2 text-caption", expired ? "border-border opacity-80" : "border-warning/60 bg-warning/5", compact && "p-1.5")}
     >
       <div className="flex items-start gap-2">
-        <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden="true" />
+        <KindIcon className="mt-0.5 size-3.5 shrink-0 text-warning" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-medium">{kindLabel}</span>
@@ -226,7 +230,7 @@ export function ApprovalCard({ approval, wsId, showIssue = false, compact = fals
 }
 
 function approvalKindLabel(approval: ApprovalItem, t: ReturnType<typeof useT<"issues">>["t"]): string {
-  switch (approval.kind) {
+  switch (approvalKindOf(approval)) {
     case "gate": {
       const type = approval.gate?.gate_type ?? "";
       if (type === "git_push") return t(($) => $.approvals.kind_gate_git_push);
@@ -240,6 +244,8 @@ function approvalKindLabel(approval: ApprovalItem, t: ReturnType<typeof useT<"is
     case "pipeline": return t(($) => $.approvals.kind_pipeline);
     case "goal_attach": return t(($) => $.approvals.kind_goal_attach);
     case "org_assign": return t(($) => $.approvals.kind_org_assign);
+    case "calendar_proposal": return t(($) => $.approvals.kind_calendar_proposal);
+    case "autopilot_proposal": return t(($) => $.approvals.kind_autopilot_proposal);
     case "transition": return t(($) => $.approvals.kind_transition);
     case "goal_question": return t(($) => $.approvals.kind_goal_question);
     default: return t(($) => $.approvals.kind_decision);

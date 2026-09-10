@@ -12,7 +12,8 @@
     "next_period": "次へ",
     "empty_agenda": "この期間のアジェンダには何もありません。",
     "more": "他{{count}}件",
-    "cycle_band": "{{name}}"
+    "cycle_band": "{{name}}",
+    "followup_prefix": "起動"
   },
   "status": {
     "proposed": "提案中",

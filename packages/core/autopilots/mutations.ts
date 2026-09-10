@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import { autopilotKeys } from "./queries";
+import { approvalKeys } from "../approvals/queries";
+import { issueKeys } from "../issues/queries";
 import { useWorkspaceId } from "../hooks";
 import type {
   WebhookTriggerDryRunRequest,
@@ -10,7 +12,45 @@ import type {
   GetAutopilotResponse,
   CreateAutopilotTriggerRequest,
   UpdateAutopilotTriggerRequest,
+  AutopilotDraft,
+  DraftAutopilotInput,
+  ProposeAutopilotInput,
+  AutopilotProposalResponse,
 } from "../types";
+
+/**
+ * Autopilots from a sentence (OS plan, vague B). Draft writes nothing — the
+ * model reads the sentence and answers a schedule — so it invalidates
+ * nothing; a 503 means no model is configured and the caller offers the
+ * manual form instead.
+ */
+export function useDraftAutopilot() {
+  return useMutation<AutopilotDraft, Error, DraftAutopilotInput>({
+    mutationFn: (input: DraftAutopilotInput) => api.draftAutopilot(input),
+  });
+}
+
+/**
+ * Propose files the autopilot PAUSED with its schedule disabled and, when
+ * there is an issue, a Decision Card whose answer activates or archives it.
+ * `activate: true` (members only) does the whole thing in one request instead:
+ * active, schedule enabled, no card. So the list moves either way, and so do
+ * the approvals feed and that issue's decisions.
+ */
+export function useProposeAutopilot() {
+  const qc = useQueryClient();
+  const wsId = useWorkspaceId();
+  return useMutation<AutopilotProposalResponse, Error, ProposeAutopilotInput>({
+    mutationFn: (input: ProposeAutopilotInput) => api.proposeAutopilot(input),
+    onSettled: (_data, _err, vars) => {
+      qc.invalidateQueries({ queryKey: autopilotKeys.list(wsId) });
+      qc.invalidateQueries({ queryKey: approvalKeys.all(wsId) });
+      if (vars.issue_id) {
+        qc.invalidateQueries({ queryKey: issueKeys.decisions(wsId, vars.issue_id) });
+      }
+    },
+  });
+}
 
 export function useCreateAutopilot() {
   const qc = useQueryClient();
