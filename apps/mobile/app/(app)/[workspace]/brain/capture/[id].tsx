@@ -24,14 +24,14 @@
  * optimistic). A 409 means someone else got there first, which the copy says
  * plainly rather than reporting a generic failure.
  *
- * Audio playback: the file is offered as a link, not a player. No audio
- * module is installed (`expo-av` / `expo-audio` are both absent from
- * apps/mobile/package.json), so tapping hands off to iOS, which previews
- * audio natively — the same handoff `CommentAttachmentList` uses for any
- * non-image attachment. The transcript, when the server produced one, is the
- * capture's own content and shows above it.
+ * Audio playback is in-place, through expo-audio's player. The file link
+ * stays underneath it as the fallback: the player needs a resolvable URL and
+ * a decodable file, and when either is missing the handoff to iOS (which
+ * previews audio, PDFs and text natively — the same handoff
+ * `CommentAttachmentList` uses) is still there. The transcript, when the
+ * server produced one, is the capture's own content and shows above both.
  */
-import { useCallback } from "react";
+import { useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,6 +41,7 @@ import {
   View,
 } from "react-native";
 import { Image } from "expo-image";
+import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
@@ -64,6 +65,7 @@ import {
   captureOriginLabel,
   captureStatusLabel,
   captureTranscriptionChip,
+  formatMediaClock,
 } from "@/lib/brain-display";
 import { apiErrorMessage } from "@/lib/issue-goal-display";
 import { timeAgo } from "@/lib/time-ago";
@@ -339,7 +341,7 @@ function CaptureAttachment({ capture }: { capture: BrainCapture }) {
     );
   }
 
-  return (
+  const fileRow = (
     <Pressable
       onPress={() => {
         if (openUrl) void Linking.openURL(openUrl);
@@ -359,6 +361,77 @@ function CaptureAttachment({ capture }: { capture: BrainCapture }) {
       </Text>
       <Ionicons name="open-outline" size={18} color={theme.mutedForeground} />
     </Pressable>
+  );
+
+  if (capture.kind === "audio" && openUrl) {
+    return (
+      <View className="gap-2">
+        {/* Keyed on the URL so a re-fetched capture (or a different one
+            reached through the same screen) loads a fresh player instead of
+            keeping the previous file's position. */}
+        <AudioPlayerRow key={openUrl} uri={openUrl} />
+        {fileRow}
+      </View>
+    );
+  }
+
+  return fileRow;
+}
+
+/**
+ * Play / pause with a position clock. `duration` is 0 until the file's
+ * metadata is read (and stays 0 for a stream the server did not size), so the
+ * total half only appears once it is real — a "0:07 / 0:00" transport reads
+ * as broken.
+ *
+ * `useAudioPlayer` is called in this dedicated child, not in
+ * `CaptureAttachment`, because a hook cannot be conditional and only an audio
+ * capture has anything to play.
+ */
+function AudioPlayerRow({ uri }: { uri: string }) {
+  const { colorScheme } = useColorScheme();
+  const theme = THEME[colorScheme];
+  const player = useAudioPlayer({ uri });
+  const status = useAudioPlayerStatus(player);
+
+  // Rewind at the end so a second tap replays instead of doing nothing.
+  useEffect(() => {
+    if (status.didJustFinish) void player.seekTo(0);
+  }, [status.didJustFinish, player]);
+
+  const failed = status.playbackState === "error";
+  const total = status.duration > 0 ? status.duration : null;
+  const clock = failed
+    ? "Could not play this file"
+    : status.isLoaded
+      ? `${formatMediaClock(status.currentTime)}${total ? ` / ${formatMediaClock(total)}` : ""}`
+      : "Loading…";
+
+  return (
+    <View className="flex-row items-center gap-2 rounded-md bg-secondary/60 px-3 py-2">
+      <Pressable
+        onPress={() => (status.playing ? player.pause() : player.play())}
+        disabled={failed || !status.isLoaded}
+        hitSlop={6}
+        accessibilityRole="button"
+        accessibilityLabel={status.playing ? "Pause" : "Play"}
+        className={failed || !status.isLoaded ? "opacity-50" : "active:opacity-70"}
+      >
+        <Ionicons
+          name={status.playing ? "pause-circle" : "play-circle"}
+          size={32}
+          color={failed ? theme.mutedForeground : theme.primary}
+        />
+      </Pressable>
+      <Text
+        className={`flex-1 text-sm ${failed ? "text-destructive" : "text-foreground"}`}
+      >
+        {clock}
+      </Text>
+      {status.isBuffering && !failed ? (
+        <ActivityIndicator size="small" />
+      ) : null}
+    </View>
   );
 }
 

@@ -9,7 +9,7 @@
  * a Stop button, none of which a capture has, and it submits comment/chat
  * bodies rather than the two different endpoints a capture uses.
  *
- * Four ways in, all through modules already installed:
+ * Five ways in, all through modules already installed:
  *
  *   - text        → POST /api/brain/captures {content}
  *   - a lone URL  → the same endpoint with {url}, so the server files it as
@@ -17,20 +17,21 @@
  *                   `inferBrainCaptureKind` does server-side)
  *   - to do       → the same endpoint with {kind: "todo"}
  *   - photo/file  → POST /api/brain/captures/upload, multipart
+ *   - voice memo  → recorded with expo-audio, then the same upload route, so
+ *                   the server files it as kind "audio" and transcribes it
+ *                   (transcription_status pending → done/failed)
  *
  * Photo offers camera or library through `ActionSheetIOS` — rung 1 of the
  * iOS-native-first waterfall in apps/mobile/CLAUDE.md, no hand-rolled sheet.
  *
- * NOT here, and why: in-app voice-memo RECORDING. No audio module is
- * installed (`expo-av` / `expo-audio` are both absent from
- * apps/mobile/package.json) and adding one is a new native dependency plus a
- * dev-client rebuild, which apps/mobile/CLAUDE.md Lesson 1 does not let a
- * feature PR do on its own. This is the same call the voice-dictated issue
- * draft (K36, app/(app)/[workspace]/new-issue-voice.tsx) already made: the
- * iOS keyboard's own mic key dictates into the text field. An audio file
- * picked through "File" still becomes an audio capture — the server derives
- * the kind from the content type and queues transcription — so the audio
- * path exists, only the in-app recorder does not.
+ * Recording follows components/voice/use-voice-conversation.ts (N20): the mic
+ * permission is requested on the first tap, `setAudioModeAsync` is set before
+ * `prepareToRecordAsync`, and the recorder is stopped on unmount so leaving
+ * the screen never leaves the mic open. A denial is an inline message, not an
+ * Alert — the user is mid-gesture and the answer is in Settings, not in a
+ * modal. The one thing this composer does NOT do is voice-activity detection:
+ * a memo is one deliberate take, started and stopped by hand, unlike the
+ * duplex chat conversation that cuts turns at silence.
  *
  * Failure handling is the pending-message pattern from the root CLAUDE.md,
  * not optimism: a send renders immediately as a pending chip with its own
@@ -39,7 +40,7 @@
  * nothing fails silently — the chip stays until it succeeds or the user
  * dismisses it.
  */
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
@@ -48,6 +49,13 @@ import {
   View,
 } from "react-native";
 import { KeyboardStickyView } from "react-native-keyboard-controller";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
@@ -63,7 +71,7 @@ import {
   useUploadBrainCapture,
 } from "@/data/mutations/brain";
 import { apiErrorMessage } from "@/lib/issue-goal-display";
-import { lonelyHttpUrl } from "@/lib/brain-display";
+import { formatMediaClock, lonelyHttpUrl } from "@/lib/brain-display";
 import { THEME } from "@/lib/theme";
 import { useColorScheme } from "@/lib/use-color-scheme";
 
@@ -74,6 +82,9 @@ const MAX_CAPTURE_UPLOAD = 50 * 1024 * 1024;
 
 /** Mirrors `brainCaptureMaxContentRunes`. */
 const MAX_CONTENT_CHARS = 20000;
+
+/** How often the elapsed clock ticks while recording. */
+const RECORDER_TICK_MS = 500;
 
 /** One in-flight (or failed) capture. `send` is kept so Retry re-runs the
  *  exact same request instead of asking the user to redo the gesture. */
@@ -95,6 +106,14 @@ export function CaptureComposer() {
   const [isTodo, setIsTodo] = useState(false);
   const [pending, setPending] = useState<PendingCapture[]>([]);
   const [picking, setPicking] = useState(false);
+  /** Inline, not an Alert: the fix is in Settings and the user is mid-gesture. */
+  const [micDenied, setMicDenied] = useState(false);
+  const [recordError, setRecordError] = useState<string | null>(null);
+
+  // No metering: a memo is one deliberate take, so there is no VAD to feed —
+  // the state subscription exists only for the elapsed clock.
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(recorder, RECORDER_TICK_MS);
 
   const createCapture = useCreateBrainCapture();
   const uploadCapture = useUploadBrainCapture();
@@ -248,6 +267,71 @@ export function CaptureComposer() {
     );
   }, [upload]);
 
+  const startRecording = useCallback(async () => {
+    setRecordError(null);
+    let permission;
+    try {
+      permission = await requestRecordingPermissionsAsync();
+    } catch {
+      setRecordError("This device cannot record audio.");
+      return;
+    }
+    if (!permission.granted) {
+      setMicDenied(true);
+      return;
+    }
+    setMicDenied(false);
+    try {
+      // Order matters: the audio mode has to allow recording BEFORE the
+      // recorder is prepared, or iOS prepares against the playback session
+      // and `record()` no-ops. Same sequence as use-voice-conversation.ts.
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+    } catch {
+      setRecordError("Could not start recording.");
+    }
+  }, [recorder]);
+
+  /** `keep: false` is Cancel — stop the mic and drop the file on the floor. */
+  const finishRecording = useCallback(
+    async (opts: { keep: boolean }) => {
+      if (!recorder.isRecording) return;
+      try {
+        await recorder.stop();
+      } catch {
+        setRecordError("Could not stop the recording.");
+        return;
+      }
+      if (!opts.keep) return;
+      const uri = recorder.uri;
+      if (!uri) {
+        setRecordError("The recording came back empty — nothing was captured.");
+        return;
+      }
+      // Straight into the same upload path a picked file takes: the server
+      // reads audio/* off the content type and queues the transcription.
+      await upload(
+        {
+          uri,
+          name: `voice-memo-${Date.now()}.m4a`,
+          type: "audio/mp4",
+        },
+        "Voice memo",
+      );
+    },
+    [recorder, upload],
+  );
+
+  // Never leave the mic open behind us: unmounting the inbox (tab switch,
+  // navigating away) stops an in-flight recording and discards it.
+  useEffect(
+    () => () => {
+      if (recorder.isRecording) void recorder.stop();
+    },
+    [recorder],
+  );
+
   const onPhoto = useCallback(() => {
     if (Platform.OS !== "ios") {
       // Only iOS ships the native action sheet; elsewhere go straight to the
@@ -291,7 +375,9 @@ export function CaptureComposer() {
     }
   }, [upload]);
 
-  const busy = picking || createCapture.isPending || uploadCapture.isPending;
+  const recording = recorderState.isRecording;
+  const busy =
+    picking || recording || createCapture.isPending || uploadCapture.isPending;
   const canSend = text.trim() !== "";
 
   return (
@@ -308,6 +394,31 @@ export function CaptureComposer() {
             onDismiss={() => dismiss(item.key)}
           />
         ))}
+
+        {recording ? (
+          <View className="mb-2 flex-row items-center gap-2 rounded-md bg-destructive/10 px-2 py-1.5">
+            <Ionicons name="mic" size={14} color={theme.destructive} />
+            <Text className="flex-1 text-xs text-foreground">
+              {`Recording ${formatMediaClock(recorderState.durationMillis / 1000)}`}
+            </Text>
+            <Pressable
+              onPress={() => void finishRecording({ keep: false })}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Discard this recording"
+            >
+              <Text className="text-xs text-muted-foreground">Cancel</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void finishRecording({ keep: true })}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel="Stop recording and capture it"
+            >
+              <Text className="text-xs font-semibold text-primary">Stop</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         <View className="flex-row items-end gap-1">
           <AutosizeTextArea
@@ -331,6 +442,20 @@ export function CaptureComposer() {
             color={isTodo ? theme.primary : undefined}
           />
           <IconButton
+            name={recording ? "stop-circle" : "mic-outline"}
+            onPress={() =>
+              void (recording
+                ? finishRecording({ keep: true })
+                : startRecording())
+            }
+            // Recording is the one action that stays live while `busy`.
+            disabled={busy && !recording}
+            accessibilityLabel={
+              recording ? "Stop recording and capture it" : "Record a voice memo"
+            }
+            color={recording ? theme.destructive : undefined}
+          />
+          <IconButton
             name="camera-outline"
             onPress={onPhoto}
             disabled={busy}
@@ -352,10 +477,27 @@ export function CaptureComposer() {
           />
         </View>
 
-        {isTodo ? (
+        {micDenied ? (
+          <Text className="px-1 pt-1 text-xs text-destructive">
+            Microphone access is off. Allow it for Multica in iOS Settings to
+            record a voice memo — everything else still captures.
+          </Text>
+        ) : null}
+        {recordError ? (
+          <Text className="px-1 pt-1 text-xs text-destructive">
+            {recordError}
+          </Text>
+        ) : null}
+        {isTodo && !recording ? (
           <Text className="px-1 pt-1 text-xs text-muted-foreground">
             Filed as a to do — organize it into a note when you decide what it
             belongs to.
+          </Text>
+        ) : null}
+        {recording ? (
+          <Text className="px-1 pt-1 text-xs text-muted-foreground">
+            Anything you type now rides along as the memo’s caption. The
+            transcript arrives on its own once the server has read it.
           </Text>
         ) : null}
       </View>

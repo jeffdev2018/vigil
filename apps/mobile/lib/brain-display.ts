@@ -261,6 +261,23 @@ export function lonelyHttpUrl(text: string): string | null {
   return trimmed;
 }
 
+/**
+ * Media clock, `m:ss` (or `h:mm:ss` past an hour) — the recorder's elapsed
+ * time and the player's position/duration.
+ *
+ * Not `lib/format-elapsed.ts`: that one renders timing captions ("38s",
+ * "1m 23s") for the chat status pill, which is the wrong shape for a
+ * transport ("0:07", and "0:07 / 1:34" as a pair). Seconds in, because that
+ * is what `AudioStatus` gives; the recorder divides its millis.
+ */
+export function formatMediaClock(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds || 0));
+  const s = String(total % 60).padStart(2, "0");
+  const m = Math.floor(total / 60);
+  if (m < 60) return `${m}:${s}`;
+  return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}:${s}`;
+}
+
 /** Tag input ("a, b, b") → the array the API takes. Mirrors web's
  *  `parseTags`; the server lowercases, de-duplicates and sorts. */
 export function parseTagInput(raw: string): string[] {

@@ -8,6 +8,7 @@ import {
   captureStatusLabel,
   captureSubline,
   captureTranscriptionChip,
+  formatMediaClock,
   isNoteArchived,
   lonelyHttpUrl,
   noteSourceLabel,
@@ -212,6 +213,35 @@ describe("lonelyHttpUrl", () => {
     expect(lonelyHttpUrl("https://")).toBeNull();
     expect(lonelyHttpUrl("")).toBeNull();
     expect(lonelyHttpUrl(`https://x.test/${"a".repeat(2100)}`)).toBeNull();
+  });
+});
+
+describe("formatMediaClock", () => {
+  it("pads the seconds so the transport does not jump width", () => {
+    expect(formatMediaClock(0)).toBe("0:00");
+    expect(formatMediaClock(7)).toBe("0:07");
+    expect(formatMediaClock(59)).toBe("0:59");
+    expect(formatMediaClock(60)).toBe("1:00");
+    expect(formatMediaClock(83)).toBe("1:23");
+    expect(formatMediaClock(599)).toBe("9:59");
+  });
+
+  it("adds an hours segment only past an hour", () => {
+    expect(formatMediaClock(3599)).toBe("59:59");
+    expect(formatMediaClock(3600)).toBe("1:00:00");
+    expect(formatMediaClock(3725)).toBe("1:02:05");
+  });
+
+  it("floors fractional seconds — AudioStatus.currentTime is a float", () => {
+    expect(formatMediaClock(7.9)).toBe("0:07");
+    // The recorder divides durationMillis, so sub-second values arrive too.
+    expect(formatMediaClock(0.4)).toBe("0:00");
+  });
+
+  it("never renders a negative or absent duration as garbage", () => {
+    expect(formatMediaClock(-5)).toBe("0:00");
+    expect(formatMediaClock(NaN)).toBe("0:00");
+    expect(formatMediaClock(undefined as unknown as number)).toBe("0:00");
   });
 });
 

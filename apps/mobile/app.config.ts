@@ -92,11 +92,12 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       [
         "expo-audio",
         {
-          // N20 duplex conversation: continuous mic in chat. Dev-client /
-          // production builds need this string in Info.plist or iOS kills
-          // the process on first record attempt.
+          // Two recorders share this string: N20 duplex conversation
+          // (continuous mic in chat) and the Brain capture composer's voice
+          // memos. Dev-client / production builds need it in Info.plist or
+          // iOS kills the process on the first record attempt.
           microphonePermission:
-            "Allow Multica to use the microphone for voice conversation in chat.",
+            "Allow Multica to use the microphone for voice conversation in chat and voice memos in the Brain.",
         },
       ],
       [
