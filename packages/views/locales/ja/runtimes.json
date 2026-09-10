@@ -547,5 +547,42 @@
     "table_cache_r": "キャッシュ R",
     "table_cache_w": "キャッシュ W",
     "no_data": "まだ使用量データがありません"
+  },
+  "activation": {
+    "title": "最初の結果の準備はできていますか？",
+    "description": "エージェントに仕事を渡す前に確認してください。ブロックを先に解消を。リポジトリはコーディング向けに推奨ですが、Mika とのチャットには必須ではありません。",
+    "optional": "任意",
+    "steps": {
+      "machine_online": {
+        "label": "マシンがオンライン",
+        "ready": "到達可能なオンライン runtime があります。",
+        "action": "デスクトップの daemon を起動／再接続するか、コンピュータを追加してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "cli_present": {
+        "label": "エージェント CLI あり",
+        "ready": "マシンにエージェント CLI が登録されています。",
+        "action": "Claude Code か Codex を入れ、daemon の検出を待つか再起動してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "cli_authenticated": {
+        "label": "CLI サインイン済み",
+        "ready": "オンラインの Claude / Codex runtime の認証が有効です。",
+        "action": "マシンを開き、エージェント CLI（Claude または Codex）にサインインしてください。",
+        "not_applicable": "オンラインの Claude / Codex runtime がまだありません — 接続後にサインインします。"
+      },
+      "repo_linked": {
+        "label": "リポジトリ連携",
+        "ready": "エージェントが使えるリポジトリが少なくとも 1 つあります。",
+        "action": "設定 → リポジトリで追加するか、GitHub を接続してください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      },
+      "first_agent_ready": {
+        "label": "最初のエージェント会話",
+        "ready": "このメンバー向けに Mika が準備できています。",
+        "action": "runtime がオンラインになったら「Mika で始める」を使ってください。",
+        "not_applicable": "このワークスペース状態では不要です。"
+      }
+    }
   }
 }

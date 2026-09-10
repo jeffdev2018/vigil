@@ -563,5 +563,42 @@
     "table_cache_r": "Cache R",
     "table_cache_w": "Cache W",
     "no_data": "Aucune donnée d'utilisation pour le moment"
+  },
+  "activation": {
+    "title": "Prêt pour un premier résultat ?",
+    "description": "À vérifier avant d'assigner du travail à un agent. Corrigez ce qui est bloqué ; un dépôt est recommandé pour les tâches de code, mais pas nécessaire pour discuter avec Mika.",
+    "optional": "Facultatif",
+    "steps": {
+      "machine_online": {
+        "label": "Machine en ligne",
+        "ready": "Un runtime est en ligne et joignable.",
+        "action": "Démarrez ou reconnectez un daemon de bureau, ou ajoutez un ordinateur.",
+        "not_applicable": "Non requis dans l'état actuel de l'espace de travail."
+      },
+      "cli_present": {
+        "label": "CLI d'agent présent",
+        "ready": "Un CLI d'agent est enregistré sur une machine.",
+        "action": "Installez Claude Code ou Codex, puis attendez que le daemon le détecte (ou redémarrez-le).",
+        "not_applicable": "Non requis dans l'état actuel de l'espace de travail."
+      },
+      "cli_authenticated": {
+        "label": "CLI connecté",
+        "ready": "L'authentification du fournisseur est valide pour un runtime Claude ou Codex en ligne.",
+        "action": "Ouvrez une machine et connectez-vous au CLI de l'agent (Claude ou Codex).",
+        "not_applicable": "Aucun runtime Claude ou Codex en ligne pour l'instant — la connexion s'appliquera dès qu'il y en aura un."
+      },
+      "repo_linked": {
+        "label": "Dépôt lié",
+        "ready": "Au moins un dépôt est accessible aux agents.",
+        "action": "Ajoutez un dépôt dans Paramètres → Dépôts, ou connectez GitHub.",
+        "not_applicable": "Non requis dans l'état actuel de l'espace de travail."
+      },
+      "first_agent_ready": {
+        "label": "Première conversation avec un agent",
+        "ready": "Mika est prêt pour ce membre.",
+        "action": "Utilisez « Démarrer avec Mika » une fois qu'un runtime est en ligne.",
+        "not_applicable": "Non requis dans l'état actuel de l'espace de travail."
+      }
+    }
   }
 }
