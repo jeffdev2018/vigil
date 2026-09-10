@@ -33,8 +33,7 @@ import ts from "typescript";
 //
 // Edges come from the TypeScript parser, never from a text scan: a
 // commented-out import is exactly the state a component passes through when
-// its last real caller is removed, and `CreateAgentDialog` below is mentioned
-// in four comments and rendered by nothing.
+// its last real caller is removed.
 // ---------------------------------------------------------------------------
 
 const VIEWS_ROOT = dirname(fileURLToPath(import.meta.url));
@@ -67,23 +66,14 @@ const SCAN_ROOTS = [
 ];
 
 /**
- * Known orphans this packet did not arbitrate. Each one is a real finding, not
- * an exemption: nothing renders it, and its fate (mount it where it belongs,
- * or delete it) is a product call rather than a cleanup. Keep this list
- * shrinking — an entry that cannot name a reason belongs in a diff, not here.
+ * Known orphans this packet did not arbitrate. Keep this list shrinking —
+ * an entry that cannot name a reason belongs in a diff, not here.
+ *
+ * Empty after deleting the five historical allowlisted orphans
+ * (CreateAgentDialog, WorkspaceAgentActivityHoverContent, ThinkingPropRow,
+ * VisibilityPicker, TokenCard).
  */
-const ALLOWED: Record<string, string> = {
-  "agents/components/agent-activity-hover-content.tsx:WorkspaceAgentActivityHoverContent":
-    "Workspace-wide variant of the agent activity hover card; the per-agent variant in the same file is live, this one is reached by nothing but its own test.",
-  "agents/components/create-agent-dialog.tsx:CreateAgentDialog":
-    "Superseded by the /agents/new page flow (paths.newAgent); the four remaining mentions in the repo are all prose in other components' comments.",
-  "agents/components/inspector/thinking-prop-row.tsx:ThinkingPropRow":
-    "Chip form of the thinking-level control; the inspector rebuild moved to ThinkingSettingField from the same file, which is live.",
-  "agents/components/inspector/visibility-picker.tsx:VisibilityPicker":
-    "Interactive visibility control; the agent detail page renders the read-only VisibilityBadge instead, whose comment still points at this picker.",
-  "runtimes/components/shared.tsx:TokenCard":
-    "Runtime-detail KPI tile superseded by KpiCard in the same file; its only mention outside the file is a comment in the web landing page.",
-};
+const ALLOWED: Record<string, string> = {};
 
 function walk(dir: string, out: string[] = []): string[] {
   let entries;
