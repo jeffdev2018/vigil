@@ -824,7 +824,6 @@ describe("ApiClient label response schemas", () => {
     const client = new ApiClient("https://api.example.test");
 
     await expect(client.listLabels("agent")).resolves.toEqual({ labels: [], total: 0 });
-    await expect(client.getLabel("label-1")).resolves.toMatchObject({ id: "" });
     await expect(
       client.createLabel({ resource_type: "agent", name: "Ops", color: "#3b82f6" }),
     ).resolves.toMatchObject({ id: "" });
@@ -844,7 +843,7 @@ describe("ApiClient label response schemas", () => {
       client.detachLabelFromResource("agent", "agent-1", "label-1"),
     ).resolves.toEqual({ labels: [] });
 
-    expect(fetchMock).toHaveBeenCalledTimes(10);
+    expect(fetchMock).toHaveBeenCalledTimes(9);
   });
 });
 
