@@ -891,7 +891,7 @@ func TestFetchFromClawHub_ContextCancelledMidDownloadAborts(t *testing.T) {
 // read (200 headers received, decode fails with "context canceled") must abort
 // the crawl, not be swallowed into a valid-SKILL.md/zero-files "success".
 func TestFetchFromSkillsSh_CrawlListingDecodeCancelledAborts(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	client, _ := newGitHubFixtureClient(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.Header.Get("X-Test-Original-Host") {

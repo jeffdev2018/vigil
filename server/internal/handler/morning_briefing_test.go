@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 	"time"
@@ -25,8 +26,8 @@ func briefingCall(t *testing.T, h http.HandlerFunc, method, path string) *testut
 
 func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
 	})
 	setBriefingSettings(t, true, 0, "UTC")
 	done := dbfx.Issue(t, "briefing done", testutil.Cols{"status": "done"})
@@ -38,8 +39,8 @@ func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 	dbfx.Exec(t, `UPDATE agent_task_queue SET error = 'tests failed on CI' WHERE id = $1`, task)
 	asked := dbfx.Issue(t, "briefing asked", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, asked)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, asked)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, asked)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, asked)
 	})
 	askDecision(t, asked, decisionBody()).Want(http.StatusCreated)
 
@@ -94,8 +95,8 @@ func TestMorningBriefingComposesSectionsAndSendsOnce(t *testing.T) {
 
 func TestMorningBriefingSchedulerWaitsForTheLocalHour(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM morning_briefing_sent WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE workspace_id = $1 AND type = 'morning_briefing'`, testWorkspaceID)
 	})
 	// Disabled: nothing, whatever the hour.
 	setBriefingSettings(t, false, 0, "UTC")

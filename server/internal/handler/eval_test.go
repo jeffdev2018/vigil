@@ -36,7 +36,7 @@ func evalWorkspaceCall(t *testing.T, h http.HandlerFunc, method, path string, bo
 func evalCleanup(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run, which made
+		// NOT context.Background(): Go cancels it just before cleanups run, which made
 		// every delete below a silent no-op and leaked eval rows into the next
 		// test in this package.
 		ctx := context.Background()

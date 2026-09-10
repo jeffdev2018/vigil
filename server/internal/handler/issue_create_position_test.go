@@ -85,7 +85,7 @@ func TestCreateIssuePositionBelowExplicitMinimum(t *testing.T) {
 	// Simulate drag-and-drop: overwrite the seed's position to a large negative
 	// value (-9999), as if the user dragged it to the very top of a long list.
 	const simulatedMinPos = -9999.0
-	if _, err := testPool.Exec(t.Context(),
+	if _, err := testPool.Exec(context.Background(),
 		`UPDATE issue SET position = $1 WHERE id = $2`,
 		simulatedMinPos, seed.ID,
 	); err != nil {

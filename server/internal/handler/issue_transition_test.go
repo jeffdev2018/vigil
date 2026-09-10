@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -158,7 +159,7 @@ func TestIssueTransitionHoldsForApproval(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 held", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	req := memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"})
@@ -205,7 +206,7 @@ func TestIssueTransitionApproveAppliesAndPublishes(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 approve", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -267,7 +268,7 @@ func TestIssueTransitionRejectMovesToFallbackStatus(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 reject", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -299,7 +300,7 @@ func TestIssueTransitionSecondDeciderGets409(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 race", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	var held map[string]any
@@ -498,7 +499,7 @@ func TestIssueTransitionCancelIsRequesterOnly(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 cancel", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 
 	requester := memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"})
@@ -533,7 +534,7 @@ func TestListIssueTransitionRequests(t *testing.T) {
 	})
 	issueID := dbfx.Issue(t, "F28 history", testutil.Cols{"status": "in_progress"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
+		testPool.Exec(context.Background(), `DELETE FROM issue_transition_request WHERE issue_id = $1`, issueID)
 	})
 	testutil.Call(t, testHandler.UpdateIssue, withURLParam(
 		memberRequest(t, "member", "PUT", "/api/issues/"+issueID, map[string]any{"status": "done"}), "id", issueID)).

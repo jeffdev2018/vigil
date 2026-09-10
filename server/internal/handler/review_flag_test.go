@@ -19,7 +19,7 @@ func reviewFlagCleanup(t *testing.T) {
 	t.Helper()
 	syncIssueCounter(t)
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		testPool.Exec(context.Background(), `DELETE FROM review_flag WHERE workspace_id = $1`, testWorkspaceID)
 	})
 }

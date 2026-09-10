@@ -513,7 +513,7 @@ var concurrentDownIndexCleanups = map[string]string{
 	"896_drop_pending_issue_agent_unique":                   "idx_one_pending_task_per_issue_agent_v2",
 	"897_drop_comment_content_bigm_index":                   "idx_comment_content_bigm",
 	"898_drop_comment_content_trgm_index":                   "idx_comment_content_trgm",
-	"900_drop_pending_issue_agent_v3":                      "idx_one_pending_task_per_issue_agent_v3",
+	"900_drop_pending_issue_agent_v3":                       "idx_one_pending_task_per_issue_agent_v3",
 }
 
 var preMigrationHooks = func() map[string]preMigrationHook {
@@ -602,7 +602,7 @@ var upMigrationConditions = map[string]migrationCondition{
 	// so a fresh database reaches 474 before the column exists. Skip the index
 	// there; migration 669 builds it once the column is in place, and a
 	// database that already ran 474 records 669 as a no-op (IF NOT EXISTS).
-	"474_issue_completed_at_index": whenColumnExists("issue", "completed_at"),
+	"474_issue_completed_at_index":    whenColumnExists("issue", "completed_at"),
 	"446_issue_properties_bigm_index": whenOperatorClassAvailable(pgBigmOperatorClass),
 }
 

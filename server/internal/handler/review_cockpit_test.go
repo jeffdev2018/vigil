@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -19,8 +20,8 @@ func getCockpit(t *testing.T, issueID, query string) *testutil.Response {
 func TestReviewCockpitAggregatesEverySource(t *testing.T) {
 	issue, task := completedAgentRun(t, "cockpit")
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
 	})
 	conn := vcsConnection(t)
 	vcsPR(t, conn, issue, 41, "success", "pending")

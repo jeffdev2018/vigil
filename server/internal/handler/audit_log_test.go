@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"net/http"
@@ -27,13 +28,13 @@ type auditPage struct {
 
 func TestAuditLogRecordsActionsFiltersPaginatesAndExports(t *testing.T) {
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `SELECT set_config('multica.audit_purge', 'on', false)`)
-		testPool.Exec(t.Context(), `DELETE FROM audit_log_entry WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `SELECT set_config('multica.audit_purge', 'on', false)`)
+		testPool.Exec(context.Background(), `DELETE FROM audit_log_entry WHERE workspace_id = $1`, testWorkspaceID)
 	})
 	issue := dbfx.Issue(t, "audited issue", testutil.Cols{"status": "todo"})
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
 	})
 	// Three actions from three features.
 	var card decisionEnvelope
