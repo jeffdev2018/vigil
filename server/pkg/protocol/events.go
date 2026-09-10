@@ -80,6 +80,10 @@ const (
 	// decide appeared or was settled. Workspace-wide, issue-scoped payload:
 	// {source: decision|transition|goal_question, id, issue_id, kind, outcome?}.
 	// Personal inbox items still carry the ask to each recipient.
+	// EventRunHaltChanged (fleet page): the kill switch or the halt setting
+	// flipped; payload {run_halt, cancelled?}.
+	EventRunHaltChanged = "run_halt:changed"
+
 	EventApprovalAsked   = "approval:asked"
 	EventApprovalDecided = "approval:decided"
 

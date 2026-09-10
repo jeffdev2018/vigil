@@ -101,6 +101,7 @@ func init() {
 	rootCmd.AddCommand(attachmentCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(updateCmd)
+	rootCmd.AddCommand(runsCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(sandboxRunCmd)
 	rootCmd.AddCommand(hookCmd)

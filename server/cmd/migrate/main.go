@@ -471,6 +471,7 @@ var concurrentIndexCleanups = map[string]string{
 	"867_issue_goal_issue_index":                                "idx_issue_goal_issue",
 	"869_workspace_twenty_connection_index":                     "idx_workspace_twenty_connection_workspace",
 	"877_channel_approval_message_ask_index":                    "idx_channel_approval_message_ask",
+	"878_agent_task_queue_agent_created_index":                  "idx_agent_task_queue_agent_created_desc",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction
