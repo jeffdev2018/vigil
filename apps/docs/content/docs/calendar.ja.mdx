@@ -1,0 +1,59 @@
+---
+title: カレンダー
+description: メンバーとエージェントが参加者となるイベント、課題の期限・サイクル・会議を束ねるアジェンダ、空き時間の検索、エージェントが提案し人が受け入れる提案、ICS フィードと Google カレンダー。
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+ワークスペースには専用のカレンダーがあります。**イベント**にはタイトル、タイムゾーン付きの時間枠、任意の場所、それが仕える任意の課題またはプロジェクト、そしてメンバーまたはエージェントである**参加者**があります — エージェントは人と同じようにレビューに出席し、その実行はそれを把握しています。
+
+## ページ
+
+サイドバーの**カレンダー**は月表示または週表示を出せます。各日にはワークスペースのイベント、その日が期限の**課題**、その日を通過する**サイクル**、記録された**会議**が並びます。イベントをクリックすると誰が参加しているかが分かり、自分の出欠（承諾、辞退、未定）を答えたり、移動したり、取り消したりできます。取り消したイベントは取り消し済みとして表示され続けるため、購読しているフィードもオフになったことを把握できます。
+
+**アジェンダ**ビューは同じ内容をリストとして示し、`GET /api/calendar/agenda` はそれをスクリプトに渡します。
+
+## 提案
+
+エージェントは自分だけで誰かのカレンダーに何かを載せることはできません。実行から — ネイティブランタイムの `propose_event` ツール、MCP の `vigil_calendar` ツール、または `multica calendar propose` を通じて — エージェントはそのイベントを、取り組んでいる課題に対して**提案済み**として登録し、その課題の関係者が[判断する](/decisions#どこで回答するか)あらゆる場所 — 課題のタイムライン、インボックス、チャット、電話、Slack、Telegram、Lark — で見える Decision Card を添えます。**承諾**すればスケジュールされ参加者が招待され、**辞退**すれば取り消されます。
+
+エージェントは提案する前にアジェンダを読み空き時間を尋ねるよう指示されており、提案は一度だけ行うようになっています。
+
+## 空き時間
+
+**空き時間を探す**（または `GET /api/calendar/slots`）は参加者、所要時間、期間を受け取り、全員が対応できる最初の時間帯を返します。メンバーは希望のタイムゾーンで平日 09:00〜18:00 の範囲内かつ自分のイベントの外側、エージェントは自分のイベントの外側であれば何時でも対象です。
+
+## 招待とリマインダー
+
+スケジュール済みのイベントに招待されたメンバーはインボックス項目とプッシュ通知を受け取り、イベントの移動は再招待になります。イベント開始 15 分前には、辞退していないすべての参加者にインボックスと電話でリマインダーが届きます。
+
+## あなたの ICS フィード
+
+**設定 → カレンダー → カレンダーアプリから購読**は、Apple カレンダー、Google カレンダー、Outlook が購読できる非公開の URL（`/api/calendar/ics/<token>`）を発行します。これにはあなたが参加または作成したイベントが、過去 1 か月分と今後 1 年分、取り消し済みのものにはその印を付けて含まれます。この URL 自体が認証情報であり、再発行するとローテーションされ、取り消すと無効になります。
+
+<Callout title="2 つの方向、2 つの設定">
+**購読するフィード**（Multica があなたのミーティングの名前付けに使う外部の ICS）は**設定 → 会議**にあります。**Multica が発行するフィード**があなたのためのこちらです。
+</Callout>
+
+## Google カレンダー
+
+**設定 → 連携 → Composio** の下で `googlecalendar` ツールキットを接続すると、**Google からインポート**が指定期間の Google イベントをワークスペースのカレンダーに取り込み（ソースは *google*、それらの id をキーにするため、2 回目のインポートは重複を作らず更新します）、ここでスケジュールしたイベントはあなたの Google カレンダーにミラーされます。エージェントはこれについて Google に直接触れることはありません — どちらの動きもあなた自身の接続を通じてサーバー側で実行されます。
+
+## ツールと CLI
+
+- ネイティブランタイム: `list_events`、`find_slot`、`propose_event`。
+- MCP: `vigil_calendar`、アクションは `events`、`agenda`、`slots`、`propose`。
+- CLI: `multica calendar agenda | events | slots | propose`。
+
+## API
+
+- `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`、`POST /api/calendar/events`、`GET/PUT/DELETE /api/calendar/events/{id}`、`POST /api/calendar/events/{id}/respond {response}`。
+- `GET /api/calendar/agenda?from&to`、`GET /api/calendar/slots?participants&duration&from&to&tz`。
+- `GET/POST/DELETE /api/calendar/feed-token`、公開の `GET /api/calendar/ics/{token}`。
+- `POST /api/calendar/google/import {from, to}`。
+- イベント `calendar:changed` は開いているページを最新に保ちます。インボックスの種類は `calendar_invitation` と `calendar_reminder`。
+
+## 次のステップ
+
+- [判断](/decisions) — 提案が受け入れられる場所。
+- [会議](/meetings) — アジェンダに表示される記録済みの会議。
