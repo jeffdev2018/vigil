@@ -1470,3 +1470,78 @@ func TestNativeAgentSendsPinnedModel(t *testing.T) {
 		t.Fatalf("plain request model = %q, want empty (client default)", got)
 	}
 }
+
+// N06 — search_workspace: one call answers "what was said about this" across
+// issues AND notes, workspace-guarded, closed issues included (a helpdesk
+// agent must find last week's request even if it was closed since).
+func TestNativeAgentSearchWorkspace(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	taskID := fx.Task(t, agentID, testutil.Cols{"runtime_id": runtimeID})
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+
+	// The traces: an OPEN issue, a CLOSED issue, and a note — all about VPN.
+	openID := fx.Issue(t, "VPN ne marche pas depuis le train", nil)
+	closedID := fx.Issue(t, "Accès VPN refusé la semaine dernière", testutil.Cols{"status": "done"})
+	fx.Insert(t, "workspace_note", testutil.Cols{
+		"workspace_id":    ws,
+		"id":              testutil.Raw("gen_random_uuid()"),
+		"title":           "Procédure VPN",
+		"content":         "Le VPN exige la double authentification depuis mars.",
+		"source":          "manual",
+		"created_by_type": "member",
+		"created_by_id":   user,
+	})
+
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, workspaceID: agent.WorkspaceID}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+
+	out, err := svc.callNativeToolRead(ctx, tctx, "search_workspace", map[string]any{"query": "VPN"})
+	if err != nil {
+		t.Fatalf("search_workspace: %v", err)
+	}
+	result := out.(map[string]any)
+	issues := result["issues"].([]map[string]any)
+	numbers := map[int32]bool{}
+	for _, i := range issues {
+		numbers[i["number"].(int32)] = true
+	}
+	var openNumber, closedNumber int32
+	pool.QueryRow(ctx, `SELECT number FROM issue WHERE id=$1`, openID).Scan(&openNumber)
+	pool.QueryRow(ctx, `SELECT number FROM issue WHERE id=$1`, closedID).Scan(&closedNumber)
+	if !numbers[openNumber] || !numbers[closedNumber] {
+		t.Fatalf("search missed open (%v) or closed (%v) issue; got %v", openNumber, closedNumber, numbers)
+	}
+	notes := result["notes"].([]map[string]any)
+	if len(notes) == 0 || notes[0]["title"] != "Procédure VPN" {
+		t.Fatalf("search missed the note: %v", notes)
+	}
+
+	// Workspace guard: another workspace's issue must not leak.
+	otherWs := bootstrap.Workspace(t, fmt.Sprintf("native-other-%d", suffix), fmt.Sprintf("native-other-%d", suffix))
+	fx2 := testutil.New(pool, otherWs, user)
+	fx2.Member(t, otherWs, user, "owner")
+	fx2.Issue(t, "VPN secret de l'autre workspace", nil)
+	out2, err := svc.callNativeToolRead(ctx, tctx, "search_workspace", map[string]any{"query": "secret de l'autre"})
+	if err != nil {
+		t.Fatalf("second search: %v", err)
+	}
+	if got := len(out2.(map[string]any)["issues"].([]map[string]any)); got != 0 {
+		t.Fatalf("cross-workspace leak: %d issues from another workspace", got)
+	}
+}

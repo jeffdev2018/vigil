@@ -61,3 +61,16 @@ UPDATE agent_task_queue
 SET status = $2, result = $3, error = $4, completed_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: SearchIssuesForNative :many
+-- Workspace-scoped substring search over issue titles and descriptions for the
+-- native agent's search_workspace tool (N06). Same closed-inclusive contract
+-- as the picker's search: a helpdesk agent must find last week's request even
+-- if it was closed since. ponytail: ILIKE per term, no tsvector on issue —
+-- revisit if a workspace's issues make this slow.
+SELECT id, number, title, status FROM issue
+WHERE workspace_id = sqlc.arg('workspace_id')
+  AND (title ILIKE '%' || sqlc.arg('needle') || '%'
+       OR COALESCE(description, '') ILIKE '%' || sqlc.arg('needle') || '%')
+ORDER BY updated_at DESC
+LIMIT sqlc.arg('page_limit');
