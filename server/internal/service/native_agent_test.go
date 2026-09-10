@@ -1705,3 +1705,125 @@ func TestNativeAgentOrgDeniesResolveByUnit(t *testing.T) {
 		t.Fatalf("plumbing over-removed tools: %d", len(specs))
 	}
 }
+
+// N09 — cooperative stop. A run cancelled mid-flight leaves the loop at the
+// next turn boundary with a system transcript row, and does not double-settle
+// the task; a halted workspace stops the run the same way.
+func TestNativeAgentStopsWhenCancelled(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Cancelled mid-run")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	// Turn 1 runs get_issue; between turns the harness cancels the task; the
+	// loop must leave at the turn-2 boundary.
+	midRun := func() {
+		pool.Exec(ctx, `UPDATE agent_task_queue SET status='cancelled', completed_at=now() WHERE id=$1`, taskID)
+	}
+	llm := &midRunLLM{inner: &scriptedNativeLLM{turns: []openai.ChatCompletion{
+		nativeToolCallTurn("call_1", "get_issue", `{}`),
+		nativeTextTurn("done"),
+	}}, afterCall: midRun}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM agent_task_queue WHERE id=$1`, taskID).Scan(&status); err != nil {
+		t.Fatalf("read status: %v", err)
+	}
+	if status != "cancelled" {
+		t.Fatalf("status = %q, want cancelled (not re-settled by the loop)", status)
+	}
+	var stopRows int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_message WHERE task_id=$1 AND type='system' AND content LIKE 'Run stopped:%cancelled%'`, taskID).Scan(&stopRows); err != nil {
+		t.Fatalf("count stop rows: %v", err)
+	}
+	if stopRows != 1 {
+		t.Fatalf("stop transcript rows = %d, want exactly 1", stopRows)
+	}
+	// The model was not called for a second turn.
+	if llm.inner.calls != 1 {
+		t.Fatalf("model calls = %d, want 1 (loop left at the turn boundary)", llm.inner.calls)
+	}
+}
+
+// A halted workspace stops the run the same way, carrying the halt's reason.
+func TestNativeAgentStopsWhenWorkspaceHalted(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Halted workspace")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	// Halt the workspace before the first turn: even turn 1 must respect it.
+	pool.Exec(ctx, `UPDATE workspace SET settings = jsonb_set(COALESCE(settings,'{}'::jsonb), '{run_halt}', '{"halted":true,"reason":"incident declared"}'::jsonb) WHERE id=$1`, ws)
+
+	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{nativeTextTurn("never reached")}}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	if llm.calls != 0 {
+		t.Fatalf("model calls = %d, want 0 (halt respected from turn 1)", llm.calls)
+	}
+	var stopRows int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_message WHERE task_id=$1 AND type='system' AND content LIKE '%incident declared%'`, taskID).Scan(&stopRows); err != nil {
+		t.Fatalf("count stop rows: %v", err)
+	}
+	if stopRows != 1 {
+		t.Fatalf("stop transcript rows = %d, want 1 carrying the halt reason", stopRows)
+	}
+}
+
+// midRunLLM wraps the scripted model and fires a hook after each model call.
+type midRunLLM struct {
+	inner     *scriptedNativeLLM
+	afterCall func()
+}
+
+func (m *midRunLLM) Enabled() bool { return m.inner.Enabled() }
+
+func (m *midRunLLM) Chat(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+	out, err := m.inner.Chat(ctx, params)
+	m.afterCall()
+	return out, err
+}
+
+func (m *midRunLLM) ChatStream(ctx context.Context, params openai.ChatCompletionNewParams) (NativeChatStream, error) {
+	m.afterCall()
+	return m.inner.ChatStream(ctx, params)
+}

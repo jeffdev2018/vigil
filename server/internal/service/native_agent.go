@@ -81,6 +81,10 @@ const (
 	nativeToolResultCap = 8 * 1024
 	// nativeCommentMaxLen bounds an agent-authored comment (characters).
 	nativeCommentMaxLen = 30000
+	// Cooperative stop (N09): the workspace halt is re-read at most this
+	// often, so a fleet-wide halt costs one settings read per run per
+	// interval instead of per turn.
+	nativeHaltCheckInterval = 30 * time.Second
 	// Streaming (N04): how often the growing final text is persisted and
 	// republished while chunks arrive. The client flushes on a 100 ms window,
 	// so 250 ms here lands visibly without thrashing the table.
@@ -282,6 +286,14 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	cx := newNativeContext(nativeSystemPrompt(agent), brief)
 
 	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeFilterToolSpecs(nativeAgentToolSpecsFor(0), tctx.orgDenies), nativeMaxTurns, &usage)
+	if errors.Is(loopErr, errNativeRunStopped) {
+		// Cancelled or halted: the transcript already says why. Record usage;
+		// when the task was cancelled it is settled, and when the workspace
+		// was halted the stale reclaim picks the row back up once the halt
+		// lifts — the halt contract is "buy time", not "fail the work".
+		recordUsage()
+		return
+	}
 	if errors.Is(loopErr, errNativeRunLimitStopped) {
 		// The workspace's run limit already settled the task with the gate's
 		// message (N07); recording usage is all that is left.
@@ -333,7 +345,16 @@ var errNativeTimeout = errors.New("native run timed out")
 // text is the failure message to settle the task with.
 func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContext, cx *nativeContext, tools []openai.ChatCompletionToolUnionParam, maxTurns int, usage *nativeRunUsage) (string, error) {
 	taskID := tctx.task.ID
+	stop := &nativeStopCheck{queries: s.Queries}
+	nowMs := func() int64 { return time.Now().UnixMilli() }
 	for turn := 0; turn < maxTurns; turn++ {
+		// Cooperative stop (N09): a human cancelling the run or halting the
+		// workspace must not wait out the timeout. Checked BEFORE the turn so
+		// even the first turn respects a halt that landed during the claim.
+		if stopped, why := stop.shouldStop(ctx, taskID, tctx.workspaceID, nowMs); stopped {
+			s.writeNativeMessage(ctx, taskID, "system", "", "Run stopped: "+why, nil)
+			return "", errNativeRunStopped
+		}
 		// The last turn, or the first turn after a budget refusal, is a
 		// wrap-up: no tools, one question — what was done, what remains,
 		// what blocks. A run that ends on "turn limit reached" leaves the
