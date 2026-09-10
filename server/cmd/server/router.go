@@ -441,6 +441,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		LLMEmbeddingModel:        strings.TrimSpace(os.Getenv("MULTICA_LLM_EMBEDDING_MODEL")),
 		LLMMaxRetries:            opts.LLMMaxRetries,
 		LLMRoutingModel:          strings.TrimSpace(os.Getenv("MULTICA_LLM_ROUTING_MODEL")),
+		ConsultModel:             strings.TrimSpace(os.Getenv("MULTICA_CONSULT_MODEL")),
 		STTBaseURL:               strings.TrimSpace(os.Getenv("MULTICA_STT_BASE_URL")),
 		STTAPIKey:                strings.TrimSpace(os.Getenv("MULTICA_STT_API_KEY")),
 		STTModel:                 strings.TrimSpace(os.Getenv("MULTICA_STT_MODEL")),
@@ -3187,6 +3188,24 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				r.Get("/cost-per-deliverable", h.GetDashboardCostPerDeliverable)
 				// ROI per agent (JEF-252).
 				r.Get("/roi-by-agent", h.GetDashboardAgentRoi)
+			})
+
+			// Fleet (JEF-12): compact workspace fleet reads feeding the Mika
+			// agent's "quels agents tournent / combien a coûté X / historique"
+			// skill. Member reads; private agents are folded, never named.
+			r.Route("/api/fleet", func(r chi.Router) {
+				r.Get("/status", h.GetFleetStatus)
+				r.Get("/cost", h.GetFleetCost)
+				r.Get("/history", h.GetFleetHistory)
+			})
+
+			// Consult (JEF-12): synchronous in-task LLM consult. POST is
+			// task_token-only, guarded in-handler (mirrors chat history); the
+			// reads also serve workspace members who can see the agent.
+			r.Route("/api/consult", func(r chi.Router) {
+				r.Post("/", h.CreateAgentConsult)
+				r.Get("/", h.ListAgentConsults)
+				r.Get("/{id}", h.GetAgentConsultByID)
 			})
 
 			// Runtimes

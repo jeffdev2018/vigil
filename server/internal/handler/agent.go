@@ -455,6 +455,10 @@ type AgentTaskResponse struct {
 	// daemon reads it off the claim to decide whether to measure the run's
 	// diff; empty for every ordinary run.
 	RunGroupID string `json:"run_group_id,omitempty"`
+	// ModelOverride (JEF-12) lets one task run on a different model than its
+	// agent's default; the daemon's model cascade reads it before agent.model.
+	// Empty for ordinary runs.
+	ModelOverride string `json:"model_override,omitempty"`
 	// Run confidence (JEF-240): the self-assessed score persisted after a
 	// successful run — score, rationale, model, the threshold that applied and
 	// whether the run landed below it. Empty for unscored runs (disabled LLM,
@@ -996,6 +1000,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		Routing:                json.RawMessage(t.Routing),
 		DispatchLane:           t.DispatchLane,
 		RunGroupID:             uuidToString(t.RunGroupID),
+		ModelOverride:          t.ModelOverride.String,
 		LegRole:                t.LegRole,
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),

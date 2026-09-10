@@ -81,13 +81,18 @@ type SandboxSpec struct {
 // Task represents a claimed task from the server.
 // Agent data (name, skills) is populated by the claim endpoint.
 type Task struct {
-	ID                   string                 `json:"id"`
-	AgentID              string                 `json:"agent_id"`
-	RuntimeID            string                 `json:"runtime_id"`
-	IssueID              string                 `json:"issue_id"`
-	WorkspaceID          string                 `json:"workspace_id"`
-	WorkspaceSlug        string                 `json:"workspace_slug,omitempty"`
-	IssueIdentifier      string                 `json:"issue_identifier,omitempty"`
+	ID              string `json:"id"`
+	AgentID         string `json:"agent_id"`
+	RuntimeID       string `json:"runtime_id"`
+	IssueID         string `json:"issue_id"`
+	WorkspaceID     string `json:"workspace_id"`
+	WorkspaceSlug   string `json:"workspace_slug,omitempty"`
+	IssueIdentifier string `json:"issue_identifier,omitempty"`
+	// ModelOverride (JEF-12) mirrors agent_task_queue.model_override: a
+	// per-task model pin that outranks the agent's configured model and the
+	// daemon-wide env tier in the daemon's model cascade. Empty on a server
+	// predating the field, which reads as "no override".
+	ModelOverride        string                 `json:"model_override,omitempty"`
 	RemoteMCPConnections []remotemcp.Connection `json:"remote_mcp_connections,omitempty"`
 	// McpGateway (K77) is the per-tool policy the daemon enforces on every MCP
 	// server of the run. Nil on a server too old to send it: the daemon then

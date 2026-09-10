@@ -703,7 +703,17 @@
     "revert_dialog_confirm": "Revenir en arrière",
     "revert_pending": "Retour en cours…",
     "revert_done": "Revenu à ce tour",
-    "revert_failed": "Le retour en arrière n'a pas abouti"
+    "revert_failed": "Le retour en arrière n'a pas abouti",
+    "consult": {
+      "answered": "{{model}} consulté · {{cost}}",
+      "pending": "Consultation de {{model}}…",
+      "failed": "La consultation de {{model}} a échoué",
+      "refused": "Consultation de {{model}} refusée · {{reason}}",
+      "refused_no_reason": "Consultation de {{model}} refusée",
+      "cost_unreported": "coût non rapporté",
+      "reason_budget_exceeded": "budget quotidien de consultations épuisé",
+      "reason_llm_disabled": "aucun LLM configuré pour les consultations"
+    }
   },
   "legs": {
     "workflow": "Workflow",

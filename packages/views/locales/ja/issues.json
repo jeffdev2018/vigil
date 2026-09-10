@@ -698,7 +698,17 @@
     "revert_dialog_confirm": "ブランチを戻す",
     "revert_pending": "戻しています…",
     "revert_done": "このターンに戻しました",
-    "revert_failed": "戻す処理が完了しませんでした"
+    "revert_failed": "戻す処理が完了しませんでした",
+    "consult": {
+      "answered": "{{model}} に相談 · {{cost}}",
+      "pending": "{{model}} に相談中…",
+      "failed": "{{model}} への相談に失敗しました",
+      "refused": "{{model}} への相談は拒否されました · {{reason}}",
+      "refused_no_reason": "{{model}} への相談は拒否されました",
+      "cost_unreported": "コストは報告されていません",
+      "reason_budget_exceeded": "1日の相談予算を使い切りました",
+      "reason_llm_disabled": "相談用の LLM が設定されていません"
+    }
   },
   "legs": {
     "workflow": "ワークフロー",

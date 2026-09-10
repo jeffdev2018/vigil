@@ -672,6 +672,11 @@ cleared_versions AS (DELETE FROM agent_memory_version WHERE workspace_id = $1)
 -- logically hangs off.
 DELETE FROM agent_memory WHERE agent_memory.workspace_id = $1;
 
+-- name: DeleteWorkspaceAgentConsults :exec
+-- agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
+-- before the agent rows it logically hangs off.
+DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1;
+
 -- name: DeleteWorkspacePostmortems :exec
 -- postmortem carries no FK by repo rule; sweep it by workspace.
 DELETE FROM postmortem WHERE postmortem.workspace_id = $1;

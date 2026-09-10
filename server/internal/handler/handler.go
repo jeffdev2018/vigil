@@ -147,6 +147,7 @@ type Config struct {
 	//   - STTLanguage      -> MULTICA_STT_LANGUAGE (ISO 639-1 hint, optional)
 	//   - STTDiarize       -> MULTICA_STT_DIARIZE (speaker labels where supported)
 	//   - LLMRoutingModel  -> MULTICA_LLM_ROUTING_MODEL (small fast model for webhook event routing; empty = default model)
+	//   - ConsultModel     -> MULTICA_CONSULT_MODEL (model for POST /api/consult; empty = llm.FallbackModel)
 	//   - STTRealtimeModel -> MULTICA_STT_REALTIME_MODEL (live transcript via the provider's realtime WebSocket)
 	//   - TTSBaseURL       -> MULTICA_TTS_BASE_URL (OpenAI-compatible /v1/audio/speech)
 	//   - TTSAPIKey        -> MULTICA_TTS_API_KEY
@@ -155,6 +156,11 @@ type Config struct {
 	LLMAPIKey       string
 	LLMBaseURL      string
 	LLMDefaultModel string
+	// ConsultModel pins the model POST /api/consult calls (JEF-12).
+	// MULTICA_CONSULT_MODEL; empty falls back to llm.FallbackModel — NOT to
+	// LLMDefaultModel, so a deployment's default-model change cannot silently
+	// reprice in-task consults.
+	ConsultModel string
 	// LLMEmbeddingModel enables the embeddings surface (K47). Empty is the
 	// default and a supported steady state: the shared repo index then ranks
 	// lexically and no code text is ever sent to the embeddings upstream.
@@ -452,6 +458,10 @@ type Handler struct {
 	// Config); when unconfigured its Enabled() reports false and callers fall
 	// back silently.
 	LLM *llm.Client
+	// ConsultLLM is the LLM seam for POST /api/consult (JEF-12): same client
+	// as LLM in production, an interface so handler tests can stub it. Read
+	// through consultLLM() — it falls back to LLM when unset.
+	ConsultLLM ConsultLLM
 	// STT transcribes audio for voice memos and meetings. Always non-nil;
 	// Enabled() is false when MULTICA_STT_* is unset.
 	STT *stt.Client
@@ -624,9 +634,12 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 			Timeout: cfg.CloudTimeout,
 		}),
 		LLM: llmClient,
-		STT: stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
-		TTS: tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
-		cfg: cfg,
+		// Agent consult (JEF-12) shares the same internal LLM client; the field
+		// is an interface so tests can stub the whole consult path.
+		ConsultLLM: llmClient,
+		STT:        stt.New(stt.Config{BaseURL: cfg.STTBaseURL, APIKey: cfg.STTAPIKey, Model: cfg.STTModel, Language: cfg.STTLanguage, Diarize: cfg.STTDiarize, RealtimeModel: cfg.STTRealtimeModel}),
+		TTS:        tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
+		cfg:        cfg,
 	}
 	h.NativeAgents.Goal = h.GoalLoop
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)

@@ -7331,6 +7331,29 @@ type taskModelSelection struct {
 	ServiceTier   string
 }
 
+// resolveTaskModel settles the model tier cascade for a run (JEF-12):
+// a per-task model_override wins first, then the agent's configured model,
+// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If all three are
+// empty we deliberately pass "" through — each backend omits `--model` from
+// the CLI invocation, so the provider picks its own default (Claude Code's
+// shipped default, codex app-server's account-scoped default, etc.). Baking
+// a Go-side "recommended default" here is how the cursor regression
+// happened — static guesses drift from whatever the upstream CLI actually
+// accepts.
+//
+// Catalog qualification (resolveTaskModelSelection) runs on whatever this
+// returns, so an override gets the same qualify-or-pass-through treatment
+// as an agent.model value.
+func resolveTaskModel(task Task, envModel string) string {
+	if task.ModelOverride != "" {
+		return task.ModelOverride
+	}
+	if task.Agent != nil && task.Agent.Model != "" {
+		return task.Agent.Model
+	}
+	return envModel
+}
+
 // resolveTaskModelSelection settles the model selector and its capability
 // overrides against the runtime's own model catalog, reading that catalog at
 // most once per task — and not at all when nothing needs it.
@@ -8592,27 +8615,15 @@ func (d *Daemon) runTask(ctx context.Context, task Task, provider string, slot i
 		return TaskResult{}, fmt.Errorf("create agent backend: %w", err)
 	}
 
-	// Two-tier model resolution: an explicit agent.model wins,
-	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var. If
-	// both are empty we deliberately pass "" through — each
-	// backend omits `--model` from the CLI invocation, so the
-	// provider picks its own default (Claude Code's shipped
-	// default, codex app-server's account-scoped default, etc.).
-	// Baking a Go-side "recommended default" here is how the
-	// cursor regression happened — static guesses drift from
-	// whatever the upstream CLI actually accepts.
+	// Model cascade: task.model_override (JEF-12) wins, then agent.model,
+	// then the daemon-wide MULTICA_<PROVIDER>_MODEL env var; empty passes
+	// through so the CLI picks its own default (see resolveTaskModel).
 	//
 	// Resolved before the start log rather than at first use: logging
 	// entry.Model there reported the env-var tier alone, so every task whose
 	// model came from agent.model — the common case — announced itself with an
 	// empty model and looked like the selection had been dropped (GH #7300).
-	model := ""
-	if task.Agent != nil && task.Agent.Model != "" {
-		model = task.Agent.Model
-	}
-	if model == "" {
-		model = entry.Model
-	}
+	model := resolveTaskModel(task, entry.Model)
 
 	taskLog.Info("starting agent",
 		"provider", provider,

@@ -422,6 +422,11 @@ func writeAvailableCommands(b *strings.Builder, ctx TaskContextForEnv) {
 	b.WriteString("- `multica issue children <id> [--output json]` — list a parent's sub-issues grouped by stage.\n")
 	b.WriteString("- `multica issue comment add <issue-id> [--content \"...\" | --content-file <path> | --content-stdin] [--parent <comment-id>] [--attachment <path>]` — post a comment. Agent-authored bodies MUST use `--content-file`; see `## Comment Formatting` for why. `multica issue comment add --help` for full flags.\n")
 	b.WriteString("- `multica repo checkout <url> [--ref <branch-or-sha>]` — repository checkout on a dedicated branch.\n\n")
+	// Fleet/consult (JEF-12) are agent-facing tools, not issue-loop commands:
+	// they get their own subsection so the Core list stays the agent loop.
+	b.WriteString("### Fleet & consult\n")
+	b.WriteString("- `multica fleet status|cost|history [--since <RFC3339|YYYY-MM-DD>] [--agent-id <uuid>] --output json` — who's running now, per-agent cost, and daily activity for this workspace.\n")
+	b.WriteString("- `multica consult \"<question>\" [--context <file>] [--output json]` — ask the platform's internal LLM one question mid-run; prints the answer to stdout (`--output json` for the full object). A refused consult (budget exhausted or LLM disabled) prints to stderr and exits 0 — continue without it.\n\n")
 	// Squad maintenance is squad-leader surface: an agent that leads no squad
 	// has no squad to change roles in, so this shipped to every run as dead
 	// weight (MUL-5442). IsSquadLeader is a PER-TASK role (the daemon derives

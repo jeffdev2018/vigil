@@ -106,6 +106,17 @@ func (q *Queries) DeleteWorkspaceAdministration(ctx context.Context, workspaceID
 	return err
 }
 
+const deleteWorkspaceAgentConsults = `-- name: DeleteWorkspaceAgentConsults :exec
+DELETE FROM agent_consult WHERE agent_consult.workspace_id = $1
+`
+
+// agent_consult (JEF-12) carries no FK by repo rule; sweep it by workspace
+// before the agent rows it logically hangs off.
+func (q *Queries) DeleteWorkspaceAgentConsults(ctx context.Context, workspaceID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deleteWorkspaceAgentConsults, workspaceID)
+	return err
+}
+
 const deleteWorkspaceAgentEffects = `-- name: DeleteWorkspaceAgentEffects :exec
 DELETE FROM agent_effect WHERE agent_effect.workspace_id = $1
 `

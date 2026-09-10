@@ -698,7 +698,17 @@
     "revert_dialog_confirm": "回退分支",
     "revert_pending": "正在回退…",
     "revert_done": "已回退到这一轮",
-    "revert_failed": "回退未完成"
+    "revert_failed": "回退未完成",
+    "consult": {
+      "answered": "已咨询 {{model}} · {{cost}}",
+      "pending": "正在咨询 {{model}}…",
+      "failed": "咨询 {{model}} 失败",
+      "refused": "咨询 {{model}} 被拒绝 · {{reason}}",
+      "refused_no_reason": "咨询 {{model}} 被拒绝",
+      "cost_unreported": "未报告成本",
+      "reason_budget_exceeded": "每日咨询预算已用尽",
+      "reason_llm_disabled": "未配置用于咨询的 LLM"
+    }
   },
   "legs": {
     "workflow": "工作流",

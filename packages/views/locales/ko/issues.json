@@ -698,7 +698,17 @@
     "revert_dialog_confirm": "브랜치 되돌리기",
     "revert_pending": "되돌리는 중…",
     "revert_done": "이 턴으로 되돌렸습니다",
-    "revert_failed": "되돌리기가 완료되지 않았습니다"
+    "revert_failed": "되돌리기가 완료되지 않았습니다",
+    "consult": {
+      "answered": "{{model}}에 질의함 · {{cost}}",
+      "pending": "{{model}}에 질의 중…",
+      "failed": "{{model}} 질의에 실패했습니다",
+      "refused": "{{model}} 질의가 거부되었습니다 · {{reason}}",
+      "refused_no_reason": "{{model}} 질의가 거부되었습니다",
+      "cost_unreported": "보고된 비용 없음",
+      "reason_budget_exceeded": "일일 질의 예산을 모두 사용했습니다",
+      "reason_llm_disabled": "질의용 LLM이 설정되어 있지 않습니다"
+    }
   },
   "legs": {
     "workflow": "워크플로",

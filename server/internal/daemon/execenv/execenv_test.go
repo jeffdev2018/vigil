@@ -1427,6 +1427,9 @@ func TestInjectRuntimeConfigAvailableCommandsCoreOnly(t *testing.T) {
 		"multica issue status <id> <status> [--no-start]",
 		"multica issue comment add <issue-id>",
 		"multica issue comment add --help",
+		"### Fleet & consult",
+		"multica fleet status|cost|history",
+		"multica consult \"<question>\"",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("AGENTS.md missing core command/help text %q\n---\n%s", want, s)
