@@ -244,7 +244,12 @@ func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueServi
 // only when this is true, and routing refuses a native-bound trigger when
 // it is false, so a run never sits queued in silence.
 func (s *NativeAgentService) Available() bool {
-	return s != nil && s.LLM != nil && s.LLM.Enabled() && !s.llmFuseOpen()
+	if s == nil || s.LLM == nil || !s.LLM.Enabled() {
+		return false
+	}
+	// The fuse is per model since the model failover landed: availability is
+	// judged on the model a fresh agent would get, the client's default.
+	return !s.llmFuseOpen(nativeResolvedModel(s.LLM, db.Agent{}))
 }
 
 func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
