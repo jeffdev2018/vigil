@@ -43,6 +43,7 @@ import { copyText } from "@multica/ui/lib/clipboard";
 import { Button } from "@multica/ui/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@multica/ui/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@multica/ui/components/ui/popover";
+import { MemoryContextDetails } from "./memory-context-details";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -1416,6 +1417,7 @@ export function AgentTranscriptDialog({
                         </>
                       )}
                     </div>
+                    <MemoryContextDetails context={task.memory_context} />
                   </PopoverContent>
                 </Popover>
               )}

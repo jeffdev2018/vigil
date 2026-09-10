@@ -967,6 +967,16 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 	if t.HandoffNote.Valid {
 		handoffNote = t.HandoffNote.String
 	}
+	// The claim writes this column; a row that predates the claim path, or one
+	// whose JSON does not decode into the recorded shape, stays nil so the
+	// client reads "unrecorded" rather than a fabricated empty selection.
+	var memoryContext *service.TaskMemoryContext
+	if len(t.MemoryContext) > 0 {
+		var decoded service.TaskMemoryContext
+		if err := json.Unmarshal(t.MemoryContext, &decoded); err == nil {
+			memoryContext = &decoded
+		}
+	}
 	// Cascade escalation (JEF-272) lives in the context JSONB, not a column.
 	var escalation json.RawMessage
 	if len(t.Context) > 0 {
@@ -1005,6 +1015,7 @@ func taskToResponse(t db.AgentTaskQueue, workspaceID string) AgentTaskResponse {
 		WorkflowRootTaskID:     uuidToString(t.WorkflowRootTaskID),
 		Confidence:             json.RawMessage(t.Confidence),
 		Escalation:             escalation,
+		MemoryContext:          memoryContext,
 		Workflow:               service.TaskWorkflow(t.Context),
 		PauseRequestedAt:       timestampToPtr(t.PauseRequestedAt),
 		ResumedByTaskID:        uuidToPtr(t.ResumedByTaskID),
