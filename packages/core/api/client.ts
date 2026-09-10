@@ -335,6 +335,14 @@ import type {
   WorkspaceNotesResponse,
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
+  BrainCapture,
+  BrainCapturesResponse,
+  BrainCaptureStatus,
+  CreateBrainCaptureInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UploadBrainCaptureInput,
+  WorkspaceNoteSearchResponse,
   TransferPreview,
   TransferReport,
   TransferImportResult,
@@ -734,6 +742,14 @@ import {
   WorkspaceNotesResponseSchema,
   EMPTY_WORKSPACE_NOTE,
   EMPTY_WORKSPACE_NOTES_RESPONSE,
+  BrainCaptureResponseSchema,
+  BrainCapturesResponseSchema,
+  OrganizeBrainCaptureResponseSchema,
+  WorkspaceNoteSearchResponseSchema,
+  EMPTY_BRAIN_CAPTURE,
+  EMPTY_BRAIN_CAPTURES_RESPONSE,
+  EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+  EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
   CreateIssueResponseSchema,
   IssueSchema,
   AgentTaskSchema,
@@ -2993,6 +3009,139 @@ export class ApiClient {
     await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+  }
+
+  /**
+   * Ranked note search: lexical rank fused with a vector rank by RRF when an
+   * embeddings model is configured (`vector` says which). Separate from
+   * `listWorkspaceNotes` because it returns hits with a snippet and a score,
+   * not the note list plus its tag facets.
+   */
+  async searchWorkspaceNotes(
+    params: { q: string; tag?: string; archived?: boolean; limit?: number },
+    init?: RequestInit,
+  ): Promise<WorkspaceNoteSearchResponse> {
+    const qs = new URLSearchParams({ q: params.q });
+    if (params.tag) qs.set("tag", params.tag);
+    if (params.archived === true) qs.set("archived", "true");
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    const raw = await this.fetch<unknown>(
+      `/api/workspace/notes/search?${qs.toString()}`,
+      init,
+    );
+    return parseWithFallback<WorkspaceNoteSearchResponse>(
+      raw,
+      WorkspaceNoteSearchResponseSchema,
+      EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
+      { endpoint: "GET /api/workspace/notes/search" },
+    );
+  }
+
+  // Brain capture inbox: capture first, organize later.
+  async listBrainCaptures(
+    params?: { status?: BrainCaptureStatus | "all"; limit?: number },
+    init?: RequestInit,
+  ): Promise<BrainCapturesResponse> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/brain/captures${query ? `?${query}` : ""}`,
+      init,
+    );
+    return parseWithFallback<BrainCapturesResponse>(
+      raw,
+      BrainCapturesResponseSchema,
+      EMPTY_BRAIN_CAPTURES_RESPONSE,
+      { endpoint: "GET /api/brain/captures" },
+    );
+  }
+
+  async getBrainCapture(id: string, init?: RequestInit): Promise<BrainCapture> {
+    const raw = await this.fetch<unknown>(
+      `/api/brain/captures/${encodeURIComponent(id)}`,
+      init,
+    );
+    return this.parseCapture(raw, "GET /api/brain/captures/:id");
+  }
+
+  async createBrainCapture(input: CreateBrainCaptureInput): Promise<BrainCapture> {
+    const raw = await this.fetch<unknown>("/api/brain/captures", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return this.parseCapture(raw, "POST /api/brain/captures");
+  }
+
+  async uploadBrainCapture(input: UploadBrainCaptureInput): Promise<BrainCapture> {
+    const form = new FormData();
+    form.append(
+      "file",
+      input.file,
+      input.file instanceof File ? input.file.name : "capture",
+    );
+    if (input.content) form.append("content", input.content);
+    if (input.title_hint) form.append("title_hint", input.title_hint);
+    if (input.origin) form.append("origin", input.origin);
+    // fetchRaw, not fetch: a multipart body must not carry a JSON content type,
+    // and a failure has to stay an ApiError so the caller can read its status
+    // (503 = no storage configured).
+    const res = await this.fetchRaw("/api/brain/captures/upload", {
+      method: "POST",
+      body: form,
+    });
+    const raw = (await res.json()) as unknown;
+    return this.parseCapture(raw, "POST /api/brain/captures/upload");
+  }
+
+  /** Re-ask the model. 503 when none is configured, 502 when the call failed. */
+  async suggestBrainCapture(id: string): Promise<BrainCapture> {
+    const raw = await this.fetch<unknown>(
+      `/api/brain/captures/${encodeURIComponent(id)}/suggest`,
+      { method: "POST" },
+    );
+    return this.parseCapture(raw, "POST /api/brain/captures/:id/suggest");
+  }
+
+  async organizeBrainCapture(
+    id: string,
+    input: OrganizeBrainCaptureInput,
+  ): Promise<OrganizeBrainCaptureResponse> {
+    const raw = await this.fetch<unknown>(
+      `/api/brain/captures/${encodeURIComponent(id)}/organize`,
+      { method: "POST", body: JSON.stringify(input) },
+    );
+    return parseWithFallback<OrganizeBrainCaptureResponse>(
+      raw,
+      OrganizeBrainCaptureResponseSchema,
+      EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+      { endpoint: "POST /api/brain/captures/:id/organize" },
+    );
+  }
+
+  async reopenBrainCapture(id: string): Promise<BrainCapture> {
+    const raw = await this.fetch<unknown>(
+      `/api/brain/captures/${encodeURIComponent(id)}/reopen`,
+      { method: "POST" },
+    );
+    return this.parseCapture(raw, "POST /api/brain/captures/:id/reopen");
+  }
+
+  async deleteBrainCapture(id: string): Promise<void> {
+    await this.fetch<void>(`/api/brain/captures/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Every capture write answers `{capture}`; unwrap it once. */
+  private parseCapture(raw: unknown, endpoint: string): BrainCapture {
+    return parseWithFallback(
+      raw,
+      BrainCaptureResponseSchema,
+      { capture: EMPTY_BRAIN_CAPTURE },
+      { endpoint },
+    ).capture as BrainCapture;
   }
 
   async setWorkspaceNoteArchived(id: string, archived: boolean): Promise<WorkspaceNote> {

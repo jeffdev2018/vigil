@@ -10,7 +10,8 @@
     "issues": "Issues",
     "cancelled": "Annulés",
     "recent": "Récents",
-    "why": "Pourquoi"
+    "why": "Pourquoi",
+    "brain": "Brain"
   },
   "commands": {
     "current_theme_aria": "Thème actuel",
@@ -40,5 +41,10 @@
     "task_message": "Message d'exécution",
     "decision_record": "Registre de décision",
     "empty": "Aucune source pertinente. Essayez de reformuler la question."
+  },
+  "brain": {
+    "capture": "Capturer dans le Brain : {{text}}",
+    "captured": "Capturé dans la boîte de capture",
+    "capture_failed": "La capture a échoué"
   }
 }
