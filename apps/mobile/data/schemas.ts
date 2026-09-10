@@ -1482,3 +1482,287 @@ export type DoctrineReportsResponse = z.infer<
   typeof DoctrineReportsResponseSchema
 >;
 export const EMPTY_DOCTRINE_REPORTS: DoctrineReportsResponse = { reports: [] };
+
+// ---------------------------------------------------------------------------
+// Packs (OS plan, vague B) — GET /api/packs, /api/packs/{id},
+// /api/packs/installed, /api/packs/installed/{id}, and the preview / install
+// / uninstall responses. Field-for-field mirror of
+// `packages/core/packs/schemas.ts` (itself mirroring `PackSummary`,
+// `PackPrerequisite`, `PackContents`, `PackInstallResponse`, `packPreview`
+// and `packUninstallReport` in `server/internal/handler/packs.go`).
+//
+// Copied rather than imported: `@multica/core` exports `./packs` only as the
+// barrel, which pulls the api client, the react-query hooks and every other
+// feature's key factory with it — not on mobile's import whitelist. Same
+// mirror-don't-import rule as `data/realtime/issue-ws-updaters.ts`. Keep the
+// two in step by hand.
+//
+// Leniency is deliberate and matches core: server enums stay `z.string()` so
+// a newer server shipping a new domain, prerequisite kind, source or
+// strategy still renders (root CLAUDE.md "API Compatibility"; every switch
+// on these values has a default branch — see lib/packs-display.ts).
+
+/** Mirrors `transferStrategies`. `skip` is the server default on a first install. */
+export const PACK_STRATEGIES = ["skip", "merge", "rename"] as const;
+export type PackStrategy = (typeof PACK_STRATEGIES)[number];
+
+export const PackMetricSchema = z
+  .object({
+    label: z.string().catch(""),
+    description: z.string().catch(""),
+    hint: z.string().catch(""),
+  })
+  .loose()
+  .catch({ label: "", description: "", hint: "" });
+
+export const PackPrerequisiteSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  optional: z.boolean().catch(false),
+  note: z.string().catch(""),
+  // met | missing | unknown — `unknown` means the server cannot tell.
+  status: z.string().catch("unknown"),
+}).loose();
+export type PackPrerequisite = z.infer<typeof PackPrerequisiteSchema>;
+
+export const PackChangelogRowSchema = z.object({
+  version: z.string().catch(""),
+  note: z.string().catch(""),
+}).loose();
+
+export const PackManifestSchema = z.object({
+  id: z.string().catch(""),
+  version: z.string().catch(""),
+  title: z.string().catch(""),
+  summary: z.string().catch(""),
+  /** Markdown. */
+  description: z.string().catch(""),
+  domain: z.string().catch("other"),
+  wave: z.number().catch(0),
+  author: z.string().catch(""),
+  license: z.string().catch(""),
+  tags: z.array(z.string()).catch([]),
+  works_without_agents: z.boolean().catch(false),
+  metric: PackMetricSchema,
+  prerequisites: z.array(PackPrerequisiteSchema).catch([]),
+  changelog: z.array(PackChangelogRowSchema).catch([]),
+}).loose();
+export type PackManifest = z.infer<typeof PackManifestSchema>;
+
+export const EMPTY_PACK_MANIFEST: PackManifest = {
+  id: "",
+  version: "",
+  title: "",
+  summary: "",
+  description: "",
+  domain: "other",
+  wave: 0,
+  author: "",
+  license: "",
+  tags: [],
+  works_without_agents: false,
+  metric: { label: "", description: "", hint: "" },
+  prerequisites: [],
+  changelog: [],
+};
+
+const PackCountsSchema = z.record(z.string(), z.number()).catch({});
+
+export const PackSummarySchema = z.object({
+  manifest: PackManifestSchema,
+  counts: PackCountsSchema,
+  builtin: z.boolean().catch(false),
+  installed_version: z.string().nullable().catch(null),
+  install_id: z.string().nullable().catch(null),
+  upgrade_available: z.boolean().catch(false),
+  prerequisites: z.array(PackPrerequisiteSchema).catch([]),
+}).loose();
+export type PackSummary = z.infer<typeof PackSummarySchema>;
+
+export const EMPTY_PACK_SUMMARY: PackSummary = {
+  manifest: EMPTY_PACK_MANIFEST,
+  counts: {},
+  builtin: false,
+  installed_version: null,
+  install_id: null,
+  upgrade_available: false,
+  prerequisites: [],
+};
+
+/** `Record<kind, names[]>` — the names a pack would create, per kind. */
+export const PackContentsSchema = z
+  .record(z.string(), z.array(z.string()).catch([]))
+  .catch({});
+export type PackContents = z.infer<typeof PackContentsSchema>;
+
+export const PackCollisionSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  existing_id: z.string().catch(""),
+}).loose();
+export type PackCollision = z.infer<typeof PackCollisionSchema>;
+
+export const PackItemSchema = z.object({
+  kind: z.string().catch(""),
+  name: z.string().catch(""),
+  id: z.string().catch(""),
+  action: z.string().catch(""),
+}).loose();
+export type PackItem = z.infer<typeof PackItemSchema>;
+
+export const PackReportSchema = z.object({
+  created: PackCountsSchema,
+  merged: PackCountsSchema,
+  skipped: z.array(PackCollisionSchema).catch([]),
+  warnings: z.array(z.string()).catch([]),
+  items: z.array(PackItemSchema).catch([]),
+}).loose();
+export type PackReport = z.infer<typeof PackReportSchema>;
+
+export const EMPTY_PACK_REPORT: PackReport = {
+  created: {},
+  merged: {},
+  skipped: [],
+  warnings: [],
+  items: [],
+};
+
+/**
+ * One row of the install ledger. `report` and `manifest` stay opaque records
+ * (the ledger keeps the transfer report on an install and the uninstall
+ * report on a removed one); the typed report comes back from the mutations.
+ */
+export const PackInstallSchema = z.object({
+  id: z.string().catch(""),
+  pack_id: z.string().catch(""),
+  pack_version: z.string().catch(""),
+  title: z.string().catch(""),
+  // builtin | upload | workspace
+  source: z.string().catch("builtin"),
+  strategy: z.string().catch("skip"),
+  // installed | failed | removed
+  status: z.string().catch("installed"),
+  run_id: z.string().nullable().catch(null),
+  report: z.record(z.string(), z.unknown()).catch({}),
+  manifest: z.record(z.string(), z.unknown()).catch({}),
+  installed_by: z.string().nullable().catch(null),
+  installed_at: z.string().catch(""),
+  removed_at: z.string().nullable().catch(null),
+  item_count: z.number().catch(0),
+  metric: PackMetricSchema,
+  domain: z.string().catch("other"),
+  /** The catalogue version this install can move to, when newer. */
+  upgrade_to: z.string().nullable().catch(null),
+  bundle_sha256: z.string().catch(""),
+}).loose();
+export type PackInstall = z.infer<typeof PackInstallSchema>;
+
+export const PackCatalogueSchema = z.object({
+  packs: z.array(PackSummarySchema).catch([]),
+  domains: z.array(z.string()).catch([]),
+}).loose();
+export type PackCatalogue = z.infer<typeof PackCatalogueSchema>;
+export const EMPTY_PACK_CATALOGUE: PackCatalogue = { packs: [], domains: [] };
+
+export const PackDetailSchema = z.object({
+  pack: PackSummarySchema,
+  contents: PackContentsSchema,
+  /** The pack.yaml itself — not rendered on the phone. */
+  source: z.string().catch(""),
+}).loose();
+export type PackDetail = z.infer<typeof PackDetailSchema>;
+export const EMPTY_PACK_DETAIL: PackDetail = {
+  pack: EMPTY_PACK_SUMMARY,
+  contents: {},
+  source: "",
+};
+
+export const PackPreviewSchema = z.object({
+  pack: PackSummarySchema,
+  contents: PackContentsSchema,
+  collisions: z.array(PackCollisionSchema).catch([]),
+  problems: z.array(z.string()).catch([]),
+  strategies: z.array(z.string()).catch([...PACK_STRATEGIES]),
+  /** The strategy the server picked: skip on a first install, merge on an upgrade. */
+  strategy: z.string().catch("skip"),
+  installed: PackInstallSchema.nullable().catch(null),
+  /** Empty when installable; otherwise why not (same version, downgrade). */
+  blocked: z.string().catch(""),
+}).loose();
+export type PackPreview = z.infer<typeof PackPreviewSchema>;
+
+export const EMPTY_PACK_PREVIEW: PackPreview = {
+  pack: EMPTY_PACK_SUMMARY,
+  contents: {},
+  collisions: [],
+  problems: [],
+  strategies: [...PACK_STRATEGIES],
+  strategy: "skip",
+  installed: null,
+  blocked: "",
+};
+
+export const PackInstallListSchema = z.object({
+  installs: z.array(PackInstallSchema).catch([]),
+}).loose();
+export type PackInstallList = z.infer<typeof PackInstallListSchema>;
+export const EMPTY_PACK_INSTALL_LIST: PackInstallList = { installs: [] };
+
+export const PackInstallDetailSchema = z.object({
+  install: PackInstallSchema,
+  items: z.array(PackItemSchema).catch([]),
+}).loose();
+export type PackInstallDetail = z.infer<typeof PackInstallDetailSchema>;
+
+export const EMPTY_PACK_INSTALL: PackInstall = {
+  id: "",
+  pack_id: "",
+  pack_version: "",
+  title: "",
+  source: "builtin",
+  strategy: "skip",
+  status: "installed",
+  run_id: null,
+  report: {},
+  manifest: {},
+  installed_by: null,
+  installed_at: "",
+  removed_at: null,
+  item_count: 0,
+  metric: { label: "", description: "", hint: "" },
+  domain: "other",
+  upgrade_to: null,
+  bundle_sha256: "",
+};
+
+export const EMPTY_PACK_INSTALL_DETAIL: PackInstallDetail = {
+  install: EMPTY_PACK_INSTALL,
+  items: [],
+};
+
+export const PackInstallResultSchema = z.object({
+  install: PackInstallSchema,
+  report: PackReportSchema,
+}).loose();
+export type PackInstallResult = z.infer<typeof PackInstallResultSchema>;
+export const EMPTY_PACK_INSTALL_RESULT: PackInstallResult = {
+  install: EMPTY_PACK_INSTALL,
+  report: EMPTY_PACK_REPORT,
+};
+
+export const PackUninstallReportSchema = z.object({
+  removed: PackCountsSchema,
+  kept: z.array(PackItemSchema).catch([]),
+  reasons: z.array(z.string()).catch([]),
+}).loose();
+export type PackUninstallReport = z.infer<typeof PackUninstallReportSchema>;
+
+export const PackUninstallResultSchema = z.object({
+  install: PackInstallSchema,
+  report: PackUninstallReportSchema,
+}).loose();
+export type PackUninstallResult = z.infer<typeof PackUninstallResultSchema>;
+export const EMPTY_PACK_UNINSTALL_RESULT: PackUninstallResult = {
+  install: EMPTY_PACK_INSTALL,
+  report: { removed: {}, kept: [], reasons: [] },
+};
