@@ -29,10 +29,10 @@ func TestBudgetPolicyLifecycle(t *testing.T) {
 		t.Fatalf("unexpected created policy: %+v", policy)
 	}
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM budget_override WHERE workspace_id = $1`, testWorkspaceID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_reservation WHERE policy_id = $1`, policy.ID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_period WHERE policy_id = $1`, policy.ID)
-		testPool.Exec(t.Context(), `DELETE FROM budget_policy WHERE id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_override WHERE workspace_id = $1`, testWorkspaceID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_reservation WHERE policy_id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_period WHERE policy_id = $1`, policy.ID)
+		testPool.Exec(context.Background(), `DELETE FROM budget_policy WHERE id = $1`, policy.ID)
 	})
 
 	testutil.Call(t, testHandler.CreateBudgetPolicy, newRequest(http.MethodPost, "/api/budgets", map[string]any{
@@ -101,7 +101,7 @@ func TestBudgetPolicyLifecycle(t *testing.T) {
 func TestBudgetPolicyWriteRequiresManager(t *testing.T) {
 	dbfx.Exec(t, `UPDATE member SET role = 'member' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	t.Cleanup(func() {
-		// context.Background(): t.Context() is already cancelled inside Cleanup.
+		// context.Background(): context.Background() is already cancelled inside Cleanup.
 		testPool.Exec(context.Background(), `UPDATE member SET role = 'owner' WHERE workspace_id = $1 AND user_id = $2`, testWorkspaceID, testUserID)
 	})
 	testutil.Call(t, testHandler.CreateBudgetPolicy, newRequest(http.MethodPost, "/api/budgets", map[string]any{

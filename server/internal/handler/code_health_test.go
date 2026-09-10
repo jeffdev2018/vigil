@@ -43,7 +43,7 @@ func codeHealthCleanup(t *testing.T) {
 	// on uq_issue_workspace_number (see org_test.go).
 	syncIssueCounter(t)
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM code_health_scan WHERE workspace_id = $1`, testWorkspaceID)
 		testPool.Exec(ctx, `DELETE FROM agent_task_queue WHERE issue_id IN (SELECT id FROM issue WHERE workspace_id = $1 AND origin_type = 'code_health')`, testWorkspaceID)

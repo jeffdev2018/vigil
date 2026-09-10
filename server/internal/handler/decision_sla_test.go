@@ -37,8 +37,8 @@ func TestDecisionSLAEscalatesSubstituteThenLeadsUntilAnswered(t *testing.T) {
 	setDecisionSLA(t, 60, substitute)
 	issue := dbfx.Issue(t, "sla escalation")
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
 	})
 	var created decisionEnvelope
 	askDecision(t, issue, decisionBody()).Want(http.StatusCreated).JSON(&created)
@@ -114,8 +114,8 @@ func TestDecisionSLAWithoutPolicyOrSubstitute(t *testing.T) {
 	dbfx.Exec(t, `UPDATE workspace SET settings = COALESCE(settings, '{}'::jsonb) - 'decision_sla' WHERE id = $1`, testWorkspaceID)
 	issue := dbfx.Issue(t, "sla none")
 	t.Cleanup(func() {
-		testPool.Exec(t.Context(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
-		testPool.Exec(t.Context(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM issue_decision WHERE issue_id = $1`, issue)
+		testPool.Exec(context.Background(), `DELETE FROM inbox_item WHERE issue_id = $1`, issue)
 	})
 	var created decisionEnvelope
 	askDecision(t, issue, decisionBody()).Want(http.StatusCreated).JSON(&created)

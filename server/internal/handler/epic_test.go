@@ -28,7 +28,7 @@ func epicProject(t *testing.T) string {
 	agentID := dbfx.Agent(t, "epic mika "+uuid.NewString()[:8], handlerTestRuntimeID(t))
 	dbfx.Exec(t, `UPDATE agent SET system_key = $2 WHERE id = $1`, agentID, service.MikaSystemKey)
 	t.Cleanup(func() {
-		// NOT t.Context(): Go cancels it just before cleanups run.
+		// NOT context.Background(): Go cancels it just before cleanups run.
 		ctx := context.Background()
 		testPool.Exec(ctx, `DELETE FROM epic_artifact WHERE project_id = $1`, projectID)
 		testPool.Exec(ctx, `DELETE FROM issue_dependency WHERE issue_id IN (SELECT id FROM issue WHERE project_id = $1) OR depends_on_issue_id IN (SELECT id FROM issue WHERE project_id = $1)`, projectID)
