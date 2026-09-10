@@ -334,6 +334,14 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 		}
 		messages := cx.messages()
 		params := openai.ChatCompletionNewParams{Messages: messages}
+		// Model per agent (N05): a pinned model rides every turn; without one
+		// the client applies its default. The vendor-key failover (K48) hooks
+		// FailTask, which the native runs settle through — a retired key
+		// re-enqueues the run and it comes back here with the agent's model
+		// again.
+		if tctx.agent.Model.Valid && strings.TrimSpace(tctx.agent.Model.String) != "" {
+			params.Model = tctx.agent.Model.String
+		}
 		if wrapUp {
 			reason := tctx.wrapUpReason
 			if reason == "" {
