@@ -79,6 +79,7 @@
         "org",
         "inbox",
         "triage",
+        "runs",
         "postmortems",
         "brain",
         "my-issues",

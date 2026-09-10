@@ -92,6 +92,7 @@ import { useSearchStore } from "./search-store";
 const PAGE_KEYWORDS: Record<WorkspacePageKey, string[]> = {
   inbox: ["inbox", "notifications", "收件箱", "通知"],
   triage: ["triage", "queue", "review", "inbound", "待审核", "审核"],
+  runs: ["runs", "run", "fleet", "kill switch", "运行", "紧急停止开关"],
   meetings: ["meetings", "meeting", "record", "transcript", "summary", "会议", "录制", "转录"],
   postmortems: ["postmortem", "postmortems", "failure", "retrospective", "复盘", "振り返り"],
   chat: ["chat", "messages", "conversation", "聊天", "消息", "对话"],

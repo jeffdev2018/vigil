@@ -412,6 +412,7 @@ import { SSOStateSchema, ScimTokenSchema, ScimTokenListSchema, ProjectMembersSch
 import { MirrorLinkSchema, MirrorLinkListSchema, EMPTY_MIRROR_LINKS, IssueMirrorsSchema, EMPTY_ISSUE_MIRRORS, type MirrorLink, type MirrorLinkList, type IssueMirrors } from "../mirrors/schemas";
 import { IssueTransitionRuleSchema, IssueTransitionRuleListSchema, EMPTY_TRANSITION_RULES, EMPTY_TRANSITION_RULE, EffectiveTransitionsSchema, EMPTY_EFFECTIVE_TRANSITIONS, IssueTransitionRequestListSchema, EMPTY_TRANSITION_REQUESTS, PendingTransitionSchema, type IssueTransitionRule, type IssueTransitionRuleList, type EffectiveTransitions, type IssueTransitionRequestList } from "../issue-transitions/schemas";
 import { RunPreviewSchema, EMPTY_RUN_PREVIEW, TaskShareLinkSchema, TaskShareLinkListSchema, EMPTY_TASK_SHARE_LINK, EMPTY_TASK_SHARE_LINKS, type RunPreview, type TaskShareLink, type TaskShareLinkList, type CreateShareLinkInput } from "../runs/schemas";
+import { RunsResponseSchema, EMPTY_RUNS_RESPONSE, CancelRunsResponseSchema, EMPTY_CANCEL_RUNS_RESPONSE, KillSwitchResponseSchema, EMPTY_KILL_SWITCH_RESPONSE, type RunsResponse, type CancelRunsResponse, type KillSwitchResponse } from "../runs/fleet-schemas";
 import { CriticPolicySchema, EMPTY_CRITIC_POLICY, CriticVerdictListSchema, EMPTY_CRITIC_VERDICTS, type CriticPolicy, type CriticPolicyWrite, type CriticVerdictList } from "../critic/schemas";
 import {
   AgentTaskListSchema,
@@ -8125,6 +8126,53 @@ export class ApiClient {
       body: JSON.stringify(input),
     });
     return parseWithFallback(raw, RunHaltSchema, EMPTY_RUN_HALT, { endpoint: "PUT /api/run-halt" });
+  }
+
+  // Runs fleet page (OS plan, chantier 4).
+  async listRuns(
+    params?: {
+      state?: "active" | "terminal" | "all";
+      status?: string;
+      agentId?: string;
+      issueId?: string;
+      runtimeId?: string;
+      since?: string;
+      cursor?: string;
+      limit?: number;
+    },
+    options?: { signal?: AbortSignal },
+  ): Promise<RunsResponse> {
+    const search = new URLSearchParams();
+    if (params?.state) search.set("state", params.state);
+    if (params?.status) search.set("status", params.status);
+    if (params?.agentId) search.set("agent_id", params.agentId);
+    if (params?.issueId) search.set("issue_id", params.issueId);
+    if (params?.runtimeId) search.set("runtime_id", params.runtimeId);
+    if (params?.since) search.set("since", params.since);
+    if (params?.cursor) search.set("cursor", params.cursor);
+    if (params?.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    const raw = await this.fetch<unknown>(
+      `/api/runs${qs ? `?${qs}` : ""}`,
+      options?.signal ? { signal: options.signal } : undefined,
+    );
+    return parseWithFallback(raw, RunsResponseSchema, EMPTY_RUNS_RESPONSE, { endpoint: "GET /api/runs" });
+  }
+
+  async cancelRuns(taskIds: string[]): Promise<CancelRunsResponse> {
+    const raw = await this.fetch<unknown>(`/api/runs/cancel`, {
+      method: "POST",
+      body: JSON.stringify({ task_ids: taskIds }),
+    });
+    return parseWithFallback(raw, CancelRunsResponseSchema, EMPTY_CANCEL_RUNS_RESPONSE, { endpoint: "POST /api/runs/cancel" });
+  }
+
+  async killSwitch(reason: string): Promise<KillSwitchResponse> {
+    const raw = await this.fetch<unknown>(`/api/runs/kill-switch`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    });
+    return parseWithFallback(raw, KillSwitchResponseSchema, EMPTY_KILL_SWITCH_RESPONSE, { endpoint: "POST /api/runs/kill-switch" });
   }
 
   // Twenty CRM (OS plan, chantier 2). Workspace-scoped through X-Workspace-ID.

@@ -116,6 +116,7 @@ const PINNED_PREVIEW_LIMIT = 5;
 type NavKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -139,6 +140,7 @@ type NavKey =
 type NavLabelKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -184,6 +186,7 @@ const aiTeamNav: { key: NavKey; labelKey: NavLabelKey }[] = [
   { key: "org", labelKey: "org" },
   { key: "skills", labelKey: "skills" },
   { key: "runtimes", labelKey: "runtimes" },
+  { key: "runs", labelKey: "runs" },
 ];
 
 const utilityNav: { key: NavKey; labelKey: NavLabelKey }[] = [

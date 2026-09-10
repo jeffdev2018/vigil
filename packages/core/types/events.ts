@@ -134,7 +134,11 @@ export type WSEventType =
   | "cross_review:escalated"
   | "critic_verdict:created"
   | "critic_verdict:relaunch"
-  | "run_preview:updated";
+  | "run_preview:updated"
+  // Runs fleet page (OS plan, chantier 4): the kill switch and a plain
+  // halt/lift both publish this. `cancelled` is present only for the kill
+  // switch, which halts then cancels every run not already over.
+  | "run_halt:changed";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -342,6 +346,18 @@ export interface CriticVerdictEventPayload {
 export interface RunPreviewUpdatedPayload {
   task_id: string;
   status: string;
+}
+
+/**
+ * Fleet halt (K05 / m169 / OS chantier 4). `run_halt` is the same shape
+ * `GET /api/run-halt` returns — kept as `unknown` here rather than importing
+ * the zod-inferred `RunHalt` type, since events.ts stays dependency-free from
+ * feature schemas; consumers read it through `runHaltOptions`'s own query
+ * instead of this payload. `cancelled` is present only on a kill switch.
+ */
+export interface RunHaltChangedPayload {
+  run_halt: unknown;
+  cancelled?: number;
 }
 
 export interface CrossReviewEventPayload {
@@ -950,6 +966,7 @@ export interface WSEventPayloadMap {
   "critic_verdict:created": CriticVerdictEventPayload;
   "critic_verdict:relaunch": CriticVerdictEventPayload;
   "run_preview:updated": RunPreviewUpdatedPayload;
+  "run_halt:changed": RunHaltChangedPayload;
 }
 
 /**

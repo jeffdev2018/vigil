@@ -1,0 +1,57 @@
+{
+  "title": "실행",
+  "subtitle": "워크스페이스 에이전트의 모든 실행을 최신순으로 표시",
+  "summary": {
+    "queued": "대기 중",
+    "running": "실행 중",
+    "blocked": "막힘",
+    "completed_since": "오늘 완료",
+    "failed_since": "오늘 실패",
+    "cancelled_since": "오늘 취소",
+    "cost_since": "오늘 비용"
+  },
+  "halt": {
+    "kill_switch": "킬 스위치",
+    "kill_switch_dialog_title": "전체를 정지하고 모든 실행을 취소할까요?",
+    "kill_switch_dialog_body": "어떤 실행도 새로 시작되지 않으며, 진행 중인 모든 게이트 작업이 거부됩니다. 아직 끝나지 않은 모든 실행이 취소됩니다.",
+    "kill_switch_reason_label": "이유",
+    "kill_switch_reason_placeholder": "왜 전체를 정지하나요?",
+    "kill_switch_confirm": "정지하고 취소",
+    "kill_switch_cancel": "취소",
+    "kill_switch_failed": "킬 스위치를 활성화하지 못했습니다",
+    "kill_switch_toast_other": "전체 정지됨 · 실행 {{count}}건 취소"
+  },
+  "filters": {
+    "state_in_flight": "진행 중",
+    "state_finished": "완료",
+    "state_all": "전체",
+    "agent_all": "모든 에이전트",
+    "runtime_all": "모든 런타임",
+    "issue_placeholder": "이슈 ID 또는 식별자"
+  },
+  "list": {
+    "empty_title": "아직 실행이 없습니다",
+    "empty_description": "에이전트가 이슈, 채팅 한 턴, 또는 오토파일럿 트리거 작업을 시작하면 여기에 실행이 표시됩니다.",
+    "loading": "실행 불러오는 중",
+    "load_error": "실행을 불러오지 못했습니다",
+    "load_more": "더 불러오기"
+  },
+  "row": {
+    "silent": "무응답",
+    "silent_tooltip": "{{duration}} 동안 활동이 보고되지 않았습니다",
+    "blocked_on": "막힌 원인",
+    "cancel_aria": "이 실행 취소",
+    "cancel_tooltip": "취소"
+  },
+  "cancel_dialog": {
+    "title_other": "실행 {{count}}건을 취소할까요?",
+    "body": "각 실행은 개별적으로 취소됩니다 — 데몬이 다음 폴링 때 처리합니다.",
+    "keep": "계속 실행",
+    "confirm": "취소",
+    "toast": "{{cancelled}}건 취소됨 · {{alreadyOver}}건 이미 종료됨 · {{failed}}건 실패"
+  },
+  "bulk": {
+    "cancel_selected": "선택 항목 취소",
+    "selected_count_other": "{{count}}개 선택됨"
+  }
+}

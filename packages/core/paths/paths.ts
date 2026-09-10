@@ -67,6 +67,9 @@ function workspaceScoped(slug: string) {
     // producer) can link straight at the item it created.
     triage: (itemId?: string) =>
       itemId ? `${ws}/triage?item=${encode(itemId)}` : `${ws}/triage`,
+    // Runs fleet page (OS plan, chantier 4): every run of the workspace's
+    // agents, newest first.
+    runs: () => `${ws}/runs`,
     meetings: () => `${ws}/meetings`,
     meetingDetail: (id: string) => `${ws}/meetings/${encode(id)}`,
     postmortems: () => `${ws}/postmortems`,

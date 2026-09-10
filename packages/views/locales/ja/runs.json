@@ -1,0 +1,57 @@
+{
+  "title": "実行",
+  "subtitle": "ワークスペースのエージェントによるすべての実行を新しい順に表示",
+  "summary": {
+    "queued": "キュー中",
+    "running": "実行中",
+    "blocked": "ブロック中",
+    "completed_since": "本日完了",
+    "failed_since": "本日失敗",
+    "cancelled_since": "本日キャンセル",
+    "cost_since": "本日の費用"
+  },
+  "halt": {
+    "kill_switch": "キルスイッチ",
+    "kill_switch_dialog_title": "フリートを停止してすべての実行をキャンセルしますか?",
+    "kill_switch_dialog_body": "新しい実行は受け付けられなくなり、進行中のすべてのゲート付きアクションが拒否されます。終了していないすべての実行がキャンセルされます。",
+    "kill_switch_reason_label": "理由",
+    "kill_switch_reason_placeholder": "なぜフリートを停止するのですか?",
+    "kill_switch_confirm": "停止してキャンセル",
+    "kill_switch_cancel": "キャンセル",
+    "kill_switch_failed": "キルスイッチを有効にできませんでした",
+    "kill_switch_toast_other": "フリートを停止しました · {{count}} 件の実行をキャンセル"
+  },
+  "filters": {
+    "state_in_flight": "実行中",
+    "state_finished": "完了",
+    "state_all": "すべて",
+    "agent_all": "すべてのエージェント",
+    "runtime_all": "すべてのランタイム",
+    "issue_placeholder": "課題のIDまたは識別子"
+  },
+  "list": {
+    "empty_title": "まだ実行がありません",
+    "empty_description": "エージェントが課題、チャットのやり取り、またはオートパイロットの起動に取り組み始めると、ここに実行が表示されます。",
+    "loading": "実行を読み込み中",
+    "load_error": "実行を読み込めませんでした",
+    "load_more": "もっと読み込む"
+  },
+  "row": {
+    "silent": "サイレント",
+    "silent_tooltip": "{{duration}} の間、活動が報告されていません",
+    "blocked_on": "ブロック要因",
+    "cancel_aria": "この実行をキャンセル",
+    "cancel_tooltip": "キャンセル"
+  },
+  "cancel_dialog": {
+    "title_other": "{{count}} 件の実行をキャンセルしますか?",
+    "body": "各実行は個別にキャンセルされます — デーモンが次のポーリングで受け取ります。",
+    "keep": "続行する",
+    "confirm": "キャンセル",
+    "toast": "{{cancelled}} 件キャンセル · {{alreadyOver}} 件は既に終了 · {{failed}} 件失敗"
+  },
+  "bulk": {
+    "cancel_selected": "選択したものをキャンセル",
+    "selected_count_other": "{{count}} 件選択中"
+  }
+}

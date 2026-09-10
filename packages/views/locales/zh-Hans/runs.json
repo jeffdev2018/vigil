@@ -1,0 +1,57 @@
+{
+  "title": "运行",
+  "subtitle": "工作区智能体的所有运行，按最新排序",
+  "summary": {
+    "queued": "排队中",
+    "running": "进行中",
+    "blocked": "被卡住",
+    "completed_since": "今日完成",
+    "failed_since": "今日失败",
+    "cancelled_since": "今日取消",
+    "cost_since": "今日花费"
+  },
+  "halt": {
+    "kill_switch": "紧急停止开关",
+    "kill_switch_dialog_title": "停止整支队伍并取消所有运行？",
+    "kill_switch_dialog_body": "不再接手任何运行，进行中的每一个受关卡管控的动作都会被拒绝。所有尚未结束的运行都会被取消。",
+    "kill_switch_reason_label": "原因",
+    "kill_switch_reason_placeholder": "为什么要停止整支队伍？",
+    "kill_switch_confirm": "停止并取消",
+    "kill_switch_cancel": "取消",
+    "kill_switch_failed": "无法启用紧急停止开关",
+    "kill_switch_toast_other": "队伍已停止 · 已取消 {{count}} 个运行"
+  },
+  "filters": {
+    "state_in_flight": "进行中",
+    "state_finished": "已完成",
+    "state_all": "全部",
+    "agent_all": "全部智能体",
+    "runtime_all": "全部运行时",
+    "issue_placeholder": "任务 ID 或编号"
+  },
+  "list": {
+    "empty_title": "暂无运行",
+    "empty_description": "当智能体开始处理某个任务、进行一轮聊天，或被自动化触发时，运行会出现在这里。",
+    "loading": "正在加载运行",
+    "load_error": "无法加载运行",
+    "load_more": "加载更多"
+  },
+  "row": {
+    "silent": "静默",
+    "silent_tooltip": "已有 {{duration}} 没有上报活动",
+    "blocked_on": "卡在",
+    "cancel_aria": "取消此运行",
+    "cancel_tooltip": "取消"
+  },
+  "cancel_dialog": {
+    "title_other": "取消这 {{count}} 个运行？",
+    "body": "每个运行都会单独取消——守护进程会在下一次轮询时处理。",
+    "keep": "继续运行",
+    "confirm": "取消",
+    "toast": "已取消 {{cancelled}} 个 · 已结束 {{alreadyOver}} 个 · 失败 {{failed}} 个"
+  },
+  "bulk": {
+    "cancel_selected": "取消所选",
+    "selected_count_other": "已选 {{count}} 个"
+  }
+}

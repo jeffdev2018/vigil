@@ -45,6 +45,8 @@ import { slackKeys } from "../slack/queries";
 import { dingtalkKeys } from "../dingtalk/queries";
 import { wecomKeys } from "../wecom/queries";
 import { telegramKeys } from "../telegram/queries";
+import { runHaltKeys } from "../run-halt/queries";
+import { runKeys } from "../runs/fleet-queries";
 import {
   onIssueCreated,
   onIssueUpdated,
@@ -1112,6 +1114,16 @@ export function useRealtimeSync(
         const wsId = getCurrentWsId();
         if (wsId) qc.invalidateQueries({ queryKey: reviewFlagKeys.all(wsId) });
       },
+      // Fleet halt (K05 / m169 / OS chantier 4). `run_halt:changed` carries
+      // `{run_halt, cancelled?}` — refetched via invalidate rather than
+      // setQueryData so the banner, the settings toggle and the Runs page
+      // header always read the one query the server just wrote.
+      run_halt: () => {
+        const wsId = getCurrentWsId();
+        if (!wsId) return;
+        qc.invalidateQueries({ queryKey: runHaltKeys.all(wsId) });
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
+      },
       pull_request: () => {
         // PR list is keyed by issue id, not workspace, so we invalidate all
         // PR queries — the open issue detail page will refetch its own list.
@@ -1165,6 +1177,10 @@ export function useRealtimeSync(
         // open composer's chips (e.g. an agent finishing its run becomes
         // triggerable again mid-typing).
         qc.invalidateQueries({ queryKey: issueKeys.commentTriggerPreviewAll() });
+        // Runs fleet page (OS plan, chantier 4): any task:* lifecycle event
+        // can move a row between active/terminal or change its blocker, so
+        // the whole runs prefix is invalidated alongside the other lists.
+        qc.invalidateQueries({ queryKey: runKeys.all(wsId) });
         // Issue-trigger previews (assign/status/create/batch) are deliberately
         // NOT invalidated here. Unlike comment triggers, the assign source
         // (create / assignee change) cancels existing tasks before enqueuing, so
