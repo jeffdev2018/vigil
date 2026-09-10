@@ -1799,6 +1799,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 			run:  func() error { return qtx.DeleteWorkspaceNotes(ctx, requester.WorkspaceID) },
 		},
 		{
+			name: "delete brain captures",
+			run:  func() error { return qtx.PurgeWorkspaceBrainCaptures(ctx, requester.WorkspaceID) },
+		},
+		{
+			name: "delete workspace note embeddings",
+			run:  func() error { return qtx.PurgeWorkspaceNoteEmbeddings(ctx, requester.WorkspaceID) },
+		},
+		{
 			name: "delete agents",
 			run:  func() error { return qtx.DeleteWorkspaceAgents(ctx, requester.WorkspaceID) },
 		},

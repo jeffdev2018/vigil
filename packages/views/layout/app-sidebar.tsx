@@ -71,6 +71,7 @@ import { inboxKeys, deduplicateInboxItems, inboxUnreadSummaryOptions, hasOtherWo
 import { chatSessionsOptions } from "@multica/core/chat/queries";
 import { triageStatsOptions } from "@multica/core/triage/queries";
 import { postmortemStatsOptions } from "@multica/core/postmortem/queries";
+import { useBrainRawCount } from "@multica/core/brain/queries";
 import { countUnreadChatMessages } from "@multica/core/chat/unread";
 import { useChatStore } from "@multica/core/chat";
 import { api, ApiError } from "@multica/core/api";
@@ -566,6 +567,10 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
     enabled: !!wsId,
   });
   const postmortemDraftCount = postmortemStats?.draft ?? 0;
+  // Brain badge: raw captures are the same shape of debt — something a human
+  // dropped in and has yet to sort. Shares the inbox's cache entry, so the
+  // badge costs no request of its own once the Brain page has been opened.
+  const { data: brainRawCount = 0 } = useBrainRawCount(wsId ?? "");
   // Cross-workspace unread summary backs the workspace-switcher dot. One
   // shared cache entry across workspaces; gated on an active workspace since
   // the endpoint resolves through the workspace-member middleware.
@@ -966,6 +971,13 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
                         {item.key === "postmortems" && postmortemDraftCount > 0 && (
                           <CappedNumberFlow
                             value={postmortemDraftCount}
+                            animated={false}
+                            className="ml-auto text-caption"
+                          />
+                        )}
+                        {item.key === "brain" && brainRawCount > 0 && (
+                          <CappedNumberFlow
+                            value={brainRawCount}
                             animated={false}
                             className="ml-auto text-caption"
                           />

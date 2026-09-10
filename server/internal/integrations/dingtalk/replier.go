@@ -36,6 +36,8 @@ const (
 	freshPendingText        = "✅ Fresh start ready. Your next chat message will run without previous context."
 	chatStartedText         = "✅ Started a new Multica chat. Your next message will enter it."
 	issueUsageText          = "Please include an issue title. Use:\n\n`/issue <title>`\n\n`[description]` (optional)"
+	captureAckText          = "✅ Captured — organize it in the Brain inbox."
+	captureUsageText        = "Please include what to capture. Use:\n\n`/capture <text or link>`"
 	issueUsageWithMediaText = "Please add a title and resend with the image (*image can come before or after the command*):\n\n`/issue <title>`\n\n`[description]` (optional)"
 	// Refusals for dropped /issue commands, carried over from the deleted
 	// pre-engine IssueCommandProcessor: without them the user's command
@@ -140,6 +142,16 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 		}
 		if err := r.post(ctx, inst, msg, text); err != nil {
 			r.logger.WarnContext(ctx, "dingtalk replier: issue usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptured:
+		if err := r.post(ctx, inst, msg, captureAckText); err != nil {
+			r.logger.WarnContext(ctx, "dingtalk replier: capture confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptureUsage:
+		if err := r.post(ctx, inst, msg, captureUsageText); err != nil {
+			r.logger.WarnContext(ctx, "dingtalk replier: capture usage reply failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:

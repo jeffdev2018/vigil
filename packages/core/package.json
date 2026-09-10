@@ -141,6 +141,7 @@
     "./brain/queries": "./brain/queries.ts",
     "./brain/mutations": "./brain/mutations.ts",
     "./brain/ws-updaters": "./brain/ws-updaters.ts",
+    "./brain/snippet": "./brain/snippet.ts",
     "./postmortem": "./postmortem/index.ts",
     "./postmortem/queries": "./postmortem/queries.ts",
     "./postmortem/mutations": "./postmortem/mutations.ts",

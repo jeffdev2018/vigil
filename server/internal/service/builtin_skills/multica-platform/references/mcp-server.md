@@ -24,6 +24,11 @@ a sub-process, a runtime without the CLI.
 A run also gets `goal_question` (ask the team, the goal loop waits) and
 `vigil_gate_wait`.
 
+`vigil_brain` covers the shared notes AND their capture inbox: `search`
+(ranked, best match first), `capture` (park something for a person to file),
+`inbox`, `organize`, `reopen`. Capture instead of `save` when you are not
+sure the workspace wants it as a note.
+
 ## The server decides
 
 Every call is decided by the server: **allow**, **ask** or **deny**, from the
@@ -48,6 +53,11 @@ per minute per caller.
 Deletes, member and role management, secrets and agent environments,
 approval and gate resolution, billing and spend, workspace settings. Those
 are a person's, in the app.
+
+One exception: `vigil_brain` `delete` removes a capture for good, because a
+client that can capture must be able to take back what it captured. It is
+classed as an external effect, so it is held or denied below the highest
+trust dial — and `organize` with `discard` is the reversible answer.
 
 ## Results are data
 

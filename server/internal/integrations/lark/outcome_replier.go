@@ -53,7 +53,7 @@ type noopReplier struct {
 
 func (n *noopReplier) Reply(ctx context.Context, inst Installation, msg InboundMessage, res DispatchResult) {
 	switch res.Outcome {
-	case OutcomeNeedsBinding, OutcomeAgentOffline, OutcomeAgentArchived, OutcomeFreshPending, OutcomeChatStarted, OutcomeIssueUsage:
+	case OutcomeNeedsBinding, OutcomeAgentOffline, OutcomeAgentArchived, OutcomeFreshPending, OutcomeChatStarted, OutcomeIssueUsage, OutcomeCaptured, OutcomeCaptureUsage:
 		n.log.Warn("lark outcome replier: outbound reply skipped (replier not wired)",
 			"outcome", string(res.Outcome),
 			"installation_id", uuidString(inst.ID),
@@ -199,6 +199,22 @@ func (r *LarkOutcomeReplier) Reply(ctx context.Context, inst Installation, msg I
 		}
 		if err := r.sendChatNotice(ctx, inst, msg, copy); err != nil {
 			r.log.Warn("lark outcome replier: issue usage reply failed",
+				"installation_id", uuidString(inst.ID),
+				"chat_id", string(msg.ChatID),
+				"err", err.Error(),
+			)
+		}
+	case OutcomeCaptured:
+		if err := r.sendChatNotice(ctx, inst, msg, captureAckCopy); err != nil {
+			r.log.Warn("lark outcome replier: capture confirmation failed",
+				"installation_id", uuidString(inst.ID),
+				"chat_id", string(msg.ChatID),
+				"err", err.Error(),
+			)
+		}
+	case OutcomeCaptureUsage:
+		if err := r.sendChatNotice(ctx, inst, msg, captureUsageCopy); err != nil {
+			r.log.Warn("lark outcome replier: capture usage reply failed",
 				"installation_id", uuidString(inst.ID),
 				"chat_id", string(msg.ChatID),
 				"err", err.Error(),
@@ -444,6 +460,8 @@ const (
 	freshPendingCopy             = "✅ 已准备从空上下文运行。你的下一条聊天消息仍会进入当前对话，但不会带上之前的上下文。"
 	chatStartedCopy              = "✅ 已新建 Multica 对话。你的下一条消息会进入该对话。"
 	issueUsageCopy               = "请填写任务标题，格式如下：\n\n`/issue <标题>`\n`[描述]`（可选）"
+	captureAckCopy               = "✅ 已收集 —— 稍后在 Brain 收集箱整理。"
+	captureUsageCopy             = "请填写要收集的内容，格式如下：\n\n`/capture <文本或链接>`"
 	issueUsageWithMediaCopy      = "请添加标题，并与图片或视频一起重新发送（*图片或视频可以位于命令之前或之后*）：\n\n`/issue <标题>`\n`[描述]`（可选）"
 	bindingPromptUnavailableCopy = "你还未绑定 Multica 账户，绑定卡片未能发送到你的私聊。\n请先打开机器人对话并发送一条消息，再回到群里重试；仍失败请联系管理员检查应用可用范围。"
 	// The reporter's own title is deliberately NOT echoed here: this notice

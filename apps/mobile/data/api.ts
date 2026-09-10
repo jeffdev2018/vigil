@@ -259,6 +259,37 @@ import {
   EMPTY_CALENDAR_AGENDA,
 } from "@multica/core/api/schemas";
 import type { CalendarAgenda, CalendarEventEntry, CalendarEventInput } from "@multica/core/types";
+// Workspace Brain (notes + capture inbox + ranked search). Schemas and
+// fallbacks are the shared ones in @multica/core/api/schemas — pure zod, on
+// the mobile sharing whitelist — so mobile and web parse the same bytes the
+// same way instead of drifting through two copies.
+import {
+  BrainCaptureResponseSchema,
+  BrainCapturesResponseSchema,
+  OrganizeBrainCaptureResponseSchema,
+  WorkspaceNoteSchema,
+  WorkspaceNoteSearchResponseSchema,
+  WorkspaceNotesResponseSchema,
+  EMPTY_BRAIN_CAPTURE,
+  EMPTY_BRAIN_CAPTURES_RESPONSE,
+  EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+  EMPTY_WORKSPACE_NOTE,
+  EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
+  EMPTY_WORKSPACE_NOTES_RESPONSE,
+} from "@multica/core/api/schemas";
+import type {
+  BrainCapture,
+  BrainCaptureStatus,
+  BrainCapturesResponse,
+  CreateBrainCaptureInput,
+  CreateWorkspaceNoteInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UpdateWorkspaceNoteInput,
+  WorkspaceNote,
+  WorkspaceNoteSearchResponse,
+  WorkspaceNotesResponse,
+} from "@multica/core/types";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -2232,6 +2263,240 @@ class ApiClient {
     });
   }
 
+  // --- Workspace Brain: notes ---
+
+  /**
+   * The Brain listing. `search` and `tag` are server filters (full-text runs
+   * on the GIN index), and `tags` ships alongside the items because the chips
+   * need every live tag, not just the tags of the filtered page — mirrors
+   * `packages/core/api/client.ts:listWorkspaceNotes` parameter for parameter.
+   */
+  async listWorkspaceNotes(
+    params?: { search?: string; tag?: string; archived?: boolean; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNotesResponse> {
+    const qs = new URLSearchParams();
+    if (params?.search) qs.set("search", params.search);
+    if (params?.tag) qs.set("tag", params.tag);
+    if (params?.archived === true) qs.set("archived", "true");
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return this.fetchValidated(
+      `/api/workspace/notes${query ? `?${query}` : ""}`,
+      WorkspaceNotesResponseSchema,
+      EMPTY_WORKSPACE_NOTES_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes" },
+    );
+  }
+
+  async getWorkspaceNote(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidated(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes/:id" },
+    );
+  }
+
+  /**
+   * Ranked search: lexical rank fused with a pgvector rank by RRF when an
+   * embeddings model is configured (`vector` says which). Separate endpoint
+   * from the listing because a hit carries a score and a `<mark>`-annotated
+   * snippet instead of the tag facets.
+   */
+  async searchWorkspaceNotes(
+    params: { q: string; tag?: string; archived?: boolean; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<WorkspaceNoteSearchResponse> {
+    const qs = new URLSearchParams({ q: params.q });
+    if (params.tag) qs.set("tag", params.tag);
+    if (params.archived === true) qs.set("archived", "true");
+    if (params.limit !== undefined) qs.set("limit", String(params.limit));
+    return this.fetchValidated(
+      `/api/workspace/notes/search?${qs.toString()}`,
+      WorkspaceNoteSearchResponseSchema,
+      EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/workspace/notes/search" },
+    );
+  }
+
+  async createWorkspaceNote(
+    input: CreateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      "/api/workspace/notes",
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "POST", body: JSON.stringify(input) },
+      { endpoint: "POST /api/workspace/notes" },
+    );
+  }
+
+  /** `input.revision` is the value the client read; a 409 means someone (or
+   *  the curation pass) wrote first. */
+  async updateWorkspaceNote(
+    id: string,
+    input: UpdateWorkspaceNoteInput,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      `/api/workspace/notes/${encodeURIComponent(id)}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "PATCH", body: JSON.stringify(input) },
+      { endpoint: "PATCH /api/workspace/notes/:id" },
+    );
+  }
+
+  async setWorkspaceNoteArchived(
+    id: string,
+    archived: boolean,
+  ): Promise<WorkspaceNote> {
+    return this.fetchValidatedWith(
+      `/api/workspace/notes/${encodeURIComponent(id)}/${archived ? "archive" : "unarchive"}`,
+      WorkspaceNoteSchema,
+      EMPTY_WORKSPACE_NOTE,
+      { method: "POST" },
+      { endpoint: "POST /api/workspace/notes/:id/archive" },
+    );
+  }
+
+  /** 403 unless the caller is a workspace owner/admin or the note's author
+   *  (server/internal/handler/workspace_note.go canDeleteWorkspaceNote). */
+  async deleteWorkspaceNote(id: string): Promise<void> {
+    await this.fetch<void>(`/api/workspace/notes/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  // --- Workspace Brain: capture inbox ---
+
+  async listBrainCaptures(
+    params?: { status?: BrainCaptureStatus | "all"; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<BrainCapturesResponse> {
+    const qs = new URLSearchParams();
+    if (params?.status) qs.set("status", params.status);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    const query = qs.toString();
+    return this.fetchValidated(
+      `/api/brain/captures${query ? `?${query}` : ""}`,
+      BrainCapturesResponseSchema,
+      EMPTY_BRAIN_CAPTURES_RESPONSE,
+      { signal: opts?.signal, endpoint: "GET /api/brain/captures" },
+    );
+  }
+
+  async getBrainCapture(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidated(
+        `/api/brain/captures/${encodeURIComponent(id)}`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { signal: opts?.signal, endpoint: "GET /api/brain/captures/:id" },
+      ),
+    );
+  }
+
+  /** Text / link / todo. `origin` is "mobile" so the inbox can say where a
+   *  capture came in from; image, audio and file go through the upload route
+   *  (the server rejects those kinds here with a 400). */
+  async createBrainCapture(
+    input: CreateBrainCaptureInput,
+  ): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        "/api/brain/captures",
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST", body: JSON.stringify({ origin: "mobile", ...input }) },
+        { endpoint: "POST /api/brain/captures" },
+      ),
+    );
+  }
+
+  /**
+   * A photo, a voice memo or any file, multipart. The server derives the kind
+   * from the content type (image/* → image, audio/* → audio, else file) and
+   * queues transcription for audio. 503 when no storage is configured.
+   */
+  async uploadBrainCapture(
+    asset: FileAsset,
+    fields?: { content?: string; title_hint?: string },
+  ): Promise<BrainCapture> {
+    const raw = await this.postMultipart("/api/brain/captures/upload", asset, {
+      origin: "mobile",
+      content: fields?.content ?? "",
+      title_hint: fields?.title_hint ?? "",
+    });
+    return parseWithFallback(
+      raw,
+      BrainCaptureResponseSchema,
+      { capture: EMPTY_BRAIN_CAPTURE },
+      { endpoint: "POST /api/brain/captures/upload" },
+    ).capture as BrainCapture;
+  }
+
+  /** Re-ask the model. 503 when none is configured, 502 when the call failed —
+   *  neither is an error the user caused, so callers say so rather than toast. */
+  async suggestBrainCapture(id: string): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        `/api/brain/captures/${encodeURIComponent(id)}/suggest`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST" },
+        { endpoint: "POST /api/brain/captures/:id/suggest" },
+      ),
+    );
+  }
+
+  /** note | merge | discard. Only from status "raw" (409 otherwise). */
+  async organizeBrainCapture(
+    id: string,
+    input: OrganizeBrainCaptureInput,
+  ): Promise<OrganizeBrainCaptureResponse> {
+    return this.fetchValidatedWith(
+      `/api/brain/captures/${encodeURIComponent(id)}/organize`,
+      OrganizeBrainCaptureResponseSchema,
+      EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE,
+      { method: "POST", body: JSON.stringify(input) },
+      { endpoint: "POST /api/brain/captures/:id/organize" },
+    );
+  }
+
+  /** A discarded capture back to raw (409 from any other status). */
+  async reopenBrainCapture(id: string): Promise<BrainCapture> {
+    return this.captureFrom(
+      this.fetchValidatedWith(
+        `/api/brain/captures/${encodeURIComponent(id)}/reopen`,
+        BrainCaptureResponseSchema,
+        { capture: EMPTY_BRAIN_CAPTURE },
+        { method: "POST" },
+        { endpoint: "POST /api/brain/captures/:id/reopen" },
+      ),
+    );
+  }
+
+  /** Gone for good, with its file unless a note already holds it. */
+  async deleteBrainCapture(id: string): Promise<void> {
+    await this.fetch<void>(`/api/brain/captures/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
+  }
+
+  /** Every capture read/write answers `{capture}`; unwrap it once. */
+  private async captureFrom(
+    envelope: Promise<{ capture: BrainCapture }>,
+  ): Promise<BrainCapture> {
+    return (await envelope).capture;
+  }
+
   /**
    * Voice memo / conversation turn: one audio file in, its text out
    * (POST /api/voice/transcribe). Mirrors `packages/core/api/client.ts:transcribeVoice`
@@ -2310,30 +2575,27 @@ class ApiClient {
   // --- File Upload ---
 
   /**
-   * Multipart-stream a file to `/api/upload-file`. Mirrors the web
-   * implementation in `packages/core/api/client.ts:uploadFile` but with the
-   * RN-shaped `FileAsset` instead of a browser `File`. The fetch FormData
-   * polyfill recognises `{ uri, name, type }` and reads the file off disk.
+   * The multipart shell every file-upload endpoint shares: auth + slug
+   * headers, request id, structured logging, 401 hook, ApiError on non-2xx,
+   * parsed JSON body back.
    *
-   * `opts.issueId` / `opts.commentId` link the attachment record. Pass
-   * `issueId` when uploading from a comment composer / reply input; leave
-   * both empty when uploading from a not-yet-created issue (the attachment
-   * is hooked to the issue once it's created — same flow as web).
-   *
-   * Does NOT use `this.fetch` because:
-   *   - FormData must not have a `Content-Type` header preset (the browser /
-   *     RN fetch needs to set the multipart boundary itself).
+   * Does NOT go through `this.fetch` because:
+   *   - FormData must not have a `Content-Type` header preset (the RN fetch
+   *     polyfill needs to set the multipart boundary itself).
    *   - `this.fetch` hard-codes `application/json`.
    *
-   * So we re-implement the auth + slug + logging shell inline.
+   * No timeout / signal plumbing, unlike `this.fetch`: uploads are mutations
+   * (TanStack Query hands `mutationFn` no signal) and a 30s ceiling would
+   * abort a legitimate 40 MB upload on cellular. The 401 hook and the
+   * ApiError contract are the parts callers depend on, so they stay.
    */
-  async uploadFile(
+  private async postMultipart(
+    path: string,
     asset: FileAsset,
-    opts?: { issueId?: string; commentId?: string },
-  ): Promise<Attachment> {
+    fields: Record<string, string> = {},
+  ): Promise<unknown> {
     const rid = createRequestId();
     const start = Date.now();
-    const path = "/api/upload-file";
 
     const headers: Record<string, string> = {
       // No Content-Type — let fetch set the multipart boundary.
@@ -2353,8 +2615,9 @@ class ApiClient {
       "file",
       { uri: asset.uri, name: asset.name, type: asset.type } as never,
     );
-    if (opts?.issueId) formData.append("issue_id", opts.issueId);
-    if (opts?.commentId) formData.append("comment_id", opts.commentId);
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== "") formData.append(key, value);
+    }
 
     console.log(`[api] → POST ${path}`, { rid, filename: asset.name });
 
@@ -2373,10 +2636,14 @@ class ApiClient {
       } catch {
         body = undefined;
       }
+      // The Go handlers answer `{"error": "..."}` (handler.go writeError);
+      // `message` is checked first only because a few endpoints predate it.
       const message =
         (body && typeof body === "object" && "message" in body
           ? String((body as { message: unknown }).message)
-          : null) ?? `Upload failed: ${res.status}`;
+          : body && typeof body === "object" && "error" in body
+            ? String((body as { error: unknown }).error)
+            : null) ?? `Upload failed: ${res.status}`;
       console.error(`[api] ← ${res.status} ${path}`, {
         rid,
         duration: `${duration}ms`,
@@ -2389,20 +2656,43 @@ class ApiClient {
       rid,
       duration: `${duration}ms`,
     });
+    return (await res.json()) as unknown;
+  }
+
+  /**
+   * Multipart-stream a file to `/api/upload-file`. Mirrors the web
+   * implementation in `packages/core/api/client.ts:uploadFile` but with the
+   * RN-shaped `FileAsset` instead of a browser `File`. The fetch FormData
+   * polyfill recognises `{ uri, name, type }` and reads the file off disk.
+   *
+   * `opts.issueId` / `opts.commentId` link the attachment record. Pass
+   * `issueId` when uploading from a comment composer / reply input; leave
+   * both empty when uploading from a not-yet-created issue (the attachment
+   * is hooked to the issue once it's created — same flow as web).
+   */
+  async uploadFile(
+    asset: FileAsset,
+    opts?: { issueId?: string; commentId?: string },
+  ): Promise<Attachment> {
+    const path = "/api/upload-file";
+    const fields: Record<string, string> = {};
+    if (opts?.issueId) fields["issue_id"] = opts.issueId;
+    if (opts?.commentId) fields["comment_id"] = opts.commentId;
 
     // Strict validation: parseWithFallback's silent-fallback pattern doesn't
     // fit here — an attachment without a `url` would be inserted into the
     // user's text as `![](undefined)`. Throw on shape mismatch so the
     // caller's Alert path fires instead of letting a broken link land in
     // the editor.
-    const json: unknown = await res.json();
+    const json = await this.postMultipart(path, asset, fields);
     const parsed = AttachmentSchema.safeParse(json);
     if (!parsed.success) {
       console.error(`[api] ← shape mismatch ${path}`, {
-        rid,
         error: parsed.error.message,
       });
-      throw new ApiError("Upload response invalid", res.status, json);
+      // 200 with a body we cannot use: the upload did happen, so the status
+      // is honest, but the caller must treat it as a failure.
+      throw new ApiError("Upload response invalid", 200, json);
     }
     return parsed.data;
   }

@@ -27,6 +27,8 @@ const (
 	freshPendingText  = "✅ 已准备从空上下文运行。你的下一条聊天消息仍会进入当前对话，但不会带上之前的上下文。"
 	chatStartedText   = "✅ 已新建 Multica 对话。你的下一条消息会进入该对话。"
 	issueUsageText    = "请填写任务标题，格式如下：\n\n`/issue <标题>`\n`[描述]`（可选）"
+	captureAckText    = "✅ 已收集 —— 稍后在 Brain 收集箱整理。"
+	captureUsageText  = "请填写要收集的内容，格式如下：\n\n`/capture <文本或链接>`"
 )
 
 // OutboundReplier implements engine.OutboundReplier for WeCom.
@@ -129,6 +131,16 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeIssueUsage:
 		if err := r.post(ctx, inst, msg, issueUsageText); err != nil {
 			r.logger.WarnContext(ctx, "wecom replier: issue usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptured:
+		if err := r.post(ctx, inst, msg, captureAckText); err != nil {
+			r.logger.WarnContext(ctx, "wecom replier: capture confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeCaptureUsage:
+		if err := r.post(ctx, inst, msg, captureUsageText); err != nil {
+			r.logger.WarnContext(ctx, "wecom replier: capture usage reply failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:

@@ -465,6 +465,9 @@ type Handler struct {
 	// STT transcribes audio for voice memos and meetings. Always non-nil;
 	// Enabled() is false when MULTICA_STT_* is unset.
 	STT *stt.Client
+	// BrainEmbedder keeps one vector per live note for ranked Brain search
+	// (OS plan, vague B). Nil or disabled: search ranks lexically.
+	BrainEmbedder service.NoteEmbedder
 	// TTS synthesizes speech for "read this aloud". Always non-nil;
 	// Enabled() is false when MULTICA_TTS_* is unset, and the client falls
 	// back to the browser's own speechSynthesis.
@@ -552,6 +555,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		EmbeddingModel: cfg.LLMEmbeddingModel,
 		MaxRetries:     cfg.LLMMaxRetries,
 	})
+	brainEmbedder := service.NewBrainEmbedder(queries, llmClient)
 	// Report the effective retry policy so an operator can confirm from the
 	// boot log alone what a misbehaving upstream will cost, instead of inferring
 	// it from an env var whose semantics used to be unguessable (MUL-6364).
@@ -611,6 +615,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		PluginService:                service.NewPluginService(queries, txStarter),
 		IssueService:                 issueSvc,
 		NativeAgents:                 service.NewNativeAgentService(queries, taskSvc, issueSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
+		BrainEmbedder:                brainEmbedder,
 		GoalLoop:                     service.NewGoalLoopService(queries, taskSvc, service.NativeLLMAdapter{Client: llmClient}, bus),
 		AutopilotService:             service.NewAutopilotService(queries, txStarter, bus, taskSvc),
 		EmailService:                 emailService,
@@ -641,6 +646,7 @@ func New(queries *db.Queries, txStarter txStarter, hub *realtime.Hub, bus *event
 		TTS:        tts.New(tts.Config{BaseURL: cfg.TTSBaseURL, APIKey: cfg.TTSAPIKey, Model: cfg.TTSModel, Voice: cfg.TTSVoice}),
 		cfg:        cfg,
 	}
+	h.NativeAgents.NoteEmbedder = brainEmbedder
 	h.NativeAgents.Goal = h.GoalLoop
 	h.WebhookDeliveryWorker = NewWebhookDeliveryWorker(h)
 	// The default passthrough scheduler reports sweeper-race recoveries so the

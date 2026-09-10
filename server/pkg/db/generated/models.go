@@ -484,6 +484,8 @@ type Attachment struct {
 	ChatMessageID   pgtype.UUID        `json:"chat_message_id"`
 	TaskID          pgtype.UUID        `json:"task_id"`
 	SourceContextID pgtype.UUID        `json:"source_context_id"`
+	CaptureID       pgtype.UUID        `json:"capture_id"`
+	NoteID          pgtype.UUID        `json:"note_id"`
 }
 
 type AuditLogEntry struct {
@@ -636,6 +638,28 @@ type AutopilotTrigger struct {
 	CreatedByID        pgtype.UUID `json:"created_by_id"`
 	EventMatchCriteria string      `json:"event_match_criteria"`
 	WindowMinutes      int32       `json:"window_minutes"`
+}
+
+type BrainCapture struct {
+	ID                  pgtype.UUID        `json:"id"`
+	WorkspaceID         pgtype.UUID        `json:"workspace_id"`
+	Kind                string             `json:"kind"`
+	Content             string             `json:"content"`
+	Url                 string             `json:"url"`
+	TitleHint           string             `json:"title_hint"`
+	AttachmentID        pgtype.UUID        `json:"attachment_id"`
+	Origin              string             `json:"origin"`
+	Status              string             `json:"status"`
+	TranscriptionStatus string             `json:"transcription_status"`
+	Suggestion          []byte             `json:"suggestion"`
+	NoteID              pgtype.UUID        `json:"note_id"`
+	CreatedByType       string             `json:"created_by_type"`
+	CreatedByID         pgtype.UUID        `json:"created_by_id"`
+	SourceTaskID        pgtype.UUID        `json:"source_task_id"`
+	OrganizedBy         pgtype.UUID        `json:"organized_by"`
+	OrganizedAt         pgtype.Timestamptz `json:"organized_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
 }
 
 type BudgetOverride struct {
@@ -3291,6 +3315,15 @@ type WorkspaceNote struct {
 	Revision      int64              `json:"revision"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type WorkspaceNoteEmbedding struct {
+	NoteID         pgtype.UUID        `json:"note_id"`
+	WorkspaceID    pgtype.UUID        `json:"workspace_id"`
+	Embedding      string             `json:"embedding"`
+	EmbeddingModel string             `json:"embedding_model"`
+	ContentHash    string             `json:"content_hash"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type WorkspacePackInstall struct {

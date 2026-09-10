@@ -147,8 +147,11 @@ type NativeAgentService struct {
 	// 22). The handler wires it: filing a report notifies the owners, which
 	// lives there. Nil means the tool answers that reports are unavailable.
 	Doctrine NativeDoctrineTools
-	Issues   *IssueService
-	LLM      NativeAgentLLM
+	// NoteEmbedder refreshes a note's vector after save_note/update_note
+	// (Brain ranked search). Nil: the backfill job catches up.
+	NoteEmbedder NoteEmbedder
+	Issues       *IssueService
+	LLM          NativeAgentLLM
 	// streamFlushInterval is how often the growing final text is persisted
 	// and republished while chunks arrive. A field so a test can flush per
 	// chunk; production keeps the default constant.
@@ -832,6 +835,9 @@ func nativeToolIsEffectful(name string) bool {
 	case "add_comment", "update_issue", "transition_issue", "create_sub_issue",
 		"create_issue", "save_note", "update_note", "propose_event", "schedule_followup":
 		return true
+	// capture_note is deliberately not here: a capture is the inbox, a person
+	// files it. Charging it like save_note would push a run to save instead
+	// of capturing when unsure — the opposite of the Brain contract.
 	default:
 		return false
 	}

@@ -56,6 +56,7 @@ import { triageStatsOptions } from "@/data/queries/triage";
 import { postmortemStatsOptions } from "@/data/queries/postmortem";
 import { doctrineOptions } from "@/data/queries/doctrine";
 import { packCatalogueOptions } from "@/data/queries/packs";
+import { brainCapturesOptions } from "@/data/queries/brain";
 import { useAuthStore } from "@/data/auth-store";
 import { useWorkspaceStore } from "@/data/workspace-store";
 import { useColorScheme } from "@/lib/use-color-scheme";
@@ -81,7 +82,7 @@ interface NavItem {
    * triage counts the pending queue and postmortems count the drafts,
    * exactly like the inbox count next to them — work waiting on a human.
    */
-  badge?: "triage" | "postmortem" | "doctrine" | "packs";
+  badge?: "triage" | "postmortem" | "doctrine" | "packs" | "brain";
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -124,6 +125,16 @@ const NAV_ITEMS: NavItem[] = [
     icon: "shippingbox",
     path: "/more/packs",
     badge: "packs",
+  },
+  // Workspace Brain (OS plan, vague B): the capture inbox and the shared
+  // notes. Badge counts the raw captures — "work waiting on a human" like
+  // triage and postmortems, and the same `raw_count` the server sends with
+  // every capture list, so the badge shares the inbox's cache entry.
+  {
+    label: "Brain",
+    icon: "brain",
+    path: "/more/brain",
+    badge: "brain",
   },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
   // Native calendar (OS plan, chantier 19).
@@ -241,7 +252,7 @@ export function MoreTabDropdownAnchor({
 function NavBadge({
   kind,
 }: {
-  kind: "triage" | "postmortem" | "doctrine" | "packs";
+  kind: "triage" | "postmortem" | "doctrine" | "packs" | "brain";
 }) {
   const wsId = useWorkspaceStore((s) => s.currentWorkspaceId);
   // Both queries are declared unconditionally (hooks cannot be conditional)
@@ -268,6 +279,13 @@ function NavBadge({
     select: (catalogue) =>
       catalogue.packs.filter((p) => p.upgrade_available === true).length,
   });
+  // Same query the Brain inbox mounts, so opening the screen costs no second
+  // request: `raw_count` rides along with every capture list.
+  const brain = useQuery({
+    ...brainCapturesOptions(wsId, "raw"),
+    enabled: !!wsId && kind === "brain",
+    select: (data) => data.raw_count,
+  });
   const count =
     (kind === "triage"
       ? triage.data
@@ -275,7 +293,9 @@ function NavBadge({
         ? postmortem.data
         : kind === "doctrine"
           ? doctrine.data
-          : packs.data) ?? 0;
+          : kind === "packs"
+            ? packs.data
+            : brain.data) ?? 0;
   if (count <= 0) return null;
   return (
     <View className="rounded-full bg-secondary px-1.5 py-0.5">

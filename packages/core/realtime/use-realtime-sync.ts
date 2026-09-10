@@ -69,7 +69,7 @@ import { onInboxNew, onInboxInvalidate, onInboxIssueStatusChanged, onInboxIssueD
 import { inboxKeys } from "../inbox/queries";
 import { onTriageInvalidate } from "../triage/ws-updaters";
 import { onPostmortemInvalidate } from "../postmortem/ws-updaters";
-import { onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
+import { onBrainCaptureChanged, onWorkspaceNoteInvalidate } from "../brain/ws-updaters";
 import {
   notificationPreferenceOptions,
   notificationPreferenceKeys,
@@ -1244,6 +1244,10 @@ export function useRealtimeSync(
       "agent_memory:created",
       "agent_memory:updated",
       "agent_memory:deleted",
+      // brain_capture:changed needs its `change` field to decide whether the
+      // note and search projections move with the inbox, and the prefix path
+      // hands handlers no payload — so it takes the specific route below.
+      "brain_capture:changed",
       // cross_review:rework / escalated raise a notice signal in addition to
       // the invalidation, so they skip the prefix path to avoid handling the
       // same frame twice.
@@ -1261,6 +1265,13 @@ export function useRealtimeSync(
       const prefix = msg.type.split(":")[0] ?? "";
       const refresh = refreshMap[prefix];
       if (refresh) debouncedRefresh(prefix, refresh);
+    });
+
+    const unsubBrainCapture = ws.on("brain_capture:changed", (p) => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      const change = (p as { change?: unknown } | undefined)?.change;
+      onBrainCaptureChanged(qc, wsId, typeof change === "string" ? change : undefined);
     });
 
     // --- Specific event handlers (granular cache updates) ---
@@ -2206,6 +2217,7 @@ export function useRealtimeSync(
       unsubCalendarChanged();
       unsubDoctrineChanged();
       unsubPackChanged();
+      unsubBrainCapture();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

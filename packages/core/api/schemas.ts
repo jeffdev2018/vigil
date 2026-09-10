@@ -72,6 +72,10 @@ import type {
   PostmortemsResponse,
   WorkspaceNote,
   WorkspaceNotesResponse,
+  BrainCapture,
+  BrainCapturesResponse,
+  OrganizeBrainCaptureResponse,
+  WorkspaceNoteSearchResponse,
   Label,
   AgentMemory,
   ProjectMemory,
@@ -1975,6 +1979,115 @@ export const EMPTY_WORKSPACE_NOTE: WorkspaceNote = Object.freeze({
   created_at: "",
   updated_at: "",
 }) as WorkspaceNote;
+
+// Brain capture inbox (OS plan, vague B). Every enum stays a plain string so
+// a kind / origin / action added server-side degrades to an unknown label
+// instead of dropping the capture from the inbox.
+export const BrainCaptureMergeTargetSchema = z.object({
+  id: z.string().default(""),
+  title: z.string().default(""),
+}).loose();
+
+export const BrainCaptureSuggestionSchema = z.object({
+  title: z.string().default(""),
+  tags: z.array(z.string()).default([]),
+  summary: z.string().default(""),
+  action: z.string().default("note"),
+  merge_note: BrainCaptureMergeTargetSchema.nullable().optional(),
+  candidates: z.array(BrainCaptureMergeTargetSchema).default([]),
+  reason: z.string().default(""),
+  model: z.string().optional(),
+}).loose();
+
+export const BrainCaptureSchema = z.object({
+  id: z.string(),
+  workspace_id: z.string().default(""),
+  kind: z.string().default("text"),
+  content: z.string().default(""),
+  url: z.string().default(""),
+  title_hint: z.string().default(""),
+  // A malformed attachment must not cost the whole capture: degrade the field
+  // to absent and the card falls back to its text.
+  attachment: AttachmentResponseSchema.nullable().optional().catch(null),
+  origin: z.string().default("web"),
+  status: z.string().default("raw"),
+  transcription_status: z.string().default("none"),
+  // Same reasoning: a suggestion the model shaped wrong hides the suggestion
+  // block, it does not hide the capture.
+  suggestion: BrainCaptureSuggestionSchema.nullable().optional().catch(null),
+  note_id: z.string().nullable().optional(),
+  created_by_type: z.string().default("member"),
+  created_by_id: z.string().nullable().optional(),
+  source_task_id: z.string().nullable().optional(),
+  organized_by: z.string().nullable().optional(),
+  organized_at: z.string().nullable().optional(),
+  created_at: z.string().default(""),
+  updated_at: z.string().default(""),
+}).loose();
+
+export const BrainCapturesResponseSchema = z.object({
+  captures: z.array(BrainCaptureSchema).default([]),
+  raw_count: z.number().default(0),
+}).loose();
+
+export const BrainCaptureResponseSchema = z.object({
+  capture: BrainCaptureSchema,
+}).loose();
+
+export const OrganizeBrainCaptureResponseSchema = z.object({
+  capture: BrainCaptureSchema,
+  note: WorkspaceNoteSchema.nullable().default(null),
+}).loose();
+
+// Ranked note search. `snippet` is the note's own text with <mark> inserted by
+// ts_headline — raw, unescaped. It is rendered through `renderSnippet`
+// (packages/core/brain/snippet.ts), never as HTML.
+export const WorkspaceNoteSearchHitSchema = WorkspaceNoteSchema.extend({
+  score: z.number().default(0),
+  snippet: z.string().default(""),
+  lex_rank: z.number().nullable().optional(),
+  vec_rank: z.number().nullable().optional(),
+}).loose();
+
+export const WorkspaceNoteSearchResponseSchema = z.object({
+  notes: z.array(WorkspaceNoteSearchHitSchema).default([]),
+  vector: z.boolean().default(false),
+}).loose();
+
+export const EMPTY_BRAIN_CAPTURE: BrainCapture = Object.freeze({
+  id: "",
+  workspace_id: "",
+  kind: "text",
+  content: "",
+  url: "",
+  title_hint: "",
+  attachment: null,
+  origin: "web",
+  status: "raw",
+  transcription_status: "none",
+  suggestion: null,
+  note_id: null,
+  created_by_type: "member",
+  created_at: "",
+  updated_at: "",
+}) as BrainCapture;
+
+export const EMPTY_BRAIN_CAPTURES_RESPONSE: BrainCapturesResponse = Object.freeze({
+  captures: [],
+  raw_count: 0,
+}) as BrainCapturesResponse;
+
+export const EMPTY_ORGANIZE_BRAIN_CAPTURE_RESPONSE: OrganizeBrainCaptureResponse =
+  Object.freeze({
+    capture: EMPTY_BRAIN_CAPTURE,
+    note: null,
+  }) as OrganizeBrainCaptureResponse;
+
+export const EMPTY_WORKSPACE_NOTE_SEARCH_RESPONSE: WorkspaceNoteSearchResponse =
+  Object.freeze({
+    notes: [],
+    vector: false,
+  }) as WorkspaceNoteSearchResponse;
 
 export const EMPTY_POSTMORTEMS_RESPONSE: PostmortemsResponse = Object.freeze({
   items: [],

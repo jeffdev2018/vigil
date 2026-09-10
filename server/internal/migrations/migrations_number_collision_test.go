@@ -30,6 +30,11 @@ var grandfatheredDuplicateNumbers = map[string]bool{
 	"098": true, "109": true, "111": true, "112": true, "113": true,
 	"120": true, "122": true, "124": true, "127": true, "128": true,
 	"545": true,
+	// 891–894: the upstream sync (agent_consult, agent_task_comment_thread)
+	// and the packs ledger (workspace_pack_*) landed on the integration
+	// branch with the same numbers and are applied everywhere under their
+	// full stems; renumbering would re-run them.
+	"891": true, "892": true, "893": true, "894": true,
 }
 
 // TestNoNewMigrationNumberCollisions fails when a migration number gains a

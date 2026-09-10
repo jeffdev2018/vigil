@@ -128,6 +128,10 @@ export type WSEventType =
   | "workspace_note:created"
   | "workspace_note:updated"
   | "workspace_note:deleted"
+  // Brain capture inbox (OS plan, vague B): one event for every capture
+  // transition — captured, transcribed, suggested, note, merge, discard,
+  // reopened, deleted. Payload: {capture_id, status, change}.
+  | "brain_capture:changed"
   | "cross_review:queued"
   | "cross_review:report"
   | "cross_review:rework"

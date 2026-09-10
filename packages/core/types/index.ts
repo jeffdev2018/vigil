@@ -185,6 +185,23 @@ export type {
   CreateWorkspaceNoteInput,
   UpdateWorkspaceNoteInput,
 } from "./workspace-note";
+export type {
+  BrainCapture,
+  BrainCaptureAttachment,
+  BrainCaptureKind,
+  BrainCaptureMergeTarget,
+  BrainCaptureOrigin,
+  BrainCaptureStatus,
+  BrainCaptureSuggestion,
+  BrainCapturesResponse,
+  BrainTranscriptionStatus,
+  CreateBrainCaptureInput,
+  OrganizeBrainCaptureInput,
+  OrganizeBrainCaptureResponse,
+  UploadBrainCaptureInput,
+  WorkspaceNoteSearchHit,
+  WorkspaceNoteSearchResponse,
+} from "./brain-capture";
 export type { NotificationGroupKey, NotificationGroupValue, NotificationPreferences, NotificationPreferenceResponse } from "./notification-preference";
 export type { Comment, CommentAnchor, CreateCommentAnchor, AnchoredThread, AnchoredThreads, CommentType, CommentAuthorType, CommentTriggerPreview, CommentTriggerPreviewAgent, CommentTriggerSource, CommentTriggerOutcome, CommentTriggerStatus, Reaction } from "./comment";
 export type { Label, LabelResourceType, CreateLabelRequest, UpdateLabelRequest, ListLabelsResponse, IssueLabelsResponse, ResourceLabelsResponse } from "./label";

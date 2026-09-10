@@ -132,6 +132,9 @@ const {
 }));
 
 vi.mock("./why-search-group", () => ({ WhySearchGroup: () => null }));
+// Same reason as the group above: it owns its own query and workspace lookup,
+// and has its own suite (brain-search-group.test.tsx).
+vi.mock("./brain-search-group", () => ({ BrainSearchGroup: () => null }));
 vi.mock("@multica/core/api", () => ({
   api: {
     getBaseUrl: () => "http://127.0.0.1:8080",

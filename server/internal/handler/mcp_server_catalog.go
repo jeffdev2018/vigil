@@ -21,10 +21,12 @@ import (
 // the same decisions and the same dispatch.
 //
 // Deliberately absent (the "never exposed" list, after OpenMausBot's
-// bounded control API): deletes of any kind, member and role management,
-// secrets and agent environments, approval and gate resolution, billing
-// and spend redemption, workspace settings. A client that needs them has a
-// person open the app.
+// bounded control API): deletes, member and role management, secrets and
+// agent environments, approval and gate resolution, billing and spend
+// redemption, workspace settings. A client that needs them has a person
+// open the app. The single exception is note_capture_delete: a client that
+// can capture must be able to take back what it captured, and it is classed
+// as an external effect so the trust dial gates it.
 
 type mcpParam struct {
 	Name     string
@@ -45,7 +47,12 @@ type mcpLeaf struct {
 	Method      string
 	Path        string // with {name} placeholders; {workspace_id} is filled by the server
 	Params      []mcpParam
-	AgentOnly   bool
+	// Fixed are body fields the leaf always sends and the caller cannot
+	// choose. Provenance uses it: a capture filed through MCP is stamped
+	// origin "mcp", and a client that asked for another origin would be
+	// claiming to be a surface it is not.
+	Fixed     map[string]any
+	AgentOnly bool
 }
 
 var (
@@ -161,6 +168,53 @@ var mcpLeaves = []mcpLeaf{
 		}},
 	{Name: "note_archive", Group: "vigil_brain", Action: "archive", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/workspace/notes/{id}/archive",
 		Description: "Archive a Brain note (reversible in the app).", Params: []mcpParam{{Name: "id", Type: "string", Desc: "Note id.", Required: true, In: "path"}}},
+	{Name: "note_search", Group: "vigil_brain", Action: "search", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/workspace/notes/search",
+		Description: "Ranked search over the Brain: relevance, not recency. Accepts websearch syntax (\"a quoted phrase\", -negation, OR); each hit carries a score and a snippet. Prefer it over list when you are looking for something rather than browsing.",
+		Params: []mcpParam{
+			{Name: "q", Type: "string", Desc: "What to look for.", Required: true, In: "query"},
+			{Name: "tag", Type: "string", Desc: "Only notes with this tag.", In: "query"},
+			{Name: "archived", Type: "boolean", Desc: "Include archived notes.", In: "query"},
+			pLimit,
+		}},
+	// The capture inbox: anything worth keeping lands here in one gesture
+	// and a person files it later. A client that is unsure whether something
+	// belongs in the Brain captures it instead of writing a note nobody asked
+	// for.
+	{Name: "note_capture", Group: "vigil_brain", Action: "capture", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/brain/captures",
+		Description: "Capture a line of text or a link into the Brain inbox, to be organized later. Use it instead of save when you are not sure the workspace wants this as a note: a person turns it into one, merges it, or discards it.",
+		Fixed:       map[string]any{"origin": "mcp"},
+		Params: []mcpParam{
+			{Name: "content", Type: "string", Desc: "The text to capture (content or url is required).", In: "body"},
+			{Name: "url", Type: "string", Desc: "An http(s) link to capture.", In: "body"},
+			{Name: "kind", Type: "string", Desc: "text, link or todo. Inferred when omitted.", In: "body", Enum: []string{"text", "link", "todo"}},
+			{Name: "title_hint", Type: "string", Desc: "A hint for the note title, used when the capture is organized.", In: "body"},
+		}},
+	{Name: "note_inbox", Group: "vigil_brain", Action: "inbox", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/brain/captures",
+		Description: "The Brain capture inbox: what was captured and not yet filed, with the raw count.",
+		Params: []mcpParam{
+			{Name: "status", Type: "string", Desc: "raw (default), organized, discarded or all.", In: "query", Enum: []string{"raw", "organized", "discarded", "all"}},
+			pLimit,
+		}},
+	{Name: "note_organize", Group: "vigil_brain", Action: "organize", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/brain/captures/{capture_id}/organize",
+		Description: "File a raw capture: turn it into a note, merge it into an existing one, or discard it. Only works while the capture is raw.",
+		Params: []mcpParam{
+			{Name: "capture_id", Type: "string", Desc: "Capture id.", Required: true, In: "path"},
+			{Name: "action", Type: "string", Desc: "note, merge or discard.", Required: true, In: "body", Enum: []string{"note", "merge", "discard"}},
+			{Name: "title", Type: "string", Desc: "Note title. Defaults to the capture's title hint, then its first line.", In: "body"},
+			{Name: "content", Type: "string", Desc: "Note body. Defaults to the capture rendered as markdown.", In: "body"},
+			{Name: "tags", Type: "array", Items: "string", Desc: "Tags.", In: "body"},
+			{Name: "pinned", Type: "boolean", Desc: "Pin the created note.", In: "body"},
+			{Name: "note_id", Type: "string", Desc: "The note to merge into. Required for merge.", In: "body"},
+		}},
+	{Name: "note_capture_reopen", Group: "vigil_brain", Action: "reopen", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/brain/captures/{capture_id}/reopen",
+		Description: "Put a discarded capture back into the inbox.",
+		Params:      []mcpParam{{Name: "capture_id", Type: "string", Desc: "Capture id.", Required: true, In: "path"}}},
+	// The one delete on the surface, and it is classed as an external effect
+	// so every trust dial below "autonomous" has to ask: a capture is often
+	// the only copy of what someone said.
+	{Name: "note_capture_delete", Group: "vigil_brain", Action: "delete", Risk: mcpgov.RiskExternal, Method: "DELETE", Path: "/api/brain/captures/{capture_id}",
+		Description: "Delete a capture for good, with its file. Irreversible: discard it instead unless someone asked for it gone.",
+		Params:      []mcpParam{{Name: "capture_id", Type: "string", Desc: "Capture id.", Required: true, In: "path"}}},
 
 	// ---- Projects ------------------------------------------------------------------
 	{Name: "project_list", Group: "vigil_project", Action: "list", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/projects",
@@ -305,7 +359,7 @@ var mcpLeafByName = func() map[string]mcpLeaf {
 var mcpGroupDescriptions = map[string]string{
 	"vigil_issue":    "Issues: list, search, get, create, update, comments, comment, timeline, labels. Pick the action; pass that action's arguments.",
 	"vigil_goal":     "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
-	"vigil_brain":    "The workspace Brain, shared notes every run reads: list/search, get, save, update, archive.",
+	"vigil_brain":    "The workspace Brain, shared notes every run reads, and its capture inbox: list, search (ranked), get, save, update, archive; capture (park something to be filed later), inbox, organize, reopen, delete.",
 	"vigil_project":  "Projects: list, search, get, create, update.",
 	"vigil_team":     "Who is here: agents, agent, agent_runs, members, labels, cycles, workspace.",
 	"vigil_triage":   "The triage queue: list, stats, verdict (a suggestion; a human decides).",
@@ -473,6 +527,12 @@ func (l mcpLeaf) build(args map[string]any, caller mcpCaller) (string, url.Value
 			}
 			body[p.Name] = raw
 		}
+	}
+	for name, value := range l.Fixed {
+		if body == nil {
+			body = map[string]any{}
+		}
+		body[name] = value
 	}
 	if strings.Contains(path, "{") {
 		return "", nil, nil, errors.New("a path parameter is missing")

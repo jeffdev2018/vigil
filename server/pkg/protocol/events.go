@@ -73,6 +73,9 @@ const (
 	// workspace_note:deleted fires on a permanent delete.
 	EventWorkspaceNoteCreated = "workspace_note:created"
 	EventWorkspaceNoteUpdated = "workspace_note:updated"
+	// EventBrainCaptureChanged fires when a capture is created, transcribed,
+	// suggested, organized, discarded or reopened (payload: capture_id, status, change).
+	EventBrainCaptureChanged  = "brain_capture:changed"
 	EventWorkspaceNoteDeleted = "workspace_note:deleted"
 
 	// Inbox events

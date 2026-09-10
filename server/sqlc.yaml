@@ -18,3 +18,5 @@ sql:
         overrides:
           - column: "repo_index_chunk.embedding"
             go_type: "string"
+          - column: "workspace_note_embedding.embedding"
+            go_type: "string"
