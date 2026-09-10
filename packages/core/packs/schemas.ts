@@ -349,6 +349,8 @@ export interface PackExportInput {
   };
   include_issues: boolean;
   include_notes: boolean;
+  /** Skills the pack carries. The server always drops machine-local ones. */
+  include_skills: boolean;
 }
 
 /** Total rows a report touched, for the one-line "n created · n merged" summary. */

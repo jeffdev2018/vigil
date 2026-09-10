@@ -2624,7 +2624,8 @@
       "section": "팩 업로드",
       "description": "공유받은 pack.yaml을 설치합니다. 파일 읽기와 검사는 서버가 하고, 미리보기를 확인하기 전에는 아무것도 적용되지 않습니다.",
       "file_label": "팩 파일",
-      "file_description": ".yaml 파일 하나."
+      "file_description": ".yaml 파일 하나.",
+      "too_large": "{{max}}이 넘는 팩은 웹 앱에서 업로드할 수 없습니다. CLI로 설치하세요: multica pack install-file <file> — 먼저 확인하려면 multica pack preview-file <file>."
     },
     "export": {
       "section": "팩으로 내보내기",
@@ -2639,6 +2640,8 @@
       "metric_description": "그 지표를 읽는 방법",
       "include_issues": "이슈 포함",
       "include_notes": "노트 포함",
+      "include_skills": "절차(스킬) 포함",
+      "skills_note": "연결된 컴퓨터에서 발견된 절차는 내보내지 않습니다.",
       "button": "팩 내보내기",
       "exporting": "내보내는 중...",
       "done": "팩을 다운로드했습니다",

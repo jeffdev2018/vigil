@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-アップロードするパックファイルの上限は 4 MB です。エクスポートも認証情報を運びません —— エージェントの環境変数キーは置いていかれ、トリガーは無効で戻り、トリアージのソースはトークンなしで戻ります。
+サーバーが受け付けるパックファイルは 32 MB までです。Web アプリからアップロードできるのは 8 MB までで、それ以上は `multica pack preview-file` / `install-file` を使います。接続したコンピューター上で見つかったスキルはエクスポートに含まれません（そのマシンのものだからです）。`--include-skills=false` を付けるとスキルをすべて除外します。エクスポートも認証情報を運びません —— エージェントの環境変数キーは置いていかれ、トリガーは無効で戻り、トリアージのソースはトークンなしで戻ります。
 
 ## パックのフォーマット
 
@@ -166,7 +166,7 @@ multica pack uninstall <install-id>
 - `POST /api/packs/preview | install` —— 同じものを multipart で。パックファイルは `file` フィールドに入れます。
 - `GET /api/packs/installed`、`GET /api/packs/installed/{id}` → 台帳と、1 回のインストールの行。
 - `POST /api/packs/installed/{id}/uninstall` → インストール記録と、取り除かれた／残ったレポート。
-- `POST /api/packs/export {manifest, include_issues, include_notes}` → `pack.yaml`。
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → `pack.yaml`。
 - 監査アクション `pack.installed` と `pack.uninstalled`。`pack:changed` イベントが開いているページを最新に保ちます。
 
 ## 次のステップ

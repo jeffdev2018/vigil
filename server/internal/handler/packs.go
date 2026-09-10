@@ -833,6 +833,8 @@ type packExportRequest struct {
 	Manifest      packs.Manifest `json:"manifest"`
 	IncludeIssues bool           `json:"include_issues"`
 	IncludeNotes  bool           `json:"include_notes"`
+	// IncludeSkills defaults to true; nil means unset.
+	IncludeSkills *bool `json:"include_skills"`
 }
 
 // POST /api/packs/export {manifest, include_issues, include_notes} — the
@@ -856,7 +858,9 @@ func (h *Handler) ExportPack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "workspace not found")
 		return
 	}
-	b, err := h.buildTransferBundle(r.Context(), ws, transferExportOptions{IncludeIssues: req.IncludeIssues, IncludeNotes: req.IncludeNotes, Template: true, Name: req.Manifest.Title})
+	// Skills discovered on a connected computer never travel in a pack: they
+	// are that machine's, and the file would be tens of megabytes of them.
+	b, err := h.buildTransferBundle(r.Context(), ws, transferExportOptions{IncludeIssues: req.IncludeIssues, IncludeNotes: req.IncludeNotes, Template: true, Name: req.Manifest.Title, SkipSkills: req.IncludeSkills != nil && !*req.IncludeSkills, SkipMachineSkills: true})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "export failed: "+err.Error())
 		return

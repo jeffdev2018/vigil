@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-上传的 pack 文件上限是 4 MB。导出同样不携带任何凭证 —— 智能体的环境变量密钥被留下，触发器回来时是关闭的，分诊来源回来时没有 token。
+服务端接受最大 32 MB 的 pack 文件；网页端最多上传 8 MB，更大的文件请用 `multica pack preview-file` / `install-file`。在已连接电脑上发现的技能不会被导出（它们属于那台机器）；加上 `--include-skills=false` 会把所有技能都排除。导出同样不携带任何凭证 —— 智能体的环境变量密钥被留下，触发器回来时是关闭的，分诊来源回来时没有 token。
 
 ## pack 格式
 
@@ -166,7 +166,7 @@ multica pack uninstall <install-id>
 - `POST /api/packs/preview | install` —— 同上，multipart，pack 文件放在 `file` 字段。
 - `GET /api/packs/installed`、`GET /api/packs/installed/{id}` → 台账，以及一次安装的全部行。
 - `POST /api/packs/installed/{id}/uninstall` → 安装记录，以及移除／保留报告。
-- `POST /api/packs/export {manifest, include_issues, include_notes}` → 一个 `pack.yaml`。
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → 一个 `pack.yaml`。
 - 审计动作 `pack.installed` 和 `pack.uninstalled`；`pack:changed` 事件让打开着的页面保持最新。
 
 ## 接下来

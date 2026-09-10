@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-업로드하는 팩 파일은 4 MB까지입니다. 내보내기도 자격 증명을 담지 않습니다 —— 에이전트의 환경 변수 키는 남겨지고, 트리거는 비활성으로 돌아오며, 트리아지 소스는 토큰 없이 돌아옵니다.
+서버는 32 MB까지의 팩 파일을 받습니다. 웹 앱에서는 8 MB까지 업로드할 수 있고, 그보다 크면 `multica pack preview-file` / `install-file`을 씁니다. 연결된 컴퓨터에서 발견된 스킬은 내보내기에 포함되지 않으며(그 기기의 것이므로), `--include-skills=false`를 주면 스킬을 전부 제외합니다. 내보내기도 자격 증명을 담지 않습니다 —— 에이전트의 환경 변수 키는 남겨지고, 트리거는 비활성으로 돌아오며, 트리아지 소스는 토큰 없이 돌아옵니다.
 
 ## 팩 포맷
 
@@ -166,7 +166,7 @@ multica pack uninstall <install-id>
 - `POST /api/packs/preview | install` —— 같은 것을 multipart로. 팩 파일은 `file` 필드에 넣습니다.
 - `GET /api/packs/installed`, `GET /api/packs/installed/{id}` → 원장과 한 설치의 행들.
 - `POST /api/packs/installed/{id}/uninstall` → 설치 기록과 제거／보존 리포트.
-- `POST /api/packs/export {manifest, include_issues, include_notes}` → `pack.yaml`.
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → `pack.yaml`.
 - 감사 액션 `pack.installed`과 `pack.uninstalled`, 그리고 열려 있는 페이지를 최신으로 유지하는 `pack:changed` 이벤트.
 
 ## 다음 단계
