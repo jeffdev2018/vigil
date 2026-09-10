@@ -38,6 +38,7 @@ import { agentMemoryKeys } from "../agents/memory";
 import { meetingKeys } from "../meetings/queries";
 import { calendarEventKeys } from "../calendar-events/queries";
 import { doctrineKeys } from "../doctrine/queries";
+import { invalidatePackTargets } from "../packs/mutations";
 import { githubKeys } from "../github/queries";
 import { prWalkthroughKeys } from "../pr-walkthrough/queries";
 import { epicKeys } from "../projects/epic";
@@ -1448,6 +1449,17 @@ export function useRealtimeSync(
       qc.invalidateQueries({ queryKey: doctrineKeys.all(wsId) });
     });
 
+    // Packs (OS plan, vague B). Invalidate only, same choice as the doctrine
+    // above. An install rewrites the catalogue's install state AND every
+    // collection the bundle touched (agents, skills, projects, goals,
+    // autopilots, the org chart, issues, the doctrine), so this reuses the
+    // mutation's own target list rather than keeping a second copy of it.
+    const unsubPackChanged = ws.on("pack:changed", () => {
+      const wsId = getCurrentWsId();
+      if (!wsId) return;
+      invalidatePackTargets(qc, wsId);
+    });
+
     // Review rework loop (JEF-238): a request_changes verdict sent the task
     // back to the worker, or the cycle cap escalated to a human. Refresh the
     // issue's review list and raise a client-only signal the cross-review
@@ -2193,6 +2205,7 @@ export function useRealtimeSync(
       unsubMeetingDeleted();
       unsubCalendarChanged();
       unsubDoctrineChanged();
+      unsubPackChanged();
       unsubCrossReviewRework();
       unsubCrossReviewEscalated();
       unsubCommentCreated();

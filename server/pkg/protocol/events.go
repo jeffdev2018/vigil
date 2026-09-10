@@ -93,6 +93,10 @@ const (
 	// refetch the doctrine and its reports.
 	EventDoctrineChanged = "doctrine:changed"
 
+	// EventPackChanged (packs): a pack was installed, upgraded or removed.
+	// Clients refetch the catalogue and the installed list.
+	EventPackChanged = "pack:changed"
+
 	EventApprovalAsked   = "approval:asked"
 	EventApprovalDecided = "approval:decided"
 

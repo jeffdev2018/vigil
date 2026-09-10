@@ -146,7 +146,9 @@ export type WSEventType =
   // Workspace doctrine (OS plan, chantier 22): a revision was published, one
   // was proposed for review, a proposal was approved/rejected, or a report
   // was filed or resolved.
-  | "doctrine:changed";
+  | "doctrine:changed"
+  // Packs (OS plan, vague B): a pack was installed, upgraded or removed.
+  | "pack:changed";
 
 export interface WSMessage<T = unknown> {
   type: WSEventType;
@@ -395,6 +397,18 @@ export interface DoctrineChangedPayload {
   version_id?: string;
   report_id?: string;
   pending_version_id?: string;
+}
+
+/**
+ * Packs (OS plan, vague B). A change hint, not a row: the catalogue, the
+ * install ledger and each install's items are all read back from the API, so
+ * listeners invalidate the pack queries rather than merging this. `change` is
+ * one of installed | uninstalled — read it with a `default` branch.
+ */
+export interface PackChangedPayload {
+  pack_id: string;
+  version: string;
+  change: string;
 }
 
 export interface CrossReviewEventPayload {
@@ -1006,6 +1020,7 @@ export interface WSEventPayloadMap {
   "run_halt:changed": RunHaltChangedPayload;
   "calendar:changed": CalendarChangedPayload;
   "doctrine:changed": DoctrineChangedPayload;
+  "pack:changed": PackChangedPayload;
 }
 
 /**

@@ -486,7 +486,8 @@
       "code_health": "코드 건강",
       "doc_drift": "에이전트 컨텍스트 드리프트",
       "issue_types": "작업 항목 유형",
-      "doctrine": "행동 지침"
+      "doctrine": "행동 지침",
+      "packs": "팩"
     },
     "groups": {
       "personal": "개인 설정",
@@ -2547,5 +2548,161 @@
     "report_status_acknowledged": "확인됨",
     "report_status_dismissed": "기각됨",
     "unknown_member": "알 수 없음"
+  },
+  "packs": {
+    "title": "팩",
+    "description": "팩은 이 워크스페이스를 하나의 업무에 바로 쓸 수 있는 구성으로 바꿉니다. 상태, 이슈 유형, 라벨, 속성, 뷰, 규칙, 독트린 섹션, 절차, 프로젝트, 목표, 예시 이슈까지. 모든 팩은 에이전트 없이도 동작합니다. 에이전트는 런타임 없이 일시 중지 상태로, 자동화는 비활성 상태로 들어옵니다.",
+    "read_only": "팩 설치, 업데이트, 제거는 owner와 admin만 할 수 있습니다.",
+    "install_done": "팩을 설치했습니다",
+    "install_failed": "팩을 설치할 수 없습니다",
+    "catalogue": {
+      "section": "카탈로그",
+      "description": "이 워크스페이스의 업무를 고르세요. 직접 지정하지 않는 한 기존 항목을 덮어쓰지 않습니다.",
+      "filter_label": "영역으로 필터",
+      "all_domains": "전체",
+      "loading": "불러오는 중...",
+      "failed": "카탈로그를 불러올 수 없습니다",
+      "retry": "다시 시도",
+      "empty": "이 영역의 팩이 아직 없습니다."
+    },
+    "card": {
+      "installed": "{{version}} 설치됨",
+      "update_to": "{{version}}(으)로 업데이트",
+      "wave": "{{wave}}차",
+      "works_without_agents": "에이전트 없이 동작",
+      "metric": "지표: {{label}}"
+    },
+    "detail": {
+      "failed": "이 팩을 불러올 수 없습니다",
+      "version": "버전 {{version}}",
+      "metric": "지켜볼 지표",
+      "prerequisites": "선행 조건",
+      "optional": "선택",
+      "contents": "설치되는 항목",
+      "changelog": "변경 내역",
+      "author_license": "{{author}} · {{license}}",
+      "download": "pack.yaml 다운로드",
+      "download_failed": "팩 파일을 다운로드할 수 없습니다"
+    },
+    "preview": {
+      "title": "미리보기",
+      "start": "설치 미리보기",
+      "running": "팩을 읽는 중...",
+      "failed": "팩을 미리 볼 수 없습니다",
+      "collisions": "기존 항목과 이름이 {{count}}건 충돌합니다",
+      "no_collisions": "이 워크스페이스에 팩과 충돌하는 항목이 없습니다.",
+      "strategy": "충돌할 때",
+      "install": "설치",
+      "update": "업데이트",
+      "installing": "설치 중..."
+    },
+    "report": {
+      "title": "설치 결과",
+      "created": "생성",
+      "merged": "병합",
+      "skipped": "건너뜀"
+    },
+    "installed": {
+      "section": "설치됨",
+      "description": "팩이 만든 항목은 모두 기록되므로 그 자리에서 업데이트하거나 제거할 수 있습니다.",
+      "empty": "설치된 팩이 아직 없습니다.",
+      "items": "항목 {{count}}개",
+      "update": "{{version}}(으)로 업데이트",
+      "uninstall": "제거",
+      "uninstall_done": "팩을 제거했습니다",
+      "uninstall_failed": "팩을 제거할 수 없습니다",
+      "uninstall_report": "제거 결과",
+      "removed": "제거됨",
+      "kept": "유지됨",
+      "no_items": "이 설치에 기록된 항목이 없습니다.",
+      "confirm_title": "{{title}}을(를) 제거할까요?",
+      "confirm_body": "팩이 만든 구성은 제거됩니다. 뷰, 라벨, 속성, 규칙, 상태, 이슈 유형은 삭제되고 에이전트와 자동화는 보관됩니다. 콘텐츠는 남습니다. 팩이 가져온 프로젝트, 목표, 노트, 이슈는 이제 이 워크스페이스의 것이며, 기존 항목에 병합된 내용은 그대로 둡니다.",
+      "confirm_cancel": "취소",
+      "confirm_action": "팩 제거"
+    },
+    "upload": {
+      "section": "팩 업로드",
+      "description": "공유받은 pack.yaml을 설치합니다. 파일 읽기와 검사는 서버가 하고, 미리보기를 확인하기 전에는 아무것도 적용되지 않습니다.",
+      "file_label": "팩 파일",
+      "file_description": ".yaml 파일 하나."
+    },
+    "export": {
+      "section": "팩으로 내보내기",
+      "description": "이 워크스페이스의 구성을 pack.yaml로 만듭니다. 편집하고 공유하고 다른 곳에 설치할 수 있습니다. 시크릿은 포함되지 않습니다.",
+      "manifest": "매니페스트",
+      "id": "식별자 (kebab-case)",
+      "version": "버전 (1.0.0)",
+      "pack_title": "제목",
+      "summary": "요약",
+      "domain": "영역",
+      "metric_label": "지켜볼 지표",
+      "metric_description": "그 지표를 읽는 방법",
+      "include_issues": "이슈 포함",
+      "include_notes": "노트 포함",
+      "button": "팩 내보내기",
+      "exporting": "내보내는 중...",
+      "done": "팩을 다운로드했습니다",
+      "failed": "팩을 내보낼 수 없습니다"
+    },
+    "strategies": {
+      "skip": "이미 있는 항목은 그대로",
+      "merge": "기존 항목에 병합",
+      "rename": "팩 항목을 새 이름으로"
+    },
+    "strategy_help": {
+      "skip": "같은 이름으로 이미 있는 항목은 전혀 바뀌지 않습니다.",
+      "merge": "팩의 내용으로 기존 항목을 업데이트합니다. 업데이트할 때 씁니다.",
+      "rename": "팩의 항목이 새 이름으로 기존 항목과 나란히 들어옵니다."
+    },
+    "prerequisite_status": {
+      "met": "충족",
+      "missing": "없음",
+      "unknown": "선택 사항"
+    },
+    "sources": {
+      "builtin": "기본 제공",
+      "upload": "업로드",
+      "workspace": "워크스페이스"
+    },
+    "install_status": {
+      "installed": "설치됨",
+      "failed": "실패",
+      "removed": "제거됨"
+    },
+    "domains": {
+      "helpdesk": "헬프데스크",
+      "ops": "운영",
+      "support": "고객 지원",
+      "sales": "영업",
+      "marketing": "마케팅",
+      "leadership": "경영",
+      "research": "리서치",
+      "hr": "인사",
+      "finance": "재무",
+      "legal": "법무",
+      "engineering": "엔지니어링",
+      "other": "기타"
+    },
+    "kinds": {
+      "issue_statuses": "상태",
+      "issue_types": "이슈 유형",
+      "labels": "라벨",
+      "properties": "속성",
+      "views": "뷰",
+      "transition_rules": "전환 규칙",
+      "business_rules": "비즈니스 규칙",
+      "ownership_rules": "담당 규칙",
+      "permission_profiles": "권한 프로필",
+      "skills": "절차",
+      "agents": "에이전트",
+      "projects": "프로젝트",
+      "goals": "목표",
+      "autopilots": "자동화",
+      "triage_sources": "접수 소스",
+      "org_structures": "조직도",
+      "notes": "노트",
+      "issues": "이슈",
+      "doctrine": "독트린"
+    }
   }
 }

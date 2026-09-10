@@ -104,6 +104,7 @@ func init() {
 	rootCmd.AddCommand(runsCmd)
 	rootCmd.AddCommand(calendarCmd)
 	rootCmd.AddCommand(doctrineCmd)
+	rootCmd.AddCommand(packCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(sandboxRunCmd)
 	rootCmd.AddCommand(hookCmd)

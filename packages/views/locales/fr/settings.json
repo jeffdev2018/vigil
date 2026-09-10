@@ -518,7 +518,8 @@
       "code_health": "Santé du code",
       "doc_drift": "Dérive du contexte agent",
       "issue_types": "Types de tickets",
-      "doctrine": "Doctrine"
+      "doctrine": "Doctrine",
+      "packs": "Packs"
     },
     "device_scope": "Cet appareil",
     "groups": {
@@ -2555,5 +2556,161 @@
     "report_status_acknowledged": "Pris en compte",
     "report_status_dismissed": "Écarté",
     "unknown_member": "Inconnu"
+  },
+  "packs": {
+    "title": "Packs",
+    "description": "Un pack transforme cet espace de travail en configuration prête à l'emploi pour un métier : statuts, types de tâche, étiquettes, propriétés, vues, règles, une section de doctrine, une procédure, un projet, un objectif et des exemples. Chaque pack fonctionne sans aucun agent — les agents arrivent en pause sans runtime, les automatisations désactivées.",
+    "read_only": "Seuls les owners et les admins peuvent installer, mettre à jour ou retirer un pack.",
+    "install_done": "Pack installé",
+    "install_failed": "Impossible d'installer le pack",
+    "catalogue": {
+      "section": "Catalogue",
+      "description": "Choisissez le métier de cet espace de travail. L'installation n'écrase jamais ce qui existe déjà, sauf demande explicite.",
+      "filter_label": "Filtrer par domaine",
+      "all_domains": "Tous",
+      "loading": "Chargement...",
+      "failed": "Impossible de charger le catalogue",
+      "retry": "Réessayer",
+      "empty": "Aucun pack dans ce domaine pour l'instant."
+    },
+    "card": {
+      "installed": "Installé {{version}}",
+      "update_to": "Mettre à jour en {{version}}",
+      "wave": "Vague {{wave}}",
+      "works_without_agents": "Fonctionne sans agent",
+      "metric": "Indicateur : {{label}}"
+    },
+    "detail": {
+      "failed": "Impossible de charger ce pack",
+      "version": "Version {{version}}",
+      "metric": "L'indicateur à suivre",
+      "prerequisites": "Prérequis",
+      "optional": "optionnel",
+      "contents": "Ce qu'il installe",
+      "changelog": "Journal des versions",
+      "author_license": "Par {{author}} · {{license}}",
+      "download": "Télécharger pack.yaml",
+      "download_failed": "Impossible de télécharger le fichier du pack"
+    },
+    "preview": {
+      "title": "Aperçu",
+      "start": "Prévisualiser l'installation",
+      "running": "Lecture du pack...",
+      "failed": "Impossible de prévisualiser le pack",
+      "collisions": "{{count}} conflits de nom avec ce que contient déjà cet espace de travail",
+      "no_collisions": "Rien dans cet espace de travail n'entre en conflit avec le pack.",
+      "strategy": "En cas de conflit",
+      "install": "Installer",
+      "update": "Mettre à jour",
+      "installing": "Installation..."
+    },
+    "report": {
+      "title": "Rapport d'installation",
+      "created": "Créés",
+      "merged": "Fusionnés",
+      "skipped": "Ignorés"
+    },
+    "installed": {
+      "section": "Installés",
+      "description": "Chaque élément créé par un pack est enregistré, pour pouvoir le mettre à jour sur place ou le retirer.",
+      "empty": "Aucun pack installé pour l'instant.",
+      "items": "{{count}} éléments",
+      "update": "Mettre à jour en {{version}}",
+      "uninstall": "Désinstaller",
+      "uninstall_done": "Pack retiré",
+      "uninstall_failed": "Impossible de retirer le pack",
+      "uninstall_report": "Rapport de désinstallation",
+      "removed": "Retirés",
+      "kept": "Conservés",
+      "no_items": "Cette installation n'a enregistré aucun élément.",
+      "confirm_title": "Retirer {{title}} ?",
+      "confirm_body": "La configuration créée par le pack part : ses vues, étiquettes, propriétés, règles, statuts et types de tâche sont supprimés, ses agents et automatisations archivés. Votre contenu reste : les projets, objectifs, notes et tâches apportés par le pack sont désormais les vôtres, et tout ce qu'il a fusionné dans un élément existant n'est pas touché.",
+      "confirm_cancel": "Annuler",
+      "confirm_action": "Retirer le pack"
+    },
+    "upload": {
+      "section": "Importer un pack",
+      "description": "Installez un pack.yaml qu'on vous a partagé. Le serveur lit et vérifie le fichier ; rien n'est appliqué avant que vous ayez vu l'aperçu.",
+      "file_label": "Fichier du pack",
+      "file_description": "Un seul fichier .yaml."
+    },
+    "export": {
+      "section": "Exporter en pack",
+      "description": "Transformez la configuration de cet espace de travail en pack.yaml, à modifier, partager ou installer ailleurs. Les secrets ne sont jamais inclus.",
+      "manifest": "Manifeste",
+      "id": "Identifiant (kebab-case)",
+      "version": "Version (1.0.0)",
+      "pack_title": "Titre",
+      "summary": "Résumé",
+      "domain": "Domaine",
+      "metric_label": "Indicateur à suivre",
+      "metric_description": "Comment lire cet indicateur",
+      "include_issues": "Inclure les tâches",
+      "include_notes": "Inclure les notes",
+      "button": "Exporter le pack",
+      "exporting": "Export...",
+      "done": "Pack téléchargé",
+      "failed": "Impossible d'exporter le pack"
+    },
+    "strategies": {
+      "skip": "Ignorer ce qui existe déjà",
+      "merge": "Fusionner avec l'existant",
+      "rename": "Renommer ce qu'apporte le pack"
+    },
+    "strategy_help": {
+      "skip": "Tout ce que cet espace de travail possède déjà sous ce nom reste exactement en place.",
+      "merge": "La version du pack met à jour l'élément existant. À utiliser pour une mise à jour.",
+      "rename": "L'élément du pack arrive sous un nouveau nom, à côté du vôtre."
+    },
+    "prerequisite_status": {
+      "met": "Rempli",
+      "missing": "Manquant",
+      "unknown": "À vous de voir"
+    },
+    "sources": {
+      "builtin": "Intégré",
+      "upload": "Import",
+      "workspace": "Espace de travail"
+    },
+    "install_status": {
+      "installed": "Installé",
+      "failed": "Échec",
+      "removed": "Retiré"
+    },
+    "domains": {
+      "helpdesk": "Helpdesk",
+      "ops": "Opérations",
+      "support": "Support client",
+      "sales": "Commercial",
+      "marketing": "Marketing",
+      "leadership": "Direction",
+      "research": "Recherche",
+      "hr": "Ressources humaines",
+      "finance": "Finance",
+      "legal": "Juridique",
+      "engineering": "Ingénierie",
+      "other": "Autre"
+    },
+    "kinds": {
+      "issue_statuses": "statuts",
+      "issue_types": "types de tâche",
+      "labels": "étiquettes",
+      "properties": "propriétés",
+      "views": "vues",
+      "transition_rules": "règles de transition",
+      "business_rules": "règles métier",
+      "ownership_rules": "règles de responsabilité",
+      "permission_profiles": "profils de permission",
+      "skills": "procédures",
+      "agents": "agents",
+      "projects": "projets",
+      "goals": "objectifs",
+      "autopilots": "automatisations",
+      "triage_sources": "sources d'entrée",
+      "org_structures": "organigrammes",
+      "notes": "notes",
+      "issues": "tâches",
+      "doctrine": "doctrine"
+    }
   }
 }

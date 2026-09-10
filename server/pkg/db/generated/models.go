@@ -3275,6 +3275,36 @@ type WorkspaceNote struct {
 	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
 }
 
+type WorkspacePackInstall struct {
+	ID           pgtype.UUID        `json:"id"`
+	WorkspaceID  pgtype.UUID        `json:"workspace_id"`
+	PackID       string             `json:"pack_id"`
+	PackVersion  string             `json:"pack_version"`
+	Title        string             `json:"title"`
+	Source       string             `json:"source"`
+	Strategy     string             `json:"strategy"`
+	BundleSha256 string             `json:"bundle_sha256"`
+	RunID        pgtype.UUID        `json:"run_id"`
+	Status       string             `json:"status"`
+	Report       []byte             `json:"report"`
+	Manifest     []byte             `json:"manifest"`
+	InstalledBy  pgtype.UUID        `json:"installed_by"`
+	InstalledAt  pgtype.Timestamptz `json:"installed_at"`
+	RemovedBy    pgtype.UUID        `json:"removed_by"`
+	RemovedAt    pgtype.Timestamptz `json:"removed_at"`
+}
+
+type WorkspacePackItem struct {
+	ID          pgtype.UUID        `json:"id"`
+	InstallID   pgtype.UUID        `json:"install_id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	Kind        string             `json:"kind"`
+	RowID       pgtype.UUID        `json:"row_id"`
+	Name        string             `json:"name"`
+	Action      string             `json:"action"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type WorkspaceShareLink struct {
 	ID          pgtype.UUID        `json:"id"`
 	WorkspaceID pgtype.UUID        `json:"workspace_id"`

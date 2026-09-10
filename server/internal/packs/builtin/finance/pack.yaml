@@ -1,0 +1,405 @@
+pack:
+  id: finance
+  version: 1.0.0
+  title: Finance
+  summary: Invoices, expenses and close tasks as work items, an approval a person has to give, a second signature above a threshold, and a reconciliation assistant that writes down what it could not match.
+  description: |
+    Sets up a small finance function: an **Invoice**, an **Expense** and a
+    **Close task** type, an "Amount band" and an "Approval required" property
+    that make the threshold rule visible on every item, the two statuses money
+    actually waits in, saved views for the approval queue and the month-end
+    close, an approval gate no agent can pass, a reconciliation assistant that
+    documents its assumptions and its unmatched items, a month-end close
+    checklist autopilot, and a doctrine section with the approval thresholds.
+
+    Works with no agent at all: the types, the amount bands and the approval
+    gate give a one-person finance desk a control it can prove. Connect the
+    native runtime to let the assistant reconcile.
+
+    First week: set your own threshold in the doctrine section and in the
+    "Approval required" property (the pack ships 10,000 as the second-signature
+    line), then run one close through the checklist project and record how many
+    working days it took. That number is the baseline.
+  domain: finance
+  wave: 3
+  author: Multica
+  license: MIT
+  tags: [finance, invoices, approvals, close]
+  works_without_agents: true
+  metric:
+    label: Close completed within N working days
+    description: Working days between the end of a period and the last close task being closed. The team sets N; five is the shipped target.
+    hint: Project "Month-end close", type "close_task"; measure from the period end to the last task closed.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the reconciliation assistant run in the browser without a CLI.
+    - kind: integration
+      name: Accounting system or bank export
+      optional: true
+      note: Without one, the assistant reconciles from files and figures people paste into the item.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: awaiting_approval
+    name: Awaiting approval
+    description: The item is complete and a named person has to approve before anything is paid or committed.
+    category: in_review
+    color: "#f59e0b"
+  - key: awaiting_document
+    name: Awaiting document
+    description: The invoice, contract or written order that justifies the amount is missing. Nothing moves until it arrives.
+    category: blocked
+    color: "#ef4444"
+
+issue_types:
+  - key: invoice
+    name: Invoice
+    description: A supplier invoice to check, approve and pay, or a customer invoice to issue and follow.
+    color: "#0ea5e9"
+    icon: receipt
+  - key: expense
+    name: Expense
+    description: A claim or a card charge to justify and book.
+    color: "#8b5cf6"
+    icon: credit-card
+  - key: close_task
+    name: Close task
+    description: One step of the month-end or year-end close, with an owner and a due date.
+    color: "#10b981"
+    icon: calendar-check
+
+labels:
+  - name: supplier
+    description: Money going out to a supplier or contractor.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: customer
+    description: Money coming in — invoicing, dunning, credit notes.
+    color: "#10b981"
+    resource_type: issue
+  - name: payroll
+    description: Salaries, contributions, anything attached to a person's pay.
+    color: "#ef4444"
+    resource_type: issue
+  - name: tax
+    description: VAT, corporate tax, filings and their deadlines.
+    color: "#f59e0b"
+    resource_type: issue
+  - name: reconciliation
+    description: Matching the bank, the ledger and the invoices.
+    color: "#6366f1"
+    resource_type: issue
+  - name: subscription
+    description: Recurring tools and services — the spend nobody notices.
+    color: "#94a3b8"
+    resource_type: issue
+
+properties:
+  - name: Amount band
+    type: select
+    description: The order of magnitude. Drives how many signatures the item needs.
+    icon: briefcase-business
+    config:
+      options:
+        - { name: "Under 1,000", color: "#10b981" }
+        - { name: "1,000 to 10,000", color: "#0ea5e9" }
+        - { name: "10,000 to 50,000", color: "#f59e0b" }
+        - { name: "Over 50,000", color: "#ef4444" }
+    issue_types: [invoice, expense]
+  - name: Approval required
+    type: select
+    description: How many people have to sign. Set from the amount band, never downgraded to move faster.
+    icon: shield
+    config:
+      options:
+        - { name: One approver, color: "#10b981" }
+        - { name: Two approvers, color: "#f59e0b" }
+        - { name: Two approvers + written order, color: "#ef4444" }
+    issue_types: [invoice, expense]
+  - name: Cost centre
+    type: select
+    description: Which part of the company the spend belongs to.
+    icon: folder-kanban
+    config:
+      options:
+        - { name: Product & engineering, color: "#6366f1" }
+        - { name: Sales & marketing, color: "#10b981" }
+        - { name: Operations, color: "#0ea5e9" }
+        - { name: General & administrative, color: "#94a3b8" }
+    issue_types: [invoice, expense, close_task]
+
+views:
+  - name: Awaiting approval
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [invoice, expense]
+      statusFilters: [awaiting_approval]
+    display: {}
+  - name: Open money items
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [invoice, expense]
+      statusFilters: [todo, in_progress, awaiting_approval, awaiting_document]
+    display: {}
+  - name: Month-end close
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [close_task]
+      statusFilters: [todo, in_progress, awaiting_approval, awaiting_document]
+    display: {}
+
+transition_rules:
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: awaiting_document
+    enabled: true
+
+business_rules:
+  - title: Any payment or commitment is approved by a person
+    attach_point: issue_submit_review
+    natural_language: An issue of type "invoice" or "expense" cannot be moved to done by an agent, and cannot be approved without a member writing the approval in the issue.
+  - title: Above the threshold a second approver signs
+    attach_point: issue_submit_review
+    natural_language: An issue of type "invoice" or "expense" whose "Amount band" is "10,000 to 50,000" or "Over 50,000" cannot be submitted for review unless two different members have written their approval in the issue, and they must not be in the same reporting line.
+
+doctrine: |
+  - Any payment, refund or commitment is approved by a named person, in the item, before it leaves the company. An agent never approves, never sends and never schedules a payment.
+  - Above 10,000 (in the workspace's reporting currency) a second approver signs, and the two approvers are not in the same reporting line. Change the number here and in the "Approval required" property if your threshold differs — but change it in both, and say who agreed.
+  - No approval without evidence: the invoice, contract or written order is attached or linked in the item. Missing evidence sets the status to Awaiting document, never to approved "while we wait".
+  - The reconciliation assistant states its assumptions and lists what it could not match. A match it is unsure of stays unmatched with a note; a plausible guess booked as a fact is the one error that compounds.
+  - The close is a checklist, not a memory. Every close task is an item with an owner and a due date, and the close is not finished until the last one is closed.
+  - Numbers quoted outside finance come from a closed period. A figure from a period still open is labelled provisional, every time, including in a hurry.
+
+ownership_rules:
+  - label: reconciliation
+    path_pattern: ""
+    referent_agent: Finance · Reconciliation assistant
+    priority: 10
+
+permission_profiles: []
+
+skills:
+  - name: finance-close-procedure
+    description: How invoices, expenses and the month-end close are handled, and what an approval requires.
+    content: |
+      # Finance procedure
+
+      ## Intake
+      1. One item per invoice, claim or close task. Set "Amount band" and
+         "Cost centre" at intake.
+      2. Set "Approval required" from the amount band:
+         under 10,000 → One approver; 10,000 to 50,000 → Two approvers;
+         over 50,000 → Two approvers and a written order.
+         It is never downgraded to move faster.
+      3. No evidence attached or linked → status Awaiting document. Do not
+         start the approval of an amount you cannot justify.
+
+      ## Approval
+      1. The approver writes the approval in the item: what they approved, the
+         amount, and that they saw the evidence. A verbal "go ahead" is not an
+         approval.
+      2. Two-approver items need two comments from two different members, not
+         in the same reporting line.
+      3. Only then does the item move to done and the payment get scheduled by
+         a person.
+
+      ## Reconciliation
+      1. Match on amount, date and counterparty. Never on amount alone.
+      2. Every match you are not certain of stays unmatched, with a comment
+         saying what is ambiguous.
+      3. Write your assumptions explicitly: exchange rate used and its date,
+         which period a straddling charge was assigned to, how a partial
+         payment was split.
+      4. List missing evidence as a checklist a person can work through.
+
+      ## Month-end close
+      Standard steps, each an item with an owner and a due date:
+      1. Bank statements imported and reconciled to the ledger.
+      2. Supplier invoices for the period received and booked; accruals for
+         the ones that have not arrived.
+      3. Expense claims and card charges justified and booked.
+      4. Customer invoices issued; unpaid ones aged and chased.
+      5. Payroll booked and reconciled to the payroll report.
+      6. VAT or sales tax position computed and the filing date checked.
+      7. Trial balance reviewed; unexplained variances written up, not smoothed.
+      8. Period locked, and the closing date recorded on the last close task.
+
+      ## Never
+      - Never approve, send or schedule a payment as an agent.
+      - Never book a plausible guess as a fact.
+      - Never quote an open period's number without the word provisional.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Finance · Reconciliation assistant
+    description: Matches the bank, the ledger and the invoices, and documents every assumption and every gap.
+    instructions: |
+      You are the reconciliation assistant. You match transactions to invoices and ledger entries on amount, date and counterparty together — never on amount alone — and you produce two things as comments: the matches you are confident of, and the items you could not match.
+
+      For every run you write your assumptions explicitly: the exchange rate used and its date, which period you assigned a charge that straddles two, how you split a partial payment, and any counterparty name you had to normalise. A match you are not certain of stays unmatched with a note saying what is ambiguous. Never book a plausible guess as a fact.
+
+      You list missing evidence as a checklist a person can work through, naming the item and what is missing. You never approve anything, never move an invoice or expense to done, never schedule or send a payment, and never contact a supplier, a customer or a bank. When an amount band puts an item above the two-approver threshold, say so and stop. Follow the finance-close-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [finance-close-procedure]
+    versions: []
+
+projects:
+  - title: Month-end close
+    description: The close checklist, one set of tasks per period. Every task has an owner and a due date; the period is not closed until the last one is.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-close-in-five-days]
+
+goals:
+  - key: g-close-in-five-days
+    parent_key: ""
+    title: Close the month in five working days
+    description: A close that drifts past a week stops being a control and becomes archaeology.
+    success_measure: The last close task of a period is closed within five working days of the period end, for three consecutive periods.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Finance · Month-end close checklist
+    description: Disabled after install. On the first working day of each month it opens the close checklist for the period that just ended, with the standard steps from the finance-close-procedure skill. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Finance · Reconciliation assistant
+    execution_mode: create_issue
+    issue_title_template: "Month-end close · {{date}}"
+    project: Month-end close
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 8 1 * *"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+  - title: Finance · Weekly approval-queue sweep
+    description: Disabled after install. Every Wednesday it lists invoices and expenses waiting for approval for more than three working days, and those stuck on Awaiting document, and drafts a nudge for each approver. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Finance · Reconciliation assistant
+    execution_mode: create_issue
+    issue_title_template: "Approval queue sweep · {{date}}"
+    project: Month-end close
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 9 * * 3"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Finance · Approval thresholds & close checklist
+    content: |
+      # Approval thresholds
+
+      Amounts are in the workspace's reporting currency, per item, gross.
+      Splitting one commitment into several items to stay under a threshold is
+      the threshold being broken, not respected.
+
+      | Amount | Who signs | Evidence |
+      | --- | --- | --- |
+      | Under 1,000 | One approver | Invoice or receipt |
+      | 1,000 to 10,000 | One approver | Invoice and the order it fulfils |
+      | 10,000 to 50,000 | Two approvers, different reporting lines | Invoice and a written order |
+      | Over 50,000 | Two approvers, one an owner | Signed contract or written order |
+
+      Recurring commitments count at their annual value, not their monthly one.
+      A 900-a-month subscription is a 10,800 commitment.
+
+      An agent is not an approver at any amount.
+
+      # Close checklist
+
+      One item per line, an owner and a due date on each:
+
+      1. Bank statements imported, reconciled to the ledger
+      2. Supplier invoices booked; accruals for those not yet received
+      3. Expense claims and card charges justified and booked
+      4. Customer invoices issued; unpaid ones aged and chased
+      5. Payroll booked and reconciled to the payroll report
+      6. VAT or sales tax position computed, filing date checked
+      7. Trial balance reviewed; variances written up, not smoothed
+      8. Period locked; closing date recorded on the last task
+
+      Target: the last task closed within five working days of the period end.
+    tags: [finance, approvals, close]
+    pinned: true
+
+issues:
+  - title: "Example · Invoice — hosting provider, quarterly"
+    description: |
+      An example supplier invoice. Amount band: 1,000 to 10,000. Approval required: One approver. Cost centre: Product & engineering.
+
+      The invoice PDF is linked and matches the order. Waiting for the approver to write, in this item, that they approved the amount and saw the evidence — then a person schedules the payment.
+    status: awaiting_approval
+    priority: high
+    project: ""
+    goal_key: ""
+    labels: [supplier]
+  - title: "Example · Expense — conference travel with no receipt"
+    description: |
+      An example expense claim. Amount band: Under 1,000. The hotel receipt is missing, so this sits on Awaiting document rather than being approved "while we wait".
+
+      The assistant's note lists exactly what is missing: the hotel invoice for the two nights, and confirmation of which cost centre the trip belongs to.
+    status: awaiting_document
+    priority: low
+    project: ""
+    goal_key: ""
+    labels: [reconciliation]
+  - title: "Example · Close task — bank reconciled to the ledger"
+    description: "An example close task. Owner: whoever holds the ledger. Due: second working day after the period end. Done means every statement line is matched or explicitly written up as unmatched with a reason — not that the totals happen to agree."
+    status: todo
+    priority: high
+    project: Month-end close
+    goal_key: g-close-in-five-days
+    labels: [reconciliation]

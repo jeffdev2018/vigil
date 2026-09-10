@@ -70,6 +70,10 @@ const NON_JSON_RESPONSE_BY_DESIGN = new Set([
   // { text, originalContentType } built from res.text() and the
   // X-Original-Content-Type header, not JSON.
   "getAttachmentTextContent",
+  // Packs (vague B): both hand a pack.yaml to the browser — { blob, filename }
+  // from res.blob() and the Content-Disposition header, not JSON.
+  "exportPack",
+  "downloadPack",
 ]);
 
 // JEF-321 batch E (2026-09) closed the last gap: every remaining method is

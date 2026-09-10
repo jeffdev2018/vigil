@@ -1,0 +1,366 @@
+pack:
+  id: research
+  version: 1.0.0
+  title: Research desk
+  summary: Questions as work items, sources and evidence in the Brain, an explicit confidence, a researcher that drafts and a reviewer that checks provenance before a person approves.
+  description: |
+    Sets up a research desk that produces answers somebody can check: a
+    **Research question** work item type, a **Synthesis** type for the write-up,
+    a "Confidence" and an "Evidence base" property, the statuses a question
+    waits in, saved views for the queue and the review, a researcher agent, a
+    separate evidence-reviewer agent that checks primary sources, dates and
+    provenance, an approval gate on the close, a pinned source log in the Brain,
+    and a doctrine section that forbids the uncited claim.
+
+    Works with no agent at all: the type, the confidence property and the source
+    log give a human desk a citation discipline on day one. Connect the native
+    runtime to let the researcher draft and the reviewer check.
+
+    First week: take the three questions people keep asking in chat, open them
+    as Research questions, name the decision each one feeds, and answer one end
+    to end — draft, evidence review, approval. That answer is the template.
+  domain: research
+  wave: 2
+  author: Multica
+  license: MIT
+  tags: [research, evidence, sources, synthesis]
+  works_without_agents: true
+  metric:
+    label: Questions answered with a cited synthesis
+    description: Share of closed research questions whose synthesis cites every claim to a source with a date and a publisher.
+    hint: Type "question", view "Answered questions"; a close without a cited synthesis does not count.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the researcher and reviewer agents run in the browser without a CLI.
+    - kind: integration
+      name: Web search or a document store
+      optional: true
+      note: Without one, the desk works from sources people paste into the Brain.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: evidence_review
+    name: Evidence review
+    description: A draft synthesis exists and someone who did not write it is checking the sources.
+    category: in_review
+    color: "#8b5cf6"
+  - key: no_source
+    name: No source available
+    description: The question cannot be answered from anything we can reach, and that is the finding.
+    category: blocked
+    color: "#f59e0b"
+
+issue_types:
+  - key: question
+    name: Research question
+    description: One question, with the decision it feeds named in the first line.
+    color: "#8b5cf6"
+    icon: help-circle
+  - key: synthesis
+    name: Synthesis
+    description: A written answer that cites its sources, ready to be quoted outside the desk.
+    color: "#10b981"
+    icon: file-text
+
+labels:
+  - name: market
+    description: Demand, segments, sizing, pricing observed in the market.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: competitive
+    description: What another product does, claims or charges.
+    color: "#ef4444"
+    resource_type: issue
+  - name: technical
+    description: Feasibility, benchmarks, architecture, tooling.
+    color: "#6366f1"
+    resource_type: issue
+  - name: regulatory
+    description: Rules, standards and obligations that bind us.
+    color: "#f59e0b"
+    resource_type: issue
+  - name: methodology
+    description: How we measure, sample or compare — the question behind the question.
+    color: "#94a3b8"
+    resource_type: issue
+
+properties:
+  - name: Confidence
+    type: select
+    description: How much weight the answer can carry. Set it explicitly and lower it rather than flatter it.
+    icon: gauge
+    config:
+      options:
+        - { name: High — primary sources agree, color: "#10b981" }
+        - { name: Medium — one good source, color: "#f59e0b" }
+        - { name: Low — indicative only, color: "#ef4444" }
+        - { name: Not assessed, color: "#94a3b8" }
+    issue_types: [question, synthesis]
+  - name: Evidence base
+    type: select
+    description: What the answer actually rests on.
+    icon: bookmark
+    config:
+      options:
+        - { name: Primary sources, color: "#10b981" }
+        - { name: Secondary reporting, color: "#f59e0b" }
+        - { name: Vendor material only, color: "#ef4444" }
+        - { name: Our own data, color: "#0ea5e9" }
+        - { name: Nothing yet, color: "#94a3b8" }
+    issue_types: [question, synthesis]
+
+views:
+  - name: Open questions
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [question]
+      statusFilters: [backlog, todo, in_progress, evidence_review, no_source]
+    display: {}
+  - name: In evidence review
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [question, synthesis]
+      statusFilters: [evidence_review]
+    display: {}
+  - name: Answered questions
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [question]
+      statusFilters: [done]
+    display: {}
+
+transition_rules:
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: in_progress
+    enabled: true
+
+business_rules:
+  - title: A synthesis with no cited source is not approved
+    attach_point: issue_submit_review
+    natural_language: An issue of type "question" or "synthesis" cannot be submitted for review while its "Evidence base" property is "Nothing yet", or while its synthesis contains a claim with no source and date.
+  - title: The reviewer is never the writer
+    attach_point: issue_submit_review
+    natural_language: The actor who wrote the draft synthesis on an issue cannot be the actor who submits that issue for review; the evidence review is done by someone else.
+
+doctrine: |
+  - A research question is an item, and its first line names the decision it feeds. A question no decision needs is closed as out of scope, not researched.
+  - No claim without a source: every number and every assertion carries its source, the publication date, and who published it. An unsourced sentence is deleted, not softened.
+  - Primary beats secondary. A vendor's own page is never the only source for a claim about that vendor, and a press article is never the only source for a number.
+  - Confidence is set explicitly on every answer, and lowered rather than flattered. "Low, because our only source is two years old" is more useful than "Medium" with no reason.
+  - What we could not establish goes in the answer. An omitted uncertainty is a false claim; an admitted one is a finding.
+  - A synthesis is checked by an actor who did not write it, then approved by a person before anyone quotes it outside the desk. "No source available" is a legitimate, closable result.
+
+ownership_rules:
+  - label: competitive
+    path_pattern: ""
+    referent_agent: Research · Desk researcher
+    priority: 10
+
+permission_profiles: []
+
+skills:
+  - name: research-procedure
+    description: How a question is framed, researched, cited, reviewed and closed here.
+    content: |
+      # Research procedure
+
+      ## Framing
+      1. One item, one question. If the title asks two things, split it.
+      2. The first line names the decision the answer feeds. No decision, no research: close it as out of scope.
+      3. Set "Evidence base" to "Nothing yet" and "Confidence" to "Not assessed" at the start. They are updated as the work goes, never left at the default.
+
+      ## Collecting
+      1. Search the Brain first — the source log may already hold the answer or the dead end.
+      2. For every source you keep, add a line to the pinned "Research · Source log" note: title, publisher, date, URL or location, and the one claim you are taking from it.
+      3. A source with no date is not a source. Find the date or drop it.
+      4. Two independent sources for any number that will be quoted outside the desk.
+
+      ## Writing the synthesis
+      In this order:
+      1. **Answer** — two or three sentences, the question answered directly.
+      2. **What the evidence says** — each claim followed by its source and date.
+      3. **What we could not establish** — plainly, with what it would take.
+      4. **Confidence** — the level and the reason for it.
+
+      No executive-summary padding, no "it depends" without saying on what.
+
+      ## Review and close
+      1. Set the status to Evidence review. The reviewer is not the writer.
+      2. The reviewer checks each claim against its source: does the source say this, is it primary, is the date current enough for the claim, is the publisher who they appear to be.
+      3. The reviewer either lists the claims to fix, or confirms. A person approves the close.
+
+      ## Never
+      - Never invent, round or interpolate a number and present it as sourced.
+      - Never cite a source you did not open.
+      - Never close a question yourself.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Research · Desk researcher
+    description: Turns a question into a cited synthesis and states what it could not establish.
+    instructions: |
+      You are the desk researcher. You take a Research question, collect sources, log each one in the pinned "Research · Source log" Brain note, and write a synthesis in the shape the research-procedure skill defines: the answer, the evidence with source and date for every claim, what you could not establish, and the confidence with its reason.
+
+      You never invent or interpolate a number. If you cannot source a figure, write that it is unsourced and why, rather than producing one. You never cite a source you did not open, and a source with no date is not usable. Set "Evidence base" and "Confidence" from what you actually found; if your only sources are the vendor's own material, say so and set the evidence base accordingly.
+
+      You do not review your own work: when the synthesis is written, move the item to Evidence review and stop. You never close a question, never approve anything, and never publish outside the workspace.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [research-procedure]
+    versions: []
+  - name: Research · Evidence reviewer
+    description: Checks every claim against its source — primary, dated, correctly attributed — before a person approves.
+    instructions: |
+      You are the evidence reviewer. You never write or extend a synthesis; you check one. For each claim in the draft you verify four things and report each explicitly: does the cited source actually say this, is the source primary or only secondary, is its date recent enough for the claim being made, and is the publisher the one the citation names.
+
+      Your output is a comment listing, claim by claim, either "verified" with the source line, or the problem: unsupported, over-stated, stale, secondary where primary exists, vendor material presented as independent, or source unreachable. You also say whether the "Confidence" and "Evidence base" properties match what the evidence supports, and propose the level you would set.
+
+      You never approve or close the item — a person does that. You never contact anyone outside the workspace. If you cannot reach a source, say "source unreachable" rather than assuming it supports the claim.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [research-procedure]
+    versions: []
+
+projects:
+  - title: Research desk
+    description: Every research question, its synthesis and its evidence review. One place, so a question is never answered twice.
+    icon: ""
+    status: in_progress
+    priority: medium
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-cited-answers]
+
+goals:
+  - key: g-cited-answers
+    parent_key: ""
+    title: Every answer traceable to a dated source
+    description: The desk's output is only worth what a reader can check.
+    success_measure: Over a quarter, at least 90% of closed questions carry a synthesis in which every claim has a source with a date, and an explicitly set confidence.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Research · Weekly open-question digest
+    description: Disabled after install. Every Friday it opens an item listing questions with no source logged, drafts stuck in evidence review for over a week, and answers whose confidence is still "Not assessed". Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Research · Desk researcher
+    execution_mode: create_issue
+    issue_title_template: "Open-question digest · {{date}}"
+    project: Research desk
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 15 * * 5"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Research · Source log
+    content: |
+      # Source log
+
+      One line per source we have actually opened. Add before you cite, not
+      after. A source with no date does not get a line — it gets dropped.
+
+      Format: `date | publisher | title | where | the claim we take from it`
+
+      ## Kept
+      - `2026-03-11 | national statistics office | Small business ICT survey 2026 | published PDF, table 4 | 38% of firms under 20 staff run no ticketing tool`
+
+      ## Dead ends
+      Record these too. A dead end found twice is a week wasted.
+      - `vendor pricing page, undated` — no dated pricing anywhere public; the figures circulating in articles all trace back to one 2024 blog post.
+
+      ## Rules
+      - Primary source, or say it is secondary.
+      - The publisher, not the aggregator that reprinted it.
+      - If the source is behind a paywall or an account, note that: the next
+        reader needs to know whether they can check it.
+    tags: [research, sources]
+    pinned: true
+
+issues:
+  - title: "Example · How large is the market for our product below 20 staff?"
+    description: |
+      An example research question. Feeds the decision: whether the next pricing tier targets teams under 20 people.
+
+      Needed: a dated, primary estimate of the number of such firms in our two launch countries, and any published figure on what they currently spend on comparable tools. Evidence base: Nothing yet. Confidence: Not assessed.
+    status: todo
+    priority: high
+    project: Research desk
+    goal_key: g-cited-answers
+    labels: [market]
+  - title: "Example · Does the competing product actually enforce its stated retention limit?"
+    description: |
+      An example research question in review. Feeds the decision: whether we claim a retention advantage in the next release note.
+
+      A draft synthesis exists citing the competitor's documentation and two support threads. Waiting on the evidence reviewer: the documentation is vendor material, so the claim cannot rest on it alone.
+    status: evidence_review
+    priority: medium
+    project: Research desk
+    goal_key: ""
+    labels: [competitive]
+  - title: "Example · What does the new reporting rule require of a company our size?"
+    description: "An example research question. Feeds the decision: whether we need an external audit this year. Regulatory text is primary and dated, so this one is answerable with High confidence or not at all."
+    status: todo
+    priority: medium
+    project: Research desk
+    goal_key: ""
+    labels: [regulatory]

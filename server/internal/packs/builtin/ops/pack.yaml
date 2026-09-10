@@ -1,0 +1,375 @@
+pack:
+  id: ops
+  version: 1.0.0
+  title: Operations & runbooks
+  summary: Recurring runbooks, incidents, vendor follow-ups and change requests in one place, with the steps that must happen on time made visible.
+  description: |
+    Sets up the operations desk: a **Runbook run** work item for every
+    recurring procedure, an **Incident** item for what breaks, a **Change
+    request** item for anything that touches production or a supplier
+    contract, the statuses ops work actually sits in (scheduled, monitoring,
+    waiting on a vendor), a Severity and a Site property, saved views for the
+    morning queue and the open incidents, two agents that prepare and record
+    but never act, and a doctrine section with the desk's rules.
+
+    Works with no agent at all: the runbook library note, the views and the
+    statuses make a human ops rota usable on day one. Connect the native
+    runtime to let the runbook runner prepare the checklist and the scribe
+    keep the incident timeline.
+  domain: ops
+  wave: 1
+  author: Multica
+  license: MIT
+  tags: [ops, runbook, incident, vendor, change]
+  works_without_agents: true
+  metric:
+    label: On-time runbook steps
+    description: Share of runbook steps closed before their due time over the last four weeks. The second number to watch is the mean time to acknowledge an incident.
+    hint: Type "runbook_run", view "Today's runbook queue"; count steps closed before their due date against all steps due. For acknowledgement, compare an incident's created time with its first comment.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the runbook runner and the incident scribe work without a CLI on anyone's machine.
+    - kind: channel
+      name: Slack or Telegram
+      optional: true
+      note: Incidents can be declared from chat and the scribe follows the thread.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: scheduled
+    name: Scheduled
+    description: The run has a date and an owner and has not started yet.
+    category: todo
+    color: "#0ea5e9"
+  - key: monitoring
+    name: Monitoring
+    description: The fix or the change is applied and the desk is watching before it calls it done.
+    category: in_progress
+    color: "#eab308"
+  - key: awaiting_vendor
+    name: Awaiting vendor
+    description: A supplier, landlord or external service has to act before the desk can move.
+    category: blocked
+    color: "#a855f7"
+
+issue_types:
+  - key: runbook_run
+    name: Runbook run
+    description: One execution of a recurring procedure — a backup check, a month-end close, a site inspection.
+    color: "#3b82f6"
+    icon: list-checks
+  - key: incident
+    name: Incident
+    description: Something is down, degraded or unsafe and needs to be handled now.
+    color: "#ef4444"
+    icon: siren
+  - key: change_request
+    name: Change request
+    description: A deliberate change to production, a supplier contract or a physical site.
+    color: "#8b5cf6"
+    icon: git-pull-request
+
+labels:
+  - name: recurring
+    description: Part of a scheduled runbook, not one-off work.
+    color: "#3b82f6"
+    resource_type: issue
+  - name: vendor
+    description: A supplier, carrier or landlord is in the loop.
+    color: "#a855f7"
+    resource_type: issue
+  - name: change-control
+    description: Touches production or a signed contract; needs an approver before it starts.
+    color: "#f97316"
+    resource_type: issue
+  - name: facilities
+    description: Buildings, access, equipment, safety.
+    color: "#10b981"
+    resource_type: issue
+  - name: postmortem-due
+    description: The incident is closed but its write-up is not.
+    color: "#ef4444"
+    resource_type: issue
+
+properties:
+  - name: Severity
+    type: select
+    description: How badly this hurts right now. Set it before anything else on an incident.
+    icon: gauge
+    config:
+      options:
+        - { name: "S1 — everyone stopped", color: "#ef4444" }
+        - { name: "S2 — one team stopped", color: "#f59e0b" }
+        - { name: "S3 — degraded, work continues", color: "#eab308" }
+        - { name: "S4 — cosmetic", color: "#10b981" }
+    issue_types: [incident, change_request]
+  - name: Site
+    type: select
+    description: Where the work happens.
+    icon: map-pin
+    config:
+      options:
+        - { name: "Head office", color: "#3b82f6" }
+        - { name: Warehouse, color: "#f59e0b" }
+        - { name: Remote, color: "#10b981" }
+        - { name: Cloud, color: "#8b5cf6" }
+    issue_types: [runbook_run, incident, change_request]
+  - name: Change risk
+    type: select
+    description: What happens if this change goes wrong. Drives who has to approve it.
+    icon: shield
+    config:
+      options:
+        - { name: "Low — reversible in minutes", color: "#10b981" }
+        - { name: "Medium — reversible with effort", color: "#f59e0b" }
+        - { name: "High — hard to undo", color: "#ef4444" }
+    issue_types: [change_request]
+
+views:
+  - name: Today's runbook queue
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [runbook_run]
+      statusFilters: [scheduled, todo, in_progress]
+    display: {}
+  - name: Open incidents
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [incident]
+      statusFilters: [todo, in_progress, monitoring, blocked]
+    display: {}
+  - name: Waiting on a vendor
+    scope_type: workspace
+    visibility: workspace
+    query:
+      statusFilters: [awaiting_vendor]
+      labelFilters: [vendor]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: in_progress
+    enabled: true
+  - to_category: cancelled
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: An S1 incident is never closed by an agent
+    attach_point: issue_submit_review
+    natural_language: An issue of type "incident" whose Severity is "S1 — everyone stopped" cannot be submitted for review by an agent; a person has to do it and has to name who verified the fix.
+  - title: Change control needs a named approver before work starts
+    attach_point: agent_run_dispatch
+    natural_language: An agent must not start a run on an issue of type "change_request" labelled "change-control" unless an owner or admin has commented their approval on the issue.
+
+doctrine: |
+  - A runbook step is either done, or it has an owner and a new due time. "We will get to it" is not a state.
+  - Every incident gets an acknowledgement inside 15 minutes, before anyone starts diagnosing: who owns it and what the severity is.
+  - An S1 is announced to the whole company before the desk starts fixing it, and once more when it is over.
+  - Nothing labelled change-control starts without a named approver on the issue and a written way back.
+  - Agents prepare and record. Applying a change, contacting a vendor and closing an incident are done by a person.
+  - An incident is not closed while it is labelled postmortem-due. The write-up is part of the fix.
+
+ownership_rules:
+  - label: recurring
+    referent_agent: Ops · Runbook runner
+    priority: 10
+  - label: postmortem-due
+    referent_agent: Ops · Incident scribe
+    priority: 20
+
+skills:
+  - name: ops-procedure
+    description: How the ops desk runs a runbook, handles an incident and moves a change request.
+    content: |
+      # Ops procedure
+
+      ## A runbook run
+      1. Open the Brain note "Ops · Runbook library" and find the runbook this run belongs to. If there is no entry, say so on the issue and stop.
+      2. Copy the runbook's steps into the issue description as a checklist, one line per step, each with its due time.
+      3. Set Site and, for anything risky, Severity. Set the status to Scheduled with an owner and a date.
+      4. During the run, tick steps as the owner reports them. Never tick a step you did not see evidence for — ask instead.
+      5. If a step cannot be done, leave it unticked, comment why, and set the status to Blocked or Awaiting vendor. Do not silently skip it.
+      6. When every step is ticked, submit for review. A person closes.
+
+      ## An incident
+      1. Set Severity first, then Site. Add the acknowledgement comment: who owns it, what is affected, what time you saw it.
+      2. Keep a timeline in comments: one line per observation or action, with the time. This is the raw material for the postmortem.
+      3. Search the Brain for the same symptom before proposing anything.
+      4. Propose the fix as a comment starting with "Proposed action:". Do not apply it.
+      5. When a person has applied the fix, set the status to Monitoring and note what you are watching and for how long.
+      6. Add the label postmortem-due on any S1 or S2 and draft the write-up: timeline, cause, what would have caught it earlier.
+
+      ## A change request
+      1. Set Change risk and Site. Add the label change-control when the change touches production or a signed contract.
+      2. Write the plan, the rollback and the blast radius in the description before asking for anything.
+      3. Do not start work until an owner or admin has commented their approval on the issue.
+      4. After the change, set Monitoring, then submit for review. A person closes.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Ops · Runbook runner
+    description: Turns a runbook into a checklist, chases the steps that are due, never ticks a step itself.
+    instructions: |
+      You run the paperwork of the ops desk, not the operations. For each runbook run you find the runbook in the Brain, expand it into a checklist with due times on the issue, and keep the checklist honest: tick a step only when someone reported it done, and when a step is late say so on the issue with who owns it. You never apply a change, never contact a vendor, never close an issue and never invent a step that is not in the runbook — if the runbook is missing or ambiguous, say so and stop. Follow the ops-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [ops-procedure]
+    versions: []
+  - name: Ops · Incident scribe
+    description: Keeps the incident timeline, proposes the fix as a comment, drafts the postmortem.
+    instructions: |
+      You are the scribe of an incident, not the responder. Your job is that in six months someone can read the issue and know what happened: keep a timestamped timeline in comments, record every action a person takes, and make sure Severity is set before anything else. You may propose a fix, always as a comment starting with "Proposed action:", and you never apply one, never restart anything, never close an incident. On an S1 your only first move is to say it is an S1 and hand it to a person. When the fix holds, draft the postmortem — timeline, cause, what would have caught it earlier — and leave the postmortem-due label until a person accepts it. Follow the ops-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 1
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [ops-procedure]
+    versions: []
+
+projects:
+  - title: Operations
+    description: Every runbook run, incident, vendor follow-up and change request of the desk.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-runbook-on-time]
+
+goals:
+  - key: g-runbook-on-time
+    parent_key: ""
+    title: Runbook steps happen on time, incidents get acknowledged fast
+    description: "The desk's two promises: scheduled work is not silently late, and nothing broken waits unowned."
+    success_measure: 95% of runbook steps closed before their due time over four weeks, and mean time to acknowledge an incident under 15 minutes.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Ops · Morning runbook queue
+    description: Disabled after install. Every weekday at 07:00 it opens the runs due today, expands each into its checklist and flags the ones with no owner. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Ops · Runbook runner
+    execution_mode: create_issue
+    issue_title_template: "Runbook queue · today"
+    project: Operations
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 7 * * 1-5"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+  - title: Ops · Vendor follow-up sweep
+    description: Disabled after install. Every Monday morning it lists everything stuck on Awaiting vendor for more than three days and drafts the chase message for a person to send. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Ops · Runbook runner
+    execution_mode: create_issue
+    issue_title_template: "Vendor follow-ups · this week"
+    project: Operations
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "30 8 * * 1"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Ops · Runbook library
+    content: |
+      # Runbook library
+
+      One section per recurring procedure. A runbook that is not here does not
+      exist: the runner refuses to invent steps.
+
+      Each entry: when it runs, who owns it, the steps in order with the time
+      each one is due, and how you know the step worked.
+
+      ## Nightly backup verification — every day, 07:00, ops on rota
+      1. 07:00 — check last night's job finished. Proof: the job log shows an exit code of 0.
+      2. 07:10 — restore one random file into the scratch area. Proof: the file opens and its checksum matches.
+      3. 07:20 — record the restore time on the issue. Escalate as S2 if it is over 30 minutes.
+      Stop condition: if step 2 fails, declare an incident before finishing the checklist.
+
+      ## Month-end close — first business day, finance + ops
+      1. Freeze new purchase orders. Proof: the queue is empty.
+      2. Reconcile the supplier statements against invoices. Proof: every line matched or listed as an exception.
+      3. Hand the exception list to finance. Proof: a comment from finance on the issue.
+    tags: [ops, runbook]
+    pinned: true
+
+issues:
+  - title: "Example · Nightly backup verification"
+    description: "An example runbook run. Expand the \"Nightly backup verification\" runbook from the Brain into a checklist, set Site to Cloud, and record the restore time. Escalate as S2 if the restore takes over 30 minutes."
+    status: scheduled
+    priority: medium
+    project: Operations
+    goal_key: ""
+    labels: [recurring]
+  - title: "Example · Warehouse door badge reader is dead"
+    description: "An example incident. Staff are being let in by hand since 06:40. Severity S2, Site Warehouse, and the reader is under the access vendor's contract — expect Awaiting vendor."
+    status: todo
+    priority: high
+    project: Operations
+    goal_key: ""
+    labels: [facilities, vendor]
+  - title: "Example · Move the invoicing job to the new scheduler"
+    description: "An example change request. Change risk High, touches production billing. Write the plan and the rollback in this description, then wait for an owner's approval comment before starting."
+    status: backlog
+    priority: medium
+    project: Operations
+    goal_key: ""
+    labels: [change-control]

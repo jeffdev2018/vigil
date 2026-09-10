@@ -30,6 +30,7 @@ import {
   HeartPulse,
   FileDiff,
   Scale,
+  Package,
 } from "lucide-react";
 import { useCurrentWorkspace } from "@multica/core/paths";
 import { useFeatureEnabled } from "@multica/core/config";
@@ -46,6 +47,7 @@ import { TokensTab } from "./tokens-tab";
 import { LearningTab } from "./learning-tab";
 import { WorkspaceTab } from "./workspace-tab";
 import { DoctrineTab } from "./doctrine-tab";
+import { PacksTab } from "./packs-tab";
 import { MembersTab } from "./members-tab";
 import { RepositoriesTab } from "./repositories-tab";
 import { IntegrationsTab } from "./integrations-tab";
@@ -162,6 +164,13 @@ export function SettingsPage({ extraDeviceTabs = [] }: SettingsPageProps = {}) {
           t(($) => $.page.tabs.doctrine),
           Scale,
           <DoctrineTab />,
+          true,
+        ),
+        entry(
+          "packs",
+          t(($) => $.page.tabs.packs),
+          Package,
+          <PacksTab />,
           true,
         ),
         entry(

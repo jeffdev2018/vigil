@@ -1,0 +1,395 @@
+pack:
+  id: sales
+  version: 1.0.0
+  title: Sales pipeline
+  summary: Leads and deals with a stage on every one, a follow-up cadence nothing falls out of, a proposal drafter, and an approval before any discount or a deal being called won.
+  description: |
+    Sets up a pipeline a small team can actually run: a **Lead** work item
+    for anything unqualified, a **Deal** for anything with a stage and a
+    number, a **Renewal** for the money you already have, the statuses a deal
+    sits in between the stages (qualifying, awaiting customer, won), a **Deal
+    stage** property so the stage is a field and not a column you have to
+    migrate, **Deal size** and **Account** properties, saved views for the
+    leads to qualify and the deals in play, an autopilot that keeps the
+    follow-up cadence honest, an agent that drafts proposals and an agent
+    that researches accounts — neither of which contacts a prospect.
+
+    Works with no agent at all: the stage property, the views and the cadence
+    doctrine make a two-person sales team usable on day one. Connect the
+    native runtime to let the drafter and the researcher work.
+  domain: sales
+  wave: 2
+  author: Multica
+  license: MIT
+  tags: [sales, pipeline, deals, leads, proposals]
+  works_without_agents: true
+  metric:
+    label: Lead to first qualified call
+    description: Median time between a lead arriving and the first call that ended with the lead qualified or disqualified on purpose. The second number to watch is deals moved to a further stage per week.
+    hint: Type "lead", view "Leads to qualify"; compare each lead's created time with the comment recording the qualifying call. For movement, count Deal stage changes per week in the view "Deals in play".
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the proposal drafter and the account researcher work without a CLI on anyone's machine.
+    - kind: channel
+      name: Shared sales inbox
+      optional: true
+      note: Inbound leads arrive as issues instead of living in one person's mailbox.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: qualifying
+    name: Qualifying
+    description: "Someone is finding out whether this is real: budget, need, who decides, when."
+    category: in_progress
+    color: "#0ea5e9"
+  - key: awaiting_customer
+    name: Awaiting customer
+    description: The ball is with the prospect and the next chase date is on the issue.
+    category: blocked
+    color: "#f59e0b"
+  - key: won
+    name: Won
+    description: Signed. The number and the start date are on the issue.
+    category: done
+    color: "#10b981"
+
+issue_types:
+  - key: lead
+    name: Lead
+    description: A name and a reason to talk, not yet a deal.
+    color: "#8b5cf6"
+    icon: user-plus
+  - key: deal
+    name: Deal
+    description: A qualified opportunity with a stage, a size and an account.
+    color: "#3b82f6"
+    icon: handshake
+  - key: renewal
+    name: Renewal
+    description: An existing customer's contract coming up for renewal.
+    color: "#10b981"
+    icon: repeat
+
+labels:
+  - name: inbound
+    description: They came to us.
+    color: "#10b981"
+    resource_type: issue
+  - name: outbound
+    description: We went to them.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: referral
+    description: Introduced by a customer or a partner. Treat as the highest-quality queue.
+    color: "#8b5cf6"
+    resource_type: issue
+  - name: discount-requested
+    description: A price below the list has been asked for. Needs an approval before it is offered.
+    color: "#f97316"
+    resource_type: issue
+  - name: competitor-in-play
+    description: They are evaluating someone else at the same time.
+    color: "#ef4444"
+    resource_type: issue
+  - name: no-decision-maker
+    description: Nobody who can sign has been in a conversation yet.
+    color: "#eab308"
+    resource_type: issue
+
+properties:
+  - name: Deal stage
+    type: select
+    description: Where the deal stands. This is the field the pipeline is read from — statuses say whether work is happening, the stage says how far along the sale is.
+    icon: milestone
+    config:
+      options:
+        - { name: Discovery, color: "#94a3b8" }
+        - { name: "Demo booked", color: "#0ea5e9" }
+        - { name: "Proposal sent", color: "#8b5cf6" }
+        - { name: Negotiation, color: "#f59e0b" }
+        - { name: "Verbal yes", color: "#10b981" }
+    issue_types: [deal, renewal]
+  - name: Deal size
+    type: select
+    description: Annual value, in bands. Bands rather than a number, so nobody argues about a figure that is still a guess.
+    icon: hash
+    config:
+      options:
+        - { name: "Under 5k", color: "#94a3b8" }
+        - { name: "5k to 25k", color: "#0ea5e9" }
+        - { name: "25k to 100k", color: "#f59e0b" }
+        - { name: "Over 100k", color: "#ef4444" }
+    issue_types: [deal, renewal]
+  - name: Account
+    type: text
+    description: The company's name, spelled the same way every time. One account can have several deals and renewals.
+    icon: briefcase-business
+    config: {}
+    issue_types: [lead, deal, renewal]
+
+views:
+  - name: Leads to qualify
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [lead]
+      statusFilters: [todo, qualifying]
+    display: {}
+  - name: Deals in play
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [deal, renewal]
+      statusFilters: [qualifying, in_progress, awaiting_customer, in_review]
+    display: {}
+  - name: Discounts to approve
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [deal, renewal]
+      statusFilters: [in_review]
+      labelFilters: [discount-requested]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin]
+    allow_actor_types: [member]
+    requires_approval: true
+    approver_roles: [owner, admin]
+    reject_status_key: qualifying
+    enabled: true
+  - from_category: in_progress
+    to_category: in_review
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member, agent]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: No discount is offered before it is approved
+    attach_point: issue_submit_review
+    natural_language: A deal or renewal labelled "discount-requested" cannot be marked Won and no proposal containing a price below list may be treated as sent until an owner or admin has approved the discount on the issue, with the percentage and the reason written down.
+  - title: An agent never contacts a prospect
+    attach_point: agent_run_dispatch
+    natural_language: An agent working on a lead, deal or renewal may only write comments and drafts inside the workspace; it must not send an email, book a meeting or message anyone outside the team.
+
+doctrine: |
+  - A lead has one owner and one next step with a date, from the hour it arrives. A lead with no next step is either qualified or dropped on purpose.
+  - Qualifying means four answers written on the issue: what problem, what budget, who signs, by when. Anything with no decision-maker keeps the no-decision-maker label until one is in a conversation.
+  - The Deal stage property is the pipeline. Move it only after something happened with the prospect, never to make a board look better.
+  - Nothing leaves the workspace from an agent. Agents research and draft; a person sends every email and joins every call.
+  - Any price below list is a discount: it gets the discount-requested label, an owner's approval on the issue with the percentage and the reason, and only then goes into a proposal.
+  - Awaiting customer requires a chase date on the issue. Three chases with no answer and the deal is closed as cancelled with the reason, not left to rot.
+  - A deal is Won when it is signed, and the signed number and start date are on the issue. A verbal yes is a stage, not a result.
+
+ownership_rules:
+  - label: inbound
+    referent_agent: Sales · Account researcher
+    priority: 10
+  - label: discount-requested
+    referent_agent: Sales · Proposal drafter
+    priority: 20
+
+skills:
+  - name: sales-procedure
+    description: How a lead is qualified, a deal is moved, a proposal is drafted and a discount is approved.
+    content: |
+      # Sales procedure
+
+      ## A new lead
+      1. Set Account and the source label — inbound, outbound or referral. Referrals go first, always.
+      2. Write what we know and, separately, what we are guessing. Never mix the two in the description.
+      3. Propose the next step with a date as a comment. Do not book anything yourself.
+      4. Set the status to Qualifying only once someone from the team has a call scheduled.
+
+      ## Qualifying
+      5. Four answers go on the issue, each in the prospect's own words where possible: what problem they are trying to solve, what budget exists, who signs, by when.
+      6. If nobody who can sign has been in a conversation, keep the no-decision-maker label. Do not move the Deal stage past Demo booked.
+      7. If the answer to "what problem" is not one we solve, disqualify it deliberately: comment why and cancel the issue. A clean no beats a lead that lingers.
+      8. Once the four answers are there, convert to a Deal: set Deal stage, Deal size and Account.
+
+      ## Moving a deal
+      9. Change Deal stage only after something happened with the prospect, and say in a comment what it was.
+      10. Every deal has a next step with a date. If the ball is with the prospect, set Awaiting customer and write the chase date.
+      11. Add competitor-in-play the moment another vendor is named, and note what they are being compared on.
+
+      ## Drafting a proposal
+      12. Read the Brain note "Sales · Pricing, objections and guardrails" before writing anything about price.
+      13. Draft the proposal as a comment starting with "Draft proposal:". Never send it, never attach it to an email, never share a link outside the workspace.
+      14. Quote list price. If the deal needs less, do not write the discounted figure into the draft: add the discount-requested label, state the percentage and the reason, set the status to In review and stop.
+      15. Once an owner or admin has approved the discount on the issue, add the approved figure to the draft and hand it to the deal's owner to send.
+
+      ## Closing
+      16. Won means signed. Put the signed number and the start date on the issue, then submit for review; an approver marks it Won.
+      17. Lost means cancelled, with the reason and the competitor if there was one. A lost deal with no reason teaches nobody anything.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Sales · Proposal drafter
+    description: Drafts proposals and follow-up messages at list price, flags every discount for approval, sends nothing.
+    instructions: |
+      You draft the written side of a sale. Given a deal, you read the four qualifying answers and the Brain note "Sales · Pricing, objections and guardrails", then write the proposal as a comment starting with "Draft proposal:" — the problem in the prospect's words, what we do about it, what it costs at list price, and what happens next with dates. You never send anything, never email, never book a meeting, never share a link outside the workspace. You never write a price below list into a draft: instead you add the discount-requested label, state the percentage asked for and the reason, set the status to In review and stop until an owner or admin approves it on the issue. You never invent a capability, a customer reference or a date — if a claim is not in the Brain, ask for it in a comment. Follow the sales-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [sales-procedure]
+    versions: []
+  - name: Sales · Account researcher
+    description: Prepares a lead before the first call and keeps the pipeline's facts straight.
+    instructions: |
+      You prepare leads so a human's first call is not spent asking what could have been read. For each lead you set Account with the company's name spelled the way it will be spelled every time, write what we know and, in a separate paragraph, what we are guessing, and propose the next step with a date. You mark what you could not find rather than filling the gap with a plausible sentence: an invented headcount, funding round or job title is worse than a blank. You never contact anyone outside the team, never book a meeting, never move a Deal stage — you propose the move in a comment and a person makes it. When a deal has no decision-maker in any conversation, you say so plainly and keep the no-decision-maker label. Follow the sales-procedure skill.
+    model: ""
+    thinking_level: ""
+    service_tier: ""
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [sales-procedure]
+    versions: []
+
+projects:
+  - title: Pipeline
+    description: Every lead, deal and renewal the team is working, from first contact to signed or deliberately dropped.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-lead-to-call]
+
+goals:
+  - key: g-lead-to-call
+    parent_key: ""
+    title: Every lead reaches a qualifying call fast, and the pipeline moves every week
+    description: Speed on the way in, and honesty about movement once a deal exists.
+    success_measure: Median time from lead created to qualifying call under two business days, and at least eight deals changing Deal stage per week for a reason written on the issue.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Sales · Follow-up cadence
+    description: Disabled after install. Every weekday morning it finds leads with no next step, deals whose chase date has passed and anything on Awaiting customer for more than five days, and drafts the follow-up message for the owner to send. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Sales · Proposal drafter
+    execution_mode: create_issue
+    issue_title_template: "Follow-ups due · today"
+    project: Pipeline
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 8 * * 1-5"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+  - title: Sales · Stalled deal review
+    description: Disabled after install. Every Monday it lists deals whose Deal stage has not changed in three weeks and drafts, for each, either the next step or the case for closing it as lost. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Sales · Account researcher
+    execution_mode: create_issue
+    issue_title_template: "Stalled deals · this week"
+    project: Pipeline
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 9 * * 1"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Sales · Pricing, objections and guardrails
+    content: |
+      # Pricing, objections and guardrails
+
+      The only place a price or a claim may come from. If it is not written
+      here, it is not something we say to a prospect.
+
+      ## List price
+      Write the current list price per plan and per seat, with the date it was
+      last changed. Anything below these figures is a discount and needs an
+      owner's or admin's approval on the issue.
+
+      ## What a discount costs to ask for
+      Say the percentage and the reason on the issue: multi-year commitment,
+      reference customer, a genuine competitive floor. "They asked" is not a
+      reason. Discounts are never offered before they are asked for.
+
+      ## Objections we get, and the honest answer
+      - "It is more expensive than the alternative." Compare on what they told
+        us their problem is, not on feature counts. If we are genuinely worse
+        for their case, say so and stop selling.
+      - "We already have something for this." Ask what it does not do. If the
+        answer is nothing, disqualify the deal.
+      - "Send me a proposal." Only after the four qualifying answers exist.
+        A proposal into an unqualified deal is a week thrown away.
+
+      ## Never say
+      A delivery date engineering has not committed to. A customer's name as a
+      reference without their written permission. A capability that is on a
+      roadmap rather than in the product.
+    tags: [sales, pricing]
+    pinned: true
+
+issues:
+  - title: "Example · Inbound lead from the pricing page — Northwind Retail"
+    description: "An example lead. Set Account to Northwind Retail, label it inbound, write what we know and what we are guessing in separate paragraphs, and propose the qualifying call with a date. Do not book anything."
+    status: todo
+    priority: high
+    project: Pipeline
+    goal_key: ""
+    labels: [inbound]
+  - title: "Example · Deal — Northwind Retail, 40 seats"
+    description: "An example deal. The four qualifying answers are on the issue, Deal stage is Proposal sent, Deal size 25k to 100k. They asked for 15% off for a two-year commitment: the discount-requested label is on, the percentage and reason are written down, and it waits for an owner's approval before any figure below list goes into the draft."
+    status: in_review
+    priority: high
+    project: Pipeline
+    goal_key: ""
+    labels: [discount-requested, competitor-in-play]
+  - title: "Example · Renewal — Harbour Logistics, contract ends in 60 days"
+    description: "An example renewal. Confirm who signs this time, whether usage grew or shrank, and what they would miss if they left. Set Deal stage and Deal size, and start the conversation 60 days out, not 10."
+    status: qualifying
+    priority: medium
+    project: Pipeline
+    goal_key: ""
+    labels: [no-decision-maker]

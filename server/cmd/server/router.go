@@ -2624,6 +2624,20 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 				})
 			})
 			// Workspace export / import (K76).
+			// Packs (OS plan, vague B): catalogue, install ledger, upload, export.
+			r.Route("/api/packs", func(r chi.Router) {
+				r.Get("/", h.ListPacks)
+				r.Get("/installed", h.ListPackInstalls)
+				r.Get("/installed/{id}", h.GetPackInstall)
+				r.With(handler.RequireHumanActor).Post("/installed/{id}/uninstall", h.UninstallPack)
+				r.With(handler.RequireHumanActor).Post("/preview", h.PreviewPackUpload)
+				r.With(handler.RequireHumanActor).Post("/install", h.InstallPackUpload)
+				r.With(handler.RequireHumanActor).Post("/export", h.ExportPack)
+				r.Get("/{id}", h.GetPack)
+				r.Get("/{id}/download", h.DownloadPack)
+				r.With(handler.RequireHumanActor).Post("/{id}/preview", h.PreviewPack)
+				r.With(handler.RequireHumanActor).Post("/{id}/install", h.InstallPack)
+			})
 			r.Route("/api/workspace-transfer", func(r chi.Router) {
 				r.Post("/export", h.ExportWorkspace)
 				r.Post("/preview", h.PreviewWorkspaceImport)
@@ -2637,6 +2651,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			// Skill Miner (K58): drafts waiting for review.
 			r.Get("/api/skill-miner/drafts", h.ListSkillDrafts)
 			r.Get("/api/workspace-templates", h.ListWorkspaceTemplates)
+			r.Get("/api/pack-catalogue", h.ListPackCatalogue)
 			r.Get("/api/work-profile", h.GetMyWorkProfile)
 			r.Patch("/api/work-profile/{id}", h.PatchWorkProfileObservation)
 			r.Delete("/api/work-profile/{id}", h.DeleteWorkProfileObservation)

@@ -1,0 +1,250 @@
+pack:
+  id: helpdesk-it
+  version: 1.0.0
+  title: Internal helpdesk & IT
+  summary: Tickets from colleagues, triaged, answered within a business day, with an agent that drafts and a person who decides.
+  description: |
+    Sets up an internal helpdesk: a **Ticket** work item type, the statuses a
+    ticket goes through, labels for access, hardware, software and network
+    requests, a "Requester team" property, saved views for the desk, a triage
+    agent that classifies and drafts replies (it never sends one), a weekly
+    stale-ticket sweep, and a doctrine section with the desk's rules.
+
+    Works with no agent at all: the views, statuses and labels make a human
+    desk usable on day one. Connect the native runtime or a computer to let
+    the triage agent draft.
+  domain: helpdesk
+  wave: 1
+  author: Multica
+  license: MIT
+  tags: [it, tickets, sla, internal]
+  works_without_agents: true
+  metric:
+    label: First-response delay
+    description: Median time between a ticket's creation and its first reply from the desk, human or agent.
+    hint: Type "ticket", view "Open tickets"; compare the created and first-comment times.
+  prerequisites:
+    - kind: native_runtime
+      name: Native runtime
+      optional: true
+      note: Lets the triage agent run in the browser without a CLI.
+    - kind: channel
+      name: Slack or Telegram
+      optional: true
+      note: Colleagues can file tickets from chat.
+  changelog:
+    - version: 1.0.0
+      note: First release.
+
+issue_statuses:
+  - key: waiting_on_requester
+    name: Waiting on requester
+    description: The desk asked the requester something and cannot move until they answer.
+    category: blocked
+    color: "#f59e0b"
+  - key: waiting_on_vendor
+    name: Waiting on vendor
+    description: A supplier or external service has to act first.
+    category: blocked
+    color: "#a855f7"
+
+issue_types:
+  - key: ticket
+    name: Ticket
+    description: A request or an incident reported by a colleague.
+    color: "#3b82f6"
+    icon: life-buoy
+  - key: incident
+    name: Incident
+    description: Something is down or degraded for several people.
+    color: "#ef4444"
+    icon: siren
+
+labels:
+  - name: access
+    description: Accounts, permissions, password resets.
+    color: "#8b5cf6"
+    resource_type: issue
+  - name: hardware
+    description: Laptops, screens, peripherals.
+    color: "#0ea5e9"
+    resource_type: issue
+  - name: software
+    description: Installs, licences, application errors.
+    color: "#10b981"
+    resource_type: issue
+  - name: network
+    description: Wi-Fi, VPN, connectivity.
+    color: "#f97316"
+    resource_type: issue
+
+properties:
+  - name: Requester team
+    type: select
+    description: Which team filed the ticket.
+    icon: user-round
+    config:
+      options:
+        - { name: Sales, color: "#10b981" }
+        - { name: Finance, color: "#f59e0b" }
+        - { name: Operations, color: "#0ea5e9" }
+        - { name: Leadership, color: "#8b5cf6" }
+    issue_types: [ticket, incident]
+  - name: Impact
+    type: select
+    description: How many people are affected.
+    icon: gauge
+    config:
+      options:
+        - { name: One person, color: "#10b981" }
+        - { name: A team, color: "#f59e0b" }
+        - { name: Everyone, color: "#ef4444" }
+    issue_types: [ticket, incident]
+
+views:
+  - name: Open tickets
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [ticket, incident]
+      statusFilters: [todo, in_progress, waiting_on_requester, waiting_on_vendor]
+    display: {}
+  - name: Waiting on someone
+    scope_type: workspace
+    visibility: workspace
+    query:
+      typeFilters: [ticket, incident]
+      statusFilters: [waiting_on_requester, waiting_on_vendor]
+    display: {}
+
+transition_rules:
+  - from_category: in_review
+    to_category: done
+    allowed_roles: [owner, admin, member]
+    allow_actor_types: [member]
+    requires_approval: false
+    approver_roles: []
+    enabled: true
+
+business_rules:
+  - title: Incidents affecting everyone are never closed by an agent
+    attach_point: issue_submit_review
+    natural_language: An issue of type "incident" whose Impact is "Everyone" cannot be submitted for review by an agent; a person has to do it.
+
+doctrine: |
+  - A ticket gets a first reply within one business day, even if the reply is "we are on it".
+  - The agent classifies and drafts; a person sends every reply and every change to someone's access.
+  - Password resets and account access are confirmed on a second channel before acting.
+  - An incident that affects everyone is announced to the whole company before anyone starts fixing it.
+
+ownership_rules:
+  - label: access
+    referent_agent: Helpdesk · Triage
+    priority: 10
+
+skills:
+  - name: helpdesk-procedure
+    description: How the desk handles a ticket, from intake to closure.
+    content: |
+      # Helpdesk procedure
+
+      1. Read the ticket and its Requester team and Impact. If either is missing, ask once and set the status to Waiting on requester.
+      2. Classify: add exactly one of the labels access, hardware, software, network.
+      3. Search the Brain for a known fix before drafting anything.
+      4. Draft the reply as a comment that starts with "Draft reply:". Never send it yourself.
+      5. If the fix needs a change to someone's access, stop and hand it to a person with the reason.
+      6. When the requester confirms, submit for review; a person closes.
+    status: published
+    config: {}
+    files: []
+
+agents:
+  - name: Helpdesk · Triage
+    description: Classifies tickets, finds known fixes, drafts replies for a person to send.
+    instructions: |
+      You are the triage agent of the internal helpdesk. You classify tickets, look for known fixes in the Brain and draft replies. You never send a reply, never change anyone's access, and never close a ticket: a person does those. When a ticket is an incident affecting everyone, your only action is to say so and hand over. Follow the helpdesk-procedure skill.
+    runtime_mode: native
+    visibility: workspace
+    max_concurrent_tasks: 2
+    runtime_config: {}
+    mcp_config: {}
+    custom_args: []
+    conversation_starters: []
+    env_keys: []
+    scoped_env_keys: []
+    trust_mode: propose
+    effect_mode: preview
+    permission_profile: ""
+    skills: [helpdesk-procedure]
+    versions: []
+
+projects:
+  - title: Helpdesk
+    description: Every ticket and incident of the internal desk.
+    icon: ""
+    status: in_progress
+    priority: high
+    start_date: ""
+    due_date: ""
+    resources: []
+    goals: [g-first-response]
+
+goals:
+  - key: g-first-response
+    parent_key: ""
+    title: Every ticket answered within a business day
+    description: The desk's promise to the company.
+    success_measure: Median first-response delay under 8 working hours over a month.
+    due_date: ""
+    status: active
+
+autopilots:
+  - title: Helpdesk · Stale-ticket sweep
+    description: Disabled after install. Every weekday morning, lists tickets without a reply for two days and drafts a nudge for each. Enable it once an agent is connected.
+    assignee_type: agent
+    assignee_agent: Helpdesk · Triage
+    execution_mode: create_issue
+    issue_title_template: "Stale tickets · sweep"
+    project: Helpdesk
+    triggers:
+      - kind: schedule
+        enabled: false
+        cron: "0 9 * * 1-5"
+        timezone: UTC
+        label: ""
+        provider: ""
+        event_filters: null
+        event_match_criteria: ""
+        window_minutes: 0
+
+triage_sources: []
+
+org_structures: []
+
+notes:
+  - title: Helpdesk · Known fixes
+    content: |
+      # Known fixes
+
+      Add one section per recurring problem: symptom, cause, fix, who can apply it.
+
+      ## VPN drops every 30 minutes
+      Symptom: the tunnel reconnects on a timer. Cause: the client's keepalive is off. Fix: enable "keep connection alive" in the client settings.
+    tags: [helpdesk, known-fix]
+    pinned: true
+
+issues:
+  - title: "Example · Laptop will not boot after the update"
+    description: "An example ticket. The requester's laptop shows a black screen after last night's update. Requester team: Finance. Impact: one person."
+    status: todo
+    priority: medium
+    project: Helpdesk
+    goal_key: ""
+    labels: [hardware]
+  - title: "Example · Cannot reach the shared drive from home"
+    description: "An example ticket. The shared drive mounts at the office and not over VPN."
+    status: todo
+    priority: low
+    project: Helpdesk
+    goal_key: ""
+    labels: [network]

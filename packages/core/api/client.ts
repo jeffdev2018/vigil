@@ -348,6 +348,32 @@ import type {
   McpToolRisk,
   SandboxMode,
 } from "../types";
+import {
+  EMPTY_PACK_CATALOGUE,
+  EMPTY_PACK_SEED_CATALOGUE,
+  EMPTY_PACK_DETAIL,
+  EMPTY_PACK_INSTALL,
+  EMPTY_PACK_PREVIEW,
+  EMPTY_PACK_REPORT,
+  PackCatalogueSchema,
+  PackDetailSchema,
+  PackInstallDetailSchema,
+  PackInstallListSchema,
+  PackInstallResultSchema,
+  PackPreviewSchema,
+  PackSeedCatalogueSchema,
+  PackUninstallResultSchema,
+  type PackCatalogue,
+  type PackDetail,
+  type PackExportInput,
+  type PackInstall,
+  type PackInstallDetail,
+  type PackInstallResult,
+  type PackPreview,
+  type PackSeedCatalogue,
+  type PackStrategy,
+  type PackUninstallResult,
+} from "../packs/schemas";
 import type { OnboardingCompletionPath } from "../onboarding/types";
 import type {
   CreateFeedbackResponse,
@@ -1229,6 +1255,21 @@ function dingTalkGroupSearch(params: ListDingTalkGroupsParams): string {
 }
 
 const EMPTY_TRANSFER_REPORT: TransferReport = { created: {}, merged: {}, skipped: [], secrets_pending: [], warnings: [] };
+
+/** Content-Disposition filename, or `fallback` when the header is absent. */
+function filenameFromResponse(res: Response, fallback: string): string {
+  const match = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "");
+  return match?.[1] ?? fallback;
+}
+
+/** Multipart body the pack upload endpoints expect. */
+function packFormData(file: File | Blob, strategy?: string, force?: boolean): FormData {
+  const form = new FormData();
+  form.append("file", file, file instanceof File ? file.name : "pack.yaml");
+  if (strategy) form.append("strategy", strategy);
+  if (force === true) form.append("force", "true");
+  return form;
+}
 const EMPTY_TRANSFER_PREVIEW: TransferPreview = {
   manifest: { format_version: 0, exported_at: "", name: "", template: false, source: { Name: "", Slug: "" }, counts: {}, secrets: [] },
   collisions: [],
@@ -5769,6 +5810,84 @@ export class ApiClient {
     return parseWithFallback(raw, WorkspaceTemplateListSchema, { templates: [] }, { endpoint: "GET /api/workspace-templates" }).templates as WorkspaceTemplate[];
   }
 
+  // Packs (OS plan, vague B). Reading the catalogue and the install ledger
+  // needs membership; installing, uninstalling and exporting need owner or
+  // admin. Both scopes ride on the usual workspace header. Uploads go as
+  // multipart and the two downloads come back as files, so those bypass
+  // `this.fetch` the way the workspace transfer does.
+  // The pre-workspace catalogue. Only authentication is required and the
+  // route resolves no workspace, so the workspace slug `authHeaders()` may
+  // still stamp is ignored — same as /api/workspace-templates and
+  // /api/invitations. The create-workspace flow calls this before the
+  // workspace it seeds exists.
+  async listPackCatalogue(init?: RequestInit): Promise<PackSeedCatalogue> {
+    const raw = await this.fetch<unknown>("/api/pack-catalogue", init);
+    return parseWithFallback<PackSeedCatalogue>(raw, PackSeedCatalogueSchema, EMPTY_PACK_SEED_CATALOGUE, { endpoint: "GET /api/pack-catalogue" });
+  }
+
+  async listPacks(init?: RequestInit): Promise<PackCatalogue> {
+    const raw = await this.fetch<unknown>("/api/packs", init);
+    return parseWithFallback<PackCatalogue>(raw, PackCatalogueSchema, EMPTY_PACK_CATALOGUE, { endpoint: "GET /api/packs" });
+  }
+
+  async getPack(id: string, init?: RequestInit): Promise<PackDetail> {
+    const raw = await this.fetch<unknown>(`/api/packs/${encodeURIComponent(id)}`, init);
+    return parseWithFallback<PackDetail>(raw, PackDetailSchema, EMPTY_PACK_DETAIL, { endpoint: "GET /api/packs/:id" });
+  }
+
+  async downloadPack(id: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await this.fetchRaw(`/api/packs/${encodeURIComponent(id)}/download`);
+    return { blob: await res.blob(), filename: filenameFromResponse(res, `${id}.pack.yaml`) };
+  }
+
+  async previewPack(id: string, strategy?: PackStrategy): Promise<PackPreview> {
+    const raw = await this.fetch<unknown>(`/api/packs/${encodeURIComponent(id)}/preview`, {
+      method: "POST",
+      body: JSON.stringify({ strategy: strategy ?? "" }),
+    });
+    return parseWithFallback<PackPreview>(raw, PackPreviewSchema, EMPTY_PACK_PREVIEW, { endpoint: "POST /api/packs/:id/preview" });
+  }
+
+  async installPack(id: string, strategy?: PackStrategy, force = false): Promise<PackInstallResult> {
+    const raw = await this.fetch<unknown>(`/api/packs/${encodeURIComponent(id)}/install`, {
+      method: "POST",
+      body: JSON.stringify({ strategy: strategy ?? "", force }),
+    });
+    return parseWithFallback<PackInstallResult>(raw, PackInstallResultSchema, { install: EMPTY_PACK_INSTALL, report: EMPTY_PACK_REPORT }, { endpoint: "POST /api/packs/:id/install" });
+  }
+
+  async previewPackUpload(file: File | Blob, strategy?: PackStrategy): Promise<PackPreview> {
+    const res = await this.fetchRaw("/api/packs/preview", { method: "POST", body: packFormData(file, strategy) });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<PackPreview>(raw, PackPreviewSchema, EMPTY_PACK_PREVIEW, { endpoint: "POST /api/packs/preview" });
+  }
+
+  async installPackUpload(file: File | Blob, strategy?: PackStrategy, force = false): Promise<PackInstallResult> {
+    const res = await this.fetchRaw("/api/packs/install", { method: "POST", body: packFormData(file, strategy, force) });
+    const raw = (await res.json()) as unknown;
+    return parseWithFallback<PackInstallResult>(raw, PackInstallResultSchema, { install: EMPTY_PACK_INSTALL, report: EMPTY_PACK_REPORT }, { endpoint: "POST /api/packs/install" });
+  }
+
+  async listPackInstalls(init?: RequestInit): Promise<PackInstall[]> {
+    const raw = await this.fetch<unknown>("/api/packs/installed", init);
+    return parseWithFallback(raw, PackInstallListSchema, { installs: [] }, { endpoint: "GET /api/packs/installed" }).installs as PackInstall[];
+  }
+
+  async getPackInstall(id: string, init?: RequestInit): Promise<PackInstallDetail> {
+    const raw = await this.fetch<unknown>(`/api/packs/installed/${encodeURIComponent(id)}`, init);
+    return parseWithFallback<PackInstallDetail>(raw, PackInstallDetailSchema, { install: EMPTY_PACK_INSTALL, items: [] }, { endpoint: "GET /api/packs/installed/:id" });
+  }
+
+  async uninstallPack(id: string): Promise<PackUninstallResult> {
+    const raw = await this.fetch<unknown>(`/api/packs/installed/${encodeURIComponent(id)}/uninstall`, { method: "POST" });
+    return parseWithFallback<PackUninstallResult>(raw, PackUninstallResultSchema, { install: EMPTY_PACK_INSTALL, report: { removed: {}, kept: [], reasons: [] } }, { endpoint: "POST /api/packs/installed/:id/uninstall" });
+  }
+
+  async exportPack(input: PackExportInput): Promise<{ blob: Blob; filename: string }> {
+    const res = await this.fetchRaw("/api/packs/export", { method: "POST", extraHeaders: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+    return { blob: await res.blob(), filename: filenameFromResponse(res, `${input.manifest.id}-${input.manifest.version}.pack.yaml`) };
+  }
+
   // Agent versions (K23).
   async listAgentVersions(agentId: string): Promise<AgentVersion[]> {
     const raw = await this.fetch<unknown>(`/api/agents/${encodeURIComponent(agentId)}/versions`);
@@ -6221,7 +6340,7 @@ export class ApiClient {
     });
   }
 
-  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string; template_run_id?: string }): Promise<Workspace> {
+  async createWorkspace(data: { name: string; slug: string; description?: string; context?: string; issue_prefix?: string; template_run_id?: string; pack_id?: string }): Promise<Workspace> {
     const raw = await this.fetch<unknown>("/api/workspaces", {
       method: "POST",
       body: JSON.stringify(data),

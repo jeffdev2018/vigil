@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/multica-ai/multica/server/internal/packs"
 	"github.com/multica-ai/multica/server/internal/service"
 	"github.com/multica-ai/multica/server/internal/util"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
@@ -38,7 +39,10 @@ import (
 // from it.
 
 const (
-	transferFormatVersion = 1
+	// transferFormatVersion 2 adds the pack manifest and the configuration
+	// kinds (statuses, types, labels, properties, views, rules, doctrine).
+	// Version 1 bundles are still read.
+	transferFormatVersion = 2
 	transferMaxUpload     = 32 << 20
 	transferRenameSuffix  = " (imported)"
 
@@ -67,6 +71,8 @@ type transferManifest struct {
 	Source        struct{ Name, Slug string } `json:"source"`
 	Counts        map[string]int              `json:"counts"`
 	Secrets       []transferSecret            `json:"secrets"`
+	// Pack is set when the bundle is a pack (format 2): the catalogue manifest.
+	Pack *packs.Manifest `json:"pack,omitempty"`
 }
 
 type transferFile struct {
@@ -225,6 +231,85 @@ type transferBundle struct {
 	Org           []transferOrg          `json:"org_structures"`
 	Notes         []transferNote         `json:"notes"`
 	Issues        []transferIssue        `json:"issues"`
+	// Format 2 (packs): workspace configuration kinds.
+	IssueStatuses   []transferIssueStatus   `json:"issue_statuses"`
+	IssueTypes      []transferIssueType     `json:"issue_types"`
+	Labels          []transferLabel         `json:"labels"`
+	Properties      []transferProperty      `json:"properties"`
+	Views           []transferView          `json:"views"`
+	TransitionRules []transferTransition    `json:"transition_rules"`
+	BusinessRules   []transferBusinessRule  `json:"business_rules"`
+	OwnershipRules  []transferOwnershipRule `json:"ownership_rules"`
+	Doctrine        string                  `json:"doctrine"`
+}
+
+type transferIssueStatus struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Category    string `json:"category"`
+	Color       string `json:"color"`
+}
+
+type transferIssueType struct {
+	Key         string `json:"key"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Color       string `json:"color"`
+	Icon        string `json:"icon"`
+}
+
+type transferLabel struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Color        string `json:"color"`
+	ResourceType string `json:"resource_type"`
+}
+
+type transferProperty struct {
+	Name        string          `json:"name"`
+	Type        string          `json:"type"`
+	Description string          `json:"description"`
+	Icon        string          `json:"icon"`
+	Config      json.RawMessage `json:"config"`
+	IssueTypes  []string        `json:"issue_types"`
+}
+
+type transferView struct {
+	Name              string          `json:"name"`
+	ScopeType         string          `json:"scope_type"`
+	Project           string          `json:"project"`
+	Visibility        string          `json:"visibility"`
+	DefinitionVersion int32           `json:"definition_version"`
+	Query             json.RawMessage `json:"query"`
+	Display           json.RawMessage `json:"display"`
+}
+
+type transferTransition struct {
+	Project          string   `json:"project"`
+	FromCategory     string   `json:"from_category"`
+	ToCategory       string   `json:"to_category"`
+	AllowedRoles     []string `json:"allowed_roles"`
+	AllowActorTypes  []string `json:"allow_actor_types"`
+	RequiresApproval bool     `json:"requires_approval"`
+	ApproverRoles    []string `json:"approver_roles"`
+	RejectStatusKey  string   `json:"reject_status_key"`
+	Enabled          bool     `json:"enabled"`
+}
+
+type transferBusinessRule struct {
+	Title           string          `json:"title"`
+	AttachPoint     string          `json:"attach_point"`
+	NaturalLanguage string          `json:"natural_language"`
+	Predicate       json.RawMessage `json:"predicate"`
+	Action          json.RawMessage `json:"action"`
+}
+
+type transferOwnershipRule struct {
+	PathPattern   string `json:"path_pattern"`
+	Label         string `json:"label"`
+	ReferentAgent string `json:"referent_agent"`
+	Priority      int32  `json:"priority"`
 }
 
 // --- scrubbing ---------------------------------------------------------------------
@@ -274,7 +359,7 @@ type transferExportOptions struct {
 }
 
 func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts transferExportOptions) (*transferBundle, error) {
-	b := &transferBundle{Profiles: []transferProfile{}, Skills: []transferSkill{}, Agents: []transferAgent{}, Projects: []transferProject{}, Goals: []transferGoal{}, Autopilots: []transferAutopilot{}, TriageSources: []transferTriageSource{}, Org: []transferOrg{}, Notes: []transferNote{}, Issues: []transferIssue{}}
+	b := newTransferBundle()
 	b.Manifest = transferManifest{FormatVersion: transferFormatVersion, ExportedAt: time.Now().UTC().Format(time.RFC3339), Name: opts.Name, Template: opts.Template, Counts: map[string]int{}, Secrets: []transferSecret{}}
 	b.Manifest.Source.Name, b.Manifest.Source.Slug = ws.Name, ws.Slug
 
@@ -460,7 +545,10 @@ func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts
 			b.Issues = append(b.Issues, ti)
 		}
 	}
-	b.Manifest.Counts = map[string]int{"agents": len(b.Agents), "skills": len(b.Skills), "permission_profiles": len(b.Profiles), "projects": len(b.Projects), "goals": len(b.Goals), "autopilots": len(b.Autopilots), "triage_sources": len(b.TriageSources), "org_structures": len(b.Org), "notes": len(b.Notes), "issues": len(b.Issues)}
+	if err := h.exportTransferConfig(ctx, ws, b); err != nil {
+		return nil, err
+	}
+	b.Manifest.Counts = transferCounts(b)
 	return b, nil
 }
 
@@ -509,8 +597,8 @@ func parseTransferBundle(data []byte) (*transferBundle, error) {
 		if err := json.Unmarshal(raw, &b); err != nil {
 			return nil, errors.New("bundle.json is not valid")
 		}
-		if b.Manifest.FormatVersion != transferFormatVersion {
-			return nil, fmt.Errorf("bundle format %d is not supported (this server reads %d)", b.Manifest.FormatVersion, transferFormatVersion)
+		if b.Manifest.FormatVersion < 1 || b.Manifest.FormatVersion > transferFormatVersion {
+			return nil, fmt.Errorf("bundle format %d is not supported (this server reads up to %d)", b.Manifest.FormatVersion, transferFormatVersion)
 		}
 		return &b, nil
 	}
@@ -597,7 +685,7 @@ type transferPreview struct {
 }
 
 func (h *Handler) transferCollisions(ctx context.Context, wsUUID pgtype.UUID, b *transferBundle) []transferCollision {
-	out := []transferCollision{}
+	out := h.transferConfigCollisions(ctx, wsUUID, b)
 	for _, p := range b.Profiles {
 		if row, err := h.Queries.GetPermissionProfileByNameForImport(ctx, db.GetPermissionProfileByNameForImportParams{WorkspaceID: wsUUID, Name: p.Name}); err == nil {
 			out = append(out, transferCollision{Kind: "permission_profile", Name: p.Name, ExistingID: uuidToString(row.ID)})
@@ -703,6 +791,26 @@ type transferReport struct {
 	Skipped        []transferCollision `json:"skipped"`
 	SecretsPending []transferSecret    `json:"secrets_pending"`
 	Warnings       []string            `json:"warnings"`
+	// Items names every row the import created or merged: the pack ledger
+	// records them so an upgrade or an uninstall knows what belongs to it.
+	Items []transferItem `json:"items"`
+}
+
+type transferItem struct {
+	Kind   string `json:"kind"`
+	Name   string `json:"name"`
+	ID     string `json:"id"`
+	Action string `json:"action"`
+}
+
+func (r *transferReport) created(kind, name string, id pgtype.UUID) {
+	r.Created[kind]++
+	r.Items = append(r.Items, transferItem{Kind: kind, Name: name, ID: uuidToString(id), Action: "created"})
+}
+
+func (r *transferReport) merged(kind, name string, id pgtype.UUID) {
+	r.Merged[kind]++
+	r.Items = append(r.Items, transferItem{Kind: kind, Name: name, ID: uuidToString(id), Action: "merged"})
 }
 
 // POST /api/workspace-transfer/import (multipart: file, strategy, secrets)
@@ -756,7 +864,7 @@ func (h *Handler) ImportWorkspace(w http.ResponseWriter, r *http.Request) {
 // autopilots start paused under the importer's authority, triggers come back
 // disabled without their secrets, triage sources without their token.
 func (h *Handler) importTransferBundle(ctx context.Context, wsUUID pgtype.UUID, b *transferBundle, strategy string, secrets map[string]map[string]string, importer pgtype.UUID, data []byte) (transferReport, string, error) {
-	report := transferReport{Created: map[string]int{}, Merged: map[string]int{}, Skipped: []transferCollision{}, SecretsPending: []transferSecret{}, Warnings: []string{}}
+	report := transferReport{Created: map[string]int{}, Merged: map[string]int{}, Skipped: []transferCollision{}, SecretsPending: []transferSecret{}, Warnings: []string{}, Items: []transferItem{}}
 	sum := sha256.Sum256(data)
 	run, err := h.Queries.CreateWorkspaceTransferRun(ctx, db.CreateWorkspaceTransferRunParams{
 		ID: dbid.NewV7(), WorkspaceID: wsUUID, Direction: "import", Status: "running", Name: b.Manifest.Name, Strategy: strategy, SourceName: b.Manifest.Source.Name, BundleSha256: hex.EncodeToString(sum[:]), Report: json.RawMessage("{}"), CreatedBy: importer,
@@ -783,6 +891,7 @@ func (h *Handler) importTransferBundle(ctx context.Context, wsUUID pgtype.UUID, 
 	// Issues go through the issue service (numbering, labels, events) after
 	// the configuration committed; a failed issue is a warning, not a rollback.
 	h.importTransferIssues(ctx, wsUUID, b, strategy, importer, maps, &report)
+	h.importTransferDoctrine(ctx, wsUUID, b, strategy, importer, &report)
 	if after, _ := h.Queries.CountMembersForTransfer(ctx, wsUUID); after != membersBefore {
 		report.Warnings = append(report.Warnings, "member count changed during import")
 	}
@@ -818,6 +927,13 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 		}
 	}
 
+	// Format 2: statuses, types, labels, properties, transition rules and
+	// business rules come first — agents, views and issues refer to them.
+	refs, err := h.applyTransferConfig(ctx, q, wsUUID, b, strategy, importer, report)
+	if err != nil {
+		return err
+	}
+
 	// Permission profiles: by name; builtins match the workspace's own.
 	profileIDs := map[string]pgtype.UUID{}
 	if rows, err := q.ListPermissionProfiles(ctx, wsUUID); err == nil {
@@ -832,7 +948,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 				if _, err := q.UpdatePermissionProfileRules(ctx, db.UpdatePermissionProfileRulesParams{ID: existing, Description: p.Description, ReadOnly: p.ReadOnly, DeniedPaths: profileJSON(p.DeniedPaths), AllowedCommands: profileJSON(p.AllowedCommands), HiddenSecrets: profileJSON(p.HiddenSecrets)}); err != nil {
 					return fmt.Errorf("merge profile %q: %w", p.Name, err)
 				}
-				report.Merged["permission_profiles"]++
+				report.merged("permission_profiles", p.Name, existing)
 			case transferStrategySkip:
 				skip("permission_profile", p.Name, uuidToString(existing))
 			default:
@@ -842,7 +958,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 					return fmt.Errorf("create profile %q: %w", name, err)
 				}
 				profileIDs[p.Name] = row.ID
-				report.Created["permission_profiles"]++
+				report.created("permission_profiles", name, row.ID)
 			}
 			continue
 		}
@@ -851,7 +967,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			return fmt.Errorf("create profile %q: %w", p.Name, err)
 		}
 		profileIDs[p.Name] = row.ID
-		report.Created["permission_profiles"]++
+		report.created("permission_profiles", p.Name, row.ID)
 	}
 
 	// Skills with files.
@@ -873,7 +989,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 						return fmt.Errorf("merge skill file %q: %w", f.Path, err)
 					}
 				}
-				report.Merged["skills"]++
+				report.merged("skills", s.Name, existing.ID)
 				continue
 			case transferStrategySkip:
 				skip("skill", s.Name, uuidToString(existing.ID))
@@ -901,7 +1017,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			}
 		}
 		skillIDs[s.Name] = row.ID
-		report.Created["skills"]++
+		report.created("skills", name, row.ID)
 	}
 
 	// Agents: owned by the importer, no runtime bound, env declared not valued.
@@ -934,7 +1050,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 						_ = q.AddAgentSkill(ctx, db.AddAgentSkillParams{AgentID: existing.ID, SkillID: id})
 					}
 				}
-				report.Merged["agents"]++
+				report.merged("agents", a.Name, existing.ID)
 				continue
 			case transferStrategySkip:
 				skip("agent", a.Name, uuidToString(existing.ID))
@@ -974,7 +1090,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			}
 		}
 		agentIDs[a.Name] = row.ID
-		report.Created["agents"]++
+		report.created("agents", name, row.ID)
 	}
 
 	// Goals, parents first (the bundle lists them in creation order).
@@ -987,7 +1103,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 				if _, err := q.UpdateGoal(ctx, db.UpdateGoalParams{ID: existing.ID, WorkspaceID: wsUUID, ParentGoalID: existing.ParentGoalID, Title: existing.Title, Description: g.Description, SuccessMeasure: g.SuccessMeasure, DueDate: parseDateOrEmpty(g.DueDate), OwnerID: existing.OwnerID, Status: existing.Status}); err != nil {
 					return fmt.Errorf("merge goal %q: %w", g.Title, err)
 				}
-				report.Merged["goals"]++
+				report.merged("goals", g.Title, existing.ID)
 				continue
 			case transferStrategySkip:
 				skip("goal", g.Title, uuidToString(existing.ID))
@@ -1007,7 +1123,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			return fmt.Errorf("create goal %q: %w", title, err)
 		}
 		goalIDs[g.Key] = row.ID
-		report.Created["goals"]++
+		report.created("goals", title, row.ID)
 	}
 
 	// Projects with resources and goal links.
@@ -1029,7 +1145,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 						_ = q.AddProjectGoal(ctx, db.AddProjectGoalParams{WorkspaceID: wsUUID, ProjectID: existing.ID, GoalID: gid})
 					}
 				}
-				report.Merged["projects"]++
+				report.merged("projects", p.Title, existing.ID)
 				continue
 			case transferStrategySkip:
 				skip("project", p.Title, uuidToString(existing.ID))
@@ -1055,7 +1171,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			}
 		}
 		projectIDs[p.Title] = row.ID
-		report.Created["projects"]++
+		report.created("projects", title, row.ID)
 	}
 
 	// Autopilots: paused under the importer's authority; triggers disabled, secrets to regenerate.
@@ -1091,7 +1207,7 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 				report.SecretsPending = append(report.SecretsPending, transferSecret{Scope: "autopilot_trigger", Name: title, Key: t.Kind + " token"})
 			}
 		}
-		report.Created["autopilots"]++
+		report.created("autopilots", title, row.ID)
 	}
 
 	// Triage sources without their inbound token.
@@ -1102,16 +1218,17 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 				if err := q.MergeImportedTriageSource(ctx, db.MergeImportedTriageSourceParams{ID: existing.ID, WorkspaceID: wsUUID, Mode: nonEmpty(s.Mode, existing.Mode), AutoAccept: nonEmptyJSON(s.AutoAccept), CapPerHour: s.CapPerHour, ExpiryDays: s.ExpiryDays}); err != nil {
 					return fmt.Errorf("merge triage source %q: %w", s.Name, err)
 				}
-				report.Merged["triage_sources"]++
+				report.merged("triage_sources", s.Name, existing.ID)
 			default:
 				skip("triage_source", s.Name, uuidToString(existing.ID))
 			}
 			continue
 		}
-		if _, err := q.CreateTriageSourceForImport(ctx, db.CreateTriageSourceForImportParams{WorkspaceID: wsUUID, Kind: s.Kind, RefID: dbid.NewV7(), Name: s.Name, Icon: s.Icon, Mode: nonEmpty(s.Mode, "gate"), AutoAccept: nonEmptyJSON(s.AutoAccept), CapPerHour: s.CapPerHour, ExpiryDays: s.ExpiryDays, CreatedByID: importer}); err != nil {
+		row, err := q.CreateTriageSourceForImport(ctx, db.CreateTriageSourceForImportParams{WorkspaceID: wsUUID, Kind: s.Kind, RefID: dbid.NewV7(), Name: s.Name, Icon: s.Icon, Mode: nonEmpty(s.Mode, "gate"), AutoAccept: nonEmptyJSON(s.AutoAccept), CapPerHour: s.CapPerHour, ExpiryDays: s.ExpiryDays, CreatedByID: importer})
+		if err != nil {
 			return fmt.Errorf("create triage source %q: %w", s.Name, err)
 		}
-		report.Created["triage_sources"]++
+		report.created("triage_sources", s.Name, row.ID)
 	}
 
 	// Org structures: drafts owned by the importer, agents remapped by name.
@@ -1163,7 +1280,13 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 		if _, err := q.CreateOrgRevision(ctx, db.CreateOrgRevisionParams{ID: revID, WorkspaceID: wsUUID, StructureID: row.ID, Revision: 1, Model: o.Model, Status: orgStatusDraft, Definition: raw, ChangedBy: importer, Note: "imported from " + b.Manifest.Source.Name}); err != nil {
 			return fmt.Errorf("org revision %q: %w", o.Name, err)
 		}
-		report.Created["org_structures"]++
+		report.created("org_structures", o.Name, row.ID)
+	}
+
+	// Format 2: saved views name projects, ownership rules name labels and agents.
+	refs.agents, refs.projects = agentIDs, projectIDs
+	if err := h.applyTransferViewsAndOwnership(ctx, q, wsUUID, b, strategy, importer, report, refs); err != nil {
+		return err
 	}
 
 	// Notes and issues carry no collision rule: they are content.
@@ -1182,10 +1305,11 @@ func (h *Handler) applyTransferBundle(ctx context.Context, q *db.Queries, wsUUID
 			}
 			title += transferRenameSuffix
 		}
-		if _, err := q.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: n.Content, Tags: tags, Source: "manual", Pinned: n.Pinned, CreatedByType: "member", CreatedByID: importer}); err != nil {
+		row, err := q.CreateWorkspaceNote(ctx, db.CreateWorkspaceNoteParams{ID: dbid.NewV7(), WorkspaceID: wsUUID, Title: title, Content: n.Content, Tags: tags, Source: "manual", Pinned: n.Pinned, CreatedByType: "member", CreatedByID: importer})
+		if err != nil {
 			return fmt.Errorf("create note %q: %w", n.Title, err)
 		}
-		report.Created["notes"]++
+		report.created("notes", title, row.ID)
 	}
 	maps.projects, maps.goals = projectIDs, goalIDs
 	return nil
@@ -1228,7 +1352,7 @@ func (h *Handler) importTransferIssues(ctx context.Context, wsUUID pgtype.UUID, 
 		if gid, ok := maps.goals[i.GoalKey]; ok {
 			_ = h.Queries.SetIssueGoalForImport(ctx, db.SetIssueGoalForImportParams{ID: res.Issue.ID, WorkspaceID: wsUUID, GoalID: gid})
 		}
-		report.Created["issues"]++
+		report.created("issues", title, res.Issue.ID)
 	}
 }
 
