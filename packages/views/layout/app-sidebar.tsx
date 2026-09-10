@@ -110,6 +110,38 @@ const EMPTY_INBOX: Awaited<ReturnType<typeof api.listInbox>> = [];
 const EMPTY_INBOX_SUMMARY: Awaited<ReturnType<typeof api.getInboxUnreadSummary>> = [];
 const PINNED_PREVIEW_LIMIT = 5;
 
+/**
+ * Whether `el` still has content below its viewport. The fork's navigation
+ * outgrew a laptop-height sidebar, and macOS overlay scrollbars only show
+ * while scrolling, so without a hint the "AI Team" group looks like the
+ * end of the list.
+ */
+export function hasOverflowBelow(el: { scrollHeight: number; clientHeight: number; scrollTop: number }): boolean {
+  return el.scrollHeight - el.clientHeight - el.scrollTop > 1;
+}
+
+function useOverflowBelow(ref: React.RefObject<HTMLElement | null>): boolean {
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setBelow(hasOverflowBelow(el));
+    const frame = requestAnimationFrame(update);
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    const mo = new MutationObserver(update);
+    mo.observe(el, { childList: true, subtree: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+      mo.disconnect();
+    };
+  }, [ref]);
+  return below;
+}
+
 // Nav items reference WorkspacePaths method names so they can be resolved
 // against the current workspace slug at render time (see AppSidebar body).
 // Only parameterless paths are valid nav destinations.
@@ -554,6 +586,20 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const sidebarScrollRef = useRef<HTMLDivElement>(null);
   const sidebarFadeStyle = useScrollFade(sidebarScrollRef, 24);
+  const sidebarOverflowBelow = useOverflowBelow(sidebarScrollRef);
+  // Landing on a route whose entry sits below the fold (Agents, Runs, …)
+  // reveals it; otherwise the active row would be invisible behind the fade.
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const active = el.querySelector<HTMLElement>('[data-active="true"]');
+    active?.scrollIntoView({ block: "nearest" });
+  }, [pathname]);
+  const revealMoreNav = useCallback(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: Math.max(120, el.clientHeight * 0.6), behavior: "smooth" });
+  }, []);
   const getPinHref = useCallback(
     (pin: PinnedItem) =>
       pin.item_type === "issue"
@@ -800,6 +846,7 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
         </SidebarHeader>
 
         {/* Navigation */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <SidebarContent ref={sidebarScrollRef} style={sidebarFadeStyle}>
           <SidebarGroup>
             <SidebarGroupContent>
@@ -952,6 +999,19 @@ export function AppSidebar({ topSlot, searchSlot, headerClassName, headerStyle }
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>
+        {sidebarOverflowBelow ? (
+          <button
+            type="button"
+            data-testid="sidebar-more-nav"
+            aria-label={t(($) => $.sidebar.more_nav)}
+            title={t(($) => $.sidebar.more_nav)}
+            onClick={revealMoreNav}
+            className="absolute inset-x-0 bottom-0 flex h-5 items-center justify-center text-muted-foreground transition-colors hover:text-foreground group-data-[collapsible=icon]:hidden"
+          >
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+          </button>
+        ) : null}
+        </div>
 
         <SidebarFooter className="p-2">
           <SidebarMenu className="gap-0.5">
