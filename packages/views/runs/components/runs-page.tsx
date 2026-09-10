@@ -72,6 +72,11 @@ const STATUS_TONE: Record<TaskStatus, string> = {
   paused: "text-warning",
 };
 
+// A settled run has nothing left to cancel; the row keeps transcript and replay only.
+function isSettledRunStatus(status: string): boolean {
+  return status === "completed" || status === "failed" || status === "cancelled";
+}
+
 type StateFilter = "in_flight" | "finished" | "all";
 const STATE_TO_API: Record<StateFilter, "active" | "terminal" | "all"> = {
   in_flight: "active",
@@ -605,6 +610,7 @@ function RunRow({
             <TranscriptButton task={task} agentName={run.agent_name} isLive={run.status === "running"} />
           ) : null}
           <ReplayButton task={task} />
+          {isSettledRunStatus(run.status) ? null : (
           <Tooltip>
             <TooltipTrigger
               render={
@@ -622,6 +628,7 @@ function RunRow({
             </TooltipTrigger>
             <TooltipContent>{t(($) => $.row.cancel_tooltip)}</TooltipContent>
           </Tooltip>
+          )}
         </div>
       </div>
       <RunCancelConfirmDialog

@@ -254,7 +254,9 @@ describe("DoctrineTab", () => {
     renderWithI18n(<DoctrineTab />);
     expect(screen.getAllByTestId("doctrine-version-row")).toHaveLength(2);
 
-    fireEvent.click(screen.getAllByTestId("doctrine-restore")[1]!);
+    // The live revision offers no Restore: only the superseded one does.
+    expect(screen.getAllByTestId("doctrine-restore")).toHaveLength(1);
+    fireEvent.click(screen.getByTestId("doctrine-restore"));
     fireEvent.click(screen.getByTestId("doctrine-restore-confirm"));
     expect(state.restore).toHaveBeenCalledWith(
       { id: "v0", expected_revision: 4 },

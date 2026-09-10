@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import {
+  weekStartsOnFor,
   buildCalendarGrid,
   calendarMonthIsEmpty,
   CALENDAR_CELL_COUNT,
@@ -162,5 +163,18 @@ describe("currentCalendarMonth", () => {
 describe("utcDateKey", () => {
   it("zero-pads so keys sort and compare as strings", () => {
     expect(utcDateKey(new Date(Date.UTC(2026, 0, 5)))).toBe("2026-01-05");
+  });
+});
+
+describe("weekStartsOnFor", () => {
+  it("starts the week on Monday for French and on Sunday for US English", () => {
+    expect(weekStartsOnFor("fr")).toBe(1);
+    expect(weekStartsOnFor("fr-FR")).toBe(1);
+    expect(weekStartsOnFor("en-US")).toBe(0);
+    expect(weekStartsOnFor("ja")).toBe(0);
+  });
+
+  it("falls back to Monday on an unparseable tag", () => {
+    expect(weekStartsOnFor("not a locale")).toBe(1);
   });
 });
