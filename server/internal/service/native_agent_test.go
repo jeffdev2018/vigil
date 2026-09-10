@@ -2104,3 +2104,77 @@ func (a *afterCallStream) Next() bool {
 func (a *afterCallStream) Current() openai.ChatCompletionChunk { return a.inner.Current() }
 
 func (a *afterCallStream) Err() error { return a.inner.Err() }
+
+// N16 — schedule_followup: pause and resume. The tool files a deferred task
+// for the same agent on the same issue; the bounds hold (1 min .. 30 days),
+// the note rides as the trigger, and both time forms parse.
+func TestNativeAgentScheduleFollowup(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Follow-up work")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	issue, err := db.New(pool).GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: util.MustParseUUID(issueID), WorkspaceID: agent.WorkspaceID})
+	if err != nil {
+		t.Fatalf("get issue: %v", err)
+	}
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID}
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+
+	// Offset form.
+	out, err := svc.callNativeToolRead(ctx, tctx, "schedule_followup", map[string]any{"when": "+90", "note": "Relire la réponse du client"})
+	if err != nil {
+		t.Fatalf("schedule_followup: %v", err)
+	}
+	reply := out.(map[string]any)
+	if reply["scheduled"] != true {
+		t.Fatalf("reply = %v", reply)
+	}
+	var status string
+	var summary string
+	var minutesToFire float64
+	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(trigger_summary,''), EXTRACT(EPOCH FROM (fire_at - now()))/60 FROM agent_task_queue WHERE id=$1`, reply["followup_task_id"]).Scan(&status, &summary, &minutesToFire); err != nil {
+		t.Fatalf("read follow-up: %v", err)
+	}
+	if status != "deferred" {
+		t.Fatalf("follow-up status = %q, want deferred", status)
+	}
+	if !strings.Contains(summary, "Relire la réponse du client") {
+		t.Fatalf("trigger summary = %q, want the note aboard", summary)
+	}
+	if minutesToFire < 88 || minutesToFire > 92 {
+		t.Fatalf("fires in %.0f min, want ~90", minutesToFire)
+	}
+
+	// RFC 3339 form.
+	out2, err := svc.callNativeToolRead(ctx, tctx, "schedule_followup", map[string]any{"when": time.Now().Add(2 * time.Hour).UTC().Format(time.RFC3339)})
+	if err != nil {
+		t.Fatalf("rfc3339 form: %v", err)
+	}
+	if out2.(map[string]any)["scheduled"] != true {
+		t.Fatalf("rfc3339 reply = %v", out2)
+	}
+
+	// Bounds: too soon, too far, garbage.
+	for _, bad := range []string{"+0", "2020-01-01T00:00:00Z", "next tuesday"} {
+		if _, err := svc.callNativeToolRead(ctx, tctx, "schedule_followup", map[string]any{"when": bad}); err == nil {
+			t.Fatalf("when=%q accepted, want refused", bad)
+		}
+	}
+}
