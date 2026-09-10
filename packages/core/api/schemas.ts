@@ -4248,18 +4248,37 @@ export const MALFORMED_RUNTIME_MODEL_LIST_REQUEST: RuntimeModelListRequest = {
 };
 
 export const RuntimeCliAuthRequestSchema = z.object({
-  id: z.string(),
-  runtime_id: z.string(),
+  // The request id is polled and the runtime id scopes the poll; an empty one
+  // would poll `/cli-auth/` and read someone else's shape as ours.
+  id: z.string().min(1),
+  runtime_id: z.string().min(1),
   action: z.string(),
   status: z.string(),
-  verification_url: z.string().url().optional(),
-  user_code: z.string().optional(),
+  // Rendered as a clickable link in the sign-in panel. `z.string().url()` only
+  // asks whether `new URL()` parses, so `javascript:` and `data:` passed. The
+  // server already enforces the same rules (validCliAuthURL); this is the copy
+  // that holds for an installed desktop build talking to a server that does not.
+  verification_url: z
+    .string()
+    .max(2048)
+    .url()
+    .refine((value) => {
+      const { protocol } = new URL(value);
+      return protocol === "https:" || protocol === "http:";
+    })
+    .optional(),
+  // Device codes are short; a runaway value is a malformed response, not a code.
+  user_code: z.string().max(128).optional(),
   authenticated: z.boolean().optional(),
   error: z.string().optional(),
   created_at: z.string(),
   updated_at: z.string(),
   expires_at: z.string(),
-}).loose();
+}).loose().refine(
+  // "completed" is the only status the UI reads an outcome from, so a completed
+  // response that does not say which outcome is not a success to display.
+  (value) => value.status !== "completed" || typeof value.authenticated === "boolean",
+);
 
 export const DingTalkInstallationSchema = z.object({
   id: z.string(),
