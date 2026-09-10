@@ -210,6 +210,20 @@ import {
   RunHaltSchema,
   type RunHalt,
 } from "./schemas";
+import {
+  DoctrineSchema,
+  DoctrineDiffSchema,
+  DoctrineReportsResponseSchema,
+  DoctrineVersionsResponseSchema,
+  EMPTY_DOCTRINE,
+  EMPTY_DOCTRINE_DIFF,
+  EMPTY_DOCTRINE_REPORTS,
+  EMPTY_DOCTRINE_VERSIONS,
+  type Doctrine,
+  type DoctrineDiff,
+  type DoctrineReportsResponse,
+  type DoctrineVersionsResponse,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 import {
@@ -1142,6 +1156,88 @@ class ApiClient {
     await this.fetch<void>(`/api/calendar/events/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+  }
+
+  // --- Workspace doctrine (OS plan, chantier 22) ---
+  // Read + review + resolve only: writing the doctrine (PUT, restore) stays
+  // on web/desktop, so no publish method here.
+
+  async getDoctrine(opts?: { signal?: AbortSignal }): Promise<Doctrine> {
+    return this.fetchValidated<Doctrine>(
+      "/api/workspace/doctrine",
+      DoctrineSchema,
+      EMPTY_DOCTRINE,
+      { ...opts, endpoint: "GET /api/workspace/doctrine" },
+    );
+  }
+
+  async listDoctrineVersions(
+    params?: { cursor?: string | null; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineVersionsResponse> {
+    const search = new URLSearchParams();
+    if (params?.cursor) search.set("cursor", params.cursor);
+    if (params?.limit) search.set("limit", String(params.limit));
+    const query = search.toString();
+    return this.fetchValidated<DoctrineVersionsResponse>(
+      `/api/workspace/doctrine/versions${query ? `?${query}` : ""}`,
+      DoctrineVersionsResponseSchema,
+      EMPTY_DOCTRINE_VERSIONS,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/versions" },
+    );
+  }
+
+  /** Compares a version with what came before it (the live doctrine for a
+   *  proposal, the previous revision for an activated one). */
+  async getDoctrineVersionDiff(
+    id: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineDiff> {
+    return this.fetchValidated<DoctrineDiff>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/diff`,
+      DoctrineDiffSchema,
+      EMPTY_DOCTRINE_DIFF,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/versions/:id/diff" },
+    );
+  }
+
+  async listDoctrineReports(
+    status: "open" | "acknowledged" | "dismissed" | "all",
+    opts?: { signal?: AbortSignal },
+  ): Promise<DoctrineReportsResponse> {
+    return this.fetchValidated<DoctrineReportsResponse>(
+      `/api/workspace/doctrine/reports?status=${status}`,
+      DoctrineReportsResponseSchema,
+      EMPTY_DOCTRINE_REPORTS,
+      { ...opts, endpoint: "GET /api/workspace/doctrine/reports" },
+    );
+  }
+
+  /** Approve / reject a pending revision. The response carries the doctrine
+   *  and the reviewed version, but the caller invalidates rather than
+   *  patches (the review moves the live revision, the ledger and the inbox
+   *  at once), so nothing here reaches a render path unparsed. */
+  async reviewDoctrineVersion(
+    id: string,
+    decision: "approve" | "reject",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch<void>(
+      `/api/workspace/doctrine/versions/${encodeURIComponent(id)}/${decision}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  /** Acknowledge / dismiss a doctrine report. Same reasoning as above. */
+  async resolveDoctrineReport(
+    id: string,
+    resolution: "acknowledge" | "dismiss",
+    note?: string,
+  ): Promise<void> {
+    await this.fetch<void>(
+      `/api/workspace/doctrine/reports/${encodeURIComponent(id)}/${resolution}`,
+      { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
   }
 
   /** Removes a meeting and its transcript. 204, no body. */

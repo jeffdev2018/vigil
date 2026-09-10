@@ -1361,3 +1361,124 @@ export const EMPTY_KILL_SWITCH_RESPONSE: KillSwitchResponse = {
   cancelled: 0,
   results: [],
 };
+
+// ---------------------------------------------------------------------------
+// Workspace doctrine (OS plan, chantier 22) — GET /api/workspace/doctrine,
+// /versions, /versions/{id}/diff, /reports. Field shape mirrors
+// `server/internal/handler/workspace_doctrine.go` (DoctrineResponse /
+// DoctrineVersionResponse / DoctrineReportResponse / DoctrineDiffLine).
+//
+// Mobile-local rather than @multica/core/api/schemas for the same reason as
+// the approvals and runs sections above: no package there exports this shape
+// yet (the doctrine landed server-first; there is no packages/views
+// implementation to mirror either, so the parity target is the handler).
+// Mirror both by hand if either side changes.
+export const DoctrineVersionSchema = z.object({
+  id: z.string().catch(""),
+  revision: z.number().nullable().catch(null),
+  content: z.string().catch(""),
+  status: z.string().catch("superseded"),
+  note: z.string().catch(""),
+  author_id: z.string().nullable().catch(null),
+  reviewed_by: z.string().nullable().catch(null),
+  reviewed_at: z.string().nullable().catch(null),
+  review_note: z.string().catch(""),
+  restored_from_revision: z.number().nullable().catch(null),
+  created_at: z.string().catch(""),
+  bytes: z.number().catch(0),
+}).loose();
+export type DoctrineVersion = z.infer<typeof DoctrineVersionSchema>;
+
+export const DoctrineSchema = z.object({
+  content: z.string().catch(""),
+  revision: z.number().catch(0),
+  updated_at: z.string().nullable().catch(null),
+  updated_by: z.string().nullable().catch(null),
+  byte_limit: z.number().catch(0),
+  require_review: z.boolean().catch(false),
+  can_publish: z.boolean().catch(false),
+  active_version_id: z.string().nullable().catch(null),
+  pending: DoctrineVersionSchema.nullable().catch(null),
+  open_reports: z.number().catch(0),
+}).loose();
+export type Doctrine = z.infer<typeof DoctrineSchema>;
+
+export const EMPTY_DOCTRINE: Doctrine = {
+  content: "",
+  revision: 0,
+  updated_at: null,
+  updated_by: null,
+  byte_limit: 0,
+  require_review: false,
+  can_publish: false,
+  active_version_id: null,
+  pending: null,
+  open_reports: 0,
+};
+
+export const DoctrineVersionsResponseSchema = z.object({
+  versions: z.array(DoctrineVersionSchema).catch([]),
+  next_cursor: z.string().nullable().catch(null),
+}).loose();
+export type DoctrineVersionsResponse = z.infer<
+  typeof DoctrineVersionsResponseSchema
+>;
+export const EMPTY_DOCTRINE_VERSIONS: DoctrineVersionsResponse = {
+  versions: [],
+  next_cursor: null,
+};
+
+export const DoctrineDiffLineSchema = z.object({
+  // same | add | del. Kept a plain string (not an enum) so an unknown kind
+  // renders untinted instead of taking the diff screen down.
+  kind: z.string().catch("same"),
+  text: z.string().catch(""),
+}).loose();
+export type DoctrineDiffLine = z.infer<typeof DoctrineDiffLineSchema>;
+
+export const DoctrineDiffSchema = z.object({
+  // The diff endpoint blanks `content` on both sides — only the lines carry
+  // the text.
+  from: DoctrineVersionSchema.nullable().catch(null),
+  to: DoctrineVersionSchema.nullable().catch(null),
+  lines: z.array(DoctrineDiffLineSchema).catch([]),
+  added: z.number().catch(0),
+  removed: z.number().catch(0),
+}).loose();
+export type DoctrineDiff = z.infer<typeof DoctrineDiffSchema>;
+export const EMPTY_DOCTRINE_DIFF: DoctrineDiff = {
+  from: null,
+  to: null,
+  lines: [],
+  added: 0,
+  removed: 0,
+};
+
+export const DoctrineReportSchema = z.object({
+  id: z.string().catch(""),
+  doctrine_revision: z.number().catch(0),
+  // conflict | refusal | ambiguity — string, not enum, so a kind added
+  // server-side still renders (root CLAUDE.md API compatibility).
+  kind: z.string().catch(""),
+  summary: z.string().catch(""),
+  passage: z.string().catch(""),
+  reporter_type: z.string().catch("member"),
+  reporter_id: z.string().catch(""),
+  task_id: z.string().nullable().catch(null),
+  issue_id: z.string().nullable().catch(null),
+  // open | acknowledged | dismissed
+  status: z.string().catch("open"),
+  resolved_by: z.string().nullable().catch(null),
+  resolved_at: z.string().nullable().catch(null),
+  resolution_note: z.string().catch(""),
+  created_at: z.string().catch(""),
+}).loose();
+export type DoctrineReport = z.infer<typeof DoctrineReportSchema>;
+
+export const DoctrineReportsResponseSchema = z.object({
+  reports: z.array(DoctrineReportSchema).catch([]),
+}).loose();
+export type DoctrineReportsResponse = z.infer<
+  typeof DoctrineReportsResponseSchema
+>;
+export const EMPTY_DOCTRINE_REPORTS: DoctrineReportsResponse = { reports: [] };

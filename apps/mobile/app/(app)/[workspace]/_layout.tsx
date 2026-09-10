@@ -14,6 +14,7 @@ import { useProjectsRealtime } from "@/data/realtime/use-projects-realtime";
 import { usePinsRealtime } from "@/data/realtime/use-pins-realtime";
 import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
 import { useCalendarRealtime } from "@/data/realtime/use-calendar-realtime";
+import { useDoctrineRealtime } from "@/data/realtime/use-doctrine-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -92,6 +93,9 @@ function RealtimeSubscriptions() {
   // Native calendar (OS plan, chantier 19): the Agenda screen and any open
   // calendar_invitation/calendar_reminder inbox notification both care.
   useCalendarRealtime();
+  // Workspace doctrine (OS plan, chantier 22): the open-reports badge in the
+  // More popover must stay fresh from anywhere in the workspace.
+  useDoctrineRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -408,6 +412,17 @@ export default function WorkspaceLayout() {
         <Stack.Screen
           name="more/calendar"
           options={{ title: "Calendar", headerBackTitle: "Back" }}
+        />
+        {/* Workspace doctrine (OS plan, chantier 22): read the governing
+            document, review a pending proposal, clear the reports agents
+            filed against it. Writing it stays on web/desktop. */}
+        <Stack.Screen
+          name="more/doctrine"
+          options={{ title: "Doctrine", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="more/doctrine-version/[id]"
+          options={{ title: "Changes", headerBackTitle: "Doctrine" }}
         />
         <Stack.Screen
           name="meeting/[id]"
