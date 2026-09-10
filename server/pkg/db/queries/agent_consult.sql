@@ -31,10 +31,14 @@ WHERE task_id = $1
 
 -- name: FinalizeAgentConsultAnswer :one
 -- Only a still-pending row transitions, so a double finalize cannot resurrect
--- or overwrite a terminal state.
+-- or overwrite a terminal state. Token counts and cost ride along; NULLs mean
+-- the upstream did not report usage or the model has no known rate.
 UPDATE agent_consult
 SET state = 'answered',
     answer = $2,
+    input_tokens = $3,
+    output_tokens = $4,
+    cost_usd_ticks = $5,
     finalized_at = now()
 WHERE id = $1 AND state = 'pending'
 RETURNING *;

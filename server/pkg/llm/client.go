@@ -415,8 +415,24 @@ func (c *Client) GenerateText(ctx context.Context, model, systemPrompt, userProm
 // maxCompletionTokens apply only when positive; zero leaves the corresponding
 // upstream default in place. Model empty -> the configured default.
 func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, error) {
+	content, _, err := c.GenerateJSONWithUsage(ctx, model, systemPrompt, userPrompt, temperature, maxCompletionTokens)
+	return content, err
+}
+
+// Usage carries the token counts of one generation. Zero values mean the
+// upstream did not report them — callers treat that as "not reported", never
+// as a genuine zero-cost call.
+type Usage struct {
+	InputTokens  int64
+	OutputTokens int64
+}
+
+// GenerateJSONWithUsage is GenerateJSON plus the upstream's token accounting,
+// for callers that persist per-call costs (JEF-12 consult). Behavior is
+// identical otherwise; an upstream that omits usage yields a zero Usage.
+func (c *Client) GenerateJSONWithUsage(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, Usage, error) {
 	if !c.Enabled() {
-		return "", ErrNotConfigured
+		return "", Usage{}, ErrNotConfigured
 	}
 
 	messages := make([]openai.ChatCompletionMessageParamUnion, 0, 2)
@@ -476,7 +492,7 @@ func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userProm
 			break
 		}
 		if compatibilityRetries >= 2 {
-			return "", err
+			return "", Usage{}, err
 		}
 
 		switch {
@@ -486,20 +502,23 @@ func (c *Client) GenerateJSON(ctx context.Context, model, systemPrompt, userProm
 		case params.ReasoningEffort != "" && isUnsupportedParameter(err, "reasoning_effort"):
 			params.ReasoningEffort = ""
 		default:
-			return "", err
+			return "", Usage{}, err
 		}
 	}
 	if len(completion.Choices) == 0 {
-		return "", errors.New("llm: upstream returned no choices")
+		return "", Usage{}, errors.New("llm: upstream returned no choices")
 	}
 	choice := completion.Choices[0]
 	if choice.FinishReason == "length" {
-		return "", errors.New("llm: upstream reached the max completion token limit before producing complete JSON")
+		return "", Usage{}, errors.New("llm: upstream reached the max completion token limit before producing complete JSON")
 	}
 	if strings.TrimSpace(choice.Message.Content) == "" {
-		return "", errors.New("llm: upstream returned empty JSON content")
+		return "", Usage{}, errors.New("llm: upstream returned empty JSON content")
 	}
-	return choice.Message.Content, nil
+	return choice.Message.Content, Usage{
+		InputTokens:  completion.Usage.PromptTokens,
+		OutputTokens: completion.Usage.CompletionTokens,
+	}, nil
 }
 
 func isUnsupportedParameter(err error, parameter string) bool {

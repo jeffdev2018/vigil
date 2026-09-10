@@ -11,6 +11,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/pricing"
 )
 
 // ---------------------------------------------------------------------------
@@ -45,7 +46,7 @@ import (
 // — without an HTTP upstream, mirroring service.ChatQuickActionsLLM.
 type ConsultLLM interface {
 	Enabled() bool
-	GenerateJSON(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, error)
+	GenerateJSONWithUsage(ctx context.Context, model, systemPrompt, userPrompt string, temperature float64, maxCompletionTokens int64) (string, llm.Usage, error)
 }
 
 // consultMaxPerTaskPerDay is the consult budget: rows one task may book on a
@@ -240,7 +241,7 @@ func (h *Handler) CreateAgentConsult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	raw, err := consultLLM.GenerateJSON(
+	raw, usage, err := consultLLM.GenerateJSONWithUsage(
 		r.Context(), model,
 		service.ConsultSystemPrompt,
 		service.BuildConsultUserPrompt(req.Question, req.Context),
@@ -265,9 +266,27 @@ func (h *Handler) CreateAgentConsult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Tokens are recorded only when the upstream reported them; cost only when
+	// the model has a known rate. Either staying NULL means "not reported" —
+	// never a fabricated zero.
+	var inputTokens, outputTokens, costTicks pgtype.Int8
+	if usage.InputTokens > 0 || usage.OutputTokens > 0 {
+		inputTokens = pgtype.Int8{Int64: usage.InputTokens, Valid: true}
+		outputTokens = pgtype.Int8{Int64: usage.OutputTokens, Valid: true}
+		if ticks := pricing.EstimateTicks(pricing.Usage{
+			Model:        model,
+			InputTokens:  usage.InputTokens,
+			OutputTokens: usage.OutputTokens,
+		}); ticks > 0 {
+			costTicks = pgtype.Int8{Int64: ticks, Valid: true}
+		}
+	}
 	answered, err := h.Queries.FinalizeAgentConsultAnswer(r.Context(), db.FinalizeAgentConsultAnswerParams{
-		ID:     row.ID,
-		Answer: pgtype.Text{String: service.ExtractConsultAnswer(raw), Valid: true},
+		ID:           row.ID,
+		Answer:       pgtype.Text{String: service.ExtractConsultAnswer(raw), Valid: true},
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		CostUsdTicks: costTicks,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to record consult answer")

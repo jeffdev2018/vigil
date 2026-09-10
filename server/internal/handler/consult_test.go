@@ -9,6 +9,7 @@ import (
 
 	"github.com/multica-ai/multica/server/internal/testutil"
 	"github.com/multica-ai/multica/server/pkg/llm"
+	"github.com/multica-ai/multica/server/pkg/pricing"
 )
 
 // Agent consult (JEF-12). POST /api/consult is task_token-only; the reads
@@ -19,6 +20,7 @@ import (
 type stubConsultLLM struct {
 	enabled bool
 	reply   string
+	usage   llm.Usage
 	err     error
 	// gotModel/gotUserPrompt record what the consult pass was given.
 	gotModel      *string
@@ -27,14 +29,14 @@ type stubConsultLLM struct {
 
 func (s stubConsultLLM) Enabled() bool { return s.enabled }
 
-func (s stubConsultLLM) GenerateJSON(_ context.Context, model, _, userPrompt string, _ float64, _ int64) (string, error) {
+func (s stubConsultLLM) GenerateJSONWithUsage(_ context.Context, model, _, userPrompt string, _ float64, _ int64) (string, llm.Usage, error) {
 	if s.gotModel != nil {
 		*s.gotModel = model
 	}
 	if s.gotUserPrompt != nil {
 		*s.gotUserPrompt = userPrompt
 	}
-	return s.reply, s.err
+	return s.reply, s.usage, s.err
 }
 
 func withConsultLLM(t *testing.T, stub ConsultLLM) {
@@ -135,6 +137,36 @@ func TestConsultAnsweredHappyPath(t *testing.T) {
 	testutil.Call(t, testHandler.GetAgentConsultByID, memberGet).Want(http.StatusOK)
 	testutil.Call(t, testHandler.ListAgentConsults,
 		newRequest(http.MethodGet, "/api/consult?task_id="+taskID, nil)).Want(http.StatusOK)
+}
+
+func TestConsultAnsweredRecordsUsageAndCost(t *testing.T) {
+	agentID, taskID := consultTaskFixture(t, "consult-cost")
+
+	withConsultLLM(t, stubConsultLLM{
+		enabled: true, reply: `{"answer":"use Postgres"}`,
+		usage: llm.Usage{InputTokens: 1_000_000, OutputTokens: 500_000},
+	})
+
+	req := newConsultTaskRequest(http.MethodPost, "/api/consult",
+		map[string]any{"question": "which store?"}, taskID, agentID)
+	w := testutil.Call(t, testHandler.CreateAgentConsult, req).Want(http.StatusOK)
+	var resp CreateAgentConsultResponse
+	w.JSON(&resp)
+
+	// gpt-5.6-luna (the fallback consult model) is priced at $1/$6 per MTok:
+	// 1M in + 500k out = $4 = 4e10 ticks.
+	wantTicks := int64(4) * pricing.TicksPerUSD
+	if resp.CostUSDTicks == nil || *resp.CostUSDTicks != wantTicks {
+		t.Fatalf("cost_usd_ticks = %v, want %d ($4 at luna rates)", resp.CostUSDTicks, wantTicks)
+	}
+	var inTok, outTok, cost int64
+	dbfx.QueryRow(t,
+		`SELECT input_tokens, output_tokens, cost_usd_ticks FROM agent_consult WHERE id = $1`,
+		resp.ConsultID,
+	).Scan(&inTok, &outTok, &cost)
+	if inTok != 1_000_000 || outTok != 500_000 || cost != wantTicks {
+		t.Fatalf("row = (%d in, %d out, %d ticks), want (1000000, 500000, %d)", inTok, outTok, cost, wantTicks)
+	}
 }
 
 func TestConsultLLMErrorMarksFailed(t *testing.T) {

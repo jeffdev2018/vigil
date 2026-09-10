@@ -83,20 +83,33 @@ const finalizeAgentConsultAnswer = `-- name: FinalizeAgentConsultAnswer :one
 UPDATE agent_consult
 SET state = 'answered',
     answer = $2,
+    input_tokens = $3,
+    output_tokens = $4,
+    cost_usd_ticks = $5,
     finalized_at = now()
 WHERE id = $1 AND state = 'pending'
 RETURNING id, workspace_id, task_id, agent_id, model, question, answer, state, refusal_reason, input_tokens, output_tokens, cost_usd_ticks, created_at, finalized_at
 `
 
 type FinalizeAgentConsultAnswerParams struct {
-	ID     pgtype.UUID `json:"id"`
-	Answer pgtype.Text `json:"answer"`
+	ID           pgtype.UUID `json:"id"`
+	Answer       pgtype.Text `json:"answer"`
+	InputTokens  pgtype.Int8 `json:"input_tokens"`
+	OutputTokens pgtype.Int8 `json:"output_tokens"`
+	CostUsdTicks pgtype.Int8 `json:"cost_usd_ticks"`
 }
 
 // Only a still-pending row transitions, so a double finalize cannot resurrect
-// or overwrite a terminal state.
+// or overwrite a terminal state. Token counts and cost ride along; NULLs mean
+// the upstream did not report usage or the model has no known rate.
 func (q *Queries) FinalizeAgentConsultAnswer(ctx context.Context, arg FinalizeAgentConsultAnswerParams) (AgentConsult, error) {
-	row := q.db.QueryRow(ctx, finalizeAgentConsultAnswer, arg.ID, arg.Answer)
+	row := q.db.QueryRow(ctx, finalizeAgentConsultAnswer,
+		arg.ID,
+		arg.Answer,
+		arg.InputTokens,
+		arg.OutputTokens,
+		arg.CostUsdTicks,
+	)
 	var i AgentConsult
 	err := row.Scan(
 		&i.ID,
