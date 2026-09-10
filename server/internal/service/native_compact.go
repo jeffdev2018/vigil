@@ -181,16 +181,18 @@ const nativeSummaryPrompt = "Your context is nearly full. Without calling any to
 // was (the next compaction attempt sees the same sizes).
 func (s *NativeAgentService) nativeSummarize(ctx context.Context, cx *nativeContext, usage *nativeRunUsage) error {
 	msgs := append(cx.messages(), openai.UserMessage(nativeSummaryPrompt))
-	completion, err := s.LLM.Chat(ctx, openai.ChatCompletionNewParams{Messages: msgs})
+	params := openai.ChatCompletionNewParams{Messages: msgs}
+	model := s.nativeRequestModel(params)
+	completion, err := s.LLM.Chat(ctx, params)
 	if err != nil {
-		s.noteLLMFailure()
+		s.noteLLMFailure(model)
 		return err
 	}
 	if len(completion.Choices) == 0 {
-		s.noteLLMFailure()
+		s.noteLLMFailure(model)
 		return errors.New("summary: model returned no choices")
 	}
-	s.noteLLMSuccess()
+	s.noteLLMSuccess(model)
 	usage.input += completion.Usage.PromptTokens
 	usage.output += completion.Usage.CompletionTokens
 	usage.cacheRead += completion.Usage.PromptTokensDetails.CachedTokens

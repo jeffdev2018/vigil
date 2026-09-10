@@ -237,6 +237,7 @@ type RetryBudget struct {
 // the underlying SDK client holds no per-request state.
 type Client struct {
 	sdk            openai.Client
+	baseURL        string
 	defaultModel   string
 	embeddingModel string
 	enabled        bool
@@ -281,6 +282,7 @@ func New(cfg Config) *Client {
 
 	return &Client{
 		sdk:            openai.NewClient(opts...),
+		baseURL:        strings.TrimSpace(cfg.BaseURL),
 		defaultModel:   defaultModel,
 		embeddingModel: strings.TrimSpace(cfg.EmbeddingModel),
 		// A deployment is "configured" if it gave us either a key or a base
@@ -303,8 +305,23 @@ func (c *Client) RetryBudget() RetryBudget {
 // Handlers use this to short-circuit with a 503 before doing any work.
 func (c *Client) Enabled() bool { return c != nil && c.enabled }
 
+// BaseURL returns the configured OpenAI-compatible gateway URL (may be empty
+// when the SDK default applies). The native LLM fuse (N13) keys cooldowns by
+// this value so one provider's outage does not freeze every other gateway.
+func (c *Client) BaseURL() string {
+	if c == nil {
+		return ""
+	}
+	return c.baseURL
+}
+
 // DefaultModel returns the effective default model (never empty).
-func (c *Client) DefaultModel() string { return c.defaultModel }
+func (c *Client) DefaultModel() string {
+	if c == nil {
+		return FallbackModel
+	}
+	return c.defaultModel
+}
 
 // applyDefaultModel fills in the default model when the caller left it blank.
 func (c *Client) applyDefaultModel(params *openai.ChatCompletionNewParams) {

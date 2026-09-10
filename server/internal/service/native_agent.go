@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -42,6 +43,12 @@ type NativeChatStream interface {
 // tests can drive the loop with a scripted model.
 type NativeAgentLLM interface {
 	Enabled() bool
+	// BaseURL identifies the OpenAI-compatible gateway this client talks to.
+	// The LLM fuse (N13) keys cooldowns by base URL + model so one provider
+	// outage cannot freeze every other gateway (or every model on the same
+	// proxy).
+	BaseURL() string
+	DefaultModel() string
 	Chat(ctx context.Context, params openai.ChatCompletionNewParams) (*openai.ChatCompletion, error)
 	// ChatStream is the same request, streamed (N04). *llm.Client backs it
 	// with NewStreaming; the loop asks for usage in the final chunk so the
@@ -113,12 +120,19 @@ const (
 	// run may perform (comments, issue writes, creates). A confused model
 	// loops; the workspace must not eat the loop.
 	nativeMaxEffectfulActions = 10
-	// The LLM fuse: consecutive model-call failures trip a cooldown during
-	// which the tick stops dispatching new native runs. A gateway outage
-	// should queue work, not burn every task's retry budget.
+	// The LLM fuse (N13): consecutive model-call failures trip a cooldown
+	// keyed by gateway base URL + model. One provider's outage queues that
+	// key's work instead of burning every task's retry budget — and leaves
+	// other gateways (and other models on the same proxy) free to dispatch.
 	nativeLLMFuseThreshold = 3
 	nativeLLMFuseCooldown  = 5 * time.Minute
 )
+
+// nativeFuseSlot is the per-(gateway, model) failure counter and cooldown.
+type nativeFuseSlot struct {
+	failures atomic.Int32
+	until    atomic.Int64
+}
 
 type NativeAgentService struct {
 	Queries *db.Queries
@@ -136,32 +150,78 @@ type NativeAgentService struct {
 	// Goal judges the closing status of issue runs and drives the chain
 	// (goal_loop.go). Nil skips the judge — runs still end on a status.
 	Goal *GoalLoopService
-	// llmFailures counts consecutive model-call failures across runs;
-	// llmFuseUntil is the Unix-nano deadline the tick honours once the count
-	// reached nativeLLMFuseThreshold. Any success resets both.
-	llmFailures  atomic.Int32
-	llmFuseUntil atomic.Int64
-	limiter      chan struct{}
+	// llmFuses maps nativeLLMFuseKey(baseURL, model) → *nativeFuseSlot.
+	// A success on a key clears that key only.
+	llmFuses sync.Map
+	limiter  chan struct{}
 }
 
-func (s *NativeAgentService) noteLLMSuccess() {
-	s.llmFailures.Store(0)
-	s.llmFuseUntil.Store(0)
+// nativeLLMFuseKey builds the cooldown key for a gateway + model pair.
+func nativeLLMFuseKey(baseURL, model string) string {
+	return strings.TrimSpace(baseURL) + "\x00" + strings.TrimSpace(model)
 }
 
-func (s *NativeAgentService) noteLLMFailure() {
-	if s.llmFailures.Add(1) >= nativeLLMFuseThreshold {
-		s.llmFuseUntil.Store(time.Now().Add(nativeLLMFuseCooldown).UnixNano())
-		s.llmFailures.Store(0)
+func (s *NativeAgentService) fuseKey(model string) string {
+	base := ""
+	if s != nil && s.LLM != nil {
+		base = s.LLM.BaseURL()
+	}
+	return nativeLLMFuseKey(base, model)
+}
+
+func (s *NativeAgentService) fuseSlot(key string) *nativeFuseSlot {
+	if v, ok := s.llmFuses.Load(key); ok {
+		return v.(*nativeFuseSlot)
+	}
+	slot := &nativeFuseSlot{}
+	actual, _ := s.llmFuses.LoadOrStore(key, slot)
+	return actual.(*nativeFuseSlot)
+}
+
+func (s *NativeAgentService) noteLLMSuccess(model string) {
+	slot := s.fuseSlot(s.fuseKey(model))
+	slot.failures.Store(0)
+	slot.until.Store(0)
+}
+
+func (s *NativeAgentService) noteLLMFailure(model string) {
+	slot := s.fuseSlot(s.fuseKey(model))
+	if slot.failures.Add(1) >= nativeLLMFuseThreshold {
+		slot.until.Store(time.Now().Add(nativeLLMFuseCooldown).UnixNano())
+		slot.failures.Store(0)
 	}
 }
 
-// llmFuseOpen reports whether the model gateway is in cooldown: the tick
-// declines to dispatch new native runs, so queued work waits instead of
-// burning every task's attempts against a dead upstream.
-func (s *NativeAgentService) llmFuseOpen() bool {
-	until := s.llmFuseUntil.Load()
+// llmFuseOpen reports whether this gateway+model pair is in cooldown.
+func (s *NativeAgentService) llmFuseOpen(model string) bool {
+	until := s.fuseSlot(s.fuseKey(model)).until.Load()
 	return until != 0 && time.Now().UnixNano() < until
+}
+
+// nativeResolvedModel is the model a run will send: the agent's pin, else
+// the client's default. Empty only when no LLM is wired.
+func nativeResolvedModel(llm NativeAgentLLM, agent db.Agent) string {
+	if agent.Model.Valid {
+		if m := strings.TrimSpace(agent.Model.String); m != "" {
+			return m
+		}
+	}
+	if llm != nil {
+		return llm.DefaultModel()
+	}
+	return ""
+}
+
+// nativeRequestModel is the model a concrete Chat/ChatStream params will use
+// after the client applies its default.
+func (s *NativeAgentService) nativeRequestModel(params openai.ChatCompletionNewParams) string {
+	if m := strings.TrimSpace(string(params.Model)); m != "" {
+		return m
+	}
+	if s != nil && s.LLM != nil {
+		return s.LLM.DefaultModel()
+	}
+	return ""
 }
 
 func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {
@@ -181,8 +241,10 @@ func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueServi
 // runs dispatched this tick.
 func (s *NativeAgentService) Tick(ctx context.Context) (int, error) {
 	// Inert without a configured model — same contract as every other
-	// LLM-backed server feature: disabled means off, not failing.
-	if s.LLM == nil || !s.LLM.Enabled() || s.llmFuseOpen() {
+	// LLM-backed server feature: disabled means off, not failing. The fuse
+	// (N13) is per gateway+model and is checked at run start, so one
+	// provider's cooldown cannot starve every other workspace's queue.
+	if s.LLM == nil || !s.LLM.Enabled() {
 		return 0, nil
 	}
 	if _, err := s.Queries.SeedNativeRuntimes(ctx); err != nil {
@@ -259,15 +321,27 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	recordUsage := func() {
 		s.recordNativeUsage(ctx, taskID, usage)
 	}
+	agent, err := s.Queries.GetAgent(ctx, task.AgentID)
+	if err != nil {
+		s.failNativeTask(ctx, task, "native run: assigned agent no longer exists")
+		return
+	}
+	// N13: if this gateway+model is in cooldown, put the claim back so a
+	// healthy gateway can keep dispatching — do not StartTask (that would
+	// burn an attempt against a known-dead upstream).
+	if model := nativeResolvedModel(s.LLM, agent); s.llmFuseOpen(model) {
+		if s.Tasks != nil {
+			if _, err := s.Tasks.RequeueTaskAfterClaimFailure(ctx, task); err != nil {
+				slog.Error("native run: requeue during fuse cooldown failed", "task_id", util.UUIDToString(taskID), "error", err)
+				s.failNativeTask(ctx, task, "native run: model gateway in cooldown and requeue failed: "+err.Error())
+			}
+		}
+		return
+	}
 	started, err := s.Tasks.StartTask(ctx, taskID)
 	if err != nil {
 		slog.Error("native run: start failed", "task_id", util.UUIDToString(taskID), "error", err)
 		s.failNativeTask(ctx, task, "native run could not start: "+err.Error())
-		return
-	}
-	agent, err := s.Queries.GetAgent(ctx, task.AgentID)
-	if err != nil {
-		s.failNativeTask(ctx, task, "native run: assigned agent no longer exists")
 		return
 	}
 	// Adopt the started row: the loop evaluates workspace run limits against
@@ -393,8 +467,9 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 			IncludeUsage: openai.Bool(true),
 		}
 		stream, err := s.LLM.ChatStream(ctx, params)
+		model := s.nativeRequestModel(params)
 		if err != nil {
-			s.noteLLMFailure()
+			s.noteLLMFailure(model)
 			if errors.Is(err, context.DeadlineExceeded) {
 				return "", errNativeTimeout
 			}
@@ -465,17 +540,17 @@ func (s *NativeAgentService) runLoop(ctx context.Context, tctx *nativeToolContex
 			}
 		}
 		if err := stream.Err(); err != nil {
-			s.noteLLMFailure()
+			s.noteLLMFailure(model)
 			if errors.Is(err, context.DeadlineExceeded) {
 				return "", errNativeTimeout
 			}
 			return "", fmt.Errorf("model stream failed: %w", err)
 		}
 		if !sawChoice {
-			s.noteLLMFailure()
+			s.noteLLMFailure(model)
 			return "", errors.New("model returned no choices")
 		}
-		s.noteLLMSuccess()
+		s.noteLLMSuccess(model)
 		if wrapUp || len(toolOrder) == 0 {
 			// A prose turn (or the wrap-up): the streamed message IS the
 			// final text. Complete it — the flush was throttled. Tool calls
