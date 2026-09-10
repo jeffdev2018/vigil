@@ -207,6 +207,26 @@ describe("CaptureInbox", () => {
     );
   });
 
+  it("lets a capture without suggestion or title hint be saved: the server derives the title", async () => {
+    data.response = { captures: [capture({ content: "pgbouncer listens on 6432\nsecond line" })], raw_count: 1 };
+    renderInbox();
+    fireEvent.click(await screen.findByRole("button", { name: "Save as note" }));
+    const dialog = await screen.findByRole("dialog");
+    const title = within(dialog).getByLabelText("Title") as HTMLInputElement;
+    expect(title.value).toBe("");
+    // The default the server will use is shown where the title would go.
+    expect(title.placeholder).toBe("pgbouncer listens on 6432");
+    const submit = within(dialog).getByRole("button", { name: "Save as note" });
+    expect(submit).not.toBeDisabled();
+    fireEvent.click(submit);
+    await waitFor(() =>
+      expect(mutations.organize).toHaveBeenCalledWith({
+        id: "cap-1",
+        input: { action: "note", title: "", tags: [], content: undefined, pinned: false },
+      }),
+    );
+  });
+
   it("organizes a capture into a note through the dialog", async () => {
     data.response = {
       captures: [
