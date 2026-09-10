@@ -381,6 +381,35 @@ func (s *NativeAgentService) callNativeToolRead(ctx context.Context, tctx *nativ
 	return s.callNativeTool(ctx, tctx, name, args)
 }
 
+// nativeHoldsEffects reports whether this run's writes wait for a human
+// (N10): the agent's effect_mode is preview (K69's own gate — the same one
+// every HTTP write path consults via RunHoldsEffects), or the run is a safe
+// replay.
+func (s *NativeAgentService) nativeHoldsEffects(ctx context.Context, tctx *nativeToolContext) bool {
+	return RunHoldsEffects(ctx, s.Queries, tctx.agent.ID, tctx.task.ID)
+}
+
+// nativeHoldEffect journals the write an agent in preview asked for and was
+// NOT applied, and returns the reply the model receives: a pending id and a
+// clear statement that a human must approve before anything happens.
+func (s *NativeAgentService) nativeHoldEffect(ctx context.Context, tctx *nativeToolContext, kind string, targetID pgtype.UUID, after, payload map[string]any) (any, error) {
+	issueID := pgtype.UUID{}
+	if tctx.issue != nil {
+		issueID = tctx.issue.ID
+	}
+	eff, err := RecordPendingAgentEffect(ctx, s.Queries, AgentEffectParams{
+		WorkspaceID: tctx.workspaceID, TaskID: tctx.task.ID, AgentID: tctx.agent.ID, IssueID: issueID,
+		Kind: kind, TargetType: "issue", TargetID: targetID, After: after, Reversible: true,
+	}, payload)
+	if err != nil {
+		return nil, fmt.Errorf("the write could not be held for approval: %w", err)
+	}
+	return map[string]any{
+		"held": true, "pending_effect_id": util.UUIDToString(eff.ID),
+		"note": "the agent runs in preview mode: a human must approve this change before it is applied",
+	}, nil
+}
+
 // callNativeTool dispatches one validated tool invocation. Errors are values
 // for the model to react to, not run failures.
 func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
@@ -397,6 +426,26 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 	case "list_issues":
 		return s.nativeListIssues(ctx, tctx, args)
 	case "add_comment", "update_issue", "transition_issue", "create_sub_issue", "create_issue", "save_note", "update_note":
+		// Preview mode (N10 / K69): the write is HELD, not applied — journaled
+		// as a pending effect a human approves. Held writes do not spend the
+		// effect budget: nothing changed.
+		if s.nativeHoldsEffects(ctx, tctx) {
+			payload := map[string]any{"tool": name, "arguments": args}
+			var targetHint pgtype.UUID
+			if tctx.issue != nil {
+				targetHint = tctx.issue.ID
+			}
+			if raw, ok := args["issue_id"].(string); ok {
+				if id, err := util.ParseUUID(strings.TrimSpace(raw)); err == nil {
+					targetHint = id
+				}
+			}
+			after := map[string]any{"tool": name}
+			if t, ok := args["title"].(string); ok {
+				after["title"] = t
+			}
+			return s.nativeHoldEffect(ctx, tctx, "native_"+name, targetHint, after, payload)
+		}
 		// Rule-of-Many: one run may only change workspace state so many
 		// times, its sub-agents included. Read-only tools stay free; a
 		// refusal tells the model to wrap up instead of looping.
