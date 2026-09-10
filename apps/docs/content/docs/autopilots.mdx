@@ -23,6 +23,50 @@ Open **Autopilot** in the sidebar, pick a template or start from scratch, then c
 
 An autopilot is enabled by default after saving; **Run now** manually executes the full flow once at any time.
 
+## From a sentence
+
+You do not have to fill the form. Say what should happen and when — "every Monday at 9, list the open tickets" — and Multica drafts the autopilot: a title, a 5-field cron, a timezone, the instruction the agent follows on every run, and the next three run times, so you can check the schedule before anything exists.
+
+**A draft writes nothing.** It is a preview; if it read the sentence wrong, throw it away and say it differently.
+
+**Filing it creates the autopilot paused**, with its schedule switched off. Nothing runs until a person turns it on — which is what makes this safe to hand to an agent, or to a group chat.
+
+When the proposal is attached to an issue it arrives as a [Decision Card](/decisions) on that issue, with two options:
+
+- **Activate** — the autopilot becomes active and its schedule is enabled, firing first at the time the card shows;
+- **Discard** — the autopilot is archived and never runs.
+
+Without an issue there is no card, and you enable it from the autopilot's page like any other.
+
+A member who is already sure can skip the card: `--activate` on the CLI (`activate: true` on the API) files the autopilot **active**, with its schedule enabled and no card, because the person deciding is the caller. A run cannot ask for this — it is refused — so an agent always proposes and a person always decides.
+
+### From the CLI
+
+```bash
+# Print the draft; nothing is written
+multica autopilot draft "every Monday at 9, list the open tickets"
+
+# File it paused, with the Decision Card on ONE-42
+multica autopilot draft "every Monday at 9, list the open tickets" \
+  --create --agent CodeBot --issue ONE-42
+```
+
+`--timezone` reads the sentence in a zone other than UTC, and `--output json` returns the raw draft. Without a server-side model the command answers *no model configured*; write the schedule yourself with `autopilot create`.
+
+### From an agent or an MCP client
+
+A run proposes with the native runtime's `propose_autopilot` tool and the card lands on its own issue. An MCP client uses the `vigil_autopilot` tool — action `draft` (a read: it writes nothing) or `propose`. Both produce the same paused autopilot behind the same card.
+
+### From a chat channel
+
+In a connected Slack, Telegram, Lark, WeCom or DingTalk channel, a member types:
+
+```text
+/schedule every Monday at 9, list the open tickets
+```
+
+The bot replies with the title it understood, the schedule in words and when it would first run. A chat message has no issue behind it, so there is no Decision Card: the autopilot waits, paused, on the Autopilot page.
+
 ## Choose an execution mode
 
 | Mode | Behavior | Best for |
@@ -265,6 +309,7 @@ writes more.
 ## Use the CLI
 
 ```bash
+multica autopilot draft "every Monday at 9, list the open tickets" --create --agent CodeBot
 multica autopilot get <autopilot-id> --output json
 multica autopilot trigger <autopilot-id>
 multica autopilot runs <autopilot-id>

@@ -23,6 +23,50 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 保存后自动化默认为启用状态；**立即运行**可随时手动执行一次完整流程。
 
+## 从一句话生成
+
+不必逐项填表。说清楚要做什么、什么时候做——「每周一早上 9 点，列出未关闭的任务」——Multica 就会替你起草这条自动化：标题、5 段式 cron、时区、每次运行时智能体要遵循的指令，以及接下来三次运行时间，让你在任何东西被创建之前先核对排期。
+
+**草稿不写入任何东西。** 它只是预览；如果这句话被读错了，丢掉重说一遍即可。
+
+**正式创建出来的自动化是暂停状态**，排期开关处于关闭。在有人打开它之前什么都不会跑——正因如此，把这件事交给智能体或者群聊才是安全的。
+
+当提案挂在某个任务上时，它会以[决策卡片](/decisions)的形式出现在该任务上，有两个选项：
+
+- **启用**——自动化变为活跃，排期被开启，首次运行时间就是卡片上显示的那个；
+- **丢弃**——自动化被归档，永远不会运行。
+
+没有任务就没有卡片，你可以像对待其它自动化一样，在它自己的页面上开启。
+
+已经想清楚的成员可以跳过卡片：CLI 的 `--activate`（API 里是 `activate: true`）会直接把自动化创建为**活跃**状态，排期开启，不生成卡片——因为做决定的人就是调用者本人。运行不能这样做，会被拒绝：智能体永远只负责提出，人永远负责决定。
+
+### 用 CLI
+
+```bash
+# 打印草稿；不写入任何东西
+multica autopilot draft "每周一早上 9 点，列出未关闭的任务"
+
+# 暂停创建，并把决策卡片挂到 ONE-42 上
+multica autopilot draft "每周一早上 9 点，列出未关闭的任务" \
+  --create --agent CodeBot --issue ONE-42
+```
+
+`--timezone` 让这句话按 UTC 以外的时区来读，`--output json` 返回原始草稿。工作区没有配置服务端模型时，命令会回答 *no model configured*，此时用 `autopilot create` 自己写排期。
+
+### 用智能体或 MCP 客户端
+
+一次运行通过原生运行时的 `propose_autopilot` 工具提出，卡片落在它自己的任务上。MCP 客户端用 `vigil_autopilot` 工具——action 为 `draft`（读操作：不写入任何东西）或 `propose`。两条路径产出的是同一条暂停的自动化和同一张卡片。
+
+### 用聊天频道
+
+在已连接的 Slack、Telegram、飞书、企业微信或钉钉频道里，成员输入：
+
+```text
+/schedule 每周一早上 9 点，列出未关闭的任务
+```
+
+机器人会回复它读懂的标题、用文字表述的排期，以及首次运行的时间。聊天消息背后没有任务，因此没有决策卡片：这条自动化会暂停着，等在自动化页面上。
+
 ## 选择输出模式
 
 | 模式 | 行为 | 适合 |
@@ -165,6 +209,7 @@ Multica 会定期检查近期运行是否持续失败：过去 7 天内已完成
 ## 使用 CLI
 
 ```bash
+multica autopilot draft "每周一早上 9 点，列出未关闭的任务" --create --agent CodeBot
 multica autopilot get <autopilot-id> --output json
 multica autopilot trigger <autopilot-id>
 multica autopilot runs <autopilot-id>

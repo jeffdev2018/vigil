@@ -38,6 +38,8 @@ const (
 	issueUsageText          = "Please include an issue title. Use:\n\n`/issue <title>`\n\n`[description]` (optional)"
 	captureAckText          = "✅ Captured — organize it in the Brain inbox."
 	captureUsageText        = "Please include what to capture. Use:\n\n`/capture <text or link>`"
+	scheduleUsageText       = "Please say what should happen and when. Use:\n\n`/schedule <every Monday at 9, list the open tickets>`"
+	scheduleUnavailableText = "\u26a0\ufe0f No model is configured for this workspace, so I can't read that as a schedule. Create the autopilot from the Autopilots page."
 	issueUsageWithMediaText = "Please add a title and resend with the image (*image can come before or after the command*):\n\n`/issue <title>`\n\n`[description]` (optional)"
 	// Refusals for dropped /issue commands, carried over from the deleted
 	// pre-engine IssueCommandProcessor: without them the user's command
@@ -152,6 +154,21 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeCaptureUsage:
 		if err := r.post(ctx, inst, msg, captureUsageText); err != nil {
 			r.logger.WarnContext(ctx, "dingtalk replier: capture usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduled:
+		if err := r.post(ctx, inst, msg, scheduleAckText(res)); err != nil {
+			r.logger.WarnContext(ctx, "dingtalk replier: schedule confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUsage:
+		if err := r.post(ctx, inst, msg, scheduleUsageText); err != nil {
+			r.logger.WarnContext(ctx, "dingtalk replier: schedule usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUnavailable:
+		if err := r.post(ctx, inst, msg, scheduleUnavailableText); err != nil {
+			r.logger.WarnContext(ctx, "dingtalk replier: schedule unavailable notice failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:
@@ -318,4 +335,20 @@ func issueResultIdentifier(res engine.Result) string {
 		return fmt.Sprintf("#%d", res.IssueNumber)
 	}
 	return util.UUIDToString(res.IssueID)
+}
+
+// scheduleAckText confirms a paused autopilot proposal: what was understood,
+// when it would run, and where a person goes to turn it on. The proposal
+// starts nothing on its own, so the reply must not read like a confirmation
+// that something is now running.
+func scheduleAckText(res engine.Result) string {
+	title := strings.TrimSpace(res.ScheduleTitle)
+	if title == "" {
+		title = "Autopilot"
+	}
+	text := "\u23f8 Proposed \"" + title + "\""
+	if summary := strings.TrimSpace(res.ScheduleSummary); summary != "" {
+		text += " \u2014 " + summary
+	}
+	return text + ". It is paused. Activate it from Autopilots."
 }

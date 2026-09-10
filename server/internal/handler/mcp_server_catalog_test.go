@@ -102,3 +102,49 @@ func TestMCPCaptureLeafPathsCarryTheCaptureID(t *testing.T) {
 		}
 	}
 }
+
+// Réveil programmé is reachable from MCP: a client schedules a wake-up on an
+// issue, reads what is pending, cancels one, and proposes a recurring
+// automation from a sentence. The risk classes are the point — drafting asks
+// a model and writes nothing, so it must not be gated as a write, and
+// proposing files a paused autopilot, so it must not be classed external.
+func TestMCPCatalogueCoversWakeUps(t *testing.T) {
+	want := map[string]struct {
+		group  string
+		risk   string
+		method string
+	}{
+		"issue_followup":        {"vigil_issue", mcpgov.RiskInternalWrite, "POST"},
+		"issue_followups":       {"vigil_issue", mcpgov.RiskRead, "GET"},
+		"issue_followup_cancel": {"vigil_issue", mcpgov.RiskInternalWrite, "DELETE"},
+		"autopilot_draft":       {"vigil_autopilot", mcpgov.RiskRead, "POST"},
+		"autopilot_propose":     {"vigil_autopilot", mcpgov.RiskInternalWrite, "POST"},
+	}
+	for name, w := range want {
+		leaf, ok := mcpLeafByName[name]
+		if !ok {
+			t.Fatalf("catalogue has no %q leaf", name)
+		}
+		if leaf.Group != w.group {
+			t.Errorf("%s is in group %q, want %q", name, leaf.Group, w.group)
+		}
+		if leaf.Risk != w.risk {
+			t.Errorf("%s risk = %q, want %q", name, leaf.Risk, w.risk)
+		}
+		if leaf.Method != w.method {
+			t.Errorf("%s method = %q, want %q", name, leaf.Method, w.method)
+		}
+	}
+}
+
+// The cancel leaf carries both ids into the path; a missing placeholder is a
+// dispatch error, not a schema one, so it is worth building once here.
+func TestMCPFollowupCancelPathCarriesBothIDs(t *testing.T) {
+	path, _, _, err := mcpLeafByName["issue_followup_cancel"].build(map[string]any{"id": "MUL-1", "followup_id": "f1"}, mcpCaller{})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if path != "/api/issues/MUL-1/followups/f1" {
+		t.Errorf("path = %q", path)
+	}
+}

@@ -36,8 +36,23 @@ The tool-calling loop can only call a small, deliberately closed set of tools:
 | `transition_issue` | Changes the issue's status through the same gated path as the UI. |
 | `create_sub_issue` | Creates a sub-issue under the run's issue. |
 | `create_issue` | Creates a new top-level issue, assigned to the agent itself by default. |
+| `schedule_followup` | Wakes this issue's agent once more, later, at a chosen instant, carrying a note. |
+| `cancel_followup` | Cancels a follow-up on this issue that has not fired yet. |
+| `list_followups` | Lists the follow-ups already waiting on this issue. |
+| `propose_autopilot` | Proposes a recurring automation from a sentence; it is created paused behind a Decision Card. |
 
 Any issue ID the model supplies is re-validated against the run's workspace before use — a tool never trusts an issue reference out of model output alone.
+
+### Follow-ups: waiting instead of looping
+
+When the next step depends on a *time* rather than on more work — a deploy that lands at 9, a build that takes an hour — a run can put the issue down and pick it up later. `schedule_followup {when, note}` files one deferred run of the same agent on the same issue. `when` is an RFC 3339 instant or `+<minutes>` from now, and it must land between **1 minute and 30 days** away; the note becomes the trigger the next run — and the next person — reads.
+
+A follow-up shows on the issue, in the runs list as a run blocked on *deferred* whose blocker summary is the note you wrote, and in the [calendar agenda](/calendar#scheduled-wake-ups). Anyone who can see the issue can cancel it before it fires, from the app or with `multica issue followup-cancel`.
+
+**There is a budget.** By default an agent may schedule 20 follow-ups a day and a workspace 200, counted over the last 24 hours at schedule time. Spending it refuses the call and names the bound, so a run cannot turn a wake-up into a loop. A workspace can move both limits between 1 and 1000 in its settings under `followups`.
+
+`propose_autopilot` is the other half of the same idea: when the work should repeat rather than happen once, a run proposes a schedule and a person activates it. See [Autopilots](/autopilots#from-a-sentence).
+
 
 ## Sub-agents
 

@@ -11,13 +11,25 @@ The workspace has a calendar of its own. An **event** has a title, a time window
 
 **Calendar** in the sidebar shows the month or the week. Each day carries the workspace's events, the **issues due** that day, the **cycles** running through it and the **meetings** that were recorded; click an event to see who is in, answer your own attendance (accepted, declined, tentative), move it or cancel it. A cancelled event stays visible as cancelled so a subscribed feed learns it is off.
 
-The **agenda** view is the same content as a list, and `GET /api/calendar/agenda` gives it to scripts.
+The **agenda** view is the same content as a list — plus the **scheduled wake-ups** of the same window — and `GET /api/calendar/agenda` gives it to scripts.
 
 ## Proposals
 
 An agent cannot put anything on anybody's calendar by itself. From a run — the native runtime's `propose_event` tool, the MCP `vigil_calendar` tool, or `multica calendar propose` — an agent files the event as **proposed** on the issue it works on, with a Decision Card the issue's people see wherever they [decide things](/decisions#where-you-answer): the issue timeline, the inbox, the chat, the phone, Slack, Telegram or Lark. **Accept** schedules it and invites the participants; **Decline** cancels it.
 
 Agents are told to read the agenda and ask for free slots before proposing, and to propose once.
+
+## Scheduled wake-ups
+
+A **follow-up** is an agent coming back to an issue at a chosen time, carrying a note about what to do then — the one-shot cousin of an [autopilot](/autopilots). The agenda carries them next to everything else dated: `GET /api/calendar/agenda` returns a `followups` array with the issue, the agent, the firing time and the note, so a wake-up is visible beside the events and due dates of the same day.
+
+```bash
+multica issue followup ONE-42 --when "+90" --note "check the deploy"
+multica issue followups ONE-42
+multica issue followup-cancel ONE-42 <followup-id>
+```
+
+`--when` takes an RFC 3339 instant or `+<minutes>` from now, between 1 minute and 30 days away. A follow-up also shows on the issue and in the runs list, as a run blocked on *deferred* whose blocker summary is the note, and anyone who can see the issue can cancel it before it fires. [The native runtime](/native-runtime) documents the tools a run uses for this and the daily budget that keeps a wake-up from becoming a loop.
 
 ## Free slots
 
@@ -43,12 +55,13 @@ With the `googlecalendar` toolkit connected under **Settings → Integrations �
 
 - Native runtime: `list_events`, `find_slot`, `propose_event`.
 - MCP: `vigil_calendar` with actions `events`, `agenda`, `slots`, `propose`.
-- CLI: `multica calendar agenda | events | slots | propose`.
+- CLI: `multica calendar agenda | events | slots | propose`, and `multica issue followup | followups | followup-cancel` for the wake-ups the agenda shows.
 
 ## API
 
 - `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`, `POST /api/calendar/events`, `GET/PUT/DELETE /api/calendar/events/{id}`, `POST /api/calendar/events/{id}/respond {response}`.
-- `GET /api/calendar/agenda?from&to`, `GET /api/calendar/slots?participants&duration&from&to&tz`.
+- `GET /api/calendar/agenda?from&to` (events, issue due dates, cycles, meetings and the window's `followups`), `GET /api/calendar/slots?participants&duration&from&to&tz`.
+- `POST /api/issues/{id}/followups {when, note?, agent_id?}`, `GET /api/issues/{id}/followups`, `DELETE /api/issues/{id}/followups/{followupId}`; realtime event `followup:changed`.
 - `GET/POST/DELETE /api/calendar/feed-token`, public `GET /api/calendar/ics/{token}`.
 - `POST /api/calendar/google/import {from, to}`.
 - Events `calendar:changed` keep an open page current; inbox types `calendar_invitation` and `calendar_reminder`.

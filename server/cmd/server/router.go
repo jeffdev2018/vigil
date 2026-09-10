@@ -554,6 +554,9 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		// through the handler so a capture typed in a chat gets the same
 		// audit trail, realtime event and suggestion as one made in the app.
 		Captures: h,
+		// `/schedule` drafts a recurring automation from a sentence and files
+		// it paused; a person activates it from the Autopilots page.
+		Schedules: h,
 	})
 	// Debounce the per-session run trigger so a burst of messages collapses
 	// into one agent run instead of one per message (MUL-2968).

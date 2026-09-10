@@ -43,6 +43,7 @@ type Router struct {
 	lifecycle ChannelChatLifecycle
 	triage    TriageGate
 	captures  CaptureCreator
+	schedules AutopilotProposer
 
 	batcher *pendingBatcher
 
@@ -87,6 +88,10 @@ type RouterConfig struct {
 	// disables the command: the message is then an ordinary chat turn, which
 	// is the honest behavior for a deployment wired without it.
 	Captures CaptureCreator
+	// Schedules files `/schedule` commands as paused autopilot proposals.
+	// Nil disables the command: the message is then an ordinary chat turn,
+	// which is the honest behavior for a deployment wired without it.
+	Schedules AutopilotProposer
 }
 
 // NewRouter builds a Router around the shared (platform-agnostic) services:
@@ -115,6 +120,7 @@ func NewRouter(issues IssueCreator, tasks TaskEnqueuer, reader SessionReader, cf
 		lifecycle:    cfg.Lifecycle,
 		triage:       cfg.Triage,
 		captures:     cfg.Captures,
+		schedules:    cfg.Schedules,
 		replyTimeout: cfg.ReplyTimeout,
 		mediaTimeout: cfg.MediaTimeout,
 		mediaCtx:     mediaCtx,
@@ -672,6 +678,38 @@ func (r *Router) processClaimed(ctx context.Context, set ResolverSet, msg channe
 			}
 			res.Outcome = OutcomeCaptured
 			res.CaptureID = captureID
+			return res, postAppendFinalize, nil
+		}
+	}
+
+	// 7c. `/schedule` command, if present. Terminal like `/capture`: the
+	//     member asked for an automation to be drafted, not for the agent to
+	//     answer. The autopilot is filed PAUSED with its schedule disabled,
+	//     so the only thing this command can do on its own is create a row a
+	//     person still has to activate.
+	if r.schedules != nil {
+		if cmd, ok := ParseScheduleCommand(msg.CommandText); ok {
+			if cmd.IsEmpty() || cmd.TooLong() {
+				res.Outcome = OutcomeScheduleUsage
+				return res, postAppendFinalize, nil
+			}
+			proposal, err := r.schedules.ProposeChannelAutopilot(ctx, inst.WorkspaceID, inst.AgentID, identity.UserID, cmd.Text)
+			switch {
+			case errors.Is(err, ErrAutopilotModelUnavailable):
+				res.Outcome = OutcomeScheduleUnavailable
+				return res, postAppendFinalize, nil
+			case errors.Is(err, ErrAutopilotNotUnderstood):
+				// Retrying the same words costs another model call and gets
+				// the same answer, so this is a reply, not a failure.
+				res.Outcome = OutcomeScheduleUsage
+				return res, postAppendFinalize, nil
+			case err != nil:
+				return Result{}, postAppendFinalize, fmt.Errorf("schedule from command: %w", err)
+			}
+			res.Outcome = OutcomeScheduled
+			res.AutopilotID = proposal.AutopilotID
+			res.ScheduleTitle = proposal.Title
+			res.ScheduleSummary = proposal.Summary
 			return res, postAppendFinalize, nil
 		}
 	}

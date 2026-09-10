@@ -22,13 +22,15 @@ import (
 )
 
 const (
-	agentOfflineText  = "⚠️ 智能体当前不在线，你的消息已收到，等它上线后会处理。"
-	agentArchivedText = "⚠️ 该智能体已归档，无法回复。请联系工作区管理员。"
-	freshPendingText  = "✅ 已准备从空上下文运行。你的下一条聊天消息仍会进入当前对话，但不会带上之前的上下文。"
-	chatStartedText   = "✅ 已新建 Multica 对话。你的下一条消息会进入该对话。"
-	issueUsageText    = "请填写任务标题，格式如下：\n\n`/issue <标题>`\n`[描述]`（可选）"
-	captureAckText    = "✅ 已收集 —— 稍后在 Brain 收集箱整理。"
-	captureUsageText  = "请填写要收集的内容，格式如下：\n\n`/capture <文本或链接>`"
+	agentOfflineText        = "⚠️ 智能体当前不在线，你的消息已收到，等它上线后会处理。"
+	agentArchivedText       = "⚠️ 该智能体已归档，无法回复。请联系工作区管理员。"
+	freshPendingText        = "✅ 已准备从空上下文运行。你的下一条聊天消息仍会进入当前对话，但不会带上之前的上下文。"
+	chatStartedText         = "✅ 已新建 Multica 对话。你的下一条消息会进入该对话。"
+	issueUsageText          = "请填写任务标题，格式如下：\n\n`/issue <标题>`\n`[描述]`（可选）"
+	captureAckText          = "✅ 已收集 —— 稍后在 Brain 收集箱整理。"
+	captureUsageText        = "请填写要收集的内容，格式如下：\n\n`/capture <文本或链接>`"
+	scheduleUsageText       = "请说明要做什么、什么时候做，格式如下：\n\n`/schedule <每周一早上 9 点，列出未关闭的工单>`"
+	scheduleUnavailableText = "\u26a0\ufe0f 本工作区未配置模型，无法把这句话读成排期。请在「自动化」页面手动创建。"
 )
 
 // OutboundReplier implements engine.OutboundReplier for WeCom.
@@ -141,6 +143,21 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeCaptureUsage:
 		if err := r.post(ctx, inst, msg, captureUsageText); err != nil {
 			r.logger.WarnContext(ctx, "wecom replier: capture usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduled:
+		if err := r.post(ctx, inst, msg, scheduleAckText(res)); err != nil {
+			r.logger.WarnContext(ctx, "wecom replier: schedule confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUsage:
+		if err := r.post(ctx, inst, msg, scheduleUsageText); err != nil {
+			r.logger.WarnContext(ctx, "wecom replier: schedule usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUnavailable:
+		if err := r.post(ctx, inst, msg, scheduleUnavailableText); err != nil {
+			r.logger.WarnContext(ctx, "wecom replier: schedule unavailable notice failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:
@@ -325,4 +342,18 @@ func issueCreatedText(res engine.Result) string {
 		return "✅ 已创建 " + id
 	}
 	return "✅ 已创建 " + id + " — " + title
+}
+
+// scheduleAckText 确认一条已暂停的自动化提案：读懂了什么、何时会运行、去哪里启用。
+// 提案本身不会启动任何东西，所以这段回复不能读起来像“已经在跑了”。
+func scheduleAckText(res engine.Result) string {
+	title := strings.TrimSpace(res.ScheduleTitle)
+	if title == "" {
+		title = "自动化"
+	}
+	text := "\u23f8 已提案「" + title + "」"
+	if summary := strings.TrimSpace(res.ScheduleSummary); summary != "" {
+		text += " \u2014 " + summary
+	}
+	return text + "。当前为暂停状态，请在「自动化」页面启用。"
 }

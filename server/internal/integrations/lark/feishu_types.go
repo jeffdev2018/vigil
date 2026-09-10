@@ -85,6 +85,14 @@ const (
 	OutcomeCaptured Outcome = "captured"
 	// OutcomeCaptureUsage — /capture was sent with nothing to capture.
 	OutcomeCaptureUsage Outcome = "capture_usage"
+	// OutcomeScheduled — /schedule filed a paused autopilot proposal.
+	OutcomeScheduled Outcome = "scheduled"
+	// OutcomeScheduleUsage — /schedule was sent with nothing to schedule, or
+	// with a sentence the model could not read as one.
+	OutcomeScheduleUsage Outcome = "schedule_usage"
+	// OutcomeScheduleUnavailable — /schedule needs a model this workspace has
+	// not configured.
+	OutcomeScheduleUnavailable Outcome = "schedule_unavailable"
 	// OutcomeAgentOffline — landed, but the agent has no runtime bound.
 	OutcomeAgentOffline Outcome = "agent_offline"
 	// OutcomeAgentArchived — landed, but the agent is archived.
@@ -119,4 +127,10 @@ type DispatchResult struct {
 	// IssueHeld marks an /issue command the triage queue parked instead of
 	// creating. There is no IssueID; the sender is told a human will review it.
 	IssueHeld bool
+	// AutopilotID, ScheduleTitle and ScheduleSummary describe the paused
+	// autopilot a /schedule command proposed. The summary is the schedule in
+	// words — cron, timezone, first run — composed by the server.
+	AutopilotID     pgtype.UUID
+	ScheduleTitle   string
+	ScheduleSummary string
 }

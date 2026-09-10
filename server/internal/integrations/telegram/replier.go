@@ -28,13 +28,15 @@ import (
 //   - Dropped addressed /issue commands: an authorization/status refusal.
 
 const (
-	msgFreshPending   = "✅ Fresh start ready. Your next chat message will run without previous context."
-	msgChatStarted    = "✅ Started a new Multica chat. Your next message will enter it."
-	msgIssueUsage     = "Please include an issue title. Use:\n\n/issue <title>\n[description] (optional)"
-	msgCaptureAck     = "✅ Captured — organize it in the Brain inbox."
-	msgCaptureUsage   = "Please include what to capture. Use:\n\n/capture <text or link>"
-	msgIssueNotMember = "You're not a member of this Multica workspace, so I can't file an issue for you. Ask a workspace admin to invite you, then send the command again."
-	msgIssueDisabled  = "This Telegram bot isn't connected to Multica (or was disconnected). Ask a workspace admin to reconnect it."
+	msgFreshPending        = "✅ Fresh start ready. Your next chat message will run without previous context."
+	msgChatStarted         = "✅ Started a new Multica chat. Your next message will enter it."
+	msgIssueUsage          = "Please include an issue title. Use:\n\n/issue <title>\n[description] (optional)"
+	msgCaptureAck          = "✅ Captured — organize it in the Brain inbox."
+	msgCaptureUsage        = "Please include what to capture. Use:\n\n/capture <text or link>"
+	msgScheduleUsage       = "Please say what should happen and when. Use:\n\n/schedule <every Monday at 9, list the open tickets>"
+	msgScheduleUnavailable = "\u26a0\ufe0f No model is configured for this workspace, so I can't read that as a schedule. Create the autopilot from the Autopilots page."
+	msgIssueNotMember      = "You're not a member of this Multica workspace, so I can't file an issue for you. Ask a workspace admin to invite you, then send the command again."
+	msgIssueDisabled       = "This Telegram bot isn't connected to Multica (or was disconnected). Ask a workspace admin to reconnect it."
 )
 
 // bindingMinter is the binding-token surface the replier needs.
@@ -137,6 +139,21 @@ func (r *OutboundReplier) Reply(ctx context.Context, inst engine.ResolvedInstall
 	case engine.OutcomeCaptureUsage:
 		if err := r.post(ctx, inst, msg, msgCaptureUsage); err != nil {
 			r.logger.WarnContext(ctx, "telegram replier: capture usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduled:
+		if err := r.post(ctx, inst, msg, scheduleAckText(res)); err != nil {
+			r.logger.WarnContext(ctx, "telegram replier: schedule confirmation failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUsage:
+		if err := r.post(ctx, inst, msg, msgScheduleUsage); err != nil {
+			r.logger.WarnContext(ctx, "telegram replier: schedule usage reply failed",
+				"installation_id", util.UUIDToString(inst.ID), "error", err)
+		}
+	case engine.OutcomeScheduleUnavailable:
+		if err := r.post(ctx, inst, msg, msgScheduleUnavailable); err != nil {
+			r.logger.WarnContext(ctx, "telegram replier: schedule unavailable notice failed",
 				"installation_id", util.UUIDToString(inst.ID), "error", err)
 		}
 	case engine.OutcomeIngested:
@@ -292,4 +309,20 @@ func droppedReplyText(res engine.Result, msg channel.InboundMessage) string {
 	default:
 		return ""
 	}
+}
+
+// scheduleAckText confirms a paused autopilot proposal: what was understood,
+// when it would run, and where a person goes to turn it on. The proposal
+// starts nothing on its own, so the reply must not read like a confirmation
+// that something is now running.
+func scheduleAckText(res engine.Result) string {
+	title := strings.TrimSpace(res.ScheduleTitle)
+	if title == "" {
+		title = "Autopilot"
+	}
+	text := "\u23f8 Proposed \"" + title + "\""
+	if summary := strings.TrimSpace(res.ScheduleSummary); summary != "" {
+		text += " \u2014 " + summary
+	}
+	return text + ". It is paused. Activate it from Autopilots."
 }

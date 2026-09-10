@@ -11,13 +11,25 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 サイドバーの**カレンダー**は月表示または週表示を出せます。各日にはワークスペースのイベント、その日が期限の**課題**、その日を通過する**サイクル**、記録された**会議**が並びます。イベントをクリックすると誰が参加しているかが分かり、自分の出欠（承諾、辞退、未定）を答えたり、移動したり、取り消したりできます。取り消したイベントは取り消し済みとして表示され続けるため、購読しているフィードもオフになったことを把握できます。
 
-**アジェンダ**ビューは同じ内容をリストとして示し、`GET /api/calendar/agenda` はそれをスクリプトに渡します。
+**アジェンダ**ビューは同じ内容に同じ期間の**予約された起動**を加えてリストとして示し、`GET /api/calendar/agenda` はそれをスクリプトに渡します。
 
 ## 提案
 
 エージェントは自分だけで誰かのカレンダーに何かを載せることはできません。実行から — ネイティブランタイムの `propose_event` ツール、MCP の `vigil_calendar` ツール、または `multica calendar propose` を通じて — エージェントはそのイベントを、取り組んでいる課題に対して**提案済み**として登録し、その課題の関係者が[判断する](/decisions#どこで回答するか)あらゆる場所 — 課題のタイムライン、インボックス、チャット、電話、Slack、Telegram、Lark — で見える Decision Card を添えます。**承諾**すればスケジュールされ参加者が招待され、**辞退**すれば取り消されます。
 
 エージェントは提案する前にアジェンダを読み空き時間を尋ねるよう指示されており、提案は一度だけ行うようになっています。
+
+## 予約された起動
+
+**フォローアップ**とは、エージェントが選ばれた時刻に課題へ戻ってくることです。そのときに何をするかを書いたメモを携えています——[オートパイロット](/autopilots)の 1 回きりのいとこのような存在です。アジェンダは、日付を持つほかのものと並べてこれを表示します。`GET /api/calendar/agenda` は課題、エージェント、発火時刻、メモを含む `followups` 配列を返すので、起動は同じ日のイベントや期限の隣に見えます。
+
+```bash
+multica issue followup ONE-42 --when "+90" --note "デプロイを確認する"
+multica issue followups ONE-42
+multica issue followup-cancel ONE-42 <followup-id>
+```
+
+`--when` は RFC 3339 の時刻、または現在からの `+<分>` を受け取り、1 分後から 30 日後までに収まる必要があります。フォローアップは課題上にも表示され、実行一覧では *deferred* でブロックされた実行として現れ、ブロック理由にはそのメモが出ます。その課題を見られる人なら誰でも、発火前に取り消せます。実行がこれに使うツールと、起動がループにならないようにする 1 日あたりの予算については[ネイティブランタイム](/native-runtime)に書かれています。
 
 ## 空き時間
 
@@ -43,12 +55,13 @@ import { Callout } from "fumadocs-ui/components/callout";
 
 - ネイティブランタイム: `list_events`、`find_slot`、`propose_event`。
 - MCP: `vigil_calendar`、アクションは `events`、`agenda`、`slots`、`propose`。
-- CLI: `multica calendar agenda | events | slots | propose`。
+- CLI: `multica calendar agenda | events | slots | propose`。アジェンダに出る起動は `multica issue followup | followups | followup-cancel` で扱います。
 
 ## API
 
 - `GET /api/calendar/events?from&to&participant_type&participant_id&include_cancelled`、`POST /api/calendar/events`、`GET/PUT/DELETE /api/calendar/events/{id}`、`POST /api/calendar/events/{id}/respond {response}`。
-- `GET /api/calendar/agenda?from&to`、`GET /api/calendar/slots?participants&duration&from&to&tz`。
+- `GET /api/calendar/agenda?from&to`（イベント、課題の期限、サイクル、会議、そしてその期間の `followups`）、`GET /api/calendar/slots?participants&duration&from&to&tz`。
+- `POST /api/issues/{id}/followups {when, note?, agent_id?}`、`GET /api/issues/{id}/followups`、`DELETE /api/issues/{id}/followups/{followupId}`。リアルタイムイベントは `followup:changed`。
 - `GET/POST/DELETE /api/calendar/feed-token`、公開の `GET /api/calendar/ics/{token}`。
 - `POST /api/calendar/google/import {from, to}`。
 - イベント `calendar:changed` は開いているページを最新に保ちます。インボックスの種類は `calendar_invitation` と `calendar_reminder`。

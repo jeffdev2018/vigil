@@ -114,6 +114,25 @@ var mcpLeaves = []mcpLeaf{
 		Description: "The issue's timeline: comments, status changes, runs.", Params: []mcpParam{pID}},
 	{Name: "issue_labels", Group: "vigil_issue", Action: "labels", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues/{id}/labels",
 		Description: "Labels on an issue.", Params: []mcpParam{pID}},
+	// Follow-ups (réveil programmé): a deferred wake-up of the issue's agent.
+	// The write is internal — it schedules a run inside the workspace, nothing
+	// leaves it — and the cancel is the way back out of one, so it is the same
+	// class rather than an external effect.
+	{Name: "issue_followup", Group: "vigil_issue", Action: "followup", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/issues/{id}/followups",
+		Description: "Wake this issue's agent later with a note: a single deferred run fires at the given time. when is RFC 3339 or +minutes from now, between 1 minute and 30 days away. Daily budgets per agent and per workspace apply.",
+		Params: []mcpParam{pID,
+			{Name: "when", Type: "string", Desc: "RFC 3339 instant (2026-09-11T09:00:00+02:00) or +minutes from now (+90).", Required: true, In: "body"},
+			{Name: "note", Type: "string", Desc: "What the follow-up run should do; it becomes the run's trigger (500 characters max).", In: "body"},
+			{Name: "agent_id", Type: "string", Desc: "Agent to wake. Required unless the issue is assigned to an agent.", In: "body"},
+		}},
+	{Name: "issue_followups", Group: "vigil_issue", Action: "followups", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues/{id}/followups",
+		Description: "The follow-ups waiting to fire on this issue, soonest first, with the workspace's daily budget. Read it before scheduling another.",
+		Params:      []mcpParam{pID}},
+	{Name: "issue_followup_cancel", Group: "vigil_issue", Action: "followup_cancel", Risk: mcpgov.RiskInternalWrite, Method: "DELETE", Path: "/api/issues/{id}/followups/{followup_id}",
+		Description: "Cancel a follow-up that has not fired yet. One that already fired or was cancelled answers 409.",
+		Params: []mcpParam{pID,
+			{Name: "followup_id", Type: "string", Desc: "Follow-up id, from issue_followups.", Required: true, In: "path"},
+		}},
 
 	// ---- Goal loop ------------------------------------------------------------
 	{Name: "goal_get", Group: "vigil_goal", Action: "get", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/issues/{issue_id}/goal",
@@ -326,6 +345,31 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "location", Type: "string", Desc: "Place or link.", In: "body"},
 			{Name: "participants", Type: "array", Desc: "[{type: member|agent, id}].", In: "body", Items: "object"},
 		}},
+	// Autopilots from a sentence (réveil programmé). Draft writes nothing —
+	// it asks the model and validates the cron — so it is a read; propose
+	// files the autopilot PAUSED behind a Decision Card, which is why the
+	// write is internal: nothing runs until a person answers the card.
+	{Name: "autopilot_draft", Group: "vigil_autopilot", Action: "draft", Risk: mcpgov.RiskRead, Method: "POST", Path: "/api/autopilots/draft",
+		Description: "Turn a sentence (\"every Monday at 9, list the open tickets\") into a schedule: title, 5-field cron, timezone, the instruction each run follows, and the next three firing instants. Writes nothing. 503 when the workspace has no model.",
+		Params: []mcpParam{
+			{Name: "text", Type: "string", Desc: "The schedule and the task in plain words (2000 characters max).", Required: true, In: "body"},
+			{Name: "timezone", Type: "string", Desc: "IANA timezone to read the sentence in (default UTC).", In: "body"},
+		}},
+	{Name: "autopilot_propose", Group: "vigil_autopilot", Action: "propose", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/autopilots/propose",
+		Description: "File a recurring automation, PAUSED, with its schedule disabled. Give text (drafted first) or title + cron_expression + description. With an issue, a Decision Card is filed on it whose answer activates or discards the autopilot; nothing runs before that.",
+		Params: []mcpParam{
+			{Name: "text", Type: "string", Desc: "The schedule and the task in plain words; used when title or cron_expression is missing.", In: "body"},
+			{Name: "title", Type: "string", Desc: "Autopilot title.", In: "body"},
+			{Name: "cron_expression", Type: "string", Desc: "5-field cron: minute hour day-of-month month day-of-week.", In: "body"},
+			{Name: "timezone", Type: "string", Desc: "IANA timezone (default UTC).", In: "body"},
+			{Name: "description", Type: "string", Desc: "The instruction the agent follows at each run.", In: "body"},
+			{Name: "execution_mode", Type: "string", Desc: "create_issue opens an issue each run; run_only just runs.", In: "body", Enum: []string{"create_issue", "run_only"}},
+			{Name: "issue_title_template", Type: "string", Desc: "Title of the issue created each run; may contain {{date}} (create_issue only).", In: "body"},
+			{Name: "assignee_id", Type: "string", Desc: "Agent that will run it. Required for a member; a run proposes as itself.", In: "body"},
+			{Name: "project_id", Type: "string", Desc: "Project the autopilot belongs to.", In: "body"},
+			{Name: "issue_id", Type: "string", Desc: "Issue to file the activation Decision Card on (a run's own issue by default).", In: "body"},
+			{Name: "activate", Type: "boolean", Desc: "Members only: create it active with its schedule enabled and file no card. A run asking for this is refused — a run proposes, a person decides.", In: "body"},
+		}},
 	// Workspace doctrine (OS plan, chantier 22). Read-only for a client, plus
 	// the report a run files when a task collides with a rule. Publishing,
 	// approving and restoring stay human affordances in the app or the CLI.
@@ -357,17 +401,18 @@ var mcpLeafByName = func() map[string]mcpLeaf {
 
 // mcpGroupDescriptions introduce each compound tool.
 var mcpGroupDescriptions = map[string]string{
-	"vigil_issue":    "Issues: list, search, get, create, update, comments, comment, timeline, labels. Pick the action; pass that action's arguments.",
-	"vigil_goal":     "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
-	"vigil_brain":    "The workspace Brain, shared notes every run reads, and its capture inbox: list, search (ranked), get, save, update, archive; capture (park something to be filed later), inbox, organize, reopen, delete.",
-	"vigil_project":  "Projects: list, search, get, create, update.",
-	"vigil_team":     "Who is here: agents, agent, agent_runs, members, labels, cycles, workspace.",
-	"vigil_triage":   "The triage queue: list, stats, verdict (a suggestion; a human decides).",
-	"vigil_inbox":    "The caller's inbox: list.",
-	"vigil_run":      "Runs: transcript of one run, legs (every run of a workflow with its cost).",
-	"vigil_handoff":  "Handoff packets on an issue: latest, list, create.",
-	"vigil_calendar": "The workspace calendar: events in a window, the agenda (events, issue due dates, cycles, meetings), free slots for people and agents, propose an event (a person accepts).",
-	"vigil_doctrine": "The workspace doctrine, the standing rules every agent is bound by: get the live text and its revision, read the revision ledger, report a rule you cannot follow or two rules that conflict.",
+	"vigil_issue":     "Issues: list, search, get, create, update, comments, comment, timeline, labels, and follow-ups (followup, followups, followup_cancel: wake the issue's agent later with a note). Pick the action; pass that action's arguments.",
+	"vigil_goal":      "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
+	"vigil_brain":     "The workspace Brain, shared notes every run reads, and its capture inbox: list, search (ranked), get, save, update, archive; capture (park something to be filed later), inbox, organize, reopen, delete.",
+	"vigil_project":   "Projects: list, search, get, create, update.",
+	"vigil_team":      "Who is here: agents, agent, agent_runs, members, labels, cycles, workspace.",
+	"vigil_triage":    "The triage queue: list, stats, verdict (a suggestion; a human decides).",
+	"vigil_inbox":     "The caller's inbox: list.",
+	"vigil_run":       "Runs: transcript of one run, legs (every run of a workflow with its cost).",
+	"vigil_handoff":   "Handoff packets on an issue: latest, list, create.",
+	"vigil_calendar":  "The workspace calendar: events in a window, the agenda (events, issue due dates, cycles, meetings), free slots for people and agents, propose an event (a person accepts).",
+	"vigil_autopilot": "Recurring automations from plain words: draft (a sentence becomes a title, a cron and a prompt; writes nothing), propose (file it paused behind a Decision Card someone answers to activate it).",
+	"vigil_doctrine":  "The workspace doctrine, the standing rules every agent is bound by: get the live text and its revision, read the revision ledger, report a rule you cannot follow or two rules that conflict.",
 }
 
 // mcpCatalog is tools/list for a surface. The gate-wait tool is only
