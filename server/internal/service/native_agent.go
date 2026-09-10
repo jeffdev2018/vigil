@@ -1098,10 +1098,11 @@ func nativeDoctrineBlock(content string, revision int32) string {
 }
 
 // nativeSystemPromptWithDoctrine is the agent's contract plus the workspace
-// doctrine. Used by every native run — issue, chat, autopilot, quick-create
-// and the sub-agents a run delegates to — so no kind escapes the rules.
-// A doctrine that cannot be read costs the run its rules paragraph, never its
-// dispatch: the run proceeds and the failure is logged.
+// doctrine and any enabled skills (N17). Used by every native run — issue,
+// chat, autopilot, quick-create and the sub-agents a run delegates to — so
+// no kind escapes the rules or the agent's activated skills.
+// A doctrine or skill set that cannot be read costs the run that paragraph,
+// never its dispatch: the run proceeds and the failure is logged.
 func (s *NativeAgentService) nativeSystemPromptWithDoctrine(ctx context.Context, agent db.Agent) string {
 	prompt := nativeSystemPrompt(agent)
 	if s == nil || s.Queries == nil {
@@ -1111,9 +1112,11 @@ func (s *NativeAgentService) nativeSystemPromptWithDoctrine(ctx context.Context,
 	if err != nil {
 		slog.Error("native run: workspace doctrine unavailable, running without it",
 			"workspace_id", util.UUIDToString(agent.WorkspaceID), "agent_id", util.UUIDToString(agent.ID), "error", err)
-		return prompt
+	} else {
+		prompt += nativeDoctrineBlock(ws.Context.String, ws.DoctrineRevision)
 	}
-	return prompt + nativeDoctrineBlock(ws.Context.String, ws.DoctrineRevision)
+	prompt += s.nativeSkillsSection(ctx, agent)
+	return prompt
 }
 
 // nativeBriefForTask assembles the user message for whatever kind of task
