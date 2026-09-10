@@ -2,7 +2,7 @@
 
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Agent, AgentRuntime, AgentTask, Issue } from "@multica/core/types";
+import type { Agent, AgentRuntime, AgentTask } from "@multica/core/types";
 import { renderWithI18n } from "../../test/i18n";
 
 const activityQueryData = vi.hoisted(() => ({
@@ -66,7 +66,6 @@ vi.mock("@tanstack/react-query", async () => {
 
 import {
   AgentActivityHoverContent,
-  WorkspaceAgentActivityHoverContent,
 } from "./agent-activity-hover-content";
 
 function makeIssue(id: string, identifier: string, title: string): Issue {
@@ -170,91 +169,5 @@ describe("AgentActivityHoverContent", () => {
     });
 
     expect(screen.getByText("3 次运行进行中")).toBeInTheDocument();
-  });
-});
-
-// The workspace chip says WHO is working ("N agents working"). This card
-// says WHERE: the two figures the chip does not carry, and the rows grouped
-// by issue. It stays silent about work it excludes — see the component doc.
-// MUL-4884.
-describe("WorkspaceAgentActivityHoverContent", () => {
-  it("carries the two figures the chip does not, and groups rows by issue", () => {
-    renderWithI18n(
-      <WorkspaceAgentActivityHoverContent
-        issues={[
-          makeIssue("i-1", "MUL-4879", "Counting logic looks wrong"),
-          makeIssue("i-2", "MUL-4881", "daemon extra work dir"),
-          makeIssue("i-3", "MUL-4883", "First PR review flow"),
-        ]}
-        tasksByIssueId={
-          new Map([
-            [
-              "i-1",
-              [
-                makeTask({ id: "t1", agent_id: "agent-1", issue_id: "i-1" }),
-                makeTask({ id: "t4", agent_id: "agent-2", issue_id: "i-1" }),
-              ],
-            ],
-            ["i-2", [makeTask({ id: "t2", agent_id: "agent-1", issue_id: "i-2" })]],
-            ["i-3", [makeTask({ id: "t3", agent_id: "agent-2", issue_id: "i-3" })]],
-          ])
-        }
-        taskCount={4}
-        />,
-    );
-
-    expect(screen.getByText("3 issues · 4 runs")).toBeInTheDocument();
-    // Rows group under their issue, mirroring what clicking the chip does.
-    expect(screen.getByText("MUL-4879")).toBeInTheDocument();
-    expect(screen.getByText("Counting logic looks wrong")).toBeInTheDocument();
-    expect(screen.getAllByTestId("actor-avatar")).toHaveLength(4);
-  });
-
-  it("says nothing about work it excludes", () => {
-    // Chat/autopilot runs and out-of-scope tasks leave no trace on this page,
-    // so a "not counted" footnote would explain an absence the user never
-    // perceived. The card only ever describes what IS counted.
-    renderWithI18n(
-      <WorkspaceAgentActivityHoverContent
-        issues={[makeIssue("i-1", "MUL-1", "One")]}
-        tasksByIssueId={
-          new Map([["i-1", [makeTask({ id: "t1", issue_id: "i-1" })]]])
-        }
-        taskCount={1}
-      />,
-    );
-
-    expect(screen.queryByText(/not counted/)).not.toBeInTheDocument();
-    expect(screen.getByText("1 issue · 1 run")).toBeInTheDocument();
-  });
-
-  it("falls back to the agent-worded empty copy when nothing is counted", () => {
-    renderWithI18n(
-      <WorkspaceAgentActivityHoverContent
-        issues={[]}
-        tasksByIssueId={new Map()}
-        taskCount={0}
-      />,
-    );
-
-    expect(screen.getByText("No agents working right now")).toBeInTheDocument();
-    expect(screen.queryByText(/not counted/)).not.toBeInTheDocument();
-  });
-
-  it("renders the Chinese copy for the counted units", () => {
-    renderWithI18n(
-      <WorkspaceAgentActivityHoverContent
-        issues={[makeIssue("i-1", "MUL-1", "One")]}
-        tasksByIssueId={
-          new Map([["i-1", [makeTask({ id: "t1", issue_id: "i-1" })]]])
-        }
-        taskCount={2}
-      />,
-      { locale: "zh-Hans" },
-    );
-
-    // issue is 任务 in Chinese; the agent execution is 运行, so the two
-    // counted units remain distinct (conventions.zh.mdx).
-    expect(screen.getByText("1 个任务 · 2 次运行")).toBeInTheDocument();
   });
 });
