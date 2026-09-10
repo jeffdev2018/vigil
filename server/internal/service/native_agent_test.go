@@ -1545,3 +1545,70 @@ func TestNativeAgentSearchWorkspace(t *testing.T) {
 		t.Fatalf("cross-workspace leak: %d issues from another workspace", got)
 	}
 }
+
+// N07 — workspace run limits bite the native loop. The K03 gates (turns,
+// duration, tool calls, cost) already governed CLI runs through the message
+// endpoint; the native loop evaluates them after each tool turn now. A tight
+// policy stops the run with the gate's message and the budget reason — and
+// the loop does not double-settle the task.
+func TestNativeAgentHonorsWorkspaceRunLimits(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Limited run")
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	// A workspace policy tighter than the builtin: 2 tool calls, enforced.
+	fx.Insert(t, "run_limit_policy", testutil.Cols{
+		"workspace_id":   ws,
+		"scope_type":     "workspace",
+		"max_tool_calls": 2,
+		"action":         "enforce",
+		"created_by":     user,
+	})
+
+	turns := make([]openai.ChatCompletion, 5)
+	for i := range turns {
+		turns[i] = nativeToolCallTurn(fmt.Sprintf("call_%d", i), "get_issue", `{}`)
+	}
+	llm := &scriptedNativeLLM{turns: turns}
+	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
+	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
+	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
+
+	claimed, err := tasks.claimTask(ctx, util.MustParseUUID(agentID), util.MustParseUUID(runtimeID), false)
+	if err != nil || claimed == nil {
+		t.Fatalf("claim: %v (%v)", claimed, err)
+	}
+	svc.runTask(ctx, *claimed)
+
+	var status, reason, errMsg string
+	if err := pool.QueryRow(ctx, `SELECT status, COALESCE(failure_reason,''), COALESCE(error,'') FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status, &reason, &errMsg); err != nil {
+		t.Fatalf("read task: %v", err)
+	}
+	if status != "failed" || reason != "budget_exceeded" {
+		t.Fatalf("task settled (%q, %q), want failed/budget_exceeded", status, reason)
+	}
+	if !strings.Contains(errMsg, "tool calls limit") && !strings.Contains(errMsg, "tool_calls") {
+		t.Fatalf("failure message does not name the gate: %q", errMsg)
+	}
+	// The loop stopped at the gate: the third tool never ran.
+	var toolUses int
+	if err := pool.QueryRow(ctx, `SELECT COUNT(*) FROM task_message WHERE task_id = $1 AND type = 'tool_use'`, taskID).Scan(&toolUses); err != nil {
+		t.Fatalf("count tool uses: %v", err)
+	}
+	if toolUses != 2 {
+		t.Fatalf("tool_use messages = %d, want exactly the 2-call cap", toolUses)
+	}
+}
