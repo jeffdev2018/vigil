@@ -1,14 +1,17 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 	"unicode/utf8"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/multica-ai/multica/server/internal/service"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/protocol"
 )
 
 // AuditRunHaltChanged records who stopped or restarted a workspace's agents.
@@ -50,18 +53,29 @@ func (h *Handler) PutRunHalt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "reason is too long")
 		return
 	}
-	ws, err := h.Queries.GetWorkspace(r.Context(), wsUUID)
+	next, err := h.writeRunHalt(r.Context(), wsUUID, req.Halted, req.Reason, requestUserID(r))
 	if err != nil {
-		writeError(w, http.StatusNotFound, "workspace not found")
+		writeError(w, http.StatusInternalServerError, "failed to save the halt")
 		return
+	}
+	h.publish(protocol.EventRunHaltChanged, uuidToString(wsUUID), "member", requestUserID(r), map[string]any{"run_halt": next})
+	writeJSON(w, http.StatusOK, next)
+}
+
+// writeRunHalt stores the halt (or its lifting) on the workspace and audits
+// it. Shared by PUT /api/run-halt and the fleet kill switch.
+func (h *Handler) writeRunHalt(ctx context.Context, wsUUID pgtype.UUID, halted bool, reason, userID string) (service.RunHalt, error) {
+	ws, err := h.Queries.GetWorkspace(ctx, wsUUID)
+	if err != nil {
+		return service.RunHalt{}, err
 	}
 	settings := map[string]any{}
 	if len(ws.Settings) > 0 {
 		_ = json.Unmarshal(ws.Settings, &settings)
 	}
-	next := service.RunHalt{Halted: req.Halted, Reason: req.Reason}
+	next := service.RunHalt{Halted: halted, Reason: reason}
 	if next.Halted {
-		next.HaltedBy = requestUserID(r)
+		next.HaltedBy = userID
 		next.HaltedAt = time.Now().UTC().Format(time.RFC3339)
 	} else {
 		// Lifting clears the record rather than leaving a stale author and
@@ -70,11 +84,9 @@ func (h *Handler) PutRunHalt(w http.ResponseWriter, r *http.Request) {
 	}
 	settings["run_halt"] = next
 	raw, _ := json.Marshal(settings)
-	if _, err := h.Queries.UpdateWorkspace(r.Context(), db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
-		writeError(w, http.StatusInternalServerError, "failed to save the halt")
-		return
+	if _, err := h.Queries.UpdateWorkspace(ctx, db.UpdateWorkspaceParams{ID: wsUUID, Settings: raw}); err != nil {
+		return service.RunHalt{}, err
 	}
-	h.audit(r.Context(), wsUUID, "member", requestUserID(r), AuditRunHaltChanged, "workspace", wsUUID,
-		map[string]any{"halted": next.Halted, "reason": next.Reason}, nil)
-	writeJSON(w, http.StatusOK, next)
+	h.audit(ctx, wsUUID, "member", userID, AuditRunHaltChanged, "workspace", wsUUID, map[string]any{"halted": next.Halted, "reason": next.Reason}, nil)
+	return next, nil
 }

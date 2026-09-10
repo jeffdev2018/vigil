@@ -1,0 +1,58 @@
+---
+title: Runs
+description: Every run of the workspace on one page — what is queued, running, waiting on somebody or over, what each costs, and the kill switch that stops the fleet.
+---
+
+import { Callout } from "fumadocs-ui/components/callout";
+
+Runs are the units of agent work: one run is one agent working one issue (or one chat turn, one autopilot trigger) on one runtime. Until now they were visible issue by issue. **Runs** shows the whole fleet.
+
+## The page
+
+**Runs** in the sidebar (under *AI team*) lists every run the workspace's agents made, newest first, with a header that reads the fleet at a glance: how many are queued, running, blocked on a person, and how many finished, failed or were cancelled since midnight (UTC), with the cost of everything started today.
+
+Each row names the agent and the issue, shows the run's state and how long it has been running, its cost when usage was reported, and — the column that matters — **what it is blocked on**:
+
+- an **approval gate** (git push, sensitive tool call, spend), with a link to the ask;
+- a **Decision Card** the run filed;
+- a **goal question** or a **held status change** on its issue;
+- a **local directory** another run holds, a **pause**, or a **deferral**.
+
+Clicking the blocker opens the ask where it can be [decided in place](/decisions#where-you-answer). A running run that has not reported activity for a while is flagged as silent.
+
+Filters narrow the list by state (in flight, finished, all), agent, issue or runtime; the list pages by cursor so a long history never loads at once.
+
+## Stopping runs
+
+Select rows and **Cancel** to stop them. Every run is reported on its own line — cancelled, already over, not found — so a cancel of forty runs that could not stop the third one says so instead of stopping there. A cancel reaches the daemon on its next poll, then the agent process receives a termination signal.
+
+The **kill switch** (owners and admins) does two things in one move, in this order: it **halts the fleet** — no run is claimed, every gated action in flight is refused — then **cancels every run** that is not over. It asks for a reason, which the halt banner shows on every issue until an owner or admin lifts the halt, from the banner, the Runs page or **Settings → Workspace**. Both moves are audited (`runs.kill_switch`, `run_halt.changed`).
+
+<Callout title="What a halt does not do">
+A halt alone stops nothing already running: it refuses new claims and gated actions. That is what makes it safe to leave on. The kill switch is the halt plus the cancel.
+</Callout>
+
+## CLI
+
+```bash
+multica runs list                 # runs in flight
+multica runs list --terminal      # finished runs
+multica runs list --agent <id> --limit 20 --output json
+multica runs cancel <run-id> [run-id...]
+```
+
+The kill switch has no command on purpose: it is a decision a person makes in the app.
+
+## API
+
+- `GET /api/runs?state=active|terminal|all&status=&agent_id=&issue_id=&runtime_id=&since=&cursor=&limit=` — `{runs, next_cursor, summary}`. Each run carries `agent_name`, `issue{id, identifier, title, status}`, `usage[]`, `cost_usd_ticks`, `duration_ms`, `silence_ms` and `blocked_on{kind, id, decision_id, summary, since}`.
+- `POST /api/runs/cancel {task_ids}` — `{cancelled, results[{task_id, outcome, error?}]}`.
+- `POST /api/runs/kill-switch {reason}` — owners and admins; `{run_halt, cancelled, results}`.
+- `GET/PUT /api/run-halt` — read or set the halt alone.
+
+A member sees the runs of the agents they may see; private agents' runs stay out of their list. Events `task:*` and `run_halt:changed` keep an open page current.
+
+## Next steps
+
+- [Decisions](/decisions) — settling what a run is blocked on.
+- [Native runtime](/native-runtime) — the goal loop a run may be waiting in.
