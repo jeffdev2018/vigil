@@ -105,6 +105,10 @@ const NAV_ITEMS: NavItem[] = [
     badge: "postmortem",
   },
   { label: "Meetings", icon: "waveform", path: "/more/meetings" },
+  // Runs fleet (OS plan, chantier 4) — every run of the workspace, cancel
+  // + kill switch. No badge: unlike triage/postmortems there's no
+  // always-visible count to keep warm for it (see use-runs-realtime.ts).
+  { label: "Runs", icon: "bolt.horizontal.circle", path: "/more/runs" },
   { label: "Runtimes", icon: "desktopcomputer", path: "/more/runtimes" },
   { label: "Agents", icon: "cpu", path: "/more/agents" },
 ];

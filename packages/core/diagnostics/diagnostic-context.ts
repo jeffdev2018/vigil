@@ -79,6 +79,8 @@ const WORKSPACE_ROUTES: readonly RoutePattern[] = [
   ["squads", ":id"],
   ["inbox"],
   ["triage"],
+  // Runs fleet page (OS plan, chantier 4).
+  ["runs"],
   ["meetings"],
   ["meetings", ":id"],
   ["postmortems"],

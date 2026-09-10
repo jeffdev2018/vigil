@@ -51,6 +51,7 @@ export type RouteIconName =
 export type NavLabelKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -73,6 +74,7 @@ export type NavLabelKey =
 export type WorkspacePageKey =
   | "inbox"
   | "triage"
+  | "runs"
   | "meetings"
   | "postmortems"
   | "brain"
@@ -107,6 +109,7 @@ export interface WorkspacePage {
 export const WORKSPACE_PAGES: Record<WorkspacePageKey, WorkspacePage> = {
   inbox: { segment: "inbox", icon: "Inbox", navKey: "inbox" },
   triage: { segment: "triage", icon: "Inbox", navKey: "triage" },
+  runs: { segment: "runs", icon: "Server", navKey: "runs" },
   meetings: { segment: "meetings", icon: "AudioLines", navKey: "meetings" },
   postmortems: { segment: "postmortems", icon: "FileText", navKey: "postmortems" },
   brain: { segment: "brain", icon: "BrainCircuit", navKey: "brain" },

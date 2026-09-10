@@ -557,8 +557,25 @@ export const AgentTaskSchema: z.ZodType<AgentTask> = z.object({
   agent_id: z.string().default(""),
   runtime_id: z.string().default(""),
   issue_id: z.string().default(""),
+  // Full TaskStatus union (packages/core/types/agent.ts) — was missing
+  // waiting_local_directory / deferred / paused, so a task genuinely in one
+  // of those states silently rendered as "Queued" (run-row.tsx's
+  // STATUS_LABEL/STATUS_CLASS maps were already keyed for all nine and have
+  // been unreachable for these three since this schema was written). The
+  // Runs fleet page below surfaces exactly these blocked states, so the gap
+  // stops being cosmetic once that page exists.
   status: z
-    .enum(["queued", "dispatched", "running", "completed", "failed", "cancelled"])
+    .enum([
+      "queued",
+      "deferred",
+      "dispatched",
+      "waiting_local_directory",
+      "running",
+      "completed",
+      "failed",
+      "cancelled",
+      "paused",
+    ])
     .catch("queued"),
   priority: z.number().default(0),
   dispatched_at: z.string().nullable().default(null),
@@ -1231,3 +1248,116 @@ export const ApprovalsResponseSchema = z.object({
 export type ApprovalsResponse = z.infer<typeof ApprovalsResponseSchema>;
 
 export const EMPTY_APPROVALS: ApprovalsResponse = { approvals: [], total: 0, run_halt: EMPTY_RUN_HALT };
+
+// ---------------------------------------------------------------------------
+// Runs fleet (OS plan, chantier 4) — GET /api/runs, POST /api/runs/cancel,
+// POST /api/runs/kill-switch. Field shape mirrors
+// `server/internal/handler/runs.go` (RunResponse / RunsSummary /
+// RunsResponse) and `apps/docs/content/docs/runs.mdx`. Not imported from
+// `@multica/core` for the same reason as the approvals section above: no
+// package there exports this shape as a pure value yet, so this is the
+// mobile-local copy until one does; mirror both by hand if either changes.
+//
+// A run is an AgentTask plus the names, cost and blocker a fleet view needs
+// — the server literally embeds AgentTaskResponse, so RunSchema extends the
+// AgentTaskSchema above rather than repeating its fields.
+export const RunBlockerSchema = z.object({
+  kind: z.string().catch(""),
+  id: z.string().optional(),
+  decision_id: z.string().optional(),
+  summary: z.string().catch(""),
+  since: z.string().nullable().catch(null),
+}).loose();
+export type RunBlocker = z.infer<typeof RunBlockerSchema>;
+
+export const RunIssueRefSchema = z.object({
+  id: z.string().catch(""),
+  identifier: z.string().catch(""),
+  title: z.string().catch(""),
+  status: z.string().catch(""),
+}).loose();
+export type RunIssueRef = z.infer<typeof RunIssueRefSchema>;
+
+// `.and()` rather than `.extend()`: AgentTaskSchema above is annotated
+// `z.ZodType<AgentTask>`, which erases the concrete ZodObject type and
+// its `.extend()` method. `.and()` (ZodIntersection) is declared on the
+// base ZodType interface itself, so it's available regardless of that
+// annotation, and its inferred output is the plain intersection type —
+// exactly `AgentTask & { the fields below }`, same shape `.extend()`
+// would have produced.
+export const RunSchema = AgentTaskSchema.and(
+  z.object({
+    agent_name: z.string().catch(""),
+    issue: RunIssueRefSchema.nullable().catch(null),
+    cost_usd_ticks: z.number().catch(0),
+    duration_ms: z.number().catch(0),
+    silence_ms: z.number().catch(0),
+    blocked_on: RunBlockerSchema.nullable().catch(null),
+  }),
+);
+export type Run = z.infer<typeof RunSchema>;
+
+export const RunsSummarySchema = z.object({
+  active: z.number().catch(0),
+  queued: z.number().catch(0),
+  running: z.number().catch(0),
+  blocked: z.number().catch(0),
+  completed_since: z.number().catch(0),
+  failed_since: z.number().catch(0),
+  cancelled_since: z.number().catch(0),
+  cost_since_usd_ticks: z.number().catch(0),
+  since: z.string().catch(""),
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+}).loose();
+export type RunsSummary = z.infer<typeof RunsSummarySchema>;
+
+export const EMPTY_RUNS_SUMMARY: RunsSummary = {
+  active: 0,
+  queued: 0,
+  running: 0,
+  blocked: 0,
+  completed_since: 0,
+  failed_since: 0,
+  cancelled_since: 0,
+  cost_since_usd_ticks: 0,
+  since: "",
+  run_halt: EMPTY_RUN_HALT,
+};
+
+export const RunsResponseSchema = z.object({
+  runs: z.array(RunSchema).catch([]),
+  next_cursor: z.string().optional(),
+  summary: RunsSummarySchema.catch(EMPTY_RUNS_SUMMARY),
+}).loose();
+export type RunsResponse = z.infer<typeof RunsResponseSchema>;
+
+export const EMPTY_RUNS_RESPONSE: RunsResponse = {
+  runs: [],
+  summary: EMPTY_RUNS_SUMMARY,
+};
+
+export const RunCancelOutcomeSchema = z.object({
+  task_id: z.string().catch(""),
+  outcome: z.string().catch("error"),
+  error: z.string().optional(),
+}).loose();
+export type RunCancelOutcome = z.infer<typeof RunCancelOutcomeSchema>;
+
+export const CancelRunsResponseSchema = z.object({
+  results: z.array(RunCancelOutcomeSchema).catch([]),
+  cancelled: z.number().catch(0),
+}).loose();
+export type CancelRunsResponse = z.infer<typeof CancelRunsResponseSchema>;
+export const EMPTY_CANCEL_RUNS_RESPONSE: CancelRunsResponse = { results: [], cancelled: 0 };
+
+export const KillSwitchResponseSchema = z.object({
+  run_halt: RunHaltSchema.catch(EMPTY_RUN_HALT),
+  cancelled: z.number().catch(0),
+  results: z.array(RunCancelOutcomeSchema).catch([]),
+}).loose();
+export type KillSwitchResponse = z.infer<typeof KillSwitchResponseSchema>;
+export const EMPTY_KILL_SWITCH_RESPONSE: KillSwitchResponse = {
+  run_halt: EMPTY_RUN_HALT,
+  cancelled: 0,
+  results: [],
+};

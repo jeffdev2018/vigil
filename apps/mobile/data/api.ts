@@ -196,6 +196,20 @@ import {
   ApprovalsResponseSchema,
   type ApprovalsResponse,
 } from "./schemas";
+import {
+  EMPTY_RUNS_RESPONSE,
+  RunsResponseSchema,
+  type RunsResponse,
+  EMPTY_CANCEL_RUNS_RESPONSE,
+  CancelRunsResponseSchema,
+  type CancelRunsResponse,
+  EMPTY_KILL_SWITCH_RESPONSE,
+  KillSwitchResponseSchema,
+  type KillSwitchResponse,
+  EMPTY_RUN_HALT,
+  RunHaltSchema,
+  type RunHalt,
+} from "./schemas";
 import { createRequestId } from "@/lib/request-id";
 import { buildCommentUpdateBody } from "./revision";
 
@@ -933,6 +947,65 @@ class ApiClient {
     await this.fetch(
       `/api/issue-transition-requests/${encodeURIComponent(requestId)}/${decision}`,
       { method: "POST", body: JSON.stringify({ note: note ?? "" }) },
+    );
+  }
+
+  // ── Runs fleet (OS plan, chantier 4) — mirrors
+  // server/internal/handler/runs.go / apps/docs/content/docs/runs.mdx.
+  // Schema is mobile-local for the same reason as Inline approvals above.
+
+  /** One page of the fleet, newest first, plus the header counts. */
+  async listRuns(
+    params: { state?: "active" | "terminal" | "all"; cursor?: string; limit?: number },
+    opts?: { signal?: AbortSignal },
+  ): Promise<RunsResponse> {
+    const search = new URLSearchParams();
+    if (params.state) search.set("state", params.state);
+    if (params.cursor) search.set("cursor", params.cursor);
+    if (params.limit !== undefined) search.set("limit", String(params.limit));
+    const qs = search.toString();
+    return this.fetchValidated<RunsResponse>(
+      `/api/runs${qs ? `?${qs}` : ""}`,
+      RunsResponseSchema,
+      EMPTY_RUNS_RESPONSE,
+      { ...opts, endpoint: "GET /api/runs" },
+    );
+  }
+
+  /** Stops each run and reports every outcome — a cancel of many never
+   *  gives up because one of them could not stop. */
+  async cancelRuns(taskIds: string[]): Promise<CancelRunsResponse> {
+    return this.fetchValidatedWith<CancelRunsResponse>(
+      "/api/runs/cancel",
+      CancelRunsResponseSchema,
+      EMPTY_CANCEL_RUNS_RESPONSE,
+      { method: "POST", body: JSON.stringify({ task_ids: taskIds }) },
+      { endpoint: "POST /api/runs/cancel" },
+    );
+  }
+
+  /** Owner/admin only: halts the fleet, then cancels every run in flight. */
+  async killSwitch(reason: string): Promise<KillSwitchResponse> {
+    return this.fetchValidatedWith<KillSwitchResponse>(
+      "/api/runs/kill-switch",
+      KillSwitchResponseSchema,
+      EMPTY_KILL_SWITCH_RESPONSE,
+      { method: "POST", body: JSON.stringify({ reason }) },
+      { endpoint: "POST /api/runs/kill-switch" },
+    );
+  }
+
+  /** Lifts (or would set) the halt alone, with no cancellation. The Runs
+   *  banner only ever calls this with `halted: false` — setting the halt
+   *  is the kill switch's job so a halt is never left without the cancel
+   *  sweep that makes it safe to leave on. */
+  async putRunHalt(input: { halted: boolean; reason: string }): Promise<RunHalt> {
+    return this.fetchValidatedWith<RunHalt>(
+      "/api/run-halt",
+      RunHaltSchema,
+      EMPTY_RUN_HALT,
+      { method: "PUT", body: JSON.stringify(input) },
+      { endpoint: "PUT /api/run-halt" },
     );
   }
 

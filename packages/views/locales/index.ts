@@ -13,6 +13,7 @@ import enMyIssues from "./en/my-issues.json";
 import enSearch from "./en/search.json";
 import enInbox from "./en/inbox.json";
 import enTriage from "./en/triage.json";
+import enRuns from "./en/runs.json";
 import enMeetings from "./en/meetings.json";
 import enPostmortem from "./en/postmortem.json";
 import enBrain from "./en/brain.json";
@@ -47,6 +48,7 @@ import zhHansMyIssues from "./zh-Hans/my-issues.json";
 import zhHansSearch from "./zh-Hans/search.json";
 import zhHansInbox from "./zh-Hans/inbox.json";
 import zhHansTriage from "./zh-Hans/triage.json";
+import zhHansRuns from "./zh-Hans/runs.json";
 import zhHansMeetings from "./zh-Hans/meetings.json";
 import zhHansPostmortem from "./zh-Hans/postmortem.json";
 import zhHansBrain from "./zh-Hans/brain.json";
@@ -81,6 +83,7 @@ import koMyIssues from "./ko/my-issues.json";
 import koSearch from "./ko/search.json";
 import koInbox from "./ko/inbox.json";
 import koTriage from "./ko/triage.json";
+import koRuns from "./ko/runs.json";
 import koMeetings from "./ko/meetings.json";
 import koPostmortem from "./ko/postmortem.json";
 import koBrain from "./ko/brain.json";
@@ -115,6 +118,7 @@ import jaMyIssues from "./ja/my-issues.json";
 import jaSearch from "./ja/search.json";
 import jaInbox from "./ja/inbox.json";
 import jaTriage from "./ja/triage.json";
+import jaRuns from "./ja/runs.json";
 import jaMeetings from "./ja/meetings.json";
 import jaPostmortem from "./ja/postmortem.json";
 import jaBrain from "./ja/brain.json";
@@ -149,6 +153,7 @@ import frMyIssues from "./fr/my-issues.json";
 import frSearch from "./fr/search.json";
 import frInbox from "./fr/inbox.json";
 import frTriage from "./fr/triage.json";
+import frRuns from "./fr/runs.json";
 import frMeetings from "./fr/meetings.json";
 import frPostmortem from "./fr/postmortem.json";
 import frWorkspace from "./fr/workspace.json";
@@ -189,6 +194,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: frSearch,
     inbox: frInbox,
     triage: frTriage,
+    runs: frRuns,
     meetings: frMeetings,
     postmortem: frPostmortem,
     workspace: frWorkspace,
@@ -225,6 +231,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: enSearch,
     inbox: enInbox,
     triage: enTriage,
+    runs: enRuns,
     meetings: enMeetings,
     postmortem: enPostmortem,
     brain: enBrain,
@@ -261,6 +268,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: zhHansSearch,
     inbox: zhHansInbox,
     triage: zhHansTriage,
+    runs: zhHansRuns,
     meetings: zhHansMeetings,
     postmortem: zhHansPostmortem,
     brain: zhHansBrain,
@@ -297,6 +305,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: koSearch,
     inbox: koInbox,
     triage: koTriage,
+    runs: koRuns,
     meetings: koMeetings,
     postmortem: koPostmortem,
     brain: koBrain,
@@ -333,6 +342,7 @@ export const RESOURCES: Record<SupportedLocale, LocaleResources> = {
     search: jaSearch,
     inbox: jaInbox,
     triage: jaTriage,
+    runs: jaRuns,
     meetings: jaMeetings,
     postmortem: jaPostmortem,
     brain: jaBrain,

@@ -391,6 +391,12 @@ export default function WorkspaceLayout() {
           name="meeting/[id]"
           options={{ title: "Meeting", headerBackTitle: "Meetings" }}
         />
+        {/* Runs fleet (OS plan, chantier 4): every run of the workspace,
+            newest first, with cancel and the owner/admin kill switch. */}
+        <Stack.Screen
+          name="more/runs"
+          options={{ title: "Runs", headerBackTitle: "Back" }}
+        />
         {/* Runtimes. Read-only: every runtime action targets the machine the
             daemon runs on, not a phone. */}
         <Stack.Screen

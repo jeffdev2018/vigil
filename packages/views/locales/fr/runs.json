@@ -1,0 +1,60 @@
+{
+  "title": "Runs",
+  "subtitle": "Tous les runs des agents du workspace, du plus récent au plus ancien",
+  "summary": {
+    "queued": "En attente",
+    "running": "En cours",
+    "blocked": "Bloqués",
+    "completed_since": "Terminés aujourd'hui",
+    "failed_since": "Échoués aujourd'hui",
+    "cancelled_since": "Annulés aujourd'hui",
+    "cost_since": "Coût aujourd'hui"
+  },
+  "halt": {
+    "kill_switch": "Kill switch",
+    "kill_switch_dialog_title": "Arrêter la flotte et annuler tous les runs ?",
+    "kill_switch_dialog_body": "Plus aucun run ne sera pris en charge et toute action soumise à une passerelle en cours sera refusée. Chaque run pas encore terminé sera annulé.",
+    "kill_switch_reason_label": "Motif",
+    "kill_switch_reason_placeholder": "Pourquoi arrêtez-vous la flotte ?",
+    "kill_switch_confirm": "Arrêter et annuler",
+    "kill_switch_cancel": "Annuler",
+    "kill_switch_failed": "Impossible d'activer le kill switch",
+    "kill_switch_toast_one": "Flotte arrêtée · {{count}} run annulé",
+    "kill_switch_toast_other": "Flotte arrêtée · {{count}} runs annulés"
+  },
+  "filters": {
+    "state_in_flight": "En cours",
+    "state_finished": "Terminés",
+    "state_all": "Tous",
+    "agent_all": "Tous les agents",
+    "runtime_all": "Tous les runtimes",
+    "issue_placeholder": "Identifiant de l'issue"
+  },
+  "list": {
+    "empty_title": "Aucun run pour l'instant",
+    "empty_description": "Les runs apparaissent ici dès qu'un agent commence à travailler une issue, un tour de chat, ou un déclenchement d'autopilot.",
+    "loading": "Chargement des runs",
+    "load_error": "Impossible de charger les runs",
+    "load_more": "Charger plus"
+  },
+  "row": {
+    "silent": "Silencieux",
+    "silent_tooltip": "Aucune activité rapportée depuis {{duration}}",
+    "blocked_on": "Bloqué par",
+    "cancel_aria": "Annuler ce run",
+    "cancel_tooltip": "Annuler"
+  },
+  "cancel_dialog": {
+    "title_one": "Annuler ce run ?",
+    "title_other": "Annuler {{count}} runs ?",
+    "body": "Chaque run est annulé indépendamment — le daemon le récupère à son prochain sondage.",
+    "keep": "Laisser tourner",
+    "confirm": "Annuler",
+    "toast": "{{cancelled}} annulés · {{alreadyOver}} déjà terminés · {{failed}} échoués"
+  },
+  "bulk": {
+    "cancel_selected": "Annuler la sélection",
+    "selected_count_one": "{{count}} sélectionné",
+    "selected_count_other": "{{count}} sélectionnés"
+  }
+}

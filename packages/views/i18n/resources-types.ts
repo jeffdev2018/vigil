@@ -17,6 +17,7 @@ import type myIssues from "../locales/en/my-issues.json";
 import type search from "../locales/en/search.json";
 import type inbox from "../locales/en/inbox.json";
 import type triage from "../locales/en/triage.json";
+import type runs from "../locales/en/runs.json";
 import type meetings from "../locales/en/meetings.json";
 import type postmortem from "../locales/en/postmortem.json";
 import type brain from "../locales/en/brain.json";
@@ -67,6 +68,7 @@ declare global {
     search: typeof search;
     inbox: typeof inbox;
     triage: typeof triage;
+    runs: typeof runs;
     meetings: typeof meetings;
     postmortem: typeof postmortem;
     brain: typeof brain;
