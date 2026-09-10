@@ -272,6 +272,25 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "location", Type: "string", Desc: "Place or link.", In: "body"},
 			{Name: "participants", Type: "array", Desc: "[{type: member|agent, id}].", In: "body", Items: "object"},
 		}},
+	// Workspace doctrine (OS plan, chantier 22). Read-only for a client, plus
+	// the report a run files when a task collides with a rule. Publishing,
+	// approving and restoring stay human affordances in the app or the CLI.
+	{Name: "doctrine_get", Group: "vigil_doctrine", Action: "get", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/workspace/doctrine",
+		Description: "The workspace doctrine: the governing text every agent is bound by, its revision, the byte limit, whether a second reviewer is required, and what is waiting on a person.", Params: nil},
+	{Name: "doctrine_versions", Group: "vigil_doctrine", Action: "versions", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/workspace/doctrine/versions",
+		Description: "The doctrine's revision ledger, newest first: who wrote each version, who reviewed it, and its status.",
+		Params: []mcpParam{
+			{Name: "cursor", Type: "string", Desc: "Page cursor from a previous read.", In: "query"},
+			pLimit,
+		}},
+	{Name: "doctrine_report", Group: "vigil_doctrine", Action: "report", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/workspace/doctrine/reports",
+		Description: "File a doctrine report: a task cannot be done without breaking a rule (refusal), two rules conflict (conflict), or a rule is too vague to apply (ambiguity). Reaches the owners' inbox against the revision you ran under.",
+		Params: []mcpParam{
+			{Name: "kind", Type: "string", Desc: "conflict, refusal or ambiguity.", Required: true, In: "body", Enum: []string{"conflict", "refusal", "ambiguity"}},
+			{Name: "summary", Type: "string", Desc: "What collided, in your own words.", Required: true, In: "body"},
+			{Name: "passage", Type: "string", Desc: "The doctrine passage at stake, quoted.", In: "body"},
+			{Name: "issue_id", Type: "string", Desc: "The issue the collision happened on (a run's issue rides along on its own).", In: "body"},
+		}},
 }
 
 var mcpLeafByName = func() map[string]mcpLeaf {
@@ -294,6 +313,7 @@ var mcpGroupDescriptions = map[string]string{
 	"vigil_run":      "Runs: transcript of one run, legs (every run of a workflow with its cost).",
 	"vigil_handoff":  "Handoff packets on an issue: latest, list, create.",
 	"vigil_calendar": "The workspace calendar: events in a window, the agenda (events, issue due dates, cycles, meetings), free slots for people and agents, propose an event (a person accepts).",
+	"vigil_doctrine": "The workspace doctrine, the standing rules every agent is bound by: get the live text and its revision, read the revision ledger, report a rule you cannot follow or two rules that conflict.",
 }
 
 // mcpCatalog is tools/list for a surface. The gate-wait tool is only

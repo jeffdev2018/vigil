@@ -35,7 +35,7 @@ Cursor와 다른 클라이언트도 같은 URL과 header를 사용합니다. 경
 
 URL에 `?surface=compound` 또는 `?surface=granular`를 추가하거나, **설정 → MCP 서버**에서 워크스페이스 기본값을 설정합니다.
 
-- **compound**(기본값): 도메인마다 하나씩, 총 아홉 개의 도구가 각각 `action` 인자를 가집니다 — `vigil_issue`, `vigil_goal`, `vigil_brain`, `vigil_project`, `vigil_team`, `vigil_triage`, `vigil_inbox`, `vigil_run`, `vigil_handoff`. 클라이언트의 컨텍스트를 적게 씁니다.
+- **compound**(기본값): 도메인마다 하나씩, 총 열한 개의 도구가 각각 `action` 인자를 가집니다 — `vigil_issue`, `vigil_goal`, `vigil_brain`, `vigil_project`, `vigil_team`, `vigil_triage`, `vigil_inbox`, `vigil_run`, `vigil_handoff`, `vigil_calendar`, `vigil_doctrine`. 클라이언트의 컨텍스트를 적게 씁니다.
 - **granular**: 작업마다 도구 하나(`issue_create`, `note_create`, `goal_answer` 등) — 명시적인 스키마를 선호하는 클라이언트를 위한 것입니다.
 
 두 surface 모두에서 이름이 그대로 동작하므로, 한쪽 카탈로그를 캐시한 클라이언트도 계속 동작합니다.
