@@ -1177,7 +1177,15 @@
     "remediation_rerun": "Relancer",
     "remediation_runtime_settings": "Ouvrir les réglages du runtime",
     "remediation_install_cli": "Installer la CLI de l’agent",
-    "remediation_failed": "Impossible de lancer une nouvelle exécution"
+    "remediation_failed": "Impossible de lancer une nouvelle exécution",
+    "memory_context": "Mémoire préparée pour cette exécution",
+    "memory_context_hint": "Dernier envoi finalisé. Ces versions ont été sélectionnées pour la réponse de prise en charge ; cela ne prouve pas que l'agent les a reçues ni suivies.",
+    "memory_unrecorded": "Le contexte mémoire n'a pas été enregistré.",
+    "memory_load_failed": "La mémoire de l'agent n'a pas pu être chargée.",
+    "memory_agent_count": "Mémoires d'agent incluses : {{count}}",
+    "memory_version_reference": "{{id}} · r{{revision}}",
+    "memory_project_version": "Mémoire de projet · révision {{revision}}",
+    "memory_no_project": "Aucune règle de mémoire de projet incluse."
   },
   "task_failure": {
     "cancelled_by_system": "Annulé par le système",

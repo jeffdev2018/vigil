@@ -1059,7 +1059,15 @@
     "remediation_rerun": "다시 실행",
     "remediation_runtime_settings": "런타임 설정 열기",
     "remediation_install_cli": "에이전트 CLI 설치",
-    "remediation_failed": "새 실행을 시작하지 못했습니다"
+    "remediation_failed": "새 실행을 시작하지 못했습니다",
+    "memory_context": "이 실행을 위해 준비한 메모리",
+    "memory_context_hint": "마지막으로 전달 준비를 마쳤을 때 선택된 버전입니다. 에이전트가 수신하거나 따랐다는 증거는 아닙니다.",
+    "memory_unrecorded": "메모리 컨텍스트가 기록되지 않았습니다.",
+    "memory_load_failed": "에이전트 메모리를 불러오지 못했습니다.",
+    "memory_agent_count": "포함된 에이전트 메모리: {{count}}개",
+    "memory_version_reference": "{{id}} · r{{revision}}",
+    "memory_project_version": "프로젝트 메모리 · 버전 {{revision}}",
+    "memory_no_project": "포함된 프로젝트 메모리 규칙이 없습니다."
   },
   "task_failure": {
     "cancelled_by_system": "시스템에서 취소함",

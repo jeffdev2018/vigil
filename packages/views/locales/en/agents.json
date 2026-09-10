@@ -1177,7 +1177,15 @@
     "remediation_rerun": "Run again",
     "remediation_runtime_settings": "Open runtime settings",
     "remediation_install_cli": "Install the agent CLI",
-    "remediation_failed": "Could not start a new run"
+    "remediation_failed": "Could not start a new run",
+    "memory_context": "Memory prepared for this run",
+    "memory_context_hint": "Latest finalized dispatch. These versions were selected for the claim response; this does not prove the agent received or followed them.",
+    "memory_unrecorded": "Memory context was not recorded.",
+    "memory_load_failed": "Agent memory could not be loaded.",
+    "memory_agent_count": "Agent memories included: {{count}}",
+    "memory_version_reference": "{{id}} · r{{revision}}",
+    "memory_project_version": "Project memory · revision {{revision}}",
+    "memory_no_project": "No project memory rules included."
   },
   "task_failure": {
     "cancelled_by_system": "Cancelled by the system",

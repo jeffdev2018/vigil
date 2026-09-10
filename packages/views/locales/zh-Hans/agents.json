@@ -1158,7 +1158,15 @@
     "remediation_rerun": "重新运行",
     "remediation_runtime_settings": "打开运行时设置",
     "remediation_install_cli": "安装智能体 CLI",
-    "remediation_failed": "无法启动新的运行"
+    "remediation_failed": "无法启动新的运行",
+    "memory_context": "本次运行准备的记忆",
+    "memory_context_hint": "最近一次完成分发准备时选定的版本。这不代表代理已收到或遵循这些记忆。",
+    "memory_unrecorded": "未记录记忆上下文。",
+    "memory_load_failed": "无法加载代理记忆。",
+    "memory_agent_count": "已包含的代理记忆：{{count}} 条",
+    "memory_version_reference": "{{id}} · r{{revision}}",
+    "memory_project_version": "项目记忆 · 版本 {{revision}}",
+    "memory_no_project": "未包含项目记忆规则。"
   },
   "task_failure": {
     "cancelled_by_system": "系统已取消",

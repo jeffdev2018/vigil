@@ -473,8 +473,31 @@ export type TaskStatus =
   /** Pause, steer, resume (K19): stopped at a safe boundary, waiting for a human. */
   | "paused";
 
+/** An immutable published memory version, as recorded on a claim. */
+export interface TaskMemoryVersion {
+  id: string;
+  revision: number;
+}
+
+/**
+ * Which memory versions the server prepared for this run's claim.
+ *
+ * `agent_status` separates a successful empty read (`loaded`, no versions)
+ * from a failed one (`unavailable`). A null `project_version` means no project
+ * rules were included. Recorded at claim time: it is not an acknowledgement
+ * from the daemon, nor proof the model followed the text.
+ */
+export interface TaskMemoryContext {
+  dispatched_at: string;
+  agent_status: "loaded" | "unavailable";
+  agent_versions: TaskMemoryVersion[];
+  project_version: TaskMemoryVersion | null;
+}
+
 export interface AgentTask {
   id: string;
+  /** Absent on runs claimed before the server recorded memory selection. */
+  memory_context?: TaskMemoryContext;
   agent_id: string;
   runtime_id: string;
   // Empty string ("") when the task has no linked issue — either chat- or

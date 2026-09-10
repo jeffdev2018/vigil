@@ -1051,7 +1051,15 @@
     "remediation_rerun": "再実行",
     "remediation_runtime_settings": "ランタイム設定を開く",
     "remediation_install_cli": "エージェント CLI をインストール",
-    "remediation_failed": "新しい実行を開始できませんでした"
+    "remediation_failed": "新しい実行を開始できませんでした",
+    "memory_context": "この実行に準備されたメモリ",
+    "memory_context_hint": "最後に配信準備が完了した時点で選ばれたバージョンです。エージェントが受信・遵守したことを示すものではありません。",
+    "memory_unrecorded": "メモリのコンテキストは記録されていません。",
+    "memory_load_failed": "エージェントのメモリを読み込めませんでした。",
+    "memory_agent_count": "含まれるエージェントメモリ：{{count}} 件",
+    "memory_version_reference": "{{id}} · r{{revision}}",
+    "memory_project_version": "プロジェクトメモリ · バージョン {{revision}}",
+    "memory_no_project": "プロジェクトのメモリルールは含まれていません。"
   },
   "task_failure": {
     "cancelled_by_system": "システムによってキャンセルされました",
