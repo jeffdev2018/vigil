@@ -16,6 +16,7 @@ import { useTriageRealtime } from "@/data/realtime/use-triage-realtime";
 import { useCalendarRealtime } from "@/data/realtime/use-calendar-realtime";
 import { useDoctrineRealtime } from "@/data/realtime/use-doctrine-realtime";
 import { usePacksRealtime } from "@/data/realtime/use-packs-realtime";
+import { useBrainRealtime } from "@/data/realtime/use-brain-realtime";
 import { usePresenceRealtime } from "@/data/realtime/use-presence-realtime";
 import { useWorkspacePresencePrefetch } from "@/lib/use-workspace-presence-prefetch";
 import { ModalCloseButton } from "@/components/ui/modal-close-button";
@@ -101,6 +102,11 @@ function RealtimeSubscriptions() {
   // popover, and a pack installed from web/desktop rewrites this
   // workspace's statuses, labels, agents and projects under the user's feet.
   usePacksRealtime();
+  // Workspace Brain (OS plan, vague B): the raw-capture badge in the More
+  // popover must stay fresh from anywhere in the workspace, and a capture
+  // can arrive from the CLI, an MCP client, a chat bot or an agent run
+  // while the user is on another screen.
+  useBrainRealtime();
   // Presence: warm the three queries up front so avatars don't flash a
   // dotless first render, and listen for daemon/agent/task events to keep
   // the runtime + snapshot caches fresh. See use-presence-realtime.ts for
@@ -441,6 +447,33 @@ export default function WorkspaceLayout() {
           name="more/pack/[id]"
           options={{ title: "Pack", headerBackTitle: "Packs" }}
         />
+        {/* Workspace Brain (OS plan, vague B): the capture inbox and the
+            shared notes. The two detail screens are pushed rather than
+            presented, because both bodies are text of arbitrary length; the
+            three write flows are formSheets per the container table in
+            apps/mobile/CLAUDE.md Lesson 5 (a form with a keyboard, and a
+            long searchable list). */}
+        <Stack.Screen
+          name="more/brain"
+          options={{ title: "Brain", headerBackTitle: "Back" }}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]"
+          options={{ title: "Capture", headerBackTitle: "Brain" }}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]/organize"
+          options={SHEET_OPTIONS}
+        />
+        <Stack.Screen
+          name="brain/capture/[id]/merge"
+          options={SHEET_OPTIONS}
+        />
+        <Stack.Screen
+          name="brain/note/[id]"
+          options={{ title: "Note", headerBackTitle: "Brain" }}
+        />
+        <Stack.Screen name="brain/note/new" options={SHEET_OPTIONS} />
         <Stack.Screen
           name="meeting/[id]"
           options={{ title: "Meeting", headerBackTitle: "Meetings" }}
