@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -278,6 +279,18 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 			},
 		}),
 		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        "schedule_followup",
+			Description: openai.String("Schedule this issue's next run for later: a follow-up task for the same agent fires at the given time, carrying your note on what to do next. when is RFC 3339 (e.g. 2026-09-11T09:00:00+02:00) or an offset in minutes from now (e.g. +90). Use it to pause and resume instead of looping."),
+			Parameters: shared.FunctionParameters{
+				"type":     "object",
+				"required": []string{"when"},
+				"properties": shared.FunctionParameters{
+					"when": shared.FunctionParameters{"type": "string", "description": "RFC 3339 timestamp, or +90 for minutes from now"},
+					"note": shared.FunctionParameters{"type": "string", "description": "What the follow-up run should do (shown as its trigger)"},
+				},
+			},
+		}),
+		openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        "create_issue",
 			Description: openai.String("File a new top-level issue in the workspace, authored by you. It starts in the default status and is assigned to you unless assign_to_self is false."),
 			Parameters: shared.FunctionParameters{
@@ -493,6 +506,12 @@ func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToo
 			return nil, errors.New(reason)
 		}
 		return s.nativeCalendarPropose(ctx, tctx, args)
+	case "schedule_followup":
+		if reason := tctx.chargeEffectful(); reason != "" {
+			tctx.requestWrapUp(reason)
+			return nil, errors.New(reason)
+		}
+		return s.nativeScheduleFollowup(ctx, tctx, args)
 	case "report_doctrine_conflict":
 		// Deliberately outside the effectful budget: a run that spent its
 		// budget must still be able to say a rule blocked it, and the
@@ -834,6 +853,69 @@ func (s *NativeAgentService) publishNativeIssueChanged(tctx *nativeToolContext, 
 	s.publishNative(protocol.EventIssueAuxChanged, tctx, map[string]any{
 		"issue_id": util.UUIDToString(issueID),
 	})
+}
+
+// nativeScheduleFollowup (N16): pause and resume. The tool writes a deferred
+// follow-up task for the same agent on the same issue; the existing promotion
+// tick flips it to queued at fire_at, and the note rides as the trigger the
+// next run (and the human) reads. Bounded: the fire time must land inside
+// [now+1min, now+30d], and a pending follow-up already on the issue is
+// refused rather than stacked.
+func (s *NativeAgentService) nativeScheduleFollowup(ctx context.Context, tctx *nativeToolContext, args map[string]any) (any, error) {
+	if tctx.issue == nil {
+		return nil, errors.New("schedule_followup needs the task's own issue")
+	}
+	rawWhen, _ := args["when"].(string)
+	when := strings.TrimSpace(rawWhen)
+	if when == "" {
+		return nil, errors.New("when is required (RFC 3339 or +minutes)")
+	}
+	var fireAt time.Time
+	if strings.HasPrefix(when, "+") {
+		mins, err := strconv.Atoi(strings.TrimPrefix(when, "+"))
+		if err != nil || mins < 1 {
+			return nil, errors.New("offset must be +<minutes> with at least 1 minute")
+		}
+		fireAt = time.Now().Add(time.Duration(mins) * time.Minute)
+	} else {
+		parsed, err := time.Parse(time.RFC3339, when)
+		if err != nil {
+			return nil, errors.New("when must be RFC 3339 (e.g. 2026-09-11T09:00:00+02:00) or +minutes")
+		}
+		fireAt = parsed
+	}
+	now := time.Now()
+	if fireAt.Before(now.Add(time.Minute)) {
+		return nil, errors.New("the follow-up must fire at least 1 minute from now")
+	}
+	if fireAt.After(now.Add(30 * 24 * time.Hour)) {
+		return nil, errors.New("the follow-up must fire within 30 days")
+	}
+	note, _ := args["note"].(string)
+	note = strings.TrimSpace(util.SanitizeTextForPostgres(note))
+	if len(note) > 500 {
+		note = note[:500]
+	}
+	if note == "" {
+		note = "Scheduled follow-up."
+	}
+
+	task, err := s.Queries.CreateDeferredAgentTask(ctx, db.CreateDeferredAgentTaskParams{
+		ID:             dbid.NewV7(),
+		AgentID:        tctx.agent.ID,
+		RuntimeID:      tctx.agent.RuntimeID,
+		IssueID:        tctx.issue.ID,
+		Priority:       tctx.task.Priority,
+		TriggerSummary: pgtype.Text{String: fmt.Sprintf("Follow-up: %s", note), Valid: true},
+		FireAt:         pgtype.Timestamptz{Time: fireAt, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("follow-up could not be scheduled: %w", err)
+	}
+	return map[string]any{
+		"scheduled": true, "followup_task_id": util.UUIDToString(task.ID),
+		"fires_at": fireAt.UTC().Format(time.RFC3339),
+	}, nil
 }
 
 // nativeSearchWorkspace (N06): issues and notes in one call — the helpdesk
