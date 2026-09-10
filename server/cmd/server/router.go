@@ -1211,6 +1211,7 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 						slog.Error("composio: service init failed; composio integration disabled", "error", serr)
 					} else {
 						h.Composio = svc
+						h.CalendarSync = handler.NewComposioCalendarSync(svc)
 						// Stage 3 (MUL-3721) hook: feed the per-task MCP
 						// overlay builder into TaskService so every Enqueue*
 						// path attaches the initiator user's Composio session
@@ -1626,6 +1627,8 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 	r.Post("/api/triage/inbound/email/{token}", h.HandleInboundTriageEmail)
 	// Twenty CRM webhooks: token names the workspace, HMAC proves the sender.
 	r.Post("/api/triage/inbound/twenty/{token}", h.HandleInboundTwentyWebhook)
+	// Outbound ICS feed: the token in the path is the credential.
+	r.Get("/api/calendar/ics/{token}", h.ServeCalendarFeed)
 	// GitHub App webhook (no Multica auth — requests are authenticated via
 	// HMAC-SHA256 signature in the handler) and post-install setup callback.
 	r.Post("/api/webhooks/github", h.HandleGitHubWebhook)
@@ -2377,6 +2380,22 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 			r.Get("/api/approvals", h.ListApprovals)
 			// Native onboarding (OS plan, chantier 5): the getting-started checklist.
 			r.Get("/api/onboarding/checklist", h.GetOnboardingChecklist)
+			// Native calendar (OS plan, chantier 19). /api/calendar/feed and
+			// /upcoming (the inbound ICS subscription) keep their block.
+			r.Route("/api/calendar/events", func(r chi.Router) {
+				r.Get("/", h.ListCalendarEvents)
+				r.Post("/", h.CreateCalendarEvent)
+				r.Get("/{id}", h.GetCalendarEvent)
+				r.With(handler.RequireHumanActor).Put("/{id}", h.UpdateCalendarEvent)
+				r.With(handler.RequireHumanActor).Delete("/{id}", h.CancelCalendarEvent)
+				r.Post("/{id}/respond", h.RespondCalendarEvent)
+			})
+			r.Get("/api/calendar/agenda", h.GetCalendarAgenda)
+			r.Get("/api/calendar/slots", h.FindCalendarSlots)
+			r.With(handler.RequireHumanActor).Get("/api/calendar/feed-token", h.GetCalendarFeedToken)
+			r.With(handler.RequireHumanActor).Post("/api/calendar/feed-token", h.MintCalendarFeedToken)
+			r.With(handler.RequireHumanActor).Delete("/api/calendar/feed-token", h.RevokeCalendarFeedToken)
+			r.With(handler.RequireHumanActor).Post("/api/calendar/google/import", h.ImportGoogleCalendar)
 			// Fleet page (OS plan, chantier 4).
 			r.Get("/api/runs", h.ListRuns)
 			r.Post("/api/runs/cancel", h.CancelRuns)

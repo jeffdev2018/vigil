@@ -472,6 +472,12 @@ var concurrentIndexCleanups = map[string]string{
 	"869_workspace_twenty_connection_index":                     "idx_workspace_twenty_connection_workspace",
 	"877_channel_approval_message_ask_index":                    "idx_channel_approval_message_ask",
 	"878_agent_task_queue_agent_created_index":                  "idx_agent_task_queue_agent_created_desc",
+	"880_calendar_event_window_index":                           "idx_calendar_event_window",
+	"881_calendar_event_participant_event_index":                "idx_calendar_event_participant_event",
+	"882_calendar_event_participant_who_index":                  "idx_calendar_event_participant_who",
+	"883_calendar_event_participant_person_index":               "idx_calendar_event_participant_person",
+	"884_calendar_feed_token_hash_index":                        "idx_calendar_feed_token_hash",
+	"885_calendar_feed_token_user_index":                        "idx_calendar_feed_token_user",
 }
 
 // concurrentDownIndexCleanups covers every migration whose down direction

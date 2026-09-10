@@ -137,8 +137,12 @@ type nativeFuseSlot struct {
 type NativeAgentService struct {
 	Queries *db.Queries
 	Tasks   *TaskService
-	Issues  *IssueService
-	LLM     NativeAgentLLM
+	// Calendar backs the calendar tools (native calendar, chantier 19). The
+	// handler wires it: the proposal path files a Decision Card, which lives
+	// there. Nil means the tools answer "no calendar on this server".
+	Calendar NativeCalendarTools
+	Issues   *IssueService
+	LLM      NativeAgentLLM
 	// streamFlushInterval is how often the growing final text is persisted
 	// and republished while chunks arrive. A field so a test can flush per
 	// chunk; production keeps the default constant.
@@ -222,6 +226,15 @@ func (s *NativeAgentService) nativeRequestModel(params openai.ChatCompletionNewP
 		return s.LLM.DefaultModel()
 	}
 	return ""
+}
+
+// NativeCalendarTools is what the calendar tools need from the rest of the
+// server. Results are plain JSON-able values the model reads.
+type NativeCalendarTools interface {
+	ListEvents(ctx context.Context, workspaceID pgtype.UUID, from, to time.Time) (any, error)
+	Agenda(ctx context.Context, workspaceID pgtype.UUID, from, to time.Time) (any, error)
+	FindSlots(ctx context.Context, workspaceID pgtype.UUID, participants []string, durationMinutes int, from, to time.Time, tz string) (any, error)
+	Propose(ctx context.Context, workspaceID, agentID, issueID pgtype.UUID, input map[string]any) (any, error)
 }
 
 func NewNativeAgentService(q *db.Queries, tasks *TaskService, issues *IssueService, llm NativeAgentLLM, bus *events.Bus) *NativeAgentService {

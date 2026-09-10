@@ -84,6 +84,10 @@ const (
 	// flipped; payload {run_halt, cancelled?}.
 	EventRunHaltChanged = "run_halt:changed"
 
+	// EventCalendarChanged (native calendar): an event was created, moved,
+	// answered, scheduled or cancelled; payload {event_id, issue_id, status}.
+	EventCalendarChanged = "calendar:changed"
+
 	EventApprovalAsked   = "approval:asked"
 	EventApprovalDecided = "approval:decided"
 

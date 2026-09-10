@@ -236,6 +236,42 @@ var mcpLeaves = []mcpLeaf{
 			{Name: "failed_attempts", Type: "array", Items: "string", Desc: "What was tried and failed.", In: "body"},
 			{Name: "next_action", Type: "string", Desc: "What the next hand should do.", In: "body"},
 		}},
+	// Native calendar (OS plan, chantier 19).
+	{Name: "calendar_events", Group: "vigil_calendar", Action: "events", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/calendar/events",
+		Description: "Events overlapping a window (from/to RFC 3339, default the coming month), optionally one participant's.",
+		Params: []mcpParam{
+			{Name: "from", Type: "string", Desc: "Window start, RFC 3339.", In: "query"},
+			{Name: "to", Type: "string", Desc: "Window end, RFC 3339.", In: "query"},
+			{Name: "participant_type", Type: "string", Desc: "member or agent.", In: "query", Enum: []string{"member", "agent"}},
+			{Name: "participant_id", Type: "string", Desc: "Member user id or agent id.", In: "query"},
+		}},
+	{Name: "calendar_agenda", Group: "vigil_calendar", Action: "agenda", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/calendar/agenda",
+		Description: "Everything dated in the window: events, issues due, cycles, meetings.",
+		Params: []mcpParam{
+			{Name: "from", Type: "string", Desc: "Window start, RFC 3339.", In: "query"},
+			{Name: "to", Type: "string", Desc: "Window end, RFC 3339.", In: "query"},
+		}},
+	{Name: "calendar_slots", Group: "vigil_calendar", Action: "slots", Risk: mcpgov.RiskRead, Method: "GET", Path: "/api/calendar/slots",
+		Description: "Free windows every listed participant can make (members inside 09:00–18:00 weekdays in tz, agents any time).",
+		Params: []mcpParam{
+			{Name: "participants", Type: "string", Desc: "Comma-separated member:<user id> / agent:<id>.", Required: true, In: "query"},
+			{Name: "duration", Type: "integer", Desc: "Minutes (default 30).", In: "query"},
+			{Name: "from", Type: "string", Desc: "Window start, RFC 3339.", In: "query"},
+			{Name: "to", Type: "string", Desc: "Window end, RFC 3339.", In: "query"},
+			{Name: "tz", Type: "string", Desc: "IANA zone for working hours (default UTC).", In: "query"},
+		}},
+	{Name: "calendar_propose", Group: "vigil_calendar", Action: "propose", Risk: mcpgov.RiskInternalWrite, Method: "POST", Path: "/api/calendar/events",
+		Description: "Propose an event on an issue: filed as proposed with a Decision Card; a person accepts or declines. A member calling this schedules it directly.",
+		Params: []mcpParam{
+			{Name: "title", Type: "string", Desc: "Title.", Required: true, In: "body"},
+			{Name: "starts_at", Type: "string", Desc: "Start, RFC 3339.", Required: true, In: "body"},
+			{Name: "ends_at", Type: "string", Desc: "End, RFC 3339.", Required: true, In: "body"},
+			{Name: "issue_id", Type: "string", Desc: "The issue the event serves (required for a proposal).", In: "body"},
+			{Name: "description", Type: "string", Desc: "What the event is for.", In: "body"},
+			{Name: "timezone", Type: "string", Desc: "IANA zone the times are shown in (default UTC).", In: "body"},
+			{Name: "location", Type: "string", Desc: "Place or link.", In: "body"},
+			{Name: "participants", Type: "array", Desc: "[{type: member|agent, id}].", In: "body", Items: "object"},
+		}},
 }
 
 var mcpLeafByName = func() map[string]mcpLeaf {
@@ -248,15 +284,16 @@ var mcpLeafByName = func() map[string]mcpLeaf {
 
 // mcpGroupDescriptions introduce each compound tool.
 var mcpGroupDescriptions = map[string]string{
-	"vigil_issue":   "Issues: list, search, get, create, update, comments, comment, timeline, labels. Pick the action; pass that action's arguments.",
-	"vigil_goal":    "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
-	"vigil_brain":   "The workspace Brain, shared notes every run reads: list/search, get, save, update, archive.",
-	"vigil_project": "Projects: list, search, get, create, update.",
-	"vigil_team":    "Who is here: agents, agent, agent_runs, members, labels, cycles, workspace.",
-	"vigil_triage":  "The triage queue: list, stats, verdict (a suggestion; a human decides).",
-	"vigil_inbox":   "The caller's inbox: list.",
-	"vigil_run":     "Runs: transcript of one run, legs (every run of a workflow with its cost).",
-	"vigil_handoff": "Handoff packets on an issue: latest, list, create.",
+	"vigil_issue":    "Issues: list, search, get, create, update, comments, comment, timeline, labels. Pick the action; pass that action's arguments.",
+	"vigil_goal":     "The goal loop of an issue: get the state, set the definition of done, pause, resume, answer the agent's question (ask: a run asks the team).",
+	"vigil_brain":    "The workspace Brain, shared notes every run reads: list/search, get, save, update, archive.",
+	"vigil_project":  "Projects: list, search, get, create, update.",
+	"vigil_team":     "Who is here: agents, agent, agent_runs, members, labels, cycles, workspace.",
+	"vigil_triage":   "The triage queue: list, stats, verdict (a suggestion; a human decides).",
+	"vigil_inbox":    "The caller's inbox: list.",
+	"vigil_run":      "Runs: transcript of one run, legs (every run of a workflow with its cost).",
+	"vigil_handoff":  "Handoff packets on an issue: latest, list, create.",
+	"vigil_calendar": "The workspace calendar: events in a window, the agenda (events, issue due dates, cycles, meetings), free slots for people and agents, propose an event (a person accepts).",
 }
 
 // mcpCatalog is tools/list for a surface. The gate-wait tool is only

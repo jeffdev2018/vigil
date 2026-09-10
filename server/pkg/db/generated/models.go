@@ -695,6 +695,48 @@ type BusinessRuleViolation struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type CalendarEvent struct {
+	ID            pgtype.UUID        `json:"id"`
+	WorkspaceID   pgtype.UUID        `json:"workspace_id"`
+	Title         string             `json:"title"`
+	Description   string             `json:"description"`
+	StartsAt      pgtype.Timestamptz `json:"starts_at"`
+	EndsAt        pgtype.Timestamptz `json:"ends_at"`
+	AllDay        bool               `json:"all_day"`
+	Timezone      string             `json:"timezone"`
+	Location      string             `json:"location"`
+	IssueID       pgtype.UUID        `json:"issue_id"`
+	ProjectID     pgtype.UUID        `json:"project_id"`
+	Status        string             `json:"status"`
+	CreatedByType string             `json:"created_by_type"`
+	CreatedByID   pgtype.UUID        `json:"created_by_id"`
+	Source        string             `json:"source"`
+	ExternalID    string             `json:"external_id"`
+	DecisionID    pgtype.UUID        `json:"decision_id"`
+	RemindedAt    pgtype.Timestamptz `json:"reminded_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+}
+
+type CalendarEventParticipant struct {
+	ID              pgtype.UUID        `json:"id"`
+	WorkspaceID     pgtype.UUID        `json:"workspace_id"`
+	EventID         pgtype.UUID        `json:"event_id"`
+	ParticipantType string             `json:"participant_type"`
+	ParticipantID   pgtype.UUID        `json:"participant_id"`
+	Response        string             `json:"response"`
+	Required        bool               `json:"required"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+}
+
+type CalendarFeedToken struct {
+	ID          pgtype.UUID        `json:"id"`
+	WorkspaceID pgtype.UUID        `json:"workspace_id"`
+	UserID      pgtype.UUID        `json:"user_id"`
+	TokenHash   string             `json:"token_hash"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type CampaignShard struct {
 	ID                 pgtype.UUID        `json:"id"`
 	RefactorCampaignID pgtype.UUID        `json:"refactor_campaign_id"`
