@@ -148,7 +148,7 @@ export function OrgEditor({ definition, onChange, model, readOnly = false, pause
           onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }}>
           <div className="mx-auto" style={{ width: layout.width * zoom, height: layout.height * zoom }}>
             <div className="relative origin-top-left" style={{ width: layout.width, height: layout.height, transform: `scale(${zoom})` }}>
-              <svg width={layout.width} height={layout.height} className="absolute inset-0 text-muted-foreground/50" aria-hidden="true">
+              <svg width={layout.width} height={layout.height} className="absolute inset-0 text-faint-foreground" aria-hidden="true">
                 <defs><marker id={marker} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0 0L7 3.5L0 7Z" fill="currentColor" /></marker></defs>
                 {definition.edges.filter(e => e.kind === relation).map((e, i) => {
                   const a = positions.get(e.from), b = positions.get(e.to); if (!a || !b) return null;

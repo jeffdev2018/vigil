@@ -19,7 +19,7 @@ function PersonRow({ person, from, disabled, onClick }: { person: OrgBoardPerson
   const { t } = useT("org");
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${from ?? "directory"}:${person.type}:${person.id}`, data: { member: person, from }, disabled });
   return <div ref={setNodeRef} className={cn("relative flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-muted", isDragging && "opacity-30")}>
-    {!disabled && <button type="button" {...attributes} {...listeners} aria-label={t($ => $.studio.move_person, { name: person.name })} className="shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><GripVertical className="size-3.5" /></button>}
+    {!disabled && <button type="button" {...attributes} {...listeners} aria-label={t($ => $.studio.move_person, { name: person.name })} className="shrink-0 cursor-grab touch-none rounded p-1 text-faint-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"><GripVertical className="size-3.5" /></button>}
     <button type="button" onClick={onClick} className="flex min-w-0 flex-1 items-center gap-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
       <ActorAvatar name={person.name} avatarUrl={person.avatar_url} initials={person.name.slice(0, 2)} isAgent={person.type === "agent"} size="md" />
       <span className="min-w-0 flex-1 truncate text-caption font-medium">{person.name}</span>{person.role === "lead" && <ArrowRight className="size-3 text-info" />}
