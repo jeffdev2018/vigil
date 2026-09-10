@@ -128,7 +128,8 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
 	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
 		nativeToolCallTurn("call_1", "add_comment", `{"content":"Voilà le résumé."}`),
-		nativeTextTurn("Commentaire ajouté."),
+		nativeTextTurn("Commentaire ajouté."), // premature prose → N18 honest-stop divert
+		nativeTextTurn("Status: posted the summary [r1]. Nothing remains."),
 		// The goal judge's verdict on the closing status (goal loop).
 		nativeTextTurn(`{"satisfied": true, "reason": "the summary is posted"}`),
 	}}
@@ -160,13 +161,13 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		t.Fatalf("agent comments = %d, want 1", commentCount)
 	}
 
-	// The transcript carries the tool call, its result, the final answer,
-	// the goal check's verdict line and the done proposal it triggered.
+	// Transcript: tool → result → premature text → honest-stop ledger →
+	// wrap-up text → goal verdict system lines.
 	messages, err := db.New(pool).ListTaskMessages(ctx, claimed.ID)
 	if err != nil {
 		t.Fatalf("list task messages: %v", err)
 	}
-	wantTypes := []string{"tool_use", "tool_result", "text", "system", "system"}
+	wantTypes := []string{"tool_use", "tool_result", "text", "system", "text", "system", "system"}
 	if len(messages) != len(wantTypes) {
 		t.Fatalf("transcript = %v, want %v", messageTypes(messages), wantTypes)
 	}
@@ -179,10 +180,16 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		t.Fatalf("tool_use tool = %q, want add_comment", got)
 	}
 	if got := messages[2].Content.String; got != "Commentaire ajouté." {
-		t.Fatalf("final text = %q, want the closing answer", got)
+		t.Fatalf("premature text = %q", got)
+	}
+	if !strings.Contains(messages[3].Content.String, "Effects this run produced") {
+		t.Fatalf("honest-stop ledger missing: %q", messages[3].Content.String)
+	}
+	if !strings.Contains(messages[4].Content.String, "[r1]") {
+		t.Fatalf("wrap-up text missing receipt cite: %q", messages[4].Content.String)
 	}
 
-	// The task settled completed with the summary the model gave.
+	// The task settled completed with the honest-stop wrap-up summary.
 	var status string
 	var result []byte
 	if err := pool.QueryRow(ctx, `SELECT status, result FROM agent_task_queue WHERE id = $1`, taskID).Scan(&status, &result); err != nil {
@@ -192,13 +199,17 @@ func TestNativeAgentRunExecutesToolAndCompletes(t *testing.T) {
 		t.Fatalf("task status = %q, want completed", status)
 	}
 	var decoded struct {
-		Summary string `json:"summary"`
+		Summary  string          `json:"summary"`
+		Receipts []nativeReceipt `json:"receipts"`
 	}
 	if err := json.Unmarshal(result, &decoded); err != nil {
 		t.Fatalf("result is not the expected JSON: %v (%s)", err, string(result))
 	}
-	if decoded.Summary != "Commentaire ajouté." {
-		t.Fatalf("result summary = %q, want the final answer", decoded.Summary)
+	if !strings.Contains(decoded.Summary, "[r1]") {
+		t.Fatalf("result summary = %q, want a receipt cite", decoded.Summary)
+	}
+	if len(decoded.Receipts) != 1 || decoded.Receipts[0].Tool != "add_comment" {
+		t.Fatalf("result receipts = %+v", decoded.Receipts)
 	}
 }
 
@@ -573,7 +584,8 @@ func TestNativeAgentQuickCreateRun(t *testing.T) {
 	issues := NewIssueService(db.New(pool), pool, events.New(), nil, tasks)
 	llm := &scriptedNativeLLM{turns: []openai.ChatCompletion{
 		nativeToolCallTurn("call_1", "create_issue", `{"title":"Préparer la démo","description":"Préparation de la démo","priority":"medium"}`),
-		nativeTextTurn("Issue créée et assignée."),
+		nativeTextTurn("Issue créée et assignée."), // premature → N18 divert
+		nativeTextTurn("Status: filed Prep demo [r1]. Nothing remains."),
 	}}
 	svc := NewNativeAgentService(db.New(pool), tasks, issues, llm, events.New())
 
@@ -695,7 +707,8 @@ func TestNativeAgentRecordsTaskUsage(t *testing.T) {
 		usage: &usage,
 		turns: []openai.ChatCompletion{
 			nativeToolCallTurn("call_1", "add_comment", `{"content":"compte mes tokens."}`),
-			nativeTextTurn("Fait."),
+			nativeTextTurn("Fait."), // premature → N18 divert
+			nativeTextTurn("Status: commented [r1]. Nothing remains."),
 		},
 	}
 	tasks := NewTaskService(db.New(pool), pool, nil, events.New())
@@ -718,9 +731,10 @@ func TestNativeAgentRecordsTaskUsage(t *testing.T) {
 	if provider != "native" || model != "scripted-model" {
 		t.Fatalf("usage = (%q, %q), want (native, scripted-model)", provider, model)
 	}
-	// Two model turns, each reporting the same usage.
-	if input != 240 || output != 60 {
-		t.Fatalf("usage tokens = (%d, %d), want the per-turn figures accumulated over 2 turns (240, 60)", input, output)
+	// Three model turns (tool + premature + honest-stop wrap-up), each
+	// reporting the same usage.
+	if input != 360 || output != 90 {
+		t.Fatalf("usage tokens = (%d, %d), want the per-turn figures accumulated over 3 turns (360, 90)", input, output)
 	}
 	if cost != nil {
 		t.Fatalf("cost = %v, want NULL so readers estimate from the rate table", *cost)
