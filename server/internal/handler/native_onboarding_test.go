@@ -32,9 +32,14 @@ func withNativeAvailable(t *testing.T, available bool) {
 	})
 }
 
+// enabledNativeLLM says "a model is configured" and nothing else: the tests
+// here never reach Chat. The embedded nil interface makes any such call a
+// clear nil dereference rather than a silent fake answer.
 type enabledNativeLLM struct{ service.NativeAgentLLM }
 
-func (enabledNativeLLM) Enabled() bool { return true }
+func (enabledNativeLLM) Enabled() bool        { return true }
+func (enabledNativeLLM) BaseURL() string      { return "https://llm.test" }
+func (enabledNativeLLM) DefaultModel() string { return "test-model" }
 
 func TestConfigSaysWhetherTheNativeRuntimeIsAvailable(t *testing.T) {
 	for _, available := range []bool{false, true} {
