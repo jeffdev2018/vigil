@@ -2674,6 +2674,7 @@ const TaskMemoryContextSchema = z.object({
 export const AgentTaskSchema = z.object({
   // Invalid optional audit data is unknown, never a fabricated empty set.
   memory_context: TaskMemoryContextSchema.optional().catch(undefined),
+  cancelled_by_comment_change: z.boolean().optional().catch(undefined),
   id: z.string(),
   agent_id: z.string().default(""),
   runtime_id: z.string().default(""),

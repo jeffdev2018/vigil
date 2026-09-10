@@ -410,8 +410,9 @@ type AgentTaskQueue struct {
 	ModelOverride pgtype.Text `json:"model_override"`
 	DiffStat      []byte      `json:"diff_stat"`
 	// Consolidated unified diff of the delivered branch (F11), NULL past the 256 KiB bound — diff_stat still holds the shape.
-	DiffUnified   pgtype.Text `json:"diff_unified"`
-	MemoryContext []byte      `json:"memory_context"`
+	DiffUnified     pgtype.Text `json:"diff_unified"`
+	MemoryContext   []byte      `json:"memory_context"`
+	CommentThreadID pgtype.UUID `json:"comment_thread_id"`
 }
 
 type AgentToLabel struct {
