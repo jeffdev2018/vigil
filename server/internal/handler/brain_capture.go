@@ -548,12 +548,19 @@ func (h *Handler) suggestBrainCapture(ctx context.Context, c db.BrainCapture) (B
 	return s, true, nil
 }
 
+// firstLine is the title a capture gets when nobody wrote one: its first
+// line, cut at a word boundary when longer than max runes.
 func firstLine(s string, max int) string {
 	line := strings.TrimSpace(strings.SplitN(strings.TrimSpace(s), "\n", 2)[0])
-	if utf8.RuneCountInString(line) > max {
-		return string([]rune(line)[:max])
+	runes := []rune(line)
+	if len(runes) <= max {
+		return line
 	}
-	return line
+	cut := string(runes[:max])
+	if i := strings.LastIndexAny(cut, " \t"); i > max/2 {
+		cut = cut[:i]
+	}
+	return strings.TrimRight(cut, " \t,;:.-")
 }
 
 func (h *Handler) suggestBrainCaptureAsync(c db.BrainCapture) {
