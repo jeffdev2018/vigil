@@ -37,6 +37,10 @@ type nativeToolContext struct {
 	// the caller must not write a second copy. streamedMsgID names the row.
 	textStreamed  bool
 	streamedMsgID pgtype.UUID
+	// orgDenies (N08): the deny list of the org unit holding this run's
+	// issue. A tool a denied verb matches as NEVER is absent from the specs
+	// and refused at dispatch.
+	orgDenies []string
 	// repeats counts identical tool calls (name + canonical arguments) so a
 	// model stuck re-issuing the same call is warned, then refused.
 	repeats map[string]int
@@ -286,6 +290,33 @@ func nativeAgentToolSpecs() []openai.ChatCompletionToolUnionParam {
 	}
 }
 
+// nativeFilterToolSpecs removes the tools the org unit denies outright (N08).
+// The description rides along because OrgDenyClass matches it too — the same
+// rule the CLI catalogue applies (mcpgov.ApplyOrgDeny).
+func nativeFilterToolSpecs(specs []openai.ChatCompletionToolUnionParam, denies []string) []openai.ChatCompletionToolUnionParam {
+	if len(denies) == 0 {
+		return specs
+	}
+	out := make([]openai.ChatCompletionToolUnionParam, 0, len(specs))
+	for _, spec := range specs {
+		name := ""
+		description := ""
+		// The union carries the function definition through its variant
+		// fields; both are plain values on the ChatCompletionFunctionToolParam
+		// built here, and the openai.String helper made Description a
+		// param.Opt whose string form is the description.
+		if fn := spec.GetFunction(); fn != nil {
+			name = fn.Name
+			description = fn.Description.Value
+		}
+		if nativeToolDeniedByOrg(name, description, denies) {
+			continue
+		}
+		out = append(out, spec)
+	}
+	return out
+}
+
 // callNativeToolRead dispatches one validated tool invocation. Errors are
 // values for the model to react to, not run failures. Exported for tests.
 func (s *NativeAgentService) callNativeToolRead(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
@@ -295,6 +326,9 @@ func (s *NativeAgentService) callNativeToolRead(ctx context.Context, tctx *nativ
 // callNativeTool dispatches one validated tool invocation. Errors are values
 // for the model to react to, not run failures.
 func (s *NativeAgentService) callNativeTool(ctx context.Context, tctx *nativeToolContext, name string, args map[string]any) (any, error) {
+	if nativeToolDeniedByOrg(name, name, tctx.orgDenies) {
+		return nil, fmt.Errorf("the organisation denies this action (%s)", name)
+	}
 	switch name {
 	case "get_issue":
 		issue, err := s.nativeResolveIssue(ctx, tctx, args)

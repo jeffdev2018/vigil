@@ -1612,3 +1612,96 @@ func TestNativeAgentHonorsWorkspaceRunLimits(t *testing.T) {
 		t.Fatalf("tool_use messages = %d, want exactly the 2-call cap", toolUses)
 	}
 }
+
+// N08 — org denies govern the native tool catalogue. The five non-negotiable
+// verbs must take nothing away from the eleven native tools (the ASK match of
+// "post" in "Post a comment" is deliberately NOT a removal — that is N10's
+// business), a NEVER match removes the tool from the specs AND is refused at
+// dispatch, and the unit holding the issue is the deny source.
+func TestNativeAgentOrgDenyCatalogue(t *testing.T) {
+	// 1. Anti-over-removal: the whole native catalogue survives the five
+	// non-negotiable denies.
+	specs := nativeAgentToolSpecsFor(0)
+	filtered := nativeFilterToolSpecs(specs, []string{"delete", "bill", "send_external_without_approval", "touch_secrets", "commit_money"})
+	if len(filtered) != len(specs) {
+		t.Fatalf("non-negotiable denies removed native tools: %d -> %d (ASK matches must stay until N10)", len(specs), len(filtered))
+	}
+
+	// 2. A NEVER match (delete -> a tool named purge_*) is removed and the
+	// dispatch guard refuses it even if the model hallucinates the call.
+	denies := []string{"delete"}
+	svc := &NativeAgentService{}
+	tctx := &nativeToolContext{orgDenies: denies}
+	if !nativeToolDeniedByOrg("purge_issue", "Purge an issue", denies) {
+		t.Fatal("delete deny does not match a purge tool")
+	}
+	out, err := svc.callNativeToolRead(context.Background(), tctx, "purge_issue", nil)
+	if err == nil || !strings.Contains(err.Error(), "organisation denies") {
+		t.Fatalf("dispatch did not refuse a denied tool: %v %v", out, err)
+	}
+}
+
+// The unit holding the issue is the deny source: an org structure whose
+// unit holds the issue (via the assignee) carries its deny list into the
+// context; a workspace without structure gets nil.
+func TestNativeAgentOrgDeniesResolveByUnit(t *testing.T) {
+	ctx := context.Background()
+	pool := newResolveOriginatorPool(t)
+	suffix := time.Now().UnixNano()
+	bootstrap := testutil.New(pool, "", "")
+	user := bootstrap.User(t, fmt.Sprintf("native-owner-%d", suffix), fmt.Sprintf("native-owner-%d@example.com", suffix))
+	ws := bootstrap.Workspace(t, fmt.Sprintf("native-ws-%d", suffix), fmt.Sprintf("native-ws-%d", suffix))
+	fx := testutil.New(pool, ws, user)
+	fx.Member(t, ws, user, "owner")
+	runtimeID := fx.Runtime(t, "native", testutil.Cols{
+		"runtime_mode": "native",
+		"daemon_id":    "native",
+		"provider":     "native",
+	})
+	agentID := fx.Agent(t, "Native worker", runtimeID)
+	issueID := fx.Issue(t, "Held work", testutil.Cols{
+		"assignee_type": "agent",
+		"assignee_id":   agentID,
+	})
+	taskID := fx.Task(t, agentID, testutil.Cols{"issue_id": issueID, "runtime_id": runtimeID})
+
+	svc := NewNativeAgentService(db.New(pool), nil, nil, &scriptedNativeLLM{}, events.New())
+	agent, err := db.New(pool).GetAgent(ctx, util.MustParseUUID(agentID))
+	if err != nil {
+		t.Fatalf("get agent: %v", err)
+	}
+	issue, err := db.New(pool).GetIssueInWorkspace(ctx, db.GetIssueInWorkspaceParams{ID: util.MustParseUUID(issueID), WorkspaceID: agent.WorkspaceID})
+	if err != nil {
+		t.Fatalf("get issue: %v", err)
+	}
+
+	// No structure yet: inert.
+	if denies := svc.nativeOrgDenies(ctx, agent.WorkspaceID, &issue, agent.ID); denies != nil {
+		t.Fatalf("denies without org structure = %v, want nil", denies)
+	}
+
+	// A structure whose unit holds the issue via the assignee.
+	definition := fmt.Sprintf(`{"units":[{"id":"u1","name":"Support","deny":["delete","bill"],"members":[{"type":"agent","id":"%s"}]}]}`, agentID)
+	fx.Insert(t, "org_structure", testutil.Cols{
+		"workspace_id": ws,
+		"id":           testutil.Raw("gen_random_uuid()"),
+		"revision_id":  testutil.Raw("gen_random_uuid()"),
+		"name":         "Support org",
+		"model":        "owner_network",
+		"status":       "active",
+		"definition":   testutil.Raw("'" + definition + "'::jsonb"),
+		"revision":     1,
+	})
+	denies := svc.nativeOrgDenies(ctx, agent.WorkspaceID, &issue, agent.ID)
+	if len(denies) != 2 || denies[0] != "delete" || denies[1] != "bill" {
+		t.Fatalf("unit denies = %v, want [delete bill]", denies)
+	}
+
+	// End to end: the loop's specs are filtered through them (nothing native
+	// matches here — the point is the plumbing reaches the loop).
+	tctx := &nativeToolContext{task: db.AgentTaskQueue{ID: util.MustParseUUID(taskID)}, agent: agent, issue: &issue, workspaceID: agent.WorkspaceID, orgDenies: denies}
+	specs := nativeFilterToolSpecs(nativeAgentToolSpecsFor(0), tctx.orgDenies)
+	if len(specs) != len(nativeAgentToolSpecsFor(0)) {
+		t.Fatalf("plumbing over-removed tools: %d", len(specs))
+	}
+}

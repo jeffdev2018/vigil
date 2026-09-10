@@ -278,9 +278,10 @@ func (s *NativeAgentService) runTask(ctx context.Context, task db.AgentTaskQueue
 	}
 
 	tctx := nativeToolContext{task: task, agent: agent, issue: ownIssue, workspaceID: agent.WorkspaceID, budget: &nativeRunBudget{}}
+	tctx.orgDenies = s.nativeOrgDenies(ctx, agent.WorkspaceID, ownIssue, agent.ID)
 	cx := newNativeContext(nativeSystemPrompt(agent), brief)
 
-	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeAgentToolSpecsFor(0), nativeMaxTurns, &usage)
+	finalText, loopErr := s.runLoop(ctx, &tctx, cx, nativeFilterToolSpecs(nativeAgentToolSpecsFor(0), tctx.orgDenies), nativeMaxTurns, &usage)
 	if errors.Is(loopErr, errNativeRunLimitStopped) {
 		// The workspace's run limit already settled the task with the gate's
 		// message (N07); recording usage is all that is left.
