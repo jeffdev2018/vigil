@@ -259,6 +259,28 @@ import {
   EMPTY_CALENDAR_AGENDA,
 } from "@multica/core/api/schemas";
 import type { CalendarAgenda, CalendarEventEntry, CalendarEventInput } from "@multica/core/types";
+// Réveil programmé (JEF-373). Schemas and fallbacks are the shared ones in
+// @multica/core/api/schemas — pure zod, on the mobile sharing whitelist — so
+// mobile and web parse the same bytes the same way.
+import {
+  AutopilotDraftResponseSchema,
+  AutopilotProposalResponseSchema,
+  FollowupResponseSchema,
+  IssueFollowupsResponseSchema,
+  EMPTY_AUTOPILOT_DRAFT,
+  EMPTY_AUTOPILOT_PROPOSAL,
+  EMPTY_FOLLOWUP,
+  EMPTY_ISSUE_FOLLOWUPS,
+} from "@multica/core/api/schemas";
+import type {
+  AutopilotDraft,
+  AutopilotProposalResponse,
+  DraftAutopilotInput,
+  Followup,
+  IssueFollowupsResponse,
+  ProposeAutopilotInput,
+  ScheduleFollowupInput,
+} from "@multica/core/types";
 // Workspace Brain (notes + capture inbox + ranked search). Schemas and
 // fallbacks are the shared ones in @multica/core/api/schemas — pure zod, on
 // the mobile sharing whitelist — so mobile and web parse the same bytes the
@@ -1214,6 +1236,75 @@ class ApiClient {
     await this.fetch<void>(`/api/calendar/events/${encodeURIComponent(id)}`, {
       method: "DELETE",
     });
+  }
+
+  // --- Follow-ups / autopilots from a sentence (JEF-373) ---
+  // A follow-up is a deferred run of the issue's agent
+  // (server/internal/handler/followups.go); an autopilot proposal is a
+  // paused automation behind a Decision Card
+  // (server/internal/handler/autopilot_draft.go).
+
+  async listIssueFollowups(
+    issueId: string,
+    opts?: { signal?: AbortSignal },
+  ): Promise<IssueFollowupsResponse> {
+    return this.fetchValidated<IssueFollowupsResponse>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups`,
+      IssueFollowupsResponseSchema,
+      EMPTY_ISSUE_FOLLOWUPS,
+      { ...opts, endpoint: "GET /api/issues/:id/followups" },
+    );
+  }
+
+  /** `when` is RFC 3339 or "+<minutes>"; `agent_id` is required unless the
+   *  issue is already assigned to an agent. A 429 carries the budget
+   *  sentence the sheet shows inline. */
+  async scheduleIssueFollowup(
+    issueId: string,
+    body: ScheduleFollowupInput,
+  ): Promise<{ followup: Followup }> {
+    return this.fetchValidatedWith<{ followup: Followup }>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups`,
+      FollowupResponseSchema,
+      { followup: EMPTY_FOLLOWUP },
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/issues/:id/followups" },
+    );
+  }
+
+  /** 204 on success; 409 when it already fired or was cancelled. */
+  async cancelIssueFollowup(issueId: string, followupId: string): Promise<void> {
+    await this.fetch<void>(
+      `/api/issues/${encodeURIComponent(issueId)}/followups/${encodeURIComponent(followupId)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  /** Writes nothing — 503 when the workspace has no model configured. */
+  async draftAutopilot(
+    body: DraftAutopilotInput,
+  ): Promise<{ draft: AutopilotDraft }> {
+    return this.fetchValidatedWith<{ draft: AutopilotDraft }>(
+      "/api/autopilots/draft",
+      AutopilotDraftResponseSchema,
+      { draft: EMPTY_AUTOPILOT_DRAFT },
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/autopilots/draft" },
+    );
+  }
+
+  /** Files the autopilot paused; with `issue_id` a Decision Card lands on
+   *  that issue and its id comes back as `decision_id`. */
+  async proposeAutopilot(
+    body: ProposeAutopilotInput,
+  ): Promise<AutopilotProposalResponse> {
+    return this.fetchValidatedWith<AutopilotProposalResponse>(
+      "/api/autopilots/propose",
+      AutopilotProposalResponseSchema,
+      EMPTY_AUTOPILOT_PROPOSAL,
+      { method: "POST", body: JSON.stringify(body) },
+      { endpoint: "POST /api/autopilots/propose" },
+    );
   }
 
   // --- Workspace doctrine (OS plan, chantier 22) ---

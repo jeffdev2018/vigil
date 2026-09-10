@@ -267,6 +267,12 @@ export default function WorkspaceLayout() {
           options={SHEET_OPTIONS}
         />
         <Stack.Screen name="issue/[id]/runs" options={SHEET_OPTIONS} />
+        {/* Réveil programmé (JEF-373). Both are forms with a keyboard, so
+            formSheet per the container table in apps/mobile/CLAUDE.md
+            Lesson 5. The autopilot sheet is reached by `router.replace`
+            from the follow-up sheet, not stacked on top of it. */}
+        <Stack.Screen name="issue/[id]/followup" options={SHEET_OPTIONS} />
+        <Stack.Screen name="issue/[id]/autopilot" options={SHEET_OPTIONS} />
         {/* Run replay (k70). A modal, not a formSheet: it is a content view
             whose link chips push another replay on top, so it needs a back
             stack. Pushed from RunRow inside the runs formSheet. */}

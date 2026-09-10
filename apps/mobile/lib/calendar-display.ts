@@ -15,7 +15,9 @@ import type {
   CalendarAgenda,
   CalendarEventEntry,
   CalendarParticipant,
+  AgendaFollowup,
 } from "@multica/core/types";
+
 
 export interface AgendaDayGroup<T> {
   /** "YYYY-MM-DD" in the asked timezone. */
@@ -154,6 +156,8 @@ export interface AgendaDay {
   events: CalendarEventEntry[];
   issuesDue: AgendaIssue[];
   meetings: AgendaMeeting[];
+  /** Scheduled wake-ups of an issue's agent (JEF-373). */
+  followups: AgendaFollowup[];
 }
 
 /**
@@ -169,6 +173,8 @@ export interface AgendaDay {
  *     viewer's own device timezone (`deviceTimezone`).
  *   - cycles: span `start_date`..`end_date` (date-only) — attached to every
  *     window day inside that inclusive range, rendered as a "band".
+ *   - followups: `fires_at` is an instant with no per-item timezone on the
+ *     wire, so grouped in the viewer's own device timezone, like meetings.
  *
  * An item whose computed day falls outside `windowDates` (a boundary
  * rounding edge — e.g. an event a minute before local midnight in a
@@ -178,13 +184,22 @@ export interface AgendaDay {
  * should not lose real data.
  */
 export function buildAgendaDays(
-  agenda: Pick<CalendarAgenda, "events" | "issues_due" | "cycles" | "meetings">,
+  agenda: Pick<CalendarAgenda, "events" | "issues_due" | "cycles" | "meetings"> & {
+    followups?: AgendaFollowup[];
+  },
   windowDates: string[],
   deviceTimezone: string,
 ): AgendaDay[] {
   const byDate = new Map<string, AgendaDay>();
   for (const date of windowDates) {
-    byDate.set(date, { date, cycles: [], events: [], issuesDue: [], meetings: [] });
+    byDate.set(date, {
+      date,
+      cycles: [],
+      events: [],
+      issuesDue: [],
+      meetings: [],
+      followups: [],
+    });
   }
   for (const event of agenda.events) {
     const day = byDate.get(dayKeyInTimezone(event.starts_at, event.timezone || "UTC"));
@@ -203,9 +218,17 @@ export function buildAgendaDays(
       }
     }
   }
+  for (const followup of agenda.followups ?? []) {
+    byDate
+      .get(dayKeyInTimezone(followup.fires_at, deviceTimezone))
+      ?.followups.push(followup);
+  }
   for (const day of byDate.values()) {
     day.events.sort(
       (a, b) => new Date(a.starts_at).getTime() - new Date(b.starts_at).getTime(),
+    );
+    day.followups.sort(
+      (a, b) => new Date(a.fires_at).getTime() - new Date(b.fires_at).getTime(),
     );
   }
   return windowDates.map((date) => byDate.get(date)!);

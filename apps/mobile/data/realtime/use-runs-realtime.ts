@@ -54,6 +54,10 @@ export function useRunsRealtime() {
         ws.on("task:escalated", invalidate),
         ws.on("approval:asked", invalidate),
         ws.on("approval:decided", invalidate),
+        // A follow-up (JEF-373) is a row of agent_task_queue with status
+        // "deferred", so it appears here as a run blocked on "deferred" —
+        // scheduling or cancelling one changes this list.
+        ws.on("followup:changed", invalidate),
         ws.onAny((msg) => {
           if ((msg.type as string) === "run_halt:changed") invalidate();
         }),
