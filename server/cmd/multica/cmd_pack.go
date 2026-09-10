@@ -243,6 +243,7 @@ func init() {
 	packExportCmd.Flags().String("metric-hint", "", "where to read it in the workspace")
 	packExportCmd.Flags().Bool("include-issues", false, "include issues as sample content")
 	packExportCmd.Flags().Bool("include-notes", false, "include Brain notes")
+	packExportCmd.Flags().Bool("include-skills", true, "include the workspace's skills (skills discovered on a connected computer are never exported)")
 	packExportCmd.Flags().String("out", "", "write to this file (default: the name the server sends)")
 
 	packCmd.AddCommand(packListCmd, packShowCmd, packPreviewCmd, packInstallCmd, packInstalledCmd,
@@ -846,7 +847,8 @@ func runPackExport(cmd *cobra.Command, _ []string) error {
 	}
 	includeIssues, _ := cmd.Flags().GetBool("include-issues")
 	includeNotes, _ := cmd.Flags().GetBool("include-notes")
-	body := map[string]any{"manifest": manifest, "include_issues": includeIssues, "include_notes": includeNotes}
+	includeSkills, _ := cmd.Flags().GetBool("include-skills")
+	body := map[string]any{"manifest": manifest, "include_issues": includeIssues, "include_notes": includeNotes, "include_skills": includeSkills}
 	data, name, err := postFile(cmd.Context(), client, packsPath+"/export", body)
 	if err != nil {
 		return fmt.Errorf("export pack: %w", err)

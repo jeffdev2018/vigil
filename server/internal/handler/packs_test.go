@@ -19,6 +19,7 @@ import (
 	"github.com/multica-ai/multica/server/internal/packs"
 	"github.com/multica-ai/multica/server/internal/testutil"
 	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/pkg/dbid"
 )
 
 // packRowTables maps a ledger kind to the table its rows live in, for cleanup.
@@ -400,3 +401,63 @@ func TestPackYAMLReadsBackWithAwkwardStrings(t *testing.T) {
 		t.Fatalf("round trip changed the text:\n%q\n%q\n%q", back.Skills[0].Content, back.Skills[0].Files[0].Content, back.Doctrine)
 	}
 }
+
+// A pack export leaves machine-local skills out and, on request, every skill;
+// the agents' skill lists follow, so the file validates.
+func TestPackExportLeavesMachineSkillsOut(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("database not available")
+	}
+	local := dbfx.Insert(t, "skill", testutil.Cols{"workspace_id": testWorkspaceID, "name": "machine-only-" + uuidShort(), "description": "d", "content": "c", "config": `{"origin":{"type":"runtime_local","runtime_id":"r","provider":"codex","source_path":"~/.agents/skills/x"}}`, "created_by": testUserID})
+	shared := dbfx.Insert(t, "skill", testutil.Cols{"workspace_id": testWorkspaceID, "name": "shared-" + uuidShort(), "description": "d", "content": "c", "config": `{}`, "created_by": testUserID})
+	agent := dbfx.Agent(t, "export agent "+uuidShort(), handlerTestRuntimeID(t))
+	for _, sk := range []string{local, shared} {
+		dbfx.InsertNoID(t, "agent_skill", testutil.Cols{"agent_id": agent, "skill_id": sk}, "agent_id = $1 AND skill_id = $2", agent, sk)
+	}
+	manifest := map[string]any{"id": "skills-probe", "version": "0.1.0", "title": "Skills probe", "summary": "s", "domain": "ops", "metric": map[string]any{"label": "l", "description": "d"}}
+	resp := testutil.Call(t, testHandler.ExportPack, newRequest(http.MethodPost, "/api/packs/export", map[string]any{"manifest": manifest})).Want(http.StatusOK)
+	p, err := packs.Parse(resp.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := packBundle(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := map[string]bool{}
+	for _, s := range b.Skills {
+		names[s.Name] = true
+	}
+	var localName, sharedName string
+	dbfx.QueryRow(t, `SELECT name FROM skill WHERE id = $1`, local).Scan(&localName)
+	dbfx.QueryRow(t, `SELECT name FROM skill WHERE id = $1`, shared).Scan(&sharedName)
+	if names[localName] || !names[sharedName] {
+		t.Fatalf("skills exported = %v (machine-local %q must be out, shared %q in)", names, localName, sharedName)
+	}
+	if problems := validateTransferBundle(b); len(problems) > 0 {
+		t.Fatalf("export with a dropped skill does not validate:\n%s", joinLines(problems))
+	}
+	// include_skills=false: no skill at all, agents reference none, still valid.
+	resp = testutil.Call(t, testHandler.ExportPack, newRequest(http.MethodPost, "/api/packs/export", map[string]any{"manifest": manifest, "include_skills": false})).Want(http.StatusOK)
+	p, err = packs.Parse(resp.Body.Bytes())
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err = packBundle(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b.Skills) != 0 {
+		t.Fatalf("include_skills=false exported %d skills", len(b.Skills))
+	}
+	for _, a := range b.Agents {
+		if len(a.Skills) != 0 {
+			t.Fatalf("agent %q still lists skills %v", a.Name, a.Skills)
+		}
+	}
+	if problems := validateTransferBundle(b); len(problems) > 0 {
+		t.Fatalf("export without skills does not validate:\n%s", joinLines(problems))
+	}
+}
+
+func uuidShort() string { return uuidToString(dbid.NewV7())[:8] }

@@ -109,3 +109,5 @@ be created straight from a pack, by passing its id as `pack_id`.
 The format itself is one YAML file. `multica pack download <id>` gives you a
 real one to read, and the product documentation's Packs page states the rules
 an author follows and the format's known limits.
+
+Exports never carry skills discovered on a connected computer (`runtime_local`); `multica pack export --include-skills=false` leaves every skill out. The web app uploads packs up to 8 MB; larger files go through `multica pack install-file`.

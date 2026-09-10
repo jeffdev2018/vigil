@@ -107,7 +107,7 @@ multica pack export --id my-desk --version 1.0.0 --title "Our desk" \
   --include-notes --out my-desk.pack.yaml
 ```
 
-An uploaded pack file is capped at 4 MB. An export carries no credential either — agents lose their environment keys, triggers come back disabled, triage sources come back without their token.
+The server accepts a pack file up to 32 MB; the web app can upload up to 8 MB (above that, `multica pack preview-file` / `install-file`). An export never carries the skills discovered on a connected computer (they belong to that machine), and `--include-skills=false` leaves every skill out. An export carries no credential either — agents lose their environment keys, triggers come back disabled, triage sources come back without their token.
 
 ## Pack format
 
@@ -166,7 +166,7 @@ Every command takes `--output json`. See [Using the CLI](/cli) for the shared fl
 - `POST /api/packs/preview | install` — the same, multipart, with the pack file in the `file` field.
 - `GET /api/packs/installed`, `GET /api/packs/installed/{id}` → the ledger and one install's rows.
 - `POST /api/packs/installed/{id}/uninstall` → the install, and the removed / kept report.
-- `POST /api/packs/export {manifest, include_issues, include_notes}` → a `pack.yaml`.
+- `POST /api/packs/export {manifest, include_issues, include_notes, include_skills}` → a `pack.yaml`.
 - Audit actions `pack.installed` and `pack.uninstalled`; the `pack:changed` event keeps an open page current.
 
 ## Next steps

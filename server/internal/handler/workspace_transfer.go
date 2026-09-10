@@ -356,6 +356,12 @@ type transferExportOptions struct {
 	IncludeNotes  bool
 	Template      bool
 	Name          string
+	// SkipSkills leaves every skill out (agents then reference none).
+	SkipSkills bool
+	// SkipMachineSkills leaves out skills discovered on a connected computer
+	// (origin runtime_local): they belong to that machine, not to the
+	// workspace, and a pack cannot reproduce them elsewhere.
+	SkipMachineSkills bool
 }
 
 func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts transferExportOptions) (*transferBundle, error) {
@@ -381,6 +387,14 @@ func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts
 		return nil, fmt.Errorf("skills: %w", err)
 	}
 	for _, s := range skills {
+		if opts.SkipSkills {
+			continue
+		}
+		if opts.SkipMachineSkills {
+			if origin, ok := parseSkillOrigin(s.Config); ok && origin.Type == "runtime_local" {
+				continue
+			}
+		}
 		skillNames[uuidToString(s.ID)] = s.Name
 		ts := transferSkill{Name: s.Name, Description: s.Description, Content: scrubText(s.Content), Status: s.Status, Config: scrubJSON(s.Config), Files: []transferFile{}}
 		if files, err := h.Queries.ListSkillFiles(ctx, s.ID); err == nil {
@@ -408,6 +422,9 @@ func (h *Handler) buildTransferBundle(ctx context.Context, ws db.Workspace, opts
 		}
 		if attached, err := h.Queries.ListAgentSkills(ctx, a.ID); err == nil {
 			for _, s := range attached {
+				if skillNames[uuidToString(s.ID)] == "" {
+					continue // left out of the bundle: a name the pack cannot resolve is a validation problem
+				}
 				ta.Skills = append(ta.Skills, s.Name)
 			}
 		}
